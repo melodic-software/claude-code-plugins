@@ -140,3 +140,27 @@ section F resolves environment variables against their own page.
 Model IDs in `modelOverrides` are not validated here: unknown keys are ignored rather than
 rejected, and deciding whether a key is a real Anthropic model ID means resolving it against
 [Models overview](https://platform.claude.com/docs/en/about-claude/models/overview).
+
+### `effort:` and `model:` frontmatter on skills and agents
+
+The rows above read settings files. A durable effort or model choice also lives in component
+frontmatter — `effort:` and `model:` on a skill or subagent definition — and that placement is
+**this section's**, by an explicit hand-off rather than by inference: the instruction-audit
+catalog's effort row states "**Must NOT flag:** `effort:` frontmatter and `effortLevel` settings
+keys as such … a config-mechanics finding belonging to `claude-config:audit`"
+([`../../audit-instructions/reference/criteria.md`](../../audit-instructions/reference/criteria.md),
+row I21). Without a row here, a component pinning a level is reached by neither skill — each
+pointing at the other is the shape a seam takes when nobody closes it.
+
+| Check | Severity | How to verify |
+| --- | --- | --- |
+| A component's `effort:` pin names the model it was calibrated against, or an event that re-opens it | info | Read the frontmatter of every `skills/*/SKILL.md` and `agents/*.md` in scope. The effort scale is calibrated **per model**, so the same level name does not carry the same underlying value across models, and a level measured against one model and carried to the next is a pin nobody re-measured — the property is stated unqualified at <https://code.claude.com/docs/en/model-config>, so it holds for every model rather than being a per-model quirk. **Do not flag a pin at the resolved model's own default level** — that pin encodes no measurement that could go stale. Resolve the default from the same page when the audit runs rather than assuming it: as of 2026-08-08 it is `high` everywhere effort is supported except Opus 4.7, which defaults to `xhigh`. **Recheck trigger:** `high` ceasing to be the general default, or the exception set changing. Report the missing re-derivation, never the level itself — which level is right is the author's call and this check has no opinion on it |
+| A component's `effort:` and `model:` are consistent with each other | info | A definition setting `model:` without `effort:` inherits the session's level, and the two together are what a spawn actually runs on. Flag only the combination the author is unlikely to have intended: a cheap `model:` tier paired with a top effort level, or the reverse, with no stated reason. Report the mismatch, never a preferred pairing |
+
+**Claim:** a subagent definition's own `effort` overrides the session level rather than yielding to
+it, so the frontmatter value is what ships. **Basis:** the [subagents
+reference](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields) — "Effort level
+when this subagent is active. Overrides the session effort level. Default: inherits from session."
+The same row admits `max`, which the `effortLevel` settings key does not, so a level valid here is
+not evidence it is valid in a settings file. **As of:** 2026-08-08, fetched as raw markdown.
+**Recheck trigger:** that field's precedence or its accepted-level list changing on the page.

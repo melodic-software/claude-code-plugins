@@ -3,6 +3,57 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.0]
+
+### Added
+
+- **Two instruction-audit checks, closing the last two uncovered sections of Anthropic's Fable 5
+  prompting guide** (criteria 1.16.0 → 1.17.0). Both are `Model scope: fable-5` with the promotion
+  gate unmet — each is sourced from that guide alone — and both carry the four-part verification
+  stamp against a raw-markdown capture read in full.
+  - **I23 — context-budget directive to stop, summarize, or hand off.** Detects instruction text
+    telling the model to watch its own remaining context and stop, summarize, hand off, or trim its
+    work on that basis, and injected hook output that surfaces a remaining-context count to the
+    model at all; the guide names the count as the usual trigger, so the disclosure and the directive
+    are one subject. The discriminator is who decides on what evidence: a directive tells the model
+    to judge its own window, a mechanism resolves the window from an instrumented signal and acts
+    itself, and only the first is in scope. Fenced against a measured-signal mechanism, a
+    user-invoked continuation skill, a routing condition that sizes an artifact rather than
+    abandoning the work, a budget rendered to the operator, and a document about the pattern.
+  - **I24 — compressed-shorthand mandate on user-facing output.** Detects an instruction requiring
+    the model's user-facing output to default to arrow chains, hyphen-stacked compounds, dropped
+    articles, fragments, or coined abbreviations. Fenced against the four things the guide itself
+    blesses or leaves alone: terseness between tool calls, brevity by selection rather than by
+    compression, arrows used as notation, and an output style the user or operator explicitly chose.
+  - Neither seeds a pre-scan pattern, and each says why: I23 because every attested instance so far
+    falls inside a fence, so there is no true positive to calibrate against; I24 because the tokens
+    it names are ordinary in documentation prose while the mandate is expressed in prose no grep
+    recognizes. This follows I8-e's precedent of stating the absence rather than leaving it inferred.
+- **A section covering `effort:` and `model:` frontmatter on skills and agents** in
+  `skills/audit/reference/audit-checklist.md`, category H. This closes a seam between two skills
+  this plugin ships: I21 in the instruction-audit catalog explicitly hands frontmatter pins to
+  `claude-config:audit`, and that skill's category H read only `settings.json` keys — so a component
+  pinning an effort level was reached by neither, each pointing at the other. The rows report a
+  missing re-derivation rather than a preferred level, exempt a pin at the resolved model's own
+  default, and carry a dated stamp for the claim that a definition's `effort` overrides the session
+  level.
+
+### Changed
+
+- **I8's base row now cites the general principle, not only the migration framing.** Both of its
+  sources sat in sections about migrating older material, which pointed an auditor at what looks
+  like leftover prior-model scaffolding and past freshly authored over-enumeration — the same defect
+  with no legacy provenance to recognize it by. The row now also cites "Strong instruction
+  following", where the principle is stated on its own, and says plainly that age is not an element
+  of the check.
+- **I8-a records the second-guide corroboration for its independence carve-out.** Read without it,
+  the Opus 5 guide ("remove verification instructions") and the Fable 5 guide ("make
+  self-verification explicit", "separate, fresh-context verifier subagents tend to outperform
+  self-critique") look contradictory, and a reader had to resolve that alone. They are not: the
+  anti-pattern is the instructed *self*-check, and the architected independent verifier is what the
+  Fable 5 guide is asking for. The scope annotation does not move — the gate wants a second guide
+  stating this row's *detection* claim, and the Fable 5 guide states no such thing.
+
 ## [0.21.9]
 
 ### Removed

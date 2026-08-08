@@ -289,6 +289,15 @@ sources; promotion gate unmet). Row I8-b is unscoped — two model guides conver
   "Parallel subagents" — "Claude Fable 5 dispatches parallel subagents more readily than prior
   models. Use subagents frequently … and prefer asynchronous communication between orchestrator and
   subagents over blocking until each subagent returns."
+- **The general principle, and why it is cited separately.** Both sentences above sit in sections
+  about *migrating* older material, and a reader taking them as the whole basis sweeps for what
+  looks like leftover prior-model scaffolding — walking straight past freshly authored
+  over-enumeration, which is the same defect with no legacy provenance to recognize it by. The
+  principle is stated on its own in "Strong instruction following": "Instruction-following is
+  improved enough that you can steer most behaviors with a brief instruction rather than enumerating
+  each behavior by name," and that guide's own worked case is a *newly written* brevity
+  instruction replacing a list of patterns, not a migration. **Age is not an element of this row.**
+  Detect over-enumeration wherever it was written and whenever.
 
 **Row I8-a: instructed self-check removal** · Tier `behavioral` · Model scope: `opus-5`.
 

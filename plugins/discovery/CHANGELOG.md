@@ -1,5 +1,24 @@
 # Changelog — discovery plugin
 
+## [0.11.0]
+
+### Changed
+
+- **Both dispatch envelopes now carry the reason the work is being done**, not only what to do. A
+  section-by-section audit against Anthropic's Fable 5 prompting guide found that every
+  dispatch-brief contract in this marketplace specified outcome, output shape, sources, and
+  boundaries — and none carried intent. That guide singles out long-running agents drawing on
+  multiple workstreams as where the omission costs most, and a dispatched worker is that case at its
+  sharpest: it has no conversation to infer intent from.
+  - `skills/explore/SKILL.md` — the pre-dispatch envelope the parent resolves now includes the
+    reason the exploration is being run and what it feeds, beside scope, memory-slice path, memory
+    root, budget, and capability flags.
+  - `skills/research/context/dispatch.md` — the envelope table gains a row for the reason, with the
+    same "why the agent cannot supply it" justification the other rows carry. The failure mode is
+    worse than a missing topic and the row says so: a missing topic is silence the agent can report,
+    while a missing reason is invisible — the agent researches the topic as written, returns
+    something well-formed, and neither side learns it answered the wrong question.
+
 ## [0.10.0]
 
 ### Added

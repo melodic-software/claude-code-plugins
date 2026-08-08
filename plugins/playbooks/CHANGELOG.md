@@ -4,6 +4,28 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.7.0]
+
+### Changed
+
+- **The worker-spec contract in `skills/fable-5/context/orchestration.md` is now five parts, not
+  four.** A new second part — *Why it is being asked* — carries the larger task the work feeds, who
+  the output is for, and what it enables. The chapter already opened by naming the exact blindness
+  this closes ("A worker sees none of your conversation, your accumulated findings, or your standing
+  instructions") and then specified only Objective, Output contract, Sources and context, and
+  Boundaries. Anthropic's Fable 5 prompting guide, "Give the reason, not only the request", singles
+  out long-running agents drawing on multiple workstreams as where intent matters most.
+  - The failure mode is silent, which is why it earns a field rather than a sentence elsewhere. A
+    worker holding only an objective resolves each in-bounds ambiguity toward the sentence that was
+    written rather than the outcome that was wanted, and returns something well-formed and wrong —
+    the shape `skills/orchestrate` in the `session-flow` plugin already records from this
+    marketplace's own fan-out, where one of eleven audit workers silently audited a different
+    artifact and returned a confident, correct-looking result.
+  - The chapter's worked example now carries the reason too, so the Weak/Strong pair demonstrates
+    the new part instead of only the old ones.
+  - `skills/fable-5/SKILL.md` — the core-doctrine distillation of that contract gains the same part,
+    keeping the one-home rule intact: the chapter owns the doctrine, the core line distills it.
+
 ## [0.6.20]
 
 ### Fixed
