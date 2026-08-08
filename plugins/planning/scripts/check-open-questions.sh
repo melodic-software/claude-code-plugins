@@ -172,9 +172,15 @@ while IFS= read -r line; do
     die_ungradeable "malformed register row (needs 'Q<N> | status | round | question'): $line"
   fi
 
+  # No leading zeros, and no Q0. `[[ ]]` numeric comparison evaluates its
+  # operands in arithmetic context, where a leading-zero numeral is OCTAL: the
+  # contiguity test below on `Q08` errors to stderr and resolves FALSE, so a
+  # gapped register would silently pass. Rejecting the form outright keeps the
+  # comparison total. Q<N> is a running counter from 1, so `Q08` is malformed
+  # by the register's own contract anyway.
   num="${id#[Qq]}"
-  if ! [[ "$num" =~ ^[0-9]+$ ]]; then
-    die_ungradeable "malformed question id: $id"
+  if ! [[ "$num" =~ ^[1-9][0-9]*$ ]]; then
+    die_ungradeable "malformed question id (expected Q1, Q2, … with no leading zero): $id"
   fi
   # Normalize so `q3` and `Q3` collide as the same id.
   id="Q$num"

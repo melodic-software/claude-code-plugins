@@ -175,7 +175,7 @@ This does not contradict the rounds loop's "capture the answers … NOT on disk 
 
 Because the register must exist before the first reply, a session that asks ANY round emits the ledger — the `≥2 open questions OR me mode` threshold in SKILL.md "Emit checklist" governs the full checklist, not this section.
 
-**`lock` asks nothing, so a lock run that resolves cleanly writes no register — but a lock run that does not resolve cleanly does.** `lock`'s STOP-on-gap rule and the unattended ladder both produce questions the run could not resolve, and a question outside the register is a question outside the gate. So: a gap surfaced mid-synthesis is registered `open` when it goes to the user, and a genuine user decision reached with nobody to answer is registered `blocked`. The register exists whenever there is something unresolved to record, in every mode.
+**A run that asks nothing writes no register — but a run that fails to resolve cleanly does, whichever action it was.** `auto` routing to synthesize-directly with no open decision asks nothing, exactly as `lock` does; both are ordinary outcomes, not edge cases, and neither is exempt for being that action. `lock`'s STOP-on-gap rule and the unattended ladder both produce questions the run could not resolve, and a question outside the register is a question outside the gate. So: a gap surfaced mid-synthesis is registered `open` when it goes to the user, and a genuine user decision reached with nobody to answer is registered `blocked`. The register exists whenever there is something unresolved to record, in every mode.
 
 ```text
 - Q1 | answered | round 1 | Who can write comments? | enrolled + instructor + admin

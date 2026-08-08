@@ -193,7 +193,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" \
   --ledger <memory_dir>/<topic-slug>/interview-checklist.md
 ```
 
-Exit 1 (a question is still `open`) and exit 2 (ungradeable) both HALT — resolve or explicitly retire the row and re-run. Never lock a contract over a non-zero exit; that is the reported failure restated. A run that wrote no register (a `lock` synthesis that hit no gap) has nothing to gate and skips this. The `--brief` cross-check runs in Step 4, once there is a Brief to cross-check against.
+Exit 1 (a question is still `open`) and exit 2 (ungradeable) both HALT — resolve or explicitly retire the row and re-run. Never lock a contract over a non-zero exit; that is the reported failure restated. **A run that asked no question wrote no register, has nothing to gate, and skips this** — `lock` synthesizing with no gap, and equally `auto` routing to synthesize-directly with no open decision. The carve-out is about the absence of questions, never about which action produced it: the moment ANY question exists — asked, surfaced mid-synthesis, or blocked unattended — a register exists and the gate applies. The `--brief` cross-check runs in Step 4, once there is a Brief to cross-check against.
 
 **Confirmation gate (`me` and `auto`):** an empty frontier is necessary but not sufficient — before persisting the contract or handing off, restate the shared understanding and get the user's explicit confirmation that it is reached. Do not act on the interview's output until they confirm. `lock` is exempt: invoking it IS the confirmation (its STOP-on-gap rule still applies).
 

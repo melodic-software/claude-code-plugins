@@ -58,10 +58,12 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 - **`interview`: the ledger is emitted whenever any round is asked.** The `≥2 open questions OR me
   mode` threshold still governs the full checklist, but the register has to exist before the first
-  reply, so any asking round now emits it. A `lock` run that resolves cleanly asks nothing and
-  writes no register — but `lock`'s STOP-on-gap and the unattended ladder both produce questions
-  the run could not resolve, and a question outside the register is a question outside the gate,
-  so those are registered too (`open` when surfaced to the user, `blocked` when nobody is there).
+  reply, so any asking round now emits it. A run that asks nothing writes no register and skips
+  the gate — `lock` synthesizing with no gap, and equally `auto` routing to synthesize-directly
+  with no open decision. **The carve-out is about the absence of questions, never about which
+  action produced it**, because `lock`'s STOP-on-gap and the unattended ladder both produce
+  questions the run could not resolve, and a question outside the register is a question outside
+  the gate; those register too (`open` when surfaced to the user, `blocked` when nobody is there).
 
 ## [0.27.3]
 
