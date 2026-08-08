@@ -57,13 +57,13 @@ rather than by instruction text, which is stronger) · `GAP` (nothing discharges
 | F0 | Intro + Note: adaptive-thinking-only API surface; safety classifiers over offensive cybersecurity, biology/life sciences, and summarized-thinking extraction; configure fallback to Opus 4.8 | `SKILL.md:20` meta-rule 3 carries the classifier-fallback re-resolution rule, sourced to the system card | `N/A` — client fallback is harness configuration, not instruction content. I10 sources its scope from the same classifier set |
 | F1 | Capability improvements over Opus 4.8 (long-horizon autonomy, first-shot correctness, vision, enterprise workflows, code review recall, ambiguity, delegation) | `N/A` — framing | `N/A` — framing |
 | F2 | Longer turns by default; adjust client timeouts, streaming, progress indicators; act when you have enough information rather than overplanning | `SKILL.md:110` "end no turn on unexecuted intent"; `problem-framing.md` decide-or-ask ladder | `COVERED` — row **I8-d** (short-turn assumptions), `Model scope: fable-5`, sourced to this section verbatim |
-| F3 | Effort is the primary dial; `high` default, `xhigh` for capability-sensitive, `medium`/`low` for routine; prevent unrequested tidying or refactoring at higher effort | `SKILL.md:25–34` "floors that survive every effort level"; `SKILL.md:83,86` scope fence and no-cleanup-around-a-fix | `COVERED` — row **I21** (effort pinned across a model change with no re-sweep), unscoped, gate met. Scope-creep half: see *Considered and declined* |
+| F3 | Effort is the primary dial; `high` default, `xhigh` for capability-sensitive, `medium`/`low` for routine; prevent unrequested tidying or refactoring at higher effort | `SKILL.md:25–34` "floors that survive every effort level"; `SKILL.md:83,86` scope fence and no-cleanup-around-a-fix | Was `COVERED`; **a seam was found and closed by this change.** Row **I21** covers instruction prose and explicitly hands `effort:` frontmatter to `claude-config:audit`, whose category H read only `settings.json` keys — so a component pin was reached by neither check, each pointing at the other. Category H now covers it. Scope-creep half: see *Considered and declined* |
 | F4 | Strong instruction following — one brief instruction replaces enumerating each behavior; brevity by selection not compression; pause only where the work genuinely requires the user | `SKILL.md:110` lead with the outcome; `SKILL.md:106` decide-or-ask ladder; `communication.md` | `COVERED` — row **I8 base**, `Model scope: fable-5`, sourced to this section's own "too prescriptive" claim |
-| F5 | Ground progress claims — audit each claim against a tool result from this session; report outcomes faithfully | `SKILL.md:30,42,98`; `verification.md`; carried to other models at `reference/model-adaptation/opus-4-8.md:48` | `GAP` by design — an instruction to *add* grounding is advice, not a detectable defect. No row proposed |
+| F5 | Ground progress claims — audit each claim against a tool result from this session; report outcomes faithfully | `PARTIAL` — `SKILL.md:30,42,98`, `verification.md:90-98`, `phase-verifier.md:16-26` and `implement-dispatch:58` all carry it; the loop lanes' own cycle-report step does not, bounding report *length* rather than grounding. Mitigated receiver-side rather than sender-side, which is the stronger of the two | `GAP` by design — an instruction to *add* grounding is advice, not a detectable defect. No row proposed |
 | F6 | State the boundaries — when the user describes a problem, the deliverable is the assessment; check evidence before a state-changing command | `SKILL.md:105`, near-verbatim to the guide's block, including the unasked-artifact clause the guide names (drafted emails, defensive branches) | `GAP` by design — same reason as F5 |
 | F7 | Parallel subagents — dispatch readily, communicate asynchronously, keep subagents long-lived | `SKILL.md:91–94`, including "dispatch is not a blocking call" | `COVERED` — row **I8 base**'s named worked instance is the delegation throttle, sourced to this section |
 | F8 | Construct a memory system — one lesson per file, one-line summary, no duplication of what the repo already records | `SKILL.md:121` write every expensive conclusion to a durable note; `context-economy.md`. Adjacent plugin: `claude-memory` | `N/A` — memory-layer hygiene is `claude-memory:audit`'s surface by the catalog's own partition |
-| F9 | Rare early stopping — a text-only statement of intent with no tool call, or asking permission when it already has enough; autonomous pipelines get a system reminder | `SKILL.md:110` "end no turn on unexecuted intent" | **`MECHANISM`** — `plugins/autonomy/hooks/lane-stop-gate.sh` intercepts the stop attempt itself and re-injects a completion self-check. A gate beats an admonition, and the guide's own remediation elsewhere prefers a mechanism to an instructed rhythm |
+| F9 | Rare early stopping — a text-only statement of intent with no tool call, or asking permission when it already has enough; autonomous pipelines get a system reminder | **`PARTIAL`** — corrected from `MECHANISM` after independent audit. `SKILL.md:110` and `communication.md:40` cover unexecuted intent; the lane-stop gate is a backstop for a *different* failure. See below | `GAP` by design — an instruction to add a reminder is advice, not a detectable defect |
 | F10 | Rare context-budget concern — avoid surfacing budget counts to the model; reassure if the harness must | `SKILL.md:124`, which states the counter-steer and then carves out "an instructed stop, or a workflow or mechanism built to gate on the window" under meta-rule 1 | Was `GAP`; **closed by this change** — row **I23**, added here |
 | F11 | Give the reason, not only the request | **`GAP` — found by independent audit, fixed in this change.** See below | `COVERED` — row **I7**, unscoped, promotion gate met by the model-agnostic best-practices page |
 | F12 | Readability — drop working shorthand in the final summary; no arrow chains, hyphen-stacked compounds, or invented labels; write for a reader who saw none of it | `SKILL.md:110` "write the closing message for a reader who wasn't watching"; `communication.md:141-148` | Was `GAP`; **closed by this change** — row **I24**, added here |
@@ -167,6 +167,80 @@ The fix adds one field to each contract, not an enumeration. Row I7 keeps its fl
 the observation that a dispatch brief is the high-stakes case for it is recorded here rather than
 made into a severity rule, because escalating on surface *kind* is a change to the check's shape that
 this audit did not verify.
+
+## What the independent audit changed
+
+Fourteen fresh-context auditors, one per section, were given only their own section of the guide,
+the population definition, and no part of the reasoning above. Three adversarial verifiers ran
+against the artifacts. What follows is what they overturned, what they confirmed, and what was
+declined with a reason — recorded so none of it is re-derived.
+
+### Overturned
+
+- **F11 went from `COVERED` to a real gap**, and is the change described in the section above.
+- **F9 went from `MECHANISM` to `PARTIAL`.** The claim that `lane-stop-gate.sh` discharges this
+  section does not survive reading its text: the gate's reason string targets stopping on "a
+  self-estimated context percentage, a turn count, or a vague sense that enough was done" — an
+  adjacent failure, not this one. Against the guide's seven-clause reminder it has no counterpart
+  for the autonomy framing, the named "Want me to…?" phrasings, the reversible-actions rule, the
+  follow-ups-versus-permission distinction, or the check-your-last-paragraph self-check, and it does
+  no content classification at all, so it cannot tell a turn ending in a genuine blocked-on-user
+  question from a lazy stop. What holds is narrower and still true: unexecuted intent is covered by
+  `SKILL.md:110` and `communication.md:40`, and the autonomous lanes carry standing authorization
+  plus "speak to me only when fully blocked."
+- **An imprecision in this file's own F14.2 row**, caught by the citation verifier: it attributed
+  "is a floor" to the fresh-context verifier when `SKILL.md:101` says *self-review* is the floor and
+  the verifier is required in addition, under a stated exemption. Corrected in the table above.
+
+### Confirmed against my reading, by auditors who could not see it
+
+Reasoning-echo directives (the section whose failure causes real refusals) — swept independently
+with fresh greps rather than trusting the existing scan, and the same single false positive found.
+Short-turn assumptions, behavioral boundaries, parallel-subagent throttles, and the safety-classifier
+section all came back clean. On throttles the auditor checked each of seven concurrency caps against
+I8's fence individually rather than reading the fence cold, and every one cited a ground the fence
+names — reviewability, rate limits, hard system limits, or shared mutable state.
+
+### Corrected in my own reporting
+
+**`caveman` is not in this repository.** It is absent from `plugins/` and from `marketplace.json` —
+a third-party plugin, installed in the auditing session only. An earlier reading of F12 treated it as
+an in-repo conflict; it is not one, and I24's opted-in-style fence was written against a surface this
+repository does not ship. The fence is still correct and still needed for consumers, but no local
+instance motivated it.
+
+### Declined, with reasons
+
+- **F4's over-prescription findings in `communication.md`.** The auditor's strongest candidates —
+  "Lead with the outcome" and "Decide, or ask" — restate guide passages at greater length with a
+  weak/strong example pair. Declined because row I9 protects exactly that shape: examples steering
+  output *format, tone, and structure* "remain recommended", and only approach-pinning examples are
+  findings. A chapter that implements the guide's advice with a demonstrated contrast is not the
+  same as scaffolding that re-states what a strong model does untold. The two diligence bullets it
+  found in the pull-request babysit loop are a fair small trim, recorded for that surface's owner
+  rather than taken here, since the surrounding list is a genuine safety enumeration.
+- **F8's memory-system layout obligations.** One lesson per *file* and a one-line summary at the top
+  are genuinely absent; the substance around them is not — `context-economy.md` requires one
+  conclusion per entry, an evidence pointer on each, the reason a decision mattered, deletion the
+  moment an entry is disproved, and a re-derivation-cost bar that does the work of the guide's
+  no-duplication rule. The layout specifics are declined because file placement is owned by the
+  topic-docs convention and a plugin that hardcodes a lessons-file layout stops being repo-agnostic,
+  which this marketplace requires of every plugin.
+- **A reusable artifact carrying the guide's autonomous-pipeline reminder.** The reminder is
+  upstream text. Reproducing it here would be hand-copying external content into the repository,
+  which this repository's own documentation doctrine forbids; the guide is the pointer.
+
+### Recorded for others, not acted on here
+
+- **`context-guard` and `playbooks` are independently installable with no dependency wiring.** The
+  counter-doctrine that licenses the zone injection lives in `playbooks:fable-5`, so a session with
+  `context-guard` installed and the playbook never armed receives the imperative-voice continuation
+  menu with nothing in context to interpret it against. This is a cross-plugin runtime-composition
+  concern; I23 audits instruction text on a single surface and no catalog row claims that ground.
+  Naming it is the contribution; shoehorning it into I23 would be the wrong fix.
+- **That whole judgement is a static read.** No transcript was produced showing a model volunteering
+  an unprompted stop *because of* the injection in a `context-guard`-only install. Recorded as
+  unverified rather than settled.
 
 ## Corroboration recorded (F14.2)
 
