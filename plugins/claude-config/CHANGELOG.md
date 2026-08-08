@@ -3,6 +3,71 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.10]
+
+### Fixed
+
+- **`audit-instructions`: the skill hardcoded `~/.claude` in the very paths its own rule forbids
+  hardcoding.** Phase A resolves the user root as `${CLAUDE_CONFIG_DIR:-~/.claude}` and says never to
+  hardcode it, yet the auto-memory entrypoint, the scope-filter list, and the memory-layer surface
+  list all named `~/.claude` literally. `CLAUDE_CONFIG_DIR` relocates the whole tree including
+  `projects/`, so a hardcoded default read a store the session no longer writes. Every operative path
+  now resolves against that root; quoted upstream text and the `${CLAUDE_CONFIG_DIR:-~/.claude}` form
+  itself are unchanged.
+
+- **`audit-instructions`: I3 named a `skills:` preload as a valid deferral destination, which defers
+  nothing.** The check rejects `@path` imports because they load unconditionally, then offered a
+  preload — but the full content of each skill named in an agent's `skills:` field is injected into
+  every dispatch, exactly the load profile the check exists to avoid, as the skill's own co-residency
+  table states. I3 now permits only conditional runtime invocation, and says to report that no safe
+  deferral is available rather than proposing a preload.
+
+- **`audit-instructions`: Phase A never inventoried a subagent's own memory, so a criterion it
+  declares in scope could not fire.** The co-residency table graded an agent-definition-versus-its-own
+  `memory` contradiction as real, but no inventory step reached that `MEMORY.md`. Phase A now
+  enumerates it per scope (`user` under the resolved user root, `project`, `local`), and the
+  co-residency table carries its own row.
+
+- **`audit-instructions`: the liveness gate resolved a closed five-input list that omitted hook
+  enablement.** A hook that cannot fire carries no live instruction text, so a pass comparing against
+  it grades a dead surface. The gate now resolves `disableAllHooks` **per settings scope** — a user,
+  project, or local disable cannot reach managed hooks, so managed hook text stays live and must not
+  be dropped with the rest — together with `allowManagedHooksOnly` and its force-enabled-plugin
+  exemption.
+
+- **`audit-instructions`: a nested project memory pair was routed to a check that never discovers the
+  file.** The skill routed any project-scope pair to `claude-memory`'s C6, which discovers with
+  `find . -maxdepth 1`, so a `src/api/CLAUDE.md` pair was graded by neither pass. The boundary is now
+  **root-level** project, matching the routing table the criteria reference already owned. Scoped
+  narrowly: `.claude/rules/**` still routes to C6, whose rules discovery is recursive.
+
+- **`conflict-scan.sh`: `and` coordinating an opposite directive was not a window boundary.** "Always
+  use `Read` and never use `Bash`" against "Never use `Read`" yielded zero candidates, because the
+  first entity's window swallowed the second directive's `never` and took its polarity; the same line
+  with `but never` yielded one. A **bare** `and` cannot be the boundary — "never use `Bash` and
+  `Grep`" is one directive over two objects, and cutting there strips the token governing the second.
+  The boundary therefore requires a polarity token after the coordinator, and is consumed
+  asymmetrically: a leading window resumes after the coordinator alone so that token still classifies
+  its entity. Three cases cover the fix and the false negative it must not introduce.
+
+- **`audit-instructions`: I14's startup set omitted `./.claude/CLAUDE.md`.** A project keeping its
+  memory there loads it at launch exactly as `./CLAUDE.md` would, so naming only the bare path let the
+  redundant read of the active file escape the check. Both supported root locations are now in the
+  set, matching what Phase A already inventories.
+
+- **`audit-instructions`: I14 exempted supporting documents unconditionally, ignoring startup
+  imports.** `@path` imports are expanded into context at launch, recursively, so a startup file
+  carrying `@AGENTS.md` or `@docs/CONTRIBUTING.md` makes that document resident and an instruction to
+  go read it is the redundant retrieval the check exists to find. The exemption now applies only to
+  what no active startup import reaches, resolved the way I15 already resolves imports.
+
+- **`setup` and the README: `awk` and `sort` were scoped to one skill and are used by three.**
+  `check-plugin-drift.sh` (both), `permission-rule-check.sh` (both), and `fix-plugin-drift.sh`
+  (`sort`) call them with no prerequisite check, so `audit` and `audit-permission-grants` fail
+  mid-run on a bare `command not found` rather than on a named prerequisite. Only
+  `conflict-scan.sh` probes and `exit 2`s. Both surfaces now name all three skills, and the README's
+  requirements section names `awk` and `sort` alongside `jq` and `curl`.
+
 ## [0.21.9]
 
 ### Removed

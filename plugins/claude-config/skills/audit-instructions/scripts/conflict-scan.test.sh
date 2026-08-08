@@ -30,14 +30,14 @@ assert_exit() {
 }
 assert_contains() {
   case "$2" in
-    *"$3"*) pass "$1" ;;
-    *) fail "$1" "expected to contain: $3" ;;
+  *"$3"*) pass "$1" ;;
+  *) fail "$1" "expected to contain: $3" ;;
   esac
 }
 assert_not_contains() {
   case "$2" in
-    *"$3"*) fail "$1" "unexpected substring: $3" ;;
-    *) pass "$1" ;;
+  *"$3"*) fail "$1" "unexpected substring: $3" ;;
+  *) pass "$1" ;;
   esac
 }
 
@@ -328,8 +328,8 @@ NOCOMMA="$TEST_TMPDIR/no-comma.md"
 cat >"$NOCOMMA" <<'EOF'
 Always use `Read` but never use `Bash` for file inspection.
 EOF
-assert_contains "an unpunctuated contrastive does not flip the earlier entity"   "$(bash "$SCRIPT" "$NOCOMMA" "$READNO")" "|Read|"
-assert_contains "the entity after an unpunctuated contrastive is still prohibited"   "$(bash "$SCRIPT" "$BASHYES2" "$NOCOMMA")" "|Bash|"
+assert_contains "an unpunctuated contrastive does not flip the earlier entity" "$(bash "$SCRIPT" "$NOCOMMA" "$READNO")" "|Read|"
+assert_contains "the entity after an unpunctuated contrastive is still prohibited" "$(bash "$SCRIPT" "$BASHYES2" "$NOCOMMA")" "|Bash|"
 
 # --- Case 32 (MUST NOT FLAG): temporal `while` is not a contrastive ---------
 # "use X while the flag is set" is one clause; splitting it would drop the
@@ -338,7 +338,7 @@ TEMPORAL="$TEST_TMPDIR/temporal.md"
 cat >"$TEMPORAL" <<'EOF'
 Always use `WebFetch` while the offline flag is unset.
 EOF
-assert_eq "temporal 'while' does not split the clause" "1"   "$(bash "$SCRIPT" --count "$TEMPORAL" "$POSTPOSED")"
+assert_eq "temporal 'while' does not split the clause" "1" "$(bash "$SCRIPT" --count "$TEMPORAL" "$POSTPOSED")"
 
 # --- Case 33: `and` coordinating an opposite directive splits too -----------
 # Opposite directives coordinate with `and` as readily as with a contrastive.
@@ -375,7 +375,7 @@ GREPYES="$TEST_TMPDIR/grep-yes.md"
 cat >"$GREPYES" <<'EOF'
 Always use `Grep` for file inspection.
 EOF
-assert_contains "a bare `and` does not strip the token governing the second object" \
+assert_contains "a bare 'and' does not strip the token governing the second object" \
   "$(bash "$SCRIPT" "$BAREAND" "$GREPYES")" "|Grep|"
 
 # --- Case 16: a missing runtime prerequisite exits 2 ------------------------

@@ -42,7 +42,8 @@ concerns its siblings already cover — route rather than re-answer:
 - Config-file mechanics (settings.json, .mcp.json, hooks wiring) is `claude-config:audit`; grant
   portability is `claude-config:audit-permission-grants`.
 
-On **memory-layer surfaces** (CLAUDE.md, CLAUDE.local.md, `.claude/rules/`, `~/.claude/rules/`),
+On **memory-layer surfaces** (CLAUDE.md, CLAUDE.local.md, `.claude/rules/`, and `rules/` under the
+user root Phase A resolves),
 this skill runs only the model-era checks I6–I22. It never runs or reports the hygiene checks
 I1–I5 (line-necessity, length, placement, inferable content, rule-to-hook) on these surfaces —
 that instruction-memory hygiene layer belongs to the `claude-memory` plugin. When that plugin is
@@ -72,7 +73,7 @@ never which surfaces are read. Phase A always inventories the full comparison se
 relation between two surfaces and a scoped run still needs the counterpart:
 
 - `claude-md` — findings on user + project CLAUDE.md and CLAUDE.local.md
-- `rules` — findings on `.claude/rules/` and `~/.claude/rules/`
+- `rules` — findings on `.claude/rules/` and `rules/` under the user root Phase A resolves
 - `skills` — findings on skill bodies and their context/reference files
 - `agents` — findings on agent definition markdown
 - `hooks` — findings on hook instruction text: prompt-type hook text, and handler output injected
