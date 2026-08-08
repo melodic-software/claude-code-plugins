@@ -82,7 +82,9 @@ Pair with proactive `/compact <hint>` when you feel bad-compact risk.
 > following, tool calling, and reasoning stay consistent throughout the window." On Opus 5 the
 > degradation premise for early compaction is gone; a lowered auto-compact window remains a
 > legitimate cost/compaction-timing choice on its own terms, and the figure may still apply to
-> other 1M models the guide does not cover.
+> other 1M models the guide does not cover. **Recheck trigger:** a re-fetch of the Opus 5 guide's
+> long-context bullet finds it no longer matching this record, or a later model generation's
+> guide states a different long-context consistency claim.
 
 Docs: [Claude Code settings](https://code.claude.com/docs/en/settings)
 Source: [@trq212 status 2044548257058328723](https://x.com/trq212/status/2044548257058328723)
