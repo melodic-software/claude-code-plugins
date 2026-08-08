@@ -3,6 +3,39 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.3]
+
+### Changed
+
+- **Shared `hook-utils.sh`: a hook invocation spawns three fewer external processes (#1978).**
+  Every hook that buffers its stdin paid an `awk` (one float division, to slice the read timeout), a
+  `printf | tr -d '\r'` pipeline (a fork and an exec to delete one byte class from a string bash
+  rewrites in place), and a `jq -e .` validity probe over a buffer the read loop had already parsed
+  with jq. On Windows Git Bash, where process creation is `fork()` emulation, each spawn costs
+  ~140 ms. Behavior is unchanged: the slice keeps the three-decimal form `read -t` is given, the
+  buffer is CR-stripped as before, and the completeness verdict is reused only when jq itself
+  produced it — so a host without jq still fails open exactly as it did. Also adds
+  `hook::jq_fields`, which extracts several fields from one payload in a single jq process for
+  hooks that read two or three of them. Synced from `lib/hook-utils.sh`.
+
+## [0.27.2]
+
+### Fixed
+
+- **`plugins` no longer treats `$HOME` as project context when the shell and the OS spell it
+  differently.** The exclusion that keeps `$HOME` out of project scope compared `pwd -W`'s native
+  path against `$HOME` exactly as the environment carried it. Those are the same directory in two
+  spellings, and an MSYS mount alias carries no drive letter for the normalizer to reconcile, so
+  `/tmp/x` never matched the `C:/…` reported for it — the exclusion silently failed and
+  `$HOME/.claude/settings.json` was read as the project map, duplicating the user map. Both sides
+  are now spelled by the same command before they are compared. Normalizing harder could not have
+  fixed it: the two inputs disagreed before the normalizer saw them.
+
+  Both spellings go through `builtin cd` / `builtin pwd`, extending the shadow discipline the
+  script already applies to its own directory resolution. An exported `cd` that returns success
+  without moving would otherwise resolve `$HOME` to the cwd, collapsing every corroborated non-git
+  project onto `$HOME` and stripping its project settings — the inverse failure, and a worse one.
+
 ## [0.27.1]
 
 ### Changed

@@ -71,8 +71,26 @@ parser is stdlib-only.
 
 JSON to stdout: `status` / `summary`, plus per-session `data` (session info, turns, tokens, tool
 usage + rejections, compactions, turn durations, stop reasons, files modified, subagents, errors)
-and — in multi-session form — an `aggregate` block. Exit codes: 0 = success, 1 = warning,
-2 = error.
+and — in multi-session form — an `aggregate` block and a `chain_coverage` block. Exit codes:
+0 = success, 1 = warning, 2 = error.
+
+`--sessions` accepts its ids space-separated OR comma-joined; both spell the same list.
+
+### Check chain coverage before presenting
+
+`chain_coverage` reports `requested` / `found` / `available` / `ratio` — `available` being the
+transcripts present for this project, which is the denominator the walk itself cannot see. The
+`--chain-from` walk ends at the first session that wrote no handoff file, so a chain linked by
+hand-pasted continuation prompts can cover a fraction of the work and still look complete here.
+
+When `ratio` is below ~0.5, say so before presenting the retro — name `found` and `available`, and
+offer to re-run with the ids enumerated:
+
+```bash
+"$PY" "$PARSER" --sessions <sid1> <sid2> ... --base "$SESSION_DATA_DIR"
+```
+
+Do not silently scope a chain retrospective to what the walk happened to reach.
 
 ### Present metrics
 
