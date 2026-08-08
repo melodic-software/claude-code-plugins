@@ -1,6 +1,6 @@
 ---
-version: 1.16.0
-last-updated: 2026-08-04
+version: 1.16.1
+last-updated: 2026-08-08
 ---
 
 # Instruction-Audit Criteria
@@ -293,9 +293,9 @@ sources; promotion gate unmet). Row I8-b is unscoped — two model guides conver
 **Row I8-a: instructed self-check removal** · Tier `behavioral` · Model scope: `opus-5`.
 
 - **Detect:** instructions telling the model to re-check work it already checks — "double-check
-  your answer," "re-verify before responding," "include a final verification step," "use a
-  subagent to verify" — including legacy harness scaffolding that adds separate verification
-  steps.
+  your answer," "re-verify before responding," "include a final verification step for any
+  non-trivial task," "use a subagent to verify" — including legacy harness scaffolding that adds
+  separate verification steps.
 - **Classify by reviewer INDEPENDENCE, not invocation source:** architected independent review — a
   fresh-context reviewer blind to the producing rationale, or a different-vendor verifier — is NOT
   a finding; the anti-pattern is the instructed self-check. **Carve-out lanes (never flagged):**
@@ -308,8 +308,9 @@ sources; promotion gate unmet). Row I8-b is unscoped — two model guides conver
   performs.
 
 **Row I8-b: conservative-reporting detection** · Tier `behavioral`. Unscoped — promotion gate MET
-on its second arm: a second model guide, the Sonnet 5 one, states the same claim about the same
-three trigger phrases (see Source), so this fires for every target model.
+on its second arm: a second model guide, the Sonnet 5 one, states the same claim about the shared
+trigger phrases (two of the three; see Source for the third's provenance), so this fires for every
+target model.
 
 - **Detect:** review/report instructions that gate severity at the FINDING stage — "be
   conservative," "only report high-severity issues," "don't nitpick" — which current models follow

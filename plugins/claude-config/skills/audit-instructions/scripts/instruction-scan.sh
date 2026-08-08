@@ -12,9 +12,10 @@
 #       reasoning, "think out loud", reasoning_extraction). These tell the model
 #       to emit its internal reasoning as response text.
 #   I8  model-era candidates, three pattern families emitted with per-family ids
-#       matching the catalog's Opus-5-scoped rows (the scanner is model-blind —
-#       the model lane adjudicates against the resolved target model and the
-#       criteria-owned fences):
+#       matching the catalog's I8 rows — I8-a and I8-c are Opus-5-scoped, I8-b is
+#       unscoped (promotion gate met; fires for every target). The scanner is
+#       model-blind — the model lane adjudicates against the resolved target model
+#       and the criteria-owned fences:
 #         I8-a instructed self-check ("double-check", "re-verify", "final
 #              verification step", "use a subagent to verify", "verify your own work")
 #         I8-b conservative-reporting directives ("be conservative", "only report
@@ -98,9 +99,9 @@ RATIONALE_ERE="because|${WB_L}since${WB_R}|${WB_L}so that${WB_R}|${WB_L}so it${W
 # I10 reasoning-echo phrasing.
 I10_ERE="(show|explain|reproduce|echo|transcribe|verbalize|narrate|share|describe) (your |the )?(thinking|reasoning|thought process|chain of thought)"
 I10_ERE="${I10_ERE}|think out loud|walk (me|us) through your (thinking|reasoning)|reasoning_extraction|chain[- ]of[- ]thought"
-# I8 model-era candidate families (Opus-5-scoped catalog rows; scanner is
-# model-blind; per-family ids I8-a/I8-b/I8-c). Stem forms (`re[- ]?verif`)
-# deliberately catch inflections; over-production is the contract.
+# I8 model-era candidate families (I8-a/I8-c Opus-5-scoped, I8-b unscoped;
+# scanner is model-blind; per-family ids I8-a/I8-b/I8-c). Stem forms
+# (`re[- ]?verif`) deliberately catch inflections; over-production is the contract.
 I8_A_ERE="double[- ]check|${WB_L}re[- ]?verif|final verification step|(sub)?agent to verify|have (a |an )?(sub)?agent verify|verifier (sub)?agent|verify your (own )?work"
 I8_B_ERE="be conservative|(only report|report only) (the )?(high|critical)|(don('|’)?t|do not) nitpick"
 I8_C_ERE="(do not|don('|’)?t) (think|reason)|without thinking|skip the reasoning"
