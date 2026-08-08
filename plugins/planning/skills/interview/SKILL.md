@@ -186,15 +186,14 @@ Full surfacing-question taxonomy + categorization heuristics in [`context/loop.m
 
 Stop when the frontier is empty — every load-bearing unknown resolved OR captured as named assumption — the user can describe the goal in one paragraph without contradicting the constraints, and acceptance criteria are testable. Don't stop early on impatience; don't keep asking past the stop condition.
 
-**Register gate (all asking modes).** Before persisting the contract or handing off, run the register through its mechanical check — an empty frontier is a judgement, and this is the part of it a script can decide:
+**Register gate.** Before persisting the contract or handing off, run the register through its mechanical check — an empty frontier is a judgement, and this is the part of it a script can decide. **Ledger only here**: the Brief does not exist yet (Step 4 writes it), and `--brief` names a file it requires to be present.
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" \
-  --ledger <memory_dir>/<topic-slug>/interview-checklist.md \
-  --brief <contract_dir>/<topic-slug>/PLAN.md   # omit --brief in a general session
+  --ledger <memory_dir>/<topic-slug>/interview-checklist.md
 ```
 
-Exit 1 (a question is still `open`) and exit 2 (ungradeable) both HALT — resolve or explicitly retire the row and re-run. Never lock a contract over a non-zero exit; that is the reported failure restated.
+Exit 1 (a question is still `open`) and exit 2 (ungradeable) both HALT — resolve or explicitly retire the row and re-run. Never lock a contract over a non-zero exit; that is the reported failure restated. A run that wrote no register (a `lock` synthesis that hit no gap) has nothing to gate and skips this. The `--brief` cross-check runs in Step 4, once there is a Brief to cross-check against.
 
 **Confirmation gate (`me` and `auto`):** an empty frontier is necessary but not sufficient — before persisting the contract or handing off, restate the shared understanding and get the user's explicit confirmation that it is reached. Do not act on the interview's output until they confirm. `lock` is exempt: invoking it IS the confirmation (its STOP-on-gap rule still applies).
 
@@ -211,6 +210,8 @@ Derive `<topic-slug>` from the task or current branch name (kebab-case, ≤40 ch
 **`me` mode persists incrementally, not just at the end.** Lock each answer into the decision-tree ledger (`interview-checklist.md`) + the relevant PLAN.md Brief section the moment it resolves — so a crash, context clear, or overflow never loses resolved branches. **Context-pressure flush:** if the conversation is getting heavy, force-flush the current ledger + partial Brief to disk and offer a handoff (`/session-flow:handoff` if installed, otherwise write a resume note in the topic's memory slice) before continuing. Target the light V1-spec Brief shape (scope / schema / code-surface bullets) — keep it terse.
 
 PLAN.md holds `## Brief` + `## Plan` sections. `/interview` writes only the Brief section; the Plan section stays empty until `/planning:plan` fills it.
+
+**Cross-check the Brief once it exists.** Immediately after writing it, re-run the register gate with `--brief <contract_dir>/<topic-slug>/PLAN.md` — this run proves every `deferred` and `blocked` row actually reached `### Deferred questions`, which the Step 3 run could not check because the file was not written yet. A non-zero exit means the Brief is missing a question the ledger retired: fix the Brief, do not retire the row. A general session writes no Brief and skips this.
 
 If a PLAN.md Brief exists and user chose **revise**, edit the Brief in-place. If **start fresh**, append a dated scope-change note to the top of the Brief capturing why before rewriting — never silently overwrite — and let the commit message carry the pivot rationale.
 

@@ -24,10 +24,14 @@ All notable changes to the `planning` plugin are documented here. Format follows
 - **`interview`: `scripts/check-open-questions.sh` + 30-case black-box test.** The register is
   bookkeeping, so it gets a check rather than a promise. Exit 0 clean / 1 a question is still open /
   2 ungradeable, fail-closed, with a greppable one-line verdict — the house shape of
-  `goal-condition-length.sh`. Run at the Step 3 stop condition; a non-zero exit halts the contract
-  lock. The opt-in `--brief` cross-check proves every `deferred` / `blocked` row actually reached
-  the Brief's `### Deferred questions`, and reports `brief=unchecked` when not asked for rather
-  than omitting the field. **Stated limit, in the script header:** it grades the interview's own
+  `goal-condition-length.sh`. It runs **twice**, because its two claims become checkable at
+  different moments: ledger-only at the Step 3 stop condition, then again with `--brief`
+  immediately after Step 4 writes the Brief. A non-zero exit halts either time. Naming `--brief`
+  at Step 3 would point at a file Step 4 has not written, and the gate exits 2 on a
+  named-but-missing `--brief` — a first-time interview would deadlock before it could persist
+  anything. The `--brief` cross-check proves every `deferred` / `blocked` row actually reached the
+  Brief's `### Deferred questions`, and reports `brief=unchecked` when not asked for rather than
+  omitting the field. **Stated limit, in the script header:** it grades the interview's own
   record, so a question never registered is invisible to it — the ask-time write rule is what keeps
   the record independent of the answer, and the contiguous-`Q<N>` and duplicate-id checks are what
   catch a row dropped after it was written.
@@ -54,7 +58,10 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 - **`interview`: the ledger is emitted whenever any round is asked.** The `≥2 open questions OR me
   mode` threshold still governs the full checklist, but the register has to exist before the first
-  reply, so any asking round now emits it. `lock` asks nothing and writes no register.
+  reply, so any asking round now emits it. A `lock` run that resolves cleanly asks nothing and
+  writes no register — but `lock`'s STOP-on-gap and the unattended ladder both produce questions
+  the run could not resolve, and a question outside the register is a question outside the gate,
+  so those are registered too (`open` when surfaced to the user, `blocked` when nobody is there).
 
 ## [0.27.3]
 

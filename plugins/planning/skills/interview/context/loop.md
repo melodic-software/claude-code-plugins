@@ -173,7 +173,9 @@ A question that was asked, went unanswered across a reply about something else, 
 
 This does not contradict the rounds loop's "capture the answers … NOT on disk yet" (Step 2, item 5) — that governs the *Brief draft* in `auto`/`lock`, and answers still land there when they land. The register tracks the *asking*, which is a different event.
 
-Because the register must exist before the first reply, a session that asks ANY round emits the ledger — the `≥2 open questions OR me mode` threshold in SKILL.md "Emit checklist" governs the full checklist, not this section. `lock` asks nothing and writes no register.
+Because the register must exist before the first reply, a session that asks ANY round emits the ledger — the `≥2 open questions OR me mode` threshold in SKILL.md "Emit checklist" governs the full checklist, not this section.
+
+**`lock` asks nothing, so a lock run that resolves cleanly writes no register — but a lock run that does not resolve cleanly does.** `lock`'s STOP-on-gap rule and the unattended ladder both produce questions the run could not resolve, and a question outside the register is a question outside the gate. So: a gap surfaced mid-synthesis is registered `open` when it goes to the user, and a genuine user decision reached with nobody to answer is registered `blocked`. The register exists whenever there is something unresolved to record, in every mode.
 
 ```text
 - Q1 | answered | round 1 | Who can write comments? | enrolled + instructor + admin
@@ -217,15 +219,22 @@ The ladder, in order:
 
 ### Gate before locking
 
-The register is bookkeeping, so it gets a mechanical check rather than a promise:
+The register is bookkeeping, so it gets a mechanical check rather than a promise. It runs **twice**, because the two things it proves become checkable at different moments:
 
 ```bash
+# Step 3, before the contract is persisted — the Brief does not exist yet.
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" \
+  --ledger <memory_dir>/<topic-slug>/interview-checklist.md
+
+# Step 4, immediately after writing the Brief (engineering sessions only).
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" \
   --ledger <memory_dir>/<topic-slug>/interview-checklist.md \
   --brief <contract_dir>/<topic-slug>/PLAN.md
 ```
 
-Exit 0 = clean; exit 1 = a question is still `open` (do not lock the contract, do not hand off — resolve or explicitly retire it); exit 2 = ungradeable (missing ledger, missing register, malformed row, unknown status, duplicate or gapped `Q<N>`, or a `deferred`/`blocked` row the Brief never records) — treat as a halt, never as a pass. `--brief` is opt-in; omit it in a general (non-engineering) session, which writes no Brief.
+Passing `--brief` at Step 3 would name a file Step 4 has not written yet, and the gate exits 2 on a named-but-missing `--brief` — a first-time interview would deadlock before it could persist anything. A general session writes no Brief and runs only the first form.
+
+Exit 0 = clean; exit 1 = a question is still `open` (do not lock the contract, do not hand off — resolve or explicitly retire it); exit 2 = ungradeable (missing ledger, missing register, malformed row, unknown status, duplicate or gapped `Q<N>`, or a `deferred`/`blocked` row the Brief never records) — treat as a halt, never as a pass. On the Step 4 run a missing question means the **Brief** is incomplete: fix the Brief, never retire the row to quiet the gate.
 
 What the gate cannot prove: it grades the interview's own record, so a question never registered is invisible to it. The ask-time write rule is what keeps the record independent of the answer; the contiguity and duplicate checks are what catch a row dropped after it was written.
 

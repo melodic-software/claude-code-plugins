@@ -21,9 +21,14 @@ Copy into `<memory_dir>/<topic-slug>/interview-checklist.md` (default `.work/`; 
 - Q3 | deferred | round 2 | Moderation model? | post-V1 — also in the Brief's Deferred questions
 ```
 
-Gate before locking the contract (Step 3) — a non-zero exit means the contract is not lockable yet:
+Gate twice — a non-zero exit halts either time:
 
 ```bash
+# Step 3, before locking the contract (the Brief is not written yet).
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" \
+  --ledger <memory_dir>/<topic-slug>/interview-checklist.md
+
+# Step 4, right after writing the Brief (engineering sessions only).
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" \
   --ledger <memory_dir>/<topic-slug>/interview-checklist.md \
   --brief <contract_dir>/<topic-slug>/PLAN.md

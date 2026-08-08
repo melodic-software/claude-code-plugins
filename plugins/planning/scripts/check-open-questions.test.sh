@@ -153,6 +153,27 @@ EOF
 )"
 expect_exit "gap in Q numbering -> 2" 2 --ledger "$gap"
 
+# 14b. A row that lost its first pipe must exit 2, not vanish. Skipping it
+#      silently would hide Q2 from the contiguity check and grade the register
+#      clean with a question missing — the failure this gate exists to refuse.
+lostpipe="$(
+  mkledger <<'EOF'
+- Q1 | answered | round 1 | Who writes? | admin
+- Q2 open | round 1 | Still open? |
+EOF
+)"
+expect_exit "row missing its first pipe -> 2" 2 --ledger "$lostpipe"
+
+# 14c. Prose in the register section that merely starts with `- Q<N>` is also a
+#      malformed row, not silently ignorable: fails closed.
+prose="$(
+  mkledger <<'EOF'
+- Q1 | answered | round 1 | Who writes? | admin
+- Q2 was withdrawn after the tree changed
+EOF
+)"
+expect_exit "prose row starting with Q<N> -> 2" 2 --ledger "$prose"
+
 # 15. Case-insensitive status and id.
 casey="$(
   mkledger <<'EOF'

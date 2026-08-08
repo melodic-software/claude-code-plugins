@@ -141,8 +141,17 @@ while IFS= read -r line; do
   fi
   [[ "$in_fence" -eq 0 ]] || continue
 
-  # Only `- Q<N> | ...` lines are register rows; prose and blank lines are not.
-  [[ "$line" =~ ^[[:space:]]*-[[:space:]]+[Qq][0-9]+[[:space:]]*\| ]] || continue
+  # Any non-fenced `- Q<N>` line is a CANDIDATE row; its shape is validated
+  # below. The prefilter deliberately does not require the first pipe: a row
+  # that lost it (`- Q2 open | round 1 | ...`) would otherwise be skipped
+  # silently, the contiguity check would never see the id, and a register with a
+  # dropped question would grade clean — the exact silent drop this gate exists
+  # to refuse. Rows are model-written, so malformed is a real state; it exits 2.
+  [[ "$line" =~ ^[[:space:]]*-[[:space:]]+[Qq][0-9]+([^0-9]|$) ]] || continue
+
+  if ! [[ "$line" =~ ^[[:space:]]*-[[:space:]]+[Qq][0-9]+[[:space:]]*\| ]]; then
+    die_ungradeable "malformed register row (needs 'Q<N> | status | round | question'): $line"
+  fi
 
   row="${line#*-}"
   row="${row#"${row%%[![:space:]]*}"}"
