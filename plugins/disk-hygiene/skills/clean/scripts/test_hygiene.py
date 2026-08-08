@@ -10,6 +10,7 @@ import math
 import os
 import re
 import shutil
+import stat
 import subprocess
 import tempfile
 import types
@@ -443,6 +444,45 @@ class HygieneTests(unittest.TestCase):
                 snapshot["target_logical_bytes"],
             )
             self.assertEqual(0, snapshot["target_reclaimable_local_bytes"])
+
+    def test_link_created_after_scan_breaks_stat_identity(self) -> None:
+        """A name hard-linked after the scan must fail identity, not stay ready.
+
+        Linking changes st_nlink and ctime but leaves size, mtime, device,
+        inode, and mode untouched — every field the pre-nlink identity check
+        compared. Without nlink in the comparison the entry still matched, so
+        preview kept counting the full size as reclaimable even though deleting
+        that name now frees nothing.
+        """
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            candidate = root / "artifact.tmp"
+            candidate.write_bytes(b"candidate-object-bytes")
+
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            entry = hygiene.entry_map(snapshot)["artifact.tmp"]
+            self.assertEqual(1, entry["nlink"])
+            self.assertEqual([], entry["size_qualifiers"])
+
+            before = os.stat(candidate)
+            self.assertTrue(hygiene.same_stat_identity(before, entry))
+
+            try:
+                os.link(candidate, root / "artifact.link")
+            except OSError as exc:
+                self.skipTest(f"hard links unavailable here: {exc}")
+
+            after = os.stat(candidate)
+            # The fields the old check compared are all unchanged...
+            self.assertEqual(before.st_size, after.st_size)
+            self.assertEqual(before.st_mtime_ns, after.st_mtime_ns)
+            self.assertEqual(before.st_ino, after.st_ino)
+            self.assertEqual(before.st_dev, after.st_dev)
+            self.assertEqual(stat.S_IFMT(before.st_mode), stat.S_IFMT(after.st_mode))
+            # ...so only the nlink comparison can catch this.
+            self.assertGreater(after.st_nlink, before.st_nlink)
+            self.assertFalse(hygiene.same_stat_identity(after, entry))
 
     def test_metadata_records_nlink_and_allocated_size_shape(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
