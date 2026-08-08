@@ -3,6 +3,59 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.0]
+
+### Added
+
+- **`interview`: an open-question register written at ask-time, and a mechanical gate over it.**
+  A consumer observed an open question asked, left unanswered across a reply about an unrelated
+  topic, never re-surfaced, and the session proceeding as though it were resolved — noticed 31
+  minutes later. The skill already said the right thing (an unanswered question "stays OPEN and
+  re-surfaces next round"), and the prose did not hold, because the question's only home was the
+  transcript. It now has a durable one: the ledger's `## Open-question register`, one row per
+  question with a status of `open` / `answered` / `deferred` / `withdrawn` / `blocked`.
+  **The load-bearing rule is *when* the row is written** — the moment the round is ASKED, before
+  any reply arrives. Registering is then a byproduct of asking, so an unanswered question is on
+  disk whether or not the conversation ever comes back to it; a register written when answers land
+  could only ever hold the questions that never needed recording. Paired with it, a **drift check**:
+  after every user reply, diff it against the `open` rows and restate what it did not address in one
+  line, because conversational drift is not consent and a compaction can empty the transcript the
+  old contract relied on.
+- **`interview`: `scripts/check-open-questions.sh` + 30-case black-box test.** The register is
+  bookkeeping, so it gets a check rather than a promise. Exit 0 clean / 1 a question is still open /
+  2 ungradeable, fail-closed, with a greppable one-line verdict — the house shape of
+  `goal-condition-length.sh`. Run at the Step 3 stop condition; a non-zero exit halts the contract
+  lock. The opt-in `--brief` cross-check proves every `deferred` / `blocked` row actually reached
+  the Brief's `### Deferred questions`, and reports `brief=unchecked` when not asked for rather
+  than omitting the field. **Stated limit, in the script header:** it grades the interview's own
+  record, so a question never registered is invisible to it — the ask-time write rule is what keeps
+  the record independent of the answer, and the contiguous-`Q<N>` and duplicate-id checks are what
+  catch a row dropped after it was written.
+- **`interview`: a defined unattended path, reconciled with the auto-guard rather than excepting
+  it.** Reached from a loop, a spawned worker, or another skill's chain, the skill previously had no
+  documented non-blocking exit. It now does: codebase-resolvable and unambiguous-conventional
+  decisions resolve as usual and are recorded `auto-resolved (unattended)`; a decision genuinely the
+  user's becomes a `blocked` register row, a Brief deferred question tagged
+  **arbiter: USER-RESERVED**, and a named blocker in the output. The run stops on its blockers
+  instead of idling, and never reads absence of objection as confirmation. This is the auto-guard
+  extended, not carved: the guard forbids a user's choice *disappearing* into an assumption, and a
+  named blocker is that choice made maximally visible — the same shape `plugin-quality:audit` uses
+  at its contract lock. **The trigger is declared by the caller, never sniffed** — the CLI reference
+  (<https://code.claude.com/docs/en/cli-reference>, fetched 2026-08-08) documents
+  `--permission-prompt-tool` for handling permission prompts non-interactively but exposes no state
+  a running session can read to learn it has no human, so detection was deliberately not designed.
+- **`interview`: rounds fire at phase boundaries.** The same report measured a mid-phase gate
+  consuming 56% of one session's wall time idle and ~24% human-blocked in another. The frontier-
+  rounds design already batches; nothing stopped a gate firing partway through a *caller's* phase,
+  and the consumer batching questions on its own side did not help. A mid-phase blocking question is
+  now the exception, allowed when proceeding would produce throwaway work and justified in one line.
+
+### Changed
+
+- **`interview`: the ledger is emitted whenever any round is asked.** The `≥2 open questions OR me
+  mode` threshold still governs the full checklist, but the register has to exist before the first
+  reply, so any asking round now emits it. `lock` asks nothing and writes no register.
+
 ## [0.27.3]
 
 ### Added

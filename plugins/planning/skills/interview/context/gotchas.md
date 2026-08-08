@@ -12,6 +12,16 @@ Failure patterns from real sessions. Loaded on demand from `/interview` SKILL.md
 
 - **Silent capture of user design choices** — when a decision has real tradeoffs and no codebase answer, STOP and ask; do not fold into the Brief as an assumption.
 
+- **An open question dropped on a topic change** — the user replies about something else, the question is never re-surfaced, and the contract locks with a hole in it. Measured at 31 minutes before the absence was noticed. Register at ask-time and diff every reply against the `open` rows; the transcript is not the record, the register is.
+
+- **Registering a question only once it is answered** — the register then holds exactly the questions that never needed it, and the gate over it grades nothing. The write belongs at ask-time.
+
+- **Treating the register gate's exit 2 as a pass** — ungradeable means the check could not see the state (missing register, gapped `Q<N>`, a deferred row absent from the Brief), which is when a silent hole is most likely, not least.
+
+- **A blocking question fired mid-phase** — a gate that lands after the caller's phase is underway idles a lane nobody is watching (56% of one session's wall time). Emit the open set at the phase boundary; justify the exception in one line.
+
+- **Assuming an answer because nobody was there to give one** — unattended, a genuine user decision becomes a named `blocked` row and a `USER-RESERVED` deferred question, never a quietly captured assumption. There is no way to detect non-interactivity, so the caller declares it.
+
 ## Brief contract
 
 - **`lock` mode with hidden gaps** — if synthesis surfaces a true unknown, stop and ask; do not fudge the Brief.
