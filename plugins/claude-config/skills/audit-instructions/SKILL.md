@@ -41,6 +41,9 @@ concerns its siblings already cover — route rather than re-answer:
 - Token brevity for its own sake is `docs-hygiene:compress`.
 - Config-file mechanics (settings.json, .mcp.json, hooks wiring) is `claude-config:audit`; grant
   portability is `claude-config:audit-permission-grants`.
+- The empirical bare-baseline experiment — strip the surfaces, observe the bare model, re-add on
+  repeated stumble evidence — is `unhobble` (same plugin): this skill judges instruction *text*
+  against doctrine; unhobble measures the *model*.
 
 On **memory-layer surfaces** (CLAUDE.md, CLAUDE.local.md, `.claude/rules/`, `~/.claude/rules/`),
 this skill runs only the model-era checks I6–I22. It never runs or reports the hygiene checks
@@ -354,7 +357,8 @@ End with a **Routing** subsection listing every excluded upstream-owned
 or memory-layer surface and where its findings should go, and a **Recommended follow-through**
 subsection: apply an accepted change, then observe whether Claude's behavior actually shifts;
 re-add on the next mistake as the compounding safety net; for example blocks, A/B against the
-no-example default. That loop is prose guidance — this skill ships no eval tooling.
+no-example default. The full delete-and-watch loop is operationalized by `/claude-config:unhobble`
+(same plugin) — route there when the operator wants the experiment run rather than described.
 
 Open the Sources line with the two official pages the paths and doctrine derive from
 (code.claude.com memory + `.claude`-directory docs; the prompting pages cited per check in the
