@@ -38,16 +38,16 @@ discovery-explore-preload-8e2b7d
 
 A missing or mismatched token is a **hard failure: the parent discards the run**, never downgrades or accepts the artifact. Without it, a preload miss produces an undisciplined run that still writes an artifact — indistinguishable from success at every other seam.
 
-**Post-dispatch acceptance gate — parent-side, before the payload is believed.** `status: complete` is the agent's claim about its own run, and a claim is not evidence. Grade the run **off disk**, against the memory-slice path the parent resolved *before* dispatching — never a path read out of the payload, because the failure this gate exists to catch is a payload that comes back carrying no pointer at all. In order:
+**Post-dispatch acceptance gate — parent-side, before the payload is believed.** `status: complete` is the agent's claim about its own run, and a claim is not evidence. Grade the run **off disk**, against the memory-slice path from the parent's own pre-dispatch envelope — **carry that path across the dispatch, because it is this gate's input** — and never a path read out of the payload, because the failure this gate exists to catch is a payload that comes back carrying no pointer at all. In order:
 
 1. **The payload is well-formed** — `preload_token` matches the sentinel verbatim, and an `artifact:` pointer is present. Missing either is a **failed dispatch** whatever the `status` field says; a missing token is a discard, per the rule above.
 2. **The artifact set is actually on disk**, which is the only check robust to any return-path defect:
 
    ```bash
-   bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-explore-artifact.sh" <memory-slice-path> --expect-sidecars <the payload's sidecars: count>
+   bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-explore-artifact.sh" <the retained memory-slice path>
    ```
 
-   Cite the **exit status** — 0 usable, 1 no usable artifact set, 2 ungradeable — not a reading of the directory, because the context most motivated to call the dispatch finished is the one that would be doing the reading. It fails closed. `--expect-sidecars` is optional and secondary: it cross-checks a self-reported number, while the exit status alone depends on nothing the payload said.
+   Cite the **exit status** — 0 usable, 1 no usable artifact set, 2 ungradeable — not a reading of the directory, because the context most motivated to call the dispatch finished is the one that would be doing the reading. It fails closed. **That bare form is the gate**; it depends on nothing the payload said. Append `--expect-sidecars <n>` only when the payload actually reported a `sidecars:` count, to cross-check that number against what the index names — and drop the flag when it did not, since the malformed payload this gate exists to catch carries no such field and substituting `0` asks the gate a question the run never answered.
 
 **Any non-zero exit halts the workflow.** Report it, and do **not** proceed to research, planning, or an edit on the strength of an exploration that did not happen — proceeding is the damage a silently-empty return actually causes; the missing artifact is only how it starts. Recovery ladder, and why a resume beats a re-dispatch: [`${CLAUDE_PLUGIN_ROOT}/skills/explore/reference/dispatch.md`](${CLAUDE_PLUGIN_ROOT}/skills/explore/reference/dispatch.md).
 

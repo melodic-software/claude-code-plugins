@@ -16,10 +16,19 @@ resolved the memory-slice path itself, before dispatch, and put it in the dispat
 against **its own** path is what makes the check independent of every return-path defect, present or
 future.
 
+This is only true if the parent still **has** that path when the gate runs. It resolved one before
+dispatch, wrote a prompt, waited, and now has a payload sitting in front of it with an `artifact:`
+field right there — the wrong input is the convenient one at exactly the moment the gate fires. So
+the slice path is carried across the dispatch deliberately, as the gate's input, rather than
+recovered from whatever is nearest.
+
 The same reasoning demotes `--expect-sidecars` to a secondary cross-check. It compares the payload's
 self-reported count against what the index names, which is worth having — an index and a payload
 that disagree mean one of them is wrong — but it is a claim grading a claim. The exit status without
-that flag is the load-bearing verdict.
+that flag is the load-bearing verdict, which is why the bare invocation is the gate and the flag is
+an addition to it. Drop the flag outright on a payload that reported no `sidecars:` count: passing
+`0` for a field the run never wrote asks the gate a false question, and it will answer it
+truthfully.
 
 ## Why "non-empty" was not enough on its own
 
