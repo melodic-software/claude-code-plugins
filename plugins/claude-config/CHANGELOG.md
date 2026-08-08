@@ -3,7 +3,7 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.22.0]
+## [0.23.0]
 
 ### Added
 
@@ -20,6 +20,58 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   counterpart and receives routed rewrite judgments. Tracked-file stripping is delete-with-net
   (`git rm` on the experiment branch) rather than in-place disable — a deliberate choice: git is
   the restore mechanism, and a renamed-but-present file could still be read.
+
+## [0.22.0]
+
+### Changed
+
+- **`audit`: Category D no longer prescribes shell form with "no `args`" for hook commands.** The
+  row rested on a rationale — that the `"command":"bash"` + `args` variant "backslash-mangles
+  `${CLAUDE_PROJECT_DIR}` on native Windows" — that the [hooks
+  reference](https://code.claude.com/docs/en/hooks) contradicts: in exec form "path placeholders
+  like `${CLAUDE_PLUGIN_ROOT}` are substituted into `command` and into each `args` element as plain
+  strings", and "No shell tokenization happens on any platform." Mangling requires a shell, and exec
+  form has none. The real Windows defect behind the observation is narrower and is now its own row:
+  exec form "requires `command` to resolve to a real executable such as a `.exe`", so `"command":
+  "bash"` finds the WSL relay `System32\bash.exe` and the launch fails — the failure this repo hit
+  in #1006, where a fail-open guard enforced nothing. That is a defect in naming `bash` as the
+  executable, not in exec form, and the fix is a real binary plus the script path in `args`.
+
+  Category D now follows the page's own guidance — "Prefer exec form for any hook that references a
+  path placeholder. In shell form, wrap each placeholder in double quotes" — and flags only the
+  unquoted placeholder, never shell form itself. Quoted shell form stays a correct spelling, which
+  it must: the page endorses omitting `args` for pipes, `&&`, redirects, and `.cmd`/`.bat` shims,
+  and this repository's own hooks use it. The replacement warns without swinging into the
+  mirror-image false positive the old row produced. The executable-resolution row is scoped to
+  Windows-targeting repos, since `bash` and `sh` are ordinary executables elsewhere, and it names
+  `"shell": "bash"` alongside the `node`-plus-`args` pattern as a documented fix.
+
+  **A PowerShell bare-`$CLAUDE_PROJECT_DIR` row was drafted and then dropped**, because it could not
+  clear this repository's own fresh-docs bar. It carried a quote attributed to the hooks page that
+  is not on that page — re-fetched 2026-08-08 and searched: the page's only placeholder-quoting
+  guidance is the generic "In shell form, wrap each placeholder in double quotes", and it says
+  nothing about PowerShell resolving an undefined variable. The underlying claim also depends on
+  whether the harness substitutes the *bare* `$NAME` spelling before PowerShell ever parses it,
+  which the page does not document either. An audit checklist that emits findings a consumer cannot
+  trace to a documented rule is the exact defect 0.21.9 removed and this release corrects; a row
+  resting on an unverifiable premise is worse than no row. The generic quoting row already covers
+  the safe advice.
+
+### Added
+
+- **`audit`: a Category D row asserting hook `timeout` is expressed in SECONDS.** The hooks
+  reference states: "Seconds before canceling. Defaults: 600 for `command`, `http`, and `mcp_tool`;
+  30 for `prompt`; 60 for `agent`." A consumer run found three hooks configured in milliseconds.
+
+  The row flags a **recognizably millisecond-scale** value — a round thousands multiple such as
+  `30000` or `120000`, which read as seconds are 8 and 33 hours — and deliberately does NOT flag
+  merely-large ones. The page documents defaults, not a maximum, so a long-running hook may
+  legitimately exceed 600, and a rule keyed on `> 600` would manufacture findings against correct
+  configuration. Where the value is large but not millisecond-shaped, the checklist asks for
+  corroboration from the hook's expected runtime before anything is reported. The likely source of
+  the confusion is the Bash/PowerShell tools' own `tool_input.timeout`, whose example value on this
+  page is `120000`; the page does not state that field's unit in prose, so the checklist does not
+  claim it does.
 
 ## [0.21.9]
 
