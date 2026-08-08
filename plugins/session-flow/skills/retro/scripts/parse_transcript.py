@@ -601,6 +601,23 @@ def build_multi_session_output(
             "aggregate": {},
         }
 
+    # One transcript must count ONCE however many times its id was named.
+    # A repeat is easy to produce — pasting a comma-joined list next to a
+    # space-separated one, or a `previous_handoff` chain that loops back —
+    # and every downstream number is a sum over this list: the aggregate
+    # token and turn totals would double, and `transcripts_present` could
+    # exceed `available` (one file, counted twice), publishing a coverage
+    # ratio above 1.0 against a field documented as 0.0-1.0. Deduplicated
+    # HERE rather than at the argument parser: this function owns the rule
+    # for every entry point, so a new caller cannot reintroduce the defect
+    # by skipping a parser-side filter. The `--chain-from` walk still drops
+    # revisits of its own (`seen` in extract_chain_from_handoff, plus the
+    # prepend guard in main) because a cycle must terminate the WALK, not
+    # merely be cleaned up afterwards; those are cheap and independent, not
+    # a second owner of this rule. Order-preserving: the first id is the
+    # current session and the rest are its chain, in order.
+    session_ids = list(dict.fromkeys(session_ids))
+
     sessions_out: list[dict[str, Any]] = []
     agg_tools: Counter[str] = Counter()
     agg_subagents: list[dict[str, Any]] = []

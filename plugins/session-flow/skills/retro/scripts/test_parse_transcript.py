@@ -564,6 +564,47 @@ def test_multi_session_mixed_separators_and_empty_fragments(tmp_path):
     assert [s["id"] for s in output["sessions"]] == ["sid-a", "sid-b", "sid-c"]
 
 
+def test_multi_session_repeated_id_counts_once(tmp_path):
+    """A repeated session-id is parsed once, not once per mention.
+
+    Pasting a comma-joined list next to a space-separated one is the easy way
+    to name the same id twice. Counted twice, one transcript would inflate the
+    aggregate totals and push chain_coverage past its documented 0.0-1.0 range
+    (`found` 2, `available` 1, ratio 2.0).
+    """
+    _write_assistant_event(tmp_path, "sid-a")
+    result = _run_multi(["--sessions", "sid-a,sid-a", "sid-a", "--base", str(tmp_path)])
+    result.check_returncode()
+    output = json.loads(result.stdout)
+    assert [s["id"] for s in output["sessions"]] == ["sid-a"]
+    assert output["chain_coverage"] == {
+        "requested": 1,
+        "found": 1,
+        "available": 1,
+        "ratio": 1.0,
+    }
+    assert output["aggregate"]["total_assistant_turns"] == 1
+    assert output["status"] == "pass"
+
+
+def test_multi_session_dedupe_preserves_first_seen_order(tmp_path):
+    """Deduplication keeps the first occurrence, so role assignment survives.
+
+    Order carries meaning here — the first id is the current session — so a
+    dedupe that kept the LAST occurrence would silently re-label the chain.
+    """
+    for sid in ("sid-curr", "sid-prev"):
+        _write_assistant_event(tmp_path, sid)
+    result = _run_multi(
+        ["--sessions", "sid-curr", "sid-prev", "sid-curr", "--base", str(tmp_path)]
+    )
+    result.check_returncode()
+    output = json.loads(result.stdout)
+    assert [s["id"] for s in output["sessions"]] == ["sid-curr", "sid-prev"]
+    assert output["sessions"][0]["role"] == "current"
+    assert output["sessions"][1]["role"] == "previous"
+
+
 def test_multi_session_only_separators_is_usage_error(tmp_path):
     """--sessions , yields no ids at all → the no-session-id usage error."""
     result = _run_multi(["--sessions", ",", "--base", str(tmp_path)])

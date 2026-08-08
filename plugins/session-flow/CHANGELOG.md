@@ -26,6 +26,18 @@
   correctly space-separated invocation), empty fragments are dropped, and a `--sessions` value that
   resolves to no ids at all reaches the existing usage error.
 
+- **`retro`: a repeated session-id is parsed once, not once per mention.** Every multi-session
+  number is a sum over the requested list, so naming one id twice — easy once a comma-joined list
+  can be mixed with a space-separated one — doubled the aggregate token and turn totals and counted
+  a single transcript twice against an `available` denominator that counts its file once,
+  publishing a `chain_coverage.ratio` of 2.0 and a summary reading "covering 2 of 1 transcript(s)".
+  `build_multi_session_output` now deduplicates its ids first-occurrence-wins, which keeps the
+  order the roles depend on (first id = current session). The rule lives in that one function so
+  every entry point is covered, `--chain-from` included; the walk's own cycle guard stays, because
+  a pointer cycle has to terminate the walk rather than be cleaned up after it.
+  `chain_coverage.requested` and the `pass` status now compare against the deduplicated list, so a
+  run that named an id twice reports `requested: 1` and still passes.
+
 ## [0.17.24]
 
 ### Fixed
