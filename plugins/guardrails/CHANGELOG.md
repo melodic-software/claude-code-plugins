@@ -3,6 +3,101 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.3]
+
+### Fixed
+
+- **`block-hook-bypass` no longer blocks a READ-ONLY inline `open()`.** The python write-indicator
+  set matched a bare `open[[:space:]]*\(`, so `python3 -c "import json; d=json.load(open('x.json'))"`
+  — a read — was refused as a Write/Edit bypass. Reproduced verbatim against the shipped hook.
+
+  **Design call (the discrimination boundary, stated because `open(f,'w')` and `open(f)` differ only
+  by an argument):** `open(` on its own now says nothing about direction and is no longer an
+  indicator. It counts as a write only when a python WRITE-MODE LITERAL also occurs in the same
+  command — a quoted token built solely from mode characters, containing at least one of
+  `w`/`a`/`x`/`+`, in an argument position (immediately after a comma, or after `mode=`). Read modes
+  (`'r'`, `'rb'`, `'rt'`) carry none of those characters and no longer trip it.
+
+  The check is **co-occurrence, not position**, and deliberately so: Bash ERE has no lazy quantifier,
+  so a positional `open\([^)]*'w'` stops at the first `)` and would fail OPEN on a genuine
+  `open(os.path.join(a,b),'w')`, while a greedy `.*` reaches into unrelated text anyway. This is the
+  same mangle-resistant co-occurrence shape the PowerShell lane already uses, and it is checked in
+  both directions by new cases.
+
+  **Accepted residual, in the fail-CLOSED direction:** a read-only `open()` in a command that
+  separately contains an argument-position `'w'`/`'a'`/`'x'`/`'+'` literal — e.g.
+  `print(open('f').read(), 'a')` — still blocks. The argument-position requirement is what keeps the
+  common read shapes clear: a dict subscript (`json.load(open('p'))['a']`) is preceded by `[`, not by
+  a comma. **Second accepted residual, unchanged from before:** a bare `pathlib` mention is still an
+  indicator on its own, so read-only inline python that merely imports `pathlib` still blocks. That
+  indicator carries the `.write_text(` / `.write_bytes(` block today; narrowing it needs an explicit
+  write-call set and is a separate change.
+
+  **Test fixtures respelled, not relaxed.** Four PowerShell-lane cases asserted the accepted
+  mention-over-block (and the here-string inertness) using a bare `open(` as their stand-in write
+  indicator. Since a bare `open(` no longer *is* one, those inputs are respelled to `open(f,'w')` so
+  they keep testing the contract they were written for; a new case asserts that the same mention
+  carrying only a READ-mode open is now allowed, which is the fix rather than a hole.
+
+- **`block-hook-bypass` no longer blocks `cat > /dev/null`.** A discard is not a file write, so the
+  exemption the echo/printf lane already granted now applies to the `cat >` lane too, including the
+  quoted spellings (`cat > "/dev/null"`, `cat > /dev/"null"`). The exemption is **segment-scoped**,
+  not command-scoped: `cat > /dev/null && cat > real.txt` still blocks on its second segment. The
+  `cat` scan and the echo/printf scan now share one segment splitter (`normalize_segments`) instead
+  of two, so they cannot drift on escaped separators or on the `2>&1` fd-duplication sentinel.
+
+  **The exemption resolves the segment's EFFECTIVE stdout destination, never the mere presence of a
+  `/dev/null` redirect** — and getting that wrong would have been a one-token bypass of this entire
+  guard. Bash applies redirections left to right, so `cat > /dev/null > real.txt` writes to
+  `real.txt`, as does `cat >/dev/null 1>real.txt`. A presence test would have exempted both: write
+  the discard first, the real file second. `set_last_stdout_target` walks the segment's stdout
+  redirects and keeps the LAST target; only `/dev/null` there exempts. The inverse order
+  (`cat > real.txt > /dev/null`) is a genuine discard and stays allowed.
+
+  This replaces `_echo_devnull`, which was the same order-blind presence test on the echo/printf
+  lane — that half was **pre-existing**, not introduced here, and both lanes now share the helper.
+  The scan admits the explicit stdout spelling `1>` (`1>file` is stdout exactly as `>file` is) while
+  excluding other fds (`2>`, `21>`), the combined form (`&>`), and fd duplications (`>&1`, whose
+  target class excludes `&`). It sets a global rather than echoing: it runs per segment on every
+  Bash call, and a command substitution would add a fork to each one.
+
+- **`flag-commit-pr-skill-bypass` is registered at `timeout: 60`, not `10` (was the only guardrails
+  hook below its siblings).** Measured runtimes of 12–19 s against a 10 s cap meant the hook was
+  cancelled on essentially every firing: the commit/PR-skill advisory never ran, while still costing
+  its full cap on every Bash/PowerShell call. Per the current hooks reference
+  (<https://code.claude.com/docs/en/hooks>, fetched 2026-08-08), `timeout` is *"Seconds before
+  canceling. Defaults: 600 for `command`, `http`, and `mcp_tool`; 30 for `prompt`; 60 for `agent`.
+  `UserPromptSubmit` lowers the `command`, `http`, and `mcp_tool` default to 30, and `MessageDisplay`
+  lowers it to 10."* — nothing in the harness pushes a `PreToolUse` `command` hook toward 10, so the
+  value was authored. 60 is this file's established value for the same matcher (the other five
+  `Bash|PowerShell` guards all carry it); the documented default is 600. The same page states that
+  *"Hook entries merge across settings levels rather than replacing each other: user, project, and
+  local settings add their own hooks without removing managed ones"*, so a consumer had no way to
+  raise a plugin's timeout locally — which is why this had to be fixed in the plugin.
+
+- **`cli-flag-verify` no longer reports npm's global config flags as hallucinated.**
+  `npm ci --prefix ./vendor` was flagged `UNKNOWN_FLAG`. `--prefix` is one of npm's config keys, and
+  every config key is simultaneously a command-line flag on every subcommand — `npm --help` says so
+  itself ("Specify configs in the ini-formatted file … or on the command line via:
+  `npm <command> --key=value`"). Those keys appear in neither `npm <subcmd> --help` nor `npm --help`,
+  and the authoritative list (`npm config ls -l`) prints `prefix = "…"`, not `--prefix`, so a generic
+  `--help` flag-list parser cannot consume it. `npm` therefore joins `git` and `npx` as an excluded
+  binary in `DEFAULT_BINS`, on the same recorded rationale: a non-exhaustive `--help` produces only
+  real-flag false positives. Consumers who want it back can re-add it through the
+  `cli_flag_verify_bins` option. **A per-subcommand→top-level `--help` fallback was considered and
+  rejected as the fix**: it was measured against this repro and `npm --help` does not list `--prefix`
+  either, so it would not have closed the finding.
+
+### Changed
+
+- **`block-dangerous-git` and `block-no-verify` read their payload with `hook::jq_fields`.** Both
+  extracted `.tool_input.command` and `.tool_name` with two separate `jq` invocations; they now take
+  both from one, using the helper `0.19.2` added to the shared lib. On Windows Git Bash a process
+  spawn is `fork()` emulation (~140 ms), and both guards run on every Bash/PowerShell tool call.
+  Failure semantics are unchanged: a missing `jq` or an unparsable payload exits 0 exactly as the
+  empty-command skip did, after `hook::require_jq` has already surfaced the degraded state once per
+  session.
+
 ## [0.19.2]
 
 ### Changed

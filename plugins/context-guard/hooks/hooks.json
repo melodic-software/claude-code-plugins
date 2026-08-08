@@ -6,7 +6,7 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/zone-crossing-inject.sh",
-            "timeout": 10,
+            "timeout": 60,
             "statusMessage": "Checking for a context-zone crossing..."
           }
         ]
@@ -18,7 +18,7 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/zone-crossing-inject.sh",
-            "timeout": 10,
+            "timeout": 60,
             "statusMessage": "Checking for a context-zone crossing..."
           }
         ]
@@ -31,7 +31,7 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/zone-gate.sh",
-            "timeout": 10,
+            "timeout": 60,
             "statusMessage": "Checking the context-zone gate..."
           }
         ]
@@ -43,7 +43,7 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/post-compact-mark.sh",
-            "timeout": 10,
+            "timeout": 60,
             "statusMessage": "Recording the compaction marker..."
           }
         ]
