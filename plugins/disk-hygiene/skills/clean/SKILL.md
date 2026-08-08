@@ -89,8 +89,9 @@ question, never an answer. Then wait for the reply.
 supply, infer, or fabricate it: a prior general request, `--execute`, "clean everything", approval of
 another tier, or silence is not an answer. On rejection, stop.
 
-**What the answer must name — per question.** Ask each question so it shows what its row requires
-the answer to name; a bar naming something the question never presented cannot be met.
+**What the answer must name — per question.** Where a row requires the answer to name something the
+skill itself produced — the resolved target, the tier, the path list — show it in the question; a bar
+naming what the question never presented cannot be met.
 
 | Question | Accept only an answer naming |
 |---|---|
@@ -261,10 +262,12 @@ token.
 Preview reports `execution-platform-unsupported` as a per-candidate blocker on these platforms, so
 the engine never deletes there. The default outcome is the report. The manual lane is gated by
 `--execute` exactly as the engine lane is — without it, no deletion lane may be offered on any
-platform. If — and only if — `--execute` was requested and the human reviews the report and
-approves an exact path list in this interactive session (the [confirmation gate](#confirmation-gate)'s
-removal row — the same exact-tier-and-list bar the engine lane clears; a general "clean it up" is still
-not approval), removal is a manual handoff, not an engine plan:
+platform. If — and only if — `--execute` was requested and the human reviews the report and approves
+an exact path list drawn from one tier in this interactive session (the §3 report spans every tier, so
+narrow it to a single tier and show that tier's paths before asking — the
+[confirmation gate](#confirmation-gate)'s removal row is the same exact-tier-and-list bar the engine
+lane clears; a general "clean it up" is still not approval), removal is a manual handoff, not an
+engine plan:
 
 1. Write the approved exact paths to `<run-dir>/handoff-paths.json` as
    `{"version": 1, "paths": ["relative/exact.tmp"]}` (snapshot-relative, exact, non-overlapping,
