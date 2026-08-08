@@ -25,12 +25,16 @@ The bundled scripts are the single source of truth for what they require. **Read
 what they actually do, don't recite this file — then run each probe via Bash and report a PASS/FAIL/INFO
 table with one remediation line per FAIL. Do not modify anything. The runtime scripts and their tools:
 
-- `${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/check-plugin-drift.sh` — jq **and** curl
-- `${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/check-structure.sh` and `fix-plugin-drift.sh` — jq
+- `${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/check-plugin-drift.sh` — jq **and** curl, plus awk and sort
+- `${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/check-structure.sh` — jq; `fix-plugin-drift.sh` — jq plus sort
 - `${CLAUDE_PLUGIN_ROOT}/skills/audit-automation-gaps/scripts/inventory.sh` — jq
-- `${CLAUDE_PLUGIN_ROOT}/skills/audit-permission-grants/scripts/permission-rule-check.sh` — jq
+- `${CLAUDE_PLUGIN_ROOT}/skills/audit-permission-grants/scripts/permission-rule-check.sh` — jq plus awk and sort
 - `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/instruction-scan.sh` — grep only (POSIX; no jq)
 - `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/conflict-scan.sh` — awk **and** sort (no jq)
+
+Only `conflict-scan.sh` probes for awk and sort; the three above it call them with no guard, so read
+each script's actual calls rather than trusting a single script's prerequisite block to speak for the
+plugin.
 
 1. **`jq`** — `command -v jq`. FAIL if absent: the JSON-parsing scripts need it (`inventory.sh` degrades
    to an empty inventory; the others `exit 2` with an install remediation). Missing `jq` blocks the three
@@ -39,10 +43,13 @@ table with one remediation line per FAIL. Do not modify anything. The runtime sc
 2. **`curl`** — `command -v curl`. FAIL if absent, but scoped: only the plugin-drift check
    (`check-plugin-drift.sh`) uses it and `exit 2`s without it. The rest of `audit` and the other three
    skills still run — say so in the remediation line.
-3. **`awk` and `sort`** — `command -v awk`, `command -v sort`. FAIL if either is absent: they are what
-   `conflict-scan.sh` executes, and it `exit 2`s without them. Scoped to `audit-instructions`' conflict
-   pass — the rest of that skill and the other three still run. Report them by name rather than as one
-   row, since a minimal shell can carry one and not the other.
+3. **`awk` and `sort`** — `command -v awk`, `command -v sort`. FAIL if either is absent, and **not**
+   scoped to one skill: `conflict-scan.sh` executes both and `exit 2`s naming the missing one, while
+   `check-plugin-drift.sh` (both), `permission-rule-check.sh` (both), and `fix-plugin-drift.sh`
+   (`sort`) reach them with no prerequisite check at all — so `audit` and `audit-permission-grants`
+   fail mid-run on a bare `command not found` rather than on a named prerequisite. Say in the
+   remediation line that this FAIL reaches three skills, not just `audit-instructions`. Report `awk`
+   and `sort` by name rather than as one row, since a minimal shell can carry one and not the other.
 4. **Bash shell** — INFO: the scripts are bash (arrays, `[[ ]]`, process substitution, `BASH_SOURCE`),
    run through Claude Code's Bash tool — the bash shell on every platform, Git Bash on native Windows.
    Report the resolved interpreter; FAIL only if no bash is resolvable.
@@ -96,8 +103,9 @@ this skill never installs system packages:
   shims are where this shows up. Remediate by installing a full userland rather than the single tool:
   Git for Windows, which bundles both; the distribution's `gawk`/`mawk` and `coreutils` on Linux;
   `brew install gawk coreutils` on macOS. Report the two separately, since a minimal shell can carry
-  one and not the other. Scoped to `audit-instructions`' conflict pass, which `exit 2`s without them
-  — the rest of that skill and the other three still run.
+  one and not the other. Three skills depend on them — `audit`, `audit-permission-grants`, and
+  `audit-instructions` — and only the last `exit 2`s cleanly, so do not offer the other two as still
+  working meanwhile.
 - **no resolvable bash:** also not remediable by one package — the scripts use arrays, `[[ ]]`,
   process substitution, and `BASH_SOURCE`, so they need a real bash on `PATH`: Git for Windows on
   native Windows, the distribution's `bash` elsewhere. Nothing bundled runs until it resolves, so

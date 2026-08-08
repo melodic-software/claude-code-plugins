@@ -214,8 +214,12 @@ involving one still carries the no-change representation and its routing recomme
   and are not resident. Ownership is unchanged: `claude-memory` still owns auto memory, and a finding
   here routes there rather than editing it.
 - **Each enabled agent's own memory, under that same gate** — an agent definition carrying a
-  `memory` field gets its **own** memory directory at the scope the field names, separate from the
-  main conversation's, and that subagent reads and writes its own `MEMORY.md` there.
+  `memory` field gets its **own** memory directory, separate from the main conversation's and named
+  per agent, and that subagent reads and writes its own `MEMORY.md` there. The field's value is the
+  scope, and each scope has its own location: `user` → `agent-memory/<agent-name>/` under the
+  **resolved** user root above (never a hardcoded `~/.claude`, for the reason the entry above gives),
+  `project` → `.claude/agent-memory/<agent-name>/`, `local` →
+  `.claude/agent-memory-local/<agent-name>/`.
   [reference/conflict-criteria.md](reference/conflict-criteria.md) keeps an agent-definition-versus-
   its-own-memory contradiction in scope precisely because those two *do* co-reside in that subagent,
   so this inventory has to reach it: enumerate that `MEMORY.md` for every inventoried agent whose
