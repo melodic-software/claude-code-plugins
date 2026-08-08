@@ -156,10 +156,45 @@ f="$(make_evals empty-item '{
 }')"
 out="$(run "$f" 2>&1)"
 rc=$?
-if [[ $rc -eq 1 ]] && grep -q 'empty expectations/assertions item.*(Q3)' <<<"$out"; then
+if [[ $rc -eq 1 ]] && grep -q 'non-gradeable expectations/assertions item.*(Q3)' <<<"$out"; then
   pass "Q3: whitespace-only criterion item FAILs"
 else
   fail "Q3 should flag empty items (rc=$rc): $out"
+fi
+
+# 8b. Q3: null and empty-container items FAIL; a non-empty object item
+#     passes (item shape is skill-author-defined — upstream compat).
+f="$(make_evals nongradeable-items '{
+  "skill_name": "nongradeable-items",
+  "evals": [
+    {"id": 1, "prompt": "a", "expectations": ["The skill does NOT delete files", null, {}, []]},
+    {"id": 2, "prompt": "b", "assertions": [{"kind": "regex", "pattern": "^fix: "}]}
+  ]
+}')"
+out="$(run "$f" 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && [[ "$(grep -c 'non-gradeable expectations/assertions item.*(Q3)' <<<"$out")" -eq 3 ]] &&
+  ! grep -q 'id=2' <<<"$out"; then
+  pass "Q3: null and empty containers FAIL; a structured item passes"
+else
+  fail "Q3 should flag null/empty containers and allow structured items (rc=$rc): $out"
+fi
+
+# 8c. Q3: a whitespace-only sole-criterion expected_output FAILs even when it
+#     clears the Q8 length floor, and does not double-report as Q8.
+f="$(make_evals ws-only-sole '{
+  "skill_name": "ws-only-sole",
+  "evals": [
+    {"id": 1, "prompt": "a", "expected_output": "                                                  "}
+  ]
+}')"
+out="$(run "$f" 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'whitespace-only expected_output is the sole grading criterion.*(Q3)' <<<"$out" &&
+  ! grep -q '(Q8)' <<<"$out"; then
+  pass "Q3: whitespace-only sole expected_output FAILs without a Q8 double report"
+else
+  fail "Q3 should flag a whitespace-only sole expected_output once (rc=$rc): $out"
 fi
 
 # 9. Q4: a files entry that resolves nowhere FAILs; entries resolving
@@ -197,6 +232,24 @@ if [[ $rc -eq 1 ]] && grep -q 'files entry "evals/fixtures/nope.md" not found.*(
   pass "Q4: an unresolvable files entry FAILs, naming the case"
 else
   fail "Q4 should flag a missing fixture (rc=$rc): $out"
+fi
+
+# 9b. Q4: traversal and absolute paths are rejected before the existence
+#     test — an escaping entry must never pass by pointing at a real host
+#     file (evals/../.. resolves to a directory that exists).
+f="$(make_evals fixtures-escape '{
+  "skill_name": "fixtures-escape",
+  "evals": [
+    {"id": 1, "prompt": "a", "files": ["evals/../../fixtures-escape", "/etc/hosts"],
+     "expected_output": "The lint does NOT follow either entry outside the documented fixture roots."}
+  ]
+}')"
+out="$(run "$f" 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && [[ "$(grep -c 'escapes the documented fixture roots.*(Q4)' <<<"$out")" -eq 2 ]]; then
+  pass "Q4: absolute and ..-traversal entries FAIL without an existence probe"
+else
+  fail "Q4 should reject escaping entries before the -e test (rc=$rc): $out"
 fi
 
 # 10. Q5: a case carrying BOTH expectations and assertions WARNs (exit 0).

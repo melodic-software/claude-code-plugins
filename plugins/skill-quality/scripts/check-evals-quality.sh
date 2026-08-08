@@ -22,12 +22,18 @@
 #   Q1. Duplicate case `id` within a set (FAIL — ids must be stable and
 #       unique for a grader to address a case)
 #   Q2. Duplicate case `name` within a set (FAIL)
-#   Q3. Empty / whitespace-only string item in `expectations`/`assertions`
-#       (FAIL — an empty criterion cannot be graded; the schema only
-#       requires the ARRAY be non-empty)
+#   Q3. Non-gradeable grading criterion (FAIL — the schema only requires
+#       the ARRAY be non-empty / the string be minLength 1): an
+#       `expectations`/`assertions` item that is an empty or
+#       whitespace-only string, null, or an empty container; or a
+#       whitespace-only `expected_output` standing as a case's sole
+#       criterion. Non-empty object/array items pass — item shape is
+#       skill-author-defined
 #   Q4. A `files` fixture entry that resolves to no file or directory
-#       relative to the skill dir or the evals dir (FAIL — a case whose
-#       fixtures cannot be found cannot be exercised)
+#       relative to the skill dir or the evals dir, or that escapes those
+#       roots via an absolute path or a `..` component (FAIL — a case
+#       whose fixtures cannot be found under the documented roots cannot
+#       be exercised from the tree)
 #   Q5. A case carrying BOTH `expectations` and `assertions` (WARN — the
 #       schema treats them as equivalent alternatives; carrying both makes
 #       the grading contract ambiguous. Pick one)
@@ -40,8 +46,9 @@
 #       must be specific and measurable; a grader is told what to look
 #       for, what is allowed, what is disqualifying)
 #   Q8. Sole-criterion expected_output thinner than EXPECTED_OUTPUT_MIN
-#       chars, with no expectations/assertions (WARN — too thin to guide a
-#       grader as rubric instructions)
+#       chars after trimming, with no expectations/assertions (WARN — too
+#       thin to guide a grader as rubric instructions; padding cannot
+#       clear the floor)
 #   Q9. Set-level coverage: no case in the set exhibits refusal/guardrail
 #       or anti-pattern language (WARN — the playbook's rich form asks each
 #       set to aim for at least one refusal/guardrail and one anti-pattern
@@ -130,10 +137,20 @@ JQ_PROG='
   # Q2: duplicate names.
   ($cases | map(select(.name)) | group_by(.name) | .[] | select(length > 1)
     | "FAIL" + $u + "\($f): duplicate case name \(.[0].name) used by \(length) cases (Q2)"),
-  # Q3: empty/whitespace-only criterion items.
+  # Q3: non-gradeable criterion items — empty/whitespace-only strings, null,
+  # and empty containers. Non-empty objects/arrays pass: the schema leaves
+  # item shape skill-author-defined (upstream assertions may be structured).
   ($cases[] | caseref as $c | items[]?
-    | select(type == "string" and (gsub("\\s+"; "") == ""))
-    | "FAIL" + $u + "\($f): \($c): empty expectations/assertions item — an empty criterion cannot be graded (Q3)"),
+    | select((type == "string" and (gsub("\\s+"; "") == ""))
+             or type == "null"
+             or ((type == "array" or type == "object") and length == 0))
+    | "FAIL" + $u + "\($f): \($c): empty or non-gradeable expectations/assertions item (empty/whitespace string, null, or empty container) — an empty criterion cannot be graded (Q3)"),
+  # Q3 also covers a sole-criterion expected_output that is whitespace-only:
+  # it clears the schema (minLength counts whitespace) yet cannot be graded.
+  ($cases[] | select(.expectations == null and .assertions == null)
+    | select((.expected_output // "") | (length > 0) and (gsub("\\s"; "") == ""))
+    | caseref as $c
+    | "FAIL" + $u + "\($f): \($c): whitespace-only expected_output is the sole grading criterion — it cannot be graded (Q3)"),
   # Q4: fixture entries, resolved by bash.
   ($cases[] | caseref as $c | .files[]?
     | "FILE" + $u + "\($f)" + $u + "\($c)" + $u + "\(.)"),
@@ -148,10 +165,13 @@ JQ_PROG='
     ((items[]? | select(type == "string")), (.expected_output // empty))
     | select(test($vague; "i"))
     | "WARN" + $u + "\($f): \($c): vague criterion \"\(.)\" — state what a grader must find, not that the output is good (Q7)"),
-  # Q8: thin sole-criterion expected_output.
+  # Q8: thin sole-criterion expected_output. Length is measured after
+  # trimming, so padding cannot clear the floor; whitespace-only strings are
+  # Q3 FAILs and excluded here to avoid a double report.
   ($cases[] | select(.expectations == null and .assertions == null)
-    | select(((.expected_output // "") | length) < $min) | caseref as $c
-    | "WARN" + $u + "\($f): \($c): sole grading criterion is a \((.expected_output // "") | length)-char expected_output (min \($min)) — too thin to guide a grader (Q8)"),
+    | select((.expected_output // "") | (gsub("\\s"; "") != "") or . == "")
+    | select(((.expected_output // "") | gsub("^\\s+|\\s+$"; "") | length) < $min) | caseref as $c
+    | "WARN" + $u + "\($f): \($c): sole grading criterion is a \((.expected_output // "") | gsub("^\\s+|\\s+$"; "") | length)-char expected_output (min \($min)) — too thin to guide a grader (Q8)"),
   # Q9: set-level refusal/anti-pattern coverage.
   (if ($cases | length) > 0 and
       ([$cases[] | [(.name // ""), .prompt, (.expected_output // ""),
@@ -181,11 +201,18 @@ while IFS="$US" read -r kind a b c; do
     WARN) warn "$a" ;;
     FILE)
       # a=file, b=caseref, c=fixture path. Resolve relative to the skill dir
-      # (parent of the evals dir), then the evals dir.
-      evals_dir="$(dirname "$a")"
-      skill_dir="$(dirname "$evals_dir")"
-      if [[ ! -e "$skill_dir/$c" && ! -e "$evals_dir/$c" ]]; then
-        err "$a: $b: files entry \"$c\" not found under $skill_dir/ or $evals_dir/ — a case whose fixtures cannot be found cannot be exercised (Q4)"
+      # (parent of the evals dir), then the evals dir. An absolute path or a
+      # `..` component escapes the documented roots — reject it BEFORE the
+      # existence test, so a traversal entry can never pass by pointing at a
+      # host file that happens to exist.
+      if [[ "$c" == /* || "$c" =~ ^[A-Za-z]: || "/$c/" == *"/../"* ]]; then
+        err "$a: $b: files entry \"$c\" escapes the documented fixture roots (absolute path or '..' component) — fixtures must live under the skill or evals directory (Q4)"
+      else
+        evals_dir="$(dirname "$a")"
+        skill_dir="$(dirname "$evals_dir")"
+        if [[ ! -e "$skill_dir/$c" && ! -e "$evals_dir/$c" ]]; then
+          err "$a: $b: files entry \"$c\" not found under $skill_dir/ or $evals_dir/ — a case whose fixtures cannot be found cannot be exercised (Q4)"
+        fi
       fi
       ;;
     *) err "internal: unrecognized lint line kind '$kind'" ;;
