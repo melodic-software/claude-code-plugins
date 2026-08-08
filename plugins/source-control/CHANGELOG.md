@@ -3,7 +3,7 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.46.3]
+## [0.47.1]
 
 ### Changed
 
@@ -17,6 +17,140 @@ All notable changes to the `source-control` plugin are documented here. Format f
   produced it — so a host without jq still fails open exactly as it did. Also adds
   `hook::jq_fields`, which extracts several fields from one payload in a single jq process for
   hooks that read two or three of them. Synced from `lib/hook-utils.sh`.
+
+## [0.47.0]
+
+### Added
+
+- **`worktree` gains a stranded-work axis, and a detection engine to compute it.** The skill could
+  report that a worktree was old, quiet, and clean; it could not report whether removing it would
+  destroy a commit — different questions with the same surface symptoms. `scripts/landed-work.sh`
+  is the new read-only classifier: one TSV row per registered worktree carrying `unpushed`,
+  `landed`, the method and base SHA the verdict was reached with, the in-progress sequencer
+  operation, four independent working-tree counts, peer worktrees, a risk class, and a reason.
+
+  Only affirmative proof yields `landed=yes`. Every failed command, empty result set, unresolvable
+  base, and ambiguity yields `?`, which every consumer treats exactly as `no` — a false `no` costs
+  a confirmation prompt, a false `yes` destroys work.
+
+  The unpushed set is `HEAD --not --remotes`: `--branches` reports every other branch in the
+  repository and says nothing about a detached worktree's own commits, and `@{upstream}..HEAD`
+  returns nothing at all for a locally created branch. Landedness is decided by RANGE patch-id
+  first, because a squash-merge collapses N commits into one patch that no per-commit primitive —
+  `git cherry` included — can ever match, while the branch's range id equals the squash commit's
+  and stays matched as the base advances.
+
+  Patch ids are computed `--verbatim`. The default and `--stable` hash the patch AFTER stripping
+  whitespace, so `a b` and `ab` produce one id — measured on git 2.54, both `7ad14294…` — and a
+  branch whose unique change differed from the base's only in whitespace classified as landed.
+  `--verbatim` separates them, still matches a multi-commit squash, and still matches after the
+  base advances; what it gives up is the tolerance that let an EOL-renormalized branch match, which
+  now reports `no`. That is a confirmation prompt in exchange for a silent deletion, and the trade
+  is deliberate.
+
+  No affirmative verdict is drawn from an incomplete patch-id set: a commit that produces no patch
+  — an empty commit among them — is invisible to patch-id, so the id count must equal the non-merge
+  commit count before "every commit's content is on the base" is a statement about the branch
+  rather than about the commits that happened to hash.
+
+  The path-scoped two-dot fallback answers one question, whether the touched paths differ from the
+  base at all, and its verdict is stamped with the base SHA it was computed against. It carries no
+  direction test: `git diff base..HEAD` reports deletions both for a branch that is merely BEHIND
+  the base and for a branch whose own unique work IS a deletion, and the numstat rows are
+  identical, so "additions are zero" classified a delete-only branch as landed. The
+  behind-the-base shapes it was written for are caught by the range patch-id instead.
+
+  A registered path is confirmed to be a work-tree ROOT with `rev-parse --show-prefix`, since
+  `--is-inside-work-tree` returns true for a leftover directory inside a repository and reports
+  that repository's clean state as the directory's own. Enumeration reads
+  `git worktree list --porcelain -z` into a file and checks its exit status before parsing — a
+  process substitution's failure is invisible to the loop, and the row-count assertion can only
+  catch a truncated pass, never a truncated enumeration — and `-z` because a worktree path may
+  contain a newline. An ambiguous base ref and a criss-cross history with several merge bases both
+  yield `?` rather than a silently chosen one. `comm`'s exit status, the numstat reducer's result,
+  and `git status`'s exit status are each checked, because a failure in any of them produces the
+  same output shape as the favourable answer.
+
+- **The two-dot fallback hands its paths back to git instead of matching two diffs' text.** Two diff
+  invocations only agree on how a path is spelled when they agree on every escaping rule, and they
+  did not: `--name-only` quoted non-ASCII bytes while `--numstat` was pinned to
+  `core.quotepath=false`, so an i18n'd filename joined against nothing — and an empty join is the
+  same shape as "identical to the base", an unproven `landed=yes` on a commit that existed nowhere
+  else. Pinning quotepath on both sides closed that byte class and left another, since git escapes
+  `"`, `\`, and control characters regardless of the setting and only `-z` suppresses it. Rather
+  than chase escaping rules one class at a time, the touched paths are now passed back to git as
+  `:(literal)` pathspecs and git does its own matching, which removes the entire mismatch class.
+  `:(literal)` because a path is not a pattern — a file named `star[1].txt`, or one beginning with
+  `:`, would otherwise be read as pathspec magic. The pathspecs are chunked so a branch touching
+  thousands of files cannot exceed the platform's command-line limit.
+
+- **The base-side patch-id set gets the same completeness check as the branch side.** An
+  under-complete base set can only make a match less likely, so this was never the difference
+  between `yes` and `no` — it is here so the two sides cannot silently diverge under a later
+  refactor, and so a base range that failed to render is named rather than quietly narrowing the id
+  set every branch is compared against.
+
+- **`worktree-create-gate`: a `WorktreeCreate` hook that places every worktree at the configured
+  root.** `/worktree create` already routed through `worktree-create.sh`, but three creation paths
+  bypass the skill entirely — `claude --worktree`, a subagent with `isolation: "worktree"`, and a
+  background session. Those landed in the in-repo `.claude/worktrees/` default, which is the
+  placement the whole nesting invariant exists to prevent. The hook is a thin stdin adapter over
+  the same helper, so there is one placement implementation rather than two.
+
+  Its contract was measured rather than inferred, which settled the two questions that had blocked
+  it. A **user-scope** hook does fire — verified with a settings.json under a `CLAUDE_CONFIG_DIR`,
+  headless, before login was even resolved — and `${CLAUDE_PROJECT_DIR}` resolves to the project
+  root the session started in, never the worktree being created. And stdout's **last non-empty
+  line** is taken as the path: a hook printing a banner line before the path still succeeds and the
+  session lands in the printed directory, refuting the claim that any output but the path fails the
+  session. The hook still prints the path alone; the tolerance is margin, not interface.
+
+  Fail-closed: a hook failure fails the creation, because falling through would place the worktree
+  at exactly the nested path this prevents. The unconfigured case is not a failure — it resolves to
+  the plugin data directory, also outside every repository. The root is read from
+  `CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT` rather than substituted as `${user_config.worktree_root}`,
+  which Claude Code rejects in shell-running fields. Opt out with `worktree_create_gate_enabled`.
+
+### Changed
+
+- **`worktree status` classifies Work before Status.** `merged` widens to "PR merged **or** every
+  unpushed commit landed on the base"; `stale` narrows to require Work to be safe, so a worktree
+  holding unpushed unlanded commits is `stranded` rather than merely old. `stranded`,
+  `superseded`, `notgit`, and `unknown` join the table, and the summary names the at-risk commit
+  total. A stranded row whose commits survive in a peer worktree is presented as such — a
+  materially different decision from losing them.
+
+- **`worktree cleanup` guards both places work actually dies.** Removal is recoverable: it leaves
+  the branch ref intact. The `git branch -D` the procedure emits one step later is not, and a
+  detached-HEAD worktree has no branch ref to begin with — so the precondition is stated at the
+  pre-removal site AND carried through to the emitted branch deletion, which now emits nothing
+  destructive for stranded, unproven, or superseded work. `superseded` is a narrowed *reading* of a
+  `landed=no` row and never a safe one: the merged-PR evidence matches on the branch NAME, so a name
+  reused after that merge carries new commits that are still the only copy. It gates exactly as
+  stranded. The two pre-removal guards have a stated order
+  (stranded first, because it can abort the removal outright), the override is
+  `--acknowledge-stranded` per worktree rather than a bare `--force` answering a different
+  question, and every path offers `git -C <path> push -u origin HEAD` first as the resolution that
+  needs no judgement about whether the work matters. The escalation guard's unpushed probe moves
+  from `--branches` to `HEAD`.
+
+### Fixed
+
+- **The nesting invariant's evidence and upstream citations were stale.** The as-of stamp moves
+  from 2.1.220 / 2026-07-31 to 2.1.224 / 2026-08-07, and three control arms are added that narrow
+  what the invariant rests on: the leak is not specific to `.claude/worktrees/` (a plain non-dot
+  subdirectory leaks identically, so nesting itself is the cause); a worktree inside an
+  **unrelated** repository is worse rather than better, inheriting `CLAUDE.md` and unconditional
+  rules at `session_start` too; and the mechanism is that session-start ancestor traversal is
+  suppressed for ancestors of the worktree's own repository but not a different one, while
+  `path_glob_match` discovery is suppressed in neither.
+
+  The recheck trigger cited two issues that are both CLOSED — #29599 (`duplicate`, COMPLETED) and
+  #23565 (NOT_PLANNED), verified live against the GitHub API. It now cites #16600, which is OPEN,
+  and states the gap that citation leaves: #16600 concerns memory files, which 2.1.224 already
+  handles correctly, so the surface still leaking — path-scoped rules — has no open upstream issue
+  at all. `context/create.md` carried the same two dead citations and now points at the skill's
+  paragraph rather than restating them, so the state lives in one place.
 
 ## [0.46.2]
 
