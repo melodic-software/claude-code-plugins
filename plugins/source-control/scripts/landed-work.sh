@@ -77,9 +77,12 @@ Options:
   --merged-refs-file <path>
                       Newline-separated branch names whose pull request is
                       MERGED. A landed=no worktree whose branch appears here is
-                      a superseded draft, not stranded work: the base holds a
-                      later revision of the same change. Collected by the
-                      caller (gh), so this script stays offline.
+                      reported as superseded: the base probably holds a later
+                      revision of the same change. NAME evidence only — a name
+                      reused after that merge matches too, so superseded is a
+                      narrowed reading of a landed=no row, never a safe one.
+                      Collected by the caller (gh), so this script stays
+                      offline.
   --no-peers          Skip peer detection (another worktree holding the same
                       commits). Peer detection is O(n^2) ancestry probes.
   --path-key <value>  Print the path comparison key for <value> and exit. A
@@ -838,9 +841,14 @@ while [[ $idx -lt ${#T_PATH[@]} ]]; do
   elif [[ "${R_BARE[$idx]}" == "yes" ]]; then
     risk="bare"
   elif [[ "${R_LANDED[$idx]}" == "no" ]] && merged_ref "${T_BRANCH[$idx]}"; then
-    # landed=no AND a merged PR on the same head ref: the base holds a later,
-    # larger revision of this same work. Reporting it as stranded would read as
-    # "do not remove" for a draft that was superseded on purpose.
+    # landed=no AND a merged PR on the same head ref NAME: the base probably
+    # holds a later, larger revision of this same work, which is worth saying
+    # rather than reporting the row as indistinguishable from stranded.
+    # The match is on the NAME, so a branch name reused after that merge also
+    # lands here carrying commits that are still the only copy — consumers gate
+    # this exactly as STRANDED, and the label narrows the reading, never the
+    # guard. Proving otherwise needs the merged PR's head revision, which is
+    # unavailable offline once the remote ref is deleted on merge.
     risk="superseded"
   elif [[ "${R_LANDED[$idx]}" == "no" ]]; then
     risk="STRANDED"

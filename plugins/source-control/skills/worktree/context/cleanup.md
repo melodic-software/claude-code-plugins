@@ -75,8 +75,8 @@ git worktree remove <path>
 
 Read the candidate's row from the record collected in Step 2:
 
-- `risk=landed`, `ok`, `bare`, or `superseded` → proceed.
-- `risk=STRANDED` or `UNKNOWN` → **stop and do not remove.** Present the count, the `base` stamp, the `reason`, and the commit subjects (`git -C <path> log HEAD --not --remotes --oneline`), then get explicit per-worktree confirmation naming those commits. `UNKNOWN` means the engine could not prove landedness, not that it proved absence — treat it exactly as `STRANDED`.
+- `risk=landed`, `ok`, or `bare` → proceed.
+- `risk=STRANDED`, `UNKNOWN`, or `superseded` → **stop and do not remove.** Present the count, the `base` stamp, the `reason`, and the commit subjects (`git -C <path> log HEAD --not --remotes --oneline`), then get explicit per-worktree confirmation naming those commits. `UNKNOWN` means the engine could not prove landedness, not that it proved absence. `superseded` means only that a MERGED pull request carried this branch's NAME — a name reused after that merge makes the evidence describe different commits than the ones here, and the row is `landed=no` either way. Treat both exactly as `STRANDED`.
 - `risk=in-progress` → **stop.** A merge, rebase, cherry-pick, or revert is paused here. Its staged tree is recomputable, but the operator's conflict resolutions are not, and the sequencer state is lost with the directory. Report the operation and let the user finish or abort it first.
 - `risk=dirty` → **stop.** Nothing is unpushed, but the working tree carries uncommitted edits — and the same value is emitted when the working-tree status could not be read at all, which is the `-` or `?` you will see in the count columns. Neither is safe to remove without the user looking.
 - **Any value not listed above → treat it as `STRANDED`.** The list is closed on the safe side only. A risk value this file does not recognize is a value it cannot vouch for, and the whole point of the record is that an unproven verdict never authorizes a removal.
@@ -115,7 +115,7 @@ git branch -D <branch-name>                    # -D needed (squash-merge changes
 git worktree remove <current-worktree-path>    # only if the active worktree was itself a candidate
 ```
 
-**The stranded-work precondition applies here too, and this is where it bites hardest.** Removal left the branch ref intact; this line is what actually destroys the commits. Emit `git branch -D <branch-name>` only for a branch whose row was `landed`, `ok`, or `superseded`. For `STRANDED` or `UNKNOWN`, emit nothing and say why — a suggested command in a code block reads as vetted, and a user pasting it has no way to know the guard upstream was never applied to it. Emit `git -C <path> push -u origin HEAD` instead.
+**The stranded-work precondition applies here too, and this is where it bites hardest.** Removal left the branch ref intact; this line is what actually destroys the commits. Emit `git branch -D <branch-name>` only for a branch whose row was `landed` or `ok`. For `STRANDED`, `UNKNOWN`, or `superseded`, emit nothing and say why — a suggested command in a code block reads as vetted, and a user pasting it has no way to know the guard upstream was never applied to it. Emit `git -C <path> push -u origin HEAD` instead.
 
 The branch this deletes may also be checked out by another worktree; `git branch -D` refuses in that case, which is git protecting the peer rather than an error to work around.
 

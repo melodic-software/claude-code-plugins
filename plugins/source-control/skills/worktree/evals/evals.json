@@ -130,7 +130,7 @@
       "id": 11,
       "name": "branch-delete-carries-the-same-precondition",
       "prompt": "/worktree cleanup — the worktree directory is already gone, just give me the branch cleanup commands to paste.",
-      "expected_output": "Removal leaves the branch ref intact, so the emitted `git branch -D` is where the commits actually die. The skill emits it only for a branch whose work is landed, ok, or superseded; for STRANDED or UNKNOWN it emits nothing destructive and says why, offering `git -C <path> push -u origin HEAD` instead. A suggested command in a code block reads as vetted, so an unguarded one must not appear at all.",
+      "expected_output": "Removal leaves the branch ref intact, so the emitted `git branch -D` is where the commits actually die. The skill emits it only for a branch whose work is landed or ok; for STRANDED, UNKNOWN, or superseded it emits nothing destructive and says why, offering `git -C <path> push -u origin HEAD` instead. A suggested command in a code block reads as vetted, so an unguarded one must not appear at all.",
       "files": [],
       "expectations": [
         "The stranded-work precondition is applied to the emitted git branch -D, not only to the worktree removal",

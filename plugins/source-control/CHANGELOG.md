@@ -109,7 +109,10 @@ All notable changes to the `source-control` plugin are documented here. Format f
   the branch ref intact. The `git branch -D` the procedure emits one step later is not, and a
   detached-HEAD worktree has no branch ref to begin with — so the precondition is stated at the
   pre-removal site AND carried through to the emitted branch deletion, which now emits nothing
-  destructive for stranded or unproven work. The two pre-removal guards have a stated order
+  destructive for stranded, unproven, or superseded work. `superseded` is a narrowed *reading* of a
+  `landed=no` row and never a safe one: the merged-PR evidence matches on the branch NAME, so a name
+  reused after that merge carries new commits that are still the only copy. It gates exactly as
+  stranded. The two pre-removal guards have a stated order
   (stranded first, because it can abort the removal outright), the override is
   `--acknowledge-stranded` per worktree rather than a bare `--force` answering a different
   question, and every path offers `git -C <path> push -u origin HEAD` first as the resolution that
