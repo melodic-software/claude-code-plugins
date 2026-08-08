@@ -461,9 +461,30 @@ HOOK_STDIN_READ_SLICES=4
 # already covers. Probed, not version-tested, for the same reason as
 # hook::resolve_read_timeout.
 hook::resolve_read_slice() {
-  local t="$1" slice
-  slice=$(awk -v t="$t" -v n="$HOOK_STDIN_READ_SLICES" \
-    'BEGIN { printf "%.3f", t / n }' 2>/dev/null) || slice=""
+  local t="$1" slice=""
+  # The division is fixed-point shell arithmetic, not `awk t/n`. A hook pays for
+  # every external process it spawns — ~140 ms each on Windows Git Bash, where
+  # process creation is fork() emulation — and this one spawned awk on EVERY
+  # invocation to divide two numbers. Bash has no float arithmetic, so the value
+  # is carried in micro-units (1e-6 s; `read -t` never resolves finer than
+  # milliseconds anyway) and rounded back half-up to the same three decimals
+  # awk's "%.3f" produced. Identical output for every timeout in practice; the
+  # one seam is a quotient landing on an exact half-millisecond (t=2.006 → 0.502
+  # here, 0.501 under awk, whose C printf rounds the binary approximation), a
+  # 1 ms difference in an idle bound that is itself an approximation — see the
+  # residual-quarter note above. printf -v, not $( ), because a command
+  # substitution forks the shell even for a builtin — the fork IS the cost here.
+  # A value the pattern rejects, or one large enough to overflow the arithmetic
+  # into a negative, leaves `slice` unusable and falls through to the unsliced
+  # "<t> 1" form below, exactly as an awk failure did.
+  if [[ "$t" =~ ^([0-9]+)(\.([0-9]+))?$ ]] && ((HOOK_STDIN_READ_SLICES > 0)); then
+    local whole="${BASH_REMATCH[1]}" frac="${BASH_REMATCH[3]:-}"
+    frac="${frac}000000"
+    frac="${frac:0:6}"
+    local micros=$((10#$whole * 1000000 + 10#$frac))
+    local milli=$(((micros / HOOK_STDIN_READ_SLICES + 500) / 1000))
+    printf -v slice '%d.%03d' "$((milli / 1000))" "$((milli % 1000))"
+  fi
   if [[ -n "$slice" && "$slice" =~ ^[0-9]+\.[0-9]+$ ]] && ! [[ "$slice" =~ ^0+\.0+$ ]]; then
     local probe
     # shellcheck disable=SC2034 # `discard` is the read target; only stderr matters
@@ -477,7 +498,7 @@ hook::resolve_read_slice() {
 }
 
 hook::buffer_stdin() {
-  local input="" chunk="" read_rc=0 stalled=0 idle_slices=0
+  local input="" chunk="" read_rc=0 stalled=0 idle_slices=0 validated=0
   local read_timeout read_slice slice_count
   read_timeout=$(hook::resolve_read_timeout)
   read -r read_slice slice_count < <(hook::resolve_read_slice "$read_timeout")
@@ -516,7 +537,10 @@ hook::buffer_stdin() {
         # document. That is the Win32 late-EOF case — the payload arrived, the
         # pipe just never closed — and reading on there would spend the rest of
         # the bound waiting for an EOF that is not coming.
-        hook::json_complete "${input//$'\r'/}" && break
+        if hook::json_complete "${input//$'\r'/}"; then
+          validated=1
+          break
+        fi
         continue
       fi
       # An EMPTY slice can also be the late-EOF case: the payload may have been
@@ -532,17 +556,30 @@ hook::buffer_stdin() {
       # a jq process per slice to re-derive the same answer — enough overhead on
       # a slow-spawning host to cost more than slicing saves. idle_slices resets
       # the moment a byte lands, so the next quiet period checks again.
-      ((idle_slices == 0)) && hook::json_complete "${input//$'\r'/}" && break
+      if ((idle_slices == 0)) && hook::json_complete "${input//$'\r'/}"; then
+        validated=1
+        break
+      fi
       ((idle_slices++))
       ((idle_slices >= slice_count)) || continue
       stalled=1
     fi
     break # EOF (rc 1), a full idle bound with no bytes, or a read error
   done
-  input=$(printf '%s' "$input" | tr -d '\r')
+  # CR-stripped in the shell, not through `printf | tr`: that pipeline cost a
+  # fork AND an exec (~280 ms together on Windows Git Bash) to delete one byte
+  # class from a string bash can already rewrite in place. Same bytes either way
+  # — which is what lets the completeness verdict below be reused.
+  input="${input//$'\r'/}"
   [[ -n "$input" ]] || return 1
   local jq_rc=0
-  if command -v jq >/dev/null 2>&1; then
+  # The loop above breaks on hook::json_complete only when jq PARSED this exact
+  # CR-stripped buffer as a whole document, so re-probing it here would spend a
+  # second jq process to re-derive an answer already in hand. jq's absence or
+  # failure never sets that flag (json_complete returns non-zero for both), so
+  # the fail-open path below is unchanged: an unvalidated buffer still gets the
+  # probe, and a host without jq still reaches the 127 branch.
+  if ((validated == 0)) && command -v jq >/dev/null 2>&1; then
     # `printf | jq`, not a here-string — see hook::json_complete: a here-string
     # at or above the pipe capacity deadlocks the shell before jq is exec'd, and
     # a hook payload routinely exceeds it.
@@ -572,6 +609,71 @@ hook::jq_field() {
   field=$(printf '%s' "$1" | jq -r "(${2} // empty)"' | gsub("\r";"")' 2>/dev/null)
   [[ -n "$field" ]] || return 1
   printf '%s' "$field"
+}
+
+# Extract SEVERAL fields from one buffered input in ONE jq process. A hook that
+# reads three fields with hook::jq_field pays three forks and three execs over
+# the SAME stdin envelope — ~840 ms on Windows Git Bash, per invocation, for
+# work jq does once. Results land in the HOOK_JQ_FIELDS array, index-parallel to
+# the filters.
+#
+# An absent, null, or empty field becomes the EMPTY STRING and keeps its slot:
+# `// empty` (what hook::jq_field uses, where "empty means the caller skips" is
+# the whole contract) would DROP the field here and silently shift every later
+# index onto the wrong filter. Emptiness stays the caller's decision.
+#
+# Returns 1 — with HOOK_JQ_FIELDS empty — when jq is absent or fails, or when
+# fewer values came back than filters were asked for, so a partial read can
+# never be mistaken for a complete one. Values are CR-stripped, as in
+# hook::jq_field.
+#
+# Fields are NUL-separated on the wire: the values carry arbitrary text
+# (a Bash command spans newlines routinely) and NUL is the one byte a shell
+# string cannot hold, so it is the only separator that cannot occur inside a
+# value. A JSON input that encodes a literal \u0000 INSIDE a string value is the
+# residual — jq would emit it raw and split that value in two; hook payloads do
+# not carry one, and a command substitution would have discarded it anyway.
+# Read through a process substitution rather than $( ) for the same reason:
+# command substitution strips NUL bytes.
+#
+#   hook::jq_fields "$INPUT" '.tool_input.command' '.tool_name' || exit 0
+#   COMMAND="${HOOK_JQ_FIELDS[0]}" TOOL_NAME="${HOOK_JQ_FIELDS[1]}"
+# shellcheck disable=SC2034  # result global is consumed by the sourcing hook, not this file
+hook::jq_fields() {
+  local input="$1"
+  shift
+  HOOK_JQ_FIELDS=()
+  (($#)) || return 1
+  command -v jq >/dev/null 2>&1 || return 1
+  local prog="" filter
+  for filter in "$@"; do
+    [[ -n "$prog" ]] && prog+=","
+    prog+="((${filter}) // \"\" | tostring)"
+  done
+  # `-j` concatenates outputs verbatim, so emitting the NUL as its own output
+  # after each value yields exactly value NUL value NUL … with nothing added.
+  prog="[$prog] | .[] | (., \"\\u0000\")"
+  local -a values=()
+  local v clean
+  # `read -d ''` (not `mapfile -d ''`, which is Bash 4.4+; this lib supports
+  # 3.2+). The trailing NUL means every value arrives on a successful read.
+  while IFS= read -r -d '' v; do
+    # CR-stripped HERE, not with a jq-side gsub: the Windows jq build writes
+    # stdout in TEXT mode and expands every LF it emits to CRLF, so a value
+    # cleaned inside jq arrives dirty anyway. Stripping after the read removes
+    # both that translation artifact and any CR the payload itself carried —
+    # the same all-CRs-removed contract hook::jq_field has always had.
+    #
+    # Stripped into a scalar FIRST, then appended. Written inline as
+    # `values+=("${v//$'\r'/}")` the substitution silently does nothing (bash
+    # 5.3 leaves the CR in place inside an array-append compound assignment),
+    # which is a failure with no error and no exit status — the value simply
+    # arrives dirty. Observed here, not theorized.
+    clean="${v//$'\r'/}"
+    values+=("$clean")
+  done < <(printf '%s' "$input" | jq -j "$prog" 2>/dev/null)
+  ((${#values[@]} == $#)) || return 1
+  HOOK_JQ_FIELDS=("${values[@]}")
 }
 
 # Reduce a tool + optional Bash command to a privacy-safe subject label. For
