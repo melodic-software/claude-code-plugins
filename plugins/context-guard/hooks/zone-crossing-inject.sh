@@ -24,6 +24,17 @@
 #
 # Kill switch: context_guard_hooks_enabled userConfig boolean, read via the
 # CLAUDE_PLUGIN_OPTION_CONTEXT_GUARD_HOOKS_ENABLED hook-process mirror.
+#
+# OPT-IN (default OFF since 0.5.0): this hook additionally requires the
+# zone_crossing_inject_enabled userConfig boolean to be configured true
+# (CLAUDE_PLUGIN_OPTION_ZONE_CROSSING_INJECT_ENABLED mirror). The in-script
+# default is false — per docs/conventions/hook-config-delivery fact 3 the
+# declared `default` field is never delivered to hook processes, so the
+# in-script default IS the shipped behavior. Rationale: #2021 classified this
+# injection as the only always-on model-facing behavioral hook in a default
+# install, and #2009 (check I23) flagged its exit menu as manufacturing stop
+# initiative newer models already carry. The blocking gate (zone-gate.sh) and
+# the PostCompact marker keep their own defaults.
 
 set -uo pipefail
 
@@ -33,6 +44,11 @@ source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/payload.sh"
 
 hook::check_enabled "CONTEXT_GUARD_HOOKS"
+
+# Opt-in gate — default false (hook::check_enabled cannot express a
+# default-off switch: it allows on unset). Covers both wirings
+# (PostToolBatch + UserPromptSubmit); silent-skip-ok by design.
+[[ "${CLAUDE_PLUGIN_OPTION_ZONE_CROSSING_INJECT_ENABLED:-false}" == "true" ]] || exit 0
 
 START_EPOCH=${EPOCHREALTIME:-0}
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

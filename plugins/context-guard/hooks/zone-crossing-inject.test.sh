@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Contract test for zone-crossing-inject.sh (PostToolBatch/UserPromptSubmit).
 #
-# Contract: inject additionalContext ONCE per transition into a WORSE zone;
+# Contract: OPT-IN (default OFF since 0.5.0) — silent unless
+# CLAUDE_PLUGIN_OPTION_ZONE_CROSSING_INJECT_ENABLED=true. When opted in:
+# inject additionalContext ONCE per transition into a WORSE zone;
 # silent while the zone is unchanged, improving, or unknown; unknown never
 # updates state; kill switch honored; hostile ids fail open. Exit 0 always.
 #
@@ -44,17 +46,42 @@ write_snapshot() {
 }
 
 # run <home> <data-dir> <sid> [<event>] → stdout captured to $OUT, rc to $RC
+# Opts the hook in (default is OFF since 0.5.0); test 0 covers the default.
 OUT=""
 RC=0
 run() {
   local home="$1" data="$2" sid="$3" event="${4:-PostToolBatch}"
   OUT=$(printf '{"session_id":"%s","hook_event_name":"%s","cwd":"/tmp"}' "$sid" "$event" |
-    HOME="$home" CLAUDE_PLUGIN_DATA="$data" HOOK_TELEMETRY_SINK="" bash "$HOOK" 2>/dev/null)
+    HOME="$home" CLAUDE_PLUGIN_DATA="$data" HOOK_TELEMETRY_SINK="" \
+      CLAUDE_PLUGIN_OPTION_ZONE_CROSSING_INJECT_ENABLED=true bash "$HOOK" 2>/dev/null)
   RC=$?
 }
 
 H="$WORK/home"
 D="$WORK/data"
+
+# 0. Default posture: opt-in var unset → silent even on a dumb-zone snapshot,
+# and no state is written (a later opt-in must still see the first transition).
+write_snapshot "$H" s0 90
+OUT=$(printf '{"session_id":"s0","hook_event_name":"PostToolBatch"}' |
+  HOME="$H" CLAUDE_PLUGIN_DATA="$D" HOOK_TELEMETRY_SINK="" bash "$HOOK" 2>/dev/null)
+RC=$?
+if [[ $RC -eq 0 && -z "$OUT" && ! -e "$D/state/s0.zone" ]]; then
+  ok "default (opt-in unset) is silent and stateless"
+else
+  fail "default posture: rc=$RC out=$OUT"
+fi
+
+# 0b. Explicit false behaves like unset.
+OUT=$(printf '{"session_id":"s0","hook_event_name":"PostToolBatch"}' |
+  HOME="$H" CLAUDE_PLUGIN_DATA="$D" HOOK_TELEMETRY_SINK="" \
+    CLAUDE_PLUGIN_OPTION_ZONE_CROSSING_INJECT_ENABLED=false bash "$HOOK" 2>/dev/null)
+RC=$?
+if [[ $RC -eq 0 && -z "$OUT" ]]; then
+  ok "opt-in=false is silent"
+else
+  fail "opt-in=false: rc=$RC out=$OUT"
+fi
 
 # 1. First observation in the dumb zone (no prior state) injects.
 write_snapshot "$H" s1 90
@@ -101,21 +128,24 @@ else
   fail "unknown zone: rc=$RC out=$OUT"
 fi
 
-# 6. Kill switch honored.
+# 6. Master kill switch outranks the opt-in.
 write_snapshot "$H" s2 90
 OUT=$(printf '{"session_id":"s2","hook_event_name":"PostToolBatch"}' |
-  HOME="$H" CLAUDE_PLUGIN_DATA="$D" CLAUDE_PLUGIN_OPTION_CONTEXT_GUARD_HOOKS_ENABLED=false bash "$HOOK" 2>/dev/null)
+  HOME="$H" CLAUDE_PLUGIN_DATA="$D" CLAUDE_PLUGIN_OPTION_CONTEXT_GUARD_HOOKS_ENABLED=false \
+    CLAUDE_PLUGIN_OPTION_ZONE_CROSSING_INJECT_ENABLED=true bash "$HOOK" 2>/dev/null)
 RC=$?
 if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "kill switch silences the hook"; else fail "kill switch: rc=$RC out=$OUT"; fi
 
 # 7. Hostile session id → silent exit 0, no state write.
 OUT=$(printf '{"session_id":"../../etc","hook_event_name":"PostToolBatch"}' |
-  HOME="$H" CLAUDE_PLUGIN_DATA="$D" bash "$HOOK" 2>/dev/null)
+  HOME="$H" CLAUDE_PLUGIN_DATA="$D" \
+    CLAUDE_PLUGIN_OPTION_ZONE_CROSSING_INJECT_ENABLED=true bash "$HOOK" 2>/dev/null)
 RC=$?
 if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "hostile session id fails open"; else fail "hostile sid: rc=$RC out=$OUT"; fi
 
 # 8. Empty stdin → silent exit 0.
-OUT=$(printf '' | HOME="$H" CLAUDE_PLUGIN_DATA="$D" bash "$HOOK" 2>/dev/null)
+OUT=$(printf '' | HOME="$H" CLAUDE_PLUGIN_DATA="$D" \
+  CLAUDE_PLUGIN_OPTION_ZONE_CROSSING_INJECT_ENABLED=true bash "$HOOK" 2>/dev/null)
 RC=$?
 if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "empty stdin fails open"; else fail "empty stdin: rc=$RC out=$OUT"; fi
 
@@ -130,7 +160,8 @@ if ((LEN > 0 && LEN < 10000)); then ok "injection length $LEN under 10k cap"; el
 write_snapshot "$H" sbig 90
 BIG=$(printf 'x%.0s' $(seq 1 150000))
 OUT=$(printf '{"session_id":"sbig","hook_event_name":"PostToolBatch","tool_calls":[{"tool_name":"Read","tool_response":"%s"}]}' "$BIG" |
-  HOME="$H" CLAUDE_PLUGIN_DATA="$D" HOOK_TELEMETRY_SINK="" bash "$HOOK" 2>/dev/null)
+  HOME="$H" CLAUDE_PLUGIN_DATA="$D" HOOK_TELEMETRY_SINK="" \
+    CLAUDE_PLUGIN_OPTION_ZONE_CROSSING_INJECT_ENABLED=true bash "$HOOK" 2>/dev/null)
 RC=$?
 if [[ $RC -eq 0 && "$OUT" == *additionalContext* ]]; then
   ok "150KB batch payload still injects (chunked stdin read)"
@@ -188,7 +219,8 @@ mkdir -p "$D/state/spersist.zone" # a directory blocks the write, not a permissi
 TEL="$WORK/tel-persist.json"
 SINK="$(make_sink "$TEL")"
 OUT=$(printf '{"session_id":"spersist","hook_event_name":"PostToolBatch"}' |
-  HOME="$H" CLAUDE_PLUGIN_DATA="$D" HOOK_TELEMETRY_SINK="$SINK" bash "$HOOK" 2>/dev/null)
+  HOME="$H" CLAUDE_PLUGIN_DATA="$D" HOOK_TELEMETRY_SINK="$SINK" \
+    CLAUDE_PLUGIN_OPTION_ZONE_CROSSING_INJECT_ENABLED=true bash "$HOOK" 2>/dev/null)
 RC=$?
 if [[ $RC -eq 0 && -z "$OUT" ]]; then
   ok "state-persist failure fails open silently (no additionalContext)"
@@ -205,7 +237,8 @@ fi
 # the working directory, which would re-inject on every cd.
 write_snapshot "$WORK/nohome" snr 90
 NR_OUT=$(printf '{"session_id":"snr","hook_event_name":"PostToolBatch"}' |
-  env -u HOME -u CLAUDE_PLUGIN_DATA HOOK_TELEMETRY_SINK="" bash "$HOOK" 2>/dev/null)
+  env -u HOME -u CLAUDE_PLUGIN_DATA HOOK_TELEMETRY_SINK="" \
+    CLAUDE_PLUGIN_OPTION_ZONE_CROSSING_INJECT_ENABLED=true bash "$HOOK" 2>/dev/null)
 NR_RC=$?
 if [[ $NR_RC -eq 0 && -z "$NR_OUT" ]]; then
   ok "no HOME and no CLAUDE_PLUGIN_DATA stays silent"

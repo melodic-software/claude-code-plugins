@@ -101,7 +101,7 @@ zone bands, zones.json shape) are owned by
    shape with a stderr notice; a v1 file without `token_bands` is valid, with shipped token bands
    silently in effect; remediation: `apply`). Note the hooks resolve zones through this same data —
    a machine with no snapshots gets silent hooks, not errors.
-6. **Hook registration vs hook activation** — THREE separate facts, never collapsed into one
+6. **Hook registration vs hook activation** — FOUR separate facts, never collapsed into one
    status. A registered hook set that every hook exits out of immediately is the exact state an
    operator is diagnosing when injections or gating are missing, and reporting "active" because the
    plugin is enabled tells them the opposite of the runtime state.
@@ -120,11 +120,18 @@ zone bands, zones.json shape) are owned by
        `pluginConfigs` options block in the user `settings.json`
        (`docs/conventions/hook-config-delivery` owns why the declared `default` field is not
        delivered to hook processes).
+   - **Injection opt-in** — `zone_crossing_inject_enabled` is
+     `${user_config.zone_crossing_inject_enabled}`, read and interpreted the same way, except the
+     in-script default is **disabled** (default OFF since 0.5.0): only a configured `true` makes
+     the zone-crossing injection fire; `false`, an unset key, or the literal token surviving
+     unexpanded all mean the injection stays silent while the gate and PostCompact marker follow
+     their own switches. A silent injection with this key unset is the shipped default, not a
+     defect — remediation for an operator who wants the guidance: set the option via `/plugin`.
    - **Gate posture** — `zone_hook_mode` is `${user_config.zone_hook_mode}`, read and interpreted
      the same way. Only `blocking` makes the PreToolUse gate do anything; `advisory` (the in-script
-     default) leaves it inert while the injection hook still runs. Report it separately: an armed
-     hook set with an advisory posture is a different runtime state from an inert hook set, and
-     only one of the two is a defect.
+     default) leaves it inert while the injection hook follows its own opt-in above. Report it
+     separately: an armed hook set with an advisory posture is a different runtime state from an
+     inert hook set, and only one of the two is a defect.
 7. **Print the operator edit** — always print the applicable statusline edit for the settings
    file that owns the effective command (step 3), marked clearly as the operator's to apply. The
    wiring target is the SHIM's fixed path — never `${CLAUDE_PLUGIN_ROOT}`, which is version-pinned

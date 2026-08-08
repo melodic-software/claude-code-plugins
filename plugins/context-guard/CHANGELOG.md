@@ -5,6 +5,43 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0]
+
+### Changed
+
+- **The zone-crossing injection is now opt-in — disabled by default on both wirings
+  (PostToolBatch + UserPromptSubmit).** A new `zone_crossing_inject_enabled` userConfig boolean
+  (declared `default: false`, and — because the declared `default` field is never delivered to
+  hook processes, per `docs/conventions/hook-config-delivery` fact 3 — an in-script default of
+  `false` that carries the shipped behavior) gates `zone-crossing-inject.sh` after the existing
+  `context_guard_hooks_enabled` master switch. The script, its wiring, and its once-per-worsening-
+  transition mechanics are unchanged; operators who want the continuation guidance opt back in by
+  configuring the option `true` via `/plugin`.
+
+  Why the default flipped (#2009, #2021): the hook-surface classification pass (#2021) found this
+  hook to be the **only always-on model-facing behavioral hook in a default install** across the
+  marketplace's non-formatter plugins — a ~1KB lecture plus four-option exit menu (continue,
+  `/clear`, handoff-then-`/clear`, `/compact`) injected on every worsening zone crossing, wired
+  twice. Independently, #2009 recorded that check I23 (shipped by this repository since PR #2000)
+  flags exactly this shape: current models already carry the continue/summarize/hand-off initiative
+  the menu instructs, so the injection manufactures stop-initiative rather than adding information
+  — the zone measurement decides only *when to ask* while the model still decides *whether to
+  stop*. Config-off-first follows the plugin philosophy's instruction-economy evidence gate: the
+  script stays shipped and the mechanism reversible while ablation evidence accumulates.
+
+  The blocking gate (`zone-gate.sh`, still governed by `zone_hook_mode`, default `advisory`) and
+  the PostCompact evidence-degraded marker (`post-compact-mark.sh`) keep their prior defaults —
+  the marker also still feeds the zone resolver and the gate regardless of this switch, so the
+  observability seam is unaffected. Minor version bump: a default-behavior change, no contract
+  removal.
+
+  Contract facts verified against the live official docs (fetched 2026-08-08):
+  <https://code.claude.com/docs/en/plugins-reference#user-configuration> (userConfig option
+  fields — `type: boolean`, `default` "Value used when the user provides nothing"; values exported
+  to hook processes as `CLAUDE_PLUGIN_OPTION_<KEY>`, key uppercased) and
+  <https://code.claude.com/docs/en/hooks> (`PostToolBatch` and `UserPromptSubmit` are the two
+  wired events; both carry `additionalContext` via `hookSpecificOutput`).
+
 ## [0.4.9]
 
 ### Changed

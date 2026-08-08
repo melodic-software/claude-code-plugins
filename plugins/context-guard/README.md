@@ -23,7 +23,9 @@ tool that needs it — so long-running workflows can route heavy work away from 
   Zones say *where you are*; consumers decide *what to do*.
 - **Zone-crossing hooks** (`hooks/`) — the first shipped consumer. Once per transition into a
   worse zone, a PostToolBatch/UserPromptSubmit hook injects continuation guidance (advisory;
-  silent on unchanged, improving, or `unknown` zones). A PostCompact hook writes an
+  silent on unchanged, improving, or `unknown` zones). **Opt-in since 0.5.0:** the injection is
+  disabled by default and fires only with `zone_crossing_inject_enabled` configured `true` —
+  see [Configuration](#configuration). A PostCompact hook writes an
   evidence-degraded marker next to the session's snapshot, and both zone consumers honor it: a
   compacted session's effective zone is dumb regardless of its post-compaction numbers. An
   optional **blocking** mode (`zone_hook_mode` userConfig) adds a PreToolUse gate that denies new
@@ -99,9 +101,15 @@ governs how often it runs.
 
 ## Configuration
 
-Three `userConfig` options, all hook-scoped: `context_guard_hooks_enabled` (kill switch, default
-true), `zone_hook_mode` (`advisory` default | `blocking`), and `zone_gate_grace_calls` (blocking
-mode's grace budget, in-script default 20). The snapshot path and the 10-minute staleness rule are
+Four `userConfig` options, all hook-scoped: `context_guard_hooks_enabled` (kill switch over the
+whole hook set, default true), `zone_crossing_inject_enabled` (opt-in for the zone-crossing
+injection, **default false** — configure it `true` via `/plugin` to receive the continuation
+guidance; the in-script default is also false, so an unset key means off), `zone_hook_mode`
+(`advisory` default | `blocking`), and `zone_gate_grace_calls` (blocking mode's grace budget,
+in-script default 20). The injection default flipped to off in 0.5.0: a hook-surface
+classification found it was the only always-on model-facing behavioral hook in a default install,
+and its four-option exit menu duplicates continuation initiative current models already carry
+(see the plugin CHANGELOG). The snapshot path and the 10-minute staleness rule are
 deliberately **not** configurable: they are contract constants that cross-plugin consumers inline
 from the [reader contract](reference/reader-contract.md); a per-user override would silently split
 the writer from its readers. Band numbers are the one tunable — via
