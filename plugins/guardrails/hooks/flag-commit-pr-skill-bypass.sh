@@ -45,7 +45,7 @@
 # match. This is a nudge toward the canonical skills, not an enforcement gate.
 #
 # Opt-in switch: flag_commit_pr_skill_bypass_enabled userConfig option.
-# DEFAULT OFF since 0.20.0: issue #2021's hook-surface classification found this
+# DEFAULT OFF since 0.20.0: the #2021 hook-surface classification found this
 # is a behavioral-class context injector — a fixed prose nudge that consults no
 # external ground truth — and PLUGIN-PHILOSOPHY.md's instruction-economy
 # evidence gate ablates that class config-off first (the script stays; a

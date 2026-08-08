@@ -10,7 +10,7 @@
 # way). Closes the inline-authoring gap that no file glob can reach.
 #
 # Opt-in switch: workflow_resilience_check_enabled userConfig option.
-# DEFAULT OFF since 0.20.0: issue #2021's hook-surface classification found this
+# DEFAULT OFF since 0.20.0: the #2021 hook-surface classification found this
 # is a behavioral-class context injector — two greps and a fixed checklist that
 # asserts nothing the model cannot derive — and PLUGIN-PHILOSOPHY.md's
 # instruction-economy evidence gate ablates that class config-off first (the
