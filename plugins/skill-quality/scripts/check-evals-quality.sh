@@ -10,7 +10,7 @@
 # NO model invocation, so results are reproducible in CI.
 #
 # Exit 0 = no FAIL findings (WARNs allowed); 1 = one or more FAIL findings;
-# 2 = usage/environment error (no jq, missing file, unparseable JSON —
+# 2 = usage/environment error (no jq, missing file, unparsable JSON —
 # fail closed, never a silent skip; schema validation owns shape errors).
 #
 # Usage:
@@ -122,7 +122,7 @@ warn() {
 # One jq pass over every file: emits KIND<US>message lines (US = 0x1f), with
 # FILE<US>path lines for the fixture-existence check bash must do itself.
 # input_filename keys each finding to its source file. jq aborts on the
-# first unparseable input — that surfaces as exit 2 below (fail closed;
+# first unparsable input — that surfaces as exit 2 below (fail closed;
 # point schema validation at the file).
 # shellcheck disable=SC2016  # single quotes are deliberate: the $names inside are jq variables, not shell expansions
 JQ_PROG='
@@ -141,14 +141,14 @@ JQ_PROG='
   # and empty containers. Non-empty objects/arrays pass: the schema leaves
   # item shape skill-author-defined (upstream assertions may be structured).
   ($cases[] | caseref as $c | items[]?
-    | select((type == "string" and (gsub("\\s+"; "") == ""))
+    | select((type == "string" and (gsub("[[:space:]]+"; "") == ""))
              or type == "null"
              or ((type == "array" or type == "object") and length == 0))
     | "FAIL" + $u + "\($f): \($c): empty or non-gradeable expectations/assertions item (empty/whitespace string, null, or empty container) — an empty criterion cannot be graded (Q3)"),
   # Q3 also covers a sole-criterion expected_output that is whitespace-only:
   # it clears the schema (minLength counts whitespace) yet cannot be graded.
   ($cases[] | select(.expectations == null and .assertions == null)
-    | select((.expected_output // "") | (length > 0) and (gsub("\\s"; "") == ""))
+    | select((.expected_output // "") | (length > 0) and (gsub("[[:space:]]"; "") == ""))
     | caseref as $c
     | "FAIL" + $u + "\($f): \($c): whitespace-only expected_output is the sole grading criterion — it cannot be graded (Q3)"),
   # Q4: fixture entries, resolved by bash.
@@ -169,9 +169,9 @@ JQ_PROG='
   # trimming, so padding cannot clear the floor; whitespace-only strings are
   # Q3 FAILs and excluded here to avoid a double report.
   ($cases[] | select(.expectations == null and .assertions == null)
-    | select((.expected_output // "") | (gsub("\\s"; "") != "") or . == "")
-    | select(((.expected_output // "") | gsub("^\\s+|\\s+$"; "") | length) < $min) | caseref as $c
-    | "WARN" + $u + "\($f): \($c): sole grading criterion is a \((.expected_output // "") | gsub("^\\s+|\\s+$"; "") | length)-char expected_output (min \($min)) — too thin to guide a grader (Q8)"),
+    | select((.expected_output // "") | (gsub("[[:space:]]"; "") != "") or . == "")
+    | select(((.expected_output // "") | gsub("^[[:space:]]+|[[:space:]]+$"; "") | length) < $min) | caseref as $c
+    | "WARN" + $u + "\($f): \($c): sole grading criterion is a \((.expected_output // "") | gsub("^[[:space:]]+|[[:space:]]+$"; "") | length)-char expected_output (min \($min)) — too thin to guide a grader (Q8)"),
   # Q9: set-level refusal/anti-pattern coverage.
   (if ($cases | length) > 0 and
       ([$cases[] | [(.name // ""), .prompt, (.expected_output // ""),
@@ -190,7 +190,7 @@ JQ_RC=$?
 LINT_OUT="$(printf '%s' "$LINT_OUT" | tr -d '\r')"
 
 if [[ $JQ_RC -ne 0 ]]; then
-  printf 'Error: jq failed (unparseable JSON or internal error) — run schema validation on the input first:\n%s\n' "$LINT_OUT" >&2
+  printf 'Error: jq failed (unparsable JSON or internal error) — run schema validation on the input first:\n%s\n' "$LINT_OUT" >&2
   exit 2
 fi
 

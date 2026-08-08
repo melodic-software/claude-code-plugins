@@ -93,15 +93,15 @@ else
   fail "a missing input file should exit 2 (rc=$rc): $out"
 fi
 
-# 4. Unparseable JSON is an environment error (exit 2) pointing at schema
+# 4. Unparsable JSON is an environment error (exit 2) pointing at schema
 #    validation — fail closed, never a silent skip.
 f="$(make_evals broken-json '{ not json')"
 out="$(run "$f" 2>&1)"
 rc=$?
 if [[ $rc -eq 2 ]] && grep -q 'schema validation' <<<"$out"; then
-  pass "unparseable JSON exits 2 and points at schema validation"
+  pass "unparsable JSON exits 2 and points at schema validation"
 else
-  fail "unparseable JSON should exit 2 (rc=$rc): $out"
+  fail "unparsable JSON should exit 2 (rc=$rc): $out"
 fi
 
 # 5. A clean rich-form set passes with zero findings.
