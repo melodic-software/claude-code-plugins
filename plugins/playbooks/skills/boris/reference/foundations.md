@@ -12,7 +12,7 @@ The single biggest productivity unlock. Spin up 3-5 git worktrees at once, each 
 
 ```bash
 # Create a worktree
-git worktree add .claude/worktrees/my-worktree origin/main
+git worktree add .claude/worktrees/my-worktree origin/main # portability-ok: verbatim Boris workflow example; names the example's own base branch, not a default this repo assumes
 
 # Start Claude in it
 cd .claude/worktrees/my-worktree && claude
