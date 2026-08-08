@@ -21,7 +21,7 @@ The review-and-revise layer: name the dominant problem, offer one focused revisi
 checklist as deliberate choice points, and generate labeled alternates. Diagnosis names problems;
 it does not silently rewrite the whole song.
 
-Method content is Pat Pattison's, under `context/pat-pattison/`. A future author's method plugs in
+Method content is Pat Pattison's, under the plugin-root `../../context/pat-pattison/`. A future author's method plugs in
 at `context/<author>/` without changing this skill.
 
 ## Action Router

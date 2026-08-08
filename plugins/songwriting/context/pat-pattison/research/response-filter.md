@@ -174,11 +174,38 @@ any prose lyric line.
 - [ ] **Vowel awareness** — the line's stressed vowels chosen, not
       defaulted; bright vowels (long-ē, long-ā) feel sharp; dark vowels
       (long-ō, long-ū) feel weighted
+- [ ] **Unintended implication** — read the line as a stranger with no
+      access to the writer's intent, and NAME what it implies about each
+      character: their motive, their status, their history, their
+      relationship. If any implication contradicts the song's premise,
+      REWRITE. A line can pass every box above and still assign a
+      character a motive the writer never chose.
+- [ ] **Nothing without its purpose** — every element the line introduces
+      (an object, a second character, a place, a time marker) does a job
+      the song needs. Pat invokes Ibsen's rule about the gun in Act I:
+      have a reason for each element, and no duplication of function
+      (*Writing Better Lyrics* (2009), Chapter 10). An unused element is
+      not neutral — the listener will assign it meaning.
 
-**Fail signature:** about-to-emit line like *"My broken heart is lonely in
-the dark, waiting for your love to make me whole"* — every box fails:
-abstract telling, three cliches, generic nouns, no senses, weak verbs.
-STOP. Rebuild from a concrete sense-bound image.
+**Fail signature 1 — generic abstraction:** about-to-emit line like
+*"My broken heart is lonely in the dark, waiting for your love to make me
+whole"* — every box fails: abstract telling, three cliches, generic nouns,
+no senses, weak verbs. STOP. Rebuild from a concrete sense-bound image.
+
+**Fail signature 2 — clean line, wrong implication:** a line like *"she
+watched me from the window sill"* passes sense-bound, specific noun, strong
+verb, no cliche, and consistent POV — and still reads as surveillance,
+casting a chance-encounter character as a stalker or a thief sizing up a
+mark. The premise is destroyed by a line with no defective box.
+
+Why this box is not optional: Chapter 1's account of why sense-bound
+language works is that the listener fills the writer's words with their OWN
+sense memories and associations. That mechanism is what makes showing
+powerful, and it is not selective — the listener supplies implication the
+writer never placed there. Specificity increases the pull, so a MORE
+concrete line carries MORE unintended implication, not less. The check runs
+after the other §2 boxes pass, precisely because passing them is what makes
+the risk live.
 
 **Anchor quote:**
 

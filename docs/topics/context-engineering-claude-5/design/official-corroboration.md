@@ -1,9 +1,10 @@
 # Official corroboration — each source claim against current documentation
 
-The source is one practitioner's post. Every rule it states is checked here against official
-documentation fetched 2026-07-24. Where a doc confirms the rule, the doc is the authority and the
-post is a restatement. Where no doc confirms it, the rule is `OPINION`-tier under the authority axis
-already defined in `claude-config/skills/audit-instructions/reference/criteria.md`.
+The source is a post on Anthropic's Claude blog — vendor-published, but a blog post rather than
+reference documentation. Every rule it states is checked here against official documentation fetched
+2026-07-24. Where a doc confirms the rule, the doc is the authority and the post is a restatement.
+Where no doc confirms it, the rule is `OPINION`-tier under the authority axis already defined in
+`claude-config/skills/audit-instructions/reference/criteria.md`.
 
 Pages fetched this session:
 

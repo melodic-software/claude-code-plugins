@@ -108,7 +108,7 @@ plugin manifests and kept in sync by CI — never hand-edit it; the category voc
 
 ## Music
 
-- [`songwriting`](../plugins/songwriting) — Songwriting craft companion — eight concern-scoped lyric-craft skills (workflow router, rhyme, object-writing, meter-prosody, song-form, co-write, diagnose, practice) applying Pat Pattison's methods, plus Suno v5.5 prompt engineering (style prompts, tagged lyrics, genre templates, troubleshooting).
+- [`songwriting`](../plugins/songwriting) — Songwriting craft companion — nine concern-scoped lyric-craft skills (workflow router, rhyme, object-writing, metaphor, meter-prosody, song-form, co-write, diagnose, practice) applying Pat Pattison's methods, with an object-writing agent that performs the sensory exercise itself and per-skill emission boundaries that route generation to the skill that owns it, plus Suno v5.5 prompt engineering (style prompts, tagged lyrics, genre templates, troubleshooting).
 
 ## Personal
 
