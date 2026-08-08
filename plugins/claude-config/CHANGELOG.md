@@ -11,12 +11,14 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   (catalog 1.17.0). Every behavioral claim was verified 2026-08-08 against the raw-`.md` channel of
   its source page, with byte sizes and MD5 stamps recorded per row:
   - **I23 — instruction relying on silent generalization** (unscoped; gate met by the two guides'
-    verbatim-identical "More literal instruction following" sections). Flags text demonstrating one
+    "More literal instruction following" sections, whose Detect sentences are stated
+    verbatim-identically). Flags text demonstrating one
     instance where a whole class is meant — a worked example standing in for a rule, an undecidable
     "etc." tail, a single item named inside an iterating procedure, an unstated per-item iteration —
     and proposes explicit scope statements. Additive, so the stopping condition does not bind it.
   - **I24 — sampling parameter prescribed where the model rejects it** (unscoped; range as Detect
-    condition: Opus 4.7 or later, and Sonnet 5). Prescribing non-default
+    condition: Opus 4.7 or later, Sonnet 5, Fable 5, and Mythos 5 — the Fable/Mythos arm carries
+    over from Opus 5 per the migration guide). Prescribing non-default
     `temperature`/`top_p`/`top_k` — variety steering, `temperature = 0` determinism — publishes a
     400. Fences: model-gated claims, SDK/config expressions (config-mechanics discriminator),
     non-sampling senses of "temperature", meta discussion.
@@ -45,7 +47,8 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   Opus 5 guide.
 - **`audit-instructions`: Sources list** gains the Opus 4.8 prompting guide and What's new in
   Claude Sonnet 5; the migration-guide entry now also names the sampling-parameter ranges it
-  carries. SKILL.md catalog ranges updated I1–I22 → I1–I25.
+  carries. Both SKILL.md catalog ranges updated: I1–I22 → I1–I25, and the memory-surface partition
+  I6–I22 → I6–I25.
 
 ## [0.22.0]
 

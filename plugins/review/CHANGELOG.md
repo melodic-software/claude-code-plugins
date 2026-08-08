@@ -18,9 +18,12 @@ All notable changes to the `review` plugin are documented here. Format follows
   pipeline remains the filter.
 - **`quality-gate`: per-slice template reports coverage-first with a Confidence column.** The slice
   reviewer template now states that severity and confidence label findings rather than deciding
-  whether they are reported, and its findings table carries a Confidence column — feeding the
-  fanout pipeline's confidence stage instead of leaving slice findings unscored (an unlabeled
-  finding ranks above honestly-labeled low-confidence ones).
+  whether they are reported, and its findings table carries a Confidence column — constrained to
+  the severity baseline's high / medium / low vocabulary — feeding the fanout pipeline's confidence
+  stage instead of leaving slice findings unscored (an unlabeled finding ranks above
+  honestly-labeled low-confidence ones). The seams consume it end-to-end: the fanout normalization
+  parse contract records the slice surface's native confidence and Stage 2 passes the label
+  through, and quality-gate's own Step 3 report table gains the Confidence column.
 
 ### Changed
 

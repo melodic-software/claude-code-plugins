@@ -350,7 +350,7 @@ three trigger phrases (see Source), so this fires for every target model.
   which appears nowhere in the Opus 5 guide** — is stated in the Sonnet 5 guide and again in the
   Opus 4.8 guide ("Code review harnesses"), which repeats the claim, the coverage prompt, and the
   concrete-bar half near-verbatim for its own model; the Sonnet 5 guide states that half as: "be
-  concrete about where the bar is rather than using qualitative terms like `important`." (Opus 4.8
+  concrete about where the bar is rather than using qualitative terms like "important"." (Opus 4.8
   corroboration verified 2026-08-08 against that guide's raw `.md`, 15,905 bytes, MD5
   `6b9db5b784ad6a7b2e6307c1481b8be9`; the gate was already met without it.)
 
@@ -401,9 +401,10 @@ choice, on the same reasoning I10 applies to a declined widening.
   on this row's duration premise. To keep one finding per line, a cadence instruction reports as
   I8-e on every target; this row keeps the remaining short-turn shapes — the answer-quickly
   directive, and a non-status rhythm pinned to a turn rather than to the work.
-- **Remediate:** name the guarantee the cadence was protecting — that the user can see progress,
-  that a long run stays interruptible — and either state that outcome and let the model meet it, or
-  move it to a mechanism rather than an instructed rhythm. Verify via the delete-and-watch loop.
+- **Remediate:** name the constraint the brevity or rhythm was protecting — a latency requirement,
+  an external contract, a human process — and where one exists, state that constraint instead of
+  the turn-length assumption; where none exists, remove the directive and let turn length follow
+  the work. Verify via the delete-and-watch loop.
 - **Bounded by:** the **Stopping condition** below, which is enabled by default.
 - **Must NOT flag: an output-length instruction.** Brevity of the *reply* is a different subject and
   belongs to I8 base; this row's subject is the cadence and duration of the *turn*.
@@ -413,11 +414,6 @@ choice, on the same reasoning I10 applies to a declined widening.
 - **Must NOT flag: a document *about* the pattern** — this row, a model-adaptation delta chapter
   counter-steering it for a different model, a verification record quoting it — on the same audience
   test I8-b applies.
-- **Must NOT flag: a cadence carrying its own explicit observability or interruptibility
-  rationale** — a rhythm the surface states exists so a long autonomous run stays visible or
-  interruptible names the very guarantee the Remediate line protects, and that design is the
-  surface's to make — unless evidence shows the cadence was calibrated to an obsolete turn length
-  rather than to the work.
 - **Scope, and what is deliberately outside it:** the guide pairs this behavior with advice to adjust
   **client timeouts, streaming, and progress indicators** before migrating. That half is harness
   client configuration rather than instruction content, so it is not audited here and no row claims
@@ -944,14 +940,14 @@ Severity `warning` · Model scope: `sonnet-5`.
   surface I17 base enumerates, or a workload the surface states runs thinking-disabled — and (b)
   depends on the model reaching for tools (search, retrieval, self-verification loops, agentic tool
   chains) while stating no explicit instruction about when and how to use those tools. The guide
-  states the coupling directly: "With thinking disabled, the model is less likely to reach for
-  tools or consider searching." A brief that turns thinking off and then relies on default tool
-  reach depends on a disposition that configuration reduced, and the failure is silent — fewer tool
-  calls, not an error.
-- **Remediate:** add the explicit nudge, per the guide — "if you rely on tool calls with thinking
-  off, add an explicit nudge in the system prompt" — describing which tools, when, and why; or
-  leave thinking on. Effort is a second lever: "`high` or `xhigh` effort settings show substantially
-  more tool usage in agentic search and coding."
+  states the coupling and its remedy in one sentence: "With thinking disabled, the model is less
+  likely to reach for tools or consider searching; if you rely on tool calls with thinking off, add
+  an explicit nudge in the system prompt." A brief that turns thinking off and then relies on
+  default tool reach depends on a disposition that configuration reduced, and the failure is
+  silent — fewer tool calls, not an error.
+- **Remediate:** add the explicit nudge the sentence above prescribes — describing which tools,
+  when, and why — or leave thinking on. Effort is a second lever: "`high` or `xhigh` effort
+  settings show substantially more tool usage in agentic search and coding."
 - **Must NOT flag:** a thinking-disable with no tool dependence. A tool-dependent surface that
   already instructs its tool use explicitly — that is the remediation, present. A surface with no
   control over and no claim about the thinking configuration, whose tool reliance runs under the
@@ -1322,9 +1318,10 @@ for the reason I17 base states.
 - **Detect:** instruction text directing a reader to set `temperature`, `top_p`, or `top_k` to a
   non-default value — commonly "raise the temperature" for variety, creativity, or design
   divergence, or "set `temperature = 0`" for determinism — where the run's resolved target model is
-  Claude Opus 4.7 or later, or Claude Sonnet 5. On those models a non-default sampling parameter
-  returns a 400 error; the SDK request types still define the fields for compatibility, so the
-  instruction type-checks and fails only at the API.
+  Claude Opus 4.7 or later, Claude Sonnet 5, Claude Fable 5, or Claude Mythos 5 (the same range
+  I17-c's API arm names). On those models a non-default sampling parameter returns a 400 error; the
+  SDK request types still define the fields for compatibility, so the instruction type-checks and
+  fails only at the API.
 - **Remediate:** remove the parameter and steer the behavior in prompt text — upstream's framing:
   "Remove these parameters when migrating, and use system-prompt instructions to guide tone and
   variety instead." For design variety specifically, the propose-options pattern is the documented
@@ -1341,7 +1338,10 @@ for the reason I17 base states.
   non-default value are not accepted and return a 400 error"; same guide for the Opus range —
   "Setting `temperature`, `top_p`, or `top_k` to any non-default value on Claude Opus 4.7 or later
   models, including Claude Opus 5, returns a 400 error", with the SDK-compatibility and
-  determinism notes quoted from its Opus 5 section. Corroborated at What's new in Claude Sonnet 5
+  determinism notes quoted from its Opus 5 section; same guide for the Fable/Mythos arm, "Migrating
+  to Claude Mythos 5 and Claude Fable 5 from Claude Opus 5" — "The prefill and sampling-parameter
+  restrictions, and the thinking display behavior, carry over from Claude Opus 5 unchanged."
+  Corroborated at What's new in Claude Sonnet 5
   ("This is new for Sonnet-class models; the same constraint was previously introduced on Claude
   Opus 4.7") and in the Sonnet 5 guide, "Tone and writing style", which supplies the Remediate
   quote. The migration guide is already a Sources entry; What's new in Claude Sonnet 5 joins

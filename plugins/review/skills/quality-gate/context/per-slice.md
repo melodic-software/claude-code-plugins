@@ -26,7 +26,8 @@ Review every changed file against ONLY that slice's criteria.
 Report every finding those criteria reach, including ones you are uncertain
 about or consider low-severity — severity and confidence label each finding;
 they never decide whether it is reported. Ranking and filtering happen after
-reporting.
+reporting. Confidence uses exactly high / medium / low (the severity
+baseline's confidence axis) — never free text or percentages.
 
 Report findings in this format:
 
