@@ -5,6 +5,20 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.7]
+
+### Fixed
+
+- **Every hook loads again; the manifest was pointing at a file Claude Code had already loaded
+  (#1985).** `plugin.json` set `"hooks": "./hooks/hooks.json"` — the default path the harness
+  discovers on its own. The second registration was rejected as a duplicate and the whole hook file
+  failed to load with it, so zone-crossing injection, the blocking gate, and the PostCompact
+  evidence-degraded marker were inert on every machine that installed the plugin, and the
+  `context_guard_hooks_enabled` and `zone_hook_mode` settings had nothing to switch. The manifest
+  field exists for hook files at non-default paths; the default one needs no entry. `claude-ops` and
+  `guardrails` already ship `hooks/hooks.json` with no manifest key, which is the shape this now
+  matches.
+
 ## [0.4.6]
 
 ### Changed
