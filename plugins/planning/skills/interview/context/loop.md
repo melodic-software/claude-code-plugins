@@ -211,7 +211,7 @@ The ladder, in order:
 
 1. **Facts stay facts.** Resolve from the environment exactly as always — this path changes nothing about the codebase gate.
 2. **Codebase-resolvable or unambiguous-conventional decisions** resolve as they would interactively. Record the row `answered` with the basis in the resolution field, marked `auto-resolved (unattended)`.
-3. **A decision that is genuinely the user's** — real tradeoffs, no codebase answer — is NEVER assumed. Record the row `blocked`, write the question into the Brief's `### Deferred questions` with **arbiter: USER-RESERVED**, and name it as a blocker in the run's output.
+3. **A decision that is genuinely the user's** — real tradeoffs, no codebase answer — is NEVER assumed. Record the row `blocked`, write the question into the Brief's `### Deferred questions` led by its `Q<N>` id and tagged **arbiter: USER-RESERVED**, and name it as a blocker in the run's output.
 4. **Never idle-wait.** A run with nobody to answer stops on its blockers rather than holding the lane.
 5. **The confirmation gate cannot be satisfied unattended.** Report the contract as unconfirmed with its blocker list; absence of objection is not confirmation.
 
@@ -277,7 +277,7 @@ Each section in the PLAN.md Brief captures a specific shape. Keep tight.
 
 **Out-of-scope** — things raised during the interview and explicitly excluded. Distinct from non-goals (constraints up-front); these surfaced in conversation.
 
-**Deferred questions** — questions deferred-fully. Out of scope for this task but recorded so they don't silently become hidden assumptions.
+**Deferred questions** — questions deferred-fully, plus the `blocked` ones an unattended run could not put to anybody. Out of scope for this task but recorded so they don't silently become hidden assumptions. **Each entry leads with its `Q<N>` id** — that id is what ties the contract entry back to its register row, and the Step 4 gate greps this section for it; an entry written without one reads as a question the ledger retired and the contract never recorded, and halts the gate.
 
 ### Brief template (the literal shape)
 
@@ -305,7 +305,7 @@ Write this into `<contract_dir>/<topic-slug>/PLAN.md` (default `docs/topics/`; t
 - <thing the user raised and explicitly excluded>
 
 ### Deferred questions
-- <question> — defer until <when>; **arbiter: /planning:plan** (default — /planning:plan resolves unilaterally during planning) OR **arbiter: USER-RESERVED** (user must re-confirm at /planning:plan approval gate; /planning:plan proposes, user resolves)
+- Q<N> — <question> — defer until <when>; **arbiter: /planning:plan** (default — /planning:plan resolves unilaterally during planning) OR **arbiter: USER-RESERVED** (user must re-confirm at /planning:plan approval gate; /planning:plan proposes, user resolves)
 
 ## Plan
 <empty — populated by /planning:plan>

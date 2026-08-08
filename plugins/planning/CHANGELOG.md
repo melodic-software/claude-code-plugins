@@ -3,6 +3,26 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.1]
+
+### Fixed
+
+- **`interview`: the Brief template now carries the `Q<N>` id the Step 4 gate matches on.** 0.28.0
+  added a cross-check proving every `deferred` / `blocked` register row reached the Brief's
+  `### Deferred questions`, keyed by the row's `Q<N>`. The requirement lived only in the script and
+  its fixtures — `loop.md`'s "Brief template (the literal shape)" still showed a deferred line
+  starting at `<question>`, with no id anywhere. A session writing the Brief exactly per the
+  documented template therefore failed the Step 4 cross-check with exit 2, which the skill treats
+  as a halt: **0.28.0 could block a template-conforming interview.** The template's deferred line,
+  its section guidance, the unattended ladder's step 3, and SKILL.md's Step 4 schema note now all
+  state that each deferred entry leads with its `Q<N>` id. Same failure class as the two the 0.28.0 review caught — the gate
+  blocking a run it should not — reached through the docs rather than the code.
+- **`interview`: eval 14 graded the pre-split gate contract.** It still asserted the check runs
+  "not after" persistence and that `--brief` is passed for an engineering session, both of which
+  0.28.0's two-run split reversed at Step 3. Nothing mechanical could catch this — `validate-evals`
+  checks schema and markdownlint does not read JSON — so it is called out here. Eval 13 gains the
+  `Q<N>` id in its unattended-blocker expectation for the same reason.
+
 ## [0.28.0]
 
 ### Added
