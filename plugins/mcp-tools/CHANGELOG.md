@@ -3,6 +3,38 @@
 All notable changes to the `mcp-tools` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.4]
+
+### Changed
+
+- The Phase 3 aggregate surfaces now account for the whole result vocabulary
+  instead of three buckets. The `Overall` line and the summary-by-server table
+  gain an `Info` column, and the reporting guidance states that those counts
+  cover a server's server-level criterion rows as well as its tools' rows —
+  previously the per-server score aggregated "across all tools", structurally
+  excluding the server-level C4 outcome the report had just rendered. `n/a` and
+  `undetermined` are named as non-severities that appear only in the
+  server-level criterion table, closing the gap where the text referred to a
+  summary table with no column for them.
+- C4's size budget is stated in the unit its cited source uses: the Claude Code
+  MCP page says descriptions and server instructions truncate at 2KB each, so
+  the evaluation reads "over 2KB" in bytes rather than "~2000 characters", and
+  notes that non-ASCII UTF-8 characters spend more than one byte — the two
+  diverge on any multibyte text.
+- `reference/server-discovery.md` describes the server `instructions` field by
+  how the protocol delivers it rather than by a single emission site: via
+  `InitializeResult` on `initialize` for protocol revision 2025-11-25 and
+  earlier, and via `DiscoverResult` on `server/discover` for 2026-07-28 and
+  later.
+- The same file records C4's no-`instructions` outcome as `n/a`, the literal
+  token SKILL.md defines, instead of the prose "not applicable".
+
+### Removed
+
+- `skills/audit/templates/checklist.md` — an unreferenced second copy of the
+  result vocabulary, and so a drift seam. The skill's "Track progress" section
+  already asks for an in-response checklist and never pointed at the file.
+
 ## [0.2.3]
 
 ### Added
