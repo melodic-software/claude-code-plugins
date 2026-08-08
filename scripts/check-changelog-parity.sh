@@ -11,7 +11,10 @@
 #                                                         not ADD a `## [<v>]`
 #                                                         entry for the new
 #                                                         version (present at
-#                                                         head, absent at <ref>)
+#                                                         head, absent at <ref>),
+#                                                         or the new version is
+#                                                         not strictly greater
+#                                                         than the one at <ref>
 #
 # Two complementary gaps the same audit surfaced:
 #   * --check is the static repo-wide invariant: a plugins/<name>/.claude-plugin/
@@ -29,7 +32,11 @@
 #     documented as `## <version>` (no brackets) is a separate FORMAT failure,
 #     reported as such rather than as undocumented. It applies to EVERY plugin,
 #     grandfathered or not — the moment a debt-listed plugin bumps again it must
-#     start its changelog.
+#     start its changelog. A bump must also be MONOTONIC: strictly greater than
+#     the version at <ref>, so a branch briefed against a stale base can neither
+#     regress a version main has already moved past nor collide on a number
+#     another change set claimed first (see the VERSION REGRESSION / VERSION
+#     COLLISION checks below).
 #
 # Existing "versioned but changelog-less" debt is grandfathered by plugin NAME in
 # scripts/changelog-parity-baseline.txt (same stale-guarded idiom as
@@ -90,12 +97,17 @@ version_of() { jq -r '.version // empty' "$1" 2>/dev/null; }
 # they are unversioned by any manifest, so --check and --check-bump never look
 # at them at all.
 # A fixed-width key so a lexical comparison orders versions NUMERICALLY. Five
-# digits per field is far beyond any version this repo will reach, and the
-# regex above admits only digits, so no field can overflow it silently.
+# digits per field is far beyond any version this repo will reach. --check-order
+# feeds digits-only versions (its regex admits nothing else); --check-bump feeds
+# manifest SemVer, so a `+build`/`-prerelease` suffix is stripped before the
+# split to keep every field numeric. Stripping build metadata is SemVer-exact
+# (it carries no precedence); pre-release ORDERING is deliberately not modeled —
+# no manifest in this repo uses it — so an equal-core pre-release keys equal to
+# its release.
 version_sort_key() {
   local IFS='.'
-  # shellcheck disable=SC2086  # deliberate word-split of a digits-only version on IFS
-  set -- $1
+  # shellcheck disable=SC2086  # deliberate word-split of the dotted version on IFS
+  set -- ${1%%[+-]*}
   printf '%05d.%05d.%05d' "$((10#${1:-0}))" "$((10#${2:-0}))" "$((10#${3:-0}))"
 }
 
@@ -234,9 +246,19 @@ while IFS= read -r path; do
   esac
 done <<<"$diff_paths"
 
+# The fork point, for "did THIS branch change the version?" (see fork_version
+# below). The three-dot diff above already proved a merge base exists, so a
+# failure here is unexpected — but this is a required merge gate, so it fails
+# loud rather than silently passing.
+if ! merge_base="$(git merge-base "$base" HEAD)"; then
+  echo "check-changelog-parity: 'git merge-base $base HEAD' failed; refusing to pass without checking." >&2
+  exit 2
+fi
+
 undocumented=0
 malformed=0
 preexisting=0
+nonmonotonic=0
 for manifest in "${manifests[@]}"; do
   plugin_dir="${manifest%/.claude-plugin/plugin.json}"
   name="${plugin_dir##*/}"
@@ -252,7 +274,33 @@ for manifest in "${manifests[@]}"; do
   # whether its initial CHANGELOG.md exists, not the bump gate.
   [[ -n "$base_version" ]] || continue
   head_version="$(version_of "$manifest")"
-  [[ "$head_version" != "$base_version" ]] || continue
+
+  # "Did this branch bump?" is head vs the FORK POINT, never vs the base tip:
+  # once the base ref advances past the fork, the tip comparison misreads both
+  # directions — head==tip despite a real bump (two branches claimed the same
+  # number: a collision that must FAIL, not read as not-bumped), and head!=tip
+  # despite no bump at all (a cosmetic manifest edit on a stale branch, which
+  # must stay out of scope rather than red-line as a regression).
+  fork_version="$(git show "$merge_base:$manifest" 2>/dev/null | jq -r '.version // empty' 2>/dev/null || true)"
+  [[ "$head_version" != "$fork_version" ]] || continue
+
+  # Monotonicity: the bumped version must land strictly ABOVE what the base ref
+  # carries NOW, not merely differ from it. A brief written against a stale base
+  # otherwise ships a silent downgrade (0.21.x onto a 0.25.0 main reads as a
+  # valid parity pair), and concurrent branches staging one number merge as an
+  # equal-version collision. Compare on the zero-padded key (see
+  # version_sort_key) so 0.10.0 outranks 0.9.0 numerically, not lexically.
+  head_key="$(version_sort_key "$head_version")"
+  base_key="$(version_sort_key "$base_version")"
+  if [[ ! "$head_key" > "$base_key" ]]; then
+    if [[ "$head_key" == "$base_key" ]]; then
+      echo "VERSION COLLISION: $name is bumped to $head_version but $base already carries $base_version — another change set claimed that number first; renumber above it." >&2
+    else
+      echo "VERSION REGRESSION: $name is bumped to $head_version but $base already carries $base_version — merging would move the version BACKWARD; renumber above $base_version." >&2
+    fi
+    nonmonotonic=$((nonmonotonic + 1))
+    continue
+  fi
 
   # Require the bumped version's own entry at head, not merely that the file
   # changed: an unrelated edit (whitespace, title, an old release) must not
@@ -347,10 +395,11 @@ for manifest in "${manifests[@]}"; do
   fi
 done
 
-if ((undocumented > 0 || malformed > 0 || preexisting > 0)); then
+if ((undocumented > 0 || malformed > 0 || preexisting > 0 || nonmonotonic > 0)); then
   ((undocumented > 0)) && echo "Add a '## [<version>]' entry for every plugin whose version changed." >&2
   ((malformed > 0)) && echo "Convert unbracketed changelog headings to the '## [<version>]' Keep-a-Changelog form." >&2
   ((preexisting > 0)) && echo "Add the bumped version's '## [<version>]' entry in this change set; it must be absent from the base changelog, not merely present at head." >&2
+  ((nonmonotonic > 0)) && echo "Renumber every bumped version strictly above the base ref's CURRENT version, not the version the branch was cut from." >&2
   exit 1
 fi
 echo "Every plugin whose version changed vs $base has a '## [<version>]' CHANGELOG.md entry."

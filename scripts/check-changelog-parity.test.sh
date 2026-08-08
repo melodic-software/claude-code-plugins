@@ -372,6 +372,116 @@ rc=$?
 if [[ $rc -ne 0 && "$out" == *"UNDOCUMENTED BUMP"*"beta"* && "$out" != *"alpha"* ]]; then ok "a plugin the branch bumped is still checked while the main-only advance is scoped out"; else fail "diff-scoping incorrectly scoped: rc=$rc out='$out'"; fi
 rm -rf "$repo"
 
+# ================ --check-bump version monotonicity (#2056) ==============
+
+# VERSION REGRESSION (stale brief, the #1989 fleet shape): the branch, forked at
+# 0.21.9, bumps alpha to 0.21.10 WITH a proper new entry, but main has moved to
+# 0.25.0. Parity alone reads the pair as valid; monotonicity must fail it — the
+# merge would move the version backward.
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 0.21.9 yes
+printf '# Changelog\n\n## [0.21.9]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+fork="$(git -C "$repo" rev-parse HEAD)"
+printf '{ "name": "alpha", "version": "0.25.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
+printf '# Changelog\n\n## [0.25.0]\n\n## [0.21.9]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'main advances alpha to 0.25.0'
+main="$(git -C "$repo" rev-parse HEAD)"
+git -C "$repo" checkout -q -b pr "$fork"
+printf '{ "name": "alpha", "version": "0.21.10" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
+printf '# Changelog\n\n## [0.21.10]\n\n## [0.21.9]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'pr bumps alpha to 0.21.10 off a stale base'
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$main" 2>&1)"
+rc=$?
+if [[ $rc -ne 0 && "$out" == *"VERSION REGRESSION"*"alpha"* && "$out" != *"UNDOCUMENTED"* && "$out" != *"PRE-EXISTING"* ]]; then ok "bump below the base ref's current version fails as VERSION REGRESSION despite valid parity"; else fail "version regression not caught: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
+# VERSION COLLISION (two branches staged one number): the branch bumps alpha
+# 1.0.0 -> 1.1.0 with a proper entry, but main already merged its own 1.1.0.
+# head==base-tip previously read as "not bumped" and skipped silently; the fork
+# comparison must see the branch's own bump and fail the collision loudly.
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 1.0.0 yes
+printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+fork="$(git -C "$repo" rev-parse HEAD)"
+printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
+printf '# Changelog\n\n## [1.1.0]\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'main merges its own 1.1.0'
+main="$(git -C "$repo" rev-parse HEAD)"
+git -C "$repo" checkout -q -b pr "$fork"
+printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
+printf '# Changelog\n\n## [1.1.0]\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'pr also bumps to 1.1.0'
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$main" 2>&1)"
+rc=$?
+if [[ $rc -ne 0 && "$out" == *"VERSION COLLISION"*"alpha"* && "$out" != *"UNDOCUMENTED"* ]]; then ok "bump equal to the base ref's current version fails as VERSION COLLISION (not skipped as not-bumped)"; else fail "version collision not caught: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
+# FORWARD PAST AN ADVANCED BASE: main moved alpha to 1.1.0 after the fork; the
+# branch bumps past it to 1.2.0 with a proper new entry -> passes. Proves
+# monotonicity compares against the base ref's CURRENT version and lets a
+# correctly renumbered branch through.
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 1.0.0 yes
+printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+fork="$(git -C "$repo" rev-parse HEAD)"
+printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
+printf '# Changelog\n\n## [1.1.0]\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'main bumps alpha to 1.1.0'
+main="$(git -C "$repo" rev-parse HEAD)"
+git -C "$repo" checkout -q -b pr "$fork"
+printf '{ "name": "alpha", "version": "1.2.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
+printf '# Changelog\n\n## [1.2.0]\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'pr bumps past the advance to 1.2.0'
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$main" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]]; then ok "bump strictly above the base ref's advanced version passes --check-bump"; else fail "forward bump past an advanced base wrongly failed: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
+# NUMERIC, NOT LEXICAL: 0.10.0 outranks 0.9.0 even though it sorts below it as a
+# string. A correctly documented 0.9.0 -> 0.10.0 bump must pass, not red-line as
+# a regression.
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 0.9.0 yes
+printf '# Changelog\n\n## [0.9.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+base="$(git -C "$repo" rev-parse HEAD)"
+printf '{ "name": "alpha", "version": "0.10.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
+printf '# Changelog\n\n## [0.10.0]\n\n## [0.9.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm bump
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]]; then ok "0.9.0 -> 0.10.0 passes (monotonicity is numeric, not lexical)"; else fail "cross-segment bump wrongly failed: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
+# COSMETIC MANIFEST EDIT ON A STALE BRANCH: main bumps alpha 1.0.0 -> 1.1.0; the
+# branch touches alpha's MANIFEST (description only) but never its version.
+# head!=base-tip, yet the branch bumped nothing — the fork comparison must scope
+# it out, not red-line it as a regression and force a merge-from-main.
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 1.0.0 yes
+printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+fork="$(git -C "$repo" rev-parse HEAD)"
+printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
+printf '# Changelog\n\n## [1.1.0]\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'main bumps alpha'
+main="$(git -C "$repo" rev-parse HEAD)"
+git -C "$repo" checkout -q -b pr "$fork"
+printf '{ "name": "alpha", "version": "1.0.0", "description": "d" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'pr edits alpha manifest, no version change'
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$main" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]]; then ok "manifest edit without a version change on a stale branch is not flagged (fork-scoped, no regression false positive)"; else fail "cosmetic manifest edit wrongly flagged: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
 # NO COMMON ANCESTOR (git diff cannot compute a diff): base is a resolvable
 # commit but shares no history with HEAD (an orphan root), so 'git diff
 # base...HEAD' fails ("fatal: no merge base", exit 128). The gate must fail LOUD
