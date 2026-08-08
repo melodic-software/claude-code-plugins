@@ -51,7 +51,7 @@ Agent({
   subagent_type: "discovery:researcher",
   description: "Deep research: <topic>",
   prompt: "Topic: <the resolved research topic>
-           Reason: <the decision this research feeds, and who the output is for>
+           Reason: <the decision this research feeds, and who the output is for — on the N-topic path, the slice of that decision THIS topic answers>
            Memory slice: <memory_dir>/<slug>/ — on the N-topic path, the <topic-slug>/ sub-slice assigned to THIS topic
            Memory root: <memory_dir>
            Budget: <the depth this session authorized>
