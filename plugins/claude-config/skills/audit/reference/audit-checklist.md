@@ -2,6 +2,10 @@
 
 Validation rules organized by category. Each check has a severity, what to look for, and how to verify.
 
+Category G (skill-listing budget) has no table here — its checks are procedural and live in
+[context/validation-categories.md](../context/validation-categories.md), which carries every
+category's criteria.
+
 ## A. Schema & Structure
 
 | Check | Severity | How to verify |
@@ -35,7 +39,6 @@ additional ask-gates) get those checked at the same severities.
 
 | Check | Severity | How to verify |
 | --- | --- | --- |
-| No deprecated `:*` syntax in any permission rule | warning | `jq -r '.permissions \| to_entries[] \| .value[]' \| grep ':*'` |
 | Deny rules are in settings.json, NOT settings.local.json | error | Bug [#8961](https://github.com/anthropics/claude-code/issues/8961) — deny rules in local are silently ignored |
 | No blanket `Bash(git *)` in allow (too broad) | warning | Should be split into specific git operations |
 
@@ -82,9 +85,11 @@ additional ask-gates) get those checked at the same severities.
 | --- | --- | --- |
 | All hook scripts exist on disk | error | Resolve `$CLAUDE_PROJECT_DIR` to the project root, check file exists |
 | Hook scripts are readable | error | `[[ -r <path> ]]` |
+| `timeout` is a seconds value, not milliseconds | warning | The [hooks reference](https://code.claude.com/docs/en/hooks) states for `timeout`: "Seconds before canceling. Defaults: 600 for `command`, `http`, and `mcp_tool`; 30 for `prompt`; 60 for `agent`." Flag a **recognizably millisecond-scale** value — a round thousands multiple such as `30000` or `120000`, which read as seconds are 8 h and 33 h. Do NOT flag merely-large values: the page documents defaults, not a maximum, so a deliberately long-running hook may legitimately exceed 600. When the value is large but not millisecond-shaped, corroborate against the hook's expected runtime before reporting anything |
 | Timeouts are reasonable (5-30s for formatters, up to 60s for heavy tools) | warning | Compare against known good values |
-| Matchers are valid regex | warning | `echo "" \| grep -P '<matcher>' 2>/dev/null` or check syntax |
-| Command hooks use quoted shell form | warning | Pattern: `"command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/..."`, **no `args`**; the `"command":"bash"`+`args` (exec-form) variant backslash-mangles `${CLAUDE_PROJECT_DIR}` on native Windows |
+| Matcher takes its intended evaluation path | warning | Classify the matcher by its characters, confirm exact-match vs regex matches intent, anchor regex-path matchers with `^…$` |
+| Shell-form path placeholders are quoted | warning | Same page: "Prefer exec form for any hook that references a path placeholder. In shell form, wrap each placeholder in double quotes." Flag a shell-form hook whose project/plugin placeholder is unquoted, in **either** spelling — braced (`${CLAUDE_PROJECT_DIR}`, `${CLAUDE_PLUGIN_ROOT}`, `${CLAUDE_PLUGIN_DATA}`) or bare-dollar (`$CLAUDE_PROJECT_DIR`), since both reach the shell and an unquoted path breaks on a space either way. Report exec form as the page's preference, but do **not** flag shell form itself — the page endorses omitting `args` when the hook needs pipes, `&&`, redirects, or a `.cmd`/`.bat` shim, and quoted shell form is a documented, correct spelling |
+| Exec-form `command` resolves on every platform the repo targets | error | Same page: "On Windows, exec form requires `command` to resolve to a real executable such as a `.exe`." Windows-only constraint — `bash` and `sh` are real executables on macOS/Linux, so flag only for a repo that runs on Windows. There `bash` resolves to the WSL relay `System32\bash.exe` and the launch fails; a failed launch is a non-blocking error, so a gate hook silently enforces nothing. Fixes per the page: a real binary plus the script path in `args` (`"command": "node"`), or shell form with `"shell": "bash"`, which Claude Code routes through Git Bash instead of a PATH lookup |
 | No duplicate hooks (same script registered twice for same event) | info | Compare commands within each event |
 | Hook events are valid per official docs | error | Cross-reference against the [hooks reference](https://code.claude.com/docs/en/hooks) — fetch it live rather than trusting a recalled event list |
 
@@ -104,3 +109,60 @@ additional ask-gates) get those checked at the same severities.
 | No secrets in settings.json (tokens, keys, passwords) | error | Scan for patterns: `ghp_`, `eyJ`, `sk-`, `AKIA`, common token prefixes |
 | Secrets are in settings.local.json only | error | settings.local.json is gitignored |
 | Path-based env vars use forward slashes | info | Windows compatibility |
+
+## H. Model and effort settings
+
+Each check reads a settings file this skill already opens, and each detects a value the harness
+accepts into the file and then does not apply the way its author expects. How loudly that surfaces
+differs per row, so each row says so rather than the section claiming a blanket silence.
+
+Two of these rows also have an authoring-time path: the declared schema section A checks for
+constrains `effortLevel` by `enum` and `fallbackModel` by `maxItems`, so an editor validating
+against it flags them before the file is ever loaded. The rows stay, because the schema is advisory
+— the harness still reads a file that violates it — and because section A checks that `$schema` is
+present, not what the values are. Where the schema and the harness disagree, the row says which is
+which.
+
+Apply `jq` recipes to `settings.json` and `~/.claude/settings.json`. For `settings.local.json`,
+follow this skill's safe-read rule and go through `check-structure.sh`, which reports these keys by
+value — `Effort level`, `Fallback chain` (raw and post-dedup counts), `Fallback entries` in order,
+`Available models`, and `Enforce available models` — distinguishing `unset` from `(empty list)`
+because those are different findings. Env and permission entries stay counts there, so a key that
+lives only in the local file is still checkable without dumping the secrets beside it. Resolve
+current behavior from <https://code.claude.com/docs/en/model-config> when the audit runs, the way
+section F resolves environment variables against their own page.
+
+| Check | Severity | How to verify |
+| --- | --- | --- |
+| `effortLevel` is not `max` or `ultracode` | warning | `jq '.effortLevel'`. Model configuration states both are session-only and "are not accepted here"; the declared schema's `enum` omits them too, so a schema-aware editor already flags this. Report what the author loses — the level they asked for is not the one that persists — without asserting which level runs instead, which the page does not state. `CLAUDE_CODE_EFFORT_LEVEL` is the durable route to `max` |
+| `fallbackModel` satisfies both the declared `maxItems: 3` and the documented post-dedup cap | warning | These are two different tests and can disagree: the schema caps RAW array length at 3, while the page caps the chain "after duplicate removal", so `["sonnet","haiku","sonnet","opus"]` fails the schema at 4 entries but leaves exactly 3 after dedup. Report raw length over 3 as a schema violation, then dedupe in place with `jq '.fallbackModel \| reduce .[] as $m ([]; if index($m) then . else . + [$m] end)'` — `unique` would sort away the order the chain is tried in — and name any entry past the third as at risk of being ignored. Not "dead": allowlist-excluded entries are also dropped when the chain is read, and the page does not state whether that dropping happens before or after the cap |
+| `availableModels` does not mix a family wildcard with a specific entry of that family | warning | An entry naming a specific model "disables that family's wildcard entry": `["sonnet", "claude-sonnet-4-5"]` permits only Sonnet 4.5, not every Sonnet. Reached the same way by a Mantle ID and by an `ANTHROPIC_CUSTOM_MODEL_OPTION` value embedding a family name. This one is not silent — an alias narrowed to an older permitted version shows "a notice naming both the requested and substituted models" — so the finding is that the allowlist is narrower than its author meant, not that nothing surfaces. Report the models they most likely still expect to be selectable |
+| `enforceAvailableModels: true` is paired with a non-empty `availableModels` | error | `jq 'select(.enforceAvailableModels == true) \| .availableModels'` — the finding requires the flag to be `true` AND the list unset or empty. An explicit `false` is someone turning enforcement off on purpose and is never a finding, so gate on the value rather than the key's presence. When it does fire: the key "has no effect when `availableModels` is unset or empty", so an administrator who set it believes the Default option is constrained when it is not — an enforcement bypass, which this skill's severity guide rates `error`. Both keys belong in the highest-precedence managed source, and managed sources do not merge; that placement is not decidable from the files this skill reads, so report the pairing, not the placement |
+
+Model IDs in `modelOverrides` are not validated here: unknown keys are ignored rather than
+rejected, and deciding whether a key is a real Anthropic model ID means resolving it against
+[Models overview](https://platform.claude.com/docs/en/about-claude/models/overview).
+
+### `effort:` and `model:` frontmatter on skills and agents
+
+The rows above read settings files. A durable effort or model choice also lives in component
+frontmatter — `effort:` and `model:` on a skill or subagent definition — and that placement is
+**this section's**, by an explicit hand-off rather than by inference: the instruction-audit
+catalog's effort row states "**Must NOT flag:** `effort:` frontmatter and `effortLevel` settings
+keys as such … a config-mechanics finding belonging to `claude-config:audit`"
+([`../../audit-instructions/reference/criteria.md`](../../audit-instructions/reference/criteria.md),
+row I21). Without a row here, a component pinning a level is reached by neither skill — each
+pointing at the other is the shape a seam takes when nobody closes it.
+
+| Check | Severity | How to verify |
+| --- | --- | --- |
+| A component's `effort:` pin names the model it was calibrated against, or an event that re-opens it | info | Read the frontmatter of every `skills/*/SKILL.md` and `agents/*.md` in scope. The effort scale is calibrated **per model**, so the same level name does not carry the same underlying value across models, and a level measured against one model and carried to the next is a pin nobody re-measured — the property is stated unqualified at <https://code.claude.com/docs/en/model-config>, so it holds for every model rather than being a per-model quirk. **Do not flag a pin at the resolved model's own default level** — that pin encodes no measurement that could go stale. Resolve the default from the same page when the audit runs rather than assuming it: as of 2026-08-08 it is `high` everywhere effort is supported except Opus 4.7, which defaults to `xhigh`. **Recheck trigger:** `high` ceasing to be the general default, or the exception set changing. Report the missing re-derivation, never the level itself — which level is right is the author's call and this check has no opinion on it |
+| A component's `effort:` and `model:` are consistent with each other | info | A definition setting `model:` without `effort:` inherits the session's level, and the two together are what a spawn actually runs on. Flag only the combination the author is unlikely to have intended: a cheap `model:` tier paired with a top effort level, or the reverse, with no stated reason. Report the mismatch, never a preferred pairing |
+
+**Claim:** a subagent definition's own `effort` overrides the session level rather than yielding to
+it, so the frontmatter value is what ships. **Basis:** the [subagents
+reference](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields) — "Effort level
+when this subagent is active. Overrides the session effort level. Default: inherits from session."
+The same row admits `max`, which the `effortLevel` settings key does not, so a level valid here is
+not evidence it is valid in a settings file. **As of:** 2026-08-08, fetched as raw markdown.
+**Recheck trigger:** that field's precedence or its accepted-level list changing on the page.

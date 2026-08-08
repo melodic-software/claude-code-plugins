@@ -12,9 +12,10 @@
 #       reasoning, "think out loud", reasoning_extraction). These tell the model
 #       to emit its internal reasoning as response text.
 #   I8  model-era candidates, three pattern families emitted with per-family ids
-#       matching the catalog's Opus-5-scoped rows (the scanner is model-blind —
-#       the model lane adjudicates against the resolved target model and the
-#       criteria-owned fences):
+#       matching the catalog's I8 rows — I8-a and I8-c are Opus-5-scoped, I8-b is
+#       unscoped (promotion gate met; fires for every target). The scanner is
+#       model-blind — the model lane adjudicates against the resolved target model
+#       and the criteria-owned fences:
 #         I8-a instructed self-check ("double-check", "re-verify", "final
 #              verification step", "use a subagent to verify", "verify your own work")
 #         I8-b conservative-reporting directives ("be conservative", "only report
@@ -25,13 +26,27 @@
 #       idiomatic uses ("do not think of this as…"), and substring near-misses
 #       ("don't reasonably…") ARE emitted; the fences live in
 #       reference/criteria.md, never here.
+#   I23 self-estimated context-budget trigger ("context is heavy", "running low
+#       on context", "remaining context", "check /context", "final third of the
+#       window"). The catalog's subject is a directive to judge one's own window
+#       and then stop, summarize, hand off, or trim on that basis — but the
+#       scanner marks the BUDGET PHRASING alone and never the verb it governs,
+#       because the two routinely sit in different sentences. It therefore also
+#       emits the counter-steer text that forbids the behavior (inverted
+#       polarity), documents ABOUT the pattern, and operator-facing budgets:
+#       all three are criteria-owned exemptions the model lane applies.
+#   I27 effort-for-brevity candidates: a line pairing an effort-lowering
+#       directive ("lower/reduce/decrease/drop … effort") with a brevity token
+#       (short/brief/concise/terse/length/verbose/wordy). The model lane
+#       adjudicates whether the line actually premises brevity on effort.
 #
 # Advisory: prints candidate rows, ALWAYS exits 0 (candidates never fail a run).
 # Requires grep; exits 2 when grep is absent.
 #
 # Rows are `file:line:check-id` (grep -n convention). With no rationale on a line
 # a prohibition surfaces as an I6 row; a line may surface once per matching check
-# id (I6, I10, and one of the I8 families). Nonexistent path arguments are
+# id (I6, I10, I23, I27, and one of the I8 families). Nonexistent path arguments
+# are
 # skipped, not errors.
 #
 # Usage:
@@ -43,7 +58,7 @@ set -uo pipefail
 
 usage() {
   cat <<'EOF'
-instruction-scan.sh — mark I6/I8/I10 instruction candidates in given files.
+instruction-scan.sh — mark I6/I8/I10/I23/I27 instruction candidates in given files.
 
 Usage: instruction-scan.sh [--count|--help] FILE...
 
@@ -53,7 +68,9 @@ Usage: instruction-scan.sh [--count|--help] FILE...
 
 I8 pattern families (model-era candidates; model lane adjudicates): I8-a
 instructed self-check, I8-b conservative-reporting, I8-c don't-think /
-don't-reason.
+don't-reason. I23 marks self-estimated context-budget phrasing. I27 marks
+effort-for-brevity candidates (effort-lowering directive paired with a brevity
+token on one line).
 
 Advisory — always exits 0 (candidates never fail the run). Requires grep
 (exit 2 when absent). Seeds the candidate set of the audit-instructions
@@ -98,12 +115,28 @@ RATIONALE_ERE="because|${WB_L}since${WB_R}|${WB_L}so that${WB_R}|${WB_L}so it${W
 # I10 reasoning-echo phrasing.
 I10_ERE="(show|explain|reproduce|echo|transcribe|verbalize|narrate|share|describe) (your |the )?(thinking|reasoning|thought process|chain of thought)"
 I10_ERE="${I10_ERE}|think out loud|walk (me|us) through your (thinking|reasoning)|reasoning_extraction|chain[- ]of[- ]thought"
-# I8 model-era candidate families (Opus-5-scoped catalog rows; scanner is
-# model-blind; per-family ids I8-a/I8-b/I8-c). Stem forms (`re[- ]?verif`)
-# deliberately catch inflections; over-production is the contract.
+# I8 model-era candidate families (I8-a/I8-c Opus-5-scoped, I8-b unscoped;
+# scanner is model-blind; per-family ids I8-a/I8-b/I8-c). Stem forms
+# (`re[- ]?verif`) deliberately catch inflections; over-production is the contract.
 I8_A_ERE="double[- ]check|${WB_L}re[- ]?verif|final verification step|(sub)?agent to verify|have (a |an )?(sub)?agent verify|verifier (sub)?agent|verify your (own )?work"
 I8_B_ERE="be conservative|(only report|report only) (the )?(high|critical)|(don('|’)?t|do not) nitpick"
 I8_C_ERE="(do not|don('|’)?t) (think|reason)|without thinking|skip the reasoning"
+# I23 self-estimated context-budget phrasing. Deliberately anchored to
+# BUDGET-AS-TRIGGER forms, never to the bare term "context window" — that term
+# is ordinary vocabulary in any instruction surface discussing sessions, and
+# matching it would return the whole corpus rather than a candidate set.
+I23_ERE="context (is |gets |getting |grows )?(heavy|tight|saturated|exhausted)|heavy context"
+I23_ERE="${I23_ERE}|(running|runs|run) (out of|low on) context|low on context"
+I23_ERE="${I23_ERE}|remaining[- ](context|window|tokens)|context[- ](budget|percentage|occupancy|countdown)|token[- ](budget|countdown)"
+I23_ERE="${I23_ERE}|(check|checking|watch|watching|monitor|monitoring) (the |your )?/context|/context output"
+I23_ERE="${I23_ERE}|(final|last) (third|quarter|half) of (the|your|its) window|window position"
+I23_ERE="${I23_ERE}|(nearing|approaching) (the )?(context|token)[- ](limit|cap|budget|window)"
+# I27 effort-for-brevity: both patterns must hit the SAME line — the AND lives
+# in scan_file. Stem forms catch inflections (decrease/decreasing via the bare
+# stem, drop/dropped/dropping via the doubled-p form; verbos carries no left
+# boundary so compounds match too); over-production is the contract, as with I8.
+I27_EFFORT_ERE="(lower|reduc|decreas|dropp?)(e|ed|es|ing|s)? (the |your )?effort" # spellchecker:disable-line
+I27_BREVITY_ERE="${WB_L}short|${WB_L}brief|${WB_L}concise|${WB_L}terse|${WB_L}length|verbos|${WB_L}wordy"
 
 rows=()
 
@@ -125,6 +158,12 @@ scan_file() {
     rows+=("$file:$lineno:I10")
   done < <(grep -niE "$I10_ERE" "$file" 2>/dev/null)
 
+  while IFS= read -r hit; do
+    [[ -n "$hit" ]] || continue
+    lineno="${hit%%:*}"
+    rows+=("$file:$lineno:I23")
+  done < <(grep -niE "$I23_ERE" "$file" 2>/dev/null)
+
   local fam ere
   for fam in a b c; do
     case "$fam" in
@@ -139,6 +178,14 @@ scan_file() {
       rows+=("$file:$lineno:I8-$fam")
     done < <(grep -niE "$ere" "$file" 2>/dev/null)
   done
+
+  while IFS= read -r hit; do
+    [[ -n "$hit" ]] || continue
+    lineno="${hit%%:*}"
+    text="${hit#*:}"
+    printf '%s\n' "$text" | grep -qiE "$I27_BREVITY_ERE" || continue
+    rows+=("$file:$lineno:I27")
+  done < <(grep -niE "$I27_EFFORT_ERE" "$file" 2>/dev/null)
 }
 
 for file in "$@"; do

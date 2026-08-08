@@ -315,6 +315,45 @@
         "Marks the old entry stale and reports every candidate unsuppressed with the ambiguity named",
         "Names iteration-order nondeterminism as a P1 violation, and the claim-unqualified fallback as what makes the collision ordinary"
       ]
+    },
+    {
+      "id": 27,
+      "name": "age-alone-never-reclaims-a-live-holders-lock",
+      "prompt": "/claude-config:audit-pass --fix my last --fix on this repo has been running 40 minutes and this platform exposes no process start identity. Can this run take the lock?",
+      "expected_output": "Not while the holder is still alive. Past the 30-minute age bound the lock is only reclaimable when the second conjunct also holds: with no process start identity available, that conjunct is the holder's lease, read at runs/<state-key>/<holder run id>/lease and classified by the same two-sided liveness test the contract already defines. A live lease means the holder is slow, not dead, so this run refuses non-zero naming the holder's run id and heartbeat_at, exactly as it would inside the 30-minute window — age-only reclamation there would hand the lock to a second applying run and break assertion 3.1's exactly one proceeds on the platform least able to detect it. This does not create an unreclaimable lock: a crashed or killed holder stops refreshing, so its lease goes stale within the liveness threshold and the lock is reclaimable from then on, and a missing or unreadable lease counts as stale because the absence of a heartbeat is not evidence of life.",
+      "files": [],
+      "expectations": [
+        "Refuses the lock while the holder's lease is live, naming the holder's run id and heartbeat_at, even though the lock is older than 30 minutes",
+        "States that where the platform supplies no process start identity the lease is the second conjunct — age alone never reclaims — and applies the contract's existing two-sided liveness test rather than a new one",
+        "Explains that assertion 3.1's exactly one proceeds must hold for a run that legitimately exceeds 30 minutes",
+        "Notes that a crashed holder stops heartbeating, so the lock is reclaimable once the lease goes stale — and that a missing or unreadable lease is treated as stale"
+      ]
+    },
+    {
+      "id": 28,
+      "name": "anchor-collision-never-carries-a-suppression-forward",
+      "prompt": "/claude-config:audit-pass I suppressed a finding on one sentence in a section, and someone has since pasted an identical copy of that sentence into the same section. Does my suppression still apply?",
+      "expected_output": "No. Two identical normalized excerpts under one heading path collide by construction — the occurrence discriminator is a digest of the heading path, so the anchor did not move — and that collided state is tested before the anchor comparison in every row of the matching table. It resolves to OLD CLOSED, NEW OPENED: the entry is reported stale rather than silently dropped, the finding appears unsuppressed, and the collision is named with its occurrence count. Without that clause the entry would satisfy the SAME, UNCHANGED row exactly and re-apply silently over a finding the original decision provably cannot be attached to, contradicting the guarantee that no suppression carries forward across a collision. Splitting the heading or making the sentences differ resolves it in the document, where the ambiguity actually lives.",
+      "files": [],
+      "expectations": [
+        "Does not apply the suppression, and specifically does not treat the unchanged anchor as a silent exact match",
+        "Routes the collided entry to OLD CLOSED, NEW OPENED — reported stale, finding unsuppressed, collision named with its occurrence count",
+        "States that the collision test is evaluated before the anchor comparison, so it binds whatever else matches",
+        "Points the operator at splitting the heading or differentiating the sentences as the real resolution"
+      ]
+    },
+    {
+      "id": 29,
+      "name": "a-legacy-lock-without-a-run-id-still-defers-to-a-live-lease",
+      "prompt": "/claude-config:audit-pass --fix I upgraded this plugin while a --fix was already running, and this platform exposes no process start identity. The lock it left is 45 minutes old and contains no run id. Can this run reclaim it?",
+      "expected_output": "Not while any lease under this state key is live. The run id is what points reclamation at one lease, and a lock written before that rule carries none — but an unlocatable lease is not a stale one, and treating it as stale would fall straight back to age-only reclamation, exactly the overlapping-applying-runs failure the rule removes. So for a run-id-less lock the second conjunct is established the other way round: enumerate runs/<state-key>/*/lease — a bounded read of the tree the state key already scopes — and any single lease live by the same two-sided test defers the reclaim, exactly as a named holder's live lease would. Only when none is live does the age bound reclaim, so a legacy lock is never unreclaimable either. One consequence is deliberate: a lease records no run mode, so a live read-only run's lease also defers a legacy lock's reclaim. That is the fail-closed direction, it is bounded by that lease's own release or staleness, and it applies only to pre-rule locks — a lock carrying a run id names its holder exactly. An upgrade mid-run is otherwise the one moment this contract would hand a live holder's lock away, and it is precisely the moment a second applying run is most likely.",
+      "files": [],
+      "expectations": [
+        "Refuses to reclaim while any lease under runs/<state-key>/ is live, rather than treating the unlocatable lease as missing or stale",
+        "Names the enumeration of runs/<state-key>/*/lease as how the liveness conjunct is established when the lock carries no run id, and applies the same two-sided test rather than a new one",
+        "Confirms the legacy lock is still reclaimable once no lease under the state key is live, so the age bound is not defeated permanently",
+        "Surfaces the deliberate over-deferral — a live read-only run's lease also defers a legacy lock, since a lease records no run mode — as fail-closed and bounded, and scoped to pre-rule locks only"
+      ]
     }
   ]
 }

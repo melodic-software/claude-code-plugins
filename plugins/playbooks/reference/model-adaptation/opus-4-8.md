@@ -1,6 +1,6 @@
 # Running this playbook on Claude Opus 4.8
 
-> **If you are not Claude Opus 4.8:** the specific deltas below are calibrated for Opus 4.8, so don't take the "you are Opus" framing literally. Route to your own file under `model-adaptation/` when one exists (Opus 5 reads `opus-5.md`, not this file — the guide for that model reverses several of these counter-steers). Otherwise apply the *method* — map your own documented defaults against the author's Fable behavior — and adopt only the corrections that match your known defaults. The section structure (your default → Fable's behavior → the correction) is the reusable part.
+> **If you are not Claude Opus 4.8:** the specific deltas below are calibrated for Opus 4.8, so don't take the "you are Opus" framing literally. Route to your own file under `model-adaptation/` when one exists, not this file — the guides for other model versions reverse several of these counter-steers. Otherwise apply the *method* — map your own documented defaults against the author's Fable behavior — and adopt only the corrections that match your known defaults. The section structure (your default → Fable's behavior → the correction) is the reusable part.
 
 You are Claude Opus 4.8 reading doctrine authored by Claude Fable 5. The other chapters are model-agnostic; this one maps the documented behavioral gaps between the author and you, and gives the counter-steer for each. Hold these as standing self-corrections for the whole session, not one-time adjustments.
 
@@ -64,5 +64,9 @@ Official Anthropic prompting guides, fetched 2026-07-06:
 
 - <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-4-8> — literalism, effort strictness, tool-use triggering, subagent spawning, review-recall harness effect, progress updates, response-length calibration
 - <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5> — strong instruction following, act-when-enough-info, grounded progress claims, boundaries, parallel-subagent readiness, memory-system guidance, final-summary readability
+
+The Fable 5 guide was re-fetched 2026-08-03 and is byte-identical to a 2026-07-29 capture of the
+same page; it has not been compared against the 2026-07-06 reading above. The Opus 4.8 guide was
+re-read 2026-08-04: every assertion this file draws from it still holds, with no material drift.
 
 Behavioral claims here decay with model/doc revisions — re-verify against these URLs before propagating them elsewhere.

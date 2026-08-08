@@ -4,7 +4,7 @@
     {
       "id": 1,
       "prompt": "Someone suggested adding a PostToolUse hook for C# formatting with dotnet format, an MCP health check skill, and a scheduled vulnerability scan. Can you deep-dive these and tell me which ones are actually worth doing?",
-      "expected_output": "Should evaluate each candidate against the quality gates with evidence rather than accepting them: time dotnet format before recommending it as a per-edit hook (it commonly exceeds the 15-30s budget and EnforceCodeStyleInBuild may already cover it), check whether the MCP health check has a scriptable mechanism, and check the scheduling platform requirements. Each verdict should cite specific evidence (timing data, existing enforcement, tool limitations).",
+      "expected_output": "Should evaluate each candidate against the quality gates with evidence rather than accepting them: time dotnet format before recommending it as a per-edit hook (it commonly exceeds the 15-30s budget, so it fits `async: true` rather than a blocking hook, and EnforceCodeStyleInBuild may already cover it), check whether the MCP health check has a scriptable mechanism, and check the scheduling platform requirements. Each verdict should cite specific evidence (timing data, existing enforcement, tool limitations).",
       "files": []
     },
     {

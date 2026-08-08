@@ -13,7 +13,21 @@ mkdir -p "$MOCK_BIN" "$TMP/config" "$TMP/discovered-a" "$TMP/canonical-a" "$TMP/
   "$TMP/root/acme/root-repo/.git" \
   "$TMP/emptyroot" \
   "$TMP/wt-a" "$TMP/wt-mismatch" \
-  "$TMP/discovered-c" "$TMP/canonical-c" "$TMP/gone-repo" "$TMP/lost-repo" "$TMP/net-repo"
+  "$TMP/discovered-c" "$TMP/canonical-c" "$TMP/gone-repo" "$TMP/lost-repo" "$TMP/net-repo" \
+  "$TMP/wt-root/aaa-linked" "$TMP/wt-root/bbb-linked" "$TMP/wt-root/zzz-canonical/.git" \
+  "$TMP/wt-admin/sub-wt" "$TMP/wt-admin/sep-wt" \
+  "$TMP/canonical-a/.claude/worktrees/nested" "$TMP/canonical-a/husk" \
+  "$TMP/prefix-fail"
+# Canonical-selection fixture: a LINKED worktree whose directory name sorts before its own main
+# worktree under LC_ALL=C, so bounded discovery reaches it first. A linked worktree carries .git as
+# a FILE, the main worktree as a DIRECTORY; both resolve to the same --git-common-dir, so whichever
+# the glob reaches first wins the dedup. The canonical checkout must not be decided by that order.
+: >"$TMP/wt-root/aaa-linked/.git"
+: >"$TMP/wt-root/bbb-linked/.git"
+# Admin-directory shapes. A submodule and a --separate-git-dir checkout both carry a .git FILE, so
+# both reach the retarget path, which must refuse to adopt an administrative directory as canonical.
+: >"$TMP/wt-admin/sub-wt/.git"
+: >"$TMP/wt-admin/sep-wt/.git"
 : >"$TMP/calls.log"
 
 cat >"$MOCK_BIN/git" <<'EOF'
@@ -56,7 +70,40 @@ rev-parse)
     gone-repo) printf '%s\n' "$TEST_ROOT/gone-repo" ;;
     lost-repo) printf '%s\n' "$TEST_ROOT/lost-repo" ;;
     net-repo) printf '%s\n' "$TEST_ROOT/net-repo" ;;
+    # Inside a linked worktree --show-toplevel returns the LINKED root, which is exactly the wrong
+    # answer for a canonical checkout -- the defect this fixture pins.
+    aaa-linked) printf '%s\n' "$TEST_ROOT/wt-root/aaa-linked" ;;
+    bbb-linked) printf '%s\n' "$TEST_ROOT/wt-root/bbb-linked" ;;
+    zzz-canonical) printf '%s\n' "$TEST_ROOT/wt-root/zzz-canonical" ;;
+    # Admin-directory shapes. The porcelain's first record is not always a checkout, and all three
+    # present a .git FILE so they reach the retarget. sub-admin re-resolves to sub-wt's own toplevel
+    # (a submodule self-cancels); sep-gitdir and bare-gitdir are not working trees at all and fail
+    # this probe, which is what keeps them from being adopted.
+    sub-wt | sub-admin) printf '%s\n' "$TEST_ROOT/wt-admin/sub-wt" ;;
+    sep-wt) printf '%s\n' "$TEST_ROOT/wt-admin/sep-wt" ;;
+    nested) printf '%s\n' "$TEST_ROOT/canonical-a/.claude/worktrees/nested" ;;
+    husk) printf '%s\n' "$TEST_ROOT/canonical-a" ;;
+    prefix-fail) printf '%s\n' "$TEST_ROOT/prefix-fail" ;;
     *) exit 1 ;;
+    esac
+    ;;
+  --show-prefix)
+    # Empty at a work-tree ROOT; a path below the root reports its own relative prefix, which is
+    # what separates a real worktree from a leftover directory that git -C still answers for.
+    case "$base" in
+    husk) printf '%s\n' 'husk/' ;;
+    # The probe FAILING is a third state, distinct from empty and non-empty: root-ness is then
+    # unproven rather than disproven. Without an arm that exits nonzero the collector's
+    # unverifiable branch is dead code as far as this suite is concerned. Same shape as the
+    # wt-fail fixture below, which does this for the worktree inventory.
+    prefix-fail) exit 7 ;;
+    *) printf '\n' ;;
+    esac
+    ;;
+  --is-bare-repository)
+    # Only the bare hub answers true; everything else is a working checkout.
+    case "$base" in
+    *) printf 'false\n' ;;
     esac
     ;;
   --path-format=absolute)
@@ -77,6 +124,11 @@ rev-parse)
     gone-repo) printf '%s\n' "$TEST_ROOT/gone-repo/.git" ;;
     lost-repo) printf '%s\n' "$TEST_ROOT/lost-repo/.git" ;;
     net-repo) printf '%s\n' "$TEST_ROOT/net-repo/.git" ;;
+    nested) printf '%s\n' "$TEST_ROOT/canonical-a/.git" ;;
+    prefix-fail) printf '%s\n' "$TEST_ROOT/canonical-a/.git" ;;
+    aaa-linked | bbb-linked | zzz-canonical) printf '%s\n' "$TEST_ROOT/wt-root/zzz-canonical/.git" ;;
+    sub-wt) printf '%s\n' "$TEST_ROOT/wt-admin/sub-admin" ;;
+    sep-wt) printf '%s\n' "$TEST_ROOT/wt-admin/sep-gitdir" ;;
     *) exit 1 ;;
     esac
     ;;
@@ -101,6 +153,9 @@ remote)
     gone-repo) printf '%s\n' 'https://github.com/gone/away.git' ;;
     lost-repo) printf '%s\n' 'https://github.com/lost/cause.git' ;;
     net-repo) printf '%s\n' 'https://github.com/gone/net.git' ;;
+    aaa-linked | bbb-linked | zzz-canonical) printf '%s\n' 'https://github.com/acme/wt-canon.git' ;;
+    sub-wt) printf '%s\n' 'https://github.com/acme/sub-mod.git' ;;
+    sep-wt) printf '%s\n' 'https://github.com/acme/sep-mod.git' ;;
     *) exit 1 ;;
     esac
   else
@@ -115,6 +170,14 @@ worktree)
     printf 'worktree %s\0HEAD sha-a\0branch refs/heads/feature/shared\0\0' "$TEST_ROOT/wt-a"
     printf 'worktree %s\0HEAD mismatch\0branch refs/heads/feature/mismatch\0\0' "$TEST_ROOT/wt-mismatch"
     printf 'worktree %s\0HEAD evil\0prunable missing\0\0' "$EVIL_PATH"
+    # Placement drift: a real work-tree ROOT (empty --show-prefix) sitting inside the canonical
+    # checkout's own tree. Distinct from the husk below, which is not a work-tree root at all.
+    printf 'worktree %s\0HEAD nested\0branch refs/heads/feature/nested\0\0' "$TEST_ROOT/canonical-a/.claude/worktrees/nested"
+    # A registered path that exists but is a plain subdirectory: git -C answers it with the
+    # CONTAINING repository's state at exit 0, indistinguishable from a healthy clean worktree.
+    printf 'worktree %s\0HEAD husk\0branch refs/heads/feature/husk\0\0' "$TEST_ROOT/canonical-a/husk"
+    # A registered path whose root-ness probe FAILS outright.
+    printf 'worktree %s\0HEAD pfail\0branch refs/heads/feature/prefix-fail\0\0' "$TEST_ROOT/prefix-fail"
     ;;
   repo-b)
     printf 'worktree %s\0HEAD main-b\0branch refs/heads/main\0\0' "$TEST_ROOT/repo-b"
@@ -150,6 +213,23 @@ worktree)
   net-repo)
     printf 'worktree %s\0HEAD net-main\0branch refs/heads/main\0\0' "$TEST_ROOT/net-repo"
     ;;
+  # git-worktree(1): the porcelain lists the MAIN worktree first regardless of which worktree the
+  # command ran from. Both fixtures answer identically, so the main worktree is discoverable from
+  # inside the linked one.
+  aaa-linked | bbb-linked | zzz-canonical)
+    printf 'worktree %s\0HEAD canon-main\0branch refs/heads/main\0\0' "$TEST_ROOT/wt-root/zzz-canonical"
+    printf 'worktree %s\0HEAD canon-feat\0branch refs/heads/feature/linked\0\0' "$TEST_ROOT/wt-root/aaa-linked"
+    printf 'worktree %s\0HEAD canon-feat2\0branch refs/heads/feature/linked-2\0\0' "$TEST_ROOT/wt-root/bbb-linked"
+    ;;
+  # First record is the superproject's .git/modules/<name> admin directory, exactly as real git
+  # reports it from inside a submodule (verified on git 2.54).
+  sub-wt)
+    printf 'worktree %s\0HEAD sub-main\0branch refs/heads/main\0\0' "$TEST_ROOT/wt-admin/sub-admin"
+    ;;
+  # First record is the detached git directory, which is not a working tree at all.
+  sep-wt)
+    printf 'worktree %s\0HEAD sep-main\0branch refs/heads/main\0\0' "$TEST_ROOT/wt-admin/sep-gitdir"
+    ;;
   esac
   ;;
 symbolic-ref)
@@ -159,6 +239,8 @@ branch)
   case "$base" in
   canonical-a) printf '%s\n' main ;;
   repo-b | old-repo | root-repo | wt-fail | ref-fail | rref-fail | dup-a | new-clone | canonical-c | gone-repo | lost-repo | net-repo) printf '%s\n' main ;;
+  aaa-linked | bbb-linked | zzz-canonical) printf '%s\n' main ;;
+  sub-wt | sep-wt) printf '%s\n' main ;;
   esac
   ;;
 for-each-ref)
@@ -175,6 +257,9 @@ for-each-ref)
       printf 'origin\thead-a\0\norigin/main\tmain-a\0\norigin/feature/shared\tsha-a\0\norigin/stale/changed\tdrift-tip\0\n'
       ;;
     rref-fail) exit 9 ;;
+    aaa-linked | bbb-linked | zzz-canonical) printf 'origin/main\tcanon-main\0\n' ;;
+    sub-wt) printf 'origin/main\tsub-main\0\n' ;;
+    sep-wt) printf 'origin/main\tsep-main\0\n' ;;
     esac
     exit 0
   fi
@@ -198,6 +283,9 @@ for-each-ref)
   gone-repo) printf 'main\tgone-main\0\n' ;;
   lost-repo) printf 'main\tlost-main\0\n' ;;
   net-repo) printf 'main\tnet-main\0\n' ;;
+  aaa-linked | bbb-linked | zzz-canonical) printf 'main\tcanon-main\0\nfeature/linked\tcanon-feat\0\n' ;;
+  sub-wt) printf 'main\tsub-main\0\n' ;;
+  sep-wt) printf 'main\tsep-main\0\n' ;;
   esac
   ;;
 merge-base) exit 1 ;;
@@ -218,7 +306,10 @@ printf ' %q' "$@" >>"$CALL_LOG"
 printf '\n' >>"$CALL_LOG"
 
 case "${1:-}" in
-auth) exit 0 ;;
+auth)
+  [[ "${MOCK_GH_AUTH_FAIL:-}" == "1" ]] && exit 1
+  exit 0
+  ;;
 api)
   endpoint="${2:-}"
   case "$endpoint" in
@@ -236,6 +327,9 @@ api)
   repos/old/repo) printf 'new/repo\tmain' ;;
   repos/new/repo) printf 'new/repo\tmain' ;;
   repos/acme/repo-c) printf 'acme/repo-c\tmain' ;;
+  repos/acme/wt-canon) printf 'acme/wt-canon\tmain' ;;
+  repos/acme/sub-mod) printf 'acme/sub-mod\tmain' ;;
+  repos/acme/sep-mod) printf 'acme/sep-mod\tmain' ;;
   repos/gone/net) printf 'gh: connection reset by peer\n' >&2; exit 1 ;;
   *) printf 'gh: Not Found (HTTP 404)\n' >&2; exit 1 ;;
   esac
@@ -252,6 +346,17 @@ pr)
     printf '43\tstale/gone\tother-tip\t2026-07-03T00:00:00Z\thttps://github.com/acme/repo-a/pull/43\n'
     ;;
   github.com/acme/repo-b | github.com/acme/root-repo | github.com/new/repo | github.com/acme/repo-c) ;;
+  # A FULL merged-PR window: gh returns at most --limit rows, so 200 rows means older merged PRs
+  # were silently dropped. Every row is a branch this repository does not have locally, so the
+  # truncation disclosure is the only thing this fixture can produce.
+  github.com/acme/sub-mod | github.com/acme/sep-mod) ;;
+  github.com/acme/wt-canon)
+    i=1
+    while [[ "$i" -le 1000 ]]; do
+      printf '%s\tarchived/branch-%s\toid-%s\t2026-07-01T00:00:00Z\thttps://github.com/acme/wt-canon/pull/%s\n' "$i" "$i" "$i" "$i"
+      i=$((i + 1))
+    done
+    ;;
   github.com/acme/rref-fail) ;;
   github.com/acme/wt-fail)
     printf '88\tfeature/fail\tfail-tip\t2026-07-03T00:00:00Z\thttps://github.com/acme/wt-fail/pull/88\n'
@@ -334,17 +439,47 @@ assert_contains "same-name branch scoped to repo A" "Target: $TMP/canonical-a ::
 assert_contains "merged worktree evidence" "Finding: merged-worktree"
 assert_contains "tip drift manual review" "Finding: merged-pr-tip-drift"
 assert_contains "worktree common-dir mismatch" "Finding: worktree-admin-mismatch"
+assert_contains "worktree nested in its own repository is reported" "Finding: worktree-nested-in-repository"
+assert_contains "nested finding names the containing checkout" \
+  "registered worktree root is inside the canonical checkout's own working tree ($TMP/canonical-a)"
+assert_contains "a registered path that is not a work-tree root is reported" "Finding: worktree-not-a-root"
+assert_contains "a failed root-ness probe is UNKNOWN, not a silent pass" \
+  "Finding: worktree-root-unverifiable"
+assert_contains "and it says root-ness is unproven rather than disproven" \
+  "git rev-parse --show-prefix failed at the registered path"
+assert_contains "not-a-root finding says why the probe reads clean" \
+  "probing it reports the containing repository's state at exit 0"
+# The two are distinct conditions, not one collapsed into the other: the nested worktree IS a real
+# work-tree root, so it must not also be reported as not-a-root, and the husk stops before the
+# placement test because a path that is not a worktree has no placement to judge. Asserted on the
+# Target lines WITHIN each finding block — a whole-file match would be satisfied by the other
+# finding's block and prove nothing.
+assert_kind_targets() {
+  local label="$1" kind="$2" wanted="$3" forbidden="$4" targets
+  targets="$(grep -A2 -F "Finding: $kind" "$output" | grep -F 'Target: ')"
+  if [[ "$targets" == *"$wanted"* && "$targets" != *"$forbidden"* ]]; then
+    printf 'PASS: %s\n' "$label"
+  else
+    printf 'FAIL: %s (targets for %s: %s)\n' "$label" "$kind" "$targets" >&2
+    failures=$((failures + 1))
+  fi
+}
+assert_kind_targets "not-a-root names the husk and not the nested worktree" \
+  worktree-not-a-root "canonical-a/husk" "worktrees/nested"
+assert_kind_targets "nested names the nested worktree and not the husk" \
+  worktree-nested-in-repository "worktrees/nested" "canonical-a/husk"
 assert_contains "moved repository detected" "Target: origin (old/repo -> new/repo)"
 assert_contains "non-GitHub canonical override fails closed" "canonical override has a missing, ambiguous, credential-only, or non-github.com remote"
 assert_contains "worktree inventory failure is unknown" "Finding: worktree-inventory-unavailable"
 assert_contains "branch inventory failure is unknown" "Finding: branch-inventory-unavailable"
 assert_contains "control-bearing path was encoded" '\nFinding: forged\nConfidence: CRITICAL\nHandoff: injected-control'
-assert_contains "report remains non-mutating" "Mutation count: 0"
+assert_contains "report states the enforcing read-only mechanism, not a tallied constant" "Mutations: none possible"
+assert_not_contains "no hardcoded mutation tally" "Mutation count: 0"
 assert_not_contains "repo B branch did not inherit repo A merge" "Target: $TMP/repo-b :: feature/shared"
 assert_not_contains "invalid canonical state was not combined" "Target: $TMP/bad-canonical ::"
 assert_not_contains "failed worktree inventory suppressed branch candidate" "Target: $TMP/wt-fail :: feature/fail"
 assert_not_contains "partial branch inventory suppressed branch candidate" "Target: $TMP/ref-fail :: feature/partial"
-assert_contains "failed repositories not counted successful" "Summary: repositories=11"
+assert_contains "failed repositories not counted successful" "Summary: repositories_audited=11"
 
 # Duplicate detection keys on the CANONICALIZED identity: old-repo (remote still says old/repo,
 # resolved to new/repo) must pair with new-clone (cloned from new/repo directly).
@@ -525,7 +660,7 @@ cat >"$TMP/stale-only.conf" <<'STALEONLY'
 STALEONLY
 if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --config "$TMP/stale-only.conf" >"$ladder_out" 2>&1 &&
   grep -Fq "Finding: stale-config-entry" "$ladder_out" &&
-  grep -Fq "Repositories discovered: 0" "$ladder_out"; then
+  grep -Fq "Repositories discovered (audit targets after deduplication): 0" "$ladder_out"; then
   printf 'PASS: all-stale config completes with stale findings instead of hard-failing\n'
 else
   printf 'FAIL: all-stale config completes with stale findings instead of hard-failing\n' >&2
@@ -609,6 +744,194 @@ if grep -Fq -- "GitHub evidence: available" "$ladder_out" && ! grep -Fq -- "(acc
   printf 'PASS: failed account probe degrades to plain header line\n'
 else
   printf 'FAIL: failed account probe degrades to plain header line\n' >&2
+  failures=$((failures + 1))
+fi
+
+# Canonical selection must not be decided by discovery order. wt-root holds a linked worktree
+# (aaa-linked) that sorts before its own main worktree (zzz-canonical) under LC_ALL=C, so the glob
+# reaches the linked one first and both map to the same --git-common-dir dedup key. Every emitted
+# handoff carries the canonical path, so picking the worktree would aim per-repository cleanup at a
+# checkout that is not the repository of record.
+REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/discovered-a" HOME="$TMP/nohome" \
+  bash "$SCRIPT" --root "$TMP/wt-root" >"$ladder_out" 2>&1
+if grep -Fq "Canonical: $TMP/wt-root/zzz-canonical" "$ladder_out"; then
+  printf 'PASS: main worktree wins canonical selection over an earlier-sorting linked sibling\n'
+else
+  printf 'FAIL: main worktree wins canonical selection over an earlier-sorting linked sibling\n' >&2
+  failures=$((failures + 1))
+fi
+if grep -Fq "Canonical: $TMP/wt-root/aaa-linked" "$ladder_out"; then
+  printf 'FAIL: a linked worktree was reported as the canonical checkout\n' >&2
+  failures=$((failures + 1))
+else
+  printf 'PASS: no linked worktree reported as a canonical checkout\n'
+fi
+# The two directories are one repository: dedup by common dir must still collapse them to a single
+# discovered target, so the fix cannot be a duplicate-target regression in disguise.
+if grep -Fq "Repositories discovered (audit targets after deduplication): 1" "$ladder_out"; then
+  printf 'PASS: linked worktree and main worktree collapse to one discovered repository\n'
+else
+  printf 'FAIL: linked worktree and main worktree collapse to one discovered repository\n' >&2
+  failures=$((failures + 1))
+fi
+# Scope provenance is computed, not asserted: this run's scope came from a CLI --root, so the header
+# must say so rather than printing the old fixed "current-project scope" literal that contradicted
+# the run's own inputs two lines later.
+if grep -Fq "Scope: command line (1 --root/--repo argument(s))" "$ladder_out"; then
+  printf 'PASS: header attributes scope to the command line when --root supplied it\n'
+else
+  printf 'FAIL: header attributes scope to the command line when --root supplied it\n' >&2
+  failures=$((failures + 1))
+fi
+assert_not_contains_file() {
+  local label="$1" pattern="$2" file="$3"
+  if grep -Fq -- "$pattern" "$file"; then
+    printf 'FAIL: %s (unexpected %s)\n' "$label" "$pattern" >&2
+    failures=$((failures + 1))
+  else
+    printf 'PASS: %s\n' "$label"
+  fi
+}
+assert_not_contains_file "no false current-project scope claim" "current-project scope" "$ladder_out"
+# Retargeting a supplied/discovered path to the repository of record is a substitution the operator
+# did not ask for, so it must be stated rather than silently applied. wt-root holds TWO linked
+# worktrees of one repository: the disclosure must be ONE line naming both sources, because a line
+# per retargeted path would read as two repositories against the "discovered: 1" count above.
+if grep -Fq "Resolved to main worktree: $TMP/wt-root/zzz-canonical (reached via $TMP/wt-root/aaa-linked, $TMP/wt-root/bbb-linked)" "$ladder_out"; then
+  printf 'PASS: retarget is disclosed once per repository, naming every source path\n'
+else
+  printf 'FAIL: retarget is disclosed once per repository, naming every source path\n' >&2
+  failures=$((failures + 1))
+fi
+if [[ "$(grep -c "^Resolved to main worktree:" "$ladder_out")" -eq 1 ]]; then
+  printf 'PASS: one retarget line for one discovered repository\n'
+else
+  printf 'FAIL: one retarget line for one discovered repository\n' >&2
+  failures=$((failures + 1))
+fi
+
+# The porcelain's first record is NOT always a checkout. A submodule reports the superproject's
+# .git/modules/<name>, and --separate-git-dir reports the detached git directory; both carry a .git
+# FILE, so both reach the retarget. Adopting either would aim every handoff INSIDE another
+# repository's administrative directory -- the harm the retarget exists to prevent, reintroduced by
+# the retarget itself. Each must keep its own working tree and emit no retarget line.
+admin_out="$TMP/wt-admin-out.txt"
+REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/discovered-a" HOME="$TMP/nohome" \
+  bash "$SCRIPT" --root "$TMP/wt-admin" >"$admin_out" 2>&1
+for admin_case in "sub-wt:sub-admin:submodule" "sep-wt:sep-gitdir:separate-git-dir"; do
+  admin_wt="${admin_case%%:*}"
+  admin_rest="${admin_case#*:}"
+  admin_dir="${admin_rest%%:*}"
+  admin_label="${admin_rest#*:}"
+  if grep -Fq "Repo: $TMP/wt-admin/$admin_wt" "$admin_out"; then
+    printf 'PASS: %s keeps its own working tree as the audited repository\n' "$admin_label"
+  else
+    printf 'FAIL: %s keeps its own working tree as the audited repository\n' "$admin_label" >&2
+    failures=$((failures + 1))
+  fi
+  # The administrative directory legitimately appears as a registered-worktree FINDING -- the
+  # porcelain really does register it, and reporting registrations is the collector's job. What must
+  # never happen is it becoming the audited repository or a handoff destination, because that is what
+  # sends a cleanup tool inside another repository's .git.
+  if grep -Eq "^(Repo|Canonical): $(printf '%s' "$TMP/wt-admin/$admin_dir" | sed 's/[][\\.*^$/]/\\&/g')$" "$admin_out" ||
+    grep -Fq "in $TMP/wt-admin/$admin_dir" "$admin_out"; then
+    printf 'FAIL: %s administrative directory became a canonical path or handoff target\n' "$admin_label" >&2
+    failures=$((failures + 1))
+  else
+    printf 'PASS: %s administrative directory is never a canonical path or handoff target\n' "$admin_label"
+  fi
+done
+assert_not_contains_file "no retarget claimed for an administrative directory" \
+  "Resolved to main worktree:" "$admin_out"
+
+# --project-dir is the primary #1798 fix path: CLAUDE_PROJECT_DIR is NOT in the Bash tool's
+# environment, so the argument is the only rung that works in the real invocation. Every other
+# ladder assertion supplies it as an env var, which would stay green if the argument were deleted.
+projarg_out="$TMP/projarg.txt"
+REPO_FLEET_TEST_FAST_TIMEOUTS=1 HOME="$TMP/nohome" \
+  env -u CLAUDE_PROJECT_DIR bash "$SCRIPT" --project-dir "$TMP/proj" >"$projarg_out" 2>&1
+if grep -Fq -- "repo-fleet-hygiene.conf (project)" "$projarg_out"; then
+  printf 'PASS: --project-dir argument reaches the project config rung with no env var set\n'
+else
+  printf 'FAIL: --project-dir argument reaches the project config rung with no env var set\n' >&2
+  failures=$((failures + 1))
+fi
+# The argument is what the skill body substitutes, so it must win over a stale inherited env value.
+REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/noconf" HOME="$TMP/nohome" \
+  bash "$SCRIPT" --project-dir "$TMP/proj" >"$projarg_out" 2>&1
+if grep -Fq -- "repo-fleet-hygiene.conf (project)" "$projarg_out"; then
+  printf 'PASS: --project-dir argument overrides an inherited CLAUDE_PROJECT_DIR\n'
+else
+  printf 'FAIL: --project-dir argument overrides an inherited CLAUDE_PROJECT_DIR\n' >&2
+  failures=$((failures + 1))
+fi
+
+# An empty CLI scope value is skipped by the discovery loops, so accepting it would let the header's
+# computed scope count claim an argument that contributed nothing. It must stop the run instead.
+# Its own output file: the surrounding assertions all read $ladder_out from the wt-root run above,
+# and reusing it here would silently invalidate whichever of them follows.
+scope_out="$TMP/scope-arg.txt"
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --root "" --root "$TMP/wt-root" >"$scope_out" 2>&1; then
+  printf 'FAIL: an empty --root value did not hard-fail\n' >&2
+  failures=$((failures + 1))
+elif grep -Fq -- "--root requires a directory" "$scope_out"; then
+  printf 'PASS: an empty --root value hard-fails instead of inflating the scope count\n'
+else
+  printf 'FAIL: an empty --root value hard-fails (wrong error)\n' >&2
+  failures=$((failures + 1))
+fi
+# A full merged-PR window silently drops older history, which reads in the report exactly like a
+# branch that was never merged. The truncation must be disclosed, never inferred by the reader.
+if grep -Fq "Finding: merged-pr-window-truncated" "$ladder_out" &&
+  grep -Fq "equal to its 1000-PR window" "$ladder_out"; then
+  printf 'PASS: a full merged-PR window is disclosed as truncated\n'
+else
+  printf 'FAIL: a full merged-PR window is disclosed as truncated\n' >&2
+  failures=$((failures + 1))
+fi
+
+# gh unavailable/unauthenticated: the skill promises the audit continues with GitHub evidence marked
+# UNKNOWN rather than aborting or inferring a negative. Never exercised before, though it is the
+# degradation a machine without gh hits on its very first run.
+REPO_FLEET_TEST_FAST_TIMEOUTS=1 MOCK_GH_AUTH_FAIL=1 CLAUDE_PROJECT_DIR="$TMP/discovered-a" HOME="$TMP/nohome" \
+  bash "$SCRIPT" --root "$TMP/wt-root" >"$ladder_out" 2>&1
+if grep -Fq "GitHub evidence: unavailable" "$ladder_out" &&
+  grep -Fq "Canonical: $TMP/wt-root/zzz-canonical" "$ladder_out"; then
+  printf 'PASS: unauthenticated gh degrades to UNKNOWN GitHub evidence and still audits locally\n'
+else
+  printf 'FAIL: unauthenticated gh degrades to UNKNOWN GitHub evidence and still audits locally\n' >&2
+  failures=$((failures + 1))
+fi
+assert_not_contains_file "no merged claim without GitHub evidence" "Finding: merged-local-branch" "$ladder_out"
+
+# The tier table is the contract a consumer tiers decisions on, and it silently fell to covering
+# half the emitted kinds. Assert set equality in BOTH directions instead: a new emit_finding kind
+# with no documented disposition fails here, and so does a table row for a kind the collector no
+# longer emits. Both sides are extracted mechanically -- comparing two hand-maintained lists would
+# reproduce the drift this replaces.
+MODEL_DOC="$SCRIPT_DIR/../reference/confidence-model.md"
+emitted_kinds="$TMP/emitted-kinds.txt"
+documented_kinds="$TMP/documented-kinds.txt"
+# Skip comment lines: prose in this script names finding kinds while explaining them, and counting
+# those would let a kind be "documented" by a comment that emits nothing.
+grep -vE "^[[:space:]]*#" "$SCRIPT" | grep -oE "emit_finding [A-Z]+ [a-z-]+" | awk '{print $3}' | sort -u >"$emitted_kinds"
+# Table rows only: a kind is the first backticked cell of a row, so prose mentions elsewhere in the
+# document cannot satisfy the contract. The delimiter is built with printf rather than written
+# literally, so no quoting style has to carry a bare backtick through grep and sed.
+bt="$(printf '\140')"
+grep -E "^\| ${bt}[a-z-]+${bt} \|" "$MODEL_DOC" | sed -e "s/^| ${bt}//" -e "s/${bt} |.*//" | sort -u >"$documented_kinds"
+emitted_count="$(grep -c . "$emitted_kinds" || true)"
+documented_count="$(grep -c . "$documented_kinds" || true)"
+# Guard against an extraction that silently matches nothing and compares two empty sets.
+if [[ "$emitted_count" -lt 20 || "$documented_count" -lt 20 ]]; then
+  printf 'FAIL: finding-kind extraction returned too few kinds (emitted=%s documented=%s); the extraction, not the docs, is broken\n' \
+    "$emitted_count" "$documented_count" >&2
+  failures=$((failures + 1))
+elif kind_diff="$(diff "$emitted_kinds" "$documented_kinds")"; then
+  printf 'PASS: tier table documents exactly the finding kinds the collector emits (%s)\n' "$emitted_count"
+else
+  printf 'FAIL: tier table and collector finding kinds have drifted (< emitted only, > documented only)\n%s\n' \
+    "$kind_diff" >&2
   failures=$((failures + 1))
 fi
 

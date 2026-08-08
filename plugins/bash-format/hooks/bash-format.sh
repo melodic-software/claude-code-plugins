@@ -96,26 +96,28 @@ build_data_json() {
     printf '{"tool":"","file":"","findings":[]}'
 }
 
-# A section header governs shell files when it is the `[*]` catch-all or names a
-# shell extension — `[*.sh]` / `[*.bash]` (incl. path prefixes like `[**/*.sh]`)
-# or a brace list naming sh or bash (`[*.{sh,bash}]`). Path-only sections such as
-# `[scripts/**]` are intentionally NOT treated as shell opt-in: matching those
-# correctly means reimplementing EditorConfig globbing, and the safe bias is to
-# leave files untouched when unsure. $1 is the text inside the brackets.
+# A section header governs shell files when it names a shell extension —
+# `[*.sh]` / `[*.bash]` (incl. path prefixes like `[**/*.sh]`) or a brace list
+# naming sh or bash (`[*.{sh,bash}]`). A bare `[*]` catch-all is intentionally
+# NOT treated as shell opt-in (#1817): most repos set only line-ending / charset
+# properties under `[*]`, and treating that as an shfmt opt-in rewrote shell
+# files to shfmt's built-in defaults. Path-only sections such as `[scripts/**]`
+# are also excluded — matching those correctly means reimplementing EditorConfig
+# globbing, and the safe bias is to leave files untouched when unsure. $1 is the
+# text inside the brackets.
 section_applies_to_shell() {
   local h="$1"
-  [[ "$h" == '*' ]] && return 0
   [[ "$h" =~ \*\.(sh|bash)([^[:alnum:]]|$) ]] && return 0
   [[ "$h" =~ [{,](sh|bash)[,}] ]] && return 0
   return 1
 }
 
-# Consumer opt-in for shfmt: an EditorConfig SECTION that governs the edited
-# shell file (not merely the presence of any .editorconfig — a repo whose
-# .editorconfig only configures other languages must not have its shell files
-# rewritten to shfmt's built-in defaults). Walks up from the file to the repo
-# root, stopping at a `root = true` config per EditorConfig search semantics.
-# This gate is the whole formatting opt-in.
+# Consumer opt-in for shfmt: an EditorConfig SECTION that names shell files
+# (not merely the presence of any .editorconfig — a repo whose .editorconfig
+# only configures other languages, or only a bare `[*]` for line endings, must
+# not have its shell files rewritten to shfmt's built-in defaults). Walks up
+# from the file to the repo root, stopping at a `root = true` config per
+# EditorConfig search semantics. This gate is the whole formatting opt-in.
 shell_editorconfig_opt_in() {
   local dir root cfg line is_root parent
   dir="$(cd "$(dirname "$FILE")" 2>/dev/null && pwd)" || return 1
@@ -152,6 +154,20 @@ append_notice() {
   NOTICE+="$1"
 }
 
+# Tool path for shfmt/ShellCheck. On Windows/MSYS, Claude Code may hand the
+# hook a POSIX mount path (`/c/...`), a mixed drive path (`C:/...`), or a
+# backslash Win32 path. GHC-based ShellCheck opens paths via openBinaryFile and
+# can fail that open on some spellings even when bash's `[[ -f ]]` succeeded on
+# the original (#1817). Prefer cygpath's mixed long form when available so both
+# tools see one stable existing path; fall back to FILE unchanged elsewhere.
+TOOL_FILE="$FILE"
+if command -v cygpath >/dev/null 2>&1; then
+  _tool_lm=$(cygpath -lm -- "$FILE" 2>/dev/null)
+  if [[ -n "$_tool_lm" && -f "$_tool_lm" ]]; then
+    TOOL_FILE="$_tool_lm"
+  fi
+fi
+
 # Format pass (opt-in, mutating). No parser/printer flags — that keeps
 # .editorconfig formatting in effect. --apply-ignore is a utility flag (not a
 # parser/printer flag, so it does not disable editorconfig formatting): it makes
@@ -184,16 +200,24 @@ if shell_editorconfig_opt_in; then
     # flaking on its first invocation, a transient exec error — says nothing
     # about the flag, so falling back would mutate through the same discarded
     # opt-out; the file is left untouched and the skip is said out loud.
-    probe_err=""
-    if probe_err=$(shfmt --apply-ignore --version 2>&1 >/dev/null); then
-      shfmt --apply-ignore -w "$FILE" 2>/dev/null
-    elif [[ "$probe_err" == *apply-ignore* ]] &&
-      [[ "$probe_err" == *"flag provided but not defined"* || "$probe_err" == *"unknown flag"* ]]; then
-      shfmt -w "$FILE" 2>/dev/null
-    else
-      append_notice "bash-format: shfmt capability probe failed unexpectedly (${probe_err%%$'\n'*}) — formatting skipped for this file, opt-outs preserved."
+    #
+    # Re-check existence immediately before mutating: the earlier
+    # hook::read_file_path guard can race a deleted scratch/worktree file, and
+    # shfmt/ShellCheck then surface GHC's openBinaryFile error (#1817).
+    if [[ -f "$TOOL_FILE" || -f "$FILE" ]]; then
+      probe_err=""
+      _fmt_target="$TOOL_FILE"
+      [[ -f "$_fmt_target" ]] || _fmt_target="$FILE"
+      if probe_err=$(shfmt --apply-ignore --version 2>&1 >/dev/null); then
+        shfmt --apply-ignore -w "$_fmt_target" 2>/dev/null
+      elif [[ "$probe_err" == *apply-ignore* ]] &&
+        [[ "$probe_err" == *"flag provided but not defined"* || "$probe_err" == *"unknown flag"* ]]; then
+        shfmt -w "$_fmt_target" 2>/dev/null
+      else
+        append_notice "bash-format: shfmt capability probe failed unexpectedly (${probe_err%%$'\n'*}) — formatting skipped for this file, opt-outs preserved."
+      fi
+      ran_any=1
     fi
-    ran_any=1
   elif hook::notice_once "bash-format-shfmt" "$INPUT"; then
     append_notice "bash-format: .editorconfig opts this repo into shell formatting but 'shfmt' is not on PATH — formatting skipped for this session. Install: https://github.com/mvdan/sh#shfmt"
   fi
@@ -206,18 +230,33 @@ fi
 CTX=""
 FINDINGS_JSON='[]'
 if command -v shellcheck >/dev/null 2>&1; then
-  ran_any=1
-  SC_OUTPUT=$(shellcheck -x -f gcc -S warning "$FILE" 2>&1) || true
-  if [[ -n "$SC_OUTPUT" ]]; then
-    CTX="bash-format: $(basename "$FILE") has ShellCheck findings:"$'\n'
-    findings_raw=""
-    while IFS= read -r line; do
-      [[ -n "$line" ]] || continue
-      CTX+="  $line"$'\n'
-      findings_raw+="$line"$'\n'
-    done <<<"$SC_OUTPUT"
-    if [[ -n "$findings_raw" ]]; then
-      FINDINGS_JSON=$(printf '%s' "$findings_raw" | jq -R . | jq -s . 2>/dev/null) || FINDINGS_JSON='[]'
+  # Same race window as the format pass: skip quietly if the file is already
+  # gone rather than reporting GHC's openBinaryFile as a ShellCheck finding.
+  if [[ -f "$TOOL_FILE" || -f "$FILE" ]]; then
+    ran_any=1
+    _lint_target="$TOOL_FILE"
+    [[ -f "$_lint_target" ]] || _lint_target="$FILE"
+    SC_OUTPUT=$(shellcheck -x -f gcc -S warning "$_lint_target" 2>&1) || true
+    # If ShellCheck still failed to open the path, retry the original spelling
+    # once — some hosts accept only one of the two forms — then drop any
+    # remaining openBinaryFile noise so a path/race miss is never a finding.
+    if [[ "$SC_OUTPUT" == *openBinaryFile* && "$_lint_target" != "$FILE" && -f "$FILE" ]]; then
+      SC_OUTPUT=$(shellcheck -x -f gcc -S warning "$FILE" 2>&1) || true
+    fi
+    if [[ "$SC_OUTPUT" == *openBinaryFile* ]]; then
+      SC_OUTPUT=$(printf '%s\n' "$SC_OUTPUT" | grep -v 'openBinaryFile' || true)
+    fi
+    if [[ -n "$SC_OUTPUT" ]]; then
+      CTX="bash-format: $(basename "$FILE") has ShellCheck findings:"$'\n'
+      findings_raw=""
+      while IFS= read -r line; do
+        [[ -n "$line" ]] || continue
+        CTX+="  $line"$'\n'
+        findings_raw+="$line"$'\n'
+      done <<<"$SC_OUTPUT"
+      if [[ -n "$findings_raw" ]]; then
+        FINDINGS_JSON=$(printf '%s' "$findings_raw" | jq -R . | jq -s . 2>/dev/null) || FINDINGS_JSON='[]'
+      fi
     fi
   fi
 elif hook::notice_once "bash-format-shellcheck" "$INPUT"; then

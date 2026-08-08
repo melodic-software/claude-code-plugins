@@ -31,10 +31,17 @@ jobs:
       contents: read         # checkout + read the diff
       pull-requests: write   # post the security review
       id-token: write        # OIDC — mints the Claude GitHub App token
-    uses: melodic-software/ci-workflows/.github/workflows/claude-security-review.yml@c136b27f404dd32ce3873f39a6f3443891d1c16e # v0.9.1
+    uses: melodic-software/ci-workflows/.github/workflows/claude-security-review.yml@e94438746c300b02385a7f8a2a2dcd19a7f4ad4a # v0.10.2
     with:
       runner: ubuntu-24.04
       paths-file: .github/claude-security-paths
+      # Stated explicitly, never left to the reusable's default: this list IS
+      # ADR 0002's skip-actor exception, and the exception must be readable and
+      # reviewable in the repo it applies to. An inherited default silently
+      # rewrites the exception whenever ci-workflows changes it — which is how
+      # `claude[bot]` and `melodic-ai[bot]` entered it (#1766 dropped this line
+      # while re-pinning to a version whose default had widened).
+      skip-actors: dependabot[bot],claude[bot],melodic-ai[bot],melodic-standards-sync[bot]
     # One named secret (least privilege), never `secrets: inherit`.
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}

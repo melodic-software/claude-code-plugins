@@ -197,7 +197,15 @@ emit_tel() {
   hook::emit_telemetry "hardcoded-path-check" "PreToolUse" "$1" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
 }
 
-VIOLATIONS=$(hpp::scan_text "$CONTENT" "$SCAN_ROOT" "$FILE")
+# `$(…)` strips every trailing newline. Each violation block ends with a blank
+# line terminator (`\n\n`); without a sentinel those separators vanish and the
+# guidance line glues onto the last path (`…/repoUse portable alternatives:`).
+# printf x absorbs the strip; peeling it restores the block terminators intact.
+VIOLATIONS=$(
+  hpp::scan_text "$CONTENT" "$SCAN_ROOT" "$FILE"
+  printf x
+)
+VIOLATIONS=${VIOLATIONS%x}
 if [[ -n "$VIOLATIONS" ]]; then
   {
     printf 'Hardcoded machine-specific path(s) in %s:\n\n' "$FILE"

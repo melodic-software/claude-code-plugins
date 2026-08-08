@@ -14,16 +14,17 @@ and `.editorconfig` for formatting. It ships no rules of its own.
 - **Lint on edit (always).** ShellCheck (`warning` severity and above) runs on
   every edit. It is non-mutating; it only reports.
 - **Format on edit (opt-in).** `shfmt` runs **only when an `.editorconfig`
-  section governs the edited shell file** — a `[*]` catch-all or a shell glob
-  such as `[*.sh]`, `[*.bash]`, or `[*.{sh,bash}]`, found by walking up from the
-  file to the repository root. A repo whose `.editorconfig` only configures other
-  languages (or has none) leaves shell files untouched rather than rewriting them
-  to shfmt's built-in defaults, so the plugin never imposes a style you did not
-  choose. (Path-only sections like `[scripts/**]` are not treated as a shell
-  opt-in; use a shell glob or `[*]`.) It runs with no parser/printer flags, so
-  your `.editorconfig` is authoritative, and with `--apply-ignore` so an
-  `ignore = true` section (e.g. for generated or vendored scripts) is honored
-  even on a single edited file.
+  section names shell files** — a shell glob such as `[*.sh]`, `[*.bash]`, or
+  `[*.{sh,bash}]` (including path-prefixed forms like `[**/*.sh]`), found by
+  walking up from the file to the repository root. A bare `[*]` catch-all is
+  **not** an opt-in: most repos only set line-ending / charset properties there,
+  and treating that as a format gate would rewrite shell files to shfmt's
+  built-in defaults. A repo whose `.editorconfig` only configures other
+  languages (or has none) likewise leaves shell files untouched. Path-only
+  sections like `[scripts/**]` are also excluded; use an explicit shell glob.
+  It runs with no parser/printer flags, so your `.editorconfig` is authoritative,
+  and with `--apply-ignore` so an `ignore = true` section (e.g. for generated or
+  vendored scripts) is honored even on a single edited file.
 - **Advisory, never blocking.** The hook always exits `0`. Findings are reported
   via `additionalContext`; they never reject the edit. Make a commit hook or CI
   your hard gate.

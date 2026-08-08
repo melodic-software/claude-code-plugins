@@ -135,7 +135,11 @@ to self-resolve, and never a reason to reach past the wrapper to raw `resolveRev
   contract's call, not this file's: this file governs the mode and the discipline every dispatch
   owes, and it neither widens nor narrows what a caller's tier already permits.
 - **Multi-finding threads.** Refused outright (`skipped-multi-finding-thread`): one disposition is a
-  claim about one finding, while resolution clears the whole thread.
+  claim about one finding, while resolution clears the whole thread. An unknown count — a truncated
+  comment page could hide another finding — refuses the same way.
+- **Unpinned or bulk resolves.** A single pinned `--thread-id` carrying both TOCTOU pins is the only
+  admissible shape; bulk resolves and `--allow-unpinned-thread` are refused alongside this mode.
+  Everything `--autonomous` guards other than `isOutdated` still binds.
 - **Human-authored threads.** `--include-human` is refused alongside this mode. A human closes their
   own thread.
 - **Evidence the world rejects or cannot confirm.** Every `refused-*` action refuses the resolve.

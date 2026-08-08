@@ -2,9 +2,9 @@
 name: audit
 description: "Audit Git/GitHub hygiene across a fleet of local repositories: find GitHub-merged local branches, merged/missing/prunable/mislinked worktree registrations, and remotes that resolve to a moved or renamed GitHub repository. Read-only and confidence-tiered; emits exact handoffs to repo-hygiene/source-control but never deletes, prunes, repairs, fetches, checks out, or rewrites. Use when: 'audit repositories', 'repo fleet hygiene', 'stale branches across repos', 'orphaned worktrees across repos', 'moved repos', 'renamed GitHub owner', 'cross-repo git cleanup report'."
 user-invocable: true
-argument-hint: "[--root <dir>]... [--repo <dir>]... [--config <file>] [--canonical <github.com/owner/repo=path>]..."
+argument-hint: "[--root <dir>]... [--repo <dir>]... [--config <file>] [--canonical <github.com/owner/repo=path>]... [--max-depth <1..12>]"
 allowed-tools:
-  - Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/audit-fleet.sh *)
+  - Bash(bash ${CLAUDE_SKILL_DIR}/scripts/audit-fleet.sh *)
 metadata:
   workflow-stage: operator
   summary: Audit git and GitHub hygiene across all local repositories, read-only
@@ -33,19 +33,31 @@ Parse `$ARGUMENTS` as opaque arguments for the bundled script. Supported flags:
 - `--canonical <github.com/owner/repo=path>`: invocation-specific canonical checkout override
   (repeatable; explicit wins over config).
 - `--max-depth <1..12>`: discovery bound; explicit wins over config/default `5`.
+- `--project-dir <dir>`: the session's project directory, used for the project-scoped config rung
+  and the no-scope fallback target.
 
-If neither `--root` nor `--repo` is present, the script uses `${CLAUDE_PROJECT_DIR}` as an exact
+Always pass `--project-dir "${CLAUDE_PROJECT_DIR}"`. That variable is substituted in this markdown
+content and in `allowed-tools` Bash rules, but it is **not** present in the Bash tool's environment,
+so the script cannot read it for itself — passing it in is what makes the project rung below
+reachable at all.
+
+If neither `--root` nor `--repo` is present, the script uses the project directory as an exact
 `--repo` target — not as a discovery root, so nothing beneath it is searched. A project directory
 that is not a Git working tree is therefore rejected, and the rejection names the three ways to
 supply scope plus `/repo-fleet-hygiene:setup apply`; pass that guidance through rather than
-re-deriving a root yourself. Config
+re-deriving a root yourself. If no project directory resolves either, the run stops with the same
+remedies rather than auditing the shell's incidental working directory. Config
 resolution is the script's own ladder — do not pre-resolve or pass a probed path yourself:
 explicit `--config` wins, else the script probes
-`${CLAUDE_PROJECT_DIR}/.claude/repo-fleet-hygiene.conf` (project-scoped), else
+`<project-dir>/.claude/repo-fleet-hygiene.conf` (project-scoped), else
 `~/.claude/repo-fleet-hygiene.conf` (user-global — a machine-scoped fleet config placed there is
 recorded user intent, not a guessed root). The report header names the consumed config and its
 source, or states that none was consumed. Never guess a broader machine root from the current
 path beyond that ladder.
+
+Config-supplied scope is **additive** to CLI-supplied scope: a `--repo X` run still walks every
+configured root. The header's `Scope:` line names each contributing rung and its entry count, so
+report that line rather than assuming the arguments were the whole scope.
 
 Before execution, reject any arguments outside this grammar. Pass every path/override as a quoted
 argument; never assemble a shell fragment from config, repository, remote, or branch text.
@@ -53,7 +65,7 @@ argument; never assemble a shell fragment from config, repository, remote, or br
 Run exactly once:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/audit-fleet.sh" <validated-and-quoted-arguments>
+bash "${CLAUDE_SKILL_DIR}/scripts/audit-fleet.sh" --project-dir "${CLAUDE_PROJECT_DIR}" <validated-and-quoted-arguments>
 ```
 
 The script validates config with `git config --file`; it never sources or executes it.
@@ -62,8 +74,16 @@ The script validates config with `git config --file`; it never sources or execut
 
 The bundled collector is authoritative for classifications. Preserve its evidence in the report:
 
-1. **Canonical checkout:** explicit remote-keyed override → configured remote-keyed override →
-   `git rev-parse --show-toplevel`. The report always shows discovered and canonical paths. An
+1. **Canonical checkout:** explicit remote-keyed override → configured remote-keyed override → the
+   repository's **main worktree**, read as the first record of `git worktree list --porcelain`
+   (which lists the main worktree first regardless of where it runs). `git rev-parse
+   --show-toplevel` alone cannot identify a canonical checkout: inside a linked worktree it returns
+   the linked root, so a sibling worktree reached first by discovery would otherwise become the
+   path every handoff points at. When a supplied or discovered path resolves to a different main
+   worktree, the header states the substitution on one `Resolved to main worktree:` line per
+   repository, naming every path that resolved into it — relay it, because the operator named one
+   path and the report is about another. The report always shows
+   discovered and canonical paths. An
    override target with a missing/non-GitHub remote, or a different identity that cannot be proven to
    resolve to the same GitHub repository, stops that repository's local audit before evidence combines.
 2. **GitHub identity:** read the selected fetch remote with `git remote get-url`; accept only
@@ -71,10 +91,19 @@ The bundled collector is authoritative for classifications. Preserve its evidenc
    `HIGH` transfer/rename evidence. A 404/403/network error is `UNKNOWN`, never "deleted" or "moved".
    A 404/403 on an identity listed in `fleet.ackUnavailable` is demoted to `ACKNOWLEDGED` — still
    reported, never suppressed; acks never touch non-404/403 failures or successful-response evidence.
-3. **Merged branch:** query `gh pr list --repo <this-repo> --state merged --head <this-branch>` for
-   each local branch in each repository. Identical branch names in another repository are unrelated.
-   `HIGH` requires the PR `headRefOid` to equal the current local tip. Tip drift is `MEDIUM` manual
-   review. Git ancestry without GitHub evidence is `LOW` and never called merged-by-PR.
+3. **Merged branch:** one batched `gh pr list --repo <this-repo> --state merged --limit 200` query
+   per repository, matched locally by branch name — not a per-branch query. Two consequences a
+   reader must not assume away. A repository with more merged PRs than the window loses the older
+   ones; a full window is disclosed as `merged-pr-window-truncated`, and inside such a repository an
+   absent merged finding proves nothing. An exact per-branch `--head` fallback exists for a branch
+   the batch missed, but it is **privacy-gated**: the branch name is transmitted to github.com, so
+   the fallback runs only for a branch still present in the local remote-tracking inventory. After
+   the common merge flow — GitHub auto-deletes the head branch, a later fetch prunes the ref — that
+   branch is gated out and reported as `merge-evidence-privacy-gated`. Identical branch names in
+   another repository are unrelated. `HIGH` requires the PR `headRefOid` to equal the current local
+   tip. Tip drift is `MEDIUM` manual review. Git ancestry without GitHub evidence is `LOW` and never
+   called merged-by-PR — and under squash merges that ancestry predicate is near-inert, so on a
+   squash-merging fleet GitHub evidence is effectively the only merge evidence.
 4. **Local inventories:** parse only `git worktree list --porcelain -z` registrations and
    NUL-delimited `git for-each-ref` branch/tip records. Directory naming is
    never worktree evidence. Compare each existing registered path's actual `--git-common-dir` with
@@ -86,7 +115,12 @@ The bundled collector is authoritative for classifications. Preserve its evidenc
 5. **Protection:** current/default/worktree-attached branches are never emitted as standalone branch
    cleanup candidates. A merged worktree is routed to worktree dry-run first.
 
-Full tier/disposition table: [reference/confidence-model.md](reference/confidence-model.md).
+Every emitted finding kind, both confidence axes, and the merge-strategy and
+`gc.worktreePruneExpire` dependencies the tiers rest on:
+[reference/confidence-model.md](reference/confidence-model.md). The official Git/GitHub behaviours
+this collector relies on: [reference/official-sources.md](reference/official-sources.md). The
+read-only enforcement model and its threat assumptions:
+[reference/security-review.md](reference/security-review.md).
 
 ## Presentation
 
@@ -96,8 +130,11 @@ Return the script's repository sections and finish with five grouped lists:
 2. `MEDIUM — manual review`
 3. `LOW — informational only`
 4. `UNKNOWN — evidence gaps`
-5. `ACKNOWLEDGED — configured known-inaccessible identities` (`fleet.ackUnavailable` demotions;
-   present the group only when non-empty)
+5. `ACKNOWLEDGED — configured known-inaccessible identities` (present the group only when non-empty)
+
+`ACKNOWLEDGED` is a prominence demotion, not a fifth confidence tier: the evidence stays exactly as
+weak as the `UNKNOWN` it came from, and the finding is still reported. Never present it as stronger
+evidence than an `UNKNOWN`, and never treat the group's emptiness as a clean signal.
 
 For each candidate, keep repository, canonical path, exact branch/worktree/remote target, PR/API
 evidence, and handoff. Never collapse same-named branches across repositories.
@@ -135,6 +172,10 @@ do not turn "no verified finding" into "fleet is clean".
 | `merged-local-branch` | Run `/repo-hygiene:clean git` in the named canonical repository |
 | `merged-worktree`, `prunable-worktree`, `missing-worktree` | Run `/source-control:worktree cleanup --dry-run` in the canonical repository |
 | `worktree-admin-mismatch` | Manual inspection; `git worktree repair` is an option only after validating which administrative directory is authoritative |
+| `worktree-not-a-root` | Manual inspection of the registered path; a `git -C` probe of it describes the CONTAINING repository, so no cleanup handoff is safe until the path is resolved |
+| `worktree-root-unverifiable` | Manual inspection of the registered path. Root-ness is unproven here rather than disproven — the probe itself failed — so infer nothing about the path in either direction |
+| `worktree-nested-in-repository` | Recreate at an external root with `/source-control:worktree create`, then remove the nested one |
+| `worktree-placement-unverifiable` | Inspect the canonical checkout; placement was not checked for any of its worktrees, so their placement is unknown rather than confirmed |
 | `github-remote-moved` | Human-reviewed `git remote set-url`; this plugin never changes remotes |
 
 This plugin remains useful if those optional collaborators are absent: the report names the local

@@ -38,7 +38,7 @@ phrase naming what the hook is doing, specific to the tool or check
 (`"Formatting Go imports..."`, `"Checking for secrets..."`, `"Recording tool-failure
 telemetry..."`) — not a generic `"Running hook..."`.
 
-### 2. `systemMessage` — user-visible, scoped to silently-skipped features
+### 2. `systemMessage` — user-visible, scoped by who can act on the content
 
 An exit-0 JSON output field (`hookSpecificOutput` sibling), 10,000-character cap, shown to the
 user immediately. Composed via `hook::emit_channels` / `hook::emit_skip_notice`
@@ -76,10 +76,40 @@ count, or the disclosure becomes the noise problem it was meant to prevent.
 - **Exit-2 blocking paths.** A `PreToolUse` hook that blocks a tool call via exit code 2 is
   already user-visible through Claude Code's own permission-denial UI. An additional
   `systemMessage` on top of a block would be redundant, not more observable.
-- **Legitimate advisory findings.** A hook that surfaces a finding to Claude for it to act on
-  (e.g. a lint result, a suggested fix) belongs on `additionalContext` only — that is the correct
-  channel for agent-actionable content, not a gap. This is the case the content-mutation clause
-  above is deliberately distinguished from: reporting is agent-scoped, rewriting is not.
+- **Legitimate advisory findings *the model can act on*.** A hook that surfaces a finding to Claude
+  for it to act on (e.g. a lint result, a suggested fix) belongs on `additionalContext` only — that
+  is the correct channel for agent-actionable content, not a gap. This is the case the
+  content-mutation clause above is deliberately distinguished from: reporting is agent-scoped,
+  rewriting is not.
+
+  **The predicate is load-bearing, and it is *who can act*, not *how routine the content is*.** The
+  harm this bullet names is misrouting **agent-actionable** content to the user channel. Content the
+  model is *forbidden* to act on is not agent-actionable, so the bullet does not reach it — and
+  routing such content to `additionalContext` anyway is the mirror-image defect, because an
+  instruction the model cannot act on still shapes what it does.
+
+  **Carve-out, admitted only on all three conditions together** — a conjunction, never a judgment
+  call, because a soft "when it seems important" is exactly the drift the closing bullet guards:
+
+  1. the payload states a **choice among actions whose only legitimate actor is the human** —
+     because a rule the consuming project holds forbids the model to act on it (a session-lifecycle
+     or harness-command choice is the usual shape), not merely because a human might also care;
+  2. the model channel **separately carries the determination the model does need**, so nothing
+     agent-actionable is lost by keeping the choice off it; and
+  3. the emission is keyed to a **state transition**, not to every invocation.
+
+  **Delivery may never be asserted.** The model channel may state that a choice belongs to the
+  operator; it may **never** state that the operator has seen it. No documented behavior tells a hook
+  whether an operator is present — `systemMessage` is documented only as a message shown to the user,
+  and nothing upstream describes its behavior in non-interactive runs — so a delivery claim is a fact
+  the hook cannot know in *any* mode, not only headless ones. Emitting to an unread operator channel
+  is harmless; telling the model a human holds the choice when none does is not.
+
+  **Honest limit.** The docs state that `additionalContext` is inserted into the conversation and
+  saved to the transcript, and say no such thing about `systemMessage`; that the latter stays out of
+  model context is *inferred from the asymmetry*, not stated. If that inference is ever falsified,
+  this carve-out collapses — content forbidden to the model would reach it either way — and the
+  correct response is to drop the payload, not to re-route it.
 
 **Repeat-notice discipline.** A missing-prerequisite notice behind a broad matcher (every
 `Write|Edit`, every `Bash` call) must not repeat on every invocation. Use `hook::require_jq`
@@ -127,9 +157,10 @@ melodic-software/claude-code-plugins#930.
 - **Not a new telemetry schema.** The envelope shape is `hook-telemetry`'s concern; this doc only
   states the adoption requirement.
 - **Not a blanket "add systemMessage everywhere" rule.** Scoped narrowly to the
-  missing-prerequisite-skip case and the unrequested-content-mutation case; over-applying it to
-  blocking paths or advisory findings is itself a conformance defect (redundant user noise, or
-  misrouting agent-actionable content to the user channel).
+  missing-prerequisite-skip case, the unrequested-content-mutation case, and the three-condition
+  human-only-choice carve-out above; over-applying it to blocking paths or to advisory findings the
+  model can act on is itself a conformance defect (redundant user noise, or misrouting
+  agent-actionable content to the user channel).
 - **Not a UI feature.** No native "verbose hooks" toggle exists in Claude Code as of 2026-07-22
   (confirmed against the same fresh fetch this doc cites) — `statusMessage` and `systemMessage`
   are the sanctioned surfaces available today. An upstream feature request for a native
@@ -143,6 +174,12 @@ Fleet audits check, per wired producer hook:
 - Every missing-prerequisite skip path emits a `systemMessage` (via `hook::require_jq` or
   `hook::notice_once` + `hook::emit_skip_notice`), gated so it fires once per session on a broad
   matcher.
+- Any `systemMessage` that is neither a prerequisite-skip notice nor a content-mutation notice
+  satisfies all three carve-out conditions, and its model-channel counterpart asserts no operator
+  presence. Not mechanically gated — reviewed per hook. As of this writing `context-guard`'s
+  `zone-crossing-inject.sh` is the only site in the fleet admitted this way; every other call site
+  is a prerequisite skip or a content-mutation notice, so a second one is a signal to re-read the
+  three conditions rather than to follow the precedent.
 - Every path on which the hook rewrote file content names what it changed on the user channel,
   bounded by a per-run cap with the remainder reported as a count. Not mechanically gated —
   reviewed per hook. The adopting reference is `plugins/typos-format/hooks/typos-format.sh`.

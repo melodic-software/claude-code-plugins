@@ -28,7 +28,7 @@ For each file found, record: path, line count, visible line count (excluding HTM
 Read [../reference/criteria.md](../reference/criteria.md), then execute every applicable check against
 each discovered file. Apply by entity type:
 
-- **C1-C8**: CLAUDE.md and CLAUDE.local.md
+- **C1-C9**: CLAUDE.md and CLAUDE.local.md (C9 is project-scoped — skip for CLAUDE.local.md)
 - **R1-R4**: `.claude/rules/` files
 - **C7/R3 (currency)**: version pins and counts are checked against the repo's own pin files
   (`global.json`, `.nvmrc`, `.python-version`, `.mcp.json`, or ecosystem equivalents). File-path-existence

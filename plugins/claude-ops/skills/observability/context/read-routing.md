@@ -31,6 +31,7 @@ Hooks ──▶ hook-events.jsonl
 | Hook p95 latency, hook errors, recurring hook sequences | `hook-events.jsonl` | [data-sources.md](data-sources.md) §2 |
 | Tool latency, API errors (historical) | DuckDB `cc_logs` | [otel-queries.md](otel-queries.md) |
 | Token/cost metrics (historical) | DuckDB `cc_metrics` | [otel-queries.md](otel-queries.md) |
+| Cache health — is prompt caching working | DuckDB `cc_metrics`, `cacheRead` vs `cacheCreation` per model | [otel-queries.md](otel-queries.md) |
 | Trace span tree | DuckDB `cc_spans` | [otel-queries.md](otel-queries.md) |
 | Trace summary (duration, span count) | DuckDB `cc_traces` | [otel-queries.md](otel-queries.md) |
 | Prompt/API bodies (recent hot window) | DuckDB `cc_logs` | Bodies age at `CC_OTEL_BODY_RETENTION_DAYS` (default 2) |

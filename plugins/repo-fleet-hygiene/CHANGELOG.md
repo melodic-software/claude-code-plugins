@@ -3,6 +3,163 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.0]
+
+### Added
+
+- **Three worktree findings the collector could not previously express.**
+  `worktree-not-a-root` (HIGH) fires when a registered path exists but
+  `git rev-parse --show-prefix` is non-empty: the path is a subdirectory of a work tree rather than
+  its root, so every `git -C` probe of it answers with the CONTAINING repository's state at exit 0
+  — indistinguishable from a healthy clean worktree, and the shape that makes a leftover directory
+  read as safe to remove. `worktree-root-unverifiable` (UNKNOWN) covers the case where that probe
+  itself fails; both stop worktree classification for that registration rather than describing the
+  wrong repository. `worktree-nested-in-repository` (MEDIUM) reports a non-main registration whose
+  root sits inside the canonical checkout's own working tree instead of at an external root — the
+  placement that makes a read matching a path-scoped rule's glob also load the parent checkout's
+  copy of that rule.
+
+  `rev-parse --show-prefix` joins the probe allowlist, matching `--show-toplevel`'s shape:
+  read-only, operand-free, fixed arity. The containment test resolves the canonical checkout
+  through git rather than reusing the discovered path, so both operands come from one source — a
+  filesystem-derived path and a git-emitted one differ by drive spelling on Windows, and the
+  comparison would silently never match.
+
+### Fixed
+
+- **A bare-clone hub silently skipped the placement check.** `canonical_top` is resolved with
+  `git rev-parse --show-toplevel`, which fails on a bare repository by design, so
+  `worktree-nested-in-repository` was never evaluated for any registration under a bare hub and
+  nothing said so — a placement check that quietly did not run reads identically to one that ran
+  and found nothing. A bare hub is now recognized as such (it has no working tree for a worktree to
+  be nested inside, so the skip is legitimate) and any OTHER failure to resolve the working-tree
+  root emits `worktree-placement-unverifiable` (UNKNOWN), matching what every sibling probe in the
+  same function already does. `--is-bare-repository` joins the probe allowlist in the same
+  read-only, operand-free, fixed-arity shape as `--show-toplevel` and `--show-prefix`.
+
+- **`worktree-root-unverifiable` had no test coverage.** The mock's `--show-prefix` arm returned
+  success for every input, so the collector's probe-failure branch was dead code as far as the
+  suite was concerned and a regression in it — a wrong confidence tier, message drift, a dropped
+  `continue` that let the wrong-repository probes run anyway — would have gone undetected. A
+  fixture now fails that probe, following the same shape the suite already uses for the worktree
+  inventory.
+
+- **The SKILL.md handoff row overstated what one of two findings proves.** It asserted that "every
+  `git -C` probe describes the containing repository" for `worktree-not-a-root` AND
+  `worktree-root-unverifiable`, but that is established only for the former. The latter's probe
+  FAILED, so root-ness is unproven rather than disproven — which `confidence-model.md` already
+  stated correctly. The two now have separate rows.
+
+## [0.8.1]
+
+### Fixed
+
+- **The merged-PR evidence window now covers busy fleet repositories (#1795).** The
+  repository-scoped `gh pr list --state merged` query now covers the most recent 1000 PRs instead
+  of 200 while preserving the existing `UNKNOWN merged-pr-window-truncated` disclosure when that
+  finite cap binds. The batch and exact-head limits are shared with the probe allowlist so their
+  admitted arguments cannot drift from the call sites.
+
+## [0.8.0]
+
+### Fixed
+
+- **Canonical resolution can no longer select a linked worktree (#1797).** Discovery reaches a
+  linked worktree and its own main worktree through the same glob, and both map to one
+  `--git-common-dir` dedup key, so the winner was decided by glob order. A sibling whose directory
+  name sorts before the canonical one under `LC_ALL=C` therefore became "Canonical" — and every
+  emitted handoff carries that path, so per-repository cleanup would be aimed at a checkout that is
+  not the repository of record, while the real canonical checkout was deduplicated away and never
+  reported. `add_target` now resolves each candidate to its main worktree, read as the first record
+  of `git worktree list --porcelain` (which lists the main worktree first wherever it runs), before
+  the dedup tie-break. `rev-parse --show-toplevel` cannot make this distinction: inside a linked
+  worktree it returns the linked root. The extra probe is gated on the candidate's `.git` being a
+  file rather than a directory, so an ordinary fleet sweep pays nothing per repository. The
+  substitution is disclosed rather than applied silently — the operator named one path and the
+  report is about another — on one `Resolved to main worktree:` header line per repository naming
+  every path that resolved into it, so several worktrees of one repository cannot read as several
+  repositories against the discovered count. Evidence rule 1 in both skills is corrected to match.
+
+  The porcelain's first record is **not** always a checkout, and three ordinary shapes all present a
+  `.git` file so they reach the retarget: a submodule reports the superproject's
+  `.git/modules/<name>` administrative directory, `--separate-git-dir` reports the detached git
+  directory, and a worktree of a bare repository reports the bare repository. Adopting any of them
+  would aim every handoff *inside* another repository's administrative directory — the precise harm
+  this retarget exists to prevent. The porcelain's answer is therefore re-resolved as a working tree
+  before it is adopted: bare and `--separate-git-dir` fail that probe and are skipped, a submodule
+  resolves back to the path already held and self-cancels, and a genuine linked worktree retargets.
+  All four shapes are pinned by regression fixtures.
+- **The `allowed-tools` grant used a variable that is not substituted there (#1798).** The rule named
+  `${CLAUDE_PLUGIN_ROOT}`, which the skills documentation does not list among the variables
+  substituted in skill content or `allowed-tools` Bash rules — only `${CLAUDE_SKILL_DIR}` and
+  `${CLAUDE_PROJECT_DIR}` are. The rule stayed a literal string, never matched the real invocation,
+  and the skill's one permission grant was inert in a workflow built for unattended sweeps. Both the
+  grant and the documented invocation now use `${CLAUDE_SKILL_DIR}`.
+- **The project-scoped config rung is reachable again (#1798).** The collector read
+  `CLAUDE_PROJECT_DIR` from its own environment, where it is not provided — that variable is
+  documented for hooks, MCP stdio servers, and skill content, not for Bash tool invocations. The
+  project rung of the config ladder therefore resolved against nothing, and the zero-argument
+  fallback silently became `$PWD`, an agent session's incidental working directory. The skill body
+  now passes `--project-dir "${CLAUDE_PROJECT_DIR}"`, where the documented substitution applies; the
+  environment variable is still honored for callers that genuinely have it, and a value left as an
+  unexpanded `${...}` placeholder counts as absent. When no project directory resolves, the run
+  stops with the scope remedies instead of auditing whatever directory the shell was sitting in.
+- **Report text no longer asserts things the run contradicts (#1800).** The header printed a fixed
+  `Config: none (… current-project scope)` literal that could contradict the very next lines — it
+  claimed project scope on a run whose scope came from `--root`, and described a mode that was not
+  reachable at all. A computed `Scope:` line now names each rung that actually contributed and its
+  entry count, which also discloses that config-supplied scope is additive to CLI-supplied scope.
+  `Mutation count: 0` was a hardcoded literal that would have read identically in a build that
+  mutated; it is replaced by a statement of the enforcing mechanism (the read-only git/gh command
+  allowlists), because a real counter would undercount — most probes run inside command
+  substitution, so increments are lost with the subshell. On Windows, MSYS-style `/c/...` paths are
+  converted to `C:/...` for presentation only, since the report is actionable text whose paths get
+  pasted into tools that reject the MSYS form. The two differently-scoped `repositories` counts are
+  now labelled distinctly (`Repositories discovered (audit targets after deduplication)` and
+  `repositories_audited`). An empty `--root`/`--repo`/`--config` value stops the run rather than
+  being counted toward the scope the header reports and then skipped by the discovery loops.
+- **`setup`'s verify step no longer violates `setup`'s own boundary (#1801).** `apply` step 5
+  prescribed running the collector, which is the full fleet walk the skill states it never performs —
+  minutes of per-repository network queries in a step described as validating that a config parses.
+  Verification is now config-only (parse validity plus per-entry path resolution); an end-to-end run
+  is an explicit handoff to `/repo-fleet-hygiene:audit`.
+- **`setup` can set `maxDepth` (#1801).** The grammar `setup` documents and owns includes `maxDepth`,
+  and the collector implements `--max-depth`, but `setup`'s argument grammar had no way to write it,
+  so a consumer needing a non-default depth had to hand-edit the file `setup` manages. `--max-depth`
+  is now part of `setup`'s grammar, and `--max-depth` was missing from the audit skill's
+  `argument-hint` as well.
+
+### Changed
+
+- **A truncated merged-PR window is disclosed (#1803).** The batched merged-PR query returns at most
+  200 rows; a repository with more merged history silently lost the remainder, and a branch merged
+  before the window then produced no merged finding — indistinguishable in the report from a branch
+  that was never merged. A full window now emits `merged-pr-window-truncated` (`UNKNOWN`) saying
+  that absent merged findings in that repository are unproven. It cannot distinguish "exactly 200"
+  from "far more" and deliberately errs toward warning.
+- **The confidence model documents every finding kind and what the tiers rest on (#1799).** The tier
+  table covered 12 of 24 emitted kinds, so a consumer meeting an untabulated kind had no documented
+  disposition. It now covers all 25, and a test asserts set equality in both directions between the
+  table and the collector's emitted kinds, so this drift is a test failure rather than a later
+  discovery. `ACKNOWLEDGED` is documented as a prominence demotion of an `UNKNOWN`, not a fifth
+  confidence value. Evidence rule 3 now describes the mechanism that actually runs — one batched
+  query per repository plus a privacy-gated per-branch fallback — rather than a per-branch
+  authoritative query. Two undisclosed dependencies are stated: the `LOW` ancestry tier is near-inert
+  under squash merges, and `missing-worktree` versus `prunable-worktree` turns on the user-tunable
+  `gc.worktreePruneExpire` window rather than on evidence strength. The two reference files that had
+  no pointer from the hub are now linked.
+
+### Added
+
+- **Behavioural coverage for the failures a real fleet produced (#1803).** The suite exercised the
+  documented happy path while a single 11-repository run surfaced defects none of it could reach.
+  New executable assertions cover canonical selection against an earlier-sorting linked worktree
+  (constructed red first), the computed scope-provenance line, merged-PR window truncation,
+  unauthenticated-`gh` degradation, and tier-table/collector drift. New model-graded evals cover
+  privacy-gated branches as unverified rather than unmerged, squash-merge semantics, worktree
+  disposability as deliberately out of scope, and — for `setup` — config-only verification,
+  cross-volume paths, and `maxDepth`.
+
 ## [0.7.1]
 
 ### Fixed

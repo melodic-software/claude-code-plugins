@@ -3,6 +3,45 @@
 All notable changes to the `bash-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.12]
+
+### Changed
+
+- **Shared `hook-utils.sh`: a hook invocation spawns three fewer external processes (#1978).**
+  Every hook that buffers its stdin paid an `awk` (one float division, to slice the read timeout), a
+  `printf | tr -d '\r'` pipeline (a fork and an exec to delete one byte class from a string bash
+  rewrites in place), and a `jq -e .` validity probe over a buffer the read loop had already parsed
+  with jq. On Windows Git Bash, where process creation is `fork()` emulation, each spawn costs
+  ~140 ms. Behavior is unchanged: the slice keeps the three-decimal form `read -t` is given, the
+  buffer is CR-stripped as before, and the completeness verdict is reused only when jq itself
+  produced it — so a host without jq still fails open exactly as it did. Also adds
+  `hook::jq_fields`, which extracts several fields from one payload in a single jq process for
+  hooks that read two or three of them. Synced from `lib/hook-utils.sh`.
+
+## [0.6.11]
+
+### Fixed
+
+- **Bare `[*]` is no longer a shell formatting opt-in (#1817).** `section_applies_to_shell`
+  treated a catch-all `[*]` section as governing shell files, so any repo with a generic
+  `.editorconfig` (typically only `end_of_line` / `insert_final_newline` under `[*]`) had its
+  shell scripts rewritten to shfmt's built-in defaults. Opt-in now requires an explicit shell
+  glob — `[*.sh]`, `[*.bash]`, `[*.{sh,bash}]`, or a path-prefixed form like `[**/*.sh]`.
+  Path-only sections such as `[scripts/**]` remain excluded.
+
+- **ShellCheck/shfmt path handling no longer surfaces `openBinaryFile` on Windows (#1817).**
+  On Windows/MSYS the hook now prefers `cygpath -lm` (mixed long form) for tool invocations when
+  that path exists, re-checks that the file is still present immediately before shfmt/ShellCheck
+  run (closing a race with deleted scratch/worktree files), retries the original path spelling if
+  ShellCheck still reports `openBinaryFile`, and strips any remaining `openBinaryFile` noise so it
+  never becomes a findings line. `openBinaryFile: does not exist` is ShellCheck's (GHC's) missing-
+  file error — valid path forms already lint cleanly; this hardens the intermittent miss case.
+
+### Changed
+
+- README and `/bash-format:setup` now document that a bare `[*]` is not a formatting opt-in;
+  consumers who want shfmt must add an explicit shell glob section.
+
 ## [0.6.10]
 
 ### Fixed

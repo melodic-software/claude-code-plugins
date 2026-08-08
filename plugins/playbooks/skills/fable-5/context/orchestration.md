@@ -17,13 +17,15 @@ Stay-inline conditions override all three shapes — if any holds, stay inline e
 - The whole job is under ~5 tool calls — the spec would cost more than the work.
 - You will need the full detail later in the session — a worker returns a lossy summary, and re-deriving lost detail cancels the savings.
 
-Exception: the fresh-context verifier required by "Fresh-context verification" below is never displaced by these conditions — isolation is its product, so the ~5-call bar and the file-overlap condition do not apply to it.
+Exception: the fresh-context verifier required by "Fresh-context verification" below is never displaced by these conditions — isolation is its product, so the ~5-call bar and the file-overlap condition do not apply to it. A consistency-carried spawn (the fourth condition below) is likewise not displaced by the ~5-call bar: the piece being small is the premise of that condition, not a strike against it.
 
 Delegation pays only when at least one of these holds; when none does, it spends both context windows:
 
 - The raw work output is much larger than spec plus return — isolation protects your window.
 - The pieces genuinely run concurrently — a wave of four costs roughly one worker's wall-clock.
 - The isolation itself is the product — verification.
+- Consistency across a large set is at stake — the second rationale under "Decompose by context,
+  not by headcount" below; it can carry a spawn that context economy alone would not justify.
 
 ## Decompose by context, not by headcount
 
@@ -31,21 +33,25 @@ Partition by touch-set per the planning chapter, section "Independent tracks ver
 
 - **Derive worker count from the partition, never the reverse** — deciding "four workers" first and dividing the work four ways manufactures boundaries the code does not have, so workers re-read the same material and return overlapping or conflicting conclusions you must reconcile by hand.
 - **Cap a concurrent wave at 3-5 workers** regardless of how many pieces exist, because beyond that you cannot meaningfully review the returns — and an unreviewed return is worthless (next two sections). Run remaining pieces as successive waves.
+- **Two rationales ride on one partition, and the second is the one that gets forgotten.** Context economy is why decomposition is usually reached for; output consistency is the other half — a worker holding one focused subtask makes fewer inconsistency errors across scaled workflows than one holding the whole job ([Increase output consistency](https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/increase-consistency), verified 2026-08-03). The consequence is a tiebreak: when a piece is small enough that context economy alone would not justify the spawn, consistency across a large set still can — the fourth condition in the delegation gate above. Both rationales are recorded here and nowhere else in this playbook — the planning and context-economy chapters route delegation to this chapter rather than restating either.
+
+This rationale is deliberately mechanism-agnostic. Subagent delegation, a dynamic workflow, and a `claude -p` fan-out all realize the same partition, and which one fits is situational — the choice belongs to the delegation decision above, not to the reason for decomposing.
 
 > Weak: "Four workers: split the files alphabetically."
 > Strong: "The touch-set partition yields three disjoint slices — auth, billing, notifications — so three workers, one slice each."
 
 ## Write worker specs as contracts
 
-A worker sees none of your conversation, your accumulated findings, or your standing instructions; every ambiguity in the spec gets filled by the worker's own guess, and guesses diverge across workers — that divergence is precisely where overlap and gaps come from. Write four parts, every time:
+A worker sees none of your conversation, your accumulated findings, or your standing instructions; every ambiguity in the spec gets filled by the worker's own guess, and guesses diverge across workers — that divergence is precisely where overlap and gaps come from. Write five parts, every time:
 
 1. **Objective** — one sentence, stated as an outcome, not an activity.
-2. **Output contract** — the exact return shape: fields, ordering, a length ceiling, and the required evidence format for every claim (file path plus line, or command plus its output). A worker told to "report findings" returns an essay; a worker given a contract returns something you can merge mechanically and audit field by field.
-3. **Sources and context** — where to look first, what counts as authoritative, what to ignore. Hoist shared context into the spec: paste the key facts you already hold — especially the handful of orientation files every worker in the wave would otherwise open — instead of sending each worker to rediscover them, because N workers repeating your orientation reads is the single most common way fan-out goes cost-negative.
-4. **Boundaries** — what is out of scope, what must not be modified, and the blocked-path rule stated verbatim: "If you cannot determine X, return that explicitly with what you tried — do not substitute a plausible answer." Without this, a blocked worker improvises, and an improvised answer is indistinguishable from a real one until it breaks something.
+2. **Why it is being asked** — the larger task this feeds, who the output is for, and what it enables. This is the part that converts an ambiguity into a decision the worker can make correctly instead of a coin flip: knowing what the answer is FOR is often the only thing separating a useful return from a well-formed wrong one. A worker holding only an objective optimizes the sentence you wrote; a worker holding the reason optimizes the outcome you wanted.
+3. **Output contract** — the exact return shape: fields, ordering, a length ceiling, and the required evidence format for every claim (file path plus line, or command plus its output). A worker told to "report findings" returns an essay; a worker given a contract returns something you can merge mechanically and audit field by field.
+4. **Sources and context** — where to look first, what counts as authoritative, what to ignore. Hoist shared context into the spec: paste the key facts you already hold — especially the handful of orientation files every worker in the wave would otherwise open — instead of sending each worker to rediscover them, because N workers repeating your orientation reads is the single most common way fan-out goes cost-negative.
+5. **Boundaries** — what is out of scope, what must not be modified, and the blocked-path rule stated verbatim: "If you cannot determine X, return that explicitly with what you tried — do not substitute a plausible answer." Without this, a blocked worker improvises, and an improvised answer is indistinguishable from a real one until it breaks something.
 
 > Weak: "Look into the caching layer."
-> Strong: "Determine whether the caching layer invalidates entries on write; return the code path that does it (file plus line) or state that none exists."
+> Strong: "We are chasing stale reads users see after saving, so I need to know whether the caching layer invalidates entries on write; return the code path that does it (file plus line) or state that none exists." — the objective alone would have been satisfied by a survey of the caching layer; the reason is what tells the worker which single question ends the task.
 
 For code-writing workers, additionally paste the interfaces they must conform to verbatim. For investigation workers, state read-only explicitly — do not assume they infer it.
 
@@ -66,6 +72,8 @@ The independence gradient runs further than fresh context alone: self-review (fl
 
 **TRIGGER — a fresh-context verifier is required in addition to the floor:** after any multi-file edit batch, and before declaring any multi-part task complete. Each trigger is exempt only when *every* batch it covers is mechanical — a transform with no judgment call, so a second author given the same rule would produce the same edit — *and* behavior-preserving (the planning chapter's distinction) *and* narrow in blast radius; a hand-designed refactor fails the first condition however well it preserves behavior. All three are required, because only a judgment-free transform carries none of the producer-blind-spot risk an independent reader exists to catch — so the post-batch trigger weighs that one batch, while the completion trigger weighs every batch in the task and one behavior-changing batch anywhere in it keeps the gate, however mechanical the last batch was. A subjective verdict, or a wide blast radius, defeats the exemption inside a trigger that already fired; neither creates a trigger on its own, so a subjective single-file, single-part change still takes only the floor. Outside these two triggers, the in-context floor suffices.
 
+**Scope — ceremony scales with blast radius, and the trigger ranges over the shipped artifact, never the record of the work.** What a consumer receives — code, docs someone reads, config — carries the full independent-verifier gate above. Memory-tier bookkeeping and process records — ledgers, checklists, status rows, adoption logs, sweep instrumentation — take the in-context floor and stop there, however many files a batch of them touched: a record's blast radius is the session that reads it, and spending an independent verifier on one buys nothing the artifact's own verification did not already buy. **Never spawn a verifier to verify a record OF a verification** — the record is downstream of an already-verified artifact, so verifying it re-verifies nothing and each pass produces another record to verify; that is the loop that feeds itself. Re-verify the artifact, or verify nothing.
+
 Hand the verifier two things only: the artifact, and binary criteria checkable against the artifact by reading, searching, or counting — a holistic quality question invites a rubber stamp; a criterion with a yes/no answer does not. Withhold your rationale for the changes: a verifier that reads your justification inherits your blind spots and audits your story instead of your artifact.
 
 > Weak: "Review my changes and confirm they look good."
@@ -79,6 +87,14 @@ Research parallelizes well: read-only, results merge by union. Code parallelizes
 - **Sequential-dependency test:** worker B's input includes worker A's output → not parallel work; run them sequentially, or more often just do the chain inline.
 - **Mechanical-transform test:** fan out a many-file code change only when the recipe is exact enough that a careful stranger could follow it with zero judgment calls — a recipe requiring per-file judgment gives each worker different judgment and you inherit N inconsistent styles; do it yourself.
 - **Seams only:** parallelize code along boundaries that already exist — independent modules, independent packages, per-file transforms with an exact recipe — never along boundaries you invented for the dispatch.
+
+## Keep working while workers run
+
+**TRIGGER:** a wave is dispatched and the next thing you would do is wait for it.
+
+- **Dispatch is not a blocking call.** Move to the next piece of your own work that no pending return feeds. Waiting the wave out makes your throughput the slowest worker's — and the slowest worker is usually the one that drifted, so the wait buys a late return you then discard.
+- **Check in rather than wait out.** Read a running wave against the drift signals below and intervene on what you find: a worker missing context you already hold gets it while its run can still use it, not in the post-mortem after its return is unusable.
+- **A worker already oriented on a subject is cheaper than a fresh one.** Where successive subtasks share a subject, continue the worker that holds its orientation instead of spawning a replacement to re-read the same material, which also keeps the wave off the slowest-spawn path. What you save is the re-derivation, not the tokens: a continued worker re-sends its accumulated context either way — billed as a cache read within its cache lifetime, and re-written past it at the five-minute cache-write rate, which is 1.25× base input rather than base input. Subagents get the five-minute TTL even on a subscription, so a worker resumed after a long wave pays that write rate. It still beats a replacement, which pays those same tokens plus the tool turns to rediscover the material ([prompt caching: subagents and the cache](https://code.claude.com/docs/en/prompt-caching#subagents-and-the-cache) and [pricing](https://platform.claude.com/docs/en/build-with-claude/prompt-caching#pricing), verified 2026-08-04). Start fresh when the subject changes, and always for the fresh-context verifier above, whose entire value is holding none of it.
 
 ## Monitor, intervene, plan for partial failure
 

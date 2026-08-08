@@ -3,6 +3,35 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.0]
+
+### Changed
+
+- **`implement`: the mid-phase handoff no longer triggers on a self-estimated context budget.** The
+  guidance read "Mid-phase handoff is still appropriate when context is heavy or a pause is
+  imminent", which asks the model to judge its own window and hand off on that judgement — the shape
+  the `claude-config` instruction-audit catalog's check I23 detects, and the same clause removed from
+  `session-flow`'s `handoff` in this pass. The licensed triggers are now an imminent pause, the
+  user's report, an instrument that measures the window, or visible drift in the responses; a budget
+  reading is a measurement, not a decay signal. Writing the ad-hoc note stays exactly as valuable as
+  before — only the trigger that invented the occasion is gone.
+
+## [0.11.0]
+
+### Changed
+
+- **The phase-worker brief now states why the phase exists**, alongside the scope fence, the
+  divergence-escalation clause, the project invariants, the acceptance criteria, and any model
+  routing. This is the highest-stakes dispatch surface in the marketplace — its workers edit source
+  — and it was specifying every boundary and no intent.
+  - A fence and a reason do different jobs, and the brief said so only halfway: a fence states what
+    a worker may not touch, and a worker that knows only its boundaries resolves every *in-bounds*
+    ambiguity toward the literal brief instead of the outcome. That is how a phase comes back
+    conforming and useless — passing its scope fence, passing its acceptance criteria as written,
+    and not being the change that was wanted.
+  - Sourced from Anthropic's Fable 5 prompting guide, "Give the reason, not only the request", which
+    names long-running agents drawing on multiple workstreams as the case where intent matters most.
+
 ## [0.10.0]
 
 ### Added

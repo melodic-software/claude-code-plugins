@@ -25,6 +25,17 @@ release after, with a lease another worker already holds meaning no dispatch at 
 the blocker, the PR, and the convention's independence and frontier-tier requirements; it replies
 and resolves threads through babysit-prs's guarded-mutation path, never a raw mutation.
 
+**Resolved dimension overrides gate this dispatch, ahead of everything else in this file.** The
+widening pair is necessary, never sufficient. Resolving review threads is an exercise of autonomy
+**dimension 3 (thread resolution)**, so the lane's resolved value for that dimension binds the
+dispatch itself and not merely the mechanic invoked after it (`SKILL.md` Cycle shape, step 4,
+"Dimension overrides bind by tier flooring"). An invocation whose own argument line narrows thread
+resolution below the authority this dispatch needs — `autopilot --merge c3-this-run
+--thread-resolution safe` is the live shape — gets **no dispatch at all**: the PR escalates and the
+cycle report names it override-constrained. `${CLAUDE_PLUGIN_ROOT}/reference/config-resolution.md`
+makes invocation arguments win for every dimension but merge, and an argument narrowing thread
+resolution cannot be answered by dispatching a fresh subagent that resolves threads anyway.
+
 **The discipline the resolution owes is not this file's contract.** The D7.5 per-finding
 verification ledger, the independence requirements, the fresh-pin rule, the wrapper command shapes,
 and the per-PR worker lifecycle a code-change blocker still needs are all owned by
@@ -57,9 +68,9 @@ those contracts:
   language, or an unresolved inline human thread stays a stop-and-ask condition until GitHub state
   resolves it — escalate, never fix or resolve past it (`babysit-prs/reference/feedback.md`,
   "Human Feedback"). No dispatch is made, and step 3 withholds the PR from the merge-capable
-  set. The one exception `babysit-prs` gained in this change is
-  scoped to security/P1 escalation and to that dispatch path alone (`babysit-prs/reference/safety.md`,
-  "Security/P1 escalation"); it does not widen to human blocks.
+  set. What the paired-argument invocation unlocks is this dispatch path alone
+  (`babysit-prs/reference/safety.md`, "Security/P1 escalation has no exception"); it widens neither
+  the severity bright line nor human blocks.
 - **Merge conflicts.** These route to the dedicated fresh conflict-resolution worker
   (`babysit-prs/reference/orchestration.md`, Merge Conflict Resolution), which integrates
   **merge-only and never rebases** — rebasing a PR branch needs the force-push babysit-prs forbids

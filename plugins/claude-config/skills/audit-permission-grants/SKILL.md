@@ -26,8 +26,8 @@ run time — the convention is the doctrine's owner, not a runtime dependency.
 ## Scope boundary (route out)
 
 This skill owns grant portability + auto-mode durability + who adds the operative rule. It does **not**
-own config-file correctness — baseline deny/ask presence, deprecated `:*` syntax, overly broad
-patterns, or live plugin drift belong to the sibling `audit` skill. When a request is about
+own config-file correctness — baseline deny/ask presence, overly broad patterns, or live plugin
+drift belong to the sibling `audit` skill. When a request is about
 those, route it there rather than answering here. The `audit` skill in the `claude-memory` plugin
 owns the instruction layer (CLAUDE.md / rules / auto-memory).
 

@@ -3,6 +3,144 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.3]
+
+### Changed
+
+- **Shared `hook-utils.sh`: a hook invocation spawns three fewer external processes (#1978).**
+  Every hook that buffers its stdin paid an `awk` (one float division, to slice the read timeout), a
+  `printf | tr -d '\r'` pipeline (a fork and an exec to delete one byte class from a string bash
+  rewrites in place), and a `jq -e .` validity probe over a buffer the read loop had already parsed
+  with jq. On Windows Git Bash, where process creation is `fork()` emulation, each spawn costs
+  ~140 ms. Behavior is unchanged: the slice keeps the three-decimal form `read -t` is given, the
+  buffer is CR-stripped as before, and the completeness verdict is reused only when jq itself
+  produced it — so a host without jq still fails open exactly as it did. Also adds
+  `hook::jq_fields`, which extracts several fields from one payload in a single jq process for
+  hooks that read two or three of them. Synced from `lib/hook-utils.sh`.
+
+## [0.27.2]
+
+### Fixed
+
+- **`plugins` no longer treats `$HOME` as project context when the shell and the OS spell it
+  differently.** The exclusion that keeps `$HOME` out of project scope compared `pwd -W`'s native
+  path against `$HOME` exactly as the environment carried it. Those are the same directory in two
+  spellings, and an MSYS mount alias carries no drive letter for the normalizer to reconcile, so
+  `/tmp/x` never matched the `C:/…` reported for it — the exclusion silently failed and
+  `$HOME/.claude/settings.json` was read as the project map, duplicating the user map. Both sides
+  are now spelled by the same command before they are compared. Normalizing harder could not have
+  fixed it: the two inputs disagreed before the normalizer saw them.
+
+  Both spellings go through `builtin cd` / `builtin pwd`, extending the shadow discipline the
+  script already applies to its own directory resolution. An exported `cd` that returns success
+  without moving would otherwise resolve `$HOME` to the cwd, collapsing every corroborated non-git
+  project onto `$HOME` and stripping its project settings — the inverse failure, and a worse one.
+
+## [0.27.1]
+
+### Changed
+
+- **`observability` marks the Token / cost dollar column as a list-rate estimate.** ccusage prices
+  tokens at public per-token list rates while subscription usage is plan-priced, so the USD figures
+  are an estimate, not a bill; [costs](https://code.claude.com/docs/en/costs.md) (verified
+  2026-08-04) documents the same list-rate caveat for Claude Code's own locally computed figures.
+
+### Fixed
+
+- **`changelog` `status` no longer goes silent on the first release outside the CC 2.1 series.**
+  The applied-versions scan grepped git log with patterns pinned to `v2\.1\.`, so a 2.2.x/3.x
+  release would return nothing without erroring. The scan now matches any
+  `CC v<major>.<minor>.<patch>` (`-E --grep="CC v[0-9]+\.[0-9]+\.[0-9]+"`), semantics otherwise
+  unchanged; a skill-wide sweep confirmed no other file carries the series pin — remaining
+  `v2.1.x` literals are illustrative examples.
+- **`changelog` fetch steps target the raw-markdown channel (`docs/en/changelog.md`), not the
+  rendered HTML page.** The `.md` sibling is the smaller, chrome-free channel — 514,578 B against
+  the rendered page's 2,696,671 B (~5x), measured 2026-08-04 — and both carry the same 355
+  releases. It buys no extra version depth: WebFetch truncates **both** channels identically, to
+  the same 32 most-recent versions with a `[Content truncated due to length...]` marker, because
+  its budget applies after HTML-to-markdown conversion. Reaching a deep version needs a
+  range-scoped fetch or a direct `curl`, on either channel. Every fetch-source reference in the
+  skill now points at the `.md` URL.
+- **`lanes` no longer skips a lane whose effort is `ultracode`.** The launcher validated
+  `lanes[].effort` against `low|medium|high|xhigh|max`, so `ultracode` — a documented
+  `claude --effort` value since CC 2.1.203 (verified 2026-08-04 against
+  [model-config](https://code.claude.com/docs/en/model-config#adjust-effort-level)) — made the
+  lane silently unlaunchable. The valid set now includes it, gated on the installed
+  `claude --version` meeting that floor: below it the CLI rejects the value outright (`Unknown
+  --effort value 'ultracode'`) and starts the session at the default effort, so the launcher skips
+  the lane rather than launching it at an unintended effort. That check runs in the shared
+  launch-input preflight, which `restart` already performs BEFORE stopping — so a lane the gate
+  refuses keeps running rather than being taken down and left down. The whole run shares one
+  `claude --version` probe, and `--dry-run` keeps working with no CLI installed (the exemption
+  `require_claude` documents): with no binary to probe, the preview reports the gate unevaluated
+  instead of refusing a lane a real run may well launch.
+
+## [0.27.0]
+
+### Added
+
+- **`observability` reports cache health, the one cost signal its store already carried and its
+  report never rendered.** `cc_metrics` has always split `claude_code.token.usage` by `attr_type`
+  into `input` / `output` / `cacheRead` / `cacheCreation`, and `read-routing.md` has always pointed
+  historical token metrics at the query file — but no report section rendered the cache half, so it
+  reached an operator only if they went looking for it by hand. The skeleton now carries a **Cache
+  health** section and the routing table a question keyed to it, with the reading upstream supplies:
+  a high read-to-creation ratio is healthy, and creation staying high turn after turn means
+  something keeps changing the request prefix ([actions that invalidate the
+  cache](https://code.claude.com/docs/en/prompt-caching#actions-that-invalidate-the-cache),
+  verified 2026-08-04).
+
+  **Its own section rather than columns on Token / cost**, because the two differ in both source and
+  grain. Token / cost is ccusage-sourced per-model over a window; the cache split lives in the OTEL
+  store, and the pre-existing token-usage query is latest-session-scoped with no model dimension.
+  Widening that table would have mixed two sources silently and rendered a per-model row from
+  session-grain data. So this ships a **new per-model windowed query** rather than reusing the
+  existing one — verified by execution against a live OTEL store, not composed from the schema.
+
+  **Hot tier only, for a reason worth recording:** `cc_metrics_cold()` raises `IO Error: No files
+  found that match the pattern …` when the cold tier holds no parquet yet, so a hot+cold union
+  would break on any store that has not aged. The query file now says so where the union pattern
+  is documented.
+
+  **Reported at `INFO`, deliberately ungraded.** Every other numeric signal in this skill carries a
+  severity band, and this one does not: upstream states the direction without a threshold, so a
+  `HIGH`/`MEDIUM` cutoff would be a number this repo invented and then cited as if sourced. That
+  rule sits in Rendering rules, outside the skeleton's fence — a directive placed inside it would
+  be emitted verbatim into the operator's report. The invalidation causes stay behind the pointer
+  rather than being enumerated into a list that drifts as the harness adds actions.
+
+## [0.26.0]
+
+### Changed
+
+- **`lane-launcher.sh` arms the autonomy lane-stop gate at launch — fail closed (#1784).** The
+  gate (autonomy 0.12.0+) no longer honors the bare `CLAUDE_PLUGIN_OPTION_*` environment, which is
+  the only form a `--settings`-delivered option ever reaches a hook in — so passing
+  `lane_stop_gate_enabled` through the lane's `settings` object alone would leave the lane silently
+  ungated. A lane whose settings request the gate
+  (`pluginConfigs["autonomy[@…]"].options.lane_stop_gate_enabled == true`) is now ARMED before
+  launch: the launcher generates a random arm id, runs the autonomy plugin's
+  `hooks/lane-stop-gate-arm.sh` (which records the lane's sentinel/marker config under autonomy's
+  own install-derived data directory), and injects the id into the launched `--settings` as
+  `lane_stop_gate_arm_id`. A gate-requesting lane that cannot be armed — helper missing (autonomy
+  not installed or pre-0.12.0), arming error, managed-settings veto — is **skipped with an error**
+  rather than launched ungated: the operator is present at launch, so failing closed there is
+  cheap, while the hook itself stays fail-open at stop time. Helper discovery anchors on the
+  launcher's own `plugins/cache` install path (never `CLAUDE_CONFIG_DIR`/`HOME`, which a watched
+  repo's `env` block reaches — exactly the redirect this design closes); the new
+  `--gate-arm-script FILE` flag overrides discovery for tests and dev checkouts. `--dry-run`
+  previews the arming without writing anything. Lanes without a gate request launch exactly as
+  before.
+
+  On a machine carrying more than one autonomy install, **every** discovered helper must arm or
+  the lane is skipped. Each install writes into its own install-derived store and the launcher
+  cannot tell which one the session will load, so accepting a partial arm would launch a lane
+  carrying an id its own gate resolves to nothing — ungated, with only a stale-arm notice to show
+  for it. The preflight that checks helper presence reads discovery through a command substitution
+  rather than `… | grep -q .`: under `pipefail` the `grep` exits on the first line and the producer
+  takes SIGPIPE on its next write, so exactly those multi-install machines would read as "no helper
+  found" and be refused a gate-requesting launch outright.
+
 ## [0.25.1]
 
 ### Changed

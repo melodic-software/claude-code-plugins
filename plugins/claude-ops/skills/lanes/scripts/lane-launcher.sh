@@ -56,6 +56,12 @@
 #                      session resolves the correct marketplace-qualified
 #                      directory; this env-var/fallback path only kicks in for
 #                      a direct/manual invocation (tests, a hand-run shell).
+#   --gate-arm-script FILE
+#                      override discovery of the autonomy plugin's
+#                      lane-stop-gate-arm.sh (tests / dev checkouts). Default
+#                      discovery walks this script's own install anchor —
+#                      <config>/plugins/cache/*/autonomy/*/hooks/ — never an
+#                      environment-derived path (see "Lane-stop gate arming").
 #   --help
 #
 # Launch-commit marker (#792):
@@ -84,11 +90,29 @@
 #   prompt      required; path to the canonical prompt file (absolute, or
 #               relative to prompt_dir).
 #   model       optional; passed as --model.
-#   effort      optional; passed as --effort (low|medium|high|xhigh|max).
+#   effort      optional; passed as --effort (low|medium|high|xhigh|max|ultracode).
+#               ultracode additionally requires the installed CLI to meet
+#               ULTRACODE_MIN_VERSION; a lane below it is skipped, not launched.
 #   settings    optional; a JSON OBJECT passed inline as --settings for that
 #               session only (e.g. a pluginConfigs override opting the lane into
 #               the autonomy plugin's lane-stop gate). Non-object values are
 #               rejected.
+#
+# Lane-stop gate arming (#1784):
+#   A lane whose settings request the autonomy lane-stop gate
+#   (pluginConfigs["autonomy[@…]"].options.lane_stop_gate_enabled == true) is
+#   ARMED at launch: the launcher generates a random arm id, runs the autonomy
+#   plugin's hooks/lane-stop-gate-arm.sh (which writes a per-session record
+#   under autonomy's own install-derived data directory), and injects the id
+#   into the lane's --settings as lane_stop_gate_arm_id. The gate honors the
+#   record — never the bare CLAUDE_PLUGIN_OPTION_* environment, which a watched
+#   repository's own settings.json `env` block can populate. FAIL-CLOSED at
+#   launch: a lane that requests the gate but cannot be armed (helper missing,
+#   arming error, managed-settings veto) is skipped with an error — launching
+#   it silently ungated would defeat the operator's request. Arm-helper
+#   discovery uses the launcher's own plugins/cache install anchor (or the
+#   --gate-arm-script override); an env-derived location would hand the same
+#   repo env block the redirect this design closes.
 #
 # Exit codes:
 #   0  ok
@@ -97,7 +121,44 @@
 
 set -uo pipefail
 
-VALID_EFFORTS="low medium high xhigh max"
+VALID_EFFORTS="low medium high xhigh max ultracode"
+
+# `ultracode` is the one effort upstream gates on a CLI version, so it is the one
+# the static allowlist cannot settle on its own. Below the floor the CLI rejects the
+# value outright (`Unknown --effort value 'ultracode'`) and starts the session at the
+# default effort, so the launcher skips the lane rather than launching it at an
+# unintended effort — restart preflights this BEFORE stopping, keeping a healthy lane
+# up. https://code.claude.com/docs/en/model-config#adjust-effort-level
+ULTRACODE_MIN_VERSION="2.1.203"
+
+# Compared component by component in awk — deliberately NOT `sort -V`, which is a
+# GNU-only construct this repo's portability lane rejects. Missing components
+# compare as 0, so "2.2" reads as 2.2.0.
+version_at_least() { # <candidate> <minimum>
+  [[ "$1" =~ ^[0-9]+(\.[0-9]+)*$ ]] || return 1
+  awk -F. -v a="$1" -v b="$2" 'BEGIN {
+    na = split(a, x, "."); nb = split(b, y, ".")
+    n = (na > nb ? na : nb)
+    for (i = 1; i <= n; i++) {
+      av = (i <= na ? x[i] + 0 : 0); bv = (i <= nb ? y[i] + 0 : 0)
+      if (av > bv) exit 0
+      if (av < bv) exit 1
+    }
+    exit 0
+  }' 2>/dev/null
+}
+
+# Memoized: every lane in a run shares one `claude --version` probe. Callers read
+# CLI_VERSION_CACHE directly — a `$(cli_version)` substitution would populate the
+# cache inside a subshell and throw it away, re-probing once per lane.
+CLI_VERSION_CACHE=""
+cli_version() {
+  [[ -n "$CLI_VERSION_CACHE" ]] && return 0
+  CLI_VERSION_CACHE="$(claude --version 2>/dev/null | tr -d '\r' |
+    grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+  [[ -n "$CLI_VERSION_CACHE" ]] || CLI_VERSION_CACHE="unknown"
+  return 0
+}
 
 ACTION="start"
 CONFIG=""
@@ -107,6 +168,7 @@ NO_UPDATE=0
 DRY_RUN=0
 AGENTS_JSON_FILE=""
 DATA_DIR_OVERRIDE=""
+GATE_ARM_SCRIPT_OVERRIDE=""
 LAUNCH_COMMIT=""
 declare -a TARGET_LANES=()
 
@@ -170,6 +232,12 @@ parse_args() {
       shift
       ;;
     --data-dir=*) DATA_DIR_OVERRIDE="${1#*=}" ;;
+    --gate-arm-script)
+      check_optarg "$1" "${2:-}" || exit 3
+      GATE_ARM_SCRIPT_OVERRIDE="$2"
+      shift
+      ;;
+    --gate-arm-script=*) GATE_ARM_SCRIPT_OVERRIDE="${1#*=}" ;;
     -h | --help)
       usage
       exit 0
@@ -491,6 +559,104 @@ lane_prompt_path() {
   esac
 }
 
+# --- Lane-stop gate arming (#1784) --------------------------------------------
+# The autonomy Stop-hook gate reads its per-session config from a launcher-armed
+# record, never the bare environment (see the header). These helpers detect a
+# lane's gate request in its settings object, arm the gate through autonomy's
+# own helper, and inject the arm id into the lane's --settings.
+
+# Does this lane's settings object request the gate? Any pluginConfigs key for
+# the autonomy plugin (bare or marketplace-qualified) with
+# options.lane_stop_gate_enabled true (boolean or "true").
+lane_requests_stop_gate() {
+  jq -e '[ (.pluginConfigs // {}) | to_entries[]
+           | select(.key == "autonomy" or (.key | startswith("autonomy@")))
+           | .value.options.lane_stop_gate_enabled
+           | . == true or . == "true" ] | any' >/dev/null 2>&1 <<<"$1"
+}
+
+# String-valued gate option from the lane's settings (last autonomy entry wins);
+# empty when absent or non-string.
+gate_option_from_settings() {
+  jq -r --arg k "$2" '[ (.pluginConfigs // {}) | to_entries[]
+      | select(.key == "autonomy" or (.key | startswith("autonomy@")))
+      | .value.options[$k] | select(type == "string") ] | last // empty' <<<"$1"
+}
+
+# Candidate arm helpers, one path per line. The override wins outright; default
+# discovery anchors on THIS script's own install path under plugins/cache and
+# globs every installed autonomy version — arming all of them is idempotent
+# (same-marketplace versions share one data directory; a second marketplace's
+# install keeps its own, and whichever install is active reads its own store).
+# Deliberately NOT an env-derived walk (CLAUDE_CONFIG_DIR/HOME): the launcher
+# runs inside a session whose project may be the watched repo itself, so a repo
+# env block reaches this process — an env-derived path would let it misdirect
+# arming into a store the real gate never reads, silently un-gating the lane.
+# An unanchored dev checkout without the override finds nothing, and a
+# gate-requesting lane then fails closed below.
+find_gate_arm_scripts() {
+  if [[ -n "$GATE_ARM_SCRIPT_OVERRIDE" ]]; then
+    printf '%s\n' "$GATE_ARM_SCRIPT_OVERRIDE"
+    return 0
+  fi
+  local self cache s
+  self="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)" || return 0
+  [[ "$self" == */plugins/cache/*/*/* ]] || return 0
+  cache="${self%%/plugins/cache/*}/plugins/cache"
+  for s in "$cache"/*/autonomy/*/hooks/lane-stop-gate-arm.sh; do
+    [[ -f "$s" ]] && printf '%s\n' "$s"
+  done
+  return 0
+}
+
+# A random, filename-safe arm id (the gate validates ^[A-Za-z0-9_-]{8,64}$).
+generate_arm_id() {
+  local id=""
+  if [[ -r /dev/urandom ]] && command -v od >/dev/null 2>&1; then
+    id="$(od -An -tx1 -N16 /dev/urandom 2>/dev/null | tr -d ' \n')"
+  fi
+  [[ -n "$id" ]] || id="$(date +%s 2>/dev/null)$$${RANDOM}${RANDOM}"
+  printf '%s' "$id"
+}
+
+# Arm the gate for one lane and print the settings JSON with the arm id
+# injected. Returns 1 (lane must be skipped — fail closed) when no helper is
+# found or ANY found helper fails; helper stdout/stderr goes to stderr so it
+# can never leak into the settings this function prints.
+#
+# EVERY discovered helper must arm. Each install writes into its OWN
+# install-derived store, and the launcher cannot tell which install the session
+# will load — so one helper succeeding does not prove the ACTIVE one is armed.
+# Accepting a partial arm would launch a lane carrying an id its own gate
+# resolves to nothing: ungated, with only a stale-arm notice to show for it.
+arm_stop_gate() {
+  local name="$1" settings="$2" arm_id sentinel marker script found=0 failed=0
+  arm_id="$(generate_arm_id)"
+  sentinel="$(gate_option_from_settings "$settings" lane_stop_gate_sentinel)"
+  marker="$(gate_option_from_settings "$settings" lane_stop_gate_marker)"
+  local -a args=(--id "$arm_id" --cwd "$REPO")
+  [[ -n "$sentinel" ]] && args+=(--sentinel "$sentinel")
+  [[ -n "$marker" ]] && args+=(--marker "$marker")
+  while IFS= read -r script; do
+    [[ -n "$script" ]] || continue
+    found=1
+    bash "$script" "${args[@]}" >&2 || failed=1
+  done < <(find_gate_arm_scripts)
+  if ((found == 0)); then
+    # Normally unreachable: validate_launch_inputs preflights helper presence.
+    err "lane '$name': lane-stop gate requested but no autonomy gate-arm helper was found (install/update the autonomy plugin, or pass --gate-arm-script) — skipped"
+    return 1
+  fi
+  if ((failed)); then
+    err "lane '$name': lane-stop gate arming failed — skipped (launching ungated would defeat the request)"
+    return 1
+  fi
+  jq -c --arg id "$arm_id" \
+    '.pluginConfigs |= with_entries(
+       if .key == "autonomy" or (.key | startswith("autonomy@"))
+       then .value.options.lane_stop_gate_arm_id = $id else . end)' <<<"$settings"
+}
+
 # --- Command runner -----------------------------------------------------------
 # Echoes the command; runs it unless --dry-run.
 run() {
@@ -522,6 +688,22 @@ validate_launch_inputs() {
     err "lane '$name': invalid effort '$effort' (want: $VALID_EFFORTS) — skipped"
     return 1
   fi
+  if [[ "$effort" == "ultracode" ]]; then
+    # The same exemption require_claude documents: a dry run must preview with no
+    # CLI installed. With no binary to probe the gate cannot be evaluated, so the
+    # preview says so rather than refusing a lane a real run may well launch. Keyed
+    # on the binary's absence, not on an "unknown" version — a CLI whose --version
+    # is unparsable is installed, and stays refused.
+    if ((DRY_RUN)) && ! command -v claude >/dev/null 2>&1; then
+      info "  lane '$name': effort 'ultracode' version gate not evaluated (no claude CLI to probe)"
+    else
+      cli_version
+      if ! version_at_least "$CLI_VERSION_CACHE" "$ULTRACODE_MIN_VERSION"; then
+        err "lane '$name': effort 'ultracode' needs Claude Code >= $ULTRACODE_MIN_VERSION (installed: $CLI_VERSION_CACHE) — skipped"
+        return 1
+      fi
+    fi
+  fi
   # `settings` must be a JSON object — the launcher passes it verbatim to
   # `claude --settings`, and a string/array/scalar would make the whole session
   # fail to launch with an opaque CLI error instead of a per-lane skip here.
@@ -529,11 +711,34 @@ validate_launch_inputs() {
     err "lane '$name': settings must be a JSON object — skipped"
     return 1
   fi
+  # A gate request with no discoverable arm helper is a launch-input error too,
+  # and it belongs HERE so restart's preflight catches it BEFORE stopping a
+  # healthy running lane (same doctrine as the prompt/effort checks above). A
+  # helper that exists but fails at arm time still surfaces in launch_lane.
+  # Command substitution, NOT `find_gate_arm_scripts | grep -q .`: under
+  # pipefail, grep -q exits on the first line and the producer takes SIGPIPE on
+  # its next write, so a machine carrying TWO autonomy installs would read as
+  # "no helper found" and refuse to launch a gate-requesting lane.
+  if [[ -n "$settings" ]] && lane_requests_stop_gate "$settings" &&
+    [[ -z "$(find_gate_arm_scripts)" ]]; then
+    err "lane '$name': lane-stop gate requested but no autonomy gate-arm helper was found (install/update the autonomy plugin, or pass --gate-arm-script) — skipped"
+    return 1
+  fi
 }
 
 launch_lane() {
   local name="$1" model="$2" effort="$3" prompt_path="$4" settings="${5:-}"
   validate_launch_inputs "$name" "$effort" "$prompt_path" "$settings" || return 1
+
+  # Arm the lane-stop gate BEFORE launching (fail closed — see header). Under
+  # --dry-run nothing is written; the preview line stands in for the arming.
+  if [[ -n "$settings" ]] && lane_requests_stop_gate "$settings"; then
+    if ((DRY_RUN)); then
+      printf 'DRY-RUN: arm lane-stop gate for %s (arm id injected into --settings)\n' "$name"
+    else
+      settings="$(arm_stop_gate "$name" "$settings")" || return 1
+    fi
+  fi
 
   local -a cmd=(claude --bg -n "$name")
   [[ -n "$model" ]] && cmd+=(--model "$model")

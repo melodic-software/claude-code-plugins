@@ -53,6 +53,22 @@ Parse the flag (`--yes` / `-y`) out of `$ARGUMENTS` first, then route on the rem
 
 Both review modes share the roster ([context/leaf-roster.md](context/leaf-roster.md)) and the normalization pipeline — no duplicated roster or pipeline.
 
+**Dispatch contract (both review modes):** every dispatched finding-producing leaf prompt carries
+this coverage clause verbatim, appended to the leaf's own instructions — for slice leaves, appended
+to the instantiated per-slice template (whose own coverage sentence is quality-gate's standalone
+posture and states the same rule, not a competing contract): "Your goal at this stage is coverage:
+it is better to surface a finding that later gets filtered out than to silently drop a real bug.
+Report every issue you find, including ones you are uncertain about or consider low-severity. Do
+not filter for importance or confidence at this stage — a separate normalization pass deduplicates
+and ranks findings downstream. For each finding, include your confidence level (high / medium /
+low) and an estimated severity." Current models follow a stated severity bar faithfully at the
+finding stage — they investigate fully, then withhold findings judged below the bar — so a harness
+with a downstream filter that does not say so converts investigations into silence (Sonnet 5
+prompting guide, "Code review harnesses",
+<https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5>;
+the Opus 4.8 guide states the same). The clause restores recall without moving the precision work:
+the pipeline's dedup and agreement/rank stages remain the filter.
+
 ## Pre-flight gate (both review modes)
 
 **Ask-shape check first, before any diff resolution:** when the ask is a whole-repository security audit rather than a change review, emit the deep-scan escalation from [context/leaf-roster.md](context/leaf-roster.md) "Deep-scan escalation" and STOP — regardless of diff state. A tracked diff or open PR does not convert that ask into a change review; a diff-scoped fan-out would answer a question the user did not ask.
@@ -86,7 +102,7 @@ Run the self-ignore guard ("Shared inputs"), then write the ranked report to `<f
 
 ## Orchestrator plugins
 
-Three optional orchestrator plugins add adversarial breadth — two same-vendor Claude plugins from the `claude-plugins-official` marketplace, plus the OpenAI Codex plugin (`codex@openai-codex`) as a different-model surface. All run on the MAIN THREAD (they fan out their own agents; a subagent cannot dependably do that). Each is a graceful enhancement, not a hard dependency:
+Three optional orchestrator plugins add adversarial breadth — two same-vendor Claude plugins from the `claude-plugins-official` marketplace, plus the OpenAI Codex plugin (`codex@openai-codex`) as a different-model surface. All run on the MAIN THREAD: they fan out their own agents, and the main thread is the one context whose `Agent` tool the nesting-depth limit never disables. A subagent CAN nest, but only inside a depth budget that is settings-configurable (`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`, where `1` turns nesting off) and so outside this skill's control; at the limit the tool is withheld, or in a fork kept but erroring ([sub-agents](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents)). Each is a graceful enhancement, not a hard dependency:
 
 - **`pr-review-toolkit`** — `/pr-review-toolkit:review-pr`: aspect-scoped agent fan-out. Absent → this plugin's leaf agents cover most of the same dimensions; note that orchestrator breadth was skipped.
 - **`code-review`** — `/code-review:code-review`: parallel reviewers + confidence scorer for an existing PR. Distinct from the bundled `/code-review` command and the managed service covered under "Boundary" below, despite the shared name. **Applicability gate:** a PR is its only target, so it is dispatchable only when the branch has an open PR. On a branch with none — the ordinary local-branch review — skip it and name the skip in `## Surfaces` rather than dispatching a surface that cannot produce findings. **PR-mutation gate:** where it does apply, its final step posts the surviving findings back as a PR comment — there is no mode that returns them to the session instead — so every invocation violates the review modes' report-only contract. Dispatch it only on explicit user opt-in ("post the review comment"), otherwise skip it and name the skip. **Its raw text comes from the PR, not the dispatch:** having posted rather than returned its findings, an opted-in run is followed by fetching that comment back (`context/findings-normalization.md`) so the normalization step has an input at all. Absent → note the skip; a repository's own CI review bot (when present) still provides PR coverage.

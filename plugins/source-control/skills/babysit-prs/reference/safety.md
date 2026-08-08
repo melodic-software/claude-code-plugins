@@ -378,19 +378,33 @@ Two facts about the wrappers' bare names, both load-bearing:
   `bash` is not among them, so `bash "…/bin/source-control-babysit-merge" …` matches as a `bash`
   command and never satisfies a pre-approved `Bash(source-control-babysit-merge:*)`. That rule does
   not cover these invocations, and cannot until bare-name resolution is dependable enough to invoke
-  bare — so **what happens next is the permission mode's call, not the allow rule's:**
-  - **In a mode that prompts** — Manual and accept-edits, and plan mode only on its no-classifier
-    branch — expect a per-call permission prompt. It is expected behavior, not a misconfiguration.
-    Plan mode still *runs* shell commands (it blocks source edits, not commands), but when auto mode
-    is available and `useAutoModeDuringPlan` is on, which is the default, the classifier reviews
-    them "instead of prompting you"; only otherwise do commands outside the read-only set prompt
+  bare — so **what happens next is the permission mode's call, not the allow rule's.** Six modes
+  exist, named by the config values hooks and settings use: `default`, `acceptEdits`, `plan`,
+  `auto`, `dontAsk`, and `bypassPermissions`. `default` is the mode the CLI, `claude --help`, the
+  VS Code and JetBrains extensions, and the desktop app display as **Manual**, and from v2.1.200 the
+  CLI also accepts `manual` as an alias wherever the value is typed
+  ([permission modes](https://code.claude.com/docs/en/permission-modes#available-modes)). An
+  uncovered wrapper call lands three ways:
+  - **`default` and `acceptEdits` prompt.** `acceptEdits` auto-approves file edits and a fixed
+    filesystem command set (`mkdir`, `touch`, `rm`, `rmdir`, `mv`, `cp`, `sed`) that `bash` is not
+    in; every other Bash command outside the built-in read-only set still prompts. A per-call
+    permission prompt is expected behavior here, not a misconfiguration.
+  - **`plan` prompts only on its no-classifier branch.** Plan mode still *runs* shell commands (it
+    blocks source edits, not commands). When auto mode is available and `useAutoModeDuringPlan` is
+    on, which is the default, the classifier reviews them "instead of prompting you"; in a session
+    with bypass permissions available plan mode's blocks are not enforced at all and the command
+    runs unprompted; only otherwise do commands outside the read-only set prompt
     ([plan mode](https://code.claude.com/docs/en/permission-modes#analyze-before-you-edit-with-plan-mode)).
-  - **In auto mode, expect no prompt.** Auto mode "lets Claude execute without routine permission
-    prompts", routing uncovered actions to a classifier that approves or blocks them
+  - **`auto`, `dontAsk`, and `bypassPermissions` resolve the call without a prompt.** Auto mode
+    "lets Claude execute without routine permission prompts", routing uncovered actions to a
+    classifier that approves or blocks them; `dontAsk` auto-denies every call that would otherwise
+    have prompted, so an uncovered wrapper invocation is refused outright with no classifier and no
+    prompt; `bypassPermissions` executes it immediately
     ([permission modes](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode)).
     So a merge or thread-resolution call can be **denied without ever surfacing** — do not wait on a
-    prompt that will not arrive; read the denial in `/permissions` → **Recently denied**. Only an
-    explicit `permissions.ask` rule still forces a prompt in auto mode.
+    prompt that will not arrive; under auto mode read the denial in `/permissions` → **Recently
+    denied**. An explicit `permissions.ask` rule still forces a prompt in `auto` and
+    `bypassPermissions`; in `dontAsk` it is denied instead.
 
   A narrow allow rule would not rescue this even if one matched: narrow Bash allow rules do carry
   into auto mode and resolve before the classifier, but `autoMode.classifyAllShell: true` suspends
@@ -557,16 +571,23 @@ re-invocation (`babysit-loop/SKILL.md`, Cycle shape step 3, "The verdict authori
 the PR"). Every other invocation of this skill re-pins to the vetted post-push head exactly as
 Autopilot step 3 describes.
 
-### Security/P1 escalation: the one named exception
+### Security/P1 escalation has no exception; the pre-escalation resolver is bound by it too
 
-Escalating a security/P1 thread instead of resolving it holds in every tier, autopilot included.
-The loop-lane convention carries exactly one named exception (§1, "one named, explicit
-paired-argument exception"), and it is this narrow:
+Escalating a security/P1 thread instead of resolving it holds in every tier and every mode,
+autopilot and `--independent-resolver` included — the wrappers refuse a severity-flagged thread
+whoever asks, so no dispatch path can reach past it (`--independent-resolver` above, "the security/P1
+bright line, because this is still an unattended path"). The loop-lane convention's one named
+paired-argument exception (§1) widens the **merge rung** for a single run; it never widens the
+severity bright line, and reading it as an exception to this rule would describe an unreachable
+path.
+
+What the paired-argument invocation *does* unlock is the pre-escalation resolution dispatch, and
+that path is this narrow:
 
 - **Only one dispatch path.** The `source-control:babysit-loop` explicit-`autopilot` pre-escalation
   resolver — the subagent that lane dispatches when a caller typed both the literal `autopilot`
   tier argument and the dedicated raise argument `--merge c3-this-run` on that invocation's own
-  line. No other invocation of this skill, at any tier, ever reaches this exception. The
+  line. No other invocation of this skill, at any tier, ever reaches it. The
   orchestrator-side independent resolution dispatch
   ([`independent-resolution.md`](independent-resolution.md)) is **not** a second path to it: the
   wrapper's severity bright line refuses a security/P1 thread on that route
@@ -578,8 +599,9 @@ paired-argument exception"), and it is this narrow:
   about itself. This is a contract on how the lane dispatches, not a credential the dispatch
   presents: a run that cannot establish it is fresh escalates.
 - **Only through these wrappers.** The resolution runs through the guarded-mutation path above,
-  with every pin, refusal, and JSON-parse rule intact. The exception changes who may attempt the
-  resolution, never what the wrappers permit.
+  with every pin, refusal, and JSON-parse rule intact. The dispatch changes who may attempt the
+  resolution, never what the wrappers permit — which is exactly why the severity refusal above
+  still lands on it.
 - **Never anything else.** It does not widen what counts as genuinely "addressed", never applies
   to a PR whose work item classifies C4 (structural) or C5 (untrusted-provenance), and never
   substitutes for escalation when the resolution is unresolved or the resolver is uncertain.

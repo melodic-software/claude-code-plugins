@@ -2,8 +2,8 @@
 
 A Claude Code plugin for **skill-authoring QA**: it runs a static, deterministic contract gate over a
 skill directory, reports the shared listing-budget estimate across a set of skills, and validates a
-skill's `evals.json` against a bundled schema. No model invocation in the gate — the same twenty-two checks
-run identically in a session, a pre-commit hook, or CI.
+skill's `evals.json` against a bundled schema plus a deterministic eval-quality lint. No model
+invocation anywhere — the same checks run identically in a session, a pre-commit hook, or CI.
 
 The one failure static analysis catches best is a rewrite silently dropping a `description` trigger
 phrase, which quietly degrades a skill's auto-invocation. Check 3 compares the trigger phrases against
@@ -11,7 +11,7 @@ phrase, which quietly degrades a skill's auto-invocation. Check 3 compares the t
 
 | Skill | What it does |
 |---|---|
-| `/skill-quality:check` | Runs the contract gate (`check`), reports the shared listing budget (`listing-budget`), or schema-validates evals (`validate-evals`) — for one skill, a set of roots, or every skill. |
+| `/skill-quality:check` | Runs the contract gate (`check`), reports the shared listing budget (`listing-budget`), or schema-validates and quality-lints evals (`validate-evals`) — for one skill, a set of roots, or every skill. |
 | `/skill-quality:setup` | `check` (default) resolves and verifies the skills directory; `apply` routes a non-default `skills_root` change through Claude Code. |
 
 ## Checks
@@ -56,7 +56,7 @@ content cannot reveal — so the reported figure is an upper bound for anyone wh
 ```shell
 /skill-quality:check my-skill                  # gate one skill
 /skill-quality:check                           # gate every skill under the resolved root
-/skill-quality:check validate-evals my-skill   # schema-check evals.json
+/skill-quality:check validate-evals my-skill   # schema-check + quality-lint evals.json
 /skill-quality:check listing-budget            # report the shared budget over the resolved root
 /skill-quality:check listing-budget plugins/*/skills  # pool every plugin's root into one aggregate
 ```
@@ -77,12 +77,22 @@ configuration is needed:
 /skill-quality:setup apply   # route a non-default skills_root change through Claude Code
 ```
 
-## Evals schema
+## Evals schema + quality lint
 
 `validate-evals` checks a skill's `evals/evals.json` against the bundled
-`reference/evals.schema.json`. The schema accepts both the minimal form (`id` + `prompt` per case) and
-the rich form (adding `name`, `expected_output`, `files`, and one of `assertions` / `expectations`).
+`reference/evals.schema.json`. Every case requires `id`, `prompt`, and at least one non-empty
+grading criterion — `expected_output`, `expectations`, or `assertions` (a case that cannot be
+graded is not an eval); the rich form adds `name` (kebab-case) and `files`.
 Evals are warranted, not mandatory — a skill shipping none is not a failure.
+
+After the schema, `check-evals-quality.sh` (bash + jq) lints eval CONTENT deterministically.
+`FAIL:` tier — duplicate case ids/names, empty criterion items, `files` fixture entries that
+resolve to no path under the skill or evals directory. `WARN:` tier (advisory, exit 0) — a case
+carrying both `expectations` and `assertions`, identical prompt+files pairs, vague whole-item
+phrasing ("the output is good"), a thin sole-criterion `expected_output`, and a set with no
+refusal/guardrail or anti-pattern case. It deliberately does not flag low case count. Run
+`--help` on the script for the full Q1-Q9 list; without `jq` it exits 2 and the schema verdict
+stands alone.
 
 ## Requirements
 

@@ -149,10 +149,11 @@ is a reported derived-tier artifact, so a surface that silently drops out of sco
 fails the determinism property rather than looking like an improvement.
 
 **Output styles are the case a walk alone cannot get right.** They modify the system prompt directly,
-drop the built-in software-engineering instructions unless `keep-coding-instructions: true`, and a
+a custom one drops the built-in software-engineering instructions unless
+`keep-coding-instructions: true`, and a
 plugin's `force-for-plugin` "overrides the user's `outputStyle` setting" — so a walk plus settings
 reports a selection as live when it is not ([output styles](https://code.claude.com/docs/en/output-styles),
-verified 2026-07-24). Report the resolved live style and what resolved it.
+verified 2026-08-04). Report the resolved live style and what resolved it.
 
 **Shadowed definitions fall out of this inventory, not out of a catalog.** Skills, subagents, and MCP
 servers override *by name*: where two share a name across scopes, exactly one is live. That is name

@@ -146,6 +146,21 @@ run "git push same ref movable first, pinned second (git uses the first, blocked
 run "git push same ref no-expect first, pinned second (first is tracking-based, blocked)" "git push --force-with-lease=main --force-with-lease=main:$SHA1_OID origin main" 2
 run "git push same ref no-expect first, pinned second, mitigated (allowed)" "git push --force-with-lease=main --force-with-lease=main:$SHA1_OID --force-if-includes origin main" 0
 run "git push different refs, one pinned one movable (both entries live, blocked)" "git push --force-with-lease=main:$SHA1_OID --force-with-lease=other:origin/other origin main other" 2
+# A block message is a producer-facing prescription, so the form it names must be
+# one this guard accepts. Detection is static over the literal command string —
+# substitutions are never evaluated — so a `$(…)` in the <expect> slot arrives as
+# an unresolved name and is blocked by the very message prescribing it. Asserted
+# on the message text rather than an exit code: both cases below already exit 2,
+# and it is the prescription that was wrong.
+# shellcheck disable=SC2016  # '$(' is the substitution syntax being asserted absent, not an expansion
+for lease_case in "--force-with-lease=main:origin/main" "--force-with-lease"; do
+  lease_msg=$(cd "$REPO_SHA1" && bash "$HOOK" <<<"$(command_json "git push $lease_case origin main")" 2>&1)
+  assert_absent "lease block message ($lease_case) prescribes no command substitution" \
+    "$lease_msg" '$('
+  assert_contains "lease block message ($lease_case) prescribes a resolved literal object id" \
+    "$lease_msg" '<full-sha>'
+done
+
 run "git push (plain, allowed)" "git push" 0
 run "git push -u origin main (allowed)" "git push -u origin main" 0
 run "git push -o f (option value f, allowed)" "git push -o f origin main" 0
@@ -599,5 +614,38 @@ run_pwsh "PS: backslash path-qualified git.exe, safe op (allowed)" \
   'C:\Git\cmd\git.exe status' 0
 run_pwsh "PS: semicolon-adjacent computed call (fail-closed block)" \
   "Write-Host ok;& ('g'+'it') reset --hard" 2
+
+# Call-operator / dot-source of a CONSTANT target (#1968). `& "script.ps1"` is the
+# ordinary PowerShell script-invocation idiom; the sink's git probe used to match
+# any quote character after the operator, so a provably git-free literal path was
+# blocked by a *git* guard. Per PowerShell about_Quoting_Rules a `$`-free
+# double-quoted string and ANY single-quoted string are compile-time constants,
+# so these are statically decidable as non-git.
+run_pwsh "PS: call-op, double-quoted literal script path (allowed)" \
+  '& "C:\tools\publish.ps1"' 0
+run_pwsh "PS: call-op, single-quoted literal script path (allowed)" \
+  "& 'C:\\tools\\publish.ps1'" 0
+run_pwsh "PS: dot-source, double-quoted literal script path (allowed)" \
+  '. "C:\tools\lib.ps1"' 0
+run_pwsh "PS: dot-source, single-quoted literal script path (allowed)" \
+  ". 'C:\\tools\\lib.ps1'" 0
+# The fail-OPEN guard rail on that narrowing: an INTERPOLATING double-quoted
+# target is computed and must still block, and a literal git command word is
+# still caught by name because the git probe runs quote-intact.
+# shellcheck disable=SC2016
+run_pwsh "PS: call-op, interpolated variable target (fail-closed block)" \
+  '& "$tool" reset --hard' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: call-op, interpolated subexpression target (fail-closed block)" \
+  '& "$(Get-Tool)" reset --hard' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: call-op, interpolation inside a longer literal (fail-closed block)" \
+  '& "C:\tools\$ver\thing.exe" reset --hard' 2
+run_pwsh "PS: call-op, double-quoted literal git (blocked by name)" \
+  '& "git" reset --hard' 2
+run_pwsh "PS: call-op, single-quoted literal git (blocked by name)" \
+  "& 'git' reset --hard" 2
+run_pwsh "PS: call-op, quoted literal path whose basename is git (blocked by name)" \
+  '& "C:\Git\cmd\git.exe" reset --hard' 2
 
 report

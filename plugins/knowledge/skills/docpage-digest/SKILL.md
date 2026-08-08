@@ -171,6 +171,50 @@ Verdicts land in `<work-root>/verification/` and are **append-only historical re
 wrong verdict gets a dated corrections-applied file beside it, never a rewrite. Corrections
 apply to the digests; re-verify what changed.
 
+**No tree moves until every dispatched arm has reported.** Editing a slice mid-audit voids that
+audit: the verifier's findings stop describing bytes that exist. (A prior run edited three digests
+minutes after one arm reported while the other was still auditing; that arm re-hashed its pinned
+files at the end of its audit, found three no longer matched, and returned BLOCKED — the slice had
+to be re-pinned and the arm re-run.)
+
+**Every correction round leaves an applied record, and the next round reads it.** The record is
+dated, lands beside the verdicts, and names what changed and why; any finding the round surfaced but
+was not scoped to fix goes in its "New findings" section, which is a **required input to the next
+round's brief**. Both halves bind — a faithfully written record nobody reads drops findings on the
+floor exactly as silently as no record at all. A verdict likewise lands in
+`<work-root>/verification/` or it did not happen: one written to a session scratchpad is unreachable
+by every later round. (One slice's round-3 record was written faithfully, "New findings" section and
+all, and the next round never read it — three findings it named were still unfixed a round later, and
+only a verifier's cross-check noticed; an 18-unit fan-out in the same slice edited seven units with
+no record, leaving them unattested; two of the slice's verdicts were written outside `verification/`
+and no later round could read them.)
+
+**A mechanical gate reports only what it parsed, and only the fields it checks.** Any script used as
+a verification gate errors loudly on input it cannot recognize, and a clean result is read as
+covering just the rows and fields it actually exercised. **The ordering is not negotiable:** a gate
+that silently skips what it cannot parse is fixed *before* it is made a required artifact, or the
+mandate converts a visible gap into an invisible pass. (Both arms independently caught the campaign's
+quote checker printing "all checks clean" over a digest whose 14 claims it could not parse at all;
+a separate command-replay gate read only the first number in each `→ N lines, M files` pair, so it
+reported clean on a class it was structurally blind to.)
+
+**Commands are replayable in every pipeline artifact, not just digest rows.** INDEX rows, applied
+records, verdicts, rulings and handoffs carry commands too, in the same command-plus-raw-count form,
+and each is replayed where it is authored — no sweep reaches an artifact that did not yet exist
+when it ran, so the phase that writes one replays it before that phase ends. (One slice yielded
+five record-level command defects: two greps quoted without a path operand, an unrunnable command
+invisible to the replay regex, and two records misstating their own pair counts — and one
+correction record propagated the wrong line number it had been written to fix.)
+
+**Reconcile the digest set against itself before Phase 5.** Every other check is scoped within a row
+or between a row and `source.md`, so parallel digest agents can affirm, deny, and abstain on the same
+external page and still earn PASS from both verifiers. Group the digests' claims by quoted text and
+by cited site: identical quotes carrying non-identical tags, and rows of the same assertion class
+resting on materially different absence bases, are defects to resolve or to disclose in the handoff.
+(Ten rows digesting one directive reached two different tags via at least three distinct absence
+bases; the tag split was the visible symptom, the bases diverged first. Both arms found splits of
+this shape by hand, and only by choosing to look.)
+
 **Degraded-verifier fallback (never silent):** when the cross-vendor verifier is unavailable
 (not installed, sandbox-broken, quota), substitute a second same-vendor verifier briefed as an
 adversarial refuter, and RECORD the degradation and its reason in the verdict file header. A
@@ -180,10 +224,12 @@ verification record that hides its degraded provenance is worse than a missing o
 
 Author `<work-root>/interview-handoff.md`: a validation-answer-set-shaped artifact — one entry
 per open question or candidate artifact surfaced by the digests, each carrying the digest
-citation, the verifiers' verdict state, and a recommended disposition. Then hand off: run
-`/planning:interview` over it when that plugin is installed, otherwise present the artifact and
-stop. The pipeline ends at the handoff — deciding what to BUILD from a verified slice is the
-interview's job, and building it belongs to the consuming repo's planning/implementation flow.
+citation, the verifiers' verdict state, and a recommended disposition. **Replay the handoff's own
+commands before handing off** — every Phase 4 check precedes it, so this pass is the only one that
+can reach them. Then hand off: run `/planning:interview` over it when that plugin is installed,
+otherwise present the artifact and stop. The pipeline ends at the handoff — deciding what to BUILD
+from a verified slice is the interview's job, and building it belongs to the consuming repo's
+planning/implementation flow.
 
 Emit a continuation prompt (sibling convention) when the run pauses mid-pipeline: a short
 self-contained prompt naming the slug, the first unticked checklist phase, and the work root.
