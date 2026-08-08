@@ -256,7 +256,11 @@ COMMAND_LC="${COMMAND,,}"
 # `cat` immediately before a redirect, with or without a space (`cat>file`).
 # Scanned PER SEGMENT (see cat_redirect_bypass), so `;|&()` never reach it — the
 # leading class is kept for the pre-segmentation shape and costs nothing.
-_cat_redir='(^|[[:space:];|&()]+)cat[[:space:]]*>'
+# The optional `1` admits the EXPLICIT stdout spelling: `cat 1>file` writes the
+# file exactly as `cat >file` does, and without it the guard missed the form
+# entirely. Other fds cannot reach here — `cat 2>err` has a space-then-digit the
+# `[[:space:]]*1?>` sequence does not match.
+_cat_redir='(^|[[:space:];|&()]+)cat[[:space:]]*1?>'
 # One stdout redirect and its target word. `[^0-9&]` before the operator keeps
 # other-fd (`2>`, `21>`) and combined (`&>`) redirects out, while the optional
 # `1` admits the EXPLICIT stdout spelling — `1>file` is stdout exactly as `>file`
@@ -319,7 +323,7 @@ _leading_redir='^([0-9]*(>>?|<)&?|&>>?)[[:space:]]*'
 # is exempt — that's not a Write/Edit bypass — but the exemption is decided by
 # set_last_stdout_target, not by this pattern: the discard must be the EFFECTIVE
 # target, not merely present somewhere in the segment.
-_echo_file_out='(^|[^0-9&])>>?[[:space:]]*[^|&>[:space:]]'
+_echo_file_out='(^|[^0-9&])1?>>?[[:space:]]*[^|&>[:space:]]'
 # python file-write indicators that are unambiguous on their own. `pathlib` /
 # `path(` are identifier-boundary anchored so they match the write-capable
 # `pathlib.Path(` producer but NOT the read-only `os.path.*path(` helpers

@@ -140,6 +140,21 @@ run "printf x > /dev/null > real.txt still blocked" \
 run "cat > /dev/null 2> err.log (allowed)" \
   "cat > /dev/null 2> err.log" 0
 
+# REGRESSION FLOOR — the EXPLICIT stdout spelling is a write. `1>file` is stdout
+# exactly as `>file` is, so a bare `1>` was a complete bypass of both lanes: the
+# detection patterns only ever admitted the bare `>`.
+run "cat 1>real.txt blocked" "cat 1>real.txt" 2
+run "cat 1>>real.txt append blocked" "cat 1>>real.txt" 2
+run "cat 1> real.txt spaced blocked" "cat 1> real.txt" 2
+run "echo x 1>real.txt blocked" "echo x 1>real.txt" 2
+run "printf x 1>real.txt blocked" "printf x 1>real.txt" 2
+# …and the fd-1 discard is still a discard, on both lanes.
+run "cat 1>/dev/null (allowed)" "cat 1>/dev/null" 0
+run "echo x 1>/dev/null (allowed)" "echo x 1>/dev/null" 0
+# Other fds must NOT be swept in by the widened operator.
+run "cat 2>err.log (allowed)" "cat 2>err.log" 0
+run "cat 21>err.log (allowed)" "cat 21>err.log" 0
+
 # --- Redirect false-positive regression -------------------------------------
 # stderr/fd redirects + /dev/null discards are NOT file-write bypasses, even
 # when an `echo` appears in the same compound command.

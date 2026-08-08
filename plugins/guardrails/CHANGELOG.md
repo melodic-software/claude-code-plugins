@@ -3,6 +3,29 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.4]
+
+### Fixed
+
+- **`block-hook-bypass` missed the explicit stdout redirect entirely — `cat 1>file` and
+  `echo x 1>file` were never caught.** `1>file` writes the file exactly as `>file` does, but both
+  detection patterns only ever admitted the bare `>`: `_cat_redir` required `cat[[:space:]]*>` and
+  `_echo_file_out` excluded any operator preceded by a digit, in order to keep `2>` out. That
+  exclusion took the legitimate fd-1 spelling with it, so a single character defeated both lanes of
+  the guard. Verified live against the shipped hook before the fix: `cat 1>real.txt` exited 0 while
+  `cat > real.txt` exited 2.
+
+  Both patterns now admit an optional `1` before the operator. Other fds stay out: `_echo_file_out`
+  still rejects a digit-prefixed operator except that `1`, so `2>` and `21>` do not match, and in
+  the `cat` lane the `[[:space:]]*1?>` sequence cannot match `cat 2>err`. The fd-1 discard
+  (`cat 1>/dev/null`) is still a discard, since the exemption reads the effective stdout target.
+  Nine regression cases pin the write forms, the discards, and the other-fd non-matches.
+
+  **This was pre-existing, not a 0.19.3 regression.** 0.19.3 widened the same `1?>` spelling on the
+  EXEMPTION side (`set_last_stdout_target`, so `cat >/dev/null 1>real.txt` could not sneak a write
+  past the discard check) and did not touch detection. The two sides disagreeing is what left the
+  hole visible: the exemption understood a spelling the detection never looked for.
+
 ## [0.19.3]
 
 ### Fixed
