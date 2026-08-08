@@ -26,18 +26,34 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   and this repository's own hooks use it. The replacement warns without swinging into the
   mirror-image false positive the old row produced. The executable-resolution row is scoped to
   Windows-targeting repos, since `bash` and `sh` are ordinary executables elsewhere, and it names
-  `"shell": "bash"` alongside the `node`-plus-`args` pattern as a documented fix. A further row
-  flags the bare `$CLAUDE_PROJECT_DIR` spelling in a PowerShell shell-form hook, which the page says
-  "PowerShell parses … as an undefined local variable and resolves … to `$null`".
+  `"shell": "bash"` alongside the `node`-plus-`args` pattern as a documented fix.
+
+  **A PowerShell bare-`$CLAUDE_PROJECT_DIR` row was drafted and then dropped**, because it could not
+  clear this repository's own fresh-docs bar. It carried a quote attributed to the hooks page that
+  is not on that page — re-fetched 2026-08-08 and searched: the page's only placeholder-quoting
+  guidance is the generic "In shell form, wrap each placeholder in double quotes", and it says
+  nothing about PowerShell resolving an undefined variable. The underlying claim also depends on
+  whether the harness substitutes the *bare* `$NAME` spelling before PowerShell ever parses it,
+  which the page does not document either. An audit checklist that emits findings a consumer cannot
+  trace to a documented rule is the exact defect 0.21.9 removed and this release corrects; a row
+  resting on an unverifiable premise is worse than no row. The generic quoting row already covers
+  the safe advice.
 
 ### Added
 
 - **`audit`: a Category D row asserting hook `timeout` is expressed in SECONDS.** The hooks
   reference states: "Seconds before canceling. Defaults: 600 for `command`, `http`, and `mcp_tool`;
-  30 for `prompt`; 60 for `agent`." A `timeout > 600` is therefore near-certainly a millisecond
-  figure. The confusion has a documented source on the same page: the Bash and PowerShell tools'
-  `tool_input.timeout` is "Optional timeout in milliseconds" with example `120000` — which, read as
-  seconds, is about 33 hours. A consumer run found three hooks configured that way.
+  30 for `prompt`; 60 for `agent`." A consumer run found three hooks configured in milliseconds.
+
+  The row flags a **recognizably millisecond-scale** value — a round thousands multiple such as
+  `30000` or `120000`, which read as seconds are 8 and 33 hours — and deliberately does NOT flag
+  merely-large ones. The page documents defaults, not a maximum, so a long-running hook may
+  legitimately exceed 600, and a rule keyed on `> 600` would manufacture findings against correct
+  configuration. Where the value is large but not millisecond-shaped, the checklist asks for
+  corroboration from the hook's expected runtime before anything is reported. The likely source of
+  the confusion is the Bash/PowerShell tools' own `tool_input.timeout`, whose example value on this
+  page is `120000`; the page does not state that field's unit in prose, so the checklist does not
+  claim it does.
 
 ## [0.21.9]
 
