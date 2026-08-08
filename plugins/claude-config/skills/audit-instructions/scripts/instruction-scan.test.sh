@@ -189,7 +189,7 @@ OUT=$(bash "$SCRIPT" "$I8FP")
 assert_contains "restraint-clause text still emitted (advisory contract)" "$OUT" "$I8FP:1:I8-b"
 
 # --- Case 12b: I27 effort-for-brevity candidates -----------------------------
-I27F="$TEST_TMPDIR/i24.md"
+I27F="$TEST_TMPDIR/i27.md"
 cat >"$I27F" <<'EOF'
 Lower the effort level to keep responses short.
 Reduce effort so replies stay concise.

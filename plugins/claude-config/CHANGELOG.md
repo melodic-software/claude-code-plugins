@@ -13,7 +13,7 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   Opus 5 section refute ("lowering effort can reduce thinking volume without reliably shortening
   the visible response"). `Model scope: opus-5` (both statements are model-qualified; promotion
   gate unmet, with the unscope trigger recorded on the row). Seeded by a new `instruction-scan.sh`
-  I27 family (effort-lowering directive + brevity token on one line, ANDed; regression cases
+  I27 family (an effort-lowering directive and a brevity token required on one line; regression cases
   added) with cost/latency-ground, length-instruction-only, audience-test, and config-value
   fences; both statements verified against the live pages 2026-08-08 (guide raw-`.md`
   byte-identical to the 2026-07-25 corpus capture).

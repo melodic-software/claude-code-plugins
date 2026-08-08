@@ -110,10 +110,11 @@ I10_ERE="${I10_ERE}|think out loud|walk (me|us) through your (thinking|reasoning
 I8_A_ERE="double[- ]check|${WB_L}re[- ]?verif|final verification step|(sub)?agent to verify|have (a |an )?(sub)?agent verify|verifier (sub)?agent|verify your (own )?work"
 I8_B_ERE="be conservative|(only report|report only) (the )?(high|critical)|(don('|’)?t|do not) nitpick"
 I8_C_ERE="(do not|don('|’)?t) (think|reason)|without thinking|skip the reasoning"
-# I27 effort-for-brevity: both patterns must hit the SAME line (ANDed in
-# scan_file). Stem forms (decreas, vebos-free "verbos") catch inflections;
-# over-production is the contract, as with I8.
-I27_EFFORT_ERE="(lower|reduc|decreas|dropp?)(e|ed|ing)? (the |your )?effort"
+# I27 effort-for-brevity: both patterns must hit the SAME line — the AND lives
+# in scan_file. Stem forms catch inflections (decrease/decreasing via the bare
+# stem, drop/dropped/dropping via the doubled-p form; verbos carries no left
+# boundary so compounds match too); over-production is the contract, as with I8.
+I27_EFFORT_ERE="(lower|reduc|decreas|dropp?)(e|ed|ing)? (the |your )?effort" # spellchecker:disable-line
 I27_BREVITY_ERE="${WB_L}short|${WB_L}brief|${WB_L}concise|${WB_L}terse|${WB_L}length|verbos|${WB_L}wordy"
 
 rows=()
