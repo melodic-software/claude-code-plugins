@@ -66,9 +66,9 @@
     {
       "id": 6,
       "name": "apply-guided-apply-per-step-confirm-and-readback",
-      "prompt": "/github:advise rulesets --apply\n\nApply the recommended default-branch ruleset to this repo.",
+      "prompt": "/github:advise rulesets --apply\n\nApply the recommended default-branch ruleset to this repo.\n\n(The consumer's .claude/github/routing.yaml declares areas.rulesets: guided-apply at repo scope.)",
       "expected_output": "Routing resolves to guided-apply for the rulesets area. Each step names the exact resolved command/payload and the fetched doc that supplied its mechanics, waits for an explicit user confirmation before executing via gh, and after each write reads the resulting state back and reports it. No step executes without its confirm.",
-      "files": ["dot-claude/github/routing.yaml (repo scope: areas.rulesets: guided-apply)"],
+      "files": [],
       "expectations": [
         "The target (this repo) is resolved and named before any routing lookup or write",
         "Every step shows the exact command/payload AND its doc provenance before asking for confirmation",
@@ -79,9 +79,9 @@
     {
       "id": 7,
       "name": "apply-handoff-emits-change-request",
-      "prompt": "/github:advise billing --apply\n\nSet the recommended budget alert for the org.",
+      "prompt": "/github:advise billing --apply\n\nSet the recommended budget alert for the org.\n\n(The consumer's .claude/github/routing.yaml declares default: handoff at org scope, with an IaC repository as the declared handoff target.)",
       "expected_output": "Routing resolves to handoff for the org scope. The skill emits a change request shaped for the declared target per the consumer's handoff instructions — exact intended change, grounding provenance, and target-channel framing — and executes nothing.",
-      "files": ["dot-claude/github/routing.yaml (org scope: default: handoff, target: IaC repository)"],
+      "files": [],
       "expectations": [
         "No write-capable gh invocation occurs at any point",
         "The emitted change request names the declared handoff target and follows the consumer's declared instructions for shaping it",

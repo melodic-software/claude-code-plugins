@@ -19,7 +19,7 @@ locally-owned instruction surfaces, cites each finding to current official promp
 it by how confident the evidence can be, and packages proposed removals or rewrites as a human-gated
 diff — so instruction surfaces shrink as models get better instead of only ever growing.
 
-The check catalog — the checks I1–I22, their evidence tier, authority tag, severity, per-surface
+The check catalog — the checks I1–I27, their evidence tier, authority tag, severity, per-surface
 applicability, and the `OPINION`-tier enablement policy — lives in
 [reference/criteria.md](reference/criteria.md); the deterministic pre-scan is
 `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/instruction-scan.sh`.
@@ -41,9 +41,12 @@ concerns its siblings already cover — route rather than re-answer:
 - Token brevity for its own sake is `docs-hygiene:compress`.
 - Config-file mechanics (settings.json, .mcp.json, hooks wiring) is `claude-config:audit`; grant
   portability is `claude-config:audit-permission-grants`.
+- The empirical bare-baseline experiment — strip the surfaces, observe the bare model, re-add on
+  repeated stumble evidence — is `unhobble` (same plugin): this skill judges instruction *text*
+  against doctrine; unhobble measures the *model*.
 
 On **memory-layer surfaces** (CLAUDE.md, CLAUDE.local.md, `.claude/rules/`, `~/.claude/rules/`),
-this skill runs only the model-era checks I6–I22. It never runs or reports the hygiene checks
+this skill runs only the model-era checks I6–I27. It never runs or reports the hygiene checks
 I1–I5 (line-necessity, length, placement, inferable content, rule-to-hook) on these surfaces —
 that instruction-memory hygiene layer belongs to the `claude-memory` plugin. When that plugin is
 installed, route memory-layer hygiene to its `audit` skill; when it is not installed, emit a single
@@ -92,15 +95,23 @@ scope; non-matching ones are inert and the report lists them as `skipped-for-tar
   the session's EFFECTIVE model — what this session actually runs, which a `--model` launch
   override may have set, not the bare settings pin — and normalize it alias → model VERSION
   against the live model-config docs at run time; (3) anything that cannot be normalized to a
-  single version fails loud (below). Matching against catalog scopes is exact equality of the
-  normalized version token — the catalog's "Model scoping" section owns that predicate.
+  single version fails loud (below). The normalized token is the catalog's local grammar —
+  lowercase family and version joined by hyphens (`opus-5`, `sonnet-5`, `fable-5`), derived from
+  the documented model the alias or full model name resolves to, not a string upstream publishes.
+  Matching against catalog scopes is exact equality of the normalized version token — the
+  catalog's "Model scoping" section owns that predicate.
 - **Fail loud on ambiguity:** a value may carry no version at all — a family alias like `opus`
   (with or without a context-window suffix such as `[1m]`), an absent `model` setting in an
   out-of-session run, or a custom/gateway deployment ID that matches no documented pattern.
   Normalization MUST stop in that case by ABORTING the run with an error that names the exact
   argument to pass (`--target-model <version>`) — a non-interactive abort, never a mid-run prompt,
   and never a silent guess that a family alias means its newest version, which would misfire the
-  exact model-scoped distinctions the catalog draws. The resolved target (and how it was
+  exact model-scoped distinctions the catalog draws. When the ambiguous value is a documented
+  family alias, the abort message ALSO names the normalized token of the version that alias
+  currently resolves to per the live model-config docs — as a suggested `--target-model` value the
+  user confirms, never a value the run proceeds on (e.g. "`opus` currently resolves to `opus-5`;
+  re-run with `--target-model opus-5` to confirm"). Suggesting is not guessing: the user's
+  confirmation is what turns the resolution into a target. The resolved target (and how it was
   resolved) is named in the report's tier-transparency line.
 
 Two flags govern the `OPINION` tier, whose enablement policy the catalog defines:
@@ -254,12 +265,13 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/instruction-scan.s
 ```
 
 It emits `file:line:check-id` candidate rows for I6 (bare prohibitions lacking a rationale
-marker), I10 (reasoning-echo directives), and the I8 families under per-family ids — `I8-a`
+marker), I10 (reasoning-echo directives), the I8 families under per-family ids — `I8-a`
 instructed self-check, `I8-b` conservative-reporting, `I8-c` don't-think / don't-reason (I8-c's
 tag-naming sub-detect is lane-only, not seeded, as are I8's base row and `I8-d` short-turn
 assumptions, whose phrasings are too varied for a pattern that would earn its false-positive rate;
 `I8-e` forced interim-status cadence is likewise unseeded, but on a narrower ground — its skeleton is
-patternable, and it waits only on an attested instance to calibrate the interval forms against);
+patternable, and it waits only on an attested instance to calibrate the interval forms against), and
+I27 (effort-for-brevity: an effort-lowering directive paired with a brevity token on one line);
 `--count` prints the row count. Advisory — a
 grep cannot judge whether a rationale is genuinely present, whether a restraint clause is a
 reporting gate, or which model a row targets, so the lane refines every candidate against the
@@ -351,7 +363,8 @@ End with a **Routing** subsection listing every excluded upstream-owned
 or memory-layer surface and where its findings should go, and a **Recommended follow-through**
 subsection: apply an accepted change, then observe whether Claude's behavior actually shifts;
 re-add on the next mistake as the compounding safety net; for example blocks, A/B against the
-no-example default. That loop is prose guidance — this skill ships no eval tooling.
+no-example default. The full delete-and-watch loop is operationalized by `/claude-config:unhobble`
+(same plugin) — route there when the operator wants the experiment run rather than described.
 
 Open the Sources line with the two official pages the paths and doctrine derive from
 (code.claude.com memory + `.claude`-directory docs; the prompting pages cited per check in the
