@@ -77,6 +77,12 @@ readonly PS_HERESTRING_PLACEHOLDER="__GUARDRAILS_PS_HERESTRING__"
 # Set by ps::blank_herestrings.
 PS_BLANKED=""
 PS_HERESTRING_UNBALANCED=0
+# The quote character of the UNBALANCED opener (`'` or `"`), empty when the
+# command carried no unbalanced here-string. PowerShell pairs `@'` with `'@` and
+# `@"` with `"@`, so the remediation line can only name the right terminator if
+# it knows which opener was left hanging — naming `'@` for a `@"` body sends the
+# operator to a terminator PowerShell will not accept.
+PS_HERESTRING_QUOTE=""
 # Set by ps::classify_git_command when a command routes to the fail-closed sink:
 # which of the four triggers fired (`herestring-unbalanced`, `special-construct`,
 # `dynamic-invocation`, `launcher`), empty otherwise. Read by the block messages
@@ -102,6 +108,7 @@ ps::blank_herestrings() {
   local cmd="$1"
   local line out="" pending="" in_hs=0 hs_quote="" first2 rest closer opener_scan
   PS_HERESTRING_UNBALANCED=0
+  PS_HERESTRING_QUOTE=""
 
   while IFS= read -r line || [[ -n "$line" ]]; do
     if ((in_hs)); then
@@ -140,6 +147,7 @@ ps::blank_herestrings() {
     # swallow a trailing command (e.g. `| git commit --no-verify`) into the inert
     # placeholder, so surface the raw command and flag unbalanced instead.
     PS_HERESTRING_UNBALANCED=1
+    PS_HERESTRING_QUOTE="$hs_quote"
     PS_BLANKED="$cmd"
     return 0
   fi
@@ -439,18 +447,40 @@ ps::classify_git_command() {
 
 # One line naming the construct that actually routed this command to the sink,
 # plus what to do about it. Each of the four triggers needs different advice:
-# "remove the unparsable construct" is unactionable for a launcher or a computed
-# call target, because there is no such construct to remove (#1968).
+# "remove the unparsable construct" is unactionable for a launcher or a dynamic
+# invocation, because there is no such construct to remove (#1968). Each line
+# must also stay true of every command that reaches it — advice that describes
+# only part of a trigger's shape space is the same unactionable dead end in a
+# different disguise.
 ps::print_sink_trigger_line() {
+  local closer
   case "$PS_SINK_TRIGGER" in
   herestring-unbalanced)
-    echo "Trigger: an unbalanced here-string — its extent cannot be determined, so a trailing pipeline could be hidden inside it. Close the here-string (the '@ terminator must start at column 0)." >&2
+    # PowerShell pairs the opener with its OWN quote: `@'` closes with `'@` and
+    # `@"` closes with `"@`. Naming the wrong one leaves the rewritten command
+    # still unbalanced and still blocked, so name the terminator that matches
+    # the opener actually left hanging; name both only when the opener is not
+    # recorded (a caller that printed this line without a preceding
+    # ps::blank_herestrings run).
+    case "$PS_HERESTRING_QUOTE" in
+    "'") closer="the '@ terminator" ;;
+    '"') closer="the \"@ terminator" ;;
+    *) closer="the terminator matching the opener (@' closes with '@, @\" closes with \"@)" ;;
+    esac
+    echo "Trigger: an unbalanced here-string — its extent cannot be determined, so a trailing pipeline could be hidden inside it. Close the here-string ($closer must start at column 0)." >&2
     ;;
   special-construct)
     echo "Trigger: a construct the guard cannot faithfully tokenize (backtick, '--%', subexpression, or {}/() grouping). Remove it, or run the command via the Bash tool." >&2
     ;;
   dynamic-invocation)
-    echo "Trigger: a dynamic invocation (iex/Invoke-Expression, or a call '&' / dot-source '.' of a computed target) whose program name is not statically decidable. Invoke the target by its literal name — a constant quoted path is decidable and is not blocked; only an interpolating target (a double-quoted string containing a variable or subexpression) reaches this branch." >&2
+    # The INVOCATION FORM is what routes here, not the decidability of the
+    # target: `& 'git' reset --hard` names its program literally and is still
+    # blocked, because `&` plus a quoted string is what the guard's Bash
+    # tokenizer cannot read. Telling that operator to "invoke the target by its
+    # literal name" describes the form they already used, so the advice has to
+    # be to drop the invocation operator instead. A call/dot-source of a bare
+    # variable (`& $tool`) never reaches this branch.
+    echo "Trigger: a dynamic invocation — iex/Invoke-Expression, or a call '&' / dot-source '.' whose target is a quoted string. The form itself routes here, a constant literal target included; a target that cannot reach git is then allowed, and this one could. Drop the iex/'&'/'.' and write the program as a plain command word, or run the command via the Bash tool." >&2
     ;;
   launcher)
     echo "Trigger: a process launcher or nested shell (Start-Process/saps/start, pwsh, powershell, cmd), which the guard must see through the way it sees through 'bash -c'. Run the program directly, or run the command via the Bash tool." >&2

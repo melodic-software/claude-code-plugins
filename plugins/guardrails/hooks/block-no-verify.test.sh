@@ -281,4 +281,35 @@ run_pwsh "PS: dot-source, single-quoted literal script path (allowed)" \
 run_pwsh "PS: call-op, interpolated variable target (fail-closed block)" \
   '& "$tool" commit --no-verify' 2
 
+# --- Sink remediation TEXT --------------------------------------------------
+# run_pwsh discards stderr, so nothing asserted what the trigger lines actually
+# SAY — and a remediation line that describes a shape it never sees is as much a
+# dead end as no line at all. Both message defects fixed here (#1974 review) were
+# exactly that, and both survived because only the exit code was checked.
+pwsh_stderr() {
+  bash "$HOOK" <<<"$(pwsh_command_json "$1")" 2>&1 >/dev/null
+}
+
+# PowerShell pairs each opener with its own quote, so the terminator named has to
+# follow the opener rather than always being `'@`.
+assert_contains "PS msg: @' opener names the '@ terminator" \
+  "$(pwsh_stderr "$(printf '%s\n%s\n%s' "@'" "body" "'X | git commit --no-verify")")" \
+  "the '@ terminator must start at column 0"
+assert_contains "PS msg: @\" opener names the \"@ terminator" \
+  "$(pwsh_stderr "$(printf '%s\n%s\n%s' '@"' "body" '"X | git commit --no-verify')")" \
+  "the \"@ terminator must start at column 0"
+
+# A literal call target is blocked by the invocation FORM, so the advice must be
+# to drop the operator — not to "invoke the target by its literal name", which is
+# the form the operator already used.
+assert_contains "PS msg: literal call target is told to drop the operator" \
+  "$(pwsh_stderr "& 'git' commit --no-verify")" \
+  "Drop the iex/'&'/'.'"
+assert_absent "PS msg: literal call target is not told to use a literal name" \
+  "$(pwsh_stderr "& 'git' commit --no-verify")" \
+  "Invoke the target by its literal name"
+assert_contains "PS msg: iex of a literal gets the same actionable advice" \
+  "$(pwsh_stderr "iex 'git commit --no-verify'")" \
+  "Drop the iex/'&'/'.'"
+
 report

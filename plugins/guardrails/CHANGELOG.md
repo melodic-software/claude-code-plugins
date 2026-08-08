@@ -30,6 +30,28 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   was none to remove. `ps::classify_git_command` now records the trigger in `PS_SINK_TRIGGER` and
   each message prints a remediation line specific to it.
 
+- **The unbalanced-here-string message names the terminator that matches the opener.** PowerShell
+  pairs `@'` with `'@` and `@"` with `"@`
+  ([`about_Quoting_Rules`](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_quoting_rules)),
+  but the remediation line always said `'@`. An operator whose `@"` body was flagged and who
+  followed the advice literally produced a command that was still unbalanced and still blocked.
+  `ps::blank_herestrings` now records the hanging opener's quote in `PS_HERESTRING_QUOTE` and the
+  line names the matching terminator, falling back to naming both when no opener was recorded.
+
+- **The dynamic-invocation message no longer prescribes the form the operator already used.** It
+  told them to "invoke the target by its literal name" and asserted that a constant quoted path is
+  not blocked — but the invocation FORM is what routes a command to this branch, so
+  `& 'git' reset --hard` names its program literally and is blocked anyway. Following the advice
+  changed nothing. The detection is unchanged and correct: `&` plus a quoted string is what the
+  guard's Bash tokenizer cannot read, so the command is refused unless it is provably git-free.
+  The line now says to drop the `iex` / `&` / `.` and write the program as a plain command word,
+  which is actionable for every shape that reaches it.
+
+- **The sink remediation lines are now asserted on their TEXT, not just their exit code.** Both
+  message defects above survived because every PowerShell sink case checked only that the command
+  was blocked; `block-no-verify.test.sh` now captures stderr and pins the terminator selection and
+  the drop-the-operator advice.
+
 - **The fail-closed sink message now names its kill switch.** Unlike the sibling too-long and
   alias-cap fail-closed messages, the unparsable-command messages omitted the
   `block_dangerous_git_enabled` / `block_no_verify_enabled` escape hatch, leaving an over-blocked
