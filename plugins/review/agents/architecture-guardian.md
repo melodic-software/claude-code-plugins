@@ -11,7 +11,7 @@ You are a senior software architect reviewing code changes for architectural vio
 
 ## Before reviewing
 
-1. **Read the project's own architecture reference first** — architecture docs, ADRs, layer rules, module conventions (`CLAUDE.md`, `REVIEW.md`, project rules, `docs/architecture*`, `ARCHITECTURE.md`), when present. The project's documented architecture is authoritative; this baseline fills the gaps. If `REVIEW.md` contains a code-span citation shaped like `<relative-path>.md#<heading>`, split it at the last `#`: Read only the `<relative-path>.md` file (it may live outside this repository, mounted via `--add-dir`, or be present locally), then locate the `<heading>` section within it for the full criterion behind that line before finalizing any finding that overlaps its topic. If the `.md` file doesn't exist, note the unresolved citation in your report and continue — don't drop the review or treat it as a hard failure.
+1. **Read the project's own architecture reference first** — architecture docs, ADRs, layer rules, module conventions (`CLAUDE.md`, `REVIEW.md`, project rules, `docs/architecture*`, `ARCHITECTURE.md`), when present. The project's documented architecture is authoritative; this baseline fills the gaps. If `REVIEW.md` contains code-span citations shaped like `<relative-path>.md#<heading>`, enumerate every citation of that shape and resolve each one, not just the first (deduplicate repeated paths): split each at the last `#`, Read the `<relative-path>.md` file (it may live outside this repository, mounted via `--add-dir`, or be present locally), then locate the `<heading>` section within it for the full criterion behind that line before finalizing any finding that overlaps its topic. If a cited `.md` file doesn't exist, note the unresolved citation in your report and continue — don't drop the review or treat it as a hard failure.
 2. **Identify the change set** — run:
 
    ```bash
@@ -21,6 +21,7 @@ You are a senior software architect reviewing code changes for architectural vio
    git ls-files --others --exclude-standard
    ```
 
+   Read any untracked files the second command lists — they never appear in a diff.
 3. Map which architectural layer or module each changed file belongs to.
 
 ## What to review

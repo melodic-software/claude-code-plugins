@@ -24,6 +24,29 @@ All notable changes to the `review` plugin are documented here. Format follows
 
 ### Changed
 
+- **Agents: instruction scope made explicit where literal executors under-covered.** Current
+  models do not silently generalize an instruction from one item to another (Sonnet 5 / Opus 4.8
+  prompting guides, "More literal instruction following"), so four spots that demonstrated one
+  instance while meaning a class now state the class:
+  - `code-reviewer`, `security-reviewer`, `architecture-guardian`: the `REVIEW.md` code-span
+    citation step now enumerates and resolves **every** citation of the `<path>.md#<heading>`
+    shape (deduplicating repeated paths) instead of describing the procedure for "a citation" —
+    a literal read resolved the first and silently truncated the criteria set.
+  - `security-reviewer`: ecosystems with no dedicated section (Go, Rust, Ruby, Java, …) now have a
+    stated floor — the OWASP table plus the cross-ecosystem list, with the unlisted status named
+    in the report — instead of an accidental gap behind "apply the sections matching the
+    ecosystems actually touched".
+  - `ecosystem-specialist`: a detected ecosystem with no generic default (e.g. PowerShell) is no
+    longer conflated with "has no such phase" — commands resolve from the repo, and a phase that
+    resolves nowhere reports UNVERIFIED rather than skipping silently.
+  - `security-reviewer`, `architecture-guardian`: the change-set step now says to Read the
+    untracked files `git ls-files --others` lists (previously stated only in `code-reviewer`), so
+    two dispatched reviewers no longer run a command whose output nothing told them to use.
+
+## [0.16.1]
+
+### Changed
+
 - **`skills/fanout`: the reason the orchestrator plugins run on the main thread is now a
   configuration bound, not an impossibility.** `SKILL.md` said "a subagent cannot dependably do
   that" and `context/run-everything-mode.md` said a Workflow `agent()` "cannot dependably spawn
