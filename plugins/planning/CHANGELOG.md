@@ -3,6 +3,88 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.1]
+
+### Fixed
+
+- **`interview`: the Brief template now carries the `Q<N>` id the Step 4 gate matches on.** 0.28.0
+  added a cross-check proving every `deferred` / `blocked` register row reached the Brief's
+  `### Deferred questions`, keyed by the row's `Q<N>`. The requirement lived only in the script and
+  its fixtures — `loop.md`'s "Brief template (the literal shape)" still showed a deferred line
+  starting at `<question>`, with no id anywhere. A session writing the Brief exactly per the
+  documented template therefore failed the Step 4 cross-check with exit 2, which the skill treats
+  as a halt: **0.28.0 could block a template-conforming interview.** The template's deferred line,
+  its section guidance, the unattended ladder's step 3, and SKILL.md's Step 4 schema note now all
+  state that each deferred entry leads with its `Q<N>` id. Same failure class as the two the 0.28.0 review caught — the gate
+  blocking a run it should not — reached through the docs rather than the code.
+- **`interview`: eval 14 graded the pre-split gate contract.** It still asserted the check runs
+  "not after" persistence and that `--brief` is passed for an engineering session, both of which
+  0.28.0's two-run split reversed at Step 3. Nothing mechanical could catch this — `validate-evals`
+  checks schema and markdownlint does not read JSON — so it is called out here. Eval 13 gains the
+  `Q<N>` id in its unattended-blocker expectation for the same reason.
+
+## [0.28.0]
+
+### Added
+
+- **`interview`: an open-question register written at ask-time, and a mechanical gate over it.**
+  A consumer observed an open question asked, left unanswered across a reply about an unrelated
+  topic, never re-surfaced, and the session proceeding as though it were resolved — noticed 31
+  minutes later. The skill already said the right thing (an unanswered question "stays OPEN and
+  re-surfaces next round"), and the prose did not hold, because the question's only home was the
+  transcript. It now has a durable one: the ledger's `## Open-question register`, one row per
+  question with a status of `open` / `answered` / `deferred` / `withdrawn` / `blocked`.
+  **The load-bearing rule is *when* the row is written** — the moment the round is ASKED, before
+  any reply arrives. Registering is then a byproduct of asking, so an unanswered question is on
+  disk whether or not the conversation ever comes back to it; a register written when answers land
+  could only ever hold the questions that never needed recording. Paired with it, a **drift check**:
+  after every user reply, diff it against the `open` rows and restate what it did not address in one
+  line, because conversational drift is not consent and a compaction can empty the transcript the
+  old contract relied on.
+- **`interview`: `scripts/check-open-questions.sh` + 30-case black-box test.** The register is
+  bookkeeping, so it gets a check rather than a promise. Exit 0 clean / 1 a question is still open /
+  2 ungradeable, fail-closed, with a greppable one-line verdict — the house shape of
+  `goal-condition-length.sh`. It runs **twice**, because its two claims become checkable at
+  different moments: ledger-only at the Step 3 stop condition, then again with `--brief`
+  immediately after Step 4 writes the Brief. A non-zero exit halts either time. Naming `--brief`
+  at Step 3 would point at a file Step 4 has not written, and the gate exits 2 on a
+  named-but-missing `--brief` — a first-time interview would deadlock before it could persist
+  anything. The `--brief` cross-check proves every `deferred` / `blocked` row actually reached the
+  Brief's `### Deferred questions`, and reports `brief=unchecked` when not asked for rather than
+  omitting the field. **Stated limit, in the script header:** it grades the interview's own
+  record, so a question never registered is invisible to it — the ask-time write rule is what keeps
+  the record independent of the answer, and the contiguous-`Q<N>` and duplicate-id checks are what
+  catch a row dropped after it was written.
+- **`interview`: a defined unattended path, reconciled with the auto-guard rather than excepting
+  it.** Reached from a loop, a spawned worker, or another skill's chain, the skill previously had no
+  documented non-blocking exit. It now does: codebase-resolvable and unambiguous-conventional
+  decisions resolve as usual and are recorded `auto-resolved (unattended)`; a decision genuinely the
+  user's becomes a `blocked` register row, a Brief deferred question tagged
+  **arbiter: USER-RESERVED**, and a named blocker in the output. The run stops on its blockers
+  instead of idling, and never reads absence of objection as confirmation. This is the auto-guard
+  extended, not carved: the guard forbids a user's choice *disappearing* into an assumption, and a
+  named blocker is that choice made maximally visible — the same shape `plugin-quality:audit` uses
+  at its contract lock. **The trigger is declared by the caller, never sniffed** — the CLI reference
+  (<https://code.claude.com/docs/en/cli-reference>, fetched 2026-08-08) documents
+  `--permission-prompt-tool` for handling permission prompts non-interactively but exposes no state
+  a running session can read to learn it has no human, so detection was deliberately not designed.
+- **`interview`: rounds fire at phase boundaries.** The same report measured a mid-phase gate
+  consuming 56% of one session's wall time idle and ~24% human-blocked in another. The frontier-
+  rounds design already batches; nothing stopped a gate firing partway through a *caller's* phase,
+  and the consumer batching questions on its own side did not help. A mid-phase blocking question is
+  now the exception, allowed when proceeding would produce throwaway work and justified in one line.
+
+### Changed
+
+- **`interview`: the ledger is emitted whenever any round is asked.** The `≥2 open questions OR me
+  mode` threshold still governs the full checklist, but the register has to exist before the first
+  reply, so any asking round now emits it. A run that asks nothing writes no register and skips
+  the gate — `lock` synthesizing with no gap, and equally `auto` routing to synthesize-directly
+  with no open decision. **The carve-out is about the absence of questions, never about which
+  action produced it**, because `lock`'s STOP-on-gap and the unattended ladder both produce
+  questions the run could not resolve, and a question outside the register is a question outside
+  the gate; those register too (`open` when surfaced to the user, `blocked` when nobody is there).
+
 ## [0.27.3]
 
 ### Added
