@@ -39,13 +39,27 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   they keep testing the contract they were written for; a new case asserts that the same mention
   carrying only a READ-mode open is now allowed, which is the fix rather than a hole.
 
-- **`block-hook-bypass` no longer blocks `cat > /dev/null`.** A discard is not a file write — the
-  exemption the echo/printf lane already grants (`_echo_devnull`) now applies to the `cat >` lane
-  too, including the quoted spellings (`cat > "/dev/null"`, `cat > /dev/"null"`). The exemption is
-  **segment-scoped**, not command-scoped: `cat > /dev/null && cat > real.txt` still blocks on its
-  second segment. The `cat` scan and the echo/printf scan now share one segment splitter
-  (`normalize_segments`) instead of two, so they cannot drift on escaped separators or on the
-  `2>&1` fd-duplication sentinel.
+- **`block-hook-bypass` no longer blocks `cat > /dev/null`.** A discard is not a file write, so the
+  exemption the echo/printf lane already granted now applies to the `cat >` lane too, including the
+  quoted spellings (`cat > "/dev/null"`, `cat > /dev/"null"`). The exemption is **segment-scoped**,
+  not command-scoped: `cat > /dev/null && cat > real.txt` still blocks on its second segment. The
+  `cat` scan and the echo/printf scan now share one segment splitter (`normalize_segments`) instead
+  of two, so they cannot drift on escaped separators or on the `2>&1` fd-duplication sentinel.
+
+  **The exemption resolves the segment's EFFECTIVE stdout destination, never the mere presence of a
+  `/dev/null` redirect** — and getting that wrong would have been a one-token bypass of this entire
+  guard. Bash applies redirections left to right, so `cat > /dev/null > real.txt` writes to
+  `real.txt`, as does `cat >/dev/null 1>real.txt`. A presence test would have exempted both: write
+  the discard first, the real file second. `set_last_stdout_target` walks the segment's stdout
+  redirects and keeps the LAST target; only `/dev/null` there exempts. The inverse order
+  (`cat > real.txt > /dev/null`) is a genuine discard and stays allowed.
+
+  This replaces `_echo_devnull`, which was the same order-blind presence test on the echo/printf
+  lane — that half was **pre-existing**, not introduced here, and both lanes now share the helper.
+  The scan admits the explicit stdout spelling `1>` (`1>file` is stdout exactly as `>file` is) while
+  excluding other fds (`2>`, `21>`), the combined form (`&>`), and fd duplications (`>&1`, whose
+  target class excludes `&`). It sets a global rather than echoing: it runs per segment on every
+  Bash call, and a command substitution would add a fork to each one.
 
 - **`flag-commit-pr-skill-bypass` is registered at `timeout: 60`, not `10` (was the only guardrails
   hook below its siblings).** Measured runtimes of 12–19 s against a 10 s cap meant the hook was
