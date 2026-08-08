@@ -348,14 +348,17 @@ can differ from the enabled copy. Step 3 (exercise) is the definitive as-enabled
 against the plugin you actually invoked. Then:
 
 1. **Presence** — confirm the file `<root>/<skill>/evals/evals.json` exists. The static gate is only a
-   partial signal: `/skill-quality:skill-quality check <skill>` (`check` is an action argument to the
-   `skill-quality` skill, run with `skills_root` pointed at `<root>` via `/skill-quality:setup`) flags a
+   partial signal: `/skill-quality:check <skill>` (`check` is both the skill's leaf name and its
+   default action, run with `skills_root` pointed at `<root>` via `/skill-quality:setup`) flags a
    *missing* eval file only for action-router-shaped skills — its check fires on a `## Actions` heading —
    so a warranted non-router skill (e.g. `debug`) passes `check` without flagging the gap. Rely on the
    direct file check or the coverage snapshot, not a green `check`, to confirm presence.
-2. **Schema** — `/skill-quality:skill-quality validate-evals <skill>` (same `skills_root`) validates
-   `evals/evals.json` against the bundled schema (structure only — it does not run the cases, and it
-   treats an absent file as "not a failure", so it is a schema gate, not a presence gate).
+2. **Schema + quality lint** — `/skill-quality:check validate-evals <skill>` (same `skills_root`)
+   validates `evals/evals.json` against the bundled schema, then runs the deterministic
+   eval-quality lint (`check-evals-quality.sh`: duplicate case ids/names, unresolvable `files`
+   fixtures, empty or vague grading criteria, advisory set-coverage warnings). Still static — it
+   does not run the cases, and it treats an absent file as "not a failure", so it is a
+   schema-and-content gate, not a presence gate.
 3. **Exercise (manual) — the real consumer check** — enable the plugin in your repo (`/plugin install
    <plugin>@<marketplace>`), then read the eval cases **from the copy you actually enabled**, not from
    `<root>`: the enabled version lives in the version-keyed cache under `~/.claude/plugins/cache`, and
