@@ -266,7 +266,11 @@ jobs:
   # Linux runner NEVER EXECUTES — case-insensitive path folding for the Windows
   # filesystem, and `cygpath` short-name (8.3) resolution. Those branches were
   # previously verified only by whatever a maintainer happened to run on a dev
-  # box. This job is what makes them a gate.
+  # box. This job is what makes them a gate — but only because it is also listed
+  # in the `ci-status` needs graph below. `ci-status` is the single required merge
+  # check, so a lane missing from that list is informational no matter how loudly
+  # a comment here calls it a gate: the aggregate would report success while this
+  # lane was red.
   #
   # Free: GitHub Actions is free for public repositories on standard
   # GitHub-hosted runners, Windows included; only larger runners are charged.
@@ -997,6 +1001,7 @@ jobs:
     needs:
       - hygiene
       - hook-utils-sync
+      - hook-utils-windows
       - parse-concern-value-sync
       - resolve-convention-pattern-sync
       - standards-contract-sync
