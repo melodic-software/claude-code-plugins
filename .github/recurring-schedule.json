@@ -11,6 +11,30 @@
       "next_due": "2026-11-06",
       "notes": "On each frontier model release (primary trigger), run /claude-config:audit-instructions and /claude-config:unhobble over this repository's session surfaces to re-test which standing instructions the new model still needs. No automation observes the release event: the trigger's consumer is the standing OPEN [Maintenance] issue (#2019) — kept open continuously so /work-items:work can select it the moment an operator or agent notices a release, ahead of next_due. The quarterly cadence is a backstop only, guaranteeing the pass happens even when a release goes unnoticed (docs/PLUGIN-PHILOSOPHY.md, Instruction economy). Tier-4 caveat (known limitation, unenforced): last-resort selection can pick the open issue when no release has occurred, and neither the work skill's tier-4 step nor recheck's close step consults any precondition — the issue body instructs the claimant (no frontier release since last_checked: unclaim, leave open, never recheck-close), but honoring that depends on the claimant reading the body and deviating from the unconditional close step. If a premature close drains the item before a real release, re-open or re-create it from this row. Session surfaces only, never the shipped plugin components.",
       "close_previous": true
+    },
+    {
+      "id": "listing-budget-watch",
+      "title": "Listing-budget watch: report the shared aggregate and drift",
+      "cadence": "quarterly",
+      "area": [],
+      "category": "general",
+      "triggers": [],
+      "last_checked": "2026-08-08",
+      "next_due": "2026-11-06",
+      "notes": "Report-only self-maintenance routine (digest menu #9 pilot). Run skill-quality's check-listing-budget.sh pooled over plugins/*/skills from a current main checkout; record aggregate, skill count, delta vs prior cycle, and top-10 contributors on the open [Maintenance] issue (#2023 is the first instance). Baseline and the pending target decision live in #2022. Never edits descriptions — findings route to issues.",
+      "close_previous": true
+    },
+    {
+      "id": "stale-doc-drift-watch",
+      "title": "Stale-doc drift watch: report doc references that no longer hold",
+      "cadence": "quarterly",
+      "area": [],
+      "category": "general",
+      "triggers": [],
+      "last_checked": "2026-08-08",
+      "next_due": "2026-11-06",
+      "notes": "Report-only self-maintenance routine (digest menu #9 pilot). Sweep docs/ and top-level repo docs for references to files/checks/skills that no longer exist, stale version claims, and moved OFFICIAL-DOCS.md pages (review:doc-drift-detector or docs-hygiene audits); verify generated CATALOG/SKILL-CHEAT-SHEET freshness on a scratch branch. File one issue per confirmed drift cluster or comment no-drift on the open [Maintenance] issue (#2024 is the first instance). Never edits docs directly from the routine.",
+      "close_previous": true
     }
   ]
 }
