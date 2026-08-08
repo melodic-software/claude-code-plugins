@@ -122,7 +122,7 @@ updated: <ISO-8601 UTC, e.g. 2026-06-04T14:30:00Z>
 
 ### User stories
 
-Enumerate all significant user journeys — err on completeness over brevity. Every flow a product reviewer might ask about should be a story. Aim for exhaustive coverage of the feature surface.
+Enumerate every significant user journey — every flow a product reviewer might ask about should be a story. Cover the feature surface completely, but do not pad with speculative or duplicate flows.
 
 1. **As a <role>**, I want <action>, **so that** <outcome>.
 2. **As a <role>**, I want <action>, **so that** <outcome>.

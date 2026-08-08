@@ -3,6 +3,50 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.0]
+
+### Added
+
+- **`check-evals-quality.sh` — deterministic eval-quality lint beyond the
+  schema**, run by `validate-evals` after schema validation and by the
+  marketplace's `skill-quality-gate` CI lane over every eval set. The
+  schema proves a case is structurally gradeable; this lint (bash + jq,
+  no model invocation) flags content that undermines grading. FAIL tier:
+  duplicate case ids (Q1) and names (Q2), empty/whitespace-only
+  `expectations`/`assertions` items (Q3), `files` fixture entries that
+  resolve to no path under the skill or evals directory (Q4). WARN tier
+  (advisory, never fails the run): a case carrying both `expectations`
+  and `assertions` (Q5), two cases sharing an identical prompt and files
+  (Q6), vague whole-item criterion phrasing like "the output is good"
+  (Q7), a thin sole-criterion `expected_output` (Q8), and a set with no
+  refusal/guardrail or anti-pattern case per the playbook's rich form
+  (Q9). Deliberately does NOT flag low case count — the marketplace's low
+  volume is a recorded divergence from Anthropic's evaluation guidance,
+  revisited when the deferred eval runner lands. Ships with a black-box
+  contract test (`check-evals-quality.test.sh`, one seeded defect per
+  fixture). The repo-wide baseline run found 2 real Q4 defects (prose
+  annotations inside `files` paths, fixed at source) and 11 accepted
+  advisory warnings.
+
+## [0.13.0]
+
+### Changed
+
+- **The evals schema now requires a non-empty grading criterion on every
+  case**: at least one of `expected_output` (non-empty string),
+  `expectations` (non-empty array), or `assertions` (non-empty array)
+  must be present (`anyOf` on the case object). Previously a case
+  validated with only `id` + `prompt` — an eval with no success
+  criterion, which contradicts the eval anatomy in Anthropic's evaluation
+  guidance (a case that cannot be graded is not an eval; guidance now
+  indexed in `docs/OFFICIAL-DOCS.md`). The `check` skill's
+  validator-free structural fallback and the README schema contract state
+  the same requirement, so all three surfaces agree. All 1,050 existing
+  cases across the marketplace already satisfy the requirement, so no
+  fixture changes; downstream consumers with criterion-free cases will
+  now get a validation failure from `validate-evals` pointing at the
+  case to fix.
+
 ## [0.12.2]
 
 ### Fixed
