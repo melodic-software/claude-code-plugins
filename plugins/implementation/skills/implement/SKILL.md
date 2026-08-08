@@ -168,7 +168,7 @@ In-session task state lives in the harness and does not survive a context clear.
 
 **Why every phase, not just session-end:** clearing context between phases must be cheap. Without per-phase handoff entries, a resumed session has to read source diffs to reconstruct what was tried; with them, it reads the status summary plus the most-recent handoff entry and knows everything material. Cost: 30s-2min per phase boundary. Skip-cost: hours of rediscovery on the next resume.
 
-**Mid-phase handoff is still appropriate** when context is heavy or a pause is imminent — write an ad-hoc handoff note (topic e.g. `wip-checkpoint`). The phase-boundary ritual above is the automatic baseline; ad-hoc handoffs add extra save points.
+**Mid-phase handoff is still appropriate** when a pause is imminent, the user reports the session is heavy, a context-measuring mechanism says to fork, or the responses themselves are drifting — write an ad-hoc handoff note (topic e.g. `wip-checkpoint`). Not on your own estimate of the remaining window: a budget reading is a measurement, not a decay signal. The phase-boundary ritual above is the automatic baseline; ad-hoc handoffs add extra save points.
 
 In orchestrated runs, the orchestrator may stay resident across phase boundaries instead of clearing — criteria per `/implementation:implement-dispatch` "Resident-vs-clear at phase boundaries"; the ritual above is unchanged either way.
 
