@@ -1,6 +1,6 @@
 ---
-version: 1.16.0
-last-updated: 2026-08-04
+version: 1.17.0
+last-updated: 2026-08-08
 ---
 
 # Instruction-Audit Criteria
@@ -78,7 +78,7 @@ non-memory surfaces (skill bodies, agent definitions, hook instruction text, out
 memory-layer surfaces (CLAUDE.md, CLAUDE.local.md, `.claude/rules/`, `~/.claude/rules/`) their
 findings route to the `claude-memory` plugin's `audit` skill when it is installed, and fall back
 to the official include/exclude guidance (I1–I5 source below) when it is not. Checks I6–I12 and
-I15–I22 apply to all surfaces; I13 and I14 name narrower surface sets in their own rows.
+I15–I24 apply to all surfaces; I13 and I14 name narrower surface sets in their own rows.
 
 ## Sources
 
@@ -306,6 +306,16 @@ sources; promotion gate unmet). Row I8-b is unscoped — two model guides conver
   instructions: they "cause over-verification on Claude Opus 5, and removing them reduces wasted
   tokens with no loss in quality"; "Self-correction" — avoid instructing re-checks it already
   performs.
+- **The independence carve-out is corroborated by a second guide, and the scope does not move.** The
+  Fable 5 guide reaches the same line from the opposite direction: it asks for self-verification to
+  be made explicit on long runs, and states that "separate, fresh-context verifier subagents tend to
+  outperform self-critique" ("Recommended scaffolding changes"). Read without that sentence, the two
+  guides look contradictory — remove verification instructions, versus add them — and a reader has to
+  resolve it alone. They are not: the anti-pattern is the instructed **self**-check, and an
+  architected independent verifier is the thing the Fable 5 guide is asking for. **This does not meet
+  the promotion gate**, because the gate wants a second guide stating this row's *detection* claim —
+  that verification instructions cause over-verification — and the Fable 5 guide states no such
+  thing. The scope annotation stands; only the carve-out gains a second source.
 
 **Row I8-b: conservative-reporting detection** · Tier `behavioral`. Unscoped — promotion gate MET
 on its second arm: a second model guide, the Sonnet 5 one, states the same claim about the same
@@ -1223,6 +1233,91 @@ by `--opinion`.
   I19, and it adds no Sources entry for the same reason. The four-part shape it asks for is this
   monorepo's `docs/conventions/upstream-drift/README.md`; in a standalone install the four parts, not
   the path, are the requirement.
+
+### I23: Context-budget directive to stop, summarize, or hand off
+
+Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surfaces: all · Model scope:
+`fable-5` (sourced from that guide alone; promotion gate unmet).
+
+- **Detect:** instruction text directing the model to monitor its own remaining context and to stop,
+  summarize, hand off, trim its work, or start a new session **on that basis** — and instruction text
+  or injected hook output that surfaces a remaining-context count to the model at all. The guide
+  names the count as the usual trigger for the behavior, so the disclosure and the directive are one
+  subject.
+- **The discriminator is who decides, on what evidence.** A directive tells the model to judge its
+  own window and act; a mechanism resolves the window from an instrumented signal and acts itself.
+  Only the first is this row's subject.
+- **Must NOT flag: a mechanism that gates on a measured signal.** A hook, gate, or workflow step that
+  reads context state from an instrumented source and then blocks, injects, or routes on it is not a
+  directive to the model, and it outranks the model's own initiative rather than competing with it.
+- **Must NOT flag: a user-invoked skill whose purpose is the continuation itself** — a handoff
+  writer, a continuation router, a compaction helper. The skill existing is not an instruction to
+  watch the budget; a skill body that additionally tells the model to invoke it off a self-estimated
+  window is.
+- **Must NOT flag: a routing condition that selects between two forms of one deliverable.** "Use the
+  short form where the full one would not fit" picks a shape; it does not stop the work. The subject
+  is abandoning or truncating the work, never sizing an artifact to its container.
+- **Must NOT flag: a budget surfaced to the human.** A status line, a report, or a cost dashboard
+  renders to the operator rather than into the model's context, and no part of this row reaches it.
+- **Must NOT flag: a document *about* the pattern** — this row, a model-adaptation delta chapter, a
+  playbook stating the counter-steer — on the audience test I8-b applies.
+- **Remediate:** remove the directive. Where the guarantee behind it is real, move it to a mechanism
+  that gates on a measured signal, or state the counter-steer plainly — that a count alone is not a
+  decay signal, because decay shows up in the output rather than in the number. Where the harness
+  genuinely must surface a count, pair it with a reassurance rather than with an exit menu.
+- **No pre-scan pattern is seeded.** The phrasing is patternable, but every instance attested so far
+  falls inside a fence above, so there is no true positive to calibrate the false-positive rate
+  against. This is I8-e's ground for the same decision.
+- **Source:** Fable 5 guide, "Rare cases of context-budget concern" — "In very long sessions, Claude
+  Fable 5 can occasionally suggest a new session, offer to summarize and hand off, or trim its own
+  work. This is most often triggered when the harness shows a remaining-token countdown to the model.
+  Avoid surfacing explicit context-budget counts where possible."
+- **Verified 2026-08-08** against that guide, fetched as raw markdown (177 lines). **Recheck
+  trigger:** a second model guide stating the claim — which would meet the promotion gate and unscope
+  this row — or that section ceasing to name the remaining-token countdown as the trigger, which is
+  what joins the disclosure arm to the directive arm.
+
+### I24: Compressed-shorthand mandate on user-facing output
+
+Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `info` · Surfaces: all · Model scope:
+`fable-5` (sourced from that guide alone; promotion gate unmet).
+
+- **Detect:** an instruction requiring the model's **user-facing** output to take a compressed
+  shorthand form as a standing default — arrow chains, hyphen-stacked compounds, dropped articles,
+  sentence fragments, or coined abbreviations. The guide names these as the shapes that make a long
+  agentic session's closing message hard to follow, and names readability as the tie-breaker over
+  brevity.
+- **Must NOT flag: terseness between tool calls.** The guide blesses it in as many words — that text
+  is the model thinking out loud, and brevity there is good. Only the message written for a reader
+  who did not watch the work is in scope.
+- **Must NOT flag: brevity by selection.** Dropping detail that would not change what the reader does
+  next is the guide's own prescription. This row's subject is compression of the *writing*, never
+  selection of the *content*.
+- **Must NOT flag: an output style the user or operator explicitly selected.** Precedence puts a live
+  request and standing user instructions above a project convention, so an opted-in register is the
+  user's decision rather than a defect. Report it as an interaction with this row and leave it; where
+  the style ships from a third party, the report routes to that owner rather than to a local edit.
+- **Must NOT flag: a notation where the arrow carries meaning** — a state transition, a pipeline
+  stage order, a type signature, a ref range. The subject is prose compressed into arrows, not arrows
+  used as arrows.
+- **Must NOT flag: a document *about* the pattern**, on the audience test I8-b applies.
+- **Remediate:** scope the compression to working text and let the closing message be complete
+  sentences with terms spelled out; or, where the compressed register is genuinely wanted, state it
+  as an opt-in the user selects rather than as a standing default.
+- **No pre-scan pattern is seeded.** The tokens this row names — arrows above all — are ordinary in
+  documentation prose, so a pattern would mark nearly every surface, while the mandate itself is
+  expressed in prose a grep cannot recognize.
+- **Source:** Fable 5 guide, "Readability when communicating with the user" — "drop the working
+  shorthand. Write complete sentences. Spell out terms. Don't use arrow chains, hyphen-stacked
+  compounds, or labels you made up earlier … If you have to choose between short and clear, choose
+  clear." The between-tool-call fence is that section's own opening — "Terse shorthand is fine between
+  tool calls (that's you thinking out loud, and brevity there is good)" — and the
+  selection-not-compression fence is "Strong instruction following", which keeps output short by
+  "being selective about what you include (drop details that don't change what the reader would do
+  next), not to compress the writing into fragments, abbreviations, arrow chains … or jargon."
+- **Verified 2026-08-08** against that guide, fetched as raw markdown (177 lines). **Recheck
+  trigger:** a second model guide stating the claim, which would meet the promotion gate and unscope
+  this row.
 
 ---
 
