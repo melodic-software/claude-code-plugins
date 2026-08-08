@@ -3,6 +3,27 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.47.2]
+
+### Fixed
+
+- **`babysit-prs` `engine.test.sh` resolves ruff from the declared pin instead of PATH (#1856).**
+  A workstation `ruff` at a different version from the one CI installs made the harness report
+  findings on an unmodified tree that CI does not, or miss findings CI raises — the two disagree in
+  both directions once a release changes the default rule set, as 0.16.0 did. The lint pass now
+  goes through `scripts/run-ruff.sh`, which uses a PATH `ruff` only when it already matches the pin
+  in `.github/requirements-ci.txt` and otherwise runs `uvx ruff==<pin>`. The pin is read at run
+  time, so this follows the repository's version wherever it goes rather than freezing a value
+  here.
+
+- **`engine.test.sh` finds that wrapper on a relative invocation, so the lint pass actually runs.**
+  The suite re-derived the repository root from `BASH_SOURCE` *after* `cd`-ing into its own
+  directory. `BASH_SOURCE` holds the path as invoked, so a relative invocation resolved against the
+  new working directory and landed outside the repository: the wrapper was never found, the harness
+  printed `SKIP: scripts/run-ruff.sh not found (lint pass omitted)`, and the suite exited 0 having
+  linted nothing. `scripts/run-plugin-tests.sh` runs it from the repository root, so that was the
+  path CI took every time. The script directory is now captured once, before the `cd`.
+
 ## [0.47.1]
 
 ### Changed

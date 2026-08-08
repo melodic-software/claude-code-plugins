@@ -38,6 +38,8 @@ The **pre-clarity** stage — upstream of exploration, research, and `/planning:
 
 For interview sessions with ≥2 open questions OR explicit `me` mode, copy `templates/checklist.md` into the topic's memory slice as `<memory_dir>/<topic-slug>/interview-checklist.md` (default `.work/`; **one ledger per topic** — not per session). Re-interview appends `## Resolved (<round>, <date>)` sections; do not create `interview-checklist-2.md`. Tick each step as completed. Steps 1, 3, 4 are mandatory; Steps 1.5 + 2 are mode-conditional.
 
+The ledger's `## Open-question register` is emitted the moment **any** round is asked, whatever that threshold says — it has to exist before the first reply arrives. Register mechanics, the drift check, the unattended ladder, and the gate that grades it: [`context/loop.md`](context/loop.md) "The open-question register".
+
 ## Action Router
 
 Parse `$ARGUMENTS` to determine the action. Empty argument routes to `auto` (the intelligent default) — which **leans to `me`-mode relentless prose Q&A by default** unless context heavily informs otherwise (see "Default action leans to `me`" below).
@@ -111,6 +113,10 @@ Alternatives to consider:
 
 **Partial-round resolution.** The user may answer any subset, in any order, in one reply. Unanswered questions stay OPEN on the frontier — re-surface them at the top of the next round, labelled "unanswered from last round". NEVER silently resolve an unanswered question to its recommendation — the auto-guard applies inside rounds too. Honor accept-shorthands: "accept all recommendations" resolves the whole round to the recommended answers; "yes to Q5" / "Q5–Q7 yes" resolves that subset. Answers that reshape the tree ("actually, we don't need auth at all") invalidate pending questions — recompute the frontier before re-asking anything.
 
+**Register at ask-time; a reply that does not answer is not an answer.** The moment a round is asked — before any reply — write one `open` row per question into the ledger's open-question register. Then, after EVERY user reply and before doing anything else, check the reply against the register's `open` rows and restate any it did not address, in one line, even when the reply changed the subject entirely. Conversational drift is never consent, and the register — not the transcript, which a compaction can empty — is the authority. Row shape, statuses, and the drift-restate wording: [`context/loop.md`](context/loop.md) "The open-question register".
+
+**Rounds fire at phase boundaries.** When reached from inside another workflow's phase, emit the whole open set where the caller hands over, not partway through its phase; a mid-phase blocking question is the exception and states its justification in one line. Rationale and the measured cost: [`context/loop.md`](context/loop.md) "Where a round may fire".
+
 **Visual-first for structural questions (default, not on-request).** When a question concerns structure — file/folder layout, before/after states, naming shapes, schema or flow alternatives — and a compact visual (fenced tree, diff, small table; roughly ≤30 lines) can carry it, LEAD with the visual and hang the question off it. A paragraph describing a tree is much harder to verify against the user's mental model than the tree itself; the visual IS the question. Before/after pairs beat single-state snapshots when the question is a migration. Skip only when no compact visual exists (genuinely abstract trade-offs) or when it would blow past ~30 lines — then summarize and offer the full visual on request.
 
 **Dialogue — the user drives too.** They may push back or reframe a decision (e.g. "what's hardest to roll back from?"). When they introduce a new axis — **reversibility** is the most common for V1 — re-rank the options on it and REVISE your recommendation out loud. Default V1 lens: prefer the most *reversible* start; defer the irreversible/expensive as an explicit out-of-scope decision, never a silent assumption.
@@ -163,6 +169,8 @@ For `auto`: classify intent against `context/loop.md` "Step 1.5 — Auto-detect"
 
 **Auto-guard — never decide an interactive choice for the user.** Synthesize-directly (and the Mixed path's "synthesize the rest") applies ONLY to decisions with a verifiable answer (codebase-resolvable) or an unambiguous conventional default. When a remaining decision is genuinely the user's — a design choice with real tradeoffs and no codebase answer — do NOT fold it into the Brief. STOP and either ask it inline (a residue round) or offer to switch: *"This is a real design decision, not mine to pick — answer it, or want me to run `/planning:interview me` and drive every open branch to a decision?"* Silently capturing such a choice as an assumption is the failure mode this guard prevents.
 
+**Unattended path — the guard holds, the run does not idle.** `/interview` can be reached with no human to answer (a loop, a spawned worker, another skill's chain). The condition is **declared by the caller, never sniffed** — there is no supported way for a session to observe that it is non-interactive. Unattended, codebase-resolvable and unambiguous-conventional decisions resolve as usual and are recorded `auto-resolved (unattended)`; a decision genuinely the user's is recorded `blocked` in the register, written to the Brief's `### Deferred questions` with **arbiter: USER-RESERVED**, and named as a blocker in the output. That extends the auto-guard rather than excepting it — the guard forbids the choice *disappearing*, and a named blocker is the choice made maximally visible. Stop on blockers; never wait indefinitely, and never read absence of objection as confirmation. Full ladder: [`context/loop.md`](context/loop.md) "Unattended path".
+
 For `me` / `me <topic>`: skip Step 1.5, force Q&A.
 For `lock`: skip Step 1.5 AND Step 2, synthesize directly. If a gap surfaces mid-synthesis, STOP and surface — do not fudge.
 
@@ -177,6 +185,15 @@ Full surfacing-question taxonomy + categorization heuristics in [`context/loop.m
 ### Step 3 — Recognize the stop condition
 
 Stop when the frontier is empty — every load-bearing unknown resolved OR captured as named assumption — the user can describe the goal in one paragraph without contradicting the constraints, and acceptance criteria are testable. Don't stop early on impatience; don't keep asking past the stop condition.
+
+**Register gate.** Before persisting the contract or handing off, run the register through its mechanical check — an empty frontier is a judgement, and this is the part of it a script can decide. **Ledger only here**: the Brief does not exist yet (Step 4 writes it), and `--brief` names a file it requires to be present.
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" \
+  --ledger <memory_dir>/<topic-slug>/interview-checklist.md
+```
+
+Exit 1 (a question is still `open`) and exit 2 (ungradeable) both HALT — resolve or explicitly retire the row and re-run. Never lock a contract over a non-zero exit; that is the reported failure restated. **A run that asked no question wrote no register, has nothing to gate, and skips this** — `lock` synthesizing with no gap, and equally `auto` routing to synthesize-directly with no open decision. The carve-out is about the absence of questions, never about which action produced it: the moment ANY question exists — asked, surfaced mid-synthesis, or blocked unattended — a register exists and the gate applies. The `--brief` cross-check runs in Step 4, once there is a Brief to cross-check against.
 
 **Confirmation gate (`me` and `auto`):** an empty frontier is necessary but not sufficient — before persisting the contract or handing off, restate the shared understanding and get the user's explicit confirmation that it is reached. Do not act on the interview's output until they confirm. `lock` is exempt: invoking it IS the confirmation (its STOP-on-gap rule still applies).
 
@@ -193,6 +210,8 @@ Derive `<topic-slug>` from the task or current branch name (kebab-case, ≤40 ch
 **`me` mode persists incrementally, not just at the end.** Lock each answer into the decision-tree ledger (`interview-checklist.md`) + the relevant PLAN.md Brief section the moment it resolves — so a crash, context clear, or overflow never loses resolved branches. **Context-pressure flush:** if the conversation is getting heavy, force-flush the current ledger + partial Brief to disk and offer a handoff (`/session-flow:handoff` if installed, otherwise write a resume note in the topic's memory slice) before continuing. Target the light V1-spec Brief shape (scope / schema / code-surface bullets) — keep it terse.
 
 PLAN.md holds `## Brief` + `## Plan` sections. `/interview` writes only the Brief section; the Plan section stays empty until `/planning:plan` fills it.
+
+**Cross-check the Brief once it exists.** Immediately after writing it, re-run the register gate with `--brief <contract_dir>/<topic-slug>/PLAN.md` — this run proves every `deferred` and `blocked` row actually reached `### Deferred questions`, which the Step 3 run could not check because the file was not written yet. A non-zero exit means the Brief is missing a question the ledger retired: fix the Brief, do not retire the row. A general session writes no Brief and skips this.
 
 If a PLAN.md Brief exists and user chose **revise**, edit the Brief in-place. If **start fresh**, append a dated scope-change note to the top of the Brief capturing why before rewriting — never silently overwrite — and let the commit message carry the pivot rationale.
 

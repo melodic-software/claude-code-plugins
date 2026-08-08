@@ -59,6 +59,12 @@ Run rounds until the stop condition is met. Each round:
 6. **Recompute the tree** — what subtrees did these answers eliminate? What new branches opened? Which blocked questions just joined the frontier? Name what was pruned
 7. **Domain check** — when the task touches domain concepts, run the glossary challenge (probe terms used two ways or colliding with existing definitions) + scenario exploration (invented edge cases probing concept boundaries). **Engineering sessions only:** when a term resolves, invoke `/domain-driven-design:curate-language` for the inline vocabulary update — a general session writes no repo docs (SKILL.md "Domain-aware behaviors")
 
+### Where a round may fire
+
+An `/interview` reached from inside another workflow's phase must not meter its questions out mid-phase: a gate that fires once the phase is already underway blocks a running lane on a human who is not watching, and the measured cost is a session spending most of its wall time idle. Emit the whole open set at the **phase boundary** — the point where the caller hands control over — and treat a mid-phase blocking question as the exception, allowed when proceeding without it would produce work that has to be thrown away, and stated in one line when it happens ("asking now because the next step writes the schema").
+
+A consumer batching questions on its own side does not make this unnecessary: the reported failure had the caller listing the phase's open question up front and the interview serialized it anyway. When a question surfaces mid-phase and does not meet the exception, register it `open` and carry it to the next round boundary rather than stopping the lane for it.
+
 ### Decision dependencies
 
 Track which open questions BLOCK other questions. When presenting remaining branches, name the dependency: "We can't decide the caching strategy until we resolve the read/write ratio question." This gives the user structural awareness of what their answer unlocks.
@@ -152,10 +158,85 @@ Tick on resolve. Surface the open set periodically (every few questions, or on r
 
 ### Incremental persistence + branch-out
 
-- **Persist per lock-in.** The moment a branch resolves, write the answer to its ledger checkbox + the relevant Brief section. Overrides the per-round loop's "NOT on disk yet" — that applies to `auto`/`lock`, not `me`. Resolved branches must survive a crash / context clear / overflow.
+- **Persist per lock-in.** The moment a branch resolves, write the answer to its ledger checkbox + the relevant Brief section. Overrides the per-round loop's "NOT on disk yet" — that applies to `auto`/`lock`, not `me`. Resolved branches must survive a crash / context clear / overflow. The open-question register below is written EARLIER still — at ask-time, in every asking mode.
 - **Context-pressure flush.** If the conversation is getting heavy, force-flush the ledger + partial Brief to disk and offer a handoff (`/session-flow:handoff` if installed, otherwise a resume note) before continuing.
 - **Branch out to ground a recommendation — without blocking the round.** If a question needs more than the lightweight codebase gate — external best-practice, library API surface, deeper exploration — dispatch the lookup to a sub-agent (or do it inline when fast) and treat the running lookup as an unsettled prerequisite: its downstream questions move to a later round while the rest of the frontier is asked now. When the result lands, the unblocked questions join the next round's frontier, grounded in code read this session or an official source fetched this session. Never recommend a load-bearing technical choice from training recall.
-- **Handoff for long sessions.** If branches outgrow one session, hand off (save-point + resume prompt) → clear → resume from the first open ledger checkbox.
+- **Handoff for long sessions.** If branches outgrow one session, hand off (save-point + resume prompt) → clear → resume from the first open ledger checkbox — and from the register's `open` rows, which survive the clear that the transcript does not.
+
+## The open-question register
+
+A question that was asked, went unanswered across a reply about something else, and was never re-surfaced is not an ergonomics problem — it is the skill reporting a locked contract over an input it had itself identified as load-bearing. The register is the durable record that makes that failure visible; it lives as the `## Open-question register` section of the topic's one ledger (`<memory_dir>/<topic-slug>/interview-checklist.md`), never a second file.
+
+### Write at ask-time, not at answer-time
+
+**The moment a round is asked — before any reply arrives — write one row per question at `open`.** This is the load-bearing rule and the reason the register is worth anything: registering is a byproduct of *asking*, so an unanswered question is on disk whether or not the conversation ever returns to it. A register written when answers land can only record questions that were answered, which is precisely the set that never needed recording.
+
+This does not contradict the rounds loop's "capture the answers … NOT on disk yet" (Step 2, item 5) — that governs the *Brief draft* in `auto`/`lock`, and answers still land there when they land. The register tracks the *asking*, which is a different event.
+
+Because the register must exist before the first reply, a session that asks ANY round emits the ledger — the `≥2 open questions OR me mode` threshold in SKILL.md "Emit checklist" governs the full checklist, not this section.
+
+**A run that asks nothing writes no register — but a run that fails to resolve cleanly does, whichever action it was.** `auto` routing to synthesize-directly with no open decision asks nothing, exactly as `lock` does; both are ordinary outcomes, not edge cases, and neither is exempt for being that action. `lock`'s STOP-on-gap rule and the unattended ladder both produce questions the run could not resolve, and a question outside the register is a question outside the gate. So: a gap surfaced mid-synthesis is registered `open` when it goes to the user, and a genuine user decision reached with nobody to answer is registered `blocked`. The register exists whenever there is something unresolved to record, in every mode.
+
+```text
+- Q1 | answered | round 1 | Who can write comments? | enrolled + instructor + admin
+- Q2 | open | round 1 | What content format? |
+- Q3 | blocked | round 2 | Retention window? | named blocker — no interactive user
+```
+
+Fields: `Q<N> | status | round | question | resolution`. Statuses:
+
+| Status | Means | Terminal? |
+|---|---|---|
+| `open` | asked, not yet resolved | no — blocks the contract |
+| `answered` | the user answered it; the answer is in the resolution field | yes |
+| `deferred` | deferred-fully; recorded in the Brief's `### Deferred questions` | yes |
+| `withdrawn` | the tree changed and the question no longer applies — say what pruned it | yes |
+| `blocked` | no answer is reachable (see "Unattended path"); a named blocker in the Brief | yes |
+
+`Q<N>` matches the terminal numbering, runs continuously across rounds, and never has a gap — a gap means a row was dropped after it was written, and the gate refuses to grade a register with one.
+
+### Drift check — a reply that does not answer is not an answer
+
+**After every user reply, before doing anything else, check the reply against the register's `open` rows.** Any row the reply did not address stays `open`, and you restate it at the top of your next response — even when the reply changed the subject entirely, even when you are mid-answer to something else, and even when the reply reads as agreement. Conversational drift is never consent, and the user changing the subject is ordinary conversation, not a defect on their side.
+
+The register, not the transcript, is the authority here. After a compaction the question may no longer be in context at all; the row still is.
+
+Two shapes of restate, both one line: *"Still open: Q3 (content format)"* when the reply simply moved on, and *"Q3 is still open — your answer covered Q4"* when the reply addressed a different registered question. Cost is a line when the question was answered anyway; the alternative is the entire failure.
+
+### Unattended path
+
+`/interview` can be reached with no human to answer — from a loop, a spawned worker, or another skill's chain. There is no supported way for the session to *detect* this (checked against the CLI reference; the page documents `--permission-prompt-tool` for non-interactive permission handling but exposes no state a running session can read), so the trigger is **declared, never sniffed**: the caller says it is unattended, or the round has been emitted and the run has no user turn to wait for.
+
+The ladder, in order:
+
+1. **Facts stay facts.** Resolve from the environment exactly as always — this path changes nothing about the codebase gate.
+2. **Codebase-resolvable or unambiguous-conventional decisions** resolve as they would interactively. Record the row `answered` with the basis in the resolution field, marked `auto-resolved (unattended)`.
+3. **A decision that is genuinely the user's** — real tradeoffs, no codebase answer — is NEVER assumed. Record the row `blocked`, write the question into the Brief's `### Deferred questions` with **arbiter: USER-RESERVED**, and name it as a blocker in the run's output.
+4. **Never idle-wait.** A run with nobody to answer stops on its blockers rather than holding the lane.
+5. **The confirmation gate cannot be satisfied unattended.** Report the contract as unconfirmed with its blocker list; absence of objection is not confirmation.
+
+**This preserves the auto-guard rather than carving an exception in it.** SKILL.md Step 1.5's guard forbids *silently* folding a user decision into the Brief as an assumption — the failure it exists to prevent is the choice disappearing. A named blocker is the opposite: the choice is surfaced, attributed to the user, and blocks the contract until they make it. The sibling `plugin-quality:audit` resolves its contract-lock the same way — safe defaults resolve silently and are recorded; anything without a safe default becomes a named blocker.
+
+### Gate before locking
+
+The register is bookkeeping, so it gets a mechanical check rather than a promise. It runs **twice**, because the two things it proves become checkable at different moments:
+
+```bash
+# Step 3, before the contract is persisted — the Brief does not exist yet.
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" \
+  --ledger <memory_dir>/<topic-slug>/interview-checklist.md
+
+# Step 4, immediately after writing the Brief (engineering sessions only).
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" \
+  --ledger <memory_dir>/<topic-slug>/interview-checklist.md \
+  --brief <contract_dir>/<topic-slug>/PLAN.md
+```
+
+Passing `--brief` at Step 3 would name a file Step 4 has not written yet, and the gate exits 2 on a named-but-missing `--brief` — a first-time interview would deadlock before it could persist anything. A general session writes no Brief and runs only the first form.
+
+Exit 0 = clean; exit 1 = a question is still `open` (do not lock the contract, do not hand off — resolve or explicitly retire it); exit 2 = ungradeable (missing ledger, missing register, malformed row, unknown status, duplicate or gapped `Q<N>`, or a `deferred`/`blocked` row the Brief never records) — treat as a halt, never as a pass. On the Step 4 run a missing question means the **Brief** is incomplete: fix the Brief, never retire the row to quiet the gate.
+
+What the gate cannot prove: it grades the interview's own record, so a question never registered is invisible to it. The ask-time write rule is what keeps the record independent of the answer; the contiguity and duplicate checks are what catch a row dropped after it was written.
 
 ## Step 3 — Recognize the stop condition
 
