@@ -495,5 +495,24 @@ bash "$HELPER" --repo-dir "$repo17" --fix -- from.sh >/dev/null 2>&1
 assert_eq "a --fix scoped to the rename SOURCE leaves the destination untouched" \
   "100644" "$(staged_mode "$repo17" to.sh)"
 
+# The negative half of case group 14, and the reason widening the candidate set
+# is safe: an ORDINARY rename carries its source's 100755 through, so the
+# 100644-plus-shebang filter drops it. Without this, widening to R*/C* would
+# report every renamed script in the repository.
+repo18="$(mkrepo)"
+(
+  cd "$repo18" || exit 1
+  printf '#!/usr/bin/env bash\necho kept\n' >keep.sh
+  git add keep.sh
+  git update-index --chmod=+x -- keep.sh
+  git commit -qm "seed the preserved-bit rename source"
+  git mv keep.sh renamed.sh
+) >/dev/null 2>&1
+
+assert_eq "the fixture's rename destination KEPT the exec bit" \
+  "100755" "$(staged_mode "$repo18" renamed.sh)"
+assert_eq "a rename that preserved the exec bit is NOT reported" \
+  "" "$(bash "$HELPER" --repo-dir "$repo18" --list 2>/dev/null)"
+
 printf '\n%d case(s), %d failure(s)\n' "$CASE_NUM" "$FAILED"
 [[ $FAILED -eq 0 ]] || exit 1
