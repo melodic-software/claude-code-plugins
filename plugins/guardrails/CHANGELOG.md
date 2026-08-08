@@ -15,11 +15,21 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   the guard. Verified live against the shipped hook before the fix: `cat 1>real.txt` exited 0 while
   `cat > real.txt` exited 2.
 
-  Both patterns now admit an optional `1` before the operator. Other fds stay out: `_echo_file_out`
-  still rejects a digit-prefixed operator except that `1`, so `2>` and `21>` do not match, and in
-  the `cat` lane the `[[:space:]]*1?>` sequence cannot match `cat 2>err`. The fd-1 discard
-  (`cat 1>/dev/null`) is still a discard, since the exemption reads the effective stdout target.
-  Nine regression cases pin the write forms, the discards, and the other-fd non-matches.
+  Both patterns now admit the explicit `1` before the operator. Other fds stay out: `_echo_file_out`
+  still rejects a digit-prefixed operator except that `1`, so `2>` and `21>` do not match, and the
+  `cat` lane matches neither. The fd-1 discard (`cat 1>/dev/null`) is still a discard, since the
+  exemption reads the effective stdout target.
+
+  **Three things a naive `1?>` widening gets wrong, all now pinned by cases.** (1) The fd digit
+  needs a COMMAND BOUNDARY: `cat[[:space:]]*1?>` also matches `cat1>file`, an unrelated binary named
+  `cat1` with an ordinary redirect, so the two spellings stay separate branches
+  (`cat[[:space:]]*>` for the zero-space form, `cat[[:space:]]+1>` for the explicit one) — the same
+  word-boundary discipline `_producer_head` already applies to echo/printf. (2) An fd DUPLICATION or
+  close has no file operand: `cat 1>&2` and `cat 1>&-` are not writes, and the segment is skipped
+  when no file target was found. (3) That skip only works because the target class excludes the
+  NORMALIZATION SENTINEL, not merely `&` — `normalize_segments` rewrites `>&` to `\x01` before this
+  scan runs, so a class that only barred `&` would accept `\x012` as a filename and read a dup as a
+  write. Verified across the full matrix: write forms block, discards and dups and other-fds pass.
 
   **This was pre-existing, not a 0.19.3 regression.** 0.19.3 widened the same `1?>` spelling on the
   EXEMPTION side (`set_last_stdout_target`, so `cat >/dev/null 1>real.txt` could not sneak a write

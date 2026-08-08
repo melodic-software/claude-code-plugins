@@ -256,11 +256,21 @@ COMMAND_LC="${COMMAND,,}"
 # `cat` immediately before a redirect, with or without a space (`cat>file`).
 # Scanned PER SEGMENT (see cat_redirect_bypass), so `;|&()` never reach it — the
 # leading class is kept for the pre-segmentation shape and costs nothing.
-# The optional `1` admits the EXPLICIT stdout spelling: `cat 1>file` writes the
-# file exactly as `cat >file` does, and without it the guard missed the form
-# entirely. Other fds cannot reach here — `cat 2>err` has a space-then-digit the
-# `[[:space:]]*1?>` sequence does not match.
-_cat_redir='(^|[[:space:];|&()]+)cat[[:space:]]*1?>'
+# Two spellings, deliberately NOT collapsed into `cat[[:space:]]*1?>`: the fd
+# digit needs a COMMAND BOUNDARY before it, or `cat1>file` — an unrelated binary
+# named `cat1` with an ordinary redirect — reads as `cat` plus an fd marker and
+# blocks. `cat>file` keeps zero-space (no digit to confuse), while the explicit
+# `1>` form requires whitespace after the command word, the same word-boundary
+# discipline `_producer_head` already applies to echo/printf. Other fds cannot
+# reach either branch: `cat 2>err` matches neither `cat[[:space:]]*>` nor
+# `cat[[:space:]]+1>`.
+_cat_redir='(^|[[:space:];|&()]+)cat([[:space:]]*>|[[:space:]]+1>)'
+# Runs on a NORMALIZED segment, where normalize_segments has already replaced
+# `>&` / `<&` / `&>` with a `\x01` sentinel (and escapes with `\x02`) so an fd
+# dup is not split as a control operator. Excluding both sentinels from the
+# target class is what keeps `cat 1>&2` and `cat 1>&-` out: the raw `&` never
+# reaches here, so a bare `[^&]` class would accept `\x012` as a filename and
+# read a dup as a write.
 # One stdout redirect and its target word. `[^0-9&]` before the operator keeps
 # other-fd (`2>`, `21>`) and combined (`&>`) redirects out, while the optional
 # `1` admits the EXPLICIT stdout spelling — `1>file` is stdout exactly as `>file`
@@ -268,7 +278,7 @@ _cat_redir='(^|[[:space:];|&()]+)cat[[:space:]]*1?>'
 # target class excludes `&`, so an fd dup (`>&1`) is not mistaken for a file.
 # Used by set_last_stdout_target, never matched alone: the PRESENCE of a
 # `/dev/null` redirect proves nothing (see below).
-_redir_scan='(^|[^0-9&])1?>>?[[:space:]]*([^|&>[:space:]]+)'
+_redir_scan=$'(^|[^0-9&])1?>>?[[:space:]]*([^|&>[:space:]\x01\x02]+)'
 # A simple-command segment whose command token is `echo` or `printf` — the
 # content producers a `> file` redirect turns into a Write/Edit bypass. Anchored
 # to the segment start (see producer_redirect_bypass), so it never matches an
@@ -463,6 +473,12 @@ cat_redirect_bypass() {
   while IFS= read -r seg || [[ -n "$seg" ]]; do
     [[ "$seg" =~ $_cat_redir ]] || continue
     set_last_stdout_target "$seg"
+    # No FILE operand means no file write: `cat 1>&2` duplicates stdout onto
+    # stderr and `cat 1>&-` closes it. _redir_scan rejects `&` targets, so both
+    # leave the target empty — which must read as "nothing to block", never as a
+    # write. Checked before the /dev/null test so an empty value cannot fall
+    # through to `return 0`.
+    [[ -n "$LAST_STDOUT_TARGET" ]] || continue
     [[ "$LAST_STDOUT_TARGET" == "/dev/null" ]] && continue
     return 0
   done <<<"$NORMALIZED_SEGMENTS"

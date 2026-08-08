@@ -154,6 +154,18 @@ run "echo x 1>/dev/null (allowed)" "echo x 1>/dev/null" 0
 # Other fds must NOT be swept in by the widened operator.
 run "cat 2>err.log (allowed)" "cat 2>err.log" 0
 run "cat 21>err.log (allowed)" "cat 21>err.log" 0
+# An fd DUPLICATION or close has no file operand and is not a write. The `&`
+# never survives normalization — `>&` becomes a sentinel — so the target class
+# must exclude the SENTINEL, not just `&`, or a dup reads as a file named "\x012".
+run "cat 1>&2 fd dup (allowed)" "cat 1>&2" 0
+run "cat 1>&- fd close (allowed)" "cat 1>&-" 0
+run "cat >&2 bare fd dup (allowed)" "cat >&2" 0
+# The fd digit needs a COMMAND BOUNDARY: `cat1` / `echo1` are unrelated binaries
+# with an ordinary redirect, not `cat`/`echo` plus an fd marker.
+run "cat1>file is a different binary (allowed)" "cat1>file" 0
+run "echo1>file is a different binary (allowed)" "echo1>file" 0
+# The zero-space `cat>file` spelling still blocks — no digit to disambiguate.
+run "cat>real.txt no space blocked" "cat>real.txt" 2
 
 # --- Redirect false-positive regression -------------------------------------
 # stderr/fd redirects + /dev/null discards are NOT file-write bypasses, even
