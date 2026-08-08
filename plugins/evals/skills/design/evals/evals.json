@@ -77,6 +77,17 @@
         "Grader model differs from the generator model, stated explicitly",
         "Criteria doc records that grader verdicts must be sample-checked before trusting at scale"
       ]
+    },
+    {
+      "id": 8,
+      "name": "natural-language-trigger",
+      "prompt": "We keep changing our support-bot prompt and have no idea whether it's getting better or worse. Can you set up some way to measure it?",
+      "expected_output": "Routes to the design flow from natural language (no slash command): recognizes this as an eval-suite request, starts the Phase 1 success-criteria interview (measurable targets, baseline anchoring) rather than ad-hoc suggesting prompt tweaks or generic monitoring advice.",
+      "expectations": [
+        "Triggers the eval-design flow without the user typing /evals:design",
+        "Begins with success-criteria questions rather than emitting eval cases or prompt advice immediately",
+        "Frames the measurement as a graded eval suite with a baseline, not one-off manual spot checks"
+      ]
     }
   ]
 }
