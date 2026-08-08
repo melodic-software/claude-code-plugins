@@ -3,7 +3,24 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.16.1]
+## [0.17.0]
+
+### Added
+
+- **`fanout`: dispatch contract — finder leaves are told coverage is their job.** The skill runs a
+  5-stage normalization pipeline (dedup, agreement/rank) downstream of its leaves, and the Sonnet 5
+  and Opus 4.8 prompting guides both state that current models follow a stated severity bar
+  faithfully at the finding stage — same investigation depth, fewer reported findings — and that a
+  harness with a separate filter stage should say so explicitly at the finder stage. Both review
+  modes now append a verbatim coverage clause to every dispatched finding-producing leaf prompt:
+  report everything including uncertain/low-severity findings, attach confidence and estimated
+  severity, filtering happens downstream. Recall is restored without moving precision work — the
+  pipeline remains the filter.
+- **`quality-gate`: per-slice template reports coverage-first with a Confidence column.** The slice
+  reviewer template now states that severity and confidence label findings rather than deciding
+  whether they are reported, and its findings table carries a Confidence column — feeding the
+  fanout pipeline's confidence stage instead of leaving slice findings unscored (an unlabeled
+  finding ranks above honestly-labeled low-confidence ones).
 
 ### Changed
 

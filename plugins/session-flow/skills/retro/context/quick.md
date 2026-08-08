@@ -33,7 +33,10 @@ Assess against the staged workflow as a checklist — not full dimensional analy
 
 ### 3. Top findings (max 3)
 
-Only errors, regressions, or significant behavioral gaps — skip minor issues.
+A finding qualifies when it names one of: a wrong result produced (bad edit, wrong answer, broken
+build), a regression against earlier session behavior, a verification step skipped or failed, or a
+user correction the session then repeated. Omit style, phrasing, and one-off friction that
+self-corrected — the concrete bar, not a judgment of importance, decides.
 
 ### 4. Recommendations (max 3)
 

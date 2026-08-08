@@ -23,14 +23,19 @@ Read in order:
 
 Review every changed file against ONLY that slice's criteria.
 
+Report every finding those criteria reach, including ones you are uncertain
+about or consider low-severity — severity and confidence label each finding;
+they never decide whether it is reported. Ranking and filtering happen after
+reporting.
+
 Report findings in this format:
 
 ## Review: <slice-name> — <branch>
 
 ### Findings
 
-| # | Severity | Finding | File:Line | Action |
-|---|----------|---------|-----------|--------|
+| # | Severity | Confidence | Finding | File:Line | Action |
+|---|----------|------------|---------|-----------|--------|
 
 ### Summary
 - CRITICAL / IMPORTANT / SUGGESTION counts
