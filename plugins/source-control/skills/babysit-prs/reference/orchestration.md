@@ -670,8 +670,8 @@ On the conflict worker's return, and before pushing anything:
      Invariants): `origin` for a same-repo head, the validated fork remote for a write-allowed
      in-owner cross-repo head, and **stop (read-only)** rather than defaulting to `origin` when a
      fork remote is unresolved (an `origin` fallback writes a same-named branch on the base repo,
-     not the fork head). Given the first-parent assertion this is a fast-forward. Never force, in
-     any tier.
+     not the fork head). Given the first-parent assertion this is a fast-forward.
+     Never force, in any tier.
 - **The orchestrator still never resolves.** It does not touch conflict markers, edit the
   resolution, or fix a conflict inline. A resolution it judges wrong is escalated, or handed to
   another fresh conflict worker — never corrected in place by the orchestrator.
