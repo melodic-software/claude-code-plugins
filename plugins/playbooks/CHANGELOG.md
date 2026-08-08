@@ -26,6 +26,49 @@ only after that version increases.
   - `skills/fable-5/SKILL.md` — the core-doctrine distillation of that contract gains the same part,
     keeping the one-home rule intact: the chapter owns the doctrine, the core line distills it.
 
+## [0.6.22]
+
+### Fixed
+
+- **`opus-5` model-adaptation chapter: four paraphrases restored to the guide's own strength**
+  (playbooks 0.6.21 → 0.6.22), found by a per-section adversarial conformance audit against the
+  byte-pinned guide. The review-findings section stated categorically what the guide hedges
+  ("makes you report less, withholding real findings" → the guide's "may follow that instruction
+  literally and report less", with the withholding mechanism attributed to the Sonnet 5 guide
+  that actually states it); the deliverable-length bullet dropped "often" (tendency became
+  constant); the effort paraphrase added an "only" the guide does not carry; and the scope
+  section reproduced only part of the guide's scope fence — the routine-judgment-calls sentence,
+  the "request seems mistaken" disjunct, and the finish-the-whole-task / stop-short clauses now
+  travel with it. The chapter's own quotation note names exactly this failure ("a behavioral
+  finding paraphrased loosely becomes a stronger claim than the card makes"); these were the
+  guide-sourced instances.
+- **`boris`: Tip 64's context-rot figure amended against the Opus 5 guide** (autonomy.md §64 +
+  the SKILL.md Quick Reference row). The tip's premise — rot "kicks in around 300–400k tokens on
+  the 1M context model" — is an Opus 4.7-era calibration; the Opus 5 guide states instruction
+  following, tool calling, and reasoning "stay consistent throughout the window". A dated
+  amendment blockquote (the same shape as §72's) records the correction and keeps the lowered
+  auto-compact window as a cost/compaction-timing choice; the routing row now carries the era
+  scoping. Vendored baseline untouched (drift-detection copy).
+
+### Added
+
+- **`opus-5` chapter: Vision section** — the guide's one correction-shaped Vision directive
+  ("Re-validate any prompt-side vision workarounds you tuned for prior models; they may no
+  longer be needed") plus its tools-before-thinking cost lever, previously the only
+  correction-shaped guide content the chapter did not carry; the thinking-disabled section also
+  gains the guide's tool-heavy-workload locality clause for the tool-call-leak artifact.
+
+## [0.6.21]
+
+### Changed
+
+- **`opus-5` model-adaptation chapter: the guide re-verification stamp advances to 2026-08-08**
+  (playbooks 0.6.20 → 0.6.21). A full-guide conformance audit of this repository re-fetched the
+  Opus 5 prompting guide through the same raw-`.md` channel and found it byte-identical to the
+  2026-07-25 capture (11,225 bytes, MD5 matching the corpus graduation pin), so every claim the
+  chapter sources from the guide stands unchanged; the Sources block's re-verification line now
+  records the later reading. No doctrine changes.
+
 ## [0.6.20]
 
 ### Fixed
