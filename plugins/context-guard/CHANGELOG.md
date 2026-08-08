@@ -5,6 +5,49 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.8]
+
+### Fixed
+
+- **All four hooks declared a 10-second timeout they could not meet on Windows, so the hook was
+  cancelled instead of run.** A consuming session on Windows/Git Bash reported
+  `zone-crossing-inject.sh` overrunning on essentially every firing across a ten-session chain
+  (10.6–21.4 s observed against `timeout: 10`), which meant the zone enforcement never took effect
+  while still charging its full wall-time cost. Every registration in `hooks/hooks.json` now
+  declares `60`.
+
+  Re-measured on Windows 11 / Git Bash after the 0.4.6 spawn reduction, 18 samples per path: the
+  typical case now fits comfortably (means 2.7–10.6 s), but the tail does not.
+  `zone-crossing-inject.sh` still reached **22.0 s**, and `post-compact-mark.sh` — whose exposure
+  the report could only infer — reached **12.4 s**, both over the old cap. `zone-gate.sh` peaked at
+  2.8 s and showed no overrun; it is raised for uniformity and tail-safety, not because it was
+  failing. The tail is environmental, not payload-driven: a small `UserPromptSubmit` payload took
+  22.0 s while a 150 KB `PostToolBatch` payload took 6.7 s, on a host with Defender real-time
+  protection enabled. Sizing has to survive an antivirus-stalled process spawn, not just the median.
+
+  Why 60 and not 30: the measurement times the script alone and excludes the harness's own
+  hook-launch overhead, so 22.0 s is a floor rather than a p100 — 30 would leave under 8 s of margin
+  on an already-optimistic number. 60 is ~2.7x the observed floor while staying an order of
+  magnitude below the harness's own 600 s `command` default, so a genuinely hung hook still cannot
+  stall a session for ten minutes. `guardrails` and `disk-hygiene` already declare 60 in this
+  marketplace.
+
+  Contract note, verified against <https://code.claude.com/docs/en/hooks> (fetched 2026-08-08):
+  `timeout` is *"Seconds before canceling. Defaults: 600 for `command`, `http`, and `mcp_tool`; 30
+  for `prompt`; 60 for `agent`. `UserPromptSubmit` lowers the `command`, `http`, and `mcp_tool`
+  default to 30, and `MessageDisplay` lowers it to 10."* So 10 was never a harness default here — it
+  was authored, narrowing the `PostToolBatch`, `PreToolUse`, and `PostCompact` budgets to 1/60th of
+  what the harness allows. The 30 documented for `UserPromptSubmit` is stated as a *default*; the
+  page does not say whether it also caps an explicit larger value, so 60 is declared there on the
+  understanding that a clamp to 30 would still clear the measurement. The page likewise says only
+  "Seconds before canceling" about exceeding the budget — what a cancelled hook reports, and whether
+  sibling hooks continue, is not documented and is not assumed here.
+
+  This is the immediate remedy, not the durable one: the underlying per-invocation cost on Windows
+  is still real, and a 60 s cap only stops a slow hook from becoming an absent one. Consumers who
+  want the overrun visible can point `HOOK_TELEMETRY_SINK` at a sink — every hook already emits
+  `duration_ms` per invocation.
+
 ## [0.4.7]
 
 ### Fixed
