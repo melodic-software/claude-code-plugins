@@ -202,6 +202,9 @@ Reduce the effort so output stays terse.
 Lower your effort to avoid wordy replies.
 Keep replies short by dropping effort.
 Dropped effort keeps output brief.
+This setting reduces effort to keep answers short.
+The flag lowers effort for briefer output.
+It drops effort to stay concise.
 EOF
 OUT=$(bash "$SCRIPT" "$I27F")
 assert_contains "flags 'lower the effort … short'" "$OUT" "$I27F:1:I27"
@@ -215,6 +218,9 @@ assert_contains "flags 'reduce the effort … terse'" "$OUT" "$I27F:8:I27"
 assert_contains "flags 'lower your effort … wordy'" "$OUT" "$I27F:9:I27"
 assert_contains "flags doubled-p 'dropping effort … short'" "$OUT" "$I27F:10:I27"
 assert_contains "flags doubled-p 'Dropped effort … brief'" "$OUT" "$I27F:11:I27"
+assert_contains "flags third-person 'reduces effort … short'" "$OUT" "$I27F:12:I27"
+assert_contains "flags third-person 'lowers effort … briefer'" "$OUT" "$I27F:13:I27"
+assert_contains "flags third-person 'drops effort … concise'" "$OUT" "$I27F:14:I27"
 
 # --- Case 13: missing grep exits 2 -------------------------------------------
 real_bash=$(command -v bash)

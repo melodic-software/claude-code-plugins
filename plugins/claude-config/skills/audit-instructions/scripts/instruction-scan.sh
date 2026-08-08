@@ -114,7 +114,7 @@ I8_C_ERE="(do not|don('|’)?t) (think|reason)|without thinking|skip the reasoni
 # in scan_file. Stem forms catch inflections (decrease/decreasing via the bare
 # stem, drop/dropped/dropping via the doubled-p form; verbos carries no left
 # boundary so compounds match too); over-production is the contract, as with I8.
-I27_EFFORT_ERE="(lower|reduc|decreas|dropp?)(e|ed|ing)? (the |your )?effort" # spellchecker:disable-line
+I27_EFFORT_ERE="(lower|reduc|decreas|dropp?)(e|ed|es|ing|s)? (the |your )?effort" # spellchecker:disable-line
 I27_BREVITY_ERE="${WB_L}short|${WB_L}brief|${WB_L}concise|${WB_L}terse|${WB_L}length|verbos|${WB_L}wordy"
 
 rows=()
