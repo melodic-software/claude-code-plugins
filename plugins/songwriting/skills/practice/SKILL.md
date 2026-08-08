@@ -20,7 +20,7 @@ The habit layer: a daily craft routine and a numbered-exercise index across all 
 writer can build and sustain practice. This skill hands out prompts and curricula; the craft skills
 do the in-the-moment coaching on the output.
 
-Method content is Pat Pattison's, under `context/pat-pattison/`. A future author's curriculum plugs
+Method content is Pat Pattison's, under the plugin-root `../../context/pat-pattison/`. A future author's curriculum plugs
 in at `context/<author>/` without changing this skill.
 
 ## Action Router

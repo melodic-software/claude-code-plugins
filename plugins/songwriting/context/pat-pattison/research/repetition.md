@@ -88,9 +88,28 @@ Use this carefully. It does not mean choruses should become generic. It means
 verses usually carry specific situation, image, and action, while the chorus or
 refrain can make a broader statement that the verses keep recoloring.
 
+The chapter attaches an instruction to the rule in the same breath: keep the
+verses specific and interesting. The rule constrains the CHORUS's grammar, not
+its imagination — the chapter's own demonstration chorus is built from concrete
+images (a fall from grace, a dot in space) while committing to no tense and no
+pronoun. **Neutral means grammatically neutral, not vague.**
+
 If the chorus tells too specifically, it may block the verses. If it tells too
 generically, it may become cliche. Strip tense and POV without stripping image,
 sound, or emotional pressure.
+
+**A chorus is many people singing together.** Chapter 6 draws a working
+consequence from that definition rather than leaving it as etymology: change the
+words each time and no one else can sing it on the second pass — one person
+singing alone is a soloist, not a chorus. Change a refrain's words each time and
+it is not a refrain, just additional material. This is why the fix for a
+stagnant chorus is always to develop the verses, never to rewrite the chorus
+first.
+
+Changing the repeat IS available as a last resort when a refrain proves
+color-resistant and cannot be neutralized — the chapter changes one to fit a
+tense before showing the better repair — but it costs the singalong, so
+neutralize first.
 
 ## Productive ambiguity
 
@@ -138,6 +157,30 @@ Ask:
 - If the chorus comes back unchanged, has the listener changed enough to hear
   it differently?
 
+Box 3 is usually the song's **why** — why the speaker is saying any of this —
+which is what makes it the heaviest rather than merely the last.
+
+**A box is not always one section.** Chapter 6 analyzes a lyric whose boxes are
+each two verses plus a chorus. Count boxes by idea movement, not by section
+count: two verses that share one angle are one box, and diagnosing them as two
+hides the stagnation.
+
+### Test one chorus line at a time
+
+The chapter's sharpest box-weight test works on a single line rather than the
+whole chorus: take one line and write what it means after each verse. In its
+worked example, an image that merely observes in box 1 becomes a witness in box
+2 and a prophet in box 3 — the same words, three sizes.
+
+Run it on the line carrying the most weight. If that line means the same thing
+after every verse, the boxes are not growing whatever the summaries suggest.
+
+**Every chorus line carries this obligation.** The chapter states it as a
+drafting constraint, not just a diagnostic: when writing a chorus, each line
+must be *able* to gain weight. A line too specific or too closed to mean more
+later is a line that will flatten the repeat no matter how well the verses
+develop.
+
 ## Stagnant repetition
 
 Repetition is stagnant when each verse says essentially the same thing in
@@ -155,6 +198,21 @@ Symptoms:
 
 Fix stagnant repetition by changing the development, not by changing the
 chorus words first.
+
+**Stagnation does not merely flatten the boxes — it can shrink them.** Chapter 6
+is explicit that stagnant boxes are the same size at best, and more likely lose
+weight, because boredom amplifies across repeats. A second chorus that merely
+repeats does not land neutrally; it lands weaker than the first.
+
+**Polished language cannot fix it.** The chapter demonstrates the failure in
+deliberately bland prose summaries, then fixes it while leaving the language
+just as bland — because development is what changed. Strong imagery on stagnant
+boxes only decorates the problem. This is the diagnostic order: check whether
+the verse summaries move before touching a single word of the lines.
+
+The one-sentence summary test is the fastest form of this. If the verse
+summaries are interchangeable, the song has a development problem no rewrite of
+the lines will reach.
 
 ## Separate jobs
 
@@ -180,6 +238,20 @@ Where did I get here from?
 
 The verse first written may belong in the middle or end. Try moving boxes
 around before assuming the song must continue forward from the first draft.
+
+Chapter 6's framing: just because you wrote a verse first does not make it the
+first verse — give yourself two chances at every stuck point.
+
+**The stronger move is upstream of the stuck point.** The chapter names thinking
+in boxes from the moment an idea arrives as by far the best remedy for
+second-verse hell. Reordering is the rescue; planning the boxes is the
+prevention. When a writer arrives with an idea and no verses yet, sketch the box
+summaries before drafting — that is the intervention, and it is unavailable once
+the verses exist.
+
+Six questions are the chapter's named tool for filling a box that will not
+open: who, what, where, when, why, how — with `when` and `where` singled out as
+the most productive.
 
 ## Chorus and refrain weight
 
@@ -213,7 +285,22 @@ Use this when:
 - the bridge supplies contrast and new weight,
 - the final chorus becomes stronger because the weak middle chorus is gone.
 
-This is a formal risk, but Chapter 6 treats it as a valid toolbox move.
+This is a formal risk, but Chapter 6 treats it as a valid toolbox move — and
+records it as a real-world one: a well-known recording drops its second chorus
+and goes straight to the bridge, an unusual move in commercial music, after the
+writers found the conventional layout made the song feel too long. "Too long" is
+the audible symptom of a sagging box.
+
+The chapter names a second gain beyond removing the sag: keeping the bridge
+gives the music room to breathe when verse lines are long and the tempo is slow.
+The cut buys contrast and interest at once.
+
+**Diagnose the sag before cutting.** The alternative repair is to give the weak
+verse the missing information — in that same example, reintroducing a character
+the listener had forgotten lets a two-verse layout work with both choruses
+landing, no cut required. Cutting a chorus and developing the verse are two
+answers to one diagnosis; run the box-weight test first and decide which the
+song needs.
 
 ## Productive repetition inside lines
 
@@ -347,6 +434,22 @@ The two formulas can stack: verse 1 = You/Past, verse 2 = I/Present, verse
 3 = We/Future. The combined matrix lets one short distribution carry the
 song's full emotional arc.
 
+### Formulas are tools, and they cut both ways
+
+Chapter 6 attaches its own warning to both formulas, in the same paragraph that
+introduces them: sometimes one is exactly what a song needs, and other times a
+formula takes the freshness out of the writing. Be aware of the techniques;
+beware of letting them become a habit.
+
+Two consequences for how these get applied:
+
+- **Do not reach for a formula first.** The chapter's own preferred case is an
+  idea that carries the DNA of its own development, or a plot that does the
+  development work — the formulas are the repair when an idea does not.
+- **Name the formula as a candidate, not a prescription.** Proposing You-I-We
+  because the boxes are stagnant is the tool working. Proposing it because a
+  song has three verses is the habit the chapter warns against.
+
 Cross-ref [box-model](box-model.md) for full division-of-labor framework.
 
 ## Hidden questions and hidden commands (*Writing Better Lyrics* (2009), Chapter 6) — grammatical detail
@@ -357,22 +460,40 @@ isolates the question or command underneath.
 
 ### Hidden questions — full grammatical matrix
 
-A question with an auxiliary verb can be reduced to a hidden sub-question
-by deleting the auxiliary:
+**Delete the interrogative pronoun, and KEEP the auxiliary.** The auxiliary is
+what makes the remaining fragment a question; deleting it destroys the effect
+rather than producing it. The deleted word is `who`, `what`, `when`, `where`,
+`why`, or `how`.
 
-| Original (full question) | Hidden (auxiliary deleted) | Effect |
+The change in meaning is the point. The full question presupposes the action
+happens and asks for its object, place, reason, or method. The isolated
+fragment asks whether the action exists at all — a genuinely different and
+usually more exposed question.
+
+| Original (full question) | Hidden (interrogative pronoun deleted) | Effect |
 |---|---|---|
-| Who do you love? | Do you love? | Sub-question isolates the verb |
-| Where did you go? | Did you go? | Tense + question, narrowed |
-| What will you say? | Will you say? | Future modal, narrowed |
-| Can you remember? | You remember? | Modal stripped, declarative emerges |
-| Should I leave? | I leave? | First-person modal stripped |
-| Could she stay? | She stay? | Third-person modal stripped |
-| Would they listen? | They listen? | Conditional → declarative |
+| Who do you love? | Do you love? | Asks whether loving happens at all |
+| Where did you go? | Did you go? | Asks whether the leaving happened |
+| What will you try? | Will you try? | Asks whether the attempt will be made |
+| When will I know? | Will I know? | Asks whether knowing ever arrives |
+| Why do you laugh? | Do you laugh? | Asks whether the laughter is real |
+| How did you know? | Did you know? | Asks whether the knowledge existed |
 
-The technique scales across tenses (do/did/will), modals (can/could/should/would),
-and persons (1st/2nd/3rd). The deletion creates a fragment that the listener
-hears as both repetition AND new content.
+The technique scales across tenses via the auxiliary — `do` / `did` / `will` —
+and across the subjunctive modals `can` / `could` / `should` / `would`:
+
+| Original | Hidden |
+|---|---|
+| Who can you love? | Can you love? |
+| Who could you love? | Could you love? |
+| Who should you love? | Should you love? |
+| Who would you love? | Would you love? |
+
+The deletion creates a fragment the listener hears as both repetition AND new
+content. Chapter 6's worked instance is a declarative that hides a question:
+a line ending in "can you win" becomes the question `Can you win?` simply by
+isolating and repeating that fragment, turning a statement of the terms into
+the character's uncertainty about whether the terms can be met.
 
 ### Hidden commands — subject deletion
 
@@ -386,21 +507,39 @@ the subject:
 | You hold me. | Hold me. | Imperative + intimacy |
 
 Note: **third-person cannot generate commands** because English third-
-person verbs take an -s ("he/she tells"). The deletion only works in
-first/second person where the verb base is bare.
+person verbs take an -s ("he/she tells"). Deleting the subject there yields
+only simple repetition — `She tells me` reduces to `Tells me`, which is a
+fragment, not an imperative. The technique needs the bare verb base, which
+first and second person supply and third person does not.
+
+A second-person question hides a command the same way: `Will you love me?`
+reduces to `Love me.`
 
 ### Infinitive isolation — past and future
 
-Pat's extension: the technique works with infinitive verb phrases too.
+Pat's extension: with a past- or future-tense verb, the command hides inside the
+INFINITIVE phrase, not the main verb. Isolate the infinitive and drop its `to`.
 
 | Original | Infinitive isolation | Tense effect |
 |---|---|---|
 | Did you want to win my heart? | Win my heart. | Past → present command |
-| Will you say it out loud? | Say it out loud. | Future → present command |
-| Did you mean to leave? | Mean to leave? | Past → present sub-question |
+| He loved to walk alone. | Walk alone. | Past → present command |
+| Won't you try to walk alone? | Try to walk alone. → Walk alone. | Future → present, two-stage |
 
-The infinitive form lets the same surface fragment work across tenses —
-useful when a chorus must remain tense-neutral while verses change tense.
+The third row shows the staging the chapter demonstrates: the fragment can be
+isolated once, then isolated again, each pass shedding another layer and landing
+harder.
+
+This is why the main verb's tense stops mattering — the infinitive carries no
+tense of its own, so the same surface fragment works after a past verse and a
+future one alike. That makes it the line-level counterpart of the chorus-level
+tense-neutralization above.
+
+**Moving between sentence types is itself the payoff.** Chapter 6 frames the
+gain as an energy boost: statement → question, or statement → command, lifts the
+emotion to a new level. The repetition is the vehicle; the change of sentence
+type is the cargo. A fragment that repeats without changing sentence type is
+just an echo.
 
 ### When to use
 

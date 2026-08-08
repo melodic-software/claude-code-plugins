@@ -19,7 +19,7 @@ The sound-and-motion layer: whether the number, placement, and stress of syllabl
 stability of each section — support the meaning and emotion. Covers scansion, prosody, phrasing,
 stable/unstable analysis, and fitting lyric to melody.
 
-Method content is Pat Pattison's, under `context/pat-pattison/`. A future author's method plugs in
+Method content is Pat Pattison's, under the plugin-root `../../context/pat-pattison/`. A future author's method plugs in
 at `context/<author>/` without changing this skill.
 
 ## Action Router
@@ -51,6 +51,24 @@ Write generated files to the paths in
 consuming project's own songwriting layout when it defines one. Before loading any bundled
 `templates/<name>.md`, check `${CLAUDE_PROJECT_DIR}/songwriting/templates/pat-pattison/<name>.md`
 first — a project-level override wins over the bundled default.
+
+## Boundary — what this skill must NOT emit
+
+This skill measures. It does not write the line it measures, and it does not choose the words that
+fix a bad scan.
+
+| If you are about to emit | STOP and route to |
+| --- | --- |
+| A rewritten line that scans better | `/songwriting:co-write` line-brainstorm |
+| A replacement word chosen for its stress pattern and rhyme | `/songwriting:rhyme` |
+| A judgement that a section is the wrong length or shape | `/songwriting:song-form` |
+
+**Measure in stressed syllables, never raw syllables.** Line length in this method is the count of
+stressed syllables; a raw-syllable count is a different measurement that answers a different
+question. Reporting one as the other invents symmetry that is not there — in the pilot a chorus
+reported as an 8/9/9/8 strength was 3/4/3/3 by the correct measure, and the strength did not exist.
+If the stress map has not been marked, the length claim has not been made: mark it, or say the box
+was skipped.
 
 ## Related skills
 
