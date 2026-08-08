@@ -238,6 +238,35 @@ if (existsSync(autonomyRoot)) {
   }
 }
 
+// A manifest component field names hook files, skill directories, and the rest
+// at NON-default paths. Pointing one at the path Claude Code already discovers
+// re-registers a component the harness has loaded: for `hooks` that is a
+// duplicate-file load error that takes the whole hook file down with it, and it
+// is redundant for every other field. The failure is silent at load time, so a
+// gate catches it and a reviewer does not.
+const defaultComponentPaths = {
+  agents: ["agents", "agents/"],
+  commands: ["commands", "commands/"],
+  hooks: ["hooks/hooks.json"],
+  lspServers: [".lsp.json"],
+  mcpServers: [".mcp.json"],
+  skills: ["skills", "skills/"],
+};
+for (const path of pluginFiles) {
+  if (!path.endsWith(`${sep}.claude-plugin${sep}plugin.json`)) continue;
+  const manifest = JSON.parse(read(path));
+  for (const [field, defaults] of Object.entries(defaultComponentPaths)) {
+    const declared = [manifest[field] ?? []].flat();
+    for (const value of declared) {
+      if (typeof value !== "string") continue;
+      const normalized = value.replace(/\\/g, "/").replace(/^\.\//, "");
+      if (defaults.includes(normalized)) {
+        fail(path, `${field} must not name its auto-discovered default path (${value})`);
+      }
+    }
+  }
+}
+
 if (failures.length > 0) {
   console.error("Plugin contract validation failed:");
   for (const failure of failures) console.error(`- ${failure}`);

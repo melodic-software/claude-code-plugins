@@ -38,6 +38,24 @@ discovery-explore-preload-8e2b7d
 
 A missing or mismatched token is a **hard failure: the parent discards the run**, never downgrades or accepts the artifact. Without it, a preload miss produces an undisciplined run that still writes an artifact — indistinguishable from success at every other seam.
 
+**Post-dispatch acceptance gate — parent-side, before the payload is believed.** `status: complete` is the agent's claim about its own run, and a claim is not evidence. Grade the run **off disk**, against the memory-slice path from the parent's own pre-dispatch envelope — **carry that path across the dispatch, because it is this gate's input** — and never a path read out of the payload, because the failure this gate exists to catch is a payload that comes back carrying no pointer at all. In order:
+
+**Pre-dispatch, one command:** `touch <the memory-slice path>/.explore-dispatch`. That is the gate's freshness baseline, and without it a slice that already holds an earlier run's artifact set passes every on-disk check even when this dispatch wrote nothing at all.
+
+1. **The payload is well-formed** — `preload_token` matches the sentinel verbatim, and an `artifact:` pointer is present. Missing either is a **failed dispatch** whatever the `status` field says; a missing token is a discard, per the rule above.
+2. **The artifact set is actually on disk, and this run put it there:**
+
+   ```bash
+   bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-explore-artifact.sh" <the retained memory-slice path> \
+     --newer-than <that slice>/.explore-dispatch --expect-index <the payload's artifact: value>
+   ```
+
+   Cite the **exit status** — 0 usable, 1 no usable artifact set, 2 ungradeable — not a reading of the directory, because the context most motivated to call the dispatch finished is the one that would be doing the reading. It fails closed. Only the slice path is required, and the bare form is still a real gate; every optional check reports `unchecked` in the output line rather than passing quietly, so a skipped one never reads as a passed one. Append `--expect-sidecars <n>` when the payload reported a `sidecars:` count, and drop any flag whose value the payload did not supply — the malformed payload this gate exists to catch has no such fields, and substituting `0` or a guessed path asks the gate a question the run never answered.
+
+   **The `index=` path in that output is authoritative** for everything downstream — the verifier's target and the handoff pointer both come from it, not from `artifact:`. `pointer=mismatch` means the payload named a file this gate never graded, which is a defect in the payload rather than a naming preference to reconcile.
+
+**Any non-zero exit halts the workflow.** Report it, and do **not** proceed to research, planning, or an edit on the strength of an exploration that did not happen — proceeding is the damage a silently-empty return actually causes; the missing artifact is only how it starts. Recovery ladder, and why a resume beats a re-dispatch: [`${CLAUDE_PLUGIN_ROOT}/skills/explore/reference/dispatch.md`](${CLAUDE_PLUGIN_ROOT}/skills/explore/reference/dispatch.md).
+
 **Coverage discipline** when fanning out: (1) write a numbered gap-list before any deepen pass; (2) fan out by disjoint area — never split the six dimensions across agents; (3) whoever holds the workflow writes `EXPLORE.md` — `discovery:explorer` writes its own, while built-in Explore agents cannot write one at all, so their caller does.
 
 ## Purpose
