@@ -3,6 +3,19 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.2]
+
+### Changed
+
+- **`questionnaire`, `wayfind`: upstream-provenance notes moved out of the skill bodies.** The
+  `questionnaire` "Upstream provenance" section and `wayfind`'s inline adaptation notes were
+  maintainer-facing bookkeeping in agent-facing files — noise at load time, and the
+  questionnaire line had gone stale (upstream `to-questionnaire` graduated out of in-progress in
+  its v1.2.0). Provenance for all upstream-derived material now lives in the marketplace
+  repository's `docs/upstream/mattpocock-skills.md` registry, which also carries the observable
+  recheck trigger the removed "re-audit opportunistically" wording lacked. Skill behavior is
+  unchanged.
+
 ## [0.28.1]
 
 ### Fixed

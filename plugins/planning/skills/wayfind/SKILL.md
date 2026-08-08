@@ -36,12 +36,11 @@ time until the fog burns off and a real destination (Brief / PRD / PLAN) can be 
 **Plan, don't do.** A map holds *decisions*, not build work. Each decision item, once
 resolved, either sharpens the map or graduates to the destination. The moment the destination
 is coherent, the map closes and the normal pipeline (`/interview → /design → /planning:plan →
-/implement`) takes over. Fog-of-war framing adapted from Matt Pocock's wayfinder — this skill
-diverges by persisting the map as native tracker primitives, routing each decision to a
-first-party skill, and keeping execution artifacts in `<memory_dir>/<slug>/` (default
+/implement`) takes over. The map persists as native tracker primitives, each decision routes
+to a first-party skill, and execution artifacts live in `<memory_dir>/<slug>/` (default
 `.work/`) — the topic-docs convention's memory tier, slug spec and all (see
 [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md))
-— rather than the map.
+— never in the map itself.
 
 **Two modes.** `chart` builds or extends a map (interactive only). `work` picks one item off
 the map's frontier and drives it to resolution. The default action auto-detects: an existing
@@ -58,7 +57,7 @@ For every uncertainty, ask: **can I phrase it as a sharp question?**
   made it sharp enough to phrase.
 
 Sharpness, not blockedness, is the line. A blocked-but-phrasable question is a ticket; an
-unblocked-but-unphrasable worry is fog. *(Ticket-vs-fog distinction: Pocock's wayfinder.)*
+unblocked-but-unphrasable worry is fog.
 
 ## Action Router
 
