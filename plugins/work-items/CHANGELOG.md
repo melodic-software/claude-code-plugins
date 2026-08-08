@@ -3,6 +3,24 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.33.0]
+
+### Changed
+
+- **The drain loop's cycle report must now be grounded in tool results from that cycle**, with
+  unverified work said to be unverified rather than left undistinguished. The step already bounded
+  what the report contains and how often it is written; it said nothing about whether its claims were
+  true.
+  - This is the one surface where a fabricated line survives: nobody watched the cycle, no receiver
+    re-derives the report the way a dispatching orchestrator re-derives a worker's return, and the
+    comment is the operator's only record of what happened. Anthropic's Fable 5 prompting guide names
+    exactly this case — "Before reporting progress, audit each claim against a tool result from this
+    session" — and reports that the instruction nearly eliminated fabricated status reports in its
+    testing, including on tasks built to provoke them.
+  - Deliberately not extended to subagent returns in the same lane: those are already promoted to
+    direct evidence receiver-side before they drive anything, which is the stronger mechanism and
+    does not depend on the worker auditing itself.
+
 ## [0.32.0]
 
 ### Changed

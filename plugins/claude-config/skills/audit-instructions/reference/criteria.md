@@ -1,5 +1,5 @@
 ---
-version: 1.16.1
+version: 1.17.0
 last-updated: 2026-08-08
 ---
 
@@ -33,6 +33,18 @@ one and a staleness signal is not something to resolve by picking the narrower a
 The requirement **binds on touch**, per the convention above: rows predating this rule keep their
 citations as they are and adopt the four parts the next time they change. A missing stamp on an
 older row is therefore not itself a defect in this catalog.
+
+**Admission.** A row's observable must be **anchored to text that is present**. A check detects a
+passage a surface actually contains — either what it says, or an attribute it lacks while saying it.
+I6 (a prohibition carrying no rationale marker) and I7 (a request stating no motivation) are the
+anchored form: each names a line you can point at and judges what is missing *from that line*. What
+is refused is the **unanchored** form — an obligation that a surface *should say* something, where
+the finding points at no passage at all and the population is every file lacking the pattern. A
+proposed Detect clause reading "a surface that does not …", with no passage to cite, is refused on
+shape before its source is weighed, however well sourced. Such guidance routes to doctrine or to a mechanism instead, and an audit that
+declines a row on this ground says where it routed, so "no row" never reads as "not covered". In this
+monorepo the rule and its reasoning are `docs/adr/0008-admit-only-present-text-defects-to-the-instruction-audit-catalog.md`;
+in a standalone install the rule, not the path, is the requirement.
 
 **Axes.** Three orthogonal axes, never conflated:
 
@@ -78,7 +90,7 @@ non-memory surfaces (skill bodies, agent definitions, hook instruction text, out
 memory-layer surfaces (CLAUDE.md, CLAUDE.local.md, `.claude/rules/`, `~/.claude/rules/`) their
 findings route to the `claude-memory` plugin's `audit` skill when it is installed, and fall back
 to the official include/exclude guidance (I1–I5 source below) when it is not. Checks I6–I12 and
-I15–I22 apply to all surfaces; I13 and I14 name narrower surface sets in their own rows.
+I15–I23 apply to all surfaces; I13 and I14 name narrower surface sets in their own rows.
 
 ## Sources
 
@@ -289,6 +301,15 @@ sources; promotion gate unmet). Row I8-b is unscoped — two model guides conver
   "Parallel subagents" — "Claude Fable 5 dispatches parallel subagents more readily than prior
   models. Use subagents frequently … and prefer asynchronous communication between orchestrator and
   subagents over blocking until each subagent returns."
+- **The general principle, and why it is cited separately.** Both sentences above sit in sections
+  about *migrating* older material, and a reader taking them as the whole basis sweeps for what
+  looks like leftover prior-model scaffolding — walking straight past freshly authored
+  over-enumeration, which is the same defect with no legacy provenance to recognize it by. The
+  principle is stated on its own in "Strong instruction following": "Instruction-following is
+  improved enough that you can steer most behaviors with a brief instruction rather than enumerating
+  each behavior by name," and that guide's own worked case is a *newly written* brevity
+  instruction replacing a list of patterns, not a migration. **Age is not an element of this row.**
+  Detect over-enumeration wherever it was written and whenever.
 
 **Row I8-a: instructed self-check removal** · Tier `behavioral` · Model scope: `opus-5`.
 
@@ -306,6 +327,16 @@ sources; promotion gate unmet). Row I8-b is unscoped — two model guides conver
   instructions: they "cause over-verification on Claude Opus 5, and removing them reduces wasted
   tokens with no loss in quality"; "Self-correction" — avoid instructing re-checks it already
   performs.
+- **The independence carve-out is corroborated by a second guide, and the scope does not move.** The
+  Fable 5 guide reaches the same line from the opposite direction: it asks for self-verification to
+  be made explicit on long runs, and states that "separate, fresh-context verifier subagents tend to
+  outperform self-critique" ("Recommended scaffolding changes"). Read without that sentence, the two
+  guides look contradictory — remove verification instructions, versus add them — and a reader has to
+  resolve it alone. They are not: the anti-pattern is the instructed **self**-check, and an
+  architected independent verifier is the thing the Fable 5 guide is asking for. **This does not meet
+  the promotion gate**, because the gate wants a second guide stating this row's *detection* claim —
+  that verification instructions cause over-verification — and the Fable 5 guide states no such
+  thing. The scope annotation stands; only the carve-out gains a second source.
 
 **Row I8-b: conservative-reporting detection** · Tier `behavioral`. Unscoped — promotion gate MET
 on its second arm: a second model guide, the Sonnet 5 one, states the same claim about the shared
@@ -1224,6 +1255,85 @@ by `--opinion`.
   I19, and it adds no Sources entry for the same reason. The four-part shape it asks for is this
   monorepo's `docs/conventions/upstream-drift/README.md`; in a standalone install the four parts, not
   the path, are the requirement.
+
+### I23: Context-budget directive to stop, summarize, or hand off
+
+Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surfaces: all · Model scope:
+`fable-5` (sourced from that guide alone; promotion gate unmet).
+
+**The tier keys on the ground truth of the defect, not of the detection.** The phrasing is statically
+readable, which tempts a `mechanical` tag — but I8-b's Detect is a literal three-phrase match and is
+even seeded in the pre-scan, and it is `behavioral`. The `mechanical` rows rest on a documented hard
+consequence: I10 on a refusal category the API returns, I21 on a property its page states outright.
+This row rests on a reported model *tendency* — "can occasionally suggest a new session" — with no
+documented hard consequence, which is the behavioral tier's definition. The stake is the Output
+format rule: behavioral findings ship as proposals paired with the delete-and-watch loop, never as
+confident removals.
+
+- **Detect:** instruction text directing the model to monitor its own remaining context and to stop,
+  summarize, hand off, trim its work, or start a new session **on that basis** — and instruction text
+  or injected hook output that surfaces a remaining-context count to the model where the surface
+  could avoid it. The guide names the count as the usual trigger for the behavior, so the disclosure
+  and the directive are one subject; it also hedges the disclosure arm to "where possible", and this
+  row tracks that hedge rather than reading it as an absolute.
+- **The discriminator is who decides, on what evidence.** A directive tells the model to judge its
+  own window and act; a mechanism resolves the window from an instrumented signal and acts itself.
+  Only the first is this row's subject.
+- **Must NOT flag: a mechanism that gates on a measured signal.** A hook, gate, or workflow step that
+  reads context state from an instrumented source and then blocks or routes on it — or injects a
+  determination the model does not re-decide — is not a directive to the model, and it outranks the
+  model's own initiative rather than competing with it. **A hook that injects an exit menu remains
+  this row's subject**, however well instrumented its trigger: the measurement decides only when to
+  ask, and the model still decides whether to stop, so the injection manufactures the initiative
+  rather than replacing it. The contrast that fixes the line is a `PreToolUse` deny — there the
+  mechanism decides and the text is only the consequence. **The exemption never covers surfacing the
+  count itself.** A determination is a resolved verdict the model consumes; a raw remaining-context
+  number is data it must interpret, which is the disclosure arm of Detect and is a finding whoever
+  computed it. Being measured makes a mechanism's *trigger* trustworthy, never its payload.
+- **Must NOT flag: a user-invoked skill whose purpose is the continuation itself** — a handoff
+  writer, a continuation router, a compaction helper. The skill existing is not an instruction to
+  watch the budget; a skill body that additionally tells the model to invoke it off a self-estimated
+  window is. **A router falling back to its own judgement when no measured signal is available is
+  also not a finding** — it prefers the instrument and degrades only in its absence, which is the
+  opposite of the shape this row detects.
+- **Must NOT flag: a routing condition that selects between two forms of one deliverable.** "Use the
+  short form where the full one would not fit" picks a shape; it does not stop the work. The subject
+  is abandoning or truncating the work, never sizing an artifact to its container.
+- **Must NOT flag: a budget surfaced to the human.** A status line, a report, or a cost dashboard
+  renders to the operator rather than into the model's context, and no part of this row reaches it.
+- **Must NOT flag: a document *about* the pattern** — this row, a model-adaptation delta chapter, a
+  verification record quoting it — on the audience test I8-b applies. **A playbook stating the
+  counter-steer is exempt on different grounds, and the distinction matters:** that text is operative
+  standing instruction, so I8-b's audience test would reach it rather than excuse it. It is not a
+  finding because its **polarity is inverted** — it instructs the opposite of Detect, so it never
+  satisfies Detect and needs no exemption at all.
+- **Remediate:** remove the directive. Where the guarantee behind it is real, move it to a mechanism
+  that gates on a measured signal, or state the counter-steer plainly — that a count alone is not a
+  decay signal, because decay shows up in the output rather than in the number. Where the harness
+  genuinely must surface a count, pair it with a reassurance rather than with an exit menu.
+- **No pre-scan pattern is seeded yet, and the reason is not I8-e's.** The phrasing is patternable
+  and an unfenced true positive **is** attested — a handoff skill whose own invocation triggers are
+  "context heavy (check `/context` output)", "quality degrading", and a window-position threshold,
+  which is the carve-back in the continuation fence above rather than the fence itself. So this row
+  is not waiting on an instance the way I8-e is; it is waiting on calibration of the threshold and
+  window-position phrasings, which vary far more than the shapes I8-b matches. **The blast radius is
+  why that calibration is owed before a pattern ships:** a continuation skill can barely be
+  model-invocable without naming a context trigger somewhere, and one such trigger lives in a
+  `description`, which is resident whenever the listing admits it rather than only when the body
+  loads. A pattern seeded before that line is drawn would fire on every consumer's handoff skill.
+- **Source:** Fable 5 guide, "Rare cases of context-budget concern" — "In very long sessions, Claude
+  Fable 5 can occasionally suggest a new session, offer to summarize and hand off, or trim its own
+  work. This is most often triggered when the harness shows a remaining-token countdown to the model.
+  Avoid surfacing explicit context-budget counts where possible."
+- **Verified 2026-08-08** against that guide, fetched as raw markdown (177 lines). **Verified
+  negative, which is what holds the scope annotation on:** the Opus 5 guide (11,225 bytes) and the
+  Sonnet 5 guide (15,864 bytes) were fetched as raw markdown the same day and searched for this
+  claim. Neither states it. Opus 5's only mention of the context window is a capability statement —
+  that its instruction following, tool calling, and reasoning "stay consistent throughout the
+  window" — which is the opposite subject: a reason the concern does not arise, not a counter-steer
+  against it. **Recheck trigger:** a second model guide stating the claim — which would meet the
+  promotion gate and unscope this row — or that section ceasing to name the remaining-token
+  countdown as the trigger, which is what joins the disclosure arm to the directive arm.
 
 ---
 

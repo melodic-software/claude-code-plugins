@@ -1,5 +1,30 @@
 # Changelog — discovery plugin
 
+## [0.11.0]
+
+### Changed
+
+- **Both dispatch envelopes now carry the reason the work is being done**, not only what to do. A
+  section-by-section audit against Anthropic's Fable 5 prompting guide found that every
+  dispatch-brief contract in this marketplace specified outcome, output shape, sources, and
+  boundaries — and none carried intent. That guide singles out long-running agents drawing on
+  multiple workstreams as where the omission costs most, and a dispatched worker is that case at its
+  sharpest: it has no conversation to infer intent from.
+  - Both halves of each contract move together, which is the part that makes it bind. The parent
+    side states the field in the envelope (`skills/explore/SKILL.md`, `skills/research/SKILL.md`,
+    and the envelope table in `skills/research/context/dispatch.md`), and the worker side adds it to
+    the list it refuses to guess (`agents/explorer.md`, `agents/researcher.md`). Adding it to the
+    parent alone would leave a worker that accepts a reason-less prompt without noticing, which is
+    the silent failure the field exists to stop.
+  - The justification travels with the field in every one of those places: a missing topic or scope
+    is silence the agent can report, while a missing reason is invisible — the agent works the topic
+    as written, returns something well-formed, and neither side learns it answered the wrong
+    question. Intent is what decides which of several defensible readings is the one wanted.
+  - **The enforcement sentence names the reason too.** Listing a field under "refuse to guess" and
+    then omitting it from the `status: truncated` rule directly below leaves the field advisory: the
+    agent reads the obligation and nothing makes a missing reason stop the run. Both agents now halt
+    on an absent or ambiguous reason exactly as they do for an absent scope, topic, or slice path.
+
 ## [0.10.1]
 
 ### Added

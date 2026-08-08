@@ -1,5 +1,23 @@
 # Changelog — session-flow plugin
 
+## [0.19.0]
+
+### Changed
+
+- **Orchestration imperative 2 ("SPEC EVERY SPAWN") now names the reason as a required field.** It
+  previously asked for an objective, an output format, tools and sources, boundaries, and a model
+  tier — five things, none of them intent. The imperative now leads with the reason the work is
+  being asked for: the larger task it feeds, who the output is for, and what it enables.
+  - This travels further than the other surfaces changed alongside it, because these imperatives are
+    also an **export**: `handoff` and `worker` modes emit them verbatim between dashed rails for a
+    target that left the session and inherits nothing. A worker pasted that brief was previously
+    told to spec five things and given no slot for the one a spawned worker most conspicuously
+    lacks.
+  - Sourced from Anthropic's Fable 5 prompting guide, "Give the reason, not only the request", with
+    the citation added to `context/sources.md` under imperative 2 — that ledger backs every
+    imperative with the page it came from, so a field added without one would be the only unsourced
+    clause in the brief.
+
 ## [0.18.0]
 
 ### Added

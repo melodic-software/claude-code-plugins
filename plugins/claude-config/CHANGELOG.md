@@ -7,6 +7,67 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 ### Added
 
+- **I23 — context-budget directive to stop, summarize, or hand off** (criteria 1.16.0 → 1.17.0).
+  Tier `behavioral`, `Model scope: fable-5` with the promotion gate unmet, carrying the four-part
+  stamp plus a **verified negative**: both sibling guides were fetched as raw markdown and searched,
+  and neither states the claim.
+  - Detects instruction text telling the model to watch its own remaining context and stop,
+    summarize, hand off, or trim its work on that basis, and injected hook output surfacing a
+    remaining-context count where the surface could avoid it. The guide names the count as the usual
+    trigger, so the disclosure and the directive are one subject; the row tracks the guide's "where
+    possible" hedge rather than reading it as an absolute.
+  - The discriminator is who decides, on what evidence: a directive tells the model to judge its own
+    window, a mechanism resolves the window from an instrumented signal and acts itself. **A hook
+    that injects an exit menu stays in scope** however well instrumented its trigger, because the
+    measurement decides only when to ask and the model still decides whether to stop — the injection
+    manufactures the initiative rather than replacing it. A `PreToolUse` deny is the contrast that
+    fixes the line.
+  - Fenced against a measured-signal mechanism, a user-invoked continuation skill (including a router
+    falling back to its own judgement when no instrument is available), a routing condition that
+    sizes an artifact rather than abandoning the work, a budget rendered to the operator, and a
+    document about the pattern. A playbook stating the counter-steer is exempt on **polarity** rather
+    than audience — it instructs the opposite of Detect, so it never satisfies Detect at all.
+  - No pre-scan pattern is seeded, and the row says why in its own terms rather than borrowing
+    I8-e's: an unfenced true positive is attested, so this row waits on calibration of the threshold
+    and window-position phrasings, not on an instance. The blast radius is the reason that
+    calibration is owed first — a continuation skill can barely be model-invocable without naming a
+    context trigger somewhere, and one such trigger lives in a `description`, which is resident
+    whenever the listing admits it.
+- **A section covering `effort:` and `model:` frontmatter on skills and agents** in
+  `skills/audit/reference/audit-checklist.md`, category H. This closes a seam between two skills
+  this plugin ships: I21 in the instruction-audit catalog explicitly hands frontmatter pins to
+  `claude-config:audit`, and that skill's category H read only `settings.json` keys — so a component
+  pinning an effort level was reached by neither, each pointing at the other. The rows report a
+  missing re-derivation rather than a preferred level, exempt a pin at the resolved model's own
+  default, and carry a dated stamp for the claim that a definition's `effort` overrides the session
+  level.
+
+### Changed
+
+- **The catalog states an admission rule.** A row's observable must be **anchored to** text that is
+  present: a check detects a passage a surface contains — what it says, or an attribute it lacks
+  while saying it — and an obligation anchored to no passage at all is refused on shape rather than
+  weighed on its source. Integrating one model guide raised that question at four separate sections
+  and answered it four times by hand; the rule now settles it once, and requires an audit declining a
+  row on this ground to name where the guidance routed instead — doctrine or a mechanism — so "no
+  row" never reads as "not covered".
+  - **The line is the anchor, not the polarity of the sentence.** I6 (a prohibition carrying no
+    rationale marker) and I7 (a request stating no motivation) are both worded as absences and both
+    admissible, because each names a line a reader can point at. A rule tested on polarity would have
+    refused two shipped rows, which is what an adversarial pass on this change caught before merge.
+- **I8's base row now cites the general principle, not only the migration framing.** Both of its
+  sources sat in sections about migrating older material, which pointed an auditor at what looks
+  like leftover prior-model scaffolding and past freshly authored over-enumeration — the same defect
+  with no legacy provenance to recognize it by. The row now also cites "Strong instruction
+  following", where the principle is stated on its own, and says plainly that age is not an element
+  of the check.
+- **I8-a records the second-guide corroboration for its independence carve-out.** Read without it,
+  the Opus 5 guide ("remove verification instructions") and the Fable 5 guide ("make
+  self-verification explicit", "separate, fresh-context verifier subagents tend to outperform
+  self-critique") look contradictory, and a reader had to resolve that alone. They are not: the
+  anti-pattern is the instructed *self*-check, and the architected independent verifier is what the
+  Fable 5 guide is asking for. The scope annotation does not move — the gate wants a second guide
+  stating this row's *detection* claim, and the Fable 5 guide states no such thing.
 - **New `unhobble` skill — the empirical bare-baseline experiment.** Reversibly strips a project's
   standing instruction surfaces (CLAUDE.md, rules, behavioral hooks, skills, enabled plugins) on a
   dedicated experiment branch, has the operator work normally against the bare model while logging
