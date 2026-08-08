@@ -31,8 +31,11 @@ holds itself to the rule that follows from that:
 > behavior is insufficient, citing the guide section that says so. A finding that **deletes**
 > over-enumeration needs no such justification.
 
-Applied below: every `ADD` disposition carries its citation, and the audit produced no net addition
-to any skill body.
+The audit made **one** addition, and it is the only one that cleared that bar: the dispatch-brief
+intent field under F11 below. Its justification is not that Fable 5 is weak — it is that a dispatched
+worker has no conversation to infer intent from, a fact each of the amended surfaces already asserts
+in its own preamble. Every other candidate addition was declined and the reasons are recorded under
+*Considered and declined*.
 
 ## Scoping constraint inherited from this repository
 
@@ -62,7 +65,7 @@ rather than by instruction text, which is stronger) · `GAP` (nothing discharges
 | F8 | Construct a memory system — one lesson per file, one-line summary, no duplication of what the repo already records | `SKILL.md:121` write every expensive conclusion to a durable note; `context-economy.md`. Adjacent plugin: `claude-memory` | `N/A` — memory-layer hygiene is `claude-memory:audit`'s surface by the catalog's own partition |
 | F9 | Rare early stopping — a text-only statement of intent with no tool call, or asking permission when it already has enough; autonomous pipelines get a system reminder | `SKILL.md:110` "end no turn on unexecuted intent" | **`MECHANISM`** — `plugins/autonomy/hooks/lane-stop-gate.sh` intercepts the stop attempt itself and re-injects a completion self-check. A gate beats an admonition, and the guide's own remediation elsewhere prefers a mechanism to an instructed rhythm |
 | F10 | Rare context-budget concern — avoid surfacing budget counts to the model; reassure if the harness must | `SKILL.md:124`, which states the counter-steer and then carves out "an instructed stop, or a workflow or mechanism built to gate on the window" under meta-rule 1 | **`GAP`** — no catalog row. A consumer's own surfaces can carry this shape and nothing detects it. **New row proposed: I23** |
-| F11 | Give the reason, not only the request | `SKILL.md:61` because-clause restatement | `COVERED` — row **I7**, unscoped, promotion gate met by the model-agnostic best-practices page |
+| F11 | Give the reason, not only the request | **`GAP` — found by independent audit, fixed in this change.** See below | `COVERED` — row **I7**, unscoped, promotion gate met by the model-agnostic best-practices page |
 | F12 | Readability — drop working shorthand in the final summary; no arrow chains, hyphen-stacked compounds, or invented labels; write for a reader who saw none of it | `SKILL.md:110` "write the closing message for a reader who wasn't watching"; `communication.md` | **`GAP`** — no catalog row. A surface can *mandate* the shape the guide warns against. **New row proposed: I24** |
 | F13 | Create a send-to-user tool — verbatim mid-turn delivery without ending the turn; pair with elicitation language or it is rarely called | `N/A` | `N/A` — a client-side tool definition in a host application. Claude Code plugins declare no such tool; the nearest native surfaces are file delivery and channels, and neither is this catalog's subject |
 | F14.1 | Start at the top of your difficulty range | `N/A` — operator practice | `N/A` |
@@ -122,6 +125,48 @@ degraded — and hands a four-option exit menu there. Whether that menu belongs 
 at `dumb` is a calibration question about the plugin's firing behavior, owned by that plugin, and is
 recorded here and in the pull-request body as an observation rather than acted on. Changing a firing
 threshold is a redesign, not an adherence fix.
+
+## The one real gap in this repository — F11, dispatch briefs carried no intent
+
+A first-pass reading scored F11 `COVERED`, on the strength of the playbook's because-clause rule at
+`SKILL.md:61`. An independent fresh-context audit of this section overturned that, and direct
+inspection confirmed it: **every dispatch-brief contract in this repository specified outcome, output
+shape, sources, and boundaries, and none of them carried the reason.**
+
+| Surface | What it specified before | Where it is |
+|---|---|---|
+| Fable 5 worker-spec doctrine | Objective · Output contract · Sources and context · Boundaries | `plugins/playbooks/skills/fable-5/context/orchestration.md` |
+| Orchestration imperative 2 | objective · output format · tools/sources · boundaries · model tier | `plugins/session-flow/skills/orchestrate/SKILL.md` |
+| Phase-worker brief composition | scope fence · divergence clause · project invariants · acceptance criteria · model routing | `plugins/implementation/skills/implement-dispatch/SKILL.md` |
+| Explorer pre-dispatch envelope | scope · memory-slice path · memory root · budget · capability flags | `plugins/discovery/skills/explore/SKILL.md` |
+| Researcher dispatch envelope | resolved topic · memory-slice path · budget · capability flags | `plugins/discovery/skills/research/context/dispatch.md` |
+
+Five surfaces, authored separately, converging on the same omission is a structural gap rather than
+an oversight — which is why it survived a first reading that was looking for defects rather than for
+a missing field.
+
+**Why this cleared the additive bar.** The guide singles out "long-running agents drawing on multiple
+workstreams" as where intent matters most, and a dispatched worker is that case at its sharpest: it
+has no conversation to infer intent from. Each amended surface already says so in its own words —
+`orchestration.md` opens with "A worker sees none of your conversation", and the researcher's
+envelope table exists precisely because "a non-fork subagent sees no conversation to infer from."
+They named the blindness and then omitted the field that compensates for it.
+
+**The failure mode is silent, which is what makes it worth a field.** A missing topic is silence a
+worker can report. A missing reason is invisible: the worker resolves each in-bounds ambiguity toward
+the literal brief, returns something well-formed, and nothing in the return distinguishes it from a
+correct one. This repository has already observed exactly that — `session-flow:orchestrate` records a
+fan-out of eleven audit workers where one silently audited the wrong artifact and returned a
+confident, well-formed, entirely wrong-target result.
+
+**And not fixing it would have been inconsistent.** Row I7 is *unscoped* — it fires on every target
+model — so this repository ships a check that would flag a consumer's reason-less instruction while
+its own dispatch contracts omitted the reason.
+
+The fix adds one field to each contract, not an enumeration. Row I7 keeps its flat `info` severity;
+the observation that a dispatch brief is the high-stakes case for it is recorded here rather than
+made into a severity rule, because escalating on surface *kind* is a change to the check's shape that
+this audit did not verify.
 
 ## Corroboration recorded (F14.2)
 
