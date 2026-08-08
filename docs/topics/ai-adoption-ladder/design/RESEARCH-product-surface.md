@@ -101,7 +101,7 @@ Every one of the 12 linked docs resolves to a **real, live** feature page, and *
 ### 12. claude-code-security-review (github.com/anthropics/claude-code-security-review)
 
 - **What / does:** Open-source GitHub Action running Claude for diff-aware semantic security review on PRs; comments findings; detects injection, authn/authz, secret exposure, crypto, TOCTOU, supply-chain, XSS, etc.; false-positive filtering.
-- **Config surface:** action inputs — `claude-api-key` (req), `comment-pr`, `upload-results`, `exclude-directories`, `claude-model` (default `claude-opus-4-1-20250805`), `claudecode-timeout` (20 min), `run-every-commit`, `custom-security-scan-instructions`, `false-positive-filtering-instructions`.
+- **Config surface:** action inputs — `claude-api-key` (req), `comment-pr`, `upload-results`, `exclude-directories`, `claude-model` (action-input default empty; effective default resolves to [`claude-opus-4-1-20250805`](https://github.com/anthropics/claude-code-security-review/blob/beb0d9bf6077d94cf6896c02fb5dbb73f33b4788/claudecode/constants.py#L8) — still unchanged upstream as of 2026-08-08, though that model [retired 2026-08-05](https://platform.claude.com/docs/en/about-claude/model-deprecations), replacement `claude-opus-4-8`), `claudecode-timeout` (20 min), `run-every-commit`, `custom-security-scan-instructions`, `false-positive-filtering-instructions`.
 - **Maturity:** **Active OSS**, MIT, ~5.6k stars. Warns: not hardened against prompt injection — review trusted PRs only.
 - **Ladder:** **1→2** — self-hosted automated (security) review in your own CI.
 
