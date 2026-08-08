@@ -1,3 +1,16 @@
 {
-  "items": []
+  "items": [
+    {
+      "id": "frontier-release-instruction-ablation",
+      "title": "Frontier model release: run audit-instructions + unhobble over this repo",
+      "cadence": "quarterly",
+      "area": [],
+      "category": "general",
+      "triggers": ["frontier-model-release"],
+      "last_checked": "2026-08-08",
+      "next_due": "2026-11-06",
+      "notes": "On each frontier model release (primary trigger), run /claude-config:audit-instructions and /claude-config:unhobble over this repository's session surfaces to re-test which standing instructions the new model still needs. The quarterly cadence is a backstop only — the release event, not the date, is the true trigger (docs/PLUGIN-PHILOSOPHY.md, Instruction economy). Session surfaces only, never the shipped plugin components.",
+      "close_previous": true
+    }
+  ]
 }
