@@ -73,8 +73,47 @@ given that the default reach is always for an adjective.
 
 ### Fixed — source fidelity
 
-Three context files adjudicated against the full text of the chapter each
-claims to distill, rather than against the distillation.
+Four context files adjudicated against the full text of the chapter each claims
+to distill, rather than against the distillation.
+
+- **`repetition.md`'s hidden-question mechanic was inverted.** *Writing Better
+  Lyrics* (2009) Chapter 6 deletes the **interrogative pronoun** and keeps the
+  auxiliary, which is what leaves the fragment a question — "Who do you love?"
+  becomes "Do you love?". Four of the file's seven table rows deleted the
+  auxiliary instead ("Can you remember?" → "You remember?"), which destroys the
+  effect rather than producing it. The rewritten table also states the semantic
+  payoff the original omitted: the full question presupposes the action and asks
+  for its object, while the fragment asks whether the action happens at all.
+
+  Two adjacent corrections in the same section: with past- or future-tense
+  verbs the command hides inside the **infinitive phrase**, not the main verb,
+  and the isolation can be staged twice, each pass landing harder; and Chapter
+  6 frames the whole technique's payoff as the **change of sentence type** —
+  statement to question, statement to command — so a fragment that repeats
+  without changing type is an echo, not productive repetition.
+
+- **`repetition.md` gains eight mechanics** present in Chapters 6 and 9 and
+  absent from the distillation: stagnant boxes *lose* weight rather than merely
+  flattening, because boredom amplifies; polished language cannot fix a
+  development problem, which fixes the diagnostic order; the per-line box-weight
+  test, where one chorus line is read after each verse (Chapter 6's own example
+  moves an image from observer to witness to prophet on identical words); the
+  drafting constraint that every chorus line must be *able* to gain weight; a
+  box may span more than one section, so boxes are counted by idea movement, not
+  section count; Box 3 as the song's *why*; both named formulas carrying
+  Chapter 6's own warning that a formula can take the freshness out of writing,
+  making them repairs rather than defaults; and thinking in boxes from the
+  moment an idea arrives as the *prevention* for second-verse hell, where
+  reordering is only the rescue.
+
+  Also corrected: "verses show, chorus tells" now carries the instruction
+  Chapter 9 attaches to it — keep the verses specific and interesting — and
+  states that neutral means grammatically neutral, not vague, since the
+  chapter's own demonstration chorus is built from concrete images while
+  committing to no tense and no pronoun. Plus the working consequence of a
+  chorus being many people singing together: change the words and no one can
+  sing along, which is why the fix for a stagnant chorus is always to develop
+  the verses.
 
 - **`box-model.md` defined "travelogue" three incompatible ways.** *Writing
   Better Lyrics* (2009) Chapter 8 defines travelogue as verses with no natural
@@ -112,6 +151,15 @@ claims to distill, rather than against the distillation.
   carries more unintended implication rather than less. Paired with a
   "nothing without its purpose" box carrying Chapter 10's invocation of
   Ibsen's rule about the gun in Act I.
+
+- **`song-form`'s stagnation eval asserted the defect this release fixes.** Its
+  prompt is the same-color case verbatim — a second verse repeating the first,
+  same scene, same speaker, same time — while its expectations required the
+  model to name a *travelogue*. A model following the corrected `box-model.md`
+  would have failed the eval, and a model passing it would reproduce the
+  conflation. Now expects the same-color diagnosis and explicitly forbids the
+  travelogue label, with a new companion case covering the genuine travelogue so
+  the two failures are pinned apart rather than merely relabeled.
 
 ## [0.6.1]
 

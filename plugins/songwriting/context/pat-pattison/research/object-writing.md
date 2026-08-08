@@ -163,13 +163,13 @@ process.
 chain is the mechanism, and without it a write becomes a static description of
 one scene instead of a dive.
 
-Each image hands off to the next **through a shared sense channel**, not
-through topic, logic, or narrative. Chapter 1 demonstrates it as an unbroken
-run: a physical sensation in one setting suggests a texture, the texture
-suggests a taste, the taste relocates the writer somewhere else entirely, the
-new place produces a sound, the sound produces a body reaction, and so on —
-each link a sense, not an idea. The write ends somewhere the seed could never
-have predicted.
+Each image hands off to the next **through a sense**, not through topic, logic,
+or narrative — and the channel it lands in is a different one from the channel
+it left. Chapter 1 demonstrates it as an unbroken run: a physical sensation in
+one setting suggests a texture, the texture suggests a taste, the taste
+relocates the writer somewhere else entirely, the new place produces a sound,
+the sound produces a body reaction, and so on — each link a sense, not an idea.
+The write ends somewhere the seed could never have predicted.
 
 Worked example of the shape (the chain, not Pat's):
 
