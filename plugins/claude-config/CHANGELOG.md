@@ -3,6 +3,37 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.0]
+
+### Changed
+
+- **`audit`: Category D no longer prescribes shell form with "no `args`" for hook commands.** The
+  row rested on a rationale — that the `"command":"bash"` + `args` variant "backslash-mangles
+  `${CLAUDE_PROJECT_DIR}` on native Windows" — that the [hooks
+  reference](https://code.claude.com/docs/en/hooks) contradicts: in exec form "path placeholders
+  like `${CLAUDE_PLUGIN_ROOT}` are substituted into `command` and into each `args` element as plain
+  strings", and "No shell tokenization happens on any platform." Mangling requires a shell, and exec
+  form has none. The real Windows defect behind the observation is narrower and is now its own row:
+  exec form "requires `command` to resolve to a real executable such as a `.exe`", so `"command":
+  "bash"` finds the WSL relay `System32\bash.exe` and the launch fails — the failure this repo hit
+  in #1006, where a fail-open guard enforced nothing. That is a defect in naming `bash` as the
+  executable, not in exec form, and the fix is a real binary plus the script path in `args`.
+
+  Category D now follows the page's own guidance — "Prefer exec form for any hook that references a
+  path placeholder. In shell form, wrap each placeholder in double quotes" — while explicitly not
+  flagging shell form where the page endorses it (pipes, `&&`, redirects, `.cmd`/`.bat` shims). A
+  further row flags the bare `$CLAUDE_PROJECT_DIR` spelling in a PowerShell shell-form hook, which
+  the page says "PowerShell parses … as an undefined local variable and resolves … to `$null`".
+
+### Added
+
+- **`audit`: a Category D row asserting hook `timeout` is expressed in SECONDS.** The hooks
+  reference states: "Seconds before canceling. Defaults: 600 for `command`, `http`, and `mcp_tool`;
+  30 for `prompt`; 60 for `agent`." A `timeout > 600` is therefore near-certainly a millisecond
+  figure. The confusion has a documented source on the same page: the Bash and PowerShell tools'
+  `tool_input.timeout` is "Optional timeout in milliseconds" with example `120000` — which, read as
+  seconds, is about 33 hours. A consumer run found three hooks configured that way.
+
 ## [0.21.9]
 
 ### Removed

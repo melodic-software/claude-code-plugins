@@ -121,7 +121,7 @@ Eight categories — names + the question each answers below; **full per-check c
 - **A — Schema & Structure**: `$schema` present, no unknown keys, `mcpServers` not in `settings.local.json`
 - **B — Permissions**: baseline deny/ask patterns present (list in [reference/required-permissions.md](reference/required-permissions.md), plus any additional patterns the consuming repo's own rules declare as required), deny-rules-in-`settings.json`-only (bug #8961)
 - **C — MCP Servers**: commands resolve, `${VAR}` syntax, `disabledMcpjsonServers` match, documented disable reasons
-- **D — Hooks**: paths resolve + readable, sane timeouts, valid matchers, quoted `$CLAUDE_PROJECT_DIR`, no duplicates, valid events
+- **D — Hooks**: paths resolve + readable, `timeout` in seconds and sane, valid matchers, exec form for path placeholders (quoted when shell form), exec-form `command` is a real executable, no duplicates, valid events
 - **E — Plugins**: static checks (marketplace membership) + live upstream drift detection (`scripts/check-plugin-drift.sh` — ORPHAN/NEW/RENAME modes, auto-fix policy table in the context file)
 - **F — Environment Variables**: documented/justified vars, secrets in `settings.local.json` only, forward-slash paths
 - **G — Skill-listing budget**: `/doctor` overflow check and trim levers (description trimming, `skillOverrides`, budget settings)
