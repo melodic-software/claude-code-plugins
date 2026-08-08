@@ -108,6 +108,39 @@ Organic and kinesthetic details are often the fastest way to move a lyric from
 general description into embodiment. Use them when the draft explains emotion
 from the outside instead of letting the listener feel it.
 
+### Sense inventory — the acceptance test on a finished write
+
+Chapter 1 does not stop at naming the channels. It takes a completed write and
+breaks it into seven headed lists, each one quoting the write's own phrases
+back. That inventory is the check: a channel with nothing under it was not
+covered, whatever the writer believes.
+
+Run it on every completed write, whoever produced it:
+
+```text
+Sight:         <phrases from the write, verbatim>
+Hearing:       <phrases>
+Smell:         <phrases>
+Taste:         <phrases>
+Touch:         <phrases>
+Organic:       <phrases>
+Kinesthetic:   <phrases>
+```
+
+Rules that make it an acceptance test rather than a formality:
+
+- Quote the write's own words. A summary ("I covered smell") is not evidence.
+- A phrase may appear under more than one channel — Chapter 1's own inventory
+  does exactly this, because one image can carry two senses at once.
+- A thin or empty channel is **reported, never padded**. Sight and hearing fill
+  themselves; smell, taste, organic, and kinesthetic are the channels that go
+  missing, and a write honestly short on one is more useful than a write with a
+  line bolted on to fill the row.
+
+This inventory is what converts "the write covered the senses" from a claim
+into checkable evidence — which matters most when the write was machine-
+generated and the generator is also the grader.
+
 ## Ten-minute practice
 
 The basic practice is strict:
@@ -116,13 +149,48 @@ The basic practice is strict:
 2. Set a timer for ten minutes, preferably first thing in the morning.
 3. Write continuously in sensory language.
 4. Move through all seven senses.
-5. Follow sensory associations wherever they lead.
+5. Pivot from image to image through the senses — see below.
 6. Stop immediately when the timer ends.
 7. Mine the page later for images, phrases, titles, and emotional turns.
 
 Stopping on time matters. The short container trains speed, access, and trust.
 Object writing is a warmup and a source of material, not the whole songwriting
 process.
+
+## The pivot chain — the mechanism behind "follow the senses"
+
+"Follow sensory associations wherever they lead" is the instruction. The pivot
+chain is the mechanism, and without it a write becomes a static description of
+one scene instead of a dive.
+
+Each image hands off to the next **through a shared sense channel**, not
+through topic, logic, or narrative. Chapter 1 demonstrates it as an unbroken
+run: a physical sensation in one setting suggests a texture, the texture
+suggests a taste, the taste relocates the writer somewhere else entirely, the
+new place produces a sound, the sound produces a body reaction, and so on —
+each link a sense, not an idea. The write ends somewhere the seed could never
+have predicted.
+
+Worked example of the shape (the chain, not Pat's):
+
+```text
+seed: laundromat
+  dryer heat on the forearms          [touch]
+  → the smell of scorched lint        [smell]
+  → burnt-toast mornings              [taste]
+  → the toaster's spring-loaded bang  [hearing]
+  → flinch at the shoulders           [organic]
+  → the floor tilting on a boat deck  [kinesthetic]
+```
+
+Six pivots, six channels, and the write left the laundromat by link three. That
+is working. A write that is still describing the laundromat at ten minutes has
+been staying loyal to the seed.
+
+Diagnostic when a write reads flat: number the images and name the sense
+carrying each handoff. Handoffs carried by topic ("and also in the laundromat
+there was…") are the failure. Handoffs where the sense channel changes are the
+mechanism running.
 
 ## Loyalty to the object
 
@@ -145,6 +213,42 @@ If a story appears because the senses pull the writer there, let it appear. If
 it appears because the writer is trying to control the exercise, return to
 specific sensory detail.
 
+## Specificity calibration
+
+"Be specific" is uncalibrated advice, and an underweight benchmark produces
+underweight writing. Chapter 1's own demonstration passages set the bar much
+higher than the usual generic-to-slightly-less-generic swap: a single short
+recollection carries the named street, the named city, the speaker's exact age,
+the specific garment, what that garment smelled like, and the sound its
+hardware made when the speaker walked.
+
+That is the target density — **five or six independent specifics inside one
+sentence, spread across more than one sense channel.**
+
+Calibration check on any line claiming to be specific:
+
+- Could a stranger name the street, the year, the age, or the brand from this?
+- Does the specificity land on more than one sense, or is it all sight?
+- Is a proper noun doing work, or is it decoration on a generic image?
+- Swap in the generic version — is anything actually lost? If not, the "specific"
+  version was not specific.
+
+Weak calibration is the most common cause of a write that satisfies every rule
+and still reads as nothing in particular.
+
+## Invention is licensed
+
+Chapter 1 is explicit: a song does not have to be accurate autobiography, and
+truth outranks reality. Object writing draws on sense memory, but the write is
+not a deposition — the writer may invent the street, the garment, the age, and
+the weather, so long as the result is sense-bound and specific.
+
+This matters most when the writer is an AI, which has no autobiography to draw
+on. The absence of personal sense memory is **not** grounds to decline the
+exercise or hand it back to the human. Invention that is concrete, sense-bound,
+and specific is the exercise being performed correctly; abstraction and hedging
+are the exercise being refused.
+
 ## What object writing is not
 
 Object writing is not journaling. Journaling can explain, evaluate, remember,
@@ -162,6 +266,23 @@ Group object writing can build range because every writer enters the same word
 through different sense memory. Use shorter rounds for larger groups and longer
 rounds for small groups. Read aloud for image and sensory discovery, not
 critique.
+
+**Same seed, no shared context.** Chapter 1 prints several writers' dives on a
+single common seed word and they are unrecognizable as responses to the same
+prompt. The divergence is the product: each writer enters the word through
+sense memory no one else has. Isolation is what produces it — writers who have
+seen each other's pages converge instead.
+
+**The bar escalates between rounds.** In the documented Sunday-group format the
+strongest write of a round sets the standard the next round writes against.
+Rounds are not independent repetitions; each one raises the floor. Run the
+rounds in sequence and name what made the best write of each round work before
+starting the next.
+
+Both mechanisms transfer directly to multi-agent generation: fan several
+writers out over one seed with none of them seeing the others' output or the
+song in progress, then feed the round's strongest result forward as the
+standard for the next round.
 
 Object-writing parties can use:
 
@@ -301,6 +422,30 @@ Use "who" writing to support point of view and character work. Ask:
 Observation games in public places are useful, but keep them ethical and
 craft-focused. The point is to notice posture, pace, tension, gesture, objects,
 distance, and implied want, then invent responsibly.
+
+### Perspective writes — through the character's senses
+
+Chapter 1 goes further than observing a character: it directs the writer to run
+the object write **inside the character's body**, using that character's senses
+rather than the writer's own. A flight attendant working a short hop, a shelter
+volunteer at closing time — the seven channels stay the same, but every image
+must be one that person could have had.
+
+Pat cites his own examples from Sting's catalog: songs written from a car
+thief's perspective and from a male prostitute's. Neither is autobiography, and
+both are sense-bound throughout.
+
+The discipline:
+
+- Name the character and their situation before the timer starts.
+- Every sensory detail must be reachable from where that character's body is.
+- Their vocabulary, not the writer's — what they would notice, and what they
+  would fail to notice.
+- No narrator commentary on the character from outside.
+
+Perspective writes are the bridge from object writing to
+[point of view](point-of-view.md), and the fastest route out of a catalog of
+writes that all sound like the same speaker.
 
 ## Cataloging the good stuff
 

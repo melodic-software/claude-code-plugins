@@ -3,6 +3,51 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.0]
+
+Source-fidelity pass over three context files, each adjudicated against the
+full text of the chapter it claims to distill rather than against the
+distillation. Paraphrase only.
+
+### Fixed
+
+- **`box-model.md` defined "travelogue" three incompatible ways.** *Writing
+  Better Lyrics* (2009) Chapter 8 defines travelogue as verses with no natural
+  relationship to each other, linked only through the title or chorus, so the
+  boxes accumulate no weight. Verses that do the same job or project the same
+  color are the OPPOSITE failure — Chapter 7's colored-spotlight problem, where
+  the chain is intact and the repainting is missing — and Chapter 8 closes by
+  naming both poles explicitly. The file now separates the two, gives each its
+  own test, and states that equal box weight is a symptom of travelogue rather
+  than a synonym for it. The prior conflation prescribed the wrong fix:
+  division-of-labor shifts for a lyric that needed a causal chain.
+
+### Added
+
+- **`object-writing.md` restores six mechanics present in *Writing Better
+  Lyrics* (2009) Chapter 1 but lost in distillation.** The chapter's own
+  instruction to follow sensory association was carried without the mechanism
+  that produces it, which yields static scene description instead of a dive.
+  Added: the pivot chain (each image handing off through a sense channel, with
+  a worked example and a numbering diagnostic); the seven-channel sense
+  inventory as an acceptance test quoting the write's own phrases, with thin
+  channels reported rather than padded; specificity calibration set at the
+  chapter's actual density rather than a generic-to-less-generic swap;
+  invention explicitly licensed, since the chapter holds that a song is not
+  autobiography and truth outranks reality; the group model's same-seed
+  divergence and its round-over-round escalating bar; and perspective writes
+  run inside a character's senses rather than the writer's.
+
+- **`response-filter.md` §2 gains an unintended-implication box.** A line could
+  pass every existing box — sense-bound, specific noun, strong verb, no cliché,
+  consistent POV — and still assign a character a motive the writer never
+  chose. The check is grounded in Chapter 1's own account of why sense-bound
+  language works: the listener fills the writer's words with their own
+  associations, and that mechanism is not selective, so a more concrete line
+  carries more unintended implication rather than less. Paired with a
+  "nothing without its purpose" box carrying Chapter 10's invocation of
+  Ibsen's rule about the gun in Act I.
+
 ## [0.6.1]
 
 ### Changed
