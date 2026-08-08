@@ -1,5 +1,27 @@
 # Changelog — discovery plugin
 
+## [0.11.1]
+
+### Fixed
+
+- **The plan-mode filter claim bundled two tools under one unconditional rule, and only one of them
+  is unconditional.** `skills/explore/SKILL.md` and `agents/explorer.md` both stated that
+  "`EnterPlanMode` and `ExitPlanMode` are filtered out of every non-fork subagent". Verified
+  2026-08-08 against the official subagent docs, which list the first filter's removals as
+  "`EnterPlanMode`" with no qualifier and "`ExitPlanMode`, unless the subagent's `permissionMode` is
+  `plan`". `ExitPlanMode` carries a carve-out; `EnterPlanMode` does not.
+  - The correction is not an appended qualifier. Attaching the carve-out to the joined sentence
+    would have spread it to `EnterPlanMode`, replacing a claim that is too strong with one that is
+    too weak — and too weak in the direction that matters, since it would imply a dispatched run
+    could enter plan mode. The two tools are now stated separately.
+  - **The surrounding conclusion survives and is now grounded rather than asserted.** Both sites
+    conclude that a dispatched run's read-only boundary is the agent's own instruction, not harness
+    enforcement, and that remains true for a sharper reason: entering plan mode mid-run needs
+    `EnterPlanMode`, which is filtered with no exception, so the only route into plan mode is
+    *starting* there via a definition's `permissionMode: plan` — which is precisely why such a
+    subagent keeps `ExitPlanMode`, as its way back out. `agents/explorer.md` declares no
+    `permissionMode`, so the conclusion now follows from a checkable property of the definition.
+
 ## [0.11.0]
 
 ### Changed

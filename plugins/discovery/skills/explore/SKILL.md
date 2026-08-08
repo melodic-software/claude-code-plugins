@@ -66,7 +66,7 @@ Local counterpart to `/research` (external sources). Together: `/explore` for wh
 
 **Philosophy**: invest in understanding before acting. Reading 20 files takes seconds; fixing a wrong assumption takes minutes to hours. When in doubt, read more code.
 
-**Plan-mode for high-risk exploration (optional, inline only)**: when exploring unfamiliar code in a high-blast-radius area (security boundaries, critical infrastructure, code you might accidentally modify mid-investigation), switch into plan mode for harness-level read-only protection. Routine exploration of well-understood code does not need this. **A dispatched run cannot reach it** — `EnterPlanMode` and `ExitPlanMode` are filtered out of every non-fork subagent — so there the read-only boundary is the agent's own instruction, honored deliberately rather than enforced by the harness.
+**Plan-mode for high-risk exploration (optional, inline only)**: when exploring unfamiliar code in a high-blast-radius area (security boundaries, critical infrastructure, code you might accidentally modify mid-investigation), switch into plan mode for harness-level read-only protection. Routine exploration of well-understood code does not need this. **A dispatched run cannot switch into it** — `EnterPlanMode` is filtered out of every non-fork subagent with no exception, so mid-run entry is impossible. The only route is starting there: `permissionMode: plan` in the agent definition, which is also the sole carve-out on the companion filter (`ExitPlanMode` is filtered "unless the subagent's `permissionMode` is `plan`"). `discovery:explorer` sets no `permissionMode`, so there the read-only boundary is the agent's own instruction, honored deliberately rather than enforced by the harness.
 
 ## Scope
 
