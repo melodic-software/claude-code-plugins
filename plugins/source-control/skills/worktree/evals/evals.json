@@ -112,6 +112,55 @@
         "Renders the non-shell handoff: a Write tool call whose content is the substituted value, into a file under a mktemp -d directory, then --root-file <that file> passed to worktree-create.sh",
         "Treats an unset worktree_root as a successful fallback to <plugin-data-dir>/worktrees delivered through --data-root-file (the value substituted in SKILL.md's body, never read from the environment, which is not per-plugin in a Bash-tool subprocess) rather than a refusal, and preserves the stop-and-surface contract for a genuine exit 3 (no usable root at all, or one inside a repository): guidance surfaced verbatim, nothing created, no EnterWorktree(name: ...) fallback — the helper's status is captured before the temp directory is removed, so the cleanup never masks a refusal"
       ]
+    },
+    {
+      "id": 10,
+      "name": "cleanup-blocks-removal-of-stranded-worktree",
+      "prompt": "/worktree cleanup — this worktree has been sitting for 30 days with no PR, clean tree. Remove it and delete the branch.",
+      "expected_output": "Cleanup reads the stranded-work record before removing anything. A clean tree with unpushed commits whose content is not on the base classifies as STRANDED, so the plain removal is refused: the skill presents the commit count, the base the verdict was computed against, and the commit subjects, then requires explicit per-worktree confirmation naming those commits. It offers `git -C <path> push -u origin HEAD` first as the non-destructive resolution. The override is --acknowledge-stranded, per worktree, never a bare --force. A clean tree is not evidence of safety — `git worktree remove` succeeds on it.",
+      "files": [],
+      "expectations": [
+        "The skill checks whether the worktree's unpushed commits are already on the base BEFORE removing, rather than treating a clean tree or an old commit date as sufficient",
+        "It refuses the removal and asks for explicit per-worktree confirmation naming the at-risk commits",
+        "It offers pushing the branch as the non-destructive resolution",
+        "It does not escalate to --force to get past the guard, and does not treat --force as the acknowledgement"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "branch-delete-carries-the-same-precondition",
+      "prompt": "/worktree cleanup — the worktree directory is already gone, just give me the branch cleanup commands to paste.",
+      "expected_output": "Removal leaves the branch ref intact, so the emitted `git branch -D` is where the commits actually die. The skill emits it only for a branch whose work is landed or ok; for STRANDED, UNKNOWN, or superseded it emits nothing destructive and says why, offering `git -C <path> push -u origin HEAD` instead. A suggested command in a code block reads as vetted, so an unguarded one must not appear at all.",
+      "files": [],
+      "expectations": [
+        "The stranded-work precondition is applied to the emitted git branch -D, not only to the worktree removal",
+        "For stranded or unproven work it emits no branch-deletion command and explains the omission",
+        "It does not present an unguarded git branch -D for the user to paste"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "status-reports-a-work-axis-and-fails-closed",
+      "prompt": "/worktree status — which of these can I safely delete?",
+      "expected_output": "Status reports a Work axis alongside Status, sourced from landed-work.sh. `stale` requires Work to be safe, so a worktree with unpushed unlanded commits is presented as stranded rather than stale, and the summary names the at-risk commit total. When the detection cannot run, the column reads unknown and is treated exactly as stranded — it is never filled in from --branches, @{upstream}..HEAD, or a per-commit patch-id, none of which answer the question (respectively: other branches' commits, nothing at all for a branch with no upstream, and a miss on any multi-commit squash-merge).",
+      "files": [],
+      "expectations": [
+        "The inventory distinguishes worktrees whose removal would destroy commits from those whose would not, rather than reporting only age and PR state",
+        "A stale-looking worktree with unlanded unpushed commits is not presented as safe to delete",
+        "When the detection is unavailable the verdict is reported as unproven and treated as unsafe, not silently substituted with a weaker probe"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "detached-head-worktree-is-not-read-as-empty",
+      "prompt": "/worktree cleanup — there is a detached-HEAD worktree in the list, nothing on any branch. Clean it up.",
+      "expected_output": "A detached-HEAD worktree is the case where removal alone is already terminal: no branch ref holds its commits, so there is nothing to recover from afterwards. The unpushed probe uses `git log HEAD --not --remotes`, never `--branches` — on a detached HEAD `--branches` reports every OTHER branch in the repository and nothing about this worktree's own commits, so the guard reads clean at exactly the moment it matters most.",
+      "files": [],
+      "expectations": [
+        "The unpushed-commit probe is scoped to this worktree's own HEAD rather than to the repository's branches",
+        "The skill recognizes that removing a detached-HEAD worktree loses its commits immediately, with no branch ref left to recover from",
+        "It does not report the worktree as having no unpushed work on the basis of a --branches query"
+      ]
     }
   ]
 }

@@ -269,4 +269,47 @@ run_pwsh "PS: cmd /c git (blocked)" "cmd /c git commit --no-verify" 2
 run_pwsh "PS: Start-Process notepad (no git, allowed)" "Start-Process notepad" 0
 run_pwsh "PS: pwsh -File script (no inline git, allowed)" "pwsh -File build.ps1" 0
 
+# `ps::might_invoke_git` is SHARED with block-dangerous-git, so the constant
+# call-target false positive (#1968) false-blocked the same command twice — once
+# per guard. Covered on both sides so a regression in the shared predicate cannot
+# be caught by only one suite.
+run_pwsh "PS: call-op, double-quoted literal script path (allowed)" \
+  '& "C:\tools\publish.ps1"' 0
+run_pwsh "PS: dot-source, single-quoted literal script path (allowed)" \
+  ". 'C:\\tools\\lib.ps1'" 0
+# shellcheck disable=SC2016
+run_pwsh "PS: call-op, interpolated variable target (fail-closed block)" \
+  '& "$tool" commit --no-verify' 2
+
+# --- Sink remediation TEXT --------------------------------------------------
+# run_pwsh discards stderr, so nothing asserted what the trigger lines actually
+# SAY — and a remediation line that describes a shape it never sees is as much a
+# dead end as no line at all. Both message defects fixed here (#1974 review) were
+# exactly that, and both survived because only the exit code was checked.
+pwsh_stderr() {
+  bash "$HOOK" <<<"$(pwsh_command_json "$1")" 2>&1 >/dev/null
+}
+
+# PowerShell pairs each opener with its own quote, so the terminator named has to
+# follow the opener rather than always being `'@`.
+assert_contains "PS msg: @' opener names the '@ terminator" \
+  "$(pwsh_stderr "$(printf '%s\n%s\n%s' "@'" "body" "'X | git commit --no-verify")")" \
+  "the '@ terminator must start at column 0"
+assert_contains "PS msg: @\" opener names the \"@ terminator" \
+  "$(pwsh_stderr "$(printf '%s\n%s\n%s' '@"' "body" '"X | git commit --no-verify')")" \
+  "the \"@ terminator must start at column 0"
+
+# A literal call target is blocked by the invocation FORM, so the advice must be
+# to drop the operator — not to "invoke the target by its literal name", which is
+# the form the operator already used.
+assert_contains "PS msg: literal call target is told to drop the operator" \
+  "$(pwsh_stderr "& 'git' commit --no-verify")" \
+  "Drop the iex/'&'/'.'"
+assert_absent "PS msg: literal call target is not told to use a literal name" \
+  "$(pwsh_stderr "& 'git' commit --no-verify")" \
+  "Invoke the target by its literal name"
+assert_contains "PS msg: iex of a literal gets the same actionable advice" \
+  "$(pwsh_stderr "iex 'git commit --no-verify'")" \
+  "Drop the iex/'&'/'.'"
+
 report

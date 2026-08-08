@@ -600,4 +600,37 @@ run_pwsh "PS: backslash path-qualified git.exe, safe op (allowed)" \
 run_pwsh "PS: semicolon-adjacent computed call (fail-closed block)" \
   "Write-Host ok;& ('g'+'it') reset --hard" 2
 
+# Call-operator / dot-source of a CONSTANT target (#1968). `& "script.ps1"` is the
+# ordinary PowerShell script-invocation idiom; the sink's git probe used to match
+# any quote character after the operator, so a provably git-free literal path was
+# blocked by a *git* guard. Per PowerShell about_Quoting_Rules a `$`-free
+# double-quoted string and ANY single-quoted string are compile-time constants,
+# so these are statically decidable as non-git.
+run_pwsh "PS: call-op, double-quoted literal script path (allowed)" \
+  '& "C:\tools\publish.ps1"' 0
+run_pwsh "PS: call-op, single-quoted literal script path (allowed)" \
+  "& 'C:\\tools\\publish.ps1'" 0
+run_pwsh "PS: dot-source, double-quoted literal script path (allowed)" \
+  '. "C:\tools\lib.ps1"' 0
+run_pwsh "PS: dot-source, single-quoted literal script path (allowed)" \
+  ". 'C:\\tools\\lib.ps1'" 0
+# The fail-OPEN guard rail on that narrowing: an INTERPOLATING double-quoted
+# target is computed and must still block, and a literal git command word is
+# still caught by name because the git probe runs quote-intact.
+# shellcheck disable=SC2016
+run_pwsh "PS: call-op, interpolated variable target (fail-closed block)" \
+  '& "$tool" reset --hard' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: call-op, interpolated subexpression target (fail-closed block)" \
+  '& "$(Get-Tool)" reset --hard' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: call-op, interpolation inside a longer literal (fail-closed block)" \
+  '& "C:\tools\$ver\thing.exe" reset --hard' 2
+run_pwsh "PS: call-op, double-quoted literal git (blocked by name)" \
+  '& "git" reset --hard' 2
+run_pwsh "PS: call-op, single-quoted literal git (blocked by name)" \
+  "& 'git' reset --hard" 2
+run_pwsh "PS: call-op, quoted literal path whose basename is git (blocked by name)" \
+  '& "C:\Git\cmd\git.exe" reset --hard' 2
+
 report

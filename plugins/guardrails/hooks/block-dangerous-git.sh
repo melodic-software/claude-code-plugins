@@ -87,9 +87,16 @@ INPUT=$(hook::buffer_stdin) || {
 # (additionalContext), once per session — see docs/conventions/hook-observability/.
 hook::require_jq "PreToolUse" "guardrails-block-dangerous-git" "$INPUT"
 
-COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null | tr -d '\r')
+# Both payload fields in ONE jq process (hook::jq_fields), not two. A jq spawn is
+# ~140 ms of fork() emulation on Windows Git Bash and this guard runs on every
+# Bash/PowerShell call. Failure semantics are unchanged: a missing jq or an
+# unparsable payload yields rc 1 here, which exits 0 exactly as the empty-COMMAND
+# skip below did — hook::require_jq above has already made the degraded state
+# visible once per session.
+hook::jq_fields "$INPUT" '.tool_input.command' '.tool_name' || exit 0
+COMMAND="${HOOK_JQ_FIELDS[0]}"
 [[ -n "$COMMAND" ]] || exit 0
-TOOL_NAME=$(printf '%s' "$INPUT" | jq -r '.tool_name // "Bash"' 2>/dev/null | tr -d '\r')
+TOOL_NAME="${HOOK_JQ_FIELDS[1]:-Bash}"
 
 # Above this length the command is not parsed — a pathologically long command is
 # assumed to be obfuscation and blocked FAIL-CLOSED (generous cap; real git
@@ -1073,7 +1080,9 @@ ps::classify_git_command "$TOOL_NAME" "$COMMAND"
 case $? in
 2)
   ps::print_unparsable_git_block_message
-  emit_tel "blocked" "powershell-unparsable"
+  # The trigger rides along in the form token: four distinct shapes reach this
+  # sink, and one collapsed token cannot show which of them is over-blocking.
+  emit_tel "blocked" "powershell-unparsable-${PS_SINK_TRIGGER:-unknown}"
   exit 2
   ;;
 1) exit 0 ;; # non-git PowerShell with an A2b-deferred construct
