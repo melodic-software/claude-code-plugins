@@ -284,9 +284,12 @@ fi
 # hook's fix pass passes --no-unsafe-fixes so the unattended edit-time pass
 # never applies fixes Ruff labels as possibly not intent-preserving. E712's
 # fix (x == True -> x) is such a fix: the comparison must survive and the
-# finding surface as advisory instead.
+# finding surface as advisory instead. The fixture selects E712 rather than
+# relying on it being a default rule — Ruff 0.16.0 dropped it from the default
+# set, and a case that asserts on one rule's fix safety must name that rule.
 REPO_UNSAFE="$WORK/unsafe-fixes"
-new_ruff_repo "$REPO_UNSAFE" 'unsafe-fixes = true'
+new_ruff_repo "$REPO_UNSAFE" 'unsafe-fixes = true
+lint.select = ["E712"]'
 printf 'x = 1\nif x == True:\n    pass\n' >"$REPO_UNSAFE/u.py"
 OUT=$(run_hook "$REPO_UNSAFE/u.py")
 RC=$?
