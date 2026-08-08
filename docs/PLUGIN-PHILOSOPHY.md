@@ -495,6 +495,35 @@ verified 2026-08-08). Four rules follow:
   enforces policy survives ablation; a hook that corrects model behavior is an ablation candidate
   like any prose instruction.
 
+### Classifying a hook
+
+The standing rubric for the classification the durable-tier rule requires — first applied across
+this marketplace's 44 wired hook entries in the 2026-08 audit (issue #2021), and the pass any
+consumer repo can run over its own hook surface at each generation-triggered ablation. Score every
+wired hook entry on two independent axes:
+
+- **Mechanism** — what the hook does structurally: deny-gate (blocks a tool call), context-injection
+  (adds text to the model's context), deterministic-transform (edits an artifact, model not in the
+  loop), or notification/infra (output goes to a human or a log, not the model).
+- **Class** — why the hook exists: **policy** (an invariant you would keep with a perfect model —
+  security, team convention, irreversibility protection); **behavioral** (corrects model behavior a
+  better model gets right unaided); or **hybrid** (both — name the split explicitly, because the
+  remediation is a trim or a narrowing, never whole-hook deletion).
+
+Mechanism never implies class. A context-injection can be pure policy (relaying a linter's measured
+findings), and a deny-gate can be behavioral (a block whose predicate is a guess about model
+competence rather than a checkable invariant).
+
+One nuance does the most work: a hook with a *behavioral purpose* but a *non-derivable ground-truth
+oracle* — diffing written flags against a binary's live `--help`, globbing the live plugin tree
+after a rename, querying git history for a path's disappearance — is a keep, not an ablation
+candidate. It corrects hallucination with machine ground truth no model can know unaided, so "it
+corrects the model" alone is never the delete criterion; "the model could derive this itself" is.
+
+Remediation follows the evidence gate above: config-disable first where a kill switch exists,
+delete only with recorded rationale; a hybrid gets its behavioral surface trimmed while its policy
+residue stays; and the security carve-out below overrides every row of the rubric.
+
 Model-capability claims never relax the security posture. Injection resistance in current models is
 measurably better but bounded and hedged in the primary sources; the plugin-acceptance security
 review's deny-by-default stance on egress and trust delegation is policy, not a model-era
