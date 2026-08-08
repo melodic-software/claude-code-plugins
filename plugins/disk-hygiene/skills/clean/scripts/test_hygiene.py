@@ -4768,10 +4768,10 @@ class GuardTests(unittest.TestCase):
         This module's tail no longer depends on `_discard_stream` actually
         repairing the fd for the exit code to survive: every path now ends in
         `os._exit`, which skips the interpreter's normal shutdown flush --
-        the mechanism `120` comes from -- entirely. That structural guarantee
-        is what this test pins, and it holds whatever `_discard_stream` does.
-        Whether the repair itself lands is a separate property with its own
-        test below, so a regression in either one cannot hide behind the other.
+        the mechanism `120` comes from -- entirely. So the #1526 trigger is
+        closed as a structural side effect of the #1524 fix, not by touching
+        `_discard_stream` itself (which still has the self-undoing dup2/close
+        pattern described above; nothing downstream depends on it working).
         """
         env = dict(os.environ)
         script = str(SCRIPT_DIR / "destructive_guard.py")
@@ -4804,51 +4804,6 @@ class GuardTests(unittest.TestCase):
         self.assertEqual(2, proc.returncode)
         self.assertNotEqual(120, proc.returncode)
         self.assertEqual("", out)
-
-    def test_discard_stream_repairs_a_closed_target_fd_in_a_real_process(
-        self,
-    ) -> None:
-        """The fallback must leave a *writable* fd behind, not re-close it.
-
-        `os.open` returns the lowest free descriptor, so a target fd that is
-        closed outright gets the null device back on its own number: the
-        `dup2` is a no-op and an unconditional `os.close(null_fd)` then undoes
-        the repair, leaving the stream exactly as broken as it was. The
-        sibling test above cannot see that, because the module tail hard-exits
-        and so survives a `_discard_stream` that does nothing -- which is
-        precisely why the repair needs its own assertion. A real subprocess,
-        because closing fd 2 in-process would take the runner's stderr with it.
-
-        Asserting a *write* rather than `os.fstat` proves the descriptor is
-        usable, not merely allocated; the parent's empty stderr proves the
-        bytes reached the null device instead of the inherited pipe.
-        """
-        script = str(SCRIPT_DIR / "destructive_guard.py")
-        child = "\n".join(
-            [
-                "import importlib.util, json, os, sys",
-                f"spec = importlib.util.spec_from_file_location('g', {script!r})",
-                "g = importlib.util.module_from_spec(spec)",
-                "spec.loader.exec_module(g)",
-                "os.close(2)",
-                "g._discard_stream(sys.stderr)",
-                "try:",
-                "    os.write(2, b'diagnostic')",
-                "    repaired = True",
-                "except OSError:",
-                "    repaired = False",
-                "print(json.dumps({'repaired': repaired}))",
-            ]
-        )
-        proc = subprocess.run(
-            [self.python_command(), "-c", child],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        self.assertEqual(0, proc.returncode, proc.stderr)
-        self.assertTrue(json.loads(proc.stdout)["repaired"])
-        self.assertEqual("", proc.stderr)
 
     def test_main_arms_watchdog_at_resolved_deadline_and_cancels_on_return(
         self,

@@ -81,14 +81,16 @@ a target prompt has no tier or path list to name and cannot be held to a bar bui
 fabricated. It is not always usable, in two distinct ways — a bare-name `permissions.deny` rule or a
 `disallowed-tools` entry removes it from context entirely, while permission mode `dontAsk` denies it
 even when an allow rule names it, leaving it visible and every call failing. Fall back to the same
-question asked inline as a numbered choice whenever the tool is absent **or** its use is denied; a
-denied call is an unanswered question, never an answer. Then wait for the reply.
+question asked inline as a numbered choice whenever the tool is absent, denied, **or otherwise
+unusable** — including a denial discovered only by calling it; a denied call is an unanswered
+question, never an answer. Then wait for the reply.
 
 **The floor — every question.** Take the user's own answer, given in this interactive session. Never
 supply, infer, or fabricate it: a prior general request, `--execute`, "clean everything", approval of
 another tier, or silence is not an answer. On rejection, stop.
 
-**What the answer must name — per question.**
+**What the answer must name — per question.** Ask each question so it shows what its row requires
+the answer to name; a bar naming something the question never presented cannot be met.
 
 | Question | Accept only an answer naming |
 |---|---|

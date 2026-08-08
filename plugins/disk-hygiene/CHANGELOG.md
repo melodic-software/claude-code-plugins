@@ -20,28 +20,19 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   answer must *name* is now stated per question — a directory for target selection, the target plus a
   deliberate unbounded walk for scan scope, the exact tier and path list for removal and the manual
   handoff. §1's and §6's cross-references now name their row instead of asserting the deletion bar
-  applies unchanged.
+  applies unchanged, and the gate states the obligation that generated the defect: ask each question
+  so it shows what its row requires the answer to name.
 
 - **The confirmation gate fell back to an inline question only when `AskUserQuestion` was
   *absent*.** Permission mode `dontAsk` "auto-denies tools unless pre-approved … `AskUserQuestion` …
   denied even if you've allowed them"
-  ([permissions](https://code.claude.com/docs/en/permissions), fetched 2026-08-06), which leaves the
+  ([permissions](https://code.claude.com/docs/en/permissions), fetched 2026-08-08), which leaves the
   tool visible in the pool while every call fails; only a bare-name deny rule "removes the tool from
   Claude's context entirely". Absence and denial are therefore distinct states, and keying the
   fallback on absence let a `dontAsk` session pick a tool it cannot use and leave the destructive
-  confirmation gate unsatisfied rather than asking inline. The fallback now triggers on absent **or**
-  denied, and says so as two named cases.
-
-- **`_discard_stream` re-closed the descriptor it had just repaired.** `os.open` returns the lowest
-  free descriptor, so when the guard's stderr fd is closed outright rather than merely broken, the
-  null device lands on that same number, `dup2` becomes a no-op, and the unconditional
-  `os.close(null_fd)` in the `finally` undid the repair — leaving the stream exactly as broken as
-  before. Verified against the pre-fix tree: a subprocess that closes fd 2 and calls
-  `_discard_stream(sys.stderr)` still has an invalid fd 2 afterwards. The module's `os._exit` tail
-  means no live exit-status regression rode on this, so the correction is defense in depth: the
-  fallback now closes the opened descriptor only when it is not the destination, and a new test
-  asserts fd 2 is *writable* after the repair rather than asserting the exit code that survives
-  regardless.
+  confirmation gate unsatisfied rather than asking inline. The fallback now triggers on absent,
+  denied, **or otherwise unusable** — including a denial discovered only by calling it — so a state
+  neither named case anticipates still routes to the inline question.
 
 - **The `python3` alias probe could not be reached on a machine whose only alternate interpreter
   cannot run it.** `setup` step 1(b) classifies the `python3` resolution with a bundled inspect-only
