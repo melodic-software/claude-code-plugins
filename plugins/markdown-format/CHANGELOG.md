@@ -7,13 +7,15 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
 
 ### Added
 
-- **A gitignored file is neither rewritten nor reported on (#1809 follow-up).** The 0.9.0
-  config gate spared repositories that carry no markdownlint config, but a repository that HAS
+- **A gitignored file is neither rewritten nor reported on.** The 0.9.0 config gate (#1809)
+  spared repositories that carry no markdownlint config, but a repository that HAS
   one still had its gitignored scratch tier formatted and linted on every edit — one reported
   session took ~35,000 characters of MD013 findings on `.work/**` working notes that are deleted
-  at the end of the task and never reviewed. The hook now consults the repository's own
-  `.gitignore` (via `git check-ignore`) and skips such a file before invoking `markdownlint-cli2`,
-  so the rewrite and the report both stop. Same doctrine as `bash-format`'s `--apply-ignore` work
+  at the end of the task and never reviewed. The hook now asks `git check-ignore` and skips such
+  a file before invoking `markdownlint-cli2`, so the rewrite and the report both stop. That is
+  git's full exclude machinery, not `.gitignore` alone: every `.gitignore` up to the repository
+  root, `$GIT_DIR/info/exclude`, and the user's global `core.excludesFile`. Same doctrine as
+  `bash-format`'s `--apply-ignore` work
   (#1817): the consumer's existing declarative scope statement is honored on the hook's
   direct-file invocation rather than a plugin-specific ignore-glob key being invented. The
   mechanism differs because the tools do — `shfmt` needs a flag to apply `.editorconfig`

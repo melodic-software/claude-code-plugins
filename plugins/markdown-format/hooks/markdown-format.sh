@@ -243,13 +243,15 @@ if ! markdownlint_config_discoverable "$FILE" "$REPO_ROOT"; then
   exit 0
 fi
 
-# Path-scope escape (#1809 follow-up): a file the repository's own .gitignore
-# excludes is not part of the reviewable artifact — a scratch/working tier such
+# Path-scope escape, the half the 0.9.0 config gate (#1809) did not cover: a
+# file git excludes is not part of the reviewable artifact — a scratch tier such
 # as `.work/**` holds notes that are deleted at the end of a task and never
 # reviewed — so rewriting it produces a diff nobody reads, and REPORTING on it
-# spends context on a file whose style nobody chose. The gitignore declaration
-# the repository already carries is the scope statement; this hook reads it
-# rather than asking for a second one.
+# spends context on a file whose style nobody chose. The exclude rules the
+# consumer already carries are the scope statement; this hook reads them rather
+# than asking for a second one. `git check-ignore` is the whole of git's exclude
+# machinery, not `.gitignore` alone: every `.gitignore` up to the repository
+# root, $GIT_DIR/info/exclude, and the user's global core.excludesFile.
 #
 # Asked from the FILE'S OWN directory, with a bare relative name. Two reasons,
 # both load-bearing:

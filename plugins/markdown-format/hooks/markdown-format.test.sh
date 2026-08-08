@@ -1921,7 +1921,7 @@ fi
 # needed) puts it in the index.
 SC_FORCED="$SCOPE/.work/tracked-scratch.md"
 printf '%s' "$SCOPE_BODY" >"$SC_FORCED"
-git -C "$SCOPE" add -f .work/tracked-scratch.md
+git -C "$SCOPE" add -f .work/tracked-scratch.md 2>/dev/null
 OUT_SF=$(run_scope "$SC_FORCED")
 if grep -q '^- star item$' "$SC_FORCED" &&
   printf '%s' "$OUT_SF" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null |
