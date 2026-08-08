@@ -594,6 +594,17 @@ the adaptive cap.
 start; new automated intake arriving mid-cycle is **reported, never chased**, so an item-producing
 bot cannot hold a drain open indefinitely.
 
+**Autonomous-pipeline reminder.** An autonomous lane carries a standing reminder against the two
+stopping failures a pipeline cannot recover from: a turn ending on unexecuted intent, and a turn
+stopping to ask permission nobody is there to give. The clause set, the shapes that must be acted on
+rather than ended on, and its provenance live in the `autonomy` plugin's
+`reference/autonomous-pipeline-reminder.md`, which is also what an adopting org drops into its own
+pipeline — this doc points at it rather than restating it, per **Pointer-not-copy**. Two boundaries
+belong here rather than there: an **attended** lane deliberately does not carry it, because
+"recommend, then wait for my direction" is the opposite posture; and the `lane-stop-gate` hook
+mechanizes exactly one of its clauses, so the reminder is not redundant with a lane that has the
+gate armed.
+
 **Subagent discipline preamble.** Every subagent a lane dispatches carries a standing discipline
 preamble, because a dispatched subagent runs in a fresh, non-inherited context: it inherits no
 posture from the cycle root's own sweep and has to set its own. When the `discipline` plugin is
