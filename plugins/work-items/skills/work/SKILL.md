@@ -193,9 +193,11 @@ remains the atomic acquisition point, attended or not.
 
 ### Step 4: Staleness pre-check
 
-Before claiming, verify the item is still actionable:
+Before claiming, verify the item is still actionable — check every concrete referent the item
+names (files, tests, symbols, config keys, doc sections, linked issues/PRs, URLs); the bullets
+below are examples, not the list:
 
-- If it references a file to modify: check the file exists and the item is still relevant.
+- If it references a file to modify: check each named file exists and the item is still relevant.
 - If it references a test to add: check whether similar tests already exist.
 - If stale (work already done): close it with a comment (adapter: "Close item") and advance to the next candidate.
 

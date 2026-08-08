@@ -1,6 +1,6 @@
 ---
-version: 1.16.0
-last-updated: 2026-08-04
+version: 1.19.0
+last-updated: 2026-08-08
 ---
 
 # Instruction-Audit Criteria
@@ -33,6 +33,18 @@ one and a staleness signal is not something to resolve by picking the narrower a
 The requirement **binds on touch**, per the convention above: rows predating this rule keep their
 citations as they are and adopt the four parts the next time they change. A missing stamp on an
 older row is therefore not itself a defect in this catalog.
+
+**Admission.** A row's observable must be **anchored to text that is present**. A check detects a
+passage a surface actually contains — either what it says, or an attribute it lacks while saying it.
+I6 (a prohibition carrying no rationale marker) and I7 (a request stating no motivation) are the
+anchored form: each names a line you can point at and judges what is missing *from that line*. What
+is refused is the **unanchored** form — an obligation that a surface *should say* something, where
+the finding points at no passage at all and the population is every file lacking the pattern. A
+proposed Detect clause reading "a surface that does not …", with no passage to cite, is refused on
+shape before its source is weighed, however well sourced. Such guidance routes to doctrine or to a mechanism instead, and an audit that
+declines a row on this ground says where it routed, so "no row" never reads as "not covered". In this
+monorepo the rule and its reasoning are `docs/adr/0008-admit-only-present-text-defects-to-the-instruction-audit-catalog.md`;
+in a standalone install the rule, not the path, is the requirement.
 
 **Axes.** Three orthogonal axes, never conflated:
 
@@ -78,7 +90,7 @@ non-memory surfaces (skill bodies, agent definitions, hook instruction text, out
 memory-layer surfaces (CLAUDE.md, CLAUDE.local.md, `.claude/rules/`, `~/.claude/rules/`) their
 findings route to the `claude-memory` plugin's `audit` skill when it is installed, and fall back
 to the official include/exclude guidance (I1–I5 source below) when it is not. Checks I6–I12 and
-I15–I22 apply to all surfaces; I13 and I14 name narrower surface sets in their own rows.
+I15–I27 apply to all surfaces; I13 and I14 name narrower surface sets in their own rows.
 
 ## Sources
 
@@ -91,6 +103,8 @@ I15–I22 apply to all surfaces; I13 and I14 name narrower surface sets in their
   <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5>
 - Prompting Claude Sonnet 5 —
   <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5>
+- Prompting Claude Opus 4.8 —
+  <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-4-8>
 - The new rules of context engineering for Claude 5 generation models (vendor blog, published
   2026-07-24 — corroborates I6 from the model-delta side and I15 from the reasoning-cost side; a
   dated post, static once published, so a recheck is expected to find it unchanged; it corroborates
@@ -120,8 +134,12 @@ I15–I22 apply to all surfaces; I13 and I14 name narrower surface sets in their
 - Troubleshooting thinking (the per-request 400s, the models the effort restriction covers, and the
   internal-tag leakage a don't-think directive worsens) —
   <https://platform.claude.com/docs/en/build-with-claude/thinking-troubleshooting>
-- Model migration guide (the model ranges over which manual extended thinking is rejected) —
+- Model migration guide (the model ranges over which manual extended thinking is rejected, and
+  the ranges over which non-default sampling parameters are rejected) —
   <https://platform.claude.com/docs/en/about-claude/models/migration-guide>
+- What's new in Claude Sonnet 5 (the sampling-parameter constraint's arrival on the Sonnet class,
+  the new tokenizer, and the launch behavior changes) —
+  <https://platform.claude.com/docs/en/about-claude/models/whats-new-sonnet-5>
 - Effort (the levels, `high`'s equivalence to omitting the parameter, the carry-over sweep advice,
   and where thinking may not be disabled) —
   <https://platform.claude.com/docs/en/build-with-claude/effort>
@@ -265,8 +283,9 @@ so this fires for every target model.
 
 Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surfaces: all.
 
-The base row and rows I8-a, I8-c, I8-d and I8-e carry their own `Model scope` (single-model guide
-sources; promotion gate unmet). Row I8-b is unscoped — two model guides converge on it (see the row).
+The base row and rows I8-a, I8-c and I8-d carry their own `Model scope` (single-model guide
+sources; promotion gate unmet). Rows I8-b and I8-e are unscoped — two model guides converge on
+each (see the rows).
 
 **Base row** · Model scope: `fable-5`.
 
@@ -289,13 +308,22 @@ sources; promotion gate unmet). Row I8-b is unscoped — two model guides conver
   "Parallel subagents" — "Claude Fable 5 dispatches parallel subagents more readily than prior
   models. Use subagents frequently … and prefer asynchronous communication between orchestrator and
   subagents over blocking until each subagent returns."
+- **The general principle, and why it is cited separately.** Both sentences above sit in sections
+  about *migrating* older material, and a reader taking them as the whole basis sweeps for what
+  looks like leftover prior-model scaffolding — walking straight past freshly authored
+  over-enumeration, which is the same defect with no legacy provenance to recognize it by. The
+  principle is stated on its own in "Strong instruction following": "Instruction-following is
+  improved enough that you can steer most behaviors with a brief instruction rather than enumerating
+  each behavior by name," and that guide's own worked case is a *newly written* brevity
+  instruction replacing a list of patterns, not a migration. **Age is not an element of this row.**
+  Detect over-enumeration wherever it was written and whenever.
 
 **Row I8-a: instructed self-check removal** · Tier `behavioral` · Model scope: `opus-5`.
 
 - **Detect:** instructions telling the model to re-check work it already checks — "double-check
-  your answer," "re-verify before responding," "include a final verification step," "use a
-  subagent to verify" — including legacy harness scaffolding that adds separate verification
-  steps.
+  your answer," "re-verify before responding," "include a final verification step for any
+  non-trivial task," "use a subagent to verify" — including legacy harness scaffolding that adds
+  separate verification steps.
 - **Classify by reviewer INDEPENDENCE, not invocation source:** architected independent review — a
   fresh-context reviewer blind to the producing rationale, or a different-vendor verifier — is NOT
   a finding; the anti-pattern is the instructed self-check. **Carve-out lanes (never flagged):**
@@ -306,10 +334,21 @@ sources; promotion gate unmet). Row I8-b is unscoped — two model guides conver
   instructions: they "cause over-verification on Claude Opus 5, and removing them reduces wasted
   tokens with no loss in quality"; "Self-correction" — avoid instructing re-checks it already
   performs.
+- **The independence carve-out is corroborated by a second guide, and the scope does not move.** The
+  Fable 5 guide reaches the same line from the opposite direction: it asks for self-verification to
+  be made explicit on long runs, and states that "separate, fresh-context verifier subagents tend to
+  outperform self-critique" ("Recommended scaffolding changes"). Read without that sentence, the two
+  guides look contradictory — remove verification instructions, versus add them — and a reader has to
+  resolve it alone. They are not: the anti-pattern is the instructed **self**-check, and an
+  architected independent verifier is the thing the Fable 5 guide is asking for. **This does not meet
+  the promotion gate**, because the gate wants a second guide stating this row's *detection* claim —
+  that verification instructions cause over-verification — and the Fable 5 guide states no such
+  thing. The scope annotation stands; only the carve-out gains a second source.
 
 **Row I8-b: conservative-reporting detection** · Tier `behavioral`. Unscoped — promotion gate MET
-on its second arm: a second model guide, the Sonnet 5 one, states the same claim about the same
-three trigger phrases (see Source), so this fires for every target model.
+on its second arm: a second model guide, the Sonnet 5 one, states the same claim about the shared
+trigger phrases (two of the three; see Source for the third's provenance), so this fires for every
+target model.
 
 - **Detect:** review/report instructions that gate severity at the FINDING stage — "be
   conservative," "only report high-severity issues," "don't nitpick" — which current models follow
@@ -339,10 +378,15 @@ three trigger phrases (see Source), so this fires for every target model.
   second model guide (the gate-meeting one): Sonnet 5 guide, "Code review harnesses" — on the same
   three phrases, "Claude Sonnet 5 may follow that instruction more faithfully than earlier models
   did: it may investigate the code just as thoroughly, identify the bugs, and then not report
-  findings it judges to be below your stated bar." That guide is also the only cited home of the
-  third trigger phrase — **"don't nitpick" appears nowhere in the Opus 5 guide** — and it states
-  the Remediate line's concrete-bar half: "be concrete about where the bar is rather than using
-  qualitative terms like `important`."
+  findings it judges to be below your stated bar." The third trigger phrase — **"don't nitpick",
+  which appears nowhere in the Opus 5 guide** — is stated in the Sonnet 5 guide and again in the
+  Opus 4.8 guide ("Code review harnesses"), which repeats the claim, the coverage prompt, and the
+  concrete-bar half near-verbatim for its own model; the Sonnet 5 guide states that half as: "be
+  concrete about where the bar is rather than using qualitative terms like 'important'" (the
+  upstream page double-quotes the word). (Opus 4.8 corroboration verified 2026-08-08 against that
+  guide's raw `.md`, 15,905 bytes, MD5 `6b9db5b784ad6a7b2e6307c1481b8be9`; the gate was already met
+  without it. The "nowhere in the Opus 5 guide" negative re-verified 2026-08-08 against the Opus 5
+  guide's raw `.md` — zero occurrences of "nitpick".)
 
 **Row I8-c: don't-think / don't-reason directive** · Tier `behavioral` · Model scope: `opus-5`.
 **The scope is positively confirmed narrow rather than merely unsourced.** A second page states the
@@ -380,20 +424,21 @@ choice, on the same reasoning I10 applies to a declined widening.
 
 **Row I8-d: short-turn assumptions** · Tier `behavioral` · Model scope: `fable-5`.
 
-- **Detect:** instruction text resting on the premise that a turn is short — a forced interim-status
-  cadence ("summarize every N tool calls", "check in after each file"), a directive to answer
+- **Detect:** instruction text resting on the premise that a turn is short — a directive to answer
   quickly or keep turns brief, or any required progress rhythm pinned to a turn rather than to the
   work. Individual requests now run for many minutes at higher effort and autonomous runs for hours,
   so a rhythm calibrated to the old turn length fires as noise on work that has not reached a
   reportable boundary, and it interrupts precisely the long uninterrupted runs the model is being
   used for.
-- **The cadence arm is reached on a different target by I8-e**, which is scoped `sonnet-5` and rests
-  on that guide's directly stated claim rather than on this row's duration premise. The two never
-  co-fire — exact-match scoping means at most one is live in a run — so the overlap is deliberate
-  coverage of one instruction shape from the two guides that reach it, not a row to deduplicate.
-- **Remediate:** name the guarantee the cadence was protecting — that the user can see progress,
-  that a long run stays interruptible — and either state that outcome and let the model meet it, or
-  move it to a mechanism rather than an instructed rhythm. Verify via the delete-and-watch loop.
+- **The forced interim-status cadence shape is owned fleet-wide by I8-e**, which is unscoped since
+  its promotion gate met (see that row) and rests on two guides' directly stated claim rather than
+  on this row's duration premise. To keep one finding per line, a cadence instruction reports as
+  I8-e on every target; this row keeps the remaining short-turn shapes — the answer-quickly
+  directive, and a non-status rhythm pinned to a turn rather than to the work.
+- **Remediate:** name the constraint the brevity or rhythm was protecting — a latency requirement,
+  an external contract, a human process — and where one exists, state that constraint instead of
+  the turn-length assumption; where none exists, remove the directive and let turn length follow
+  the work. Verify via the delete-and-watch loop.
 - **Bounded by:** the **Stopping condition** below, which is enabled by default.
 - **Must NOT flag: an output-length instruction.** Brevity of the *reply* is a different subject and
   belongs to I8 base; this row's subject is the cadence and duration of the *turn*.
@@ -403,11 +448,6 @@ choice, on the same reasoning I10 applies to a declined widening.
 - **Must NOT flag: a document *about* the pattern** — this row, a model-adaptation delta chapter
   counter-steering it for a different model, a verification record quoting it — on the same audience
   test I8-b applies.
-- **Must NOT flag: a cadence carrying its own explicit observability or interruptibility
-  rationale** — a rhythm the surface states exists so a long autonomous run stays visible or
-  interruptible names the very guarantee the Remediate line protects, and that design is the
-  surface's to make — unless evidence shows the cadence was calibrated to an obsolete turn length
-  rather than to the work.
 - **Scope, and what is deliberately outside it:** the guide pairs this behavior with advice to adjust
   **client timeouts, streaming, and progress indicators** before migrating. That half is harness
   client configuration rather than instruction content, so it is not audited here and no row claims
@@ -417,19 +457,19 @@ choice, on the same reasoning I10 applies to a declined widening.
   for many minutes at higher effort settings … and autonomous runs can extend for hours. This is one
   of the largest shifts teams encounter when adjusting to Claude Fable 5."
 
-**Row I8-e: forced interim-status cadence** · Tier `behavioral` · Model scope: `sonnet-5`.
+**Row I8-e: forced interim-status cadence** · Tier `behavioral`. Unscoped — promotion gate MET:
+two model guides state the claim (see Source).
 
-**Why scoped, when a sibling row reaches the same instruction shape.** The promotion gate wants two
-model guides *stating* the claim. Only the Sonnet 5 guide states it — that the model already reports
-well, so the scaffolding is redundant. I8-d reaches the same shape on a Fable 5 target, but by
-**inference** from that guide's turn-duration premise: the Fable 5 guide's "Longer turns by default"
-section prescribes adjusting client timeouts and progress indicators and says nothing about removing
-instructed status cadence, and elsewhere that guide recommends *adding* a send-to-user progress
-mechanism. An inference is a legitimate ground for a scoped row and is not a second statement, so
-the gate is unmet and this row stays scoped rather than firing fleet-wide. **The two rows never
-co-fire** — exact-match scoping leaves at most one live in a run — so the overlap with I8-d is
-deliberate coverage of one instruction shape from the two guides that reach it, not a row to
-deduplicate.
+**Why unscoped, and when that changed.** This row shipped scoped `sonnet-5`, because only the
+Sonnet 5 guide *stated* the claim — that the model already reports well, so the scaffolding is
+redundant — while I8-d reached the same shape on a Fable 5 target only by inference from that
+guide's turn-duration premise, and an inference is not a second statement. The row's own recheck
+trigger — "any second model guide stating the claim" — fired: the Opus 4.8 guide's "User-facing
+progress updates" section states the same claim, with the same worked example and the same
+removal advice, near-verbatim. Gate met, row unscoped (2026-08-08). The Fable 5 guide's verified
+negative below still stands as a reading of that guide; it is no longer load-bearing for scope.
+**This row now owns the cadence shape on every target** — I8-d cedes it (see that row) so the two
+report one finding per line rather than two.
 
 - **Detect:** an instruction requiring interim status output on a fixed mechanical interval. The
   guide's own example is "After every 3 tool calls, summarize progress"; equivalents this row also
@@ -461,15 +501,19 @@ deduplicate.
   force interim status messages ("After every 3 tool calls, summarize progress"), try removing it."
   That guide also supplies the Remediate line's second half: where updates are miscalibrated,
   "explicitly describe what these updates should look like in the prompt and provide examples."
-- **Verified 2026-08-04** against two pages, both fetched as raw markdown. Positive: the Sonnet 5
-  guide (15,864 bytes, MD5 `6d23959f0ed226feb06bf20c314029e3`, byte-identical to a 2026-07-29
-  capture) for the quoted claim. **Verified negative:** the Fable 5 guide, read in full for this
-  row — "Longer turns by default" prescribes only client-side adjustments, no section prescribes
-  removing instructed status cadence, and "Create a send-to-user tool" runs the other way. That
-  negative is what holds the scope annotation on, so it carries its own stamp rather than resting on
-  a reading recorded elsewhere. **Recheck trigger:** the Sonnet 5 guide ceasing to prescribe removal
-  of forced status scaffolding, or any second model guide stating the claim — the Fable 5 guide
-  included — which would meet the promotion gate and unscope this row.
+  Convergent second model guide (the gate-meeting one): Opus 4.8 guide, "User-facing progress
+  updates" — "Claude Opus 4.8 provides more regular, higher-quality updates to the user throughout
+  long agentic traces. If you've added scaffolding to force interim status messages ("After every 3
+  tool calls, summarize progress"), try removing it."
+- **Verified 2026-08-08** against both gate sources, fetched as raw markdown: the Sonnet 5 guide
+  (15,864 bytes, MD5 `6d23959f0ed226feb06bf20c314029e3`, byte-identical to 2026-07-29 and
+  2026-08-04 captures) and the Opus 4.8 guide (15,905 bytes, MD5
+  `6b9db5b784ad6a7b2e6307c1481b8be9`). The 2026-08-04 **verified negative** on the Fable 5 guide —
+  "Longer turns by default" prescribes only client-side adjustments, no section prescribes removing
+  instructed status cadence, and "Create a send-to-user tool" runs the other way — was re-verified
+  2026-08-08 against that guide's raw `.md` and is retained as a reading of that guide, no longer
+  load-bearing for scope. **Recheck trigger:** either gate source ceasing to prescribe removal of
+  forced status scaffolding, which re-opens the scoping question.
 
 ### I9: Example hygiene
 
@@ -924,6 +968,39 @@ ranges below are Detect conditions, not a `Model scope` annotation**, for the re
   set of models that always use adaptive reasoning changing, `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING`
   regaining or losing reach, or manual extended thinking being reinstated on any model in the range.
 
+**Row I17-d: tool reliance with thinking disabled and no explicit tool nudge** · Tier `behavioral` ·
+Severity `warning` · Model scope: `sonnet-5`.
+
+- **Detect:** a surface that both (a) prescribes running with thinking off — any thinking-disable
+  surface I17 base enumerates, or a workload the surface states runs thinking-disabled — and (b)
+  depends on the model reaching for tools (search, retrieval, self-verification loops, agentic tool
+  chains) while stating no explicit instruction about when and how to use those tools. The guide
+  states the coupling and its remedy in one sentence: "With thinking disabled, the model is less
+  likely to reach for tools or consider searching; if you rely on tool calls with thinking off, add
+  an explicit nudge in the system prompt." A brief that turns thinking off and then relies on
+  default tool reach depends on a disposition that configuration reduced, and the failure is
+  silent — fewer tool calls, not an error.
+- **Remediate:** add the explicit nudge the sentence above prescribes — describing which tools,
+  when, and why — or leave thinking on. Effort is a second lever: "`high` or `xhigh` effort
+  settings show substantially more tool usage in agentic search and coding."
+- **Must NOT flag:** a thinking-disable with no tool dependence. A tool-dependent surface that
+  already instructs its tool use explicitly — that is the remediation, present. A surface with no
+  control over and no claim about the thinking configuration, whose tool reliance runs under the
+  default (thinking on). A document *about* the pattern — this row, a model-adaptation delta
+  chapter, a verification record — on the audience test I8-b applies.
+- **Why scoped:** the coupling claim is stated only in the Sonnet 5 guide. The Opus 4.8 guide's
+  "Tool use triggering" section states a different default for its model — "a tendency to favor
+  reasoning over tool calls" — with no thinking-off coupling, so it is not a second statement of
+  this claim; the halves the two guides do share (effort as a tool-usage lever, describe-why-and-how
+  tool instruction) are general advice, not this row's detect condition.
+- **Source:** Sonnet 5 guide, "Tool use triggering" — the sentence quoted above, plus the
+  effort-lever sentence.
+- **Verified 2026-08-08** against the Sonnet 5 guide (15,864 bytes, MD5
+  `6d23959f0ed226feb06bf20c314029e3`) and, for the scope negative, the Opus 4.8 guide (15,905
+  bytes, MD5 `6b9db5b784ad6a7b2e6307c1481b8be9`), both fetched as raw markdown. **Recheck
+  trigger:** a second model guide stating the thinking-off tool-reach coupling, which would meet the
+  promotion gate and unscope this row.
+
 ### I18: Thinking blocks altered on the way back to the model
 
 Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `error` · Surfaces: all. Unscoped —
@@ -1223,6 +1300,238 @@ by `--opinion`.
   I19, and it adds no Sources entry for the same reason. The four-part shape it asks for is this
   monorepo's `docs/conventions/upstream-drift/README.md`; in a standalone install the four parts, not
   the path, are the requirement.
+
+### I23: Context-budget directive to stop, summarize, or hand off
+
+Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surfaces: all · Model scope:
+`fable-5` (sourced from that guide alone; promotion gate unmet).
+
+**The tier keys on the ground truth of the defect, not of the detection.** The phrasing is statically
+readable, which tempts a `mechanical` tag — but I8-b's Detect is a literal three-phrase match and is
+even seeded in the pre-scan, and it is `behavioral`. The `mechanical` rows rest on a documented hard
+consequence: I10 on a refusal category the API returns, I21 on a property its page states outright.
+This row rests on a reported model *tendency* — "can occasionally suggest a new session" — with no
+documented hard consequence, which is the behavioral tier's definition. The stake is the Output
+format rule: behavioral findings ship as proposals paired with the delete-and-watch loop, never as
+confident removals.
+
+- **Detect:** instruction text directing the model to monitor its own remaining context and to stop,
+  summarize, hand off, trim its work, or start a new session **on that basis** — and instruction text
+  or injected hook output that surfaces a remaining-context count to the model where the surface
+  could avoid it. The guide names the count as the usual trigger for the behavior, so the disclosure
+  and the directive are one subject; it also hedges the disclosure arm to "where possible", and this
+  row tracks that hedge rather than reading it as an absolute.
+- **The discriminator is who decides, on what evidence.** A directive tells the model to judge its
+  own window and act; a mechanism resolves the window from an instrumented signal and acts itself.
+  Only the first is this row's subject.
+- **Must NOT flag: a mechanism that gates on a measured signal.** A hook, gate, or workflow step that
+  reads context state from an instrumented source and then blocks or routes on it — or injects a
+  determination the model does not re-decide — is not a directive to the model, and it outranks the
+  model's own initiative rather than competing with it. **A hook that injects an exit menu remains
+  this row's subject**, however well instrumented its trigger: the measurement decides only when to
+  ask, and the model still decides whether to stop, so the injection manufactures the initiative
+  rather than replacing it. The contrast that fixes the line is a `PreToolUse` deny — there the
+  mechanism decides and the text is only the consequence. **The exemption never covers surfacing the
+  count itself.** A determination is a resolved verdict the model consumes; a raw remaining-context
+  number is data it must interpret, which is the disclosure arm of Detect and is a finding whoever
+  computed it. Being measured makes a mechanism's *trigger* trustworthy, never its payload.
+- **Must NOT flag: a user-invoked skill whose purpose is the continuation itself** — a handoff
+  writer, a continuation router, a compaction helper. The skill existing is not an instruction to
+  watch the budget; a skill body that additionally tells the model to invoke it off a self-estimated
+  window is. **A router falling back to its own judgement when no measured signal is available is
+  also not a finding** — it prefers the instrument and degrades only in its absence, which is the
+  opposite of the shape this row detects.
+- **Must NOT flag: a routing condition that selects between two forms of one deliverable.** "Use the
+  short form where the full one would not fit" picks a shape; it does not stop the work. The subject
+  is abandoning or truncating the work, never sizing an artifact to its container.
+- **Must NOT flag: a budget surfaced to the human.** A status line, a report, or a cost dashboard
+  renders to the operator rather than into the model's context, and no part of this row reaches it.
+- **Must NOT flag: a document *about* the pattern** — this row, a model-adaptation delta chapter, a
+  verification record quoting it — on the audience test I8-b applies. **A playbook stating the
+  counter-steer is exempt on different grounds, and the distinction matters:** that text is operative
+  standing instruction, so I8-b's audience test would reach it rather than excuse it. It is not a
+  finding because its **polarity is inverted** — it instructs the opposite of Detect, so it never
+  satisfies Detect and needs no exemption at all.
+- **Remediate:** remove the directive. Where the guarantee behind it is real, move it to a mechanism
+  that gates on a measured signal, or state the counter-steer plainly — that a count alone is not a
+  decay signal, because decay shows up in the output rather than in the number. Where the harness
+  genuinely must surface a count, pair it with a reassurance rather than with an exit menu.
+- **No pre-scan pattern is seeded yet, and the reason is not I8-e's.** The phrasing is patternable
+  and an unfenced true positive **is** attested — a handoff skill whose own invocation triggers are
+  "context heavy (check `/context` output)", "quality degrading", and a window-position threshold,
+  which is the carve-back in the continuation fence above rather than the fence itself. So this row
+  is not waiting on an instance the way I8-e is; it is waiting on calibration of the threshold and
+  window-position phrasings, which vary far more than the shapes I8-b matches. **The blast radius is
+  why that calibration is owed before a pattern ships:** a continuation skill can barely be
+  model-invocable without naming a context trigger somewhere, and one such trigger lives in a
+  `description`, which is resident whenever the listing admits it rather than only when the body
+  loads. A pattern seeded before that line is drawn would fire on every consumer's handoff skill.
+- **Source:** Fable 5 guide, "Rare cases of context-budget concern" — "In very long sessions, Claude
+  Fable 5 can occasionally suggest a new session, offer to summarize and hand off, or trim its own
+  work. This is most often triggered when the harness shows a remaining-token countdown to the model.
+  Avoid surfacing explicit context-budget counts where possible."
+- **Verified 2026-08-08** against that guide, fetched as raw markdown (177 lines). **Verified
+  negative, which is what holds the scope annotation on:** the Opus 5 guide (11,225 bytes) and the
+  Sonnet 5 guide (15,864 bytes) were fetched as raw markdown the same day and searched for this
+  claim. Neither states it. Opus 5's only mention of the context window is a capability statement —
+  that its instruction following, tool calling, and reasoning "stay consistent throughout the
+  window" — which is the opposite subject: a reason the concern does not arise, not a counter-steer
+  against it. **Recheck trigger:** a second model guide stating the claim — which would meet the
+  promotion gate and unscope this row — or that section ceasing to name the remaining-token
+  countdown as the trigger, which is what joins the disclosure arm to the directive arm.
+
+### I24: Instruction relying on silent generalization
+
+Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surfaces: all. Unscoped —
+promotion gate MET: two model guides state the identical claim (see Source).
+
+- **Detect:** instruction text that demonstrates or names ONE instance while the author's evident
+  intent is a whole class, with no explicit scope statement — text a literal-minded executor would
+  satisfy by doing exactly the one instance and stopping. Current models "interpret prompts
+  literally and explicitly, particularly at lower effort levels": they do "not silently generalize
+  an instruction from one item to another", and do "not infer requests you didn't make". Four
+  shapes:
+  1. **A worked example standing in for a rule** — "rename this field like so" meaning every such
+     field — with no "apply to every / all / each" scope line.
+  2. **An enumeration whose tail the executor must guess** — a list ended with "etc." or "and
+     similar" where no class is named that decides membership.
+  3. **A single item named inside an iterating procedure** — "fix the header", "update the test" —
+     where the surrounding procedure plainly processes many.
+  4. **A per-item step whose iteration is implied but never stated** — "check the frontmatter" in a
+     skill that processes N files.
+- **Remediate:** state the scope explicitly. The guides' own worked remediation: "Apply this
+  formatting to every section, not just the first one." Name the class an "etc." tail was standing
+  in for; attach the iteration to the per-item step.
+- **Must NOT flag:** an instruction whose single-instance reading is correct — the request really is
+  one item. Scope stated anywhere in reach of the instruction (a "for each X below" frame, a table
+  iterated by contract, a stated general rule the example sits inside as a labeled example). An
+  "etc." tail whose enumeration illustrates an explicitly named class ("destructive actions such as
+  X, Y, etc." — the class decides membership, not the tail). A document *about* the pattern, on the
+  audience test I8-b applies.
+- **The converse is not a finding.** Over-specifying scope wastes words but misleads no executor;
+  trimming it is I1's or the compression lane's concern, never this row's. This row is additive —
+  it proposes scope statements, so the Stopping condition's high-consequence withholding does not
+  bind it: adding explicitness to a safety gate is safe where trimming one is not.
+- **Source:** Sonnet 5 guide, "More literal instruction following", and Opus 4.8 guide, "More
+  literal instruction following" — the two sections state the Detect sentences verbatim-identically
+  for their respective models, and both give the same remediation example quoted above.
+- **Verified 2026-08-08** against both guides, fetched as raw markdown (Sonnet 5: 15,864 bytes, MD5
+  `6d23959f0ed226feb06bf20c314029e3`; Opus 4.8: 15,905 bytes, MD5
+  `6b9db5b784ad6a7b2e6307c1481b8be9`). **Recheck trigger:** either guide ceasing to state the
+  literalism claim, or a model guide stating that its model resumes generalizing instructions —
+  which re-opens the scoping question rather than deleting the row.
+
+### I25: Sampling parameter prescribed where the model rejects it
+
+Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `error` · Surfaces: all — `error` because
+following the instruction produces a rejected request, the same consequence class as I17, I18 and
+I20. Unscoped — promotion gate MET: the claim is stated in the cross-model migration guide, not
+only in model guides. **The model range is a Detect condition, not a `Model scope` annotation**,
+for the reason I17 base states.
+
+- **Detect:** instruction text directing a reader to set `temperature`, `top_p`, or `top_k` to a
+  non-default value — commonly "raise the temperature" for variety, creativity, or design
+  divergence, or "set `temperature = 0`" for determinism — where the run's resolved target model is
+  Claude Opus 4.7 or later, Claude Sonnet 5, Claude Fable 5, or Claude Mythos 5 (the same range
+  I17-c's API arm names). On those models a non-default sampling parameter returns a 400 error; the
+  SDK request types still define the fields for compatibility, so the instruction type-checks and
+  fails only at the API.
+- **Remediate:** remove the parameter and steer the behavior in prompt text — upstream's framing:
+  "Remove these parameters when migrating, and use system-prompt instructions to guide tone and
+  variety instead." For design variety specifically, the propose-options pattern is the documented
+  replacement (see I26). Where the prescription was `temperature = 0` for determinism, carry
+  upstream's note that "it never guaranteed identical outputs" on prior models either.
+- **Must NOT flag: a claim carrying its own model gate.** Text scoped to a pinned earlier model
+  where the parameters are live is correct rather than stale — as in I17-c, **the finding is the
+  missing gate, never the mention.** **The parameter expressed as an SDK request field, config
+  value, or code sample** rather than prescribed in instruction text — a source-code or
+  config-mechanics finding on the discriminator I17 base, I21 and I22 apply. **Non-sampling senses
+  of the word** — body temperature, disk or thermal temperature, color temperature — which share
+  the token and nothing else. A document *about* the pattern, on the audience test I8-b applies.
+- **Source:** migration guide, "Migrating to Claude Sonnet 5" — sampling parameters "set to a
+  non-default value are not accepted and return a 400 error"; same guide for the Opus range —
+  "Setting `temperature`, `top_p`, or `top_k` to any non-default value on Claude Opus 4.7 or later
+  models, including Claude Opus 5, returns a 400 error", with the SDK-compatibility and
+  determinism notes quoted from its Opus 5 section; same guide for the Fable/Mythos arm, "Migrating
+  to Claude Mythos 5 and Claude Fable 5 from Claude Opus 5" — "The prefill and sampling-parameter
+  restrictions, and the thinking display behavior, carry over from Claude Opus 5 unchanged."
+  Corroborated at What's new in Claude Sonnet 5 ("This is new for Sonnet-class models; the same
+  constraint was previously introduced on Claude Opus 4.7") and in the Sonnet 5 guide, "Tone and
+  writing style", which supplies the Remediate quote. The migration guide and What's new in Claude
+  Sonnet 5 are Sources entries.
+- **Verified 2026-08-08** against those pages, fetched as raw markdown (migration guide 148,590
+  bytes, MD5 `bfe459a13cd59d6ac93a6826910d5a28`; whats-new-sonnet-5 11,490 bytes, MD5
+  `19acce78670ceb337b99ce8fbac03fc5`). **Recheck trigger:** the rejecting model range moving, or
+  sampling parameters being reinstated on any model in it.
+
+### I26: Generic negative steering on open-ended design briefs
+
+Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `info` · Surfaces: all. Unscoped —
+promotion gate MET: two model guides converge (see Source).
+
+- **Detect:** operative instruction text steering visual design away from a model's default style
+  with generic negatives or vague qualifiers — "don't use that color", "make it clean and minimal",
+  "less corporate" — with neither a concrete specification nor a propose-options step. Both guides
+  state the failure the same way: such instructions "tend to shift the model to a different fixed
+  palette rather than producing variety." Also flag text recommending sampling parameters as the
+  design-variety mechanism, which additionally reaches I25 on an in-range target.
+- **Remediate:** either of the two approaches both guides state work reliably: (1) specify a
+  concrete alternative — the model "follows explicit specs precisely"; or (2) have the model
+  propose distinct visual directions first (each as background / accent / typeface plus a one-line
+  rationale), have the user pick one, and implement only that — on Sonnet 5 "the recommended way to
+  produce meaningfully different design directions across runs", since `temperature` is not
+  accepted there. A short anti-generic-aesthetics directive with concrete, enumerable negatives
+  (named fonts, named schemes) is the guides' own sanctioned snippet shape, not a finding.
+- **Must NOT flag:** concrete enumerable negatives — naming the exact fonts, palettes, or patterns
+  to avoid is the sanctioned shape, distinct from a vague qualifier. Non-design uses of "clean" /
+  "minimal" (a clean audit, a minimal reproduction). A surface that already runs the propose-options
+  pattern, which is the remediation present. A document *about* the pattern, on the audience test
+  I8-b applies.
+- **Source:** Sonnet 5 guide, "Design and frontend defaults", and Opus 4.8 guide, "Design and
+  frontend defaults" — convergent on the default-style behavior, the fixed-palette failure of
+  generic instructions, and both remediations; the Sonnet 5 guide adds the temperature-is-gone
+  ground for preferring propose-options.
+- **Verified 2026-08-08** against both guides, fetched as raw markdown (hashes as in I24).
+  **Recheck trigger:** either guide's design section dropping the fixed-palette claim or the
+  propose-options recommendation.
+
+### I27: Effort lowered to shorten the response
+
+Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surfaces: all ·
+Model scope: `opus-5` (both statements of the property are qualified to Claude Opus 5 — the guide's,
+and the effort page's inside its Opus 5 section; no model-agnostic page states it, so the promotion
+gate is unmet).
+
+- **Detect:** instruction text directing a reader or model to lower effort IN ORDER TO shorten the
+  visible response — "lower effort to keep replies short", "reduce effort so answers stay concise" —
+  the premise being that the effort level controls response length. Seeded by the scanner's I27
+  family (an effort-lowering directive and a brevity token on one line); the lane adjudicates that
+  the line actually premises brevity on effort rather than merely co-locating the two.
+- **Remediate:** replace the effort clause with an explicit length or style instruction — the
+  documented control for response length ("To control response length, prompt for it explicitly") —
+  keeping any effort change only where its stated ground is thinking volume, cost, or latency.
+- **Must NOT flag: effort lowered on thinking-volume, cost, or latency grounds** — "reduce effort to
+  cut thinking cost on mechanical work" states the property the docs confirm; this row fires only on
+  the length premise.
+- **Must NOT flag: response-length instructions themselves.** "Keep responses short" with no effort
+  clause is the documented remediation, not the defect.
+- **Must NOT flag: a document *about* the misconception** — this row, a model-delta chapter, a
+  verification record quoting the premise to refute it — on the audience test I8-b applies.
+- **Must NOT flag: `effortLevel` settings keys and `effort:` frontmatter as such**, on the same
+  discriminator as I21 and I17: a config value implements a choice without stating the premise;
+  this row audits instruction text, including instruction text that lives in a config file.
+- **Source:** Opus 5 prompting guide — "The effort parameter controls how much the model thinks
+  rather than how much it says: lowering effort can reduce thinking volume without reliably
+  shortening the visible response. To control response length, prompt for it explicitly."
+  Corroborated by Effort, whose Opus 5 section states it unhedged: "Effort controls thinking
+  volume, not visible response length: on Claude Opus 5, changing effort does not reliably shorten
+  responses, so prompt for length instead." The guide's "can" hedge is quoted as written — the
+  detection needs only the negative half (not reliably shortening), which both pages state.
+- **Verified 2026-08-08** against the live guide raw-`.md` (11,225 bytes, MD5
+  `8579d63fc9f793784b8c56320fd74e71`, byte-identical to the 2026-07-25 corpus capture) and the
+  effort page's Opus 5 section, both fetched that day. **Recheck trigger:** either page restating
+  the property model-agnostically or a second model guide stating it (gate met → unscope), or
+  either statement disappearing from its page.
 
 ---
 
