@@ -1289,10 +1289,15 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
   Fable 5 can occasionally suggest a new session, offer to summarize and hand off, or trim its own
   work. This is most often triggered when the harness shows a remaining-token countdown to the model.
   Avoid surfacing explicit context-budget counts where possible."
-- **Verified 2026-08-08** against that guide, fetched as raw markdown (177 lines). **Recheck
-  trigger:** a second model guide stating the claim — which would meet the promotion gate and unscope
-  this row — or that section ceasing to name the remaining-token countdown as the trigger, which is
-  what joins the disclosure arm to the directive arm.
+- **Verified 2026-08-08** against that guide, fetched as raw markdown (177 lines). **Verified
+  negative, which is what holds the scope annotation on:** the Opus 5 guide (11,225 bytes) and the
+  Sonnet 5 guide (15,864 bytes) were fetched as raw markdown the same day and searched for this
+  claim. Neither states it. Opus 5's only mention of the context window is a capability statement —
+  that its instruction following, tool calling, and reasoning "stay consistent throughout the
+  window" — which is the opposite subject: a reason the concern does not arise, not a counter-steer
+  against it. **Recheck trigger:** a second model guide stating the claim — which would meet the
+  promotion gate and unscope this row — or that section ceasing to name the remaining-token
+  countdown as the trigger, which is what joins the disclosure arm to the directive arm.
 
 ### I24: Compressed-shorthand mandate on user-facing output
 
@@ -1332,9 +1337,22 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `info` · Surfaces: 
   selection-not-compression fence is "Strong instruction following", which keeps output short by
   "being selective about what you include (drop details that don't change what the reader would do
   next), not to compress the writing into fragments, abbreviations, arrow chains … or jargon."
-- **Verified 2026-08-08** against that guide, fetched as raw markdown (177 lines). **Recheck
-  trigger:** a second model guide stating the claim, which would meet the promotion gate and unscope
-  this row.
+- **Why this is `ANTHROPIC-DOCS` and not `OPINION`, stated because the derivation is a step longer
+  than most rows'.** The guide's passages are addressed **to the model**, about its own writing; this
+  row judges **instruction text** that orders the opposite. The tag reports where the claim comes
+  from, not whether a page phrases it as a defect — the same derivation I7 and I8-d make, each
+  turning a documented behavioral claim into a detection rule no page states in those words. What
+  keeps it out of `OPINION` is that the row's subject is a **documented contradiction**: a surface
+  ordering the model to compress its closing message instructs precisely what the guide tells the
+  model not to do. Were the row instead asserting a house style for readable output, it would be a
+  practitioner preference and would belong at `OPINION`, off by default.
+- **Verified 2026-08-08** against that guide, fetched as raw markdown (177 lines). **Verified
+  negative, which is what holds the scope annotation on:** the Opus 5 guide (11,225 bytes) and the
+  Sonnet 5 guide (15,864 bytes) were fetched as raw markdown the same day and searched for arrow
+  chains, shorthand, hyphen-stacked compounds, fragments, abbreviation, readability, and complete
+  sentences. Neither guide reaches this subject at all; Opus 5's nearest passage governs **task
+  scope**, not output form. **Recheck trigger:** a second model guide stating the claim, which would
+  meet the promotion gate and unscope this row.
 
 ---
 
