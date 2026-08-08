@@ -5,6 +5,71 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## 8.0.1 — 2026-08-05
+
+Corrective, no topology, escalation, tier, or invariant change — §"Out-of-band notification seam"
+replaces an enumeration of Remote Control's requirements with a pointer at the section that owns
+them.
+
+- **The `PushNotification` phone leg's inherited requirements were enumerated, and the enumeration
+  under-covered its source.** The paragraph listed four conditions — a Pro, Max, Team, or Enterprise
+  plan, a claude.ai login, a session talking directly to the Anthropic API, and accepted workspace
+  trust — against a `## Requirements` section carrying five bullets. **Feature-flag evaluation** had
+  no counterpart at all: `DISABLE_TELEMETRY`, `DO_NOT_TRACK`,
+  `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`, and `DISABLE_GROWTHBOOK` "each disable the
+  feature-flag evaluation that Remote Control availability depends on". Two more under-covered:
+  **API endpoint** also disables Remote Control when `ANTHROPIC_BASE_URL` "points at a host other
+  than `api.anthropic.com`", a clause that bullet dates "As of v2.1.196"; and **Subscription** adds
+  a Team/Enterprise precondition the bare plan list did not carry, an Owner enabling the Remote
+  Control toggle. The enumeration is now a pointer at Requirements plus the page's mobile-push setup
+  steps, keeping the flag family inline because this repo ships OTEL and hook-telemetry conventions
+  and its readers are the population that sets those variables; a restated five-bullet list would
+  re-drift, and the paragraph already cites the page. Stamp refreshed 2026-07-27 → 2026-08-04
+  (<https://code.claude.com/docs/en/remote-control>, verified 2026-08-04).
+
+## 8.0.0 — 2026-08-05
+
+Adds the reviewed internal-bot trust signal to §1's C4/C5 floor trust test, designed and decided in
+[melodic-software/claude-code-plugins#1525](https://github.com/melodic-software/claude-code-plugins/issues/1525)
+(fixing
+[#1520](https://github.com/melodic-software/claude-code-plugins/issues/1520)'s misclassification of
+repository-owned automation identities). **Bump ambiguity:** a repository that never sets the key
+sees byte-identical behavior — unset fails closed to the empty set — which reads as additive
+guidance and a **minor**; but the floor's trust test is part of §1's autonomy-ladder contract, and
+this changes what the test accepts for every lane implementing the floor, which reads as a
+**major**. Ratified major on 2.0.0's discriminator: a changed floor test is a changed obligation,
+whatever its default resolves to.
+
+- **The trust test gains a second positive arm (§1).** C5's provenance test classified every
+  non-`OWNER`/`MEMBER` author as untrusted — but GitHub App bot identities are never org member
+  accounts, so the org's own automation (which `work-classes.md` explicitly places in C2) was
+  categorically C5 and ineligible at every rung. The floor now also accepts an author the target
+  repository's own team-tracked seam config attests as a trusted internal bot: a recorded, reviewed
+  trust grant naming exact bot identities, honored from the team-tracked layer only, fail-closed to
+  the empty set when unset. The key, its grammar, and its composition rules are owned by the babysit
+  lane's config reference (`babysit_loop_trusted_internal_bot_logins`), not restated here.
+- **Nothing else widens.** The fork test is independent — a listed bot authoring from a
+  cross-repository head is still C5; the dependency-manager merge hold wins on intersection; a trust
+  match never establishes a work class, and the C4 diff veto, rung comparison, and every other
+  withholding stand unchanged. The rejected alternatives — ambient attestation via app installation
+  (not a recorded seam change, and wider than the identities the org vouches for) and reuse of a
+  personal-scalar or repository-owner key — are recorded in #1525's decision comment.
+
+## 7.0.1 — 2026-08-02
+
+Corrective, no topology, escalation, tier, or invariant change — §"Launch surfaces" describes the
+same launch surface with the label the official docs use for it.
+
+- **`/loop` was called "built-in"; it is a bundled skill.** The official commands reference states
+  "Most are built-in commands whose behavior is coded into the CLI" and marks `/loop` **[Skill]**,
+  "a bundled skill"; the skills page adds that bundled skills are "prompt-based … Most built-in
+  commands instead execute fixed logic directly", and that `/doctor` was "a built-in command rather
+  than a bundled skill" before v2.1.205 — the two labels name different things. The sentence now
+  reads "a bundled skill needing no install", carrying the four-part record §Versioning's second
+  recheck trigger obliges — basis, as-of date, and this file's existing `(<url>, verified <date>)`
+  shape — and preserving the point the old wording was making: `/loop` needs no plugin, so it is
+  the dependency-free launch surface against which the `claude-ops` `lanes` launcher is optional.
+
 ## 7.0.0 — 2026-07-30
 
 Repartitions §4's telemetry binding from the lane **type** to the lane **instance**, resolving

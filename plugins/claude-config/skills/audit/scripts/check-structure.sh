@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Secret-safe config structure facts for the audit skill.
 #
-# Output: per-file validity and key counts. Never prints env values.
+# Output: per-file validity and key counts, plus the model and effort values
+# audit category H needs from settings.local.json. Never prints env values.
 # Exit: 0 parseable; 1 invalid JSON; 2 jq missing.
 #
 # Env:
@@ -93,12 +94,24 @@ emit_file_facts() {
       '
     ;;
   local)
+    # Model and effort values are emitted in full, unlike env and permission
+    # entries which stay counts. They are configuration identifiers — level
+    # names, model names, a boolean — not credentials, and the audit's category
+    # H cannot decide its findings from counts: the allowlist wildcard rule
+    # turns on which family each entry names, and the fallback cap turns on
+    # entry order. Counting them here would leave a local-only misconfiguration
+    # invisible. The env-value and secret-field guard above is unchanged.
     tr -d '\r' <"$path" | jq -r '
         "Env keys: \((.env // {} | keys | length))",
         "Deny count: \((.permissions.deny // []) | length)",
         "Ask count: \((.permissions.ask // []) | length)",
         "Allow count: \((.permissions.allow // []) | length)",
-        "Plugin keys: \((.enabledPlugins // {} | keys | length))"
+        "Plugin keys: \((.enabledPlugins // {} | keys | length))",
+        "Effort level: \(if has("effortLevel") then (.effortLevel | tostring) else "unset" end)",
+        "Fallback chain: \(if has("fallbackModel") then "\(.fallbackModel | length) raw, \(.fallbackModel | reduce .[] as $m ([]; if index($m) then . else . + [$m] end) | length) after dedup" else "unset" end)",
+        "Fallback entries: \(if has("fallbackModel") then (if (.fallbackModel | length) == 0 then "(empty list)" else (.fallbackModel | join(", ")) end) else "unset" end)",
+        "Available models: \(if has("availableModels") then (if (.availableModels | length) == 0 then "(empty list)" else (.availableModels | join(", ")) end) else "unset" end)",
+        "Enforce available models: \(if has("enforceAvailableModels") then (.enforceAvailableModels | tostring) else "unset" end)"
       '
     ;;
   mcp)

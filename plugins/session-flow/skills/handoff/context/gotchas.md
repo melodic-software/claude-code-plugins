@@ -2,6 +2,14 @@
 
 Failure patterns from real sessions. Loaded on demand from the handoff SKILL.md.
 
+- **A chain that preserved every fact and lost the point** — a handoff chain preserves state
+  perfectly and intent not at all unless the goal field is mandatory and immutable. Each hop
+  serializes the machinery in front of it — the phase, the bundle, the checklist — as though that
+  were the mission, and the resumed session optimizes it faithfully. No single hop looks wrong:
+  every paraphrase is plausible, and the loss only shows up in the aggregate, many sessions later.
+  Quote the user's goal verbatim in section 1, copy it from the prior file read off disk instead of
+  re-deriving it, and write completion criteria as the goal-states they establish — a criterion that
+  can be satisfied while the goal is no closer is a process milestone under the wrong heading.
 - **Prompt-only when durability is required** — prompt-only fits small, self-contained follow-ups;
   when a plan artifact, dead-ends, or load-bearing decisions back the work, write the durable
   handoff file. Any doubt → full handoff.

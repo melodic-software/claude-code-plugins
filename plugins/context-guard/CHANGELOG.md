@@ -5,6 +5,68 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.7]
+
+### Fixed
+
+- **Every hook loads again; the manifest was pointing at a file Claude Code had already loaded
+  (#1985).** `plugin.json` set `"hooks": "./hooks/hooks.json"` — the default path the harness
+  discovers on its own. The second registration was rejected as a duplicate and the whole hook file
+  failed to load with it, so zone-crossing injection, the blocking gate, and the PostCompact
+  evidence-degraded marker were inert on every machine that installed the plugin, and the
+  `context_guard_hooks_enabled` and `zone_hook_mode` settings had nothing to switch. The manifest
+  field exists for hook files at non-default paths; the default one needs no entry. `claude-ops` and
+  `guardrails` already ship `hooks/hooks.json` with no manifest key, which is the shape this now
+  matches.
+
+## [0.4.6]
+
+### Changed
+
+- **Shared `hook-utils.sh`: a hook invocation spawns three fewer external processes (#1978).**
+  Every hook that buffers its stdin paid an `awk` (one float division, to slice the read timeout), a
+  `printf | tr -d '\r'` pipeline (a fork and an exec to delete one byte class from a string bash
+  rewrites in place), and a `jq -e .` validity probe over a buffer the read loop had already parsed
+  with jq. On Windows Git Bash, where process creation is `fork()` emulation, each spawn costs
+  ~140 ms. Behavior is unchanged: the slice keeps the three-decimal form `read -t` is given, the
+  buffer is CR-stripped as before, and the completeness verdict is reused only when jq itself
+  produced it — so a host without jq still fails open exactly as it did. Also adds
+  `hook::jq_fields`, which extracts several fields from one payload in a single jq process for
+  hooks that read two or three of them. Synced from `lib/hook-utils.sh`.
+
+## [0.4.5]
+
+### Fixed
+
+- **The reader contract withdraws an unresolvable citation behind the token shape.** The token-shape
+  rationale co-cited "Anthropic system-card fixed-point evals" as evidence that degradation tracks
+  absolute tokens rather than window fraction — a claim carried at "Primary research + official /
+  High confidence" on #1475's provenance table. The citation names no card, and the only Anthropic
+  system card in this workstream's corpus (Claude Opus 5, re-fetched 2026-08-04 and byte-identical
+  to its capture) contains no evaluation of any name measuring degradation as a function of context
+  length. An exhaustive sweep of that card found zero occurrences of "fixed point", zero of every
+  standard long-context benchmark name, and no length axis on the two near-misses ("character
+  drift" is an LLM-judge score averaged over ~3,200 investigations with no length variable; "context
+  drift" is prose in a cyber benchmark's design rationale). The card's sole long-context section
+  (§8.9, ProgramBench) reports pass rate across five episodes, each starting from a *fresh* context
+  budget, and the score **rises** 83%→93% — a reset-and-continue improvement curve, not a
+  within-context degradation curve.
+
+  The clause now cites the Chroma context-rot report alone, plus a one-line standing rule that a
+  system card is cited here by name and section or not at all — the full reasoning lives in this
+  entry rather than in the contract, which is a live document and not a place for dated
+  withdrawal narration. Deliberately **not** substituted: the
+  card's 200k compaction trigger in the BrowseComp harness — the tempting replacement, being the one
+  absolute-token threshold inside a 1M window, but it is a harness choice about *when to compact*
+  with no stated rationale, not evidence about quality. Other Anthropic cards do publish
+  long-context retrieval evals at absolute context lengths, so the underlying proposition may be
+  supportable; it is not supportable from an unnamed card, and no replacement is asserted until one
+  is read and cited by name.
+
+  **No behavior changes.** The token shape's other two rationales — output tokens occupy the window;
+  50% of a 1M window is not 50% of a 200k window — are independent of this citation, and the band
+  values themselves were always declared judgment defaults rather than derived from it.
+
 ## [0.4.4]
 
 ### Fixed

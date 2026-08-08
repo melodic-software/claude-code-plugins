@@ -4,6 +4,310 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.10.23]
+
+### Added
+
+- **Anthropic profile's applicability filter gains the `tag-exempt (<sub-shape>)` class.** The
+  vocabulary (`cc-applicable` / `mixed` / `api-only`) adjudicates API-vs-harness guidance, but some
+  rows carry no guidance for any surface it adjudicates — consumer-surface material, an archive's
+  own apparatus, metadata, or a navigation pointer — and the closest negative tag misdescribes what
+  such material is. The new class is one disposition with those four documented sub-shapes, the
+  sub-shape named at the row. It describes the material's genre and asserts nothing about harness
+  applicability — not a positive tag, not a negative claim — so it owes no live-doc citation and no
+  absence basis, and the near-miss disclosure burden never attaches; `api-only` remains reserved
+  for rows that DO assert a harness absence for their own specific assertion. Consistent with the
+  co-decided positive-tag rule (a positive tag asserts harness applicability and requires a
+  live-doc citation): the class carries neither assertion, so neither evidence obligation.
+
+## [0.10.22]
+
+### Changed
+
+- **Anthropic profile's model-matching table catches up with the dateless model-ID scheme.** The
+  table's model-pin cell warned "never a bare family alias, which resolves to the current family
+  model" and demanded "a full model ID" — vocabulary from the dated-snapshot era. The live
+  model-IDs-and-versioning page now states that since the 4.6 generation the canonical model ID is
+  dateless (`claude-{name}-{major}[-{minor}]`) and "is not an alias. It is the snapshot", so the
+  old wording would misclassify exactly the correct pin for a current-generation model guide as a
+  forbidden alias and fall through to the session default. The cell now pins "its pinned model ID
+  — never an alias that can move to a newer snapshot", and a sentence under the table routes the
+  generation-dependent pinned-vs-alias resolution to the live page at spawn time
+  (pointer-not-copy; verified against the live page 2026-08-04, raw `.md` channel, 3836 bytes).
+
+## [0.10.21]
+
+### Changed
+
+- **`whats-new-opus-5` moves from deferred to the Anthropic profile's Models queue, on grounds its
+  own trigger never supplied.** The deferral read "release notes for a model the models `overview`
+  page already covers canonically; enqueue when Opus 5 enters or materially changes a fleet lane",
+  and that trigger has not fired. What moved the entry is custody: the `playbooks` Opus 5
+  model-adaptation chapter already cites this page as **sole authority** for three shipped claims —
+  thinking on by default, the 400 the API returns when thinking is disabled above effort `high`, and
+  the live effort-level enumeration that establishes the upstream Opus 5 prompting guide's own ladder
+  statement as truncated (all three re-verified live 2026-08-03) — and the `overview` page carries
+  none of them. The deferral's premise is therefore
+  false for exactly the facts already in use: doctrine ships on a page with no digest slice and no
+  custody record. Scope is this one page, not a reopened release-notes lane — `whats-new-sonnet-5`
+  carries no such citations and keeps its identical trigger.
+
+## [0.10.20]
+
+### Added
+
+- **Anthropic profile gains archive-reading conventions.** Some pages this publisher maintains are
+  archives — dated entries accumulated over time rather than a current statement, the [published
+  system prompts](https://platform.claude.com/docs/en/release-notes/system-prompts) being the
+  standing case — and three of their properties are invisible from inside any single entry, so a
+  digest that does not know them reads the archive wrong in a way its own verification cannot catch.
+  Each was found independently by multiple digest units before it became a convention. **(1) A dated
+  entry is not a content-change signal:** two entries five days apart are byte-identical, differing
+  on zero lines across 100-line bodies, with no annotation explaining why the second exists — so a
+  new dated heading licenses no inference of revision, intent, or policy movement. The rule is
+  stated in the narrower **content-change** form, which is what the finding supports: it bars
+  inferring change from sameness, and leaves a reader free to read an actual textual narrowing
+  between two entries as the change it is. **(2)
+  Absence of bold does not prove absence of change:** the page states that updates between versions
+  are bolded and the convention does not hold — one span carries zero bold markup across three dated
+  entries differing in three sentences plus a twelve-paragraph addition, another marks one
+  transition of three, and silent unbolded typo fixes and a silent removal were found the same way,
+  so deltas come from diffing entries and never from reading the markup. **(3) Note a source
+  artifact at the row; never silently repair it:** typos, escaped markup and malformed auto-links
+  are reproduced byte-exact so a verifier can tell faithful reproduction from digest transcription
+  error, with the blog channel's two known extraction artifacts named as the standing instance
+  rather than restated. Its one exception runs the other way — a downstream artifact reproducing a
+  known-corrupt entry *for a reader* rather than for verification repairs the corruption and says
+  that it did. The property all three refine — that everything inside a dated entry is scoped to that
+  entry's date — opens the section as its premise rather than as a fourth rule.
+
+- **Anthropic profile gains hedge preservation and the residual-risk footer.** A source's own hedge
+  now travels with the content it qualifies: an artifact graduated from this publisher preserves the
+  hedge as the source states it, neither dropped as throat-clearing nor widened past what the source
+  claims. Two instances graduate under the one convention rather than each inventing its own — the
+  residual-risk footer below, and the harness best-practices material's "starting points, not set in
+  stone" relativization. The **footer** is quoted rather than paraphrased from [Reduce
+  hallucinations](https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/reduce-hallucinations)
+  (re-fetched 2026-08-03, HTTP 200; the sentence is byte-identical to the snapshot the corpus
+  froze): *"Remember, while these techniques significantly reduce hallucinations, they don't
+  eliminate them entirely. Always validate critical information, especially for high-stakes
+  decisions."* **Its scope is the source's own and is deliberately not broadened** — it is about
+  hallucinations, not errors or guardrail failures in general, and it names **no validator**, since
+  who or what validates critical information is unstated in the source. That exact scoping is the
+  part most likely to be lost in transit: it survived two correction rounds during the slice's
+  verification, both of which caught a widening. It attaches **at the profile rather than per
+  artifact**, because the profile is the seam every guardrail slice of this publisher flows through,
+  so a graduated chapter or template cites the footer and never restates it.
+
+## [0.10.19]
+
+### Changed
+
+- **Anthropic profile — the doc queue is repopulated from the Sitting-5 doc-queue dispositions.**
+  The queue had been emptied as its slices completed, so twelve adopted rows had nowhere to land and
+  the pipeline had no stated next page. Counted at the bytes, one bullet per page: **14 pages
+  queued** across seven groups, and **5 pages deferred with triggers** — the deferred section now
+  holds six bullets, the sixth being `task-budgets`, which predates this batch. Each entry carries
+  the reason it is where it is rather than a bare URL.
+- **`thinking-troubleshooting` is queued first, on a corrected rationale.** DQ-2's original ground —
+  that the page backs the thinking doc set's *weakest* absence check — is not what the corpus says.
+  The check is **falsified, not weak**: the harness carries a parallel troubleshooting surface
+  (`errors.md`, `prompt-caching.md`), which is why the page's transfer is demonstrated rather than
+  conjectured and why digesting it lets the corpus state the mapping instead of guessing at it.
+  Carrying the old wording forward would have re-inherited a premise the evidence disproves. Rider
+  R1 — the `api-only` → `mixed` retag the falsification compels on the affected claim — was
+  discharged separately on 2026-08-03 and does not close silently with this enqueue.
+- **Companion-doc order amended: `memory` moves to second.** DQ-9's source ranked
+  `how-claude-code-works` ahead of it and held `memory` entirely. Two things have moved since:
+  `memory.md` carries four to five times the corpus citation load of either page ranked ahead of it
+  (47 line-anchored citations across 22 distinct sites in 18 files, against 11/6/9 and 9/5/6), and
+  `claude-memory:audit` became a live adopted routing destination for memory-layer findings.
+  `features-overview` keeps first place on its own reasoning; `common-workflows` stays held as
+  recipe-level content whose citations are concentrated rather than distributed.
+- **The Agent SDK entry queues one page, not the SDK doc set.** All thirty snapshotted `agent-sdk_*`
+  pages sit inside the harness boundary, so a loosely phrased entry would take a scope decision
+  nobody has made. The heading states the boundary instead of leaving it to inference.
+- **Two pages fold into existing entries rather than gaining their own (DQ-15).**
+  `whats-new-sonnet-5` is already a subject of the models deferral with a trigger, and a second
+  differently-triggered standalone entry is how one page acquires two custody records that drift
+  apart; `prompting-best-practices` is API-side content this corpus points at rather than digests.
+  The source's premise that best-practices was "already in the profile doc queue" is false at the
+  bytes — it never has been — but the disposition is unaffected, because folding resolves to no
+  standalone entry either way.
+- **Retention and ZDR are queued as one slice, and the slice remains owner-vetoable.** A corpus that
+  will be pointed at repositories we do not control is precisely the one that should not be silent
+  on retention: it is the one queued topic carrying compliance weight, and both properties are
+  already in scope. The slice drains as three page runs per the engine's one-page-per-run rule;
+  the API lane is the only page not already held in the harness snapshot. The org-policy posture
+  is the argument for it rather than against, but the posture is real
+  and cuts against the standing self-alignment-before-packaging ordering, so the enqueue is recorded
+  as still open to an owner veto. A queue entry is trivially reversible if that veto fires.
+- **The engineering-post entry's contingency is discharged.** Its enqueue was sequenced behind the
+  engineering-property profile edit, which landed in 0.10.18 — the same merge that closed that
+  property decision's veto window — so the entry ships unconditionally; the deferred-with-trigger
+  fallback written for a fired veto never engaged.
+
+## [0.10.18]
+
+### Changed
+
+- **Anthropic profile — `anthropic.com/engineering` is now an in-scope property.** The profile
+  scoped this publisher to `platform.claude.com`, `code.claude.com`, and `claude.com/blog`, which
+  put Anthropic's own engineering posts outside the pipeline even though they are first-party and
+  are the stated best-practices channel for several topics the corpus already wants. Engineering
+  pages are in scope by default now, rather than admitted one at a time by exception — the same
+  coverage either way, with an honest boundary instead of a growing list of one-off exemptions.
+  Two standing costs come with it and are not yet written into any rule: the vendor-blog
+  attestation bullet below still names `claude.com/blog` literally and does not reach the new
+  property, and unlike the two docs properties, `anthropic.com/engineering` publishes no
+  machine-readable page index, so page selection and absence checks against it have no instrument.
+- **Anthropic profile — a fourth artifact target: cross-slice synthesis.** The taxonomy named three
+  targets, all of which describe a shape a cross-model synthesis artifact is not — it is not
+  per-model, not an audit rule row, and not graduation of one slice. Content deferred to such a pass
+  therefore had nowhere to route: the digest fan-out is barred from reaching across units by design,
+  and no later pipeline stage exists to pick it up. Four units in one slice deferred content into
+  that gap. The target is named without a host — which repository or seam it lands in is a separate
+  decision no run has taken — so the taxonomy stops silently converting cross-unit findings into
+  out-of-scope ones.
+
+## [0.10.17]
+
+### Changed
+
+- **Anthropic profile — "harness surface" now has a written definition, and three shapes that come
+  close without falsifying `api-only`.** J-12 was one of the five items 0.10.16 deliberately held
+  for the dispositions interview; it is answered here. A harness surface is a surface a user can
+  reach. Two of the three non-falsifying shapes — a **counterpart artifact** and a
+  **same-workload mention** — carry an identical adjudication from two independent verification
+  arms. The third, **harness-internal recognition or support** (a harness doc naming the subject in
+  describing the harness's own behavior toward it, with no user-reachable path), is new: it rests on
+  one attested instance, and the amendment is labelled as the campaign's own choice rather than an
+  inherited adjudication, because nothing in the corpus ever defined the term. Every such hit is
+  still disclosed as a near-miss under 0.10.16's rule, which this appends to rather than replaces.
+  Without the definition, an `api-only` tag turned on whether the reader read "harness surface" as
+  user-reachable selection or as any harness mention at all — and the two readings disagree on real
+  rows.
+- **Anthropic profile — bare names are not API surfaces.** The `cc-applicable`/`mixed` boundary now
+  says what an API surface is not: a product name, display name, or docs-path slug never by itself
+  triggers `mixed`, and the enumeration gains the fourth surface it had been missing (model ID)
+  alongside parameter, endpoint, and SDK call. This ratifies a standard 15+ rows in the
+  models-explained slice already stood on and a cross-vendor retag already applied in-slice — it is
+  written down, not invented. It also gives the tier-name line `changelog.md:961` a destination: the
+  harness-surface definition above excludes it from sub-shape (3), and this rule is what it routes
+  to instead — a bare-name near-miss, disclosed under 0.10.16's rule, neither an API surface nor a
+  harness surface.
+
+## [0.10.16]
+
+### Changed
+
+- **`docpage-digest` — a second batch of the campaign's evidence-forced amendments.** Same standard
+  as 0.10.15: each rule below was forced by a defect the pipeline's own runs produced, and each
+  states its evidence inline. Not the last batch — the two classes held below say why.
+- **Anthropic profile — what falsifies `api-only`, written down once.** Only the corpus documenting
+  the claim's *own specific assertion* falsifies the tag; topical overlap never does. Below that
+  line sits the **near-miss** — a harness page covering the row's subject without stating its
+  specific rule: the tag survives, and the row must name the near-miss by page and line, so an
+  affirmative "no surface" or "undisclosed" phrasing in such a row is simply false. Undisclosed
+  near-misses were the largest MINOR class in the slice that measured them — one unit disclosed 24
+  on its own — and the rule had been re-derived per unit rather than written down.
+- **Anthropic profile — the two reproducible `claude.com/blog` extraction artifacts are recorded**
+  (H1 word-spacing collapse; reading-time value and unit split across lines) with reconstruction
+  from the canonical URL slug, labelled reconstructed because a slug recovers word boundaries only.
+  Both reproduced exactly across two blog runs, which is what the earlier deferral was waiting for.
+
+Two classes of item are deliberately **not** applied here, for two different reasons.
+
+Three change instruments that live in the campaign's untracked work root, not in the shipped plugin
+— making the quote checker a required artifact (whose own precondition, unrecognized-row detection
+erroring loudly, cannot be demonstrated as shipped), the command-replay gate reading only the first
+number of a `→ N lines, M files` pair, and the absence-measurement script skipping positive rows.
+Whether any of those graduates into the skill is a scope decision, not a forced one.
+
+Five more are held for the dispositions interview, having been reclassified out of this batch. The
+campaign's triage marks each `evidence-forced`, but the judgment-amendments file writes all five up
+as judgment calls with two named readings apiece — vendor-voice attestation for blog material
+embedded in a non-blog page (J-6), splitting the two questions a positive tag's row collapses (J-7),
+naming the publisher's `llms.txt` index as the page-selection instrument (J-8), the scope of
+"harness surface" for counterpart artifacts and same-workload mentions (J-12), and the standing
+convention for site-injected matter in a snapshot (J-14). That file's own reasoning governs: J-14
+says outright it is held "only because no defect was demonstrated, so the bar for the applied subset
+is not met", and J-7 says it should be decided *after* the Decision-A ordering question already
+escalated to the maintainer. All five now carry recommendations in the interview's decision block.
+The contested tag-vocabulary questions therefore remain where 0.10.15 left them, and these five join
+them: with the dispositions interview.
+
+## [0.10.15]
+
+### Changed
+
+- **`docpage-digest` now carries the evidence-forced rules the eleven-run digest campaign proved on
+  itself.** Every rule below was demonstrated as a defect by the pipeline's own runs, not proposed
+  abstractly, and each states its evidence inline so a later maintainer can see why it exists.
+- **Anthropic profile — absence and citation evidence.** An `api-only` basis now records the exact
+  command and its raw result count rather than a prose summary of what was checked; every non-zero
+  result names its match site(s), with a sampled hit set stating that scope at the row; and a cited
+  `file.md:NN` counts as disclosed only when a command recorded in that same row produces it.
+  Absence-establishing fetches must use the raw `.md` channel with `curl` and record the retrieved
+  length — a rendered fetch of a long page returns a silent prefix, and truncation can fabricate an
+  absence but never a presence.
+- **`SKILL.md` Phase 4 — verification-record discipline.** No tree moves until every dispatched arm
+  has reported; every correction round leaves a dated applied record whose "New findings" section is
+  a required input to the next round's brief; verdicts land in `verification/` or they did not
+  happen; a mechanical gate errors loudly on input it cannot parse and is fixed *before* it is made
+  required; commands are replayable in every pipeline artifact, not just digest rows, and each is
+  replayed where it is authored — the Phase 5 handoff included, which no Phase 4 pass can reach; and
+  the digest set is reconciled against itself before Phase 5, since every other check is scoped
+  within a row.
+
+Contested amendments the campaign also surfaced are deliberately **not** applied here — the tag
+vocabulary questions (metadata and consumer-surface classes, pointer/navigation claims, archive-page
+representation, the form `api-only` corroboration should take) have two defensible readings each and
+belong to the dispositions interview, alongside the already-escalated Decision-A ordering question.
+
+## [0.10.14]
+
+### Changed
+
+- **`docpage-digest` Anthropic profile: system-prompts release-notes entry removed, and the doc
+  queue is now empty.** The `platform.claude.com/docs/en/release-notes/system-prompts` slice
+  completed — 18 digests over a 2,548-line source, 659 claim rows, 561 `api-only`. It is the
+  largest slice the pipeline has run and the last entry in the queue; only the deferred
+  task-budgets trigger entry remains, which was never queued.
+- **The "Supplementary references" heading is removed with it**, since the entry was the last one
+  under it.
+
+Verification reached `VERDICT: PASS` on both arms across the run's rounds, on SHA-256-pinned bytes,
+with a final confirming round after the last corrections. Residual MINOR findings are disclosed in
+the slice's `interview-handoff.md` as Open questions for the batched dispositions interview, per the
+run's stopping rule; one contested tag-ordering question is escalated there as a candidate profile
+amendment rather than decided in-run.
+
+## [0.10.13]
+
+### Changed
+
+- **`docpage-digest` Anthropic profile: verification-loops blog entry removed, and the "Blog posts"
+  heading with it.** The `claude.com/blog/building-verification-loops-in-claude-code-with-skills`
+  slice completed — raw-md fetch through interview handoff, with dual verification reached on
+  identical SHA-256-pinned bytes (both arms PASS, no MAJOR findings) — so its entry leaves the doc
+  queue per the queue's remove-on-completion rule, and the heading is removed because it emptied.
+  The slice exercised the vendor-blog attestation rule (profile 0.10.9) at scale: all 44
+  `vendor-claimed` rows carry a targeted row-local `platform.claude.com` check, because the rule's
+  predicate — "no harness **or platform** doc states the same assertion" — names both properties and
+  a harness-only search never establishes it.
+
+## [0.10.12]
+
+### Changed
+
+- **`docpage-digest` Anthropic profile: resources-overview queue entry removed.** The
+  `platform.claude.com/docs/en/resources/overview` slice completed — raw-md fetch through interview
+  handoff, with dual verification reached on identical SHA-256-pinned bytes (both arms PASS, no
+  MAJOR findings) — so its entry leaves the doc queue per the queue's remove-on-completion rule. The
+  "Supplementary references" heading remains: the system-prompts release-notes page is a separate
+  concurrent run under the same heading, and its own queue PR removes the heading when it empties.
+
 ## [0.10.11]
 
 ### Changed

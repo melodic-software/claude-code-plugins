@@ -3,6 +3,19 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.2]
+
+### Changed
+
+- **Decision matrix covers connector-backed live data on published Artifacts.**
+  The published-Artifact tier now notes that from Claude Code v2.1.209 a
+  published page can call declared MCP connectors at view time — through
+  claude.ai (the CSP still holds; the page itself makes no network call), via
+  each viewer's own approved connector account, never shareable to a public
+  link, and gated on Team/Enterprise by the org Owner "Enable artifact
+  connectors" toggle. Previously the matrix presented published pages as
+  build-time snapshots with no path to outside data.
+
 ## [0.1.1]
 
 ### Changed

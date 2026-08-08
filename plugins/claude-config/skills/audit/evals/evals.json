@@ -5,10 +5,10 @@
       "id": 1,
       "name": "scope-filter-permissions-only",
       "prompt": "/audit permissions",
-      "expected_output": "An audit limited to Category B (permissions) only — required deny/ask patterns, deprecated :* syntax, deny-rules-in-settings.json placement — presented as a severity-rated findings table. Categories C-G (MCP, hooks, plugins, env vars, skill-listing budget) are not run.",
+      "expected_output": "An audit limited to Category B (permissions) only — required deny/ask patterns, deny-rules-in-settings.json placement — presented as a severity-rated findings table. Categories C-G (MCP, hooks, plugins, env vars, skill-listing budget) are not run.",
       "files": [],
       "expectations": [
-        "Runs only the permissions category (Category B) checks — required deny/ask patterns, deprecated :* syntax, deny-rule placement",
+        "Runs only the permissions category (Category B) checks — required deny/ask patterns, deny-rule placement",
         "Does NOT run MCP, hooks, plugins, environment-variable, or skill-listing-budget checks",
         "Presents findings as a severity-rated table using the error/warning/info vocabulary"
       ]

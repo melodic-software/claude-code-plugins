@@ -84,6 +84,18 @@
         "States that @path imports do NOT reduce context because imported files load at launch, and does not propose an import split as a saving",
         "Names a load-deferring destination (skill or path-scoped rule) for the only-sometimes-relevant Terraform walkthrough, justified by relevance rather than by the line budget, and states the post-compaction cost of that destination alongside the recommendation"
       ]
+    },
+    {
+      "id": 8,
+      "name": "build-test-commands-present-and-reachable",
+      "prompt": "Audit my memory health. My root CLAUDE.md says \"we use pnpm and vitest\" but doesn't spell out the invocations. It also says to build with `pnpm run compile`, though package.json only defines `build`, `test`, and `lint`. Separately, our actual build and test commands are already recorded in auto memory from when you worked them out.",
+      "expected_output": "C9 FAILs the `pnpm run compile` line, because package.json defines no `compile` script and a wrong command is worse than an absent one. It does NOT WARN that build and test commands are missing, because step 0 finds them stated on another loaded surface (auto memory), which makes their location a C3 placement question rather than a C9 finding. The bare \"we use pnpm and vitest\" prose is identified as naming tools without invocations. The wrong command is reported once, under C9 rather than also under C7, since C7 owns file paths, version pins, and counts while C9 owns command correctness.",
+      "files": [],
+      "expectations": [
+        "FAILs the `pnpm run compile` command because package.json does not define that script",
+        "Does NOT report build/test commands as absent, because step 0 finds them on another loaded surface (auto memory) and routes location to C3",
+        "Reports the wrong command once under C9 and does not double-report it under C7"
+      ]
     }
   ]
 }

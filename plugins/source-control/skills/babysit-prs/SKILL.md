@@ -223,7 +223,8 @@ home in [reference/safety.md](reference/safety.md). Both fail closed without `--
 
 - **The agent** decides severity (is this security/P1?), whether a finding is genuinely addressed,
   what a label means, and every fix-vs-escalate call — never a script. Escalate a security/P1
-  thread instead of resolving it, even in autopilot — one named exception, scoped in `safety.md`.
+  thread instead of resolving it, in every tier and mode and with no exception — the wrappers refuse
+  a severity-flagged thread whoever asks (`safety.md`, "Security/P1 escalation has no exception").
 
 ## Fan out: one fresh worker per PR that needs one, per cycle
 

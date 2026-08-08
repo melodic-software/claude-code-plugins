@@ -19,7 +19,7 @@ locally-owned instruction surfaces, cites each finding to current official promp
 it by how confident the evidence can be, and packages proposed removals or rewrites as a human-gated
 diff — so instruction surfaces shrink as models get better instead of only ever growing.
 
-The check catalog — the checks I1–I16, their evidence tier, authority tag, severity, per-surface
+The check catalog — the checks I1–I22, their evidence tier, authority tag, severity, per-surface
 applicability, and the `OPINION`-tier enablement policy — lives in
 [reference/criteria.md](reference/criteria.md); the deterministic pre-scan is
 `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/instruction-scan.sh`.
@@ -43,7 +43,7 @@ concerns its siblings already cover — route rather than re-answer:
   portability is `claude-config:audit-permission-grants`.
 
 On **memory-layer surfaces** (CLAUDE.md, CLAUDE.local.md, `.claude/rules/`, `~/.claude/rules/`),
-this skill runs only the model-era checks I6–I16. It never runs or reports the hygiene checks
+this skill runs only the model-era checks I6–I22. It never runs or reports the hygiene checks
 I1–I5 (line-necessity, length, placement, inferable content, rule-to-hook) on these surfaces —
 that instruction-memory hygiene layer belongs to the `claude-memory` plugin. When that plugin is
 installed, route memory-layer hygiene to its `audit` skill; when it is not installed, emit a single
@@ -105,8 +105,12 @@ scope; non-matching ones are inert and the report lists them as `skipped-for-tar
 
 Two flags govern the `OPINION` tier, whose enablement policy the catalog defines:
 
-- `--opinion` — also run the `OPINION`-tier checks that emit findings (I16 today). Off by default;
-  their findings are capped at `info` and are never applied.
+- `--opinion` — also run the `OPINION`-tier checks that emit findings. Off by default; their
+  findings are capped at `info` and are never applied. **Which rows those are is read from the
+  catalog at run time and deliberately not restated here**: the catalog owns the enablement policy,
+  so a second copy of the set in this file is one more thing to keep in sync on every new
+  `OPINION` row, and a stale copy silently narrows the flag. The run's tier-transparency line
+  reports how many it found.
 - `--no-stopping-condition` — disable the `OPINION`-tier stopping condition that bounds I6 and I8.
   It is on by default because it withholds findings rather than emitting them, so turning it off
   makes both trimming checks more aggressive, not the audit more conservative.
@@ -252,7 +256,11 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/instruction-scan.s
 It emits `file:line:check-id` candidate rows for I6 (bare prohibitions lacking a rationale
 marker), I10 (reasoning-echo directives), and the I8 families under per-family ids — `I8-a`
 instructed self-check, `I8-b` conservative-reporting, `I8-c` don't-think / don't-reason (I8-c's
-tag-naming sub-detect is lane-only, not seeded); `--count` prints the row count. Advisory — a
+tag-naming sub-detect is lane-only, not seeded, as are I8's base row and `I8-d` short-turn
+assumptions, whose phrasings are too varied for a pattern that would earn its false-positive rate;
+`I8-e` forced interim-status cadence is likewise unseeded, but on a narrower ground — its skeleton is
+patternable, and it waits only on an attested instance to calibrate the interval forms against);
+`--count` prints the row count. Advisory — a
 grep cannot judge whether a rationale is genuinely present, whether a restraint clause is a
 reporting gate, or which model a row targets, so the lane refines every candidate against the
 catalog's fences and the run's resolved target model.

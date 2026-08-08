@@ -92,22 +92,91 @@ wildcard spanning it) is not caught here. That conservatism never false-flags th
 floor, whose destructive-verb rules are flag-scoped (`git push --force …`) rather than the bare
 `git push` / `git commit` / `git add` shape.
 
-**`settings.local.json` scope on the autonomous path.** `settings.local.json` is gitignored, so a
-fresh linked worktree the lane dispatches a worker into carries this checkout's tracked
-`.claude/settings.json` but **not** its local file. Two cases:
+**`settings.local.json` scope on the autonomous path.** Since Claude Code v2.1.211, choosing
+"Yes, don't ask again" saves the rule to `.claude/settings.local.json` at the repository root,
+**resolved through worktrees to the main checkout**, and the rule applies to sessions anywhere in
+that repository — every linked worktree included, however the worktree was created
+([permissions](https://code.claude.com/docs/en/permissions#permission-system),
+[worktrees](https://code.claude.com/docs/en/worktrees); both fetched 2026-08-04). The main
+checkout's local file is therefore part of a fresh worker worktree's effective settings, and the
+preflight reads it in **every** mode — but only once it has **verified** which directory that is.
+
+**Resolving the main checkout.** Candidates are proposed cheapest-first and each is put through one
+predicate before it is trusted; a candidate that fails is discarded, never named. The predicate has
+three legs, all required: the candidate's `--show-toplevel` is the candidate itself (it is a
+toplevel, not a subdirectory of one), its `--git-common-dir` is our common dir (it belongs to *this*
+repository), and its `--git-dir` is also our common dir (it is the **main** worktree, not a linked
+one). The candidates:
+
+1. **The probed checkout itself** — its own git dir *is* the common dir. True whatever the git dir
+   is named, so the **main checkout of** a `--separate-git-dir` or submodule layout resolves here.
+   The probed checkout is `--project-root` when given, else the cwd.
+2. **`core.worktree`** in the common dir's config, resolved relative to that dir. Git writes it for
+   submodules, which is what makes a submodule's `<super>/.git/modules/<name>` common dir — which no
+   parent-of-`.git` arithmetic can invert — resolvable at all.
+3. **The conventional `<root>/.git` spelling** — the parent of the common dir.
+
+Resolution has three outcomes, and the report distinguishes them:
+
+- **Verified** — a candidate passed. Only then is a path named as the main checkout, and only then
+  is its `settings.local.json` read. The header prints git's own spelling of the verified toplevel.
+- **Bare** — the repository has no main working tree, so no main-local layer can exist. Nothing is
+  missing and the summary stays `OK`.
+- **Unresolved** — no candidate passed. The layer is **UNREAD**, the report says so on its own line
+  with the reason, and the summary is `PREFLIGHT: INCOMPLETE …`, never a bare `OK`. It is printed in
+  **every** mode, the interactive one included — the two headers that name a main checkout print
+  only under `--worktree-root` or a distinct `--project-root`, so a plain run from a linked worktree
+  would otherwise drop a main-local deny with no output at all. The exit code is still `0`: the
+  script is report-only and findings never fail the run.
+
+What a fresh worker does **not** inherit is a local file living inside some *other* linked
+worktree — a pre-2.1.211 save, or a hand-placed file — which applies only to sessions started in
+that worktree. Two cases:
 
 - **Pre-dispatch** — `--worktree-root` is passed but no distinct `--project-root` (the worker is not
-  yet created). A grant living only in this checkout's local file would be absent in the fresh
-  worktree, and reading it would mask a worker-side gap, so the **coverage** reads (allow +
-  `additionalDirectories`) drop local — user-global + tracked project settings only — and the report
-  header says so.
+  yet created). The **coverage** reads (allow + `additionalDirectories`) span user-global + tracked
+  project settings + the main checkout's local file; only a linked-worktree cwd's *own* local file
+  is dropped, since the fresh worker would not inherit it and reading it would mask a worker-side
+  gap. Run from the main checkout, nothing is dropped. The report header says which — naming the
+  main checkout only when resolution verified it.
 - **A named worker** — `--project-root <worker-worktree>` resolves to a checkout whose toplevel
   differs from the cwd. That is a real, existing checkout, so the preflight reads **its own**
-  `settings.local.json` (the worker's file, not this parent's); nothing is masked, and the header
-  names the source.
+  `settings.local.json` (legacy rules saved there still apply to sessions started there) plus the
+  main checkout's shared local file; the header names the sources, under the same condition.
 
-The interactive/default path (no `--worktree-root`) keeps local settings in scope. Deny always reads
-local regardless — the same err-wide rationale.
+**Two residual limits apply to BOTH modes above.**
+
+- **Pre-2.1.211 harness — MASKING.** There a worktree session loads its own local file, not the main
+  checkout's, so crediting a main-local-only grant suppresses a gap the worker really hits. Nothing
+  in the preflight detects it: it never probes the running Claude Code version. This is a floor on
+  the *harness*, not on the repository layout — so wherever the installed Claude Code is v2.1.211 or
+  later it is a documentation-completeness matter rather than a live defect (v2.1.222 on the machine
+  this was verified against).
+- **`--separate-git-dir` is ambiguous in git itself — NOT a preflight defect, and not maskable in
+  silence.** For a repository created with `--separate-git-dir <path>/.git`, the main working tree is
+  the directory holding the `.git` *file* — but git records no back-pointer to it. A recursive search
+  of the whole common dir turns up only `worktrees/<name>/gitdir` entries, which point at *linked*
+  worktrees; `core.worktree` is unset by every creation path (`git init --separate-git-dir` on a
+  fresh directory, `git clone --separate-git-dir`, and `git init --separate-git-dir` over an existing
+  repository). Git's own `git worktree list` therefore reports `<path>` — the parent of the separate
+  git *directory*, not of the `.git` file, which lives in the true working tree and is the very link
+  git does not record in reverse — as the main worktree, and reports it identically when run *from*
+  that true working tree. `<path>`
+  also satisfies all three legs of the verification predicate, byte for byte, exactly as a
+  conventional `<root>` does; any test strong enough to reject it also rejects the conventional
+  layout. So the preflight resolves to `<path>`: **git's own answer**, arrived at by verification
+  rather than by string arithmetic. Where the operator intended a different directory to be the
+  working tree, the layout is ambiguous at the git level and no consumer of git can do better.
+  Two consequences worth knowing: `--separate-git-dir "$HOME/.git"` makes `$HOME` the main checkout
+  by git's reckoning, so the operator's own `~/.claude/settings.local.json` is genuinely in scope for
+  that repository; and a spelling that is *not* `<something>/.git` (a separate git dir under any
+  other name) yields no candidate at all — that is the **unresolved** outcome above, which is
+  reported loudly rather than passed over.
+
+The interactive/default path (no `--worktree-root`) keeps the cwd checkout's local settings in
+scope. Deny always reads every local layer it resolves, in every mode — the same err-wide rationale;
+an unresolved main checkout is the one layer it cannot widen, which is why that case is reported
+rather than absorbed.
 
 ## The trusted worktree root — `additionalDirectories`
 
@@ -145,11 +214,11 @@ The `work` skill invokes the script at loop start; run it directly to preview th
 "${CLAUDE_PLUGIN_ROOT}/skills/work/scripts/preflight.sh" --worktree-root <configured-worktree-root>
 ```
 
-**Check the worktree the lane actually runs in.** Project `.claude/settings(.local).json` is
-per-checkout, so a fresh linked worktree can carry different grants than the main checkout — and the
-main checkout's grants would otherwise mask a worker-side gap. When the orchestrator dispatches a
-worker into a worktree, pass that worktree as `--project-root` so its own project settings are the
-ones probed:
+**Check the worktree the lane actually runs in.** A checkout's tracked `.claude/settings.json` can
+differ per worktree (a different branch), so a fresh linked worktree can carry different grants than
+the checkout the orchestrator runs in — and the cwd checkout's grants would otherwise mask a
+worker-side gap. When the orchestrator dispatches a worker into a worktree, pass that worktree as
+`--project-root` so its own project settings are the ones probed:
 
 ```bash
 "${CLAUDE_PLUGIN_ROOT}/skills/work/scripts/preflight.sh" \
@@ -158,8 +227,9 @@ ones probed:
 
 `--project-root` defaults to the current checkout. A distinct one (a different toplevel) re-points
 the project layer to that worker checkout and reads its own `settings.local.json`; without it, the
-autonomous path drops this checkout's local file (see the `settings.local.json` scope note above).
-User-global settings apply everywhere and are read regardless.
+autonomous path drops a worktree cwd's own local file (see the `settings.local.json` scope note
+above). User-global settings and the main checkout's shared `settings.local.json` apply everywhere
+and are read regardless.
 
 It is report-only and always exits `0`. Each output line is one of:
 
@@ -170,8 +240,14 @@ It is report-only and always exits `0`. Each output line is one of:
   operator-side: resolve the deny rule, add the open glob, or compose the standards floor in (above).
 - `GAP (c) …` — the worktree root is not covered by `additionalDirectories`. Add the entry (above).
 - `NOTE (c) …` — no worktree root was passed, so coverage was not checked.
+- `PREFLIGHT: UNREAD LAYER …` — the main checkout could not be verified, so its `settings.local.json`
+  was not read and the findings are incomplete: a grant there is not credited (a verb may be
+  over-reported) and a deny there is not reported at all. The summary is then
+  `PREFLIGHT: INCOMPLETE …` rather than `OK`. Re-run from the main checkout, or pass `--project-root`
+  naming it, to read that layer.
 
-`--count` prints just the integer GAP count (NOTEs excluded) for a scripted gate. Surface any gap
+`--count` prints just the integer GAP count (NOTEs excluded) for a scripted gate. An unread layer is
+not a gap, so the count is unchanged by it — read the summary line, not only the count. Surface any gap
 **once, at loop start**, with the exact remediation, then proceed or degrade per the lane's
 report-only posture — never rediscover the gap as per-operation prompts mid-cycle.
 

@@ -98,6 +98,30 @@ remaining-work bullet carries the inherited status; a bullet that folds in an in
 "blocked" without `UNVERIFIED (<source>)` reproduces the exact failure this rule exists to prevent,
 with no file left behind for a later review to catch it in.
 
+## Original goal — mandatory on BOTH paths
+
+The goal in the user's own words travels with every save-point, and a chain of them carries it
+forward unchanged. A save-point serializes the machinery in front of it effortlessly — the phase,
+the checklist, the bundle — and hands the resuming session a mission made of process, which that
+session then optimizes faithfully. State is what a save-point preserves for free; intent is what it
+drops in silence, and no amount of detail elsewhere replaces it.
+
+On the full path this is body section 1, `Original goal` ([`structure.md`](structure.md)) — which
+also owns the immutability rule and the disk-read copy step a successor handoff runs.
+**Prompt-only writes no body sections, so it carries the verbatim goal inline between the rails**,
+above its remaining-work bullets — and below an active `/goal` re-arm when one holds the first
+line: the re-arm keeps that line ("Combining both", below), the goal quote comes next, the bullets
+after. It has no file to point at, and a prompt-only save-point listing only the follow-ups is the
+exact shape that loses the goal.
+
+**Amendments travel too.** A bare single goal line is valid only while the goal has no recorded
+amendment (`Amended: None.` on the full path). Once an amendment exists, the prompt-only form
+carries the original dated quote plus EVERY dated amendment — compact, one line each,
+`amended <date>: "<verbatim quote>"` under the original — still verbatim, still copied unchanged on
+later hops. The full path preserves that history in §1's `Amended:` field; a prompt-only hop that
+collapses it back to a single line discards the record of what the goal was and when it stopped
+being that, which no later full-path handoff can reconstruct.
+
 ## Writing the handoff file (full path)
 
 The body sections, the TaskList reconstitute format, and the frontmatter shape (including the
@@ -209,7 +233,11 @@ copy, which goes stale the moment disk moved on without this conversation seeing
   invocation, and would silently fail to arm. Each is therefore its own message. `/goal` keeps its
   place as the first line between the rails (it is session-scoped and evaluated after every
   subsequent turn regardless of what invoked it, so arming it there covers the loop's later
-  iterations too); the `/loop` re-arm follows as the separate message described above.
+  iterations too); the `/loop` re-arm follows as the separate message described above. On
+  prompt-only, the verbatim goal quote — with its dated amendment lines, per "Original goal —
+  mandatory on BOTH paths" — sits directly BELOW the `/goal` line and above the remaining-work
+  bullets: an active `/goal` keeps the first line, the quote never displaces it, and with no active
+  `/goal` the quote itself opens the block.
 
 Full-path shape (minimum form — live: bare `─` rails, no fence; shown inside a fence here for
 display):
@@ -218,7 +246,7 @@ display):
 `/clear`, then copy everything between the dashed lines:
 
 ──────────────────────────────────────────────────────────
-Read @<handoffs-dir>/<TS>-handoff-<topic>.md and continue its remaining next steps.
+Read @<handoffs-dir>/<TS>-handoff-<topic>.md, confirm its Original goal still governs the remaining next steps, then continue them.
 Prior session: <UUID>.
 Handoff origin: <repo-identity>, relative path <memory_dir>/handoffs/<TS>-handoff-<topic>.md.
 ──────────────────────────────────────────────────────────
@@ -291,9 +319,20 @@ leaving the token in or mangling the identity — the directory name loses neith
 nearly as well.
 
 When the next stage is a specific skill in the consuming repo, swap the directive to
-`Read @… and execute /<skill>.` The `@`-reference is mandatory on the full path — the fresh session
+`Read @…, confirm its Original goal still governs the remaining next steps, then execute /<skill>.`
+The `@`-reference is mandatory on the full path — the fresh session
 loads it; do NOT inline the file's detail in the prompt. Prompt-only carries its remaining-work
 bullets inline between the rails instead, and needs no origin line: it references no file.
+
+**The alignment clause rides in the directive because the directive is the one thing every resume
+path passes through.** The dominant resume is a paste into a fresh session that invokes no skill at
+all, so a check living only in a skill fires only when someone happens to call it — which is how a
+chain of save-points can run for many sessions with nothing ever testing the work against its goal.
+`/session-flow:keep-going` owns the same check on the skill-mediated path (its goal-alignment
+step, which gates its recovery actions); this covers the bare paste, the background agent
+`/session-flow:continue-in-background` launches, and a `find-handoff` recovery alike. It is not a
+detection-contract change: signal 1 below is matched on the `…handoffs/<TS>-handoff-…` shape the
+directive names, which the added clause leaves untouched.
 
 `<UUID>` = this session's `$CLAUDE_CODE_SESSION_ID` (the frontmatter `session_id`) — it lets a
 fresh session or `/retro` chain-walker locate the transcript later.

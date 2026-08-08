@@ -5,6 +5,17 @@ change to the decision rule or to a matrix row's verdict is a major bump; adding
 or a recheck trigger additively is a minor bump. The version-pinned facts table is evidence, not
 contract — refreshing a pin or recheck date without a verdict change is no bump.
 
+## 1.2.0 — 2026-07-31
+
+Additive channel: **G. Operator-side arm record** (#1784) — an operator-side helper writes a
+per-session record under the plugin's install-anchored data directory and the session carries only a
+random record id through a `userConfig` string option; the hook treats the env-delivered id as a
+capability pointer (shape-validated, anchored-store lookup, first-session claim, TTL, terminal
+consumption), never authority. Closes channel F's `--settings` residual for per-session values.
+Decision rule 3 gains the F+G pairing for per-session safety-critical values; no existing row's
+verdict changes. Shipped exemplar: the autonomy lane-stop gate (0.12.0) armed by the claude-ops
+lane launcher (0.26.0). Adopters table gains the autonomy row.
+
 ## 1.1.0 — 2026-07-27
 
 No verdict change: the Recheck-triggers section cites the

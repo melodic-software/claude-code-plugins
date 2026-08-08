@@ -39,9 +39,9 @@ Present specific sections that are candidates for each approach.
 
 ### C2 (Deletion Test) fixes
 
-For sections flagged as potentially removable:
+For lines flagged as potentially removable:
 
-1. Present the section
+1. Present the flagged lines, grouped by section
 2. Explain why flagged (Claude can infer from code, standard practice, etc.)
 3. Suggest: delete, move to rules/skills, or keep with justification
 4. If kept, document justification in an HTML comment

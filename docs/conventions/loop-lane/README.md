@@ -87,12 +87,20 @@ raise, then the C4/C5 ceiling.
 **The C4/C5 floor tests the PR, not the item's stamp.** `work-classes.md` assigns a class from the
 risk-property bundle, "not the task's surface description", so a lane implementing the floor derives
 both from the pull request before comparing any recorded class to the rung. C5 follows the code's
-provenance — a cross-repository head, or an author the provider does not attest as an owner or
-member of the base repository (an outside collaborator pushing a base-repository branch is external
-despite a same-repository head; a missing or unreadable signal fails closed to C5) — which
+provenance — a cross-repository head, or an author neither attested by the provider as an owner or
+member of the base repository nor attested by that repository's own team-tracked seam config as a
+trusted internal bot (an outside collaborator pushing a base-repository branch is external despite
+a same-repository head; a missing or unreadable signal fails closed to C5) — which
 "dominates every other property", so a fork PR closing an internally classified C2/C3 item is still
 outside the exception; a repository-owner allowlist is not a trusted-author list and never stands in
-for that test. C4 follows the diff's blast radius: a refactor, migration, or contract change is C4
+for that test. The internal-bot attestation is itself a recorded, reviewed trust grant on the
+tracked seam — exact bot identities, read only from the target repository's team-tracked config on
+its default branch (never any working tree, argument, or other layer), fail-closed to the empty
+set when unset, never bypassing the fork test and never weakening a dependency-manager merge hold
+— with the key, its grammar, and its composition rules owned by the babysit lane's config
+reference (`plugins/source-control/reference/config-resolution.md`,
+`babysit_loop_trusted_internal_bot_logins`). C4 follows the diff's blast radius: a refactor,
+migration, or contract change is C4
 however its item is stamped, and a PR whose shape no longer matches its recorded class fails closed
 to escalation. The floor's verdict attaches to the exact head SHA it examined: any push after the
 verdict — the pre-escalation resolver's or the merge-capable worker's own fix alike — re-derives
@@ -266,13 +274,12 @@ alongside, never instead: the built-in `PushNotification` tool, and model-driven
 a chat plugin (UNVERIFIED here — confirm the plugin and its send capability against its own docs
 before relying on it). `PushNotification` "sends a desktop notification, and a phone push when
 Remote Control is connected"; it prompts for no permission, but the model decides when to call it.
-Its phone leg therefore inherits Remote Control's documented requirements — a claude.ai Pro, Max,
-Team, or Enterprise plan (API keys unsupported), a claude.ai login, a session talking directly to
-the Anthropic API, and accepted workspace trust — and additionally needs the separately documented
-mobile setup: the app installed and signed in on the same account, OS notifications allowed, and
-push enabled in `/config` (verified 2026-07-27:
-<https://code.claude.com/docs/en/tools-reference>, <https://code.claude.com/docs/en/remote-control>).
-Only the http hook is the deterministic leg.
+Its phone leg therefore inherits every condition the Remote Control page enumerates under
+Requirements, plus its mobile-push setup steps. One condition matters here in particular:
+`DISABLE_TELEMETRY`, `DO_NOT_TRACK`, `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`, and
+`DISABLE_GROWTHBOOK` each disable the feature-flag evaluation Remote Control depends on (verified
+2026-08-04: <https://code.claude.com/docs/en/tools-reference>,
+<https://code.claude.com/docs/en/remote-control>). Only the http hook is the deterministic leg.
 
 **The seam binds to the session's project, never to the repository a lane targets.** The record
 path is relative to the session's checkout, and the hook that fires is the one in that session's
@@ -354,7 +361,7 @@ recommended model for the provider and update over time; a dated model name is a
 is never written into a lane body. Aliases are the only handle guaranteed under subscription OAuth,
 so they are the runtime path; the Models API list endpoint is the **build/audit-time** verification
 path, since it may require an API key a loop session lacks. No lane hard-codes a model ID. (Alias
-semantics verified against <https://code.claude.com/docs/en/model-config> on 2026-07-23.)
+semantics verified against <https://code.claude.com/docs/en/model-config> on 2026-08-04.)
 
 Tier tables are built from a live official-docs fetch at authoring time, never from recall. Any new
 model release re-audits the tier table — the trigger is recorded in this convention's
@@ -588,11 +595,18 @@ start; new automated intake arriving mid-cycle is **reported, never chased**, so
 bot cannot hold a drain open indefinitely.
 
 **Subagent discipline preamble.** Every subagent a lane dispatches carries a standing discipline
-preamble. When the `discipline` plugin is installed, the dispatch prompt invokes its sweep —
-sweep-all, use-your-skills, do-your-research; when it is absent, the dispatch prompt
-inlines the equivalent standing instructions (verify claims against authoritative sources before
-acting, prefer installed skills over ad-hoc approaches, and re-check work against the active
-conventions). The reference is presence-gated with this inline fallback per the
+preamble, because a dispatched subagent runs in a fresh, non-inherited context: it inherits no
+posture from the cycle root's own sweep and has to set its own. When the `discipline` plugin is
+installed, the dispatch prompt invokes its sweep skill, which resolves its own membership — the
+preamble never enumerates the individual disciplines, per this doc's own **Pointer-not-copy** rule:
+a hand-copied list drifts from the plugin that owns it. Invoked at the subagent's conversation
+start, that skill reports its cheap posture digest rather than running its audit fan-out, so the
+preamble costs one skill read per dispatch and does not
+recurse; the fan-out belongs to the cycle root's once-per-cycle pass, and the skill's own audit forks
+never re-invoke it. When the plugin is absent, the dispatch prompt inlines the equivalent standing
+instructions (verify claims against authoritative sources before acting, prefer installed skills
+over ad-hoc approaches, and re-check work against the active conventions). The reference is
+presence-gated with this inline fallback per the
 [seam-phrasing convention](../seam-phrasing/README.md) — `discipline` is never a hard dependency.
 
 ## 5. Consumers and launch surfaces
@@ -606,8 +620,9 @@ conventions). The reference is presence-gated with this inline fallback per the
 All three adopters have shipped. This owner doc landed ahead of them, per the convention-registry
 rule; the table above is a live consumer list, not a forward reference.
 
-**Launch surfaces.** A lane launches interactively via `/loop` — the primary surface, built-in and
-dependency-free — or headless via the `claude-ops` `lanes` launcher, which stores the one-line lane
+**Launch surfaces.** A lane launches interactively via `/loop` — the primary surface, a bundled
+skill needing no install (<https://code.claude.com/docs/en/skills#bundled-skills>, verified
+2026-08-02) — or headless via the `claude-ops` `lanes` launcher, which stores the one-line lane
 prompt through its `prompt_dir` seam (#480). `lanes` is a **supporting, strictly one-directional**
 launcher: it launches the lane; no lane body ever requires, imports, or degrades without
 `claude-ops`. Every mention of `lanes` in a lane body is presence-gated with the `/loop` fallback

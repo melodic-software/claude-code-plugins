@@ -46,7 +46,6 @@ cat .claude/settings.local.json | tr -d '\r' | jq '.permissions.deny // empty'
 | Category | Auto-fixable | Requires judgment |
 | --- | --- | --- |
 | Add `$schema` | Yes | No |
-| Fix deprecated `:*` syntax | Yes | No |
 | Add missing baseline deny rules | Yes (from checklist) | No |
 | Move deny rules from local to project | Yes | No |
 | Add new settings from docs | No | Yes (evaluate relevance) |
