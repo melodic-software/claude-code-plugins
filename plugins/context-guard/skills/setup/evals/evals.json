@@ -129,6 +129,19 @@
         "Prints exactly ONE `sh -c` layer and one context-guard shim invocation",
         "States that the rules repeat until a pass strips nothing, rather than presenting one peel as sufficient"
       ]
+    },
+    {
+      "id": 11,
+      "name": "adapter-hiding-a-sibling-shim-is-peeled",
+      "prompt": "/context-guard:setup check\n\nMy statusLine command is: bash ~/.claude/context-guard/bin/statusline-shim.sh sh -c 'bash ~/.claude/rate-limit-guard/bin/statusline-shim.sh my-renderer --format '\\''a b'\\''' — I wired rate-limit-guard first and ran this skill once, back when it wrapped anything quoted. Both plugins are installed and both shims are present.",
+      "expected_output": "Peels the generated sh -c even though its carried string has no unquoted top-level shell syntax, because that string BEGINS WITH a guard-shim prefix — a shape this skill never emits inside an adapter. That exposes the rate-limit-guard shim to rule 1, which strips it, leaving the renderer my-renderer --format 'a b'. Prints the combined wiring naming each shim exactly once: bash ~/.claude/context-guard/bin/statusline-shim.sh bash ~/.claude/rate-limit-guard/bin/statusline-shim.sh my-renderer --format 'a b'.",
+      "files": [],
+      "expectations": [
+        "Peels the adapter on the shim-prefix branch of the provenance test — treating it as the operator's own renderer because the carried string has no unquoted top-level syntax is a failure",
+        "Names the rate-limit-guard shim EXACTLY ONCE in the printed wiring, never once from the sealed adapter and again from the composed sibling form",
+        "Recovers `my-renderer --format 'a b'` byte-for-byte and wraps it plainly — the quoted argument is not itself a reason to re-emit an `sh -c`",
+        "Explains that a duplicated tee runs and writes on every refresh and adds another ~0.6-0.9 s per refresh"
+      ]
     }
   ]
 }

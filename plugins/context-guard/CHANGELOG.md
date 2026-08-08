@@ -26,15 +26,30 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   trailing `&`, or a redirection — and only where it stands UNQUOTED at the top level, so syntax
   sealed inside a quoted argument no longer counts either.
 
-  Scoping the guard that way splits the peel rule's own provenance test in two, and BOTH branches
-  are needed. A carried string the guard would leave alone means the operator wrote that `sh -c`,
-  so it is preserved; a carried string the guard would wrap means a previous run generated it, so
-  it is peeled. But a carried string that is ITSELF an `sh -c '<string>'` is a generated layer
-  whatever the guard would say about it — an operator's renderer is at most one `sh -c` deep, and
-  the buggy guard emitted exactly this shape. Without that nested branch the peel rule stops one
-  layer early and hands the operator back the two-layer wrap it was supposed to collapse, so the
-  rule now names it explicitly. Between them the two tests leave exactly one layer on any input,
-  which is what makes a re-run of `check` print byte-identical wiring.
+  Scoping the guard that way rescoped the peel rule with it, because the peel rule cites the guard
+  to define "carries shell syntax". Its provenance test is now three explicit branches, two of them
+  keyed to the SHAPE of the carried string rather than the syntax in it, so neither inherits the
+  top-level scoping:
+
+  - The carried string is itself an `sh -c '<string>'` — a generated layer whatever the guard would
+    say, since an operator's renderer is at most one `sh -c` deep. Without this branch the peel
+    stops one layer early and hands back the two-layer wrap it was supposed to collapse.
+  - The carried string begins with a guard-shim prefix. This skill never puts a shim inside an
+    adapter, and sealing one there hides it from the prefix rule, which strips only leading
+    prefixes — so the composed wiring named that sibling shim a SECOND time and ran its tee twice
+    on every refresh.
+  - The carried string is a command the guard would wrap — the only shape this skill's own adapter
+    ever carries.
+
+  Absent all three the `sh -c` is the operator's and is preserved. One shape stays ambiguous by
+  design: a single `sh -c` over a merely-quoted command, which the buggy guard also emitted and
+  which carries no evidence either way. It is preserved, at the cost of one spurious shell per
+  refresh, because peeling on a guess costs a broken statusline.
+
+  What makes a re-run byte-identical is that peel and wrap are inverses — not a fixed layer count.
+  The printed wiring carries no `sh -c` for a plain renderer, one for a renderer with top-level
+  syntax, and two where an operator's own `sh -c` sits inside one that needs wrapping (an
+  unwrappable `&&`, say). Each of those is idempotent at its own count.
 
 - **`check` no longer reports a differing installed shim as harmless.** The report said an older or
   hand-edited copy "still resolves the newest tee", which stopped being true when

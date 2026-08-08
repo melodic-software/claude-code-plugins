@@ -141,21 +141,32 @@ zone bands, zones.json shape) are owned by
       `bash <path>/rate-limit-guard/bin/statusline-shim.sh`, in whatever order they appear, plus any
       legacy `bash <plugin-cache>/…/statusline-tee.sh` prefix.
    2. **A generated `sh -c` adapter** — when what remains is EXACTLY `sh -c '<single-quoted string>'`
-      with nothing after the closing quote, AND, once that string is unescaped, it is EITHER itself
-      an `sh -c '<single-quoted string>'` OR a command the guard below would send for wrapping, that
-      is an adapter a previous run printed, not the renderer. Unescape it back: drop the leading
-      `sh -c` and the outer quotes, then replace every `'\''` with `'`.
+      with nothing after the closing quote, AND, once that string is unescaped, ANY of the following
+      holds, that is an adapter a previous run printed, not the renderer. Unescape it back: drop the
+      leading `sh -c` and the outer quotes, then replace every `'\''` with `'`.
 
-      Both conditions establish provenance, and the second is load-bearing. Take its two branches in
-      turn. A NESTED `sh -c` is always a layer some run added: an operator's own renderer is at most
-      one `sh -c` deep, and a version of this skill that wrongly counted quoting as shell syntax
-      emitted these by the thousand — collapsing that wreckage is exactly what re-running `check` is
-      for, so the nested branch must not inherit the guard's top-level scoping. Otherwise the
-      adapter is emitted ONLY for a renderer the guard sends it, so an `sh -c` over a string the
-      guard would leave alone was written by the operator and must be preserved: peeling
-      `sh -c 'ulimit -n'` to `ulimit -n` would leave the shim `exec`-ing a shell builtin that no
-      longer has a shell, and the statusline would exit 127 instead of rendering. A trailing word
-      (`sh -c '…' extra`) makes it a real command, not an adapter — leave that alone too.
+      - **A — it is itself EXACTLY `sh -c '<single-quoted string>'`, nothing after the closing
+        quote.** A nested `sh -c` is always a layer some run added: an operator's own renderer is at
+        most one `sh -c` deep. Apply the same strictness here as to the outer shape, so two readers
+        peel the same number of layers.
+      - **B — it begins with a guard-shim prefix from rule 1.** This skill never puts a shim inside
+        an adapter, and an operator would not write one inside their own `sh -c`. Leaving it sealed
+        there hides it from rule 1, which strips only LEADING prefixes, and the composed wiring then
+        names that shim a second time.
+      - **C — it is a command the guard below would send for wrapping.** That is the only shape this
+        skill's own adapter ever carries.
+
+      Branches A and B must NOT inherit the guard's top-level scoping — their evidence is the shape
+      of the carried string, not the syntax in it. Absent all three, the `sh -c` was written by the
+      operator and must be preserved: peeling `sh -c 'ulimit -n'` to `ulimit -n` would leave the
+      shim `exec`-ing a shell builtin that no longer has a shell, and the statusline would exit 127
+      instead of rendering. A trailing word (`sh -c '…' extra`) makes it a real command, not an
+      adapter — leave that alone too.
+
+      One shape stays ambiguous on purpose: a single `sh -c` over a merely-quoted command, which a
+      version of this skill that wrongly counted quoting as a trigger also emitted. Nothing in it
+      distinguishes that from an operator's own, so it is preserved. The cost is one spurious shell
+      per refresh; peeling on a guess costs a broken statusline.
 
    One pass is not enough: an operator may already carry several layers from earlier reruns, and a
    single peel over three layers leaves two.
@@ -196,19 +207,19 @@ zone bands, zones.json shape) are owned by
    `exec`s those words unchanged. It therefore only works for plain `executable arg…` commands. Test
    the UNWRAPPED renderer, never the raw effective `command` string — the rules above run first. If
    it carries — UNQUOTED, at the top level — shell syntax no ARGV word can express (an inline env
-   assignment like `THEME=dark my-statusline`, a pipe, `&&`, `||`, `;`, a trailing `&`, or a
-   redirection), print the shell-wrapped variant instead:
+   assignment like `THEME=dark my-statusline`, a redirection, or any control operator: `|`, `|&`,
+   `&&`, `||`, `;`, `&`, a newline), print the shell-wrapped variant instead:
 
    ```json
    {
      "statusLine": {
        "type": "command",
-       "command": "bash ~/.claude/context-guard/bin/statusline-shim.sh sh -c '<escaped original command>'"
+       "command": "bash ~/.claude/context-guard/bin/statusline-shim.sh sh -c '<escaped renderer>'"
      }
    }
    ```
 
-   `<escaped original command>` is that same unwrapped renderer, POSIX-escaped for single-quote
+   `<escaped renderer>` is that same unwrapped renderer, POSIX-escaped for single-quote
    embedding: replace every `'` in it with `'\''` before substituting (then JSON-escape the whole
    `command` string as usual). Show the final, fully escaped line — never hand the operator a
    template with raw quotes left to fix. Verify your printed edit round-trips: mentally unquote it
@@ -220,11 +231,15 @@ zone bands, zones.json shape) are owned by
    ALREADY a plain `executable arg…` command: `sh` is the executable, `-c` and the carried string
    are two ordinary ARGV words. Substitute it VERBATIM.
 
-   Rule 2 and this guard therefore never both wrap one `sh -c '<string>'`, and between them they
-   leave exactly one layer whatever the input: what rule 2 preserves is a renderer this guard
-   declines, and every layer rule 2 peels — nested `sh -c` first, then the top-level syntax
-   underneath — is gone before the guard runs, so the guard re-adds at most the single layer the
-   renderer genuinely needs. Firing on the quotes instead is what turned an operator's
+   For an input that is ITSELF `sh -c '<string>'`, rule 2 and this guard therefore never both wrap
+   it, and leave exactly one layer: rule 2 peels every generated layer before the guard runs, and
+   what rule 2 preserves is a renderer this guard declines. Do not generalize that to a layer count
+   for every input — the guard adds whatever the renderer genuinely needs, which is NONE for a plain
+   command and ONE for top-level syntax, and that one is a layer more when the operator's own
+   `sh -c` sits inside it. `sh -c 'ulimit -n' && echo ok` correctly prints TWO: the `&&` cannot be an
+   ARGV word, so the adapter is mandatory, and peeling the inner `sh -c` would strand the builtin.
+   What is invariant is that peel and wrap are inverses, which is what makes a re-run byte-identical
+   at whatever count the renderer needs. Firing on the quotes instead is what turned an operator's
    `sh -c 'ulimit -n'` into `sh -c 'sh -c '\''ulimit -n'\'''`, one more shell on every refresh and
    the same compounding rule 2 exists to prevent.
 
@@ -258,7 +273,7 @@ zone bands, zones.json shape) are owned by
    {
      "statusLine": {
        "type": "command",
-       "command": "bash ~/.claude/context-guard/bin/statusline-shim.sh bash ~/.claude/rate-limit-guard/bin/statusline-shim.sh sh -c '<escaped original command>'"
+       "command": "bash ~/.claude/context-guard/bin/statusline-shim.sh bash ~/.claude/rate-limit-guard/bin/statusline-shim.sh sh -c '<escaped renderer>'"
      }
    }
    ```
