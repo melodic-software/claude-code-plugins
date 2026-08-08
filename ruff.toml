@@ -17,7 +17,11 @@
 # Ref: https://docs.astral.sh/ruff/configuration/
 
 # Eval fixtures are input specimens, not code: an audit skill's fixture holds
-# the defect its eval asserts on, so linting it fails by construction.
+# the defect its eval asserts on, so linting it fails by construction. Exclusion
+# governs directory traversal, which is what every invocation here does
+# (`ruff check plugins/ scripts/`, the engine suite's `ruff check . tests`). A
+# path handed to ruff DIRECTLY is still linted unless the caller also passes
+# `--force-exclude`, as the ruff-format hook does.
 extend-exclude = ["**/evals/fixtures/**"]
 
 [lint]
