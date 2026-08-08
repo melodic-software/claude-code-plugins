@@ -1,6 +1,6 @@
 ---
 name: design
-description: "Design an evaluation suite for an LLM-based application or a Claude Code skill: interview for measurable success criteria, pick a grading method per criterion, and scaffold a criteria doc plus eval cases into the consumer repo. Use when: 'design evals', 'create an eval suite', 'scaffold evals', 'write evals for my skill', 'define success criteria for this app', 'set up LLM testing', 'build a test set for my prompt' — not for eval-design theory questions (use /evals:methodology), not for statically validating an existing evals.json (use /skill-quality:skill-quality validate-evals when installed), and it does not execute evals."
+description: "Design an evaluation suite for an LLM-based application or a Claude Code skill: interview for measurable success criteria, pick a grading method per criterion, and scaffold a criteria doc plus eval cases into the consumer repo. Use when: 'design evals', 'create an eval suite', 'scaffold evals', 'write evals for my skill', 'define success criteria for this app', 'set up LLM testing', 'build a test set for my prompt' — not for eval-design theory questions (use /evals:methodology), not for statically validating an existing evals.json (use /skill-quality:check validate-evals when installed), and it does not execute evals."
 argument-hint: "[target: app | skill <name> | <path>]"
 user-invocable: true
 disable-model-invocation: false
@@ -71,7 +71,7 @@ cases. Honor an existing consumer eval layout when one is already present — ex
 `evals[]` of `{id, name (kebab-case), prompt, expected_output, expectations[]}` — covering
 trigger/routing, the happy path, at least one refusal/guardrail, and one anti-pattern the skill
 must not exhibit. When the `skill-quality` plugin is installed, validate with
-`/skill-quality:skill-quality validate-evals <skill>` (its bundled schema is the contract);
+`/skill-quality:check validate-evals <skill>` (its bundled schema is the contract);
 otherwise state that the file follows the marketplace's evals schema and validation was skipped.
 
 ## Phase 3 — grading hygiene gate

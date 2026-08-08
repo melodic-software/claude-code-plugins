@@ -47,5 +47,7 @@ the migration playbook's warrant policy.
 
 ## Configuration
 
-None. No hooks, no MCP servers, no userConfig, no network egress — guidance and in-repo
-scaffolding only.
+None. No hooks, no MCP servers, no userConfig. Consumer-facing use makes no network calls —
+guidance and in-repo scaffolding only. The one outbound surface is the maintainer-only
+`/evals:methodology update` action, which re-fetches the two upstream Anthropic doc pages to
+drift-check the distilled reference files.

@@ -104,8 +104,10 @@ that line before editing, since it may be an illustrative example path rather th
    skill's `evals.json`.
 3. If a JSON-schema validator is available (`check-jsonschema`, `ajv`, or `python -m jsonschema`),
    run it and report conformance. Otherwise validate structurally against the schema: `skill_name`
-   and a non-empty `evals` array are required; each case requires `id` and `prompt`; a rich-form case
-   may add `name` (kebab-case), `expected_output`, `files`, and one of `assertions` / `expectations`.
+   and a non-empty `evals` array are required; each case requires `id`, `prompt`, and at least one
+   non-empty grading criterion — a non-empty `expected_output` string, a non-empty `expectations`
+   array, or a non-empty `assertions` array (a case that cannot be graded is not an eval); a
+   rich-form case may add `name` (kebab-case) and `files`.
 4. Report each violation with its JSON path, or confirm the file conforms.
 
 ## Action: listing-budget

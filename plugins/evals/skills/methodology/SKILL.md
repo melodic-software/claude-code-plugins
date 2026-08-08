@@ -57,7 +57,7 @@ because this skill distills a live upstream doc.
 This skill is **knowledge** (WHY/WHAT of evaluation design), not **workflow**. It never runs,
 scores, or scaffolds evals. To interview for criteria and scaffold an eval suite in your repo, use
 `/evals:design`. To statically validate a Claude Code skill's eval file, use
-`/skill-quality:skill-quality validate-evals` when the `skill-quality` plugin is installed. No
+`/skill-quality:check validate-evals` when the `skill-quality` plugin is installed. No
 marketplace command executes model-graded evals.
 
 ## Gotchas

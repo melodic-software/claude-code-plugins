@@ -24,9 +24,9 @@
       "additionalProperties": false,
       "required": ["id", "prompt"],
       "anyOf": [
-        { "required": ["expected_output"] },
-        { "required": ["expectations"] },
-        { "required": ["assertions"] }
+        { "required": ["expected_output"], "properties": { "expected_output": { "minLength": 1 } } },
+        { "required": ["expectations"], "properties": { "expectations": { "minItems": 1 } } },
+        { "required": ["assertions"], "properties": { "assertions": { "minItems": 1 } } }
       ],
       "properties": {
         "id": {

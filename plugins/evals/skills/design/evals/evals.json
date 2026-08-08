@@ -17,7 +17,7 @@
       "id": 2,
       "name": "skill-target-emits-schema-shape",
       "prompt": "/evals:design skill deploy-notes — my project skill at .claude/skills/deploy-notes needs evals.",
-      "expected_output": "After the criteria interview, emits .claude/skills/deploy-notes/evals/evals.json with skill_name and evals[] cases each carrying id, kebab-case name, prompt, expected_output, and expectations[]; coverage spans trigger/routing, happy path, at least one refusal/guardrail, and one anti-pattern; mentions validating via /skill-quality:skill-quality validate-evals when skill-quality is installed, or states validation was skipped.",
+      "expected_output": "After the criteria interview, emits .claude/skills/deploy-notes/evals/evals.json with skill_name and evals[] cases each carrying id, kebab-case name, prompt, expected_output, and expectations[]; coverage spans trigger/routing, happy path, at least one refusal/guardrail, and one anti-pattern; mentions validating via /skill-quality:check validate-evals when skill-quality is installed, or states validation was skipped.",
       "expectations": [
         "Eval file lands at the skill's evals/evals.json path, not elsewhere",
         "Every emitted case has a golden answer: expected_output and/or expectations present",
