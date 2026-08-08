@@ -1837,6 +1837,156 @@ else
   fail "bounded/fixes: no-op run emitted output: $OUT_F0"
 fi
 
+# --- Path-scope escape: a gitignored file is neither rewritten nor reported --
+# The 0.9.0 config gate spared repositories that carry NO markdownlint config;
+# a repository that HAS one still had its gitignored scratch tier (`.work/**`)
+# rewritten and reported on every edit. These cases pin both halves of that
+# acceptance criterion, and pin them with a config present — without one the
+# older gate stops the run first and the assertion would pass for the wrong
+# reason.
+SCOPE="$WORK/scope"
+mkdir -p "$SCOPE/.work"
+git -C "$SCOPE" init -q
+git -C "$SCOPE" config user.email t@t.t
+git -C "$SCOPE" config user.name t
+# Hermetic ignore rules: a developer's global core.excludesFile must not decide
+# what this suite sees as ignored.
+git -C "$SCOPE" config core.excludesFile /dev/null
+printf '.work/\n' >"$SCOPE/.gitignore"
+cat >"$SCOPE/.markdownlint-cli2.jsonc" <<'JSONC'
+{
+  "config": {
+    "MD004": { "style": "dash" },
+    "MD024": { "siblings_only": true },
+    "MD013": false
+  }
+}
+JSONC
+
+# Same shape as fixtureB: `* star item` is a FIXABLE MD004 (the rewrite signal)
+# and the duplicate sibling `## S` an UNFIXABLE MD024 (the report signal), so a
+# single run answers both "was it rewritten" and "was it reported".
+SCOPE_BODY='# Doc
+
+## S
+
+text
+
+## S
+
+* star item
+'
+run_scope() {
+  local file_path="$1"
+  shift
+  (cd "$UNRELATED" && printf '{"session_id":"scope-1","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$file_path" |
+    env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true "$@" bash "$HOOK")
+}
+
+SC_IGN="$SCOPE/.work/scratch.md"
+printf '%s' "$SCOPE_BODY" >"$SC_IGN"
+OUT_SI=$(run_scope "$SC_IGN")
+if [[ -z "$OUT_SI" ]]; then
+  ok "scope: gitignored file (config present) is not reported"
+else
+  fail "scope: gitignored file still reported: $OUT_SI"
+fi
+if grep -q '^\* star item$' "$SC_IGN"; then
+  ok "scope: gitignored file (config present) is not rewritten"
+else
+  fail "scope: gitignored file was rewritten: $(cat "$SC_IGN")"
+fi
+
+# The other side of the same gate: an ordinary repository file keeps its
+# rewrite and its report. A scope escape that swallowed everything would pass
+# the two assertions above.
+SC_TRK="$SCOPE/tracked.md"
+printf '%s' "$SCOPE_BODY" >"$SC_TRK"
+OUT_ST=$(run_scope "$SC_TRK")
+CTX_ST=$(printf '%s' "$OUT_ST" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+if grep -q '^- star item$' "$SC_TRK"; then
+  ok "scope: a non-ignored file is still rewritten"
+else
+  fail "scope: non-ignored file was not rewritten: $(cat "$SC_TRK")"
+fi
+if printf '%s' "$CTX_ST" | grep -q 'MD024'; then
+  ok "scope: a non-ignored file is still reported"
+else
+  fail "scope: non-ignored file lost its report: $OUT_ST"
+fi
+
+# `git check-ignore` consults the index, so a TRACKED file that matches an
+# exclude pattern is NOT ignored — a file under version control is part of the
+# reviewable artifact whatever the patterns say. `git add -f` (no commit
+# needed) puts it in the index.
+SC_FORCED="$SCOPE/.work/tracked-scratch.md"
+printf '%s' "$SCOPE_BODY" >"$SC_FORCED"
+git -C "$SCOPE" add -f .work/tracked-scratch.md 2>/dev/null
+OUT_SF=$(run_scope "$SC_FORCED")
+if grep -q '^- star item$' "$SC_FORCED" &&
+  printf '%s' "$OUT_SF" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null |
+  grep -q 'MD024'; then
+  ok "scope: a tracked file under an ignored path is still linted"
+else
+  fail "scope: tracked-but-ignore-matching file was skipped: $(cat "$SC_FORCED")"
+fi
+
+# Opt-out: markdown_format_lint_gitignored=true restores the old behavior,
+# reaching the hook as the CLAUDE_PLUGIN_OPTION_<KEY> mirror.
+SC_OPT="$SCOPE/.work/optin.md"
+printf '%s' "$SCOPE_BODY" >"$SC_OPT"
+OUT_SO=$(run_scope "$SC_OPT" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_LINT_GITIGNORED=true)
+if grep -q '^- star item$' "$SC_OPT" &&
+  printf '%s' "$OUT_SO" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null |
+  grep -q 'MD024'; then
+  ok "scope: markdown_format_lint_gitignored=true lints the ignored file anyway"
+else
+  fail "scope: opt-out did not restore linting: $OUT_SO"
+fi
+SC_GARB="$SCOPE/.work/garbage-opt.md"
+printf '%s' "$SCOPE_BODY" >"$SC_GARB"
+OUT_SG=$(run_scope "$SC_GARB" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_LINT_GITIGNORED="yes; rm -rf /")
+if [[ -z "$OUT_SG" ]] && grep -q '^\* star item$' "$SC_GARB"; then
+  ok "scope: a non-boolean opt-out value falls back to the default, never interpolated"
+else
+  fail "scope: garbage opt-out value was honored: $OUT_SG"
+fi
+
+# Windows path forms: the hook hands git a REPO-RELATIVE path precisely so a
+# POSIX-mount spelling (/c/...) and a drive-letter spelling (C:/...) reach the
+# same verdict. Only meaningful where both spellings exist.
+if command -v cygpath >/dev/null 2>&1; then
+  SC_WIN="$SCOPE/.work/winform.md"
+  printf '%s' "$SCOPE_BODY" >"$SC_WIN"
+  SC_WIN_M="$(cygpath -m -- "$SC_WIN")"
+  OUT_SW=$(run_scope "$SC_WIN_M")
+  if [[ -z "$OUT_SW" ]] && grep -q '^\* star item$' "$SC_WIN"; then
+    ok "scope: drive-letter path spelling reaches the same ignored verdict"
+  else
+    fail "scope: drive-letter spelling was linted: $OUT_SW / $(cat "$SC_WIN")"
+  fi
+else
+  ok "scope: drive-letter path spelling case not applicable (no cygpath)"
+fi
+
+# A repository with NO markdownlint config and a gitignored file is untouched
+# too — but by the pre-existing config gate, which stops the run before the
+# scope check. Recorded so the pairing is complete, not as evidence for the
+# scope escape.
+NOCFG="$WORK/scope-noconfig"
+mkdir -p "$NOCFG/.work"
+git -C "$NOCFG" init -q
+git -C "$NOCFG" config core.excludesFile /dev/null
+printf '.work/\n' >"$NOCFG/.gitignore"
+NC_IGN="$NOCFG/.work/scratch.md"
+printf '%s' "$SCOPE_BODY" >"$NC_IGN"
+OUT_NC=$(run_scope "$NC_IGN")
+if [[ -z "$OUT_NC" ]] && grep -q '^\* star item$' "$NC_IGN"; then
+  ok "scope: gitignored file in a config-less repo is untouched (config gate)"
+else
+  fail "scope: config-less repo touched a gitignored file: $OUT_NC"
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]
