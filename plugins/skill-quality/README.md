@@ -80,8 +80,9 @@ configuration is needed:
 ## Evals schema
 
 `validate-evals` checks a skill's `evals/evals.json` against the bundled
-`reference/evals.schema.json`. The schema accepts both the minimal form (`id` + `prompt` per case) and
-the rich form (adding `name`, `expected_output`, `files`, and one of `assertions` / `expectations`).
+`reference/evals.schema.json`. Every case requires `id`, `prompt`, and at least one non-empty
+grading criterion — `expected_output`, `expectations`, or `assertions` (a case that cannot be
+graded is not an eval); the rich form adds `name` (kebab-case) and `files`.
 Evals are warranted, not mandatory — a skill shipping none is not a failure.
 
 ## Requirements
