@@ -22,12 +22,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   quotes and hands words to `statusline-shim.sh`, which `exec`s them unchanged. A quoted argument —
   and an operator's `sh -c '<string>'`, where `sh` is the executable and `-c` and the carried string
   are two ordinary ARGV words — already survives the plain wrapped form intact. The trigger is now
-  the syntax no ARGV word can express — an inline env assignment, a pipe, `&&`, `;`, or a
-  redirection — and only where it stands UNQUOTED at the top level, so syntax sealed inside a quoted
-  argument no longer counts either. That scoping is what makes the two conditions unable to both
-  wrap the same `sh -c '<string>'`: the peel rule takes the shape exactly when its carried string
-  holds shell syntax, so what the peel rule preserves holds none and cannot match the guard, and
-  what it peels arrives at the guard as top-level syntax and is wrapped once.
+  the syntax no ARGV word can express — an inline env assignment, a pipe, `&&`, `||`, `;`, a
+  trailing `&`, or a redirection — and only where it stands UNQUOTED at the top level, so syntax
+  sealed inside a quoted argument no longer counts either.
+
+  Scoping the guard that way splits the peel rule's own provenance test in two, and BOTH branches
+  are needed. A carried string the guard would leave alone means the operator wrote that `sh -c`,
+  so it is preserved; a carried string the guard would wrap means a previous run generated it, so
+  it is peeled. But a carried string that is ITSELF an `sh -c '<string>'` is a generated layer
+  whatever the guard would say about it — an operator's renderer is at most one `sh -c` deep, and
+  the buggy guard emitted exactly this shape. Without that nested branch the peel rule stops one
+  layer early and hands the operator back the two-layer wrap it was supposed to collapse, so the
+  rule now names it explicitly. Between them the two tests leave exactly one layer on any input,
+  which is what makes a re-run of `check` print byte-identical wiring.
 
 - **`check` no longer reports a differing installed shim as harmless.** The report said an older or
   hand-edited copy "still resolves the newest tee", which stopped being true when
