@@ -1,0 +1,29 @@
+# Repository-local Ruff policy, registered as `locally-owned` for this repo in
+# melodic-software/standards `distribution/sync-manifest.yml`. The managed
+# `ruff` component's canonical policy reports 385 findings against this tree
+# (melodic-software/standards#335); adopting it is a migration, not a config
+# flip. Re-adopt as `managed` there when that migration is scheduled.
+#
+# What this file is for: without it every ruff invocation in this repo lints
+# against whatever upstream's default selection happens to be that release.
+# Ruff 0.16.0 moved that default from 59 rules to 413 and dropped 18 `E`/`F`
+# rules from it, which turned two contract suites red on an unmodified `main`.
+# An explicit `select` makes the rule set a decision recorded here, so a version
+# bump can no longer change WHICH rules run.
+#
+# The selection is the pre-0.16 default set: Pyflakes plus the `E` groups that
+# flag real errors. It is deliberately a floor, not an aspiration — raise it
+# toward the managed policy with `extend-select` as each category is cleared.
+# Ref: https://docs.astral.sh/ruff/configuration/
+
+# Eval fixtures are input specimens, not code: an audit skill's fixture holds
+# the defect its eval asserts on, so linting it fails by construction.
+extend-exclude = ["**/evals/fixtures/**"]
+
+[lint]
+select = [
+  "E4", # pycodestyle — import errors
+  "E7", # pycodestyle — statement errors
+  "E9", # pycodestyle — syntax/IO errors
+  "F",  # Pyflakes — correctness
+]
