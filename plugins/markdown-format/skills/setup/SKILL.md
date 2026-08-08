@@ -56,9 +56,17 @@ restores the FAIL semantics.
    and that is the whole reason formatting is not happening. Name the remediation in the
    same line rather than leaving the reader to infer it. Never report markdownlint's own
    default rules as the fallback — an unconfigured repo gets no rules, not the defaults.
-5. **Hook toggle** — report the effective `markdown_format_enabled` value:
+5. **Path scope — the repository's `.gitignore`** — INFO: the hook leaves a gitignored
+   file alone, neither rewriting nor reporting on it, because a path the repository
+   excludes is not part of the reviewable artifact. List the ignored Markdown the
+   repository carries as out of scope — `git ls-files --others --ignored
+   --exclude-standard -- '*.md' '*.mdc'` — and note that a tracked file is never treated
+   as ignored even when a pattern matches it. Report the effective
+   `${user_config.markdown_format_lint_gitignored}` value (unexpanded or empty means
+   default `false`, i.e. gitignored files are skipped); `true` restores linting there.
+6. **Hook toggle** — report the effective `markdown_format_enabled` value:
    `${user_config.markdown_format_enabled}` (unexpanded or empty means default `true`).
-6. **Hook registration** — INFO: confirm the plugin is enabled for this project
+7. **Hook registration** — INFO: confirm the plugin is enabled for this project
    (`/plugin` → Installed) rather than parsing settings files.
 
 ## `apply` (idempotent)

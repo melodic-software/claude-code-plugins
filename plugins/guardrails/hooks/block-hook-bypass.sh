@@ -254,7 +254,17 @@ EXEC_LC="${EXECUTABLE,,}"
 COMMAND_LC="${COMMAND,,}"
 
 # `cat` immediately before a redirect, with or without a space (`cat>file`).
+# Scanned PER SEGMENT (see cat_redirect_bypass), so `;|&()` never reach it — the
+# leading class is kept for the pre-segmentation shape and costs nothing.
 _cat_redir='(^|[[:space:];|&()]+)cat[[:space:]]*>'
+# One stdout redirect and its target word. `[^0-9&]` before the operator keeps
+# other-fd (`2>`, `21>`) and combined (`&>`) redirects out, while the optional
+# `1` admits the EXPLICIT stdout spelling — `1>file` is stdout exactly as `>file`
+# is, and omitting it left `cat >/dev/null 1>real.txt` reading as a discard. The
+# target class excludes `&`, so an fd dup (`>&1`) is not mistaken for a file.
+# Used by set_last_stdout_target, never matched alone: the PRESENCE of a
+# `/dev/null` redirect proves nothing (see below).
+_redir_scan='(^|[^0-9&])1?>>?[[:space:]]*([^|&>[:space:]]+)'
 # A simple-command segment whose command token is `echo` or `printf` — the
 # content producers a `> file` redirect turns into a Write/Edit bypass. Anchored
 # to the segment start (see producer_redirect_bypass), so it never matches an
@@ -299,21 +309,54 @@ _modifier_optend='^--([[:space:]]|$)'
 # A leading redirection element (`> file cmd`, `< in cmd`, `2> f cmd`, `>& n cmd`):
 # bash permits redirections before the command word, so a producer can hide behind
 # one (`> real.txt echo x`). Peeled (operator + its target word) — like _cmd_prefix
-# — to expose the producer for _producer_head, while _echo_file_out/_echo_devnull
+# — to expose the producer for _producer_head, while _echo_file_out and the
 # still run on the UN-peeled segment so the redirect itself remains the write
 # signal. Not anchored to stdout-to-file: any leading redirect is peeled for
 # producer exposure; whether a real file write exists is decided by _echo_file_out.
 _leading_redir='^([0-9]*(>>?|<)&?|&>>?)[[:space:]]*'
 # stdout-to-file redirect: `>` / `>>` NOT preceded by an fd digit or `&`, so
-# stderr/fd redirects (`2>/dev/null`, `2>&1`, `&>`) do not trip. _echo_devnull
-# exempts a stdout discard (`>/dev/null`) — that's not a Write/Edit bypass.
+# stderr/fd redirects (`2>/dev/null`, `2>&1`, `&>`) do not trip. A stdout discard
+# is exempt — that's not a Write/Edit bypass — but the exemption is decided by
+# set_last_stdout_target, not by this pattern: the discard must be the EFFECTIVE
+# target, not merely present somewhere in the segment.
 _echo_file_out='(^|[^0-9&])>>?[[:space:]]*[^|&>[:space:]]'
-_echo_devnull='(^|[^0-9&])>>?[[:space:]]*/dev/null'
-# python file-write indicators. `pathlib` / `path(` are identifier-boundary
-# anchored so they match the write-capable `pathlib.Path(` producer but NOT the
-# read-only `os.path.*path(` helpers (`normpath(`, `abspath(`, `realpath(`, …)
-# whose trailing `path(` would otherwise substring-match and false-positive.
-_py_write='open[[:space:]]*\(|\.write[[:space:]]*\(|(^|[^[:alnum:]_])pathlib|(^|[^[:alnum:]_])path[[:space:]]*\('
+# python file-write indicators that are unambiguous on their own. `pathlib` /
+# `path(` are identifier-boundary anchored so they match the write-capable
+# `pathlib.Path(` producer but NOT the read-only `os.path.*path(` helpers
+# (`normpath(`, `abspath(`, `realpath(`, …) whose trailing `path(` would
+# otherwise substring-match and false-positive.
+_py_write='\.write[[:space:]]*\(|(^|[^[:alnum:]_])pathlib|(^|[^[:alnum:]_])path[[:space:]]*\('
+# `open(` is NOT one of them: `open(f,'w')` writes and `open(f)` reads, and the
+# two differ only by an argument. A bare `open(` therefore says nothing about
+# direction, and matching it blocked every read-mode inline `open()`.
+# DISCRIMINATION BOUNDARY (see py_write_indicator): `open(` counts as a write
+# indicator only when a python WRITE-MODE LITERAL also occurs somewhere in the
+# same command — a quoted token built solely from mode characters that contains
+# at least one of `w` / `a` / `x` / `+`, in an argument position (after a comma,
+# or after `mode=`). Read modes (`'r'`, `'rb'`, `'rt'`) carry none of those
+# characters and no longer trip it.
+#
+# CO-OCCURRENCE, not position — deliberately. Bash ERE has no lazy quantifier, so
+# a positional `open\([^)]*'w'` stops at the first `)` and would fail OPEN on a
+# real write with a nested call (`open(os.path.join(a,b),'w')`), while a greedy
+# `.*` reaches into unrelated text anyway. This is the same mangle-resistant
+# co-occurrence shape the PowerShell lane below already uses.
+#
+# ACCEPTED RESIDUAL (the fail-CLOSED direction): a read-only `open()` in a
+# command that separately contains an argument-position `'w'`/`'a'`/`'x'`/`'+'`
+# literal (e.g. `print(open('f').read(), 'a')`) still blocks. The argument-position
+# requirement is what keeps the common read shapes clear — a dict subscript
+# (`json.load(open('p'))['a']`) is preceded by `[`, not by a comma.
+_py_open='open[[:space:]]*\('
+_py_write_mode='(,|mode[[:space:]]*=)[[:space:]]*['\''"][rwaxbtu+]*[wax+][rwaxbtu+]*['\''"]'
+
+# True when the (lowercased) command carries a python file-write indicator.
+py_write_indicator() {
+  local cmd_lc="$1"
+  [[ "$cmd_lc" =~ $_py_write ]] && return 0
+  [[ "$cmd_lc" =~ $_py_open && "$cmd_lc" =~ $_py_write_mode ]] && return 0
+  return 1
+}
 
 # Flag ONLY when the producer being redirected into a real file is echo/printf
 # authoring content — not any command string that merely co-mentions an `echo`
@@ -346,8 +389,12 @@ _py_write='open[[:space:]]*\(|\.write[[:space:]]*\(|(^|[^[:alnum:]_])pathlib|(^|
 # indistinguishable from a command word by prefix-peeling alone, and the redirect
 # there is group-level (same brace-group floor as above). Structurally unusual for
 # LLM output and covered by an accepted-floor test.
-producer_redirect_bypass() {
-  local exec_lc="$1" seps=$';\n|&()' soh=$'\x01' esc=$'\x02' normalized seg s i
+#
+# Segmentation is shared with the `cat >` scan (cat_redirect_bypass) through
+# normalize_segments, so both lanes agree on escaped separators and on the
+# fd-duplication sentinel instead of drifting apart behind two splitters.
+normalize_segments() {
+  local exec_lc="$1" seps=$';\n|&()' soh=$'\x01' esc=$'\x02' normalized s i
   # Protect backslash-escaped separators (`echo x \; > file`, an escaped-newline
   # line continuation `echo x \<newline> > file`) before the split: bash keeps an
   # escaped separator inside the SAME simple command (`\;` is a literal argument,
@@ -377,6 +424,49 @@ producer_redirect_bypass() {
   normalized="${normalized//[$seps]/$'\n'}"
   normalized="${normalized//"$soh"/&}"
   normalized="${normalized//"$esc"/ }"
+  NORMALIZED_SEGMENTS="$normalized"
+}
+
+# The EFFECTIVE stdout destination of a segment, into LAST_STDOUT_TARGET (empty
+# when the segment redirects stdout nowhere).
+#
+# Bash applies redirections LEFT TO RIGHT, so the last one wins: `cat >
+# /dev/null > real.txt` writes to real.txt, and `cat > /dev/null 1>real.txt`
+# does too. A check that exempted a segment on merely CONTAINING a `/dev/null`
+# redirect would hand an attacker a one-token bypass of this whole guard — write
+# the discard first, the real file second. Only the final target may exempt.
+#
+# Sets a global rather than echoing: this runs per segment on every Bash call,
+# and a command substitution would add a fork to each one.
+LAST_STDOUT_TARGET=""
+set_last_stdout_target() {
+  local rest="$1"
+  LAST_STDOUT_TARGET=""
+  while [[ "$rest" =~ $_redir_scan ]]; do
+    LAST_STDOUT_TARGET="${BASH_REMATCH[2]}"
+    # Quoted so the consumed text is stripped literally — a target may hold glob
+    # metacharacters, and an unquoted pattern would eat the wrong span.
+    rest="${rest#*"${BASH_REMATCH[0]}"}"
+  done
+}
+
+# `cat >` with no input file is content authoring redirected into a file — the
+# heredoc/typed-content Write bypass. Scanned per segment so the /dev/null
+# DISCARD exemption cannot leak across a compound command: `cat > /dev/null &&
+# cat > real.txt` still blocks on its second segment.
+cat_redirect_bypass() {
+  local seg
+  while IFS= read -r seg || [[ -n "$seg" ]]; do
+    [[ "$seg" =~ $_cat_redir ]] || continue
+    set_last_stdout_target "$seg"
+    [[ "$LAST_STDOUT_TARGET" == "/dev/null" ]] && continue
+    return 0
+  done <<<"$NORMALIZED_SEGMENTS"
+  return 1
+}
+
+producer_redirect_bypass() {
+  local seg
   while IFS= read -r seg || [[ -n "$seg" ]]; do
     seg="${seg#"${seg%%[![:space:]]*}"}"
     # Peel leading command-prefix tokens (see _cmd_prefix) and leading redirections
@@ -386,7 +476,7 @@ producer_redirect_bypass() {
     # compound-command header / group opener / negation (`; do echo x > f`, `if echo
     # x > f`, `while echo ...`, `! echo ...`, `{ echo ...`), or a leading redirect
     # (`> real.txt echo x`) is still seen as the segment's command word. The redirect
-    # itself is left in `seg`: _echo_file_out/_echo_devnull below decide whether a
+    # itself is left in `seg`: _echo_file_out and set_last_stdout_target below decide whether a
     # real file write exists, so a leading redirect stays the write signal.
     local head="$seg" tgt prev_mod=""
     while :; do
@@ -425,9 +515,12 @@ producer_redirect_bypass() {
     done
     [[ "$head" =~ $_producer_head ]] || continue
     [[ "$seg" =~ $_echo_file_out ]] || continue
-    [[ "$seg" =~ $_echo_devnull ]] && continue
+    # Same left-to-right rule as the cat lane: `echo x > /dev/null > real.txt`
+    # writes to real.txt. The old presence test exempted it.
+    set_last_stdout_target "$seg"
+    [[ "$LAST_STDOUT_TARGET" == "/dev/null" ]] && continue
     return 0
-  done <<<"$normalized"
+  done <<<"$NORMALIZED_SEGMENTS"
   return 1
 }
 
@@ -491,23 +584,27 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   # lane). ACCEPTED RESIDUAL: a stdin heredoc (`python3 - <<PY … PY`, no `-c`) is
   # uncovered here, as it is today.
   ps::blank_herestrings "$COMMAND"
-  if [[ "$COMMAND_LC" =~ $_py_write ]] && ps::might_write_via_python3 "$PS_BLANKED"; then
+  if py_write_indicator "$COMMAND_LC" && ps::might_write_via_python3 "$PS_BLANKED"; then
     block_bypass "python-write" "python3 -c inline-code file write bypasses Write/Edit hooks"
   fi
   emit_tel "ok" ""
   exit 0
 fi
 
-# cat > file (allow cat without redirect). EXEC_LC (lowercased stripped form) for
-# case-insensitive command-token detection.
-if [[ "$EXEC_LC" =~ $_cat_redir ]]; then
+# Split once into simple-command segments; both redirect scans below read it.
+# EXEC_LC (lowercased stripped form) gives case-insensitive command-token
+# detection.
+normalize_segments "$EXEC_LC"
+
+# cat > file (allow cat without redirect, and allow a `> /dev/null` discard).
+if cat_redirect_bypass; then
   block_bypass "cat-redirect" "cat > file write bypasses Write/Edit hooks"
 fi
 
 # echo/printf ... > file — only when the echo/printf IS the producer redirected
 # into a real file (stdout-to-real-file only; not stderr/fd redirects, /dev/null,
 # a co-located but unrelated echo, or tokens inside a quoted argument).
-if producer_redirect_bypass "$EXEC_LC"; then
+if producer_redirect_bypass; then
   block_bypass "echo-redirect" "echo/printf > file write bypasses Write/Edit hooks"
 fi
 
@@ -520,7 +617,7 @@ fi
 # `/c/Python313/python3.exe -c`) is the same write — anchored on the python3
 # basename, so `notpython3` (no separator before it) stays inert.
 if [[ "$EXEC_LC" =~ (^|[[:space:];|&()/\\]+)python3(\.exe)?[[:space:]]+-c ]] &&
-  [[ "$COMMAND_LC" =~ $_py_write ]]; then
+  py_write_indicator "$COMMAND_LC"; then
   block_bypass "python-write" "python3 -c file write bypasses Write/Edit hooks"
 fi
 
