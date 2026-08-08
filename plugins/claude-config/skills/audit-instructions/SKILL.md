@@ -94,7 +94,8 @@ scope; non-matching ones are inert and the report lists them as `skipped-for-tar
   against the live model-config docs at run time; (3) anything that cannot be normalized to a
   single version fails loud (below). The normalized token is the catalog's local grammar —
   lowercase family and version joined by hyphens (`opus-5`, `sonnet-5`, `fable-5`), derived from
-  the documented model the alias or full model name resolves to, not a string upstream publishes. Matching against catalog scopes is exact equality of the
+  the documented model the alias or full model name resolves to, not a string upstream publishes.
+  Matching against catalog scopes is exact equality of the
   normalized version token — the catalog's "Model scoping" section owns that predicate.
 - **Fail loud on ambiguity:** a value may carry no version at all — a family alias like `opus`
   (with or without a context-window suffix such as `[1m]`), an absent `model` setting in an
