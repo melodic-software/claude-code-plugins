@@ -16,9 +16,9 @@ All notable changes to the `claude-memory` plugin are documented here. Format fo
   the same pass. The `"Cannot be overridden by any other level, including command line
   arguments"` quote truncated mid-sentence, dropping `, apart from the exceptions in the bullets
   below` and inverting a qualified claim into an absolute one; the full sentence is restored, and
-  new prose names the four security-sensitive keys a lower scope may set restrictively and states
-  that auto memory is not among them, so the operative conclusion survives without the quote
-  overstating. The `claude project purge` quote asserted `"The command requires Claude Code
+  new prose carries the conclusion the skill needs as a verified negative — item 1's exception
+  bullets name auto memory nowhere — instead of an enumeration this file would have to keep in
+  sync. The `claude project purge` quote asserted `"The command requires Claude Code
   v2.1.124 or later"`, a sentence claude-directory no longer carries and cli-reference never did;
   it is out of the quote, and the retained `v2.1.124+` floor the plugin states elsewhere is
   labelled a claim with no current upstream source rather than left looking doc-backed.

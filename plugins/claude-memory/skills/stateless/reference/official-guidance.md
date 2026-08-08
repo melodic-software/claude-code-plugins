@@ -120,10 +120,10 @@ per-project wipe (see "Out of scope" below).
 > exceptions in the bullets below"
 > — code.claude.com/docs/en/settings (a nested bullet under item 1, verified 2026-08-08)
 
-Those exceptions are a short list of security-sensitive keys a lower scope may set *restrictively*
-(`disableClaudeAiConnectors`, `remoteControlAtStartup`, `isolatePeerMachines`,
-`crossSessionInbound`) plus host-supplied model configuration. Neither `autoMemoryEnabled` nor
-`CLAUDE_CODE_DISABLE_AUTO_MEMORY` is among them, so for this skill a managed value is final.
+Item 1's exception bullets are longer and more varied than this file summarizes — read them on the
+page. What matters here is a negative: none of them names `autoMemoryEnabled`,
+`CLAUDE_CODE_DISABLE_AUTO_MEMORY`, or auto memory at all (verified 2026-08-08), so no ordinary
+lower scope overrides a managed auto-memory value.
 
 Managed settings live outside the repo (macOS `/Library/Application Support/ClaudeCode/`,
 Linux/WSL `/etc/claude-code/`, Windows registry `HKLM`/`HKCU\SOFTWARE\Policies\ClaudeCode`).
