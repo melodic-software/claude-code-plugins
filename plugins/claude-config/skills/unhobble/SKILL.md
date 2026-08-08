@@ -104,6 +104,11 @@ Apply the confirmed strip plan:
   remove the entries, record the exact JSON paths removed in the manifest.
 - Project-enabled plugins: record the current enabled set in the manifest, then disable the ones
   classified `behavioral` for this project (leave policy/tooling plugins the operator marked keep).
+  Plugins toggle whole — project settings offer no partial disable — so a **mixed** plugin that
+  bundles any `policy`-classified surface (e.g. a policy hook alongside behavioral convenience
+  skills) is **kept whole**, with its behavioral components recorded in the manifest as
+  `unstripped-mixed-plugin`; the observe phase notes them as still-loaded confounds rather than
+  silently taking the policy gate down with the plugin.
 - Print the "you are bare" summary: what a fresh session will now load (ideally: nothing but the
   code) and how to restore everything (`readd` phase reads the manifest; `git` holds the files).
 

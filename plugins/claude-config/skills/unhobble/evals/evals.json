@@ -96,6 +96,42 @@
         "Names its undocumented status as the reason",
         "Distinguishes operator-owned instruction surfaces (in scope) from Claude Code's built-in prompts (out of scope)"
       ]
+    },
+    {
+      "id": 9,
+      "name": "mixed-plugin-kept-whole",
+      "prompt": "/claude-config:unhobble bare — one of our project-enabled plugins ships a PR-body policy gate hook plus five convenience skills for commits and PRs. The skills are definitely behavioral scaffolding; disable the plugin.",
+      "expected_output": "Keeps the plugin enabled: plugins toggle whole (project settings offer no partial disable), and a plugin bundling any policy-classified surface is kept whole rather than letting the policy gate go down with its behavioral skills. Records the behavioral components in the manifest as unstripped-mixed-plugin and notes them as still-loaded confounds for the observe phase.",
+      "files": [],
+      "expectations": [
+        "Does not disable a plugin that bundles a policy-classified surface, even when its other components are behavioral",
+        "Records the behavioral components as unstripped-mixed-plugin in the manifest",
+        "Flags the still-loaded behavioral components as observe-phase confounds rather than ignoring them"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "checkout-identity-mismatch-aborts",
+      "prompt": "/claude-config:unhobble readd — I'm in a fresh clone of the repo at a different path; the experiment was snapshotted from my other worktree. Restore from that experiment's manifest.",
+      "expected_output": "Aborts: every phase after snapshot verifies the manifest's recorded checkout identity (resolved worktree path, origin URL) against the current checkout, and a mismatch stops the run naming the conflicting path. Restoring another checkout's settings from this one is exactly the cross-restore the identity guard exists to prevent; the operator resumes from the checkout the manifest names.",
+      "files": [],
+      "expectations": [
+        "Verifies the manifest's checkout identity before acting and aborts on mismatch",
+        "Names the conflicting recorded path in the abort message",
+        "Directs the operator to resume from the checkout the manifest names rather than force-restoring here"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "mixed-claude-md-split-not-deleted-whole",
+      "prompt": "/claude-config:unhobble bare — our CLAUDE.md has a checked-in team branching-and-PR conventions section plus a pile of behavioral do-this-do-that lines. Strip it.",
+      "expected_output": "Does not git rm the file whole: a mixed instruction file is split at section granularity in the strip plan — the behavioral lines are removed, the convention sections are preserved in place or extracted to a retained file — because team conventions in git are the officially carved-out durable tier. The strip plan names which sections go and which stay before anything is applied.",
+      "files": [],
+      "expectations": [
+        "Refuses whole-file deletion for a mixed instruction file",
+        "Strips behavioral sections while preserving convention sections (in place or extracted)",
+        "Presents the per-section split in the strip plan before applying it"
+      ]
     }
   ]
 }
