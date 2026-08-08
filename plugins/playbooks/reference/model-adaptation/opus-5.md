@@ -308,7 +308,7 @@ Live fetches at authoring time (2026-07-26):
 - <https://platform.claude.com/docs/en/about-claude/models/whats-new-opus-5> — thinking-on default,
   400 constraint, behavior changes.
 
-The Opus 5 prompting guide was re-fetched 2026-08-03 through the same raw-`.md` channel and is
+The Opus 5 prompting guide was re-fetched 2026-08-08 through the same raw-`.md` channel and is
 byte-identical to the 2026-07-25 capture above (11,225 bytes, identical MD5).
 
 The Opus 5 system card was re-fetched 2026-08-04 by following the model-card URL

@@ -4,6 +4,17 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.6.21]
+
+### Changed
+
+- **`opus-5` model-adaptation chapter: the guide re-verification stamp advances to 2026-08-08**
+  (playbooks 0.6.20 → 0.6.21). A full-guide conformance audit of this repository re-fetched the
+  Opus 5 prompting guide through the same raw-`.md` channel and found it byte-identical to the
+  2026-07-25 capture (11,225 bytes, MD5 matching the corpus graduation pin), so every claim the
+  chapter sources from the guide stands unchanged; the Sources block's re-verification line now
+  records the later reading. No doctrine changes.
+
 ## [0.6.20]
 
 ### Fixed
