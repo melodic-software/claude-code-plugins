@@ -288,7 +288,10 @@ intake arriving mid-cycle is reported, never chased.
    escalation — per the detector below; upsert the telemetry comment (cycle report + updated state
    block + guard mode + the `usage_sample` built from step 1's cycle-start reading, whose delta
    covers the preceding interval and never this cycle's work); evaluate the stop condition; if not
-   stopping, `ScheduleWakeup` the next cycle.
+   stopping, `ScheduleWakeup` the next cycle. **Ground every claim in the cycle report against a
+   tool result from this cycle, and say which work is unverified rather than omitting the
+   distinction.** Nobody watched this cycle, so the report is the only record of it and a fabricated
+   line is indistinguishable from a true one until someone re-does the work.
 
 ## do-not-merge
 
