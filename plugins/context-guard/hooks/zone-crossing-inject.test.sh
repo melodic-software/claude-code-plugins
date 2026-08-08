@@ -87,6 +87,15 @@ if ((menu_free)) && [[ "$CTX" == *"Do not volunteer"* ]]; then
 else
   fail "model channel leaked an exit menu or lost the counter-steer: $CTX"
 fi
+# The model channel may say the choice is the operator's; it may never say the
+# operator has SEEN it. Nothing tells a hook whether an operator is present, so
+# a delivery claim is unknowable in every mode. Asserted here so the sentence
+# cannot creep back on a later rewording pass.
+if [[ "$CTX" != *"has been shown"* && "$CTX" != *"shown to"* && "$CTX" == *"operator's call"* ]]; then
+  ok "model channel claims ownership without claiming delivery"
+else
+  fail "model channel asserts operator receipt it cannot know: $CTX"
+fi
 if [[ "$SYS" == *"/compact"* && "$SYS" == *"/session-flow:handoff"* && "$SYS" == *"yours to choose"* ]]; then
   ok "operator channel carries the continuation menu"
 else

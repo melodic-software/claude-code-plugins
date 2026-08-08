@@ -20,6 +20,14 @@
 # no dependency wiring, so a context-guard-only install would otherwise receive
 # the zone word with nothing in context to interpret it against.
 #
+# The model channel states that continuation is the operator's CALL; it never
+# states the operator has SEEN the menu. No documented hook behavior tells a
+# hook whether an operator is present — `systemMessage` is documented only as a
+# message shown to the user, with nothing said about non-interactive runs — so
+# a delivery claim would be a fact this hook cannot know, in every mode rather
+# than only headless ones. Emitting to an unread operator channel is harmless;
+# telling the model a human has the menu when none does is not.
+#
 # Cadence contract: the session's zone is resolved from the plugin's
 # own snapshot seam via scripts/context-zone.sh (the single band/combination
 # authority — this hook never re-implements band logic). The last-seen zone
@@ -145,7 +153,7 @@ zone_label="$zone"
 
 # Model channel: the determination, then the counter-steer. No exit menu, no
 # continuation router, no invitation to end the turn — see the header.
-guidance="context-guard: this session crossed from the ${prev_label} into the ${zone_label} context zone (snapshot seam, conservative-min over percentage and token bands). This is a measurement reported to you, not an instruction and not a decay signal: degradation shows up in your own output — drift, repetition, dropped constraints — never in a zone word. Do not volunteer to end the session, start a new one, summarize, hand off, or trim your work on the strength of this reading; keep working the task in hand. The operator has been shown the continuation options and owns that choice. Act on a continuation when the operator asks for one, when a mechanism gates on it, or when your own output shows the degradation this reading cannot see."
+guidance="context-guard: this session crossed from the ${prev_label} into the ${zone_label} context zone (snapshot seam, conservative-min over percentage and token bands). This is a measurement reported to you, not an instruction and not a decay signal: degradation shows up in your own output — drift, repetition, dropped constraints — never in a zone word. Do not volunteer to end the session, start a new one, summarize, hand off, or trim your work on the strength of this reading; keep working the task in hand. Continuation is the operator's call, and nothing here is being asked of you. Act on a continuation when the operator asks for one, when a mechanism gates on it, or when your own output shows the degradation this reading cannot see."
 if [[ "$zone" == "dumb" ]]; then
   guidance+=" The dumb zone additionally means compaction distance is short, which is true regardless of model: write every expensive conclusion to a durable note as it stabilizes rather than at session end, so an unchosen compaction cannot take it."
 fi

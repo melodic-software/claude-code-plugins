@@ -31,6 +31,25 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   a `context-guard`-only install previously received the menu with nothing in context to interpret
   it against.
 
+  **The model channel states ownership, never delivery.** It says continuation is the operator's
+  call; it does not say the operator has seen the menu. No documented hook behavior tells a hook
+  whether an operator is present — `systemMessage` is documented only as a message shown to the
+  user, with nothing said about non-interactive runs — so a delivery claim would be a fact the hook
+  cannot know in *any* mode, not only headless ones. Emitting to an unread operator channel is
+  harmless; telling the model a human holds the choice when none does is not. A regression assertion
+  locks it, because the sentence is the kind that creeps back on a rewording pass.
+
+  **The `hook-observability` convention is amended in the same change**, because this is the first
+  fleet payload that is neither a prerequisite-skip nor a content-mutation notice. Its
+  advisory-findings exclusion now names its own predicate — *who can act* — and admits a carve-out
+  only on three conditions together: the payload is a choice whose only legitimate actor is the
+  human, the model channel separately carries the determination the model does need, and the
+  emission is keyed to a state transition. The convention also now forbids any model-channel text
+  from asserting operator presence, fleet-wide. This **creates** an exception rather than codifying
+  practice — every other `systemMessage` site in the fleet is a prerequisite skip or a formatter's
+  content-mutation notice — and the conformance section says so, so a second site re-reads the
+  conditions instead of following the precedent.
+
   **Firing cadence is unchanged**, deliberately. Whether a four-option exit menu belonged on the
   `smart → acceptable` crossing was an open calibration question; it dissolves rather than gets
   answered, because the model-facing payload no longer carries a menu at any zone, and a budget
