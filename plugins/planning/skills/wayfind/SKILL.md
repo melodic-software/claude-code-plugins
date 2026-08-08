@@ -77,7 +77,12 @@ an interactive session — do not fabricate a map.
 
 1. **Survey + fog test.** Ground in the effort (read any existing `<memory_dir>/<slug>/`, recent
    commits, the topic). Sort every uncertainty through the fog test: sharp → candidate
-   decision item; foggy → *Not-yet-specified* prose.
+   decision item; foggy → *Not-yet-specified* prose. **No-fog bail-out:** if the survey
+   leaves *both* halves of the trigger unmet — every uncertainty is already sharp, or the
+   whole effort fits one session — this effort does not need a map. STOP and route out
+   instead of fabricating one: a single contract to lock → `/planning:interview`; a set of
+   sharp tickets → `/work-items`; small enough to just do → say so. (The trigger is too-big
+   AND foggy — both, never either alone.)
 2. **Create or extend the map issue.** On first use in a repo, **verify** the wayfind label
    taxonomy (`work-map`, `wayfind: *`, `needs-human`) is present — an unknown `--label` fails the
    create. Honor the consuming repository's declared label ownership. If it names a label-as-code
@@ -98,7 +103,10 @@ an interactive session — do not fabricate a map.
    is per-item. One mechanism — the presence/absence of `needs-human` — carries the mode; no
    parallel `Mode:` body field.
 5. **Hand off to `work`.** Report the frontier (open, unblocked, unassigned items) and
-   recommend `/planning:wayfind work` to start resolving.
+   recommend `/planning:wayfind work` to start resolving. If the fresh frontier holds
+   `research`-typed items, offer to fire them now in parallel (work mode's research
+   exception) — their resolutions often sharpen the remaining fog before the first HITL
+   session.
 
 ## Work mode
 
@@ -112,6 +120,12 @@ an interactive session — do not fabricate a map.
    HITL item by standing in for the human.
 3. **Pick one and claim it** (sibling claim model — `@me` assignee + claim-comment lease with
    comment-order collision check, no claim label; see [`context/tracker-mechanics.md`](context/tracker-mechanics.md)).
+   One item per session — with one exception: **`research`-typed items may be burned down in
+   parallel.** They are autonomous-capable by construction, so when the frontier holds
+   several, claim each one individually (same protocol, one claim per item) and dispatch
+   `/discovery:research` per item — it already runs in a fresh-context subagent. Graduate
+   each on completion per step 5; the resolution comment is the finding's durable home,
+   research scratch stays in `<memory_dir>/<slug>/`. Never fan out a `needs-human` item.
 4. **Route by type** — invoke the target skill directly; its own Q&A supplies the HITL loop:
 
    | Type label | Mode | Routes to |
@@ -160,6 +174,8 @@ owns the trigger's meaning (too-big + fog, both, not either alone).
   an agent standing in for the user (inviolable). Non-interactive frontier filters them out.
 - **Does not chart non-interactively.** Charting burns assumptions that need a human in the
   loop; the `chart` action refuses non-interactive sessions.
+- **Does not build a map to justify its invocation.** No fog, or fits one session → route
+  out (chart step 1's bail-out).
 - **Does not store coordination in the memory tier.** The map (coordination) lives on the
   tracker; `<memory_dir>/<slug>/` (default `.work/`) holds execution artifacts only (journals,
   research scratch, evidence).

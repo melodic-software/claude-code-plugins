@@ -32,6 +32,10 @@ Scope boundary — this skill starts from an **observed failure**: UI behaving w
 
 This skill is self-contained. Where a phase below names an adjacent capability — a test-investigation routine, a TDD helper, a headless-browser driver, an architecture-audit agent, an issue tracker, an outcome-verifier — treat it as **optional**: *if your environment provides that capability (a skill, plugin, agent, or tool), invoke it; otherwise proceed with the inline guidance given here, which stands on its own.* Never block a phase because an adjacent tool is absent. Consumer-specific conventions (naming, module layout, banned APIs, work-notes location) come from your own project's `CLAUDE.md` and tool config — read them; this skill does not assume them.
 
+## Redact secrets in everything you show
+
+Every phase surfaces commands, outputs, and captured artifacts. **Redact every secret before it appears in a transcript, work note, or commit** — write `<REDACTED>` in its place. Build loops that read credentials from env vars, so the secret stays in the environment rather than in the command line you show or the harness you commit. Captured artifacts (HAR files, log dumps, replayed traces) carry auth headers and tokens — quote only the lines that carry the diagnostic signal. If the redacted output is not enough to diagnose, say so and ask the user rather than widening the quote.
+
 ## Emit checklist
 
 For any diagnostic run (Phases 1-6), track phase completion. A ready-to-fill checklist is bundled at `${CLAUDE_PLUGIN_ROOT}/skills/debug/templates/checklist.md` — if your project has a working-notes or scratch location, copy it there; otherwise track the six phases inline. Phase 4 is SKIPPED when Phase 2 repro conclusively verifies the Phase 3 hypothesis without instrumentation.
@@ -82,7 +86,7 @@ The goal is not a clean repro but a **higher reproduction rate**. Loop the trigg
 
 ### When you genuinely cannot build a loop
 
-Stop and say so explicitly. List what was tried. Ask the user for: (a) access to whatever environment reproduces it, (b) a captured artifact (HAR file, log dump, core dump, screen recording with timestamps), or (c) permission to add temporary production instrumentation. Do **not** proceed to hypothesise without a loop.
+Stop and say so explicitly. List what was tried. Ask the user for: (a) access to whatever environment reproduces it, (b) a redacted captured artifact (HAR file, log dump, core dump, screen recording with timestamps), or (c) permission to add temporary production instrumentation. Do **not** proceed to hypothesise without a loop.
 
 **Do not proceed to Phase 2 until you have a loop you believe in.**
 

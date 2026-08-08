@@ -48,7 +48,7 @@ Every v1.2 change that touches a skill we derived is either adopted, consciously
 | # | Lane | Items | Status |
 |---|---|---|---|
 | 1 | Hygiene + record | M1 M2 M19 M20 + SSOT + map promotion + provenance strip | this session |
-| 2 | Owned-skill deltas | M6 M7 M8 M9 M11 M12 | pending |
+| 2 | Owned-skill deltas | M6 M7 M8 M9 M11 M12 | done |
 | 3 | /wait-what port | M4 (Q9) | pending |
 | 4 | /wizard port | M5 (Q10) | pending |
 | 5 | Infra / P2 | M10 M13 M14 M15 M16 (Q11) | pending |
@@ -56,3 +56,21 @@ Every v1.2 change that touches a skill we derived is either adopted, consciously
 ## Plan
 
 (Filled per-lane by the lane sessions; Lane 1 executes directly off this Brief.)
+
+### Lane 2 — owned-skill deltas (closed)
+
+Six fresh-context vetting agents (one per item) drove the decisions per the lane interview's
+user-delegated mandate; outcomes recorded in `docs/upstream/mattpocock-skills.md`:
+
+- **M6** — re-audited, no delta (graduation was a 100%-similarity rename; ours a superset).
+- **M7** — emoji anchors adopted behind `userConfig` `use_emoji_question_markers` (default off);
+  one-question-at-a-time opt-out rejected (consumer CLAUDE.md is the native seam). planning 0.29.0.
+- **M8** — parallel research burn-down + no-fog bail-out adopted in `wayfind`; decision-ticket
+  term (parity as "decision item") and `research/<name>` branch (two-lane violation) rejected.
+- **M9** — YAGNI scoping filter adopted in `architecture:improve` deepening Phase 1;
+  precomputed commits widened 10→20. architecture 0.4.3.
+- **M11** — redaction guard adopted in `debugging:debug` (0.5.0) and `testing:diagnose` (0.4.0);
+  tagged-log rider added to diagnose (debug already had it); loop doctrine tracked, not adopted.
+- **M12** — phase-boundaries tree rejected at parity (ours stronger); one zone-gated
+  primary-source continue criterion adopted in the continuation router. session-flow 0.18.1.
+  ~150k smart-zone figure rejected as folklore; context-guard bands unchanged.

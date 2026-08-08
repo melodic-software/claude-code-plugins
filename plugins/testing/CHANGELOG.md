@@ -3,6 +3,20 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.0]
+
+### Added
+
+- **`diagnose`: redaction guard + tagged debug logs.** A new `## Redact` section in the router
+  requires every secret redacted (`<REDACTED>`) before commands, test output, stack traces, or
+  CI logs are shown; reproductions read credentials from env vars so secrets never land in a
+  command line, fixture, or committed regression test. Investigation step 4 now tags every
+  debug log with a unique short prefix (e.g. `[DEBUG-a4f2]`), and the fix loop's green gate
+  removes tagged instrumentation via a single grep before the atomic commit — the loop commits
+  per iteration, which is exactly where untagged logs leak into history. (Guard and tag
+  convention from upstream mattpocock/skills `diagnosing-bugs` v1.2.3; registry: the
+  marketplace repository's `docs/upstream/mattpocock-skills.md`.)
+
 ## [0.3.3]
 
 ### Changed

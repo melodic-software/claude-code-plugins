@@ -1,5 +1,17 @@
 # Changelog — session-flow plugin
 
+## [0.18.1]
+
+### Changed
+
+- **`workflow`: the continuation router's continue question gains the primary-source criterion.**
+  Within a still-healthy zone, prefer continuing when the next stage consumes this stage's
+  reasoning verbatim — a summary of the reasoning is not the reasoning. Explicitly bounded: it
+  never overrides a degraded zone, where the degradation-wins stance holds and handoff remains
+  the route. (Criterion from upstream mattpocock/skills ask-matt `PHASE-BOUNDARIES.md` v1.2,
+  adopted zone-gated; the rest of that tree audited at parity or rejected — registry: the
+  marketplace repository's `docs/upstream/mattpocock-skills.md`.)
+
 ## [0.18.0]
 
 ### Added

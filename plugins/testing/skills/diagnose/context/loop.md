@@ -68,7 +68,7 @@ dotnet test
 
 ### Step 6: Evaluate
 
-- **All green** → commit fix + test together (atomic). Exit loop. Suggest `/verification:confirm` for comprehensive validation
+- **All green** → remove tagged debug instrumentation first (grep the `[DEBUG-...]` prefix), then commit fix + test together (atomic). Exit loop. Suggest `/verification:confirm` for comprehensive validation
 - **New failure** → you've found a sibling bug or a side effect. Loop back to step 1 with the new failure
 - **Same test still fails** → re-examine the root cause. The fix was insufficient
 

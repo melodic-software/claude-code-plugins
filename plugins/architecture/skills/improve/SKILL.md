@@ -13,7 +13,7 @@ metadata:
 ## Pre-computed context
 
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Recent commits: !`git log --oneline -10 2>/dev/null || echo "no commits"`
+Recent commits: !`git log --oneline -20 2>/dev/null || echo "no commits"`
 Working tree status: !`git status --porcelain 2>/dev/null | head -10 || echo "clean"`
 
 ## Variables
