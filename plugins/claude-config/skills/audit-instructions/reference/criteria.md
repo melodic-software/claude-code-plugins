@@ -34,6 +34,14 @@ The requirement **binds on touch**, per the convention above: rows predating thi
 citations as they are and adopt the four parts the next time they change. A missing stamp on an
 older row is therefore not itself a defect in this catalog.
 
+**Admission.** A row's observable must be text that is **present**. A check detects something a
+surface says; an obligation that a surface *should say* something is not a row here, however well
+sourced — a proposed Detect clause reading "a surface that does not …" is refused on shape before its
+source is weighed. Such guidance routes to doctrine or to a mechanism instead, and an audit that
+declines a row on this ground says where it routed, so "no row" never reads as "not covered". In this
+monorepo the rule and its reasoning are `docs/adr/0008-admit-only-present-text-defects-to-the-instruction-audit-catalog.md`;
+in a standalone install the rule, not the path, is the requirement.
+
 **Axes.** Three orthogonal axes, never conflated:
 
 - **Evidence tier** — `mechanical` (pattern-detectable by static reading) or `behavioral` (ground

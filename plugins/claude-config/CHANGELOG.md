@@ -40,6 +40,12 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 ### Changed
 
+- **The catalog states an admission rule.** A row's observable must be text that is present: a check
+  detects what a surface says, and an obligation that a surface *should* say something is refused on
+  shape rather than weighed on its source. Integrating one model guide raised that question at four
+  separate sections and answered it four times by hand; the rule now settles it once, and requires an
+  audit declining a row on this ground to name where the guidance routed instead — doctrine or a
+  mechanism — so "no row" never reads as "not covered". Every row through I24 already satisfies it.
 - **I8's base row now cites the general principle, not only the migration framing.** Both of its
   sources sat in sections about migrating older material, which pointed an auditor at what looks
   like leftover prior-model scaffolding and past freshly authored over-enumeration — the same defect
