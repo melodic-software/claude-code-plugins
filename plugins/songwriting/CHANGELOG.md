@@ -73,8 +73,32 @@ given that the default reach is always for an adjective.
 
 ### Fixed — source fidelity
 
-Four context files adjudicated against the full text of the chapter each claims
-to distill, rather than against the distillation.
+Six context files adjudicated against the full text of the chapter each claims
+to distill, rather than against the distillation. Chapters 1, 3, 6, 7, 8, 9, 10,
+11, 12, and 13 of *Writing Better Lyrics* (2009) read in full.
+
+- **The deceptive cadence was absent from all 49 context files.** *Writing
+  Better Lyrics* (2009) Chapter 13 names the move: a chorus opens `aba`, the ear
+  leans toward a resolving `abab` close, and the fourth line repeats the title
+  instead. It repeats the title, spotlights it through the structural surprise,
+  and resolves the section *less securely* than the expected rhyme would have —
+  and that third effect is the craft point. The chapter's example is a character
+  asking for something she has not been given; full resolution would sound as
+  though she already had it. Now in `hook.md` with the match-the-cadence-to-the-
+  question rule and its counter-case: a section that resolves or answers wants
+  the expected rhyme, and withholding it there fights the meaning.
+
+- **`point-of-view.md`'s dialogue coverage gains three mechanics.** The duet
+  test is the chorus, not the conversation — if the repeated section is one
+  character's plea, the other cannot sing it and the song is not a duet however
+  evenly the dialogue is split. First-person dialogue whose story belongs to the
+  other character has two exits rather than one: move to third person, or keep
+  first person and write the narrator a closing insight that earns the
+  retelling. And Chapter 13's structural sequence is now stated as the
+  three-stage setup it is — balanced verse, off-balance three-line transitional
+  bridge, withheld chorus rhyme — rather than compressed to a pointer, because
+  in quoted dialogue the structure decides which character's words the section
+  is actually about.
 
 - **`repetition.md`'s hidden-question mechanic was inverted.** *Writing Better
   Lyrics* (2009) Chapter 6 deletes the **interrogative pronoun** and keeps the
