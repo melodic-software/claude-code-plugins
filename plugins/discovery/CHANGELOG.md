@@ -1,5 +1,16 @@
 # Changelog — discovery plugin
 
+## [0.10.1]
+
+### Added
+
+- **`explore`: sidecar bodies get a length calibration.** Every surrounding surface was already
+  calibrated (one-line index abstracts, one-line YAML findings, a sentence-capped agent return),
+  but the sidecar bodies — where the bulk of the disk-written artifact lands — carried no length
+  guidance, and the outcome gate is a floor (no placeholders), not a ceiling. SKILL.md now
+  carries the calibration: match body length to what the section needs; cover the substance
+  without filler sections, redundant summaries, or boilerplate.
+
 ## [0.10.0]
 
 ### Added

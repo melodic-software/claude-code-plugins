@@ -21,6 +21,25 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   (`git rm` on the experiment branch) rather than in-place disable — a deliberate choice: git is
   the restore mechanism, and a renamed-but-present file could still be read.
 
+## [0.22.1]
+
+### Fixed
+
+- **`audit-instructions`: three precision fixes from a conformance audit of the catalog against
+  its own sources** (criteria 1.16.0 → 1.16.1). `instruction-scan.sh`'s header comments still
+  described all three I8 pattern families as "Opus-5-scoped catalog rows" — stale since I8-b's
+  promotion to unscoped; the comments now state the split (I8-a/I8-c scoped, I8-b unscoped).
+  I8-a's Detect line truncated the guide's trigger phrase ("include a final verification step"
+  → the guide's "include a final verification step for any non-trivial task"). I8-b's opening
+  claimed the Sonnet 5 guide states the same claim "about the same three trigger phrases" while
+  its own Source paragraph concedes "don't nitpick" appears nowhere in the Opus 5 guide; the
+  annotation now matches its Source (two shared phrases, third's provenance in the Source line).
+- **`audit-instructions`: the normalized version token's grammar is now stated.** SKILL.md's
+  resolution ladder said to normalize alias → version "against the live model-config docs" but
+  never defined the token shape those docs do not publish; the ladder now names the local
+  grammar (lowercase family-hyphen-version, e.g. `opus-5`) so a consumer resolving a full model
+  name or alias lands on the exact string the catalog's `Model scope` annotations match against.
+
 ## [0.22.0]
 
 ### Changed
