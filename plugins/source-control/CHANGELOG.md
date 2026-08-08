@@ -3,6 +3,16 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.48.1]
+
+### Changed
+
+- **`babysit-loop`: listing description tightened (1,468 → 931 chars)** — trimmed the explanatory
+  prose from the frontmatter `description` toward the shared skill-listing budget
+  (claude-code-plugins#2022, option 2). Every single-quoted trigger phrase is preserved verbatim
+  (skill-quality check 3); the merge-authority contract is unchanged and stays fully stated in the
+  skill body and the loop-lane convention.
+
 ## [0.48.0]
 
 ### Changed
