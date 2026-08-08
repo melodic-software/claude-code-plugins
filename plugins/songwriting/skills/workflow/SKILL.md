@@ -21,7 +21,7 @@ tonight") into the right scenario and the right craft skill, and run guided step
 the writer wants to be walked through it. When the user names a craft term (rhyme, meter, form,
 image), route straight to that concern skill.
 
-Method content is Pat Pattison's, under `context/pat-pattison/`. A future author's process plugs in
+Method content is Pat Pattison's, under the plugin-root `../../context/pat-pattison/`. A future author's process plugs in
 at `context/<author>/` without changing this skill.
 
 ## Concern skills — route craft-term requests here

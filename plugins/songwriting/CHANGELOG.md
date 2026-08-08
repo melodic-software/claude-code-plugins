@@ -5,11 +5,76 @@ All notable changes to the `songwriting` plugin are documented here. Format foll
 
 ## [0.7.0]
 
-Source-fidelity pass over three context files, each adjudicated against the
-full text of the chapter it claims to distill rather than against the
-distillation. Paraphrase only.
+Two changes in one release: a fix for the plugin's central failure — craft
+disciplines that load into context and then fail to bind at generation time —
+and a source-fidelity pass over three context files. Paraphrase only; no
+chapter prose, example writes, or student work reaches this public repository.
 
-### Fixed
+### Added — the binding fix
+
+Piloting the plugin end-to-end on a song established that loading a context
+file does not make its discipline govern generation. A file stating that
+choruses tell was in context two turns before three choruses were emitted that
+show; a filter's boxes were listed as passed while the emitted lines failed
+them. Reading a rule and obeying it at generation time are separate problems,
+and only the first was addressed. Three changes attack the second:
+
+- **`object-writer` agent** — performs the object write itself rather than
+  prompting a human, with the discipline in its own system prompt rather than
+  in a file it consults. Dispatched blind, one per seed, deliberately denied
+  the song, the draft, and the other writers' output, because same-seed
+  divergence depends on isolation. Writes its result to a file and returns a
+  path plus a seven-channel sense inventory quoting its own phrases, with thin
+  channels reported rather than padded. Reached through the new
+  `/songwriting:object-writing generate` action.
+
+  This shape was validated during the pilot: agents carrying the discipline in
+  their prompts produced materially better output than the main thread did with
+  the same files loaded, including one that graded its own organic channel thin
+  and refused to pad it. The file-not-message return is also empirical — long
+  creative text proved unreliable over the agent return channel.
+
+- **Emission boundaries on every craft skill.** Each skill now states what it
+  must NOT emit and which skill owns that output. `song-form` does not write
+  lines; `rhyme` does not write the line its rhyme lands in; `meter-prosody`
+  measures but does not rewrite; `object-writing` produces ore, not lines. In
+  the pilot the structural skill wrote three chorus drafts while its own
+  routing said rhyme work belonged elsewhere.
+
+- **A hard input gate on `co-write`,** the one skill that legitimately emits
+  lines. Its gate is satisfied by artifacts that exist — a menu of rhyme
+  candidates visible in the response, object-writing output at a named path, a
+  marked stress map — not by naming boxes as passed. A skip stays valid and
+  stays named; a box claimed as passed with no artifact behind it is a failed
+  box.
+
+### Added — metaphor as a first-class skill
+
+`/songwriting:metaphor` with generative actions (`collide`, `recipe`, `keys`,
+`types`, `simile`, `diagnose`), taking object-writing output as its input. The
+underlying `metaphor.md` was verified faithful against *Writing Better Lyrics*
+(2009) Chapter 3 and is unchanged — the defect was placement. 755 lines of
+accurate method were reachable only as one action inside a skill about a
+different discipline, and across an entire pilot song it never fired once,
+despite that song containing no metaphor at all.
+
+Two corrections from the chapter now sit where generation happens rather than
+only in the reference: a metaphor must be literally false, since identity
+without conflict is definition; and noun+verb collisions outperform
+adjective+noun, because verbs drive a line — the correction that matters most,
+given that the default reach is always for an adjective.
+
+### Changed (breaking)
+
+- **`/songwriting:object-writing metaphor` and `metaphor-recipe` are removed.**
+  Both route to `/songwriting:metaphor` (`collide` and `recipe`). Cliché repair
+  stays in `object-writing`, since its taxonomy covers stale phrasing beyond
+  metaphor.
+
+### Fixed — source fidelity
+
+Three context files adjudicated against the full text of the chapter each
+claims to distill, rather than against the distillation.
 
 - **`box-model.md` defined "travelogue" three incompatible ways.** *Writing
   Better Lyrics* (2009) Chapter 8 defines travelogue as verses with no natural

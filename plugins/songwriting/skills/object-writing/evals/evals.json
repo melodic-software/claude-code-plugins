@@ -3,16 +3,55 @@
   "evals": [
     {
       "id": 1,
-      "name": "metaphor-recipe-for-emotion",
-      "prompt": "/songwriting:object-writing metaphor-recipe I need a metaphor for grief that isn't a storm or an ocean",
-      "expected_output": "Routes to the metaphor-recipe action. Loads metaphor.md (the 8 named recipes) and templates/metaphor-recipe-prompt.md. Generates 6-8 metaphor candidates avoiding the named cliche families (storm-anger, fire-passion, ocean-sadness) per the user's constraint, labeling each with its type (expressed identity / qualifying / verbal) and a grounding suggestion.",
+      "name": "ai-performs-the-write-via-agent",
+      "prompt": "/songwriting:object-writing generate I want you to do the object writing. I don't want to do it — the whole point is for you to do this.",
+      "expected_output": "Routes to the generate action and dispatches the object-writer agent rather than issuing a timed prompt to the user or writing the dive inline in the main thread. The agent receives only the seed, timer, category, and an output path — not the song, draft, or diagnosis. The write lands in a file under the song's ideation/ and the return is a path plus a seven-channel sense inventory. Never hands the exercise back to the writer, and never declines on the grounds of having no sense memory.",
       "files": [],
       "expectations": [
-        "Loads metaphor.md via the `metaphor-recipe` action",
-        "Avoids storm and ocean (named cliche families) per the user's constraint",
-        "Generates 6-8 candidate metaphors",
-        "Labels each with a metaphor type (expressed identity / qualifying / verbal)",
-        "Offers options rather than a single winning metaphor"
+        "Dispatches the object-writer agent rather than writing the dive in the main thread",
+        "Does NOT issue a timed prompt for the human to write",
+        "Does NOT decline or cite a lack of personal sense memory",
+        "Briefs the agent with seed, timer, category, and output path only — no song, draft, or diagnosis",
+        "The write is written to a file; the return is a path plus a sense inventory, not the full text in a message",
+        "Reports thin or absent sense channels rather than presenting all seven as covered"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "isolation-held-when-a-song-is-in-context",
+      "prompt": "/songwriting:object-writing generate We're stuck on verse 2 of the breakup song — write me some object writing on 'kitchen' for it",
+      "expected_output": "Dispatches the agent on the seed 'kitchen' WITHOUT passing the song, the verse, or the fact that it is a breakup song. Isolation is stated as deliberate, not apologized for as a limitation. Mining the result against verse 2's needs happens in the main thread afterward, which is where the song context lives.",
+      "files": [],
+      "expectations": [
+        "The agent's brief carries the seed but NOT the song, the draft, or the emotional premise",
+        "Names isolation as the mechanism rather than as a shortcoming",
+        "Mining against the song's needs happens after the write returns, in the main thread",
+        "Does not ask the agent to write toward verse 2"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "mines-rather-than-transcribes",
+      "prompt": "/songwriting:object-writing That object write was great — put it into the chorus",
+      "expected_output": "Refuses to transcribe the write into a section. Pulls one image forward as ore, then routes line emission to /songwriting:co-write rather than writing the chorus here. Names both the mining discipline and the boundary.",
+      "files": [],
+      "expectations": [
+        "Does NOT paste a run of object-writing material into a section",
+        "Pulls a single image forward rather than the passage",
+        "Routes line emission to /songwriting:co-write",
+        "Does not emit a finished chorus from this skill"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "metaphor-request-routes-out",
+      "prompt": "/songwriting:object-writing I need a metaphor for grief that isn't a storm or an ocean",
+      "expected_output": "Metaphor is no longer an action of this skill. Routes to /songwriting:metaphor collide rather than generating metaphors here, and offers mined sensory material as that skill's input if any exists.",
+      "files": [],
+      "expectations": [
+        "Routes to /songwriting:metaphor rather than generating the metaphor here",
+        "Does not emit metaphor candidates from this skill",
+        "Offers sensory material as input to the metaphor skill where relevant"
       ]
     }
   ]
