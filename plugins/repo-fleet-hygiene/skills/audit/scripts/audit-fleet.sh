@@ -122,7 +122,13 @@ git_probe_allowed() {
     [[ $# -ge 4 && -n "${2:-}" ]] || return 1
     case "$3" in
     rev-parse)
-      [[ $# -eq 4 && "$4" == "--show-toplevel" ]] ||
+      # --show-prefix is read-only and operand-free, like --show-toplevel. It is the probe that
+      # tells a work-tree ROOT (empty) from a path below one (non-empty) without any path
+      # arithmetic, which is what keeps a leftover directory from being read as the worktree it is
+      # registered as.
+      # --is-bare-repository is the same shape again, and it is what separates a
+      # bare hub's legitimately-absent working tree from a probe that failed.
+      [[ $# -eq 4 && ("$4" == "--show-toplevel" || "$4" == "--show-prefix" || "$4" == "--is-bare-repository") ]] ||
         [[ $# -eq 5 && "$4" == "--path-format=absolute" && "$5" == "--git-common-dir" ]]
       ;;
     remote)
@@ -1011,8 +1017,30 @@ analyze_repo() {
     return
   }
 
+  # Resolved through git rather than taken from discovery so that it and the porcelain's worktree
+  # paths come from ONE source. A filesystem-derived path and a git-emitted one differ by spelling
+  # on Windows (/d/repos/x vs D:/repos/x), and path_key normalizes separators and case but not the
+  # drive form — a containment test across those two forms silently never matches.
+  # A BARE canonical has no working tree, so `--show-toplevel` fails there by
+  # design and there is nothing for a worktree to be nested inside — a legitimate
+  # skip, not an unknown. Any OTHER failure is an unknown, and it gets a finding
+  # rather than a silent skip: every sibling probe in this function reports when
+  # it cannot answer, and a placement check that quietly did not run reads
+  # identically to one that ran and found nothing.
+  local canonical_top canonical_bare="false"
+  [[ "$(run_git_probe -C "$canonical" rev-parse --is-bare-repository 2>/dev/null | tr -d '\r')" == "true" ]] &&
+    canonical_bare="true"
+  canonical_top="$(run_git_probe -C "$canonical" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
+  if [[ -z "$canonical_top" && "$canonical_bare" != "true" ]]; then
+    emit_finding UNKNOWN worktree-placement-unverifiable "$canonical" \
+      "git rev-parse --show-toplevel gave no working-tree root for a non-bare canonical checkout" \
+      "Do not infer that this repository's worktrees are correctly placed" \
+      "Inspect the canonical checkout, then rerun"
+  fi
+
   # Parse the stable NUL-delimited porcelain format. Only these registrations are worktree evidence.
   local wt_path="" wt_branch="" wt_prunable="false" wt_locked="false" field worktree_status=1
+  local wt_prefix
   while IFS= read -r -d '' field; do
     if [[ -z "$field" ]]; then
       if [[ -n "$wt_path" ]]; then
@@ -1072,6 +1100,35 @@ analyze_repo() {
           "Manual review" "Run /source-control:worktree cleanup --dry-run in $canonical"
       fi
       continue
+    fi
+    # A registered path that is not a work-tree ROOT still answers `git -C` — with the CONTAINING
+    # repository's state rather than its own, at exit 0, which is indistinguishable from a healthy
+    # clean worktree. `--show-prefix` is the discriminator, and it needs no path arithmetic: empty
+    # exactly at a work-tree root, non-empty anywhere below one. `--is-inside-work-tree` cannot
+    # answer it, because a leftover directory inside a repository genuinely IS inside that work
+    # tree. Both branches stop here: every probe below would describe the wrong repository.
+    if ! wt_prefix="$(run_git_probe -C "$wt_path" rev-parse --show-prefix 2>/dev/null | tr -d '\r')"; then
+      emit_finding UNKNOWN worktree-root-unverifiable "$wt_path${wt_branch:+ ($wt_branch)}" \
+        "git rev-parse --show-prefix failed at the registered path" \
+        "Do not read any git -C probe of this path as the worktree's own state" \
+        "Inspect the registered path and Git metadata, then rerun"
+      continue
+    elif [[ -n "$wt_prefix" ]]; then
+      emit_finding HIGH worktree-not-a-root "$wt_path${wt_branch:+ ($wt_branch)}" \
+        "git rev-parse --show-prefix returns $wt_prefix, so the registered path is a subdirectory of a work tree rather than its root; probing it reports the containing repository's state at exit 0" \
+        "Manual review; never infer this worktree is clean from a git -C probe of the path" \
+        "Run /source-control:worktree cleanup --dry-run in $canonical"
+      continue
+    fi
+    # Placement drift. A worktree inside its own repository's working tree is what makes a read
+    # matching a path-scoped rule's glob also load the parent checkout's copy of that rule; the
+    # sanctioned placement is an external root outside every repository.
+    if [[ "$is_main" == "false" && -n "$canonical_top" ]] &&
+      [[ "$(path_key "$wt_path")" == "$(path_key "$canonical_top")"/* ]]; then
+      emit_finding MEDIUM worktree-nested-in-repository "$wt_path${wt_branch:+ ($wt_branch)}" \
+        "registered worktree root is inside the canonical checkout's own working tree ($canonical_top)" \
+        "Manual placement decision; never auto-move or auto-remove" \
+        "Recreate it at an external root with /source-control:worktree create, then remove this one"
     fi
     if ! actual_common="$(run_git_probe -C "$wt_path" rev-parse --path-format=absolute --git-common-dir 2>/dev/null | tr -d '\r')" ||
       [[ -z "$actual_common" ]]; then
