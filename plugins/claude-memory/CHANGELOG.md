@@ -18,7 +18,10 @@ All notable changes to the `claude-memory` plugin are documented here. Format fo
   below` and inverting a qualified claim into an absolute one; the full sentence is restored, and
   new prose carries the conclusion the skill needs as a verified negative — item 1's exception
   bullets name auto memory nowhere — instead of an enumeration this file would have to keep in
-  sync. The `claude project purge` quote asserted `"The command requires Claude Code
+  sync. Review narrowed that conclusion to settings scopes only: `CLAUDE_CODE_DISABLE_AUTO_MEMORY`
+  as an OS environment variable sits outside settings precedence and still overrides the effective
+  value even against a managed `autoMemoryEnabled`, as the file's env-var precedence section
+  already states. The `claude project purge` quote asserted `"The command requires Claude Code
   v2.1.124 or later"`, a sentence claude-directory no longer carries and cli-reference never did;
   it is out of the quote, and the retained `v2.1.124+` floor the plugin states elsewhere is
   labelled a claim with no current upstream source rather than left looking doc-backed.
