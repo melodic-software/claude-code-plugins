@@ -39,11 +39,16 @@ Load the audit checklist alongside these: [audit-checklist.md](../reference/audi
 
 - All hook script paths resolve to existing files on disk
 - Scripts are readable (not permission-denied)
+- `timeout` is a seconds value — flag a recognizably millisecond-scale figure (a round thousands
+  multiple like `30000` or `120000`), not merely a large one: the docs give defaults, not a maximum
 - Timeouts are reasonable: 5-15s for simple formatters, 30s for slow-startup tools (pwsh)
 - Matchers take their intended evaluation path — only letters, digits, `_`, `-`, spaces, `,`, `|`
   makes it an exact-string list; any other character makes it an unanchored JavaScript regex, which
   needs `^…$` to match a whole string (`Edit.*` also matches `NotebookEdit`)
-- `$CLAUDE_PROJECT_DIR` references are properly quoted in commands
+- A shell-form hook quotes each path placeholder; exec form is the docs' preference but shell form
+  is correct when the hook needs pipes, `&&`, redirects, or a `.cmd`/`.bat` shim — do not flag it
+- On a Windows-targeting repo, exec-form `command` resolves to a real executable — `bash` there
+  finds the WSL relay and the hook silently never launches
 - No duplicate hooks (same script registered twice for same event)
 - Hook events are valid (cross-reference against official docs)
 
