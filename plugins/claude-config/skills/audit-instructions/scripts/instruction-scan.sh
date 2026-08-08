@@ -26,13 +26,22 @@
 #       idiomatic uses ("do not think of this as…"), and substring near-misses
 #       ("don't reasonably…") ARE emitted; the fences live in
 #       reference/criteria.md, never here.
+#   I23 self-estimated context-budget trigger ("context is heavy", "running low
+#       on context", "remaining context", "check /context", "final third of the
+#       window"). The catalog's subject is a directive to judge one's own window
+#       and then stop, summarize, hand off, or trim on that basis — but the
+#       scanner marks the BUDGET PHRASING alone and never the verb it governs,
+#       because the two routinely sit in different sentences. It therefore also
+#       emits the counter-steer text that forbids the behavior (inverted
+#       polarity), documents ABOUT the pattern, and operator-facing budgets:
+#       all three are criteria-owned exemptions the model lane applies.
 #
 # Advisory: prints candidate rows, ALWAYS exits 0 (candidates never fail a run).
 # Requires grep; exits 2 when grep is absent.
 #
 # Rows are `file:line:check-id` (grep -n convention). With no rationale on a line
 # a prohibition surfaces as an I6 row; a line may surface once per matching check
-# id (I6, I10, and one of the I8 families). Nonexistent path arguments are
+# id (I6, I10, I23, and one of the I8 families). Nonexistent path arguments are
 # skipped, not errors.
 #
 # Usage:
@@ -54,7 +63,7 @@ Usage: instruction-scan.sh [--count|--help] FILE...
 
 I8 pattern families (model-era candidates; model lane adjudicates): I8-a
 instructed self-check, I8-b conservative-reporting, I8-c don't-think /
-don't-reason.
+don't-reason. I23 marks self-estimated context-budget phrasing.
 
 Advisory — always exits 0 (candidates never fail the run). Requires grep
 (exit 2 when absent). Seeds the candidate set of the audit-instructions
@@ -105,6 +114,16 @@ I10_ERE="${I10_ERE}|think out loud|walk (me|us) through your (thinking|reasoning
 I8_A_ERE="double[- ]check|${WB_L}re[- ]?verif|final verification step|(sub)?agent to verify|have (a |an )?(sub)?agent verify|verifier (sub)?agent|verify your (own )?work"
 I8_B_ERE="be conservative|(only report|report only) (the )?(high|critical)|(don('|’)?t|do not) nitpick"
 I8_C_ERE="(do not|don('|’)?t) (think|reason)|without thinking|skip the reasoning"
+# I23 self-estimated context-budget phrasing. Deliberately anchored to
+# BUDGET-AS-TRIGGER forms, never to the bare term "context window" — that term
+# is ordinary vocabulary in any instruction surface discussing sessions, and
+# matching it would return the whole corpus rather than a candidate set.
+I23_ERE="context (is |gets |getting |grows )?(heavy|tight|saturated|exhausted)|heavy context"
+I23_ERE="${I23_ERE}|(running|runs|run) (out of|low on) context|low on context"
+I23_ERE="${I23_ERE}|remaining[- ](context|window|tokens)|context[- ](budget|percentage|occupancy|countdown)|token[- ](budget|countdown)"
+I23_ERE="${I23_ERE}|(check|checking|watch|watching|monitor|monitoring) (the |your )?/context|/context output"
+I23_ERE="${I23_ERE}|(final|last) (third|quarter|half) of (the|your|its) window|window position"
+I23_ERE="${I23_ERE}|(nearing|approaching) (the )?(context|token)[- ](limit|cap|budget|window)"
 
 rows=()
 
@@ -125,6 +144,12 @@ scan_file() {
     lineno="${hit%%:*}"
     rows+=("$file:$lineno:I10")
   done < <(grep -niE "$I10_ERE" "$file" 2>/dev/null)
+
+  while IFS= read -r hit; do
+    [[ -n "$hit" ]] || continue
+    lineno="${hit%%:*}"
+    rows+=("$file:$lineno:I23")
+  done < <(grep -niE "$I23_ERE" "$file" 2>/dev/null)
 
   local fam ere
   for fam in a b c; do

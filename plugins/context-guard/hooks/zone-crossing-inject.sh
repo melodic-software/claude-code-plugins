@@ -1,6 +1,24 @@
 #!/usr/bin/env bash
-# PostToolBatch + UserPromptSubmit hook: inject continuation guidance ONCE per
-# transition into a WORSE context zone; stay silent otherwise.
+# PostToolBatch + UserPromptSubmit hook: report a transition into a WORSE
+# context zone ONCE; stay silent otherwise.
+#
+# TWO CHANNELS, TWO AUDIENCES — the split is load-bearing, not cosmetic.
+# `systemMessage` renders to the operator; `additionalContext` lands in the
+# model's context. The continuation menu (continue / clear / handoff / compact)
+# is a HUMAN's choice and goes to the operator channel only. The model's channel
+# carries the zone determination plus the counter-steer, and never an exit menu:
+# a menu injected into model context manufactures the model's own initiative to
+# stop, summarize, or hand off — the measurement decides only when to ask, while
+# the model still decides whether to stop. That shape is a live finding under
+# the instruction-audit catalog's I23 (claude-config, reference/criteria.md),
+# whose Remediate clause prescribes exactly this: state the counter-steer
+# plainly, and where the harness must surface a budget, pair it with a
+# reassurance rather than with an exit menu.
+#
+# The counter-steer is stated INLINE rather than delegated to the `playbooks`
+# doctrine that also carries it. Both plugins are independently installable with
+# no dependency wiring, so a context-guard-only install would otherwise receive
+# the zone word with nothing in context to interpret it against.
 #
 # Cadence contract: the session's zone is resolved from the plugin's
 # own snapshot seam via scripts/context-zone.sh (the single band/combination
@@ -11,8 +29,8 @@
 # updates state — no data is not a transition. Improvements update state
 # silently so a later relapse injects again.
 #
-# ADVISORY-ONLY: this hook only ever exits 0 and only ever emits
-# additionalContext. The blocking posture lives in the separate PreToolUse
+# ADVISORY-ONLY: this hook only ever exits 0 and only ever emits context and a
+# user-visible message. The blocking posture lives in the separate PreToolUse
 # gate (zone-gate.sh). PostToolBatch fires once per parallel tool batch
 # before the next model call — one injection point per model turn, no
 # per-tool dedupe needed; UserPromptSubmit covers turns that begin without a
@@ -101,7 +119,7 @@ last_rank=$(rank "$last")
 # SILENTLY: proceeding past it would compare this turn's zone against the
 # same stale `last` again on the next call, re-emitting the ~1KB guidance
 # block every subsequent PostToolBatch/UserPromptSubmit instead of once per
-# transition. "Silent" means no additionalContext is injected — the failure
+# transition. "Silent" means neither channel emits — the failure
 # itself is still surfaced to operators as telemetry, never swallowed twice.
 umask 077
 mkdir -p "$STATE_DIR" 2>/dev/null || exit 0
@@ -124,12 +142,19 @@ fi
 prev_label="${last:-unobserved}"
 zone_label="$zone"
 [[ -n "$degraded" ]] && zone_label="dumb (evidence-degraded: this session was compacted, so its context evidence is already lossy regardless of the snapshot's numbers)"
-guidance="context-guard: this session crossed from the ${prev_label} into the ${zone_label} context zone (snapshot seam, conservative-min over percentage and token bands). On many models response quality degrades as context occupancy grows; onset varies by model — some vendor model guides state consistency through the full window — and the bands are tunable defaults (zones.json). Compaction distance shrinks regardless of model. Prefer finishing the current step, then choose the continuation mechanism deliberately: (1) continue in-session only if the remaining work is small or simple enough for degraded context; (2) /clear if this session's context is disposable; (3) write a durable handoff then /clear if state must survive — run /session-flow:handoff (if that plugin is installed; otherwise write a resume file by hand before clearing); (4) /compact only at a phase boundary, as a last resort. For the full continuation router, run /session-flow:workflow (if installed)."
+
+# Model channel: the determination, then the counter-steer. No exit menu, no
+# continuation router, no invitation to end the turn — see the header.
+guidance="context-guard: this session crossed from the ${prev_label} into the ${zone_label} context zone (snapshot seam, conservative-min over percentage and token bands). This is a measurement reported to you, not an instruction and not a decay signal: degradation shows up in your own output — drift, repetition, dropped constraints — never in a zone word. Do not volunteer to end the session, start a new one, summarize, hand off, or trim your work on the strength of this reading; keep working the task in hand. The operator has been shown the continuation options and owns that choice. Act on a continuation when the operator asks for one, when a mechanism gates on it, or when your own output shows the degradation this reading cannot see."
 if [[ "$zone" == "dumb" ]]; then
-  guidance+=" The dumb zone means degradation is likely already measurable on degradation-prone models: avoid starting new complex work in this window."
+  guidance+=" The dumb zone additionally means compaction distance is short, which is true regardless of model: write every expensive conclusion to a durable note as it stabilizes rather than at session end, so an unchosen compaction cannot take it."
 fi
 
-hook::emit_channels "$EVENT" "$guidance" ""
+# Operator channel: the same crossing, plus the continuation menu that is the
+# human's call to make.
+operator="context-guard: this session crossed from the ${prev_label} into the ${zone_label} context zone (snapshot seam, conservative-min over percentage and token bands). On many models response quality degrades as context occupancy grows; onset varies by model — some vendor model guides state consistency through the full window — and the bands are tunable defaults (zones.json). Compaction distance shrinks regardless of model. Continuation options, yours to choose: (1) continue in-session if the remaining work is small or simple enough for degraded context; (2) /clear if this session's context is disposable; (3) write a durable handoff then /clear if state must survive — /session-flow:handoff (if that plugin is installed; otherwise write a resume file by hand before clearing); (4) /compact only at a phase boundary, as a last resort. For the full continuation router, /session-flow:workflow (if installed)."
+
+hook::emit_channels "$EVENT" "$guidance" "$operator"
 hook::emit_telemetry "zone-crossing-inject" "$EVENT" "ok" "$START_EPOCH" \
   '{"zone":"'"$zone"'","previous":"'"${last:-}"'","injected":true}'
 exit 0

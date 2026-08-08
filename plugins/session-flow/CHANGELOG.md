@@ -1,5 +1,28 @@
 # Changelog — session-flow plugin
 
+## [0.21.0]
+
+### Changed
+
+- **`handoff` no longer fires on a self-estimated context budget.** Its `description` listed
+  "context is heavy" among the triggers, and the body's "When to invoke" repeated it as "Mid-task,
+  context heavy (check `/context` output or user report)" — telling the model to judge its own
+  window and volunteer a handoff on that judgement. A description is resident in context by default
+  (<https://code.claude.com/docs/en/skills>, verified 2026-08-08), so that trigger was live in every
+  session with the plugin installed, and it is the shape the `claude-config` instruction-audit
+  catalog's check I23 detects.
+
+  Three signals now license the skill, and a self-estimated budget is not among them: **the user's
+  own report**, **an instrument that measures the window** (`context-guard`'s zone report is one),
+  and **visible decay in the responses themselves** — drift, repetition, looping. The third is
+  explicitly the model's to read, because decay shows up in the output and never in a budget number.
+  Nothing about the save-point engine, the arguments, the STOP gate, or the emitted artifacts
+  changes, and the skill stays model-invocable: only the budget clause is gone.
+
+  The "Fork beats compaction" section keeps its window-position threshold and gains a one-line
+  anchor saying what it always meant — it picks between two continuation mechanisms and never
+  licenses the continuation itself.
+
 ## [0.20.0]
 
 ### Changed

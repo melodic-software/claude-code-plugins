@@ -1,5 +1,5 @@
 ---
-version: 1.18.0
+version: 1.19.0
 last-updated: 2026-08-08
 ---
 
@@ -1356,16 +1356,36 @@ confident removals.
   that gates on a measured signal, or state the counter-steer plainly — that a count alone is not a
   decay signal, because decay shows up in the output rather than in the number. Where the harness
   genuinely must surface a count, pair it with a reassurance rather than with an exit menu.
-- **No pre-scan pattern is seeded yet, and the reason is not I8-e's.** The phrasing is patternable
-  and an unfenced true positive **is** attested — a handoff skill whose own invocation triggers are
-  "context heavy (check `/context` output)", "quality degrading", and a window-position threshold,
-  which is the carve-back in the continuation fence above rather than the fence itself. So this row
-  is not waiting on an instance the way I8-e is; it is waiting on calibration of the threshold and
-  window-position phrasings, which vary far more than the shapes I8-b matches. **The blast radius is
-  why that calibration is owed before a pattern ships:** a continuation skill can barely be
-  model-invocable without naming a context trigger somewhere, and one such trigger lives in a
-  `description`, which is resident whenever the listing admits it rather than only when the body
-  loads. A pattern seeded before that line is drawn would fire on every consumer's handoff skill.
+- **Which signals license a continuation, and which do not.** This is the calibration the row
+  shipped without, and it is a policy rather than a regex. Three signals license a skill or surface
+  to route into a handoff, a fork, or a new session: **the user's own report**, **an instrument that
+  measures the window**, and **visible decay in the model's own output** — drift, repetition, dropped
+  constraints. A **self-estimated budget is none of the three**, and a surface naming one as a
+  trigger is a finding wherever it sits. The third signal is the one the model reads for itself, and
+  it is legitimate precisely because it is the thing a count cannot see; a row that treated every
+  model-side continuation trigger as a defect would refuse it too, and refuse the guide's own
+  reasoning with it.
+- **Residency is a severity input, not an admission test.** A trigger in a `description` is resident
+  whenever the skill listing admits it — the default, since `disable-model-invocation: true` also
+  suppresses the description from context ([Skills](https://code.claude.com/docs/en/skills), verified
+  2026-08-08) — while a body-borne trigger costs context only once the skill loads, or at startup in
+  a subagent with the skill preloaded. Both are findings; the resident one is the more expensive to
+  leave.
+- **Remediate by moving the trigger, never by withdrawing the skill.** Flipping continuation skills
+  to `disable-model-invocation: true` is the considered alternative and is refused: it costs every
+  model-side invocation the skill has — including the ones a user asks for in the words its
+  description exists to match — to remove one clause. Removing the clause costs only the behavior
+  the source counsels against.
+- **Pre-scan seeded (`I23`).** The blast-radius argument that deferred the seeding — a continuation
+  skill can barely be model-invocable without naming a context trigger somewhere — was an argument
+  about a population whose disposition was unsettled. Under the licensing rule above that population
+  resolves: its members are true positives, not noise. **The pattern marks budget phrasing alone and
+  never the verb it governs**, because the trigger and the action it licenses routinely sit in
+  different sentences; the counter-steer text that forbids the behavior therefore matches too
+  (inverted polarity, exempt), as do documents about the pattern and operator-facing budgets. That
+  over-production is the same contract I8's families carry. It is deliberately **not** anchored to
+  the bare term "context window", which is ordinary vocabulary in any surface discussing sessions and
+  would return the corpus instead of a candidate set.
 - **Source:** Fable 5 guide, "Rare cases of context-budget concern" — "In very long sessions, Claude
   Fable 5 can occasionally suggest a new session, offer to summarize and hand off, or trim its own
   work. This is most often triggered when the harness shows a remaining-token countdown to the model.

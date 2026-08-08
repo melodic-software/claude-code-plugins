@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # Contract test for zone-crossing-inject.sh (PostToolBatch/UserPromptSubmit).
 #
-# Contract: inject additionalContext ONCE per transition into a WORSE zone;
-# silent while the zone is unchanged, improving, or unknown; unknown never
-# updates state; kill switch honored; hostile ids fail open. Exit 0 always.
+# Contract: emit ONCE per transition into a WORSE zone, splitting the report
+# across two channels — the counter-steer to the model, the continuation menu to
+# the operator; silent while the zone is unchanged, improving, or unknown;
+# unknown never updates state; kill switch honored; hostile ids fail open.
+# Exit 0 always.
 #
 # Self-contained: defines its own assertion helpers — installed plugins are
 # cache-isolated with no shared test lib.
@@ -68,6 +70,27 @@ if jq -e '.hookSpecificOutput.hookEventName == "PostToolBatch"' <<<"$OUT" >/dev/
   ok "injection is valid JSON carrying the firing event name"
 else
   fail "injection JSON invalid: $OUT"
+fi
+
+# 1b. Channel separation. The continuation menu is the OPERATOR's choice
+# and must reach systemMessage only; the model's channel carries the
+# determination plus the counter-steer and never an exit menu, because an
+# injected menu manufactures the model's own initiative to stop (catalog I23).
+CTX=$(jq -r '.hookSpecificOutput.additionalContext // ""' <<<"$OUT" 2>/dev/null)
+SYS=$(jq -r '.systemMessage // ""' <<<"$OUT" 2>/dev/null)
+menu_free=1
+for token in "/compact" "/clear" "/session-flow:workflow" "/session-flow:handoff"; do
+  [[ "$CTX" == *"$token"* ]] && menu_free=0
+done
+if ((menu_free)) && [[ "$CTX" == *"Do not volunteer"* ]]; then
+  ok "model channel carries the counter-steer and no exit menu"
+else
+  fail "model channel leaked an exit menu or lost the counter-steer: $CTX"
+fi
+if [[ "$SYS" == *"/compact"* && "$SYS" == *"/session-flow:handoff"* && "$SYS" == *"yours to choose"* ]]; then
+  ok "operator channel carries the continuation menu"
+else
+  fail "operator channel missing the continuation menu: $SYS"
 fi
 
 # 2. Same zone again → silent (once per transition).

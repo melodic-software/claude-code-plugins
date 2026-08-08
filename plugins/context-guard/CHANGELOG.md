@@ -5,6 +5,38 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0]
+
+### Changed
+
+- **The zone-crossing report is split by audience: the continuation menu goes to the operator, the
+  counter-steer goes to the model.** The hook injected one block into model context naming the zone
+  and then enumerating four continuation options — continue, `/clear`, handoff-then-`/clear`,
+  `/compact` — plus the `/session-flow:workflow` router. Those are precisely the behaviors a model
+  guide reports current models are already predisposed to volunteer, and handing them to the model
+  as a menu manufactures that initiative rather than replacing it: the measurement decides only
+  *when to ask*, while the model still decides *whether to stop*. That is a live finding under the
+  `claude-config` instruction-audit catalog's check I23, which this repository ships.
+
+  The menu now renders on `systemMessage` — the operator channel, whose whole content is a human's
+  choice to make — and `additionalContext` carries the zone determination plus the counter-steer:
+  this is a measurement and not a decay signal, degradation shows up in the model's own output
+  rather than in a zone word, so do not volunteer to end the session, summarize, hand off, or trim
+  work on the strength of the reading. The `dumb` zone keeps its extra clause, restated as the
+  model-independent fact it always was — compaction distance is short, so write expensive
+  conclusions to a durable note as they stabilize.
+
+  **The counter-steer is stated inline rather than delegated** to the `playbooks:fable-5` doctrine
+  that also carries it. The two plugins are independently installable with no dependency wiring, so
+  a `context-guard`-only install previously received the menu with nothing in context to interpret
+  it against.
+
+  **Firing cadence is unchanged**, deliberately. Whether a four-option exit menu belonged on the
+  `smart → acceptable` crossing was an open calibration question; it dissolves rather than gets
+  answered, because the model-facing payload no longer carries a menu at any zone, and a budget
+  rendered to a human is outside I23's subject entirely. Zone mechanics, bands, state, kill switch,
+  and telemetry are untouched.
+
 ## [0.4.9]
 
 ### Changed
