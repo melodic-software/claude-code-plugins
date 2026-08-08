@@ -3,6 +3,35 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.8]
+
+### Fixed
+
+- **Attributed blockquotes in `stateless`'s `reference/official-guidance.md` carried text the
+  cited pages do not say** (claude-memory 0.5.7 → 0.5.8). The settings-page precedence quote
+  substituted a bare `(…)` for item 1's parenthetical, so an ellipsis inside quote marks stood
+  where real page words belong; it now reads `(server-managed, MDM/OS-level policies, or managed
+  settings)`, with the attribution note recording that the three links are flattened to their
+  labels and that each item's nested detail bullets are omitted. Two harder defects surfaced in
+  the same pass. The `"Cannot be overridden by any other level, including command line
+  arguments"` quote truncated mid-sentence, dropping `, apart from the exceptions in the bullets
+  below` and inverting a qualified claim into an absolute one; the full sentence is restored, and
+  new prose names the four security-sensitive keys a lower scope may set restrictively and states
+  that auto memory is not among them, so the operative conclusion survives without the quote
+  overstating. The `claude project purge` quote asserted `"The command requires Claude Code
+  v2.1.124 or later"`, a sentence claude-directory no longer carries and cli-reference never did;
+  it is out of the quote, and the retained `v2.1.124+` floor the plugin states elsewhere is
+  labelled a claim with no current upstream source rather than left looking doc-backed.
+
+  The `env` and `cleanupPeriodDays` quotes were re-checked character-for-character against the
+  live page and are verbatim as they stand, so their wording is untouched. What changed around
+  `cleanupPeriodDays` is the reading: its `"session files and other application data"` sat under
+  prose stating `sessions/` is not age-swept, close enough to read as contradicting it. New prose
+  resolves the phrase against the table it links to — transcripts, `shell-snapshots/`, `debug/`,
+  `tasks/`, `file-history/` — and states that `sessions/` is not a row in it, which is what the
+  quote two paragraphs down already said. Every settings and claude-directory verification stamp
+  in the file moves to 2026-08-08, the date each quote was re-checked.
+
 ## [0.5.7]
 
 ### Fixed
