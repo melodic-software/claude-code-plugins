@@ -99,7 +99,7 @@ additional ask-gates) get those checked at the same severities.
 | --- | --- | --- |
 | Every plugin's marketplace exists in `extraKnownMarketplaces` | error | Split `@marketplace` suffix, verify marketplace key exists |
 | Explicitly disabled plugins are intentional | info | Review false entries — are they stale or deliberately off? |
-| No plugins from incompatible marketplaces (Agent Skills format) | error | Repos with only root `marketplace.json` but no per-plugin `plugin.json` are incompatible |
+| Every enabled plugin has a component definition (`plugin.json` **or** a `strict: false` entry) | error | Test `strict`, not `plugin.json` presence. The [Strict mode section](https://code.claude.com/docs/en/plugin-marketplaces#strict-mode) documents a plugin with no `plugin.json` as SUPPORTED: under `strict: false` "the marketplace entry is the entire definition" — the plugin repo provides raw files and the entry's `skills`/`agents`/`hooks` fields expose them. Anthropic's own `anthropic-agent-skills` marketplace ships three such plugins with zero `plugin.json` files repo-wide, so a bare root `marketplace.json` is **not** by itself a finding. Flag only a plugin that has NEITHER — no per-plugin `plugin.json` AND no `strict: false` entry declaring its components — since nothing then defines what loads. The same page states the inverse failure too: with `strict: false`, "If the plugin also has a `plugin.json` that declares components, that's a conflict and the plugin fails to load" |
 
 ## F. Environment Variables
 
