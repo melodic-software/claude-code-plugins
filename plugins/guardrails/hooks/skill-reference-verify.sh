@@ -103,6 +103,14 @@ shopt -u nullglob
 # against the Plugins reference (<https://code.claude.com/docs/en/plugins-reference>,
 # "Path behavior rules", fetched 2026-08-06). Collect them per plugin so a skill
 # loaded from a declared location resolves like any other.
+#
+# One documented exception is NOT modelled: for a marketplace entry whose `source`
+# resolves to the marketplace root, declared subdirectories REPLACE the default
+# `skills/` scan. Modelling it would mean reading marketplace.json to learn how
+# each entry resolves, and the cost of not modelling it is bounded — the default
+# stays in the search set, so at worst a reference resolves that Claude Code would
+# not offer and this advisory stays quiet. Staying quiet is the failure this guard
+# is allowed to have; a false alarm is not.
 declare -A PLUGIN_DIR=() PLUGIN_SKILL_PATHS=()
 for m in "${manifests[@]}"; do
   pdir="${m%/.claude-plugin/plugin.json}"
@@ -291,7 +299,7 @@ anchor_offsets() {
 # Partial-replacement context reconstruction (Edit only). The same shape lives in
 # stale-path-verify and cli-flag-verify, which still take the whole located line
 # and filter it by word token (stale-path-verify was fixed for the line-anchoring
-# half of this defect class by 65b4f67c); this one keeps only the part of the line
+# half of this defect class by a2d98f8a); this one keeps only the part of the line
 # the hunk reaches, so the three are not identical.
 #
 # An Edit may replace an arbitrary substring: swapping `setup` for `ghost` inside
