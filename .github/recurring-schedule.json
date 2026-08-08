@@ -9,7 +9,7 @@
       "triggers": ["frontier-model-release"],
       "last_checked": "2026-08-08",
       "next_due": "2026-11-06",
-      "notes": "On each frontier model release (primary trigger), run /claude-config:audit-instructions and /claude-config:unhobble over this repository's session surfaces to re-test which standing instructions the new model still needs. The quarterly cadence is a backstop only — the release event, not the date, is the true trigger (docs/PLUGIN-PHILOSOPHY.md, Instruction economy). Session surfaces only, never the shipped plugin components.",
+      "notes": "On each frontier model release (primary trigger), run /claude-config:audit-instructions and /claude-config:unhobble over this repository's session surfaces to re-test which standing instructions the new model still needs. No automation observes the release event: the trigger's consumer is the standing OPEN [Maintenance] issue (#2019) — kept open continuously so /work-items:work can select it the moment an operator or agent notices a release, ahead of next_due. The quarterly cadence is a backstop only, guaranteeing the pass happens even when a release goes unnoticed (docs/PLUGIN-PHILOSOPHY.md, Instruction economy). Session surfaces only, never the shipped plugin components.",
       "close_previous": true
     }
   ]
