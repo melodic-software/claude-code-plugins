@@ -261,4 +261,29 @@ assert_exit "verifier: target --verbose verified, not consumed (absent -> 1)" 1 
 run_verifier --quiet faketool --quiet
 assert_exit "verifier: target --quiet verified, not consumed (absent -> 1)" 1 $?
 
+# ============ DEFAULT BIN SET — npm excluded (global-flag FP) ===============
+# `npm ci --prefix ./vendor` was reported UNKNOWN: `--prefix` is one of npm's
+# config keys, every one of which is a valid flag on every subcommand, and none
+# of which appears in `npm <subcmd> --help` OR in `npm --help`. npm is therefore
+# out of the default bin set (like git and npx), so no candidate is produced.
+npm_dir="$TEST_TMPDIR/npm-default-bins"
+mkdir -p "$npm_dir/cache"
+npm_target="$npm_dir/target.sh"
+NPM_LINE='npm ci --prefix ./vendor'
+printf '%s\n' "$NPM_LINE" >"$npm_target"
+# Deliberately NO CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS override: the
+# DEFAULT set is what is under test here.
+OUT=$(LOCALAPPDATA="$npm_dir/cache" XDG_CACHE_HOME="$npm_dir/cache" \
+  bash "$HOOK" <<<"$(write_json "$npm_target" "$NPM_LINE")" 2>&1)
+RC=$?
+assert_exit "npm ci --prefix (default bins) -> exit 0" 0 "$RC"
+assert_absent "npm ci --prefix -> no UNKNOWN_FLAG" "$OUT" "UNKNOWN_FLAG"
+# The behavioral case above is silent on a host with no npm installed, so pin
+# the exclusion at its source too — that assertion fails on any host.
+DEFAULT_BINS_LINE=$(grep -m1 '^DEFAULT_BINS=' "$HOOK")
+assert_absent "npm removed from DEFAULT_BINS" "$DEFAULT_BINS_LINE" "npm"
+# …and the removal must not have emptied or reshuffled the rest of the set.
+assert_contains "DEFAULT_BINS still carries the retained bins" \
+  "$DEFAULT_BINS_LINE" 'claude gh dotnet docker kubectl terraform az aws'
+
 report
