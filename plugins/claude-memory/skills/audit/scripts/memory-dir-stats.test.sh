@@ -164,6 +164,28 @@ assert_eq "leading break + later --- counts every byte" "$(raw_bytes)" "$(run "$
 } >"$M3/MEMORY.md"
 assert_eq "a key:-shaped runaway is bounded by length" "$(raw_lines)" "$(run "$H3" --memory-lines)"
 
+# The length cap alone cannot bound the block either: markdown prose opening `Note:` is a
+# well-formed mapping entry, so a single heavy paragraph passes the grammar AND the line
+# cap and was stripped however much it weighed — 26KB of content reporting 5 bytes, the
+# under-count that leaves M1's byte limb unable to fire. Only the weight cap ends it.
+HEAVY=$(printf '%26000s' '' | tr ' ' 'x')
+{
+  printf -- '---\n'
+  printf 'Note: %s\n' "$HEAVY"
+  printf -- '---\nbody\n'
+} >"$M3/MEMORY.md"
+assert_eq "a heavy one-line runaway is bounded by weight" "$(raw_bytes)" "$(run "$H3" --memory-bytes)"
+assert_eq "a heavy one-line runaway counts every line" "$(raw_lines)" "$(run "$H3" --memory-lines)"
+
+# The weight cap must not cost real frontmatter its strip: a block comfortably under the
+# cap — far heavier than the `modified` scalar Claude Code stamps — still strips whole.
+{
+  printf -- '---\n'
+  repeat_lines 15 'key' ": $(printf '%40s' '' | tr ' ' 'v')"
+  printf -- '---\nbody\n'
+} >"$M3/MEMORY.md"
+assert_eq "frontmatter under the weight cap still strips" "1" "$(run "$H3" --memory-lines)"
+
 # --- Case 4c3: the bound must not cost real frontmatter its strip. A well-formed block
 # is still stripped even when a thematic break appears later in the file. ---
 printf -- "---\ntype: index\nmodified: 2026-01-01\n---\n# A\none\n---\ntwo\n" >"$M3/MEMORY.md"

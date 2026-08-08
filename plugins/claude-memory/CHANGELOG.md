@@ -3,6 +3,30 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.0]
+
+### Fixed
+
+- **A single heavy pseudo-frontmatter line silently blanked the `audit` skill's M1 index-size byte
+  count** (claude-memory 0.5.7 → 0.6.0, criteria 1.5.2 → 1.5.3). `memory-dir-stats.sh` bounded its
+  frontmatter block by grammar and by line count but never by weight, and markdown prose opening
+  `Note:` or `Important:` is a well-formed `key:` mapping entry. A `MEMORY.md` opening with a `---`
+  thematic break, carrying one long paragraph, and reaching any later `---` had that paragraph
+  stripped however much it weighed: a 26,020-byte index reported 5 loaded bytes. M1 is a
+  `[FAIL]`-severity size gate and a low count always passes it, so the shape disarmed the gate's
+  25KB limb outright — the same disarming the line cap already prevented on the 200-line limb. The
+  block is now bounded a third way, by `fmbytecap` bytes of held content, and that index reports
+  its full 26,020 bytes.
+
+  The cap is 1KB. It is calibrated against what real frontmatter weighs, not against the 25KB
+  limit: Claude Code stamps only a `modified` scalar, and even a hand-written block of twenty
+  entries runs to a few hundred bytes, so 1KB clears every real shape by a wide margin and a block
+  under it still strips whole. Like the two bounds it joins, it leaves a residue — a misparsed
+  block still strips up to the cap before the bound ends it — and 1KB of 25KB is the smaller share
+  of M1's two limits, against the line cap's 20 of 200. Both directions stay the ones M1's
+  readings already guess toward: an over-count can only make the gate fire early, while the
+  under-count it replaces stopped it firing at all. criteria.md M1 reading 1 records the bound.
+
 ## [0.5.7]
 
 ### Fixed
