@@ -19,7 +19,7 @@ locally-owned instruction surfaces, cites each finding to current official promp
 it by how confident the evidence can be, and packages proposed removals or rewrites as a human-gated
 diff — so instruction surfaces shrink as models get better instead of only ever growing.
 
-The check catalog — the checks I1–I25, their evidence tier, authority tag, severity, per-surface
+The check catalog — the checks I1–I26, their evidence tier, authority tag, severity, per-surface
 applicability, and the `OPINION`-tier enablement policy — lives in
 [reference/criteria.md](reference/criteria.md); the deterministic pre-scan is
 `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/instruction-scan.sh`.
@@ -41,9 +41,12 @@ concerns its siblings already cover — route rather than re-answer:
 - Token brevity for its own sake is `docs-hygiene:compress`.
 - Config-file mechanics (settings.json, .mcp.json, hooks wiring) is `claude-config:audit`; grant
   portability is `claude-config:audit-permission-grants`.
+- The empirical bare-baseline experiment — strip the surfaces, observe the bare model, re-add on
+  repeated stumble evidence — is `unhobble` (same plugin): this skill judges instruction *text*
+  against doctrine; unhobble measures the *model*.
 
 On **memory-layer surfaces** (CLAUDE.md, CLAUDE.local.md, `.claude/rules/`, `~/.claude/rules/`),
-this skill runs only the model-era checks I6–I25. It never runs or reports the hygiene checks
+this skill runs only the model-era checks I6–I26. It never runs or reports the hygiene checks
 I1–I5 (line-necessity, length, placement, inferable content, rule-to-hook) on these surfaces —
 that instruction-memory hygiene layer belongs to the `claude-memory` plugin. When that plugin is
 installed, route memory-layer hygiene to its `audit` skill; when it is not installed, emit a single
@@ -92,8 +95,11 @@ scope; non-matching ones are inert and the report lists them as `skipped-for-tar
   the session's EFFECTIVE model — what this session actually runs, which a `--model` launch
   override may have set, not the bare settings pin — and normalize it alias → model VERSION
   against the live model-config docs at run time; (3) anything that cannot be normalized to a
-  single version fails loud (below). Matching against catalog scopes is exact equality of the
-  normalized version token — the catalog's "Model scoping" section owns that predicate.
+  single version fails loud (below). The normalized token is the catalog's local grammar —
+  lowercase family and version joined by hyphens (`opus-5`, `sonnet-5`, `fable-5`), derived from
+  the documented model the alias or full model name resolves to, not a string upstream publishes.
+  Matching against catalog scopes is exact equality of the normalized version token — the
+  catalog's "Model scoping" section owns that predicate.
 - **Fail loud on ambiguity:** a value may carry no version at all — a family alias like `opus`
   (with or without a context-window suffix such as `[1m]`), an absent `model` setting in an
   out-of-session run, or a custom/gateway deployment ID that matches no documented pattern.
@@ -351,7 +357,8 @@ End with a **Routing** subsection listing every excluded upstream-owned
 or memory-layer surface and where its findings should go, and a **Recommended follow-through**
 subsection: apply an accepted change, then observe whether Claude's behavior actually shifts;
 re-add on the next mistake as the compounding safety net; for example blocks, A/B against the
-no-example default. That loop is prose guidance — this skill ships no eval tooling.
+no-example default. The full delete-and-watch loop is operationalized by `/claude-config:unhobble`
+(same plugin) — route there when the operator wants the experiment run rather than described.
 
 Open the Sources line with the two official pages the paths and doctrine derive from
 (code.claude.com memory + `.claude`-directory docs; the prompting pages cited per check in the

@@ -89,7 +89,7 @@ The distillation of every chapter, grouped in operating-loop order. Each line is
 ### Delegation — orchestration
 
 - Delegate only on genuine fan-out (5+ independent items), context-flooding side work, or isolation-as-the-product. The stay-inline conditions override all three — except the fresh-context verifier, which they never displace.
-- Spec every spawn as a contract: outcome objective, exact output contract with evidence format, hoisted shared context, boundaries with the verbatim blocked-path rule.
+- Spec every spawn as a contract: outcome objective, the reason it is being asked and who the output is for, exact output contract with evidence format, hoisted shared context, boundaries with the verbatim blocked-path rule.
 - Every worker return is recall-grade — promote a claim to session-verified evidence before it drives an edit.
 - Dispatch is not a blocking call: take the next piece no pending return feeds, check the wave against the drift signals rather than waiting it out, and continue an already-oriented worker on a shared subject instead of respawning one to re-read the same material.
 
