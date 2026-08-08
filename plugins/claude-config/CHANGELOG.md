@@ -7,28 +7,32 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 ### Added
 
-- **Two instruction-audit checks, closing the last two uncovered sections of Anthropic's Fable 5
-  prompting guide** (criteria 1.16.0 → 1.17.0). Both are `Model scope: fable-5` with the promotion
-  gate unmet — each is sourced from that guide alone — and both carry the four-part verification
-  stamp against a raw-markdown capture read in full.
-  - **I23 — context-budget directive to stop, summarize, or hand off.** Detects instruction text
-    telling the model to watch its own remaining context and stop, summarize, hand off, or trim its
-    work on that basis, and injected hook output that surfaces a remaining-context count to the
-    model at all; the guide names the count as the usual trigger, so the disclosure and the directive
-    are one subject. The discriminator is who decides on what evidence: a directive tells the model
-    to judge its own window, a mechanism resolves the window from an instrumented signal and acts
-    itself, and only the first is in scope. Fenced against a measured-signal mechanism, a
-    user-invoked continuation skill, a routing condition that sizes an artifact rather than
-    abandoning the work, a budget rendered to the operator, and a document about the pattern.
-  - **I24 — compressed-shorthand mandate on user-facing output.** Detects an instruction requiring
-    the model's user-facing output to default to arrow chains, hyphen-stacked compounds, dropped
-    articles, fragments, or coined abbreviations. Fenced against the four things the guide itself
-    blesses or leaves alone: terseness between tool calls, brevity by selection rather than by
-    compression, arrows used as notation, and an output style the user or operator explicitly chose.
-  - Neither seeds a pre-scan pattern, and each says why: I23 because every attested instance so far
-    falls inside a fence, so there is no true positive to calibrate against; I24 because the tokens
-    it names are ordinary in documentation prose while the mandate is expressed in prose no grep
-    recognizes. This follows I8-e's precedent of stating the absence rather than leaving it inferred.
+- **I23 — context-budget directive to stop, summarize, or hand off** (criteria 1.16.0 → 1.17.0).
+  Tier `behavioral`, `Model scope: fable-5` with the promotion gate unmet, carrying the four-part
+  stamp plus a **verified negative**: both sibling guides were fetched as raw markdown and searched,
+  and neither states the claim.
+  - Detects instruction text telling the model to watch its own remaining context and stop,
+    summarize, hand off, or trim its work on that basis, and injected hook output surfacing a
+    remaining-context count where the surface could avoid it. The guide names the count as the usual
+    trigger, so the disclosure and the directive are one subject; the row tracks the guide's "where
+    possible" hedge rather than reading it as an absolute.
+  - The discriminator is who decides, on what evidence: a directive tells the model to judge its own
+    window, a mechanism resolves the window from an instrumented signal and acts itself. **A hook
+    that injects an exit menu stays in scope** however well instrumented its trigger, because the
+    measurement decides only when to ask and the model still decides whether to stop — the injection
+    manufactures the initiative rather than replacing it. A `PreToolUse` deny is the contrast that
+    fixes the line.
+  - Fenced against a measured-signal mechanism, a user-invoked continuation skill (including a router
+    falling back to its own judgement when no instrument is available), a routing condition that
+    sizes an artifact rather than abandoning the work, a budget rendered to the operator, and a
+    document about the pattern. A playbook stating the counter-steer is exempt on **polarity** rather
+    than audience — it instructs the opposite of Detect, so it never satisfies Detect at all.
+  - No pre-scan pattern is seeded, and the row says why in its own terms rather than borrowing
+    I8-e's: an unfenced true positive is attested, so this row waits on calibration of the threshold
+    and window-position phrasings, not on an instance. The blast radius is the reason that
+    calibration is owed first — a continuation skill can barely be model-invocable without naming a
+    context trigger somewhere, and one such trigger lives in a `description`, which is resident
+    whenever the listing admits it.
 - **A section covering `effort:` and `model:` frontmatter on skills and agents** in
   `skills/audit/reference/audit-checklist.md`, category H. This closes a seam between two skills
   this plugin ships: I21 in the instruction-audit catalog explicitly hands frontmatter pins to
@@ -45,7 +49,7 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   shape rather than weighed on its source. Integrating one model guide raised that question at four
   separate sections and answered it four times by hand; the rule now settles it once, and requires an
   audit declining a row on this ground to name where the guidance routed instead — doctrine or a
-  mechanism — so "no row" never reads as "not covered". Every row through I24 already satisfies it.
+  mechanism — so "no row" never reads as "not covered". Every row through I23 already satisfies it.
 - **I8's base row now cites the general principle, not only the migration framing.** Both of its
   sources sat in sections about migrating older material, which pointed an auditor at what looks
   like leftover prior-model scaffolding and past freshly authored over-enumeration — the same defect

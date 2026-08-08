@@ -80,7 +80,7 @@ keeps that visible rather than silent, and it is the whole of the mitigation —
 oblige the two plugins to depend on each other.
 
 The rule is a ceiling on the catalog, so it constrains future rows more than existing ones. Every row
-through I24 already satisfies it; the check is on admission, and a proposed row whose Detect clause
+through I23 already satisfies it; the check is on admission, and a proposed row whose Detect clause
 reads "a surface that does not …" is refused on shape before its source is weighed.
 
 An audit against a new model guide now has a cheap first pass: sort the guide's sections into

@@ -86,7 +86,7 @@ non-memory surfaces (skill bodies, agent definitions, hook instruction text, out
 memory-layer surfaces (CLAUDE.md, CLAUDE.local.md, `.claude/rules/`, `~/.claude/rules/`) their
 findings route to the `claude-memory` plugin's `audit` skill when it is installed, and fall back
 to the official include/exclude guidance (I1–I5 source below) when it is not. Checks I6–I12 and
-I15–I24 apply to all surfaces; I13 and I14 name narrower surface sets in their own rows.
+I15–I23 apply to all surfaces; I13 and I14 name narrower surface sets in their own rows.
 
 ## Sources
 
@@ -1253,38 +1253,66 @@ by `--opinion`.
 
 ### I23: Context-budget directive to stop, summarize, or hand off
 
-Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surfaces: all · Model scope:
+Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surfaces: all · Model scope:
 `fable-5` (sourced from that guide alone; promotion gate unmet).
+
+**The tier keys on the ground truth of the defect, not of the detection.** The phrasing is statically
+readable, which tempts a `mechanical` tag — but I8-b's Detect is a literal three-phrase match and is
+even seeded in the pre-scan, and it is `behavioral`. The `mechanical` rows rest on a documented hard
+consequence: I10 on a refusal category the API returns, I21 on a property its page states outright.
+This row rests on a reported model *tendency* — "can occasionally suggest a new session" — with no
+documented hard consequence, which is the behavioral tier's definition. The stake is the Output
+format rule: behavioral findings ship as proposals paired with the delete-and-watch loop, never as
+confident removals.
 
 - **Detect:** instruction text directing the model to monitor its own remaining context and to stop,
   summarize, hand off, trim its work, or start a new session **on that basis** — and instruction text
-  or injected hook output that surfaces a remaining-context count to the model at all. The guide
-  names the count as the usual trigger for the behavior, so the disclosure and the directive are one
-  subject.
+  or injected hook output that surfaces a remaining-context count to the model where the surface
+  could avoid it. The guide names the count as the usual trigger for the behavior, so the disclosure
+  and the directive are one subject; it also hedges the disclosure arm to "where possible", and this
+  row tracks that hedge rather than reading it as an absolute.
 - **The discriminator is who decides, on what evidence.** A directive tells the model to judge its
   own window and act; a mechanism resolves the window from an instrumented signal and acts itself.
   Only the first is this row's subject.
 - **Must NOT flag: a mechanism that gates on a measured signal.** A hook, gate, or workflow step that
-  reads context state from an instrumented source and then blocks, injects, or routes on it is not a
-  directive to the model, and it outranks the model's own initiative rather than competing with it.
+  reads context state from an instrumented source and then blocks or routes on it — or injects a
+  determination the model does not re-decide — is not a directive to the model, and it outranks the
+  model's own initiative rather than competing with it. **A hook that injects an exit menu remains
+  this row's subject**, however well instrumented its trigger: the measurement decides only when to
+  ask, and the model still decides whether to stop, so the injection manufactures the initiative
+  rather than replacing it. The contrast that fixes the line is a `PreToolUse` deny — there the
+  mechanism decides and the text is only the consequence.
 - **Must NOT flag: a user-invoked skill whose purpose is the continuation itself** — a handoff
   writer, a continuation router, a compaction helper. The skill existing is not an instruction to
   watch the budget; a skill body that additionally tells the model to invoke it off a self-estimated
-  window is.
+  window is. **A router falling back to its own judgement when no measured signal is available is
+  also not a finding** — it prefers the instrument and degrades only in its absence, which is the
+  opposite of the shape this row detects.
 - **Must NOT flag: a routing condition that selects between two forms of one deliverable.** "Use the
   short form where the full one would not fit" picks a shape; it does not stop the work. The subject
   is abandoning or truncating the work, never sizing an artifact to its container.
 - **Must NOT flag: a budget surfaced to the human.** A status line, a report, or a cost dashboard
   renders to the operator rather than into the model's context, and no part of this row reaches it.
 - **Must NOT flag: a document *about* the pattern** — this row, a model-adaptation delta chapter, a
-  playbook stating the counter-steer — on the audience test I8-b applies.
+  verification record quoting it — on the audience test I8-b applies. **A playbook stating the
+  counter-steer is exempt on different grounds, and the distinction matters:** that text is operative
+  standing instruction, so I8-b's audience test would reach it rather than excuse it. It is not a
+  finding because its **polarity is inverted** — it instructs the opposite of Detect, so it never
+  satisfies Detect and needs no exemption at all.
 - **Remediate:** remove the directive. Where the guarantee behind it is real, move it to a mechanism
   that gates on a measured signal, or state the counter-steer plainly — that a count alone is not a
   decay signal, because decay shows up in the output rather than in the number. Where the harness
   genuinely must surface a count, pair it with a reassurance rather than with an exit menu.
-- **No pre-scan pattern is seeded.** The phrasing is patternable, but every instance attested so far
-  falls inside a fence above, so there is no true positive to calibrate the false-positive rate
-  against. This is I8-e's ground for the same decision.
+- **No pre-scan pattern is seeded yet, and the reason is not I8-e's.** The phrasing is patternable
+  and an unfenced true positive **is** attested — a handoff skill whose own invocation triggers are
+  "context heavy (check `/context` output)", "quality degrading", and a window-position threshold,
+  which is the carve-back in the continuation fence above rather than the fence itself. So this row
+  is not waiting on an instance the way I8-e is; it is waiting on calibration of the threshold and
+  window-position phrasings, which vary far more than the shapes I8-b matches. **The blast radius is
+  why that calibration is owed before a pattern ships:** a continuation skill can barely be
+  model-invocable without naming a context trigger somewhere, and one such trigger lives in a
+  `description`, which is resident whenever the listing admits it rather than only when the body
+  loads. A pattern seeded before that line is drawn would fire on every consumer's handoff skill.
 - **Source:** Fable 5 guide, "Rare cases of context-budget concern" — "In very long sessions, Claude
   Fable 5 can occasionally suggest a new session, offer to summarize and hand off, or trim its own
   work. This is most often triggered when the harness shows a remaining-token countdown to the model.
@@ -1298,61 +1326,6 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
   against it. **Recheck trigger:** a second model guide stating the claim — which would meet the
   promotion gate and unscope this row — or that section ceasing to name the remaining-token
   countdown as the trigger, which is what joins the disclosure arm to the directive arm.
-
-### I24: Compressed-shorthand mandate on user-facing output
-
-Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `info` · Surfaces: all · Model scope:
-`fable-5` (sourced from that guide alone; promotion gate unmet).
-
-- **Detect:** an instruction requiring the model's **user-facing** output to take a compressed
-  shorthand form as a standing default — arrow chains, hyphen-stacked compounds, dropped articles,
-  sentence fragments, or coined abbreviations. The guide names these as the shapes that make a long
-  agentic session's closing message hard to follow, and names readability as the tie-breaker over
-  brevity.
-- **Must NOT flag: terseness between tool calls.** The guide blesses it in as many words — that text
-  is the model thinking out loud, and brevity there is good. Only the message written for a reader
-  who did not watch the work is in scope.
-- **Must NOT flag: brevity by selection.** Dropping detail that would not change what the reader does
-  next is the guide's own prescription. This row's subject is compression of the *writing*, never
-  selection of the *content*.
-- **Must NOT flag: an output style the user or operator explicitly selected.** Precedence puts a live
-  request and standing user instructions above a project convention, so an opted-in register is the
-  user's decision rather than a defect. Report it as an interaction with this row and leave it; where
-  the style ships from a third party, the report routes to that owner rather than to a local edit.
-- **Must NOT flag: a notation where the arrow carries meaning** — a state transition, a pipeline
-  stage order, a type signature, a ref range. The subject is prose compressed into arrows, not arrows
-  used as arrows.
-- **Must NOT flag: a document *about* the pattern**, on the audience test I8-b applies.
-- **Remediate:** scope the compression to working text and let the closing message be complete
-  sentences with terms spelled out; or, where the compressed register is genuinely wanted, state it
-  as an opt-in the user selects rather than as a standing default.
-- **No pre-scan pattern is seeded.** The tokens this row names — arrows above all — are ordinary in
-  documentation prose, so a pattern would mark nearly every surface, while the mandate itself is
-  expressed in prose a grep cannot recognize.
-- **Source:** Fable 5 guide, "Readability when communicating with the user" — "drop the working
-  shorthand. Write complete sentences. Spell out terms. Don't use arrow chains, hyphen-stacked
-  compounds, or labels you made up earlier … If you have to choose between short and clear, choose
-  clear." The between-tool-call fence is that section's own opening — "Terse shorthand is fine between
-  tool calls (that's you thinking out loud, and brevity there is good)" — and the
-  selection-not-compression fence is "Strong instruction following", which keeps output short by
-  "being selective about what you include (drop details that don't change what the reader would do
-  next), not to compress the writing into fragments, abbreviations, arrow chains … or jargon."
-- **Why this is `ANTHROPIC-DOCS` and not `OPINION`, stated because the derivation is a step longer
-  than most rows'.** The guide's passages are addressed **to the model**, about its own writing; this
-  row judges **instruction text** that orders the opposite. The tag reports where the claim comes
-  from, not whether a page phrases it as a defect — the same derivation I7 and I8-d make, each
-  turning a documented behavioral claim into a detection rule no page states in those words. What
-  keeps it out of `OPINION` is that the row's subject is a **documented contradiction**: a surface
-  ordering the model to compress its closing message instructs precisely what the guide tells the
-  model not to do. Were the row instead asserting a house style for readable output, it would be a
-  practitioner preference and would belong at `OPINION`, off by default.
-- **Verified 2026-08-08** against that guide, fetched as raw markdown (177 lines). **Verified
-  negative, which is what holds the scope annotation on:** the Opus 5 guide (11,225 bytes) and the
-  Sonnet 5 guide (15,864 bytes) were fetched as raw markdown the same day and searched for arrow
-  chains, shorthand, hyphen-stacked compounds, fragments, abbreviation, readability, and complete
-  sentences. Neither guide reaches this subject at all; Opus 5's nearest passage governs **task
-  scope**, not output form. **Recheck trigger:** a second model guide stating the claim, which would
-  meet the promotion gate and unscope this row.
 
 ---
 
