@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "markdown-format",
-  "version": "0.9.1",
+  "version": "0.10.0",
   "description": "Auto-format and lint Markdown on edit via markdownlint-cli2 — only in repos that carry their own markdownlint config.",
   "author": {
     "name": "Melodic Software",
@@ -21,6 +21,12 @@
       "title": "markdown-format hook",
       "description": "Auto-format and lint Markdown on Write/Edit of .md/.mdc files (runs only when the repo carries a markdownlint config)",
       "default": true
+    },
+    "markdown_format_lint_gitignored": {
+      "type": "boolean",
+      "title": "Lint files git ignores",
+      "description": "By default the hook leaves gitignored files alone — a scratch tier the repo excludes is neither rewritten nor reported on. Set true to lint them anyway.",
+      "default": false
     },
     "markdown_format_max_findings": {
       "type": "number",

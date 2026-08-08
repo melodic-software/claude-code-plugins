@@ -243,6 +243,86 @@ if ! markdownlint_config_discoverable "$FILE" "$REPO_ROOT"; then
   exit 0
 fi
 
+# Path-scope escape (#1809 follow-up): a file the repository's own .gitignore
+# excludes is not part of the reviewable artifact — a scratch/working tier such
+# as `.work/**` holds notes that are deleted at the end of a task and never
+# reviewed — so rewriting it produces a diff nobody reads, and REPORTING on it
+# spends context on a file whose style nobody chose. The gitignore declaration
+# the repository already carries is the scope statement; this hook reads it
+# rather than asking for a second one.
+#
+# Asked from the FILE'S OWN directory, with a bare relative name. Two reasons,
+# both load-bearing:
+#
+#   * Path form. markdownlint-cli2 is a Node process that takes any spelling of
+#     a path; git.exe is not. On Windows Git Bash FILE can arrive in POSIX mount
+#     form (`/c/repo/x.md`) where git wants a Win32/drive-letter path, and the
+#     wrong one yields exit 128 — which this must never read as "not ignored".
+#     `./name` carries no drive letter to translate, so both agree on it. Doing
+#     this by stripping a REPO_ROOT prefix instead would need cygpath to put the
+#     two paths in one representation, i.e. two extra process spawns on every
+#     Markdown edit (~140 ms each on Git Bash, the cost 0.9.1 went to some
+#     trouble to remove); `cd` + `${FILE%/*}` costs none.
+#   * Correctness. git resolves the rest itself, so every .gitignore between the
+#     file and the repository root applies, and a pattern excluding an ANCESTOR
+#     directory (`.work/`) is honored for a file nested arbitrarily below it.
+#     Verified 2026-08-08 against git's check-ignore behavior for a child, a
+#     grandchild, and both path spellings.
+#
+# FAILS TOWARD LINTING, deliberately. Any inability to decide — git absent, the
+# directory gone, check-ignore erroring (128) — leaves the run alone rather than
+# skipping it. The other direction is the dangerous one: a skip that fires on an
+# error condition disables this hook invisibly and repo-wide, with no output to
+# notice it by. Do not "fix" this into a fail-closed check.
+#
+# Git's repository-selection and discovery environment is cleared for the same
+# reason in_git_working_tree clears it: an inherited GIT_DIR/GIT_WORK_TREE from
+# a wrapper that launched the session would make some OTHER repository answer
+# the question. A session running inside a linked worktree under a path the
+# parent repository ignores (`.claude/worktrees/**` is a common one) would then
+# read every file it edits as ignored.
+file_is_gitignored() {
+  local dir="${FILE%/*}" base="${FILE##*/}"
+
+  command -v git >/dev/null 2>&1 || return 1
+  [[ -n "$base" && "$dir" != "$FILE" ]] || return 1
+
+  # `git check-ignore` consults the index unless --no-index is passed, so a
+  # TRACKED file that happens to match an exclude pattern is reported as not
+  # ignored — which is the wanted answer: a file under version control is part
+  # of the reviewable artifact whatever the patterns say. Exit 0 = ignored,
+  # 1 = not ignored, 128 = error; only 0 skips.
+  # https://git-scm.com/docs/git-check-ignore (fetched 2026-08-08)
+  (
+    unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_CEILING_DIRECTORIES \
+      GIT_DISCOVERY_ACROSS_FILESYSTEM
+    cd "$dir" 2>/dev/null || exit 1
+    git check-ignore -q -- "./$base" 2>/dev/null
+  )
+}
+
+# Opt-out for the scope escape above, read from the CLAUDE_PLUGIN_OPTION_<KEY>
+# environment mirror rather than a `${user_config.*}` placeholder — shell-form
+# hook commands reject that substitution outright, and every option is exported
+# to hook processes as CLAUDE_PLUGIN_OPTION_<KEY> anyway (Plugins reference,
+# "User configuration", https://code.claude.com/docs/en/plugins-reference,
+# fetched 2026-08-08). Booleans arrive as the strings "true"/"false"; anything
+# else falls back to the manifest default rather than being interpolated.
+LINT_GITIGNORED=0
+[[ "${CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_LINT_GITIGNORED:-false}" == "true" ]] &&
+  LINT_GITIGNORED=1
+
+if ((LINT_GITIGNORED == 0)) && file_is_gitignored; then
+  # silent-skip-ok: this is a path-scope policy verdict, not a missing-tool
+  # verdict — the repository declared this path out of scope in its own
+  # .gitignore, and announcing the skip on every scratch-file edit would spend
+  # the context the skip exists to save. The skip is still observable: the
+  # telemetry envelope below records it, and README documents the rule and its
+  # markdown_format_lint_gitignored opt-out.
+  emit_tel "skipped" '[]'
+  exit 0
+fi
+
 # Resolve the consuming repository's pinned npm binary without invoking a
 # package runner. npm creates an extensionless POSIX shim in node_modules/.bin
 # alongside its Windows .cmd launcher; Git Bash executes the POSIX shim. Follow
