@@ -433,6 +433,177 @@ if [[ -d "$PCHAIN/.git" ]]; then
   done
 fi
 
+# --- alias traversal's per-analysis FORK cost, pinned by SPAWN COUNT ----------
+# HOOK_ALIAS_WORK_MAX bounds the COUNT of analyses, not the cost of each one. The
+# hook names its own cost centre outright — the persisted lookup "forks a `git
+# config`, by far the costliest step on the re-expansion"
+# (block-noncanonical-commit.sh:435) — so a regression that stays inside the
+# budget while forking MORE `git config` per analysis passes every exit-code
+# assertion above unnoticed. That is the hole this section closes.
+#
+# The pin COUNTS SPAWNS, never seconds, for the reason the hook gives at its own
+# ceiling ("a wall clock is host- and command-length-dependent"). Measured here
+# on Windows Git Bash (2026-08-09) while the box ran other agents: the SAME
+# 10-hop chain took 33s and 9s in one sitting, and the 20-hop chain came in
+# FASTER than the 10-hop one — while every spawn tally was bit-identical on every
+# repeat. A count is exact and load-invariant; any ratio over those clocks is
+# noise.
+#
+# Only the PERSISTED branch forks, so these fixtures — not the inline chains
+# earlier in this file — are where the cost lives. Measured with the shim below,
+# the 20-hop dual-spelling, 60-hop single-spelling and 12-hop divergent INLINE
+# chains cost ZERO `git` spawns each: an inline expansion sets
+# inline_alias_handled and skips the config lookup entirely, and effective_dir is
+# pure string composition. Those traversal cases could never have caught a
+# fork-cost regression, which is why this section builds persisted fixtures.
+#
+# The shim LOGS AND DELEGATES. This hook genuinely needs git to answer, so a
+# log-only stub would change the very verdicts being measured. The real binary is
+# resolved HERE, before PATH is rewritten, and baked into the script — calling
+# plain `git` inside the shim would re-enter the shim through its own PATH entry
+# and recurse. Every case below asserts the shimmed exit code equals the
+# unshimmed one, so a perturbing shim fails the suite instead of quietly
+# invalidating the tally.
+FORK_REAL_GIT="$(command -v git)"
+FORK_SHIM="$TEST_TMPDIR/git-shim"
+FORK_LOG="$TEST_TMPDIR/git-spawn-log"
+mkdir -p "$FORK_SHIM"
+if [[ -n "$FORK_REAL_GIT" ]]; then
+  # Unquoted delimiter so the real binary path is baked in at build time; every
+  # other expansion is escaped and resolves when the shim RUNS.
+  cat >"$FORK_SHIM/git" <<SHIM
+#!/usr/bin/env bash
+printf 'x\n' >>"\${BNC_GIT_SPAWN_LOG:-/dev/null}"
+exec '$FORK_REAL_GIT' "\$@"
+SHIM
+  chmod +x "$FORK_SHIM/git"
+fi
+
+# fork_chain_repo <dir> <hops> — a repo whose git CONFIG holds a linear chain
+# f1 -> f2 -> … -> fN -> `commit -F -`, plus `d -> status` as a terminal for the
+# divergent case. Persisted rather than inline: the config lookup is the fork
+# being counted.
+fork_chain_repo() {
+  local dir="$1" n="$2" i
+  mkdir -p "$dir"
+  (
+    cd "$dir" || exit 1
+    git init -q .
+    git config user.email t@e.st
+    git config user.name t
+    for ((i = 1; i < n; i++)); do git config "alias.f$i" "f$((i + 1))"; done
+    git config "alias.f$n" 'commit -F -'
+    git config alias.d status
+  ) >/dev/null 2>&1
+}
+FORK10="$TEST_TMPDIR/fork-chain-10"
+FORK20="$TEST_TMPDIR/fork-chain-20"
+fork_chain_repo "$FORK10" 10
+fork_chain_repo "$FORK20" 20
+
+# Sets SPAWN_RC and SPAWN_COUNT. A FUNCTION setting globals, deliberately NOT a
+# command substitution — a subshell would strand both.
+run_shimmed() {
+  : >"$FORK_LOG"
+  MSYS_NO_PATHCONV=1 jq -n --arg c "$1" --arg d "$2" \
+    '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
+    BNC_GIT_SPAWN_LOG="$FORK_LOG" PATH="$FORK_SHIM:$PATH" \
+      timeout "$HANG_GUARD_SECS" bash "$HOOK" >/dev/null 2>&1
+  SPAWN_RC=$?
+  SPAWN_COUNT=$(wc -l <"$FORK_LOG")
+  SPAWN_COUNT=${SPAWN_COUNT//[[:space:]]/}
+}
+# Sets PLAIN_RC — the identical payload with the shim off PATH, so the parity
+# assertions compare like with like.
+run_unshimmed() {
+  MSYS_NO_PATHCONV=1 jq -n --arg c "$1" --arg d "$2" \
+    '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
+    timeout "$HANG_GUARD_SECS" bash "$HOOK" >/dev/null 2>&1
+  PLAIN_RC=$?
+}
+
+if [[ -n "$FORK_REAL_GIT" && -d "$FORK10/.git" && -d "$FORK20/.git" ]]; then
+  # A divergent INLINE chain whose last hop names a PERSISTED alias. Each path
+  # carries its own trailing word, so no two analysis states collapse and the
+  # walk runs until the re-expansion budget stops it (exit 2) — and every one of
+  # those admitted analyses arrives at the same (directory, subcommand) config
+  # lookup. The per-(dir, sub) cache is the only thing standing between this
+  # shape and one fork per analysis, which is exactly the regression class the
+  # budget cannot see.
+  fork_diverge="git"
+  for ((i = 1; i < 8; i++)); do
+    fork_diverge+=" -c alias.g$i='g$((i + 1)) --x$i' -c alias.g$i.command='g$((i + 1)) --y$i'"
+  done
+  fork_diverge+=" -c alias.g8='d --x8' -c alias.g8.command='d --y8' g1"
+
+  run_shimmed "git f1" "$FORK10"
+  FORKS_10=$SPAWN_COUNT
+  FORK_RC_10=$SPAWN_RC
+  run_unshimmed "git f1" "$FORK10"
+  assert_exit "fork pin: 10-hop persisted chain to commit -F - is allowed" 0 "$PLAIN_RC"
+  assert_exit "fork pin: the shim leaves the 10-hop verdict unchanged" "$PLAIN_RC" "$FORK_RC_10"
+
+  run_shimmed "git f1" "$FORK20"
+  FORKS_20=$SPAWN_COUNT
+  FORK_RC_20=$SPAWN_RC
+  run_unshimmed "git f1" "$FORK20"
+  assert_exit "fork pin: 20-hop persisted chain to commit -F - is allowed" 0 "$PLAIN_RC"
+  assert_exit "fork pin: the shim leaves the 20-hop verdict unchanged" "$PLAIN_RC" "$FORK_RC_20"
+
+  run_shimmed "$fork_diverge" "$FORK20"
+  FORKS_DIV=$SPAWN_COUNT
+  FORK_RC_DIV=$SPAWN_RC
+  run_unshimmed "$fork_diverge" "$FORK20"
+  assert_exit "fork pin: divergent chain into a persisted alias exhausts the budget" 2 "$PLAIN_RC"
+  assert_exit "fork pin: the shim leaves the divergent verdict unchanged" "$PLAIN_RC" "$FORK_RC_DIV"
+
+  # A zero tally means the shim never ran, which would make every ceiling below
+  # pass vacuously — the silent-skip shape this suite otherwise guards against.
+  if ((FORKS_10 > 0)); then
+    ok "fork pin: git shim active (${FORKS_10} git spawns on the 10-hop persisted chain)"
+  else
+    bad "fork pin: the git shim never fired — the ceilings below cannot discriminate"
+  fi
+
+  # DEPTH: doubling the hops must at most double the forks. Each hop resolves a
+  # distinct alias name and the lookup is cached per (directory, subcommand), so
+  # the walk pays one `git config` per hop and nothing per path. Measured 10 and
+  # 20, identical on three repeats each. The +2 allowance lets one added
+  # constant-cost probe through while any per-hop growth still fails.
+  if ((FORKS_20 <= 2 * FORKS_10 + 2)); then
+    ok "fork pin: forks scale linearly in hops (${FORKS_10} at 10 hops, ${FORKS_20} at 20)"
+  else
+    bad "fork pin: per-hop fork cost grew with depth — ${FORKS_10} forks at 10 hops but ${FORKS_20} at 20"
+  fi
+
+  # ABSOLUTE, on the 20-hop chain: measured 20, ceiling 30. Half again the
+  # measured value absorbs a constant-cost probe or two; a SECOND fork per hop
+  # lands on 40 and fails.
+  if ((FORKS_20 <= 30)); then
+    ok "fork pin: 20-hop persisted chain stays under 30 forks (${FORKS_20})"
+  else
+    bad "fork pin: 20-hop persisted chain forked ${FORKS_20} times, over the 30 ceiling"
+  fi
+
+  # BRANCHING, the discriminating one: measured 2 spawns at 8 divergent hops —
+  # the two distinct names the walk resolves (`alias.d`, then `alias.status`) —
+  # and 2 again at 12 hops, so the tally is invariant to branching depth. With
+  # the per-(dir, sub) cache removed from persisted_alias, the SAME command forked
+  # 83 times for the same exit 2 (measured 2026-08-09), because each admitted
+  # analysis repeats the lookup; the only bound left is HOOK_ALIAS_WORK_MAX = 128.
+  # A ceiling of 16 sits five times below that regression and eight times above
+  # the measured value. Verified by running this very section against that
+  # modified copy: it fails here, and only here.
+  if ((FORKS_DIV <= 16)); then
+    ok "fork pin: divergent walk forks per distinct lookup, not per analysis (${FORKS_DIV})"
+  else
+    bad "fork pin: divergent walk forked ${FORKS_DIV} times, over the 16 ceiling — the per-analysis lookup cache is gone"
+  fi
+else
+  echo "ok: alias-traversal fork pin skipped (git unavailable)"
+  PASS=$((PASS + 1))
+fi
+
 # --- #964: persisted `!` shell-alias hops -------------------------------------
 # A persisted shell alias spawns a fresh git process (empty alias-loop guard),
 # so a chain that crosses a `!` hop (`alias.sc = !git x2`, `alias.x2 = commit`)
