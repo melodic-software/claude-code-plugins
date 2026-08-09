@@ -7,18 +7,25 @@ All notable changes to the `review` plugin are documented here. Format follows
 
 ### Fixed
 
-- **`skills/fanout`: the `code-review` plugin's comment is selected by heading, not by position.**
-  `context/findings-normalization.md` told the pipeline to retrieve that surface's raw text with
-  `.comments[-1].body`, which is whatever landed most recently — the prose named the plugin's
-  `### Code review` heading but the expression applied no heading, author, or timestamp filter. Any
-  bot or reviewer commenting between the dispatch and the fetch was therefore normalized as
-  `code-review` findings and written into the persisted report. The retrieval is now a two-step
-  `jq` filter that selects on the heading AND on a `createdAt` captured before the dispatch, so
-  neither an interleaved third-party comment nor a previous run's comment on the same PR can be
-  mistaken for this invocation's output. Author is documented as a deliberate non-filter — the
-  plugin posts under whatever `gh` credential invoked it, so no fixed login exists to match — with
-  the residual collision named. No match now yields empty output, documented as a `## Surfaces`
-  skip — never a fallback to the latest comment.
+- **`skills/fanout`: the `code-review` plugin's comment is identified as the one this invocation
+  created, not as the latest comment.** `context/findings-normalization.md` told the pipeline to
+  retrieve that surface's raw text with `.comments[-1].body`, which is whatever landed most
+  recently — the prose named the plugin's `### Code review` heading but the expression applied no
+  filter at all. Any bot or reviewer commenting between the dispatch and the fetch was therefore
+  normalized as `code-review` findings and written into the persisted report. Retrieval is now an
+  ID-set difference: `SKILL.md` records the PR's comment IDs before dispatching, and the fetch
+  selects the heading-bearing comment whose ID is new. Identity rather than a timestamp window,
+  because a cutoff narrows *when* a comment arrived but never establishes *who* wrote it — a third
+  party quoting the heading mid-dispatch would still have won. A `length == 1` guard refuses to
+  guess: zero new heading-bearing comments (the dispatch produced none) and two or more (a
+  genuinely ambiguous window) both yield empty output, documented as a `## Surfaces` skip — never a
+  fallback to the latest comment.
+- **`skills/fanout`: the pre-dispatch snapshot is taken in the step that dispatches.** `SKILL.md`
+  Step 1 dispatches the surfaces and Step 2 only then opens
+  `context/findings-normalization.md`, so a "capture this before dispatching" instruction living in
+  the normalization context could never run in time. The snapshot now sits in `SKILL.md`'s
+  `code-review` bullet, and it is carried into the retrieval as a spliced literal rather than a
+  shell variable, which does not survive the tool-call boundary between the two steps.
 
 ## [0.17.1]
 

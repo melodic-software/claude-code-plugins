@@ -18,29 +18,21 @@ The 5-stage main-thread pipeline that turns heterogeneous free-text findings fro
 
 Line numbers from LLM reviewers drift — treat inferred lines as approximate and keep dedup noise-tolerant.
 
-**One row's raw text is not returned to the session:** the `code-review` plugin ends by posting its surviving findings as a PR comment, so the dispatch itself yields no parsable output. After an opted-in dispatch, fetch that comment and feed the body to Stage 0 as this surface's raw text — selected by the plugin's `### Code review` heading, never by position:
+**One row's raw text is not returned to the session:** the `code-review` plugin ends by posting its surviving findings as a PR comment, so the dispatch itself yields no parsable output. After an opted-in dispatch, fetch that comment and feed the body to Stage 0 as this surface's raw text — identified as the comment THIS invocation created, never by position.
 
-Capture the newest heading match's timestamp BEFORE dispatching, so a leftover comment from an earlier run on the same PR cannot be read as this run's output:
-
-```shell
-since=$(gh pr view <n> --json comments |
-  jq -r '[.comments[] | select(.body | contains("### Code review"))] | last | .createdAt // ""')
-```
-
-Then dispatch, and retrieve with both filters applied:
+SKILL.md "Orchestrator plugins" takes the pre-dispatch comment-ID snapshot, because that is the step that runs before the dispatch. Splice the array it printed in here as a literal — a shell variable set in an earlier tool call is gone by the time this one runs:
 
 ```shell
 gh pr view <n> --json comments |
-  jq -r --arg since "$since" '[.comments[]
-    | select(.body | contains("### Code review"))
-    | select(.createdAt > $since)] | last | .body // empty'
+  jq -r --argjson seen '<the recorded id array>' '[.comments[]
+    | select(.id as $id | $seen | index($id) | not)
+    | select(.body | contains("### Code review"))]
+    | if length == 1 then .[0].body else empty end'
 ```
 
-Both filters are load-bearing. `.comments[-1]` is whatever landed most recently, with no heading, author, or timestamp filter — so any bot or reviewer that comments between the dispatch and this fetch is normalized as `code-review` findings and corrupts the persisted report. The heading filter alone still admits a previous run's comment on the same PR; `$since` is what narrows the match to this invocation. GitHub returns `createdAt` as fixed-width UTC (`2026-01-31T09:15:00Z`), so the string comparison orders chronologically; an empty `$since` means no prior match existed and every heading match qualifies.
+Identity, not position or time. `.comments[-1]` is whatever landed most recently, with no filter at all — any bot or reviewer commenting between the dispatch and this fetch is normalized as `code-review` findings and corrupts the persisted report. A timestamp cutoff narrows the window but still cannot say who wrote a comment inside it, so a third party quoting the `### Code review` heading mid-dispatch would win it. The ID-set difference answers the question actually being asked: which comment did not exist before this invocation.
 
-Author is deliberately not a third filter: the plugin posts under whatever `gh` credential invoked it, so there is no fixed login to match on and a hardcoded one would break for the next consumer. Heading plus dispatch window is the portable pair. The residue that leaves: another surface posting a `### Code review`-headed comment inside that same window, where `last` takes the newest match — so read the body before normalizing it, and skip the row if it is not this plugin's output.
-
-Empty output means no comment satisfied both filters — the row has no input, so the surface is not normalized and belongs in `## Surfaces` as a skip. Never widen the filters or fall back to the latest comment to fill it.
+The `length == 1` guard is the refusal to guess. Zero new heading-bearing comments means the dispatch produced none; two or more means the window is genuinely ambiguous. Both yield empty output — the row has no input, so the surface is not normalized and belongs in `## Surfaces` as a skip. Never widen the filter or fall back to the latest comment to fill it.
 
 **Not in this table:** the bundled `/code-review` command and the managed Code Review GitHub App service (SKILL.md "Boundary — the bundled command and the managed service"), both distinct from the `code-review` plugin row above. The managed service posts its findings to the PR rather than returning them to normalize; bare `/code-review` is report-only, but is itself a multi-agent review of the same diff whose output has no documented schema to parse. Neither is dispatched as a fan-out leaf here.
 
