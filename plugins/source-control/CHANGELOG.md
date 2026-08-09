@@ -96,7 +96,6 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `(CRITICAL)` parenthetical restated emphasis the numbered verification procedure below already
   carries. No step, classification, or drop rule changed.
 
-
 ## [0.48.0]
 
 ### Changed
