@@ -728,8 +728,9 @@ class SelfAuthoredUnprotectedBaseTests(unittest.TestCase):
         default_branch: str | None = "main",
         allow_unprotected: bool = False,
         rules: list[dict[str, Any]] | None = None,
+        **pr_overrides: Any,
     ) -> dict[str, Any]:
-        pr = _pr(author={"login": self.SELF}, baseRefName=base_ref)
+        pr = _pr(author={"login": self.SELF}, baseRefName=base_ref, **pr_overrides)
         repo_calls: list[list[str]] = []
 
         def gh_json(args: list[str]) -> Any:
@@ -784,6 +785,14 @@ class SelfAuthoredUnprotectedBaseTests(unittest.TestCase):
         # Missing evidence never invents a hold; it falls back to prior behavior.
         result = self._evaluate("stack-layer-1", default_branch=None)
         self.assertEqual(self._unprotected_blockers(result), [], result["blockers"])
+
+    def test_already_blocked_pr_reads_no_repository_metadata(self) -> None:
+        # A PR held for any other reason cannot be made ready by this hold, so
+        # the fleet loop must not pay a network call per cycle to re-derive it.
+        result = self._evaluate("stack-layer-1", isDraft=True)
+        self.assertEqual(result["_repo_reads"], 0)
+        self.assertEqual(self._unprotected_blockers(result), [], result["blockers"])
+        self.assertFalse(result["ready"])
 
     def test_protected_base_reads_no_repository_metadata(self) -> None:
         # The default-branch lookup is reached only by an unprotected base, so a

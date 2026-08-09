@@ -21,9 +21,11 @@ All notable changes to the `source-control` plugin are documented here. Format f
   exactly this shape (self-authored, base = the layer below), but so is any feature-onto-feature
   merge — the gap did not depend on stacks and is not fixed by detecting them.
 
-  The default branch is read only after an unprotected base has met every other gate, so a
-  protected-base run issues no request it did not issue before. A repository-metadata read failure
-  leaves the prior exemption standing rather than inventing a hold from missing evidence.
+  The default branch is read only once an unprotected base has cleared every other blocker, so
+  neither a protected-base run nor an already-held PR issues a request it did not issue before — a
+  fleet loop never pays that call per cycle for a PR it already knows is ineligible. A
+  repository-metadata read failure leaves the prior exemption standing rather than inventing a hold
+  from missing evidence.
 
 ## [0.49.3]
 

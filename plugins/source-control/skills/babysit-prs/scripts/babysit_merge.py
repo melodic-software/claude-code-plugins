@@ -217,10 +217,11 @@ def unresolved_threads(repo: str, number: int) -> list[dict[str, object]]:
 def repository_default_branch(repo: str) -> str | None:
     """Return the repository's default branch, or None when it cannot be read.
 
-    Called only when an unprotected base has already met every other gate, so a
-    protected-base run makes no request it did not make before. A read failure
-    returns None, which leaves the pre-existing self-login exemption in place
-    rather than inventing a hold from missing evidence.
+    Called only when an unprotected base has already cleared every other blocker,
+    so neither a protected-base run nor an already-held PR makes a request it did
+    not make before. A read failure returns None, which leaves the pre-existing
+    self-login exemption in place rather than inventing a hold from missing
+    evidence.
     """
     try:
         data = gh_json(["api", f"repos/{repo}", "--jq", "{name: .default_branch}"])
@@ -980,7 +981,11 @@ def evaluate(
     # lands on an integration branch instead of passing the gate. A stacked pull
     # request is exactly that shape (self-authored, base = the layer below), but so
     # is any feature-onto-feature merge.
-    elif base_is_unprotected and author_is_self and not allow_unprotected:
+    # `not blockers` is load-bearing, not an optimization: a PR already held for
+    # any other reason cannot be made ready by this hold, and the lookup is a
+    # network call the fleet loop would otherwise pay on every cycle for a PR it
+    # already knows is ineligible.
+    elif not blockers and base_is_unprotected and author_is_self and not allow_unprotected:
         base_ref = str(pr.get("baseRefName") or "")
         default_branch = repository_default_branch(repo)
         if default_branch and base_ref and base_ref != default_branch:
