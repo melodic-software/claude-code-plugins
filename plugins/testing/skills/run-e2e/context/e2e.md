@@ -2,7 +2,7 @@
 
 Autonomous application testing — start the app, navigate, interact, take screenshots, verify behavior. This mode activates when end-to-end live verification of a running application is needed (UI flows, API contracts, distributed traces, structured logs).
 
-## Prerequisites Check (MANDATORY — hard-fail if missing)
+## Prerequisites check
 
 Before ANY live testing, verify tool availability. The e2e orchestrator and any prerequisite MCP come from the consuming project's conventions (Aspire, docker-compose, tilt, a dev-server script). Universal browser-automation tooling stays prose.
 
@@ -14,7 +14,7 @@ Before ANY live testing, verify tool availability. The e2e orchestrator and any 
 | Claude in Chrome | `mcp__claude-in-chrome__tabs_context_mcp` | Optional | GIF recording, natural language element finding |
 | App running | orchestrator's resource-list call shows healthy resources | YES | Something to test |
 
-**If the project's orchestrator MCP is not connected:** STOP. Report what's missing and how to fix it. Do not attempt workarounds.
+**If the project's orchestrator MCP is not connected:** STOP. Report what's missing and how to fix it. Do not attempt workarounds — a substitute path produces unverified pass/fail results, defeating live verification.
 
 **If app not running:** suggest starting via the project's documented start command, then re-check via the orchestrator's health/resource-list call.
 

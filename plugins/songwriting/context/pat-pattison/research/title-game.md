@@ -85,16 +85,16 @@ constraints surface variety but make mining harder.
 
 Per `hook.md` "Title generation", the seven title types are:
 
-1. Statement
-2. Question
-3. Command
-4. Phrase from the lyric
-5. Image-as-noun
-6. Idiom recontextualized
-7. Name
+1. One-word
+2. Place-name
+3. Person-name
+4. Color or sensory
+5. Comparative
+6. Word-play
+7. Sonic-bonding
 
-Mixing types within a cascade adds variety (Statement → Question → Image
-on the same vowel). Sticking to one type tightens focus.
+Mixing types within a cascade adds variety (One-word → Place-name →
+Word-play on the same vowel). Sticking to one type tightens focus.
 
 ## Stressed-vowel cascade example (structure only)
 
@@ -129,7 +129,7 @@ would have found.
 | Failure | Recovery |
 |---|---|
 | Writer judges each title before generating next | re-establish No-Free Zone; silence = keep going |
-| All titles in chain are the same type | vary type deliberately (Statement → Question → Image) |
+| All titles in chain are the same type | vary type deliberately (One-word → Place-name → Word-play) |
 | Stressed vowel keeps drifting | tighten the vowel constraint OR move to vowel triangle / adjacent-vowel mode |
 | One writer dominates the cascade in co-write | enforce strict turn-taking; partner generates EVERY OTHER title, not every third |
 | Titles all rhyme with cliche partners | run the rhyme-stability test BEFORE the cascade; if stuck-vowel territory, change vowel altogether |

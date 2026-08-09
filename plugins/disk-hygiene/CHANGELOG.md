@@ -3,10 +3,39 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.15.0]
+## [0.16.0]
 
-> Version note: `0.14.0` is claimed by PR #1870, open against this manifest. This entry takes the
-> next number so the two do not collide.
+> Version note: `0.14.0` is never published. This entry claimed it while open, and 0.15.0 shipped
+> first with a note pointing here; taking the next free number on merge is what keeps both entries
+> truthful about the order they actually landed in.
+
+### Fixed
+
+- **Byte accounting can say "unknown" and "not reclaimable local bytes" (#1806).** Finding 2 of
+  the live audit: a truncated subtree emitted `logical_size: 0`, byte-identical to a genuinely empty
+  directory, while hard-linked names each contributed their full `st_size` to every total. PR #1818
+  landed the `size_qualifiers` / `file_attributes` mechanism for cloud placeholders and deliberately
+  left aggregates alone so this change could own the rest.
+
+  Every entry now records `nlink` and `allocated_size` (cheap `st_blocks * 512` on POSIX; null on
+  Windows where that field is absent). A truncated directory — max-depth, protected name, or VCS
+  boundary — carries `logical_size: null` and `not-walked` rather than pretending to be empty. Files
+  with `st_nlink > 1` carry `hardlinked`; sparse files carry `sparse` when the platform exposes the
+  signal. Snapshot, preview, apply, and the scan-complete summary each report
+  `reclaimable_local_bytes` (or `target_reclaimable_local_bytes` /
+  `reclaimable_local_bytes_removed`) as a figure distinct from the walked logical roll-up: every
+  qualified entry is excluded, so a report can no longer honestly claim gigabytes removed when the
+  observed free-space delta is ~0 because the bytes were shared, remote, or never inventoried.
+
+### Follow-ups left open on #1806
+
+Findings 3 (a `summarize` surface), 4 (Stop-detector marker amortisation), 6 (probe path
+provenance vs the guard's trusted settings channel), and 7 (run-state retention / snapshot path
+containment) stay out of this PR — each needs a design or coupled-grammar call rather than a
+mechanical completion of the byte-qualification vertical slice. Findings 1 and 5 already shipped in
+0.13.0.
+
+## [0.15.0]
 
 ### Fixed
 

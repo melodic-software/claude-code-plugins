@@ -10,6 +10,14 @@
 # done"), and a lane that still stops after that one nudge is treated as a
 # genuine down-lane — allowed to stop (never wedged) and the operator is alerted.
 #
+# SCOPE — this gate mechanizes ONE clause of the autonomous-pipeline reminder
+# (reference/autonomous-pipeline-reminder.md): end the turn only on completion or
+# a genuine block. It performs no content classification of the final message
+# beyond the literal sentinel check below, so it cannot tell a blocked-on-user
+# stop from a lazy one — both get the same single nudge. Every other clause of
+# that reminder is carried by instruction alone; a shell hook cannot judge
+# whether a final paragraph describes an action or reports one.
+#
 # DEFAULT-OFF. A Stop-blocking hook that engaged by default would wedge every
 # interactive user's stop, so the gate is inert unless a session explicitly opts
 # in. Every other exit path allows the stop.

@@ -1,6 +1,6 @@
 ---
 name: handoff
-description: "Write a mid-session save-point for /clear-and-resume — a durable handoff file (default) or a copy-paste resume prompt when follow-ups are small. Use when: 'handoff', 'save state', 'checkpoint this', 'pause', 'come back later', context is heavy, or quality is degrading. For delegating the continuation to a background agent, use the sibling continue-in-background skill."
+description: "Write a mid-session save-point for /clear-and-resume — a durable handoff file (default) or a copy-paste resume prompt when follow-ups are small. Use when: 'handoff', 'save state', 'checkpoint this', 'pause', 'come back later', the user reports the session is heavy, a context-measuring mechanism says to fork, or your own responses are visibly drifting, repeating, or looping. Never on your own estimate of the remaining window — a budget reading is not a decay signal. For delegating the continuation to a background agent, use the sibling continue-in-background skill."
 argument-hint: "[file|prompt] [topic] (e.g., /handoff, /handoff prompt, /handoff file phase-3)"
 user-invocable: true
 disable-model-invocation: false
@@ -26,9 +26,14 @@ the pre-compute block (#1687).
 
 ## Purpose
 
-Context bloat is expensive and quality degrades as context rots. When a task has room left but
-context is heavy, capture a save-point — a handoff document, or just a copy-paste resume prompt when
-follow-ups are small — and `/clear`.
+Context bloat is expensive and quality degrades as context rots. When a task has room left but the
+session should fork anyway, capture a save-point — a handoff document, or just a copy-paste resume
+prompt when follow-ups are small — and `/clear`.
+
+**What licenses that judgment matters as much as the judgment.** The trigger is the user's own
+report, an instrument that measures the window, or visible decay in the responses themselves —
+never a self-estimated budget. A remaining-context reading is a measurement, not a decay signal;
+volunteering a handoff on the strength of one interrupts work that was fine.
 
 Based on the canonical pattern Anthropic recommends for the `/clear` workflow: put the rest of the
 plan in a handoff file; explain what you tried, what worked, and what didn't, so the next agent with
@@ -81,8 +86,10 @@ specifically (e.g. "don't `/clear` between phases, keep going").
 
 ## When to invoke
 
-- Mid-task, context heavy (check `/context` output or user report)
-- Quality degrading (context rot) — responses drifting, repeating, or looping
+- Mid-task and the user reports the session is heavy, or a context-measuring mechanism says to
+  fork (`context-guard`'s zone report is one) — never your own estimate of the remaining window
+- Quality degrading (context rot) — responses drifting, repeating, or looping. This is the signal
+  that is yours to read, because decay shows up in the output and never in a budget number
 - About to pause for hours/overnight; want a clean resume
 - About to switch to a different task; this one isn't done
 - Last turn had an unexpected compaction
@@ -92,6 +99,10 @@ Going AFK but the work should keep moving → that is the sibling
 `/session-flow:continue-in-background` skill's job, and only on the user's explicit request.
 
 ## Fork beats compaction when the window is deep
+
+This section picks between two continuation mechanisms; it never licenses the continuation itself.
+That licence comes from "When to invoke" above, and the thresholds here apply only once it is
+granted.
 
 Two ways to keep going past a heavy context: fork (handoff file + `/clear` + fresh session) or
 continue in place over a compacted history. Compaction suits an intentional break between phases

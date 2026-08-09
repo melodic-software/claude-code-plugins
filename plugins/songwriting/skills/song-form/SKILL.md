@@ -10,8 +10,8 @@ disable-model-invocation: false
 
 Before emitting a form recommendation, section rewrite, hook placement, or bridge, run
 **§6 Form filter** of [response-filter](../../context/pat-pattison/research/response-filter.md)
-(add **§5 Title + hook** for hook/title placement). NAME each box's pass / fail / skip-with-reason;
-correct before emission. Skips are valid; silent skips are not.
+(add **§5 Title + hook** for hook/title placement). NAME each box's pass / fail / skip-with-reason
+(aloud or in reasoning); correct before emission. Skips are valid; silent skips are not.
 
 ## Purpose
 
@@ -19,7 +19,7 @@ The architecture layer: how sections are identified, contrasted, balanced, and r
 serves the song. Covers form selection, hook/title placement, repetition and repainting, verse
 division of labor (box model), verse development, and bridges.
 
-Method content is Pat Pattison's, under `context/pat-pattison/`. A future author's method plugs in
+Method content is Pat Pattison's, under the plugin-root `../../context/pat-pattison/`. A future author's method plugs in
 at `context/<author>/` without changing this skill.
 
 ## Action Router
@@ -54,8 +54,41 @@ consuming project's own songwriting layout when it defines one. Before loading a
 `templates/<name>.md`, check `${CLAUDE_PROJECT_DIR}/songwriting/templates/pat-pattison/<name>.md`
 first — a project-level override wins over the bundled default.
 
+## Boundary — what this skill must NOT emit
+
+This skill's domain is architecture: which sections exist, what each one is doing, how they
+contrast, balance, and repaint. **It does not write finished lyric lines**, and having diagnosed a
+section's problem does not authorize it to write that section's replacement.
+
+| If you are about to emit | STOP and route to |
+| --- | --- |
+| A finished verse, chorus, or bridge line | `/songwriting:co-write` line-brainstorm |
+| A rhyme partner, or any line whose end-word was chosen for its rhyme | `/songwriting:rhyme` |
+| Sensory or metaphorical raw material for a thin section | `/songwriting:object-writing generate`, then `/songwriting:metaphor` |
+| A stress map, syllable count, or line-length claim | `/songwriting:meter-prosody` |
+
+Routing means invoking that skill, not summarizing what you believe it would say.
+
+**Why this boundary is load-bearing.** In the pilot that produced these skills, this skill wrote
+three chorus drafts while its own routing said rhyme work belongs elsewhere. Every generative check
+was named as passed and none was run: zero rhyme candidates against a mandatory eight, zero mosaic
+against a mandatory three, no object writing before the lines. Naming a filter box is not running
+it, and a structural skill in the middle of a structural conversation is exactly where that
+substitution happens.
+
+Two section-type rules bind before any line-level judgement here, both from
+[repetition](../../context/pat-pattison/research/repetition.md):
+
+- **Verses show; the chorus tells.** Verses carry specific situation, image, and action; the chorus
+  makes the broader statement the verses keep recoloring. State which mode a section is in before
+  judging its material — a chorus full of concrete inventory is verse material in the wrong box.
+- **A chorus is sung back.** Length and singability are structural properties, not polish.
+
 ## Related skills
 
+- Line generation and variations → `/songwriting:co-write`
+- Sensory raw material → `/songwriting:object-writing`
+- Metaphor systems across a form → `/songwriting:metaphor`
 - Stability and scansion of the sections → `/songwriting:meter-prosody`
 - Rhyme within sections → `/songwriting:rhyme`
 - Whole-draft diagnosis → `/songwriting:diagnose`
