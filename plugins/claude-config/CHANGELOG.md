@@ -3,11 +3,10 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.27.2]
+## [0.27.3]
 
 ### Fixed
 
-<<<<<<< HEAD
 - **`audit-instructions`: the hook-event blockability partition in `conflict-criteria.md` was
   closed** (conflict-criteria 1.3.0 → 1.4.0; issue #1989 row 244). The exit-2 bullet enumerated six
   "blockable" and five "non-blockable" events as an exhaustive split, while the hooks page's
@@ -22,8 +21,11 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   the `PostToolUse`/`PreToolUse` worked pair are kept as examples. The file's recheck trigger no
   longer fires on a row added to the upstream table, and `evals/evals.json` eval 16 now tests the
   lookup procedure rather than the memorized split.
-||||||| b77782a0
-=======
+
+## [0.27.2]
+
+### Fixed
+
 - **`conflict-scan.sh`: the coordinated-directive boundary honored only a subset of the mandate
   tokens, so the most common phrasing silently dropped real conflicts.** `COORD_ERE` carried a
   hand-copied token list that had fallen behind `MANDATE_ERE`: `use`, `present`, and `ask` were in
@@ -94,7 +96,6 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   mid-run on a bare `command not found` rather than on a named prerequisite. Only
   `conflict-scan.sh` probes and `exit 2`s. Both surfaces now name all three skills, and the README's
   requirements section names `awk` and `sort` alongside `jq` and `curl`.
->>>>>>> origin/main
 
 ## [0.27.1]
 
