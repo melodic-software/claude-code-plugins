@@ -3,6 +3,15 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.4]
+
+### Changed
+
+- **`observability`'s report skeleton uses `<model>` placeholders in its token/cost table.** The two
+  sample rows carried real model IDs, which read as data rather than as a template and date the
+  skeleton as models turn over. They now match the `<model>` convention the Cache health table
+  immediately below already used.
+
 ## [0.27.3]
 
 ### Changed

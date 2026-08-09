@@ -10,9 +10,9 @@ disable-model-invocation: false
 
 When a practice run produces sample lines, images, or rhymes, run the applicable section of
 [response-filter](../../context/pat-pattison/research/response-filter.md) (§1 rhyme, §2 line,
-§7 image) before emitting them. NAME each box's pass / fail / skip-with-reason; correct before
-emission. Skips are valid; silent skips are not. Prompt-only runs (assigning an exercise) need no
-filter pass.
+§7 image) before emitting them. NAME each box's pass / fail / skip-with-reason (aloud or in
+reasoning); correct before emission. Skips are valid; silent skips are not. Prompt-only runs
+(assigning an exercise) need no filter pass.
 
 ## Purpose
 
@@ -20,7 +20,7 @@ The habit layer: a daily craft routine and a numbered-exercise index across all 
 writer can build and sustain practice. This skill hands out prompts and curricula; the craft skills
 do the in-the-moment coaching on the output.
 
-Method content is Pat Pattison's, under `context/pat-pattison/`. A future author's curriculum plugs
+Method content is Pat Pattison's, under the plugin-root `../../context/pat-pattison/`. A future author's curriculum plugs
 in at `context/<author>/` without changing this skill.
 
 ## Action Router

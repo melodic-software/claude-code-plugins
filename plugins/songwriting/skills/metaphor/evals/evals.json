@@ -1,0 +1,63 @@
+{
+  "skill_name": "metaphor",
+  "evals": [
+    {
+      "id": 1,
+      "name": "metaphor-for-subject-avoiding-cliche-families",
+      "prompt": "/songwriting:metaphor collide I need a metaphor for grief that isn't a storm or an ocean",
+      "expected_output": "Routes to the collide action. Loads metaphor.md and the collision template. Runs the two metaphor-finder questions visibly — what characteristics does grief have, and what else has those characteristics — then surfaces 6-8 labeled candidates avoiding the named cliche families (storm-anger, ocean-sadness, darkness-sadness), each labeled with its type (expressed identity / qualifying / verbal), its linking quality, and family distance. Noun-verb candidates outnumber adjective-noun ones. No single winner is imposed.",
+      "files": [],
+      "expectations": [
+        "Loads metaphor.md via the `collide` action",
+        "Asks both metaphor-finder questions in the output rather than presenting conclusions only",
+        "Avoids storm and ocean per the user's constraint, and does not substitute another named cliche family",
+        "Surfaces 6-8 candidates",
+        "Labels each with a metaphor type (expressed identity / qualifying / verbal)",
+        "Names the linking quality for each candidate",
+        "Emits more noun-verb collisions than adjective-noun collisions",
+        "Offers options rather than a single winning metaphor"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "simile-versus-metaphor-decided-by-focus",
+      "prompt": "/songwriting:metaphor simile Should this be 'my love is an engine' or 'my love is like an engine'?",
+      "expected_output": "Routes to the simile action. Decides on focus transfer rather than the like/as surface test: metaphor transfers focus to the second term and commits the song to it, simile keeps focus on the first term and stays with the speaker. Names the consequence for the rest of the song — a committed metaphor obliges downstream vocabulary from that term's family — and gives the rule of thumb that a list of comparisons wants simile while one comparison carried across the song wants metaphor. Presents the choice, does not decide for the writer.",
+      "files": [],
+      "expectations": [
+        "Frames the difference as focus transfer, not as the presence of like/as",
+        "States that metaphor moves attention to the second term and simile keeps it on the first",
+        "Names the downstream consequence for the song's later vocabulary",
+        "Gives the list-wants-simile / single-committed-comparison-wants-metaphor rule of thumb",
+        "Leaves the choice to the writer"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "playing-in-keys-from-the-songs-own-world",
+      "prompt": "/songwriting:metaphor keys The song is set in a coastal town — sustain an image across the chorus",
+      "expected_output": "Routes to the keys action. Picks a fundamental from the song's own world rather than a generic one, derives a diatonic family from it, then collides family members with each other to produce candidate metaphors. Names which candidates could sustain across a section versus which are one-time images. Notes that object-writing output is the source of the song's world vocabulary.",
+      "files": [],
+      "expectations": [
+        "Names a fundamental drawn from the song's stated world",
+        "Derives a diatonic family from that fundamental",
+        "Collides family members with each other rather than listing the family alone",
+        "Distinguishes sustainable images from one-time ones",
+        "Points at object-writing material as the source of world vocabulary"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "refuses-to-emit-a-finished-lyric-line",
+      "prompt": "/songwriting:metaphor collide Give me a metaphor for leaving and then write the chorus around it",
+      "expected_output": "Generates the metaphor candidates, then STOPS at the boundary: writing the chorus is line emission and belongs to /songwriting:co-write. Names the routing explicitly rather than silently producing the chorus, and does not summarize what co-write would say in place of invoking it.",
+      "files": [],
+      "expectations": [
+        "Produces labeled metaphor candidates for the subject",
+        "Does NOT emit a finished chorus, verse, or lyric line",
+        "Names /songwriting:co-write as the owner of line emission",
+        "Does not paraphrase the other skill's output in place of routing to it"
+      ]
+    }
+  ]
+}

@@ -100,7 +100,9 @@
 # Every numeric override above is validated as a positive number before use.
 # A nonnumeric value is an environment error (exit 2) — never a silent
 # coercion to zero, which would fabricate a zero-character budget and an
-# overflow WARN out of a typo.
+# overflow WARN out of a typo. An accepted integer override is then forced to
+# base 10, so a zero-padded value means what it reads as: `08` is 8, not an
+# octal error, and `0123` is 123, not 83.
 #
 # Exit 0 always (report-only), except a usage/env error (exit 2) — this is an
 # advisory rollup, not a pass/fail gate; see the "reported aggregate" framing
@@ -131,16 +133,14 @@ fi
 source "$SCRIPT_DIR/skill-frontmatter.sh"
 
 # Fold a frontmatter boolean to a bare lowercase token before comparing it.
-# `skill_frontmatter::field` returns the raw scalar, so an exact-string compare
-# against "true" misses spellings a YAML reader treats as the same boolean: a
-# trailing `# comment` (YAML requires whitespace before the `#`), surrounding
-# whitespace, and quoted or differently-cased forms. Missing one silently
-# re-counts a skill whose description the harness keeps out of context.
+# `skill_frontmatter::field` returns the scalar with any trailing YAML comment
+# already cut, so what remains to fold is surrounding whitespace and quoted or
+# differently-cased forms — an exact-string compare against "true" misses those
+# and silently re-counts a skill whose description the harness keeps out of
+# context.
 # Deliberately NOT folded: YAML 1.1's `yes` / `on` aliases — the docs only ever
 # spell this field `true`, and treating a bare `yes` as the boolean risks
 # dropping a skill over a value the harness may read as a plain string.
-# Comment-stripping stays scoped to booleans and is never applied to
-# `description` / `when_to_use`, where a ` #` is content, not a comment.
 # A pragmatic normalizer for one known field, not a YAML parser.
 trim_ws() {
   local v="$1"
@@ -150,8 +150,7 @@ trim_ws() {
 
 normalize_bool() {
   local v
-  v="$(trim_ws "$(sed -E 's/[[:space:]]+#.*$//' <<<"$1")")"
-  v="$(trim_ws "$(skill_frontmatter::strip_quotes "$v")")"
+  v="$(trim_ws "$(skill_frontmatter::strip_quotes "$(trim_ws "$1")")")"
   printf '%s' "$(tr '[:upper:]' '[:lower:]' <<<"$v")"
 }
 
@@ -170,8 +169,19 @@ require_positive_number() {
   fi
 }
 
+# Force a validated integer to base 10 before anything treats it as a number.
+# `^[0-9]+$` accepts a zero-padded override, which bash arithmetic and
+# `printf %d` then read as OCTAL: `0123` silently becomes 83, and `08` is not a
+# number at all — it renders the budget as 0 and reports a bogus OK. Applies to
+# integer overrides only; the ratio/fraction overrides are decimal (`0.01` is
+# the documented default fraction) and reach only awk, which has no octal input.
+to_decimal() {
+  printf '%s' "$((10#$1))"
+}
+
 MAX_DESC_CHARS="${CHECK_SKILL_LISTING_MAX_DESC_CHARS:-1536}"
 require_positive_number CHECK_SKILL_LISTING_MAX_DESC_CHARS "$MAX_DESC_CHARS" int
+MAX_DESC_CHARS="$(to_decimal "$MAX_DESC_CHARS")"
 JOINER_CHARS=3 # the literal " - " the harness inserts between description and when_to_use
 
 # Precedence matches the documented contract above: a fixed aggregate budget
@@ -181,6 +191,7 @@ JOINER_CHARS=3 # the literal " - " the harness inserts between description and w
 if [[ -n "${CHECK_SKILL_LISTING_BUDGET_CHARS:-}" ]]; then
   BUDGET_CHARS="$CHECK_SKILL_LISTING_BUDGET_CHARS"
   require_positive_number CHECK_SKILL_LISTING_BUDGET_CHARS "$BUDGET_CHARS" int
+  BUDGET_CHARS="$(to_decimal "$BUDGET_CHARS")"
   BUDGET_SOURCE="override (CHECK_SKILL_LISTING_BUDGET_CHARS)"
   if [[ -n "${CHECK_SKILL_LISTING_CONTEXT_TOKENS:-}" ]]; then
     printf 'Note: CHECK_SKILL_LISTING_BUDGET_CHARS takes precedence; ignoring CHECK_SKILL_LISTING_CONTEXT_TOKENS=%s\n' \
@@ -191,6 +202,7 @@ elif [[ -n "${CHECK_SKILL_LISTING_CONTEXT_TOKENS:-}" ]]; then
   CHARS_PER_TOKEN="${CHECK_SKILL_LISTING_CHARS_PER_TOKEN:-4}"
   FRACTION="${CHECK_SKILL_LISTING_BUDGET_FRACTION:-0.01}"
   require_positive_number CHECK_SKILL_LISTING_CONTEXT_TOKENS "$CONTEXT_TOKENS" int
+  CONTEXT_TOKENS="$(to_decimal "$CONTEXT_TOKENS")"
   require_positive_number CHECK_SKILL_LISTING_CHARS_PER_TOKEN "$CHARS_PER_TOKEN" num
   require_positive_number CHECK_SKILL_LISTING_BUDGET_FRACTION "$FRACTION" num
   if ! BUDGET_CHARS="$(awk -v t="$CONTEXT_TOKENS" -v c="$CHARS_PER_TOKEN" -v f="$FRACTION" \

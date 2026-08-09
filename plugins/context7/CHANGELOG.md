@@ -3,6 +3,16 @@
 All notable changes to the `context7` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.4]
+
+### Added
+
+- **The upstream-integration protocol records restrained trigger phrasing as a customization to
+  preserve.** `context/update.md`'s "What to preserve" table now states that upstream's blanket
+  forcing language in triggers is deliberately not carried into any non-vendor surface, so a port
+  does not quietly import it. The vendored baselines keep upstream's wording verbatim, and a genuine
+  call-order dependency stated in body prose is outside the row's scope.
+
 ## [0.4.3]
 
 ### Changed
