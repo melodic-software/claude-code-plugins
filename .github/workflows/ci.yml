@@ -649,6 +649,17 @@ jobs:
       - name: Run cheat-sheet generator tests
         if: steps.scope.outputs.docs_only != 'true'
         run: bash scripts/generate-cheatsheet.test.sh
+      # Same reason as the step above — run-plugin-tests.sh never reaches
+      # scripts/. This suite is wired into CI rather than left to local runs
+      # because its load-bearing cases assert against the LIVE repository: that
+      # the shared-lib copy set affected-tests.sh derives still equals what each
+      # scripts/sync-*.sh manifest declares today. That equality is what stops
+      # the selector silently under-selecting after a manifest changes shape or
+      # a new carrying plugin appears, and a check that only ever runs when
+      # someone remembers to run it is exactly the rot it guards against.
+      - name: Run affected-suite selector tests
+        if: steps.scope.outputs.docs_only != 'true'
+        run: bash scripts/affected-tests.test.sh
       - name: Validate plugin and catalog manifests
         if: steps.scope.outputs.docs_only != 'true'
         run: scripts/validate-plugins.sh

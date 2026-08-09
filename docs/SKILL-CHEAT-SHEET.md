@@ -68,7 +68,7 @@ owned by [docs/CATALOG-TAXONOMY.md](CATALOG-TAXONOMY.md).
 | [`/planning:draft-goal-condition`](../plugins/planning/skills/draft-goal-condition/SKILL.md) | `planning` | Pick the right autonomy lever and craft a /goal completion condition |
 | [`/planning:plan`](../plugins/planning/skills/plan/SKILL.md) | `planning` | Produce a structured implementation plan with an approval gate |
 | [`/prototype:explore-directions`](../plugins/prototype/skills/explore-directions/SKILL.md) | `prototype` | Throwaway UI variations answering what should this look like |
-| [`/prototype:pressure-test`](../plugins/prototype/skills/pressure-test/SKILL.md) | `prototype` | Throwaway terminal app pressure-testing logic or a data model |
+| [`/prototype:pressure-test`](../plugins/prototype/skills/pressure-test/SKILL.md) | `prototype` | Throwaway terminal app or shareable HTML demo pressure-testing logic or a data model |
 | [`/work-items:decompose`](../plugins/work-items/skills/decompose/SKILL.md) | `work-items` | Break a plan into vertical-slice work items with dependencies |
 
 ## 4. Implement
@@ -162,6 +162,7 @@ owned by [docs/CATALOG-TAXONOMY.md](CATALOG-TAXONOMY.md).
 | [`/discipline:sweep-all`](../plugins/discipline/skills/sweep-all/SKILL.md) | `discipline` | Batch every discipline corrector into one audited re-anchor pass |
 | [`/discipline:tighten-your-output`](../plugins/discipline/skills/tighten-your-output/SKILL.md) | `discipline` | Tighten prose and code — fewer words, no semantic loss |
 | [`/discipline:use-your-skills`](../plugins/discipline/skills/use-your-skills/SKILL.md) | `discipline` | Map the task to available skills and invoke them instead of reinventing |
+| [`/discipline:wait-what`](../plugins/discipline/skills/wait-what/SKILL.md) | `discipline` | Re-pitch the message that did not land — missing context added, plain register, project vocabulary |
 | [`/disk-hygiene:clean`](../plugins/disk-hygiene/skills/clean/SKILL.md) | `disk-hygiene` | Audit a directory tree for stale leftovers and remove validated paths |
 | [`/docs-hygiene:audit-derivability`](../plugins/docs-hygiene/skills/audit-derivability/SKILL.md) | `docs-hygiene` | Judge whether a doc earns its existence or should become a pointer |
 | [`/docs-hygiene:audit-encapsulation`](../plugins/docs-hygiene/skills/audit-encapsulation/SKILL.md) | `docs-hygiene` | Find external citations reaching into a skill's private surfaces |
@@ -180,6 +181,7 @@ owned by [docs/CATALOG-TAXONOMY.md](CATALOG-TAXONOMY.md).
 | [`/repo-hygiene:clean`](../plugins/repo-hygiene/skills/clean/SKILL.md) | `repo-hygiene` | Clean caches, build artifacts, stale branches, and stashes per repo |
 | [`/session-flow:workflow`](../plugins/session-flow/skills/workflow/SKILL.md) | `session-flow` | Navigate the staged dev workflow and suggest the next stage |
 | [`/visualization:visualize`](../plugins/visualization/skills/visualize/SKILL.md) | `visualization` | Pick the best visual form for what is in the conversation and render it |
+| [`/wizard:generate`](../plugins/wizard/skills/generate/SKILL.md) | `wizard` | Author a hardened interactive bash wizard for human-only setup, credential, and cutover steps |
 | [`/work-items:scan-todos`](../plugins/work-items/skills/scan-todos/SKILL.md) | `work-items` | Sweep source comments for TODO and FIXME markers, resolve or file each |
 | [`/work-items:track`](../plugins/work-items/skills/track/SKILL.md) | `work-items` | Backlog CRUD through the bound tracker — add, list, close, stats |
 | [`/work-items:triage`](../plugins/work-items/skills/triage/SKILL.md) | `work-items` | Evaluate raw intake through the verified-to-eligible state machine |
