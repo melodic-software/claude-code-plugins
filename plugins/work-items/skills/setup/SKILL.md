@@ -155,13 +155,18 @@ check.
    and let the very binding this exists to catch go unreported. Verdict on *why* the call failed
    rather than on failure alone:
    - Resolves → INFO naming the `owner/repo` the seam will address.
-   - No remote, no remote pointing at a known GitHub host, or a repository that does not resolve →
-     FAIL: nothing here derives a repo, so every repo-scoped verb that is not handed the CONTRACT's
-     explicit `--repo <owner>/<repo>` override fails at call time. Remediation is
-     `/work-items:setup apply` with a user present, since re-choosing a provider needs a decision.
-   - `gh` not installed, an HTTP 401/403, a rate limit, or a network failure → INFO, never FAIL.
-     Those are availability and credential facts, not verdicts on the binding — and this probe
-     cannot tell an under-scoped token apart from a repository that is not there.
+   - No remote, or no remote pointing at a known GitHub host → FAIL: nothing here can derive a repo,
+     so every repo-scoped verb that is not handed the CONTRACT's explicit `--repo <owner>/<repo>`
+     override fails at call time. Remediation is `/work-items:setup apply` with a user present,
+     since re-choosing a provider needs a decision.
+   - `gh` not installed, a 401/403, a not-found, a rate limit, or a network failure → INFO, never
+     FAIL. Those are availability and credential facts, not verdicts on the binding. A not-found
+     belongs here and not above: an under-scoped token on a private repository returns exactly what
+     a deleted one does, and condemning a correct binding is the worse error. Say in the INFO which
+     it could be.
+   - Any other failure → INFO, naming the message verbatim. The partition above is not provably
+     total — `gh` owns these messages and adds to them — so an unrecognized one must never reach
+     FAIL by default and stop `apply` on a repository that is bound correctly.
 3. **Schedule presence** — resolve `SCHEDULE` (above). Absent → INFO: `due` / `recheck` / `work`
    degrade to "no recurring schedule configured"; `apply` seeds it. Present → continue.
 4. **Schedule validity** — a present file parses as JSON with the root `{"items": [ ... ]}` shape
@@ -246,7 +251,7 @@ Applied to the three passes:
 
 | pass | unattended resolution |
 | --- | --- |
-| Provider binding (`apply` step 1, which runs the "Provider binding" procedure) | **Binding already present and valid — keep it, and re-bind nothing.** That is the procedure's own read-first RECOMMENDED answer, so this rule resolves to it silently: a repo bound to `local-markdown`, `jira`, or a consumer-local provider stays on it, and a working `gh` never switches it to `github`. Re-binding is a switch-providers decision, which no default can stand in for. (A present binding the probe already FAILs never reaches here — `apply` runs `check` first, and that probe FAILs a malformed shape, a provider resolving to no adapter, and a `github` binding this checkout cannot derive a repo for.) **Binding absent** — bind `github` with `config.lease_ttl_hours: 24`, both RECOMMENDED, **only when `gh` is installed AND `gh repo view --json owner,name` resolves in this checkout**. The old test was `gh auth status`, which proves only that an account is authenticated somewhere — never that this repository is hosted on GitHub, so a local-only or non-GitHub checkout was bound to a provider whose every repo-scoped verb then fails. `gh repo view` is the adapter's own derivation and the operative test: it subsumes authentication for the host this checkout uses, and it is not the machine-wide check `gh auth status` is (that one tests every account on every known host and exits 1 if any has an issue, per `gh auth status --help`, so an unrelated stale credential would refuse a good bind). Report the resolved `owner/repo` in the summary alongside the other defaults taken. Otherwise stop: `local-markdown` and `jira` need `storage_dir` / `config.jira` values that have no defaults and cannot be inferred, so there is no provider left to choose safely. Report "tracker binding needs a provider decision; run `/work-items:setup apply` with a user present". |
+| Provider binding (`apply` step 1, which runs the "Provider binding" procedure) | **Binding already present and valid — keep it, and re-bind nothing.** That is the procedure's own read-first RECOMMENDED answer, so this rule resolves to it silently: a repo bound to `local-markdown`, `jira`, or a consumer-local provider stays on it, and a working `gh` never switches it to `github`. Re-binding is a switch-providers decision, which no default can stand in for. (A present binding the probe already FAILs never reaches here — `apply` runs `check` first, and that probe FAILs a malformed shape, a provider resolving to no adapter, a missing required config key, and a `github` binding this checkout cannot derive a repo for.) **Binding absent** — bind `github` with `config.lease_ttl_hours: 24`, both RECOMMENDED, **only when `gh` is installed AND `gh repo view --json owner,name` resolves in this checkout**. The old test was `gh auth status`, which proves only that an account is authenticated somewhere — never that this repository is hosted on GitHub, so a local-only or non-GitHub checkout was bound to a provider whose every repo-scoped verb then fails. `gh repo view` is the adapter's own derivation and the operative test: it subsumes authentication for the host this checkout uses, and it is not the machine-wide check `gh auth status` is (that one tests every account on every known host and exits 1 if any has an issue, per `gh auth status --help`, so an unrelated stale credential would refuse a good bind). Report the resolved `owner/repo` in the summary alongside the other defaults taken. Otherwise stop: `local-markdown` and `jira` need `storage_dir` / `config.jira` values that have no defaults and cannot be inferred, so there is no provider left to choose safely. Report "tracker binding needs a provider decision; run `/work-items:setup apply` with a user present". |
 | Role labels (step 2) | Keep the defaults — the RECOMMENDED answer, and the one that writes nothing. The pass runs and completes as a no-op: `config.role_labels` is left absent, so every role resolves to its documented fallback. A remap is a repo-vocabulary decision no default can stand in for. |
 | Schedule seeding (before step 4) | Skip — the RECOMMENDED answer. Write the empty `{"items": []}` skeleton and go to step 6. |
 

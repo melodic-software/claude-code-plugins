@@ -43,10 +43,11 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   makes the same swap, and `check`'s binding
   probe makes the same call instead of PASSing a shape-valid `github` binding no repository backs.
   That probe runs unconditionally rather than behind an auth precheck, and verdicts on *why* the
-  call failed, never on failure alone: a checkout nothing can derive a repo from is FAIL, while an
-  uninstalled `gh`, a 401/403, a rate limit, or a network failure is INFO — availability and
-  credential facts are not verdicts on a binding, and a correctly bound repo must not fail `check`
-  because the provider was briefly unreachable.
+  call failed, never on failure alone: only a checkout with no remote that any GitHub host owns is
+  FAIL. An uninstalled `gh`, a 401/403, a not-found, a rate limit, a network failure, or any message
+  the partition does not recognize is INFO — those are availability and credential facts, not
+  verdicts on a binding, and a correctly bound repo must not fail `check`, and so stop `apply`,
+  because the provider was briefly unreachable or because `gh` grew a message this list predates.
 
 - **`track start` verifies the fully qualified remote-tracking ref when resolving the base branch.**
   The guard checked `git rev-parse --verify "origin/<name>^{commit}"`, an abbreviated ref git

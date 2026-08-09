@@ -425,11 +425,11 @@ There is deliberately **no second frontier-emptiness limb**. Re-running `list-fr
 here would see items that joined the frontier *after* the snapshot — precisely the mid-cycle intake
 step 1 reports and never chases — so a bot filing agent-ready items could hold the drain open
 forever. Absence from a later frontier read is also not resolution: an item another session claims,
-or one that becomes blocked, leaves the frontier unresolved. And every snapshot frontier candidate
-is a snapshot open item — the frontier is derived by filtering `state == open` — so the single test
-above already covers the frontier, including an item the snapshot held as untriaged intake that
-step 2 promoted mid-cycle: still a snapshot open item, so it still holds the drain open and is
-worked — this cycle if the adaptive item cap has a slot, otherwise a later one.
+or one that becomes blocked, leaves the frontier unresolved. Nothing is lost by dropping the limb:
+the frontier is derived by filtering `state == open`, so a snapshot frontier candidate is a
+snapshot open item either way, and the single test above already covers it — including an item the
+snapshot held as untriaged intake that step 2 promoted mid-cycle. That item still holds the drain
+open, and it is worked once the admission gate passes it and a cap slot is free.
 
 Lane-infrastructure items never gate the drain: the per-lane telemetry tracking issues — this
 lane's and any sibling lane's, identified as `/work-items:triage` ("Scope: raw intake only")
