@@ -196,8 +196,18 @@ while IFS= read -r line || [[ -n "$line" ]]; do
     esac
     case "$tok" in
     teh)
-      out+='{"type":"typo","path":"'"$target"'","line_num":'"$reported"',"byte_offset":0,"typo":"teh","corrections":["'"${long:-the}"'"]}'$'\n'
-      if ((write == 1)); then line="${line//" teh "/" the "}"; else residual=1; fi
+      # STUB_MIXED: one spelling, two correction decisions in one file — the
+      # shape typos produces when extend-identifiers reaches an occurrence that
+      # extend-words does not. A line carrying the marker is DISALLOWED (null
+      # corrections) and survives the write; every other occurrence is fixable
+      # and gets rewritten.
+      if [[ -n "${STUB_MIXED:-}" && "$line" == *keepteh* ]]; then
+        out+='{"type":"typo","path":"'"$target"'","line_num":'"$reported"',"byte_offset":0,"typo":"teh","corrections":null}'$'\n'
+        residual=1
+      else
+        out+='{"type":"typo","path":"'"$target"'","line_num":'"$reported"',"byte_offset":0,"typo":"teh","corrections":["'"${long:-the}"'"]}'$'\n'
+        if ((write == 1)); then line="${line//" teh "/" the "}"; else residual=1; fi
+      fi
       ;;
     wnat)
       out+='{"type":"typo","path":"'"$target"'","line_num":'"$reported"',"byte_offset":0,"typo":"wnat","corrections":["want","what"]}'$'\n'
@@ -214,8 +224,14 @@ done <"$target"
 
 if ((write == 1)); then
   mv -f "$tmp" "$target"
-  # Re-emit only what survived the write.
-  printf '%s' "$out" | grep -v '"typo":"teh"'
+  # Re-emit only what survived the write. Under STUB_MIXED the disallowed `teh`
+  # survives too, so drop only the fixable form (the one carrying a corrections
+  # array) rather than every `teh` line.
+  if [[ -n "${STUB_MIXED:-}" ]]; then
+    printf '%s' "$out" | grep -v '"typo":"teh","corrections":\['
+  else
+    printf '%s' "$out" | grep -v '"typo":"teh"'
+  fi
   ((residual == 1)) && exit 2
   exit 0
 fi
@@ -371,8 +387,9 @@ fi
 # that, deterministically: every write-pass finding is reported one line below
 # where the scan reported it. Nothing else about the run changes.
 #
-# `wnat` is ambiguous, so typos declines it and it survives the write. The
-# truth is therefore that NOTHING was applied. Keyed by line, the moved
+# The planted misspelling below is ambiguous, so typos declines it and it
+# survives the write. The truth is therefore that NOTHING was applied. Keyed
+# by line, the moved
 # residual misses its own scan entry and the finding is reported as a rewrite
 # typos never made — a false mutation disclosure on the one channel this hook
 # exists to make trustworthy.
@@ -407,6 +424,35 @@ if [[ -s "$SINKRF" ]]; then
   else
     fail "stub/reflow: telemetry claims rewrites: $(jq -s -c '.[-1].data.applied' "$SINKRF")"
   fi
+fi
+
+# --- One spelling, two correction decisions ----------------------------------
+# typos can flag the same spelling with different correction sets in one file —
+# an occurrence reached by extend-identifiers beside one reached by
+# extend-words, or a fixable occurrence beside a disallowed one. Cancelling
+# residuals by token ALONE merges those, and the count can then retire the
+# fixable scan entry and disclose the disallowed one instead: a rewrite claimed
+# at the wrong line with a blank correction, while the rewrite that really
+# happened goes unmentioned. The correction decision therefore belongs in the
+# key. Here line 1's `teh` is fixable and rewritten; line 2's is disallowed and
+# survives. Exactly one rewrite happened, on line 1.
+printf 'this has teh typo\nkeepteh line has teh here\n' >"$STUB_REPO/mixed.txt" # spellchecker:disable-line
+OUT_MX=$(run_stub "$STUB_REPO/mixed.txt" STUB_MIXED=1)
+CTX_MX=$(printf '%s' "$OUT_MX" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+if printf '%s' "$CTX_MX" | grep -qF '"teh" -> "the" (line 1)'; then # spellchecker:disable-line
+  ok "stub/mixed: the rewrite that happened is disclosed at its own line"
+else
+  fail "stub/mixed: real rewrite missing from the disclosure: $CTX_MX"
+fi
+if printf '%s' "$CTX_MX" | grep -qF '"teh" -> ""'; then # spellchecker:disable-line
+  fail "stub/mixed: disallowed occurrence disclosed as an applied rewrite with a blank correction: $CTX_MX"
+else
+  ok "stub/mixed: no blank-correction rewrite claimed"
+fi
+if printf '%s' "$CTX_MX" | grep -qF '(line 2)'; then
+  ok "stub/mixed: the disallowed occurrence is still reported, as a residual"
+else
+  fail "stub/mixed: disallowed occurrence vanished from the report: $CTX_MX"
 fi
 
 # --- Disclosure is capped ----------------------------------------------------
