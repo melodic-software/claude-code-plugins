@@ -1003,9 +1003,17 @@ if mkfifo "$bs_release_fifo" 2>/dev/null; then
   bs_hold_open() { read -r _ <"$bs_release_fifo"; }
   bs_release() { : >"$bs_release_fifo"; }
 else
-  # No FIFO on this host: fall back to a generous fixed hold, which is what this
-  # replaced. Slower and truncatable, but never wrong in the passing direction.
-  bs_hold_open() { sleep 12; }
+  # No FIFO on this host: fall back to a fixed hold, which is what this replaced.
+  # It has to clear the WORST case any call site can reach, and the worst is the
+  # stall comparison's unsliced arm: a 3.6 s bound plus three sequential forks,
+  # which at the 3.2 s per-fork figure measured above is ~13.2 s. A 12 s constant
+  # would sit UNDER that and reintroduce exactly the truncation this replaced, so
+  # this is sized several times above it. The honest trade, since the comment
+  # here previously claimed there was none: a too-short hold turns a should-pass
+  # into a false fail, and a long one costs wall time on a host that reaches it.
+  # This path is best-effort — Linux and MSYS both provide mkfifo, so it is not
+  # expected to run — and it buys correctness with time rather than the reverse.
+  bs_hold_open() { sleep 60; }
   bs_release() { :; }
 fi
 
@@ -1126,13 +1134,29 @@ bs_paired_verdict() {
 # argument, INTERLEAVED, so the two arms sample the same load window rather than
 # two different ones. Fills bs_deltas with per-pair B-minus-A, or empties it if
 # any sample came back untimed.
+#
+# The ORDER within each pair alternates, A-then-B on even pairs and B-then-A on
+# odd ones, while the subtraction stays B-minus-A throughout. Running A first
+# every time would put any order-dependent cost — a host that launches later
+# processes more slowly, or a monotonic warm-up or drift across the pair — into
+# every delta with the same sign, and a MEDIAN removes isolated outliers but not
+# a systematic bias. Left uncorrected on a slow-spawning host, that bias is
+# indistinguishable from the behavior gap being measured, so a regression that
+# made the arms equally fast could still clear the slack. Alternating puts the
+# second-position penalty on A for half the pairs and on B for the other half,
+# so it cancels in the median instead of accumulating in it.
 bs_deltas=()
 bs_samples() {
   local n="$1" fn="$2" arg_a="$3" arg_b="$4" i a b
   bs_deltas=()
   for ((i = 0; i < n; i++)); do
-    a=$("$fn" "$arg_a")
-    b=$("$fn" "$arg_b")
+    if ((i % 2 == 0)); then
+      a=$("$fn" "$arg_a")
+      b=$("$fn" "$arg_b")
+    else
+      b=$("$fn" "$arg_b")
+      a=$("$fn" "$arg_a")
+    fi
     if [[ -z "$a" || -z "$b" ]]; then
       bs_deltas=()
       return 1
