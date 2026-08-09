@@ -3,9 +3,8 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.27.1]
+## [0.27.2]
 
-<<<<<<< HEAD
 ### Fixed
 
 - **`audit-instructions`: the hook-event blockability partition in `conflict-criteria.md` was
@@ -22,15 +21,15 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   the `PostToolUse`/`PreToolUse` worked pair are kept as examples. The file's recheck trigger no
   longer fires on a row added to the upstream table, and `evals/evals.json` eval 16 now tests the
   lookup procedure rather than the memorized split.
-||||||| 75b0c7b9
-=======
+
+## [0.27.1]
+
 ### Changed
 
 - **`audit-instructions`: listing description tightened (1,197 → 948 chars)** — trimmed the
   explanatory prose from the frontmatter `description` toward the shared skill-listing budget
   (claude-code-plugins#2022, option 2). Every single-quoted trigger phrase is preserved verbatim
   (skill-quality check 3); the audit's scope and report-only contract are unchanged in the body.
->>>>>>> origin/main
 
 ## [0.27.0]
 
