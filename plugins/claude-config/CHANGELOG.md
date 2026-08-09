@@ -3,6 +3,25 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.5]
+
+### Fixed
+
+- **`audit`: Category E's incompatible-marketplace check rested on a false premise** (issue #1989
+  row 253). The checklist flagged "plugins from incompatible marketplaces (Agent Skills format)"
+  by the rule "Repos with only root `marketplace.json` but no per-plugin `plugin.json` are
+  incompatible" — a shape the [Strict mode
+  section](https://code.claude.com/docs/en/plugin-marketplaces#strict-mode) documents as SUPPORTED:
+  under `strict: false` "the marketplace entry is the entire definition", the plugin repo provides
+  raw files, and the entry's `skills`/`agents`/`hooks` fields expose them. Anthropic's own
+  `anthropic-agent-skills` marketplace ships three such plugins with zero `plugin.json` files
+  repo-wide, so the old rule fired an `error` on a conforming marketplace. The row now tests
+  `strict` rather than `plugin.json` presence: it flags only a plugin with NEITHER a per-plugin
+  `plugin.json` NOR a `strict: false` entry declaring its components — the residual case where
+  nothing defines what loads — and records the same page's inverse failure, a `strict: false`
+  entry paired with a component-declaring `plugin.json`. Severity stays `error`; both the check
+  label and its verify cell were rewritten, since the label carried the false premise too.
+
 ## [0.27.4]
 
 ### Fixed
