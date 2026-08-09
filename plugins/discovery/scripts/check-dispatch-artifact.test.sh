@@ -364,12 +364,17 @@ run_raw 0 "the same slice is usable under --index-name EXPLORE.md" \
 #     `RESEARCH-` anchor for a bare `[A-Za-z0-9._-]+\.md`, or that matched
 #     case-insensitively (`research-checklist.md` matches `RESEARCH-…` under
 #     `grep -oiE`), counts it and reports sidecars=2.
-#   - ON DISK BESIDE THE INDEX. A rewrite that globbed the directory for
-#     `RESEARCH-*.md` instead of reading the index picks it up on any
-#     case-insensitive filesystem — which is what this repo is developed on.
+#   - ON DISK BESIDE THE INDEX, which keeps the fixture realistic but is NOT
+#     what this case discriminates on. A directory-glob rewrite does not fail
+#     here: bash matches a glob against the DIRENT STRING, so `RESEARCH-*.md`
+#     never picks up `research-checklist.md` regardless of how the filesystem
+#     compares names for lookup. Probed on this platform — `shopt -s nullglob;
+#     echo RESEARCH-*.md` yields only `RESEARCH-tiers.md` while
+#     `test -f RESEARCH-checklist.md` succeeds. A glob rewrite is caught
+#     instead by the named-but-missing sidecar cases, which it cannot satisfy.
 #
-# Either way the count inflates and the assertion below fails, which is the
-# point of having it.
+# So the anchor and the case-fold inflate the count and fail the assertion
+# below, which is the point of having it.
 ledgered="$(slice ledgered)"
 index "$ledgered" 'RESEARCH-tiers.md' \
   'Corpus coverage is tracked in research-checklist.md beside this index.'
