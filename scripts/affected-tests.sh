@@ -58,13 +58,19 @@
 # The transitive walk has no depth cap. It terminates on the visited set, and
 # its worst case is selecting every suite — the safe direction.
 #
-# KNOWN LIMIT, in the safe direction: R3/R4 match a bare basename, so a file
-# with a GENERIC name (`common.sh`, `thing.sh`) can match text that has nothing
-# to do with it — a fixture literal inside an unrelated suite, say. That
-# over-selects, and it can also make a genuinely uncovered new file look mapped.
-# Narrowing it needs real shell/path parsing rather than a token match, which is
-# not worth the fail-open risk the narrowing itself would carry. Name new files
-# distinctively and the rule behaves.
+# KNOWN LIMIT, in the safe direction: R3/R4 look the basename up with
+# `git grep -o -F`, which is an unanchored SUBSTRING search — not a token match
+# and not a path match. So ANY basename that is a suffix-substring of another
+# path in the corpus matches every mention of that other path. `utils.sh` is a
+# substring of `hook-utils.sh`, so a new plugins/guardrails/hooks/utils.sh with
+# no real coverage at all selects 64 suites and exits 0 (measured) instead of
+# failing unmapped. Naming a file "distinctively" is NOT a defense: whether the
+# collision happens is decided by every OTHER path already in the repo, not by
+# how distinctive the new name reads on its own. Narrowing this needs real
+# shell/path parsing rather than a substring match, which is not worth the
+# fail-open risk the narrowing itself would carry. When a new file's basename
+# is a substring of an existing path, do not trust a non-empty selection to
+# mean the file is covered — check that the selected suites actually name it.
 set -uo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 2
@@ -107,7 +113,15 @@ while [[ $# -gt 0 ]]; do
     shift
     ;;
   --base)
-    base_ref="${2:?--base needs a ref}"
+    # Checked explicitly rather than with `${2:?...}`, which exits 1. Exit 1 is
+    # already spoken for twice here — an unmapped changed file, and a failing
+    # suite under --run — and the header documents usage errors as 2. A caller
+    # that branches on the code cannot tell a typo'd flag from a real finding.
+    if [[ $# -lt 2 || -z "$2" ]]; then
+      echo "error: --base needs a ref." >&2
+      exit 2
+    fi
+    base_ref="$2"
     shift 2
     ;;
   --base=*)
@@ -115,7 +129,12 @@ while [[ $# -gt 0 ]]; do
     shift
     ;;
   --print-fanout)
-    print_fanout="${2:?--print-fanout needs a path}"
+    # Same as --base above: usage errors exit 2, not 1.
+    if [[ $# -lt 2 || -z "$2" ]]; then
+      echo "error: --print-fanout needs a path." >&2
+      exit 2
+    fi
+    print_fanout="$2"
     shift 2
     ;;
   --)
@@ -194,12 +213,24 @@ build_sync_map() {
     *) ;;
     esac
     src="$(manifest_src "$script")"
+    mapfile -t patterns < <(manifest_copy_patterns "$script")
+    # A script matching scripts/sync-*.sh that declares NEITHER key is not a
+    # copy manifest — it is a helper that happens to share the prefix. Skip it.
+    # Hard-exiting on it would be a repo-wide outage: this suite runs in the
+    # plugin-gate lane, so the first future `scripts/sync-something.sh` that is
+    # not a manifest would turn a REQUIRED check red for every PR, including
+    # ones that never touch this tool. The narrow fail-open that buys, stated
+    # plainly: a REAL manifest that renamed BOTH keys at once skips silently,
+    # and the zero-manifests guard below only catches the case where every
+    # manifest went dark at the same time. Half a manifest is still fatal.
+    if [[ -z "$src" && ${#patterns[@]} -eq 0 ]]; then
+      continue
+    fi
     if [[ -z "$src" ]]; then
-      echo "error: $script declares no src= — the shared-lib derivation cannot read it." >&2
+      echo "error: $script declares copies=(...) but no src= — the shared-lib derivation cannot read it." >&2
       echo "       Teach scripts/affected-tests.sh the new manifest shape; do not hardcode a copy list." >&2
       exit 2
     fi
-    mapfile -t patterns < <(manifest_copy_patterns "$script")
     expanded=()
     for pattern in ${patterns[@]+"${patterns[@]}"}; do
       # shellcheck disable=SC2086 # a manifest entry may be a glob; splitting is
@@ -278,7 +309,7 @@ select_for() {
   local seed="$1"
   local -a frontier=()
   local -a next=()
-  local p b sib copy line matched_path matched_name
+  local p b sib copy line matched_path matched_name grep_rc
   # The visited set is PER SEED, not shared across seeds. Sharing it made a
   # changed file that an earlier seed had already walked past look unvisited-
   # and-unmapped, which is the fail-open direction: the file would be reported
@@ -324,7 +355,27 @@ select_for() {
 
     [[ -s "$WORK_DIR/patterns" ]] || break
 
-    # R3/R4: one batched reverse lookup per level.
+    # R3/R4: one batched reverse lookup per level. The hits go through a FILE,
+    # not a process substitution, so this lookup can FAIL LOUD like every other
+    # step here. `done < <(git grep ... 2>/dev/null || true)` could not: after
+    # the loop `$?` holds the LOOP's status, git's stderr was discarded, and
+    # `|| true` erased the code, so a git ERROR (exit >= 2 — a bad flag, an
+    # unreadable pattern file, a corrupt index) was indistinguishable from NO
+    # MATCH (exit 1). Both produced an empty read and the walk simply found no
+    # dependents. That is the fail-open this tool exists to refuse, and it
+    # lands in the UNDER-selection direction the DIRECTION note above calls
+    # unsafe: a broken lookup reported a narrow selection, or "no suites
+    # selected", at exit 0. Same reasoning as changed_from_diff below.
+    grep_rc=0
+    git grep --untracked -o -F -f "$WORK_DIR/patterns" -- '*.sh' >"$WORK_DIR/hits" || grep_rc=$?
+    # Exit 1 is "no match" and is completely ordinary — most seeds reach a level
+    # with no further dependents. Only above 1 is git itself failing.
+    if [[ "$grep_rc" -gt 1 ]]; then
+      echo "error: 'git grep' failed (exit $grep_rc) resolving dependents of the current level." >&2
+      echo "       Refusing to continue: an unreadable reverse lookup silently UNDER-selects, and" >&2
+      echo "       under-selection is reported as success by everything downstream." >&2
+      exit 2
+    fi
     while IFS= read -r line; do
       matched_path="${line%:*}"
       matched_name="${line##*:}"
@@ -335,7 +386,7 @@ select_for() {
         [[ -n "${VISITED[$matched_path]:-}" ]] || next+=("$matched_path")
         ;;
       esac
-    done < <(git grep --untracked -o -F -f "$WORK_DIR/patterns" -- '*.sh' 2>/dev/null || true)
+    done <"$WORK_DIR/hits"
 
     frontier=(${next[@]+"${next[@]}"})
   done
@@ -461,7 +512,14 @@ if [[ ${#explicit_paths[@]} -gt 0 ]]; then
 else
   # Run the producer in the CURRENT shell so its fatal exits are the script's.
   changed_from_diff >"$WORK_DIR/changed.raw"
-  mapfile -t changed < <(sort -u "$WORK_DIR/changed.raw")
+  # The sort is checked for the same reason the diff above is: reading it from a
+  # process substitution would let a failing `sort` yield an EMPTY change set at
+  # exit 0, which the very next block reports as "nothing to select".
+  if ! sort -u "$WORK_DIR/changed.raw" >"$WORK_DIR/changed"; then
+    echo "error: sorting the changed-file list failed; refusing to report an empty change set." >&2
+    exit 2
+  fi
+  mapfile -t changed <"$WORK_DIR/changed"
 fi
 
 if [[ ${#changed[@]} -eq 0 ]]; then
@@ -489,7 +547,16 @@ done
 # an indirect reference and rejects the expanded key list as a variable name.
 declare -a selected=()
 if [[ ${#SUITES[@]} -gt 0 ]]; then
-  mapfile -t selected < <(printf '%s\n' "${!SUITES[@]}" | sort -u)
+  # Checked, and read from a file, for the third time and the same reason: a
+  # failing `sort` here would empty a NON-EMPTY selection, and the block below
+  # would then print "every changed file is a recorded no-suite class" — a
+  # statement that is affirmatively false — and exit 0.
+  if ! printf '%s\n' "${!SUITES[@]}" | sort -u >"$WORK_DIR/selected"; then
+    echo "error: sorting the selected-suite list failed; refusing to report an empty selection" >&2
+    echo "       when ${#SUITES[@]} suite(s) were selected." >&2
+    exit 2
+  fi
+  mapfile -t selected <"$WORK_DIR/selected"
 fi
 
 if [[ ${#NO_SUITE_FILES[@]} -gt 0 && "$explain" -eq 1 ]]; then
