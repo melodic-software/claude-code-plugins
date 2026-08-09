@@ -181,7 +181,7 @@ assert_eq "a heavy one-line runaway counts every line" "$(raw_lines)" "$(run "$H
 # counts characters, so 900 two-byte characters (1800 bytes) would read as 906 and slip
 # under the 1024-byte cap — the same under-count, resurrected by locale. LC_ALL=C on the
 # awk pass pins byte semantics; this fixture fails without it.
-WIDE=$(i=0; while [ "$i" -lt 900 ]; do printf 'Ã©'; i=$((i+1)); done)
+WIDE=$(for ((i = 0; i < 900; i++)); do printf 'Ã©'; done)
 {
   printf -- '---
 '
