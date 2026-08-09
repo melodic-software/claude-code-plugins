@@ -538,11 +538,11 @@ assert_eq "a rename whose SOURCE was never executable is NOT reported" \
   "" "$(bash "$HELPER" --repo-dir "$repo19" --list 2>/dev/null)"
 
 # The same negative for the COPY branch. `R*` and `C*` share one `src_mode`
-# gate, so this looks redundant -- it is not. The copy branch's other coverage
-# is the POSITIVE case above, so without this one a `C*` branch that ignored
-# the source mode would still pass the whole suite. The pairing setup mirrors
-# repo16 (source edited in the same change, similarity lines) because copy
-# detection needs it; unlike repo16 the source is never made executable.
+# gate today, so repo19 above would also catch that single gate going away --
+# what this pins is the copy arm independently, against a future split that
+# keeps the gate on the rename arm and drops it on this one. The pairing setup
+# mirrors repo16 (source edited in the same change, similarity lines) because
+# copy detection needs it; unlike repo16 the source is never made executable.
 repo21="$(mkrepo)"
 (
   cd "$repo21" || exit 1
