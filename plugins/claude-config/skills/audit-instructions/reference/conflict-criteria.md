@@ -225,11 +225,13 @@ Three consequences for residency, and each one bounds a pair rather than admitti
   - **The cell says no** — nothing is prevented, so there is no act and no gate to pair; treat the
     message as transient feedback and pair it as nothing. `PostToolUse` is the worked example: its
     row says so outright ("the tool already ran"), and this repository's own `PostToolUse` linter
-    records the same thing at `plugins/actionlint/hooks/actionlint-check.sh`. Reading that linter's
-    exit-2 stderr as a prohibition on the tool it ran *after* would manufacture an unsatisfiable
-    conflict against any instruction requiring that tool — the tool already ran, and the hook can
-    neither block nor undo it. Registered instead on `PreToolUse`, whose row blocks the tool call,
-    the same handler WOULD enter the comparison set as the act it blocks.
+    is built on that row — `plugins/actionlint/hooks/actionlint-check.sh` deliberately always
+    exits 0 and surfaces findings as advisory context, because an exit 2 there could block
+    nothing. Reading any `PostToolUse` handler's exit-2 stderr as a prohibition on the tool it ran
+    *after* would manufacture an unsatisfiable conflict against any instruction requiring that
+    tool — the tool already ran, and the hook can neither block nor undo it. Registered instead on
+    `PreToolUse`, whose row blocks the tool call, the same handler WOULD enter the comparison set
+    as the act it blocks.
   - **The event has no row, or the table could not be reached** — record the surface with its event
     as `blockability-unresolved` and report the pair as such, on the same terms the
     `text-unresolved` rule below gives. Never infer blockability from the event's name, its prefix,
