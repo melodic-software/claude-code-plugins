@@ -344,7 +344,7 @@ CLASSIFIED=$(printf '%s\n@@typos-format-split@@\n%s\n' "$SCAN_OUTPUT" "$RESIDUAL
         appliedInline: ([limit($max; $a[])] | map("\"\(tok)\" -> \"\(corr1)\" (line \(.line_num // 0))") | join("; ")),
         residualText: ([limit($max; $r[])] | map(
             if .corrections == null then
-              "  \"\(tok)\" (line \(.line_num // 0)): disallowed, no known correction."
+              "  \"\(tok)\" (line \(.line_num // 0)) is disallowed, no known correction."
             else
               "  \"\(tok)\" (line \(.line_num // 0)) should be \"\(corr1)\"."
             end) | join("\n"))
@@ -406,7 +406,7 @@ if ((APPLIED_COUNT > 0)); then
   if ((APPLIED_COUNT > MAX_REPORT)); then
     SYSMSG+="; ... and $((APPLIED_COUNT - MAX_REPORT)) more"
   fi
-  SYSMSG+=". Add any wrong rewrite to extend-words / extend-identifiers in your typos config, or set the typos_format_write_changes option back to false (the default) for report-only mode."
+  SYSMSG+=". Add any wrong rewrite to extend-words / extend-identifiers in the repo's typos config, or set the typos_format_write_changes option back to false (the default) for report-only mode."
 elif [[ "$WRITE_CHANGES" != "true" ]]; then
   CTX+="typos-format is report-only — $BASE was NOT modified. Findings:"$'\n'
 fi
