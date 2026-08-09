@@ -505,14 +505,22 @@ fi
 # An inline HOP is free: it sets inline_alias_handled and skips the config
 # lookup, and effective_dir is pure string composition. Measured with the shim
 # below, the 20-hop dual-spelling and 60-hop single-spelling inline chains to
-# `commit -F -` cost ZERO spawns. But an inline chain is not uniformly free —
-# its TERMINAL subcommand has no inline definition, so the walk still pays one
-# persisted_alias lookup for it: a 12-hop divergent chain to `status` costs 1,
-# as does the dual-spelling chain's blocked `commit -m` variant.
-# That single fork is not nothing — it moves 1 -> 40 under the same cache
-# regression this section pins. The inline cases are still the wrong fixtures
-# here, not because they cannot move, but because one fork cannot express a
-# per-hop ceiling, and because none of them carries a spawn assertion.
+# `commit -F -` cost ZERO spawns. But an inline chain is not uniformly free: its
+# TERMINAL subcommand can still fork, by either of two DISTINCT routes that must
+# not be conflated.
+#   - An alias lookup, when the subcommand is not `commit` — the persisted probe
+#     at block-noncanonical-commit.sh:683 excludes `commit` by name. A 12-hop
+#     divergent inline chain to `status` costs 1 this way, and that one IS
+#     cache-sensitive: it moves 1 -> 40 under the same regression this section
+#     pins.
+#   - The sequencer probe, for a blocked multi-line `commit -m` — one
+#     `rev-parse --absolute-git-dir` from sequencer_in_progress (:443, called at
+#     :827 behind saw_commit + msg_newline). The dual-spelling chain's blocked
+#     variant costs 1 this way. It is NOT an alias lookup and NOT cache-
+#     sensitive, so it says nothing about the cost this section pins.
+# The inline cases are still the wrong fixtures here, not because they cannot
+# move, but because one fork cannot express a per-hop ceiling, and because none
+# of them carries a spawn assertion.
 #
 # The shim LOGS AND DELEGATES. This hook genuinely needs git to answer, so a
 # log-only stub would change the very verdicts being measured. The real binary is
