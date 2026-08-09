@@ -33,33 +33,34 @@ prose, example writes, or student work reaches this public repository.
   two: matched length with rhyme, matched length without rhyme, rhymed but
   unmatched, neither. The middle pair is the point — matched length without
   rhyme outranks rhyme without matched length, so **line length is a stronger
-  motion creator than rhyme.** Nothing in the plugin carried this, and it is a
-  revision-priority rule: when the motion is wrong, check line lengths before
-  the rhyme scheme.
-- **Definitions for the three kinds of closure.** `meter.md` and
-  `stable-unstable-meta.md` both use expected / unexpected / deceptive closure;
-  no file defined them. Each is named against what the ear had predicted, and
-  deceptive closure carries the strongest obligation to put something worth
-  seeing in the spotlight it creates.
+  motion creator than rhyme.** Nothing in the plugin carried this. It is a
+  tiebreak between those two elements specifically — the ladder says nothing
+  about line length against rhythm or line count, where the biggest-mismatch
+  rule still decides.
+- **Closure extended past common meter.** `meter.md` defines deceptive and
+  unexpected closure and keeps that ownership; Chapter 19 applies the same
+  expectation test to any section shape, so `prosody.md` carries only the delta
+  — unexpected closure as the mechanic organizing the five-line
+  one-matching-element group, and sections firing both effects in either order.
+  `stable-unstable-meta.md`, whose Closure row sorts by the terms without
+  defining them, now points at the definition.
 - **A five-line section ending in an unmatched line is the most unstable of its
   group** — a flat rule the file had replaced with "depends on how late the
-  matching material arrives" — plus unexpected closure as the mechanic that
-  organizes that group.
+  matching material arrives."
 - **Which line is the targeting slot.** An unmatched line's end sound points
   into the next section: aim it at a vowel inside the oncoming title for a sonic
   boost, at the title's end rhyme for a harder resolution, or waste it. `hook.md`
   owns the hook-side strategy; this is the structural question of which line
   carries it.
 - **The order in which structure becomes audible** — rhythm, line length, rhyme
-  structure, number of lines, rhyme type — which is also the order to diagnose
-  a section in.
-- **`response-filter` §3 gains two boxes, and the closure vocabulary a home.**
-  Chapter 19's two generation-time rules now bind rather than sit in a research
-  file: line lengths are ruled out before a finding prescribes a rhyme change,
-  and a closure called deceptive must name the prediction the section actually
-  built. `meter.md` instructed the reader to distinguish the closure types and
-  `stable-unstable-meta.md` sorted a table by them; both now point at the
-  definitions.
+  structure, number of lines, rhyme type. This is what the listener receives,
+  which is why expectations exist by a given line; it is distinct from the
+  Analysis workflow's marking order, and the file now says so rather than
+  leaving two orders to be read as one instruction.
+- **`response-filter` §3 gains two boxes.** Chapter 19's two generation-time
+  rules bind rather than sit in a research file: line length is checked before a
+  finding prescribes a rhyme change, and a closure called deceptive must name
+  the prediction the section actually built.
 - **The flat-song diagnostic**, deferred from 0.7.1's Chapter 15 read pending
   this chapter. Chapter 19 states it in motion terms, so `prosody.md` is its
   home: a good line landing flat is a structure problem, not an inspiration

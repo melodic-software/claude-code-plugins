@@ -248,12 +248,12 @@ or a closure call.
       count), NAME the content sitting there. A marked position holding
       filler is a finding, not a flourish; a spotlight turned on to be cute
       is a fail (*Writing Better Lyrics* (2009), Chapters 14-15)
-- [ ] **Motion diagnosed before rhyme** — when a section's motion is wrong and
-      more than one element could be at fault, the arrangement of LINE LENGTHS
-      is ruled out first. Line length moves a section harder than rhyme does,
-      so a finding that prescribes a rhyme change without having checked the
-      line lengths prescribes the weaker fix (*Writing Better Lyrics* (2009),
-      Chapter 19)
+- [ ] **Line length ruled out before a rhyme prescription** — when a finding
+      about a section's motion is about to prescribe a rhyme change, the
+      arrangement of LINE LENGTHS is checked first, because line length moves a
+      section harder than rhyme does. This orders those two against each other
+      only; against rhythm or line count the dominant-problem rule above still
+      decides (*Writing Better Lyrics* (2009), Chapter 19)
 - [ ] **Closure named against the ear's expectation** — calling a closure
       deceptive requires naming the prediction the section actually built;
       calling one unexpected requires that the ear predicted nothing. Deceptive

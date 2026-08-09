@@ -699,8 +699,7 @@ where the natural language contradicts the intended form.
 8. Draft into common meter when the content needs a clear map.
 9. Let departures from common meter earn their keep as spotlights.
 10. Distinguish deceptive closure from unexpected closure by naming the
-    listener's prior expectation — the three types are defined in
-    [prosody](prosody.md) "Three kinds of closure".
+    listener's prior expectation.
 11. Test whether matched four-stress lines stop as couplets or continue through
     a larger structure.
 12. Mark any structural IOU and identify where it gets paid off.

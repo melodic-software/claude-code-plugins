@@ -132,8 +132,10 @@ at once, the listener may stop hearing the specific source of instability.
 Rhythm is the first structural element the listener hears. A first line sets a
 rhythmic and length standard before rhyme or total line count can be known.
 
-The elements become audible in a fixed order, which is also the order to
-diagnose them in:
+The elements become audible in a fixed order. This is what the *listener*
+receives — it explains which expectations exist by which line, and it is not the
+order the Analysis workflow below marks them in, which is chosen for ease of
+counting on the page:
 
 1. **Rhythm** — line one.
 2. **Line length** — line one sets the standard; line two either matches it and
@@ -184,27 +186,28 @@ Line structure combines rhythm, stressed-syllable length, and rhyme scheme.
 Control those elements to make the section speed up, slow down, lean forward,
 resolve, hang unresolved, or spotlight a specific word.
 
-## Three kinds of closure
+## Closure across whole sections
 
-Closure is named against what the ear was expecting, so the label depends on the
-expectation the section had already built:
+[meter](meter.md) defines deceptive and unexpected closure and owns the
+distinction — both are named against the listener's prior expectation, and
+deception requires a setup specific enough to fool.
 
-- **Expected closure** — the section resolves where the pattern promised it
-  would. `ABAB`'s fourth line.
-- **Unexpected closure** — the section resolves where the ear had made no
-  prediction at all. `XXAA`'s fourth line surprises without fooling anyone,
-  because lines two and three raised nothing to be wrong about.
-- **Deceptive closure** — the section resolves against a prediction the ear had
-  actually made. `ABAA`'s fourth line answers with `A` where `B` was owed.
+Chapter 19 extends the same test past common meter to any section shape. Two
+additions:
 
-`ABAAB` is the clearest case of all three interacting: line four is deceptive
-(`B` expected, `A` delivered), and line five then pays the original `B` in a
-position nobody was watching — expected content arriving at an unexpected
-place, which reads as more stable than either alone.
+- **Unexpected closure is what organizes the five-line one-matching-element
+  group.** Those sections float, and the ones that read as most stable are the
+  ones resolving where nothing was predicted — `XXAA`'s fourth line surprises
+  without fooling, because lines two and three raised nothing to be wrong about.
+- **Both can fire in one section, in either order.** `ABAAB` deceives at line
+  four (`B` owed, `A` delivered) and then pays the original `B` at line five,
+  where nobody was watching — expected content in an unexpected place, more
+  stable than either effect alone. `ABABBA` runs two unexpected closures in
+  reverse order.
 
-Naming which one is in play is the diagnostic. Deceptive closure buys the
-brightest spotlight on the closing line and therefore carries the strongest
-obligation: put something there worth looking at.
+Naming which is in play is the diagnostic, because the spotlight obligation
+follows from it: deceptive closure buys the brightest closing position and
+therefore carries the strongest duty to put something there worth looking at.
 
 ## Targeting the next section
 
@@ -367,8 +370,9 @@ Sequence coaching checks:
   closure.
 - Let one stable element sharpen a chosen unstable element.
 - Use line count, line length, rhythm, rhyme scheme, and rhyme type as separate
-  knobs. When the motion is wrong and more than one knob could be at fault,
-  turn line length first — it moves a section harder than rhyme does.
+  knobs. Revise the biggest mismatch first — with one tiebreak: when line length
+  and rhyme are the competing suspects, turn line length, which moves a section
+  harder than rhyme does. Against any other element the ladder says nothing.
 - Use structural mismatch deliberately for irony, not by accident.
 - Use A/B/C notation to expose sequence.
 - Use sequence to create forward motion and title spotlights.

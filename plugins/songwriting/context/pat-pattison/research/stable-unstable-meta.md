@@ -187,8 +187,9 @@ Use these when a writer says "something's off":
 
 - [rhyme strategy](rhyme-strategy.md) — picking rhyme types by stability intent
 - [prosody](prosody.md) — motion as the umbrella concept; this file gives
-  the diagnostic discipline that prosody decisions answer to, and defines
-  the expected / unexpected / deceptive closure the Closure row sorts by
+  the diagnostic discipline that prosody decisions answer to
+- [meter](meter.md) — defines the deceptive / unexpected closure the Closure
+  row sorts by
 - [form](form.md) — section-level stability defaults
 - [phrasing](phrasing.md) — front-heavy / back-heavy as another stability
   lever at the bar level
