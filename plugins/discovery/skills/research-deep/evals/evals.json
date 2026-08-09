@@ -5,13 +5,14 @@
       "id": 1,
       "name": "multi-topic-parallel-agents",
       "prompt": "Research three separate things for me: (1) best practices for EF Core compiled queries, (2) whether we should adopt OpenTelemetry metrics, and (3) the current state of .NET native AOT for ASP.NET APIs.",
-      "expected_output": "Runs the multi-topic check first, recognizes three separable topics, and dispatches N parallel topic agents (one per topic, each running the full /research discipline) rather than feeding the combined blob to a single engine. Each agent is assigned its own sub-slice (<memory_dir>/<slug>/<topic-slug>/) by the dispatching session and writes the normal RESEARCH.md, sidecars, and research-checklist.md inside it. The main session then dispatches the sibling verifier per topic, applies project fit, writes both back into each topic index, and only then synthesizes the slice-root RESEARCH.md.",
+      "expected_output": "Runs the multi-topic check first, recognizes three separable topics, and dispatches N parallel discovery:researcher agents (one per topic, each running the full /research discipline it arrives preloaded with) rather than feeding the combined blob to a single engine. Each agent is assigned its own sub-slice (<memory_dir>/<slug>/<topic-slug>/) by the dispatching session and writes the normal RESEARCH.md, sidecars, and research-checklist.md inside it. The main session then dispatches the sibling verifier per topic, applies project fit, writes both back into each topic index, and only then synthesizes the slice-root RESEARCH.md.",
       "files": [],
       "expectations": [
         "Output identifies that the ask contains multiple separable topics",
-        "Output dispatches one research agent per topic in parallel rather than running one engine over the combined blob",
+        "Output dispatches one discovery:researcher agent per topic in parallel rather than running one engine over the combined blob, and does not spawn a bare general-purpose agent carrying a hand-written copy of the research discipline",
         "Each topic agent runs the full research discipline and writes a normal RESEARCH.md plus its sidecars and checklist inside its OWN sub-slice directory, not a sibling research-<topic>.md at the slice root",
         "The sub-slice path for each topic is assigned by the dispatching session rather than chosen by the worker",
+        "Each dispatch carries a resolved envelope — the topic, the reason it is being researched, the assigned memory-slice path, the memory root as its own field, the authorized budget, and the nested-spawning capability flag",
         "The main session dispatches the sibling verifier and applies project fit per topic, writing both results back into that topic's index before synthesizing",
         "The main session synthesizes a combined slice-root RESEARCH.md from the per-topic indexes"
       ]
@@ -33,12 +34,12 @@
       "id": 3,
       "name": "isolated-agent-fallback-no-engine",
       "prompt": "Deep-research the tradeoffs between gRPC and REST for our internal service-to-service calls. Note: no Workflow tool / deep-research workflow is available this session.",
-      "expected_output": "With no workflow-engine path and a heavy task, falls back to spawning an isolated general-purpose subagent that runs the full /research discipline (not a read-only Explore agent, since Phase 3 needs tool access and the artifact must be written). The main session then dispatches the sibling verifier against the written artifact and applies project fit, writing both back into the index before surfacing the result — the same post-dispatch boundary the multi-topic path owns.",
+      "expected_output": "With no workflow-engine path and a heavy task, falls back to dispatching one discovery:researcher — the plugin's purpose-built worker, which arrives with the /research discipline preloaded and its effort and turn budget calibrated to it — rather than a bare general-purpose spawn carrying a hand-written copy of that discipline. The dispatch prompt is the envelope only (topic, reason, memory-slice path, memory root, budget, capability flags). The main session then dispatches the sibling verifier against the written artifact and applies project fit, writing both back into the index before surfacing the result — the same post-dispatch boundary the multi-topic path owns.",
       "files": [],
       "expectations": [
         "Output falls back to an isolated subagent when no workflow engine is available",
-        "The subagent is a general-purpose agent (able to use tools and write the artifact), not a read-only Explore agent",
-        "The subagent is instructed to run the full /research discipline",
+        "The subagent is discovery:researcher rather than a bare general-purpose spawn, and is not a read-only Explore agent",
+        "The dispatch prompt carries the resolved envelope (topic, reason, memory-slice path, memory root, budget, capability flags) rather than restating the research discipline, the citation rule, the outcome gate, or the return-payload shape the agent already carries",
         "The main session dispatches the sibling verifier against the returned artifact and applies project fit rather than presenting the worker's summary and artifact path directly",
         "The verifier and project-fit results are written back into the artifact index before the result is surfaced"
       ]

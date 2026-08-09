@@ -48,12 +48,23 @@ zone bands, zones.json shape) are owned by
      Remediation: `apply`.
    - **Present and identical** — PASS. Nothing about it needs revisiting on a plugin update; that
      is the whole point of the shim.
-   - **Present but differing** — INFO, not FAIL: the installed copy is an older (or hand-edited)
-     revision, and it still resolves a tee, so the statusline keeps rendering. Do NOT report the
-     difference as harmless: a copy predating `# shim-revision: 3` picks the newest tee by mtime
-     alone, so it also resolves one left behind by an UNINSTALLED plugin and keeps teeing for the
-     whole orphan grace window. Report the shipped `# shim-revision:` marker against the installed
-     one, say which of the two behaviors the installed copy has, and offer `apply` as the refresh.
+   - **Present but differing** — classify by what the installed revision can still do, not by the
+     fact that it differs. Report the shipped `# shim-revision:` marker against the installed one
+     either way, say which of the two behaviors the installed copy has, and offer `apply` as the
+     refresh.
+     - Installed revision **>= 3** — INFO: an older-but-adequate or hand-edited copy that still
+       resolves the newest tee correctly. A refresh is housekeeping.
+     - Installed revision **< 3, or unmarked** — FAIL. Such a copy picks the newest tee by mtime
+       alone, so it also resolves one left behind by an UNINSTALLED plugin and keeps teeing for
+       the whole orphan grace window. The statusline keeps rendering, which is why this reads as
+       harmless and is not: it is a behavior defect in what the operator is running, and INFO
+       files it under a heading operators are told they can defer.
+     - **The migration matters more than the classification.** The durable copy at
+       `~/.claude/context-guard/bin/statusline-shim.sh` is what the statusline actually runs; a
+       plugin update never overwrites it. An operator who ran `apply` before revision 3 shipped
+       therefore keeps running the old shim until they re-run `apply` — and if they uninstall the
+       plugin first, this skill is gone and the stale shim keeps teeing with no remaining way to
+       reach the remediation. Say that in the finding, so the reason to act now is on screen.
    - **The SHIPPED source is absent** (no `${CLAUDE_PLUGIN_ROOT}/scripts/statusline-shim.sh`) —
      INFO, and skip the comparison entirely: this installed plugin version predates the shim
      (< 0.2.0). Never report the operator's installed copy as drifted on this branch. Remediation:

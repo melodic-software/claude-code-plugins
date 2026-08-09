@@ -100,7 +100,7 @@
       "title": "The context adjudicating a deferral is not the context merging on it",
       "canonical": "plugins/source-control/reference/review-discipline.md",
       "detect": "D7\\.5|never clears the gate|adjudicating context|authorizes a resolution|independent resolution dispatch",
-      "restates": "never clears the gate|adjudicating context|authorizes a resolution|independent resolution dispatch",
+      "restates": "never clears the gate|adjudicating context|authorizes a resolution",
       "qualifiers": [
         {
           "name": "independent-adjudicating-context",
