@@ -62,7 +62,7 @@ checkout before acting; a mismatch aborts with the conflicting path named. `snap
 an existing experiment directory: a fresh run mints a fresh id, and resuming an open experiment
 means passing its phase commands from inside the same checkout its manifest names.
 
-- `manifest.json` — every surface found, its classification (`behavioral` | `policy` | `convention`),
+- `manifest.json` — every surface found, its classification (`behavioral` | `policy` | `hybrid` | `convention`),
   what was stripped, how to restore it (path, restore mechanism, backup location), branch name,
   target model, phase timestamps.
 - `stumbles.md` — the observation ledger (one row per observed failure: date, task, what the model
@@ -81,13 +81,24 @@ means passing its phase commands from inside the same checkout its manifest name
 3. Classify **every surface the strip plan will touch** — hooks, rules, instruction files
    (CLAUDE.md / CLAUDE.local.md, `.claude/skills/`, `.claude/agents/`), and project-enabled
    plugins alike: `policy` (enforces team/safety policy regardless of model — kept), `behavioral`
-   (corrects or scaffolds model behavior — stripped), `convention` (team conventions in git —
-   operator's call, default kept per the official carve-out). Classification is per unit that
+   (corrects or scaffolds model behavior — stripped), `hybrid` (one unit carrying both, with the
+   split named — trimmed, never removed whole), or `convention` (team conventions in git —
+   operator's call, default kept per the official carve-out). The classification rubric —
+   mechanism vs class, the hybrid trim-not-delete rule, and the ground-truth-oracle carve-out
+   (behavioral purpose with a non-derivable machine oracle is a keep) — is owned by the
+   marketplace's PLUGIN-PHILOSOPHY "Classifying a hook" section; this phase applies it, never
+   re-derives it. Classification is per unit that
    Phase 2 acts on: a hook entry, a rule file, a skill, an agent, a plugin. A **mixed** instruction
    file — a CLAUDE.md carrying both convention sections and behavioral lines is the common case —
    is not classified whole: split it in the strip plan, naming which sections are stripped and
    which are preserved (extracted to a retained file or left in place), so the convention
-   carve-out holds at section granularity rather than being deleted wholesale with the file.
+   carve-out holds at section granularity rather than being deleted wholesale with the file. A
+   **hybrid hook entry** gets the same treatment at its own granularity: the strip plan names the
+   behavioral surface (an injected prose payload, a coaching string) and the policy residue (the
+   gate, the finding relay), and strips only the former — via the hook's own kill switch or
+   config where one exists, otherwise recorded as `unstripped-hybrid-hook` with the confound
+   noted for the observe phase. Never remove a hybrid entry's wiring whole; that takes the policy
+   residue down with the behavioral surface.
 4. Write `manifest.json`; present the strip plan (what goes, what stays and why) and stop for
    confirmation.
 
@@ -101,7 +112,10 @@ Apply the confirmed strip plan:
   retained file. One commit, message
   `experiment: strip instruction surfaces for unhobble baseline`.
 - Project-settings hook entries classified `behavioral`: back up the settings file to `backups/`,
-  remove the entries, record the exact JSON paths removed in the manifest.
+  remove the entries, record the exact JSON paths removed in the manifest. An entry classified
+  `hybrid` is never removed whole: strip its behavioral surface through the hook's own kill switch
+  or config where one exists, else leave it wired and record `unstripped-hybrid-hook` (observe
+  phase notes the confound), per the plan's named split.
 - Project-enabled plugins: record the current enabled set in the manifest, then disable the ones
   classified `behavioral` for this project (leave policy/tooling plugins the operator marked keep).
   Plugins toggle whole — project settings offer no partial disable — so a **mixed** plugin that
