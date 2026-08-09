@@ -99,6 +99,48 @@ run 0 "repo without the gate file never blocks" "$NOGATE" "$(payload "$NOGATE" $
 run 0 "unrelated tool passes" "$GATED" "$(payload "$GATED" mcp__github__get_me $OWNER $REPO "$NO_RELATED")"
 run 0 "empty stdin allows" "$GATED" ""
 
+# Defer-guard: a consumer repo tracking its OWN equivalent gate in
+# .claude/settings.json makes the plugin copy yield (deferred, exit 0) so the
+# two never double-fire; unrelated settings wiring does not defer.
+mkdir -p "$GATED/.claude"
+cat >"$GATED/.claude/settings.json" <<'JSON'
+{"hooks":{"PreToolUse":[{"matcher":"^mcp__github__(create|update)_pull_request$","hooks":[{"type":"command","command":"\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/pr-linkage-mcp-gate.sh"}]}]}}
+JSON
+run 0 "consumer's own tracked gate defers the plugin copy" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$NO_RELATED")"
+cat >"$GATED/.claude/settings.json" <<'JSON'
+{"hooks":{"PreToolUse":[{"matcher":"^mcp__github__(create|update)_pull_request$","hooks":[{"type":"command","command":"bash","args":[".claude/hooks/pr-linkage-mcp-gate.sh"]}]}]}}
+JSON
+run 0 "exec-form wiring (gate name only in args) also defers" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$NO_RELATED")"
+cat >"$GATED/.claude/settings.json" <<'JSON'
+{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/other-gate.sh"}]}]}}
+JSON
+run 2 "unrelated settings hooks do not defer" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$NO_RELATED")"
+
+# Deferral telemetry envelope: status must be the documented "skipped" (an
+# unknown status maps to error in the reference sink); the domain detail rides
+# data.outcome. Capture the envelope with a stub sink and assert both fields.
+cat >"$GATED/.claude/settings.json" <<'JSON'
+{"hooks":{"PreToolUse":[{"matcher":"^mcp__github__(create|update)_pull_request$","hooks":[{"type":"command","command":"\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/pr-linkage-mcp-gate.sh"}]}]}}
+JSON
+SINK="$WORK/capture-sink.sh"
+CAPTURE="$WORK/captured-envelope.json"
+printf '#!/usr/bin/env bash\ncat > "%s"\n' "$CAPTURE" >"$SINK"
+chmod +x "$SINK"
+HOOK_TELEMETRY_SINK="$SINK" CLAUDE_PROJECT_DIR="$GATED" \
+  bash "$HOOK" <<<"$(payload "$GATED" $CREATE $OWNER $REPO "$NO_RELATED")" >/dev/null 2>&1 || true
+# The sink is fire-and-forget (backgrounded); poll in 20ms steps like the
+# established wait_for_sink helper (markdown-format.test.sh) — a coarse sleep
+# races variable process-spawn latency, notably on Windows Git Bash.
+for _ in $(seq 1 150); do [[ -s "$CAPTURE" ]] && break; sleep 0.02; done
+if [[ -s "$CAPTURE" ]] &&
+  jq -e '.status == "skipped" and .data.outcome == "deferred"' "$CAPTURE" >/dev/null 2>&1; then
+  PASS=$((PASS + 1))
+else
+  FAIL=$((FAIL + 1))
+  echo "FAIL: deferral envelope carries status=skipped + data.outcome=deferred (got: $(cat "$CAPTURE" 2>/dev/null))" >&2
+fi
+rm -rf "$GATED/.claude"
+
 # Kill switch: disabled via the userConfig mirror allows a bad body through.
 rc=0
 CLAUDE_PLUGIN_OPTION_PR_LINKAGE_MCP_GATE_ENABLED=false \

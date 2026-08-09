@@ -122,6 +122,16 @@ mkdir -p -- "$DIR" 2>/dev/null || {
 # accumulate stale grants. Best-effort.
 find "$DIR" -type f -mtime +7 -delete 2>/dev/null
 
+# A re-armed id must start UNCLAIMED. The gate's claim sidecar outlives the
+# record it names, so a claim left by the previous lane would bind this fresh
+# record to a session that no longer exists and the new lane would run ungated.
+#
+# Cleared BEFORE the record is written, never after: a crash between the two
+# then leaves the OLD record with no claim, and the next presenter claims it —
+# an extra gated stop. The other order leaves a FRESH record beside a STALE
+# claim, which refuses the new lane on every stop until the record ages out.
+CLAIM=$(gate_arm_claim_path "$ID") && rm -f -- "$CLAIM" 2>/dev/null
+
 NOW=$(date +%s 2>/dev/null) || NOW=""
 [[ "$NOW" =~ ^[0-9]+$ ]] || {
   err "could not read the current epoch time for the record's TTL stamp"

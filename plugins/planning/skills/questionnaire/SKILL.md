@@ -44,7 +44,3 @@ Frame the document as a **discovery questionnaire**: the user lacks context, the
 - **Delivery is the user's.** Report the path and stop. The skill never transmits anything.
 - **Optional lifecycle tracking.** If the consumer's environment binds a work-item tracker (a `/work-items:track`-style seam), offer — never auto-file — an "awaiting answer from <role>" item carrying the questionnaire's title and topic only, never the recipient's name or the document body. Degrade gracefully: with no tracker bound, the document and its path are the complete deliverable.
 - **When answers return,** the user resumes the deferred decision with the filled questionnaire as evidence — typically back through `/planning:interview` or the plan that deferred it.
-
-## Upstream provenance
-
-Adapted from Matt Pocock's `to-questionnaire` (mattpocock/skills, in-progress). No live upstream sync path — re-audit opportunistically.

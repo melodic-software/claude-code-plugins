@@ -1,5 +1,76 @@
 # Changelog — discovery plugin
 
+## [0.12.0]
+
+### Added
+
+- **The dispatch acceptance gate now covers `/discovery:research`, not just `/discovery:explore`.**
+  `0.11.x` hardened the explore dispatch with an on-disk artifact check, a freshness baseline, a
+  pointer cross-check, and a recovery ladder, and left the research side with none of them — so a
+  `researcher` that returned a mid-stream narration line as its whole payload was still accepted on
+  the strength of `status: complete`, exactly as the explore-side failure that produced the gate.
+  - `skills/research/SKILL.md` — new parent-side acceptance gate in the routing section: a
+    pre-dispatch `touch <slice>/.research-dispatch` baseline, a payload well-formedness step, the
+    off-disk artifact check cited by **exit status**, and a ledger step. A non-zero exit halts the
+    workflow rather than annotating it.
+  - `skills/research/context/dispatch.md` — the rationale spoke: why the gate grades the parent's own
+    slice path rather than the payload's `artifact:`, why one gate serves both skills, why the ledger
+    is a separate script rather than a flag, the two freshness limits that follow from that, and a
+    research-specific recovery ladder.
+  - `skills/research/evals/evals.json` — a gate eval (`empty-payload-halts-the-dispatch`), the
+    counterpart of the explore suite's.
+  - `skills/research-deep/SKILL.md` — the **other** parent of `discovery:researcher`, and the one
+    that actually performs the N-topic fan-out. Its post-dispatch boundary now names the gate as the
+    step that comes before the four obligations, and carries the fan-out rule the gate implies:
+    grade each topic against the sub-slice it was assigned, before synthesizing the slice-root
+    index, because the gate reads a synthesized root alongside its sub-slices as ambiguous.
+
+### Changed
+
+- **`scripts/check-explore-artifact.sh` → `scripts/check-dispatch-artifact.sh`, parameterized by
+  `--index-name`.** One gate now serves both skills, because they share one on-disk shape:
+  `artifact-shape.md` states that the index shape, the section-keyed sidecar filenames, the sub-slice
+  rule, and both placement rules are identical for exploration, and that what differs is the sidecar
+  YAML **header** — which this gate never opens. Every check in it operates on the identical surface,
+  so a second copy would have duplicated ~300 lines of reasoned logic in a repository that ships a
+  cross-plugin source-drift checker to police exactly that.
+  - **`--index-name` is required, never defaulted.** A silent `EXPLORE.md` default would grade a
+    research slice against the wrong family — reporting a successful run as unusable, or, in a slice
+    that also holds an exploration, reporting a research dispatch that wrote nothing as usable. Its
+    stem is also interpolated into the sidecar-matching ERE, so the flag rejects anything outside
+    `[A-Za-z0-9_-]` rather than silently widening what counts as a sidecar.
+  - **Fixed on the way past:** the "index names no sidecar" branch printed a short verdict line
+    missing the documented `freshness=` and `pointer=` fields, so a parent grepping the verdict line
+    for them found nothing on exactly one of the failure paths. It now reports through the same
+    `verdict` helper as every other outcome.
+  - `scripts/check-dispatch-artifact.test.sh` — the shape suite now runs **twice**, once per artifact
+    family, plus new cases for `--index-name` itself: missing, value-less, non-`.md`, regex-unsafe
+    stems, both directions of cross-family isolation, and `research-checklist.md` not being counted
+    as a sidecar.
+  - `skills/explore/SKILL.md` and `skills/explore/evals/evals.json` — the invocation and the eval
+    rubric follow the rename and pass `--index-name EXPLORE.md`, and the "only the slice path is
+    required" sentence is corrected to name `--index-name` alongside it.
+
+### Fixed
+
+- **The freshness baseline could not be taken on a first-time topic.** Both skills told the parent to
+  `touch <slice>/.<skill>-dispatch` before dispatching, and on a scope or topic whose slice does not
+  exist yet that `touch` fails — so the dispatch either stopped before it started or reached the gate
+  with no baseline to grade against, which is exit 2. Now `mkdir -p <slice> && touch …` on both sides,
+  including `skills/explore/reference/dispatch.md`. Found by review on this PR; the defect predates it
+  on the explore side, and fixing only the research side would have opened a fresh parity gap.
+
+### Deliberately not ported
+
+- **A `verification: pending` payload check.** The researcher's contract already makes that field
+  non-negotiable, but adding a parent-side check for it on this side alone would open a fresh parity
+  gap in the other direction. It belongs to a change that does both skills at once.
+- **A ledger freshness check.** `--newer-than` binds the index, not `research-checklist.md`, and the
+  ledger gate reads marks rather than provenance. The gap is real but narrow — it needs a re-dispatch
+  into a dirty slice whose replacement run found the corpus unbounded — and it is closed by the
+  ladder's "clear the slice before re-dispatching" rung rather than by a one-caller flag on the
+  shape-agnostic half of the pair.
+
 ## [0.11.3]
 
 ### Changed

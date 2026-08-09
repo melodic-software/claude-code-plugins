@@ -22,7 +22,7 @@ When tests fail, investigate — never dismiss, never retry blindly. Activates w
 
    If it passes in isolation but fails with others: shared state problem — check the consuming project's fixture conventions for known workarounds.
 
-4. **Trace the root cause** — read the code path from test setup through assertion. Add logging or breakpoints if needed. Understand *why* it fails, not just *where*
+4. **Trace the root cause** — read the code path from test setup through assertion. Add logging or breakpoints if needed — tag every debug log with a unique short prefix (e.g. `[DEBUG-a4f2]`) so cleanup before commit is a single grep. Understand *why* it fails, not just *where*
 
 5. **Check for siblings** — is this a pattern? Could the same root cause exist in similar code paths?
 

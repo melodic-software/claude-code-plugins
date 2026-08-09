@@ -3,6 +3,18 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.4]
+
+### Added
+
+- **`improve`: YAGNI scoping filter opens the deepening scan.** Phase 1 now decides *where* to
+  look before looking: a user-named direction scopes the scan outright; otherwise the recent
+  commit history's hot spots pull attention first (the pre-computed context now ships 20 recent
+  commits instead of 10), widening the net only when changes are scattered. The chosen scope
+  feeds each scan subagent's assigned area, which previously had nothing choosing it.
+  (Mechanism from upstream mattpocock/skills `improve-codebase-architecture` v1.2; registry:
+  the marketplace repository's `docs/upstream/mattpocock-skills.md`.)
+
 ## [0.4.3]
 
 ### Changed
