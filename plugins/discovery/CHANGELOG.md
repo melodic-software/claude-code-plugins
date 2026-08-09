@@ -1,5 +1,49 @@
 # Changelog — discovery plugin
 
+## [0.12.1]
+
+### Fixed
+
+- **The dispatch gate's stdout assertions no longer discard the exit status.** `stdout_raw` and
+  `stdout_has` in `scripts/check-dispatch-artifact.test.sh` ran the gate, compared the verdict line,
+  and never looked at `$?`. Most cases happened to have an exit-code twin over the same fixture; at
+  least one — the coverage-ledger case — did not, so a gate emitting the documented line under the
+  wrong status passed it. Both helpers now take the expected exit as their first argument, matching
+  the `run` / `run_raw` convention already in the file. Proven by mutation: with the gate's success
+  path changed to `exit 3`, the ledger case reports `ok` under the previous helpers and `FAIL` under
+  these.
+- **The coverage-ledger test case now discriminates.** Its fixture wrote `research-checklist.md` into
+  the slice but never named it in the index, and the gate harvests sidecar names from the index
+  **text** — so no implementation of the current design could have counted it, and the case asserted
+  something its label implied but did not test. The index now mentions the ledger the way a real run's
+  restatement or handoff does, with the file still on disk beside it, so the case fails against a
+  harvest that drops the `RESEARCH-` anchor, matches case-insensitively, or globs the directory
+  instead of reading the index. Verified by mutation: under a `grep -oiE` harvest the case fails,
+  where the previous fixture passed.
+
+### Changed
+
+- **`skills/research/SKILL.md` states that one slice-root freshness baseline covers an N-topic
+  fan-out.** The pre-dispatch step reads singular while a fan-out parent assigns N sub-slices; both
+  readings were already correct, because the gate compares each sub-slice index's mtime against the
+  file it is handed and a baseline touched now is newer than anything an earlier run left under the
+  slice. A clause now says so, so the seam is not re-derived on every read. No procedure changed, and
+  no parity gap opens on the explore side, which has no fan-out.
+- **The `[0.12.0]` entry below is internally consistent about the pre-dispatch command.** It described
+  the baseline as a bare `touch`, then its own `### Fixed` section introduced the `mkdir -p` as
+  load-bearing. The description now carries both halves. No other history was touched.
+
+### Deliberately not done
+
+- **No deprecation shim for `scripts/check-explore-artifact.sh`.** The `0.12.0` rename is a clean
+  break and stays one. `docs/PLUGIN-PHILOSOPHY.md` rules out "silent backward-compatibility shims and
+  dual-read windows" on the clean-break path, and the fleet's three prior renames — `claude-memory`
+  `0.2.0`, `code-tidying` `0.6.0`, `claude-config` — each shipped as a BREAKING changelog line saying
+  the old invocation stops resolving, with no shim. Those were user-facing skill invocations; this is
+  a script inside the installed plugin cache, reachable only by a `${CLAUDE_PLUGIN_ROOT}`-relative
+  path from this plugin's own skills, so it was never a supported external contract to begin with.
+  The changelog entry is the contract.
+
 ## [0.12.0]
 
 ### Added
@@ -10,7 +54,8 @@
   `researcher` that returned a mid-stream narration line as its whole payload was still accepted on
   the strength of `status: complete`, exactly as the explore-side failure that produced the gate.
   - `skills/research/SKILL.md` — new parent-side acceptance gate in the routing section: a
-    pre-dispatch `touch <slice>/.research-dispatch` baseline, a payload well-formedness step, the
+    pre-dispatch `mkdir -p <slice> && touch <slice>/.research-dispatch` baseline (the `mkdir -p` is
+    load-bearing — see **Fixed** below), a payload well-formedness step, the
     off-disk artifact check cited by **exit status**, and a ledger step. A non-zero exit halts the
     workflow rather than annotating it.
   - `skills/research/context/dispatch.md` — the rationale spoke: why the gate grades the parent's own
