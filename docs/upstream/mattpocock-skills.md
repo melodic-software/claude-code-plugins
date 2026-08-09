@@ -29,6 +29,7 @@ attribution table below — re-audit the affected row(s). Release notes name ski
 | `to-tickets` | `work-items:decompose` | Influence (vocabulary) | Vertical-slice / tracer-bullet decomposition vocabulary overlaps upstream; mechanics are house-built on the work-item seam |
 | `improve-codebase-architecture` YAGNI scoping filter (v1.2 #533) | `architecture:improve` deepening Phase 1 | Partial | ADOPTED scope-before-scanning: user-named direction scopes the scan, else recent-commit hot spots pull attention first (precomputed context widened to 20 commits). REJECTED his `CONTEXT.md` reference (our glossary-discovery ladder) and HTML-report machinery (previously rejected) |
 | `diagnosing-bugs` (v1.2.3 Redact + tagged logs) | `debugging:debug`, `testing:diagnose` | Partial | ADOPTED the redaction guard in both skills (secrets `<REDACTED>` before any shown command/output/artifact; env-var credentials; signal-lines-only quoting) and the `[DEBUG-a4f2]` tagged-log convention in `testing:diagnose` (already present in `debugging:debug`). TRACKED, not adopted: feedback-loop-first doctrine (10 ranked loop types, 3–5 ranked hypotheses) — our phase structures work; re-evaluate on a release whose changeset names `diagnosing-bugs` |
+| `wait-what` (Productivity, NEW in v1.2 #751) | `discipline:wait-what` | Derived | Ported near-verbatim (one-sentence re-pitch body: back up, add missing context, ASD-STE100 register + inline gloss, ubiquitous language) as a declared non-corrector species in `discipline` beside `tighten-your-output`/`mind-your-maxims` — home chosen on the blame axis (the drift is the model's output, not the user's comprehension). Name KEPT with an explicit PLUGIN-PHILOSOPHY naming-exception entry (utterance-is-mechanism + upstream muscle-memory parity; a 5-generator/3-judge naming tournament's grammar-clean winner `re-pitch` was declined by the user). REJECTED his fixed `CONTEXT.md` filename (our format-externalized glossary discovery: nearest glossary per consumer convention, silent degradation). Shape evidence: his X thread (status 2084753070437609606 → 2084941367659168064 → 2085681281795232026) — the same instruction failed as passive global CLAUDE.md AND as an output style; only the on-demand skill works, so the register text lives in the body, invoked at the moment of loss |
 | ask-matt `PHASE-BOUNDARIES.md` (v1.2) | `session-flow:workflow` continuation router + `context-guard` zones | Convergent / rejected | Tree audited element-by-element at parity or stronger (ordered first-yes-wins router, compact-last-with-steering, boundary-only trigger; ours adds clean-stop, user-gated background, instrumented zones, worker relay). ADOPTED one zone-gated criterion: prefer continue when the next stage consumes this stage's reasoning verbatim. REJECTED "handoff only for what travels" narrowing (contradicts our fork-beats-compaction stance) and the ~150k smart-zone figure (self-declared-debated folklore; no official numeric threshold exists — our measured bands stand, his dictionary entry noted as one more folklore anchor) |
 
 ## Not adopted (decided, with reasons)
@@ -37,10 +38,11 @@ attribution table below — re-audit the affected row(s). Release notes name ski
 `userConfig` + consumer docs), `teach` (education plugin covers), `migrate-to-shoehorn` /
 `scaffold-exercises` / `setup-pre-commit` (personal/low-value), writing-beats/-fragments/-shape
 (out of scope), Codex `agents/openai.yaml` sidecars (no Codex target). The v1.2 behavior deltas
-(owned-skill lane) are closed — outcomes in the attribution table above. Open evaluations are
-tracked in the topic plan (`docs/topics/pocock-skills-v12-sync/PLAN.md` lanes): `wait-what`,
-`wizard`, and the infra subset (version-sync drift check, `.out-of-scope/` KB, "It's working
-if" sections, writing-for-agents cross-pollination).
+(owned-skill lane) and the `wait-what` port are closed — outcomes in the attribution table
+above. Open evaluations are tracked in the topic plan
+(`docs/topics/pocock-skills-v12-sync/PLAN.md` lanes): `wizard` and the infra subset
+(version-sync drift check, `.out-of-scope/` KB, "It's working if" sections,
+writing-for-agents cross-pollination).
 
 ## Harness findings learned from this upstream (recheck-worthy)
 

@@ -39,7 +39,7 @@ Every v1.2 change that touches a skill we derived is either adopted, consciously
 
 ### Deferred questions
 
-- Q9 — `/wait-what` port: house name vs upstream name, plugin home, CONTEXT.md→curate-language seam mapping. Arbiter: USER-RESERVED (lane-3 interview).
+- Q9 — RESOLVED (lane-3 interview, 2026-08-09): PORT as `discipline:wait-what`; upstream name kept with a PLUGIN-PHILOSOPHY naming-exception entry; read-pointer glossary seam (no curate-language invocation); ASD-STE100 inline in the body with a short gloss. Record: `### Lane 3` below + SSOT row.
 - Q10 — `/wizard`: go/no-go, plugin home, security posture (template.sh audit, .env/gh-secret writes, Windows portability). Arbiter: USER-RESERVED (lane-4 interview).
 - Q11 — lane-5 subset: which of M10/M13/M14/M15/M16 to adopt vs reject. Arbiter: USER-RESERVED (lane-5 interview).
 
@@ -49,7 +49,7 @@ Every v1.2 change that touches a skill we derived is either adopted, consciously
 |---|---|---|---|
 | 1 | Hygiene + record | M1 M2 M19 M20 + SSOT + map promotion + provenance strip | this session |
 | 2 | Owned-skill deltas | M6 M7 M8 M9 M11 M12 | done |
-| 3 | /wait-what port | M4 (Q9) | pending |
+| 3 | /wait-what port | M4 (Q9) | done |
 | 4 | /wizard port | M5 (Q10) | pending |
 | 5 | Infra / P2 | M10 M13 M14 M15 M16 (Q11) | pending |
 
@@ -74,3 +74,27 @@ user-delegated mandate; outcomes recorded in `docs/upstream/mattpocock-skills.md
 - **M12** — phase-boundaries tree rejected at parity (ours stronger); one zone-gated
   primary-source continue criterion adopted in the continuation router. session-flow 0.18.1.
   ~150k smart-zone figure rejected as folklore; context-guard bands unchanged.
+
+### Lane 3 — /wait-what port (closed)
+
+Q9 resolved through the lane interview (rounds 4–6): a fresh-context vetting agent supplied the
+gap/name/home/seam evidence, a 5-generator/3-judge `/naming:name-it-better` tournament ran the
+name question (grammar-clean winner `re-pitch`; merits winner `lost-me`; `wait-what` the only
+exception-eligible incumbent), and the user locked:
+
+- **PORT as `discipline:wait-what`** — a declared non-corrector species beside `sweep-all`
+  (siblings: `tighten-your-output`, `mind-your-maxims`). Home chosen on the blame axis: the
+  drift being repaired is the model's output, not the user's comprehension (education rejected
+  for that reason; session-flow a lifecycle misfit). discipline 0.10.1 → 0.11.0 + CHANGELOG.
+- **Name kept** — sixth entry on the PLUGIN-PHILOSOPHY naming-exception list
+  (utterance-is-mechanism + upstream muscle-memory parity).
+- **Seam** — read pointer to the nearest domain glossary per the consumer's own convention;
+  no `curate-language` invocation (reads are a one-line habit; that skill owns writes); silent
+  degradation when no glossary exists; no prerequisites.
+- **ASD-STE100 inline in the body** with a five-word gloss — his X thread (statuses
+  2084753070437609606 → 2084941367659168064 → 2085681281795232026) shows the same instruction
+  failing as passive global CLAUDE.md and as an output style; on-demand is the working shape.
+- Migration gate: fresh docs fetched for the skills frontmatter surface
+  (code.claude.com/docs/en/skills, this session); security review trivial-pass (no hooks, no
+  code, no egress, no config secrets; plugin-form-safe — no reach-outs, same-plugin references
+  only). Provenance in SSOT + CHANGELOG only; skill body carries none.
