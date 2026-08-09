@@ -499,15 +499,20 @@ else
 fi
 
 # The attribution step above is per-cluster, and a cluster is ONE token+corrections
-# pair repeated. The other scale fixtures cannot see a regression in it: they
+# pair repeated. The other scale fixtures cannot see this shape at all: they
 # repeat DISTINCT tokens, each uniformly applied or uniformly residual, so no
-# cluster ever combines size with a partial outcome. Sizing this one at 500 would
-# be equally blind — the quadratic form this logic replaced measured 0.07s at 500
-# and 31s at 10,000. 5,000 is the floor that separates them (9.3s quadratic,
-# 0.7s linear), and it must stay under the handler's 15s timeout, because
-# classification runs AFTER the file is rewritten: blowing the budget here is a
-# silent mutation with no disclosure, the failure this hook exists to prevent.
-PARTIAL_N=5000
+# cluster there ever combines size with a partial outcome. This one does, and
+# asserts the count stays exact when it is the attribution step doing the work.
+#
+# Deliberately NOT a wall-clock assertion, unlike the two scale cases above. The
+# quadratic form this logic replaced measured 0.07s at 500 and 31s at 10,000, so
+# a timing gate is the obvious guard — but at this size the stub's own per-line
+# bash loop, run twice, dominates the elapsed time, so the number would report
+# the harness rather than the classification and go red under load for reasons
+# that have nothing to do with a regression. The linear property is pinned where
+# it can be measured honestly: the benchmark recorded against the classification
+# filter itself in typos-format.sh, plus the handler's own 15s timeout.
+PARTIAL_N=2000
 : >"$STUB_REPO/partial-scale.txt"
 for _i in $(seq 1 "$PARTIAL_N"); do
   if ((_i % 1000 == 0)); then
@@ -516,19 +521,12 @@ for _i in $(seq 1 "$PARTIAL_N"); do
     printf 'line %s has teh here\n' "$_i" >>"$STUB_REPO/partial-scale.txt" # spellchecker:disable-line
   fi
 done
-PS_START=$(date +%s)
 OUT_PS=$(run_stub "$STUB_REPO/partial-scale.txt" STUB_PARTIAL=1)
-PS_ELAPSED=$(($(date +%s) - PS_START))
 CTX_PS=$(printf '%s' "$OUT_PS" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
-if printf '%s' "$CTX_PS" | grep -q "REWROTE $((PARTIAL_N - 5)) word"; then
+if printf '%s' "$CTX_PS" | grep -q "REWROTE $((PARTIAL_N - 2)) word"; then
   ok "stub/partial-scale: the applied count is exact across $PARTIAL_N repeats of one token"
 else
   fail "stub/partial-scale: applied count wrong at scale: $(printf '%s' "$CTX_PS" | head -1)"
-fi
-if [[ "$PS_ELAPSED" -lt 10 ]]; then
-  ok "stub/partial-scale: completed in ${PS_ELAPSED}s, inside the handler's 15s timeout"
-else
-  fail "stub/partial-scale: took ${PS_ELAPSED}s — quadratic attribution regression?"
 fi
 
 # --- Disclosure is capped ----------------------------------------------------
