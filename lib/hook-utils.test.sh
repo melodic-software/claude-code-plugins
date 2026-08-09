@@ -988,11 +988,19 @@ fi
 # host) is what lets the function distinguish a truncated read from a small-but-
 # complete one; without it the branch fails open to return 1, so this asserts the
 # jq-present timeout shape specifically.
+#
+# The producer's HOLD, not the bound, is the binding constraint here: the stall
+# has to be declared before EOF, and reaching it costs the bound PLUS the two
+# subshell forks buffer_stdin spends resolving its timeout and slice, plus a jq
+# probe. A 1 s hold against a 0.4 s bound looked like 2.5x of headroom and was
+# not — this failed with rc 1 (EOF first, so no stall) on a loaded Windows box on
+# 2026-08-09, because those spawns alone outran the hold. A longer hold is free
+# of any opposite risk: it can only give the correct behavior more room.
 bs_rc_file="$(mktemp)"
 bs_err_file="$(mktemp)"
 {
   printf '{"incomplete":'
-  sleep 1
+  sleep 5
 } | {
   CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=0.4 hook::buffer_stdin >/dev/null 2>"$bs_err_file"
   echo "$?" >"$bs_rc_file"
@@ -1040,12 +1048,33 @@ fi
 # reproduces the pre-fix behavior exactly. Timing is taken INSIDE the consumer —
 # the pipeline as a whole does not finish until the producer's sleep ends, so
 # bracketing the pipeline would measure the producer, not the read.
+#
+# There is no non-clock proxy to convert this to: both the correct and the
+# reading-on implementations return rc 0 and the identical payload, so latency is
+# the only observable that tells them apart.
+#
+# What makes the comparison trustworthy is that the slow arm must do strictly
+# MORE work than the fast one in every dimension — then any load that inflates a
+# unit of work widens the gap instead of closing it. The override below therefore
+# performs the real completeness check and only LIES about the verdict. An
+# override that skipped the work (`json_complete() { return 1; }`, which this
+# case used until 2026-08-09) made the slow arm pay ZERO jq forks while the fast
+# arm paid one, so on a host where a spawn costs seconds the "slow" arm won:
+# measured 4855 ms fast vs 4330 ms slow, inverting the result. With the work
+# restored the ledger is fast = 1 read + 1 fork, slow = 5 reads + 2 forks, which
+# no amount of load can invert.
+#
+# The producer's HOLD has to outlast the SLOW arm, or EOF cuts that arm short and
+# the measured gap is the hold, not the behavior. The same 2026-08-09 run shows
+# it: the slow arm read 4330 ms against a 3 s hold, i.e. it was truncated and the
+# real separation never got to appear. The hold below covers the slow arm's whole
+# bound plus the spawns around it, with room for a host several times slower.
 bs_time_late_eof() { # $1 = shell prelude; prints elapsed ms (empty if untimed)
   local t_file
   t_file="$(mktemp)"
   {
     printf '{"complete":true}'
-    sleep 3
+    sleep 8
   } | {
     CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=1.2 bash -c '
       source "$1"
@@ -1061,7 +1090,12 @@ bs_time_late_eof() { # $1 = shell prelude; prints elapsed ms (empty if untimed)
   rm -f "$t_file"
 }
 bs_fast=$(bs_time_late_eof "")
-bs_slow=$(bs_time_late_eof 'hook::json_complete() { return 1; }')
+# Mirrors hook::json_complete's real `printf | jq -e .` body (never a here-string
+# — see that function: a here-string at pipe capacity deadlocks the shell), then
+# returns 1 regardless. Same spawn, opposite verdict.
+# shellcheck disable=SC2016 # $1 is the overriding function's own positional, not this shell's
+bs_reads_on='hook::json_complete() { printf "%s" "$1" | jq -e . >/dev/null 2>&1; return 1; }'
+bs_slow=$(bs_time_late_eof "$bs_reads_on")
 if [[ -z "$bs_fast" || -z "$bs_slow" ]]; then
   # Only legitimate below Bash 5.0, where EPOCHREALTIME does not exist. On a
   # host that HAS it, an empty measurement means the harness broke — which would
@@ -1116,23 +1150,84 @@ rm -f "$bs_big_file" "$bs_payload_file" "$bs_rc_file" "$bs_out_file"
 # so a producer that keeps delivering but slower than one chunk per window would
 # trip it even though the pipe is never idle. buffer_stdin must keep a timed-out
 # read's partial bytes and re-arm. Producer emits one character every 100 ms
-# against a 300 ms timeout — far too slow to fill a chunk in any single window —
-# then closes. Expect the whole payload back with rc 0.
+# against a 1.2 s idle bound — far too slow to fill a 65536-byte chunk in any
+# single window — then closes. Expect the whole payload back with rc 0.
+#
+# Two ratios keep this off the wall clock, and they pull in opposite directions:
+#
+#  * The producer must OUTLIVE a whole bound, or the read never has to re-arm and
+#    the case is vacuous. 20 x `sleep 0.1` is 2.0 s of production against a 1.2 s
+#    bound, and `sleep` never returns EARLY — so that ratio holds by construction
+#    on any host, however loaded. Load only lengthens it.
+#  * The per-byte gap must stay under the idle bound, or the guard declares a
+#    stall that is not one. This is the load-sensitive direction, and the gap has
+#    to be produced WITHOUT a process spawn to survive it — see bs_tick. At the
+#    original 100 ms `sleep` gap against a 300 ms bound the margin was nominally
+#    3x and this case FAILED on a loaded Windows box on 2026-08-09 (rc 2, empty
+#    payload); widening the bound to 1.2 s did not fix it, because the gap was
+#    never really 100 ms — it was 100 ms plus a spawn, and the spawn was the
+#    larger and more variable term. With a spawn-free gap the 12x margin is real.
+#
+# bs_tick <seconds> — a delay that spawns NOTHING. A FIFO opened READ-WRITE never
+# reaches EOF and never delivers a byte, so `read -t` against it is a pure
+# builtin timer. Measured here: five 0.1 s ticks cost 546 ms this way against
+# 1401 ms for five `sleep 0.1`, and the `sleep` figure is the one that balloons
+# under load.
+#
+# FRACTIONAL `read -t` is the precondition, and it is not universal: Bash 3.2 —
+# the macOS system shell these hooks document support for — rejects `0.1`
+# outright, and a rejected read returns IMMEDIATELY. That failure is silent and
+# far worse than the problem being fixed: with a zero-length tick the producer
+# emits all 20 bytes at once, the read never has to re-arm, and the case passes
+# while testing nothing. So the support is probed the way
+# hook::resolve_read_slice probes it — a `read -t` against /dev/null, judged by
+# whether it printed a usage error — before the FIFO is created at all, and the
+# `sleep` spawn is the fallback for that host as well as for one where a FIFO
+# cannot be made. Falling back is no worse than what this replaces. The tick is
+# then asserted to actually DELAY, so neither branch can go vacuous unnoticed.
+bs_tick_fifo="$(mktemp -u)"
+# shellcheck disable=SC2034 # `bs_tick_discard` is the read target; only stderr matters
+bs_tick_probe=$(read -r -t 0.1 bs_tick_discard </dev/null 2>&1)
+if [[ -z "$bs_tick_probe" ]] && mkfifo "$bs_tick_fifo" 2>/dev/null &&
+  exec 9<>"$bs_tick_fifo"; then
+  bs_tick_kind="fifo"
+  bs_tick() { read -r -t "$1" -u 9 _; }
+else
+  bs_tick_kind="sleep spawn"
+  bs_tick() { sleep "$1"; }
+fi
+# Lower bound only, so load can never flake it: five 0.1 s ticks must cost at
+# least 400 ms of the nominal 500 ms. A tick that silently does not delay — the
+# Bash 3.2 hazard above, or a FIFO that turns out to deliver — lands near 0 ms
+# and fails here rather than hollowing out the case below.
+bs_tick_t0=${EPOCHREALTIME:-}
+for _ in 1 2 3 4 5; do bs_tick 0.1; done
+bs_tick_t1=${EPOCHREALTIME:-}
+if [[ -z "$bs_tick_t0" || -z "$bs_tick_t1" ]]; then
+  ok "trickle tick ($bs_tick_kind): delay not timed (EPOCHREALTIME absent, Bash < 5.0)"
+else
+  bs_tick_ms=$(awk -v s="$bs_tick_t0" -v e="$bs_tick_t1" 'BEGIN { printf "%.0f", (e - s) * 1000 }')
+  if ((bs_tick_ms >= 400)); then
+    ok "trickle tick ($bs_tick_kind): 5 x 0.1 s really delays (${bs_tick_ms} ms)"
+  else
+    fail "trickle tick ($bs_tick_kind): 5 x 0.1 s took only ${bs_tick_ms} ms — the tick does not delay, so the trickle case below is vacuous"
+  fi
+fi
 bs_rc_file="$(mktemp)"
 bs_out_file="$(mktemp)"
 {
   printf '{"a":"'
-  for _ in 1 2 3 4 5 6 7 8 9 10; do
-    sleep 0.1
+  for ((bs_i = 0; bs_i < 20; bs_i++)); do
+    bs_tick 0.1
     printf 'x'
   done
   printf '"}'
 } | {
-  CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=0.3 hook::buffer_stdin >"$bs_out_file" 2>/dev/null
+  CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=1.2 hook::buffer_stdin >"$bs_out_file" 2>/dev/null
   echo "$?" >"$bs_rc_file"
 }
 bs_rc=$(cat "$bs_rc_file")
-if [[ "$bs_rc" == "0" ]] && [[ "$(cat "$bs_out_file")" == '{"a":"xxxxxxxxxx"}' ]]; then
+if [[ "$bs_rc" == "0" ]] && [[ "$(cat "$bs_out_file")" == '{"a":"xxxxxxxxxxxxxxxxxxxx"}' ]]; then
   ok "buffer_stdin: steady trickle slower than one chunk per window → rc 0 (idle bound)"
 else
   fail "buffer_stdin trickle: rc=$bs_rc out=$(cat "$bs_out_file")"
@@ -1140,15 +1235,20 @@ fi
 
 # And the other side of the same contract: a trickle that then goes SILENT with
 # an incomplete payload must still fail closed. Re-arming on progress must not
-# become "never time out".
+# become "never time out". The bound stays SHORT here on purpose: this case needs
+# the stall declared before the producer's EOF, so load pushing the gaps out only
+# makes it fire sooner. It has no flaky direction, which is why it keeps the
+# 0.3 s bound the case above had to give up. The trailing HOLD is widened for the
+# reason Test 18a records: reaching a stall costs the bound plus buffer_stdin's
+# startup spawns, and it is the hold, not the bound, that has to cover them.
 : >"$bs_out_file"
 {
   printf '{"a":"'
   for _ in 1 2 3 4 5; do
-    sleep 0.1
+    bs_tick 0.1
     printf 'x'
   done
-  sleep 2
+  sleep 5
 } | {
   CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=0.3 hook::buffer_stdin >"$bs_out_file" 2>/dev/null
   echo "$?" >"$bs_rc_file"
@@ -1160,6 +1260,8 @@ else
   fail "buffer_stdin trickle-then-stall: rc=$bs_rc out=$(cat "$bs_out_file")"
 fi
 rm -f "$bs_rc_file" "$bs_out_file"
+[[ "$bs_tick_kind" == fifo ]] && exec 9<&-
+rm -f "$bs_tick_fifo"
 
 # --- Test 18e: hook::buffer_stdin — the pre-4.1 (`read -d ''`) branch ---------
 # `read -N` is Bash 4.1+; macOS ships 3.2 and these hooks document 3.2+ support,
@@ -1203,9 +1305,11 @@ else
 fi
 
 : >"$bs_out_file"
+# Hold sized per Test 18a: the stall costs the bound plus buffer_stdin's startup
+# spawns, and this variant adds a whole `bash -c` on top of them.
 {
   printf '{"incomplete":'
-  sleep 2
+  sleep 6
 } | {
   CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=0.4 \
     bash -c "${force_legacy}"'hook::buffer_stdin' _ "$HOOK_DIR/hook-utils.sh" \
@@ -1250,11 +1354,12 @@ for bs_bad in "abc" "0" "-1" "1e3" ""; do
 done
 
 # A VALID non-default value must still be honored — the guard must not collapse
-# every setting to the default. 0.5 s against a producer that stalls for 3 s.
+# every setting to the default. 0.5 s against a producer that holds the pipe far
+# longer than the bound plus buffer_stdin's startup spawns (see Test 18a).
 bs_rc_file="$(mktemp)"
 {
   printf '{"incomplete":'
-  sleep 3
+  sleep 6
 } | {
   CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=0.5 hook::buffer_stdin >/dev/null 2>&1
   echo "$?" >"$bs_rc_file"
@@ -1277,15 +1382,34 @@ rm -f "$bs_rc_file"
 # load cancels out. The override is asserted to actually engage first — a
 # silently ineffective override would make this a vacuous pass, which has already
 # happened twice on this branch.
+#
+# There is no non-clock proxy: both variants end in the same rc 2 stall with the
+# same empty payload, and only WHEN the stall is declared differs, which is the
+# whole property under test. Two things had to change for the comparison to hold
+# on a loaded host, and the 2026-08-09 runs show both:
+#
+#  * The HOLD has to outlast the SLOW arm. The unsliced arm read 4293 ms against
+#    a 4 s hold — EOF had cut it off, so the comparison was measuring the hold
+#    rather than the overshoot. The hold below covers two whole bounds plus the
+#    spawns around them several times over.
+#  * Unlike the other cases here, this one's arms are NOT symmetric in work: the
+#    sliced arm does slice_count+1 reads where the unsliced does 2, and it is the
+#    arm that has to finish FIRST. Every read costs a wakeup, so load taxes
+#    precisely the arm that must win. Measured with the hold already fixed:
+#    5339 ms sliced vs 5719 ms unsliced — a 380 ms advantage where the structural
+#    gap is 900 ms, i.e. ~520 ms eaten by three extra reads. That overhead is
+#    fixed per read and does not grow with the bound, so the fix is to grow the
+#    GAP: at a 2.4 s bound the gap is 1.8 s (0.6 s sliced slice + 2.4 s vs two
+#    2.4 s bounds), leaving ~1.28 s of advantage against a 400 ms slack.
 bs_time_stall() { # $1 = shell prelude; prints elapsed ms (empty if untimed)
   local t_file
   t_file="$(mktemp)"
   # Bytes land immediately, then the pipe goes quiet well past two bounds.
   {
     printf '{"partial":'
-    sleep 4
+    sleep 12
   } | {
-    CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=1.2 bash -c '
+    CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=2.4 bash -c '
       source "$1"
       eval "$2"
       printf "%s\n" "${EPOCHREALTIME:-0}"
@@ -1300,10 +1424,10 @@ bs_time_stall() { # $1 = shell prelude; prints elapsed ms (empty if untimed)
 }
 # shellcheck disable=SC2016 # $1 is the overriding function's own positional, not this shell's
 bs_unsliced='hook::resolve_read_slice() { printf "%s 1" "$1"; }'
-bs_slices=$(bash -c 'source "$1"; hook::resolve_read_slice 1.2' _ "$HOOK_DIR/hook-utils.sh")
-bs_slices_forced=$(bash -c 'source "$1"; '"$bs_unsliced"'; hook::resolve_read_slice 1.2' \
+bs_slices=$(bash -c 'source "$1"; hook::resolve_read_slice 2.4' _ "$HOOK_DIR/hook-utils.sh")
+bs_slices_forced=$(bash -c 'source "$1"; '"$bs_unsliced"'; hook::resolve_read_slice 2.4' \
   _ "$HOOK_DIR/hook-utils.sh")
-if [[ "$bs_slices" == "0.300 4" ]] && [[ "$bs_slices_forced" == "1.2 1" ]]; then
+if [[ "$bs_slices" == "0.600 4" ]] && [[ "$bs_slices_forced" == "2.4 1" ]]; then
   ok "buffer_stdin: slice resolution splits the bound, and the unsliced override engages"
 else
   fail "slice resolution: got '$bs_slices' / forced '$bs_slices_forced'; cases below are vacuous"
@@ -1324,6 +1448,21 @@ bs_make_payload() { # $1 = exact payload length in bytes, $2 = destination file
   printf -v pad '%*s' "$(($1 - 8))" ''
   printf '{"p":"%s"}' "${pad// /a}" >"$2"
 }
+#
+# This is the one case here whose two arms are nominally EQUAL — the regression
+# makes the boundary arm jump by a whole bound, so the slack is pure noise
+# tolerance with no structural separation underneath it to absorb load. At a
+# 1.2 s bound the separation to detect was 0.9 s (bound minus one slice) and the
+# slack was 400 ms, and it FAILED on a loaded Windows box on 2026-08-09:
+# 1866 ms vs 1275 ms, i.e. 591 ms of inter-arm noise between two arms that should
+# have matched. No slack fits between 591 ms of noise and a 900 ms signal, so the
+# fix is to widen the SIGNAL rather than the slack: the bound below is 3.0 s
+# (slices of 0.750 s), which puts the separation at 2.25 s and lets the slack go
+# to 1200 ms — twice the observed noise, and still 1.05 s clear of the signal.
+# The producer holds the pipe well past the whole bound AND the spawns around it,
+# so a regressed read really does pay the full 3.0 s instead of being cut short
+# by an early EOF — a truncated arm shrinks the very signal this case measures,
+# which is how the late-EOF and stall cases above were failing.
 bs_time_held_open() { # $1 = exact payload length in bytes; prints elapsed ms
   local payload_file t_file
   payload_file="$(mktemp)"
@@ -1331,9 +1470,9 @@ bs_time_held_open() { # $1 = exact payload length in bytes; prints elapsed ms
   bs_make_payload "$1" "$payload_file"
   {
     cat "$payload_file"
-    sleep 3
+    sleep 8
   } | {
-    CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=1.2 bash -c '
+    CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=3.0 bash -c '
       source "$1"
       printf "%s\n" "${EPOCHREALTIME:-0}"
       hook::buffer_stdin >/dev/null 2>&1
@@ -1367,7 +1506,7 @@ if [[ -z "$bs_boundary_ms" || -z "$bs_offset_ms" ]]; then
   else
     ok "buffer_stdin: chunk-boundary latency not timed (EPOCHREALTIME absent, Bash < 5.0)"
   fi
-elif ((bs_boundary_ms < bs_offset_ms + 400)); then
+elif ((bs_boundary_ms < bs_offset_ms + 1200)); then
   ok "buffer_stdin: a 65536-char payload costs no more than a non-boundary one (${bs_boundary_ms} ms vs ${bs_offset_ms} ms)"
 else
   fail "buffer_stdin chunk boundary: ${bs_boundary_ms} ms vs ${bs_offset_ms} ms non-boundary — boundary payload waits out the bound"

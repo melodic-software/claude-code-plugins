@@ -18,7 +18,24 @@ The 5-stage main-thread pipeline that turns heterogeneous free-text findings fro
 
 Line numbers from LLM reviewers drift — treat inferred lines as approximate and keep dedup noise-tolerant.
 
-**One row's raw text is not returned to the session:** the `code-review` plugin ends by posting its surviving findings as a PR comment, so the dispatch itself yields no parsable output. After an opted-in dispatch, fetch that comment (`gh pr view <n> --json comments --jq '.comments[-1].body'`, matching the plugin's `### Code review` heading) and feed the body to Stage 0 as this surface's raw text. Skip the retrieval and the row has no input — then the surface is not normalized and belongs in `## Surfaces` as a skip, not silently absent from the report.
+**One row's raw text is not returned to the session:** the `code-review` plugin ends by posting its surviving findings as a PR comment, so the dispatch itself yields no parsable output. After an opted-in dispatch, fetch that comment and feed the body to Stage 0 as this surface's raw text — identified as the comment THIS invocation created, never by position.
+
+SKILL.md "Orchestrator plugins" takes the pre-dispatch comment-ID snapshot, because that is the step that runs before the dispatch. Splice the array it printed in here as a literal — a shell variable set in an earlier tool call is gone by the time this one runs:
+
+```shell
+gh pr view <n> --json comments |
+  jq -r --argjson seen '<the recorded id array>' '[.comments[]
+    | select(.id as $id | $seen | index($id) | not)
+    | select(.body | startswith("### Code review"))
+    | select(.body | contains("🤖 Generated with [Claude Code]"))]
+    | if length == 1 then .[0].body else empty end'
+```
+
+Identity, not position or time. `.comments[-1]` is whatever landed most recently, with no filter at all — any bot or reviewer commenting between the dispatch and this fetch is normalized as `code-review` findings and corrupts the persisted report. A timestamp cutoff narrows the window but still cannot say who wrote a comment inside it, so a third party quoting the `### Code review` heading mid-dispatch would win it. The ID-set difference answers the question actually being asked: which comment did not exist before this invocation.
+
+Identity says a comment is NEW, not whose it is — so shape is the second filter. A third party quoting the review mid-dispatch posts a genuinely new comment carrying the heading, and when the dispatch itself posted nothing that quotation is the only new match, so a substring test would normalize it as this surface's findings. The plugin's command file mandates ("follow the following format precisely") a body that BEGINS with the `### Code review` heading and carries the `🤖 Generated with [Claude Code]` trailer; a quotation fails both, because `> ### Code review` is not a `startswith`. Match the trailer by that prefix, never its full link — the URL is free to change upstream and would silently un-match. Author is deliberately not a third filter: the plugin posts via `gh pr comment` under whatever credential invoked it, so there is no fixed login to match and a hardcoded one would break for the next consumer.
+
+The `length == 1` guard is the refusal to guess. Zero new heading-bearing comments means the dispatch produced none; two or more means the window is genuinely ambiguous. Both yield empty output — the row has no input, so the surface is not normalized and belongs in `## Surfaces` as a skip. Never widen the filter or fall back to the latest comment to fill it.
 
 **Not in this table:** the bundled `/code-review` command and the managed Code Review GitHub App service (SKILL.md "Boundary — the bundled command and the managed service"), both distinct from the `code-review` plugin row above. The managed service posts its findings to the PR rather than returning them to normalize; bare `/code-review` is report-only, but is itself a multi-agent review of the same diff whose output has no documented schema to parse. Neither is dispatched as a fan-out leaf here.
 

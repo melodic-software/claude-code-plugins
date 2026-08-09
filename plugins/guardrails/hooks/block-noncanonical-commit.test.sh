@@ -169,26 +169,43 @@ run "#964 shell-alias re-invocation, canonical -F - twin (allowed)" \
 # Each hop re-checks BOTH alias spellings, so re-expansion branches 2x per hop
 # unless equivalent states collapse: before the traversal bounds an 8-hop chain
 # defining both spellings cost 14.6s here (each leaf forked a `git config`), and
-# every further hop doubled it. These cases therefore assert a hard wall-clock
-# CEILING as well as the exit code — an exit-code-only assertion passes at any
-# runtime and would not see the regression.
+# every further hop doubled it.
 #
-# run_bounded <label> <command> <expected-exit> <seconds>: `timeout` reports 124
-# when the ceiling elapses, which must read as the failure it is rather than as
-# an unexpected exit code. cwd is pinned to a directory that is no repository, so
+# The BOUNDEDNESS claim is carried by the EXIT CODES, not by a clock. A 20-hop
+# dual-spelling chain exiting 0 proves the walk stayed inside the hook's
+# HOOK_ALIAS_WORK_MAX re-expansion cap, because a collapse regression overruns
+# that cap and exits 2 naming the ceiling — which the divergent case below
+# asserts directly. The hook states the same principle where it sets that cap —
+# "The ceiling counts ANALYSES rather than seconds, because a wall clock is
+# host- and command-length-dependent."
+#
+# A wall-clock ceiling here contradicted that and flaked on a loaded host: the
+# divergent-spelling case (the slowest of these, because exhausting the budget is
+# the point) measured 26.9s against the old 30s ceiling on Windows Git Bash
+# (2026-08-09), so ordinary background load turned a correctly-bounded walk into
+# a bogus "traversal is not bounded" failure. `timeout` therefore survives only
+# as a HANG GUARD, so a non-terminating regression fails the suite instead of
+# wedging it — set an order of magnitude clear of that measured worst case, well
+# out of reach of load noise. It is not an assertion, and nothing below reads a
+# non-timeout as evidence of boundedness.
+HANG_GUARD_SECS=300
+
+# run_guarded <label> <command> <expected-exit>: `timeout` reports 124 when the
+# hang guard fires, which must read as the hang it is rather than as an
+# unexpected exit code. cwd is pinned to a directory that is no repository, so
 # an in-progress merge/rebase wherever the suite happens to run cannot silently
 # exempt the blocked cases — the guard exempts a live sequencer by design, and an
 # ambient one turns these into assertions about the wrong thing.
 TRAVERSAL_CWD="$TEST_TMPDIR/traversal"
 mkdir -p "$TRAVERSAL_CWD"
-run_bounded() {
-  local label="$1" command="$2" expected="$3" secs="$4" rc
+run_guarded() {
+  local label="$1" command="$2" expected="$3" rc
   MSYS_NO_PATHCONV=1 jq -n --arg c "$command" --arg d "$TRAVERSAL_CWD" \
     '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
-    timeout "$secs" bash "$HOOK" >/dev/null 2>&1
+    timeout "$HANG_GUARD_SECS" bash "$HOOK" >/dev/null 2>&1
   rc=$?
   if ((rc == 124)); then
-    bad "$label: exceeded the ${secs}s ceiling — alias traversal is not bounded"
+    bad "$label: no verdict inside the ${HANG_GUARD_SECS}s hang guard — the hook HUNG. An over-budget walk exits 2 naming the re-expansion ceiling; it does not hang."
   else
     assert_exit "$label" "$expected" "$rc"
   fi
@@ -211,29 +228,33 @@ alias_chain() {
   printf '%s' "$cmd -c alias.a$n='$terminal' -c alias.a$n.command='$terminal' a1"
 }
 
-# The SAFE terminal is the timing case: it exhausts the whole tree, so before the
-# bounds it ran past this ceiling (verified — 20 hops did not finish in 30s).
-run_bounded "traversal: 20-hop dual-spelling chain to a canonical commit (allowed, bounded)" \
-  "$(alias_chain 20 'commit -F -')" 0 30
+# The SAFE terminal is the demanding case: it exhausts the whole tree rather than
+# exiting on the first path that reaches a commit. Exiting 0 is what proves the
+# walk stayed inside the re-expansion cap — before the bounds this shape did not
+# finish at all, and a collapse regression puts it over the cap, where it exits 2
+# naming the ceiling instead of 0.
+run_guarded "traversal: 20-hop dual-spelling chain to a canonical commit (allowed, bounded)" \
+  "$(alias_chain 20 'commit -F -')" 0
 # Coverage is not what the collapse trades away: the same depth still reaches the
-# non-canonical commit and blocks. (This one always returned fast — the walk exits
-# on the first path that finds the commit — so it asserts reach, not runtime.)
-run_bounded "traversal: 20-hop dual-spelling chain to a multi-line commit -m (blocked, bounded)" \
-  "$(alias_chain 20 "commit -m \"bypass${NL}b\"")" 2 30
+# non-canonical commit and blocks. (The walk exits on the first path that finds
+# the commit, so this one asserts reach.)
+run_guarded "traversal: 20-hop dual-spelling chain to a multi-line commit -m (blocked, bounded)" \
+  "$(alias_chain 20 "commit -m \"bypass${NL}b\"")" 2
 # A long chain that does NOT branch (one spelling per hop) must stay allowed —
-# the budget bounds branching, not depth. Ceiling-guarded too: a regression that
-# made this one branch would otherwise hang the suite rather than fail it.
-run_bounded "traversal: 60-hop single-spelling chain to a canonical commit (allowed)" \
+# the budget bounds branching, not depth. Hang-guarded too: a regression that
+# made this one branch would otherwise wedge the suite rather than fail it.
+run_guarded "traversal: 60-hop single-spelling chain to a canonical commit (allowed)" \
   "$(
     cmd="git"
     for ((i = 1; i < 60; i++)); do cmd+=" -c alias.a$i=a$((i + 1))"; done
     printf '%s' "$cmd -c alias.a60='commit -F -' a1"
-  )" 0 30
+  )" 0
 # Divergent spellings defeat state collapse, so the budget is what stops the walk:
-# fail CLOSED rather than stall the hook.
-run_bounded "traversal: divergent-spelling chain exhausts the budget (blocked, bounded)" \
-  "$(alias_chain 12 status diverge)" 2 30
-budgetout=$(timeout 30 bash "$HOOK" <<<"$(command_json "$(alias_chain 12 status diverge)")" 2>&1)
+# fail CLOSED rather than stall the hook. Exit 2 plus the message asserted just
+# below is the whole boundedness claim — no clock is involved.
+run_guarded "traversal: divergent-spelling chain exhausts the budget (blocked, bounded)" \
+  "$(alias_chain 12 status diverge)" 2
+budgetout=$(timeout "$HANG_GUARD_SECS" bash "$HOOK" <<<"$(command_json "$(alias_chain 12 status diverge)")" 2>&1)
 assert_contains "traversal: budget block names the re-expansion ceiling" \
   "$budgetout" "re-expansions"
 
@@ -457,7 +478,7 @@ if [[ -d "$PCHAIN/.git" ]]; then
     want="${spec##*:}"
     MSYS_NO_PATHCONV=1 jq -n --arg c "$mixed $args" --arg d "$PCHAIN" \
       '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
-      timeout 30 bash "$HOOK" >/dev/null 2>&1
+      timeout "$HANG_GUARD_SECS" bash "$HOOK" >/dev/null 2>&1
     assert_exit "inline dual-spelling chain into a persisted alias: git … a1 $args" "$want" $?
   done
 fi
@@ -554,9 +575,9 @@ if [[ -d "$NESTED/a/.git" && -d "$NESTED/a/child/child/.git" ]]; then
     IFS='|' read -r sub cmd want label <<<"$spec"
     MSYS_NO_PATHCONV=1 jq -n --arg c "$cmd" --arg d "$NESTED/$sub" \
       '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
-      timeout 30 bash "$HOOK" >/dev/null 2>&1
+      timeout "$HANG_GUARD_SECS" bash "$HOOK" >/dev/null 2>&1
     rc=$?
-    ((rc == 124)) && bad "$label: exceeded the 30s ceiling (walk not bounded)" && continue
+    ((rc == 124)) && bad "$label: the hook HUNG — no verdict inside the ${HANG_GUARD_SECS}s hang guard" && continue
     assert_exit "$label" "$want" "$rc"
   done
 fi
@@ -590,9 +611,9 @@ if [[ -d "$WRAP/outer/child/.git" && -d "$WRAP/outer/git/child/.git" ]]; then
   # `child`'s `commit -m` rather than the decoy under `git/`.
   MSYS_NO_PATHCONV=1 jq -n --arg c "env -u -C git -c alias.a='!git -C child p' a" --arg d "$WRAP/outer" \
     '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
-    timeout 30 bash "$HOOK" >/dev/null 2>&1
+    timeout "$HANG_GUARD_SECS" bash "$HOOK" >/dev/null 2>&1
   rc=$?
-  ((rc == 124)) && bad "env -u swallows -C: exceeded the 30s ceiling"
+  ((rc == 124)) && bad "env -u swallows -C: the hook HUNG — no verdict inside the ${HANG_GUARD_SECS}s hang guard"
   ((rc == 124)) || assert_exit "env -u swallows -C, so the wrapper option is not git's -C" 2 "$rc"
 
   # git's OWN -C must keep working — the fix narrows the slice, it does not
@@ -600,7 +621,7 @@ if [[ -d "$WRAP/outer/child/.git" && -d "$WRAP/outer/git/child/.git" ]]; then
   git -C "$WRAP/outer/git/child" config alias.q $'commit --allow-empty -m "bypass\nb"'
   MSYS_NO_PATHCONV=1 jq -n --arg c "git -C git -c alias.a='!git -C child q' a" --arg d "$WRAP/outer" \
     '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
-    timeout 30 bash "$HOOK" >/dev/null 2>&1
+    timeout "$HANG_GUARD_SECS" bash "$HOOK" >/dev/null 2>&1
   assert_exit "git's own -C still relocates the alias lookup" 2 "$?"
 fi
 
@@ -619,9 +640,9 @@ wrapper_cd_case() {
   local label="$1" command="$2" expected="$3" rc
   MSYS_NO_PATHCONV=1 jq -n --arg c "$command" --arg d "$WRAP/outer" \
     '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
-    timeout 30 bash "$HOOK" >/dev/null 2>&1
+    timeout "$HANG_GUARD_SECS" bash "$HOOK" >/dev/null 2>&1
   rc=$?
-  ((rc == 124)) && bad "$label: exceeded the 30s ceiling"
+  ((rc == 124)) && bad "$label: the hook HUNG — no verdict inside the ${HANG_GUARD_SECS}s hang guard"
   ((rc == 124)) || assert_exit "$label" "$expected" "$rc"
 }
 
@@ -774,7 +795,7 @@ if [[ -d "$TOPLEVEL/outer/child/.git" ]]; then
     IFS='|' read -r sub want label <<<"$spec"
     MSYS_NO_PATHCONV=1 jq -n --arg c "git a" --arg d "$TOPLEVEL/$sub" \
       '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
-      timeout 30 bash "$HOOK" >/dev/null 2>&1
+      timeout "$HANG_GUARD_SECS" bash "$HOOK" >/dev/null 2>&1
     assert_exit "$label" "$want" $?
   done
 fi
@@ -805,7 +826,7 @@ if [[ -n "$sym_top" ]] && [[ "$(cd -P "$SYMDIR/target" && pwd -P)" == "$(cd -P "
     IFS='|' read -r cmd want label <<<"$spec"
     MSYS_NO_PATHCONV=1 jq -n --arg c "$cmd" --arg d "$SYMDIR/base" \
       '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
-      timeout 30 bash "$HOOK" >/dev/null 2>&1
+      timeout "$HANG_GUARD_SECS" bash "$HOOK" >/dev/null 2>&1
     assert_exit "$label" "$want" $?
   done
 else
@@ -844,9 +865,9 @@ if [[ -d "$DOTS/.git" ]]; then
     IFS='|' read -r cmd want label <<<"$spec"
     MSYS_NO_PATHCONV=1 jq -n --arg c "$cmd" --arg d "$DOTS" \
       '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
-      timeout 30 bash "$HOOK" >/dev/null 2>&1
+      timeout "$HANG_GUARD_SECS" bash "$HOOK" >/dev/null 2>&1
     rc=$?
-    ((rc == 124)) && bad "$label: exceeded the 30s ceiling" && continue
+    ((rc == 124)) && bad "$label: the hook HUNG — no verdict inside the ${HANG_GUARD_SECS}s hang guard" && continue
     assert_exit "$label" "$want" "$rc"
   done
 fi
@@ -875,9 +896,9 @@ if [[ -d "$TRAIL/cur/.git" && -d "$TRAIL/safe/.git" ]]; then
     IFS='|' read -r cmd want label <<<"$spec"
     MSYS_NO_PATHCONV=1 jq -n --arg c "$cmd" --arg d "$TRAIL/cur" \
       '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
-      timeout 30 bash "$HOOK" >/dev/null 2>&1
+      timeout "$HANG_GUARD_SECS" bash "$HOOK" >/dev/null 2>&1
     rc=$?
-    ((rc == 124)) && bad "$label: exceeded the 30s ceiling" && continue
+    ((rc == 124)) && bad "$label: the hook HUNG — no verdict inside the ${HANG_GUARD_SECS}s hang guard" && continue
     assert_exit "$label" "$want" "$rc"
   done
 fi
@@ -904,9 +925,9 @@ if [[ -d "$GLOB/repo/.git" ]]; then
       --arg c "git --git-dir=$GLOB/repo/.git --work-tree=$GLOB/repo -c alias.a=\"$body\" a" \
       --arg d "$GLOB/outside" \
       '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
-      timeout 30 bash "$HOOK" >/dev/null 2>&1
+      timeout "$HANG_GUARD_SECS" bash "$HOOK" >/dev/null 2>&1
     rc=$?
-    ((rc == 124)) && bad "$label: exceeded the 30s ceiling" && continue
+    ((rc == 124)) && bad "$label: the hook HUNG — no verdict inside the ${HANG_GUARD_SECS}s hang guard" && continue
     assert_exit "$label" "$want" "$rc"
   done
 fi
@@ -950,9 +971,9 @@ if [[ -d "$LAUNCH/a/out/child/.git" && -d "$LAUNCH/b/out/child/.git" ]]; then
       --arg c "git --git-dir=$LAUNCH/$tree/work/.git --work-tree=$LAUNCH/$tree/work -c alias.a='$launch_body' a" \
       --arg d "$LAUNCH/$tree/$sub" \
       '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
-      timeout 30 bash "$HOOK" >/dev/null 2>&1
+      timeout "$HANG_GUARD_SECS" bash "$HOOK" >/dev/null 2>&1
     rc=$?
-    ((rc == 124)) && bad "$label: exceeded the 30s ceiling" && continue
+    ((rc == 124)) && bad "$label: the hook HUNG — no verdict inside the ${HANG_GUARD_SECS}s hang guard" && continue
     assert_exit "$label" "$want" "$rc"
   done
 fi

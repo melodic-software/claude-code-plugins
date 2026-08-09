@@ -3,6 +3,38 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.2]
+
+### Fixed
+
+- **`skills/fanout`: the `code-review` plugin's comment is identified as the one this invocation
+  created, not as the latest comment.** `context/findings-normalization.md` told the pipeline to
+  retrieve that surface's raw text with `.comments[-1].body`, which is whatever landed most
+  recently — the prose named the plugin's `### Code review` heading but the expression applied no
+  filter at all. Any bot or reviewer commenting between the dispatch and the fetch was therefore
+  normalized as `code-review` findings and written into the persisted report. Retrieval is now an
+  ID-set difference: `SKILL.md` records the PR's comment IDs before dispatching, and the fetch
+  selects the comment whose ID is new. Identity rather than a timestamp window, because a cutoff
+  narrows *when* a comment arrived but never establishes *who* wrote it — a third party quoting the
+  heading mid-dispatch would still have won. Identity is paired with a shape test, because being
+  new does not make a comment the plugin's: a reviewer quoting the review posts a genuinely new
+  heading-bearing comment, and when the dispatch posted nothing that quotation was the sole new
+  match and was normalized as this surface's findings. The body must now BEGIN with the
+  `### Code review` heading and carry the `🤖 Generated with [Claude Code]` trailer — the shape the
+  plugin's own command file mandates — which a quotation fails, where a substring test did not. The
+  trailer is matched by prefix rather than by its full link so an upstream URL change cannot
+  silently un-match it. Author remains deliberately unfiltered: the plugin posts under whatever
+  `gh` credential invoked it, so no fixed login exists and a hardcoded one would break for the next
+  consumer. A `length == 1` guard refuses to guess: zero new matches (the dispatch produced none)
+  and two or more (a genuinely ambiguous window) both yield empty output, documented as a
+  `## Surfaces` skip — never a fallback to the latest comment.
+- **`skills/fanout`: the pre-dispatch snapshot is taken in the step that dispatches.** `SKILL.md`
+  Step 1 dispatches the surfaces and Step 2 only then opens
+  `context/findings-normalization.md`, so a "capture this before dispatching" instruction living in
+  the normalization context could never run in time. The snapshot now sits in `SKILL.md`'s
+  `code-review` bullet, and it is carried into the retrieval as a spliced literal rather than a
+  shell variable, which does not survive the tool-call boundary between the two steps.
+
 ## [0.17.1]
 
 ### Changed
