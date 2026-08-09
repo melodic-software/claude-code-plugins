@@ -3,6 +3,90 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.0]
+
+### Fixed
+
+- **`block-dangerous-git`'s hash-width probe ignored a wrapper's chdir, so an unsafe
+  `--force-with-lease` passed.** A lease expectation is judged against the hash width of the
+  repository the push will run in, and the probe replays git's own repository-locating globals to
+  find it. It could not replay a WRAPPER's relocation: `collect_git_locating_opts` reads only the
+  slice between the git word and the subcommand — as it must, since that walk cannot know which of
+  `env`'s or `sudo`'s options take a value — so `env -C <sha256-repo> git push
+  --force-with-lease=main:<40-hex>` probed the invoking SHA-1 directory, read the 40-hex expectation
+  as an immutable object id, and allowed the push. Where git actually runs, that same word is an
+  ordinary movable ref name, which is the exact hole `--force-with-lease` exists to close.
+  `hook::git_resolve_index` already records the relocation in `HOOK_GIT_RESOLVED_WRAPPER_DIRS` — it
+  is the only parser that can tell a real `env -C <dir>` from the `-C` in `env -u -C git`, which
+  moves nothing — and the probe now replays it as leading `-C` words, ahead of git's own, so the two
+  compose in execution order under git's rules rather than being modelled. Covered for `env -C`,
+  `env --chdir=`, `sudo -D`, the composition with git's own `-C`, and the `env -u -C` non-chdir.
+  **Acceptance behavior changes** (hence a minor bump): a wrapped push whose lease is a movable name
+  where git runs is refused where it was allowed, and one whose lease is a real object id there is
+  allowed where the misplaced probe refused it.
+
+- **`skill-reference-verify` reported references an Edit never touched, missed short substring
+  edits, and could spend its whole 30-second timeout on one large Edit.** Partial-Edit
+  reconstruction located the hunk by line and then filtered the whole line by word token. All three
+  defects were that filter: an untouched broken reference sharing a physical line with the hunk was
+  readmitted by any word it happened to share (`legacy` in both the edited prose and
+  `` `/alpha:ghost-legacy` ``); an Edit replacing fewer than four lowercase characters produced no
+  token at all, so reconstruction gave up and every such edit went uncovered; and locating spent two
+  full-file `grep` processes per hunk line, which a thousand-line Edit turned into a timeout — an
+  advisory lost entirely, after delaying the tool call to get there. Reconstruction now reads the
+  file once and keeps only the inline-code spans whose extent OVERLAPS the located anchor. Overlap
+  is exact where the token filter was approximate, and has no minimum length to clear. The
+  occurrence-uniqueness gate is unchanged: an anchor that cannot say which occurrence the edit
+  landed on is still dropped rather than unioned.
+
+  The timeout half needed both halves of its cost removed. Dropping the subprocesses left the
+  per-line RESCAN, which is anchors TIMES file size — measured on a Windows/Git Bash host, a
+  thousand span-free hunk lines still cost 82 s against the 30-second budget. The hunk is written to
+  disk contiguously, so it is now located WHOLE: one scan for the entire edit, and the span set is
+  the same one the per-line walk produced, since a line anchor's extent is the text the edit wrote
+  on that line and the whole hunk's extent is the union of exactly those. The same measurement is
+  now 11 s at a thousand lines and 11 s at four thousand — the hunk-size term is gone. Locating
+  whole is also strictly better scoping: a hunk whose every line repeats but whose whole text does
+  not used to be dropped as ambiguous line by line, and now resolves to the one place it names. The
+  per-line walk survives as a fallback for a hunk that is no longer on disk verbatim — another
+  PostToolUse hook reformatting the file between the write and this read is the realistic cause.
+
+  Measuring the scan itself then contradicted the bound that had been placed on it. One scan is not
+  linear in file size, it is QUADRATIC — 0.07 s at 32 KiB, 0.24 s at 64, 1.07 s at 128, 3.94 s at
+  256 on the same host, because bash's `%%` pattern strip walks the string rather than indexing it.
+  A 4 MiB file, which the previous cap allowed, is ~18 minutes for a SINGLE scan, so the guard's
+  worst case had never actually been bounded, only moved. Reconstruction now stops above 128 KiB,
+  and the fallback's anchor cap falls along that same curve instead of being a flat count — 58
+  anchors at 32 KiB, 14 at 64, 3 at 128. Above the cap the direct hunk scan is unaffected, so a
+  complete reference is still reported and only partial-edit recovery stops, which is this guard's
+  permitted failure direction. Both numbers are calibrated end to end against the hook rather than
+  from the isolated curve, which understates the cost: it times an anchor that matches near the end,
+  where one strip walks the file and the second is free, while a no-match strip walks it twice and
+  the whole-hunk probe pays a scan before the fallback runs at all. Covered by a case that puts a
+  large file and the fallback path TOGETHER, which neither the timing case (whole-hunk fast path)
+  nor the correctness cases (three lines) reached. That case asserts what the cap DOES rather than
+  how long it takes — one reference inside the cap is still reported, one past it is not — because a
+  wall-clock bound there measures the host: the same fixture read 21 s loaded and a smaller one 23 s,
+  against an isolated scan of ~1 s at that size. A timing assertion that noisy fails on load and
+  passes on a regression that happens to run on a quiet box.
+
+- **`skill-reference-verify` reported a valid command as unresolved when its plugin declared custom
+  skill paths.** Resolution hard-coded `plugins/<plugin>/skills/`, but a manifest's `skills` key
+  holds a path or array of paths that ADD to that directory, and a declared path may point straight
+  at a directory holding `SKILL.md` ([Plugins
+  reference](https://code.claude.com/docs/en/plugins-reference), "Path behavior rules"). A skill
+  loaded from a declared location now resolves, as does the documented single-skill layout (a root
+  `SKILL.md` with no `skills/` subdirectory and no `skills` key). That layout is honoured under its
+  stated conditions only — a root `SKILL.md` beside a populated `skills/` is not loaded by Claude
+  Code, so accepting it would suppress the advisory for a command that does not exist.
+
+  The advisory's own text was wrong the same way the resolution had been: it named
+  `plugins/<plugin>/skills/` as the place searched, whatever the manifest declared. The message now
+  lists the directories the search actually covered, built from the same `skill_roots` the
+  resolution used. The advisory ends by telling the reader to confirm against the tree, and pointing
+  them at the wrong part of it is the one instruction that cannot survive being wrong. A plugin
+  using the conventional layout still reads exactly as before.
+
 ## [0.20.0]
 
 ### Changed
