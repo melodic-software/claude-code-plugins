@@ -442,7 +442,11 @@ closed, PR'd, escalated), and stop cleanly. The **drain-terminal state** (per th
 ends the loop: when every remaining open item is human-gated or escalated and no PR is in flight,
 report and stop cleanly rather than idling forever. Either stop's report **names the intake that
 arrived after the snapshot and was left unworked** — that report is what keeps "reported, never
-chased" true once there is no next cycle to sweep it.
+chased" true once there is no next cycle to sweep it. Compute that list once, after the exit is
+already decided, by diffing a fresh `list-frontier --autonomous` reading against the retained
+snapshot ids. **That read is reporting-only and can never change the verdict it follows** — what
+the paragraph above bans is the *exit* reading the seam, not the report doing so, and without a
+stated mechanism an agent has none and the naming silently degrades to nothing.
 
 ## Gotchas
 
