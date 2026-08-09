@@ -1,5 +1,4 @@
 ---
-name: running-retro
 description: "Take an in-flight retrospective checkpoint mid-session: a subagent analyzes the transcript so far, classifies each finding by category and resolution route, and appends to a cumulative running ledger — capture and route only, never auto-applied. Live counterpart to /session-flow:retro (the end-of-session scoring + codification pass). An `arm` action instead launches a detached observer that runs the checkpoint autonomously after the session ends. Use when: 'running retro', 'live retro', 'in-flight retro', 'checkpoint this session', 'how is this session going', 'observe the session so far', 'arm the observer', 'watch this session in the background', 'observe this session after it ends', partway through a long skill loop, or on a /loop interval. Does NOT score the session, codify learnings (/session-flow:retro codify), auto-file issues, or /clear the session."
 argument-hint: "[topic | arm] (e.g., /running-retro, /running-retro phase-3, /running-retro arm)"
 user-invocable: true

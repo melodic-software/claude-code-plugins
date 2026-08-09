@@ -1,5 +1,4 @@
 ---
-name: audit
 description: "Audit the Claude Code instruction/memory layer — CLAUDE.md, CLAUDE.local.md, .claude/rules/, and auto-memory — against a codified checklist derived from official Claude Code documentation. Use when: 'audit CLAUDE.md', 'memory health', 'audit rules', 'is my CLAUDE.md too long', 'prune instructions', after CLAUDE.md/rules changes or a Claude Code upgrade; actions: audit (default), fix, update, report."
 argument-hint: "[audit|fix|update|report] — default: audit"
 user-invocable: true

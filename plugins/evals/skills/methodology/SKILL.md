@@ -1,5 +1,4 @@
 ---
-name: methodology
 description: "Answers LLM-evaluation design questions from Anthropic's official evaluation guidance — success criteria, eval-suite design, and grading methods for LLM-based applications and Claude Code skills. Use when: 'define success criteria', 'how do I eval this', 'LLM eval', 'measure prompt quality', 'LLM judge', 'model-graded eval', 'golden answer', 'grading rubric', 'eval grading method', 'exact match vs LLM-graded', 'how many eval cases', 'is my success criteria measurable' — knowledge (WHY/WHAT of eval design), not a runner; for scaffolding a suite use /evals:design, and no marketplace command executes model-graded evals."
 argument-hint: "[question or concept]"
 user-invocable: true

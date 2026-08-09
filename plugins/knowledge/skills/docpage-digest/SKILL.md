@@ -1,5 +1,4 @@
 ---
-name: docpage-digest
 description: "Ingest a single online documentation page (a docs-site URL) into a verified knowledge slice — fetch the original, inventory it into an INDEX, fan out per-section digest agents, run dual verification (one cross-vendor verifier), and hand off an interview-ready decision artifact. Use when: 'digest this doc', 'ingest this documentation page', 'run the doc pipeline on <url>', 'docpage digest', 'pull this vendor doc into the knowledge base', 'distill this docs page', or the user supplies a documentation URL to turn into durable corpus artifacts. Remote documentation PDFs (model cards, system cards) DO belong here; book files (PDF/EPUB books) route to /knowledge:book-distill, video courses to /knowledge:course-digest, single YouTube videos to /knowledge:youtube-digest; not ad-hoc summarization — the output is a durable verified corpus slice plus an interview handoff, not a chat summary. Publisher profiles live under context/ (first: Anthropic docs)."
 argument-hint: "[url] (e.g., /knowledge:docpage-digest https://platform.claude.com/docs/en/build-with-claude/effort)"
 user-invocable: true

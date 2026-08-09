@@ -1,5 +1,4 @@
 ---
-name: measure
 description: "Verify a measurable-improvement claim against a baseline captured BEFORE the change — two metric families (`performance`: wall time, memory, allocations, throughput, latency; `metrics`: complexity, coverage, coupling), each with a `baseline` phase at planning time and a `compare` phase after the change. Never claims improvement without a baseline (no baseline → honest 'cannot quantify'); use for 'is it faster', 'before/after', 'prove the improvement', while intent/outcome confirmation stays with /verification:confirm."
 user-invocable: true
 argument-hint: "[performance|metrics] [baseline|compare] (e.g., /verification:measure performance, /verification:measure metrics baseline)"

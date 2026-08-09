@@ -1,5 +1,4 @@
 ---
-name: babysit-prs
 description: "Babysit your own open GitHub pull requests as a tiered fleet loop. The safe default discovers YOUR PRs under the current repo's owner, checks readiness, fixes clear branch-owned issues, and reports — it never resolves threads or merges. Explicit 'worker' tier adds auto-resolving outdated bot threads and gate-proven merges; explicit 'autopilot' adds all authors under the watched owners. Use when: 'babysit PRs', 'babysit my PRs', 'watch my open PRs', 'keep my PRs moving', 'advance all open PRs', 'babysit worker', 'run the PR queue on autopilot', or pairing with /loop for continuous coverage — not for the single-PR lifecycle: prep, create, monitor one PR, or merge (use /pull-request)."
 user-invocable: true
 disable-model-invocation: false
@@ -156,7 +155,7 @@ home in [reference/safety.md](reference/safety.md). Both fail closed without `--
 - **Merge readiness** — `source-control-babysit-merge owner/repo#N --allowed-owners
   <watched-owners> --self-logins @me,<self-logins>` (read-only; add `--merge --expected-head
   <vetted-head-sha>` to merge, and `--method <merge-method>` when configured). `--self-logins`
-  exempts your own PRs from the unprotected-base hold: `@me` resolves to your gh login, plus any
+  exempts your own PRs from the unprotected-base hold **on the default branch only**: `@me` resolves to your gh login, plus any
   `babysit_self_logins` extras (drop the trailing `,<self-logins>` when that value is empty). It gates on GitHub's own
   `mergeStateStatus == CLEAN` plus explicit cross-checks (branch rules, review decision,
   unresolved threads, check rollup keyed by check type and name, head match) and reports the
@@ -173,8 +172,10 @@ home in [reference/safety.md](reference/safety.md). Both fail closed without `--
   plus any `babysit_extra_dependency_manager_logins`, which you MUST append via
   `--extra-dependency-manager-logins "<value>"` when set — see safety.md's merge command forms — or
   those extra bots are silently not held), refuses merge on an unprotected
-  repo (zero required reviews and zero required contexts) for a non-self author absent
-  `--allow-unprotected`, never uses `--admin`, and cannot resolve threads, reply, or
+  base (zero required reviews and zero required contexts) for a non-self author, and for a self
+  author whenever that base is not the repository's default branch — a stack layer or any other
+  feature-onto-feature merge, where the default branch's required checks never governed the merge —
+  absent `--allow-unprotected`, never uses `--admin`, and cannot resolve threads, reply, or
   force-push. React to `blockers`; do not bypass the gate. A `ready:false` immediately following a `ready:true` on the same expected head is often GitHub's own mergeability recompute lag — re-run the read-only check once before treating it as a real block. **This gate's `ready` field is the sole authority for calling a PR merge-ready**, never the finding-classification gate's `READINESS_OK` ([reference/safety.md](reference/safety.md) "Two Gates, One Merge-Ready Authority").
 
 - **Once ready, stop.** When the gate proves a PR ready (safe mode) or its merge is deferred to

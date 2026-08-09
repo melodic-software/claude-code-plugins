@@ -1,5 +1,4 @@
 ---
-name: setup
 description: "Verify and configure repo-fleet-hygiene for a consumer project. check inspects the optional .claude/repo-fleet-hygiene.conf read-only (presence, parse validity, path resolution); apply creates or updates it — adding bounded fleet roots, exact repositories, and remote-keyed canonical checkout overrides — preserving unrelated entries. Use when: 'set up repo fleet audit', 'is repo-fleet-hygiene configured', 'configure fleet roots', 'canonical repo override', 'dotfiles-manager checkout'. Re-runnable and safe."
 user-invocable: true
 disable-model-invocation: true

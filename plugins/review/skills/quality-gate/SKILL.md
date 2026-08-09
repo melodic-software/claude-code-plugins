@@ -1,5 +1,4 @@
 ---
-name: quality-gate
 description: "Single-lens review checkpoint between 'code works' and 'code is ready' — routes to self, code, architecture, security, pr, criteria, slice, or restatement mode and delegates to the matching reviewer. Use when the user says 'review this', 'self-review', 'quality gate', 'code review', 'architecture review', or 'security review', or after implementation completes."
 argument-hint: "[mode] (e.g., /review:quality-gate, /review:quality-gate self, /review:quality-gate security, /review:quality-gate slice <name>)"
 user-invocable: true
