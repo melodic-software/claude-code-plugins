@@ -48,13 +48,13 @@ Read the writer's object-write. Extract:
 
 Across Pat's 7 title types:
 
-1. Statement
-2. Question
-3. Command
-4. Phrase from the (would-be) lyric
-5. Image-as-noun
-6. Idiom recontextualized
-7. Name
+1. One-word
+2. Place-name
+3. Person-name
+4. Color or sensory
+5. Comparative
+6. Word-play
+7. Sonic-bonding
 
 Rapid-fire. No editing. First-pass output.
 

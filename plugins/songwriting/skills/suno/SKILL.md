@@ -175,7 +175,7 @@ Simple mode = unified prompt + auto-lyrics. **Custom mode** = separate fields (s
 
 **`style <intent>`** — load [context/style.md](context/style.md). Walk the 6-layer formula. Output one fenced style-prompt block + character count. Suggest 2-3 alternatives (different mood, different production).
 
-**`clean <text>`** — load [context/troubleshoot.md](context/troubleshoot.md) and [context/style.md](context/style.md). Score the user's prompt against the anti-pattern table above. Surface flagged issues with specific quotes. Propose a rewrite. Do NOT silently rewrite — show the diff in reasoning.
+**`clean <text>`** — load [context/troubleshoot.md](context/troubleshoot.md) and [context/style.md](context/style.md). Score the user's prompt against the anti-pattern table above. Surface flagged issues with specific quotes. Propose a rewrite. Do NOT silently rewrite — state what changed and why in your response.
 
 **`tags`** — load [context/lyrics.md](context/lyrics.md). Render the full taxonomy as tables (structural, vocal, instrument, mood, ending). Include parameterized syntax `[Tag: descriptors]` example.
 

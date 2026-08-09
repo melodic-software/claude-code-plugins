@@ -1,6 +1,6 @@
 # Changelog — discovery plugin
 
-## [0.11.2]
+## [0.11.3]
 
 ### Changed
 
@@ -33,6 +33,16 @@
   - `agents/researcher.md` and the README agent table named `/discovery:research` as the sole
     dispatcher; both now name `/discovery:research-deep` too, and evals 1 and 3 grade the agent type
     and the envelope rather than a `general-purpose` spawn.
+
+## [0.11.2]
+
+### Changed
+
+- **`research-deep`: the multi-topic fan-out now has a ceiling.** N came straight from the user's own
+  topic count with a stated floor (N ≥ 2 dispatches parallel agents) and nothing above it, so a
+  twenty-topic ask dispatched twenty agents. N is now capped at roughly a dozen, past which the ask
+  gets narrowed with the user before dispatching — the same wave cap the `discipline` plugin already
+  uses, rather than a new threshold invented here.
 
 ## [0.11.1]
 

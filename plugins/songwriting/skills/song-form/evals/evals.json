@@ -5,13 +5,27 @@
       "id": 1,
       "name": "second-verse-stagnation-box-model",
       "prompt": "/songwriting:song-form box-model my second verse repeats the first — same scene, same speaker, same time. how do I fix it?",
-      "expected_output": "Routes to the box-model action. Loads box-model.md and verse-development.md. Names the travelogue diagnosis and proposes a division-of-labor formula (You-I-We or Past-Present-Future or another axis), surfacing what verse 2 should DO that verse 1 doesn't, and mentions a 'what came before' diagnostic or equivalent reframing.",
+      "expected_output": "Routes to the box-model action. Loads box-model.md and verse-development.md. Diagnoses this as the SAME-COLOR failure (Box 2 = Box 1, Writing Better Lyrics (2009) Chapter 7) — the verses do the same job, so the chorus never repaints — and NOT as a travelogue, which is the opposite failure where verses share only the title. Proposes a division-of-labor formula (You-I-We or Past-Present-Future or another axis), surfacing what verse 2 should DO that verse 1 doesn't, and mentions a 'what came before' diagnostic or equivalent reframing.",
       "files": [],
       "expectations": [
         "Loads box-model.md and/or verse-development.md",
-        "Names the travelogue diagnosis",
+        "Names the same-color / Box 2 = Box 1 diagnosis",
+        "Does NOT call this a travelogue — travelogue is verses connected only by the title, the opposite failure",
         "Proposes at least one division-of-labor formula (You-I-We / Past-Present-Future / other axis)",
         "Mentions a 'what came before' diagnostic OR an equivalent reframing question"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "travelogue-distinguished-from-same-color",
+      "prompt": "/songwriting:song-form box-model Each verse is a different city and a different character, and the only thing tying them together is the title line. Is this the same problem as verses that repeat each other?",
+      "expected_output": "Diagnoses this as a TRAVELOGUE (Writing Better Lyrics (2009) Chapter 8) — verses with no natural relationship, linked only through the title or chorus, so the boxes accumulate no weight — and states explicitly that it is the OPPOSITE failure from same-color repetition. Prescribes finding the causal chain between verses (what in verse 1 causes verse 2, what verse 2 makes inevitable), NOT a division-of-labor shift, which is the same-color repair.",
+      "files": [],
+      "expectations": [
+        "Names the travelogue diagnosis",
+        "States that travelogue and same-color are opposite failures rather than the same problem",
+        "Prescribes building a causal chain between the verses",
+        "Does NOT prescribe You-I-We or Past-Present-Future as the fix for this case"
       ]
     },
     {
