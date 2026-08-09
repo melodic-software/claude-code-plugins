@@ -15,8 +15,10 @@ All notable changes to the `review` plugin are documented here. Format follows
   `code-review` findings and written into the persisted report. The retrieval is now a two-step
   `jq` filter that selects on the heading AND on a `createdAt` captured before the dispatch, so
   neither an interleaved third-party comment nor a previous run's comment on the same PR can be
-  mistaken for this invocation's output. No match now yields empty output, documented as a
-  `## Surfaces` skip — never a fallback to the latest comment.
+  mistaken for this invocation's output. Author is documented as a deliberate non-filter — the
+  plugin posts under whatever `gh` credential invoked it, so no fixed login exists to match — with
+  the residual collision named. No match now yields empty output, documented as a `## Surfaces`
+  skip — never a fallback to the latest comment.
 
 ## [0.17.1]
 
