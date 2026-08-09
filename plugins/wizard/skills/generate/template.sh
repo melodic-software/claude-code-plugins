@@ -114,20 +114,32 @@ open_url() {
   } >/dev/null 2>&1 || warn "couldn't open a browser — visit it manually: $url"
 }
 
+# _drain_tty — discard tty input already buffered (a multi-line paste into an
+# earlier prompt) so a gate only ever consumes a line the human typed at it.
+# Without this, pasted `value\ny\n` would silently answer the next gate.
+_drain_tty() {
+  while read -r -t 0 -u 3; do
+    IFS= read -r -u 3 _ || break
+  done
+}
+
 # pause "msg" — wait for the human to confirm they've done the manual part.
 # A read failure (terminal closed) is fatal, never silently skipped: a pause
 # that falls through at EOF would fail open.
 # shellcheck disable=SC2310  # fatal exits the script directly; set -e suppression is moot
 pause() {
+  _drain_tty
   printf '  %s%s%s ' "$DIM" "${1:-Press Enter to continue}" "$RESET"
   read -r -u 3 _ || fatal "terminal closed at a pause gate — aborting"
 }
 
 # confirm "question" — y/N gate; returns success on yes. Fail-closed: only an
-# explicit y/Y answers yes, and a read failure aborts the wizard.
+# explicit y/Y answers yes, a read failure aborts the wizard, and buffered
+# paste is drained first so a leftover line can never answer the gate.
 # shellcheck disable=SC2310  # fatal exits the script directly; set -e suppression is moot
 confirm() {
   local reply=""
+  _drain_tty
   printf '  %s? %s [y/N]%s ' "$YELLOW" "$1" "$RESET"
   read -r -u 3 reply || fatal "terminal closed at a confirmation gate — aborting"
   [[ "$reply" =~ ^[Yy] ]]
@@ -296,7 +308,8 @@ set_secret() {
 }
 
 # set_var NAME VALUE — set a GitHub Actions repo variable (non-secret), value
-# piped via --body-file - (stdin), never argv. Same refusals as set_secret.
+# piped over stdin (gh reads standard input when --body is omitted), never
+# argv. Same refusals as set_secret.
 # shellcheck disable=SC2310  # _gh_ready/_resolve_repo are status-returning gates; every false branch is handled
 set_var() {
   local name="$1" value="$2" err
@@ -315,7 +328,7 @@ set_var() {
     SKIPPED+=("GitHub variable $name (no confirmed target repo)")
     return 0
   fi
-  if err=$(printf '%s' "$value" | gh variable set "$name" --repo "$GH_REPO" --body-file - 2>&1 >/dev/null); then
+  if err=$(printf '%s' "$value" | gh variable set "$name" --repo "$GH_REPO" 2>&1 >/dev/null); then
     WRITTEN_VAR+=("$name")
     printf '  %s✓ set%s GitHub variable %s in %s\n' "$GREEN" "$RESET" "$name" "$GH_REPO"
   else
