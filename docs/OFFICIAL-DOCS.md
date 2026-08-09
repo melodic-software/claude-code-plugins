@@ -97,6 +97,7 @@ SDK-based host.
 | The `.claude` directory | <https://code.claude.com/docs/en/claude-directory> | 2026-08-06 |
 | Permissions | <https://code.claude.com/docs/en/permissions> | 2026-08-06 |
 | Permission modes | <https://code.claude.com/docs/en/permission-modes> | 2026-08-06 |
+| Configure auto mode (`autoMode`, `claude auto-mode`) | <https://code.claude.com/docs/en/auto-mode-config> | 2026-08-09 |
 | Environment variables | <https://code.claude.com/docs/en/env-vars> | 2026-08-06 |
 
 ## Prompting doctrine (platform docs)
