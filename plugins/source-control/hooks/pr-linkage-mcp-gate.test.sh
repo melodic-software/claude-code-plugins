@@ -108,6 +108,10 @@ cat >"$GATED/.claude/settings.json" <<'JSON'
 JSON
 run 0 "consumer's own tracked gate defers the plugin copy" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$NO_RELATED")"
 cat >"$GATED/.claude/settings.json" <<'JSON'
+{"hooks":{"PreToolUse":[{"matcher":"^mcp__github__(create|update)_pull_request$","hooks":[{"type":"command","command":"bash","args":[".claude/hooks/pr-linkage-mcp-gate.sh"]}]}]}}
+JSON
+run 0 "exec-form wiring (gate name only in args) also defers" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$NO_RELATED")"
+cat >"$GATED/.claude/settings.json" <<'JSON'
 {"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/other-gate.sh"}]}]}}
 JSON
 run 2 "unrelated settings hooks do not defer" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$NO_RELATED")"

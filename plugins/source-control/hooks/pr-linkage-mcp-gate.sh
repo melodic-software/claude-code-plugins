@@ -118,6 +118,17 @@ emit_tel() {
   hook::emit_telemetry "pr-linkage-mcp-gate" "PreToolUse" "$1" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
 }
 
+# Deferral rides the documented "skipped" envelope status (an unknown status is
+# mapped to error by the reference sink); the domain detail lives in data.outcome.
+emit_tel_deferred() {
+  [[ -n "$start" ]] || return 0
+  hook::telemetry_enabled || return 0
+  local data
+  data=$(jq -n --arg tool "$TOOL" \
+    '{outcome:"deferred",tool:$tool}' 2>/dev/null) || data='{"outcome":"deferred","tool":""}'
+  hook::emit_telemetry "pr-linkage-mcp-gate" "PreToolUse" "skipped" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
+}
+
 # Defer-guard: when the consuming repo tracks its OWN equivalent gate in
 # .claude/settings.json (a PreToolUse hook whose command names
 # pr-linkage-mcp-gate — the marketplace repo does exactly this so its policy
@@ -130,9 +141,13 @@ emit_tel() {
 # of the same name — acceptable: this is a policy gate, not a security guard,
 # and the required CI check remains the authority.
 if [[ -f "$REPO_ROOT/.claude/settings.json" ]] &&
-  jq -e '[.hooks.PreToolUse[]?.hooks[]?.command // empty] | any(contains("pr-linkage-mcp-gate"))' \
+  jq -e '[.hooks.PreToolUse[]?.hooks[]? | (.command // empty), (.args[]? | strings)]
+    | any(contains("pr-linkage-mcp-gate"))' \
     "$REPO_ROOT/.claude/settings.json" >/dev/null 2>&1; then
-  emit_tel "deferred"
+  # Envelope status must be a documented value (ok|error|skipped|blocked) — an
+  # unknown status is mapped to error by the reference sink. "skipped" is the
+  # honest one here; the domain detail lives in data.outcome.
+  emit_tel_deferred
   exit 0
 fi
 
