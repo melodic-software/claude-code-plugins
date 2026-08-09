@@ -161,20 +161,29 @@ Objective correlative:
 
 1. <core word>     2. <core word>     3. <core word>
    <rhyme>            <rhyme>            <rhyme>
-   <rhyme>            <rhyme>            <rhyme>
+   <rhyme>            (<alternate>)      <rhyme>
    ...                ...                ...
 ```
 
-**Do not sort the column by rhyme type.** Perfect, family, additive,
-subtractive, assonance, and consonance candidates sit side by side, and the
-mixing is the point: the eye scans one field and compares candidates on what
-they *mean* for this lyric. Splitting the column into labelled per-type rows
-turns one choice into five sub-choices and invites filling each row to a quota
-— which is the opposite of generating a surplus in order to reject most of it.
+The chapter's only annotation is parentheses, used for a word kept as an
+alternate rather than a first choice — `freeze (wheel, shield)` in the core-word
+list, `(re)born` and `guarantee(s)` in the columns. There is no keep / maybe /
+reject field and no notes field: rejection happens by not writing the word down,
+or by crossing it out later. Keep that convention rather than adding columns the
+worksheet does not have.
 
-Rhyme type is a placement decision, not a generation one. It matters when
-choosing which candidate lands in which position, which is
-[rhyme strategy](rhyme-strategy.md)'s job, after the column exists.
+**Search by type; record unsorted.** Stage 3 above still runs a separate search
+per rhyme type — each one is a different lookup and skipping any of them loses
+candidates. What the worksheet does not do is keep those searches apart on the
+page. Perfect, family, additive, subtractive, assonance, and consonance results
+land in one column together, and the mixing is the point: the eye scans a single
+field and compares candidates on what they *mean* for this lyric.
+
+Labelled per-type rows turn one choice into five sub-choices and invite filling
+each row to a quota — the opposite of generating a surplus in order to reject
+most of it. Which type a surviving candidate belongs to matters again when
+deciding where it lands, and that stability question is
+[rhyme strategy](rhyme-strategy.md)'s, after the column exists.
 
 Keep the page flexible. Add, remove, and swap core words as the lyric clarifies.
 
@@ -201,7 +210,9 @@ When applying this file:
 4. Select an objective correlative.
 5. Build a core idea-word list.
 6. Trim the list for vowels, stress, and relevance.
-7. Expand rhyme options across perfect and imperfect types into one mixed
-   column per core word, unsorted.
-8. Mark each word as keep, maybe, or reject.
+7. Search each rhyme type separately — perfect, family, additive, subtractive,
+   assonance, consonance — and record every survivor into one mixed, unsorted
+   column per core word.
+8. Parenthesise anything kept only as an alternate; drop the rest by leaving it
+   off the page.
 9. Draft only after the worksheet contains enough options to say no.

@@ -19,8 +19,15 @@ example writes, or student work reaches this public repository.
   rhyme type mixed together. The mixing is the point: a single field is scanned
   and compared on meaning, where five labelled rows turn one choice into five
   sub-choices and invite filling each to a quota — the opposite of generating a
-  surplus in order to reject most of it. Rhyme type is a placement decision,
-  which is `rhyme-strategy.md`'s job, after the column exists.
+  surplus in order to reject most of it. The per-type SEARCH still runs — each
+  type is a different lookup and skipping one loses candidates — but its results
+  are recorded together; type matters again only when placing a survivor, which
+  is `rhyme-strategy.md`'s job.
+- **The template carried keep/maybe/reject and notes fields the chapter's
+  worksheet does not have.** Its only annotation is parentheses, marking a word
+  kept as an alternate rather than a first choice — `freeze (wheel, shield)`,
+  `guarantee(s)`. Rejection happens by not writing the word down. The workflow
+  step that told the model to mark each word now matches the page it writes on.
 
 ## [0.7.3]
 
