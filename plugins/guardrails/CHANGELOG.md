@@ -21,6 +21,9 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   moves nothing — and the probe now replays it as leading `-C` words, ahead of git's own, so the two
   compose in execution order under git's rules rather than being modelled. Covered for `env -C`,
   `env --chdir=`, `sudo -D`, the composition with git's own `-C`, and the `env -u -C` non-chdir.
+  **Acceptance behavior changes** (hence a minor bump): a wrapped push whose lease is a movable name
+  where git runs is refused where it was allowed, and one whose lease is a real object id there is
+  allowed where the misplaced probe refused it.
 
 - **`skill-reference-verify` reported references an Edit never touched, missed short substring
   edits, and could spend its whole 30-second timeout on one large Edit.** Partial-Edit
