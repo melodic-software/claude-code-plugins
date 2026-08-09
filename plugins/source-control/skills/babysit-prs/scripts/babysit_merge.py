@@ -973,28 +973,6 @@ def evaluate(
             f"contexts) and author {author_login!r} is not a configured self "
             "login -- held (pass --allow-unprotected to override)"
         )
-    # The self-login exemption above exists for a repository whose DEFAULT branch
-    # carries no rules -- a solo owner merging their own work, where holding every
-    # PR would make the gate useless. It must not extend to a base that is not the
-    # default branch: there, "unprotected" means the required checks that govern
-    # the default branch were never evaluated for this merge at all, and the PR
-    # lands on an integration branch instead of passing the gate. A stacked pull
-    # request is exactly that shape (self-authored, base = the layer below), but so
-    # is any feature-onto-feature merge.
-    # `not blockers` is load-bearing, not an optimization: a PR already held for
-    # any other reason cannot be made ready by this hold, and the lookup is a
-    # network call the fleet loop would otherwise pay on every cycle for a PR it
-    # already knows is ineligible.
-    elif not blockers and base_is_unprotected and author_is_self and not allow_unprotected:
-        base_ref = str(pr.get("baseRefName") or "")
-        default_branch = repository_default_branch(repo)
-        if default_branch and base_ref and base_ref != default_branch:
-            blockers.append(
-                f"base branch {base_ref!r} is unprotected (0 required reviews AND "
-                "0 required contexts) and is not the default branch "
-                f"{default_branch!r} -- the default branch's required checks never "
-                "governed this merge -- held (pass --allow-unprotected to override)"
-            )
 
     closing_issues = cast(
         list[Any], pr.get("closingIssuesReferences") or []
@@ -1027,6 +1005,31 @@ def evaluate(
             closing_issues, tier, reviews, review_comments,
         )
         blockers.extend(tier_blockers)
+
+    # The self-login exemption from the unprotected-base hold above exists for a
+    # repository whose DEFAULT branch carries no rules -- a solo owner merging
+    # their own work, where holding every PR would make the gate useless. It must
+    # not extend to a base that is not the default branch: there, "unprotected"
+    # means the required checks that govern the default branch were never
+    # evaluated for this merge at all, and the PR lands on an integration branch
+    # instead of passing the gate. A stacked pull request is exactly that shape
+    # (self-authored, base = the layer below), but so is any feature-onto-feature
+    # merge.
+    #
+    # Evaluated last, after the settle and tier blockers, so `not blockers` is the
+    # COMPLETE set: the lookup below is a network call, and a PR already held for
+    # any other reason cannot be made ready by this hold, so the fleet loop must
+    # never pay that call per cycle for a PR it already knows is ineligible.
+    if not blockers and base_is_unprotected and author_is_self and not allow_unprotected:
+        base_ref = str(pr.get("baseRefName") or "")
+        default_branch = repository_default_branch(repo)
+        if default_branch and base_ref and base_ref != default_branch:
+            blockers.append(
+                f"base branch {base_ref!r} is unprotected (0 required reviews AND "
+                "0 required contexts) and is not the default branch "
+                f"{default_branch!r} -- the default branch's required checks never "
+                "governed this merge -- held (pass --allow-unprotected to override)"
+            )
 
     ready = not blockers
     return {

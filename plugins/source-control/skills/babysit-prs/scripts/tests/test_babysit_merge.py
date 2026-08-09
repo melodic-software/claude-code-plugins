@@ -728,6 +728,7 @@ class SelfAuthoredUnprotectedBaseTests(unittest.TestCase):
         default_branch: str | None = "main",
         allow_unprotected: bool = False,
         rules: list[dict[str, Any]] | None = None,
+        tier: merge.AutopilotMergeTierConfig | None = None,
         **pr_overrides: Any,
     ) -> dict[str, Any]:
         pr = _pr(author={"login": self.SELF}, baseRefName=base_ref, **pr_overrides)
@@ -758,7 +759,7 @@ class SelfAuthoredUnprotectedBaseTests(unittest.TestCase):
         ):
             result = merge.evaluate(
                 "owner/repo", PR_NUMBER, HEAD, {"owner"},
-                frozenset({self.SELF}), False, allow_unprotected, None,
+                frozenset({self.SELF}), False, allow_unprotected, tier,
             )
         result["_repo_reads"] = len(repo_calls)
         return result
@@ -790,6 +791,15 @@ class SelfAuthoredUnprotectedBaseTests(unittest.TestCase):
         # A PR held for any other reason cannot be made ready by this hold, so
         # the fleet loop must not pay a network call per cycle to re-derive it.
         result = self._evaluate("stack-layer-1", isDraft=True)
+        self.assertEqual(result["_repo_reads"], 0)
+        self.assertEqual(self._unprotected_blockers(result), [], result["blockers"])
+        self.assertFalse(result["ready"])
+
+    def test_tier_held_pr_reads_no_repository_metadata(self) -> None:
+        # The tier's blockers are appended after every pre-computed one, so the
+        # hold is evaluated last to see the COMPLETE set. This author is not a
+        # lane login, so the tier holds the PR and the lookup must not run.
+        result = self._evaluate("stack-layer-1", tier=TIER)
         self.assertEqual(result["_repo_reads"], 0)
         self.assertEqual(self._unprotected_blockers(result), [], result["blockers"])
         self.assertFalse(result["ready"])
