@@ -24,10 +24,12 @@ example writes, or student work reaches this public repository.
   are recorded together; type matters again only when placing a survivor, which
   is `rhyme-strategy.md`'s job.
 - **The template carried keep/maybe/reject and notes fields the chapter's
-  worksheet does not have.** Its only annotation is parentheses, marking a word
-  kept as an alternate rather than a first choice — `freeze (wheel, shield)`,
-  `guarantee(s)`. Rejection happens by not writing the word down. The workflow
-  step that told the model to mark each word now matches the page it writes on.
+  worksheet does not have.** Its only annotation is parentheses, doing two jobs:
+  holding an alternate word behind a first choice that shares its vowel
+  (`freeze (wheel, shield)`), and marking an optional morpheme that records two
+  candidates in one entry (`(re)born`, `guarantee(s)`). Rejection happens by not
+  writing the word down. The workflow step that told the model to mark each word
+  now matches the page it writes on.
 
 ## [0.7.3]
 

@@ -165,11 +165,17 @@ Objective correlative:
    ...                ...                ...
 ```
 
-The chapter's only annotation is parentheses, used for a word kept as an
-alternate rather than a first choice — `freeze (wheel, shield)` in the core-word
-list, `(re)born` and `guarantee(s)` in the columns. There is no keep / maybe /
-reject field and no notes field: rejection happens by not writing the word down,
-or by crossing it out later. Keep that convention rather than adding columns the
+Parentheses are the chapter's only annotation, and they do two jobs:
+
+- **Alternates** — a whole word held behind a first choice sharing its vowel
+  sound, as in the core-word list's `freeze (wheel, shield)`. This is Stage 2's
+  duplicate-vowel rule written on the page.
+- **Optional morphemes** — a prefix or ending that may or may not be used, as in
+  the columns' `(re)born` and `guarantee(s)`, which record two rhyme candidates
+  in one entry.
+
+There is no keep / maybe / reject field and no notes field. Rejection happens by
+not writing the word down. Keep that convention rather than adding columns the
 worksheet does not have.
 
 **Search by type; record unsorted.** Stage 3 above still runs a separate search
@@ -213,6 +219,6 @@ When applying this file:
 7. Search each rhyme type separately — perfect, family, additive, subtractive,
    assonance, consonance — and record every survivor into one mixed, unsorted
    column per core word.
-8. Parenthesise anything kept only as an alternate; drop the rest by leaving it
-   off the page.
+8. Parenthesise alternates and optional morphemes; drop everything else by
+   leaving it off the page.
 9. Draft only after the worksheet contains enough options to say no.
