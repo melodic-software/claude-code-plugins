@@ -21,6 +21,16 @@
     parent-assigned sub-slices and passes the memory root separately, which is exactly the nested
     case the agent names: a worker handed a sub-slice path cannot tell from it which ancestor is the
     configured root.
+  - **The researcher's `tools` allowlist is gone, so session MCP tools reach the worker again.**
+    The migration's review surfaced that the allowlist silently dropped every MCP tool the former
+    `general-purpose` spawn inherited — the sub-agents reference is explicit that a `tools`
+    allowlist excludes MCP tools while an unrestricted definition keeps them. The agent now
+    inherits its pool (background tool filtering still applies), restoring source-specific
+    documentation and synthesis MCP tools to both this skill's dispatches and `/discovery:research`'s.
+  - **`Budget` is documented as narrowing-only** — the researcher's fixed `maxTurns: 40` is a
+    ceiling the envelope cannot raise; work needing more depth belongs to Tier 1's engine. The
+    envelope-rationale pointer is scoped honestly: `dispatch.md` carries five of the six fields,
+    and `Memory root`'s rationale lives in the researcher's own contract.
   - **The dispatch prompt is envelope fields only.** The disciplines, the citation rule, the outcome
     gate, and the return-payload shape are the agent's own standing contract; the old prompt's
     carry-verbatim reminders are the copy that drifts the moment the parent skill changes.

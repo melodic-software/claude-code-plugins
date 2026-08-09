@@ -1,7 +1,6 @@
 ---
 name: researcher
 description: "Runs the full /discovery:research discipline in a fresh context and persists the RESEARCH.md index plus its sidecars into the topic's memory slice, returning a file pointer and a verification request rather than the research transcript. Dispatched by /discovery:research and by /discovery:research-deep; not intended for direct ad-hoc use."
-tools: "Read, Grep, Glob, Bash, WebFetch, WebSearch, Write, Skill, Agent"
 skills:
   - discovery:research
 model: inherit
