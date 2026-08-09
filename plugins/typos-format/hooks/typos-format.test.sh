@@ -183,6 +183,7 @@ fi
 
 residual=0
 out=""
+survive=""
 lineno=0
 tmp="$target.stubtmp"
 : >"$tmp"
@@ -201,7 +202,17 @@ while IFS= read -r line || [[ -n "$line" ]]; do
       # extend-words does not. A line carrying the marker is DISALLOWED (null
       # corrections) and survives the write; every other occurrence is fixable
       # and gets rewritten.
-      if [[ -n "${STUB_MIXED:-}" && "$line" == *keepteh* ]]; then
+      # STUB_PARTIAL: one repeatable token, several occurrences, only SOME of
+      # them surviving the write — the case where cancelling by count alone has
+      # to choose which scan occurrences it calls applied. A line carrying the
+      # marker survives with the same fixable correction set as the others, so
+      # the two are indistinguishable by key and only the line separates them.
+      if [[ -n "${STUB_PARTIAL:-}" && "$line" == *keepteh* ]]; then
+        entry='{"type":"typo","path":"'"$target"'","line_num":'"$reported"',"byte_offset":0,"typo":"teh","corrections":["the"]}'
+        out+="$entry"$'\n'
+        survive+="$entry"$'\n'
+        residual=1
+      elif [[ -n "${STUB_MIXED:-}" && "$line" == *keepteh* ]]; then
         out+='{"type":"typo","path":"'"$target"'","line_num":'"$reported"',"byte_offset":0,"typo":"teh","corrections":null}'$'\n'
         residual=1
       else
@@ -227,7 +238,12 @@ if ((write == 1)); then
   # Re-emit only what survived the write. Under STUB_MIXED the disallowed `teh`
   # survives too, so drop only the fixable form (the one carrying a corrections
   # array) rather than every `teh` line.
-  if [[ -n "${STUB_MIXED:-}" ]]; then
+  if [[ -n "${STUB_PARTIAL:-}" ]]; then
+    # Every fixable `teh` was rewritten except the marked ones, which are
+    # byte-identical to the rewritten ones in every field but the line number.
+    printf '%s' "$out" | grep -v '"typo":"teh"'
+    printf '%s' "$survive"
+  elif [[ -n "${STUB_MIXED:-}" ]]; then
     printf '%s' "$out" | grep -v '"typo":"teh","corrections":\['
   else
     printf '%s' "$out" | grep -v '"typo":"teh"'
@@ -453,6 +469,33 @@ if printf '%s' "$CTX_MX" | grep -qF '(line 2)'; then
   ok "stub/mixed: the disallowed occurrence is still reported, as a residual"
 else
   fail "stub/mixed: disallowed occurrence vanished from the report: $CTX_MX"
+fi
+
+# --- One token, many occurrences, only SOME of them applied ------------------
+# Cancelling residuals by count has to choose WHICH scan occurrences it calls
+# applied, and for a repeated finding nothing in the key distinguishes them.
+# Here the same fixable spelling appears on lines 1, 2 and 3; line 2 survives
+# the write. Cancelling by count alone drops the EARLIEST occurrence, which
+# would report line 2 — the one that was not rewritten — as applied and drop
+# line 1's real rewrite. Preferring a scan finding whose line the write pass
+# reported as residual gets it right whenever nothing moved.
+printf 'a has teh one\nkeepteh has teh two\nc has teh three\n' >"$STUB_REPO/partial.txt" # spellchecker:disable-line
+OUT_PT=$(run_stub "$STUB_REPO/partial.txt" STUB_PARTIAL=1)
+CTX_PT=$(printf '%s' "$OUT_PT" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+if printf '%s' "$CTX_PT" | grep -qF '(line 1)' && printf '%s' "$CTX_PT" | grep -qF '(line 3)'; then
+  ok "stub/partial: both real rewrites are attributed to their own lines"
+else
+  fail "stub/partial: applied lines misattributed: $CTX_PT"
+fi
+if printf '%s' "$CTX_PT" | grep -qE '^  "[^"]*" -> "[^"]*" \(line 2\)'; then
+  fail "stub/partial: the surviving occurrence was disclosed as a rewrite: $CTX_PT"
+else
+  ok "stub/partial: the surviving occurrence is not disclosed as a rewrite"
+fi
+if printf '%s' "$CTX_PT" | grep -q 'REWROTE 2 word'; then
+  ok "stub/partial: the applied COUNT is exact"
+else
+  fail "stub/partial: applied count wrong: $CTX_PT"
 fi
 
 # --- Disclosure is capped ----------------------------------------------------

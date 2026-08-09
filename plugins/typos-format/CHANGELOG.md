@@ -22,6 +22,12 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
   fixable occurrence beside a disallowed one. Keyed on the token alone those merge, and the count
   can then retire the fixable entry and disclose the disallowed one instead: a rewrite claimed at
   the wrong line with a blank correction, while the rewrite that really happened goes unmentioned.
+  Which scan occurrences a cancellation consumes is chosen by line first: a scan finding sitting on
+  a line the write pass reported as residual is cancelled ahead of one that is not, so when nothing
+  moved the attribution is exact and only a real reflow falls back to dropping the earliest. Without
+  that preference a token appearing three times with only the middle one residual reported the
+  residual line as applied and dropped a rewrite that really happened. The count is the guarantee;
+  the applied line numbers are best-effort for a repeated finding that genuinely moved.
   The trade is deliberate and
   one-directional: counting can only UNDER-report an applied correction (a missing disclosure
   line), never invent one. Still unclosed, and stated in the source: a concurrent writer that

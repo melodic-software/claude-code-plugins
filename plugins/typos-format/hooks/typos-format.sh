@@ -353,14 +353,25 @@ CLASSIFIED=$(printf '%s\n@@typos-format-split@@\n%s\n' "$SCAN_OUTPUT" "$RESIDUAL
     (split("\n")) as $lines
     | (($lines | index("@@typos-format-split@@")) // ($lines | length)) as $sep
     | parse($lines[($sep + 1):]) as $r
-    | (reduce $r[] as $f ({}; ($f | tokof) as $t | .[$t] += 1)) as $rescount
-    # Drop, per token, as many scan findings as survived the write; whatever is
-    # left over is what typos actually applied. Slicing a group is linear. The
-    # final sort undoes group_by clustering so the disclosure still reads in
-    # file order — the order a person checking the rewrites reads the file in.
+    | (reduce $r[] as $f ({}; ($f | tokof) as $t | .[$t] += [$f.line_num // 0])) as $reslines
+    # Drop, per key, as many scan findings as survived the write; whatever is
+    # left over is what typos actually applied. WHICH ones get dropped is chosen
+    # by line first: a scan finding sitting on a line the write pass reported as
+    # residual is cancelled ahead of one that is not, so when nothing moved the
+    # attribution is exact. Only when a line no longer matches — the reflow case
+    # — does this fall back to dropping the earliest, which is why the count is
+    # the guarantee and the applied LINE numbers are best-effort for a repeated
+    # finding. Without the line preference, a token appearing three times with
+    # only the middle one residual would report the residual line as applied and
+    # drop a rewrite that really happened. jq sorts stably, so equal-rank
+    # entries keep scan order. The final sort undoes group_by clustering so the
+    # disclosure still reads in file order — the order a person checking the
+    # rewrites reads the file in.
     | (parse($lines[0:$sep])
        | group_by(tokof)
-       | map(.[(($rescount[(.[0] | tokof)]) // 0):])
+       | map(($reslines[(.[0] | tokof)] // []) as $rl
+             | sort_by((.line_num // 0) as $ln | if ($rl | index($ln)) then 0 else 1 end)
+             | .[($rl | length):])
        | add // []
        | sort_by(.line_num // 0)) as $a
     | {
