@@ -36,14 +36,17 @@ All notable changes to the `source-control` plugin are documented here. Format f
   now spell `GH_REPO=<owner>/<repo>`, as the worker contract already required for remote-only `gh`
   calls.
 
-- **A `VALID (defer)` no longer requires a capability the skill documents as optional (#1633).**
-  Grounding a deferral mandated filing a work-item tracker item before the D5 reply, which a
-  consumer with no tracker integration cannot do — so D5 could not be posted and the thread blocked
-  `full` mode indefinitely, contradicting the graceful-degrade contract that treats a tracker as
-  optional and forbids blocking a phase on an absent adjacent tool. With no reachable tracker
-  `VALID (defer)` is simply not an available disposition: fix the finding now, or reply saying why
-  the fix does not belong in this change, leave the thread unresolved, and report it for the user
-  to place.
+- **The `VALID (defer)` grounding rule states its no-tracker branch (#1633).** Grounding a deferral
+  mandates filing a work-item tracker item before the D5 reply, and the rule named no branch for the
+  consumer that has no tracker to file into — even though the same skill documents a tracker as an
+  optional adjacent capability whose absence must never block a phase. Reaching that branch never
+  actually stalled `full` mode (the degrade clause and a `VALID (fix now)` reclassification both
+  already escaped it); what was missing was the instruction saying so. It is now stated: with no
+  reachable tracker `VALID (defer)` is simply not an available disposition — fix the finding now, or
+  reply saying why the fix does not belong in this change, leave the thread unresolved, and report
+  it for the user to place. Carried on all three surfaces that state the filing mandate: the
+  canonical `review-discipline.md` §3 clause and its `pull-request` `SKILL.md` and `monitor.md`
+  restatements.
 
 ## [0.49.2]
 
