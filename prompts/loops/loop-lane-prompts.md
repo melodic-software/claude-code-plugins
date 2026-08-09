@@ -1118,8 +1118,10 @@ with the operator's signature on them.
 >   error text this session sees, taking resume timing from that error
 >   text where available and otherwise backing off and retrying. Read the
 >   detection records on entering reactive-only and again before each new
->   work claim; records newer than the last resume attempt are live signal,
->   older ones are history and never justify a new pause on their own. A later
+>   work claim; the recency baseline is this session's own start time,
+>   advanced by each resume attempt — records newer than it are live
+>   signal, older ones are history and never justify a new pause on their
+>   own. A later
 >   fresh snapshot with plausible windows upgrades the mode back to
 >   proactive. Report the mode, and which windows counted as plausible, in
 >   this pass's report.
@@ -1936,8 +1938,10 @@ to the template re-renders here too.
 >   error text this session sees, taking resume timing from that error
 >   text where available and otherwise backing off and retrying. Read the
 >   detection records on entering reactive-only and again before each new
->   work claim; records newer than the last resume attempt are live signal,
->   older ones are history and never justify a new pause on their own. A later
+>   work claim; the recency baseline is this session's own start time,
+>   advanced by each resume attempt — records newer than it are live
+>   signal, older ones are history and never justify a new pause on their
+>   own. A later
 >   fresh snapshot with plausible windows upgrades the mode back to
 >   proactive. Report the mode, and which windows counted as plausible, in
 >   this pass's report.
