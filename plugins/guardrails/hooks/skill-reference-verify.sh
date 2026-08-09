@@ -364,7 +364,7 @@ reconstruct_partial_edit() {
   content=${content//$'\r'/}
   ((${#content} <= RECONSTRUCT_MAX_CHARS)) || return 0
 
-  local ctx="" nspan=0 anchor alen off hs he head tail cap
+  local ctx="" nspan=0 anchor alen off hs he head tail cap located_whole=0
   local -a offs=() anchors=()
 
   # The hunk is written to disk CONTIGUOUSLY, so locate it WHOLE first — one scan
@@ -376,6 +376,8 @@ reconstruct_partial_edit() {
   anchor_offsets "$SCAN_CONTENT"
   if ((${#offs[@]})) && { [[ "$REPLACE_ALL" == "true" ]] || ((${#offs[@]} == 1)); }; then
     anchors=("$SCAN_CONTENT")
+    # $offs already holds this anchor's offsets; the loop must not pay for them twice.
+    located_whole=1
   else
     # FALLBACK, for a hunk that is no longer on disk verbatim — another PostToolUse
     # hook may have reformatted the file between the write and this read — or one
@@ -395,7 +397,7 @@ reconstruct_partial_edit() {
     ((alen)) || continue
     [[ -n "${seen[$anchor]:-}" ]] && continue
     seen["$anchor"]=1
-    anchor_offsets "$anchor"
+    if ((located_whole)); then located_whole=0; else anchor_offsets "$anchor"; fi
     ((${#offs[@]})) || continue
     # A non-unique anchor cannot say WHICH occurrence the edit landed on, so it is
     # dropped rather than unioned. Cost: a missed advisory when an edit lands in
