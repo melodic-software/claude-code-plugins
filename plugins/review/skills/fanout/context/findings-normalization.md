@@ -26,11 +26,14 @@ SKILL.md "Orchestrator plugins" takes the pre-dispatch comment-ID snapshot, beca
 gh pr view <n> --json comments |
   jq -r --argjson seen '<the recorded id array>' '[.comments[]
     | select(.id as $id | $seen | index($id) | not)
-    | select(.body | contains("### Code review"))]
+    | select(.body | startswith("### Code review"))
+    | select(.body | contains("🤖 Generated with [Claude Code]"))]
     | if length == 1 then .[0].body else empty end'
 ```
 
 Identity, not position or time. `.comments[-1]` is whatever landed most recently, with no filter at all — any bot or reviewer commenting between the dispatch and this fetch is normalized as `code-review` findings and corrupts the persisted report. A timestamp cutoff narrows the window but still cannot say who wrote a comment inside it, so a third party quoting the `### Code review` heading mid-dispatch would win it. The ID-set difference answers the question actually being asked: which comment did not exist before this invocation.
+
+Identity says a comment is NEW, not whose it is — so shape is the second filter. A third party quoting the review mid-dispatch posts a genuinely new comment carrying the heading, and when the dispatch itself posted nothing that quotation is the only new match, so a substring test would normalize it as this surface's findings. The plugin's command file mandates ("follow the following format precisely") a body that BEGINS with the `### Code review` heading and carries the `🤖 Generated with [Claude Code]` trailer; a quotation fails both, because `> ### Code review` is not a `startswith`. Match the trailer by that prefix, never its full link — the URL is free to change upstream and would silently un-match. Author is deliberately not a third filter: the plugin posts via `gh pr comment` under whatever credential invoked it, so there is no fixed login to match and a hardcoded one would break for the next consumer.
 
 The `length == 1` guard is the refusal to guess. Zero new heading-bearing comments means the dispatch produced none; two or more means the window is genuinely ambiguous. Both yield empty output — the row has no input, so the surface is not normalized and belongs in `## Surfaces` as a skip. Never widen the filter or fall back to the latest comment to fill it.
 
