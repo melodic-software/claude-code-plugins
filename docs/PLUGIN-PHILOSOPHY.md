@@ -82,11 +82,16 @@ blanket-sanctioned.
 A plugin skill declares no frontmatter `name`. The field is optional and defaults to the directory
 name ([frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference), fetched
 2026-08-09), and the directory here is already the name the skill is documented and invoked by, so
-declaring it restates the path in the character set the Agent Skills specification allows. Reserve
-`name` for the one case that earns it — a last command segment that must differ from the directory —
-and take its second effect deliberately: in a plugin skill a declared `name` also registers the bare
-`/<name>` alongside the namespaced command, unless another command already owns that token
+declaring it restates the path in the character set the Agent Skills specification allows. The one
+effect a declaration still buys is the bare alias: in a plugin skill a declared `name` also registers
+the bare `/<name>` alongside the namespaced command, unless another command already owns that token
 ([how a skill gets its command name](https://code.claude.com/docs/en/skills#how-a-skill-gets-its-command-name)).
+Declare it only to take that alias deliberately, and only with the value the directory already
+carries. A `name` that *differs* from its directory is out of bounds here even though the harness
+honors it: it would relocate the last command segment away from the directory that
+`scripts/check-skill-leaf-names.sh` derives every leaf from, desynchronizing the cross-plugin
+collision registry from the commands that actually resolve — which is why `skill-quality`'s check 1
+fails a divergent `name` and only warns on a redundant one.
 Never degrade a name to dodge a built-in command: plugin skills are namespaced and cannot collide
 with other levels. When a name matches a built-in, the bare token still belongs to the built-in; the
 namespaced form is the plugin skill's only command.
