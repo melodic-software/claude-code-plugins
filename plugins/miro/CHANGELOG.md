@@ -3,6 +3,22 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.3]
+
+### Fixed
+
+- Setup skill's headless bootstrap registers the marketplace at the chosen scope:
+  `claude plugin marketplace add <source> --scope <scope>`. The bare form writes the registration to
+  *user* settings while the `install`/`enable` steps below it carry `-s <scope>`, so a `project`
+  bootstrap left a fresh clone or CI agent with the enabled plugin and no marketplace to resolve it
+  from (`docs/MIGRATION-PLAYBOOK.md` "Fresh-consumer onboarding"). The prose now also names the flag
+  asymmetry: `marketplace add` accepts `--scope` only, while `install` and `enable` also take `-s`.
+- Setup skill's headless rotation drops the no-op `-y` from `claude plugin uninstall` and the false
+  rationale attached to it. `-y` skips only `uninstall`'s `--prune` confirmation; the recipe never
+  passes `--prune`, so the flag changed nothing and the claimed CI hang could not occur. Completes
+  the same correction 0.21.2/0.17.2/0.3.1 landed for `claude-ops`, `session-flow`, and
+  `rate-limit-guard`.
+
 ## [0.2.2]
 
 ### Added

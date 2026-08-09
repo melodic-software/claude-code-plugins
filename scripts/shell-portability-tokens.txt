@@ -168,52 +168,86 @@ echo[[:space:]]+-[neE]*e([neE]|['"][neE]*['"])*([[:space:]|&;()]|[<>]([^(]|$)|$)
 # of false negative the `--sort=WORD` boundary above was built to avoid, now
 # widened to match it (#1537, found while auditing #1530's own new token for
 # the same defect).
+# The QUOTE may also sit on the OUTSIDE of the whole option word, not only
+# around its WORD value: `sort '--sort=version' "$file"` and
+# `sort "--sort" version` hand GNU sort the identical `--sort=version` /
+# `--sort version` arguments after quote removal, yet a pattern demanding
+# whitespace immediately before `--sort` — and a `=` or blank immediately
+# after it — matched neither. An optional quote is therefore admitted at both
+# positions, the same interleaving the `grep -P` token above documents for its
+# own cluster. `git tag --sort=version:refname` stays clean for the reason it
+# already did: the WORD boundary still rejects the longer `version:refname`.
 sort[^;&|\n]*[[:space:]]-[A-Za-z]*V([A-Za-z]|['"][A-Za-z]*['"])*([[:space:]|&;()]|[<>]([^(]|$)|$)
 --version-sort
-sort[^;&|\n]*[[:space:]]--sort(=|[[:space:]]+)['"]?version([[:space:]|&;()'"`]|[<>]([^(]|$)|$)
+sort[^;&|\n]*[[:space:]]['"]?--sort['"]?(=|[[:space:]]+)['"]?version([[:space:]|&;()'"`]|[<>]([^(]|$)|$)
 
 # `sed -i` with no suffix argument attached — GNU treats the suffix as
-# optional; BSD sed requires one immediately after `-i`. This intentionally
-# ALSO flags the space-separated empty-suffix idiom (`-i ''` / `-i ""`): it
-# looks BSD-safe but is not actually portable — verified against a real GNU
-# sed 4.9, that exact invocation exits 2, because GNU consumes the
-# space-separated empty string as sed's SCRIPT argument, silently shifting
-# the real script and target file to be opened as filenames. The one
-# genuinely dual-compatible spelling is an ATTACHED nonempty suffix
-# (`sed -i.bak '...' file && rm -f file.bak`), which this token does not
-# match (no separating whitespace) — correctly never flagged. Still does not
-# cover an attached-not-space-separated EMPTY suffix (`-i''`) — ambiguous
-# with BSD's own attached-suffix syntax, needs real sed-dialect research
-# before encoding, not a quick pattern tweak — see #1513.
-sed[^\n]*-i[[:space:]]+[^[:space:]]
-
-# `sed -Ei` (extended-regex and in-place combined into one short-flag cluster,
-# with `-i` UNSUFFIXED) — the `-i[[:space:]]+[^[:space:]]` token above only
-# catches a literal standalone `-i`; it does not match a cluster like `-Ei`
-# (no literal `-i` substring — the char after `-` is `E`, not `i`). `E` and
-# `i` need not be adjacent and need not be the cluster's only letters
-# (`-nEi`), mirroring the combined-cluster treatment #1511 already applies to
-# `grep -P` / `sort -V` / `echo -e` — but `i` MUST be the cluster's last
-# letter. GNU's own syntax is `-i[SUFFIX]`, so any letter after `i` is an
-# attached backup suffix, not another option: `sed -iE` writes `fileE`
-# (verified against a real GNU sed 4.9), making it the dual-compatible
-# attached-nonempty-suffix form, correctly never flagged — same as `-i.bak`
-# and `-Ei.bak`. An attached EMPTY suffix (`-Ei''`) is the same ambiguous
-# shape `-i''` is, deferred above, and likewise not flagged here. Anchored to
-# a `sed` COMMAND token (start of line or a non-identifier character before
-# it, whitespace after) — `-i` alone is common across tools (`grep -i`,
-# `sort -i`...), and a bare `sed` substring match would fire on identifiers
-# that merely contain those three letters (`used="$(grep -Ei ...)"`). Boundary
-# after the cluster widens to a control operator, a redirection, or a
-# subshell close — NOT a quote or backtick, unlike the sibling `sort -V` /
-# `grep -P` / `echo -e` tokens (#1537/#1546): a quote immediately following
-# `i` with no separating whitespace is exactly the attached-EMPTY-suffix
-# shape (`-Ei''`) deferred two paragraphs up, so including quotes in the
-# boundary would silently un-defer it by making `-Ei''` match at the `i`+`'`
-# junction. An operator-terminated form with no trailing whitespace
-# (`x=$(sed -Ei)`, `sed -Ei|cat`, `sed -Ei; echo done`) is still detected —
-# a whitespace-only boundary silently missed those (#1545).
-(^|[^[:alnum:]_])sed([[:space:]][^\n]*)?[[:space:]]-[A-Za-z]*E[A-Za-z]*i([[:space:]|&;()<>]|$)
+# optional; BSD sed requires one immediately after `-i`.
+#
+# ONE token covers every spelling of the short form, because `-i` standing
+# alone and `-i` ending a cluster are the same option. GNU sed 4.9's
+# `--help` documents `-i[SUFFIX]` alongside the no-argument short options
+# `-n`, `-b`, `-E`, `-r`, `-s`, `-u` and `-z`, so ANY cluster built from those
+# letters and ending in `i` is an unsuffixed in-place edit: `sed -ni '/keep/p'`
+# is exactly that, and running it confirms the trailing `i` enables in-place
+# editing with no suffix to give BSD sed. Two narrower predecessors read it
+# clean — one keyed on a literal `-i` substring, which `-ni` does not contain,
+# the other on an `E` earlier in the cluster. The ARGUMENT-taking letters
+# `-e`, `-f` and `-l` are deliberately outside the class: GNU accepts their
+# value attached, so `sed -ei` passes the script `i` rather than editing in
+# place, and a letter outside the documented set makes the word an unknown
+# option that sed rejects — no GNU-only behaviour to report either way.
+#
+# `i` MUST be the cluster's LAST letter. GNU's own syntax is `-i[SUFFIX]`, so
+# any character after `i` is an attached backup suffix, not another option:
+# `sed -iE` writes `fileE` (verified against a real GNU sed 4.9), making it the
+# dual-compatible attached-nonempty-suffix form, correctly never flagged — the
+# same shape as `-i.bak` and `-Ei.bak`.
+#
+# The token intentionally ALSO flags the space-separated empty-suffix idiom
+# (`-i ''` / `-i ""`): it looks BSD-safe but is not actually portable —
+# verified against a real GNU sed 4.9, that exact invocation exits 2, because
+# GNU consumes the space-separated empty string as sed's SCRIPT argument,
+# silently shifting the real script and target file to be opened as filenames.
+# It still does not cover an attached-not-space-separated EMPTY suffix
+# (`-i''`, `-Ei''`) — ambiguous with BSD's own attached-suffix syntax, needs
+# real sed-dialect research before encoding, not a quick pattern tweak — see
+# #1513. That deferral is what keeps a quote OUT of the boundary after the
+# cluster, unlike the sibling `sort -V` / `grep -P` / `echo -e` tokens: a quote
+# immediately following `i` with no separating whitespace IS the deferred
+# shape, so admitting one would silently un-defer it at the `i`+`'` junction.
+# The boundary is otherwise a control operator, a redirection, or a subshell
+# close, so an operator-terminated form with no trailing whitespace
+# (`x=$(sed -Ei)`, `sed -Ei|cat`, `sed -Ei; echo done`) is still detected.
+#
+# Anchored to a `sed` COMMAND token (start of line or a non-identifier
+# character before it, whitespace after) — `-i` alone is common across tools
+# (`grep -i`, `sort -i`...), and a bare `sed` substring match fires on
+# identifiers that merely CONTAIN those three letters, which "used" does:
+# `used="$(grep -i pattern "$file")"` was reported as a GNU sed call.
+#
+# The gap between the command name and the cluster stops at a shell command
+# separator, exactly as the `date -d` / `stat -c` / `mktemp -p` tokens below
+# do: a physical line is not a command, so `[^\n]*` crossed `;`, `&&` and `|`
+# and armed this token with a LATER command's options —
+# `sed -n 'p' "$file"; grep -Ei pattern "$file"` was reported even though only
+# `grep` receives `-Ei`. Quoted separators are neutralized before this matches
+# (see check-shell-portability.sh), so a `;` inside a sed script or a filename
+# stays ordinary data and does not end the gap.
+#
+# The gap also excludes a bare `(` or `)`, which are not separators but DO end
+# the command that owns the flag: without that, `foo=$(sed -n 'p' "$a")
+# bar=$(tool -i "$b")` misattributes `tool`'s `-i` to `sed`. A PROCESS
+# substitution is the one paren that must survive the gap — the shell
+# concatenates it onto the word it touches rather than making it a command of
+# its own, so `sed -f <(gen) -Ei "$f"` is a single GNU-only sed call and the
+# earlier `[^;&|()`\n]*` spelling stopped at its `(` and missed the `-Ei`
+# entirely. `[<>]\([^)]*\)` readmits exactly that shape and nothing else:
+# `collapse_subs` keeps process substitutions verbatim in BOTH views (see
+# check-shell-portability.sh) precisely because they are not their own word,
+# so the alternative matches on either. A `)` closing a real subshell still
+# ends the gap.
+(^|[^[:alnum:]_])sed([[:space:]]([^;&|()`\n]|[<>]\([^)]*\))*)?[[:space:]]-[bEnrsuz]*i([[:space:]|&;()<>]|$)
 
 # `sed --in-place[=SUFFIX]` (GNU long-form spelling of `-i`) — BSD sed has no
 # long options at all, so this flags suffixed or not (unlike short `-i`, where
@@ -228,8 +262,13 @@ sed[^\n]*-i[[:space:]]+[^[:space:]]
 # either, kept alongside the pre-existing `=` alternative for the
 # `--in-place=SUFFIX` attached-value form: `x=$(sed --in-place)`,
 # `sed --in-place|cat`, `sed --in-place; echo done` are now detected, not
-# only the whitespace- or `=`-terminated forms.
-(^|[^[:alnum:]_])sed([[:space:]][^\n]*)?[[:space:]]--in-place([[:space:]|&;()<>]|=|$)
+# only the whitespace- or `=`-terminated forms. Its command gap is the
+# cluster token's, character for character, and carries that comment's whole
+# rationale: it stops at a shell command separator — `sed -n 'p' "$file" &&
+# tool --in-place x` was reported as a GNU sed call even though the option
+# belongs to `tool` — and at a bare paren, while still admitting a process
+# substitution, so `sed -f <(gen) --in-place "$f"` stays detected.
+(^|[^[:alnum:]_])sed([[:space:]]([^;&|()`\n]|[<>]\([^)]*\))*)?[[:space:]]--in-place([[:space:]|&;()<>]|=|$)
 
 # `readlink -f` (canonicalize) — a GNU coreutils extension; BSD/macOS readlink
 # has no `-f`/`--canonicalize`. Auto-guarded when a `realpath` attempt is

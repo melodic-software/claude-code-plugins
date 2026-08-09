@@ -38,11 +38,14 @@ failed without writing a byte — and the sidecar count agrees too, because both
 sections. The gate would report success and planning would proceed against a stale snapshot of the
 codebase, which is the original failure wearing a different hat.
 
-So the parent touches `<slice>/.explore-dispatch` immediately before dispatching and passes it as
-`--newer-than`. The index has to be strictly newer than that baseline. A baseline the parent named
-but that is not on disk exits 2 rather than quietly reporting `freshness=unchecked`: a check the
-caller asked for and only appeared to get is worse than one it knowingly skipped, which is why
-every opt-in check reports `unchecked` in the verdict line instead of being absent from it.
+So the parent creates the slice if it is not there and touches `<slice>/.explore-dispatch`
+immediately before dispatching, then passes that file as `--newer-than`. The `mkdir -p` half is
+load-bearing on a first-time scope: a bare `touch` into a directory that does not exist yet fails,
+and the dispatch either never starts or reaches the gate with no baseline. The index has to be
+strictly newer than that baseline. A baseline the parent named but that is not on disk exits 2
+rather than quietly reporting `freshness=unchecked`: a check the caller asked for and only appeared
+to get is worse than one it knowingly skipped, which is why every opt-in check reports `unchecked`
+in the verdict line instead of being absent from it.
 
 ## Why the payload's pointer is checked against the graded index
 
