@@ -283,7 +283,7 @@ fi
 #     reading and the absence of the octal diagnostic.
 out="$(cd "$TMP" && CHECK_SKILL_LISTING_BUDGET_CHARS=0123 bash "$SUT" "$ROOT_A" 2>&1)"
 rc=$?
-if [[ $rc -eq 0 ]] && grep -q 'budget:.*123 chars (override' <<<"$out" && ! grep -q 'octal' <<<"$out"; then
+if [[ $rc -eq 0 ]] && grep -qE 'budget:.*(^|[^0-9])123 chars \(override' <<<"$out" && ! grep -q 'octal' <<<"$out"; then
   pass "a zero-padded fixed budget is read as decimal 123, not octal 83"
 else
   fail "CHECK_SKILL_LISTING_BUDGET_CHARS=0123 should report a 123-char budget (rc=$rc): $out"
@@ -293,8 +293,8 @@ fi
 #      budget to 0 and reported a bogus "OK" while exiting 0.
 out="$(cd "$TMP" && CHECK_SKILL_LISTING_BUDGET_CHARS=08 bash "$SUT" "$ROOT_A" 2>&1)"
 rc=$?
-if [[ $rc -eq 0 ]] && grep -q 'budget:.*8 chars (override' <<<"$out" &&
-  ! grep -q 'octal' <<<"$out" && ! grep -q 'budget:.*0 chars' <<<"$out"; then
+if [[ $rc -eq 0 ]] && grep -qE 'budget:.*(^|[^0-9])8 chars \(override' <<<"$out" &&
+  ! grep -q 'octal' <<<"$out" && ! grep -qE 'budget:.*(^|[^0-9])0 chars' <<<"$out"; then
   pass "a zero-padded 08 fixed budget is read as decimal 8, not an octal error"
 else
   fail "CHECK_SKILL_LISTING_BUDGET_CHARS=08 should report an 8-char budget (rc=$rc): $out"
