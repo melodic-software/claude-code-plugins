@@ -12,7 +12,7 @@ Set effort to 'max' — Claude reasons longer, uses as many tokens as needed. Bu
 > /effort max
 ```
 
-Four levels: low, medium (default), high, max. Use 'max' for hard debugging, architecture decisions, tricky code where Claude needs to think it through.
+Five levels: low, medium, high, xhigh, max — default is `high` (`xhigh` on Opus 4.7). Use 'max' for hard debugging, architecture decisions, tricky code where Claude needs to think it through.
 
 Source: https://x.com/trq212/status/2032632596572811575
 

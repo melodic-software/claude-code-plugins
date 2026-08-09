@@ -11,9 +11,9 @@ disable-model-invocation: false
 Before emitting a critique, diagnosis, audit verdict, variation set, or rewrite, run **§3 Critique
 filter** and **§8 Pre-lock filter** of
 [response-filter](../../context/pat-pattison/research/response-filter.md) (add **§2 Line-writing**
-when producing rewritten lines). NAME each box's pass / fail / skip-with-reason; correct before
-emission. Skips are valid; silent skips are not — list-and-leave critique is the default this
-filter catches.
+when producing rewritten lines). NAME each box's pass / fail / skip-with-reason (aloud or in
+reasoning); correct before emission. Skips are valid; silent skips are not — list-and-leave
+critique is the default this filter catches.
 
 ## Purpose
 

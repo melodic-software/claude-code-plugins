@@ -17,9 +17,10 @@ captured in the other context files. It is the gate, not new craft.
 The filter is a tool the AI uses to check its own work. The AI may skip a box
 when justified — but a skip must be NAMED. Silent skips are not OK.
 
-When the AI applies the filter and finds nothing applicable, it says so out
-loud: *"Filter scan: no rhyme position, no abstract telling, no hot-spot
-exposure — clear to emit."* Naming the no-op proves the gate ran.
+When the AI applies the filter and finds nothing applicable, it names the
+no-op (aloud or in reasoning): *"Filter scan: no rhyme position, no abstract
+telling, no hot-spot exposure — clear to emit."* Naming the no-op proves the
+gate ran.
 
 ## How to use this file
 
@@ -326,8 +327,8 @@ about to suggest a title or hook position.
       + front-heavy or back-heavy)
 - [ ] **≥5 title candidates surfaced** — not one pick
 - [ ] **Title types varied** across Pat's seven (per [hook.md](hook.md)):
-      central-idea / image / verb / question / command / direct-address /
-      paradox-or-irony
+      one-word / place-name / person-name / color-or-sensory / comparative /
+      word-play / sonic-bonding
 - [ ] **Rhyme stability tested** per finalist — what can rhyme with each
       title's stressed vowel
 - [ ] **Form fit named** — does the title repeat well (chorus form) or

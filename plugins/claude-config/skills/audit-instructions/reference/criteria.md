@@ -1,5 +1,5 @@
 ---
-version: 1.20.0
+version: 1.21.0
 last-updated: 2026-08-08
 ---
 
@@ -90,7 +90,7 @@ non-memory surfaces (skill bodies, agent definitions, hook instruction text, out
 memory-layer surfaces (CLAUDE.md, CLAUDE.local.md, `.claude/rules/`, `~/.claude/rules/`) their
 findings route to the `claude-memory` plugin's `audit` skill when it is installed, and fall back
 to the official include/exclude guidance (I1–I5 source below) when it is not. Checks I6–I12 and
-I15–I27 apply to all surfaces; I13 and I14 name narrower surface sets in their own rows.
+I15–I28 apply to all surfaces; I13 and I14 name narrower surface sets in their own rows.
 
 ## Sources
 
@@ -210,8 +210,13 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
   in its own context, and path-scoped rules are invisible there
   (<https://code.claude.com/docs/en/sub-agents>), so proposing one for instructions the agent needs
   removes them from every dispatch rather than deferring them. Name a destination the agent itself
-  reaches — a skill the agent's definition invokes or preloads, or text kept in the definition — and
-  never a `paths:`-scoped rule.
+  reaches — a skill the agent's definition **invokes at runtime**, or text kept in the definition —
+  and never a `paths:`-scoped rule. **A `skills:` preload is not such a destination**: the full
+  content of each listed skill is injected into every dispatch of that agent, so the content is
+  resident for every unrelated use exactly as it was in the definition, and the move defers nothing —
+  the same disqualification `@path` imports carry above. When the agent has no conditional runtime
+  invocation to move the content to, report that no safe deferral is available rather than proposing
+  a preload that satisfies this check's letter and changes the load profile not at all.
 - **Adjacent axis:** this check is load *timing*. Definition-site *locality* — an instruction sitting
   away from the thing it governs — is I16, and an instruction can be correctly deferred here and
   still misplaced there.
@@ -222,7 +227,8 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
   descriptions are loaded into context so Claude knows what's available, but full skill content only
   loads when invoked", the combined `description` and `when_to_use` text "is truncated at 1,536
   characters in the skill listing to reduce context usage", and "Plugin skills are not affected by
-  `skillOverrides`."
+  `skillOverrides`."; subagents, on a skill named in an agent's `skills:` field — "The full content
+  of each listed skill is injected into the subagent's context at startup."
 
 ### I4: Inferable or redundant content
 
@@ -283,36 +289,51 @@ so this fires for every target model.
 
 Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surfaces: all.
 
-The base row and rows I8-a, I8-c and I8-d carry their own `Model scope` (single-model guide
-sources; promotion gate unmet). Rows I8-b and I8-e are unscoped — two model guides converge on
-each (see the rows).
+Rows I8-a, I8-c and I8-d carry their own `Model scope` (single-model guide sources; promotion
+gate unmet). The base row and rows I8-b and I8-e are unscoped — a model-agnostic statement or
+convergent model guides meet the gate for each (see the rows); the base row's delegation-throttle
+worked instance keeps a `fable-5` scope of its own.
 
-**Base row** · Model scope: `fable-5`.
+**Base row** · Unscoped — promotion gate MET on 2026-08-08: the model-agnostic best-practices page
+states the claim under its all-current-models framing — "Prefer general instructions over
+prescriptive steps. A prompt like 'think thoroughly' often produces better reasoning than a
+hand-written step-by-step plan. Claude's reasoning frequently exceeds what a human would
+prescribe." (Previously scoped `fable-5` on that guide's statement alone.) **The worked instance
+below keeps a `fable-5` scope of its own** — its basis is Fable-specific and the Opus guides run
+the other way.
 
 - **Detect:** prior-model workarounds and over-prescriptive step lists — instructions enumerating
   behaviors a current model handles from a brief instruction, or scaffolding that pins an approach.
-  **One named worked instance, offered for recognition rather than as a separate rule: a delegation
-  throttle** — a cap on concurrent workers, a one-at-a-time rule, or an instruction to block until
-  each subagent returns before dispatching the next — where the surface's own ground for it is that
-  subagent handling is unreliable. Current guidance runs the other way, asking for readier
-  dispatch and asynchronous orchestrator-to-worker communication, so a throttle resting on that
-  premise is the generic case with a name on it. **A cap carrying its own non-model rationale is
+  **One named worked instance, offered for recognition rather than as a separate rule, and fired
+  only on a `fable-5` resolved target: a delegation throttle** — a cap on concurrent workers, a
+  one-at-a-time rule, or an instruction to block until each subagent returns before dispatching the
+  next — where the surface's own ground for it is that subagent handling is unreliable. The Fable 5
+  guide runs the other way, asking for readier dispatch and asynchronous orchestrator-to-worker
+  communication, so a throttle resting on that premise is the generic case with a name on it. On
+  `opus-5` and `opus-4-8` targets this instance is inert, not merely unattested: those guides
+  recommend delegation caps and note fewer spawns by default, so a throttle there is the
+  recommended shape rather than a workaround. **A cap carrying its own non-model rationale is
   not this instance** — reviewability of returns, rate limits, cost, or shared mutable state each
   justify a bound on their own terms, and that justification is the surface's to make, not this
   row's to override.
 - **Remediate:** propose removal or a briefer instruction; verify via the delete-and-watch loop
   that default performance holds or improves.
 - **Bounded by:** the **Stopping condition** below, which is enabled by default.
-- **Source:** Fable 5 guide — "Skills developed for prior models are often too prescriptive for
-  Claude Fable 5 and can degrade output quality." The worked instance's basis is the same guide,
-  "Parallel subagents" — "Claude Fable 5 dispatches parallel subagents more readily than prior
-  models. Use subagents frequently … and prefer asynchronous communication between orchestrator and
-  subagents over blocking until each subagent returns."
-- **The general principle, and why it is cited separately.** Both sentences above sit in sections
-  about *migrating* older material, and a reader taking them as the whole basis sweeps for what
-  looks like leftover prior-model scaffolding — walking straight past freshly authored
-  over-enumeration, which is the same defect with no legacy provenance to recognize it by. The
-  principle is stated on its own in "Strong instruction following": "Instruction-following is
+- **Source:** prompting best practices, "Leverage thinking & interleaved thinking capabilities" —
+  the prefer-general-instructions statement quoted above (the gate-meeting, model-agnostic one).
+  Convergent model guide: Fable 5 — "Skills developed for prior models are often too prescriptive
+  for Claude Fable 5 and can degrade output quality." The worked instance's basis is the same
+  guide, "Parallel subagents" — "Claude Fable 5 dispatches parallel subagents more readily than
+  prior models. Use subagents frequently … and prefer asynchronous communication between
+  orchestrator and subagents over blocking until each subagent returns"; its Opus counter-basis is
+  the Opus 5 guide's "Controlling subagent spawning" ("set deterministic caps … keep spawn counts
+  low") and the Opus 4.8 guide's "Controlling subagent spawning" ("tends to spawn fewer subagents
+  by default").
+- **The general principle, and why it is cited separately.** The migration-framed sentences above
+  point a reader at what looks like leftover prior-model scaffolding — walking straight past
+  freshly authored over-enumeration, which is the same defect with no legacy provenance to
+  recognize it by. The principle is also stated on its own in the Fable 5 guide's "Strong
+  instruction following": "Instruction-following is
   improved enough that you can steer most behaviors with a brief instruction rather than enumerating
   each behavior by name," and that guide's own worked case is a *newly written* brevity
   instruction replacing a list of patterns, not a migration. **Age is not an element of this row.**
@@ -648,14 +669,18 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `info` · Surfaces: 
 skill bodies.
 
 - **Detect:** an instruction directing the agent to go read a surface the main conversation loads at
-  startup and therefore already carries — the **root** `CLAUDE.md`, the user `CLAUDE.md` at the
-  **resolved** `${CLAUDE_CONFIG_DIR:-~/.claude}`, the **root** `CLAUDE.local.md`, unconditional
-  project rules (no `paths` frontmatter), and managed policy files. Two qualifiers are load-bearing.
+  startup and therefore already carries — the **root** project `CLAUDE.md` in **either** supported
+  location (`./CLAUDE.md` **or** `./.claude/CLAUDE.md`), the user `CLAUDE.md` at the **resolved**
+  `${CLAUDE_CONFIG_DIR:-~/.claude}`, the **root** `CLAUDE.local.md`, unconditional
+  project rules (no `paths` frontmatter), and managed policy files. Three qualifiers are load-bearing.
   Root-level: the startup guarantee is scoped to the hierarchy discovered from the launch directory,
   not to every file of that name in the tree. Resolved: `CLAUDE_CONFIG_DIR` moves the whole config
   tree, so a hardcoded `~/.claude/CLAUDE.md` both flags a read that is now necessary and misses the
-  redundant read of the configured path. Phase A resolves this variable already (`SKILL.md:76-78`);
-  match it. The read spends a turn to retrieve text that is already present.
+  redundant read of the configured path. Either location: a project that keeps its memory at
+  `./.claude/CLAUDE.md` loads it at startup exactly as `./CLAUDE.md` would, so a set naming only the
+  bare path lets the redundant read of the active file escape this check entirely. Phase A resolves
+  the variable and inventories both project locations already; match it. The read spends a turn to
+  retrieve text that is already present.
 - **Remediate:** cut the retrieval step and state the requirement the read was meant to satisfy.
 - **Must NOT flag: anything that loads on demand rather than at startup.** The guarantee this check
   rests on covers the hierarchy *the main conversation loads*, which is not the whole memory family.
@@ -667,7 +692,13 @@ skill bodies.
   established, leave it.
 - **Must NOT flag:** an instruction to read a surface that is *not* auto-loaded — `AGENTS.md`,
   contributing guides, ADRs, CI workflow files, per-ecosystem convention docs. Those are ordinary
-  progressive disclosure. **Any read where the file is the operation's subject rather than its
+  progressive disclosure — **but only while no active startup import reaches them.** A startup file
+  that carries `@docs/CONTRIBUTING.md`, or the `@AGENTS.md` the docs themselves recommend for an
+  `AGENTS.md` repo, has that file expanded into context at launch, so the document is resident and
+  an instruction to go read it is exactly the redundant retrieval this check exists to find.
+  **Resolve the startup set's `@path` imports first** — recursively, to memory's documented maximum
+  depth of four hops — and add what they reach to the loaded set; this exemption applies only to what
+  no such import reaches. **Any read where the file is the operation's subject rather than its
   instructions** — auditing it, editing it, patching it, reporting on it, or anything else needing
   current disk contents. The startup copy is a snapshot taken at launch; another process can have
   changed the file since, and a pre-edit read cut on the grounds that "it is already in context"
@@ -679,6 +710,11 @@ skill bodies.
   `~/.claude/CLAUDE.md`, project rules, `CLAUDE.local.md`, and managed policy files." The qualifier
   *the main conversation loads* is what bounds this check: memory documents lazy loading for
   "path-specific rules or lazy-loaded files in subdirectories", so those are outside the guarantee.
+  memory, on `@path` imports — "Imported files are expanded and loaded into context at launch
+  alongside the CLAUDE.md that references them", and "Imported files can recursively import other
+  files, with a maximum depth of four hops" — is what puts an imported supporting document inside it;
+  memory's `AGENTS.md` guidance recommends exactly such an import, and requires it on Windows, where
+  the symlink alternative needs elevation.
 
 ### I15: Cross-surface instruction conflict
 
@@ -1223,7 +1259,11 @@ not a `Model scope` annotation**, for the reason I17 states.
   where `high` was the no-op default and then carried to a model whose default sits above it, it
   silently becomes a step-down nobody measured — this row's subject exactly. A resolved target
   always exists, because the skill body aborts rather than run against an unresolved one, so this
-  fence never has to guess which side of it a surface falls on.
+  fence never has to guess which side of it a surface falls on. **The exemption speaks to
+  calibration staleness only, never to level adequacy:** a model guide may recommend running above
+  the default for named lanes — the Opus 4.8 guide recommends `xhigh` for coding and agentic use —
+  and whether a `high` pin under-serves such a lane is that surface's sizing decision, outside this
+  row's subject.
 - **Must NOT flag: a per-task or single-turn effort choice** — "reach for `xhigh` on hard problems",
   `ultrathink`, `ultracode` — which selects a level for one piece of work rather than pinning one.
   This row is about durable pins.
@@ -1554,6 +1594,42 @@ gate is unmet).
   effort page's Opus 5 section, both fetched that day. **Recheck trigger:** either page restating
   the property model-agnostically or a second model guide stating it (gate met → unscope), or
   either statement disappearing from its page.
+
+### I28: Over-aggressive trigger emphasis and blanket tool defaults
+
+Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surfaces: all. Unscoped —
+the claim sits on the model-agnostic best-practices page, its Migration considerations restate it
+generation-wide ("Claude 4.6 models are more proactive and may overtrigger on instructions that
+were needed for previous models"), and no later model guide reverses it; the Sonnet 5 and Opus 4.8
+literalism sections ("interprets prompts literally and explicitly") corroborate the mechanism.
+
+- **Detect — two arms of one defect, prompting written against undertriggering that no longer
+  exists:**
+  1. **Forced-compliance emphasis** on tool, skill, or behavior triggering — `CRITICAL:`,
+     `You MUST use`, `IMPORTANT:`, all-caps imperative runs — where the emphasis exists to make a
+     trigger fire rather than to mark a genuine gate.
+  2. **Blanket tool defaults** — "Default to using [tool]", "If in doubt, use [tool]" — where a
+     targeted condition was the intent.
+- **Must NOT flag: emphasis guarding a high-consequence area** — a safety gate, a destructive or
+  irreversible action, a security or permission boundary, an external contract — the same
+  carve-out set the Stopping condition applies; a loud marker on the step where being wrong is
+  expensive is design, not scar tissue. **Must NOT flag: a stated hard precondition** — an
+  ordering an API genuinely requires ("resolve the ID first; the call fails without it") is a
+  fact, however emphatically set. **Must NOT flag: a document *about* the pattern**, on the same
+  audience test I8-b applies — this row is the canonical instance.
+- **Remediate:** arm 1 — normal conditional phrasing: "Use this tool when …". Arm 2 — replace the
+  blanket default with the condition it was standing in for: "Use [tool] when it would enhance
+  your understanding of the problem." Verify via the delete-and-watch loop; watch for
+  overtriggering receding, not just continued triggering.
+- **Source:** prompting best practices, "Tool usage" — prompts "designed to reduce undertriggering
+  on tools or skills … may now overtrigger. The fix is to dial back any aggressive language. Where
+  you might have said 'CRITICAL: You MUST use this tool when…', you can use more normal prompting
+  like 'Use this tool when…'"; "Overthinking and excessive thoroughness" — "Replace blanket
+  defaults with more targeted instructions … Instructions like 'If in doubt, use [tool]' will
+  cause overtriggering"; "Migration considerations" — "Tune anti-laziness prompting".
+- **Verified 2026-08-08** against that page, fetched as raw markdown. **Recheck trigger:** those
+  three sections changing, or any model guide stating that a current model undertriggers and needs
+  emphasis restored — that would re-open the scoping question.
 
 ---
 
