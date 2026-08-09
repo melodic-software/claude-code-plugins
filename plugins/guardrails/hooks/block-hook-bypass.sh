@@ -270,8 +270,8 @@ _cat_redir='(^|[[:space:];|&()]+)cat([[:space:]]*>|[[:space:]]+1>)'
 # control operator, then restores them before storing NORMALIZED_SEGMENTS — the
 # text both call sites read. A segment therefore reaches this scan with a literal
 # `&`, and the `&` in the target class is what keeps `cat 1>&2` and `cat 1>&-`
-# out: a dup leaves NO file target, and cat_redirect_bypass skips a segment whose
-# target came back empty.
+# out: a dup leaves NO file target, and both consumers — cat_redirect_bypass and
+# producer_redirect_bypass — skip a segment whose target came back empty.
 # Both SENTINELS are excluded as well, and that is not redundant. The restore was
 # silently version-dependent until it was fixed: on bash >= 5.2 an unquoted `&` in
 # a substitution replacement means "the text just matched", so the sentinel was
@@ -551,6 +551,16 @@ producer_redirect_bypass() {
     # Same left-to-right rule as the cat lane: `echo x > /dev/null > real.txt`
     # writes to real.txt. The old presence test exempted it.
     set_last_stdout_target "$seg"
+    # Mirror of the cat lane's emptiness skip, and UNREACHABLE today by design: the
+    # two patterns differ only in that _redir_scan also excludes the normalization
+    # sentinels, so a segment _echo_file_out matched always resolves to a target
+    # here. It is kept because that equivalence is exactly what failed silently
+    # once — while the `>&` sentinel survived NORMALIZED_SEGMENTS, _echo_file_out
+    # matched the stray `\x01` and _redir_scan correctly refused it, and with no
+    # guard the empty value fell through to block `echo x >&2`. Fail toward "no
+    # file operand, nothing to block" rather than re-blocking a dup if the two
+    # target classes ever drift apart again.
+    [[ -n "$LAST_STDOUT_TARGET" ]] || continue
     [[ "$LAST_STDOUT_TARGET" == "/dev/null" ]] && continue
     return 0
   done <<<"$NORMALIZED_SEGMENTS"

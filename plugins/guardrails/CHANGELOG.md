@@ -53,8 +53,11 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   it. Confirmed by dumping the stored segment: `cat 1>&2` normalized to `$'cat 1>\0012'` before,
   `cat 1>&2` after.
 
-  **The sentinel exclusions in `_redir_scan` are kept anyway**, so a dup is rejected whichever byte
-  reaches the scan and a future regression in the restore cannot turn one into a write.
+  **Two defenses are kept against the same class of regression.** The sentinel exclusions in
+  `_redir_scan` stay, so a dup is rejected whichever byte reaches the scan; and
+  `producer_redirect_bypass` gained the `cat` lane's emptiness skip, whose absence is what turned an
+  empty effective target into a block in the first place. Both are unreachable while the two target
+  classes agree — which is precisely the equivalence that failed silently here.
 
 ## [0.19.4]
 
