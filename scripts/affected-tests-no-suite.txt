@@ -30,15 +30,14 @@
 *.md
 
 # JSON — plugin/marketplace manifests, JSON Schemas, eval graders, registries,
-# lockfiles. The schema validators here are FILE-SCOPED, so read the scopes
-# rather than the tool names: check-jsonschema covers
-# .claude-plugin/marketplace.json, plugins/*/.claude-plugin/plugin.json,
-# .github/dependabot.yml and five named workflows;
-# scripts/check-manifest-duplicate-keys.py covers those same plugin and
-# marketplace manifests (its own :61-62); skill-quality-gate covers
-# plugins/*/skills/*/evals/evals.json; scripts/validate-plugins.sh and
-# scripts/validate-plugin-contracts.mjs cover plugin structure (the latter
-# filters to .md/.json under skills/, its :57-60).
+# lockfiles. The validators here are FILE-SCOPED, so read the SCOPES rather than
+# the tool names: check-jsonschema covers .claude-plugin/marketplace.json,
+# plugins/*/.claude-plugin/plugin.json, .github/dependabot.yml and five named
+# workflow files; scripts/check-manifest-duplicate-keys.py covers those same
+# plugin and marketplace manifests and nothing else; skill-quality-gate covers
+# plugins/*/skills/*/evals/evals.json; scripts/validate-plugin-contracts.mjs
+# reads only under plugins/, and its JSON reach there is plugins/**/*.schema.json
+# plus .md/.json under plugins/*/skills/setup/ and the ai-briefing tree.
 #
 # Every OTHER .json in the repo — .github/recurring-schedule.json, the
 # docs/conventions/hook-telemetry/data/*.schema.json set, the runner-policy
@@ -64,7 +63,7 @@
 # docs/conventions/ecosystem-commands/examples/*.yaml (4). Verified absent, not
 # merely unattributed: there is no yamllint step anywhere in .github or scripts;
 # every check-jsonschema step names its files and none names these;
-# validate-plugin-contracts.mjs filters to .md/.json; and
+# validate-plugin-contracts.mjs does not mention yaml at all; and
 # `git ls-files 'plugins/toolchain/**/*.test.sh'` is empty. The generic hygiene
 # steps (typos, editorconfig-checker, gitleaks) read the bytes but validate
 # nothing about these files' contract. So they now fail loud, which is this

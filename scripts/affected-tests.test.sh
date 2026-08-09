@@ -254,9 +254,23 @@ printf '#!/usr/bin/env bash\ncopies=(plugins/*/hooks/widget.sh)\n' >"$repo/scrip
 out="$(cd "$repo" && bash scripts/affected-tests.sh lib/widget.sh 2>&1)"
 RC=$?
 if [[ "$RC" -eq 2 ]] && printf '%s' "$out" | grep -q 'no src='; then
-  ok "a sync-*.sh with copies=() but no src= is still fatal"
+  ok "a sync-*.sh with a populated copies=() but no src= is still fatal"
 else
   fail "half a manifest should exit 2 (rc=$RC): $out"
+fi
+
+# The skip must key on whether `copies=(` is DECLARED, not on whether it yielded
+# entries. A literally EMPTY `copies=()` parses to zero patterns, so an
+# emptiness test would misread this half-manifest as a helper and skip it
+# silently — and the zero-manifests guard cannot catch that while the fixture's
+# real sync-widget.sh still parses.
+printf '#!/usr/bin/env bash\ncopies=()\n' >"$repo/scripts/sync-helper.sh"
+out="$(cd "$repo" && bash scripts/affected-tests.sh lib/widget.sh 2>&1)"
+RC=$?
+if [[ "$RC" -eq 2 ]] && printf '%s' "$out" | grep -q 'no src='; then
+  ok "an EMPTY copies=() with no src= is a half-manifest, not a helper"
+else
+  fail "empty copies=() with no src= should exit 2 (rc=$RC): $out"
 fi
 rm -f "$repo/scripts/sync-helper.sh"
 
@@ -430,6 +444,69 @@ if [[ "$RC" -eq 0 ]] &&
 else
   fail "standards-contract fan-out (rc=$RC): $out"
 fi
+
+# --- LIVE repo: reference YAML with no lane is UNMAPPED, not silently clean --
+# The no-suite list used to carry bare *.yaml and *.yml entries whose comment
+# named actionlint, zizmor, the workflow check-jsonschema step and the
+# runner-policy lane. That is true for workflow YAML and false for the reference
+# YAML under plugins/toolchain/ and docs/conventions/ecosystem-commands/, which
+# NO lane reads: no yamllint step exists, every check-jsonschema step names its
+# files and none names these, validate-plugin-contracts.mjs never mentions yaml,
+# and plugins/toolchain ships no *.test.sh. The entries were removed so these
+# fail loud instead of reporting a covering lane that does not exist.
+#
+# This case pins that. If someone gives these files a real lane and records the
+# class again, this assertion is SUPPOSED to fail — update it together with the
+# no-suite entry, and make sure the entry names the lane that actually reads
+# them. Workflow YAML must stay covered via the .github/* entry throughout.
+# The probe paths are DISCOVERED with a glob, never written out literally. That
+# is not tidiness — a literal basename here would make this file a suite that
+# "references" the probe, R3 would select it, and the path would come back
+# MAPPED at exit 0. The assertion would then fail for a reason that has nothing
+# to do with the no-suite list. This is the substring-match limit documented in
+# affected-tests.sh's header, met head-on: naming a file in a suite is exactly
+# what makes the selector consider it covered.
+mapfile -t eco_yaml < <(cd "$REPO_ROOT" && git ls-files \
+  'plugins/toolchain/reference/ecosystems/*.yaml' \
+  'docs/conventions/ecosystem-commands/examples/*.yaml' | head -2)
+if [[ ${#eco_yaml[@]} -eq 0 ]]; then
+  fail "no reference YAML found to probe — the case below would be vacuous"
+fi
+for y in ${eco_yaml[@]+"${eco_yaml[@]}"}; do
+  out="$(cd "$REPO_ROOT" && bash scripts/affected-tests.sh "$y" 2>&1)"
+  RC=$?
+  if [[ "$RC" -eq 1 ]] && printf '%s' "$out" | grep -q 'UNMAPPED'; then
+    ok "reference YAML with no covering lane is UNMAPPED: $y"
+  else
+    fail "$y should be UNMAPPED, not silently covered (rc=$RC): $out"
+  fi
+done
+
+# ... while YAML under .github/, which actionlint/zizmor/check-jsonschema DO
+# read, stays covered by the .github/* entry. Without this, the cases above
+# would pass just as well if someone deleted .github/* too — and since the
+# probe here is itself a *.yaml, it is the direct evidence that dropping the
+# bare *.yaml entry did not orphan the one YAML that had a real lane.
+#
+# Asserted as a SILENT no-suite exit (rc 0 AND an empty selection), not merely
+# rc 0: a path that some suite happens to name is selected by R3 long before the
+# no-suite list is consulted, which would pass a bare rc-0 check while proving
+# nothing about .github/*. That is not hypothetical — .github/workflows/ci.yml
+# is named by two suites and reaches exit 0 through R3, so it cannot serve as
+# this probe. Discovered by glob for the R3 reason given above.
+mapfile -t wf_yaml < <(cd "$REPO_ROOT" && git ls-files '.github/*.yaml' | head -1)
+if [[ ${#wf_yaml[@]} -eq 0 ]]; then
+  fail "no .github YAML found to probe — the case below would be vacuous"
+fi
+for y in ${wf_yaml[@]+"${wf_yaml[@]}"}; do
+  out="$(cd "$REPO_ROOT" && bash scripts/affected-tests.sh "$y" 2>/dev/null)"
+  RC=$?
+  if [[ "$RC" -eq 0 && -z "$out" ]]; then
+    ok ".github YAML stays a recorded no-suite class via .github/*: $y"
+  else
+    fail ".github YAML should exit 0 with no suites (rc=$RC): $out"
+  fi
+done
 
 # --- LIVE repo: a co-located change stays narrow ---------------------------
 out="$(cd "$REPO_ROOT" && bash scripts/affected-tests.sh plugins/eol-normalizer/hooks/eol-normalizer.sh 2>/dev/null)"

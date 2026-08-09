@@ -198,6 +198,14 @@ manifest_copy_patterns() {
   ' "$1"
 }
 
+# manifest_declares_copies <sync-script> -> 0 if a `copies=(` line EXISTS.
+# Deliberately separate from manifest_copy_patterns: whether the declaration is
+# PRESENT and whether it YIELDED anything are different questions, and conflating
+# them is what let a malformed `copies=()` with no `src=` look like a helper.
+manifest_declares_copies() {
+  grep -q '^copies=(' "$1"
+}
+
 # SYNC_SRC_COPIES maps a sync source path to its newline-separated copy paths.
 declare -A SYNC_SRC_COPIES=()
 declare -A SYNC_SCRIPT_SRC=()
@@ -223,7 +231,13 @@ build_sync_map() {
     # plainly: a REAL manifest that renamed BOTH keys at once skips silently,
     # and the zero-manifests guard below only catches the case where every
     # manifest went dark at the same time. Half a manifest is still fatal.
-    if [[ -z "$src" && ${#patterns[@]} -eq 0 ]]; then
+    #
+    # The test is on the DECLARATION, not on what it yielded. Asking
+    # `${#patterns[@]} -eq 0` instead would read a malformed `copies=()` with no
+    # `src=` as a helper and skip it silently — a half-manifest escaping the
+    # loud failure this branch exists to preserve, and one the zero-manifests
+    # guard below cannot catch while any other manifest still parses.
+    if [[ -z "$src" ]] && ! manifest_declares_copies "$script"; then
       continue
     fi
     if [[ -z "$src" ]]; then
