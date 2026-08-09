@@ -220,12 +220,14 @@ the risk live.
 **Triggers:** writer asks for "review", "diagnose", "what's wrong with this",
 "honest feedback", "Pat would say what", "scan this line", "is this section
 stable", or AI is about to deliver findings on a draft — including a
-scansion verdict, a stability call, or a phrasing judgement.
+scansion verdict, a stability call, a phrasing judgement, a motion diagnosis,
+or a closure call.
 
 **Reference:** [demo-review.md](demo-review.md),
 [audit-checklist.md](audit-checklist.md),
 [five-compositional-elements.md](five-compositional-elements.md),
-[stable-unstable-meta.md](stable-unstable-meta.md), [meter.md](meter.md).
+[stable-unstable-meta.md](stable-unstable-meta.md), [meter.md](meter.md),
+[prosody.md](prosody.md).
 
 **Pre-flight checklist:**
 
@@ -246,6 +248,17 @@ scansion verdict, a stability call, or a phrasing judgement.
       count), NAME the content sitting there. A marked position holding
       filler is a finding, not a flourish; a spotlight turned on to be cute
       is a fail (*Writing Better Lyrics* (2009), Chapters 14-15)
+- [ ] **Line length ruled out before a rhyme prescription** — when a finding
+      about a section's motion is about to prescribe a rhyme change, the
+      arrangement of LINE LENGTHS is checked first, because line length moves a
+      section harder than rhyme does. This orders those two against each other
+      only; against rhythm or line count the dominant-problem rule above still
+      decides (*Writing Better Lyrics* (2009), Chapter 19)
+- [ ] **Closure named against the ear's expectation** — calling a closure
+      deceptive requires naming the prediction the section actually built;
+      calling one unexpected requires that the ear predicted nothing. Deceptive
+      closure buys the brightest spotlight, so it inherits the spotlight box
+      above (*Writing Better Lyrics* (2009), Chapter 19)
 - [ ] **Stable/unstable scan** across lyric (and melody if known)
 - [ ] **Hot-spot audit** — where does the title sit? line 1 of each section?
       last line?
