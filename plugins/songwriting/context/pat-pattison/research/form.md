@@ -199,9 +199,16 @@ Sameness can hide from a quick count. In the "Southern Comfort" chorus most
 phrases carry three stresses and the opening carries "3+", which reads as
 contrast on the page — but three stresses is common meter's balancing length
 and "3+" is an ordinary variant of its four-stress line, so the section still
-leans toward the meter the verse just spent eight lines establishing. Where a
+leans toward the meter the verse has already established at length. Where a
 chorus is meant to contrast with a common-meter verse, check what its
 balancing phrases are doing, not only whether the numbers differ.
+
+On how many verse phrases that is: Chapter 20 reads the verse as two complete
+common-meter systems varied by an extra stress in its last phrase, while
+[song-forms-examples](song-forms-examples.md) reads the 1991 treatment of the
+same song as seven phrases with the closing eighth deceptively withheld. Those
+are two readings of one verse in two books, not a contradiction to resolve —
+cite whichever book is in hand and do not merge the counts.
 
 Useful revision moves:
 
