@@ -18,6 +18,44 @@
 # re-catch is a one-line data edit. HOW a legitimate hit is excused is this
 # script's job.
 #
+# A token line beginning with `!` names a class this script implements in CODE
+# rather than as an ERE, and ACTIVATION stays data even there: the class runs
+# only while its `!name` line is active in the token list, so a class-scoped
+# unit fixture enables exactly one class the same way `one_token_list` does for
+# an ERE. An unrecognized `!name` exits 2 rather than being ignored — a typo
+# that silently disabled a class is the fail-open this gate is tuned against.
+# Today there is one such class, and it is script-implemented for a reason the
+# ERE layer cannot work around:
+#
+#   !subst-replacement-ampersand — an UNQUOTED `&` in the REPLACEMENT half of a
+#   `${var/pat/repl}` / `${var//pat/repl}` expansion. Since bash 5.2 that `&`
+#   expands to the text the pattern just matched (the `sed` rule), under the
+#   `patsub_replacement` shell option which is ON by default; before 5.2 the
+#   same character was an ordinary literal. GNU Bash Reference Manual, Shell
+#   Parameter Expansion: "Any unquoted instances of '&' in string are replaced
+#   with the matching portion of pattern", and "Backslash escapes '&' in
+#   string; the backslash is removed in order to permit a literal '&' in the
+#   replacement string"
+#   <https://www.gnu.org/software/bash/manual/html_node/Shell-Parameter-Expansion.html>.
+#   Introduced in bash-5.2 ("New shell option: patsub_replacement", bash NEWS
+#   <https://tiswww.case.edu/php/chet/bash/NEWS>); verified locally on bash
+#   5.3.15, where `shopt -u patsub_replacement` restores the pre-5.2 literal.
+#   This lands on the gate's EXISTING uncovered-platform axis rather than a new
+#   one: macOS — the one platform no runner here covers — ships bash 3.2, while
+#   every runner in this repo ships 5.2 or later, so the same line silently
+#   means two different things on the two platforms. It shipped a real defect
+#   in this repo (#2008): a sentinel restored to itself became a no-op and
+#   produced a live false positive in a guardrails hook, on bash >=5.2 only.
+#
+#   It cannot be an ERE token. Matching runs on the `qline`/`cline` views, and
+#   `neutralize()` replaces every SEPS character — `&` among them — inside a
+#   masked run with a filler; a `${…}` body is masked in its entirety, which is
+#   exactly right for every other class (a `;` in an expansion body is data,
+#   not an operator) and leaves this one nothing to match on. The class is
+#   instead decided by subst_amp_hit(), which reads the ORIGINAL record text
+#   inside the `${…}` extents mask_quotes() already tracks, so the one
+#   authority on quote/frame structure stays the one authority.
+#
 # Changed-FILE scoping (not a whole-repo scan on every push) mirrors
 # check-skill-portability.sh exactly: a PR is responsible only for the files it
 # touches, so enabling a token class never red-lines main — main's push event
@@ -208,6 +246,11 @@ scan_file() {
     # single-quoted shell word, where a literal quote cannot appear.
     BEGIN {
       SQ = "\047"; DQ = "\042"; BS = "\134"; BT = "\140"; NL = "\012"
+      # The label a script-implemented class reports under. It is the token
+      # line that activates it, verbatim, so a reported hit greps straight back
+      # to the data line that turned the class on — the same relationship an
+      # ERE hit has with its own token.
+      AMPTOK = "!subst-replacement-ampersand"
       # A newline is a separator too, and it reaches a record only through a
       # quote-continued join. Inside a QUOTED run it is ordinary data, so
       # neutralizing it is what lets a token gap span the join: a `stat` whose
@@ -377,10 +420,19 @@ scan_file() {
     # original text, so `# see date -d` still reports, the same over-flag
     # direction that the comment-skip in scan_logical — not this mask — is what
     # exempts a comment-ONLY line from.
+    #
+    # It also RECORDS the extent of every `${…}` parameter expansion it closes,
+    # into VS/VE (NV of them). The bash-5.2 `&`-in-replacement class needs the
+    # one thing an ERE cannot have and this walk already computes: where an
+    # expansion begins and ends, with its own quoting and nesting honored. A
+    # second quote tracker written beside this one is the matched-pair shape
+    # that has already produced two defects in this corpus — one side widened,
+    # the other not — so the class reads these extents instead.
     function mask_quotes(l,   i, c, m, st, top, len) {
       m = ""
       DANGLING_BS = 0
       DANGLING_QUOTE = 0
+      NV = 0
       st = "U"
       len = length(l)
       for (i = 1; i <= len; i++) {
@@ -437,6 +489,7 @@ scan_file() {
         if (c == "$" && substr(l, i + 1, 1) == "{") {
           m = m "QQ"
           st = st "V"
+          VOPEN[length(st)] = i
           i++
           continue
         }
@@ -466,7 +519,15 @@ scan_file() {
           m = m "Q"
           if (c == SQ) st = st "S"
           else if (c == DQ) st = st "D"
-          else if (c == "}") st = substr(st, 1, length(st) - 1)
+          else if (c == "}") {
+            # The frame is recorded only where it CLOSES, so an expansion left
+            # open at end of record contributes nothing — the record loop joins
+            # the next physical line and this walk runs again over the whole.
+            NV++
+            VS[NV] = VOPEN[length(st)]
+            VE[NV] = i
+            st = substr(st, 1, length(st) - 1)
+          }
           continue
         }
         if (top == "D") {
@@ -1117,6 +1178,238 @@ scan_file() {
       }
       return 0
     }
+    # ---- bash-5.2 `&`-in-replacement class (!subst-replacement-ampersand) ----
+    # skip_frame <line> <at> <limit> — the offset just PAST the nested frame
+    # opening at <at> (any opener opens_frame() recognizes). Its body is not part
+    # of the enclosing pattern or replacement text: a `/` inside `${x:-a/b}` is
+    # data belonging to the inner expansion and never the separator, and a `&`
+    # inside `$(a && b)` is inner command syntax, never a match reference.
+    # Quoting inside the frame is tracked so a `)`/`}` in a string cannot close
+    # it early. An UNTERMINATED frame runs to <limit>, which ends the scan with
+    # no hit — the under-flag direction, and unreachable in practice because the
+    # record loop only calls this once every frame the mask opened has closed.
+    # opens_frame <line> <at> — does a nested frame open at <at>? A backquote,
+    # a `$(` / `$((` / `${`, or a PROCESS substitution `<(` / `>(`.
+    #
+    # The process-substitution body is a COMMAND LIST, so an `&` or `&&` in it
+    # is shell syntax and never a match reference, and the whole construct is
+    # version-INdependent: verified on 5.3.15 that `v=aXb; "${v//X/<(a && b)}"`
+    # yields `a/dev/fd/63b` with patsub_replacement both on AND off. Leaving it
+    # out of the opener set walked into the body and reported the `&&` — a false
+    # POSITIVE on portable code, the direction this class must not take. (This
+    # is the one paren the collapse_subs() layer above deliberately keeps
+    # verbatim, for the opposite reason: there it is not its own word. Here it
+    # is not its own text.)
+    function opens_frame(l, at,   c, n) {
+      c = substr(l, at, 1)
+      if (c == BT) return 1
+      n = substr(l, at + 1, 1)
+      if (c == "$" && (n == "(" || n == "{")) return 1
+      if ((c == "<" || c == ">") && n == "(") return 1
+      return 0
+    }
+    function skip_frame(l, at, limit,   c, o, cl, depth, st) {
+      c = substr(l, at, 1)
+      if (c == BT) {
+        at++
+        while (at <= limit && substr(l, at, 1) != BT) at++
+        return at + 1
+      }
+      o = substr(l, at + 1, 1)
+      if (o == "(") cl = ")"
+      else cl = "}"
+      at += 2
+      depth = 1
+      st = "U"
+      while (at <= limit && depth > 0) {
+        c = substr(l, at, 1)
+        if (st == "S") {
+          if (c == SQ) st = "U"
+        } else if (c == BS) {
+          at++
+        } else if (c == SQ) {
+          st = "S"
+        } else if (c == DQ) {
+          if (st == "D") st = "U"
+          else st = "D"
+        } else if (c == o) {
+          depth++
+        } else if (c == cl) {
+          depth--
+        }
+        at++
+      }
+      return at
+    }
+    # amp_in_frame <line> <start> <end> — the offset of the first UNQUOTED `&`
+    # in the replacement half of the `${…}` expansion spanning [start, end], or
+    # 0 when the frame is not a pattern substitution or its replacement holds no
+    # such `&`. <start> is the `$`, <end> the closing `}`.
+    #
+    # Grammar, verified against bash 5.3.15 rather than assumed:
+    #   - the expansion is a substitution only when the character after the
+    #     parameter name (and its optional `[…]` subscript) is `/`. That is what
+    #     keeps `${var:-a/b/&}`, `${var#*/}`, `${var%/*}` and `${var:0:1}` out:
+    #     their operator is not `/`, so every `/` and `&` in them is ordinary
+    #     word text. `${#var}` is a length and can never be a substitution;
+    #   - one optional `/` (global) or `#`/`%` (anchored) may follow the
+    #     operator before the pattern begins;
+    #   - the pattern ends at the FIRST `/` that is unquoted, unescaped and not
+    #     inside a nested frame — not the last. `v=aXbXc; "${v//X/Y/Z}"` yields
+    #     `aY/ZbY/Zc`, so the pattern is `X` and the replacement is `Y/Z`; a
+    #     last-slash reading would have missed the `&` in `${v//X/b&/c}`. A
+    #     quoted or backslash-escaped slash is NOT the separator
+    #     (`s=a/b; "${s//"/"/-}"` and `"${s//\//-}"` both yield `a-b`), while a
+    #     `[…]` bracket expression does NOT protect one (`"${p//[/]/-}"` leaves
+    #     `a/b` untouched, so the pattern was `[`);
+    #   - a frame with NO separator is the DELETION form `${var//pat}` and has
+    #     no replacement to flag;
+    #   - inside the replacement, only an `&` in the UNQUOTED state is a match
+    #     reference. A backslash-escaped `\&`, a double-quoted one and a
+    #     single-quoted one are each a literal ampersand on 5.3.15 — the manual
+    #     says "Quoting any part of string inhibits replacement in the
+    #     expansion of the quoted portion" — and none of them is flagged. `\&`
+    #     is the spelling the failure message recommends, and the evidence for
+    #     that is worth separating from what was inferred. BASH_COMPAT is NOT a
+    #     pre-5.2 oracle for this rule — a bare `&` still expanded at every
+    #     level down to 32 on 5.3.15, so the option is not compat-gated. What
+    #     the ladder DOES establish is that the backslash before an `&` is
+    #     removed even under the pre-4.3 quote-removal regime (tested at 32, 42,
+    #     44, 50, 51 and the default); the manual supplies the rest, stating the
+    #     backslash is removed in order to permit a literal `&`. The QUOTED
+    #     spellings are the ones with a version quirk of their own (compat42:
+    #     "The replacement string in double-quoted pattern substitution does not
+    #     undergo quote removal, as it does in versions after bash-4.2"), which
+    #     leaves the quote characters in the output on the older regime — a
+    #     reason to prefer `\&`, not a reason to flag them.
+    #
+    # KNOWN LIMITS, all in the under-flag direction and all the same indirection
+    # class this gate declares out of scope throughout (#1513):
+    #   - an `&` that ARRIVES by expansion is undetectable here. The rule is
+    #     applied after the replacement expands, so an `&` held in a variable
+    #     and an `&` in the OUTPUT of a `$(…)` inside the replacement both
+    #     reference the match at run time (verified on 5.3.15: for `v=aXb`, a
+    #     replacement of `$(printf p&q)` — the ampersand produced by the
+    #     substitution — yields `apXqb`). The manual says the same thing from
+    #     the quoting side: quoting inhibits replacement "including replacement
+    #     strings stored in shell variables";
+    #   - a substitution assembled from fragments before use, exactly as the
+    #     script header records for the ERE classes;
+    #   - a parameter spelling this walk does not recognize (a name that is not
+    #     an identifier, a digit run, or one of `@ * ? $ ! - #`) is skipped.
+    function amp_in_frame(l, s, e,   i, c, st, sep, named) {
+      i = s + 2
+      if (i > e - 1) return 0
+      c = substr(l, i, 1)
+      # A `#` straight after `${` is USUALLY the length operator — but `#` is
+      # also the special parameter holding the positional-argument count, and
+      # bash resolves the ambiguity by what FOLLOWS it. When that is a `/`, no
+      # parameter name can be starting, so the `#` is the parameter itself and
+      # the rest is a real pattern substitution. Measured on 5.3.15 with two
+      # positional parameters: `${#//2/&}` yields `2` with patsub_replacement on
+      # and `&` with it off — the exact divergence this class exists for, which
+      # an unconditional bail reported clean. `${#}`, `${##}`, `${#v}` and
+      # `${#arr[@]}` all keep a non-`/` successor and stay length expansions.
+      named = 1
+      if (c == "#") {
+        if (substr(l, i + 1, 1) != "/") return 0
+        i++
+        named = 0
+      } else if (c == "!") i++
+      if (named) {
+        c = substr(l, i, 1)
+        if (c ~ /[A-Za-z_]/) {
+          while (i < e && substr(l, i, 1) ~ /[A-Za-z0-9_]/) i++
+        } else if (c ~ /[0-9]/) {
+          while (i < e && substr(l, i, 1) ~ /[0-9]/) i++
+        } else if (c ~ /[@*?$!-]/) {
+          i++
+        } else return 0
+      }
+      if (substr(l, i, 1) == "[") {
+        sep = 1
+        i++
+        while (i < e && sep > 0) {
+          c = substr(l, i, 1)
+          if (c == "[") sep++
+          else if (c == "]") sep--
+          i++
+        }
+        if (sep > 0) return 0
+        sep = 0
+      }
+      if (substr(l, i, 1) != "/") return 0
+      i++
+      c = substr(l, i, 1)
+      if (c == "/" || c == "#" || c == "%") i++
+      # Pattern half: walk to the separator.
+      st = "U"
+      sep = 0
+      while (i <= e - 1) {
+        c = substr(l, i, 1)
+        if (st == "S") {
+          if (c == SQ) st = "U"
+          i++
+          continue
+        }
+        if (c == BS) { i += 2; continue }
+        if (c == SQ) { st = "S"; i++; continue }
+        if (c == DQ) {
+          if (st == "D") st = "U"
+          else st = "D"
+          i++
+          continue
+        }
+        if (opens_frame(l, i)) {
+          i = skip_frame(l, i, e - 1)
+          continue
+        }
+        if (st == "U" && c == "/") { sep = i; break }
+        i++
+      }
+      if (sep == 0) return 0
+      # Replacement half: the first unquoted `&`.
+      i = sep + 1
+      st = "U"
+      while (i <= e - 1) {
+        c = substr(l, i, 1)
+        if (st == "S") {
+          if (c == SQ) st = "U"
+          i++
+          continue
+        }
+        if (c == BS) { i += 2; continue }
+        if (c == SQ) { st = "S"; i++; continue }
+        if (c == DQ) {
+          if (st == "D") st = "U"
+          else st = "D"
+          i++
+          continue
+        }
+        if (opens_frame(l, i)) {
+          i = skip_frame(l, i, e - 1)
+          continue
+        }
+        if (st == "U" && c == "&") return i
+        i++
+      }
+      return 0
+    }
+    # subst_amp_hit <line> <from> — the SMALLEST offset at or after <from> at
+    # which an unquoted replacement `&` sits, or 0. An offset rather than a
+    # yes/no for the same reason has_unguarded() returns one: a joined record
+    # spans physical lines, and both the reported line number and the annotation
+    # scope are decided by WHERE the hit sits. Frames are recorded in closing
+    # order, so the minimum is taken rather than the first found — a nested
+    # expansion closes before the one containing it.
+    function subst_amp_hit(l, from,   f, at, best) {
+      best = 0
+      for (f = 1; f <= NV; f++) {
+        at = amp_in_frame(l, VS[f], VE[f])
+        if (at >= from && at > 0 && (best == 0 || at < best)) best = at
+      }
+      return best
+    }
     # A HEREDOC body is not shell code, so it can neither continue a command nor
     # leave a quote open for the next line to inherit. It still gets SCANNED —
     # this corpus writes real scripts through heredocs and the gate deliberately
@@ -1167,12 +1460,23 @@ scan_file() {
       if (k >= nphys) return substr(logical, physoff[k])
       return substr(logical, physoff[k], physoff[k + 1] - physoff[k] - 1)
     }
-    # Pass 1: collect active ERE patterns from the token list.
+    # Pass 1: collect active ERE patterns from the token list, plus the `!name`
+    # lines that activate a script-implemented class (see the script header).
+    # An UNRECOGNIZED `!name` fails closed: ignoring it would let a typo in the
+    # shipped list, or in a caller override, silently disable a whole class
+    # while the run still reported clean — the one outcome the contract of this
+    # gate forbids everywhere else.
     FNR == NR {
       line = $0
       sub(/^[[:space:]]+/, "", line)
       sub(/[[:space:]]+$/, "", line)
       if (line == "" || line ~ /^#/) next
+      if (substr(line, 1, 1) == "!") {
+        if (line == AMPTOK) { CLS_AMP = 1; ncls++; next }
+        printf "Error: unknown script-implemented class in token list: %s\n", line > "/dev/stderr"
+        FATAL = 1
+        exit 2
+      }
       patterns[++np] = line
       next
     }
@@ -1192,16 +1496,38 @@ scan_file() {
       if (!joined && (is_annotated(line) || annotated_above)) return
       for (i = 1; i <= np; i++) {
         if (report_hit(line, lineno, patterns[i], annotated_above,
-          has_unguarded(qline, qline, patterns[i], mask, 1), qline, qline, mask)) continue
+          has_unguarded(qline, qline, patterns[i], mask, 1), qline, qline, mask, "ere")) continue
         report_hit(line, lineno, patterns[i], annotated_above,
-          has_unguarded(cline, qline, patterns[i], mask, 1), cline, qline, mask)
+          has_unguarded(cline, qline, patterns[i], mask, 1), cline, qline, mask, "ere")
       }
+      # The script-implemented class reads the ORIGINAL record text, because the
+      # `&` it looks for is blanked on both derived views. It runs HERE, below
+      # the comment-skip and annotation returns above, so that it inherits every
+      # escape this function applies to the ERE classes; hoisting it above those
+      # returns would silently lose all of them.
+      if (CLS_AMP)
+        report_hit(line, lineno, AMPTOK, annotated_above,
+          subst_amp_hit(line, 1), line, qline, mask, "amp")
     }
     # report_hit — print the first hit whose OWN physical line is unexcused,
     # stepping past any the annotation on that line covers. Returns 1 if
     # anything was printed, so the second view is only consulted when the first
     # found nothing (one report per pattern per record, as before).
-    function report_hit(line, lineno, p, annotated_above, off, view, q, m,   k) {
+    # (Definition below; next_hit() has to be declared first because report_hit()
+    # advances through it.)
+    #
+    # next_hit — the next occurrence at or after <from>, dispatched by CLASS
+    # KIND. awk has no function references, so the kind is passed explicitly at
+    # every call site rather than defaulted: a dropped argument arrives as the
+    # empty string, and a kind that defaulted to the ERE finder would make the
+    # script-implemented class report its first hit and then stop looking, with
+    # the suite still green.
+    function next_hit(kind, view, q, p, m, from) {
+      if (kind == "amp") return subst_amp_hit(view, from)
+      return has_unguarded(view, q, p, m, from)
+    }
+    # report_hit — see the doc block above next_hit().
+    function report_hit(line, lineno, p, annotated_above, off, view, q, m, kind,   k) {
       # A backslash continuation removes the newline, so its physical lines are
       # one line in the strongest sense: the record is reported whole, at its
       # first line number, exactly as before. Only a quote-joined record, whose
@@ -1223,7 +1549,7 @@ scan_file() {
           hits[++nhits] = sprintf("%d: %s -> %s", physno[k], p, phys_text(k))
           return 1
         }
-        off = has_unguarded(view, q, p, m, off + 1)
+        off = next_hit(kind, view, q, p, m, off + 1)
       }
       return 0
     }
@@ -1335,8 +1661,11 @@ scan_file() {
     # checked. Reporting clean in that state is the silent skip the contract
     # forbids, so it fails closed instead.
     END {
+      # A pass-1 fatal (an unknown `!name`) reaches END through the awk `exit`;
+      # re-reporting it as an empty pattern set would bury the real diagnostic.
+      if (FATAL) exit 2
       if (pending) scan_logical(logical, logical_line, logical_mask)
-      if (np == 0) {
+      if (np == 0 && ncls == 0) {
         print "Error: token list loaded no active patterns" > "/dev/stderr"
         exit 2
       }
@@ -1350,6 +1679,11 @@ scan_file() {
 }
 
 violations=0
+# Whether any reported hit belongs to the bash-version class, so its remediation
+# paragraph is printed to the developer who actually hit it and to nobody else.
+# Printed unconditionally it followed every `grep -P` and `sed -i` failure with
+# advice about an ampersand the developer never wrote.
+amp_violation=0
 for file in "${files[@]}"; do
   if [[ ! -f "$file" ]]; then
     printf 'Error: no such file: %s\n' "$file" >&2
@@ -1366,6 +1700,10 @@ for file in "${files[@]}"; do
     while IFS= read -r v; do
       echo "PORTABILITY: ${file}:${v}" >&2
       violations=$((violations + 1))
+      case "$v" in
+      *"!subst-replacement-ampersand"*) amp_violation=1 ;;
+      *) ;;
+      esac
     done <<<"$out"
   fi
 done
@@ -1380,6 +1718,19 @@ if ((violations > 0)); then
     echo "when the use is legitimate and reviewed — add a"
     echo "'portability-ok: <reason>' comment at the site."
   } >&2
+  if ((amp_violation > 0)); then
+    {
+      echo
+      echo "!subst-replacement-ampersand names the one class above that is a bash"
+      echo "VERSION divergence rather than a utility one: since bash 5.2 an"
+      echo "unquoted '&' in the replacement half of \${var//pat/repl} expands to"
+      echo "the text the pattern just matched, so the same line means two things"
+      echo "on macOS (bash 3.2) and on this repo's runners (5.2+). Spell a literal"
+      echo "ampersand '\\&': the manual states the backslash is removed to permit"
+      echo "a literal '&', and the quoted spellings carry their own pre-4.3"
+      echo "quote-removal divergence."
+    } >&2
+  fi
   exit 1
 fi
 echo "No unexcused GNU-only constructs in ${#files[@]} shell file(s)."
