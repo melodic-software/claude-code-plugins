@@ -1249,12 +1249,19 @@ scan_file() {
     #     single-quoted one are each a literal ampersand on 5.3.15 — the manual
     #     says "Quoting any part of string inhibits replacement in the
     #     expansion of the quoted portion" — and none of them is flagged. `\&`
-    #     is the spelling the failure message recommends: it is literal under
-    #     every BASH_COMPAT level this repo could meet (32/42/44/50/51 and
-    #     default), whereas the QUOTED spellings carry a separate pre-4.3 quirk
-    #     (compat42: "The replacement string in double-quoted pattern
-    #     substitution does not undergo quote removal, as it does in versions
-    #     after bash-4.2"), which leaves the quote characters in the output.
+    #     is the spelling the failure message recommends, and the evidence for
+    #     that is worth separating from what was inferred. BASH_COMPAT is NOT a
+    #     pre-5.2 oracle for this rule — a bare `&` still expanded at every
+    #     level down to 32 on 5.3.15, so the option is not compat-gated. What
+    #     the ladder DOES establish is that the backslash before an `&` is
+    #     removed even under the pre-4.3 quote-removal regime (tested at 32, 42,
+    #     44, 50, 51 and the default); the manual supplies the rest, stating the
+    #     backslash is removed in order to permit a literal `&`. The QUOTED
+    #     spellings are the ones with a version quirk of their own (compat42:
+    #     "The replacement string in double-quoted pattern substitution does not
+    #     undergo quote removal, as it does in versions after bash-4.2"), which
+    #     leaves the quote characters in the output on the older regime — a
+    #     reason to prefer `\&`, not a reason to flag them.
     #
     # KNOWN LIMITS, all in the under-flag direction and all the same indirection
     # class this gate declares out of scope throughout (#1513):
@@ -1632,6 +1639,11 @@ scan_file() {
 }
 
 violations=0
+# Whether any reported hit belongs to the bash-version class, so its remediation
+# paragraph is printed to the developer who actually hit it and to nobody else.
+# Printed unconditionally it followed every `grep -P` and `sed -i` failure with
+# advice about an ampersand the developer never wrote.
+amp_violation=0
 for file in "${files[@]}"; do
   if [[ ! -f "$file" ]]; then
     printf 'Error: no such file: %s\n' "$file" >&2
@@ -1648,6 +1660,10 @@ for file in "${files[@]}"; do
     while IFS= read -r v; do
       echo "PORTABILITY: ${file}:${v}" >&2
       violations=$((violations + 1))
+      case "$v" in
+      *"!subst-replacement-ampersand"*) amp_violation=1 ;;
+      *) ;;
+      esac
     done <<<"$out"
   fi
 done
@@ -1661,15 +1677,20 @@ if ((violations > 0)); then
     echo "undetected. Resolve the construct with a POSIX-portable form, or —"
     echo "when the use is legitimate and reviewed — add a"
     echo "'portability-ok: <reason>' comment at the site."
-    echo
-    echo "!subst-replacement-ampersand names the one class that is a bash"
-    echo "VERSION divergence rather than a utility one: since bash 5.2 an"
-    echo "unquoted '&' in the replacement half of \${var//pat/repl} expands to"
-    echo "the text the pattern just matched, so the same line means two things"
-    echo "on macOS (bash 3.2) and on this repo's runners (5.2+). Spell a literal"
-    echo "ampersand '\\&' — the backslash is removed on every bash, and the"
-    echo "quoted spellings carry their own pre-4.3 quote-removal divergence."
   } >&2
+  if ((amp_violation > 0)); then
+    {
+      echo
+      echo "!subst-replacement-ampersand names the one class above that is a bash"
+      echo "VERSION divergence rather than a utility one: since bash 5.2 an"
+      echo "unquoted '&' in the replacement half of \${var//pat/repl} expands to"
+      echo "the text the pattern just matched, so the same line means two things"
+      echo "on macOS (bash 3.2) and on this repo's runners (5.2+). Spell a literal"
+      echo "ampersand '\\&': the manual states the backslash is removed to permit"
+      echo "a literal '&', and the quoted spellings carry their own pre-4.3"
+      echo "quote-removal divergence."
+    } >&2
+  fi
   exit 1
 fi
 echo "No unexcused GNU-only constructs in ${#files[@]} shell file(s)."

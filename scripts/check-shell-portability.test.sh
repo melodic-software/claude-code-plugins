@@ -1295,6 +1295,29 @@ else
 fi
 rm -f "$f" "$BADCLS"
 
+# --- the class remediation paragraph is SCOPED to a hit of this class. Printed
+# unconditionally it followed every `grep -P` / `sed -i` failure with advice
+# about an ampersand the developer never wrote — the mirror of the inertness
+# case above, and asserted in both directions for the same reason.
+f="$(tmpsh 'v="${v//X/&}"')"
+out="$(scan_paths "$amptok" "$f" 2>&1)"
+if [[ "$out" == *"!subst-replacement-ampersand names the one class"* ]]; then
+  ok "an & hit prints the bash-version remediation paragraph"
+else
+  fail "an & hit must carry its own remediation paragraph, got: $out"
+fi
+rm -f "$f"
+
+tok="$(one_token_list 'grep[^\n]*[[:space:]]-[A-Za-z]*P([[:space:]]|$)')"
+f="$(tmpsh 'grep -P foo "$file"')"
+out="$(scan_paths "$tok" "$f" 2>&1)"
+if [[ "$out" == *"PORTABILITY:"* && "$out" != *"!subst-replacement-ampersand names the one class"* ]]; then
+  ok "an unrelated class failure does not print the bash-version paragraph"
+else
+  fail "the & remediation paragraph leaked onto an unrelated failure, got: $out"
+fi
+rm -f "$f" "$tok"
+
 # --- the SHIPPING token list has the class active, not just the mechanism ---
 f="$(tmpsh 'normalized="${normalized//"$soh"/&}"')"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
