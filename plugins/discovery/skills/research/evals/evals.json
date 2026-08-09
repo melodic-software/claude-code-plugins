@@ -157,7 +157,7 @@
       "expectations": [
         "The completed status is NOT accepted as evidence of finished research; the missing preload_token and the missing artifact pointer each independently mark the dispatch failed",
         "Verification runs scripts/check-dispatch-artifact.sh with --index-name RESEARCH.md against the memory-slice path the parent resolved pre-dispatch, rather than a path read out of the payload, and cites its exit status rather than eyeballing the directory",
-        "The freshness baseline is established BEFORE the dispatch (touch <slice>/.research-dispatch) and passed as --newer-than, so an artifact an earlier run left in the same slice cannot be accepted as evidence that this dispatch succeeded",
+        "The freshness baseline is established BEFORE the dispatch (mkdir -p <slice> then touch <slice>/.research-dispatch, so a first-time topic whose slice does not exist yet does not fail on the touch) and passed as --newer-than, so an artifact an earlier run left in the same slice cannot be accepted as evidence that this dispatch succeeded",
         "coverage: complete is regraded parent-side from research-checklist.md via check-coverage-complete.sh rather than believed from the payload, with both exit 1 and exit 2 treated as FAIL; a missing ledger passes only when the artifact records the corpus as unbounded",
         "Flags whose values the payload never supplied are dropped rather than guessed at; a malformed payload carries no sidecars: count and no artifact: pointer, so only the slice path and --index-name are passed",
         "A non-zero exit halts the workflow and is reported; the run does NOT proceed to the migration plan, a decision, or an edit on the strength of research that did not happen",

@@ -48,7 +48,17 @@
     stems, both directions of cross-family isolation, and `research-checklist.md` not being counted
     as a sidecar.
   - `skills/explore/SKILL.md` and `skills/explore/evals/evals.json` — the invocation and the eval
-    rubric follow the rename and pass `--index-name EXPLORE.md`. No other explore prose changed.
+    rubric follow the rename and pass `--index-name EXPLORE.md`, and the "only the slice path is
+    required" sentence is corrected to name `--index-name` alongside it.
+
+### Fixed
+
+- **The freshness baseline could not be taken on a first-time topic.** Both skills told the parent to
+  `touch <slice>/.<skill>-dispatch` before dispatching, and on a scope or topic whose slice does not
+  exist yet that `touch` fails — so the dispatch either stopped before it started or reached the gate
+  with no baseline to grade against, which is exit 2. Now `mkdir -p <slice> && touch …` on both sides,
+  including `skills/explore/reference/dispatch.md`. Found by review on this PR; the defect predates it
+  on the explore side, and fixing only the research side would have opened a fresh parity gap.
 
 ### Deliberately not ported
 
