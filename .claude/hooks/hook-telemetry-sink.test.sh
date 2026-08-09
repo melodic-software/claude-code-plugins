@@ -37,3 +37,24 @@ else
   diff -u "$norm_upstream" "$norm_local" || true
   exit 1
 fi
+
+# The exclusion above is a prefix match, so it would also pass a copy whose
+# source line points somewhere broken. Pin the exact expected target, then
+# prove the wiring executes end-to-end: a valid envelope must append a record.
+# shellcheck disable=SC2016  # deliberate: the literal source line is the fixture
+expected_source='source "$(dirname "${BASH_SOURCE[0]}")/../../lib/hook-utils.sh"'
+if ! grep -qF "$expected_source" "$local_copy"; then
+  echo "FAIL: the repo copy's source line does not target ../../lib/hook-utils.sh"
+  exit 1
+fi
+
+smoke_dir="$(mktemp -d)"
+trap 'rm -f "$norm_upstream" "$norm_local"; rm -rf "$smoke_dir"' EXIT
+printf '%s' '{"schema":"hook-telemetry/v1","hook":"drift-test-smoke","hook_event":"PreToolUse","duration_ms":1,"status":"ok","data":{"tool":"Bash","subject":"smoke"}}' \
+  | CLAUDE_PROJECT_DIR="$smoke_dir" bash "$local_copy"
+if [[ -s "$smoke_dir/.claude/observability/hook-events.jsonl" ]]; then
+  echo "PASS: sink executes and appends a record (source target resolves)"
+else
+  echo "FAIL: sink ran but appended no record — source target or mapping broken"
+  exit 1
+fi
