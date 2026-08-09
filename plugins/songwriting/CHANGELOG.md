@@ -18,7 +18,7 @@ writes, or student work reaches this public repository.
   forbids it from making that call. The skill was required to check boxes it is
   not allowed to act on, and nothing gated the output it actually emits. It now
   routes to §3 Critique, the filter for findings delivered on a draft.
-- **Chapter 16's nine couplet / common-meter models were mis-transcribed.** The
+- **Chapter 16's nine couplet / common-meter models were transcribed wrong.** The
   exercise listed eight of the nine, dropped `abaa` entirely, corrupted two
   rhyme schemes (`ababaccc` for `aaabcccb`, `abacccc` for `ababcccc`), stripped
   every stress count, and labelled the whole set four-stress when five of the
