@@ -3,6 +3,20 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.1]
+
+### Added
+
+- **The TDD cadence now defines "minimum to pass" so it cannot be satisfied by gaming the
+  assertion.** "Implement the minimum to pass (green)" is exactly the phrasing a literal model can
+  meet by hardcoding the test's expected values, special-casing its inputs, or weakening the
+  assertion. Step 2 now states that the minimum means the smallest *correct* implementation, and
+  requires a deliberate, stated correction when the test itself is wrong.
+- **`feature.md` gained a gold-plating pitfall.** Its sibling `bugfix.md` has carried "Fix minimally"
+  all along, and `SKILL.md`'s scope-creep guard only routes a *bigger task* back to planning — it
+  never addressed building beyond an agreed slice. The new pitfall sets the bar at a second caller
+  existing rather than being anticipated.
+
 ## [0.12.0]
 
 ### Changed

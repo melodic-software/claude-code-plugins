@@ -52,6 +52,22 @@ state and records that binding.
   only — the build stays gated on the charter's own triggers and the runner-execution home
   stays unborn; setup records nothing runner-specific beyond the escalation notification routes
   (severity axis + personal-push tier) bound through the security binding.
+- **Autonomous-pipeline reminder** (`reference/autonomous-pipeline-reminder.md`): a drop-in
+  standing reminder for an adopting org's *own* pipeline, against the two stopping failures a
+  pipeline cannot recover from — a turn ending on unexecuted intent, and a turn stopping to ask
+  permission nobody is there to give. States where it does not apply (an attended lane wants the
+  opposite posture) and what the `lane-stop-gate` hook does and does not cover of it — one clause
+  deterministically, the rest by instruction alone.
+
+  **Provenance.** The clause set is this repository's own wording of guidance in Anthropic's Claude
+  Fable 5 prompting guide, section "Rare cases of early stopping", folded together with the
+  companion checkpoint instruction that section asks to be paired with it
+  (<https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5>,
+  fetched 2026-08-08). It is authored locally rather than reproduced, per this repository's rule
+  against hand-copying upstream content. The citation lives here rather than in the contract file
+  because `reference/` docs are written in surface classes and may not name vendors.
+  **Recheck trigger:** that section changing its clause set, or a second model guide stating the same
+  guidance in materially different terms.
 - **Guided setup** (`/autonomy:setup`): discovery-first interview of the adopting org's state —
   role homes, substrate availability, budget posture — writing a schema-versioned binding under
   `.claude/autonomy/` as reviewable changes. Never assumes any particular org or repo shape.

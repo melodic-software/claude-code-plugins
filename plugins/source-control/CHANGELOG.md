@@ -71,6 +71,32 @@ All notable changes to the `source-control` plugin are documented here. Format f
   span's own requirement) — the dropped alternate detected nothing the others did not. `detect` is
   untouched, because being in scope only means the file is read.
 
+## [0.48.2]
+
+### Changed
+
+- **`babysit-loop`: listing description tightened (1,468 → 1,197 chars)** — trimmed the explanatory
+  prose from the frontmatter `description` toward the shared skill-listing budget
+  (claude-code-plugins#2022, option 2). Every single-quoted trigger phrase is preserved verbatim
+  (skill-quality check 3); the merge-authority invariants (fail-closed human-only default,
+  tracked-seam-only raises, the c3-this-run anti-spoofing clause, the independent frontier-tier
+  resolver) stay stated in the entry and fully stated in the skill body.
+
+## [0.48.1]
+
+### Changed
+
+- **`pull-request`: the CI-log grep rule leads with the instruction instead of a `CRITICAL:` prefix.**
+  `reference/monitor.md` opened with "CRITICAL: Do NOT use `grep -i ...`", which states the
+  prohibition before the thing to do. It now says to grep for `##[error]` annotations first and gives
+  the reason — a broad keyword grep matches cleanup steps, variable names, and incidental output. The
+  worked "Bad credentials" example and the fall-back-if-empty rule are unchanged.
+
+- **`pull-request`: section 1.3's heading is "Verify every finding".** The shout-caps `EVERY` and the
+  `(CRITICAL)` parenthetical restated emphasis the numbered verification procedure below already
+  carries. No step, classification, or drop rule changed.
+
+
 ## [0.48.0]
 
 ### Changed

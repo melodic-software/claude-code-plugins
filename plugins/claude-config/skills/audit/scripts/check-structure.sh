@@ -48,6 +48,30 @@ SETTINGS="$PROJECT_ROOT/.claude/settings.json"
 LOCAL="$PROJECT_ROOT/.claude/settings.local.json"
 MCP="$PROJECT_ROOT/.mcp.json"
 
+# Managed (machine-scope) policy settings — highest-precedence layer. Paths per
+# the official settings doc (verified 2026-08-08); the legacy Windows
+# C:\ProgramData location is unsupported since v2.1.75 and deliberately not
+# probed. Windows resolution goes through $PROGRAMFILES so a relocated
+# Program Files directory still resolves. SETTINGS_AUDIT_MANAGED_PATH is the
+# test seam — the real locations are absolute system paths a fixture dir
+# cannot reach.
+if [[ -n "${SETTINGS_AUDIT_MANAGED_PATH:-}" ]]; then
+  MANAGED="$SETTINGS_AUDIT_MANAGED_PATH"
+else
+  case "$OSTYPE" in
+  darwin*)
+    MANAGED="/Library/Application Support/ClaudeCode/managed-settings.json"
+    ;;
+  msys* | cygwin*)
+    MANAGED="${PROGRAMFILES:-C:\\Program Files}\\ClaudeCode\\managed-settings.json"
+    ;;
+  *)
+    MANAGED="/etc/claude-code/managed-settings.json"
+    ;;
+  esac
+fi
+MANAGED_DROPIN="${MANAGED%managed-settings.json}managed-settings.d"
+
 emit_file_facts() {
   local label="$1" path="$2" kind="$3"
   printf 'File: %s\n' "$label"
@@ -117,6 +141,17 @@ emit_file_facts() {
   mcp)
     tr -d '\r' <"$path" | jq -r '"MCP servers: \((.mcpServers // {} | keys | length))"'
     ;;
+  managed)
+    # Structure only, same posture as `local`: managed policy can carry org
+    # values an operator would not expect echoed into a report.
+    tr -d '\r' <"$path" | jq -r '
+        "Deny count: \((.permissions.deny // []) | length)",
+        "Ask count: \((.permissions.ask // []) | length)",
+        "Allow count: \((.permissions.allow // []) | length)",
+        "Hooks events: \((.hooks // {} | keys | length))",
+        "Env keys: \((.env // {} | keys | length))"
+      '
+    ;;
   *) ;;
   esac
   return 0
@@ -128,5 +163,16 @@ printf '\n'
 emit_file_facts ".claude/settings.local.json" "$LOCAL" local || invalid=1
 printf '\n'
 emit_file_facts ".mcp.json" "$MCP" mcp || invalid=1
+printf '\n'
+emit_file_facts "managed-settings.json (machine scope)" "$MANAGED" managed || invalid=1
+if [[ -d "$MANAGED_DROPIN" ]]; then
+  dropin_count=0
+  for f in "$MANAGED_DROPIN"/*.json; do
+    [[ -f "$f" ]] && dropin_count=$((dropin_count + 1))
+  done
+  printf 'Managed drop-in dir: present (%s *.json file(s), merged alphabetically on top of the base)\n' "$dropin_count"
+else
+  printf 'Managed drop-in dir: absent\n'
+fi
 
 [[ "$invalid" -eq 0 ]]

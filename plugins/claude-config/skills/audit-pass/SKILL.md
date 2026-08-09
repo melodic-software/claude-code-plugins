@@ -73,8 +73,9 @@ Parse `$ARGUMENTS`:
 
 Resolve the target root, compute the state key, and take the lock posture for the mode — read-only
 runs take no lock and run concurrently; an applying run takes an exclusive advisory lock and refuses
-rather than queues. All specified in [reference/run-contract.md](reference/run-contract.md). With
-`--resume`, read the run manifest and carry forward every lane whose input digest is unchanged.
+rather than queues. All specified in
+[reference/run-state-and-resumability.md](reference/run-state-and-resumability.md). With `--resume`,
+read the run manifest and carry forward every lane whose input digest is unchanged.
 
 **`--resume` never attaches to a run that is still going.** Concurrent read-only runs are safe
 because each owns its own partial artifact; resume is the one operation that reaches into *another*
@@ -85,9 +86,9 @@ the interruption-tolerance mechanism producing a report neither run performed.
 
 So every active run, read-only included, maintains a **lease**, and `--resume` reads it before it
 reads the manifest. The lease is fully specified in
-[reference/run-contract.md](reference/run-contract.md) §3 — its path, refresh interval, and
-staleness threshold — because "on the same heartbeat the applying lock uses" named a mechanism that
-did not exist and left the classification unimplementable. A **live** lease means the run is still
+[reference/run-state-and-resumability.md](reference/run-state-and-resumability.md) §3 — its path,
+refresh interval, and staleness threshold — because "on the same heartbeat the applying lock uses"
+named a mechanism that did not exist and left the classification unimplementable. A **live** lease means the run is still
 going: resume exits non-zero naming the run id rather than attaching. A **stale** lease means the run
 was interrupted and its artifact is resumable. The lease is not a lock — it excludes nothing, blocks
 no concurrent read-only run, and grants no exclusivity; it answers the one question resume has to ask
@@ -267,10 +268,11 @@ with a **fresh-context (non-fork) subagent** as the stated fallback.
 Two artifacts, because incremental persistence and a sectioned report want different shapes: an
 append-only `findings.partial.<owner_epoch>.jsonl` during the run, assembled into `findings.json` at
 the end — epoch-scoped so a fenced writer cannot interleave into its adopter's file, with assembly
-reading only the highest epoch present. Both
-schemas, the identity-versus-presentation field split, the sections, and the tier memberships are in
-[reference/run-contract.md](reference/run-contract.md). Tiers stay in separate sections because their
-guarantees differ. Every run also emits, in **one line**, how many `OPINION`-tier checks were
+reading only the highest epoch present. Both schemas, the identity-versus-presentation field split,
+and the sections are in
+[reference/report-location-and-schema.md](reference/report-location-and-schema.md); the tier
+memberships are in [reference/determinism-tiers.md](reference/determinism-tiers.md). Tiers stay in
+separate sections because their guarantees differ. Every run also emits, in **one line**, how many `OPINION`-tier checks were
 available, how many were not run, and the argument that enables them (`--opinion`) — without it the
 tier ships unreachable.
 
@@ -283,7 +285,7 @@ two-site finding at all, and would write into a tree the pass must leave clean. 
 finding's **constituents** — `check`, `claim`, every `(surface, anchor)` site — under the
 `finding_id` derived from them, never a bare id: an id is a one-way hash, so a record built on one
 cannot compute a tiered match. Keys, layer merge, precedence inversion, and the four entry
-dispositions are in [reference/run-contract.md](reference/run-contract.md); the cross-consumer key
+dispositions are in [reference/suppression.md](reference/suppression.md); the cross-consumer key
 contract is this marketplace's separately published **finding-suppression** convention.
 
 **Only the team layer enacts a suppression.** A personal entry for an id the team layer does not
@@ -325,8 +327,9 @@ something nobody approved is visible. That is a mutation-integrity check, report
 the determinism one.
 
 When it held, any derived-tier inequality is a defect, and judged-tier growth beyond the tolerance in
-[reference/run-contract.md](reference/run-contract.md) **fails the self-check as an instability
-finding against this skill**, naming the checks that moved — never absorbed by recalibration.
+[reference/determinism-tiers.md](reference/determinism-tiers.md) **fails the self-check as an
+instability finding against this skill**, naming the checks that moved — never absorbed by
+recalibration.
 
 ## Gotchas
 

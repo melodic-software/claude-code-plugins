@@ -10,8 +10,8 @@ disable-model-invocation: false
 
 Before emitting a form recommendation, section rewrite, hook placement, or bridge, run
 **§6 Form filter** of [response-filter](../../context/pat-pattison/research/response-filter.md)
-(add **§5 Title + hook** for hook/title placement). NAME each box's pass / fail / skip-with-reason;
-correct before emission. Skips are valid; silent skips are not.
+(add **§5 Title + hook** for hook/title placement). NAME each box's pass / fail / skip-with-reason
+(aloud or in reasoning); correct before emission. Skips are valid; silent skips are not.
 
 ## Purpose
 

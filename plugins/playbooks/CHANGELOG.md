@@ -4,6 +4,33 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.7.2]
+
+### Fixed
+
+- **`boris`: the Quick Reference and both effort tips now match current model and effort facts.** The
+  Model row points at Fable 5 for the hardest and longest tasks, with Opus kept as the historical
+  Section 2 pick; the Planning row reflects Section 87 (auto mode plans implicitly on 4.6+) instead
+  of prescribing plan mode; and effort is set with `/effort`, not `/model`, over the current ladder
+  low/medium/high/xhigh/max with `high` the default (`xhigh` on Opus 4.7) — corrected in the Quick
+  Reference and in Sections 17 and 34. Section 2 gains the pack's own supersession-note pattern
+  pointing at Section 94, leaving Boris's historical text intact.
+- **`boris`: the orchestration snapshot disclaimer now covers Section 94's specs sentence.** Model
+  id, context window, max output, and knowledge cutoff sat outside the framing that already covered
+  benchmark and pricing figures; they are verified still current 2026-08-08 against the models
+  overview, which owns them.
+- **`boris`: Section 113 no longer reads as retiring rule-writing.** What auto-memory replaces is
+  ad-hoc `#`-hotkey capture; encoding a correction as a durable CLAUDE.md or skill rule (Section 89)
+  is a different mechanism and still applies.
+- **`fable-5` and model-adaptation: one label convention, and `opus-4-8.md` catches up with its
+  siblings.** The chapters carried four different TRIGGER/RULE label forms and now carry one (bare
+  `LABEL:`, the form already used by two thirds of them); the check/skip decision states its
+  already-settled early exit outside a numbered four-rule precedence list, which its prose already
+  described but its bullets contradicted; and `opus-4-8.md` gains the `[CC: ...]` applicability
+  legend and per-claim tags both sibling files carry, a Thinking controls section (thinking is off
+  on Opus 4.8 unless the request sets `thinking: {type: "adaptive"}`), and the guide's
+  max-output-token budget guidance for `max`/`xhigh` runs.
+
 ## [0.7.1]
 
 ### Added

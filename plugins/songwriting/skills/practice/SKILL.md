@@ -10,9 +10,9 @@ disable-model-invocation: false
 
 When a practice run produces sample lines, images, or rhymes, run the applicable section of
 [response-filter](../../context/pat-pattison/research/response-filter.md) (§1 rhyme, §2 line,
-§7 image) before emitting them. NAME each box's pass / fail / skip-with-reason; correct before
-emission. Skips are valid; silent skips are not. Prompt-only runs (assigning an exercise) need no
-filter pass.
+§7 image) before emitting them. NAME each box's pass / fail / skip-with-reason (aloud or in
+reasoning); correct before emission. Skips are valid; silent skips are not. Prompt-only runs
+(assigning an exercise) need no filter pass.
 
 ## Purpose
 

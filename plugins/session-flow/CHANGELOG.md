@@ -1,5 +1,37 @@
 # Changelog — session-flow plugin
 
+## [0.21.2]
+
+### Changed
+
+- **`running-retro` and `reconcile`: listing descriptions tightened (1,116 → 869 and
+  1,072 → 837 chars)** — trimmed the explanatory prose from each frontmatter `description` toward
+  the shared skill-listing budget (claude-code-plugins#2022, option 2). Every single-quoted
+  trigger phrase is preserved verbatim (skill-quality check 3); both skills' contracts and sibling
+  boundaries are unchanged in the bodies.
+
+## [0.21.1]
+
+### Changed
+
+- **`retro`: mode selection no longer turns on a context-percentage the model cannot measure.**
+  `SKILL.md` and `context/quick.md` both routed to `quick` when the context window was ">75% used" —
+  a figure a session can only fabricate, which the sibling `handoff` skill already disclaims by name
+  ("never by a fixed token count"). Both now key off observable signals: a long or quality-degraded
+  session, or a compaction that has occurred.
+
+- **`running-retro`: the detached observer's analysis prompt is XML-sectioned.** `observer.py`'s
+  `_analysis_prompt` ran roughly a thousand words of tools, trust boundary, method, inputs, and task
+  together as undelimited prose, and it is executed by the cheap default model (`claude-haiku-4-5`)
+  with no follow-up turn to recover from a misread. The five parts are now wrapped in `<tools>`,
+  `<trust_boundary>`, `<method>`, `<inputs>`, and `<task>`, with two section leads lightly
+  reworded to fit the tags; every compute-don't-assert rule, dependency check, and the mandatory
+  redaction pass carry over verbatim.
+
+- **`workflow`: the depth expectation in `context/philosophy.md` reads in normal case.** "Default to
+  HIGH confidence, HIGH accuracy, HIGH attention to detail" plus a second sentence repeating it
+  collapses to one sentence stating the same expectation.
+
 ## [0.21.0]
 
 ### Changed
