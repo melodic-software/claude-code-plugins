@@ -70,8 +70,9 @@ when this pass must stop instead of guessing.
      time when `gh` ≥ 2.94 is absent — and then confirm the checkout itself resolves:
      `gh repo view --json owner,name`, the same derivation the adapter's repo-scope resolution makes
      for every repo-scoped verb. Report the `owner/repo` it returns. That one call is the operative
-     test and subsumes authentication, since it can only succeed when `gh` is authenticated for the
-     host this checkout uses. `gh auth status` is not the test: it is an account fact, not a
+     test and subsumes authentication: it fails unauthenticated even against a public repository, so
+     succeeding proves `gh` is authenticated for the host this checkout uses. `gh auth status` is
+     not the test: it is an account fact, not a
      repository one — a local-only or non-GitHub checkout passes it and still has no repository for
      the seam to address — and it tests every account on every known host, exiting 1 if any has an
      issue (`gh auth status --help`), so an unrelated stale credential would condemn a good
@@ -159,8 +160,10 @@ check.
      so every repo-scoped verb that is not handed the CONTRACT's explicit `--repo <owner>/<repo>`
      override fails at call time. Remediation is `/work-items:setup apply` with a user present,
      since re-choosing a provider needs a decision.
-   - `gh` not installed, a 401/403, a not-found, a rate limit, or a network failure → INFO, never
-     FAIL. Those are availability and credential facts, not verdicts on the binding. A not-found
+   - `gh` not installed or not authenticated, a 401/403, a not-found, a rate limit, or a network
+     failure → INFO, never FAIL. Those are availability and credential facts, not verdicts on the
+     binding. Unauthenticated is one of them and not a gate: the call fails that way even against a
+     public repository, so it says nothing about where this checkout is hosted. A not-found
      belongs here and not above: an under-scoped token on a private repository returns exactly what
      a deleted one does, and condemning a correct binding is the worse error. Say in the INFO which
      it could be.

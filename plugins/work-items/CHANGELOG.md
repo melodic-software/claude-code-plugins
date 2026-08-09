@@ -34,8 +34,9 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   non-GitHub checkout with an authenticated `gh` was silently bound to `github`, and every
   repo-scoped seam verb then failed, because the adapter derives its `owner/repo` scope from the
   checkout with `gh repo view --json owner,name`. That call now *replaces* `gh auth status` as the
-  unattended bind's precondition rather than joining it: it is the adapter's own derivation, so it
-  subsumes authentication for the host the checkout uses, while `gh auth status` tests every account
+  unattended bind's precondition rather than joining it: it is the adapter's own derivation, and it
+  subsumes authentication because it fails unauthenticated even against a public repository — so
+  succeeding proves `gh` is authenticated for the host in play. `gh auth status` tests every account
   on every known host and exits 1 if any has an issue (`gh auth status --help`) — a machine-wide
   fact that both admits the wrong checkout and refuses a good one. The resolved `owner/repo` is
   reported with the other defaults taken, and a probe that does not resolve stops with the existing
