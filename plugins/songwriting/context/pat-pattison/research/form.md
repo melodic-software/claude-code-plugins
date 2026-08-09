@@ -244,7 +244,7 @@ This is form-level juggling: the chorus comments on the long, loose verse
 material by becoming more compact, balanced, and focused.
 
 The musical setting is what completes the prosody, and the stress arithmetic
-alone misses it. Chapman gives both groups the same four bars — but three
+alone misses it. The song gives both groups the same four bars — but three
 phrases now have to fit the space two phrases had, and the final phrase gets
 only one bar. The lyric says years go fast; the setting compresses the last
 phrase into the smallest space in the section. When checking a chorus like
