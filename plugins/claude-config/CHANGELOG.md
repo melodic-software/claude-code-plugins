@@ -3,7 +3,7 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.27.1]
+## [0.27.2]
 
 ### Fixed
 
@@ -77,6 +77,15 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   mid-run on a bare `command not found` rather than on a named prerequisite. Only
   `conflict-scan.sh` probes and `exit 2`s. Both surfaces now name all three skills, and the README's
   requirements section names `awk` and `sort` alongside `jq` and `curl`.
+
+## [0.27.1]
+
+### Changed
+
+- **`audit-instructions`: listing description tightened (1,197 → 948 chars)** — trimmed the
+  explanatory prose from the frontmatter `description` toward the shared skill-listing budget
+  (claude-code-plugins#2022, option 2). Every single-quoted trigger phrase is preserved verbatim
+  (skill-quality check 3); the audit's scope and report-only contract are unchanged in the body.
 
 ## [0.27.0]
 

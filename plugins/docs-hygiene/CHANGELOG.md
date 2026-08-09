@@ -1,5 +1,14 @@
 # Changelog — docs-hygiene plugin
 
+## [0.9.7]
+
+### Changed
+
+- **`audit-derivability`: listing description tightened (1,161 → 876 chars)** — trimmed the
+  explanatory prose from the frontmatter `description` toward the shared skill-listing budget
+  (claude-code-plugins#2022, option 2). Every single-quoted trigger phrase is preserved verbatim
+  (skill-quality check 3); the four-factor rubric and verdict classes are unchanged in the body.
+
 ## [0.9.6]
 
 ### Changed
