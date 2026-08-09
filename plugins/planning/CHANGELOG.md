@@ -22,7 +22,7 @@ All notable changes to the `planning` plugin are documented here. Format follows
   fabricate a degenerate all-sharp map. Chart step 1 now stops and routes out (interview /
   work-items / just do it) when the too-big-AND-foggy trigger is not met.
 
-## [0.28.2]
+## [0.28.4]
 
 ### Changed
 
@@ -34,6 +34,27 @@ All notable changes to the `planning` plugin are documented here. Format follows
   repository's `docs/upstream/mattpocock-skills.md` registry, which also carries the observable
   recheck trigger the removed "re-audit opportunistically" wording lacked. Skill behavior is
   unchanged.
+
+## [0.28.3]
+
+### Changed
+
+- **`audit-answers`: listing description tightened (1,028 → 899 chars)** — trimmed the
+  explanatory prose from the frontmatter `description` toward the shared skill-listing budget
+  (claude-code-plugins#2022, option 2). Every single-quoted trigger phrase is preserved verbatim
+  (skill-quality check 3); the validation-never-derivation contract is unchanged in the body.
+
+## [0.28.2]
+
+### Changed
+
+- **`prd`: the user-stories template no longer disfavors brevity.** `context/templates.md` told
+  the author to "err on completeness over brevity" and "aim for exhaustive coverage" — explicit
+  anti-brevity dials on a document written to disk, the instruction class the Opus 5 prompting
+  guide's "Written deliverable length" section flags as compounding current models'
+  already-longer documents. The coverage intent survives ("every flow a product reviewer might
+  ask about should be a story"; "cover the feature surface completely"), now paired with the
+  guide-calibrated bound: do not pad with speculative or duplicate flows.
 
 ## [0.28.1]
 

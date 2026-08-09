@@ -68,9 +68,23 @@ owned by `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`.
      Remediation: `apply`.
    - **Present and identical** — PASS. Nothing about it needs revisiting on a plugin update; that
      is the whole point of the shim.
-   - **Present but differing** — INFO, not FAIL: the installed copy is an older (or hand-edited)
-     revision that still resolves the newest tee. Report the shipped `# shim-revision:` marker
-     against the installed one and offer `apply` as the refresh.
+   - **Present but differing** — classify by what the installed revision can still do, not by the
+     fact that it differs. Report the shipped `# shim-revision:` marker against the installed one
+     either way, and offer `apply` as the refresh.
+     - Installed revision **>= 3** — INFO: an older-but-adequate or hand-edited copy that still
+       resolves the newest tee correctly. A refresh is housekeeping.
+     - Installed revision **< 3, or unmarked** — FAIL. Revision 3 is the first that skips a
+       candidate whose version directory carries the orphan marker; every earlier revision keeps
+       teeing from an UNINSTALLED plugin's directory for the ~14 days before Claude Code reaps it,
+       writing snapshots the operator has no reason to expect. That is a behavior defect in the
+       running statusline, not drift, and INFO would leave it sitting under a heading operators
+       are told they can defer.
+     - **The migration matters more than the classification.** The durable copy at
+       `~/.claude/rate-limit-guard/bin/statusline-shim.sh` is what the statusline actually runs;
+       a plugin update never overwrites it. An operator who ran `apply` before 0.4.3 therefore
+       keeps running the old shim until they re-run `apply` — and if they uninstall the plugin
+       first, this skill is gone and the stale shim keeps teeing with no remaining way to reach
+       the remediation. Say that in the finding, so the reason to act now is on screen.
    - **The SHIPPED source is absent** (no `${CLAUDE_PLUGIN_ROOT}/scripts/statusline-shim.sh`) —
      INFO, and skip the comparison entirely: this installed plugin version predates the shim
      (< 0.2.0). Never report the operator's installed copy as drifted on this branch. Remediation:
@@ -168,8 +182,9 @@ owned by `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`.
    `<escaped original command>` is the original command POSIX-escaped for single-quote embedding:
    replace every `'` in it with `'\''` before substituting (then JSON-escape the whole `command`
    string as usual). Show the final, fully escaped line — never hand the operator a template with
-   raw quotes left to fix. Verify your printed edit round-trips: mentally unquote it back and
-   confirm it reproduces the original command byte-for-byte.
+   raw quotes left to fix. Verify your printed edit round-trips: run
+   `printf '%s\n' '<escaped original command>'` and confirm the output matches the original
+   command.
 
    Sibling tees compose by nesting, each through its OWN shim — the tees are transparent wrappers,
    so the innermost command still owns stdout and the exit code. Print this form (its tee outermost,

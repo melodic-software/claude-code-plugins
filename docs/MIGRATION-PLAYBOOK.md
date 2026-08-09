@@ -320,6 +320,17 @@ description, optional `files` fixtures, and an `expectations` array of objective
 cover trigger/routing, the happy path, at least one refusal/guardrail, and one anti-pattern the skill
 must not do.
 
+**Method source.** The methodology behind this policy is Anthropic's "Define success criteria and
+build evaluations" ([indexed in OFFICIAL-DOCS.md](OFFICIAL-DOCS.md#evaluation-guidance-platform-docs);
+the `evals` plugin distills it). The rich form is that guidance's eval anatomy with the golden
+answer in its rubric-instructions form (`expected_output` + `expectations` are what a grader is
+told to look for), and every case must carry one — the schema rejects a case with no
+`expected_output`, `expectations`, or `assertions`, because a case that cannot be graded is not an
+eval. Two deliberate divergences from the guidance, both consequences of the deferred runner
+(medley#1418): case volume stays low (the guidance's volume-over-polish principle assumes cheap
+automated grading, which does not exist here yet), and grading is a human judgment pass (the
+method the guidance ranks last). Both revisit when the runner lands.
+
 **Consumer-verify recipe — "verify this plugin in MY repo".** There is **no first-party command that
 executes model-graded evals today** — automated eval *running* is a deferred surface (owned by
 `melodic-software/medley#1418`); `skill-quality` only checks presence and schema, and it resolves
@@ -337,14 +348,17 @@ can differ from the enabled copy. Step 3 (exercise) is the definitive as-enabled
 against the plugin you actually invoked. Then:
 
 1. **Presence** — confirm the file `<root>/<skill>/evals/evals.json` exists. The static gate is only a
-   partial signal: `/skill-quality:skill-quality check <skill>` (`check` is an action argument to the
-   `skill-quality` skill, run with `skills_root` pointed at `<root>` via `/skill-quality:setup`) flags a
+   partial signal: `/skill-quality:check <skill>` (`check` is both the skill's leaf name and its
+   default action, run with `skills_root` pointed at `<root>` via `/skill-quality:setup`) flags a
    *missing* eval file only for action-router-shaped skills — its check fires on a `## Actions` heading —
    so a warranted non-router skill (e.g. `debug`) passes `check` without flagging the gap. Rely on the
    direct file check or the coverage snapshot, not a green `check`, to confirm presence.
-2. **Schema** — `/skill-quality:skill-quality validate-evals <skill>` (same `skills_root`) validates
-   `evals/evals.json` against the bundled schema (structure only — it does not run the cases, and it
-   treats an absent file as "not a failure", so it is a schema gate, not a presence gate).
+2. **Schema + quality lint** — `/skill-quality:check validate-evals <skill>` (same `skills_root`)
+   validates `evals/evals.json` against the bundled schema, then runs the deterministic
+   eval-quality lint (`check-evals-quality.sh`: duplicate case ids/names, unresolvable `files`
+   fixtures, empty or vague grading criteria, advisory set-coverage warnings). Still static — it
+   does not run the cases, and it treats an absent file as "not a failure", so it is a
+   schema-and-content gate, not a presence gate.
 3. **Exercise (manual) — the real consumer check** — enable the plugin in your repo (`/plugin install
    <plugin>@<marketplace>`), then read the eval cases **from the copy you actually enabled**, not from
    `<root>`: the enabled version lives in the version-keyed cache under `~/.claude/plugins/cache`, and

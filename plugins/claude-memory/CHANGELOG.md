@@ -3,6 +3,83 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.0]
+
+### Fixed
+
+- **A single heavy pseudo-frontmatter line silently blanked the `audit` skill's M1 index-size byte
+  count** (claude-memory 0.5.9 → 0.6.0, criteria 1.5.2 → 1.5.3). `memory-dir-stats.sh` bounded its
+  frontmatter block by grammar and by line count but never by weight, and markdown prose opening
+  `Note:` or `Important:` is a well-formed `key:` mapping entry. A `MEMORY.md` opening with a `---`
+  thematic break, carrying one long paragraph, and reaching any later `---` had that paragraph
+  stripped however much it weighed: a 26,020-byte index reported 5 loaded bytes. M1 is a
+  `[FAIL]`-severity size gate and a low count always passes it, so the shape disarmed the gate's
+  25KB limb outright — the same disarming the line cap already prevented on the 200-line limb. The
+  block is now bounded a third way, by `fmbytecap` bytes of held content, and that index reports
+  its full 26,020 bytes.
+
+  The cap is 1KB. It is calibrated against what real frontmatter weighs, not against the 25KB
+  limit: Claude Code stamps only a `modified` scalar, and even a hand-written block of twenty
+  entries runs to a few hundred bytes, so 1KB clears every real shape by a wide margin and a block
+  under it still strips whole. Like the two bounds it joins, it leaves a residue — a misparsed
+  block still strips up to the cap before the bound ends it — and 1KB of 25KB is the smaller share
+  of M1's two limits, against the line cap's 20 of 200. Both directions stay the ones M1's
+  readings already guess toward: an over-count can only make the gate fire early, while the
+  under-count it replaces stopped it firing at all. criteria.md M1 reading 1 records the bound.
+
+## [0.5.9]
+
+### Fixed
+
+- **Attributed blockquotes in `stateless`'s `reference/official-guidance.md` carried text the
+  cited pages do not say** (claude-memory 0.5.8 → 0.5.9). The settings-page precedence quote
+  substituted a bare `(…)` for item 1's parenthetical, so an ellipsis inside quote marks stood
+  where real page words belong; it now reads `(server-managed, MDM/OS-level policies, or managed
+  settings)`, with the attribution note recording that the three links are flattened to their
+  labels and that each item's nested detail bullets are omitted. Two harder defects surfaced in
+  the same pass. The `"Cannot be overridden by any other level, including command line
+  arguments"` quote truncated mid-sentence, dropping `, apart from the exceptions in the bullets
+  below` and inverting a qualified claim into an absolute one; the full sentence is restored, and
+  new prose carries the conclusion the skill needs as a verified negative — item 1's exception
+  bullets name auto memory nowhere — instead of an enumeration this file would have to keep in
+  sync. Review narrowed that conclusion to settings scopes only: `CLAUDE_CODE_DISABLE_AUTO_MEMORY`
+  as an OS environment variable sits outside settings precedence and still overrides the effective
+  value even against a managed `autoMemoryEnabled`, as the file's env-var precedence section
+  already states. The `claude project purge` quote asserted `"The command requires Claude Code
+  v2.1.124 or later"`, a sentence claude-directory no longer carries and cli-reference never did;
+  it is out of the quote, and the retained `v2.1.124+` floor the plugin states elsewhere is
+  labelled a claim with no current upstream source rather than left looking doc-backed. Review
+  extended that reconciliation within the reference file itself: its second, unlabelled `v2.1.124+`
+  mention now defers to the labelled statement instead of restating the floor as doc-backed fact,
+  and the cli-reference negative carries its own citation — the page is in the file's Sources list
+  and documents `claude project purge` with no version requirement (verified 2026-08-08).
+
+  The `env` and `cleanupPeriodDays` quotes were re-checked character-for-character against the
+  live page and are verbatim as they stand, so their wording is untouched. What changed around
+  `cleanupPeriodDays` is the reading: its `"session files and other application data"` sat under
+  prose stating `sessions/` is not age-swept, close enough to read as contradicting it. New prose
+  resolves the phrase against the table it links to — transcripts, `shell-snapshots/`, `debug/`,
+  `tasks/`, `file-history/` — and states that `sessions/` is not a row in it, which is what the
+  quote two paragraphs down already said. Every settings and claude-directory verification stamp
+  in the file moves to 2026-08-08, the date each quote was re-checked.
+
+## [0.5.8]
+
+### Fixed
+
+- **The `audit` workflow told the model to be mechanical on every check, contradicting the skill's
+  own determinism contract.** "Be mechanical, not interpretive" sat unscoped at the end of the
+  generic per-check loop, but only C1/M1/M2/RD1 are the deterministic spine; C2-C9, R1-R4, and
+  M3-M4 are a judgment tier that requires reading and interpreting content by design. The
+  instruction is now scoped to the spine, and the judgment tier is told to apply its fixed criteria
+  consistently rather than to skip the judgment.
+
+### Changed
+
+- **`stateless`' disable workflow says why the scope gate exists** — applying the wrong scope
+  silently changes memory behavior for the wrong audience (machine-wide vs. this repo) — instead of
+  stating the stop as a bare prohibition.
+
 ## [0.5.7]
 
 ### Fixed

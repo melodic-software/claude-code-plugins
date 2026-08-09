@@ -23,6 +23,15 @@ Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
   mattpocock/skills v1.2 `wait-what` (see `docs/upstream/mattpocock-skills.md` for
   provenance, the naming-exception record, and the on-demand-beats-passive evidence
   behind the shape).
+## [0.10.2]
+
+### Changed
+
+- **`script-the-deterministic-work` and `reuse-or-replace`: listing descriptions tightened
+  (1,054 → 872 and 1,022 → 836 chars)** — trimmed the explanatory prose from each frontmatter
+  `description` toward the shared skill-listing budget (claude-code-plugins#2022, option 2).
+  Every single-quoted trigger phrase is preserved verbatim (skill-quality check 3); both
+  correctors' disciplines and not-for boundaries are unchanged in the bodies.
 
 ## [0.10.1]
 

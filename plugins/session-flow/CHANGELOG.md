@@ -1,6 +1,6 @@
 # Changelog — session-flow plugin
 
-## [0.18.1]
+## [0.21.3]
 
 ### Changed
 
@@ -11,6 +11,92 @@
   the route. (Criterion from upstream mattpocock/skills ask-matt `PHASE-BOUNDARIES.md` v1.2,
   adopted zone-gated; the rest of that tree audited at parity or rejected — registry: the
   marketplace repository's `docs/upstream/mattpocock-skills.md`.)
+
+## [0.21.2]
+
+### Changed
+
+- **`running-retro` and `reconcile`: listing descriptions tightened (1,116 → 869 and
+  1,072 → 837 chars)** — trimmed the explanatory prose from each frontmatter `description` toward
+  the shared skill-listing budget (claude-code-plugins#2022, option 2). Every single-quoted
+  trigger phrase is preserved verbatim (skill-quality check 3); both skills' contracts and sibling
+  boundaries are unchanged in the bodies.
+
+## [0.21.1]
+
+### Changed
+
+- **`retro`: mode selection no longer turns on a context-percentage the model cannot measure.**
+  `SKILL.md` and `context/quick.md` both routed to `quick` when the context window was ">75% used" —
+  a figure a session can only fabricate, which the sibling `handoff` skill already disclaims by name
+  ("never by a fixed token count"). Both now key off observable signals: a long or quality-degraded
+  session, or a compaction that has occurred.
+
+- **`running-retro`: the detached observer's analysis prompt is XML-sectioned.** `observer.py`'s
+  `_analysis_prompt` ran roughly a thousand words of tools, trust boundary, method, inputs, and task
+  together as undelimited prose, and it is executed by the cheap default model (`claude-haiku-4-5`)
+  with no follow-up turn to recover from a misread. The five parts are now wrapped in `<tools>`,
+  `<trust_boundary>`, `<method>`, `<inputs>`, and `<task>`, with two section leads lightly
+  reworded to fit the tags; every compute-don't-assert rule, dependency check, and the mandatory
+  redaction pass carry over verbatim.
+
+- **`workflow`: the depth expectation in `context/philosophy.md` reads in normal case.** "Default to
+  HIGH confidence, HIGH accuracy, HIGH attention to detail" plus a second sentence repeating it
+  collapses to one sentence stating the same expectation.
+
+## [0.21.0]
+
+### Changed
+
+- **`handoff` no longer fires on a self-estimated context budget.** Its `description` listed
+  "context is heavy" among the triggers, and the body's "When to invoke" repeated it as "Mid-task,
+  context heavy (check `/context` output or user report)" — telling the model to judge its own
+  window and volunteer a handoff on that judgement. A description is resident in context by default
+  (<https://code.claude.com/docs/en/skills>, verified 2026-08-08), so that trigger was live in every
+  session with the plugin installed, and it is the shape the `claude-config` instruction-audit
+  catalog's check I23 detects.
+
+  Three signals now license the skill, and a self-estimated budget is not among them: **the user's
+  own report**, **an instrument that measures the window** (`context-guard`'s zone report is one),
+  and **visible decay in the responses themselves** — drift, repetition, looping. The third is
+  explicitly the model's to read, because decay shows up in the output and never in a budget number.
+  Nothing about the save-point engine, the arguments, the STOP gate, or the emitted artifacts
+  changes, and the skill stays model-invocable: only the budget clause is gone.
+
+  The "Fork beats compaction" section keeps its window-position threshold and gains a one-line
+  anchor saying what it always meant — it picks between two continuation mechanisms and never
+  licenses the continuation itself.
+
+## [0.20.0]
+
+### Changed
+
+- **`retro` quick mode: the findings bar is now a decidable test, not a qualitative label.** "Only
+  errors, regressions, or significant behavioral gaps — skip minor issues" gated findings on
+  "significant"/"minor", which current models apply faithfully at the finding stage and convert
+  into withheld findings (Sonnet 5 prompting guide, "Code review harnesses": state the bar
+  concretely "rather than using qualitative terms"). The bar now enumerates what qualifies — a
+  wrong result produced, a regression against earlier session behavior, a skipped or failed
+  verification, a repeated user correction — and what is omitted (style, phrasing, self-corrected
+  one-off friction). The max-3 cap is unchanged.
+
+## [0.19.0]
+
+### Changed
+
+- **Orchestration imperative 2 ("SPEC EVERY SPAWN") now names the reason as a required field.** It
+  previously asked for an objective, an output format, tools and sources, boundaries, and a model
+  tier — five things, none of them intent. The imperative now leads with the reason the work is
+  being asked for: the larger task it feeds, who the output is for, and what it enables.
+  - This travels further than the other surfaces changed alongside it, because these imperatives are
+    also an **export**: `handoff` and `worker` modes emit them verbatim between dashed rails for a
+    target that left the session and inherits nothing. A worker pasted that brief was previously
+    told to spec five things and given no slot for the one a spawned worker most conspicuously
+    lacks.
+  - Sourced from Anthropic's Fable 5 prompting guide, "Give the reason, not only the request", with
+    the citation added to `context/sources.md` under imperative 2 — that ledger backs every
+    imperative with the page it came from, so a field added without one would be the only unsourced
+    clause in the brief.
 
 ## [0.18.0]
 

@@ -10,6 +10,14 @@
 # done"), and a lane that still stops after that one nudge is treated as a
 # genuine down-lane — allowed to stop (never wedged) and the operator is alerted.
 #
+# SCOPE — this gate mechanizes ONE clause of the autonomous-pipeline reminder
+# (reference/autonomous-pipeline-reminder.md): end the turn only on completion or
+# a genuine block. It performs no content classification of the final message
+# beyond the literal sentinel check below, so it cannot tell a blocked-on-user
+# stop from a lazy one — both get the same single nudge. Every other clause of
+# that reminder is carried by instruction alone; a shell hook cannot judge
+# whether a final paragraph describes an action or reports one.
+#
 # DEFAULT-OFF. A Stop-blocking hook that engaged by default would wedge every
 # interactive user's stop, so the gate is inert unless a session explicitly opts
 # in. Every other exit path allows the stop.
@@ -35,7 +43,8 @@
 #      carries only a random record id through the `lane_stop_gate_arm_id`
 #      userConfig option. The env-delivered id is a capability POINTER, never
 #      authority: it is shape-validated, looked up only in the install-derived
-#      store, claimed by the first session that presents it (a different session
+#      store, claimed by the first session that presents it through an exclusive
+#      create so concurrent presenters cannot both win (a different session
 #      replaying the same id is refused), and TTL-bounded — it lives for the
 #      claiming session's whole life (every /loop cycle's stop stays gated),
 #      retired by TTL and the launcher's relaunch sweep, never by a single stop;
@@ -142,33 +151,95 @@ SESSION_ID=$(printf '%s' "$INPUT" | jq -r '.session_id // ""' 2>/dev/null | tr -
 GATE_ARM_TTL_SECONDS=$((7 * 86400))
 GATE_ARM_JSON=""
 
+# Does this session own the record whose claim sidecar is <claim path>?
+#
+# The claim is an EXCLUSIVE CREATE — `set -o noclobber` on a `>` redirection,
+# i.e. open with O_CREAT|O_EXCL — the same primitive statusline-tee.sh uses for
+# its snapshot write, extended from a process-unique name to mutual exclusion on
+# a contended one. Read-then-write of the record itself cannot decide this:
+# two Stop invocations presenting the same fresh id both read it unclaimed, both
+# write, and the last rename wins, so BOTH honor the arm for that event while
+# the loser — possibly the legitimate lane — is refused on every later stop.
+# flock is not used: it is absent on macOS, the reason statusline-tee.sh already
+# records for avoiding it.
+#
+# FAIL DIRECTION, unchanged: a store this hook cannot write leaves no claim file
+# at all and the arm is HONORED. Being gated is never the harm here; the harm is
+# a legitimate lane silently losing its gate. The existence recheck that tells
+# "another session claimed it" apart from "an unwritable store" shares that
+# direction, and so does the fall-through below: durably ownerless — a create
+# that won whose write never landed — or a durably unwritable store honors every
+# presenter for as long as it lasts, the same unbounded over-gating a failed
+# claim write already produced before this change, in the same direction. An
+# extra nudge, never an ungated lane.
+#
+# The claim file exists ONLY because some process won the exclusive create, so
+# an EMPTY one is that winner caught between its create and its write, not an
+# ownerless record. Honoring it there would hand one fresh arm to every
+# concurrent presenter — the race this claim exists to close, reopened a few
+# microseconds wide — so the read is retried over a bounded budget to let the
+# winner's line land. Bounded, and the fall-through is still HONOR: refusing a
+# durably ownerless claim would make the record permanently unclaimable, which
+# is the original harm in a new shape.
+#
+# The comparison runs on a newline-stripped session id so the value written and
+# the value read back are the same shape whatever the payload carried.
+gate_arm_owned() {
+  local claim="$1" me="${SESSION_ID//[$'\r\n']/}" owner=""
+  # The record path has always been guarded by `[[ -f ]]`; the claim is a second
+  # predictable name in the same store and earns the same asymmetry. Anything
+  # sitting there that this hook did not write is not a claim: a FIFO would
+  # block the write with no reader and hang the whole Stop event, a directory or
+  # a symlink aimed elsewhere decides nothing. Leave it untouched and honor.
+  [[ ! -e "$claim" || (-f "$claim" && ! -L "$claim") ]] || return 0
+  if [[ -n "$me" ]] && (
+    umask 077
+    set -o noclobber
+    printf '%s\n' "$me" >"$claim"
+  ) 2>/dev/null; then
+    return 0
+  fi
+  [[ -e "$claim" ]] || return 0
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    # `|| true`, never `|| owner=""`: read reports failure on a final line with
+    # no newline yet still assigns it, and clearing that would discard a real
+    # owner.
+    IFS= read -r owner <"$claim" 2>/dev/null || true
+    [[ -n "$owner" ]] && break
+    # A userland whose sleep rejects a fraction leaves a tight re-read, which is
+    # a narrower budget but never a wrong answer.
+    sleep 0.02 2>/dev/null || true
+  done
+  [[ -n "$owner" ]] || return 0
+  [[ -n "$me" && "$owner" == "$me" ]]
+}
+
 gate_load_arm_record() {
-  local id="${CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID:-}" rec json armed_at now claimed tmp
+  local id="${CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID:-}" rec claim json armed_at now claimed
   [[ -n "$id" ]] || return 1
   rec=$(gate_arm_record_path "$id") || return 1
+  claim=$(gate_arm_claim_path "$id") || return 1
   [[ -f "$rec" ]] || return 1
   json=$(jq -ec '.' <"$rec" 2>/dev/null) || return 1
   armed_at=$(printf '%s' "$json" | jq -r '.armed_at // empty' 2>/dev/null)
   [[ "$armed_at" =~ ^[0-9]+$ ]] || return 1
   now=$(date +%s 2>/dev/null) || now=""
   if [[ -n "$now" ]] && ((now - armed_at > GATE_ARM_TTL_SECONDS)); then
-    rm -f -- "$rec" 2>/dev/null
+    rm -f -- "$rec" "$claim" 2>/dev/null
     return 1
   fi
+  # Compatibility read: a record claimed before the sidecar existed carries its
+  # owner in the record itself and has no claim file. That field stays
+  # authoritative so an upgrade cannot let a second session claim a record
+  # already bound to a live lane; nothing writes it any more.
   claimed=$(printf '%s' "$json" | jq -r '.session_id // empty' 2>/dev/null)
   if [[ -n "$claimed" ]]; then
     [[ -n "$SESSION_ID" && "$claimed" == "$SESSION_ID" ]] || return 1
-  elif [[ -n "$SESSION_ID" ]]; then
-    # First presenter claims. Best-effort: a failed claim write leaves the
-    # record unclaimed, which errs toward honoring the arm — the gate stays ON,
-    # the strict direction for a gate.
-    tmp="$rec.tmp.$$"
-    if printf '%s' "$json" | jq -c --arg s "$SESSION_ID" '. + {session_id:$s}' >"$tmp" 2>/dev/null; then
-      mv -f -- "$tmp" "$rec" 2>/dev/null || rm -f -- "$tmp" 2>/dev/null
-    else
-      rm -f -- "$tmp" 2>/dev/null
-    fi
+  else
+    gate_arm_owned "$claim" || return 1
   fi
+  # Assigned only past the ownership verdict: an unowned record contributes no
+  # config, which is what keeps a replaying session from being honored at all.
   GATE_ARM_JSON="$json"
 }
 gate_load_arm_record || true

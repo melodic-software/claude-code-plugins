@@ -3,7 +3,7 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.4.0]
+## [0.5.0]
 
 ### Added
 
@@ -23,6 +23,22 @@ All notable changes to the `prototype` plugin are documented here. Format follow
   throwaway-branch "primary source" capture of the prototype was rejected
   (contradicts this plugin's delete-when-done discipline) — rejection recorded
   in `docs/upstream/mattpocock-skills.md`.
+
+## [0.4.0]
+
+### Changed
+
+- **`explore-directions`: the visual axis is additive, not out of scope.** Structure remains the
+  floor ("a recolor alone is not a variant"), but the skill no longer de-scopes visual direction:
+  on open-ended briefs current models settle into one default house aesthetic, and generic
+  steering only swaps palettes (Sonnet 5 / Opus 4.8 prompting guides, "Design and frontend
+  defaults"). The HTML mockup substrate — which has no project styling system to pin the
+  aesthetic — now requires each variant to declare its visual direction (background hex, accent
+  hex, typeface, one-line rationale) and differ from siblings on that axis as well as
+  structurally; the real-stack path declares a direction wherever the project's styling system
+  leaves room. Eval 3's second expectation now scores "recolors are not the only difference"
+  instead of treating color variety as beneath the exercise. The flip-between-variants delivery is
+  unchanged — no propose-then-pick gate was added.
 
 ## [0.3.3]
 

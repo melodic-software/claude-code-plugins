@@ -68,11 +68,11 @@ user-delegated mandate; outcomes recorded in `docs/upstream/mattpocock-skills.md
 - **M8** — parallel research burn-down + no-fog bail-out adopted in `wayfind`; decision-ticket
   term (parity as "decision item") and `research/<name>` branch (two-lane violation) rejected.
 - **M9** — YAGNI scoping filter adopted in `architecture:improve` deepening Phase 1;
-  precomputed commits widened 10→20. architecture 0.4.3.
+  precomputed commits widened 10→20. architecture 0.4.4 (re-versioned in the main-merge: main released its own 0.4.3 first).
 - **M11** — redaction guard adopted in `debugging:debug` (0.5.0) and `testing:diagnose` (0.4.0);
   tagged-log rider added to diagnose (debug already had it); loop doctrine tracked, not adopted.
 - **M12** — phase-boundaries tree rejected at parity (ours stronger); one zone-gated
-  primary-source continue criterion adopted in the continuation router. session-flow 0.18.1.
+  primary-source continue criterion adopted in the continuation router. session-flow 0.21.3 (re-versioned in the main-merge: main had advanced to 0.21.2).
   ~150k smart-zone figure rejected as folklore; context-guard bands unchanged.
 
 ### Lane 3 — /wait-what port (closed)
@@ -155,7 +155,7 @@ vetting agents + adversarial verifier, the Q13/Q14/Q17 precedent); one verdict p
   resetting to a known initial state) when the driver is a non-developer or no terminal fits.
   Explore-directions' HTML-substrate constraints reused verbatim-in-spirit (CSP meta tag,
   ephemeral `mktemp -d` / `%LOCALAPPDATA%\Temp` placement, synthetic data only, discard after
-  the markdown capture). prototype 0.3.3 → 0.4.0 + CHANGELOG provenance (mattpocock/skills
+  the markdown capture). prototype 0.3.3 → 0.5.0 (re-versioned in the main-merge: main released its own 0.4.0 first) + CHANGELOG provenance (mattpocock/skills
   v1.2.3 @ `84fdeff`, `LOGIC.md`). REJECTED the throwaway-branch "primary source" capture half
   (two-lane posture violation; contradicts the plugin's delete-when-done discipline) — recorded
   in the SSOT, no behavior change.
@@ -179,7 +179,7 @@ vetting agents + adversarial verifier, the Q13/Q14/Q17 precedent); one verdict p
   doesn't build (docs-site build out of scope above); reopen condition (a docs-site build
   landing here) recorded in the SSOT rejection, not a TRACK row.
 - Files: `plugins/prototype/skills/pressure-test/SKILL.md`,
-  `plugins/prototype/.claude-plugin/plugin.json` (0.4.0), `plugins/prototype/CHANGELOG.md`,
+  `plugins/prototype/.claude-plugin/plugin.json` (0.5.0), `plugins/prototype/CHANGELOG.md`,
   `docs/upstream/mattpocock-skills.md` (prototype row, triage-row correction, lane-5
   rejections, tracked section, open-evaluations closure), `docs/SKILL-CHEAT-SHEET.md`
   (regenerated — pressure-test summary changed), this record.

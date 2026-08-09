@@ -3,6 +3,16 @@
 All notable changes to the `adhd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.2]
+
+### Changed
+
+- **`clarify`: listing description tightened (1,058 → 766 chars)** — trimmed the explanatory
+  prose from the frontmatter `description` toward the shared skill-listing budget
+  (claude-code-plugins#2022, option 2). Every single-quoted trigger phrase is preserved verbatim
+  (skill-quality check 3); the fidelity rules and structure-not-altitude contract are unchanged
+  in the body.
+
 ## [0.3.1]
 
 ### Changed

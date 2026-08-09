@@ -3,7 +3,7 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.4.3]
+## [0.4.4]
 
 ### Added
 
@@ -14,6 +14,15 @@ All notable changes to the `architecture` plugin are documented here. Format fol
   feeds each scan subagent's assigned area, which previously had nothing choosing it.
   (Mechanism from upstream mattpocock/skills `improve-codebase-architecture` v1.2; registry:
   the marketplace repository's `docs/upstream/mattpocock-skills.md`.)
+
+## [0.4.3]
+
+### Changed
+
+- **`improve`: listing description tightened (1,057 → 900 chars)** — trimmed the explanatory
+  prose from the frontmatter `description` toward the shared skill-listing budget
+  (claude-code-plugins#2022, option 2). Every single-quoted trigger phrase is preserved verbatim
+  (skill-quality check 3); the scan-present-pick process and lens model are unchanged in the body.
 
 ## [0.4.2]
 

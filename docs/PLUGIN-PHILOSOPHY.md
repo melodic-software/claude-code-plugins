@@ -465,6 +465,81 @@ path and prerequisite tests, local `--plugin-dir` smoke tests, and the repositor
 Apply the standards principles of explicit behavior, fail-fast boundaries, idempotency, one mechanism
 per concern, cross-platform operation, and stress-testing before presentation.
 
+## Instruction economy
+
+Every standing instruction this marketplace ships — a CLAUDE.md line, a hook that corrects model
+behavior, a skill's always-loaded listing text — is a per-session tax on every consumer, paid
+whether or not the instruction ever fires. Official doctrine is explicit: "CLAUDE.md is loaded
+every session, so only include things that apply broadly… For each line, ask: 'Would removing this
+cause Claude to make mistakes?' If not, cut it," and "If Claude already does something correctly
+without the instruction, delete it or convert it to a hook"
+([best-practices](https://code.claude.com/docs/en/best-practices), verified 2026-08-08). Anthropic
+applied the same doctrine to Claude Code itself, removing over 80% of its system prompt for the
+Opus 5 / Fable 5 generation with no measurable loss on its coding evaluations
+([The new rules of context engineering for Claude 5 generation models](https://claude.com/blog/the-new-rules-of-context-engineering-for-claude-5-generation-models),
+verified 2026-08-08). Four rules follow:
+
+- **Evidence-gated additions.** A new standing instruction requires observed, repeated stumble
+  evidence against the current model — the same failure seen more than once — never anticipation
+  of a failure a past model had. Name the evidence where the instruction is added (PR body or an
+  adjacent comment). Anticipatory instructions are the veteran-engineer failure mode: they encode
+  the last model's weaknesses as the next model's ceiling.
+- **Generation-triggered ablation.** Instructions are disposable per model generation. At each
+  frontier model release, re-audit standing instruction surfaces against the new model
+  (`claude-config:audit-instructions` for the static text-vs-doctrine pass;
+  `claude-config:unhobble` for the empirical bare-baseline experiment) and delete what the model no
+  longer needs. The trigger is the model release, not the calendar.
+- **Evals outlive instructions.** Per-skill evals are the durable asset across this churn: keep and
+  extend them until a model generation saturates them, then replace them with evals derived from
+  newly observed struggles. Expect an eval to outlive the instructions it graded by roughly one to
+  three model generations. Deleting an instruction never deletes its eval; the eval is how the next
+  deletion round proves itself safe.
+- **The durable tier is exempt.** Deterministic policy hooks (gates that enforce team or safety
+  policy regardless of model capability) and team conventions checked into git are the officially
+  carved-out durable instruction tiers. Classify a hook honestly before keeping it: a hook that
+  enforces policy survives ablation; a hook that corrects model behavior is an ablation candidate
+  like any prose instruction.
+
+### Classifying a hook
+
+This is the standing rubric for the classification the durable-tier rule requires. It was first
+applied across this marketplace's 44 wired hook entries in the 2026-08 audit (issue #2021), and it
+is the pass any consumer repo can run over its own hook surface at each generation-triggered
+ablation. Score every wired hook entry on two independent axes:
+
+- **Mechanism** — what the hook does structurally: deny-gate (blocks a tool call), context-injection
+  (adds text to the model's context), deterministic-transform (edits an artifact, model not in the
+  loop), or notification/infra (output goes to a human or a log, not the model).
+- **Class** — why the hook exists: **policy** (an invariant you would keep with a perfect model —
+  security, team convention, irreversibility protection); **behavioral** (corrects model behavior a
+  better model gets right unaided); or **hybrid** (both — name the split explicitly, because the
+  remediation is a trim or a narrowing, never whole-hook deletion).
+
+Mechanism never implies class. A context-injection can be pure policy (relaying a linter's measured
+findings), and a deny-gate can be behavioral (a block whose predicate is a guess about model
+competence rather than a checkable invariant).
+
+One nuance does the most work: a hook with a *behavioral purpose* but a *non-derivable ground-truth
+oracle* — diffing written flags against a binary's live `--help`, globbing the live plugin tree
+after a rename, querying git history for a path's disappearance — is a keep, not an ablation
+candidate. It corrects hallucination with machine ground truth no model can know unaided, so "it
+corrects the model" alone is never the delete criterion; "the model could derive this itself" is.
+
+Remediation applies the same evidentiary rigor to removal that **Evidence-gated additions** above
+requires for addition: config-disable first where a kill switch exists, delete only with recorded
+rationale; a hybrid gets its behavioral surface trimmed while its policy residue stays; and the
+security carve-out below overrides every row of the rubric.
+
+Model-capability claims never relax the security posture. Injection resistance in current models is
+measurably better but bounded and hedged in the primary sources; the plugin-acceptance security
+review's deny-by-default stance on egress and trust delegation is policy, not a model-era
+workaround, and stays regardless of model generation.
+
+The complementary task-design doctrine — describe the task, guardrails, and exit criteria, give the
+model a way to verify its own work, and skip step-by-step procedure — is already this marketplace's
+encoded practice: the `verification`, `planning` (goal conditions), `tdd`, and `testing` plugins are
+its implementation, and need no new mechanism on its account.
+
 ## Fresh-eyes checkpoints
 
 A context that produced work is structurally the weakest place to judge that work: the reasoning that
@@ -475,9 +550,9 @@ it carries the same bias forward
 ([subagents](https://code.claude.com/docs/en/sub-agents), verified 2026-07-22).
 
 The rule: **a skill step whose output judges work produced in the same context delegates that judgment
-to a fresh-context (non-fork) subagent** — a named subagent that starts with a fresh context window, not
-a fork. Mandatory in the skill's design, not left to the invoker to remember. Three bias classes name
-the trigger:
+to a fresh-context (non-fork) subagent** — generic or named; what the rule requires is the fresh
+context window, not a fork. Mandatory in the skill's design, not left to the invoker to remember.
+Three bias classes name the trigger:
 
 - **author-verifier** — verifying a change the same context authored (a verification skill confirming
   its own session's implementation, a pre-PR self-review);

@@ -202,6 +202,43 @@ hook arrival:      / / /
 Do not regularize a distinctive hook just because the verse is easier to write
 that way. Use the irregularity as a structural feature.
 
+## Deceptive cadence — spotlight the title by withholding the rhyme
+
+Pat's borrowed term (*Writing Better Lyrics* (2009), Chapter 13) for a chorus
+that sets up an expected rhyme and then repeats the title instead.
+
+The setup: an `aba` chorus opening leaves one word unrhymed, and the ear
+actively wants a fourth line rhyming with it — an `abab` close, fully resolved.
+Give the ear that resolution and the chorus lands securely. Repeat the title in
+the fourth position instead (`abaa`) and three things happen at once:
+
+1. The title repeats — the commercially useful move.
+2. The structural surprise spotlights the title, because the ear was leaning
+   toward a different sound and got the title instead.
+3. The chorus still resolves, but **less securely** than the expected rhyme
+   would have resolved it.
+
+That third effect is the craft point, not a side cost. The worked example in
+Chapter 13 is a chorus whose character is asking for something she has not yet
+been given. A fully resolved `abab` close would sound as though she already had
+it; the deceptive cadence leaves the section slightly unsettled, which is what
+the emotional situation actually is. **Match the security of the cadence to
+whether the song's question is answered.**
+
+When to reach for it:
+
+- The title deserves a spotlight and the section is running toward a rhyme that
+  would upstage it.
+- The section's emotional state is unresolved, wanting, or asking — full
+  resolution would contradict the content.
+- The chorus already repeats the title and a plain repetition would feel inert.
+
+When NOT to: the section resolves something, arrives, or answers. There, the
+expected rhyme *is* the prosody, and withholding it fights the meaning.
+
+Diagnose an existing chorus by naming its scheme, then asking what the ear was
+promised and whether the section's emotional state deserves that promise kept.
+
 ## Strategic positions can shift
 
 A phrase may look like the strategic position early in a section and then be
