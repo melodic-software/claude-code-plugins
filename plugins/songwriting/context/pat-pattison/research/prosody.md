@@ -33,6 +33,11 @@ The words carry meaning, but the section's motion carries feeling at the same
 time. When both levels agree, the idea gets stronger. When they disagree on
 purpose, the lyric can create irony, denial, suspense, or instability.
 
+This is also the diagnosis for a good line that lands flat. A writer who has not
+tuned into motion is left waiting on lucky accidents and divine inspiration; a
+writer who has can name which element is fighting the idea and change it. Flat
+is a structure problem, not an inspiration problem.
+
 ## Stable vs unstable
 
 Start every structural choice with one question: is the section's emotional
@@ -123,6 +128,17 @@ at once, the listener may stop hearing the specific source of instability.
 Rhythm is the first structural element the listener hears. A first line sets a
 rhythmic and length standard before rhyme or total line count can be known.
 
+The elements become audible in a fixed order, which is also the order to
+diagnose them in:
+
+1. **Rhythm** — line one.
+2. **Line length** — line one sets the standard; line two either matches it and
+   stops the motion, or does not and pushes it forward.
+3. **Rhyme structure** — end of line two at the earliest, often not until line
+   three, sometimes not until the section ends.
+4. **Number of lines** — only at the end.
+5. **Rhyme type** — colors whichever closures the other four have built.
+
 Motion rules for rhythm:
 
 - Regular rhythms create stable motion.
@@ -145,9 +161,9 @@ Use rhyme scheme as emotional navigation:
 
 ## Rhyme type
 
-Rhyme type controls resolution strength. Perfect rhyme is the most resolved;
-family rhyme sits less resolved; additive/subtractive rhyme and assonance move
-farther from resolution; consonance rhyme is least resolved.
+Rhyme type controls resolution strength. Chapter 18's scale runs across five
+distinct tiers, most to least resolved: perfect, family, additive/subtractive,
+assonance, consonance.
 
 Use weaker rhyme types when full closure would contradict the emotion. Use
 stronger rhyme types when the section needs confidence, arrival, or trust.
@@ -164,17 +180,65 @@ Line structure combines rhythm, stressed-syllable length, and rhyme scheme.
 Control those elements to make the section speed up, slow down, lean forward,
 resolve, hang unresolved, or spotlight a specific word.
 
+## Three kinds of closure
+
+Closure is named against what the ear was expecting, so the label depends on the
+expectation the section had already built:
+
+- **Expected closure** — the section resolves where the pattern promised it
+  would. `ABAB`'s fourth line.
+- **Unexpected closure** — the section resolves where the ear had made no
+  prediction at all. `XXAA`'s fourth line surprises without fooling anyone,
+  because lines two and three raised nothing to be wrong about.
+- **Deceptive closure** — the section resolves against a prediction the ear had
+  actually made. `ABAA`'s fourth line answers with `A` where `B` was owed.
+
+`ABAAB` is the clearest case of all three interacting: line four is deceptive
+(`B` expected, `A` delivered), and line five then pays the original `B` in a
+position nobody was watching — expected content arriving at an unexpected
+place, which reads as more stable than either alone.
+
+Naming which one is in play is the diagnostic. Deceptive closure buys the
+brightest spotlight on the closing line and therefore carries the strongest
+obligation: put something there worth looking at.
+
+## Targeting the next section
+
+An unmatched line's end sound is a free slot pointing into the section that
+follows. Leave it unused and it merely hangs there; aim it and it lights a word
+in the oncoming title.
+
+- Target a vowel **inside** the title and the title gets a sonic boost without
+  extra resolution.
+- Target the title's **end rhyme** instead and the transition resolves harder —
+  neither right nor wrong, just a different feeling.
+- Target nothing and the position is spent.
+
+`AAB`, `ABA`, `ABAA`, `ABCAC`, and `ABCBC` all expose exactly one such line.
+See [hook](hook.md) "target hook sounds" for the hook-side strategy; this is
+the structural question of *which line* is the targeting slot.
+
 ## Stability reference
 
 Use the following as a practical stability map, not a formula. The same pattern
 can change emotional effect when line lengths or rhyme types change.
 
-Two-line sections:
+Two-line sections, most to least stable:
 
-- Most stable: matched line lengths with matched rhyme (`AA` / aa).
-- Less stable: unmatched line lengths, especially longer-to-shorter.
-- General rule: longer followed by shorter is less stable than shorter followed
-  by longer.
+1. Matched length, matched rhyme (`AA`) — stops dead.
+2. Matched length, no rhyme — balanced enough not to lunge forward.
+3. Rhymed, unmatched length — the rhymes land in different positions, so there
+   is a stronger push than in 2.
+4. Unmatched length, no rhyme — leans forward hardest.
+
+Rungs 2 and 3 are the load-bearing pair: matched length without rhyme is more
+stable than rhyme without matched length, so **line length is a stronger motion
+creator than rhyme.** When a section's motion is wrong, check the arrangement of
+line lengths before touching the rhyme scheme.
+
+General rule: longer followed by shorter is less stable than shorter followed by
+longer, because the longer line matches the shorter one's length on its way past.
+Think of a longer line as laying a foundation under the shorter line above it.
 
 Three-line sections:
 
@@ -193,23 +257,33 @@ Four-line sections:
 - `XAXA`: stable but more relaxed than `ABAB`.
 - `ABAA`: deceptive closure; the final `A` fools the expected `B`.
 - `XXAA`: a larger unit that closes only at the end.
-- `XAAA`: stronger end pressure after an opening unmatched line.
-- `AABA`: points forward toward another `AB`.
+- `XAAA`: floats rather than pushes. The instability is the odd number of `A`s
+  — line count and matched-element count disagree — not the opening `X`, and
+  the final `A` lands as a stopping place without much fanfare. Line lengths
+  modulate it: short `A`s lean a little forward, long `A`s under a short `X`
+  are close to stable.
+- `AABA`: balances at the couplet, so line three's `B` supplies the only push,
+  asking to be matched by another `B`. Line four mildly fools that expectation
+  by resolving with `A`, leaving a small spotlight on the last line.
 - `ABBA`: enclosed motion; can feel balanced but less direct.
 - `AAAX`, `AXAX`, `XAAX`, and `XXXX`: use when floating or unstable motion
   supports the idea.
 
 Five-line sections:
 
-- One matching element: `AAAAA`, `XAAAA`, `XXAAA`, `XAXAA`, `XXXAA`,
-  `XXAXA`, and `AAAAX` usually depend on how late the matching material arrives.
+- One matching element: `AAAAA`, `XAAAA`, `XXAAA`, `XAXAA`, `XXXAA`, `XXAXA`,
+  and `AAAAX`. Unmatched lines match nothing, including each other, so these
+  float; the ones that feel most stable are the ones that resolve without the
+  ear having predicted it — unexpected closure. **A five-line section ending in
+  an unmatched line is the most unstable of the group.**
 - Two matching elements: `ABABB`, `ABAAB`, `ABBAA`, `ABBAB`, `ABAAA`,
   `ABABA`, `AABBA`, `AABBB`, and `AAABB` create different balances of closure,
   sequence, and forward pull.
 - Three matching elements: `ABCAC` and `ABCBC` create deceptive closure because
   the fifth line answers a line other than the expected one.
-- `ABCBB`: the long `C` can reduce the fourth line's closure and shift the
-  spotlight to line five.
+- `ABCBB`: the long `C` sticks out, weakening the fourth line's closure and
+  dimming line five with it. Shortening `C` lets line four close solidly and
+  brightens the spotlight on line five.
 - `ABCAA` and `ABCAB`: tend to push forward toward a missing `C`.
 
 Six-line sections:
@@ -289,7 +363,8 @@ Sequence coaching checks:
   closure.
 - Let one stable element sharpen a chosen unstable element.
 - Use line count, line length, rhythm, rhyme scheme, and rhyme type as separate
-  knobs.
+  knobs. When the motion is wrong and more than one knob could be at fault,
+  turn line length first — it moves a section harder than rhyme does.
 - Use structural mismatch deliberately for irony, not by accident.
 - Use A/B/C notation to expose sequence.
 - Use sequence to create forward motion and title spotlights.

@@ -3,6 +3,61 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.3]
+
+A source-fidelity pass over `prosody.md` against *Writing Better Lyrics* (2009)
+Chapters 18-19, read in full including both figures. Paraphrase only; no chapter
+prose, example writes, or student work reaches this public repository.
+
+### Fixed
+
+- **`XAAA` was described as doing the opposite of what it does.** The file
+  claimed "stronger end pressure after an opening unmatched line"; Chapter 19
+  says the structure floats rather than pushes, and locates the instability in
+  the odd number of `A`s — line count and matched-element count disagreeing —
+  not in the opening unmatched line. Line lengths modulate the effect, and the
+  file now says so.
+- **`ABCBB`'s spotlight was attributed to the wrong line length.** The long `C`
+  weakens line four's closure and dims line five with it; it is the *shortened*
+  `C` that lets line four close and brightens the spotlight on line five.
+- **`AABA` was reduced to "points forward toward another `AB`."** The `B` line
+  asks for another `B`, not another pair, and the section balances at the
+  opening couplet so there is no push before it. Line four mildly fools that
+  expectation, leaving a small spotlight on the last line.
+- **The rhyme-type scale collapsed two of its five tiers.** Additive/subtractive
+  and assonance are separate rungs between family and consonance, not a pair.
+
+### Added
+
+- **The two-line stability ladder, and the rule it yields.** Four rungs, not
+  two: matched length with rhyme, matched length without rhyme, rhymed but
+  unmatched, neither. The middle pair is the point — matched length without
+  rhyme outranks rhyme without matched length, so **line length is a stronger
+  motion creator than rhyme.** Nothing in the plugin carried this, and it is a
+  revision-priority rule: when the motion is wrong, check line lengths before
+  the rhyme scheme.
+- **Definitions for the three kinds of closure.** `meter.md` and
+  `stable-unstable-meta.md` both use expected / unexpected / deceptive closure;
+  no file defined them. Each is named against what the ear had predicted, and
+  deceptive closure carries the strongest obligation to put something worth
+  seeing in the spotlight it creates.
+- **A five-line section ending in an unmatched line is the most unstable of its
+  group** — a flat rule the file had replaced with "depends on how late the
+  matching material arrives" — plus unexpected closure as the mechanic that
+  organizes that group.
+- **Which line is the targeting slot.** An unmatched line's end sound points
+  into the next section: aim it at a vowel inside the oncoming title for a sonic
+  boost, at the title's end rhyme for a harder resolution, or waste it. `hook.md`
+  owns the hook-side strategy; this is the structural question of which line
+  carries it.
+- **The order in which structure becomes audible** — rhythm, line length, rhyme
+  structure, number of lines, rhyme type — which is also the order to diagnose
+  a section in.
+- **The flat-song diagnostic**, deferred from 0.7.1's Chapter 15 read pending
+  this chapter. Chapter 19 states it in motion terms, so `prosody.md` is its
+  home: a good line landing flat is a structure problem, not an inspiration
+  problem.
+
 ## [0.7.2]
 
 A source-fidelity pass over `meter.md` against *Writing Better Lyrics* (2009)
