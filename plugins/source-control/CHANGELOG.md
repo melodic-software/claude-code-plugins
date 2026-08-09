@@ -12,16 +12,22 @@ All notable changes to the `source-control` plugin are documented here. Format f
   staged file reports as `A <path>` with detection off and as `R<score> <old> <new>` or
   `C<score> <src> <dst>` with it on. Rename detection is on by default (`diff.renames`), so the
   script discarded those destinations and a newly added shebang file staged `100644` could be
-  committed non-executable purely as a function of the consumer's diff configuration. All three
-  destinations now feed the same candidate list; the existing `100644`-plus-shebang filter still
-  does the deciding, so a destination that carried its source's `100755` through is never reported.
+  committed non-executable purely as a function of the consumer's diff configuration. A pair
+  destination is now a candidate whenever its **source was `100755`** — the mode pairing that means
+  the bit was *dropped*, as `core.filemode=false` platforms produce on `mv`/`cp` plus `git add`. A
+  deliberately non-executable shebang file (a sourced library, a template) keeps `100644` on both
+  sides of a move and is left alone. The scan reads `git diff --cached --raw` rather than
+  `--name-status` for exactly this reason: only the raw record carries the source mode.
 
 - **`prune_babysit_worktrees.py` restores the gitfile on every path that leaves the directory
   standing (#1331).** Restoration was keyed on `rmdir` raising, but two other survival paths bypass
   it: the directory rescan after the unlink can itself raise, and a file appearing between the
   unlink and the rmdir skips the removal without raising at all. Either way the directory outlived
   the only record of its owning repository, turning a retryable failure into a permanent
-  `unresolved`. Restoration is now keyed on whether the removal actually happened.
+  `unresolved`. Restoration is now keyed on whether the removal actually happened, and its own
+  `Path.exists()` probe runs inside the guard — that call re-raises an `OSError` outside the
+  ignored not-found family, so a permission denial on the directory being rescued would otherwise
+  escape the `finally` and leave the pointer deleted.
 
 - **The conflict orchestrator revalidates the base *before* the final head check (#1355).**
   `safety.md` requires the head check immediately before every push, but the base re-fetch — a
