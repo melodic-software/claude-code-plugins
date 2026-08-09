@@ -482,6 +482,43 @@ readlink[[:space:]]+(-[A-Za-z]*f|--canonicalize)
 (^|[[:space:]'"`;&|()<>/])mktemp['"]?([[:space:]][^;&|()`\n]*)?[[:space:]]-[A-Za-z]*p
 (^|[[:space:]'"`;&|()<>/])mktemp['"]?([[:space:]][^;&|()`\n]*)?[[:space:]]--tmpdir([[:space:]|&;()<>]|=|$)
 
+# --- SCRIPT-IMPLEMENTED CLASSES ---
+#
+# A line beginning with `!` activates a class check-shell-portability.sh
+# implements in CODE rather than as an ERE. Activation stays data — the class
+# runs only while its line is active here, so a class-scoped unit fixture
+# enables exactly one class exactly as it does for an ERE — and an unrecognized
+# `!name` fails the run closed rather than being ignored.
+#
+# `${var//pat/&}` — an UNQUOTED `&` in the REPLACEMENT half of a pattern
+# substitution. Since bash 5.2 it expands to the text the pattern just matched
+# (the `sed` rule), under the `patsub_replacement` option that is ON by
+# default; before 5.2 it was an ordinary literal. The GNU Bash Reference
+# Manual's Shell Parameter Expansion section states both halves — "Any
+# unquoted instances of '&' in string are replaced with the matching portion of
+# pattern" and "Backslash escapes '&' in string; the backslash is removed in
+# order to permit a literal '&' in the replacement string" — and bash NEWS
+# records the option as new in bash-5.2.
+#
+# It belongs to this gate rather than to a new one because it lands on the
+# gate's EXISTING uncovered-platform axis: macOS, the one platform no runner
+# here covers, ships bash 3.2, while every runner ships 5.2 or later. Same
+# shape as the `mktemp -p` class above — the construct is accepted on both
+# platforms and silently means something different on each, with no error
+# either way — and it is a hard error for the same reason that one is. It has
+# already shipped a defect in this repo (#2008): a sentinel restored to itself
+# became a no-op and produced a live guardrails false positive on bash >=5.2
+# only.
+#
+# It cannot be an ERE token, which is why it is here as a `!name` rather than
+# as a pattern. Matching runs on views in which every separator inside a
+# masked run — `&` among them — has been neutralized, and a `${…}` body is
+# masked in its entirety, so there is nothing left for a pattern to match. See
+# the subst_amp_hit()/amp_in_frame() block in check-shell-portability.sh for the
+# grammar it implements, the spellings it deliberately does NOT flag (`\&`,
+# `"&"`, `'&'`, and the deletion form `${var//pat}`), and its known limits.
+!subst-replacement-ampersand
+
 # --- STAGED (commented until enabled) ---
 #
 # No class is staged today: `date -d` and `stat -c` went active in #1544 and
