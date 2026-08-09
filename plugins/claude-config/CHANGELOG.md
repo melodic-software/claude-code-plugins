@@ -16,8 +16,10 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   instead of re-reading the page to find what mattered. The recheck-trigger paragraph's "Every check
   cites one of those pages" was falsified by the three checks whose Source line reads `none` — I16,
   I19, I22 (the Stopping condition rule is sourceless too, but is not a check) — and is now scoped
-  to checks that cite a source, with the exception stated on its own logic: a row resting on no
-  upstream page cannot be staled by a docs change, so it needs no watcher. No source was invented
+  to checks that cite a source, with the exception stated on the two-way split the file now
+  makes: a sourceless row grounded in a categorical absence has nothing of its own to go stale,
+  while one that calibrates against page content (the Stopping condition) is staled by the pages it
+  calibrates against, which the catalog-wide trigger already covers. No source was invented
   for any sourceless row, and the catalog-trigger-wins precedence and whole-catalog firing rule are
   unchanged.
 
