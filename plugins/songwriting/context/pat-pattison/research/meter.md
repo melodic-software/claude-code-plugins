@@ -419,8 +419,8 @@ meter. Line lengths are stress counts, not syllable counts.
 
 Only models 1-3 and 9 run entirely on four-stress lines. The rest set a
 three-stress line against four-stress neighbours, which is where the
-couplet / common-meter contrast becomes audible — and models 8 and 9 are long
-enough for the short line to open an IOU that a later line answers.
+couplet / common-meter contrast becomes audible — and model 8 is long enough
+for its short fourth line to open an IOU that its short eighth line answers.
 
 ## Composite destabilizing
 
@@ -977,7 +977,8 @@ applied across domains.
   levers under the Pentad.
 - [phrasing](phrasing.md) — front/back-heavy at bar level.
 - [stable / unstable](stable-unstable-meta.md) — Pentad properties
-  feed the stable/unstable diagnostic; cross-domain Pentad.
+  feed the stable/unstable diagnostic; its own per-domain stability
+  criteria, not the Pentad applied across domains.
 - [hook](hook.md) — strategic vs balancing position in Common Meter.
 - [prosody](prosody.md) — greedy spots; pitch-stress in melody setting.
 - [exercises](exercises.md) — *Essential Guide to Lyric Form and Structure* (1991) Ex 8-17 cover Pentad properties
