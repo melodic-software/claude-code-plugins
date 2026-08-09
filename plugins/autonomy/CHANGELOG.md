@@ -18,9 +18,15 @@ merged work-package PRs (#333, #343, #356, #372, #377, #600, #676).
   create (`set -o noclobber` on a `>` redirection, i.e. `O_CREAT|O_EXCL`) of a `<record>.claim`
   sidecar holding the owning session id, the same primitive `statusline-tee.sh` already uses and
   the reason it gives for avoiding `flock` (absent on macOS) applies here too; `GATE_ARM_JSON` is
-  assigned only past the ownership verdict, so an unowned record contributes no config at all. The
-  fail direction is unchanged — a store the hook cannot write leaves no claim and the arm is
-  honored, because a legitimate lane losing its gate is the harm, not an extra gated stop. A record
+  assigned only past the ownership verdict, so an unowned record contributes no config at all. A
+  claim file exists only because some process won that create, so an EMPTY one is the winner caught
+  between its create and its write rather than an ownerless record — reading it in that instant
+  would hand one fresh arm to every concurrent presenter and reopen the race a few microseconds
+  wide, so the owner read is retried over a bounded budget. The fail direction is unchanged — a
+  store the hook cannot write leaves no claim, and a claim whose owner never lands exhausts that
+  budget; both honor the arm, because a legitimate lane losing its gate is the harm, not an extra
+  gated stop, and refusing a durably ownerless claim would make the record permanently unclaimable.
+  A record
   claimed by an earlier version carries its owner in the record itself and stays bound to that
   session; `lane-stop-gate-arm.sh` clears the sidecar when it (re)writes a record so a re-armed id
   starts unclaimed, and the gate's TTL sweep drops record and sidecar together.

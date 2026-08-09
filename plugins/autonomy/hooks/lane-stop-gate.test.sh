@@ -765,6 +765,18 @@ if [[ $RACE_WINNERS -eq 1 ]]; then ok "exactly one concurrent presenter claims a
 RACE_CLAIMED="$(head -n 1 "$DATA_DIR/lane-arms/$ARM_ID_8.claim" 2>/dev/null)"
 if [[ -n "$RACE_WINNER" && "$RACE_CLAIMED" == "$RACE_WINNER" ]]; then ok "the persisted claim names the session that was honored"; else fail "persisted claim '$RACE_CLAIMED' does not name the honored session '$RACE_WINNER'"; fi
 
+# --- Case 45: a durably ownerless claim honors the arm ----------------------
+# The fall-through direction of the re-read that closes case 44's window. A
+# claim whose owner never lands (a winner that died mid-write) must NOT make the
+# record permanently unclaimable — that is the original finding's harm in a new
+# shape. Over-gate instead: honor every presenter for as long as it lasts.
+ARM_ID_9="1234abcd5678ef90"
+bash "$ARM" --id "$ARM_ID_9" --cwd "$WORK" 2>/dev/null
+: >"$DATA_DIR/lane-arms/$ARM_ID_9.claim"
+OUT="$(run_bare "$(build_input Stop "no token" false "" "sess-after-a-dead-writer")" \
+  CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID="$ARM_ID_9")"
+if is_block "$OUT"; then ok "an ownerless claim still honors the arm (fail direction: gate ON)"; else fail "an ownerless claim left the lane ungated: $OUT"; fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]

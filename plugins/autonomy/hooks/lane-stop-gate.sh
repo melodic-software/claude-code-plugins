@@ -165,16 +165,22 @@ GATE_ARM_JSON=""
 #
 # FAIL DIRECTION, unchanged: a store this hook cannot write leaves no claim file
 # at all and the arm is HONORED. Being gated is never the harm here; the harm is
-# a legitimate lane silently losing its gate. Two more reads share that
-# direction — the existence recheck that tells "another session claimed it"
-# apart from "an unwritable store" is itself racy, and a claim that exists but
-# yields no owner honors as well. Read in the instant between the exclusive
-# create and its write, that costs one extra gated stop and the binding that
-# lands still names one session. Durably ownerless — a create that won whose
-# write never landed — or a durably unwritable store honors every presenter for
-# as long as it lasts: the same unbounded over-gating a failed claim write
-# already produced before this change, in the same direction. An extra nudge,
-# never an ungated lane.
+# a legitimate lane silently losing its gate. The existence recheck that tells
+# "another session claimed it" apart from "an unwritable store" shares that
+# direction, and so does the fall-through below: durably ownerless — a create
+# that won whose write never landed — or a durably unwritable store honors every
+# presenter for as long as it lasts, the same unbounded over-gating a failed
+# claim write already produced before this change, in the same direction. An
+# extra nudge, never an ungated lane.
+#
+# The claim file exists ONLY because some process won the exclusive create, so
+# an EMPTY one is that winner caught between its create and its write, not an
+# ownerless record. Honoring it there would hand one fresh arm to every
+# concurrent presenter — the race this claim exists to close, reopened a few
+# microseconds wide — so the read is retried over a bounded budget to let the
+# winner's line land. Bounded, and the fall-through is still HONOR: refusing a
+# durably ownerless claim would make the record permanently unclaimable, which
+# is the original harm in a new shape.
 #
 # The comparison runs on a newline-stripped session id so the value written and
 # the value read back are the same shape whatever the payload carried.
@@ -188,9 +194,16 @@ gate_arm_owned() {
     return 0
   fi
   [[ -e "$claim" ]] || return 0
-  # `|| true`, never `|| owner=""`: read reports failure on a final line with no
-  # newline yet still assigns it, and clearing that would discard a real owner.
-  IFS= read -r owner <"$claim" 2>/dev/null || true
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    # `|| true`, never `|| owner=""`: read reports failure on a final line with
+    # no newline yet still assigns it, and clearing that would discard a real
+    # owner.
+    IFS= read -r owner <"$claim" 2>/dev/null || true
+    [[ -n "$owner" ]] && break
+    # A userland whose sleep rejects a fraction leaves a tight re-read, which is
+    # a narrower budget but never a wrong answer.
+    sleep 0.02 2>/dev/null || true
+  done
   [[ -n "$owner" ]] || return 0
   [[ -n "$me" && "$owner" == "$me" ]]
 }
