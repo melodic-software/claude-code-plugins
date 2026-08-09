@@ -65,6 +65,10 @@ run "git commit --mess <abbreviated separated> single-line (allowed)" \
   "git commit --mess 'feat: x'" 0
 run "git commit --m=<shortest abbreviation> multi-line (blocked)" \
   "git commit --m='feat: x${NL}body'" 2
+run "git commit --m <shortest abbreviation, separated> multi-line (blocked)" \
+  "git commit --m 'feat: x${NL}body'" 2
+run "git commit --m <shortest abbreviation, separated> single-line (allowed)" \
+  "git commit --m 'feat: x'" 0
 run "git commit -m multi-line with --trailer (still blocked — trailer is not the mechanic)" \
   "git commit -m 'feat: x${NL}body' --trailer 'Co-Authored-By: X <x@y.z>'" 2
 run "repeated single-line -m (allowed — git itself joins the paragraphs)" \
