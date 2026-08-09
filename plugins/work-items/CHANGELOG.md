@@ -33,15 +33,20 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   both account facts, neither of which says this repository is hosted on GitHub. A local-only or
   non-GitHub checkout with an authenticated `gh` was silently bound to `github`, and every
   repo-scoped seam verb then failed, because the adapter derives its `owner/repo` scope from the
-  checkout with `gh repo view --json owner,name`. That probe is now a third precondition on the
-  unattended bind, its resolved `owner/repo` is reported with the other defaults taken, and a probe
-  that does not resolve stops with the existing named-blocker report rather than persisting an
-  unusable binding. The interactive provider choice confirms the same thing, and `check`'s binding
+  checkout with `gh repo view --json owner,name`. That call now *replaces* `gh auth status` as the
+  unattended bind's precondition rather than joining it: it is the adapter's own derivation, so it
+  subsumes authentication for the host the checkout uses, while `gh auth status` tests every account
+  on every known host and exits 1 if any has an issue (`gh auth status --help`) — a machine-wide
+  fact that both admits the wrong checkout and refuses a good one. The resolved `owner/repo` is
+  reported with the other defaults taken, and a probe that does not resolve stops with the existing
+  named-blocker report rather than persisting an unusable binding. The interactive provider choice
+  makes the same swap, and `check`'s binding
   probe makes the same call instead of PASSing a shape-valid `github` binding no repository backs.
-  That probe verdicts on *why* the call failed, never on failure alone: a checkout nothing can
-  derive a repo from is FAIL, while an absent or unauthenticated `gh`, a 401/403, a rate limit, or
-  a network failure is INFO — account and availability facts are not verdicts on a binding, and a
-  correctly bound repo must not fail `check` because the provider was briefly unreachable.
+  That probe runs unconditionally rather than behind an auth precheck, and verdicts on *why* the
+  call failed, never on failure alone: a checkout nothing can derive a repo from is FAIL, while an
+  uninstalled `gh`, a 401/403, a rate limit, or a network failure is INFO — availability and
+  credential facts are not verdicts on a binding, and a correctly bound repo must not fail `check`
+  because the provider was briefly unreachable.
 
 - **`track start` verifies the fully qualified remote-tracking ref when resolving the base branch.**
   The guard checked `git rev-parse --verify "origin/<name>^{commit}"`, an abbreviated ref git
