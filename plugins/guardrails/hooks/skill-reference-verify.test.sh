@@ -462,6 +462,69 @@ tail with `/alpha:ghost-pair`.')" 2>&1)
 assert_contains "a unique whole hunk resolves lines that individually repeat" "$OUT" \
   "UNRESOLVED_SKILL: /alpha:ghost-pair"
 
+# SCALE meets the FALLBACK. The two cases above force the fallback but on three
+# lines, and the timing case above is large but takes the whole-hunk fast path, so
+# neither measures what the original defect actually cost: one scan PER ANCHOR over
+# a big file. This case combines them — a file near RECONSTRUCT_MAX_CHARS and a
+# many-line hunk that a reformat has made non-contiguous — and it is the case the
+# fallback's anchor cap exists for.
+#
+# The cap is what the assertions are about, so they assert what a bound DELIVERS,
+# not merely that it exists. At this file size the budget buys about one anchor, so
+# the first hunk line carries the reference: a bound that admitted nothing would
+# pass a timing-only check while having stopped guarding.
+#
+# The hunk's first line is a bare SUBSTRING of the reference, never the reference
+# itself, so the direct hunk scan cannot see it and only reconstruction can report
+# it — the assertion below would otherwise pass on the direct scan alone and prove
+# nothing about the fallback.
+FBIG="$REPO/fallback-big.md"
+FBIGHUNK="$TEST_TMPDIR/fallback-hunk.txt"
+{
+  printf 'ghost-fallback\n'
+  for ((i = 1; i <= 400; i++)); do printf 'Body line %s of the reformatted passage.\n' "$i"; done
+} >"$FBIGHUNK"
+# On disk that first line reads as part of a code span, so the hunk is not
+# contiguous here and the whole-hunk locate cannot match it. ~200 KiB of unrelated
+# prose follows, putting the file just under RECONSTRUCT_MAX_CHARS.
+{
+  printf 'Opening line with `/alpha:ghost-fallback` in it.\n'
+  for ((i = 1; i <= 400; i++)); do printf 'Body line %s of the reformatted passage.\n' "$i"; done
+  for ((i = 1; i <= 2600; i++)); do
+    printf 'Filler paragraph %s padding this file toward the reconstruction cap.\n' "$i"
+  done
+} >"$FBIG"
+fb_start=$SECONDS
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$FBIG" "$(cat "$FBIGHUNK")")" 2>&1)
+RC=$?
+fb_elapsed=$((SECONDS - fb_start))
+assert_exit "large file forced onto the fallback path → exit 0" 0 "$RC"
+if ((fb_elapsed < 30)); then
+  ok "fallback at scale stays inside the hook's 30s timeout (${fb_elapsed}s)"
+else
+  bad "fallback at scale took ${fb_elapsed}s, at or past the hook's 30s timeout"
+fi
+assert_contains "the capped fallback still reports the reference it admits" "$OUT" \
+  "UNRESOLVED_SKILL: /alpha:ghost-fallback"
+
+# Above the cap, reconstruction does not run at all — one scan of a file that size
+# would spend the budget by itself. The direct hunk scan is unaffected, so a
+# COMPLETE reference in the hunk is still reported; only partial-edit recovery
+# stops, which is this guard's permitted failure direction.
+OVER="$REPO/over-cap.md"
+{
+  printf 'Complete reference `/alpha:ghost-over` written by this edit.\n'
+  for ((i = 1; i <= 4200; i++)); do
+    printf 'Filler paragraph %s pushing this file past the reconstruction cap.\n' "$i"
+  done
+} >"$OVER"
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" \
+  <<<"$(edit_json "$OVER" 'Complete reference `/alpha:ghost-over` written by this edit.')" 2>&1)
+RC=$?
+assert_exit "file past RECONSTRUCT_MAX_CHARS → exit 0" 0 "$RC"
+assert_contains "the direct scan still reports a complete reference above the cap" "$OUT" \
+  "UNRESOLVED_SKILL: /alpha:ghost-over"
+
 # ============ MANIFEST-DECLARED SKILL PATHS =================================
 # A manifest may declare `skills` paths, which ADD to the conventional `skills/`
 # directory rather than replacing it. A command loaded from a declared location is

@@ -222,21 +222,45 @@ emit_refs() {
 
 # Reconstruction is bounded on four axes, because this hook has a 30s timeout
 # (hooks.json) and a guard that loses its advisory to a timeout has stopped
-# guarding. A file too large to hold in a shell variable is not reconstructed at
-# all; a hunk stops contributing once it has yielded this many code spans, which is
-# far above any real edit given that only spans the anchor reaches are kept; an
-# anchor stops being counted one occurrence past the cap, which is all the
-# uniqueness gate needs to know; and the per-line FALLBACK below gets a total
-# scanning budget rather than an anchor count, because its cost is anchors TIMES
-# file size and bounding either factor alone leaves the product free. Measured on
-# the slowest host available (Windows/Git Bash): one anchor over a 41 KB file costs
-# ~66 ms, so 2 MB of total scanning is ~3 s — inside the budget with the fixed
-# per-invocation overhead accounted for. A big file therefore buys fewer anchors,
-# down to one.
-RECONSTRUCT_MAX_CHARS=4194304
+# guarding. Two of the four are set from a measured cost curve rather than a
+# round number, because the cost they bound is QUADRATIC and a linear estimate
+# of it is wrong by orders of magnitude at the sizes that matter.
+#
+# One anchor_offsets scan, measured on the slowest host available (Windows/Git
+# Bash, quiescent, best of three): 0.07 s at 32 KiB, 0.24 s at 64 KiB, 0.53 s at
+# 96 KiB, 1.07 s at 128 KiB, 2.18 s at 192 KiB, 3.94 s at 256 KiB. That is
+# ~0.065 s x (KiB/32)^2 — bash's `%%` pattern strip walks the string it searches
+# rather than indexing it, so the scan is quadratic in FILE size no matter how
+# short the anchor is. Extrapolated: ~67 s at 1 MiB, ~18 minutes at 4 MiB.
+#
+#   * RECONSTRUCT_MAX_CHARS — above this, reconstruction does not run at all,
+#     because a SINGLE scan of a larger file already exceeds the hook's budget.
+#     Complete references in the hunk are still reported by the direct scan; only
+#     partial-edit recovery is skipped, which is this guard's permitted failure
+#     direction. 256 KiB is far above any real markdown file and is where one
+#     scan is still ~4 s.
+#   * RECONSTRUCT_FALLBACK_SCAN_BUDGET — the per-line fallback scans once per
+#     anchor, so its cap must fall as the file grows, on the same curve: the
+#     anchor cap is this budget divided by (KiB)^2. 126000 holds the fallback's
+#     total scanning near 8 s at every file size on that host — 123 anchors at
+#     32 KiB, 30 at 64 KiB, 7 at 128 KiB, 1 at 256 KiB. A flat anchor count
+#     cannot do this, and neither can a total-characters budget, which assumes
+#     the linear cost this scan does not have.
+#
+# The other two are ordinary counts: a hunk stops contributing once it has
+# yielded this many code spans, far above any real edit given that only spans the
+# anchor reaches are kept; and an anchor stops being counted one occurrence past
+# the cap, which is all the uniqueness gate needs to know.
+#
+# Deferred alternative, with its trigger: replacing the bash search with a
+# linear-time locate would retire the file cap instead of living under it. It is
+# not done here because every portable option is a subprocess whose offsets are
+# BYTES where these are characters, or a line-oriented tool that cannot match a
+# multi-line hunk at all. Revisit if a real markdown file ever exceeds the cap.
+RECONSTRUCT_MAX_CHARS=262144
 RECONSTRUCT_MAX_SPANS=40
 RECONSTRUCT_MAX_OCCURRENCES=40
-RECONSTRUCT_MAX_SCAN_CHARS=2097152
+RECONSTRUCT_FALLBACK_SCAN_BUDGET=126000
 
 # Append to the caller's $ctx every inline-code span in <region> whose extent
 # OVERLAPS [<hunk-start>, <hunk-end>), and count them in the caller's $nspan.
@@ -364,7 +388,7 @@ reconstruct_partial_edit() {
   content=${content//$'\r'/}
   ((${#content} <= RECONSTRUCT_MAX_CHARS)) || return 0
 
-  local ctx="" nspan=0 anchor alen off hs he head tail cap located_whole=0
+  local ctx="" nspan=0 anchor alen off hs he head tail cap kib located_whole=0
   local -a offs=() anchors=()
 
   # The hunk is written to disk CONTIGUOUSLY, so locate it WHOLE first — one scan
@@ -385,7 +409,9 @@ reconstruct_partial_edit() {
     # budget is what keeps that walk from costing anchors TIMES file size.
     mapfile -t anchors < <(printf '%s' "$SCAN_CONTENT" | grep -vE '^[[:space:]]*$' 2>/dev/null)
     ((${#anchors[@]})) || return 0
-    cap=$((RECONSTRUCT_MAX_SCAN_CHARS / (${#content} + 1)))
+    kib=$(((${#content} + 1023) / 1024))
+    ((kib < 1)) && kib=1
+    cap=$((RECONSTRUCT_FALLBACK_SCAN_BUDGET / (kib * kib)))
     ((cap < 1)) && cap=1
     ((${#anchors[@]} > cap)) && anchors=("${anchors[@]:0:cap}")
   fi
@@ -493,10 +519,22 @@ emit_tel() {
 if ((${#UNRESOLVED[@]} > 0)); then
   hook::ctx_append "skill-reference-verify: ${#UNRESOLVED[@]} skill reference(s) do not resolve in $FILE"
   hook::ctx_append "This repo owns each plugin named below, so it can say the skill is not there:"
+  # Name the directories the search ACTUALLY covered, from the same skill_roots
+  # the resolution used. Naming only `skills/` understates the search for a plugin
+  # whose manifest declares paths, and the advisory ends by telling the reader to
+  # confirm against the tree — pointing them at the wrong part of it is the one
+  # thing that instruction cannot survive. For the conventional layout this still
+  # renders exactly `plugins/<plugin>/skills/`.
+  declare -a roots=()
   for r in "${UNRESOLVED[@]}"; do
     plugin="${r#/}"
     plugin="${plugin%%:*}"
-    hook::ctx_append "  UNRESOLVED_SKILL: $r (no such skill under plugins/${PLUGIN_DIR[$plugin]##*/}/skills/)"
+    skill_roots "${PLUGIN_DIR[$plugin]}" "${PLUGIN_SKILL_PATHS[$plugin]:-}"
+    searched=""
+    for root in "${roots[@]}"; do
+      searched+="${searched:+, }plugins/${root#"$PLUGINS_DIR/"}/"
+    done
+    hook::ctx_append "  UNRESOLVED_SKILL: $r (no such skill under $searched)"
   done
   hook::ctx_append ""
   hook::ctx_append "Detect-then-judge: this is a prompt for your verdict, not a determination."

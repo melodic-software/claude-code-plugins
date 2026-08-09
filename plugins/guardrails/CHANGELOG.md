@@ -49,9 +49,19 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   whole is also strictly better scoping: a hunk whose every line repeats but whose whole text does
   not used to be dropped as ambiguous line by line, and now resolves to the one place it names. The
   per-line walk survives as a fallback for a hunk that is no longer on disk verbatim — another
-  PostToolUse hook reformatting the file between the write and this read is the realistic cause —
-  under a total scanning budget, because bounding the anchor count or the file size alone leaves
-  their product free.
+  PostToolUse hook reformatting the file between the write and this read is the realistic cause.
+
+  Measuring the scan itself then contradicted the bound that had been placed on it. One scan is not
+  linear in file size, it is QUADRATIC — 0.07 s at 32 KiB, 0.24 s at 64, 1.07 s at 128, 3.94 s at
+  256 on the same host, because bash's `%%` pattern strip walks the string rather than indexing it.
+  A 4 MiB file, which the previous cap allowed, is ~18 minutes for a SINGLE scan, so the guard's
+  worst case had never actually been bounded, only moved. Reconstruction now stops above 256 KiB,
+  where one scan is still ~4 s, and the fallback's anchor cap falls along that same curve instead of
+  being a flat count — 123 anchors at 32 KiB down to one at 256. Above the cap the direct hunk scan
+  is unaffected, so a complete reference is still reported and only partial-edit recovery stops,
+  which is this guard's permitted failure direction. Covered by a case that puts a large file and
+  the fallback path together, which neither the timing case (whole-hunk fast path) nor the
+  correctness cases (three lines) had done.
 
 - **`skill-reference-verify` reported a valid command as unresolved when its plugin declared custom
   skill paths.** Resolution hard-coded `plugins/<plugin>/skills/`, but a manifest's `skills` key
@@ -62,6 +72,13 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   `SKILL.md` with no `skills/` subdirectory and no `skills` key). That layout is honoured under its
   stated conditions only — a root `SKILL.md` beside a populated `skills/` is not loaded by Claude
   Code, so accepting it would suppress the advisory for a command that does not exist.
+
+  The advisory's own text was wrong the same way the resolution had been: it named
+  `plugins/<plugin>/skills/` as the place searched, whatever the manifest declared. The message now
+  lists the directories the search actually covered, built from the same `skill_roots` the
+  resolution used. The advisory ends by telling the reader to confirm against the tree, and pointing
+  them at the wrong part of it is the one instruction that cannot survive being wrong. A plugin
+  using the conventional layout still reads exactly as before.
 
 ## [0.20.0]
 
