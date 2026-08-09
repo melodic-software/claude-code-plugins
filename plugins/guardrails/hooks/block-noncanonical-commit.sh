@@ -1,12 +1,23 @@
 #!/usr/bin/env bash
-# PreToolUse hook: block `git commit` that does not feed its message via stdin.
-# Triggered on Bash tool calls.
+# PreToolUse hook: block `git commit -m` whose message actually contains a
+# newline. Triggered on Bash and PowerShell tool calls.
 #
-# WHAT IT ENFORCES — the mechanic, not the ritual:
-#   `git commit -F -` (or `--file -`), the form the /commit skill emits. The
-#   failure mode it prevents is real and silent: `git commit -m "<multi-line>"`
-#   flattens newlines unpredictably across shells, so a body that looked right
-#   in the tool call lands mangled in history.
+# WHAT IT ENFORCES — the hazard, not the ritual:
+#   The failure mode it prevents is real and silent: `git commit -m
+#   "<multi-line>"` flattens newlines unpredictably across shells, so a body
+#   that looked right in the tool call lands mangled in history. A multi-line
+#   message belongs on stdin — `git commit -F -` (or `--file -`), the form the
+#   /commit skill emits.
+#
+#   NARROWED in 0.20.0 (#2021): the guard used to deny EVERY `git commit` that
+#   was not the stdin form, single-line `-m "fix: typo"` included — a hybrid
+#   whose extra width policed only style. Only the actual-newline `-m` is the
+#   mangling hazard, so only it blocks now: a single-line `-m`, a bare `git
+#   commit` (editor), and repeated single-line `-m` flags (git itself joins
+#   them as paragraphs; no shell mangling is involved) all pass. On the
+#   PowerShell tool a here-string `-m` value blocks too: the classifier blanks
+#   the body to a placeholder, so its content — multi-line by construction of
+#   the form — cannot be inspected, and the guard fails closed on it.
 #
 # WHY NOT `--trailer`: the trailer is POLICY, not mechanic. /commit itself
 # omits it when the resolved trailer_policy is `none`, and a repo whose
@@ -20,8 +31,8 @@
 # actually available, and is the better target anyway: it enforces the outcome
 # a reviewer can verify in `git log`, not the ceremony that produced it.
 #
-# NOT BLOCKED (no message-on-stdin form exists for these, and gating them would
-# break conflict resolution and history rewriting):
+# EXEMPT even when a multi-line `-m` co-occurs (gating these would break
+# conflict resolution and history rewriting):
 #   --amend                      reusing an existing message
 #     (--no-edit alone is NOT exempt: `git commit --no-edit -m x` is an
 #      ordinary commit. Amending is covered by --amend; a merge's --no-edit is
@@ -29,15 +40,16 @@
 #   -C / --reuse-message         "
 #   -c / --reedit-message        "
 #   --fixup / --squash           message derived from another commit
-#   -F <path> / --file <path>    mechanic satisfied, just not via stdin
+#   -F - / --file -              the stdin form itself
+#   -F <path> / --file <path>    the message rides in a file, not on argv
 #   -m during an in-progress sequencer (merge / rebase / cherry-pick / revert):
 #                                conflict resolution and rebase continuation
 #                                must never be gated
 #
 # Per-repo/per-user allow-list: the `block_noncanonical_commit_allow` userConfig
 # option is a comma-separated list of form tokens (currently just
-# "message-flag", which allows a bare `-m`). Set it with
-# `/plugin configure guardrails` or headless via `claude plugin install
+# "message-flag", which allows `-m` even with a newline in the message). Set it
+# with `/plugin configure guardrails` or headless via `claude plugin install
 # --config`; read from the CLAUDE_PLUGIN_OPTION_BLOCK_NONCANONICAL_COMMIT_ALLOW
 # process mirror. Kill switch: `block_noncanonical_commit_enabled` set to false.
 #
@@ -51,9 +63,15 @@
 # this code in place of the expansion, and separating them needs a hook-utils
 # change that block-dangerous-git shares. Static matching over the literal
 # command string only: shell variable / command substitution is not evaluated.
+# A message ATTACHED to a short-option cluster (`-am"multi<NL>line"`) is not
+# recognized either: which cluster letters take values is per-option knowledge
+# the scan does not model, so that spelling fails open (allowed) — same
+# friction-guard posture as the substitution residual. The separated cluster
+# (`-am "<msg>"`) IS scanned.
 # This is a friction guard against the accidental anti-pattern, not a sandbox.
 #
-# BLOCKING: exits 2 when a commit would take its message off the command line.
+# BLOCKING: exits 2 when a `git commit -m` message actually carries a newline
+# (or, on PowerShell, a blanked here-string whose content cannot be inspected).
 
 set -uo pipefail
 
@@ -530,6 +548,10 @@ alias_reexpand_admit() {
 check_segment() {
   local -a w=()
   local gi sub sub_idx nseg k word next stdin_form=0 exempt=0 saw_commit=0
+  # Set when a `-m`/`--message` value carries an actual newline — the mangling
+  # hazard this guard blocks — or is a blanked PowerShell here-string (content
+  # multi-line by construction of the form, uninspectable here: fail closed).
+  local msg_newline=0
   local inline_alias_handled=0
   # This segment's effective repo directory, resolved at most once per frame and
   # only where a path is actually needed — a segment carrying no alias and no
@@ -759,21 +781,55 @@ check_segment() {
     -C* | -c*)
       exempt=1
       ;;
+    -m | --m | --me | --mes | --mess | --messa | --messag | --message) # spellchecker:disable-line
+      # git's parse-options accepts any UNIQUE prefix of a long option, and
+      # --message is git commit's only long option starting with "m", so every
+      # prefix from --m up to one letter short of the full spelling is accepted
+      # as --message. Verified empirically on git 2.55: `git commit --dry-run
+      # --mess=x` (and each shorter prefix) parses, while a non-option like
+      # --mainline errors — so an abbreviated spelling must hit this gate
+      # exactly as the full one does.
+      [[ "$next" == *$'\n'* || "$next" == "$PS_HERESTRING_PLACEHOLDER" ]] && msg_newline=1
+      ((k++))
+      ;;
+    --m=* | --me=* | --mes=* | --mess=* | --messa=* | --messag=* | --message=*) # spellchecker:disable-line
+      word="${word#*=}"
+      [[ "$word" == *$'\n'* || "$word" == "$PS_HERESTRING_PLACEHOLDER" ]] && msg_newline=1
+      ;;
+    -m*)
+      # Attached value (`-m"multi<NL>line"` tokenizes to one -m-prefixed word).
+      word="${word#-m}"
+      [[ "$word" == *$'\n'* || "$word" == "$PS_HERESTRING_PLACEHOLDER" ]] && msg_newline=1
+      ;;
+    -[!-]*m)
+      # Short-option cluster whose LAST letter is m (`-am`, `-sam`): git binds
+      # the NEXT word as the message. Which earlier cluster letters themselves
+      # take values is per-option knowledge this scan does not model; misreading
+      # one costs at most a newline probe of the following word.
+      [[ "$next" == *$'\n'* || "$next" == "$PS_HERESTRING_PLACEHOLDER" ]] && msg_newline=1
+      ((k++))
+      ;;
     *)
-      # Any other word (paths, -a, -S, --cleanup, the -m payload) is not a
-      # message-source marker and needs no handling here.
+      # Any other word (paths, -a, -S, --cleanup) is not a message-source
+      # marker and needs no handling here.
       ;;
     esac
   done
 
   ((saw_commit)) || return 0
   ((stdin_form || exempt)) && return 0
+  # The narrowed verdict (#2021): only a `-m` whose message ACTUALLY carries a
+  # newline is the mangling hazard. A single-line `-m`, a bare `git commit`,
+  # and repeated single-line `-m` paragraphs (git joins them itself) all pass.
+  ((msg_newline)) || return 0
   allowed "message-flag" && return 0
   [[ -n "$seg_dir" ]] || seg_dir="$(effective_dir ${wrapper_cd[@]+"${wrapper_cd[@]}"} "${w[@]:gi:sub_idx-gi}")"
   sequencer_in_progress "$seg_dir" "$(explicit_git_dir "${w[@]:gi:sub_idx-gi}")" && return 0
 
-  echo "BLOCKED: \`git commit\` without \`-F -\` — the message must be piped via stdin." >&2
-  echo "Use the /commit skill (source-control plugin), or its canonical form directly:" >&2
+  echo "BLOCKED: \`git commit -m\` with a multi-line message — a \`-m\` newline flattens" >&2
+  echo "unpredictably across shells, so the body lands mangled in history." >&2
+  echo "Pipe the message via stdin instead: use the /commit skill (source-control" >&2
+  echo "plugin), or its canonical form directly:" >&2
   if [[ "$TOOL_NAME" == "PowerShell" ]]; then
     echo "  @'" >&2
     echo "  <subject>" >&2
@@ -783,8 +839,8 @@ check_segment() {
     echo "  <subject>" >&2
     echo "  EOF" >&2
   fi
-  echo "A \`-m\` message flattens newlines unpredictably across shells. --amend, -C/-c," >&2
-  echo "--fixup/--squash, -F <path>, and an in-progress merge/rebase are exempt." >&2
+  echo "Single-line \`-m\` messages are allowed. --amend, -C/-c, --fixup/--squash," >&2
+  echo "-F <path>, and an in-progress merge/rebase are exempt." >&2
   emit_tel "blocked" "message-flag"
   exit 2
 }

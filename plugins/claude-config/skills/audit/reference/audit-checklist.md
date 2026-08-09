@@ -99,7 +99,7 @@ additional ask-gates) get those checked at the same severities.
 | --- | --- | --- |
 | Every plugin's marketplace exists in `extraKnownMarketplaces` | error | Split `@marketplace` suffix, verify marketplace key exists |
 | Explicitly disabled plugins are intentional | info | Review false entries — are they stale or deliberately off? |
-| No plugins from incompatible marketplaces (Agent Skills format) | error | Repos with only root `marketplace.json` but no per-plugin `plugin.json` are incompatible |
+| Every enabled plugin has a component definition (`plugin.json` **or** a `strict: false` entry) | error | Test `strict`, not `plugin.json` presence. The [Strict mode section](https://code.claude.com/docs/en/plugin-marketplaces#strict-mode) documents a plugin with no `plugin.json` as SUPPORTED: under `strict: false` "the marketplace entry is the entire definition" — the plugin repo provides raw files and the entry's `skills`/`agents`/`hooks` fields expose them. Anthropic's own `anthropic-agent-skills` marketplace ships three such plugins with zero `plugin.json` files repo-wide, so a bare root `marketplace.json` is **not** by itself a finding. Two error conditions: (1) a plugin with NEITHER — no per-plugin `plugin.json` AND no `strict: false` entry declaring its components — since nothing then defines what loads; (2) a plugin with BOTH — a `strict: false` entry AND a `plugin.json` that declares components — since the same page states "If the plugin also has a `plugin.json` that declares components, that's a conflict and the plugin fails to load" |
 
 ## F. Environment Variables
 
@@ -166,3 +166,35 @@ when this subagent is active. Overrides the session effort level. Default: inher
 The same row admits `max`, which the `effortLevel` settings key does not, so a level valid here is
 not evidence it is valid in a settings file. **As of:** 2026-08-08, fetched as raw markdown.
 **Recheck trigger:** that field's precedence or its accepted-level list changing on the page.
+
+## I. Deep-link registration
+
+Claude Code "registers the `claude-cli://` handler with your operating system on macOS, Linux, and
+Windows when you send your first prompt of an interactive session" — not at install, and
+"starting `claude` and exiting without sending a prompt doesn't register the handler"
+([deep links](https://code.claude.com/docs/en/deep-links)). Registration "writes to user-level
+locations only" (`~/Applications/Claude Code URL Handler.app`, a
+`claude-code-url-handler.desktop` under `$XDG_DATA_HOME/applications`,
+`HKEY_CURRENT_USER\Software\Classes\claude-cli`). Whether the handler is in fact registered on a
+given machine is workstation state, not configuration: these rows read the setting that governs
+registration, never those locations.
+
+Like two of section H's rows, the value check has an authoring-time path: the declared schema
+types this key `"type": "string", "enum": ["disable"]`, so an editor validating
+against it flags a boolean before the file is ever loaded. The row stays for the same reasons those
+do — the schema is advisory, the harness still reads a file that violates it, and section A checks
+that `$schema` is present, not what the values are.
+
+**Reach.** Read the key by value from `.claude/settings.json` and `~/.claude/settings.json`.
+`check-structure.sh` does not report it, so a `settings.local.json` or managed-settings occurrence
+is outside what this skill's safe-read rule surfaces — record it as not inspectable rather than
+reporting the key as absent. The managed gap is not one a file read would close: server-managed
+delivery, an MDM plist, and Windows registry policy are all managed sources with no file in the path
+this skill resolves, and the first non-empty source wins for a key like this one, which is on none of
+the page's per-key exception lists. Nothing about the managed layer is decidable here, present or
+absent. Both rows below are built only on what the readable scopes show.
+
+| Check | Severity | How to verify |
+| --- | --- | --- |
+| `disableDeepLinkRegistration`, **when present**, is the string `"disable"` | warning | `jq 'select(has("disableDeepLinkRegistration")) \| .disableDeepLinkRegistration'`. Gate on `has(…)`, never on the value being non-`null`: a bare `jq '.disableDeepLinkRegistration'` returns `null` for an absent key and for an explicit `null` alike, and an absent key is a consumer accepting the default registration on purpose — never a finding. The check fires only on a key that is present and not the string `"disable"`. **MANDATORY**: confirm the accepted value against a live fetch of [settings](https://code.claude.com/docs/en/settings) rather than this row's wording — it is upstream-owned and moves with the harness. The page documents exactly one value that produces the effect: "Set to `"disable"` to prevent Claude Code from registering the `claude-cli://` protocol handler", with `"disable"` as its only example. Boolean `true` is the likely author error, the key reading as a flag; the declared schema's `enum` and `type` already flag it too, so a schema-aware editor catches it first. Report that the documented prevention is not invoked, so nothing exempts the machine from the default first-prompt registration above. Do **not** assert what the harness does with an unrecognized value, or that anything surfaces when it reads one — neither page states either |
+| Where enforcement is required, a `disableDeepLinkRegistration` already set to `"disable"` is not left sitting in a scope that cannot enforce it | warning | The deep-links page: "To prevent registration entirely, set `disableDeepLinkRegistration` to `"disable"` in `settings.json`. To enforce this across an organization so users cannot re-enable it, set it in [managed settings](https://code.claude.com/docs/en/server-managed-settings) instead." Only managed settings enforce, so no scope this audit reads by value can satisfy such a requirement. Both halves of the gate are therefore observable: the finding requires a declared enforcement requirement (the consuming repo's own rules, or the run's stated policy context) AND the key present with `"disable"` in `.claude/settings.json` or `~/.claude/settings.json` — a visible attempt lodged in a scope that cannot deliver it. User scope is the settings page's lowest layer, below project and local, so that entry is overridable as well as unenforcing. Report **the visible placement**, never the system: say that this entry does not enforce the requirement and that whether a managed source separately carries the key is outside this audit's reach, since server-managed delivery, MDM plist, and registry policy have no file on the path it resolves. Route the administrator to the one documented check — "Run `/status` to see which managed source is active" ([server-managed settings](https://code.claude.com/docs/en/server-managed-settings)). Deliberately `warning`, not the `error` its `enforceAvailableModels` sibling carries: a bypass is precisely what cannot be proven from here, and managed settings may already enforce this correctly. It becomes `error` only once an administrator confirms no managed source carries the key. Two cases that are **not** findings by design: the key absent from every readable scope (nothing visible to report on), and someone setting it in their own `~/.claude/settings.json` with no enforcement requirement in play, which is the documented single-machine usage. The two rows are sequential, not simultaneous: a key that is present but wrongly valued fails this row's `"disable"` clause and draws only the row above, and correcting the value in that same scope is what brings it into this gate — so say so when both conditions are in view, rather than reporting a placement finding the gate does not yet support |

@@ -383,6 +383,21 @@ same-worktree protections.
   `manage_feedback_ledger.py record-worker-checkin` under that PR's worker lease —
   unconditionally, regardless of what the worker later finds or whether it completes; see the
   Safety Net section for why this must happen at dispatch, not at cleanup.
+- **In a thread-resolving tier only** (`worker`, `autopilot`), route every addressed-but-unresolvable
+  current bot thread a worker reports to the independent resolution dispatch
+  ([`independent-resolution.md`](independent-resolution.md)), while that PR's
+  worker lease is still held and before Cleanup releases it. **The safe tier dispatches nothing** —
+  it never resolves threads (`SKILL.md`), and a dispatch it made would resolve one through a
+  subagent, so it reports the thread as a blocker and stops there. The orchestrator does not resolve the
+  thread itself: it holds the merge decision, so adjudicating the thread that unblocks its own merge
+  is the same self-certification the worker-side `isOutdated` guard exists to prevent, moved one hop
+  up. It dispatches a fresh subagent that authored neither the fix nor the counter-evidence, which
+  re-derives the evidence at the live head and resolves through the guarded wrapper's
+  `--independent-resolver` mode. Every bound that dispatch cannot cross — a security/P1 thread, a
+  multi-finding thread, a human thread, evidence the world rejects, or no subagent tools to dispatch
+  to — falls back identically: leave the thread unresolved, do not merge, and report the PR with the
+  addressed-but-unresolvable thread named. Never resolve past a refusal, and never reach around the
+  wrapper.
 - Keep state, cadence updates, and triage reporting in the main agent.
 - Do not duplicate worker work locally while workers are running.
 - Integrate worker results by verifying pushed commits, updating state, pruning clean worktrees,
@@ -768,6 +783,14 @@ Each worker must:
   — the push moving the diff under a finding does not answer the finding — so it is never
   auto-resolved on that basis. `isOutdated` alone is not an "addressed" signal; only pre-push
   outdatedness, pinned from the dispatch snapshot, is.
+- **report — never resolve — an addressed-but-unresolvable current bot thread.** A disposition that
+  addresses a finding without moving its anchored lines leaves the thread current, so it satisfies
+  neither guard above: an `INCORRECT` carrying counter-evidence, a `VALID (defer)` grounded per
+  D4.6, or a prose fix that rewrote elsewhere in the file. That is not a stuck PR and not a silent
+  skip — the worker returns the thread id, the disposition, and where the evidence lives (the reply
+  carrying the counter-evidence, the tracker item id, or the commit SHA), and the orchestrator
+  routes it to the independent resolution dispatch. Reporting nothing strands the thread, because
+  the orchestrator cannot re-derive from a snapshot which current threads were addressed this round.
 - return changed files, tests/checks run, commit SHA, pushed branch, and remaining blockers
 - leave the assigned worktree clean after committing/pushing, or report exactly why it is dirty
 - never arm its own background monitor, poll loop, or "wait for CI" task — check state once per
@@ -843,7 +866,11 @@ owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-lo
 @me,<self-logins> --autonomous --resolve --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts>, with the pins
 taken from that list; a
 thread that becomes outdated only because of your own push is not addressed by that push — leave
-it. Never arm a background monitor or poll loop waiting on CI — check once, report exactly what
+it. If you address a finding on a CURRENT bot thread — counter-evidence for an INCORRECT, a grounded
+deferral, or a prose fix that rewrote elsewhere and left the anchored lines untouched — do not
+resolve it and do not treat it as a skip: report it as addressed-but-unresolvable, naming the thread
+id, the disposition, and where the evidence lives (the reply carrying the counter-evidence, the
+tracker item id, or the commit SHA). Never arm a background monitor or poll loop waiting on CI — check once, report exactly what
 you found (including "still pending"), and stop. Advisory (P2/nonblocking) fix rounds for this
 PR are tracked in a durable per-PR ledger cap — a high safety backstop against a genuinely stuck
 or looping worker, not a normal limit on legitimate fix work. Keep iterating toward mergeable
@@ -854,7 +881,8 @@ those. If you hit a merge conflict, do not resolve it yourself — stop, report 
 what the conflicting hunks appear to be about, and leave it for a dedicated fresh
 conflict worker.
 
-When complete, report changed files, commands/tests run, commit SHA, push status, and any
+When complete, report changed files, commands/tests run, commit SHA, push status, any
+addressed-but-unresolvable current bot threads (id, disposition, where the evidence lives), and any
 remaining blockers.
 ```
 
@@ -878,8 +906,10 @@ not have.
   is a no-push.
 - **Keep** unchanged: the untrusted-data fencing, the worktree scoping, the target repository's own
   conventions, the head re-check before editing, and the no-background-monitor rule.
-- **Drop** the pre-push-outdated thread-resolution grant. A conflict worker resolves conflicts, not
-  review threads.
+- **Drop** the pre-push-outdated thread-resolution grant, and with it the
+  addressed-but-unresolvable reporting duty and its return field. A conflict worker resolves
+  conflicts, not review threads: it classifies no finding, so it has no disposition to report and
+  nothing for the orchestrator to route.
 
 ## Fallback
 

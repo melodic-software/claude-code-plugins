@@ -259,13 +259,26 @@ Core spotlight moves:
 
 - Shorten line four to two stresses for instability and suspense.
 - Lengthen line four to four stresses for deceptive rhythmic closure.
-- Keep the extra line-four stress inside the line when the end rhyme still
-  needs to answer line two.
+- Keep the extra stress inside line four when the end rhyme still needs to
+  answer line two. The insertion is two syllables, one unstressed and one
+  stressed — adding a bare stressed syllable changes the movement as well as
+  the count.
 - Rhyme line four with lines one and three instead of line two to make the
   closing rhyme fool the listener.
 - Add one or more extra four-stress lines on the same rhyme to build pressure.
 - Finally answer the delayed line-two rhyme with a three-stress line, preferably
   with a near-perfect sonic bond because the rhyme is reaching across distance.
+
+That inside-the-line extension lights **two** positions, not one, and knowing
+which two is what makes the move usable:
+
+- The third stressed syllable, because the rhyme did not arrive where line
+  two's rhyme had trained the ear to expect it.
+- The fourth stressed syllable, because it protrudes past the end the section
+  had promised.
+
+Coach both. A writer who fills only the final position leaves the earlier
+spotlight burning on whatever word happened to land there.
 
 > When you turn on spotlights, use them.
 
@@ -379,6 +392,54 @@ Cash an IOU only when the payoff matters. A title, emotional reversal, or
 dramatic image can justify the extra attention; ordinary connective language
 usually cannot.
 
+A rhyme can also be defeated by closure rather than by distance. Chapter 16's
+case is a line whose end sound matches lines two and four of its own verse and
+still reads as unrhymed, because the first four lines already closed into a
+unit and the ear stopped listening back across the seam. Proximity on the page
+is not audibility: a rhyme is heard only while the structure is still holding
+the ear open for it. When a rhyme has to reach past a closed unit, either
+reopen the unit or stop counting on the rhyme.
+
+## Couplet and common-meter models
+
+Chapter 16 closes with nine models mixing four-stress couplets and common
+meter. Line lengths are stress counts, not syllable counts.
+
+| # | Stresses | Rhyme scheme |
+|---|---|---|
+| 1 | 4/4/4/4 | `aabb` |
+| 2 | 4/4/4/4 | `aaaa` |
+| 3 | 4/4/4/4 | `aaba` |
+| 4 | 4/3/4/4 | `abcb` |
+| 5 | 4/3/4/4 | `abcc` |
+| 6 | 4/3/4/4 | `abaa` |
+| 7 | 4/3/4/3/4/4 | `ababcc` |
+| 8 | 4/4/4/3/4/4/4/3 | `aaabcccb` |
+| 9 | 4/4/4/4/4/4/4/4 | `ababcccc` |
+
+Only models 1-3 and 9 run entirely on four-stress lines. The rest set a
+three-stress line against four-stress neighbours, which is where the
+couplet / common-meter contrast becomes audible — and model 8 is long enough
+for its short fourth line to open an IOU that its short eighth line answers.
+
+## Composite destabilizing
+
+Chapter 16's closing analysis is worth holding as a pattern rather than a
+single example: several destabilizers can fire in one section at once, and
+their effect compounds. Its chorus lands four simultaneously — an odd number
+of lines, an odd rhyme scheme, a two-stress line where the section had used
+none, and a section that stretches past the eight-bar units the verse and
+prechorus had trained, out to eleven bars.
+
+Bar-count overrun is a device in its own right, and the one most easily missed
+on the page: a section can be internally coherent and still be marked simply
+by outlasting the length the song taught the listener to expect.
+
+The composite refuses solid closure, which both showcases the title and holds
+the section open. Match that to the emotion: an airy, suspended, unresolved
+feeling is supported by a structure that will not close, and contradicted by
+one that closes cleanly.
+
 ## Managing lockstep couplets
 
 In *Writing Better Lyrics* Chapter 17, Pattison treats repeated four-stress rhymed
@@ -406,8 +467,11 @@ Couplet-expansion moves:
   middle and at the end.
 - Keep the original couplets intact but insert five-stress rhymed lines around
   them when the couplets are strong enough to survive.
-- Build an eight-line structure where the fourth line withholds a rhyme and the
-  eighth line answers it.
+- Build an eight-line structure of four-stress rhymed lines whose fourth and
+  eighth lines are both **shorter** — three stresses — with the fourth
+  withholding a rhyme that the eighth answers: `4/4/4/3/4/4/4/3`, `aaabcccb`.
+  The shortening is half the move; an unrhymed line of matched length does not
+  open the same IOU.
 
 Use looseness for uncertainty, loss, or instability. Tighten rhyme and stress
 organization when the lyric's emotion is factual, resolved, or controlled.
@@ -520,10 +584,10 @@ As with deceptive closure, use the surprise position for important content.
 - Xaxa transfer: remove the line-one/line-three rhyme from the same stanza and
   repeat the spotlight ladder. Compare which effects feel deceptive and which
   feel unexpected.
-- Couplet map: write sections for several four-stress/rhyme models: aabb,
-  aaaa, aaba, abcb, abcc, ababcc, ababaccc, and abacccc. Read each aloud and
-  mark where the ear stops, where it expects continuation, and where an IOU is
-  created.
+- Couplet map: write one section for each of the nine
+  [couplet and common-meter models](#couplet-and-common-meter-models), read
+  each aloud, and mark where the ear stops, where it expects continuation, and
+  where an IOU is created.
 - Lockstep repair: take an aa bb four-stress couplet draft and transform it
   into xxaa, then 435435/xxaxxa, then 435435/abcabc. After each version, name
   whether the emotion feels looser or tighter.
@@ -889,9 +953,8 @@ allows mixed lengths.
 
 ## Pentad cross-domain applicability (*Essential Guide to Lyric Form and Structure* (1991), Chapter 3)
 
-Pat's Structural Pentad (number of lines / length of lines / rhythm /
-rhyme scheme / rhyme type) applies not only to rhyme structure. It also
-applies to:
+Pat's Structural Pentad (balance / pace / flow / closure / type of closure)
+applies not only to rhyme structure. It also applies to:
 
 - **Rhythmic structure** — same pentad properties measured against the
   song's rhythmic motifs
@@ -899,17 +962,23 @@ applies to:
   (when melody is known)
 - **Harmonic structure** — chord pattern stability per pentad property
 
-This is the principle that lets the same diagnostic work across lyric,
-melody, and harmony in `stable-unstable-meta.md`. The pentad is one
-analysis frame applied across multiple structural surfaces.
+The pentad is one analysis frame applied across multiple structural
+surfaces. Do not confuse it with the
+[Five Compositional Elements](five-compositional-elements.md) — number of
+lines, length of lines, rhyme scheme, rhyme types, rhythm — which is a
+different five-item list naming the levers rather than the effects.
+[stable / unstable](stable-unstable-meta.md) applies a cross-domain
+stability lens of its own with per-domain criteria; it is not the Pentad
+applied across domains.
 
 ## Cross-references
 
 - [Five Compositional Elements](five-compositional-elements.md) —
   levers under the Pentad.
 - [phrasing](phrasing.md) — front/back-heavy at bar level.
-- [stable / unstable](stable-unstable-meta.md) — Pentad properties
-  feed the stable/unstable diagnostic; cross-domain Pentad.
+- [stable / unstable](stable-unstable-meta.md) — a separate song-wide
+  diagnostic with per-domain stability criteria of its own; it does not
+  apply the Pentad's five properties.
 - [hook](hook.md) — strategic vs balancing position in Common Meter.
 - [prosody](prosody.md) — greedy spots; pitch-stress in melody setting.
 - [exercises](exercises.md) — *Essential Guide to Lyric Form and Structure* (1991) Ex 8-17 cover Pentad properties

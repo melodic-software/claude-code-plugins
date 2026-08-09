@@ -1,5 +1,120 @@
 # Changelog — discovery plugin
 
+## [0.12.0]
+
+### Added
+
+- **The dispatch acceptance gate now covers `/discovery:research`, not just `/discovery:explore`.**
+  `0.11.x` hardened the explore dispatch with an on-disk artifact check, a freshness baseline, a
+  pointer cross-check, and a recovery ladder, and left the research side with none of them — so a
+  `researcher` that returned a mid-stream narration line as its whole payload was still accepted on
+  the strength of `status: complete`, exactly as the explore-side failure that produced the gate.
+  - `skills/research/SKILL.md` — new parent-side acceptance gate in the routing section: a
+    pre-dispatch `touch <slice>/.research-dispatch` baseline, a payload well-formedness step, the
+    off-disk artifact check cited by **exit status**, and a ledger step. A non-zero exit halts the
+    workflow rather than annotating it.
+  - `skills/research/context/dispatch.md` — the rationale spoke: why the gate grades the parent's own
+    slice path rather than the payload's `artifact:`, why one gate serves both skills, why the ledger
+    is a separate script rather than a flag, the two freshness limits that follow from that, and a
+    research-specific recovery ladder.
+  - `skills/research/evals/evals.json` — a gate eval (`empty-payload-halts-the-dispatch`), the
+    counterpart of the explore suite's.
+  - `skills/research-deep/SKILL.md` — the **other** parent of `discovery:researcher`, and the one
+    that actually performs the N-topic fan-out. Its post-dispatch boundary now names the gate as the
+    step that comes before the four obligations, and carries the fan-out rule the gate implies:
+    grade each topic against the sub-slice it was assigned, before synthesizing the slice-root
+    index, because the gate reads a synthesized root alongside its sub-slices as ambiguous.
+
+### Changed
+
+- **`scripts/check-explore-artifact.sh` → `scripts/check-dispatch-artifact.sh`, parameterized by
+  `--index-name`.** One gate now serves both skills, because they share one on-disk shape:
+  `artifact-shape.md` states that the index shape, the section-keyed sidecar filenames, the sub-slice
+  rule, and both placement rules are identical for exploration, and that what differs is the sidecar
+  YAML **header** — which this gate never opens. Every check in it operates on the identical surface,
+  so a second copy would have duplicated ~300 lines of reasoned logic in a repository that ships a
+  cross-plugin source-drift checker to police exactly that.
+  - **`--index-name` is required, never defaulted.** A silent `EXPLORE.md` default would grade a
+    research slice against the wrong family — reporting a successful run as unusable, or, in a slice
+    that also holds an exploration, reporting a research dispatch that wrote nothing as usable. Its
+    stem is also interpolated into the sidecar-matching ERE, so the flag rejects anything outside
+    `[A-Za-z0-9_-]` rather than silently widening what counts as a sidecar.
+  - **Fixed on the way past:** the "index names no sidecar" branch printed a short verdict line
+    missing the documented `freshness=` and `pointer=` fields, so a parent grepping the verdict line
+    for them found nothing on exactly one of the failure paths. It now reports through the same
+    `verdict` helper as every other outcome.
+  - `scripts/check-dispatch-artifact.test.sh` — the shape suite now runs **twice**, once per artifact
+    family, plus new cases for `--index-name` itself: missing, value-less, non-`.md`, regex-unsafe
+    stems, both directions of cross-family isolation, and `research-checklist.md` not being counted
+    as a sidecar.
+  - `skills/explore/SKILL.md` and `skills/explore/evals/evals.json` — the invocation and the eval
+    rubric follow the rename and pass `--index-name EXPLORE.md`, and the "only the slice path is
+    required" sentence is corrected to name `--index-name` alongside it.
+
+### Fixed
+
+- **The freshness baseline could not be taken on a first-time topic.** Both skills told the parent to
+  `touch <slice>/.<skill>-dispatch` before dispatching, and on a scope or topic whose slice does not
+  exist yet that `touch` fails — so the dispatch either stopped before it started or reached the gate
+  with no baseline to grade against, which is exit 2. Now `mkdir -p <slice> && touch …` on both sides,
+  including `skills/explore/reference/dispatch.md`. Found by review on this PR; the defect predates it
+  on the explore side, and fixing only the research side would have opened a fresh parity gap.
+
+### Deliberately not ported
+
+- **A `verification: pending` payload check.** The researcher's contract already makes that field
+  non-negotiable, but adding a parent-side check for it on this side alone would open a fresh parity
+  gap in the other direction. It belongs to a change that does both skills at once.
+- **A ledger freshness check.** `--newer-than` binds the index, not `research-checklist.md`, and the
+  ledger gate reads marks rather than provenance. The gap is real but narrow — it needs a re-dispatch
+  into a dirty slice whose replacement run found the corpus unbounded — and it is closed by the
+  ladder's "clear the slice before re-dispatching" rung rather than by a one-caller flag on the
+  shape-agnostic half of the pair.
+
+## [0.11.3]
+
+### Changed
+
+- **`research-deep` now dispatches `discovery:researcher` at both of its worker-spawning call
+  sites.** Tier 2 spawned a bare `general-purpose` agent with a long inline prompt that hand-carried
+  the research discipline, and the N-topic fan-out spawned N more the same way — while the plugin
+  already ships the purpose-built worker that `/discovery:research` routes to. Two ways of running
+  one discipline, and the second was the weaker one: a hand-written prompt is a copy of a contract
+  that lives in `skills/research/`, so it is only ever as disciplined as that copy is faithful, and
+  a spawn with no calibration runs at whatever effort and turn budget it inherits rather than the
+  ones tuned for this work.
+  - **Both call sites move together.** Migrating one would have left the other as a silent second
+    way of doing the same thing, which is the shape this change exists to remove.
+  - **One shared envelope section** now serves both paths — the six fields the agent refuses to
+    guess (topic, the reason it is being researched, memory-slice path, memory root as its own
+    field, budget, capability flags), with the field-by-field rationale pointed at
+    `skills/research/context/dispatch.md` rather than restated. The N-topic path keeps its
+    parent-assigned sub-slices and passes the memory root separately, which is exactly the nested
+    case the agent names: a worker handed a sub-slice path cannot tell from it which ancestor is the
+    configured root.
+  - **The researcher's `tools` allowlist is gone, so session MCP tools reach the worker again.**
+    The migration's review surfaced that the allowlist silently dropped every MCP tool the former
+    `general-purpose` spawn inherited — the sub-agents reference is explicit that a `tools`
+    allowlist excludes MCP tools while an unrestricted definition keeps them. The agent now
+    inherits its pool (background tool filtering still applies), restoring source-specific
+    documentation and synthesis MCP tools to both this skill's dispatches and `/discovery:research`'s.
+  - **`Budget` is documented as narrowing-only** — the researcher's fixed `maxTurns: 40` is a
+    ceiling the envelope cannot raise; work needing more depth belongs to Tier 1's engine. The
+    envelope-rationale pointer is scoped honestly: `dispatch.md` carries five of the six fields,
+    and `Memory root`'s rationale lives in the researcher's own contract.
+  - **The dispatch prompt is envelope fields only.** The disciplines, the citation rule, the outcome
+    gate, and the return-payload shape are the agent's own standing contract; the old prompt's
+    carry-verbatim reminders are the copy that drifts the moment the parent skill changes.
+  - Everything the old prompt enforced that is genuinely parent-side is unchanged: per-topic
+    sub-slice assignment, the N ≥ 2 decomposition rule, and the post-dispatch boundary this session
+    closes for every dispatched run before surfacing anything. The Tier 2 rationale sentence now
+    reads on discipline-at-turn-zero and calibration; the tool-access half — Phase 3 needs
+    direct-fetch and MCP tools, and the artifact must be written, which a read-only Explore agent
+    cannot do — survives as the secondary reason it always was.
+  - `agents/researcher.md` and the README agent table named `/discovery:research` as the sole
+    dispatcher; both now name `/discovery:research-deep` too, and evals 1 and 3 grade the agent type
+    and the envelope rather than a `general-purpose` spawn.
+
 ## [0.11.2]
 
 ### Changed
