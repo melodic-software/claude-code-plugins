@@ -9,6 +9,7 @@
   declaring it only restated the path while registering a second, unnamespaced command — which
   the slash-command picker then echoed back as `/plugin:skill (skill)`. Invoke a skill by its
   namespaced command; the command itself is unchanged.
+
 ## [0.12.2]
 
 ### Fixed

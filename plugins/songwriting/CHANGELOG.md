@@ -12,6 +12,7 @@ All notable changes to the `songwriting` plugin are documented here. Format foll
   declaring it only restated the path while registering a second, unnamespaced command — which
   the slash-command picker then echoed back as `/plugin:skill (skill)`. Invoke a skill by its
   namespaced command; the command itself is unchanged.
+
 ## [0.7.4]
 
 A source-fidelity pass over `object-writing.md` (Chapter 2), `worksheets.md`

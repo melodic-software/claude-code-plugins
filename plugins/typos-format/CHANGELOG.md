@@ -12,6 +12,7 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
   declaring it only restated the path while registering a second, unnamespaced command — which
   the slash-command picker then echoed back as `/plugin:skill (skill)`. Invoke a skill by its
   namespaced command; the command itself is unchanged.
+
 ## [0.5.3]
 
 ### Fixed
