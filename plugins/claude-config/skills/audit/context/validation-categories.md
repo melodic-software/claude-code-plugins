@@ -158,10 +158,12 @@ registration". What governs the category:
   audited here
 - **Fetch before reporting** — the accepted value is upstream-owned, so a finding requires the
   Phase 3.1 settings fetch, the way Category F resolves environment variables against their own page
-- **Two authorities that agree here** — the declared settings schema types the key
+- **Two authorities, agreeing on the value only** — the declared settings schema types the key
   `"type": "string", "enum": ["disable"]`, so a schema-aware editor flags a wrong value before the
   file is loaded, the same authoring-time path two of Category H's rows have. The row stays because
-  the schema is advisory and the harness still reads a file that violates it
+  the schema is advisory and the harness still reads a file that violates it. The agreement stops at
+  the value: the schema's own `description` puts registration at startup where the docs page puts it
+  at the first prompt sent. Behavior is the docs page's to state, so cite it, not the schema
 - **Value first, then placement** — a value other than the string `"disable"` is a prevention that
   was never invoked (warning). A correct value placed only where a user can revert it, where an
   organization requires enforcement, is an enforcement bypass (error). Absent a declared enforcement
