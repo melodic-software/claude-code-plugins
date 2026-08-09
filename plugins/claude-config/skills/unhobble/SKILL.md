@@ -1,5 +1,4 @@
 ---
-name: unhobble
 description: "Empirical bare-baseline experiment on a repo's standing instructions: reversibly strip project CLAUDE.md/rules/behavioral hooks/skills on a dedicated branch, work normally against the bare model logging observed stumbles to a ledger, then re-add ONLY instructions with repeated same-cause evidence, each restore citing its ledger rows. Measures the model where sibling audit-instructions judges the text. Use when: 'unhobble', 'run the bare experiment', 'delete my CLAUDE.md and see', 'does the model still need these instructions', 'new model dropped, re-baseline', 'instruction ablation experiment'. Human-gated mutations; resumable state."
 argument-hint: "[phase] — snapshot|bare|observe|readd|status (default: guided full flow)"
 user-invocable: true

@@ -1,5 +1,4 @@
 ---
-name: setup
 description: "Verify the markdown-format hook's runtime prerequisites and configuration for this repository. Use when: 'set up markdown-format', 'configure markdown-format', 'is markdown-format working', formatting silently isn't happening, or the hook reported a missing prerequisite. Actions: check (read-only verification, default) | apply (resolve what check found). Re-runnable and safe."
 argument-hint: "check | apply [install-lint]"
 user-invocable: true

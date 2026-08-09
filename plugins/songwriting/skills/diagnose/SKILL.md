@@ -1,5 +1,4 @@
 ---
-name: diagnose
 description: "Review, audit, and rewrite a lyric with Pat Pattison's methods — demo review at any completion stage, full-draft diagnosis against the five compositional elements and stable/unstable analysis, the pre-lock line/section audit checklist (tools, not gates), labeled variations across six axes, and critique-driven rewrite. Use when: 'what's wrong with my song', 'review my draft', 'is this any good', 'review this demo', 'audit this line before I lock it', 'give me 5 versions of line 3', 'rewrite this using Pat's checklist'. For blank-page starts use /songwriting:workflow."
 argument-hint: "[action] [args] (e.g., /songwriting:diagnose, /songwriting:diagnose audit \"...\", /songwriting:diagnose variations \"...\") — full actions in body"
 user-invocable: true

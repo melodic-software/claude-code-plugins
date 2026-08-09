@@ -1,5 +1,4 @@
 ---
-name: setup
 description: "Verify and configure the codebase-health plugin for this repository. check inspects the tracked .claude/codebase-health.md config read-only across its merge layers (presence, dimension source lists, tracked-not-ignored); apply interviews the user, infers audit targets from the repo layout, and writes the config. Use when: 'set up codebase-health', 'is codebase-health configured', 'configure the audit', 'codebase-health setup', the audit skill reports missing or thin config, or audit dimensions need tuning. Re-runnable — safe to invoke again to reconfigure."
 argument-hint: "check | apply"
 user-invocable: true

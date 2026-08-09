@@ -1,5 +1,4 @@
 ---
-name: setup
 description: "Configure the machine-health plugin for this machine. check (read-only): report the effective catalog overlay, remediation approvals, and pending proposals against the shipped catalog. apply: write the machine-local overlay (disable/deprecate/demote checks, register custom ones) and seed remediation approvals. Use when: 'set up machine-health', 'configure machine health', 'disable a health check', 'approve a remediation', 'add a custom health check', or the audit skill proposes catalog changes needing approval. Actions: check (read-only verification, default) | apply (write the machine-local overlay and approvals). Re-runnable and safe."
 argument-hint: "check | apply [disable=<check-id> | deprecate=<check-id> | demote=<check-id> | approve=<remediation-id>]"
 user-invocable: true

@@ -1,5 +1,4 @@
 ---
-name: setup
 description: "Verify where this repository's skills live for skill-quality — the resolved skills_root — and explain how to change the personal skills_root option through Claude Code. Use when: 'set up skill-quality', 'configure skill-quality', or the checker reports a missing skills directory. Actions: check (read-only verification, default) | apply (route a skills_root change once you've chosen a location). Re-runnable and safe."
 argument-hint: "check | apply"
 user-invocable: true

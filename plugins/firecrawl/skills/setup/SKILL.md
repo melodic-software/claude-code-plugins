@@ -1,5 +1,4 @@
 ---
-name: setup
 description: "Verify the firecrawl plugin's runtime prerequisites — the firecrawl-cli binary and FIRECRAWL_API_KEY auth — for this machine, respecting the plugin's lazy-install design. Use when: 'set up firecrawl', 'configure firecrawl', 'is firecrawl working', 'firecrawl auth', a scrape reports the CLI is missing, or before a first Firecrawl call. Actions: check (read-only verification, default) | apply (resolve what check found). Re-runnable and safe."
 argument-hint: "check | apply"
 user-invocable: true

@@ -1,5 +1,4 @@
 ---
-name: fanout
 description: "Fan out review across many finding-producing surfaces at once — this plugin's reviewer agents, the project's own per-concern review criteria docs, and orchestrator review plugins — then normalize the heterogeneous outputs into one severity-ranked, deduplicated report persisted to disk. Use for 'fan out review', 'breadth review', 'run all reviewers', 'review from every angle', or 'fix the review findings' (the fix action applies a persisted findings file)."
 argument-hint: "[mode] [--yes] (e.g., /review:fanout, /review:fanout run-everything, /review:fanout fix, /review:fanout fix --yes)"
 user-invocable: true

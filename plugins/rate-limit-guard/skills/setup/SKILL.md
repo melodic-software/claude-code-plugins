@@ -1,5 +1,4 @@
 ---
-name: setup
 description: "Verify the rate-limit-guard plugin's wiring on this machine — jq, the installed statusline shim, statusline wiring (including legacy version-pinned plugin-cache paths), tee freshness, and the StopFailure hook — print the exact statusline edit for the operator to apply, and install the statusline shim. Use when: 'set up rate-limit-guard', 'is the rate-limit tee working', 'wire the rate-limit statusline', the tee file is stale, or a consuming loop lane reports guard mode unknown. Actions: check (read-only; never edits settings), apply (writes ONLY ~/.claude/rate-limit-guard/bin/statusline-shim.sh, on explicit request)."
 argument-hint: "check | apply"
 user-invocable: true
