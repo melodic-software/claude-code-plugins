@@ -649,6 +649,17 @@ jobs:
       - name: Run cheat-sheet generator tests
         if: steps.scope.outputs.docs_only != 'true'
         run: bash scripts/generate-cheatsheet.test.sh
+      # Same reason as the step above — run-plugin-tests.sh never reaches
+      # scripts/. This suite is wired into CI rather than left to local runs
+      # because its load-bearing cases assert against the LIVE repository: that
+      # the shared-lib copy set affected-tests.sh derives still equals what each
+      # scripts/sync-*.sh manifest declares today. That equality is what stops
+      # the selector silently under-selecting after a manifest changes shape or
+      # a new carrying plugin appears, and a check that only ever runs when
+      # someone remembers to run it is exactly the rot it guards against.
+      - name: Run affected-suite selector tests
+        if: steps.scope.outputs.docs_only != 'true'
+        run: bash scripts/affected-tests.test.sh
       - name: Validate plugin and catalog manifests
         if: steps.scope.outputs.docs_only != 'true'
         run: scripts/validate-plugins.sh
@@ -881,10 +892,10 @@ jobs:
   # the base ref, frontmatter, line caps, broken refs, evals presence) over each
   # changed skill under plugins/*/skills/**, replacing the work lane's manual
   # high-blast-radius skill-diff read with a deterministic check. Eval sets are
-  # schema-validated on every event. The job itself never skips (a skipped
-  # required job reports success to branch protection) — only the PR-diff step
-  # is event-gated, and the self-test and eval-schema steps give push a passing
-  # path.
+  # schema-validated AND quality-linted (check-evals-quality.sh) on every
+  # event. The job itself never skips (a skipped required job reports success
+  # to branch protection) — only the PR-diff step is event-gated, and the
+  # self-test and eval steps give push a passing path.
   skill-quality-gate:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -910,6 +921,16 @@ jobs:
         with:
           schemafile: plugins/skill-quality/reference/evals.schema.json
           files: plugins/*/skills/*/evals/evals.json
+      # Self-test first so a broken lint cannot mask a regression behind a
+      # green step.
+      - name: Test the eval-quality lint
+        run: bash plugins/skill-quality/scripts/check-evals-quality.test.sh
+      # Beyond-schema quality lint (FAIL tier: duplicate case ids/names, empty
+      # criterion items, unresolvable files fixtures; WARN tier stays advisory
+      # and never fails the step). Whole-repo and static, so it runs on every
+      # event like the schema step above.
+      - name: Lint every eval set for quality
+        run: bash plugins/skill-quality/scripts/check-evals-quality.sh plugins/*/skills/*/evals/evals.json
       - name: Test the shared listing-budget reporter
         run: bash plugins/skill-quality/scripts/check-listing-budget.test.sh
       # Report-only (always exit 0 — see the script's own header): pools every

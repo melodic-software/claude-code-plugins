@@ -22,7 +22,7 @@ Local counterpart: `/explore` (what IS in the repo). This skill covers what SHOU
 
 ## Routing — dispatch by default
 
-**From the main conversation, this skill dispatches the `discovery:researcher` subagent.** Research reads a lot; keeping that out of the orchestrator's context window is the point. The agent runs Phase 0 through the gate's mechanical criteria, writes the artifact set, and returns a file pointer plus a short summary — not the transcript. The parent resolves the **pre-dispatch envelope** first (topic, memory-slice path, memory root, budget, capability flags) and owns the **post-dispatch boundary** after: re-surfacing `open_questions`, dispatching the sibling verifier, applying project fit itself, and **writing both results back into the index** — `verification: pending` is a statement that the producer may not self-grade, not a permanent state, and an artifact left saying `pending` after the parent verified it understates what is known to every later reader.
+**From the main conversation, this skill dispatches the `discovery:researcher` subagent.** Research reads a lot; keeping that out of the orchestrator's context window is the point. The agent runs Phase 0 through the gate's mechanical criteria, writes the artifact set, and returns a file pointer plus a short summary — not the transcript. The parent resolves the **pre-dispatch envelope** first (topic, the reason the topic is being researched and what decision it feeds, memory-slice path, memory root, budget, capability flags) and owns the **post-dispatch boundary** after: re-surfacing `open_questions`, dispatching the sibling verifier, applying project fit itself, and **writing both results back into the index** — `verification: pending` is a statement that the producer may not self-grade, not a permanent state, and an artifact left saying `pending` after the parent verified it understates what is known to every later reader.
 
 **Run inline instead when any of these holds** — and inline runs the identical discipline; the escape hatch relaxes nothing below:
 
@@ -37,6 +37,28 @@ discovery-research-preload-4c1f9a
 ```
 
 A missing or mismatched token is a **hard failure: the parent discards the run**, never downgrades or accepts the artifact. Rationale and the full parent-side contract: `${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md`.
+
+**Post-dispatch acceptance gate — parent-side, before the payload is believed.** `status: complete` and `coverage: complete` are the agent's claims about its own run, and a claim is not evidence. Grade the run **off disk**, against the memory-slice path from the parent's own pre-dispatch envelope — **carry that path across the dispatch, because it is this gate's input** — never a path read out of the payload, because the failure this gate exists to catch is a payload that comes back carrying no pointer at all. In order:
+
+**Pre-dispatch, one command:** `mkdir -p <the memory-slice path> && touch <that slice>/.research-dispatch`. That is the gate's freshness baseline, and without it a slice that already holds an earlier run's index passes every on-disk check even when this dispatch wrote nothing at all. The `mkdir -p` is not decoration: on a first-time topic the slice does not exist yet, a bare `touch` fails there, and the dispatch either stops before it starts or reaches a gate with no baseline to grade against. The memory root's self-ignoring `.gitignore` guard remains the agent's obligation, per its own contract.
+
+1. **The payload is well-formed** — `preload_token` matches the sentinel verbatim, and an `artifact:` pointer is present. Missing either is a **failed dispatch** whatever the `status` field says; a missing token is a discard, per the rule above.
+2. **The artifact set is actually on disk, and this run put it there:**
+
+   ```bash
+   bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-dispatch-artifact.sh" <the retained memory-slice path> \
+     --index-name RESEARCH.md \
+     --newer-than <that slice>/.research-dispatch --expect-index <the payload's artifact: value>
+   ```
+
+   Cite the **exit status** — 0 usable, 1 no usable artifact set, 2 ungradeable — not a reading of the directory, because the context most motivated to call the dispatch finished is the one that would be doing the reading. It fails closed. Only the slice path and `--index-name` are required, and that bare form is still a real gate; every optional check reports `unchecked` in the output line rather than passing quietly. Append `--expect-sidecars <n>` when the payload reported a `sidecars:` count, and drop any flag whose value the payload did not supply — substituting `0` or a guessed path asks the gate a question the run never answered. **The `index=` path in that output is authoritative** for everything downstream: the verifier's `target` and the handoff pointer come from it, not from `artifact:`.
+
+   **Fanning out over N topics, grade each run against the sub-slice IT was assigned, before synthesizing the slice-root index.** A synthesized root index alongside its sub-slice indexes is a sanctioned end state here, and it is exactly the shape the gate calls ambiguous — so a slice-root run after synthesis exits 2 by design, and that exit means the parent fed it the wrong path rather than that a run failed.
+3. **The coverage claim is graded from the ledger, not from the payload.** `coverage: complete` mirrors outcome-gate criterion 11, which the run graded on **itself**; the parent regrades it deterministically. When a `research-checklist.md` sits beside the index step 2 named, run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-coverage-complete.sh" <that index's directory>/research-checklist.md` and cite its exit status — 0 complete, 1 unmarked rows, 2 ungradeable, and **both non-zero values are FAILs**. A payload reporting `coverage: complete` over a ledger that exits non-zero is a payload defect, not a rounding of the ledger. No ledger on disk is correct **only** when the artifact records the corpus as unbounded; a bounded corpus with no ledger is a Phase 0 that never ran, whatever the payload says.
+
+   Two limits here are deliberate. The artifact gate's `--newer-than` binds the **index**, never the ledger, and the ledger gate reads marks rather than provenance — so a ledger an earlier run left in the slice grades as this one's whenever the new run wrote none. That is why the recovery ladder clears the slice, or assigns a fresh sub-slice, before any re-dispatch.
+
+**Any non-zero exit halts the workflow.** Report it, and do **not** proceed to planning, a decision, or an edit on the strength of research that did not happen — proceeding is the damage a silently-empty return actually causes; the missing artifact is only how it starts. Recovery ladder, and why a resume beats a re-dispatch: [`${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md`](${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md).
 
 ## Topic
 

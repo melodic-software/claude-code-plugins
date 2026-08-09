@@ -3,7 +3,7 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.20.0]
+## [0.21.0]
 
 ### Fixed
 
@@ -45,6 +45,157 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   `SKILL.md` with no `skills/` subdirectory and no `skills` key). That layout is honoured under its
   stated conditions only — a root `SKILL.md` beside a populated `skills/` is not loaded by Claude
   Code, so accepting it would suppress the advisory for a command that does not exist.
+
+## [0.20.0]
+
+### Changed
+
+- **The two behavioral-class advisory injectors now default OFF: `flag-commit-pr-skill-bypass` and
+  `workflow-resilience-check`.** Issue #2021's hook-surface classification found these are the
+  plugin's only two clean behavioral-class context injectors — fixed prose that consults no external
+  ground truth (`flag-commit-pr-skill-bypass` emits a static nudge toward `/pull-request create`;
+  `workflow-resilience-check` runs two greps and emits a fixed ~120-word checklist asserting nothing
+  the model cannot derive). Per `docs/PLUGIN-PHILOSOPHY.md` "Instruction economy", a hook that
+  corrects model behavior is an ablation candidate, and the evidence-gated order is **config-disable
+  first where a kill switch exists** — so the scripts and their wiring stay, and a consumer opts back
+  in by setting the existing `flag_commit_pr_skill_bypass_enabled` / `workflow_resilience_check_enabled`
+  userConfig option to `true`. Deletion, if ever, is a separate change gated on ablation evidence.
+
+  **Mechanism, stated because the shared helper's fallback points the other way:**
+  `hook::check_enabled` reads the `CLAUDE_PLUGIN_OPTION_<NAME>_ENABLED` process mirror with an
+  UNSET-means-true fallback, which would silently re-enable a default-off hook anywhere the harness
+  does not materialize userConfig defaults into the environment. Both hooks therefore switch to an
+  explicit opt-in test (`[[ "${VAR:-false}" == "true" ]] || exit 0` — the same shape session-flow's
+  default-off `observer-arm` uses), and the `plugin.json` defaults flip to `false` so the
+  configuration dialog and `${user_config.*}` agree. Per the current plugins reference
+  (<https://code.claude.com/docs/en/plugins-reference>, fetched 2026-08-08), `default` is the
+  "Value used when the user provides nothing" and options are "exported to hook processes as
+  `CLAUDE_PLUGIN_OPTION_<KEY>`"; the script-side default is what makes the OFF posture hold when
+  that export is absent. Each test suite now exports the switch ON for its behavior cases and pins
+  the unset-switch no-op as its own case.
+
+- **`block-noncanonical-commit` narrowed to the actual hazard: only a `-m` message that REALLY
+  contains a newline blocks.** The guard used to deny every `git commit` that was not the `-F -`
+  stdin form — `git commit -m "fix: typo"` included — which #2021 classified hybrid: the multi-line
+  `-m` cross-shell mangling is a policy-grade hazard, but the blanket width policed style. Now:
+
+  - a single-line `-m` passes; a `-m`/`--message` value carrying an actual newline blocks, in every
+    spelling the argv scan sees — separated (`-m <msg>`), attached (`-m"<msg>"`), `--message=<msg>`,
+    every accepted unique abbreviation of `--message` (any prefix from `--m` up to one letter
+    short of the full spelling, separated or `=`-attached — git's parse-options accepts any
+    unique long-option prefix and `--message` is git commit's only `m`-initial long option;
+    verified on git 2.55), and a short-option cluster ending in `m` (`-am <msg>`);
+  - bare `git commit` / `git commit -a` (no message source; the old block) now pass — no `-m`, no
+    mangling hazard;
+  - repeated single-line `-m` flags pass: git itself joins them as paragraphs, no shell newline is
+    involved;
+  - the exemptions are unchanged (`--amend`, `-C`/`-c`, `--fixup`/`--squash`, `-F`, in-progress
+    sequencer), as are the fail-closed structural refusals (`--config-env` alias shape,
+    alias-traversal budget, unparsable PowerShell);
+  - on the PowerShell tool a here-string `-m` value still blocks: the classifier blanks the body to
+    a placeholder, so its content — multi-line by construction of the form — cannot be inspected,
+    and the guard fails closed on it. A single-line literal PowerShell `-m` passes;
+  - the `block_noncanonical_commit_allow` token `message-flag` now means "permit `-m` even with a
+    newline"; the kill switch is unchanged.
+
+  **Accepted residual, fail-OPEN and documented in the hook header:** a message attached to a
+  short-option cluster (`-am"multi<NL>line"`) is not recognized — which cluster letters take values
+  is per-option knowledge the scan does not model — consistent with the guard's friction-not-sandbox
+  posture. The test suite is respelled in both directions: every alias/wrapper/traversal fixture
+  that asserted a block now carries a real-newline `-m` payload (so it still pins the machinery it
+  was written for), and new cases pin the allowed single-line forms.
+
+- **`hooks.json`: the two structurally separate PreToolUse groups carrying the identical
+  `Bash|PowerShell` matcher are merged into one six-hook group.** Pure wiring cleanup flagged by
+  #2021 — behavior is identical: per the current hooks reference
+  (<https://code.claude.com/docs/en/hooks>, fetched 2026-08-08), all matching hooks run in parallel,
+  and same-matcher groups are separate entries that each fire independently, so one group of six and
+  two groups of four-plus-two schedule the same work.
+
+### Fixed
+
+- **Three stale hook headers said "Triggered on Bash tool calls" while wired `Bash|PowerShell`:**
+  `block-hook-bypass.sh`, `block-noncanonical-commit.sh`, and `flag-commit-pr-skill-bypass.sh` now
+  say Bash and PowerShell (cosmetic; the wiring itself was already correct).
+
+## [0.19.5]
+
+### Fixed
+
+- **`block-hook-bypass` missed the explicit stdout redirect entirely — `cat 1>file` and
+  `echo x 1>file` were never caught.** `1>file` writes the file exactly as `>file` does, but both
+  detection patterns only ever admitted the bare `>`: `_cat_redir` required `cat[[:space:]]*>` and
+  `_echo_file_out` excluded any operator preceded by a digit, in order to keep `2>` out. That
+  exclusion took the legitimate fd-1 spelling with it, so a single character defeated both lanes of
+  the guard. Verified live against the shipped hook before the fix: `cat 1>real.txt` exited 0 while
+  `cat > real.txt` exited 2.
+
+  Both patterns now admit the explicit `1` before the operator. Other fds stay out: `_echo_file_out`
+  still rejects a digit-prefixed operator except that `1`, so `2>` and `21>` do not match, and the
+  `cat` lane matches neither. The fd-1 discard (`cat 1>/dev/null`) is still a discard, since the
+  exemption reads the effective stdout target.
+
+  **Three things a naive `1?>` widening gets wrong, all now pinned by cases.** (1) The fd digit
+  needs a COMMAND BOUNDARY: `cat[[:space:]]*1?>` also matches `cat1>file`, an unrelated binary named
+  `cat1` with an ordinary redirect, so the two spellings stay separate branches
+  (`cat[[:space:]]*>` for the zero-space form, `cat[[:space:]]+1>` for the explicit one) — the same
+  word-boundary discipline `_producer_head` already applies to echo/printf. (2) An fd DUPLICATION or
+  close has no file operand: `cat 1>&2` and `cat 1>&-` are not writes, and the segment is skipped
+  when no file target was found. (3) That skip needs the target class to reject BOTH spellings of
+  the dup's `&` — the literal one a correct `normalize_segments` restore produces, and the `\x01`
+  sentinel that survived when the restore silently failed (see the next entry). Excluding only one
+  of the two lets a dup read as a file named `2`, or as one named `\x012`, depending on the bash in
+  use. Verified across the full matrix: write forms block, discards and dups and other-fds pass.
+
+  **This was pre-existing, not a 0.19.3 regression.** 0.19.3 widened the same `1?>` spelling on the
+  EXEMPTION side (`set_last_stdout_target`, so `cat >/dev/null 1>real.txt` could not sneak a write
+  past the discard check) and did not touch detection. The two sides disagreeing is what left the
+  hole visible: the exemption understood a spelling the detection never looked for.
+
+- **`echo x >&2` and `printf x >&2` were blocked as file writes on bash 5.2 and newer.** Writing to
+  a duplicated fd is not a file write, and both were refused. Reproduced against the shipped hook:
+  `echo x >&2` exited 2 on `main`, 0 after the fix, while `echo x >&2 > real.txt` still exits 2 —
+  bash applies redirections left to right, so the file is the effective stdout target there.
+
+  **Cause: a substitution replacement that stopped meaning what it said.** `normalize_segments`
+  protects a redirect `&` with a `\x01` sentinel so an fd dup is not split as a control operator,
+  then restores it with `${normalized//"$soh"/&}`. Since **bash 5.2**, an unquoted `&` in a
+  substitution REPLACEMENT expands to the text the pattern just matched — the `sed` rule — so that
+  line restored the sentinel to itself. A silent no-op on new bash, still correct on old: the guard
+  quietly behaved differently depending on the interpreter running it. The surviving `\x01` then
+  matched `_echo_file_out`'s target class, and the producer lane — unlike the `cat` lane — has no
+  emptiness skip, so an empty effective target fell through to a block. Restoring with `\&` fixes
+  it. Confirmed by dumping the stored segment: `cat 1>&2` normalized to `$'cat 1>\0012'` before,
+  `cat 1>&2` after.
+
+  **Two defenses are kept against the same class of regression.** The sentinel exclusions in
+  `_redir_scan` stay, so a dup is rejected whichever byte reaches the scan; and
+  `producer_redirect_bypass` gained the `cat` lane's emptiness skip, whose absence is what turned an
+  empty effective target into a block in the first place. Both are unreachable while the two target
+  classes agree — which is precisely the equivalence that failed silently here.
+
+## [0.19.4]
+
+### Fixed
+
+- **`block-dangerous-git`'s movable-lease block no longer prescribes a form it rejects.** The
+  message told producers to pin the expectation with
+  `--force-with-lease=<refname>:$(git rev-parse <ref>)`, but detection is static over the literal
+  command string and never evaluates substitutions, so `$(git rev-parse <ref>)` reached the scan as
+  an unresolved name in the `<expect>` slot and was blocked by the very message prescribing it. With
+  every stated-expectation spelling rejected, amend-and-force was effectively unavailable without
+  widening `block_dangerous_git_allow`; two independent producer lanes hit this and fell back to
+  corrective commits.
+
+  The message now prescribes what the hook already accepts — a literal object id of the repository's
+  full hash width, resolved by running `git rev-parse` as a **separate** step — and says why a
+  substitution cannot stand in for it. The no-expected-value message gained the same clause, so a
+  producer bounced there does not walk into the movable block next.
+
+  **Acceptance behavior is unchanged** (hence a patch bump): the literal-SHA form was already
+  accepted, and the plain `--force`, bare `--force-with-lease`, refname-only, movable-name, and
+  `${VAR}` / `$(…)`-in-`<expect>` forms are all still blocked. New cases assert the message text
+  itself, the surface that was wrong.
 
 ## [0.19.3]
 

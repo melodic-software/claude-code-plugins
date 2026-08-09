@@ -55,6 +55,7 @@ Parse `$ARGUMENTS` for:
 | `.claude/settings.local.json` | `jq` via Bash only | Commonly deny-listed for the Read tool because it holds tokens. Parse structure/key counts only. **Never echo secret values** |
 | `.mcp.json` | Read tool or `jq` | Project-level MCP server definitions |
 | `~/.claude/settings.json` | Read tool | User-level defaults (optional — check if exists) |
+| `managed-settings.json` + `managed-settings.d/` | `check-structure.sh` (structure only) | Machine-scope managed policy, the highest-precedence layer. OS-specific path resolved by the script (macOS `/Library/Application Support/ClaudeCode/`, Linux/WSL `/etc/claude-code/`, Windows `%ProgramFiles%\ClaudeCode\`). Findings on it are report-only routing — managed policy is the administrator's, never edited by `--fix` |
 
 ### Reading settings.local.json safely
 
@@ -115,7 +116,7 @@ Load the audit checklist: [audit-checklist.md](reference/audit-checklist.md)
 
 Run each category's checks. Record findings with severity ratings.
 
-Eight categories — names + the question each answers below; **full per-check criteria in
+Nine categories — names + the question each answers below; **full per-check criteria in
 [context/validation-categories.md](context/validation-categories.md)** (read it when running Phase 2).
 
 - **A — Schema & Structure**: `$schema` present, no unknown keys, `mcpServers` not in `settings.local.json`
@@ -126,6 +127,7 @@ Eight categories — names + the question each answers below; **full per-check c
 - **F — Environment Variables**: documented/justified vars, secrets in `settings.local.json` only, forward-slash paths
 - **G — Skill-listing budget**: `/doctor` overflow check and trim levers (description trimming, `skillOverrides`, budget settings)
 - **H — Model and effort settings**: `effortLevel`, `fallbackModel`, `availableModels`, `enforceAvailableModels` — values the harness accepts into the file but does not apply as written
+- **I — Deep-link registration**: `disableDeepLinkRegistration` — the one documented value that takes effect, and a visible attempt at an enforcement requirement lodged in a scope that cannot enforce it
 
 ---
 
@@ -173,6 +175,7 @@ Present all findings as a severity-rated GFM table:
 
 | # | Category | Severity | Finding | Current | Recommended |
 | --- | --- | --- | --- | --- | --- |
+| 1 | B — Permissions | error | Deny rule placed in `settings.local.json`, where bug #8961 leaves it inert | `settings.local.json` → `permissions.deny: ["Bash(rm -rf:*)"]` | Move the rule into `settings.json`; keep `settings.local.json` deny empty |
 
 ### Severity guide
 

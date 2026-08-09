@@ -1,7 +1,7 @@
 # Cross-Surface Conflict Criteria
 
-Version: 1.3.0
-Last updated: 2026-07-31
+Version: 1.4.0
+Last updated: 2026-08-08
 
 **The adjudication procedure for check I15.** [criteria.md](criteria.md)'s I15 entry owns the
 definition — what a cross-surface conflict *is*, its comparison set, its import and symlink
@@ -19,8 +19,11 @@ precedence or load-order text; a change to the skills page's statements about in
 any new instruction surface added to the product; a change to how permission rules or permission
 modes remove a tool from Claude's pool; a change to **which hook events inject handler output into
 the session's context**, to the events `additionalContext` is accepted on, or to the handler types
-that can return it; a change to **which events exit 2 can actually block** in the hooks page's
-per-event exit-2 table, or to the set of locations a hook may be declared in.
+that can return it; the removal, renaming, or restructuring of the hooks page's **per-event exit-2
+table** this file defers to for blockability, or a change to the set of locations a hook may be
+declared in; a change to the table's `SubagentStop`, `PostToolUse`, or `PreToolUse` rows — the
+three the worked examples below cite. A row added to the table, or a change to any row this file
+does not cite, needs no recheck — the partition itself is never restated here.
 
 ## Sources
 
@@ -95,9 +98,10 @@ shapes without this gate produces noise, because most surface pairs never co-loa
 | `.claude/rules/*` with `paths` | Only when a matching file is read | memory: "only apply when Claude is working with files matching the specified patterns" |
 | Skill body | Only once invoked, then for the rest of the session | skills: "a skill's body loads only when it's used" |
 | Auto memory `MEMORY.md` | Every **main** session, first 200 lines or 25KB — **not** in a subagent, except a fork | memory: "The main conversation's auto memory isn't loaded into subagents; the exception is a fork" |
+| A subagent's **own** auto memory `MEMORY.md` (its `memory` field) | Every dispatch of **that** subagent, first 200 lines or 25KB — never the main session, and never another agent's | subagents: the field "gives the subagent a persistent directory"; its system prompt "includes the first 200 lines or 25KB of `MEMORY.md` in the memory directory"; memory: "A subagent's own auto memory, enabled with the subagent `memory` field, is a separate directory" |
 | Skill bundled `reference/`, `context/` file | Only when Claude reads it | skills: "letting Claude access detailed reference material only when needed" |
 | Agent definition (its own subagent) | Always, as that subagent's system prompt — **alongside the full CLAUDE.md hierarchy** | subagents, "What loads at startup" |
-| Skill named in an agent's `skills:` field | Always, in that subagent | subagents: "The full content of each listed skill is injected, not only the description" |
+| Skill named in an agent's `skills:` field | Always, in that subagent | subagents: "The full content of each listed skill is injected into the subagent's context at startup" |
 | Prompt-type hook text | **Never** — see "A prompt hook's text is not an instruction" below | hooks: a `prompt` hook "send[s] a prompt to a Claude model for single-turn evaluation" |
 | Handler **stdout** on `SessionStart`, `UserPromptSubmit`, `UserPromptExpansion` | From injection onward, as ordinary message history | hooks: "The exceptions are `UserPromptSubmit`, `UserPromptExpansion`, and `SessionStart`, where stdout is added as context that Claude can see and act on" |
 | Handler `hookSpecificOutput.additionalContext` on a **main-session** event | From injection onward, at the position the event dictates | hooks: "Where the reminder appears depends on the event" — session start, alongside the prompt, next to the tool result, or at the end of the turn |
@@ -208,21 +212,31 @@ Three consequences for residency, and each one bounds a pair rather than admitti
 - **Exit-2 stderr is turn-scoped error feedback, not a standing directive — and only some events
   have an act to block.** "Exit 2 means a blocking error … stderr text is fed back to Claude as an
   error message." It reaches Claude, so it is not nothing; but it is a one-turn message, never a
-  standing rule. Whether it also carries a *gate* is event-specific, and the hooks page's per-event
-  exit-2 table settles it — resolve the handler's event before applying any gate abstraction:
-  - **Blockable events** — `PreToolUse`, `UserPromptSubmit`, `Stop`, `SubagentStop`, `PreCompact`,
-    and `UserPromptExpansion`. Here exit 2 does prevent something, so the conflict-bearing content
-    is the act it blocks — the treatment the prompt-hook bullets above already give. `SubagentStop`
-    is blockable but subagent-scoped: its act pairs inside the subagent, under the subagent-scoping
+  standing rule. Whether it also carries a *gate* is event-specific, and the sole authority on that
+  is the hooks page's
+  [Exit code 2 behavior per event](https://code.claude.com/docs/en/hooks#exit-code-2-behavior-per-event)
+  table. Its rows are not reproduced here in either direction: the event set grows, so any list
+  copied into this file becomes a closed partition that silently misgrades the next event added.
+  Resolve the handler's event, read that event's row, and pair on the row's own `Can block?` cell:
+  - **The cell says yes** — the conflict-bearing content is whatever that row states is prevented,
+    quoted from the row rather than assumed. What a row prevents is not always a tool call or a
+    prompt; the cell, never the gate abstraction, supplies the paired content. `SubagentStop`
+    blocks but is subagent-scoped: its act pairs inside the subagent, under the subagent-scoping
     rule above, and never against a main-session surface.
-  - **Non-blockable events** — `PostToolUse`, `Notification`, `SubagentStart`, `SessionStart`, and
-    `SessionEnd`. Nothing is prevented, so there is no act and no gate to pair; the table says so
-    outright for `PostToolUse` ("the tool already ran"), and this repository's own `PostToolUse`
-    linter records the same thing at `plugins/actionlint/hooks/actionlint-check.sh`. Treat the
-    message as transient feedback and pair it as nothing. Reading a `PostToolUse` linter's exit-2
-    stderr as a prohibition on the tool it ran *after* would manufacture an unsatisfiable conflict
-    against any instruction requiring that tool — the tool already ran, and the hook can neither
-    block nor undo it.
+  - **The cell says no** — nothing is prevented, so there is no act and no gate to pair; treat the
+    message as transient feedback and pair it as nothing. `PostToolUse` is the worked example: its
+    row says so outright ("the tool already ran"), and this repository's own `PostToolUse` linter
+    is built on that row — `plugins/actionlint/hooks/actionlint-check.sh` deliberately always
+    exits 0 and surfaces findings as advisory context, because an exit 2 there could block
+    nothing. Reading any `PostToolUse` handler's exit-2 stderr as a prohibition on the tool it ran
+    *after* would manufacture an unsatisfiable conflict against any instruction requiring that
+    tool — the tool already ran, and the hook can neither block nor undo it. Registered instead on
+    `PreToolUse`, whose row blocks the tool call, the same handler WOULD enter the comparison set
+    as the act it blocks.
+  - **The event has no row, or the table could not be reached** — record the surface with its event
+    as `blockability-unresolved` and report the pair as such, on the same terms the
+    `text-unresolved` rule below gives. Never infer blockability from the event's name, its prefix,
+    or from what a hook of that shape usually does.
 - **A hook's own configuration is still not instruction text.** The command line, its arguments, and
   its `matcher` are the gate, not prose addressed to the model. Extract only what is injected, under
   the same no-secrets handling every settings-sourced surface gets.
@@ -247,8 +261,10 @@ conditional pairs, because the worked example below is one.
 ## Prerequisite: effective liveness, which the tree does not determine
 
 Co-residency asks *when* a surface loads. This gate asks a prior question — **whether it loads at
-all in this session** — and the answer is not a function of the file tree. Five session-level inputs
-change it, all from [memory](https://code.claude.com/docs/en/memory):
+all in this session** — and the answer is not a function of the file tree. Six session-level inputs
+change it — the first five from [memory](https://code.claude.com/docs/en/memory), the last from
+[hooks](https://code.claude.com/docs/en/hooks), because a hook's instruction text is only as live as
+the handler that carries it:
 
 - **Launch directory.** "if you run Claude Code in `foo/bar/`, it loads instructions from
   `foo/bar/CLAUDE.md`, `foo/CLAUDE.md`, and any `CLAUDE.local.md` files alongside them" — which
@@ -264,15 +280,29 @@ change it, all from [memory](https://code.claude.com/docs/en/memory):
   directory" — live surfaces a walk of the project tree never sees.
 - **A declined external-import approval.** "If you decline, the imports stay disabled and the dialog
   doesn't appear again" — persistent, machine-local, and invisible in the tree.
+- **Effective hook enablement, which resolves per scope and not per file.** "To temporarily disable
+  all hooks without removing them, set `"disableAllHooks": true` in your settings file" — the
+  configured entry survives, so the tree still shows a hook that cannot fire. It "respects the
+  managed settings hierarchy": `disableAllHooks` "set in user, project, or local settings can't
+  disable those managed hooks. Only `disableAllHooks` set at the managed settings level can disable
+  managed hooks", so a lower-scope disable leaves managed hook text **live** and it must not be
+  dropped with the rest. The mirror control cuts the other way: "Enterprise administrators can use
+  `allowManagedHooksOnly` to block user, project, and plugin hooks. Hooks from plugins force-enabled
+  in managed settings `enabledPlugins` are exempt." Either one silences instruction text this
+  session while leaving it on disk, and neither is readable from the tree.
 
 A pass that skips this gate reports conflicts between instructions one side of which is dead, and
 misses live counterparts that were never inventoried. Both failures are silent, and both are
 reproducible only on the machine that produced them.
 
 **So resolve effective liveness before pairing, and record what you resolved.** Take the session's
-launch directory and the merged effective values of `claudeMdExcludes`, `--setting-sources`, and the
-additional-directory inputs; drop excluded and source-skipped surfaces from the comparison set, and
-add the memory files the additional directories contribute. Where a value cannot be resolved — an
+launch directory, the merged effective values of `claudeMdExcludes`, `--setting-sources`, and the
+additional-directory inputs, and `disableAllHooks` **at each settings scope** together with
+`allowManagedHooksOnly`; drop excluded and source-skipped surfaces from the comparison set, drop
+every hook surface the resolved enablement silences — prompt-type and context-injecting alike, since
+neither reaches this session when the handler never fires — while keeping managed hook text against a
+user, project, or local `disableAllHooks`, and add the memory files the additional directories
+contribute. Where a value cannot be resolved — an
 inventory taken outside the session it describes, a declined import that leaves no trace in the tree
 — mark the affected surfaces `liveness-unresolved` and report pairs touching them as such rather
 than grading them. **Name the resolved controls in the pass's tier-transparency line**: a

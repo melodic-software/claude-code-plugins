@@ -9,14 +9,21 @@
 # fan-out trips server-side 529 (a 27-item Opus pipeline lost 22/27 agents this
 # way). Closes the inline-authoring gap that no file glob can reach.
 #
-# Kill switch: workflow_resilience_check_enabled userConfig option
+# Opt-in switch: workflow_resilience_check_enabled userConfig option.
+# DEFAULT OFF since 0.20.0: the #2021 hook-surface classification found this
+# is a behavioral-class context injector — two greps and a fixed checklist that
+# asserts nothing the model cannot derive — and PLUGIN-PHILOSOPHY.md's
+# instruction-economy evidence gate ablates that class config-off first (the
+# script stays; a consumer opts back in by setting the option to true).
 
 set -uo pipefail
 
 # shellcheck source=hook-utils.sh
 source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
 
-hook::check_enabled "WORKFLOW_RESILIENCE_CHECK"
+# Explicit opt-in (NOT hook::check_enabled, whose unset-var fallback is "true"):
+# an unset switch must read as the plugin.json default, which is false.
+[[ "${CLAUDE_PLUGIN_OPTION_WORKFLOW_RESILIENCE_CHECK_ENABLED:-false}" == "true" ]] || exit 0
 
 # High-res start stamp for the telemetry envelope. EPOCHREALTIME is Bash 5.0+;
 # on older bash it is unset, so default to empty and skip telemetry.

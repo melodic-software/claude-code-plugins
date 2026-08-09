@@ -1,4 +1,7 @@
 {
+  "env": {
+    "HOOK_TELEMETRY_SINK": ".claude/hooks/hook-telemetry-sink.sh"
+  },
   "hooks": {
     "SessionStart": [
       {

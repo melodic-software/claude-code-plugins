@@ -4,6 +4,110 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.7.2]
+
+### Fixed
+
+- **`boris`: the Quick Reference and both effort tips now match current model and effort facts.** The
+  Model row points at Fable 5 for the hardest and longest tasks, with Opus kept as the historical
+  Section 2 pick; the Planning row reflects Section 87 (auto mode plans implicitly on 4.6+) instead
+  of prescribing plan mode; and effort is set with `/effort`, not `/model`, over the current ladder
+  low/medium/high/xhigh/max with `high` the default (`xhigh` on Opus 4.7) — corrected in the Quick
+  Reference and in Sections 17 and 34. Section 2 gains the pack's own supersession-note pattern
+  pointing at Section 94, leaving Boris's historical text intact.
+- **`boris`: the orchestration snapshot disclaimer now covers Section 94's specs sentence.** Model
+  id, context window, max output, and knowledge cutoff sat outside the framing that already covered
+  benchmark and pricing figures; they are verified still current 2026-08-08 against the models
+  overview, which owns them.
+- **`boris`: Section 113 no longer reads as retiring rule-writing.** What auto-memory replaces is
+  ad-hoc `#`-hotkey capture; encoding a correction as a durable CLAUDE.md or skill rule (Section 89)
+  is a different mechanism and still applies.
+- **`fable-5` and model-adaptation: one label convention, and `opus-4-8.md` catches up with its
+  siblings.** The chapters carried four different TRIGGER/RULE label forms and now carry one (bare
+  `LABEL:`, the form already used by two thirds of them); the check/skip decision states its
+  already-settled early exit outside a numbered four-rule precedence list, which its prose already
+  described but its bullets contradicted; and `opus-4-8.md` gains the `[CC: ...]` applicability
+  legend and per-claim tags both sibling files carry, a Thinking controls section (thinking is off
+  on Opus 4.8 unless the request sets `thinking: {type: "adaptive"}`), and the guide's
+  max-output-token budget guidance for `max`/`xhigh` runs.
+
+## [0.7.1]
+
+### Added
+
+- **`fable-5`: model-adaptation chapters made discoverable from the skill listing** (issue #1996
+  decision d). The skill description now names the per-model adaptation chapters (Opus 5,
+  Opus 4.8, Sonnet 5) with Opus 5 trigger phrases — previously the chapters were reachable only
+  through a skill whose listing entry never mentioned them, so an Opus 5 consumer who had not
+  read the plugin docs could not find them. Description stays well under the documented
+  1,536-character listing truncation (verified against the Skills doc this session); aggregate
+  listing budget re-checked (1,801/8,000 chars).
+
+## [0.7.0]
+
+### Changed
+
+- **The worker-spec contract in `skills/fable-5/context/orchestration.md` is now five parts, not
+  four.** A new second part — *Why it is being asked* — carries the larger task the work feeds, who
+  the output is for, and what it enables. The chapter already opened by naming the exact blindness
+  this closes ("A worker sees none of your conversation, your accumulated findings, or your standing
+  instructions") and then specified only Objective, Output contract, Sources and context, and
+  Boundaries. Anthropic's Fable 5 prompting guide, "Give the reason, not only the request", singles
+  out long-running agents drawing on multiple workstreams as where intent matters most.
+  - The failure mode is silent, which is why it earns a field rather than a sentence elsewhere. A
+    worker holding only an objective resolves each in-bounds ambiguity toward the sentence that was
+    written rather than the outcome that was wanted, and returns something well-formed and wrong —
+    the shape `skills/orchestrate` in the `session-flow` plugin already records from this
+    marketplace's own fan-out, where one of eleven audit workers silently audited a different
+    artifact and returned a confident, correct-looking result.
+  - The chapter's worked example now carries the reason too, so the Weak/Strong pair demonstrates
+    the new part instead of only the old ones.
+  - `skills/fable-5/SKILL.md` — the core-doctrine distillation of that contract gains the same part,
+    keeping the one-home rule intact: the chapter owns the doctrine, the core line distills it.
+
+## [0.6.22]
+
+### Fixed
+
+- **`opus-5` model-adaptation chapter: four paraphrases restored to the guide's own strength**
+  (playbooks 0.6.21 → 0.6.22), found by a per-section adversarial conformance audit against the
+  byte-pinned guide. The review-findings section stated categorically what the guide hedges
+  ("makes you report less, withholding real findings" → the guide's "may follow that instruction
+  literally and report less", with the withholding mechanism attributed to the Sonnet 5 guide
+  that actually states it); the deliverable-length bullet dropped "often" (tendency became
+  constant); the effort paraphrase added an "only" the guide does not carry; and the scope
+  section reproduced only part of the guide's scope fence — the routine-judgment-calls sentence,
+  the "request seems mistaken" disjunct, and the finish-the-whole-task / stop-short clauses now
+  travel with it. The chapter's own quotation note names exactly this failure ("a behavioral
+  finding paraphrased loosely becomes a stronger claim than the card makes"); these were the
+  guide-sourced instances.
+- **`boris`: Tip 64's context-rot figure amended against the Opus 5 guide** (autonomy.md §64 +
+  the SKILL.md Quick Reference row). The tip's premise — rot "kicks in around 300–400k tokens on
+  the 1M context model" — is an Opus 4.7-era calibration; the Opus 5 guide states instruction
+  following, tool calling, and reasoning "stay consistent throughout the window". A dated
+  amendment blockquote (the same shape as §72's) records the correction and keeps the lowered
+  auto-compact window as a cost/compaction-timing choice; the routing row now carries the era
+  scoping. Vendored baseline untouched (drift-detection copy).
+
+### Added
+
+- **`opus-5` chapter: Vision section** — the guide's one correction-shaped Vision directive
+  ("Re-validate any prompt-side vision workarounds you tuned for prior models; they may no
+  longer be needed") plus its tools-before-thinking cost lever, previously the only
+  correction-shaped guide content the chapter did not carry; the thinking-disabled section also
+  gains the guide's tool-heavy-workload locality clause for the tool-call-leak artifact.
+
+## [0.6.21]
+
+### Changed
+
+- **`opus-5` model-adaptation chapter: the guide re-verification stamp advances to 2026-08-08**
+  (playbooks 0.6.20 → 0.6.21). A full-guide conformance audit of this repository re-fetched the
+  Opus 5 prompting guide through the same raw-`.md` channel and found it byte-identical to the
+  2026-07-25 capture (11,225 bytes, MD5 matching the corpus graduation pin), so every claim the
+  chapter sources from the guide stands unchanged; the Sources block's re-verification line now
+  records the later reading. No doctrine changes.
+
 ## [0.6.20]
 
 ### Fixed

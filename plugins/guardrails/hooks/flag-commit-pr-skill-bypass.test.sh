@@ -18,6 +18,11 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 # shellcheck source=guardrails-test-helpers.sh
 source "$HOOK_DIR/guardrails-test-helpers.sh"
 
+# The advisory is OPT-IN since 0.20.0 (default off — behavioral-class injector,
+# config-disabled per #2021). Every behavior case below runs with the switch on;
+# the default-off posture has its own case at the end.
+export CLAUDE_PLUGIN_OPTION_FLAG_COMMIT_PR_SKILL_BYPASS_ENABLED=true
+
 # make_project <enabledPlugins-json-or-empty> [settings.local.json-value] -> project dir
 # Writes a fixture consuming project with .claude/settings.json (and an
 # optional settings.local.json override) so the hook resolves source-control
@@ -174,6 +179,14 @@ assert_contains "an enabled source-control@old fires despite a disabled @new" "$
 out=$(run_hook "$(command_json 'gh pr create --title x --body y')" "$ENABLED_PROJECT" \
   CLAUDE_PLUGIN_OPTION_FLAG_COMMIT_PR_SKILL_BYPASS_ENABLED=false)
 assert_silent "kill switch off → no-op despite bypass shape" "$out"
+
+# --- default posture is OFF (0.20.0) — an UNSET switch is a clean no-op ------
+# Not via run_hook: env stops option parsing at the first NAME=value operand, so
+# a trailing `-u` there would be read as the command, not an option.
+out=$(env -u CLAUDE_CONFIG_DIR -u CLAUDE_PLUGIN_OPTION_FLAG_COMMIT_PR_SKILL_BYPASS_ENABLED \
+  CLAUDE_PROJECT_DIR="$ENABLED_PROJECT" HOME="$HERMETIC_HOME" \
+  bash "$HOOK" <<<"$(command_json 'gh pr create --title x --body y')" 2>&1)
+assert_silent "unset switch → no-op (advisory is opt-in by default)" "$out"
 
 # --- empty stdin → silent (graceful no-op) -----------------------------------
 out=$(env CLAUDE_PROJECT_DIR="$ENABLED_PROJECT" bash "$HOOK" <<<"" 2>&1)

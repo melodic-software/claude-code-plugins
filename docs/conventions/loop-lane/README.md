@@ -594,6 +594,24 @@ the adaptive cap.
 start; new automated intake arriving mid-cycle is **reported, never chased**, so an item-producing
 bot cannot hold a drain open indefinitely.
 
+**Autonomous-pipeline reminder.** An autonomous lane carries standing clauses of its own against the
+two stopping failures a pipeline cannot recover from: a turn ending on unexecuted intent, and a turn
+stopping to ask permission nobody is there to give. In this repository those clauses are
+hand-authored inline in each autonomous lane's launch prompt, and **deliberately so** — a launch
+prompt is pasted into a terminal that may have no plugin installed, so it stays self-contained.
+**Pointer-not-copy does not reach them**, and this is the one place in this doc where that is true:
+the rule governs a *mechanism* a plugin owns, and a self-contained paste block owns its own text.
+
+The `autonomy` plugin's `reference/autonomous-pipeline-reminder.md` states the same clause set once,
+with its provenance, as the artifact an adopting org drops into **its own** pipeline. No lane
+consumes that file, and a lane author changing these clauses should read it as the reference wording
+rather than as a source the prompts import.
+
+Two boundaries are lane-topology facts and so belong here rather than there: an **attended** lane
+deliberately carries no such clauses, because "recommend, then wait for my direction" is the opposite
+posture; and the `lane-stop-gate` hook mechanizes exactly one of them, so the clauses are not
+redundant with a lane that has the gate armed.
+
 **Subagent discipline preamble.** Every subagent a lane dispatches carries a standing discipline
 preamble, because a dispatched subagent runs in a fresh, non-inherited context: it inherits no
 posture from the cycle root's own sweep and has to set its own. When the `discipline` plugin is

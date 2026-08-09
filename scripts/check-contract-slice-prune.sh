@@ -114,9 +114,21 @@ resolve_contract_dir() {
 # segments (`./docs/topics`, `docs/x/../topics`) would never match one and the
 # real root would go unpoliced. Purely lexical — the root need not exist yet.
 # Returns 1 for an absolute path or one that escapes the repo root.
+#
+# Absoluteness is judged in BOTH path dialects, not just the POSIX one. Git
+# names repo-relative diff paths with `/` separators, never with a drive
+# qualifier and never with a raw backslash (it escapes one inside a quoted
+# path), so a drive-qualified (`C:/outside`, `C:\outside`) or backslash-rooted
+# (`\outside`, `\\server\share`) value can match no diff path at all. Reading
+# one as repo-relative would leave the gate reporting success over an empty
+# match set — policing nothing, which is the fail-open this gate exists to
+# prevent. A backslash ANYWHERE is refused for the same reason, not only a
+# leading one: it is a separator in the Windows dialect and an escaped
+# character in Git's own output, so no value carrying one is comparable to a
+# diff path.
 canonicalize_repo_path() {
   local raw="$1" seg
-  [[ "$raw" == /* ]] && return 1
+  [[ "$raw" == /* || "$raw" == [A-Za-z]:* || "$raw" == *\\* ]] && return 1
   local -a out=()
   while IFS= read -r seg; do
     case "$seg" in

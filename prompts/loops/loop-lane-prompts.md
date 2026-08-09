@@ -391,7 +391,12 @@ claude --model opus     # attended queue
 Pair the fast roots with a stronger advisor (`advisorModel: opus`). A fast
 orchestrator plus an advisor at or above the main tier is the convention's
 recommended shape, and it is what makes a `sonnet` root safe. Leave effort
-at its default; Opus and Sonnet already default to high in Claude Code.
+at its default; Opus and Sonnet already default to high in Claude Code
+(verified 2026-08-08 against
+[model config](https://code.claude.com/docs/en/model-config#adjust-effort-level):
+"The default effort is `high` on every model that supports effort, except
+Opus 4.7, which defaults to `xhigh`" — re-resolve if a lane pins a model
+whose default differs, or when the pinned models change).
 
 ## Concurrent workers on one repository
 
@@ -1111,7 +1116,12 @@ with the operator's signature on them.
 >   the detection records in
 >   `~/.claude/rate-limit-guard/stop-events.jsonl` and to the rate-limit
 >   error text this session sees, taking resume timing from that error
->   text where available and otherwise backing off and retrying. A later
+>   text where available and otherwise backing off and retrying. Read the
+>   detection records on entering reactive-only and again before each new
+>   work claim; the recency baseline is this session's own start time,
+>   advanced by each resume attempt — records newer than it are live
+>   signal, older ones are history and never justify a new pause on their
+>   own. A later
 >   fresh snapshot with plausible windows upgrades the mode back to
 >   proactive. Report the mode, and which windows counted as plausible, in
 >   this pass's report.
@@ -1926,7 +1936,12 @@ to the template re-renders here too.
 >   the detection records in
 >   `~/.claude/rate-limit-guard/stop-events.jsonl` and to the rate-limit
 >   error text this session sees, taking resume timing from that error
->   text where available and otherwise backing off and retrying. A later
+>   text where available and otherwise backing off and retrying. Read the
+>   detection records on entering reactive-only and again before each new
+>   work claim; the recency baseline is this session's own start time,
+>   advanced by each resume attempt — records newer than it are live
+>   signal, older ones are history and never justify a new pause on their
+>   own. A later
 >   fresh snapshot with plausible windows upgrades the mode back to
 >   proactive. Report the mode, and which windows counted as plausible, in
 >   this pass's report.

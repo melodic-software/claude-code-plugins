@@ -270,9 +270,12 @@ D1–D7 cycles. Exploration and validation must run on the PR's head branch.
 resolution on a PR the same session intends to merge is not that session's call. The requirement
 is a property, not one mechanism: the context adjudicating the deferral must not be the context
 trying to merge. Where the invocation has an independent resolution dispatch, it goes there —
-`skills/babysit-loop/reference/pre-escalation-dispatch.md`, reachable only on the explicit
-`autopilot` + `--merge c3-this-run` widening. Where it has none, which is every other
-merge-capable path, the session neither resolves the thread nor merges on it: report the PR with
+`skills/babysit-prs/reference/independent-resolution.md` owns that contract, and two invocations
+reach it: any `babysit-prs` run whose orchestrator can dispatch a fresh subagent, and
+`babysit-loop`'s explicit `autopilot` + `--merge c3-this-run` widening
+(`skills/babysit-loop/reference/pre-escalation-dispatch.md`). Where it has none — no subagent
+tools, or a bound the dispatch cannot cross — the session neither resolves the thread nor merges on
+it: report the PR with
 the grounded deferral named and leave the call to the user. Fail closed — a path with no
 independent authorization available has no self-authorized route to merge over its own deferral.
 Outside a merge-capable tier the classification stands alone, because nothing merges on it.
@@ -289,10 +292,10 @@ non-outdated. That is not a licence to widen the guard: **worker-side self-resol
 outdated-only, exactly as the script enforces.** A current bot thread whose finding is addressed
 goes to the independent resolution dispatch, which verifies the D7.5 disposition — fix pushed and
 cited, deferral grounded per D4.6, or `INCORRECT` with counter-evidence — and resolves it through
-the wrapper. The merging worker never resolves it. Where no independent dispatch is reachable —
-the same limit as above, since it exists only on the explicit `autopilot` + `--merge c3-this-run`
-widening — the identical fail-closed fallback applies: leave the thread unresolved, do not merge,
-and report the PR with the addressed-but-unresolvable thread named. An unreachable authorization
+the wrapper. The merging worker never resolves it, and neither does the orchestrator that dispatches
+the resolver — it holds the merge decision. Where no independent dispatch is reachable — the same
+limit as above — the identical fail-closed fallback applies: leave the thread unresolved, do not
+merge, and report the PR with the addressed-but-unresolvable thread named. An unreachable authorization
 is never a licence to self-resolve. Never reach past the wrapper to raw
 `resolveReviewThread` to get around this; that bypasses every guard the wrapper exists to apply,
 and bulk loops over it are refused by design.

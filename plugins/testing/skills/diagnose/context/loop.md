@@ -41,6 +41,7 @@ Don't fix the symptom. Find the root cause:
 
 Change the smallest amount of code that fixes the root cause. NOT a refactoring opportunity:
 
+- Fix the production code, not the test's assertion — a test edited to pass is not a fix. If the test itself is wrong, correct it deliberately and say so
 - Fix the bug, nothing more
 - Boy Scout Rule applies to files you touch, but keep behavioral changes focused
 - If the fix reveals a design problem, note it for a separate refactor commit
@@ -68,7 +69,7 @@ dotnet test
 
 ### Step 6: Evaluate
 
-- **All green** → commit fix + test together (atomic). Exit loop. Suggest `/verification:confirm` for comprehensive validation
+- **All green** → remove tagged debug instrumentation first (grep the `[DEBUG-...]` prefix), then commit fix + test together (atomic). Exit loop. Suggest `/verification:confirm` for comprehensive validation
 - **New failure** → you've found a sibling bug or a side effect. Loop back to step 1 with the new failure
 - **Same test still fails** → re-examine the root cause. The fix was insufficient
 

@@ -3,6 +3,43 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.0]
+
+### Added
+
+- **`pressure-test` gains an audience-routed HTML demo shell.** The TUI stays the
+  default; when the driver is a non-developer (a designer, PM, or domain expert)
+  or no terminal fits the handoff, the disposable shell over the same portable
+  pure logic module is a single self-contained `file://` HTML page — domain-language
+  labels, a labelled state panel re-rendered on every click, free-play buttons
+  (one per action), and guided-walkthrough scenarios that reset to a known
+  initial state. The page reuses `explore-directions`' HTML-substrate constraint
+  set: restrictive CSP meta tag (no remote origins by construction), ephemeral
+  placement via the platform temp primitive (`mktemp -d` private run directory /
+  `%LOCALAPPDATA%\Temp`), synthetic data only, and discard after the markdown
+  capture — the validated logic module remains the only artifact that outlives
+  the prototype. Adapted from mattpocock/skills v1.2.3 @ `84fdeff`,
+  `skills/engineering/prototype/LOGIC.md` (the shareable-HTML shell); upstream's
+  throwaway-branch "primary source" capture of the prototype was rejected
+  (contradicts this plugin's delete-when-done discipline) — rejection recorded
+  in `docs/upstream/mattpocock-skills.md`.
+
+## [0.4.0]
+
+### Changed
+
+- **`explore-directions`: the visual axis is additive, not out of scope.** Structure remains the
+  floor ("a recolor alone is not a variant"), but the skill no longer de-scopes visual direction:
+  on open-ended briefs current models settle into one default house aesthetic, and generic
+  steering only swaps palettes (Sonnet 5 / Opus 4.8 prompting guides, "Design and frontend
+  defaults"). The HTML mockup substrate — which has no project styling system to pin the
+  aesthetic — now requires each variant to declare its visual direction (background hex, accent
+  hex, typeface, one-line rationale) and differ from siblings on that axis as well as
+  structurally; the real-stack path declares a direction wherever the project's styling system
+  leaves room. Eval 3's second expectation now scores "recolors are not the only difference"
+  instead of treating color variety as beneath the exercise. The flip-between-variants delivery is
+  unchanged — no propose-then-pick gate was added.
+
 ## [0.3.3]
 
 ### Changed

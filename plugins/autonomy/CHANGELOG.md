@@ -6,6 +6,87 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 Versions 0.1.0–0.7.0 predate this file (introduced with 0.7.1); their history lives in the
 merged work-package PRs (#333, #343, #356, #372, #377, #600, #676).
 
+## [0.13.1]
+
+### Fixed
+
+- **`lane-stop-gate.sh`: the first-session arm claim is atomic, and a record is
+  honored only for its persisted owner (#1865).** The claim was a read-then-write of the arm
+  record: two Stop invocations presenting the same fresh arm id both read it unclaimed, both wrote,
+  and the last rename won — so BOTH honored the arm for that event while the loser, possibly the
+  legitimate lane, was refused on every later stop and ran ungated. The claim is now an exclusive
+  create (`set -o noclobber` on a `>` redirection, i.e. `O_CREAT|O_EXCL`) of a `<record>.claim`
+  sidecar holding the owning session id, the same primitive `statusline-tee.sh` already uses and
+  the reason it gives for avoiding `flock` (absent on macOS) applies here too; `GATE_ARM_JSON` is
+  assigned only past the ownership verdict, so an unowned record contributes no config at all. A
+  claim file exists only because some process won that create, so an EMPTY one is the winner caught
+  between its create and its write rather than an ownerless record — reading it in that instant
+  would hand one fresh arm to every concurrent presenter and reopen the race a few microseconds
+  wide, so the owner read is retried over a bounded budget. The fail direction is unchanged — a
+  store the hook cannot write leaves no claim, and a claim whose owner never lands exhausts that
+  budget; both honor the arm, because a legitimate lane losing its gate is the harm, not an extra
+  gated stop, and refusing a durably ownerless claim would make the record permanently unclaimable.
+  A record claimed by an earlier version carries its owner in the record itself and stays bound to
+  that session; `lane-stop-gate-arm.sh` clears the sidecar before it (re)writes a record so a
+  re-armed id starts unclaimed, and the gate's TTL sweep drops record and sidecar together. The
+  clear precedes the write rather than following it, so a crash between the two leaves the old
+  record with no claim — an extra gated stop — instead of a fresh record beside a stale claim,
+  which refuses the new lane on every stop until the record ages out. And the claim path carries the
+  record path's own `[[ -f ]]` asymmetry: anything there that this hook did not write decides
+  nothing and the arm is honored, so a planted FIFO cannot take the write with no reader and hang
+  the whole Stop event into a permanently allowed stop.
+
+## [0.13.0]
+
+### Added
+
+- **`reference/autonomous-pipeline-reminder.md` — the standing reminder an adopting org drops into
+  its own pipeline.** Until now the guidance existed only hand-authored inline in two of this
+  repository's three lane launch prompts, which is a launch surface for these lanes and not a
+  reusable artifact for anyone else's. The file states the two stopping failures a pipeline cannot
+  recover from — a turn ending on unexecuted intent, and a turn stopping to ask permission nobody is
+  there to give — then gives the paste-ready clause set: proceed on anything reversible, pause only
+  for a destructive or irreversible action, a real scope change, or input only the launcher can
+  supply; ask once and never re-ask what is settled; read the final paragraph back before ending a
+  turn; and an enumeration of the shapes that are work orders to act on rather than messages to end
+  on. The companion checkpoint instruction its source guide asks to be paired with the reminder is
+  folded in, so a consumer pastes one block rather than assembling two.
+
+  **Locally authored, not reproduced.** The clause set is this repository's own wording of guidance
+  published in Anthropic's Claude Fable 5 prompting guide, "Rare cases of early stopping"
+  (<https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5>,
+  fetched 2026-08-08). Copying the upstream text would have violated this repository's own rule
+  against hand-copying upstream content; the file carries the pointer and a recheck trigger instead.
+
+  **The block is internally consistent about the two things it is easiest to get wrong**, both
+  caught in review of the first draft. An action being visible outside the working tree does not by
+  itself make it one to ask about — the pause test is irreversibility, an outward action the request
+  did not ask for, a scope change, or user-only input, so authorizing "opening a draft" no longer
+  contradicts the pause clause. And naming further work is a *report* once the run is complete but a
+  *deferral* mid-run, so the enumerated shape is now "a mid-run offer to do work already within this
+  run's scope" rather than any offer at all; the discriminator is whether the run is over, stated in
+  the block itself.
+
+  **Two boundaries ship with it**, because an artifact that reads as universally applicable would be
+  applied where it does damage. An **attended** lane deliberately does not carry the reminder —
+  "recommend, then wait for my direction" is the opposite posture, and pasting the block into one
+  converts a working human-in-the-loop review into an agent acting on its own recommendations, which
+  is why this repository's two-of-three lane split is the contract rather than an inconsistency. **No
+  lane references this file**, and the reference says so rather than implying otherwise: launch
+  prompts are pasted into a terminal that may have no plugin installed, so they stay self-contained
+  by design. The clauses previously existed only as prose duplicated across two launch surfaces and
+  reusable by nobody, which is the gap this file closes. And
+  the `lane-stop-gate` hook mechanizes exactly **one** clause: it performs no content classification
+  beyond its literal sentinel check, so it cannot tell a blocked-on-user stop from a lazy one, and
+  every other clause is carried by instruction alone. That scope is now stated in the hook's own
+  header as well, so a reader of the gate does not infer coverage it does not have.
+
+### Changed
+
+- The `loop-lane` convention now points at the new reference for the reminder's clause set instead
+  of leaving it implicit in the launch prompts, and keeps only the two boundaries that are
+  lane-topology facts rather than reminder content.
+
 ## [0.12.3]
 
 ### Changed
