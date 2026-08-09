@@ -127,7 +127,7 @@ Nine categories — names + the question each answers below; **full per-check cr
 - **F — Environment Variables**: documented/justified vars, secrets in `settings.local.json` only, forward-slash paths
 - **G — Skill-listing budget**: `/doctor` overflow check and trim levers (description trimming, `skillOverrides`, budget settings)
 - **H — Model and effort settings**: `effortLevel`, `fallbackModel`, `availableModels`, `enforceAvailableModels` — values the harness accepts into the file but does not apply as written
-- **I — Deep-link registration**: `disableDeepLinkRegistration` — the one documented value that takes effect, and user-scope placement where an organization requires enforcement
+- **I — Deep-link registration**: `disableDeepLinkRegistration` — the one documented value that takes effect, and a visible attempt at an enforcement requirement lodged in a scope that cannot enforce it
 
 ---
 

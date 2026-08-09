@@ -153,9 +153,10 @@ registration". What governs the category:
 
 - **Scope** — the single key `disableDeepLinkRegistration`, in the files this skill reads by value
   (`.claude/settings.json`, `~/.claude/settings.json`). `check-structure.sh` does not report it, so
-  a `settings.local.json` or managed-settings occurrence is not inspectable rather than absent.
-  Whether the OS handler is actually registered is workstation state, not configuration, and is not
-  audited here
+  a `settings.local.json` or managed-settings occurrence is not inspectable rather than absent —
+  and no file read would close the managed gap, since server-managed delivery, MDM plist, and
+  registry policy are managed sources with no file on the path this skill resolves. Whether the OS
+  handler is actually registered is workstation state, not configuration, and is not audited here
 - **Fetch before reporting** — the accepted value is upstream-owned, so a finding requires the
   Phase 3.1 settings fetch, the way Category F resolves environment variables against their own page
 - **Two authorities, agreeing on the value only** — the declared settings schema types the key
@@ -164,7 +165,12 @@ registration". What governs the category:
   the schema is advisory and the harness still reads a file that violates it. The agreement stops at
   the value: the schema's own `description` puts registration at startup where the docs page puts it
   at the first prompt sent. Behavior is the docs page's to state, so cite it, not the schema
-- **Value first, then placement** — a value other than the string `"disable"` is a prevention that
-  was never invoked (warning). A correct value placed only where a user can revert it, where an
-  organization requires enforcement, is an enforcement bypass (error). Absent a declared enforcement
-  requirement, user-scope placement is the documented single-machine usage and is not a finding
+- **Value first, then placement** — a key that is **present** and not the string `"disable"` is a
+  prevention that was never invoked (warning); gate on `has(…)`, since an absent key is a consumer
+  accepting the default on purpose. Where an organization requires enforcement and the key sits with
+  `"disable"` in a readable scope, the finding is that **this placement** cannot enforce it
+  (warning) — never that the system is unenforced, because nothing about the managed layer is
+  decidable from here. Deliberately below its `enforceAvailableModels` sibling's `error`: a bypass
+  is exactly what cannot be proven, and managed settings may already carry the key. Absent a
+  declared enforcement requirement, user-scope placement is the documented single-machine usage and
+  is not a finding
