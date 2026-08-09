@@ -227,13 +227,22 @@ sort[^;&|\n]*[[:space:]]['"]?--sort['"]?(=|[[:space:]]+)['"]?version([[:space:]|
 # `used="$(grep -i pattern "$file")"` was reported as a GNU sed call.
 #
 # The gap between the command name and the cluster stops at a shell command
-# SEPARATOR, exactly as the `date -d` / `stat -c` / `mktemp -p` tokens below do
-# a physical line is not a command, so `[^\n]*` crossed `;`, `&&` and
-# `|` and armed this token with a LATER command's options —
+# separator, exactly as the `date -d` / `stat -c` / `mktemp -p` tokens below
+# do: a physical line is not a command, so `[^\n]*` crossed `;`, `&&` and `|`
+# and armed this token with a LATER command's options —
 # `sed -n 'p' "$file"; grep -Ei pattern "$file"` was reported even though only
 # `grep` receives `-Ei`. Quoted separators are neutralized before this matches
 # (see check-shell-portability.sh), so a `;` inside a sed script or a filename
 # stays ordinary data and does not end the gap.
+#
+# That same gap class also excludes `(` and `)`, which are not separators. It
+# buys the converse catch — `foo=$(sed -n 'p' "$a") bar=$(tool -i "$b")` no
+# longer misattributes `tool`'s `-i` to `sed` — at the cost of a blind spot on
+# a process substitution sitting between the command and its flag
+# (`sed -f <(gen) -Ei "$f"`), which `collapse_subs` preserves verbatim. The
+# `date -d` / `stat -c` / `mktemp -p` tokens carry the identical tradeoff; a
+# shape that reaches past a subshell without reaching past a separator needs
+# real parsing, not a wider character class.
 (^|[^[:alnum:]_])sed([[:space:]][^;&|()`\n]*)?[[:space:]]-[bEnrsuz]*i([[:space:]|&;()<>]|$)
 
 # `sed --in-place[=SUFFIX]` (GNU long-form spelling of `-i`) — BSD sed has no
