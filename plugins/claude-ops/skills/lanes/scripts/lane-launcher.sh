@@ -404,7 +404,7 @@ resolve_data_dir() {
 # a SHA from an unrelated history — usually an "invalid revision" error, at best
 # a silently wrong answer.
 #
-# Two properties the key must have, both learned the hard way:
+# Three properties the key must have, all learned the hard way:
 #   * Injective. A character-folding scheme (e.g. `tr -c 'A-Za-z0-9_-' '-'`)
 #     collapses `/repos/foo-bar` and `/repos/foo/bar` onto one key, which is the
 #     very collision this component exists to prevent. `git hash-object` over
