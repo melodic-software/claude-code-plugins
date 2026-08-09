@@ -68,7 +68,7 @@ owned by [docs/CATALOG-TAXONOMY.md](CATALOG-TAXONOMY.md).
 | [`/planning:draft-goal-condition`](../plugins/planning/skills/draft-goal-condition/SKILL.md) | `planning` | Pick the right autonomy lever and craft a /goal completion condition |
 | [`/planning:plan`](../plugins/planning/skills/plan/SKILL.md) | `planning` | Produce a structured implementation plan with an approval gate |
 | [`/prototype:explore-directions`](../plugins/prototype/skills/explore-directions/SKILL.md) | `prototype` | Throwaway UI variations answering what should this look like |
-| [`/prototype:pressure-test`](../plugins/prototype/skills/pressure-test/SKILL.md) | `prototype` | Throwaway terminal app pressure-testing logic or a data model |
+| [`/prototype:pressure-test`](../plugins/prototype/skills/pressure-test/SKILL.md) | `prototype` | Throwaway terminal app or shareable HTML demo pressure-testing logic or a data model |
 | [`/work-items:decompose`](../plugins/work-items/skills/decompose/SKILL.md) | `work-items` | Break a plan into vertical-slice work items with dependencies |
 
 ## 4. Implement

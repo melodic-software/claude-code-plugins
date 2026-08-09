@@ -41,7 +41,7 @@ Every v1.2 change that touches a skill we derived is either adopted, consciously
 
 - Q9 — RESOLVED (lane-3 interview, 2026-08-09): PORT as `discipline:wait-what`; upstream name kept with a PLUGIN-PHILOSOPHY naming-exception entry; read-pointer glossary seam (no curate-language invocation); ASD-STE100 inline in the body with a short gloss. Record: `### Lane 3` below + SSOT row.
 - Q10 — RESOLVED (lane-4 interview, 2026-08-09): PORT, hardened, as a NEW single-capability plugin `wizard` with one skill `generate` (`/wizard:generate`, leaf named via a `/naming:name-it-better` tournament — grammar-clean imperative verb, noun namespace legal, no naming-exception entry); model-invoked with upstream's non-trigger fence kept; all security-review gating conditions shipped in the hardened template (human STAGES approval before `chmod +x`, https-only `open_url`, `/dev/tty` fail-closed prompts, hardened `.env`/gh writes, key-name validation, agent-never-executes doctrine). Record: `### Lane 4` below + SSOT row.
-- Q11 — lane-5 subset: which of M10/M13/M14/M15/M16 to adopt vs reject. Arbiter: USER-RESERVED (lane-5 interview).
+- Q11 — RESOLVED (lane-5 interview, 2026-08-09): per the user-delegated-vetting arbiter precedent (Q13/Q14/Q17 shape — fresh-context vetting agents plus an adversarial verifier, mandate delegated by the user in the lane interview): M10 SPLIT — ADOPT the shareable-HTML logic shell into `prototype:pressure-test` (audience-routed, TUI default, explore-directions' constraint set reused), REJECT the throwaway-branch "primary source" capture half; M13 REJECT bulk (parity or stronger) with two event-triggered TRACK strands (leading-words/negation — cross-linked to the interview-batch-rounds deferral — and the invocation-reach invariant); M14 REJECT (changesets/npm-pipeline tool; `check-changelog-parity.sh` stronger); M15 REJECT as already-adopted plus a required SSOT triage-row provenance correction (no `work-items` behavior change); M16 REJECT (docs-site decoration; reopen condition recorded in the rejection, not a TRACK row). Record: `### Lane 5` below + SSOT rows.
 
 ## Lanes
 
@@ -51,7 +51,7 @@ Every v1.2 change that touches a skill we derived is either adopted, consciously
 | 2 | Owned-skill deltas | M6 M7 M8 M9 M11 M12 | done |
 | 3 | /wait-what port | M4 (Q9) | done |
 | 4 | /wizard port | M5 (Q10) | done |
-| 5 | Infra / P2 | M10 M13 M14 M15 M16 (Q11) | pending |
+| 5 | Infra / P2 | M10 M13 M14 M15 M16 (Q11) | done |
 
 ## Plan
 
@@ -143,3 +143,49 @@ no naming-exception entry), and the user locked (decisions Q23–Q27):
   markdownlint clean, JSON validity + catalog/cheat-sheet drift checks green. Fresh-context
   verifier subagent confirmed every hardening item line-by-line before commit. Provenance in
   SSOT + CHANGELOG only; skill body carries none.
+
+### Lane 5 — infra / P2 (closed)
+
+Q11 resolved through the lane interview under the user-delegated-vetting arbiter (fresh-context
+vetting agents + adversarial verifier, the Q13/Q14/Q17 precedent); one verdict per menu item:
+
+- **M10 SPLIT** — ADOPTED the shareable-HTML logic shell into `prototype:pressure-test` as an
+  audience-routed substrate choice: TUI stays default; a self-contained HTML demo
+  (domain-language labels, labelled state panel, free-play buttons, guided-walkthrough scenarios
+  resetting to a known initial state) when the driver is a non-developer or no terminal fits.
+  Explore-directions' HTML-substrate constraints reused verbatim-in-spirit (CSP meta tag,
+  ephemeral `mktemp -d` / `%LOCALAPPDATA%\Temp` placement, synthetic data only, discard after
+  the markdown capture). prototype 0.3.3 → 0.4.0 + CHANGELOG provenance (mattpocock/skills
+  v1.2.3 @ `84fdeff`, `LOGIC.md`). REJECTED the throwaway-branch "primary source" capture half
+  (two-lane posture violation; contradicts the plugin's delete-when-done discipline) — recorded
+  in the SSOT, no behavior change.
+- **M13 REJECT bulk** — `writing-for-agents` / `SKILL-MECHANICS.md` at parity or stronger
+  (derivation-cache rubric, listing-budget check, hub-and-spoke). Two strands TRACKED with
+  event triggers (never dates) in the SSOT's tracked section: (i) leading-words + negation
+  doctrine, cross-linked to the prior deliberate deferral at
+  `docs/topics/interview-batch-rounds/PLAN.md:43-44` rather than double-tracked; (ii) the
+  invocation-reach invariant (`SKILL-MECHANICS.md:10`), unverified against current docs, zero
+  live defect instances found.
+- **M14 REJECT** — version-sync script serves upstream's changesets/npm pipeline; our CI-wired
+  `scripts/check-changelog-parity.sh` is stronger; version one-home doctrine holds;
+  `marketplace.json` carries no version keys.
+- **M15 REJECT as already-adopted** — the work-items 0.6.0 rejected-concept ledger is a
+  superset of upstream's `.out-of-scope/` KB. PLUS the required SSOT provenance correction:
+  the triage row's "no structured port" claim was provably false (near-verbatim phrase match
+  with upstream `OUT-OF-SCOPE.md:86`; one-file-per-concept, concept-not-keyword matching,
+  never-ledger-built-features map one-to-one) — row amended to Derived (structured port). No
+  `work-items` behavior change (this plan's out-of-scope bars it).
+- **M16 REJECT** — "It's working if" sections decorate a per-skill docs site this marketplace
+  doesn't build (docs-site build out of scope above); reopen condition (a docs-site build
+  landing here) recorded in the SSOT rejection, not a TRACK row.
+- Files: `plugins/prototype/skills/pressure-test/SKILL.md`,
+  `plugins/prototype/.claude-plugin/plugin.json` (0.4.0), `plugins/prototype/CHANGELOG.md`,
+  `docs/upstream/mattpocock-skills.md` (prototype row, triage-row correction, lane-5
+  rejections, tracked section, open-evaluations closure), `docs/SKILL-CHEAT-SHEET.md`
+  (regenerated — pressure-test summary changed), this record.
+- Migration gate: fresh docs fetched this session for the skills frontmatter surface
+  (code.claude.com/docs/en/skills — description semantics + 1,536-char listing cap). Gates run
+  green: skill-quality check-skill on pressure-test, portability gate, markdownlint,
+  changelog-parity (`--check` modes), catalog/cheat-sheet drift checks. Fresh-context verifier
+  subagent confirmed each verdict landed before commit. Provenance in SSOT + CHANGELOG only;
+  skill body carries none.
