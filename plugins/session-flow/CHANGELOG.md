@@ -1,5 +1,15 @@
 # Changelog — session-flow plugin
 
+## [0.21.2]
+
+### Changed
+
+- **`running-retro` and `reconcile`: listing descriptions tightened (1,116 → 869 and
+  1,072 → 837 chars)** — trimmed the explanatory prose from each frontmatter `description` toward
+  the shared skill-listing budget (claude-code-plugins#2022, option 2). Every single-quoted
+  trigger phrase is preserved verbatim (skill-quality check 3); both skills' contracts and sibling
+  boundaries are unchanged in the bodies.
+
 ## [0.21.1]
 
 ### Changed
