@@ -4,8 +4,10 @@
 #
 # Proves: (a) RESOLUTION — the newest installed tee by mtime wins across
 # version directories whose names do NOT sort lexically (0.10.0 vs 0.9.0),
-# transient temp_* marketplace clones are skipped, the marketplace directory
-# name is never assumed, and other plugins' trees are ignored; (b)
+# transient temp_* marketplace clones are skipped, version directories marked
+# orphaned by an update or an uninstall are skipped even when they are the
+# newest, the marketplace directory name is never assumed, and other plugins'
+# trees are ignored; (b)
 # TRANSPARENCY — the wrapped statusline command receives the stdin bytes and
 # its stdout and exit code pass through, whether the tee was found or not;
 # (c) the NO-TEE paths — a missing tee degrades to running the wrapped command
@@ -78,6 +80,16 @@ if ((\$#)); then exec "\$@"; fi
 echo "standalone:$marker"
 EOF
   printf '%s' "$dir/statusline-tee.sh"
+}
+
+# Mark a planted tee's VERSION directory the way Claude Code marks one on an
+# update or an uninstall: `.orphaned_at` holding an epoch-ms timestamp
+# (measured on Claude Code 2.1.220). The directory keeps its files for ~14 days
+# afterwards, which is the window this marker exists to close.
+#   $1 = the tee path returned by plant_tee
+orphan_tee() {
+  local tee="$1"
+  printf '1785448003467' >"${tee%/scripts/statusline-tee.sh}/.orphaned_at"
 }
 
 # Wrapped statusline stand-in: echoes the stdin it received, prints a fixed
@@ -239,6 +251,33 @@ RC=$?
 ERR="$(cat "$errfile")"
 rm -f "$errfile"
 assert_contains "$ERR" "TEE:home" "an empty CLAUDE_CONFIG_DIR falls back to \$HOME/.claude"
+
+# --- 15. UNINSTALLED plugin: the orphaned tee is not executed ---------------
+# `claude plugin uninstall` writes .orphaned_at into the version directory and
+# leaves the files there for ~14 days. Without the marker check the shim keeps
+# finding and running the removed plugin's tee for that whole window.
+H8="$WORK/h8"
+GONE="$(plant_tee "$H8" "melodic-software" "rate-limit-guard" "0.4.0" "uninstalled")"
+orphan_tee "$GONE"
+make_wrapped "$H8/render.sh" 0
+run "$H8" bash "$H8/render.sh"
+assert_eq "" "$ERR" "an uninstalled plugin's orphaned tee is not executed"
+assert_contains "$OUT" "RENDER" "uninstalled plugin still leaves the statusline running"
+assert_eq "0" "$RC" "uninstalled plugin preserves the wrapped exit code"
+
+# --- 16. orphaned loses to an installed sibling even when it is newer -------
+# The update path: the superseded directory is marked orphaned. Give it the
+# newer mtime so only the marker can decide.
+H9="$WORK/h9"
+KEEP="$(plant_tee "$H9" "mkt" "rate-limit-guard" "0.4.0" "installed")"
+DEAD="$(plant_tee "$H9" "mkt" "rate-limit-guard" "0.3.9" "orphaned")"
+orphan_tee "$DEAD"
+touch -t 202001010000 "$KEEP"
+touch -t 203001010000 "$DEAD"
+make_wrapped "$H9/render.sh" 0
+run "$H9" bash "$H9/render.sh"
+assert_contains "$ERR" "TEE:installed" "orphaned version directory skipped even when newest by mtime"
+assert_not_contains "$ERR" "TEE:orphaned" "the orphaned tee does not also run"
 
 echo
 echo "passed: $PASS  failed: $FAIL"
