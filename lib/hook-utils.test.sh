@@ -1172,13 +1172,46 @@ rm -f "$bs_big_file" "$bs_payload_file" "$bs_rc_file" "$bs_out_file"
 # reaches EOF and never delivers a byte, so `read -t` against it is a pure
 # builtin timer. Measured here: five 0.1 s ticks cost 546 ms this way against
 # 1401 ms for five `sleep 0.1`, and the `sleep` figure is the one that balloons
-# under load. Falls back to `sleep` where a FIFO cannot be created, which is no
-# worse than what it replaces.
+# under load.
+#
+# FRACTIONAL `read -t` is the precondition, and it is not universal: Bash 3.2 —
+# the macOS system shell these hooks document support for — rejects `0.1`
+# outright, and a rejected read returns IMMEDIATELY. That failure is silent and
+# far worse than the problem being fixed: with a zero-length tick the producer
+# emits all 20 bytes at once, the read never has to re-arm, and the case passes
+# while testing nothing. So the support is probed the way
+# hook::resolve_read_slice probes it — a `read -t` against /dev/null, judged by
+# whether it printed a usage error — before the FIFO is created at all, and the
+# `sleep` spawn is the fallback for that host as well as for one where a FIFO
+# cannot be made. Falling back is no worse than what this replaces. The tick is
+# then asserted to actually DELAY, so neither branch can go vacuous unnoticed.
 bs_tick_fifo="$(mktemp -u)"
-if mkfifo "$bs_tick_fifo" 2>/dev/null && exec 9<>"$bs_tick_fifo"; then
+# shellcheck disable=SC2034 # `bs_tick_discard` is the read target; only stderr matters
+bs_tick_probe=$(read -r -t 0.1 bs_tick_discard </dev/null 2>&1)
+if [[ -z "$bs_tick_probe" ]] && mkfifo "$bs_tick_fifo" 2>/dev/null &&
+  exec 9<>"$bs_tick_fifo"; then
+  bs_tick_kind="fifo"
   bs_tick() { read -r -t "$1" -u 9 _; }
 else
+  bs_tick_kind="sleep spawn"
   bs_tick() { sleep "$1"; }
+fi
+# Lower bound only, so load can never flake it: five 0.1 s ticks must cost at
+# least 400 ms of the nominal 500 ms. A tick that silently does not delay — the
+# Bash 3.2 hazard above, or a FIFO that turns out to deliver — lands near 0 ms
+# and fails here rather than hollowing out the case below.
+bs_tick_t0=${EPOCHREALTIME:-}
+for _ in 1 2 3 4 5; do bs_tick 0.1; done
+bs_tick_t1=${EPOCHREALTIME:-}
+if [[ -z "$bs_tick_t0" || -z "$bs_tick_t1" ]]; then
+  ok "trickle tick ($bs_tick_kind): delay not timed (EPOCHREALTIME absent, Bash < 5.0)"
+else
+  bs_tick_ms=$(awk -v s="$bs_tick_t0" -v e="$bs_tick_t1" 'BEGIN { printf "%.0f", (e - s) * 1000 }')
+  if ((bs_tick_ms >= 400)); then
+    ok "trickle tick ($bs_tick_kind): 5 x 0.1 s really delays (${bs_tick_ms} ms)"
+  else
+    fail "trickle tick ($bs_tick_kind): 5 x 0.1 s took only ${bs_tick_ms} ms — the tick does not delay, so the trickle case below is vacuous"
+  fi
 fi
 bs_rc_file="$(mktemp)"
 bs_out_file="$(mktemp)"
@@ -1227,7 +1260,7 @@ else
   fail "buffer_stdin trickle-then-stall: rc=$bs_rc out=$(cat "$bs_out_file")"
 fi
 rm -f "$bs_rc_file" "$bs_out_file"
-exec 9<&-
+[[ "$bs_tick_kind" == fifo ]] && exec 9<&-
 rm -f "$bs_tick_fifo"
 
 # --- Test 18e: hook::buffer_stdin — the pre-4.1 (`read -d ''`) branch ---------
