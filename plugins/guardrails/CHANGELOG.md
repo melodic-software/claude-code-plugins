@@ -3,6 +3,28 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.1]
+
+### Changed
+
+- **Every remaining hook now parses its payload in ONE `jq` process (`hook::jq_fields`), not two or
+  three.** #2007 introduced the helper and converted `block-dangerous-git` and `block-no-verify`; the
+  other ten hooks still ran a separate `printf … | jq … | tr -d '\r'` pipeline per field over the
+  same stdin envelope. Converted: `block-noncanonical-commit`, `block-convention-violation` (3 jq
+  execs → 1 each), `hardcoded-path-check`, `secret-pattern-detection`, `skill-reference-verify`,
+  `stale-path-verify` (3 → 1 each), `block-hook-bypass`, `flag-commit-pr-skill-bypass`,
+  `cli-flag-verify`, `workflow-resilience-check` (2 → 1 each). Measured on Windows Git Bash with the
+  arms interleaved in one loop (medians of paired deltas, every sample recorded in the PR): the
+  isolated parse block recovers a median **991-1033 ms** per invocation for a 3-field hook and
+  **274 ms** for a 2-field hook under this host's concurrent-agent load, and **394 ms / 192 ms** at
+  the least-contended floor observed across 100 iterations. No behavior change: every hook's contract
+  suite passes unchanged, the `// "Bash"` tool-name default moves to the bash-side expansion (the
+  `block-dangerous-git` pattern), and a jq failure still exits 0 through the same empty-field guard
+  it always did.
+- `skill-reference-verify` and `stale-path-verify` keep `replace_all`'s `// false | tostring` INSIDE
+  the jq filter. `hook::jq_fields` wraps each filter in `// ""`, and jq's `//` treats the boolean
+  `false` as empty — a bare `.tool_input.replace_all` would come back `""` instead of `"false"`.
+
 ## [0.20.0]
 
 ### Changed
