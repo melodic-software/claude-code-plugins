@@ -1462,10 +1462,16 @@ rm -f "$bs_rc_file"
 #  * Unlike the late-EOF case, this one's arms are NOT symmetric in work: the
 #    sliced arm does slice_count+1 reads where the unsliced does 2, and it is the
 #    arm that has to finish FIRST. Every read costs a wakeup, so load taxes
-#    precisely the arm that must win — measured at ~520 ms across three extra
-#    reads. That overhead is fixed per read and does not grow with the bound, so
-#    the bound is 2.4 s: the gap is then 1.8 s (0.6 s slice + 2.4 s against two
-#    2.4 s bounds), which the per-read tax cannot close.
+#    precisely the arm that must win. Measured on Windows Git Bash at ~420 ms per
+#    extra read, so the three extra reads eat ~1.26 s of whatever gap the bound
+#    provides — and that tax is FIXED per read, it does not grow with the bound.
+#    At a 2.4 s bound the gap is 1.8 s, leaving ~0.5 s of true signal against a
+#    400 ms slack: measured, the median came in at 532 ms, a 1.33x margin that
+#    would flake. The bound is therefore 3.6 s, where the gap is 2.7 s (0.9 s
+#    slice + 3.6 s against two 3.6 s bounds) and the tax leaves ~1.4 s — 3.6x the
+#    slack, and clear of the median's own sampling error at five pairs. Growing
+#    the bound is the only lever that grows the signal, because the tax does not
+#    scale with it and no tolerance can be set below it.
 #  * ONE sample of each arm decides nothing. The startup-fork swing documented
 #    above the late-EOF case (up to 3.2 s on a single fork) dwarfs even a 1.8 s
 #    gap on a bad sample, so this takes 5 interleaved pairs and compares the
@@ -1478,7 +1484,7 @@ bs_time_stall() { # $1 = shell prelude; prints elapsed ms (empty if untimed)
     printf '{"partial":'
     bs_hold_open
   } | {
-    CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=2.4 bash -c '
+    CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=3.6 bash -c '
       source "$1"
       eval "$2"
       printf "%s\n" "${EPOCHREALTIME:-0}"
@@ -1507,10 +1513,10 @@ bs_unsliced='hook::resolve_read_slice() {
   probe=$(read -r -t "$1" discard </dev/null 2>&1)
   printf "%s 1" "$1"
 }'
-bs_slices=$(bash -c 'source "$1"; hook::resolve_read_slice 2.4' _ "$HOOK_DIR/hook-utils.sh")
-bs_slices_forced=$(bash -c 'source "$1"; '"$bs_unsliced"'; hook::resolve_read_slice 2.4' \
+bs_slices=$(bash -c 'source "$1"; hook::resolve_read_slice 3.6' _ "$HOOK_DIR/hook-utils.sh")
+bs_slices_forced=$(bash -c 'source "$1"; '"$bs_unsliced"'; hook::resolve_read_slice 3.6' \
   _ "$HOOK_DIR/hook-utils.sh")
-if [[ "$bs_slices" == "0.600 4" ]] && [[ "$bs_slices_forced" == "2.4 1" ]]; then
+if [[ "$bs_slices" == "0.900 4" ]] && [[ "$bs_slices_forced" == "3.6 1" ]]; then
   ok "buffer_stdin: slice resolution splits the bound, and the unsliced override engages"
 else
   fail "slice resolution: got '$bs_slices' / forced '$bs_slices_forced'; cases below are vacuous"
