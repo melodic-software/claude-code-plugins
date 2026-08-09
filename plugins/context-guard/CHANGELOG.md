@@ -5,6 +5,186 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1]
+
+### Changed
+
+- **`setup`'s shell-wrapped statusline step now verifies its escaping by running a command instead
+  of asking for a mental round-trip.** The check is `printf '%s\n' '<escaped original command>'`,
+  compared against the original. Its single-quoted argument reproduces exactly the quoting context
+  the emitted `sh -c '<escaped>'` uses; a double-quoted wrapper would instead let the outer shell
+  expand any `$(...)` or backticks in the operator's own command before the check ever ran.
+
+## [0.5.0]
+
+### Changed
+
+- **The zone-crossing report is split by audience: the continuation menu goes to the operator, the
+  counter-steer goes to the model.** The hook injected one block into model context naming the zone
+  and then enumerating four continuation options — continue, `/clear`, handoff-then-`/clear`,
+  `/compact` — plus the `/session-flow:workflow` router. Those are precisely the behaviors a model
+  guide reports current models are already predisposed to volunteer, and handing them to the model
+  as a menu manufactures that initiative rather than replacing it: the measurement decides only
+  *when to ask*, while the model still decides *whether to stop*. That is a live finding under the
+  `claude-config` instruction-audit catalog's check I23, which this repository ships.
+
+  The menu now renders on `systemMessage` — the operator channel, whose whole content is a human's
+  choice to make — and `additionalContext` carries the zone determination plus the counter-steer:
+  this is a measurement and not a decay signal, degradation shows up in the model's own output
+  rather than in a zone word, so do not volunteer to end the session, summarize, hand off, or trim
+  work on the strength of the reading. The `dumb` zone keeps its extra clause, restated as the
+  model-independent fact it always was — compaction distance is short, so write expensive
+  conclusions to a durable note as they stabilize.
+
+  **The counter-steer is stated inline rather than delegated** to the `playbooks:fable-5` doctrine
+  that also carries it. The two plugins are independently installable with no dependency wiring, so
+  a `context-guard`-only install previously received the menu with nothing in context to interpret
+  it against.
+
+  **The model channel states ownership, never delivery.** It says continuation is the operator's
+  call; it does not say the operator has seen the menu. No documented hook behavior tells a hook
+  whether an operator is present — `systemMessage` is documented only as a message shown to the
+  user, with nothing said about non-interactive runs — so a delivery claim would be a fact the hook
+  cannot know in *any* mode, not only headless ones. Emitting to an unread operator channel is
+  harmless; telling the model a human holds the choice when none does is not. A regression assertion
+  locks it, because the sentence is the kind that creeps back on a rewording pass.
+
+  **The `hook-observability` convention is amended in the same change**, because this is the first
+  fleet payload that is neither a prerequisite-skip nor a content-mutation notice. Its
+  advisory-findings exclusion now names its own predicate — *who can act* — and admits a carve-out
+  only on three conditions together: the payload is a choice whose only legitimate actor is the
+  human, the model channel separately carries the determination the model does need, and the
+  emission is keyed to a state transition. The convention also now forbids any model-channel text
+  from asserting operator presence, fleet-wide. This **creates** an exception rather than codifying
+  practice — every other `systemMessage` site in the fleet is a prerequisite skip or a formatter's
+  content-mutation notice — and the conformance section says so, so a second site re-reads the
+  conditions instead of following the precedent.
+
+  **Firing cadence is unchanged**, deliberately. Whether a four-option exit menu belonged on the
+  `smart → acceptable` crossing was an open calibration question; it dissolves rather than gets
+  answered, because the model-facing payload no longer carries a menu at any zone, and a budget
+  rendered to a human is outside I23's subject entirely. Zone mechanics, bands, state, kill switch,
+  and telemetry are untouched.
+
+## [0.4.9]
+
+### Changed
+
+- **Zone-crossing guidance no longer asserts context degradation as a universal fact.** The
+  injected text stated "Response quality degrades as context occupancy grows" unconditionally and
+  told the model the dumb zone means measurable degradation — a premise that is stale on models
+  whose vendor guides state consistency through the full window (the Opus 5 prompting guide's
+  long-context bullet), while the bands can resolve `dumb` at 400k of a 1M window where compaction
+  is not in play. The guidance now conditions the degradation claim ("on many models… onset varies
+  by model"), names the bands as tunable defaults (`zones.json`), and keeps the model-independent
+  part — compaction distance shrinks regardless — unconditional. Zone mechanics, bands, and
+  telemetry unchanged.
+
+## [0.4.8]
+
+### Fixed
+
+- **All four hooks declared a 10-second timeout they could not meet on Windows, so the hook was
+  cancelled instead of run.** A consuming session on Windows/Git Bash reported
+  `zone-crossing-inject.sh` overrunning on essentially every firing across a ten-session chain
+  (10.6–21.4 s observed against `timeout: 10`), which meant the zone enforcement never took effect
+  while still charging its full wall-time cost. Every registration in `hooks/hooks.json` now
+  declares `60`.
+
+  Re-measured on Windows 11 / Git Bash after the 0.4.6 spawn reduction, 18 samples per path: the
+  typical case now fits comfortably (means 2.7–10.6 s), but the tail does not.
+  `zone-crossing-inject.sh` still reached **22.0 s**, and `post-compact-mark.sh` — whose exposure
+  the report could only infer — reached **12.4 s**, both over the old cap. `zone-gate.sh` peaked at
+  2.8 s and showed no overrun; it is raised for uniformity and tail-safety, not because it was
+  failing. The tail is environmental, not payload-driven: a small `UserPromptSubmit` payload took
+  22.0 s while a 150 KB `PostToolBatch` payload took 6.7 s, on a host with Defender real-time
+  protection enabled. Sizing has to survive an antivirus-stalled process spawn, not just the median.
+
+  Why 60 and not 30: the measurement times the script alone and excludes the harness's own
+  hook-launch overhead, so 22.0 s is a floor rather than a p100 — 30 would leave under 8 s of margin
+  on an already-optimistic number. 60 is ~2.7x the observed floor while staying an order of
+  magnitude below the harness's own 600 s `command` default, so a genuinely hung hook still cannot
+  stall a session for ten minutes. `guardrails` and `disk-hygiene` already declare 60 in this
+  marketplace.
+
+  Contract note, verified against <https://code.claude.com/docs/en/hooks> (fetched 2026-08-08):
+  `timeout` is *"Seconds before canceling. Defaults: 600 for `command`, `http`, and `mcp_tool`; 30
+  for `prompt`; 60 for `agent`. `UserPromptSubmit` lowers the `command`, `http`, and `mcp_tool`
+  default to 30, and `MessageDisplay` lowers it to 10."* So 10 was never a harness default here — it
+  was authored, narrowing the `PostToolBatch`, `PreToolUse`, and `PostCompact` budgets to 1/60th of
+  what the harness allows. The 30 documented for `UserPromptSubmit` is stated as a *default*; the
+  page does not say whether it also caps an explicit larger value, so 60 is declared there on the
+  understanding that a clamp to 30 would still clear the measurement. The page likewise says only
+  "Seconds before canceling" about exceeding the budget — what a cancelled hook reports, and whether
+  sibling hooks continue, is not documented and is not assumed here.
+
+  This is the immediate remedy, not the durable one: the underlying per-invocation cost on Windows
+  is still real, and a 60 s cap only stops a slow hook from becoming an absent one. Consumers who
+  want the overrun visible can point `HOOK_TELEMETRY_SINK` at a sink — every hook already emits
+  `duration_ms` per invocation.
+
+## [0.4.7]
+
+### Fixed
+
+- **Every hook loads again; the manifest was pointing at a file Claude Code had already loaded
+  (#1985).** `plugin.json` set `"hooks": "./hooks/hooks.json"` — the default path the harness
+  discovers on its own. The second registration was rejected as a duplicate and the whole hook file
+  failed to load with it, so zone-crossing injection, the blocking gate, and the PostCompact
+  evidence-degraded marker were inert on every machine that installed the plugin, and the
+  `context_guard_hooks_enabled` and `zone_hook_mode` settings had nothing to switch. The manifest
+  field exists for hook files at non-default paths; the default one needs no entry. `claude-ops` and
+  `guardrails` already ship `hooks/hooks.json` with no manifest key, which is the shape this now
+  matches.
+
+## [0.4.6]
+
+### Changed
+
+- **Shared `hook-utils.sh`: a hook invocation spawns three fewer external processes (#1978).**
+  Every hook that buffers its stdin paid an `awk` (one float division, to slice the read timeout), a
+  `printf | tr -d '\r'` pipeline (a fork and an exec to delete one byte class from a string bash
+  rewrites in place), and a `jq -e .` validity probe over a buffer the read loop had already parsed
+  with jq. On Windows Git Bash, where process creation is `fork()` emulation, each spawn costs
+  ~140 ms. Behavior is unchanged: the slice keeps the three-decimal form `read -t` is given, the
+  buffer is CR-stripped as before, and the completeness verdict is reused only when jq itself
+  produced it — so a host without jq still fails open exactly as it did. Also adds
+  `hook::jq_fields`, which extracts several fields from one payload in a single jq process for
+  hooks that read two or three of them. Synced from `lib/hook-utils.sh`.
+
+## [0.4.5]
+
+### Fixed
+
+- **The reader contract withdraws an unresolvable citation behind the token shape.** The token-shape
+  rationale co-cited "Anthropic system-card fixed-point evals" as evidence that degradation tracks
+  absolute tokens rather than window fraction — a claim carried at "Primary research + official /
+  High confidence" on #1475's provenance table. The citation names no card, and the only Anthropic
+  system card in this workstream's corpus (Claude Opus 5, re-fetched 2026-08-04 and byte-identical
+  to its capture) contains no evaluation of any name measuring degradation as a function of context
+  length. An exhaustive sweep of that card found zero occurrences of "fixed point", zero of every
+  standard long-context benchmark name, and no length axis on the two near-misses ("character
+  drift" is an LLM-judge score averaged over ~3,200 investigations with no length variable; "context
+  drift" is prose in a cyber benchmark's design rationale). The card's sole long-context section
+  (§8.9, ProgramBench) reports pass rate across five episodes, each starting from a *fresh* context
+  budget, and the score **rises** 83%→93% — a reset-and-continue improvement curve, not a
+  within-context degradation curve.
+
+  The clause now cites the Chroma context-rot report alone, plus a one-line standing rule that a
+  system card is cited here by name and section or not at all — the full reasoning lives in this
+  entry rather than in the contract, which is a live document and not a place for dated
+  withdrawal narration. Deliberately **not** substituted: the
+  card's 200k compaction trigger in the BrowseComp harness — the tempting replacement, being the one
+  absolute-token threshold inside a 1M window, but it is a harness choice about *when to compact*
+  with no stated rationale, not evidence about quality. Other Anthropic cards do publish
+  long-context retrieval evals at absolute context lengths, so the underlying proposition may be
+  supportable; it is not supportable from an unnamed card, and no replacement is asserted until one
+  is read and cited by name.
+
+  **No behavior changes.** The token shape's other two rationales — output tokens occupy the window;
+  50% of a 1M window is not 50% of a 200k window — are independent of this citation, and the band
+  values themselves were always declared judgment defaults rather than derived from it.
+
 ## [0.4.4]
 
 ### Fixed

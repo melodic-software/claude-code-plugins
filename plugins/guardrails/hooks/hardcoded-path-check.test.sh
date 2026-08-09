@@ -46,6 +46,14 @@ OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(write_json "$FIXTURE"
 RC=$?
 assert_exit "macos home → exit 2" 2 "$RC"
 assert_contains "macos → message" "$OUT" "macOS user path"
+# Regression (#1854): `VIOLATIONS=$(hpp::scan_text …)` strips the block's trailing
+# newlines, so guidance glues onto the last path (`…/repoUse portable alternatives:`).
+# assert_contains is newline-blind — require the blank-line separator literally.
+if [[ "$OUT" == *$'\n\nUse portable alternatives:'* ]]; then
+  ok "violation block → blank line before guidance"
+else
+  bad "violation block → blank line before guidance: expected \$'\\n\\nUse portable alternatives:' in output: $OUT"
+fi
 
 OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(write_json "$FIXTURE" "cd ${WIN_HOME} && dir")" 2>&1)
 RC=$?

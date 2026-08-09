@@ -47,14 +47,15 @@ restores the FAIL semantics.
      repo chose not to format), so a missing `shfmt` is not a defect here.
 5. **`.editorconfig` shell opt-in** — mirror the hook's opt-in logic
    (`shell_editorconfig_opt_in` / `section_applies_to_shell`), not merely "does an
-   `.editorconfig` exist". The opt-in is an EditorConfig **section that governs shell files**
-   — a `[*]` catch-all or a shell glob such as `[*.sh]`, `[*.bash]`, or `[*.{sh,bash}]`
-   (including path-prefixed forms like `[**/*.sh]`) — discovered by walking up from the file's
-   directory to the repo root and stopping at a `root = true` config. Path-only sections like
-   `[scripts/**]` do NOT count. Report as INFO: whether a governing shell section exists and
-   therefore whether the format pass is active. If none exists, INFO-note the consequence per
-   the hook's logic: shell files are left unformatted rather than rewritten to shfmt's
-   built-in defaults.
+   `.editorconfig` exist". The opt-in is an EditorConfig **section that names shell files**
+   — a shell glob such as `[*.sh]`, `[*.bash]`, or `[*.{sh,bash}]` (including path-prefixed
+   forms like `[**/*.sh]`) — discovered by walking up from the file's directory to the repo
+   root and stopping at a `root = true` config. A bare `[*]` catch-all does NOT count (most
+   repos only set line-ending / charset properties there). Path-only sections like
+   `[scripts/**]` do NOT count either. Report as INFO: whether a governing shell section
+   exists and therefore whether the format pass is active. If none exists, INFO-note the
+   consequence per the hook's logic: shell files are left unformatted rather than rewritten
+   to shfmt's built-in defaults.
 6. **`.shellcheckrc`** — INFO: ShellCheck auto-discovers `.shellcheckrc` by walking up from
    the file's directory. Report whether one exists; its absence is not a FAIL (ShellCheck
    applies its own defaults).
@@ -90,9 +91,10 @@ Run `check`, then for each FAIL point at the resolution — this skill installs 
   ([shfmt](https://github.com/mvdan/sh#shfmt)); this skill never installs system packages.
 - missing `jq` / Bash: platform install instructions from the README Requirements section.
 - no shell `.editorconfig` opt-in (and formatting is wanted): explain that adding a governing
-  shell section (`[*]`, `[*.sh]`, `[*.bash]`, or `[*.{sh,bash}]`) to an `.editorconfig` opts
-  the repo in — but this skill does not write it. `.editorconfig` is cross-cutting (it governs
-  every editor and tool in the repo), so the choice and the edit belong to the consumer.
+  shell section (`[*.sh]`, `[*.bash]`, or `[*.{sh,bash}]`) to an `.editorconfig` opts the
+  repo in — a bare `[*]` is not enough — but this skill does not write it. `.editorconfig` is
+  cross-cutting (it governs every editor and tool in the repo), so the choice and the edit
+  belong to the consumer.
 - toggle off: direct to `/plugin configure bash-format` (interactive, any
   time). Headless: `--config` only applies on a fresh install (ignored once installed), so
   reconfigure via `claude plugin uninstall bash-format -s <scope>` then

@@ -74,7 +74,7 @@ naming a `vendor/` path or a worktree path.
 
 The permitted alternative is always available: record the suppression centrally in
 `.claude/audit-pass.md`, carrying the finding's constituents under its derived `finding_id`, per
-[the run contract's suppression section](run-contract.md). A central entry names the finding without
+[the run contract's suppression section](suppression.md). A central entry names the finding without
 touching the excluded file at all.
 
 ## Reporting

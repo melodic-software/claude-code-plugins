@@ -3,6 +3,17 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.5]
+
+### Added
+
+- **`quiz-me`: report narrative sections get a length calibration.** The report contract densely
+  specified self-containment, answer-key embedding, and retention slugging but carried no length
+  guidance for the four free-form narrative sections — the most padding-prone genre (explanatory
+  narrative for a human reader) in a retained, growing library. The contract now carries it:
+  match each section's length to what the change needs; no filler, redundant summaries, or
+  boilerplate.
+
 ## [0.5.4]
 
 ### Fixed

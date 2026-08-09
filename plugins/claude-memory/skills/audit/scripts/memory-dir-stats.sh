@@ -23,7 +23,8 @@
 #
 # Usage:
 #   memory-dir-stats.sh --md-count      # count of *.md files in the memory dir
-#   memory-dir-stats.sh --memory-lines  # line count of MEMORY.md (0 when absent)
+#   memory-dir-stats.sh --memory-lines  # loaded-content line count of MEMORY.md (0 when absent)
+#   memory-dir-stats.sh --memory-bytes  # loaded-content byte count of MEMORY.md (0 when absent)
 #   memory-dir-stats.sh --help
 
 set -uo pipefail
@@ -32,14 +33,20 @@ usage() {
   cat <<'EOF'
 memory-dir-stats.sh — emit one auto-memory statistic as a single integer.
 
-Usage: memory-dir-stats.sh (--md-count|--memory-lines|--help)
+Usage: memory-dir-stats.sh (--md-count|--memory-lines|--memory-bytes|--help)
 
   --md-count       print the number of *.md files in the current project's memory dir
-  --memory-lines   print the line count of that dir's MEMORY.md (0 when absent)
+  --memory-lines   print the loaded-content line count of that dir's MEMORY.md (0 when absent)
+  --memory-bytes   print the loaded-content byte count of that dir's MEMORY.md (0 when absent)
   --help           this message
 
-Resolves the memory dir via the sibling resolve-memory-dir.sh. Both stat modes print
-exactly one integer and always exit 0; a bad or missing mode exits 2.
+The MEMORY.md stats measure the content that loads: YAML frontmatter and block-level
+HTML comments are stripped before the index is loaded, so they don't count toward the
+200-line/25KB limits. A block that never closes is counted as content, comments inside
+fenced code blocks are kept, and byte counts are of LF-normalized content — criteria.md
+M1 records these readings. Resolves the memory dir via the sibling resolve-memory-dir.sh.
+Every stat mode prints exactly one integer and always exits 0; a bad or missing mode
+exits 2.
 EOF
 }
 
@@ -49,7 +56,7 @@ if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
 fi
 
 mode="${1:-}"
-if [[ "$mode" != "--md-count" && "$mode" != "--memory-lines" ]]; then
+if [[ "$mode" != "--md-count" && "$mode" != "--memory-lines" && "$mode" != "--memory-bytes" ]]; then
   usage >&2
   exit 2
 fi
@@ -83,8 +90,117 @@ if [[ ! -f "$index" ]]; then
   exit 0
 fi
 
-# `wc -l` (newline count) is kept deliberately — the semantics the audit checklist's
-# line budget has always been measured against. tr guards Git Bash CRLF; the
-# arithmetic expansion strips the leading padding BSD `wc` emits on macOS.
-lines=$(wc -l <"$index" | tr -d '\r')
-printf '%s\n' "$((lines))"
+# The 200-line/25KB limits measure only the content that loads: YAML frontmatter and
+# block-level HTML comments are stripped before the index is loaded (memory doc), so
+# both MEMORY.md stats measure that stripped content — matching criteria.md M1.
+#
+# A block only counts as one once it closes. An opening `---` or `<!--` that never
+# closes is ordinary content, so those lines are held and flushed at EOF instead of
+# swallowed: a leading thematic break or a clipped frontmatter block would otherwise
+# report 0, and M1 is a [FAIL]-severity size gate that 0 always passes — it could
+# never fire. A MEMORY.md that has frontmatter keeps it stamped (Claude Code writes a
+# `modified` field into any memory file that already has frontmatter, and never adds
+# frontmatter to one that has none), so this is a live shape, not a corner case.
+#
+# Closing is necessary but not sufficient: a leading `---` only opens frontmatter if
+# what follows is shaped like frontmatter. Markdown carries thematic breaks freely, so
+# a file opening with `---` and carrying any later `---` would otherwise have the whole
+# span between them stripped — a 253-line index reporting one loaded line, disarming
+# the very gate the flush-at-EOF rule above exists to arm. Frontmatter mode is
+# therefore bounded twice, and abandoning it re-emits the held lines as content:
+#   * grammar — the block ends at the first line that is not blank and not a `key:`
+#     mapping entry, which is all YAML a memory index's frontmatter holds. A `#` line
+#     is deliberately NOT frontmatter here: it is a comment to YAML but a heading to
+#     markdown, and a heading is loaded content, so admitting it would let a pseudo-
+#     frontmatter block of headings swallow them. The cost is that a real YAML comment
+#     inside frontmatter ends the block, and ending it strips nothing — the opening
+#     `---`, every entry held so far, and the rest of the block through its close all
+#     count. An over-count, and a rare one: Claude Code writes only the `modified`
+#     scalar and never authors comments, so this needs a hand-edited index;
+#   * length — `fmcap` lines, because grammar alone still swallows a runaway whose
+#     every line happens to be a `Label: value` pair, a plausible shape for a
+#     hand-written index.
+# Both bounds fail toward counting when they fire: an over-count can only make this gate
+# fire early, while the under-count they replace stopped it firing at all. They bound the
+# block by shape and by line count, never by bytes — a short `key:`-shaped block is
+# frontmatter under YAML grammar and is stripped whatever those entries weigh.
+#
+# A block-level comment occupies whole lines; text sharing a line with the comment's
+# open or close is loaded content and survives. Each comment ends at the FIRST `-->`
+# after its opener and the line is then re-scanned, because one line can carry several:
+# matching to the last `-->` swallows the text between two of them, and stopping after
+# the first leaves the rest counted as content. `index`/`substr` walk the line instead
+# of a regex — awk's ERE has no lazy quantifier, and spelling "up to the first close"
+# as a bounded complement reads far worse than the scan. Only whole `<!-- ... -->`
+# spans are removed, so a residue still holding text always survives; only a line that
+# is entirely comment disappears.
+#
+# Comments inside fenced code blocks are preserved — a comment inside a fence is code,
+# not block-level markdown. The memory doc states that explicitly for CLAUDE.md and says
+# nothing either way for MEMORY.md; criteria.md M1 records the reading rather than
+# claiming it as documented.
+#
+# tr guards Git Bash CRLF, so both counts measure LF-normalized content (see the
+# assumption recorded in criteria.md M1); the arithmetic expansion strips the leading
+# padding BSD `wc` emits on macOS.
+strip_unloaded() {
+  tr -d '\r' <"$index" | awk '
+    BEGIN { fmcap = 20 }
+    function emit(s) { if (s ~ /[^[:space:]]/) print s }
+    # Remove every complete comment from s, each ending at the first `-->` after its
+    # own opener. An opener with no close takes the rest of s and arms `incomment`,
+    # holding the raw remainder so an unterminated block still counts at EOF.
+    function uncomment(s,   p, q, out) {
+      while ((p = index(s, "<!--")) > 0) {
+        out = out substr(s, 1, p - 1)
+        q = index(substr(s, p + 4), "-->")
+        if (q == 0) { incomment = 1; pending = substr(s, p) "\n"; return out }
+        s = substr(s, p + q + 6)
+      }
+      return out s
+    }
+    NR == 1 && $0 == "---" { pending = $0 "\n"; fm = 1; next }
+    fm == 1 {
+      if ($0 == "---") { fm = 2; pending = ""; next }
+      if (++fmlines <= fmcap && ($0 ~ /^[[:space:]]*$/ ||
+                                 $0 ~ /^[[:space:]]*[A-Za-z_][A-Za-z0-9_-]*:/)) {
+        pending = pending $0 "\n"
+        next
+      }
+      # Not frontmatter after all: re-emit the held lines as content and let this one
+      # fall through to the rules below, which still owe it fence and comment handling.
+      fm = 0
+      printf "%s", pending
+      pending = ""
+    }
+    incomment {
+      pending = pending $0 "\n"
+      close_at = index($0, "-->")
+      if (close_at == 0) next
+      incomment = 0; pending = ""
+      emit(uncomment(substr($0, close_at + 3)))
+      next
+    }
+    /^[[:space:]]*```/ { fence = !fence; print; next }
+    fence { print; next }
+    /^[[:space:]]*<!--/ {
+      residue = uncomment($0)
+      # An unterminated opener holds its own raw text. Whitespace that loaded ahead of
+      # it belongs to that held block too, so an indented opener keeps its indent.
+      # Real text is emitted instead of held: folding it into pending would lose it
+      # outright once the comment closes and the held block is dropped.
+      if (incomment && residue !~ /[^[:space:]]/) pending = residue pending
+      emit(residue)
+      next
+    }
+    { print }
+    END { printf "%s", pending }
+  '
+}
+
+if [[ "$mode" == "--memory-lines" ]]; then
+  n=$(strip_unloaded | wc -l)
+else
+  n=$(strip_unloaded | wc -c)
+fi
+printf '%s\n' "$((n))"

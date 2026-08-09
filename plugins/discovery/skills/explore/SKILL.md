@@ -20,7 +20,7 @@ These values orient this session only. The project root is an absolute machine p
 
 ## Routing — dispatch by default
 
-**From the main conversation, this skill dispatches the `discovery:explorer` subagent.** Exploration reads many files; keeping that out of the orchestrator's context window is the point. The agent loads the project's path-scoped rules, runs the six dimensions, writes the artifact set, and returns a bounded summary plus a file pointer — not the reads. The parent resolves the **pre-dispatch envelope** first (scope, memory-slice path, memory root, budget, capability flags) and owns the **post-dispatch boundary** after: re-surfacing `open_questions` to the user, dispatching the sibling verifier, and **writing its verdict back into `EXPLORE.md`** — the explorer always returns `verification: pending` because it may not grade its own work, so an artifact left saying `pending` after the parent verified it cannot be told apart from one whose verifier never ran, and this artifact is the whole handoff a fresh session resumes from.
+**From the main conversation, this skill dispatches the `discovery:explorer` subagent.** Exploration reads many files; keeping that out of the orchestrator's context window is the point. The agent loads the project's path-scoped rules, runs the six dimensions, writes the artifact set, and returns a bounded summary plus a file pointer — not the reads. The parent resolves the **pre-dispatch envelope** first (scope, the reason the exploration is being run and what it feeds, memory-slice path, memory root, budget, capability flags) and owns the **post-dispatch boundary** after: re-surfacing `open_questions` to the user, dispatching the sibling verifier, and **writing its verdict back into `EXPLORE.md`** — the explorer always returns `verification: pending` because it may not grade its own work, so an artifact left saying `pending` after the parent verified it cannot be told apart from one whose verifier never ran, and this artifact is the whole handoff a fresh session resumes from.
 
 **Run inline instead when any of these holds** — inline runs the identical workflow, and the escape hatch relaxes nothing:
 
@@ -38,6 +38,24 @@ discovery-explore-preload-8e2b7d
 
 A missing or mismatched token is a **hard failure: the parent discards the run**, never downgrades or accepts the artifact. Without it, a preload miss produces an undisciplined run that still writes an artifact — indistinguishable from success at every other seam.
 
+**Post-dispatch acceptance gate — parent-side, before the payload is believed.** `status: complete` is the agent's claim about its own run, and a claim is not evidence. Grade the run **off disk**, against the memory-slice path from the parent's own pre-dispatch envelope — **carry that path across the dispatch, because it is this gate's input** — and never a path read out of the payload, because the failure this gate exists to catch is a payload that comes back carrying no pointer at all. In order:
+
+**Pre-dispatch, one command:** `touch <the memory-slice path>/.explore-dispatch`. That is the gate's freshness baseline, and without it a slice that already holds an earlier run's artifact set passes every on-disk check even when this dispatch wrote nothing at all.
+
+1. **The payload is well-formed** — `preload_token` matches the sentinel verbatim, and an `artifact:` pointer is present. Missing either is a **failed dispatch** whatever the `status` field says; a missing token is a discard, per the rule above.
+2. **The artifact set is actually on disk, and this run put it there:**
+
+   ```bash
+   bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-explore-artifact.sh" <the retained memory-slice path> \
+     --newer-than <that slice>/.explore-dispatch --expect-index <the payload's artifact: value>
+   ```
+
+   Cite the **exit status** — 0 usable, 1 no usable artifact set, 2 ungradeable — not a reading of the directory, because the context most motivated to call the dispatch finished is the one that would be doing the reading. It fails closed. Only the slice path is required, and the bare form is still a real gate; every optional check reports `unchecked` in the output line rather than passing quietly, so a skipped one never reads as a passed one. Append `--expect-sidecars <n>` when the payload reported a `sidecars:` count, and drop any flag whose value the payload did not supply — the malformed payload this gate exists to catch has no such fields, and substituting `0` or a guessed path asks the gate a question the run never answered.
+
+   **The `index=` path in that output is authoritative** for everything downstream — the verifier's target and the handoff pointer both come from it, not from `artifact:`. `pointer=mismatch` means the payload named a file this gate never graded, which is a defect in the payload rather than a naming preference to reconcile.
+
+**Any non-zero exit halts the workflow.** Report it, and do **not** proceed to research, planning, or an edit on the strength of an exploration that did not happen — proceeding is the damage a silently-empty return actually causes; the missing artifact is only how it starts. Recovery ladder, and why a resume beats a re-dispatch: [`${CLAUDE_PLUGIN_ROOT}/skills/explore/reference/dispatch.md`](${CLAUDE_PLUGIN_ROOT}/skills/explore/reference/dispatch.md).
+
 **Coverage discipline** when fanning out: (1) write a numbered gap-list before any deepen pass; (2) fan out by disjoint area — never split the six dimensions across agents; (3) whoever holds the workflow writes `EXPLORE.md` — `discovery:explorer` writes its own, while built-in Explore agents cannot write one at all, so their caller does.
 
 ## Purpose
@@ -48,7 +66,7 @@ Local counterpart to `/research` (external sources). Together: `/explore` for wh
 
 **Philosophy**: invest in understanding before acting. Reading 20 files takes seconds; fixing a wrong assumption takes minutes to hours. When in doubt, read more code.
 
-**Plan-mode for high-risk exploration (optional, inline only)**: when exploring unfamiliar code in a high-blast-radius area (security boundaries, critical infrastructure, code you might accidentally modify mid-investigation), switch into plan mode for harness-level read-only protection. Routine exploration of well-understood code does not need this. **A dispatched run cannot reach it** — `EnterPlanMode` and `ExitPlanMode` are filtered out of every non-fork subagent — so there the read-only boundary is the agent's own instruction, honored deliberately rather than enforced by the harness.
+**Plan-mode for high-risk exploration (optional, inline only)**: when exploring unfamiliar code in a high-blast-radius area (security boundaries, critical infrastructure, code you might accidentally modify mid-investigation), switch into plan mode for harness-level read-only protection. Routine exploration of well-understood code does not need this. **A dispatched run cannot switch into it** — `EnterPlanMode` is filtered out of every non-fork subagent unconditionally, and `ExitPlanMode` is filtered from every non-fork subagent too, "unless the subagent's `permissionMode` is `plan`". `discovery:explorer` lists neither tool in its `tools` allowlist, so it holds neither either way. There the read-only boundary is the agent's own instruction, honored deliberately rather than enforced by the harness.
 
 ## Scope
 
@@ -167,6 +185,8 @@ Write the exploration output to `<memory_dir>/<slug>/EXPLORE.md` — a memory-ti
 This file is the authoritative stage summary — a fresh session must be able to resume external research or planning reading only this artifact.
 
 **`EXPLORE.md` is always an INDEX**, at every size — not only past an overflow threshold. It carries a task restatement, a one-line abstract per sidecar copied verbatim from that sidecar's header, a section → file + anchor table, and the closing Next-stage-handoff naming what external research (`/research`) or planning needs. The 7-point Output format's content lives in sibling `EXPLORE-<section>.md` sidecars in the same directory, each opening with a machine-readable YAML header so a consumer can grep headers and read exactly one file. Schema and the two load-bearing placement rules — sidecars stay inside `<memory_dir>/<slug>/`, and `EXPLORE.md` stays the entry point: [`${CLAUDE_PLUGIN_ROOT}/skills/research/context/artifact-shape.md`](${CLAUDE_PLUGIN_ROOT}/skills/research/context/artifact-shape.md).
+
+**Sidecar bodies match their length to what the section needs** — cover the substance, but do not pad with filler sections, redundant summaries, or boilerplate; the index's one-line abstracts and the outcome gate's specifics are the floor, not an invitation to narrate.
 
 **Sidecar filenames are keyed on the SECTION, not the scope** — a run has one scope and many sections, so a scope-keyed name gives every sidecar the same filename and later sections overwrite earlier ones. Use the same stable id the header's `section` field and the index anchor carry.
 

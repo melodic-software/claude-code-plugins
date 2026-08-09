@@ -3,6 +3,73 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.0]
+
+### Added
+
+- **A gitignored file is neither rewritten nor reported on.** The 0.9.0 config gate (#1809)
+  spared repositories that carry no markdownlint config, but a repository that HAS
+  one still had its gitignored scratch tier formatted and linted on every edit — one reported
+  session took ~35,000 characters of MD013 findings on `.work/**` working notes that are deleted
+  at the end of the task and never reviewed. The hook now asks `git check-ignore` and skips such
+  a file before invoking `markdownlint-cli2`, so the rewrite and the report both stop. That is
+  git's full exclude machinery, not `.gitignore` alone: every `.gitignore` up to the repository
+  root, `$GIT_DIR/info/exclude`, and the user's global `core.excludesFile`. Same doctrine as
+  `bash-format`'s `--apply-ignore` work
+  (#1817): the consumer's existing declarative scope statement is honored on the hook's
+  direct-file invocation rather than a plugin-specific ignore-glob key being invented. The
+  mechanism differs because the tools do — `shfmt` needs a flag to apply `.editorconfig`
+  `ignore = true` to a named file, whereas `markdownlint-cli2` needs no flag and instead has no
+  ignore vocabulary at all in six of its ten discoverable config names (the rule-only
+  `.markdownlint.*` family), which is exactly the case that stayed broken.
+
+  A **tracked** file is never treated as ignored, even when a pattern matches it: `git
+  check-ignore` consults the index, and a file under version control is part of the reviewable
+  artifact whatever the patterns say. The question is asked from the file's **own directory**
+  with a bare `./name` — on Windows Git Bash an absolute path can arrive in POSIX-mount form that
+  `git.exe` rejects with exit 128, and reading that as "not ignored" would have left the reported
+  platform broken while Linux CI passed; a relative name has no drive letter to translate.
+  Resolving it that way also costs no path normalization, so the check adds one process to a
+  Markdown edit rather than the three a `cygpath`-normalized repo-root prefix strip would have
+  (the existing telemetry spawn-budget tests hold that line). Git's repository-selection and
+  discovery environment is cleared for the check, as `in_git_working_tree` already does: an
+  inherited `GIT_DIR` from a session wrapper would let the PARENT repository answer, and a
+  session inside a linked worktree under an ignored path (`.claude/worktrees/**`) would then read
+  every file it edits as ignored.
+
+  The check **fails toward linting**: git absent, the path outside the working tree, or
+  `check-ignore` erroring leaves the run alone rather than skipping it. A scope check that fails
+  closed disables the hook invisibly and repo-wide, with no output to notice it by.
+
+- **`markdown_format_lint_gitignored` (boolean, default `false`)** — set `true` to lint
+  gitignored files anyway. Read from the `CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_LINT_GITIGNORED`
+  hook-process mirror, since shell-form hook commands reject `${user_config.*}` substitution
+  (Plugins reference, "User configuration", https://code.claude.com/docs/en/plugins-reference,
+  fetched 2026-08-08); a value that is not `true`/`false` falls back to the default and is never
+  interpolated.
+
+### Changed
+
+- README documents the path-scope rule, its opt-out, and `markdownlint-cli2`'s own
+  `ignores`/`gitignore` keys as the finer-grained lever for tracked files;
+  `/markdown-format:setup check` gained a path-scope step that reports the repository's ignored
+  Markdown as out of scope and the effective opt-out value.
+
+## [0.9.1]
+
+### Changed
+
+- **Shared `hook-utils.sh`: a hook invocation spawns three fewer external processes (#1978).**
+  Every hook that buffers its stdin paid an `awk` (one float division, to slice the read timeout), a
+  `printf | tr -d '\r'` pipeline (a fork and an exec to delete one byte class from a string bash
+  rewrites in place), and a `jq -e .` validity probe over a buffer the read loop had already parsed
+  with jq. On Windows Git Bash, where process creation is `fork()` emulation, each spawn costs
+  ~140 ms. Behavior is unchanged: the slice keeps the three-decimal form `read -t` is given, the
+  buffer is CR-stripped as before, and the completeness verdict is reused only when jq itself
+  produced it — so a host without jq still fails open exactly as it did. Also adds
+  `hook::jq_fields`, which extracts several fields from one payload in a single jq process for
+  hooks that read two or three of them. Synced from `lib/hook-utils.sh`.
+
 ## [0.9.0]
 
 ### Changed

@@ -2,7 +2,7 @@
 
 Full detail for the `/worktree create [name]` action. SKILL.md carries the headline plus the shared-helper safety invariant; this file carries the pre-flight guards, name validation, base-ref selection, the explain-before-create block, the directory-rename caveats, and the post-create setup checks.
 
-`create` does **not** call `EnterWorktree(name:)` (which lands in the in-repo `.claude/worktrees/`, where a read matching a path-scoped rule's glob also loads the parent checkout's copy of that rule — upstream anthropics/claude-code #29599 / #23565). It routes through the shared helper `${CLAUDE_PLUGIN_ROOT}/scripts/worktree-create.sh`, which places the worktree at an **external root** (`<root>/<owner>-<repo>-<slug>`), copies `.worktreeinclude` files, and prints the path; the skill then calls `EnterWorktree(path:)` on that path.
+`create` does **not** call `EnterWorktree(name:)` (which lands in the in-repo `.claude/worktrees/`, where a read matching a path-scoped rule's glob also loads the parent checkout's copy of that rule — see SKILL.md's nesting-invariant paragraph for the measurement and the current upstream issue state). It routes through the shared helper `${CLAUDE_PLUGIN_ROOT}/scripts/worktree-create.sh`, which places the worktree at an **external root** (`<root>/<owner>-<repo>-<slug>`), copies `.worktreeinclude` files, and prints the path; the skill then calls `EnterWorktree(path:)` on that path.
 
 Create a new worktree with guided naming and setup verification.
 

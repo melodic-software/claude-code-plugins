@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Secret-safe config structure facts for the audit skill.
 #
-# Output: per-file validity and key counts. Never prints env values.
+# Output: per-file validity and key counts, plus the model and effort values
+# audit category H needs from settings.local.json. Never prints env values.
 # Exit: 0 parseable; 1 invalid JSON; 2 jq missing.
 #
 # Env:
@@ -46,6 +47,30 @@ fi
 SETTINGS="$PROJECT_ROOT/.claude/settings.json"
 LOCAL="$PROJECT_ROOT/.claude/settings.local.json"
 MCP="$PROJECT_ROOT/.mcp.json"
+
+# Managed (machine-scope) policy settings — highest-precedence layer. Paths per
+# the official settings doc (verified 2026-08-08); the legacy Windows
+# C:\ProgramData location is unsupported since v2.1.75 and deliberately not
+# probed. Windows resolution goes through $PROGRAMFILES so a relocated
+# Program Files directory still resolves. SETTINGS_AUDIT_MANAGED_PATH is the
+# test seam — the real locations are absolute system paths a fixture dir
+# cannot reach.
+if [[ -n "${SETTINGS_AUDIT_MANAGED_PATH:-}" ]]; then
+  MANAGED="$SETTINGS_AUDIT_MANAGED_PATH"
+else
+  case "$OSTYPE" in
+  darwin*)
+    MANAGED="/Library/Application Support/ClaudeCode/managed-settings.json"
+    ;;
+  msys* | cygwin*)
+    MANAGED="${PROGRAMFILES:-C:\\Program Files}\\ClaudeCode\\managed-settings.json"
+    ;;
+  *)
+    MANAGED="/etc/claude-code/managed-settings.json"
+    ;;
+  esac
+fi
+MANAGED_DROPIN="${MANAGED%managed-settings.json}managed-settings.d"
 
 emit_file_facts() {
   local label="$1" path="$2" kind="$3"
@@ -93,16 +118,39 @@ emit_file_facts() {
       '
     ;;
   local)
+    # Model and effort values are emitted in full, unlike env and permission
+    # entries which stay counts. They are configuration identifiers — level
+    # names, model names, a boolean — not credentials, and the audit's category
+    # H cannot decide its findings from counts: the allowlist wildcard rule
+    # turns on which family each entry names, and the fallback cap turns on
+    # entry order. Counting them here would leave a local-only misconfiguration
+    # invisible. The env-value and secret-field guard above is unchanged.
     tr -d '\r' <"$path" | jq -r '
         "Env keys: \((.env // {} | keys | length))",
         "Deny count: \((.permissions.deny // []) | length)",
         "Ask count: \((.permissions.ask // []) | length)",
         "Allow count: \((.permissions.allow // []) | length)",
-        "Plugin keys: \((.enabledPlugins // {} | keys | length))"
+        "Plugin keys: \((.enabledPlugins // {} | keys | length))",
+        "Effort level: \(if has("effortLevel") then (.effortLevel | tostring) else "unset" end)",
+        "Fallback chain: \(if has("fallbackModel") then "\(.fallbackModel | length) raw, \(.fallbackModel | reduce .[] as $m ([]; if index($m) then . else . + [$m] end) | length) after dedup" else "unset" end)",
+        "Fallback entries: \(if has("fallbackModel") then (if (.fallbackModel | length) == 0 then "(empty list)" else (.fallbackModel | join(", ")) end) else "unset" end)",
+        "Available models: \(if has("availableModels") then (if (.availableModels | length) == 0 then "(empty list)" else (.availableModels | join(", ")) end) else "unset" end)",
+        "Enforce available models: \(if has("enforceAvailableModels") then (.enforceAvailableModels | tostring) else "unset" end)"
       '
     ;;
   mcp)
     tr -d '\r' <"$path" | jq -r '"MCP servers: \((.mcpServers // {} | keys | length))"'
+    ;;
+  managed)
+    # Structure only, same posture as `local`: managed policy can carry org
+    # values an operator would not expect echoed into a report.
+    tr -d '\r' <"$path" | jq -r '
+        "Deny count: \((.permissions.deny // []) | length)",
+        "Ask count: \((.permissions.ask // []) | length)",
+        "Allow count: \((.permissions.allow // []) | length)",
+        "Hooks events: \((.hooks // {} | keys | length))",
+        "Env keys: \((.env // {} | keys | length))"
+      '
     ;;
   *) ;;
   esac
@@ -115,5 +163,16 @@ printf '\n'
 emit_file_facts ".claude/settings.local.json" "$LOCAL" local || invalid=1
 printf '\n'
 emit_file_facts ".mcp.json" "$MCP" mcp || invalid=1
+printf '\n'
+emit_file_facts "managed-settings.json (machine scope)" "$MANAGED" managed || invalid=1
+if [[ -d "$MANAGED_DROPIN" ]]; then
+  dropin_count=0
+  for f in "$MANAGED_DROPIN"/*.json; do
+    [[ -f "$f" ]] && dropin_count=$((dropin_count + 1))
+  done
+  printf 'Managed drop-in dir: present (%s *.json file(s), merged alphabetically on top of the base)\n' "$dropin_count"
+else
+  printf 'Managed drop-in dir: absent\n'
+fi
 
 [[ "$invalid" -eq 0 ]]

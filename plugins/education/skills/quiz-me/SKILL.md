@@ -72,7 +72,9 @@ Produce a **self-contained single-file HTML** report (all CSS/JS inline, no remo
 openable via `file://`, synthetic data only — never real secrets or tokens). Markdown
 fallback where the project convention prefers it. Sections: context, intuition, decisions,
 what-was-done, then the **quiz at the bottom** the user must answer — the canonical prompt
-pattern ("a quiz at the bottom on the changes that I must pass").
+pattern ("a quiz at the bottom on the changes that I must pass"). Match each narrative
+section's length to what the change needs: cover the substance, but do not pad with filler,
+redundant summaries, or boilerplate.
 
 - **Answer key persists with the artifact.** Embed the key in the report — a collapsed
   `<details>` block in HTML, an appendix section in the markdown fallback. Grade

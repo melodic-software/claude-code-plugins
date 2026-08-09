@@ -1,5 +1,64 @@
 # Changelog — docs-hygiene plugin
 
+## [0.9.6]
+
+### Changed
+
+- **`extract-ssot`'s `identify` survey prompt drops two emphasis decorations.** "Apply STRICT Tier 0
+  discipline" and the "— CRITICAL" heading suffix on the discrimination rules are redundant with the
+  structure that already carries that weight: the numbered forms table and the required per-candidate
+  evidence fields. The load-bearing requirements — each candidate MUST be classified by repetition
+  form, and Pass B semantic clustering being required rather than optional — are untouched.
+
+## [0.9.5]
+
+### Fixed
+
+- **`extract-ssot`'s volatility gate no longer rests on a cache-invalidation mechanism that does
+  not operate on the surface it scopes to** (docs-hygiene 0.9.4 → 0.9.5). Anti-pattern #9 was
+  "Cache invalidation cascade": extracting into an always-loaded file that gets edited often meant
+  "downstream sessions' prompt caches invalidate on every edit", with a symptom of falling cache
+  hit rate. Decision-framework test #3 carried the same leg, cited to the **API** prompt-caching
+  page with the gloss "cache TTL hinges on stability".
+
+  Both fail against the docs. The API page nowhere ties TTL to content stability — TTL is an
+  explicit five-minute default with a one-hour opt-in — and it is the wrong surface besides: this
+  skill scopes to a consuming repository's tracked markdown, which is consumed by Claude Code
+  sessions. On that surface Claude Code's own prompt-caching page is the authority, and it says
+  editing an always-loaded file mid-session "does not invalidate the cache, but the edit also
+  doesn't apply", while sequential sessions "share the prefix only when the git status snapshot at
+  startup matches" — so any commit already breaks cross-session prefix sharing and the SSOT's edit
+  frequency is not the marginal driver.
+
+  The real cost of a volatile always-loaded SSOT is propagation, and it is worth a gate. Pattern #9
+  is now "Always-loaded SSOT propagation lag": a correction lands in the repo while every session
+  already running keeps following the superseded version until its next `/clear`, `/compact`, or
+  restart. Its symptom, mitigations, and the test #3 rationale are rewritten to that mechanism, a
+  scope fence separates it from API-surface caching (where prefix volatility *does* cost an Agent
+  SDK fleet sharing one prefix across machines), and a fourth mitigation tells the author to say so
+  when a correction must reach live sessions. The slot number is unchanged, so the by-number
+  citations to patterns #10-#13 across `actions/`, `lessons.md`, and SKILL.md are untouched;
+  SKILL.md's taxonomy list carries the new name. Sources:
+  <https://code.claude.com/docs/en/prompt-caching#editing-claude-md-mid-session>,
+  <https://code.claude.com/docs/en/prompt-caching#cache-scope>, and
+  <https://platform.claude.com/docs/en/build-with-claude/prompt-caching#cache-storage-and-sharing>
+  (verified 2026-08-04).
+
+## [0.9.4]
+
+### Fixed
+
+- **`compress`'s scope-boundary list no longer calls `/code-review` and `/simplify`
+  "built-in".** The "Not a `/code-review` / `/simplify` shadow" bullet read "The built-in
+  `/code-review` and `/simplify` review code changes", mixing two categories the official
+  docs keep apart: the commands reference states "Most are built-in commands whose behavior
+  is coded into the CLI" and marks both `/code-review` and `/simplify` **[Skill]**, "a
+  bundled skill", while the skills page adds that bundled skills are "prompt-based" and
+  that `/doctor` was "a built-in command rather than a bundled skill" before v2.1.205 — the
+  labels are mutually exclusive. Both surfaces are bundled skills; the bullet now says so
+  (<https://code.claude.com/docs/en/skills#bundled-skills>). Scope is unchanged — the bullet
+  still excludes code review from `/compress`'s markdown-prose remit.
+
 ## [0.9.3]
 
 ### Fixed

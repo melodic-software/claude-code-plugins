@@ -42,6 +42,32 @@ wheel and SHA-256 in `.github/requirements-ci.txt`, and Dependabot tracks both
 dependency roots. CI consumes those manifests with `npm ci` and hash-required
 `pip`, never mutable global installs.
 
+### Local / workstation ruff
+
+Do **not** trust a bare `ruff` on `PATH` for verification in this repository.
+A workstation `ruff` at a different version from the one CI installs disagrees
+with CI in both directions — it reports findings on an unmodified `main` tree
+that CI accepts, and misses findings CI raises — because a release can move a
+rule into or out of the default set, as 0.16.0 did for eighteen `E`/`F` rules.
+Resolve the tool from the pin instead of from `PATH`:
+
+```shell
+scripts/run-ruff.sh check <paths>
+# equivalent: uvx ruff==$(awk '/^ruff==/{sub(/^ruff==/,""); sub(/[[:space:]\\].*$/,""); print; exit}' .github/requirements-ci.txt) check <paths>
+```
+
+`scripts/run-ruff.sh` uses a PATH `ruff` only when it already reports the pinned
+version (the CI install path); otherwise it runs `uvx ruff==<pin>`. Plugin
+contract tests that lint Python (`engine.test.sh`) invoke that wrapper. The pin
+is read at run time, so the wrapper follows the repository's version wherever it
+goes and carries no copy of its own.
+
+Bumping the pin is a deliberate Dependabot change, and its direction is set
+elsewhere: the pin is held equal to the fleet inventory in
+melodic-software/dotfiles (`.chezmoidata/uv-tools.yaml`), which is what installs
+a developer's local toolchain, so CI never lints with a ruff nobody runs. Do not
+"fix" a clean tree by adopting a newer ruff's new rules in an unrelated PR.
+
 ## Authoritative references
 
 - [Reuse workflows and pin a commit SHA](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows)

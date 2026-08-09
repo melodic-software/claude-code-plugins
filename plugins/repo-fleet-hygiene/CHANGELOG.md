@@ -3,6 +3,63 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.0]
+
+### Added
+
+- **Three worktree findings the collector could not previously express.**
+  `worktree-not-a-root` (HIGH) fires when a registered path exists but
+  `git rev-parse --show-prefix` is non-empty: the path is a subdirectory of a work tree rather than
+  its root, so every `git -C` probe of it answers with the CONTAINING repository's state at exit 0
+  — indistinguishable from a healthy clean worktree, and the shape that makes a leftover directory
+  read as safe to remove. `worktree-root-unverifiable` (UNKNOWN) covers the case where that probe
+  itself fails; both stop worktree classification for that registration rather than describing the
+  wrong repository. `worktree-nested-in-repository` (MEDIUM) reports a non-main registration whose
+  root sits inside the canonical checkout's own working tree instead of at an external root — the
+  placement that makes a read matching a path-scoped rule's glob also load the parent checkout's
+  copy of that rule.
+
+  `rev-parse --show-prefix` joins the probe allowlist, matching `--show-toplevel`'s shape:
+  read-only, operand-free, fixed arity. The containment test resolves the canonical checkout
+  through git rather than reusing the discovered path, so both operands come from one source — a
+  filesystem-derived path and a git-emitted one differ by drive spelling on Windows, and the
+  comparison would silently never match.
+
+### Fixed
+
+- **A bare-clone hub silently skipped the placement check.** `canonical_top` is resolved with
+  `git rev-parse --show-toplevel`, which fails on a bare repository by design, so
+  `worktree-nested-in-repository` was never evaluated for any registration under a bare hub and
+  nothing said so — a placement check that quietly did not run reads identically to one that ran
+  and found nothing. A bare hub is now recognized as such (it has no working tree for a worktree to
+  be nested inside, so the skip is legitimate) and any OTHER failure to resolve the working-tree
+  root emits `worktree-placement-unverifiable` (UNKNOWN), matching what every sibling probe in the
+  same function already does. `--is-bare-repository` joins the probe allowlist in the same
+  read-only, operand-free, fixed-arity shape as `--show-toplevel` and `--show-prefix`.
+
+- **`worktree-root-unverifiable` had no test coverage.** The mock's `--show-prefix` arm returned
+  success for every input, so the collector's probe-failure branch was dead code as far as the
+  suite was concerned and a regression in it — a wrong confidence tier, message drift, a dropped
+  `continue` that let the wrong-repository probes run anyway — would have gone undetected. A
+  fixture now fails that probe, following the same shape the suite already uses for the worktree
+  inventory.
+
+- **The SKILL.md handoff row overstated what one of two findings proves.** It asserted that "every
+  `git -C` probe describes the containing repository" for `worktree-not-a-root` AND
+  `worktree-root-unverifiable`, but that is established only for the former. The latter's probe
+  FAILED, so root-ness is unproven rather than disproven — which `confidence-model.md` already
+  stated correctly. The two now have separate rows.
+
+## [0.8.1]
+
+### Fixed
+
+- **The merged-PR evidence window now covers busy fleet repositories (#1795).** The
+  repository-scoped `gh pr list --state merged` query now covers the most recent 1000 PRs instead
+  of 200 while preserving the existing `UNKNOWN merged-pr-window-truncated` disclosure when that
+  finite cap binds. The batch and exact-head limits are shared with the probe allowlist so their
+  admitted arguments cannot drift from the call sites.
+
 ## [0.8.0]
 
 ### Fixed

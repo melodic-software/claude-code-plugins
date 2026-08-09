@@ -21,7 +21,7 @@ Run the strongest review capability your environment provides, scoped to the bra
 
 Auto-scale aspects to the diff: always check code errors; add test-focused review when test files changed; add type-design review for new type-heavy files. Collect findings.
 
-## 1.3 Verify EVERY finding (CRITICAL)
+## 1.3 Verify every finding
 
 For each finding:
 

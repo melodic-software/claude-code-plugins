@@ -2,9 +2,28 @@
 
 Tips from Boris Cherny's Parts 13–15 threads + the Thariq/Sid workflows deep-dive + the Boris/Cat interview (May 28 – Jun 10, 2026): Opus 4.8 launch, dynamic workflows, auto-mode-retired-plan-mode, context minimalism, nested subagents, `fork: true`, Fable 5.
 
+> **Benchmark figures in this file are launch-day snapshots, not current standings** (Sections 78
+> and 94). Each figure's basis is the launch announcement cited in its own section — on both pages
+> the figures live in the capabilities-table **image**, not the page text, so grepping the fetched
+> HTML finds nothing and the table image itself has to be opened. A figure holds only for the
+> release its announcement made: benchmark names, suite versions, and scores churn —
+> a suite revises, a vendor reports against a different harness, a later model reorders the table.
+> Classified as historical 2026-08-02 and deliberately not refreshed here. **Recheck trigger:** a
+> decision that would turn on any figure below, a new frontier-model release, or a suite version
+> bump (e.g. Terminal-Bench 2.1 → 2.2). On a firing, resolve current figures from the vendor's own
+> announcement for that release plus
+> [models overview](https://platform.claude.com/docs/en/about-claude/models/overview), and leave
+> these lines as history rather than restating a fresh snapshot here. **Pricing figures (Sections
+> 78, 94–95) are the same kind of snapshot** — launch-day rates, verified still current 2026-08-04.
+> Current rates are upstream-owned: resolve them from
+> [pricing](https://platform.claude.com/docs/en/about-claude/pricing), never from these lines.
+> **The Section 94 specs sentence (model id, context window, max output, knowledge cutoff) is the
+> same kind of snapshot** — verified still current 2026-08-08 against the models overview linked
+> above, which owns those fields. Resolve current specs there, never from these lines.
+
 ## 78. Opus 4.8 — Strongest Coding Model Yet
 
-Shipped May 28, 2026. SWE-Bench Pro 64.3 → 69.2; Terminal-Bench 2.1 66.1 → 74.6. Same price as 4.7. The bigger shift is honesty: it tells you when it's unsure and catches its own bugs instead of declaring victory early — a model that overclaims at step 4 wastes the next 40 steps, so honesty is what makes async work (`/goal`, workflows) actually finish. Also shipped: Fast mode for Opus 4.8 (research preview, ~2.5× speed, toggle `/fast`) and effort control on claude.ai.
+Shipped May 28, 2026. Launch-day benchmarks, from the [launch announcement](https://www.anthropic.com/news/claude-opus-4-8#opus-48s-capabilities): SWE-Bench Pro 64.3 → 69.2; Terminal-Bench 2.1 66.1 → 74.6. Same price as 4.7. The bigger shift is honesty: it tells you when it's unsure and catches its own bugs instead of declaring victory early — a model that overclaims at step 4 wastes the next 40 steps, so honesty is what makes async work (`/goal`, workflows) actually finish. Also shipped: Fast mode for Opus 4.8 (research preview, ~2.5× speed, toggle `/fast`) and effort control on claude.ai.
 
 > **Superseded (Jun 9, 2026):** Fable 5 is now the strongest coding model (Section 94). Opus 4.8 details remain accurate for that release.
 
@@ -74,7 +93,7 @@ Correction to Section 80's launch guidance: say **"use a workflow"**, not the ba
 
 Launched Jun 9, 2026 — a "Mythos-class" model made safe for general use, in Claude Code and Cowork. Boris: "the best model I have used for coding, by a wide margin… less prompts and steers, more efficient token use, better code quality, better tool use, more intelligent self-verification, longer running sessions, and higher trust & autonomy." A day later: "Fable has judgement, taste, and dimensionality… the first model I've used that was so methodical and precise [debugging] — taking measurements and adding logs then verifying that it truly fixed the issue before declaring victory… It really has this 'big model smell.'"
 
-Benchmarks (Fable 5 → Opus 4.8): SWE-Bench Pro **80.3%** → 69.2%; FrontierCode/Diamond (xhigh) **29.3%** → 13.4%; GDPval-AA **1932** → 1890; OSWorld-Verified **85.0%** → 83.4%. On starred benchmarks (cybersecurity, biology, Terminal-Bench, HLE, HealthBench) Fable performs closer to Opus 4.8 due to safety fallbacks — those higher figures are Mythos 5. Boris confirms the safety classifiers are currently "trigger-happy" (flagging ordinary debugging as cyber/bio) and being improved.
+Launch-day benchmarks (Fable 5 → Opus 4.8), from the [launch announcement](https://www.anthropic.com/news/claude-fable-5-mythos-5#evaluating-claude-fable-5-and-claude-mythos-5): SWE-Bench Pro **80.3%** → 69.2%; FrontierCode/Diamond (xhigh) **29.3%** → 13.4%; GDPval-AA **1932** → 1890; OSWorld-Verified **85.0%** → 83.4%. On starred benchmarks (cybersecurity, biology, Terminal-Bench, HLE, HealthBench) Fable performs closer to Opus 4.8 due to safety fallbacks — those higher figures are Mythos 5. Boris confirms the safety classifiers are currently "trigger-happy" (flagging ordinary debugging as cyber/bio) and being improved.
 
 Specs: model id `claude-fable-5`; 1M context; 128K max output; adaptive thinking; knowledge cutoff Jan 2026; no fast mode yet. **Pricing: $10/M input · $50/M output — exactly 2× Opus 4.8**; cache write $12.50, cache read $1; full 1M context at standard rate. Karpathy: "SOTA on everything by a margin… a major-version-bump-deserving step change… You can give it a lot more ambitious tasks — the model 'gets it' and it will just go."
 

@@ -31,54 +31,54 @@ components are declared in, not a component, so it has no row.
 
 | Component | Official doc page | Verified date |
 |---|---|---|
-| Skills (`skills/`) | <https://code.claude.com/docs/en/skills> | 2026-07-17 |
-| Commands — legacy flat-file skills (`commands/`) | <https://code.claude.com/docs/en/commands> | 2026-07-17 |
-| Agents / subagents (`agents/`) | <https://code.claude.com/docs/en/sub-agents> | 2026-07-17 |
-| Workflows (`workflows/`) | <https://code.claude.com/docs/en/workflows> | 2026-07-27 |
-| Hooks (`hooks/hooks.json`) | <https://code.claude.com/docs/en/hooks> | 2026-07-17 |
-| MCP servers (`.mcp.json`) | <https://code.claude.com/docs/en/mcp> | 2026-07-17 |
-| LSP servers (`.lsp.json`) | <https://code.claude.com/docs/en/plugins-reference#lsp-servers> | 2026-07-17 |
-| Output styles (`output-styles/`) | <https://code.claude.com/docs/en/output-styles> | 2026-07-17 |
-| Themes (`themes/`) | <https://code.claude.com/docs/en/plugins-reference#themes> | 2026-07-17 |
-| Monitors (`monitors/monitors.json`) | <https://code.claude.com/docs/en/plugins-reference#monitors> | 2026-07-17 |
-| Channels (`channels` manifest field) | <https://code.claude.com/docs/en/channels> | 2026-07-17 |
-| Executables (`bin/`) | <https://code.claude.com/docs/en/plugins-reference#file-locations-reference> | 2026-07-17 |
-| Settings (`settings.json` defaults) | <https://code.claude.com/docs/en/settings> | 2026-07-17 |
-| Dependencies (`dependencies` manifest field) | <https://code.claude.com/docs/en/plugin-dependencies> | 2026-07-17 |
+| Skills (`skills/`) | <https://code.claude.com/docs/en/skills> | 2026-08-06 |
+| Commands — legacy flat-file skills (`commands/`) | <https://code.claude.com/docs/en/commands> | 2026-08-06 |
+| Agents / subagents (`agents/`) | <https://code.claude.com/docs/en/sub-agents> | 2026-08-06 |
+| Workflows (`workflows/`) | <https://code.claude.com/docs/en/workflows> | 2026-08-06 |
+| Hooks (`hooks/hooks.json`) | <https://code.claude.com/docs/en/hooks> | 2026-08-06 |
+| MCP servers (`.mcp.json`) | <https://code.claude.com/docs/en/mcp> | 2026-08-06 |
+| LSP servers (`.lsp.json`) | <https://code.claude.com/docs/en/plugins-reference#lsp-servers> | 2026-08-06 |
+| Output styles (`output-styles/`) | <https://code.claude.com/docs/en/output-styles> | 2026-08-06 |
+| Themes (`themes/`) | <https://code.claude.com/docs/en/plugins-reference#themes> | 2026-08-06 |
+| Monitors (`monitors/monitors.json`) | <https://code.claude.com/docs/en/plugins-reference#monitors> | 2026-08-06 |
+| Channels (`channels` manifest field) | <https://code.claude.com/docs/en/channels> | 2026-08-06 |
+| Executables (`bin/`) | <https://code.claude.com/docs/en/plugins-reference#file-locations-reference> | 2026-08-06 |
+| Settings (`settings.json` defaults) | <https://code.claude.com/docs/en/settings> | 2026-08-06 |
+| Dependencies (`dependencies` manifest field) | <https://code.claude.com/docs/en/plugin-dependencies> | 2026-08-06 |
 
 ## Authoring
 
 | Page | Official doc page | Verified date |
 |---|---|---|
-| Create plugins | <https://code.claude.com/docs/en/plugins> | 2026-07-17 |
-| Plugins reference (schemas, variables, CLI) | <https://code.claude.com/docs/en/plugins-reference> | 2026-07-17 |
-| Skills | <https://code.claude.com/docs/en/skills> | 2026-07-17 |
-| Slash commands | <https://code.claude.com/docs/en/commands> | 2026-07-17 |
-| Hooks reference | <https://code.claude.com/docs/en/hooks> | 2026-07-17 |
-| Automate actions with hooks (guide) | <https://code.claude.com/docs/en/hooks-guide> | 2026-07-17 |
-| Subagents | <https://code.claude.com/docs/en/sub-agents> | 2026-07-17 |
-| Dynamic workflows — script-held orchestration, runtime agent caps | <https://code.claude.com/docs/en/workflows> | 2026-07-27 |
-| MCP | <https://code.claude.com/docs/en/mcp> | 2026-07-17 |
-| Connect to MCP servers (quickstart) | <https://code.claude.com/docs/en/mcp-quickstart> | 2026-07-17 |
-| Output styles | <https://code.claude.com/docs/en/output-styles> | 2026-07-17 |
-| Statusline | <https://code.claude.com/docs/en/statusline> | 2026-07-17 |
-| Push events into a session with channels | <https://code.claude.com/docs/en/channels> | 2026-07-17 |
-| Channels reference | <https://code.claude.com/docs/en/channels-reference> | 2026-07-17 |
-| Sandboxing the Bash tool | <https://code.claude.com/docs/en/sandboxing> | 2026-07-17 |
-| Sandbox environments | <https://code.claude.com/docs/en/sandbox-environments> | 2026-07-17 |
-| Run parallel sessions with worktrees | <https://code.claude.com/docs/en/worktrees> | 2026-07-17 |
-| Tools reference (includes the Monitor tool) | <https://code.claude.com/docs/en/tools-reference> | 2026-07-17 |
+| Create plugins | <https://code.claude.com/docs/en/plugins> | 2026-08-06 |
+| Plugins reference (schemas, variables, CLI) | <https://code.claude.com/docs/en/plugins-reference> | 2026-08-06 |
+| Skills | <https://code.claude.com/docs/en/skills> | 2026-08-06 |
+| Slash commands | <https://code.claude.com/docs/en/commands> | 2026-08-06 |
+| Hooks reference | <https://code.claude.com/docs/en/hooks> | 2026-08-06 |
+| Automate actions with hooks (guide) | <https://code.claude.com/docs/en/hooks-guide> | 2026-08-06 |
+| Subagents | <https://code.claude.com/docs/en/sub-agents> | 2026-08-06 |
+| Dynamic workflows — script-held orchestration, runtime agent caps | <https://code.claude.com/docs/en/workflows> | 2026-08-06 |
+| MCP | <https://code.claude.com/docs/en/mcp> | 2026-08-06 |
+| Connect to MCP servers (quickstart) | <https://code.claude.com/docs/en/mcp-quickstart> | 2026-08-06 |
+| Output styles | <https://code.claude.com/docs/en/output-styles> | 2026-08-06 |
+| Statusline | <https://code.claude.com/docs/en/statusline> | 2026-08-06 |
+| Push events into a session with channels | <https://code.claude.com/docs/en/channels> | 2026-08-06 |
+| Channels reference | <https://code.claude.com/docs/en/channels-reference> | 2026-08-06 |
+| Sandboxing the Bash tool | <https://code.claude.com/docs/en/sandboxing> | 2026-08-06 |
+| Sandbox environments | <https://code.claude.com/docs/en/sandbox-environments> | 2026-08-06 |
+| Run parallel sessions with worktrees | <https://code.claude.com/docs/en/worktrees> | 2026-08-06 |
+| Tools reference (includes the Monitor tool) | <https://code.claude.com/docs/en/tools-reference> | 2026-08-06 |
 
 ## Distribution / marketplace
 
 | Page | Official doc page | Verified date |
 |---|---|---|
-| Create & distribute a marketplace | <https://code.claude.com/docs/en/plugin-marketplaces> | 2026-07-17 |
-| Discover & install plugins | <https://code.claude.com/docs/en/discover-plugins> | 2026-07-17 |
-| Plugin dependencies (version constraints) | <https://code.claude.com/docs/en/plugin-dependencies> | 2026-07-17 |
-| Recommend plugins for your org (plugin relevance) | <https://code.claude.com/docs/en/plugin-relevance> | 2026-07-17 |
-| Recommend your plugin from your CLI (plugin hints) | <https://code.claude.com/docs/en/plugin-hints> | 2026-07-17 |
-| Plugins in the Agent SDK | <https://code.claude.com/docs/en/agent-sdk/plugins> | 2026-07-17 |
+| Create & distribute a marketplace | <https://code.claude.com/docs/en/plugin-marketplaces> | 2026-08-06 |
+| Discover & install plugins | <https://code.claude.com/docs/en/discover-plugins> | 2026-08-06 |
+| Plugin dependencies (version constraints) | <https://code.claude.com/docs/en/plugin-dependencies> | 2026-08-06 |
+| Recommend plugins for your org (plugin relevance) | <https://code.claude.com/docs/en/plugin-relevance> | 2026-08-06 |
+| Recommend your plugin from your CLI (plugin hints) | <https://code.claude.com/docs/en/plugin-hints> | 2026-08-06 |
+| Plugins in the Agent SDK | <https://code.claude.com/docs/en/agent-sdk/plugins> | 2026-08-06 |
 
 The Agent SDK's own skills/hooks/subagents/MCP pages (`agent-sdk/skills`, `agent-sdk/hooks`,
 `agent-sdk/subagents`, `agent-sdk/mcp`) describe those concepts for custom SDK-built agent hosts, not
@@ -90,24 +90,52 @@ SDK-based host.
 
 | Page | Official doc page | Verified date |
 |---|---|---|
-| Settings | <https://code.claude.com/docs/en/settings> | 2026-07-17 |
-| Server-managed settings | <https://code.claude.com/docs/en/server-managed-settings> | 2026-07-17 |
-| Control MCP server access for your organization | <https://code.claude.com/docs/en/managed-mcp> | 2026-07-17 |
-| Memory — CLAUDE.md, `.claude/rules/`, auto memory | <https://code.claude.com/docs/en/memory> | 2026-07-17 |
-| The `.claude` directory | <https://code.claude.com/docs/en/claude-directory> | 2026-07-17 |
-| Permissions | <https://code.claude.com/docs/en/permissions> | 2026-07-17 |
-| Permission modes | <https://code.claude.com/docs/en/permission-modes> | 2026-07-17 |
-| Environment variables | <https://code.claude.com/docs/en/env-vars> | 2026-07-17 |
+| Settings | <https://code.claude.com/docs/en/settings> | 2026-08-06 |
+| Server-managed settings | <https://code.claude.com/docs/en/server-managed-settings> | 2026-08-06 |
+| Control MCP server access for your organization | <https://code.claude.com/docs/en/managed-mcp> | 2026-08-06 |
+| Memory — CLAUDE.md, `.claude/rules/`, auto memory | <https://code.claude.com/docs/en/memory> | 2026-08-06 |
+| The `.claude` directory | <https://code.claude.com/docs/en/claude-directory> | 2026-08-06 |
+| Permissions | <https://code.claude.com/docs/en/permissions> | 2026-08-06 |
+| Permission modes | <https://code.claude.com/docs/en/permission-modes> | 2026-08-06 |
+| Environment variables | <https://code.claude.com/docs/en/env-vars> | 2026-08-06 |
+
+## Prompting doctrine (platform docs)
+
+The instruction text a plugin ships — skill bodies, agent definitions, hook-injected prose,
+embedded sample prompts — is authored against these pages. They live on `platform.claude.com`
+(model behavior), not `code.claude.com` (harness behavior); the platform docs' own self-updating
+master list is
+[`https://platform.claude.com/docs/llms.txt`](https://platform.claude.com/docs/llms.txt).
+
+| Page | Official doc page | Verified date |
+|---|---|---|
+| Prompting best practices (all current models) | <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices> | 2026-08-08 |
+| Prompting Claude Fable 5 | <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5> | 2026-08-08 |
+| Prompting Claude Sonnet 5 | <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5> | 2026-08-08 |
+| Prompting Claude Opus 5 | <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5> | 2026-08-08 |
+| Prompting Claude Opus 4.8 | <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-4-8> | 2026-08-08 |
+| Thinking (adaptive thinking, `display`, disable-rejection set, sampling-param 400 set) | <https://platform.claude.com/docs/en/build-with-claude/thinking> | 2026-08-08 |
+
+## Evaluation guidance (platform docs)
+
+This marketplace authors model-graded eval fixtures for its skills (see the migration playbook's
+eval warrant policy) and ships the `evals` plugin distilling this guidance, so the platform-side
+evaluation pages are plugin-relevant here alongside the prompting-doctrine rows above.
+
+| Page | Official doc page | Verified date |
+|---|---|---|
+| Define success criteria and build evaluations | <https://platform.claude.com/docs/en/test-and-evaluate/develop-tests> | 2026-08-08 |
+| Evals cookbook (source: `anthropics/claude-cookbooks` `misc/building_evals.ipynb`) | <https://platform.claude.com/cookbook/misc-building-evals> | 2026-08-08 |
 
 ## Reference / schemas
 
 | Page | Official doc page | Verified date |
 |---|---|---|
-| Docs index (discover any other page) | <https://code.claude.com/docs/llms.txt> | 2026-07-17 |
-| CLI reference | <https://code.claude.com/docs/en/cli-reference> | 2026-07-17 |
-| Error reference | <https://code.claude.com/docs/en/errors> | 2026-07-17 |
-| Glossary | <https://code.claude.com/docs/en/glossary> | 2026-07-17 |
-| Release changelog — per-version behavior changes | <https://code.claude.com/docs/en/changelog> | 2026-07-26 |
+| Docs index (discover any other page) | <https://code.claude.com/docs/llms.txt> | 2026-08-06 |
+| CLI reference | <https://code.claude.com/docs/en/cli-reference> | 2026-08-06 |
+| Error reference | <https://code.claude.com/docs/en/errors> | 2026-08-06 |
+| Glossary | <https://code.claude.com/docs/en/glossary> | 2026-08-06 |
+| Release changelog — per-version behavior changes | <https://code.claude.com/docs/en/changelog> | 2026-08-06 |
 
 **On citing the changelog.** It is indexed here because the prose pages can lag it: a behavior can
 change in a release and reach the topic page a release or more later, and when the two disagree the

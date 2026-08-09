@@ -21,7 +21,7 @@ mosaic (multi-word) rhyme, and rhyme worksheets. Internal Pat-framed generation 
 live Datamuse lookup supplements only for vocabulary breadth, syllable verification, or
 semantic-field mining.
 
-Method content is Pat Pattison's, under `context/pat-pattison/`. A future author's rhyme method
+Method content is Pat Pattison's, under the plugin-root `../../context/pat-pattison/`. A future author's rhyme method
 plugs in at `context/<author>/` without changing this skill.
 
 ## Action Router
@@ -58,6 +58,23 @@ Write generated files to the paths in
 consuming project's own songwriting layout when it defines one. Before loading any bundled
 `templates/<name>.md`, check `${CLAUDE_PROJECT_DIR}/songwriting/templates/pat-pattison/<name>.md`
 first — a project-level override wins over the bundled default.
+
+## Boundary — what this skill must NOT emit
+
+This skill surfaces rhyme candidates and stress-tests them. It does not decide, and it does not
+write the line the rhyme lands in.
+
+| If you are about to emit | STOP and route to |
+| --- | --- |
+| A finished lyric line built around a chosen rhyme | `/songwriting:co-write` line-brainstorm |
+| A single winning rhyme presented as the answer | nothing — surface the labeled menu and let the writer pick by emotional intent |
+| A structural judgement about where the rhyme sits | `/songwriting:song-form` |
+| A claim that a candidate scans | `/songwriting:meter-prosody` |
+
+Two failures belong to this skill specifically and are caught nowhere downstream: a rhyme list that
+is all-perfect, all-single-word, and all-same-part-of-speech, and a "mosaic" list whose entries
+reuse the source word with a prefix (identity in disguise). §1 of the response filter names both
+fail signatures — run it rather than recalling it.
 
 ## Related skills
 

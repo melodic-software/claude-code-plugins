@@ -34,11 +34,16 @@ load-time machinery, no user turn, no unresolved scope.
   path alone which ancestor is the configured root, and the root is where the self-ignoring
   `.gitignore` guard belongs. Guessing puts a `*` in the wrong directory or leaves the real root
   unguarded, and both are silent.
+- **The reason the topic is being researched** — the decision it feeds and who the output is for.
+  Same blindness as the topic, with a worse failure mode: a missing topic is silence you can report,
+  while a missing reason is invisible. You research the topic as written, return something
+  well-formed, and neither side learns it answered the wrong question. Intent is what decides which
+  of several defensible readings of a topic is the one wanted.
 - **The budget** — how much depth the parent authorized.
 - **Capability flags** the parent probed, notably whether nested spawning is available.
 
-**If the topic or the slice path is absent or ambiguous, stop and return the payload below with
-`status: truncated` and the missing field named in `open_questions`.** Do not invent a topic, do
+**If the topic, the reason, or the slice path is absent or ambiguous, stop and return the payload
+below with `status: truncated` and the missing field named in `open_questions`.** Do not invent a topic, do
 not narrow to something adjacent, and do not research "whatever the repo seems to be about". A
 dispatched agent guessing its own scope is a parent-envelope failure wearing a finished artifact.
 

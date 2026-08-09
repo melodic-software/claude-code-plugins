@@ -40,6 +40,28 @@ Mechanical gates prove you did not break the machine; outcome verification prove
 
 **Decision rule:** no existing test exercises the changed path → the path is unverified regardless of the green suite; write a minimal probe (scratch script, direct invocation, one-off test) and run it. The environment genuinely cannot exercise the path → apply the downgrade formula below; never substitute reasoning for the missing run.
 
+## Know what already verifies before you build a check
+
+**Trigger:** you are about to build a check, gate, or verification skill for a project, rather than run a one-off probe.
+
+Verification support exists before anyone writes anything custom, and it spans three products rather than one feature list — the harness, a managed review service, and a separate platform API. Route to each surface's own reference page rather than to any summary of it, this table included: the page tracks behavior changes and a summary freezes at the moment it was written.
+
+| Surface | What it is | Canonical page |
+|---|---|---|
+| `/verify` | Bundled harness skill that builds and runs the app to confirm a change does what it should, without falling back to tests or type checks | [Skills — Run and verify your app](https://code.claude.com/docs/en/skills#run-and-verify-your-app) |
+| Toolchain | Any tool returning a readable pass/fail — test suite, build exit code, linter, a script diffing output against a fixture — read and acted on inside the loop, with the project's exact build and test commands listed in its CLAUDE.md so they are read rather than inferred | [Best practices — Give Claude a way to verify its work](https://code.claude.com/docs/en/best-practices#give-claude-a-way-to-verify-its-work), [Memory — Set up a project CLAUDE.md](https://code.claude.com/docs/en/memory#set-up-a-project-claude-md) |
+| Code Review | Managed multi-agent service reviewing PRs in enabled repositories — a hosted product, not a harness feature | [Code Review](https://code.claude.com/docs/en/code-review) |
+| GitHub Actions | A workflow job invoking Claude with a verification skill, so the same skill files a local session uses run in CI | [GitHub Actions — Using skills](https://code.claude.com/docs/en/github-actions#using-skills) |
+| Spec validation | Verifying each change against a markdown spec in the repository — **a pattern, not a shipped artifact** | **None.** No bundled skill answers to it; write it as a repo-local [skill](https://code.claude.com/docs/en/skills), the mechanism the harness documents for exactly this |
+| Rubrics in Claude Managed Agents | **Separate platform API product**: a grader in its own context window scores an artifact against a rubric and hands failures back for rework | [Managed Agents — define outcomes](https://platform.claude.com/docs/en/managed-agents/define-outcomes) |
+
+The two rows carrying no harness artifact are the ones to read twice:
+
+- **Spec validation's absence is dated, not permanent.** Verified 2026-08-03 against the bundled-skill rosters in [Skills](https://code.claude.com/docs/en/skills) and [Commands](https://code.claude.com/docs/en/commands); recheck if a release note adds one.
+- **Managed Agents rubrics belong to a different product.** The automatic grader-and-rework loop exists in that service, not in this harness; inside a session the equivalent is a construction you assemble (a fresh-context subagent as grader). The documented route into that product is the bundled `/claude-api managed-agents-onboard` skill.
+
+**Provided never means automatic.** These surfaces span categories the official docs keep apart — `/verify` and `/code-review` are bundled prompt-based skills, not built-in CLI commands, and Code Review is a hosted service. Since v2.1.215 `/verify` and `/code-review` run only when you invoke them; Code Review is research preview, limited to Team and Enterprise, unavailable under Zero Data Retention, and enabled per repository by an Owner. Check plan, version, and invocation expectations against those pages before a project's verification story depends on any of them. Pages verified 2026-08-03.
+
 ## The check is the spec until proven wrong
 
 **Trigger:** a test or gate fails and the tempting fix edits the check rather than the code.

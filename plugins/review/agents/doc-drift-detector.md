@@ -83,9 +83,13 @@ baseline) instead of the default above.
 
 ## Output format
 
-| Doc file | Line | Claim | Actual state | Action |
-|----------|------|-------|--------------|--------|
-| `docs/example.md` | 42 | "Uses library X" | Not in the dependency manifest | Update or mark planned |
+| Doc file | Line | Claim | Actual state | Confidence | Action |
+|----------|------|-------|--------------|------------|--------|
+| `docs/example.md` | 42 | "Uses library X" | Not in the dependency manifest | high | Update or mark planned |
+
+Confidence uses exactly high / medium / low (the severity baseline's confidence axis): high when
+the actual state was verified directly (file read, manifest checked), medium for a partial
+cross-reference, low for an inference not yet checked against the artifact.
 
 Categorize findings:
 

@@ -282,6 +282,12 @@
       "tags": ["knowledge", "skill", "tdd", "testing", "unit-testing", "test-design", "best-practices"]
     },
     {
+      "name": "evals",
+      "source": "./plugins/evals",
+      "category": "testing",
+      "tags": ["evals", "evaluation", "success-criteria", "llm-judge", "grading", "rubric", "knowledge", "skill"]
+    },
+    {
       "name": "claude-ops",
       "source": "./plugins/claude-ops",
       "category": "claude-code",

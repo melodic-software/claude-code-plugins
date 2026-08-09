@@ -3,6 +3,19 @@
 All notable changes to the `dometrain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.2]
+
+### Fixed
+
+- Setup skill's unreportable-connection bullet now matches the MCP page it cites. Amazon Bedrock,
+  Google Cloud's Agent Platform, and Microsoft Foundry form their own group alongside configurations
+  without tool search rather than members of it — upstream's "and on" clause makes them additional,
+  and tool search is on by default for Claude 4.5-generation models on Agent Platform. Microsoft
+  Foundry was missing entirely, and the platform names now match upstream's. The bullet also no
+  longer instructs a check the skill cannot run: it may not inspect the environment, so it reports
+  the state and routes to `/mcp` rather than naming which configuration is in effect
+  (<https://code.claude.com/docs/en/mcp#automatic-reconnection>).
+
 ## [0.1.1]
 
 ### Added

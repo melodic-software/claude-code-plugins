@@ -28,7 +28,7 @@ For each file found, record: path, line count, visible line count (excluding HTM
 Read [../reference/criteria.md](../reference/criteria.md), then execute every applicable check against
 each discovered file. Apply by entity type:
 
-- **C1-C8**: CLAUDE.md and CLAUDE.local.md
+- **C1-C9**: CLAUDE.md and CLAUDE.local.md (C9 is project-scoped — skip for CLAUDE.local.md)
 - **R1-R4**: `.claude/rules/` files
 - **C7/R3 (currency)**: version pins and counts are checked against the repo's own pin files
   (`global.json`, `.nvmrc`, `.python-version`, `.mcp.json`, or ecosystem equivalents). File-path-existence
@@ -55,8 +55,12 @@ For each check:
 3. Record the finding with severity (FAIL/WARN/INFO) or PASS
 4. Include the specific evidence (line count, file path, contradicting text)
 
-**Be mechanical, not interpretive.** The criteria file defines what passes and fails. Apply as
-written. Same criteria = same results.
+**Be mechanical on the deterministic spine (C1/M1/RD1, and M2's script-backed half)** — the
+criteria file defines what passes and fails there, so same criteria = same results. M2's other
+half stays judgment (the script checks existence, not content — see its criteria row). The
+judgment-tier checks (C2-C9, R1-R4, M3-M4)
+require reading and interpreting content; apply their fixed criteria consistently rather than
+skipping the judgment.
 
 ## Step 3: Cross-file consistency check (C6)
 

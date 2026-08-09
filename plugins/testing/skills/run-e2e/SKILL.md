@@ -32,9 +32,9 @@ Autonomous live verification of a running application: start it, navigate, inter
 
 UI changes (Blazor / Razor / HTML / CSS / JS shipped to browser) MUST use the e2e route — the UI evidence contract is mandatory there.
 
-## Step 1: Prerequisites (MANDATORY — hard-fail if missing)
+## Step 1: Prerequisites
 
-Check tool availability per the prerequisite matrix in [context/e2e.md](context/e2e.md). When the consuming project names a prerequisite orchestrator tool/MCP, its absence hard-fails — STOP and report what's missing and how to fix it; do not attempt workarounds.
+Check tool availability per the prerequisite matrix in [context/e2e.md](context/e2e.md). When the consuming project names a prerequisite orchestrator tool/MCP, its absence hard-fails — STOP and report what's missing and how to fix it; do not attempt workarounds, because a substitute path produces unverified pass/fail results, defeating live verification.
 
 On a hard-fail, STOP **and** write a structured verification-environment gap report to the run's evidence output before stopping. The report lists what is missing — each key, CLI, MCP, or environment the run needs — and what the operator must provide to make the run possible. The STOP still holds; the gap report is its actionable half, so the operator receives a precise list of what to supply rather than a bare failure.
 
@@ -58,7 +58,7 @@ The workflow steps themselves live in [context/e2e.md](context/e2e.md).
 
 ## Handoff
 
-- Surface verification available → when the bundled `/verify` command is present (Claude Code ≥2.1.145), delegate surface verification to it first and consume its findings; when absent, the orchestrator path in this skill runs unchanged as the fallback
+- Surface verification available → the bundled `/verify` skill (Claude Code ≥2.1.145) covers the same surface, but is [user-invoked only from v2.1.215](https://code.claude.com/docs/en/skills#bundled-skills) — before v2.1.215 Claude could also run it on its own. Suggest the user run it and consume its findings rather than delegating to it, on every version: the suggestion holds across the whole `≥2.1.145` availability window, delegation does not. The orchestrator path in this skill runs unchanged either way
 - All scenarios pass → `/verification:confirm outcome` when the `verification` plugin is installed (composes intent + evidence; chains back here when needed); otherwise report the captured evidence for outcome sign-off directly
 - Visual bugs or API errors found → `/testing:diagnose`
 - Scenario planning needed first → `/testing:plan`

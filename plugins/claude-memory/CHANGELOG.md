@@ -3,6 +3,179 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.8]
+
+### Fixed
+
+- **The `audit` workflow told the model to be mechanical on every check, contradicting the skill's
+  own determinism contract.** "Be mechanical, not interpretive" sat unscoped at the end of the
+  generic per-check loop, but only C1/M1/M2/RD1 are the deterministic spine; C2-C9, R1-R4, and
+  M3-M4 are a judgment tier that requires reading and interpreting content by design. The
+  instruction is now scoped to the spine, and the judgment tier is told to apply its fixed criteria
+  consistently rather than to skip the judgment.
+
+### Changed
+
+- **`stateless`' disable workflow says why the scope gate exists** — applying the wrong scope
+  silently changes memory behavior for the wrong audience (machine-wide vs. this repo) — instead of
+  stating the stop as a bare prohibition.
+
+## [0.5.7]
+
+### Fixed
+
+- **A pseudo-frontmatter block of markdown headings silently blanked the `audit` skill's M1
+  index-size count** (claude-memory 0.5.6 → 0.5.7, criteria 1.5.1 → 1.5.2). `memory-dir-stats.sh`
+  admitted `#` lines to its frontmatter grammar, so a `MEMORY.md` opening with a `---` thematic
+  break, carrying up to twenty heading lines, and reaching any later `---` had the whole span
+  stripped as frontmatter: a five-line index reported one loaded line. M1 is a `[FAIL]`-severity
+  size gate that a low count always passes, so the shape disarmed the gate outright. A `#` line is
+  a comment to YAML but a heading to markdown, and headings are loaded content, so the grammar now
+  accepts only blank lines and `key:` mapping entries and that shape counts every line.
+
+  The cost is that a real YAML comment inside frontmatter ends the block, and ending it strips
+  nothing at all — the opening `---`, every entry held so far, and the rest of the block through
+  its close all count. That is an over-count, the direction M1's readings already guess toward,
+  and it takes a hand-edited index to reach, since Claude Code only stamps a `modified` scalar
+  into frontmatter a file already has. Comments join an existing class rather than opening a new
+  one: frontmatter this grammar cannot parse already ended the block before this change, and a
+  block sequence under `tags:` still does. criteria.md M1 reading 1 records both halves.
+
+## [0.5.6]
+
+### Changed
+
+- **`stateless`'s purge scope boundary now points at the official full wipe** (claude-memory
+  0.5.5 → 0.5.6). Wherever the skill states that purge is auto-memory-only — the SKILL.md scope
+  statement and table, `context/purge.md`'s pre-gate presentation and follow-through, and
+  `reference/official-guidance.md`'s out-of-scope section — it now names `claude project purge`
+  (Claude Code v2.1.124+). The command's scope — what it deletes, what it leaves alone, and that
+  it confirms first — is quoted verbatim in `reference/official-guidance.md` and nowhere else, so
+  the skill holds one copy of an upstream list instead of one per call site; every other mention
+  points there, and code.claude.com/docs/en/claude-directory stays the source for the deletion
+  plan and flags.
+  Also retires the reference file's now-false "there is no built-in purge command" claim.
+
+### Fixed
+
+- **The `stateless` scope table answered for four entities with one verdict, and was wrong for
+  two of them.** A single `Transcripts / history / sessions / snapshots` row claimed
+  `cleanupPeriodDays` auto-cleans all four. Per code.claude.com/docs/en/claude-directory
+  (verified 2026-08-04) it auto-cleans transcripts and shell snapshots, but not the other two:
+  `history.jsonl` sits among the paths "not covered by automatic cleanup" that "persist
+  indefinitely", and `sessions/` "isn't part of the age-based sweep", being cleared when each
+  session exits. The row also gave one location for all four and said nothing about
+  `claude project purge`, whose scope cuts across it and lands differently on each of the four
+  (quoted in `reference/official-guidance.md`). Now four rows,
+  each carrying its own path, sweep behavior, and purge behavior, so every verdict is true of
+  every subject in its row. The same correction applies to `reference/official-guidance.md`'s
+  out-of-scope section, which stated the sweep for all four as one fact. Also retires two
+  counted re-fetch pointers ("the two source pages", "both pages") that the file family had
+  grown past — they now point at the source list rather than counting it.
+
+- **Three `stateless` reference quotes attributed to the settings doc were paraphrase, not
+  quotation.** `reference/official-guidance.md` presents block quotes as verbatim, but its
+  settings-precedence list, `env` description, and `cleanupPeriodDays` description used wording
+  absent from code.claude.com/docs/en/settings — the precedence list invented every item label
+  ("Local" for "Local project settings", "Project" for "Shared project settings") and the
+  bracketing "(highest priority)" / "lowest priority", the `env` description was a rewrite, and
+  the `cleanupPeriodDays` one stitched invented wording around real fragments with ellipses. The
+  substance was right in all three cases; only the fidelity was wrong, which is
+  the defect that matters in a file whose contract is verbatim quotation. All three now carry the
+  page's own words, verified 2026-08-05, with the precedence list quoted as the structured list it
+  is and its omissions marked. Managed settings' "cannot be overridden" property, previously
+  stitched into the precedence quote, is now quoted from the nested bullet that states it.
+
+- **The instruction-layer row claimed a user scope `CLAUDE.local.md` does not have.** One
+  `CLAUDE.md / CLAUDE.local.md / .claude/rules/` row gave the location as `repo + user`, true
+  of `CLAUDE.md` (`~/.claude/CLAUDE.md`) and of `.claude/rules/` (`~/.claude/rules/`, which
+  code.claude.com/docs/en/memory calls "Personal rules ... apply to every project on your
+  machine") but not of `CLAUDE.local.md`, which that page scopes to "Just you (current
+  project)" with no user-scope equivalent. Split so the location is true of its own subject.
+
+## [0.5.5]
+
+### Fixed
+
+- **Re-align auto-memory and CLAUDE.md reference facts with the live memory doc**
+  (claude-memory 0.5.4 → 0.5.5; criteria 1.5.0 → 1.5.1), verified against
+  code.claude.com/docs/en/memory on 2026-08-04. Two drifted facts in
+  `audit`'s `reference/official-guidance.md` corrected: `@import` recursion depth is 4 hops, not 5;
+  and `autoMemoryDirectory` is read from any settings scope (user, project, local, policy,
+  `--settings`) with project/local values gated behind the workspace trust dialog — the prior claim
+  that project settings are not accepted no longer matches the docs. M1's measurement now mirrors
+  the documented limit check: YAML frontmatter and block-level HTML comments are stripped before
+  the MEMORY.md index loads, so they don't count toward the 200-line/25KB limits (backing quote
+  added to `official-guidance.md`). The deterministic spine follows the same rule:
+  `memory-dir-stats.sh --memory-lines` now measures post-strip content instead of raw `wc -l`, a
+  new `--memory-bytes` mode covers the 25KB limb, and the SKILL.md pre-computed context reports
+  both figures so M1 never disagrees with its own injected stats. Also: the `audit` SKILL.md scope
+  table states the 25KB limb of the MEMORY.md load limit alongside the 200-line one, and a quote
+  attribution names the page's current "Set up a project CLAUDE.md" section (formerly
+  "Project memory"). The strip counts an unterminated block as content rather than swallowing the
+  rest of the file: a leading thematic break or frontmatter clipped mid-file previously reported
+  zero, and since M1 is a `[FAIL]`-severity size gate that zero always passes, the gate could not
+  fire. A fenced block inside a comment no longer toggles fence state, and text sharing a line with
+  a comment's open or close is counted as the loaded content it is. `criteria.md` M1 now records
+  the four readings the strip applies and marks them as this plugin's reading, not doc-derived —
+  the memory doc states the fenced-code carve-out for CLAUDE.md only and is silent on it for
+  MEMORY.md.
+
+## [0.5.4]
+
+### Changed
+
+- **`audit`'s C2 deletion test now runs per line, as the official docs state it** (claude-memory
+  0.5.3 → 0.5.4; criteria 1.4.0 → 1.5.0). The check evaluated whole H1/H2 sections — "Would Claude
+  make mistakes without this section?" — but the source it quotes tests each line: "For each line,
+  ask: 'Would removing this cause Claude to make mistakes?' If not, cut it." A section-level pass
+  let keep-worthy lines shield surplus neighbors in the same section. Sections remain as the
+  report's grouping unit only: findings are per line, and a section whose every line flags
+  collapses into one section-level finding. `context/fix.md`'s C2 fix pattern follows.
+
+### Added
+
+- **`audit`'s C1 carries the official symptom-first diagnostic for over-long files.** C1's
+  rationale already stated the causal claim (long files reduce adherence); it now also codifies the
+  reverse tell as detect guidance — "If Claude keeps doing something you don't want despite having
+  a rule against it, the file is probably too long and the rule is getting lost" — so an audit
+  prompted by a rule being ignored cites the tell and reports the length finding even below the
+  WARN threshold. The sourced quote lands in `reference/official-guidance.md` per the determinism
+  contract.
+
+## [0.5.3]
+
+### Added
+
+- **`audit` gains C9, a check that a project CLAUDE.md states the repo's exact build and test
+  commands** (claude-memory 0.5.2 → 0.5.3; criteria 1.3.0 → 1.4.0). It is the only CLAUDE.md check
+  that looks for *missing* content — C4 asks whether an instruction that exists is concrete enough
+  to verify, C5 whether it should have been cut, and neither asks whether the commands are there at
+  all. Official memory guidance lists build and test commands first among what project memory is
+  for, and `/init` populates them by analyzing the codebase, so without the statement they are
+  inferred every session rather than read. Two severities, following C6 and C7's pattern of heading
+  a check at its higher branch: FAIL for a stated command the repo's own manifest does not have,
+  which is C7's wrong-reference class and worse than an absent one (Claude runs it and the check
+  fails for the wrong reason); WARN for a command that is absent or given only as prose naming the
+  tool ("we use pytest" is not a command). Never flags a repo that genuinely has no build or test
+  step. Scoped to project CLAUDE.md — skipped for CLAUDE.local.md and personal files, which are not
+  repo-scoped.
+
+  **A step 0 keeps the check honest against its own source.** The memory page states both halves of
+  a tension: project memory is for "build and test commands", while the same page's
+  CLAUDE.md-vs-auto-memory table puts "Build commands" in the *auto memory* column. So the check
+  asks first whether the commands are stated on any loaded surface — nested CLAUDE.md, path-scoped
+  rule, or auto memory — and treats a yes as a C3 placement question rather than a C9 finding. The
+  requirement is that the commands be reachable, not that they sit in one file. Without this, C9
+  would flag a repo for following the other half of the page it cites.
+
+  Boundary with C7 stated explicitly so a run does not double-report: C7 owns file paths, version
+  pins, and counts; C9 owns whether the command itself runs. Backed by a new "Build and test
+  commands" section in `reference/official-guidance.md` carrying the sourced quotes the skill's own
+  determinism contract requires, and by a new eval covering the wrong-command FAIL, the step-0
+  carve-out, and the no-double-report rule.
+  The applicability ranges in `SKILL.md` and `context/audit.md` move to C9 accordingly.
+
 ## [0.5.2]
 
 ### Fixed

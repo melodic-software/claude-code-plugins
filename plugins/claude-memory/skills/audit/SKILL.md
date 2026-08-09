@@ -13,7 +13,8 @@ metadata:
 ## Pre-computed context
 
 Memory files: !`bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/memory-dir-stats.sh" --md-count 2>/dev/null || echo "0"`
-MEMORY.md lines: !`bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/memory-dir-stats.sh" --memory-lines 2>/dev/null || echo "0"`
+MEMORY.md loaded lines (200 cap): !`bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/memory-dir-stats.sh" --memory-lines 2>/dev/null || echo "0"`
+MEMORY.md loaded bytes (25KB cap): !`bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/memory-dir-stats.sh" --memory-bytes 2>/dev/null || echo "0"`
 Rules files: !`find .claude/rules -name "*.md" 2>/dev/null | wc -l | tr -d '\r' || echo "0"`
 CLAUDE.md lines: !`test -f CLAUDE.md && wc -l < CLAUDE.md | tr -d '\r' || echo "0"`
 CLAUDE.local.md exists: !`test -f CLAUDE.local.md && echo "yes" || echo "no"`
@@ -33,7 +34,7 @@ the `audit` and `automation-gaps` skills in the `claude-config` plugin).
 | Project instructions | `CLAUDE.md` | Every session, full | Yes |
 | Local overrides | `CLAUDE.local.md` | Every session, full | Yes |
 | Rules | `.claude/rules/**/*.md` | Every session (unconditional) or on-demand (path-scoped) | Yes |
-| Auto-memory | `~/.claude/projects/<project>/memory/` | First 200 lines of MEMORY.md | Yes |
+| Auto-memory | `~/.claude/projects/<project>/memory/` | First 200 lines / 25KB of MEMORY.md | Yes |
 | Settings, hooks, MCP, agents, skills | Various | Various | No — use `claude-config`'s `audit` / `automation-gaps` |
 
 ## Scope boundary (route out)
@@ -62,7 +63,7 @@ operator can weigh it against current official prompting guidance.
 The checklist at [reference/criteria.md](reference/criteria.md) is codified, not a subjective rubric.
 Its **deterministic spine** (C1 line budget, M1 index size, the script-backed M2 index integrity and
 RD1 orphan-rule checks) yields byte-identical findings on the same repo state; its **judgment tier**
-(C2-C8, R1-R4, M3-M4) applies fixed criteria with model reading, so findings vary in wording though
+(C2-C9, R1-R4, M3-M4) applies fixed criteria with model reading, so findings vary in wording though
 not in criteria — label those "judgment candidate" in the report. Criteria derive from official Claude
 Code documentation (sourced quotes in [reference/official-guidance.md](reference/official-guidance.md));
 refresh both via the `update` action.

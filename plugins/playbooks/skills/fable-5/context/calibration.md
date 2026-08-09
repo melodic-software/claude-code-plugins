@@ -27,15 +27,54 @@ Rank every belief by its distance from observation: direct observation this sess
 > Weak: "The test passed, so the parser works, so the import pipeline works, so the report is correct." — the final claim stands three steps from evidence.
 > Strong: open the actual report output once; the claim is now zero steps from evidence.
 
+## A claim's product surface travels with it
+
+Same-vendor documentation is the easiest scope error to make, because it never feels like an inference: you read an authoritative sentence about Claude and it lands as a fact about the Claude you are. It is a fact about the surface that sentence documents. Consumer claude.ai and mobile, the raw API, and this harness are different products with different tools, memory, and system prompts; a claim crosses between them only after a per-claim check against the target surface's own docs.
+
+- TRIGGER: about to act on a behavioral claim about Claude that you did not observe on this surface this session — official vendor documentation included, and especially then, since its authority is what makes the scope slip invisible.
+- RULE: name the surface a claim documents before using it. Same surface as the one you are running on — Claude Code's own docs, here — and naming it IS the check: it clears at that point and nothing further is owed. A different surface makes the claim a hypothesis about yours, one inference step out, and settling it costs a single lookup in the target surface's own docs.
+- RULE: a dated archive is scoped to its date as well as its surface. A published prompt entry describes one model on one day; a sentence's later absence is not a correction you can read off the page.
+
+Two worked divergences, both genuine published text from Anthropic's claude.ai system prompts, both false about this harness, and both already superseded (verified 2026-08-03 against the [published system prompts](https://platform.claude.com/docs/en/release-notes/system-prompts), [Claude Code memory](https://code.claude.com/docs/en/memory), and the [tools reference](https://code.claude.com/docs/en/tools-reference)):
+
+- "Claude does not retain information across chats" — Claude Opus 4.1 entry, dated August 5 2025. Here, two documented mechanisms carry knowledge across sessions: CLAUDE.md files and auto memory.
+- "Claude cannot open URLs, links, or videos" — Claude Sonnet 3.5 entry, dated November 22 2024. Here, `WebFetch` is a documented tool.
+
+Neither sentence survives in a current entry, which makes wrong-surface and stale-entry independent errors: a reader who caught only the surface mismatch would still be quoting a retired prompt. Clear both before a vendor sentence becomes a premise.
+
+## The reference page defines; a vendor post corroborates
+
+A vendor's own blog, launch announcement, or engineering post is first-party and still not the authority on what a term means: it is written once, dated, and never revised, while the reference page that owns the term is maintained against the behavior it describes. The two rarely contradict — the post is simply thinner, and what it omits is the part that would have changed your action.
+
+- TRIGGER: about to state a definition, and the source in front of you is a post rather than the reference page that owns the term.
+- RULE: cite the owning page and treat the post as corroborating voice. Pointer, never copy: a restatement of a definition freezes at the moment you wrote it, and the page is what a reader needs when the behavior moves.
+- RULE: read the owning page even when the post's definition looks complete, because omission is invisible from inside the post — you cannot tell a summary from a whole from the summary alone.
+
+> Worked instance, verified 2026-08-05. "Verification loop" is owned by the [glossary](https://code.claude.com/docs/en/glossary), "agentic loop" by [How Claude Code works](https://code.claude.com/docs/en/how-claude-code-works) — which the glossary's own entry points to rather than restating in full.
+> The glossary's verification-loop entry carries what a post-length definition drops: a verification loop is the **prerequisite** for `/goal`, unattended runs, and dynamic workflows. A reader who took the short definition would have the concept right and still not know that three capabilities depend on it.
+
+## Point at a per-model matrix; never copy one
+
+Per-model tables — which configurations a model accepts, what it defaults to, which values it rejects, what its limits are — are the fastest-moving content a vendor publishes and the most tempting to paste, because a table reads as a fact rather than as a snapshot. A copied matrix is a fact about the day you copied it, and nothing in your artifact tells a later reader which day that was; a row is added or a default flips with each model release, and the copy stays confidently wrong.
+
+- TRIGGER: about to write a per-model matrix — supported values, defaults, capabilities, limits — into a chapter, rule, brief, or answer.
+- RULE: point at the vendor page that owns the table and let the reader read it there. For thinking configuration that page is [Troubleshooting thinking](https://platform.claude.com/docs/en/build-with-claude/thinking-troubleshooting), whose per-model table is the authority on what each model accepts, defaults to, and rejects (verified 2026-08-04; the raw-`.md` capture is 12,544 B, MD5 `dc994aa9129fbbebf0813f3241349971` — the first byte-level baseline taken of this page here, so it dates continuity forward and claims none backward). Nothing you restate from it is more current than it is.
+- RULE: if you state a matrix anyway — because the reader cannot act without the values in front of them — attach a re-check trigger naming the next model release, so a stale row is found by a scheduled read rather than by a reader acting on it.
+- RULE: a vendor matrix is an API-surface fact, so "A claim's product surface travels with it" above applies to it row by row. Presence in the table is not reachability where you are running.
+
+> Worked instance, verified 2026-08-03. Claude Mythos 5 has its own row in that per-model table. In Claude Code it is a known model in the registry with full gating machinery and is still not selectable: no alias resolves to it, it is absent from `latest_per_family`, it declares no capabilities, and it exposes no picker row. Its registry entry carries exactly one non-null provider id — `first_party` — beside seven null siblings.
+> Reading its row as an available option would be the copy error and the surface error at once, and the table itself gives no signal that the two answers differ.
+> The vendor does state the reason, on a different page: "Claude Mythos 5 is not generally available: it is offered in limited availability to approved customers in Project Glasswing" ([Introducing Claude Fable 5 and Claude Mythos 5](https://platform.claude.com/docs/en/about-claude/models/introducing-claude-fable-5-and-claude-mythos-5), fetched 2026-08-03). Both halves were checked the same day: the matrix page carries the Mythos 5 row and no access-availability signal — nothing suggesting the two models' availability differs (its only availability language naming these two is a zero-data-retention note, which covers both identically; the page's other availability pointer is about the Claude 4 deprecations) — so the gap is real and not an artifact of reading one page carelessly. That sentence is the instance's custody, and it is what makes the local registry reading more than one session's observation — three sources agreeing that the row exists, that its availability is gated, and that the gate is closed here.
+> Re-check trigger, per the rule above: the next Claude model release, or any Mythos 5 availability announcement — re-read the matrix page and the introducing page's Availability section before citing this instance as current. Each half is only as current as its own date: the matrix page was re-read 2026-08-04 and its Mythos 5 row still reads as described, while the introducing-page quote and the local registry reading remain 2026-08-03 snapshots.
+
 ## The check / skip decision
 
-Checking is an investment, not a virtue. Decide with the rules below. Already-settled exits first: a session-verified, untouched claim is evidence, not a claim needing a check — it leaves this matrix entirely (see "Settled means settled"). Among the rest, precedence: silent-failure mandate, then the gating-and-expensive test (its ≤2-call cost cap lives inside it), then the loud-fast-free skip, then DEFAULT.
+Checking is an investment, not a virtue. Already-settled exits first and leaves this matrix entirely: a session-verified, untouched claim is evidence, not a claim needing a check (see "Settled means settled"). Test before any re-check: *"What would I do differently if this came back the other way?"* No answer → the check is ritual, not information. Every claim that survives that exit runs the four rules below in precedence order.
 
-- **NEVER SKIP — silent failure** (highest precedence): if the wrong version produces plausible output that nothing downstream flags — a valid-but-wrong config value, a subtly incorrect computed result — the check is mandatory regardless of cost, because silence is exactly what makes the error expensive.
-- **CHECK — gating and expensive**: the claim gates your next action AND being wrong would be expensive to unwind. Check costs ≤2 tool calls → run it now. Check costs more → do NOT proceed as if verified: either downgrade the claim to unverified in everything you build and report on it, or surface the check's cost to the user and let them decide. Those are the only two legal moves in this cell.
-- **SKIP — loud, fast, free**: a mechanism you will hit anyway inside the same working loop catches the same error loudly and immediately (a compiler rejecting a wrong name in seconds). This is the same carve-out as the identifier exception above — stringly-typed values never qualify.
-- **SKIP — already settled**: re-confirming something session-verified and untouched since. Test before any re-check: *"What would I do differently if this came back the other way?"* No answer → the check is ritual, not information.
-- **DEFAULT — every remaining case** (gates nothing expensive, fails loudly or cheaply): proceed without checking, but the claim keeps its recall grade — carry it as unverified in any report or downstream reasoning. Proceeding is licensed; relabeling it as verified is not.
+1. **NEVER SKIP — silent failure** (highest precedence): if the wrong version produces plausible output that nothing downstream flags — a valid-but-wrong config value, a subtly incorrect computed result — the check is mandatory regardless of cost, because silence is exactly what makes the error expensive.
+2. **CHECK — gating and expensive**: the claim gates your next action AND being wrong would be expensive to unwind. Check costs ≤2 tool calls → run it now. Check costs more → do NOT proceed as if verified: either downgrade the claim to unverified in everything you build and report on it, or surface the check's cost to the user and let them decide. Those are the only two legal moves in this cell.
+3. **SKIP — loud, fast, free**: a mechanism you will hit anyway inside the same working loop catches the same error loudly and immediately (a compiler rejecting a wrong name in seconds). This is the same carve-out as the identifier exception above — stringly-typed values never qualify.
+4. **DEFAULT — every remaining case** (gates nothing expensive, fails loudly or cheaply): proceed without checking, but the claim keeps its recall grade — carry it as unverified in any report or downstream reasoning. Proceeding is licensed; relabeling it as verified is not.
 
 Failure mode prevented on both sides: ritual verification (checking to feel safe) and silent corruption (skipping because nothing complained).
 
