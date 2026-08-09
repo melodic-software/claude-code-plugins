@@ -49,6 +49,7 @@ When porting upstream additions, **keep** this plugin's customizations:
 | Action dispatch (`lookup`/`update`) | `SKILL.md` | The `update` action has no upstream equivalent |
 | Progressive-disclosure structure | `context/*.md` | Upstash ships single-file skills |
 | "Do not run `ctx7 setup` / `skills install`" guidance | Multiple | This plugin owns the skill layer; Upstash expects their install flow |
+| Restrained trigger phrasing | `SKILL.md` frontmatter, `context/*.md` | Upstream's blanket forcing language ("Use even when you think you know the answer", "Always use for:") is deliberately not ported to any non-vendor surface; a genuine call-order dependency stated in body prose is not this shape |
 
 What to **adopt** from upstream (when present):
 

@@ -313,6 +313,12 @@ not automatically a duet. A duet needs equal characters who can share or answer
 the repeated material. If only one character owns the chorus, one singer can
 tell the conversation with quoted speech.
 
+**The duet test is the chorus, not the conversation.** Ask who can sing the
+repeated section. If the chorus is one character's request, plea, or claim, the
+other character cannot sing it and the song is not a duet however evenly the
+dialogue is distributed. Sung dialogue with two genuinely equal speakers is
+opera; a lyric hands the whole conversation to one singer, in quotes.
+
 Test dialogue through three POV setups:
 
 - First-person narrative: `I asked her...` or `He asked me...`
@@ -337,6 +343,22 @@ Use first-person dialogue when:
 
 If the singer merely reports what someone else said, ask why the microphone is
 in that singer's hand.
+
+**The repair when the answer is "no reason": give the singer a final insight.**
+Chapter 13 does not treat first-person dialogue as unusable when the story
+belongs to the other character — it adds a closing line in which the narrator
+says what the conversation cost or taught them, which retroactively earns the
+whole retelling. Pat's cited model is a well-known gambler song whose narrator
+spends the entire lyric quoting someone else and then, in the final line, names
+what he took from it.
+
+So the diagnostic has two exits, not one:
+
+- Move to third person, letting the scene speak without a narrator, **or**
+- keep first person and write the narrator an ending that justifies the telling.
+
+Choose the second when the narrator genuinely changed; the first when they did
+not.
 
 ## Direct-address dialogue
 
@@ -368,12 +390,23 @@ Use third-person dialogue when:
 
 ## Dialogue structure note
 
-Chapter 13 also shows how dialogue sections can use structure to support emotion:
-balanced verse setup, an off-balance transitional bridge, and a chorus whose
-rhyme pattern withholds full resolution. This belongs primarily to
-[form](form.md), [meter](meter.md), and [prosody](prosody.md), but it matters
-for POV because the structural surprise can spotlight the line the speaking
-character most needs to say.
+Chapter 13 also shows how dialogue sections use structure to support emotion,
+in a deliberate three-stage sequence:
+
+1. **A balanced verse lulls the listener** — four lines of common meter, `xaxa`.
+   The stability is a setup, not the point.
+2. **A three-line transitional bridge topples that balance** — an odd line count
+   after an even one leaves the ear reaching for a landing, which is exactly
+   what a transitional bridge is for.
+3. **The chorus withholds the rhyme the ear was promised**, repeating the title
+   in the fourth position instead. See
+   [deceptive cadence](hook.md#deceptive-cadence--spotlight-the-title-by-withholding-the-rhyme).
+
+This belongs primarily to [form](form.md), [meter](meter.md), and
+[prosody](prosody.md), but it matters for POV because the structural surprise
+spotlights the line the speaking character most needs to say — and in quoted
+dialogue, that line is inside quotation marks. The structure decides which
+character's words the section is actually about.
 
 When dialogue has a quoted chorus, check whether the structure makes that
 quote feel inevitable.
