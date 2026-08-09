@@ -188,10 +188,12 @@ while the latch is set (clear it on a fresh healthy snapshot after the pause end
    per-clone and untracked, so this repairs an existing consumer that upgraded without adding a
    tracked rule, changes nothing the repo tracks, and no-ops where the rule is already present.
 1. **Re-anchor.** Re-read the durable loop state block; classify guard mode against the floor
-   above; take the cycle-start snapshot of the frontier and open items, **retaining the captured
-   ids** — the exit condition tests those ids and never re-reads the frontier. The drain exit is
-   evaluated against this snapshot — new automated intake arriving mid-cycle is **reported, never
-   chased** (per the convention).
+   above; take the cycle-start snapshot of the frontier and open items, **retaining every captured
+   id** — the exit condition tests their union and never re-reads the seam. Test the union, not the
+   open ids alone: the two are one derivation apart on paper, but nothing here says the snapshot is
+   one read, and an item created between two reads would otherwise be captured yet never tested.
+   The drain exit is evaluated against this snapshot — new automated intake arriving mid-cycle is
+   **reported, never chased** (per the convention).
 2. **Intake sweep.** Run `/work-items:triage` over untriaged intake in its **autonomous lane** —
    this loop's launch-prompt standing rules are the direction its mutation gate requires, and every
    comment or item it creates carries the AI disclaimer. Sweep hardening: an advisory issue
@@ -409,8 +411,8 @@ citation. This lane's specifics:
 
 ## Exit condition
 
-Evaluate at cycle end against the cycle-start snapshot's **retained ids, never a fresh frontier
-read**: every open item the snapshot captured — every autonomous-frontier candidate among them — is
+Evaluate at cycle end against the cycle-start snapshot's **retained ids, never a fresh seam read**:
+every id the snapshot captured — its open items and its autonomous-frontier candidates alike — is
 closed or has an **open, non-draft** PR the bound adapter's "Open linked PRs" operation reports as
 close-linked (the provider's own computed close-linkage, whose query mechanics and draft exclusion
 the adapter owns).
@@ -422,8 +424,8 @@ forever. Absence from a later frontier read is also not resolution: an item anot
 or one that becomes blocked, leaves the frontier unresolved. And every snapshot frontier candidate
 is a snapshot open item — the frontier is derived by filtering `state == open` — so the single test
 above already covers the frontier, including an item the snapshot held as untriaged intake that
-step 2 promoted mid-cycle: still a snapshot open item, so it still holds the drain open and gets
-worked.
+step 2 promoted mid-cycle: still a snapshot open item, so it still holds the drain open and is
+worked — this cycle if the adaptive item cap has a slot, otherwise a later one.
 
 Lane-infrastructure items never gate the drain: the per-lane telemetry tracking issues — this
 lane's and any sibling lane's, identified as `/work-items:triage` ("Scope: raw intake only")

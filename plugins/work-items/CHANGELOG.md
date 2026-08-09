@@ -3,7 +3,7 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.35.0]
+## [0.34.1]
 
 ### Fixed
 
@@ -17,11 +17,13 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   than rescoped: the frontier is derived by filtering `state == open`, so every snapshot frontier
   candidate is already a snapshot open item and the remaining snapshot-scoped test covers it — an
   item the snapshot held as untriaged intake and this cycle's sweep promoted still holds the drain
-  open and still gets worked. A second frontier limb could only ever block, never catch anything the
-  remaining test misses, and absence from a later frontier read is not resolution: an item another
-  session claims, or one that becomes blocked, leaves the frontier unresolved. Step 1 now retains
-  the captured ids the exit tests, and both stop paths name the post-snapshot intake left unworked,
-  which is what keeps "reported, never chased" true once there is no next cycle to sweep it.
+  open and is still worked, this cycle or a later one. A second frontier limb could only ever block,
+  never catch anything the remaining test misses, and absence from a later frontier read is not
+  resolution: an item another session claims, or one that becomes blocked, leaves the frontier
+  unresolved. Step 1 now retains every captured id and the exit tests their union — the snapshot is
+  nowhere specified as a single read, so testing the open ids alone would drop an item created
+  between two of them — and both stop paths name the post-snapshot intake left unworked, which is
+  what keeps "reported, never chased" true once there is no next cycle to sweep it.
 
 - **`setup` proves the checkout is a GitHub repository before auto-binding the `github` provider.**
   The unattended first bind required only that `gh` was installed and `gh auth status` succeeded —
@@ -32,9 +34,11 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   unattended bind, its resolved `owner/repo` is reported with the other defaults taken, and a probe
   that does not resolve stops with the existing named-blocker report rather than persisting an
   unusable binding. The interactive provider choice confirms the same thing, and `check`'s binding
-  probe makes the same call instead of PASSing a shape-valid `github` binding no repository backs —
-  INFO with the resolved `owner/repo`, FAIL when none resolves, and INFO when `gh` is absent or
-  unauthenticated, an account gap the probe cannot tell apart from a wrong binding.
+  probe makes the same call instead of PASSing a shape-valid `github` binding no repository backs.
+  That probe verdicts on *why* the call failed, never on failure alone: a checkout nothing can
+  derive a repo from is FAIL, while an absent or unauthenticated `gh`, a 401/403, a rate limit, or
+  a network failure is INFO — account and availability facts are not verdicts on a binding, and a
+  correctly bound repo must not fail `check` because the provider was briefly unreachable.
 
 - **`track start` verifies the fully qualified remote-tracking ref when resolving the base branch.**
   The guard checked `git rev-parse --verify "origin/<name>^{commit}"`, an abbreviated ref git
