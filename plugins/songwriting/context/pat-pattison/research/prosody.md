@@ -7,6 +7,10 @@ article (motion controllers, tone-of-voice); patpattison.com
 "Language and Songwriting" (greedy spots, ordinary-language preservation);
 American Songwriter "Motion Creates E-Motion" column (4-controller framework).
 
+Audited against *Writing Better Lyrics* (2009) Chapters 18-19 only. The 1991
+Pentad material and every non-book source above are distillations nobody has
+checked against their originals.
+
 ## Image inventory
 
 - Chapter 18: `image_rsrcAUE.jpg`.
@@ -167,7 +171,7 @@ assonance, consonance.
 
 Use weaker rhyme types when full closure would contradict the emotion. Use
 stronger rhyme types when the section needs confidence, arrival, or trust.
-Cross-reference `rhyme-types.md` for the detailed type definitions.
+See [rhyme types](rhyme-types.md) for the detailed type definitions.
 
 ## Motion tools
 

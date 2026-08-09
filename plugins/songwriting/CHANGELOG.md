@@ -53,6 +53,13 @@ prose, example writes, or student work reaches this public repository.
 - **The order in which structure becomes audible** — rhythm, line length, rhyme
   structure, number of lines, rhyme type — which is also the order to diagnose
   a section in.
+- **`response-filter` §3 gains two boxes, and the closure vocabulary a home.**
+  Chapter 19's two generation-time rules now bind rather than sit in a research
+  file: line lengths are ruled out before a finding prescribes a rhyme change,
+  and a closure called deceptive must name the prediction the section actually
+  built. `meter.md` instructed the reader to distinguish the closure types and
+  `stable-unstable-meta.md` sorted a table by them; both now point at the
+  definitions.
 - **The flat-song diagnostic**, deferred from 0.7.1's Chapter 15 read pending
   this chapter. Chapter 19 states it in motion terms, so `prosody.md` is its
   home: a good line landing flat is a structure problem, not an inspiration
