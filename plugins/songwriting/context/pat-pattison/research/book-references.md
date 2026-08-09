@@ -25,10 +25,9 @@ headers.
 
 **"Chapter" is always spelled out, never abbreviated as "Ch" or "ch".**
 
-**The word "Book" with a number ("Book 1", "Book 2", etc.) is FORBIDDEN as a
-reference** — the short name + year carries the same disambiguation with
-zero risk of off-by-one ordering arguments and zero risk of a reader
-guessing which book is which.
+**Never cite by book number ("Book 1", "Book 2") — cite by title** — the short
+name + year carries the same disambiguation with zero risk of off-by-one
+ordering arguments and zero risk of a reader guessing which book is which.
 
 ## File-header attribution template
 

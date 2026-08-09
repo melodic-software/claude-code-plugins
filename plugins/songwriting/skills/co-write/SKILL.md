@@ -11,7 +11,8 @@ disable-model-invocation: false
 Before emitting titles, line/section option dumps, or co-write feedback, run **§5 Title + hook**
 and **§2 Line-writing** of [response-filter](../../context/pat-pattison/research/response-filter.md)
 (add **§4 Coaching posture** when facilitating a live session). NAME each box's pass / fail /
-skip-with-reason; correct before emission. Skips are valid; silent skips are not.
+skip-with-reason (aloud or in reasoning); correct before emission. Skips are valid; silent skips
+are not.
 
 ## Purpose
 
@@ -19,7 +20,7 @@ Collaborative generation: running a co-write with feedback discipline, generatin
 the Title Game), and dumping high-volume labeled options for a single line or section so the writer
 has raw material to choose from.
 
-Method content is Pat Pattison's, under `context/pat-pattison/`. A future author's method plugs in
+Method content is Pat Pattison's, under the plugin-root `../../context/pat-pattison/`. A future author's method plugs in
 at `context/<author>/` without changing this skill.
 
 ## Action Router
@@ -52,8 +53,49 @@ to `variations/` or `worksheets/` as a labeled menu (not inline). Before loading
 `templates/<name>.md`, check `${CLAUDE_PROJECT_DIR}/songwriting/templates/pat-pattison/<name>.md`
 first — a project-level override wins over the bundled default.
 
+## Boundary — this skill owns line emission, and pays for it
+
+Every other craft skill routes finished lyric lines here. That makes this the one place where
+generic output escapes into a song, so the gate is an **input** gate: what must exist BEFORE lines
+are written, not a checklist named afterward.
+
+### Hard gate — show the artifacts, do not claim them
+
+A box is passed when its output is **visible in this response or on disk at a named path**. A box
+named as passed with nothing to show is a failed box. Before emitting lines for a rhymed position:
+
+| Required before emission | What "shown" means |
+| --- | --- |
+| Sensory raw material exists | a path under the song's `ideation/`, or object-writing output in this response — from `/songwriting:object-writing generate` |
+| Rhyme candidates generated | the labeled 8-15 candidate menu across ≥4 stability tiers, including ≥3 mosaic, visible — from `/songwriting:rhyme` |
+| Section mode named | stated in this response: does this section SHOW (verse) or TELL (chorus)? |
+| Stress map marked | the marked line, not an assertion that it scans — from `/songwriting:meter-prosody` |
+
+Any gate may be skipped. A skip is **named, with its reason, in the output** — that is the "tools,
+not rules" stance applied honestly. A silent skip is the failure, and so is listing a box as passed
+while its artifact does not exist.
+
+If a gate's input is missing, the correct move is to invoke the skill that produces it, not to
+proceed and note the absence. Lines written without their inputs are LLM defaults wearing the
+method's vocabulary — which is exactly what the pilot produced, and exactly what the writer
+rejected.
+
+### Section mode binds before the line, not after
+
+Verses show; the chorus tells. Verses carry specific situation, image, and action; the chorus makes
+the broader statement the verses keep recoloring. Name the mode first, then check each emitted line
+against it. A chorus of concrete inventory is verse material in the wrong box, however good the
+inventory is — and a chorus is sung back, so unsingable length is a defect, not a polish item.
+
+### Mine, never transcribe
+
+Object-writing output is ore. Pull ONE image forward and build the line around it. Pasting a run of
+sensory material into a section is not using the material; it is relocating it.
+
 ## Related skills
 
+- Sensory raw material before the lines → `/songwriting:object-writing generate`
+- Metaphor for a line that needs one → `/songwriting:metaphor`
 - Blank page, an idea/seed, or a stuck fragment → `/songwriting:workflow`
 - Rhyme partners for the swaps → `/songwriting:rhyme`
 - Pre-lock audit of the chosen line/section → `/songwriting:diagnose audit`

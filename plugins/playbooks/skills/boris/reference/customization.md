@@ -21,11 +21,13 @@ Quick settings to make Claude Code feel right:
 
 ### Adjust Effort Level
 
-`/model` picks your preferred effort level:
+`/effort` picks your preferred effort level:
 
-- **Low** — fewer tokens, faster responses
-- **Medium** — balanced behavior
-- **High** — more tokens, more intelligence
+- **`low`** — fewer tokens, faster responses
+- **`medium`** — balanced behavior
+- **`high`** — more tokens, more intelligence
+- **`xhigh`** — deeper reasoning for coding and agentic work
+- **`max`** — reasons as long as it needs; highest token spend
 
 Boris uses High for everything.
 

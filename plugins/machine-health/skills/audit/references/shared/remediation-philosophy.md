@@ -44,7 +44,7 @@ These are **never** allowed, regardless of how obvious the need seems:
 - **No network changes.** DNS, proxy, routing table — read-only.
 - **No scheduled task creation.** The scheduling layer is explicitly out of scope.
 
-A remediation requiring any of the above is not a remediation — it's a proposal for `TODO.md`.
+A remediation requiring any of the above is not a remediation — it's a proposal for `<StateBase>/TODO.md`.
 
 ## Authorization chain
 
@@ -66,7 +66,7 @@ The first invocation (`RunMode = first-run`) forces `DryRun = true` regardless o
 - Produce a report the human can review before authorizing remediations.
 - Seed `state/history.jsonl` with a baseline.
 
-`TODO.md` is seeded with explicit unchecked items asking the human to approve each remediation class. Until those are checked, even a normal `weekly` run keeps `DryRun = true`.
+Nothing is approved by default. A normal `weekly` run does clear `DryRun`, but every remediation still has to pass the authorization chain above — an `approved: true` entry in `<StateBase>/state/approvals.json` (written via `/machine-health:setup`; see [`approvals.md`](approvals.md)) plus the 60-second user-load heuristic. An unapproved remediation is skipped and logged, never attempted; `TODO.md` records the proposal but no checkbox in it grants approval.
 
 ## Defer under user load
 
@@ -89,7 +89,7 @@ Failure **does not** trigger another attempt, alternate remediation, or fall-thr
 Example: `Restart-StoppedService` succeeds, but 2 hours later the service dies again. The next weekly run re-detects the stopped service and remediates again. If the same service-target pair is remediated in **3 consecutive runs**, the orchestrator should:
 
 - Log this as a pattern in the run log.
-- Add a `TODO.md` entry proposing investigation (not another remediation type — investigation by human).
+- Add a `<StateBase>/TODO.md` entry proposing investigation (not another remediation type — investigation by human).
 - Continue remediating until the human acts.
 
 Don't stop remediating on loop detection — the alternative is leaving a stopped service stopped, which is strictly worse. But make the loop visible.

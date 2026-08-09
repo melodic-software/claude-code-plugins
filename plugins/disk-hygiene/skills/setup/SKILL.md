@@ -64,8 +64,12 @@ fails closed like every other guard-relevant unknown in this plugin.
    `python3` (`py -3`, `python`, or an absolute interpreter path — any interpreter already
    proven real):
    `"<python>" "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/python3_alias_probe.py"`; if no
-   such interpreter exists, apply the probe's own portable signal directly in PowerShell — a
-   zero-length file under a `WindowsApps` path component is the stub
+   such interpreter exists **or the one you chose emits no JSON verdict**, apply the probe's own
+   portable signal directly in PowerShell. Proven real is not the same as able to run the probe:
+   a pre-3.7 interpreter rejects its `from __future__ import annotations` and a legacy `python`
+   2.x fails earlier still, each before anything is classified — so a machine whose only
+   alternate launcher is Python 3.6 reaches the verdict through PowerShell, not by having no
+   launcher at all. The signal: a zero-length file under a `WindowsApps` path component is the stub
    (`(Get-Item -Force (Get-Command python3).Source)` → `Length` 0 plus a `ReparsePoint`
    attribute); (c) only after the verdict is `ok` may the version probe execute `python3` —
    and distinguish its two failure modes for the remediation wording: an interpreter that

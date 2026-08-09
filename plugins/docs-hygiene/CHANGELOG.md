@@ -1,6 +1,6 @@
 # Changelog — docs-hygiene plugin
 
-## [0.9.6]
+## [0.9.7]
 
 ### Changed
 
@@ -8,6 +8,16 @@
   explanatory prose from the frontmatter `description` toward the shared skill-listing budget
   (claude-code-plugins#2022, option 2). Every single-quoted trigger phrase is preserved verbatim
   (skill-quality check 3); the four-factor rubric and verdict classes are unchanged in the body.
+
+## [0.9.6]
+
+### Changed
+
+- **`extract-ssot`'s `identify` survey prompt drops two emphasis decorations.** "Apply STRICT Tier 0
+  discipline" and the "— CRITICAL" heading suffix on the discrimination rules are redundant with the
+  structure that already carries that weight: the numbered forms table and the required per-candidate
+  evidence fields. The load-bearing requirements — each candidate MUST be classified by repetition
+  form, and Pass B semantic clustering being required rather than optional — are untouched.
 
 ## [0.9.5]
 

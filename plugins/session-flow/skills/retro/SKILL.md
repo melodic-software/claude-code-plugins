@@ -76,9 +76,9 @@ Resolve at runtime — never hardcode machine-specific paths:
 | "trends", "scores", "how am I doing" | **trends** | `context/trends.md` — cross-session score history |
 | "quick retro", short session, limited context | **quick** | `context/quick.md` — abbreviated pass |
 
-If `$ARGUMENTS` specifies a mode, use it. Otherwise infer from context; when context is >75% used
-or compaction has occurred, prefer `quick`; ambiguous → `session`. Read the mode's context file
-before proceeding.
+If `$ARGUMENTS` specifies a mode, use it. Otherwise infer from context; when the session is long or
+degraded, or compaction has occurred, prefer `quick`; ambiguous → `session`. Read the mode's context
+file before proceeding.
 
 ## Step 1: Execute the mode
 
