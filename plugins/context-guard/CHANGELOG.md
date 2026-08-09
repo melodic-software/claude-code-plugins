@@ -5,6 +5,26 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.3]
+
+### Fixed
+
+- **`setup check` FAILs a pre-revision-3 installed shim instead of reporting INFO.** The rule
+  already described the defect accurately — a copy predating `# shim-revision: 3` picks the newest
+  tee by mtime alone and keeps teeing from an UNINSTALLED plugin for the whole orphan window — but
+  still classified it INFO because the statusline keeps rendering. Rendering is not the property
+  that matters; what the operator is running has a behavior defect, and INFO files it under a
+  heading operators are told they can defer. Classification now turns on the installed revision:
+  `>= 3` stays INFO, below 3 or unmarked is FAIL.
+
+  **Existing installs need one `apply`.** The statusline runs the durable copy at
+  `~/.claude/context-guard/bin/statusline-shim.sh`, which a plugin update never overwrites, so an
+  operator who ran `apply` before revision 3 shipped keeps running the old shim until they re-run
+  it. Uninstalling first is the trap worth naming: the setup skill goes with the plugin while the
+  stale shim stays behind, leaving no in-product path to the remediation. Kept in step with the
+  identical `rate-limit-guard` change (#1866) — the two shims are a deliberate byte-identical
+  cluster, so their setup contracts must not drift apart.
+
 ## [0.5.2]
 
 ### Fixed
