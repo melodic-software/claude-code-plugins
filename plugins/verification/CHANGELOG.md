@@ -3,6 +3,22 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.7]
+
+### Changed
+
+- **`/verification:confirm`'s Stage-2 pointer now promises what `context/outcome.md` actually
+  defines.** The step-6 line advertised a "severity vocabulary" that file never had — it defines only
+  the binary `CONFIRMED` / `NEEDS WORK` verdict — so a model chasing the pointer either invented a
+  severity scale or dropped severity silently. It now points at the verdict criteria.
+- **The Stage-1 subagent trigger names a size, not a judgement call.** "The mechanical pass is
+  non-trivial" became "spans more than a handful of commands"; the multi-ecosystem trigger is
+  unchanged.
+- **Shout-emphasis dropped where the surrounding text already carries the weight.** The refactor
+  criterion's "ALL tests", the live-app fallback's "SAY SO", and the UI evidence contract's "NO
+  absolute paths" now read in sentence case — the adjacent scope, the "never silently swap" clause,
+  and the enumerated constraint list respectively make each requirement unambiguous on their own.
+
 ## [0.3.6]
 
 ### Changed

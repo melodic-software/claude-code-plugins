@@ -15,10 +15,6 @@ Loads review criteria as contextual reference. Reference mode, not action mode �
 
 ## Applying criteria to changes
 
-1. **Identify changed file types** — languages, config, docs
-2. **Identify the change's nature** — new feature, refactor, bug fix, config
-3. **Select applicable criteria** — not every concern applies to every change
-4. **Check each applicable item** against the actual changes
-5. **Report findings** using the severity vocabulary in effect (project's, else baseline)
+Check the resolved criteria against the actual changes, applying only those whose surfaces the change touches — not every concern applies to every change — and report findings using the severity vocabulary in effect (project's, else baseline).
 
 Respect the project's documented skip list when one exists (generated code, lock files, build-enforced style rules) — do not re-review what tooling already enforces.

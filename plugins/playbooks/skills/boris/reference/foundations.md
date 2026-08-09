@@ -12,7 +12,7 @@ The single biggest productivity unlock. Spin up 3-5 git worktrees at once, each 
 
 ```bash
 # Create a worktree
-git worktree add .claude/worktrees/my-worktree origin/main
+git worktree add .claude/worktrees/my-worktree origin/main # portability-ok: verbatim Boris workflow example; names the example's own base branch, not a default this repo assumes
 
 # Start Claude in it
 cd .claude/worktrees/my-worktree && claude
@@ -38,6 +38,8 @@ Beyond the terminal, run additional sessions on claude.ai/code:
 ---
 
 ## 2. Model Selection
+
+> **Superseded (Jun 9, 2026):** Fable 5 is now the strongest coding model (Section 94).
 
 ### Use Opus 4.5 with Thinking for Everything
 
