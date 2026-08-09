@@ -63,9 +63,9 @@ to read them from. `<marketplace>` is the name the catalog registers under when 
 and `install` default to `user` when the flag is omitted, while `enable` auto-detects. Carry the
 same `<scope>` through all three. Note the asymmetry: `marketplace add` spells it `--scope` only,
 while `install` and `enable` also accept the `-s` short form. Registering at `user` while
-installing at `project` leaves the marketplace
-declaration out of the project's checked-in settings, so a fresh clone or CI agent carries the
-enabled plugin with no registered marketplace to resolve it from.
+installing at `project` leaves the marketplace declaration out of the project's checked-in
+settings, so a fresh clone or CI agent carries the enabled plugin with no registered marketplace
+to resolve it from.
 
 **The enable step is not optional.** This plugin ships `defaultEnabled: false`, so it installs
 DISABLED — the install seeds the token but leaves the MCP server, and therefore every `miro` tool,
@@ -89,8 +89,9 @@ Never re-run `install --config` against an existing install expecting it to take
 scope from `claude plugin list` and carry that SAME `-s <scope>` through all three commands —
 `uninstall` and `install` default to `user` and `enable` auto-detects, so omitting it against a
 `project`- or `local`-scope install removes a different record than the one that is loading and
-reinstalls at a scope that does not load, leaving the old token in use. For a `project`- or `local`-scope install, run every command from
-that project directory, since those scopes resolve against the current project.
+reinstalls at a scope that does not load, leaving the old token in use. For a `project`- or
+`local`-scope install, run every command from that project directory, since those scopes resolve
+against the current project.
 
 `-y` only skips `uninstall`'s `--prune` confirmation; this recipe never passes `--prune`, so `-y`
 has no effect here and should not be added. The reinstall needs its own `enable` for the same
