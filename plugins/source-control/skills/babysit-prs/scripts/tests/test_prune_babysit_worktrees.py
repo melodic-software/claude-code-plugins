@@ -71,7 +71,9 @@ def add_worktree(main: pathlib.Path, root: pathlib.Path, name: str) -> pathlib.P
     return wt
 
 
-def run_main(root: pathlib.Path, state_dir: pathlib.Path, *extra: str) -> tuple[int, dict]:
+def run_main(
+    root: pathlib.Path, state_dir: pathlib.Path, *extra: str
+) -> tuple[int, dict]:
     argv = [
         "prune_babysit_worktrees.py",
         "--root",
@@ -388,11 +390,11 @@ class StaleWorktreeRegistrationTests(unittest.TestCase):
 
             self.assertFalse(removed)
             self.assertTrue(pointer.is_file())
-            self.assertEqual(
-                prune.registered_repo_from_gitdir_pointer(wt), owner_repo
-            )
+            self.assertEqual(prune.registered_repo_from_gitdir_pointer(wt), owner_repo)
 
-    def _orphan_with_pointer(self, tmp: pathlib.Path) -> "tuple[pathlib.Path, pathlib.Path, pathlib.Path, pathlib.Path]":
+    def _orphan_with_pointer(
+        self, tmp: pathlib.Path
+    ) -> "tuple[pathlib.Path, pathlib.Path, pathlib.Path, pathlib.Path]":
         root = tmp / "root"
         root.mkdir()
         wt = root / "owner__repo__pr-5"
@@ -426,9 +428,7 @@ class StaleWorktreeRegistrationTests(unittest.TestCase):
             self.assertFalse(removed)
             self.assertTrue(wt.is_dir())
             self.assertTrue(pointer.is_file())
-            self.assertEqual(
-                prune.registered_repo_from_gitdir_pointer(wt), owner_repo
-            )
+            self.assertEqual(prune.registered_repo_from_gitdir_pointer(wt), owner_repo)
 
     def test_restores_the_pointer_when_a_file_appears_before_the_rmdir(self) -> None:
         # A file landing in the window between the unlink and the rmdir skips
@@ -455,9 +455,41 @@ class StaleWorktreeRegistrationTests(unittest.TestCase):
             self.assertFalse(removed)
             self.assertTrue(stray.is_file())
             self.assertTrue(pointer.is_file())
-            self.assertEqual(
-                prune.registered_repo_from_gitdir_pointer(wt), owner_repo
-            )
+            self.assertEqual(prune.registered_repo_from_gitdir_pointer(wt), owner_repo)
+
+    def test_a_raising_existence_probe_does_not_escape_the_restoration(self) -> None:
+        # `Path.exists()` re-raises an OSError outside the ignored not-found
+        # family, so a permission denial on the very directory the restoration
+        # exists to rescue must not escape the `finally` -- an exception thrown
+        # there replaces the original one AND leaves the pointer deleted.
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
+            tmp = pathlib.Path(td)
+            root, wt, pointer, owner_repo = self._orphan_with_pointer(tmp)
+
+            real_iterdir = pathlib.Path.iterdir
+            real_exists = pathlib.Path.exists
+            scans = []
+            probes = []
+
+            def failing_rescan(self: pathlib.Path):
+                scans.append(self)
+                if len(scans) == 2:
+                    raise OSError("directory unreadable mid-scan")
+                return real_iterdir(self)
+
+            def denying_exists(self: pathlib.Path, **kwargs):
+                if self == pointer:
+                    probes.append(self)
+                    raise PermissionError("access denied probing the gitfile")
+                return real_exists(self, **kwargs)
+
+            with mock.patch.object(pathlib.Path, "iterdir", failing_rescan):
+                with mock.patch.object(pathlib.Path, "exists", denying_exists):
+                    removed = prune.remove_empty_orphan_directory(wt, root)
+
+            self.assertTrue(probes, "the fixture never reached the pointer probe")
+            self.assertFalse(removed)
+            self.assertTrue(wt.is_dir())
 
     def test_a_locked_record_is_not_reported_as_pruned(self) -> None:
         # A locked record is deliberately kept: `git worktree prune` kept it
@@ -703,9 +735,7 @@ class DropOrphanedWorktreeTests(unittest.TestCase):
 
             self.assertFalse(info["directory_removed"])
             self.assertTrue(orphan_dir.exists())
-            self.assertEqual(
-                stray_file.read_text(encoding="utf-8"), "do not delete me"
-            )
+            self.assertEqual(stray_file.read_text(encoding="utf-8"), "do not delete me")
 
     def test_refuses_to_remove_an_orphan_directory_outside_root(self) -> None:
         # Defense in depth, matching `remove_worktree`'s own containment
@@ -792,9 +822,7 @@ class MainSelfHealsAnOrphanedWorktreeEntry(unittest.TestCase):
             state_dir = tmp / "state"
             lease_path = leases.lease_path(state_dir, "worker", "owner/repo#9")
             lease_path.parent.mkdir(parents=True)
-            expires_at = (
-                datetime.now(timezone.utc) + timedelta(hours=1)
-            ).isoformat()
+            expires_at = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
             lease_path.write_text(
                 json.dumps(
                     {
@@ -938,7 +966,9 @@ class NonConformingDirectoriesAreReported(unittest.TestCase):
             ],
         )
 
-    def test_apply_mode_reports_but_never_removes_an_unrecognized_worktree(self) -> None:
+    def test_apply_mode_reports_but_never_removes_an_unrecognized_worktree(
+        self,
+    ) -> None:
         # The report-don't-remove invariant is what makes an unrecognized row safe
         # to emit at all, and --apply is the only mode that can delete anything.
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
@@ -951,7 +981,9 @@ class NonConformingDirectoriesAreReported(unittest.TestCase):
 
             self.assertTrue(wt.exists())
         self.assertEqual(code, 0)
-        self.assertEqual([row["action"] for row in report["worktrees"]], ["unrecognized"])
+        self.assertEqual(
+            [row["action"] for row in report["worktrees"]], ["unrecognized"]
+        )
         self.assertFalse(report["worktrees"][0]["removed"])
 
     def test_scoped_pr_mode_still_reports_unrecognized_directories(self) -> None:
@@ -962,10 +994,14 @@ class NonConformingDirectoriesAreReported(unittest.TestCase):
             root.mkdir()
             (root / "medley-1567").mkdir()
 
-            code, report = run_main(root, pathlib.Path(td) / "state", "--pr", "owner/repo#1")
+            code, report = run_main(
+                root, pathlib.Path(td) / "state", "--pr", "owner/repo#1"
+            )
 
         self.assertEqual(code, 0)
-        self.assertEqual([row["action"] for row in report["worktrees"]], ["unrecognized"])
+        self.assertEqual(
+            [row["action"] for row in report["worktrees"]], ["unrecognized"]
+        )
 
 
 if __name__ == "__main__":

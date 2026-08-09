@@ -282,9 +282,17 @@ def remove_empty_orphan_directory(path: Path, root: Path) -> bool:
         # actually happened, never on which branch got here. `removed` is a flag
         # rather than a second `exists()` probe: a probe that transiently failed
         # would skip the restore precisely when the directory survives.
-        if not removed and pointer is not None and saved is not None and not pointer.exists():
+        #
+        # The `exists()` probe is INSIDE the guard, not a condition guarding it:
+        # `Path.exists()` re-raises an OSError whose errno is not one of the
+        # ignored not-found family, so a permission denial on the very directory
+        # this block exists to rescue would escape the `finally` -- replacing the
+        # original exception and leaving the pointer deleted, the exact loss this
+        # block prevents.
+        if not removed and pointer is not None and saved is not None:
             try:
-                pointer.write_bytes(saved)
+                if not pointer.exists():
+                    pointer.write_bytes(saved)
             except OSError:
                 pass
     return not path.exists()
