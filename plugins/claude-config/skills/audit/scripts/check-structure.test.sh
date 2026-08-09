@@ -95,6 +95,83 @@ else
 fi
 chmod 600 "$fixture_dir/.claude/settings.local.json" 2>/dev/null
 
+# --- Case 5: category-H facts from settings.local.json -------------------------
+# The audit's category H checks keys that can live only in settings.local.json,
+# which the safe-read rule bars from a direct dump. The helper must surface those
+# values — and must still refuse to surface env values sitting beside them.
+fixture_dir="$TEST_TMPDIR/category-h"
+mkdir -p "$fixture_dir/.claude"
+printf '{"permissions":{"deny":[]}}\n' >"$fixture_dir/.claude/settings.json"
+printf '%s\n' '{"env":{"TOKEN":"sk-not-a-real-secret"},"effortLevel":"max","fallbackModel":["sonnet","haiku","sonnet","opus"],"availableModels":["sonnet","claude-sonnet-4-5"],"enforceAvailableModels":true}' >"$fixture_dir/.claude/settings.local.json"
+rc=0
+out=$(
+  SETTINGS_AUDIT_STRUCTURE_FIXTURE_DIR="$fixture_dir" \
+    bash "$SCRIPT" 2>/dev/null
+) || rc=$?
+assert_exit "case 5: exit 0 on valid local settings" 0 "$rc"
+assert_contains "case 5: effort level surfaced" "$out" "Effort level: max"
+assert_contains "case 5: raw and dedup counts differ" "$out" "Fallback chain: 4 raw, 3 after dedup"
+assert_contains "case 5: fallback order preserved" "$out" "Fallback entries: sonnet, haiku, sonnet, opus"
+assert_contains "case 5: allowlist entries surfaced" "$out" "Available models: sonnet, claude-sonnet-4-5"
+assert_contains "case 5: enforce flag surfaced" "$out" "Enforce available models: true"
+assert_contains "case 5: env still counted not dumped" "$out" "Env keys: 1"
+assert_not_contains "case 5: no secret leaked" "$out" "sk-"
+assert_not_contains "case 5: no env key name leaked" "$out" "TOKEN"
+
+# --- Case 6: category-H keys absent report unset, empty list is distinct --------
+# "unset" and "(empty list)" are different findings: an empty availableModels
+# never engages Default enforcement, while an absent one was never configured.
+fixture_dir="$TEST_TMPDIR/category-h-absent"
+mkdir -p "$fixture_dir/.claude"
+printf '%s\n' '{"availableModels":[],"permissions":{"allow":[]}}' >"$fixture_dir/.claude/settings.local.json"
+rc=0
+out=$(
+  SETTINGS_AUDIT_STRUCTURE_FIXTURE_DIR="$fixture_dir" \
+    bash "$SCRIPT" 2>/dev/null
+) || rc=$?
+assert_exit "case 6: exit 0" 0 "$rc"
+assert_contains "case 6: absent effortLevel is unset" "$out" "Effort level: unset"
+assert_contains "case 6: absent fallbackModel is unset" "$out" "Fallback chain: unset"
+assert_contains "case 6: empty allowlist is distinct from unset" "$out" "Available models: (empty list)"
+assert_contains "case 6: absent enforce flag is unset" "$out" "Enforce available models: unset"
+
+# --- Case 7: managed settings present — structure only, drop-in counted ---------
+fixture_dir="$TEST_TMPDIR/managed-present"
+mkdir -p "$fixture_dir/.claude" "$fixture_dir/policy/managed-settings.d"
+printf '%s\n' '{}' >"$fixture_dir/.claude/settings.json"
+printf '%s\n' '{"permissions":{"deny":["WebFetch"]},"env":{"ORG_SECRET":"hunter2"},"hooks":{"PreToolUse":[]}}' \
+  >"$fixture_dir/policy/managed-settings.json"
+printf '%s\n' '{"env":{"B":"2"}}' >"$fixture_dir/policy/managed-settings.d/10-extra.json"
+printf '%s\n' '{"env":{"C":"3"}}' >"$fixture_dir/policy/managed-settings.d/20-more.json"
+rc=0
+out=$(
+  SETTINGS_AUDIT_STRUCTURE_FIXTURE_DIR="$fixture_dir" \
+    SETTINGS_AUDIT_MANAGED_PATH="$fixture_dir/policy/managed-settings.json" \
+    bash "$SCRIPT" 2>/dev/null
+) || rc=$?
+assert_exit "case 7: exit 0" 0 "$rc"
+assert_contains "case 7: managed file reported" "$out" "managed-settings.json (machine scope)"
+assert_contains "case 7: managed deny counted" "$out" "Deny count: 1"
+assert_contains "case 7: managed hooks counted" "$out" "Hooks events: 1"
+assert_contains "case 7: managed env counted" "$out" "Env keys: 1"
+assert_not_contains "case 7: no managed env value leaked" "$out" "hunter2"
+assert_not_contains "case 7: no managed env key leaked" "$out" "ORG_SECRET"
+assert_contains "case 7: drop-in dir counted" "$out" "Managed drop-in dir: present (2 "
+
+# --- Case 8: managed settings absent — reported, never fails the run ------------
+fixture_dir="$TEST_TMPDIR/managed-absent"
+mkdir -p "$fixture_dir/.claude"
+printf '%s\n' '{}' >"$fixture_dir/.claude/settings.json"
+rc=0
+out=$(
+  SETTINGS_AUDIT_STRUCTURE_FIXTURE_DIR="$fixture_dir" \
+    SETTINGS_AUDIT_MANAGED_PATH="$fixture_dir/policy/managed-settings.json" \
+    bash "$SCRIPT" 2>/dev/null
+) || rc=$?
+assert_exit "case 8: exit 0" 0 "$rc"
+assert_contains "case 8: managed absence reported" "$out" "managed-settings.json (machine scope)"
+assert_contains "case 8: drop-in absence reported" "$out" "Managed drop-in dir: absent"
+
 # --- Case 3: missing jq exits 2 -------------------------------------------------
 # Run the script under an EMPTY PATH so its `command -v jq` resolves nothing. The
 # script exits at the jq gate before invoking any external tool, so an empty PATH

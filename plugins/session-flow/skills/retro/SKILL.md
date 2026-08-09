@@ -76,9 +76,9 @@ Resolve at runtime — never hardcode machine-specific paths:
 | "trends", "scores", "how am I doing" | **trends** | `context/trends.md` — cross-session score history |
 | "quick retro", short session, limited context | **quick** | `context/quick.md` — abbreviated pass |
 
-If `$ARGUMENTS` specifies a mode, use it. Otherwise infer from context; when context is >75% used
-or compaction has occurred, prefer `quick`; ambiguous → `session`. Read the mode's context file
-before proceeding.
+If `$ARGUMENTS` specifies a mode, use it. Otherwise infer from context; when the session is long or
+degraded, or compaction has occurred, prefer `quick`; ambiguous → `session`. Read the mode's context
+file before proceeding.
 
 ## Step 1: Execute the mode
 
@@ -104,6 +104,15 @@ whole session CHAIN, not just the current session: the
 parser's `--chain-from` walks `previous_handoff` frontmatter pointers
 backwards from the newest handoff file and aggregates metrics across every chained transcript. See
 `context/session.md` Phase 1.
+
+**State the discovery basis, and never present a low-coverage chain retro silently.** The walk
+follows `previous_handoff` pointers, so it stops at the first session that wrote no handoff file —
+a chain linked by hand-pasted continuation prompts instead of save-points can end after one hop.
+The parser reports what it saw in `chain_coverage` (`requested` / `found` / `available` / `ratio`,
+where `available` counts the transcripts present for this project). When `ratio` is below ~0.5, say
+so before presenting: name the found and available counts, and offer `--sessions` with the ids
+enumerated explicitly. A retro authored from a fifth of the evidence must not read like a complete
+one.
 
 ## What this skill does NOT do
 

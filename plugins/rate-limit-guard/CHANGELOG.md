@@ -3,7 +3,7 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.4.1]
+## [0.4.3]
 
 ### Fixed
 
@@ -20,6 +20,32 @@ All notable changes to the `rate-limit-guard` plugin are documented here. Format
   a broken statusline. The undocumented `installed_plugins.json` the header previously rejected
   stays rejected. Port of the context-guard fix from #1787 / PR #1844; the two shims remain
   deliberately unregistered as a byte-identical cluster (plugin name and header prose differ).
+
+## [0.4.2]
+
+### Changed
+
+- **`setup`'s shell-wrapped statusline step now verifies its escaping by running a command instead
+  of asking for a mental round-trip.** The check is `printf '%s\n' '<escaped original command>'`,
+  compared against the original. Its single-quoted argument reproduces exactly the quoting context
+  the emitted `sh -c '<escaped>'` uses; a double-quoted wrapper would instead let the outer shell
+  expand any `$(...)` or backticks in the operator's own command before the check ever ran. Applied
+  in step with `context-guard`'s near-identical setup skill.
+
+## [0.4.1]
+
+### Changed
+
+- **Shared `hook-utils.sh`: a hook invocation spawns three fewer external processes (#1978).**
+  Every hook that buffers its stdin paid an `awk` (one float division, to slice the read timeout), a
+  `printf | tr -d '\r'` pipeline (a fork and an exec to delete one byte class from a string bash
+  rewrites in place), and a `jq -e .` validity probe over a buffer the read loop had already parsed
+  with jq. On Windows Git Bash, where process creation is `fork()` emulation, each spawn costs
+  ~140 ms. Behavior is unchanged: the slice keeps the three-decimal form `read -t` is given, the
+  buffer is CR-stripped as before, and the completeness verdict is reused only when jq itself
+  produced it — so a host without jq still fails open exactly as it did. Also adds
+  `hook::jq_fields`, which extracts several fields from one payload in a single jq process for
+  hooks that read two or three of them. Synced from `lib/hook-utils.sh`.
 
 ## [0.4.0]
 

@@ -3,6 +3,180 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.3]
+
+### Changed
+
+- **`audit-answers`: listing description tightened (1,028 → 899 chars)** — trimmed the
+  explanatory prose from the frontmatter `description` toward the shared skill-listing budget
+  (claude-code-plugins#2022, option 2). Every single-quoted trigger phrase is preserved verbatim
+  (skill-quality check 3); the validation-never-derivation contract is unchanged in the body.
+
+## [0.28.2]
+
+### Changed
+
+- **`prd`: the user-stories template no longer disfavors brevity.** `context/templates.md` told
+  the author to "err on completeness over brevity" and "aim for exhaustive coverage" — explicit
+  anti-brevity dials on a document written to disk, the instruction class the Opus 5 prompting
+  guide's "Written deliverable length" section flags as compounding current models'
+  already-longer documents. The coverage intent survives ("every flow a product reviewer might
+  ask about should be a story"; "cover the feature surface completely"), now paired with the
+  guide-calibrated bound: do not pad with speculative or duplicate flows.
+
+## [0.28.1]
+
+### Fixed
+
+- **`interview`: the Brief template now carries the `Q<N>` id the Step 4 gate matches on.** 0.28.0
+  added a cross-check proving every `deferred` / `blocked` register row reached the Brief's
+  `### Deferred questions`, keyed by the row's `Q<N>`. The requirement lived only in the script and
+  its fixtures — `loop.md`'s "Brief template (the literal shape)" still showed a deferred line
+  starting at `<question>`, with no id anywhere. A session writing the Brief exactly per the
+  documented template therefore failed the Step 4 cross-check with exit 2, which the skill treats
+  as a halt: **0.28.0 could block a template-conforming interview.** The template's deferred line,
+  its section guidance, the unattended ladder's step 3, and SKILL.md's Step 4 schema note now all
+  state that each deferred entry leads with its `Q<N>` id. Same failure class as the two the 0.28.0 review caught — the gate
+  blocking a run it should not — reached through the docs rather than the code.
+- **`interview`: eval 14 graded the pre-split gate contract.** It still asserted the check runs
+  "not after" persistence and that `--brief` is passed for an engineering session, both of which
+  0.28.0's two-run split reversed at Step 3. Nothing mechanical could catch this — `validate-evals`
+  checks schema and markdownlint does not read JSON — so it is called out here. Eval 13 gains the
+  `Q<N>` id in its unattended-blocker expectation for the same reason.
+
+## [0.28.0]
+
+### Added
+
+- **`interview`: an open-question register written at ask-time, and a mechanical gate over it.**
+  A consumer observed an open question asked, left unanswered across a reply about an unrelated
+  topic, never re-surfaced, and the session proceeding as though it were resolved — noticed 31
+  minutes later. The skill already said the right thing (an unanswered question "stays OPEN and
+  re-surfaces next round"), and the prose did not hold, because the question's only home was the
+  transcript. It now has a durable one: the ledger's `## Open-question register`, one row per
+  question with a status of `open` / `answered` / `deferred` / `withdrawn` / `blocked`.
+  **The load-bearing rule is *when* the row is written** — the moment the round is ASKED, before
+  any reply arrives. Registering is then a byproduct of asking, so an unanswered question is on
+  disk whether or not the conversation ever comes back to it; a register written when answers land
+  could only ever hold the questions that never needed recording. Paired with it, a **drift check**:
+  after every user reply, diff it against the `open` rows and restate what it did not address in one
+  line, because conversational drift is not consent and a compaction can empty the transcript the
+  old contract relied on.
+- **`interview`: `scripts/check-open-questions.sh` + 30-case black-box test.** The register is
+  bookkeeping, so it gets a check rather than a promise. Exit 0 clean / 1 a question is still open /
+  2 ungradeable, fail-closed, with a greppable one-line verdict — the house shape of
+  `goal-condition-length.sh`. It runs **twice**, because its two claims become checkable at
+  different moments: ledger-only at the Step 3 stop condition, then again with `--brief`
+  immediately after Step 4 writes the Brief. A non-zero exit halts either time. Naming `--brief`
+  at Step 3 would point at a file Step 4 has not written, and the gate exits 2 on a
+  named-but-missing `--brief` — a first-time interview would deadlock before it could persist
+  anything. The `--brief` cross-check proves every `deferred` / `blocked` row actually reached the
+  Brief's `### Deferred questions`, and reports `brief=unchecked` when not asked for rather than
+  omitting the field. **Stated limit, in the script header:** it grades the interview's own
+  record, so a question never registered is invisible to it — the ask-time write rule is what keeps
+  the record independent of the answer, and the contiguous-`Q<N>` and duplicate-id checks are what
+  catch a row dropped after it was written.
+- **`interview`: a defined unattended path, reconciled with the auto-guard rather than excepting
+  it.** Reached from a loop, a spawned worker, or another skill's chain, the skill previously had no
+  documented non-blocking exit. It now does: codebase-resolvable and unambiguous-conventional
+  decisions resolve as usual and are recorded `auto-resolved (unattended)`; a decision genuinely the
+  user's becomes a `blocked` register row, a Brief deferred question tagged
+  **arbiter: USER-RESERVED**, and a named blocker in the output. The run stops on its blockers
+  instead of idling, and never reads absence of objection as confirmation. This is the auto-guard
+  extended, not carved: the guard forbids a user's choice *disappearing* into an assumption, and a
+  named blocker is that choice made maximally visible — the same shape `plugin-quality:audit` uses
+  at its contract lock. **The trigger is declared by the caller, never sniffed** — the CLI reference
+  (<https://code.claude.com/docs/en/cli-reference>, fetched 2026-08-08) documents
+  `--permission-prompt-tool` for handling permission prompts non-interactively but exposes no state
+  a running session can read to learn it has no human, so detection was deliberately not designed.
+- **`interview`: rounds fire at phase boundaries.** The same report measured a mid-phase gate
+  consuming 56% of one session's wall time idle and ~24% human-blocked in another. The frontier-
+  rounds design already batches; nothing stopped a gate firing partway through a *caller's* phase,
+  and the consumer batching questions on its own side did not help. A mid-phase blocking question is
+  now the exception, allowed when proceeding would produce throwaway work and justified in one line.
+
+### Changed
+
+- **`interview`: the ledger is emitted whenever any round is asked.** The `≥2 open questions OR me
+  mode` threshold still governs the full checklist, but the register has to exist before the first
+  reply, so any asking round now emits it. A run that asks nothing writes no register and skips
+  the gate — `lock` synthesizing with no gap, and equally `auto` routing to synthesize-directly
+  with no open decision. **The carve-out is about the absence of questions, never about which
+  action produced it**, because `lock`'s STOP-on-gap and the unattended ladder both produce
+  questions the run could not resolve, and a question outside the register is a question outside
+  the gate; those register too (`open` when surfaced to the user, `blocked` when nobody is there).
+
+## [0.27.3]
+
+### Added
+
+- **`session-config.md`: the step the source post puts *ahead* of both knobs, and the
+  ambiguity signal it attaches to the model dial.** The "Two orthogonal knobs" section is a
+  faithful digest of
+  [Choosing a Claude model and effort level in Claude Code](https://claude.com/blog/claude-model-and-effort-level-in-claude-code)
+  — "confidently wrong despite full context" tracks the post's "confidently wrong no matter
+  how much context you give it" — but it carried the two branches without the post's prior
+  step and without its own citation, so a reader could not tell the doctrine from the live
+  values listed two sections below. Three gaps closed. **The prior step**: the post's first
+  instruction on a wrong answer is not to turn a dial at all — "your first instinct shouldn't
+  be to adjust a knob, but to examine the context you have provided" — and it names the
+  surfaces where the real fix usually lives (context, `CLAUDE.md`, task scoping). That step is
+  this skill's own product, which is why its absence mattered here specifically: the Brief
+  **is** the context fix, so a knob recommendation is now scoped to what a sharper Brief would
+  not have caught. **The fence**: the post's figure caption calls the try-versus-know
+  discriminator "a starting point, not a hard rule" — provenance disclosed in the section,
+  since a caption is authorial text but not body prose — and it scopes raising effort to "most
+  relevant if you selected an
+  effort level below the model's default" — neither qualifier was present, leaving the section
+  reading as a hard rule at every level. **The ambiguity signal**: the post pairs the larger
+  model with handling ambiguity and the smaller model with "specific instructions directing
+  execution", which is directly actionable for a skill whose rounds exist to retire ambiguity
+  — ambiguity that survived them argues up, a Brief precise enough to execute from argues
+  down.
+- **Why a vendor post is cited here for doctrine.** `playbooks`' calibration rule is that the
+  reference page defines and a post corroborates. It does not fire here, on two grounds the
+  section now records rather than leaving a later reader to re-derive. First, the harness docs
+  delegate this guidance to the post outright:
+  [model configuration](https://code.claude.com/docs/en/model-config) says "For guidance on
+  which model and effort level fit different kinds of work, see [the post] on the blog"
+  (verified 2026-08-04) — a reference page pointing AT the post is the strongest possible
+  ground for citing it. Second, no reference page states the try-versus-know **diagnostic**
+  itself. The claim is deliberately narrow, because two pages discriminate something adjacent:
+  [choosing a model](https://platform.claude.com/docs/en/about-claude/models/choosing-a-model)
+  orders the levers — "Tuning effort is often a better lever than switching models" — and the
+  [effort page](https://platform.claude.com/docs/en/build-with-claude/effort) pairs effort
+  against *prompting* ("raise effort rather than prompting around it"). Ordering a lever is not
+  diagnosing which failure you have, so the post owns the diagnostic while those pages own the
+  ordering.
+
+## [0.27.2]
+
+### Fixed
+
+- **`/planning:interview` could be used as the execution container for bulk application
+  work, and nothing in the skill said not to.** Observed in a real multi-week effort: a
+  doc-alignment task ("apply the docs across the corpus, one agent per document") entered
+  the interview and came out as a 90-row decision ledger, because every per-document
+  application step was admissible as a decision row and each row then earned its own
+  adoption ceremony. The skill had no boundary to hit — its only anti-marathon signal was
+  the ballooning frontier, whose remedy is routing to `/planning:wayfind`, which is the
+  wrong remedy here: the decisions were not foggy, they were already settled and merely
+  numerous. `skills/interview/SKILL.md` now states the boundary as a sibling to that
+  paragraph, where the discrimination between the two signals is visible: for a corpus
+  application the interview's output is the small set of genuinely contested decisions
+  **plus an execution contract** — one line in the session's output artifact, routed by
+  domain like every other output (the Brief's `### Acceptance criteria` in an engineering
+  session, the shared-understanding summary in a general one) naming the per-unit
+  close-out loop (one source unit at a time: apply, verify, close) and what *closed*
+  means for a unit — and never one decision row per source unit. Naming the destination
+  is load-bearing: the loop had nowhere to live, which is why the decision ledger
+  absorbed it. An eval exercises the collapse. The tripwire is a count the reader can actually run —
+  candidate question count scaling with the number of source units rather than with the
+  number of genuine forks is execution masquerading as decisions, and it collapses into
+  the contract rather than routing to wayfind. `skills/interview/context/gotchas.md`
+  records the pattern under Scope and points at the SKILL.md section rather than
+  restating the rule.
+
 ## [0.27.1]
 
 ### Changed

@@ -32,7 +32,7 @@
       "files": [],
       "expectations": [
         "The generated variants differ structurally (layout / information hierarchy / primary affordance), not only in color or copy",
-        "The response notes that color-only differences are a tweak, not a UI prototype, if the user asked for recolors"
+        "The response declines to make recolors the only difference between variants, while still letting each variant carry its own visual direction on top of its structure"
       ]
     },
     {

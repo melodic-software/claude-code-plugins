@@ -89,8 +89,10 @@ babysit-prs mechanic documents (watched owners, self logins, engine thresholds);
 the lane policy a team reviews and tracks. Loop keys carry the `babysit_loop_` prefix so the two key
 families sharing one file stay distinguishable.
 
-One `## <key>` H2 per key, exactly like the convention keys above; every value is a scalar, so the
-per-key override semantics below apply unchanged.
+One `## <key>` H2 per key, exactly like the convention keys above; every value is a scalar — except
+`babysit_loop_trusted_internal_bot_logins`, a closed bullet list like `pr_body_required_sections` —
+so the per-key override semantics below apply unchanged (a closed list is taken whole from its one
+binding layer, never unioned).
 
 | Key | Value | Default when absent |
 |---|---|---|
@@ -106,16 +108,21 @@ per-key override semantics below apply unchanged.
 | `babysit_loop_grace_window_minutes` | positive integer — the concurrency-safety activity grace window | `30` |
 | `babysit_loop_cycle_budget` | positive integer — cycles per session before the budget-hit stop | none — no per-session budget |
 | `babysit_loop_no_progress_threshold` | positive integer — consecutive no-progress cycles (open PRs in view, none merged, materially changed, or escalated; cycles held by the rate-limit guard are not counted) before the lane raises its stall escalation; it escalates and keeps looping, never stops | `3` |
+| `babysit_loop_trusted_internal_bot_logins` | flat Markdown bullet list (`- <login>` per line) of exact GitHub App bot logins the repository attests as its own internal automation — the C5 trust test's reviewed internal-bot trust signal; **honored in the team-tracked layer only** ("the C5 trust test's one reviewed widening" below) | none — empty set: the trust test accepts `OWNER`/`MEMBER` only |
 
 Dimension semantics — what each tier value grants per dimension — are owned by the babysit-prs
 autonomy table (`skills/babysit-prs/SKILL.md`, "Autonomy tiers (per action class)") and are not
 restated here. The merge dimension's rung semantics are owned by the loop-lane convention's autonomy
 ladder (`docs/conventions/loop-lane/README.md` §1 in the marketplace repository).
 
-**Precedence: invocation arguments win — except the merge dimension.** For every loop key above but
-`babysit_loop_merge`, an invocation argument overrides all three layers, exactly as an explicit skill
-argument outranks stored config everywhere else in this plugin. `babysit_loop_merge` is the one
-policy-floor key on this surface (the consumer-config layering convention's sanctioned policy-floor
+**Precedence: invocation arguments win — except the two policy-floor keys.** For every loop key
+above but `babysit_loop_merge` and `babysit_loop_trusted_internal_bot_logins`, an invocation
+argument overrides all three layers, exactly as an explicit skill argument outranks stored config
+everywhere else in this plugin. `babysit_loop_trusted_internal_bot_logins` is the stricter of the
+two: it binds from the target repository's team-tracked layer **only** — an invocation argument or
+any other layer supplying it, in any direction, is ignored and reported, never merged, never
+honored (its own section below owns the full rule). `babysit_loop_merge` is the other policy-floor
+key on this surface (the consumer-config layering convention's sanctioned policy-floor
 class, declared here next to its key): **raises bind from the team-tracked layer only** — every
 increase in *standing* merge authority is a reviewable, versioned config change, per the loop-lane
 convention's "Merge-rung raises are seam-only" rule. The user-global layer, the local overlay, and an
@@ -171,12 +178,65 @@ explicit-`autopilot` exception above — ever grants merge authority over a `wor
 a ceiling the resolved rung composes under, always, per the autonomy matrix's "never promotes" cells
 (`work-classes.md#suggested-default-predicates`). Both classes are decided from the pull request,
 not the class stamped on the item it closes: C5 from the code's own provenance — a cross-repository
-head, or an `authorAssociation` other than `OWNER`/`MEMBER`, each failing closed to C5 when its
-field is unavailable — because provenance "dominates every other
+head, or a failed trust test (`authorAssociation` other than `OWNER`/`MEMBER` and no
+`babysit_loop_trusted_internal_bot_logins` match, per the trust-signal section below), each failing
+closed to C5 when its field is unavailable — because provenance "dominates every other
 property" (`work-classes.md`, `C5`), and C4 from the diff's blast radius, with a class/diff mismatch
 failing closed. **Never derive C5 by testing the PR author's login against `babysit_watched_owners`**
 — that key is a repository-owner allowlist, not a trusted-author list, so on an organization-owned
 repository it would classify every internally authored PR as C5.
+
+**`babysit_loop_trusted_internal_bot_logins` — the C5 trust test's one reviewed widening,
+team-tracked layer only.** Repository-owned GitHub App bot identities are never organization
+`MEMBER` accounts (a Dependabot PR reports `CONTRIBUTOR`), so with no further signal the C5 trust
+test classifies the org's own automation as untrusted provenance — even though `work-classes.md`
+places org-owned automation's mechanical output in C2. This key is the recorded trust signal that
+reconciles the two, and every rule below is fail-closed:
+
+- **Value grammar.** A flat Markdown bullet list, one exact GitHub App bot login per bullet (e.g.
+  `- my-lane-bot[bot]`) — the same closed-list grammar as `pr_body_required_sections`, taken whole
+  from the binding layer. Matching is exact and ASCII case-insensitive (GitHub logins are
+  case-insensitive); no globs, prefixes, aliases, or suffix inference.
+- **Team-tracked layer only, target repository, default branch — always.** Like
+  `convention_source`, the key is honored **only** in the team-tracked layer — and that layer is
+  the TARGET repository's tracked `.claude/source-control.md` read from its **default branch**
+  (`gh api` contents), on every resolution, even when the current checkout is that repository.
+  This is deliberately stricter than the merge rung's checkout-aware read: an ambient working-tree
+  read follows the checkout's current branch, and a checkout sitting on a bot-authored branch
+  would let the very PR under classification supply its own trust grant. Never read this key from
+  any working tree. A trust grant is a recorded, reviewable, versioned config change, exactly like
+  every other trust grant on this seam; an appearance in the user-global layer, the local overlay,
+  or an invocation argument is ignored and reported (see the precedence exception above), and a PR
+  branch editing the tracked file can never self-grant, because resolution never reads any branch
+  but the default.
+- **Unset is the empty set.** Absent, unreadable, or malformed → no trusted internal bots → the
+  trust test is exactly the `OWNER`/`MEMBER` test. No fallback, no inference, no partial parse of a
+  malformed list.
+- **The match arm requires a structural bot.** A listed login matches only when the snapshot author
+  is structurally a bot — the `[bot]` login suffix (which no user account can carry: GitHub
+  usernames cannot contain brackets) or the provider's `Bot` type. A listed non-bot login never
+  matches and is reported as inert: ordinary machine-user accounts belong in org membership, not on
+  this key.
+- **The trust test with the key set.** A PR passes when either arm **positively** succeeds:
+  `authorAssociation` is `OWNER` or `MEMBER`, or the author is a structural bot whose login matches
+  a listed entry. Neither arm positively passing — including when a field is missing or unreadable —
+  is C5, fail closed.
+- **The fork test is untouched.** The key widens the trust test only: a listed bot authoring from a
+  cross-repository head is still C5. A same-repository head requires push access to the base
+  repository, so a listed identity's trust additionally rests on the provider's own permission
+  enforcement.
+- **The dependency-manager hold wins on intersection.** This key affects *classification* only; the
+  babysit-prs cross-tier hold-merge invariant (built-in dependabot/renovate plus
+  `babysit_extra_dependency_manager_logins`) affects *merge execution* and is never weakened by it.
+  A login on both lists partitions on its item's recorded work class and is still never merged
+  autonomously — it lands on the merge-ready report. The two keys are never unified: they answer
+  different questions (who is attested to have written this code vs. does this author ship
+  third-party dependency payloads).
+- **Consumed by the rung partition's trust test and nowhere else.** The value is never forwarded as
+  `--self-logins`, `--extra-bot-logins`, discovery scope, or any write or resolution authority, and
+  a trust match never establishes C2 — it only removes the categorical C5 bar. The PR still needs a
+  close-linked item with a recorded classification, and still faces the C4 diff veto, the rung
+  comparison, and every other withholding in the partition.
 
 ## The three layers
 

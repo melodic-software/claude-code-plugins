@@ -91,7 +91,7 @@ running again); while a limit still holds it hands back via `handoff` rather tha
 scheduler. Intent is inferred from the conversation; arguments are optional.
 
 ```shell
-/session-flow:keep-going              # inventory → inspect → recover → reconcile → report
+/session-flow:keep-going              # inventory → inspect → goal-align → recover → reconcile → report
 ```
 
 ### find-handoff
@@ -290,6 +290,7 @@ to zero-config behavior; see `reference/observer.md` for full semantics):
 | `observer_analysis_model` | `claude-haiku-4-5` | Analysis model — the dominant cost lever. |
 | `observer_analysis_bare` | `false` | Pass `--bare` to the analysis run (breaks OAuth-login auth; leave off unless auth is an env-var API key). |
 | `observer_idle_seconds` | `900` | mtime-idle end threshold; keep above the longest single turn. |
+| `observer_poll_seconds` | `5` | How often the observer re-reads the transcript and re-checks the idle threshold. Minimum 1. |
 | `observer_max_seconds` | `86400` | Hard observer lifetime; reaching it exits without analysis. |
 
 State: retro score history persists under the plugin's `${CLAUDE_PLUGIN_DATA}` directory (per-project

@@ -3,6 +3,164 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.1]
+
+### Changed
+
+- **`ci-log-auditor`: the 500-word output budget now says what to do when findings exceed it.** A hard
+  word cap on a finding-bearing report with no overflow rule leaves dropping findings as the only way
+  to comply — the opposite of the never-drop normalization `fanout` applies to the same findings. The
+  agent now keeps every finding row and compresses evidence and recommendations instead.
+
+- **`quality-gate` criteria mode: the five-step "Applying criteria to changes" list is one sentence.**
+  The steps enumerated a procedure the model already performs, and step 2's change-nature taxonomy
+  (new feature, refactor, bug fix, config) routed nothing — no other file in the plugin reads it, and
+  step 1 matched on the change's surfaces rather than its nature. The replacement keeps all three
+  load-bearing elements: grounding in the actual changes, selectivity, and the resolved severity
+  vocabulary. The skip-list paragraph and the "How to use" routing list are untouched.
+
+## [0.17.0]
+
+### Added
+
+- **`fanout`: dispatch contract — finder leaves are told coverage is their job.** The skill runs a
+  5-stage normalization pipeline (dedup, agreement/rank) downstream of its leaves, and the Sonnet 5
+  and Opus 4.8 prompting guides both state that current models follow a stated severity bar
+  faithfully at the finding stage — same investigation depth, fewer reported findings — and that a
+  harness with a separate filter stage should say so explicitly at the finder stage. Both review
+  modes now append a verbatim coverage clause to every dispatched finding-producing leaf prompt:
+  report everything including uncertain/low-severity findings, attach confidence and estimated
+  severity, filtering happens downstream. Recall is restored without moving precision work — the
+  pipeline remains the filter. run-everything's Workflow path carries the same clause in its
+  script: both prompt constructors (`AGENT_PROMPT`, `slicePrompt`) append it, and the slice prompt
+  asks for the high/medium/low confidence level, so the Workflow-accelerated sweep gets the same
+  recall and confidence axis as live dispatch.
+- **`quality-gate`: per-slice template reports coverage-first with a Confidence column.** The slice
+  reviewer template now states that severity and confidence label findings rather than deciding
+  whether they are reported, and its findings table carries a Confidence column — constrained to
+  the severity baseline's high / medium / low vocabulary — feeding the fanout pipeline's confidence
+  stage instead of leaving slice findings unscored (an unlabeled finding ranks above
+  honestly-labeled low-confidence ones). The seams consume it end-to-end: the fanout normalization
+  parse contract records the slice surface's native confidence and Stage 2 passes the label
+  through, and quality-gate's own Step 3 report table gains the Confidence column. The agent
+  leaves carry the same field: architecture-guardian and doc-drift-detector gain per-finding
+  high/medium/low confidence in their output formats, code-reviewer extends its confidence line
+  from design-smell findings to every finding (smells stay capped at medium), and
+  security-reviewer's no-findings line no longer reads as a low-confidence reporting filter —
+  matching the dispatch clause's ask and the parse contract's expectations.
+
+### Changed
+
+- **Agents: instruction scope made explicit where literal executors under-covered.** Current
+  models do not silently generalize an instruction from one item to another (Sonnet 5 / Opus 4.8
+  prompting guides, "More literal instruction following"), so four spots that demonstrated one
+  instance while meaning a class now state the class:
+  - `code-reviewer`, `security-reviewer`, `architecture-guardian`: the `REVIEW.md` code-span
+    citation step now enumerates and resolves **every** citation of the `<path>.md#<heading>`
+    shape (deduplicating repeated paths) instead of describing the procedure for "a citation" —
+    a literal read resolved the first and silently truncated the criteria set.
+  - `security-reviewer`: ecosystems with no dedicated section (Go, Rust, Ruby, Java, …) now have a
+    stated floor — the OWASP table plus the cross-ecosystem list, with the unlisted status named
+    in the report — instead of an accidental gap behind "apply the sections matching the
+    ecosystems actually touched".
+  - `ecosystem-specialist`: a detected ecosystem with no generic default (e.g. PowerShell) is no
+    longer conflated with "has no such phase" — commands resolve from the repo, and a phase that
+    resolves nowhere reports UNVERIFIED rather than skipping silently.
+  - `security-reviewer`, `architecture-guardian`: the change-set step now says to Read the
+    untracked files `git ls-files --others` lists (previously stated only in `code-reviewer`), so
+    two dispatched reviewers no longer run a command whose output nothing told them to use.
+
+## [0.16.1]
+
+### Changed
+
+- **`skills/fanout`: the reason the orchestrator plugins run on the main thread is now a
+  configuration bound, not an impossibility.** `SKILL.md` said "a subagent cannot dependably do
+  that" and `context/run-everything-mode.md` said a Workflow `agent()` "cannot dependably spawn
+  them". The live
+  [sub-agents documentation](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents)
+  states that by default a subagent CAN spawn subagents of its own, within a nesting-depth limit, so
+  both sentences asserted a limitation that does not exist. The rationale is now the narrower true
+  one: that depth budget is settings-configurable through `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`
+  (`1` turns nesting off) and so sits outside the skill's control, and at the limit Claude Code
+  withholds the `Agent` tool — in a fork, keeps it but errors — whereas that limit never disables
+  the main thread's own `Agent` tool.
+
+  **The claim is deliberately scoped to the depth limit.** The session and concurrent subagent
+  limits bind the main thread too, so no surface can claim an unconditional spawn guarantee.
+  `run-everything-mode.md` now states only the placement it enforces — orchestrators on the main
+  thread, never inside the Workflow — and points at `SKILL.md` for the rationale, because the
+  sub-agents page holds workflow-spawned agents to their own limits rather than this one.
+
+  **No behavior changes.** Both surfaces still run the orchestrators on the main thread and still
+  keep them out of the Workflow; only the justification prose changed.
+
+## [0.16.0]
+
+### Changed
+
+- **`context/severity.md`: each severity tier is now stated as a decidable test, not a qualitative
+  label.** The tiers read "Must fix" / "Should fix" / "Consider" plus a list of examples, which lets
+  a reviewer place a finding that resembles a listed example but leaves a novel finding undecidable.
+  The Sonnet 5 prompting guide, "Code review harnesses", names this shape directly — "be concrete
+  about where the bar is rather than using qualitative terms like `important`", the qualitative term
+  being one of this file's own tier names. Each tier now carries a test the reviewer can argue a
+  finding against: CRITICAL, whether you can name a concrete input, caller, or subsequent
+  otherwise-correct change the defect makes produce a wrong, unsafe, or absent result; IMPORTANT,
+  whether the finding names a
+  stated rule violated, behavior added that no test covers, or a degradation or maintenance cost
+  with a named trigger; SUGGESTION, neither, so a preference among alternatives that all work. The
+  example lists are retained as illustrations of the tests.
+
+  **No finding changes tier.** The tests were written to restate the existing bars, and the example
+  lists are unchanged — this states the criterion, it does not re-tier.
+
+  **CRITICAL's subsequent-change limb is qualified `otherwise-correct`, which is what holds that
+  guarantee.** Unqualified, "a subsequent change that the defect makes produce a wrong result" is
+  satisfied by **code duplication** read literally — the subsequent change is an edit to one copy,
+  after which the copies diverge. Because the tests are applied in order and resemblance to a listed
+  example is explicitly not a rebuttal, that CRITICAL match would win and silently promote
+  duplication out of IMPORTANT, where the previous text pinned it. The qualifier draws the line the
+  example lists already assumed: a **cascading architecture violation** breaks a future change whose
+  author did everything right, so it stays CRITICAL, while **duplication** bites only through a
+  future edit that is itself incomplete, so it stays IMPORTANT.
+
+- **The P1–P5 security fold now states its precedence over the tier tests.** `security-reviewer`
+  emits CVSS-anchored P-levels folded as P1/P2 → CRITICAL, P3 → IMPORTANT, P4/P5 → SUGGESTION.
+  CRITICAL's new test names an unsafe result, which a P3 finding also satisfies read literally, so
+  the fold is now marked as deciding the tier for a P-scored finding. Without that precedence the
+  criterion-stating change would have silently promoted every P3 to CRITICAL.
+
+## [0.15.5]
+
+### Fixed
+
+- **`quality-gate`'s code-mode boundary no longer calls `/code-review` "built-in"**
+  (doc-accuracy fix). `context/code.md` headed its boundary "the built-in `/code-review`
+  skill" and opened "Claude Code ships a built-in `/code-review` bundled skill" — a
+  compound of two categories the official docs keep apart. The commands reference
+  states "Most are built-in commands whose behavior is coded into the CLI" and marks
+  `/code-review` **[Skill]**, "a bundled skill"; the skills page lists `/code-review`
+  among the bundled skills and says bundled skills are "prompt-based … Most built-in
+  commands instead execute fixed logic directly", with `/doctor` cited as having been
+  "a built-in command rather than a bundled skill" before v2.1.205 — the two labels are
+  mutually exclusive. `/code-review` **is** a bundled skill; only the "built-in"
+  modifier was wrong, so the fix drops it rather than re-labelling the surface. The
+  heading and opening sentence now read "bundled skill" and link
+  <https://code.claude.com/docs/en/skills#bundled-skills>. The plugin's other
+  `/code-review` references (`README.md`, `fanout/SKILL.md`,
+  `fanout/context/findings-normalization.md`, `quality-gate/context/pr.md`) already
+  carry the correct "bundled" modifier and are untouched. Behavior is unchanged — the
+  boundary's routing advice, the report-only contract, and the `--fix` / `--comment`
+  opt-in gate all stand.
+
+  Three released entries below carry the same smear — `0.15.1` ("a bundled built-in
+  command"), `0.14.7` (the entry that added this boundary section: "always-available
+  built-in `/code-review`"), and `0.14.2` ("`/simplify` is an external/built-in
+  skill"). They are left as written: a released entry records what that version
+  shipped, and this file's own `0.15.3` entry sets the precedent of correcting a past
+  rationale in a new entry rather than editing the old one.
+
 ## [0.15.4]
 
 ### Fixed

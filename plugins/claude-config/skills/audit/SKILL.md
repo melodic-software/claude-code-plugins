@@ -40,7 +40,7 @@ Parse `$ARGUMENTS` for:
 
 - **`--fix`**: Apply corrections automatically (with user confirmation per fix). Without this flag, report-only mode
 - **Scope filter**: Limit audit to a single category. If omitted, run all categories
-  - `permissions` — deny/ask/allow rules, deprecated syntax, security gaps
+  - `permissions` — deny/ask/allow rules, security gaps
   - `mcp` — MCP server definitions, commands, env vars, connectivity
   - `hooks` — hook scripts exist, timeouts, matchers
   - `plugins` — enabled/disabled status, marketplace availability
@@ -55,6 +55,7 @@ Parse `$ARGUMENTS` for:
 | `.claude/settings.local.json` | `jq` via Bash only | Commonly deny-listed for the Read tool because it holds tokens. Parse structure/key counts only. **Never echo secret values** |
 | `.mcp.json` | Read tool or `jq` | Project-level MCP server definitions |
 | `~/.claude/settings.json` | Read tool | User-level defaults (optional — check if exists) |
+| `managed-settings.json` + `managed-settings.d/` | `check-structure.sh` (structure only) | Machine-scope managed policy, the highest-precedence layer. OS-specific path resolved by the script (macOS `/Library/Application Support/ClaudeCode/`, Linux/WSL `/etc/claude-code/`, Windows `%ProgramFiles%\ClaudeCode\`). Findings on it are report-only routing — managed policy is the administrator's, never edited by `--fix` |
 
 ### Reading settings.local.json safely
 
@@ -115,16 +116,17 @@ Load the audit checklist: [audit-checklist.md](reference/audit-checklist.md)
 
 Run each category's checks. Record findings with severity ratings.
 
-Seven categories — names + the question each answers below; **full per-check criteria in
+Eight categories — names + the question each answers below; **full per-check criteria in
 [context/validation-categories.md](context/validation-categories.md)** (read it when running Phase 2).
 
 - **A — Schema & Structure**: `$schema` present, no unknown keys, `mcpServers` not in `settings.local.json`
-- **B — Permissions**: baseline deny/ask patterns present (list in [reference/required-permissions.md](reference/required-permissions.md), plus any additional patterns the consuming repo's own rules declare as required), no deprecated `:*`, deny-rules-in-`settings.json`-only (bug #8961)
+- **B — Permissions**: baseline deny/ask patterns present (list in [reference/required-permissions.md](reference/required-permissions.md), plus any additional patterns the consuming repo's own rules declare as required), deny-rules-in-`settings.json`-only (bug #8961)
 - **C — MCP Servers**: commands resolve, `${VAR}` syntax, `disabledMcpjsonServers` match, documented disable reasons
-- **D — Hooks**: paths resolve + readable, sane timeouts, valid matchers, quoted `$CLAUDE_PROJECT_DIR`, no duplicates, valid events
+- **D — Hooks**: paths resolve + readable, `timeout` in seconds and sane, valid matchers, quoted path placeholders in shell form, exec-form `command` resolvable on Windows, no duplicates, valid events
 - **E — Plugins**: static checks (marketplace membership) + live upstream drift detection (`scripts/check-plugin-drift.sh` — ORPHAN/NEW/RENAME modes, auto-fix policy table in the context file)
 - **F — Environment Variables**: documented/justified vars, secrets in `settings.local.json` only, forward-slash paths
 - **G — Skill-listing budget**: `/doctor` overflow check and trim levers (description trimming, `skillOverrides`, budget settings)
+- **H — Model and effort settings**: `effortLevel`, `fallbackModel`, `availableModels`, `enforceAvailableModels` — values the harness accepts into the file but does not apply as written
 
 ---
 
@@ -148,7 +150,15 @@ Claude Code issue-tracking skill if it has one). For any issue whose upstream fi
 below the installed Claude Code version, confirm the settings-specific workaround is still needed and
 recommend retiring it if not.
 
-### 3.3 Permission syntax verification
+### 3.3 Model configuration verification
+
+**MANDATORY** for any category H finding: fetch
+[code.claude.com/docs/en/model-config](https://code.claude.com/docs/en/model-config) and confirm the
+behavior the finding rests on. Do NOT report a category H finding from this checklist's wording
+alone — the accepted `effortLevel` values, the fallback-chain cap, and the allowlist wildcard rule
+are all upstream-owned and move with the harness.
+
+### 3.4 Permission syntax verification
 
 Fetch [code.claude.com/docs/en/permissions](https://code.claude.com/docs/en/permissions) and verify:
 
@@ -164,6 +174,7 @@ Present all findings as a severity-rated GFM table:
 
 | # | Category | Severity | Finding | Current | Recommended |
 | --- | --- | --- | --- | --- | --- |
+| 1 | B — Permissions | error | Deny rule placed in `settings.local.json`, where bug #8961 leaves it inert | `settings.local.json` → `permissions.deny: ["Bash(rm -rf:*)"]` | Move the rule into `settings.json`; keep `settings.local.json` deny empty |
 
 ### Severity guide
 
@@ -198,7 +209,7 @@ After all fixes:
 
 ### Fixes the skill can apply
 
-Auto-fixable (add `$schema`, fix `:*` syntax, add/move deny rules, plugin orphan-removal +
+Auto-fixable (add `$schema`, add/move deny rules, plugin orphan-removal +
 new-as-`false` via `scripts/fix-plugin-drift.sh --yes`) vs judgment-required (new settings from docs,
 permission restructure, MCP config, orphan-`true` removal, heuristic rename) — full matrix in
 [context/procedures.md](context/procedures.md) "Phase 5 — fixes the skill can apply".
@@ -221,8 +232,8 @@ not-covered split, the ranked remedies, and the platform limit — carry it into
 implying the file is unreachable.
 
 CC settings schema, MCP server shape, hook event names, and permission glob syntax are upstream
-invariants documented at [code.claude.com/docs/en/settings](https://code.claude.com/docs/en/settings)
-and audited via the Phase 3 live doc fetch rather than asserted as fixed patterns here.
+invariants resolved against their own official pages when a check needs them, rather than asserted
+as fixed patterns here.
 
 ## Post-Audit
 

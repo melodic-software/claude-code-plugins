@@ -393,7 +393,7 @@ repository the operator owns, committed to it.
 **The tree can move under a run, and the self-check must be able to say so.** Found by running the
 pass (Phase 10): the target's `HEAD` and branch both moved mid-measurement, with a plugin rename
 landing in between. The state key is computed once at the start and nothing re-validates it, so
-*"any inequality over an unchanged tree is a defect"* is **unfalsifiable on a shared checkout** — an
+*"any inequality over a comparable pair is a defect"* is **unfalsifiable on a shared checkout** — an
 inequality could mean a defect or could mean the tree moved, and the run cannot tell which.
 
 - **Assertion 3.4** — a run records the target's revision **at start and at end**. When they differ,
@@ -409,6 +409,18 @@ inequality could mean a defect or could mean the tree moved, and the run cannot 
   So the run records a **working-tree content digest** beside each revision, over the same
   enumeration the scan set uses, and `indeterminate` follows when *either* pair differs. The revision
   is what makes a mismatch legible to an operator; the digest is what makes it detectable at all.
+
+  **The endpoint capture is the full scan-baseline state digest, not the working tree alone.**
+  Raised by review after §6 widened comparability's first input past the repository. A
+  repository-scoped endpoint check leaves the mid-run door open in exactly the place the cross-run
+  door was just closed: a user-scope or managed-policy surface edited after the baseline is frozen
+  but before its lane reads it produces a report mixing two external states, while both recorded
+  revisions and both working-tree digests match. The manifest then describes the baseline rather than
+  what the lanes audited, and a later run compared against that manifest reports a P1 or P4 defect
+  that never happened. So the endpoint capture is the same **all-scope** digest as the baseline —
+  every inventoried scope plus the dirty set — and `indeterminate` follows when it moved, on the same
+  posture the revision pair already takes. Within-run and cross-run integrity read the same surfaces
+  or neither is worth asserting; `audit-pass`'s shipped contract unified them for this reason.
 - **Assertion 3.5** — a read-only run overlapping an applying run against one target never reports a
   finding set mixing pre-apply and post-apply content. Test: an apply that rewrites a fixture surface
   while a reader is mid-run; the reader's report matches exactly one of the two tree states.
@@ -510,9 +522,21 @@ Restarting from zero wastes the whole run and, worse, tempts an operator to narr
 - Findings persist **incrementally, per lane**, as each lane completes — not buffered to the end.
 - A run manifest records, per lane: the lane id, its **input digest**, and its completion state.
 - **Input digest** = `sha256` over the lane's ordered file list paired with each file's content hash,
-  **and over the run basis** — the liveness basis (launch directory, effective merged
-  `claudeMdExcludes`, external-import approval state, setting sources), the harness version, and the
-  lane's detection version triple.
+  **and over the run basis** — the state-digest entries **for the surfaces in that lane's scan set**
+  (which for a cross-class lane is its whole comparison set, per §1), the liveness basis (launch
+  directory, the additional-directory set, effective merged `claudeMdExcludes`, external-import
+  approval state, setting sources), the harness version, the sweep version, the lane's detection
+  version triple, and, for a judged lane, the judging configuration.
+- **Every content-bearing term is scoped to the lane, and taking a whole-run digest here would
+  falsify Assertion 5.2.** §6 compares whole runs, so it takes the state digest entire and the
+  detection triple of *every* check consulted. A lane digest cannot: fold the whole-run state digest
+  into it and editing any file anywhere moves every lane's digest, so every completed lane re-runs
+  and 5.2's "that lane re-runs and no other completed lane does" is false by construction. What the
+  two lists share is the criterion, not the values — a lane resumed across a moved input is the same
+  defect as a pair compared across one, so an input recognized by §6 is owed to §5 **narrowed to
+  what that lane actually read**. The run-wide terms that remain (harness version, sweep version,
+  liveness basis) are run-wide because no lane-local narrowing of them exists; a change to one
+  legitimately invalidates every lane.
 - **The non-file half is not optional, and the digest was file-only until the cross-vendor review.**
   §6 establishes every one of those values as an input the derived tier depends on. A file-only
   digest is unmoved when any of them changes, so a resume skips the completed lanes and assembles
@@ -574,12 +598,19 @@ things", which is the question an operator actually asks first — and it is whe
 regression would show up. A surface that vanished from the inventory between runs is a defect the
 old two-tier split could not have caught, because the inventory was never a reported artifact.
 
-### Two inputs to the derived tier that are not the tree
+### Inputs to the derived tier that are not the tree
 
-Both surfaced 2026-07-24. They are separate problems with fixes an order of magnitude apart, and
-both arise the same way: a **dead-surface finding** — "this instruction file is reachable from no
-loaded entry point" — is derived-tier by construction (filesystem enumeration plus graph
+The two below surfaced 2026-07-24. They are separate problems with fixes an order of magnitude
+apart, and both arise the same way: a **dead-surface finding** — "this instruction file is reachable
+from no loaded entry point" — is derived-tier by construction (filesystem enumeration plus graph
 reachability, no model in the path), so it inherits every promise P1 makes.
+
+The cross-vendor review later added two more, both stated with the properties rather than here
+because neither is specific to dead-surface findings: the **sweep version**, since `audit-pass`'s own
+anchor normalization and `finding_id` construction decide derived *identities* without belonging to
+any check; and the content of scan surfaces outside the repository, which is why the first
+comparability input is a **scan-baseline state digest** spanning every inventoried scope rather than
+a target tree. The heading no longer carries a count, because it had already gone stale once.
 
 #### The harness version is an undeclared input
 
@@ -693,12 +724,14 @@ Stated as assertions over two runs, `R1` then `R2`. `D(R)` is the derived-tier i
 is the judged-tier set.
 
 **Every property below is conditioned on one shared precondition, stated here once rather than
-per-property.** The cross-vendor review found P1 and P4a missing a clause P3 already carried, and
-stating it three times is what allowed two of the three to drift — so the **comparable-runs**
-precondition is defined in one place and the properties cite it:
+per-property** — with one named exemption, P2's, argued at P2 itself. The cross-vendor review found
+P1 and P4a missing a clause P3 already carried, and stating it three times is what allowed two of
+the three to drift — so the **comparable-runs** precondition is defined in one place and the
+properties cite it:
 
-> `R1` and `R2` are **comparable** when their **target tree**, **liveness basis**, **detection
-> version triple** of every check consulted, and **harness version** are all equal.
+> `R1` and `R2` are **comparable** when their **scan-baseline state digest**, **liveness basis**,
+> **detection version triple** of every check consulted, **harness version**, and **sweep version**
+> are all equal.
 
 The **liveness basis** is every input outside the tree that changes which surfaces the harness loads:
 the launch directory, the **additional-directory set** (`--add-dir` and the
@@ -714,14 +747,40 @@ Like the `prompt_digest`, this list is governed by its criterion rather than its
 input outside the tree that changes what the harness loads belongs to the liveness basis, and one
 found missing is a defect in the list.
 
+**The first input is the scan-baseline state digest, not the target tree, and that widening is the
+whole point.** The first input read "target tree" until the cross-vendor review, and a target tree
+covers only the repository: §1 places user-scope (`user:.claude/CLAUDE.md`) and managed-policy
+(`managed:CLAUDE.md`) surfaces outside it by construction, giving them a scope prefix precisely
+because they are not repo-relative. So adding, removing, or editing `~/.claude/CLAUDE.md` moves the
+three-scope inventory, the raw candidates, and the judged conflicts while the tree and every
+liveness selector stay equal — the pair reads as comparable and P1 or P4 accuses a correct run of a
+determinism defect, which is the accusation-instead-of-abstention direction this whole section
+exists to avoid. The digest spans **every inventoried scope** plus the target's dirty set and is
+taken with the inventory frozen, so comparing baselines compares exactly what the lanes were about
+to read. Liveness answers *which* surfaces load; the state digest answers *what is in them*, and
+neither substitutes for the other. `audit-pass`'s shipped run contract already made this widening
+and names it the same way; this document had not caught up.
+
+The **sweep version** is a digest over `audit-pass`'s own machinery: anchor normalization,
+`finding_id` construction, the inventory and exclusion logic, and the report schema. The detection
+version triple is *per check* and its `host_plugin_version` is the **check's** host plugin, so a
+change to the sweep's shared identity machinery moves derived identities without moving the triple
+of any check consulted — and for a check hosted outside `claude-config` the triple cannot move at
+all. Per-lane resume is the worse half of that failure: it carries forward records built by the
+superseded identity function and presents them beside new ones as a single run. Same fail-closed
+direction as the `prompt_digest` — machinery not covered is a defect in the digest, and adding
+coverage is a version event on first observation.
+
 A property asserts nothing about a non-comparable pair. This is not a weakening — it is what makes
 the assertions falsifiable at all. Each of those inputs changes what a correct run finds: a harness
 update legitimately moves the versioned registry of harness behavior that dead-surface
 classification and raw script candidates are read against, and a catalog or prompt change
 legitimately moves what the judged tier reports. Comparing across them makes correct behavior
 indistinguishable from a defect, in the direction that raises a false alarm — the failure mode this
-whole contract exists to avoid. The run already records all four, because all four affect detection;
-the only thing that was missing was applying them uniformly. A non-comparable pair is **reported as
+whole contract exists to avoid. The liveness, detection, and harness inputs the run already records
+were only ever missing uniform application; the widened state digest and the sweep version have to
+be captured before they can be compared, and a run that cannot record one of them is a run that
+cannot assert these properties. A non-comparable pair is **reported as
 non-comparable, naming which input moved**, never as a pass and never as a failure: an unfalsifiable
 claim is not a weaker claim, it is not a claim.
 
@@ -734,10 +793,68 @@ claim is not a weaker claim, it is not a claim.
   of the harness version, so the paragraph above this one already conceded that a harness update
   breaks the unqualified form. P1 carried the liveness half and not the version half until the
   cross-vendor review found the asymmetry.
-- **P2 — convergence, measured in the tier the fix acted on.** Accepted fixes applied between `R1`
-  and `R2` ⇒ every accepted finding is absent from `R2`, in whichever tier it was reported, and every
-  member of `D(R1) \ D(R2)` corresponds to a fix that was actually applied. A finding that vanishes
-  without a fix is a defect in the check, not a success.
+- **P2 — convergence, measured in the tier the fix acted on.** `R1` and `R2` **fix-comparable** ⇒
+  every accepted finding is absent from `R2`, in whichever tier it was reported; every
+  member of `D(R1) \ D(R2)` corresponds to a fix that was actually applied; **and every derived
+  addition in `D(R2) \ D(R1)` is likewise attributable to an accepted edit.** A finding that vanishes
+  without a fix is a defect in the check, not a success — and an addition that no fix accounts for is
+  the same defect in the other direction. The addition half is not redundant with P3: P3 is gated on
+  **comparable**, a fix pair is only **fix-comparable**, so without this clause nothing at all would
+  govern derived growth during exactly the round where edits are landing. Renaming a definition is
+  the ordinary case that needs it — the old identity leaves `D` and the renamed one enters, and only
+  attribution distinguishes that from spontaneous growth.
+
+  **P2 takes the one exemption to the shared precondition, because comparability contradicts P2's
+  own antecedent.** Raised by the cross-vendor review. P2 is the one property whose whole subject is
+  a *changed* tree: an accepted fix edits the tree, so "comparable *and* fixes were applied" is a
+  condition almost no real pair meets, leaving P2 asserting nothing about precisely the pairs it
+  exists to judge. It therefore takes the comparability relation **modulo the accepted mutation
+  set**:
+
+  > `R1` and `R2` are **fix-comparable** when every comparability input is equal *except* for the
+  > differences **attributable to the edits accepted in `R1`** — no more.
+
+  **Attribution is what makes this a constraint rather than a hole, and it is why the exemption is
+  not scoped to the state digest alone.** A surface entering or leaving because an accepted edit
+  created, deleted, or moved it is attributable; one that moved because the launch directory,
+  `claudeMdExcludes`, the harness version, or a catalog bump changed is not, and P2 abstains exactly
+  as P1 would. `audit-pass`'s shipped run contract already carries this relation under this name;
+  adopting it rather than minting a second, narrower one is what keeps the two from disagreeing.
+
+  **Under this document's *current* input list an accepted edit can only move the state digest, and
+  the relation is still stated over every input.** The liveness basis is defined above as inputs
+  *outside* the tree, and an accepted fix is a tree edit, so no fix moves it — the wider form buys
+  nothing today. It is stated wide anyway for two reasons. The list has already grown twice, and a
+  relation scoped to whichever inputs a fix happens to move today is a restatement that goes stale
+  the next time one is added — the exact drift this section was rewritten to stop. And the shipped
+  contract's second input is the **live surface set**, an *output* that a tree edit genuinely does
+  move: moving always-loaded material into a skill changes what loads at startup, so there the
+  exemption has to reach past the digest or P2 abstains on the remediation these checks most often
+  recommend. This document owes that input (recorded in `PLAN.md` as Phase 8 reconciliation work),
+  and the relation is written so that adopting it is not also a re-derivation of P2.
+
+  **The sweep version is never attributable, even when an accepted edit is what moved it.** Phase 10
+  runs this pass against this repository, so a finding whose fix edits `audit-pass`'s own anchor
+  normalization or `finding_id` construction is a planned case rather than a hypothetical. That edit
+  moves the sweep version — which is a digest over the identity function itself — so every
+  `finding_id` in `R2` is computed differently and cross-run matching is destroyed wholesale: P2's
+  absence half would pass vacuously because no `R1` identity can appear in `R2` at all, and its
+  attribution halves would fire against every finding that never moved. §1 versions the anchor
+  (`anchor/v1`) for this same reason. A pair straddling an identity-machinery change is therefore
+  **not fix-comparable** and P2 abstains, naming the sweep version as the input that moved.
+
+  **What attribution requires, and what this document still owes.** A difference is attributable only
+  against a recorded applied-set — the run has to know which edits it accepted and what each one
+  touched, and compare that against the observed delta. The shipped contract grounds this in the
+  mutation-integrity capture it already performs; **this document names no equivalent mechanism, and
+  Phase 6 owes one** — until it exists, `fix-comparable` is a definition without a decision
+  procedure. The gap bites hardest where the pass never performs the edit itself: a user-scope
+  finding is routed as a recommendation and applied by the operator outside the repository, so
+  nothing the run captures establishes that the applied edit matches what was recommended. That
+  difference is therefore **not attributable**, which makes the pair not fix-comparable at all —
+  abstention is over the *pair*, as every relation here is, never over a finding within an otherwise
+  admitted pair. A round mixing routed and applied fixes consequently yields no P2 verdict rather
+  than a partial one, and closing that is the capture's job, not a per-finding exception.
 
   **The tier clause replaces a strict subset over `D`, and the strict subset was wrong.** Raised by
   the cross-vendor review. D1 — the deliverable's only new check — is a judged finding and
@@ -745,14 +862,16 @@ claim is not a weaker claim, it is not a claim.
   shadowed definitions, and the raw script candidate rows all legitimately identical. `D(R2) ⊊ D(R1)`
   then *fails* the successful remediation of the primary detector, making the headline convergence
   gate unsatisfiable for the normal case. Strictness belongs in "every accepted finding is gone",
-  which is the claim convergence is actually making; the containment half over `D` is P3's job and
-  P3 already states it.
+  which is the claim convergence is actually making. Containment over `D` splits by relation: for a
+  **comparable** pair it is P3's job and P3 states it, and for a **fix-comparable** pair — where P3's
+  antecedent does not hold — it is the attributable-addition clause above.
 - **P3 — no spontaneous growth.** `R1` and `R2` **comparable** ⇒ `D(R2) ⊆ D(R1)`. The set may grow
-  only on a detection-version bump, a harness-version bump, a change to the liveness basis, or a
-  change to the tree — and a skill authored between runs is a change to the tree. That enumeration is
-  exactly the negation of comparability, which is why the precondition is shared rather than restated
-  here: P3 spelled all four out inline, P1 and P4a spelled out fewer, and the divergence was the
-  defect.
+  only when a comparability input moved — and a skill authored between runs is a change to the tree.
+  **The licensing condition is the negation of comparability, and P3 no longer restates it.** P3
+  originally spelled its four inline while P1 and P4a spelled out fewer, and that divergence was the
+  original defect; an inline copy would have to be re-edited every time the basis gains an input,
+  which is the same drift by a slower route. Citing the shared precondition is what keeps the two
+  from parting again.
 
   **The liveness clause was added to P1 and left out here, which made P3 read correct behavior as a
   defect.** Raised by the cross-vendor review. A changed launch directory, a changed effective
@@ -822,10 +941,11 @@ claim is not a weaker claim, it is not a claim.
   made deterministic; an identity function normalizes how a finding is *reported* and cannot make the
   *detection* reproducible. So judged findings are reported in a separate section, excluded from
   P1–P3, and held instead to:
-  - `|J(R1) △ J(R2)| ≤ max(2, ceil(0.10 × |J(R1)|))` over a **comparable** pair — **the stated
-    tolerance**, measured across three consecutive runs, with the worst pair taken. The tolerance
+  - `|J(R1) △ J(R2)| ≤ max(2, ceil(0.10 × |J(R1)|))` over a **comparable** pair **whose judging
+    configuration is also equal** — **the stated tolerance**, measured across three consecutive
+    runs, with the worst pair taken. The tolerance
     read "over an unchanged tree" until the cross-vendor review, and an unchanged tree is the weakest
-    of the four comparability inputs: a changed catalog or prompt is precisely a change to what the
+    of the comparability inputs: a changed catalog or prompt is precisely a change to what the
     judged tier is asked to find, so the judged set can move far past 10% while every run is correct,
     and P4a would then fail the sweep for model instability that is not instability at all. This is
     the same drift as P1's, in the tier where it is most likely, since a catalog revision is the
@@ -836,9 +956,28 @@ claim is not a weaker claim, it is not a claim.
     is the more damaging of the two directions. The constant is unchanged and is still the
     calibration Phase 10 tests;
   - no member of `J(R2)` contradicts an accepted suppression.
+
+  **The judging configuration is a precondition on the tolerance, not an obligation on the run.**
+  Raised by the cross-vendor review. It is the selected model together with its effort and sampling
+  settings, and an operator who changes either between runs moves `J` legitimately and arbitrarily
+  far past the tolerance while state digest, liveness basis, detection triples, harness version, and
+  sweep version all hold equal. Stated as an obligation it would be self-defeating — the model swap
+  would *violate* P4 and route into P4a as instability, which is the very false alarm being closed;
+  stated as a precondition, the pair is simply not one the tolerance speaks about. **The condition
+  is P4's and P4a's alone and is deliberately absent from the shared precondition**, because `D`
+  contains no model judgement — P1 is assertable exactly *because* nothing in the derived tier
+  passes through one — so conditioning P1, P3, and P3a on it would make them unfalsifiable across a
+  model swap while asserting nothing extra. It is recorded in the **resume digest** for judged
+  lanes, since a lane completed under one judge has stale findings under another.
 - **P4a — a violation has a consequence, or the property is decoration.** Exceeding the tolerance
   **fails the run's self-check and is reported as an instability finding against the sweep itself**,
-  naming the checks whose output moved. It is not silently absorbed by recalibrating the constant.
+  naming the checks whose output moved. A pair failing P4's precondition is **not** an exceedance and
+  is never routed here: it is reported as **outside the tolerance's scope, naming the input that
+  moved**, on the same posture P1 takes toward a non-comparable pair. The two halves of that
+  precondition are named separately in the report, because only one of them is comparability — a pair
+  that is comparable but ran under a different judging configuration is reported as such, not
+  relabelled non-comparable, since comparability deliberately excludes the judging configuration. It
+  is not silently absorbed by recalibrating the constant.
   The tolerance may be revised only by an explicit, recorded decision citing the observed
   distribution — never as an implicit response to a failure. Without that clause the metric absorbs
   its own counterevidence, which is what a placeholder does.
@@ -864,9 +1003,10 @@ P5. Counted by grep over the assertion labels, not transcribed; the previous fig
 Assertions 1.5 and 3.4 and was already stale before this round added 2.3 and 3.5.
 
 **Two properties are now explicitly scoped rather than universal**, and the scoping is the honest
-form: Assertion 1.1 holds for excerpt-granularity findings, and P1's exact equality holds for a
-fixed tree *and* a fixed liveness basis. Both were falsifiable as originally written — not by a
-defect in the sweep, but by correct behavior on a second machine.
+form: Assertion 1.1 holds for excerpt-granularity findings, and P1's exact equality holds over a
+**comparable** pair — cited, never re-enumerated here, since the list has grown twice and a
+restatement is exactly how P1, P3, and P4a drifted apart in the first place. Both were falsifiable as
+originally written — not by a defect in the sweep, but by correct behavior on a second machine.
 
 **What this document deliberately does not decide.** The report's concrete schema, the suppression
 file's path and format, and the lane decomposition are Phase 6 design, because they depend on the

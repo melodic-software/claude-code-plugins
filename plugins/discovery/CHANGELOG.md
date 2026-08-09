@@ -1,5 +1,253 @@
 # Changelog — discovery plugin
 
+## [0.11.3]
+
+### Changed
+
+- **`research-deep` now dispatches `discovery:researcher` at both of its worker-spawning call
+  sites.** Tier 2 spawned a bare `general-purpose` agent with a long inline prompt that hand-carried
+  the research discipline, and the N-topic fan-out spawned N more the same way — while the plugin
+  already ships the purpose-built worker that `/discovery:research` routes to. Two ways of running
+  one discipline, and the second was the weaker one: a hand-written prompt is a copy of a contract
+  that lives in `skills/research/`, so it is only ever as disciplined as that copy is faithful, and
+  a spawn with no calibration runs at whatever effort and turn budget it inherits rather than the
+  ones tuned for this work.
+  - **Both call sites move together.** Migrating one would have left the other as a silent second
+    way of doing the same thing, which is the shape this change exists to remove.
+  - **One shared envelope section** now serves both paths — the six fields the agent refuses to
+    guess (topic, the reason it is being researched, memory-slice path, memory root as its own
+    field, budget, capability flags), with the field-by-field rationale pointed at
+    `skills/research/context/dispatch.md` rather than restated. The N-topic path keeps its
+    parent-assigned sub-slices and passes the memory root separately, which is exactly the nested
+    case the agent names: a worker handed a sub-slice path cannot tell from it which ancestor is the
+    configured root.
+  - **The researcher's `tools` allowlist is gone, so session MCP tools reach the worker again.**
+    The migration's review surfaced that the allowlist silently dropped every MCP tool the former
+    `general-purpose` spawn inherited — the sub-agents reference is explicit that a `tools`
+    allowlist excludes MCP tools while an unrestricted definition keeps them. The agent now
+    inherits its pool (background tool filtering still applies), restoring source-specific
+    documentation and synthesis MCP tools to both this skill's dispatches and `/discovery:research`'s.
+  - **`Budget` is documented as narrowing-only** — the researcher's fixed `maxTurns: 40` is a
+    ceiling the envelope cannot raise; work needing more depth belongs to Tier 1's engine. The
+    envelope-rationale pointer is scoped honestly: `dispatch.md` carries five of the six fields,
+    and `Memory root`'s rationale lives in the researcher's own contract.
+  - **The dispatch prompt is envelope fields only.** The disciplines, the citation rule, the outcome
+    gate, and the return-payload shape are the agent's own standing contract; the old prompt's
+    carry-verbatim reminders are the copy that drifts the moment the parent skill changes.
+  - Everything the old prompt enforced that is genuinely parent-side is unchanged: per-topic
+    sub-slice assignment, the N ≥ 2 decomposition rule, and the post-dispatch boundary this session
+    closes for every dispatched run before surfacing anything. The Tier 2 rationale sentence now
+    reads on discipline-at-turn-zero and calibration; the tool-access half — Phase 3 needs
+    direct-fetch and MCP tools, and the artifact must be written, which a read-only Explore agent
+    cannot do — survives as the secondary reason it always was.
+  - `agents/researcher.md` and the README agent table named `/discovery:research` as the sole
+    dispatcher; both now name `/discovery:research-deep` too, and evals 1 and 3 grade the agent type
+    and the envelope rather than a `general-purpose` spawn.
+
+## [0.11.2]
+
+### Changed
+
+- **`research-deep`: the multi-topic fan-out now has a ceiling.** N came straight from the user's own
+  topic count with a stated floor (N ≥ 2 dispatches parallel agents) and nothing above it, so a
+  twenty-topic ask dispatched twenty agents. N is now capped at roughly a dozen, past which the ask
+  gets narrowed with the user before dispatching — the same wave cap the `discipline` plugin already
+  uses, rather than a new threshold invented here.
+
+## [0.11.1]
+
+### Fixed
+
+- **The plan-mode filter claim bundled two tools under one unconditional rule, and only one of them
+  is unconditional.** `skills/explore/SKILL.md` and `agents/explorer.md` both stated that
+  "`EnterPlanMode` and `ExitPlanMode` are filtered out of every non-fork subagent". Verified
+  2026-08-08 against the official subagent docs, which list the first filter's removals as
+  "`EnterPlanMode`" with no qualifier and "`ExitPlanMode`, unless the subagent's `permissionMode` is
+  `plan`". `ExitPlanMode` carries a carve-out; `EnterPlanMode` does not.
+  - The correction is not an appended qualifier. Attaching the carve-out to the joined sentence
+    would have spread it to `EnterPlanMode`, replacing a claim that is too strong with one that is
+    too weak — and too weak in the direction that matters, since it would imply a dispatched run
+    could enter plan mode. The two tools are now stated separately.
+  - **The surrounding conclusion survives, and now rests on the `tools` allowlist rather than on
+    the filter alone.** Both sites conclude that a dispatched run's read-only boundary is the
+    agent's own instruction, not harness enforcement. Deriving that from `permissionMode` would
+    not hold: the same page states subagents "inherit the permission context from the main
+    conversation", naming only `bypassPermissions`, `acceptEdits`, and `auto` in its precedence
+    rules, so a definition's silence on `permissionMode` does not by itself settle which mode the
+    subagent runs in. `agents/explorer.md` instead declares `tools: "Read, Grep, Glob, Bash,
+    Write, Skill, Agent"` — an allowlist naming neither plan-mode tool — so it holds neither
+    however the filters and inheritance resolve. That is a property of the definition in the
+    repository, checkable without reasoning about permission-mode precedence at all.
+
+## [0.11.0]
+
+### Changed
+
+- **Both dispatch envelopes now carry the reason the work is being done**, not only what to do. A
+  section-by-section audit against Anthropic's Fable 5 prompting guide found that every
+  dispatch-brief contract in this marketplace specified outcome, output shape, sources, and
+  boundaries — and none carried intent. That guide singles out long-running agents drawing on
+  multiple workstreams as where the omission costs most, and a dispatched worker is that case at its
+  sharpest: it has no conversation to infer intent from.
+  - Both halves of each contract move together, which is the part that makes it bind. The parent
+    side states the field in the envelope (`skills/explore/SKILL.md`, `skills/research/SKILL.md`,
+    and the envelope table in `skills/research/context/dispatch.md`), and the worker side adds it to
+    the list it refuses to guess (`agents/explorer.md`, `agents/researcher.md`). Adding it to the
+    parent alone would leave a worker that accepts a reason-less prompt without noticing, which is
+    the silent failure the field exists to stop.
+  - The justification travels with the field in every one of those places: a missing topic or scope
+    is silence the agent can report, while a missing reason is invisible — the agent works the topic
+    as written, returns something well-formed, and neither side learns it answered the wrong
+    question. Intent is what decides which of several defensible readings is the one wanted.
+  - **The enforcement sentence names the reason too.** Listing a field under "refuse to guess" and
+    then omitting it from the `status: truncated` rule directly below leaves the field advisory: the
+    agent reads the obligation and nothing makes a missing reason stop the run. Both agents now halt
+    on an absent or ambiguous reason exactly as they do for an absent scope, topic, or slice path.
+
+## [0.10.1]
+
+### Added
+
+- **`explore`: sidecar bodies get a length calibration.** Every surrounding surface was already
+  calibrated (one-line index abstracts, one-line YAML findings, a sentence-capped agent return),
+  but the sidecar bodies — where the bulk of the disk-written artifact lands — carried no length
+  guidance, and the outcome gate is a floor (no placeholders), not a ceiling. SKILL.md now
+  carries the calibration: match body length to what the section needs; cover the substance
+  without filler sections, redundant summaries, or boilerplate.
+
+## [0.10.0]
+
+### Added
+
+- **A deterministic acceptance gate for a dispatched `/discovery:explore` run.** A consuming project
+  reported an `explorer` dispatch that returned `status: completed` carrying a mid-stream narration
+  line as its entire payload — no `preload_token`, no summary, no artifact path — and the parent
+  proceeded as though exploration had finished. The contract that was supposed to stop that was
+  already present as prose, and had been since `78e89e12`, four days before the run that failed;
+  another paragraph would have been the same category of thing. So the check is now runnable and
+  fails closed.
+  - `scripts/check-explore-artifact.sh` — new. Takes the memory-slice path the **parent** resolved
+    before dispatching, and grades the run off disk: exactly one `EXPLORE.md` (slice root or one
+    level below, the sanctioned sub-slice depth), non-empty, naming at least one
+    `EXPLORE-<section>.md` sidecar, with every named sidecar present beside it and non-empty. Exit 0
+    usable, 1 no usable artifact set, 2 ungradeable. Three opt-in checks extend it — `--newer-than`
+    (the index is newer than a baseline the parent touched pre-dispatch), `--expect-index` (the
+    payload's pointer resolves to the file that was graded), and `--expect-sidecars` (the payload's
+    count matches what the index names). Each reports `unchecked` in the verdict line when it is not
+    run, so a skipped check never reads as a passed one.
+  - `scripts/check-explore-artifact.test.sh` — new. 46 black-box cases, weighted toward the readings
+    that would be invisible if wrong: an empty slice, a stub index, an index naming files nobody
+    wrote, a stale artifact from an earlier run, a payload pointing somewhere else, and two candidate
+    indexes must never report `usable`.
+  - `skills/explore/SKILL.md` — new parent-side acceptance gate in the routing section, citing the
+    script's **exit status** rather than a reading of the directory, and stating the halt explicitly:
+    a non-zero exit stops the workflow rather than annotating it.
+
+  **The path deliberately comes from the parent's envelope, never from `artifact:`.** The payload is
+  the broken party in the reported failure, so a check that reads its own input from the payload
+  cannot see that failure at all.
+
+  **Two ways an on-disk check can still pass a failed run, both now closed.** Existence is not
+  freshness: a slice already holding an earlier run's complete artifact set satisfies every check
+  even when this dispatch wrote nothing, and the sidecar count agrees because both runs write the
+  same sections — hence the pre-dispatch `.explore-dispatch` baseline and `--newer-than`. And because
+  the gate selects the index from the parent's slice path rather than from the payload, the two are
+  free to disagree: a payload naming another file is not corroborating what was graded, and its
+  `verification_request.target` would aim the sibling verifier at a file the gate never looked at —
+  hence `--expect-index`, with the gate's own `index=` authoritative for the verifier and the
+  handoff.
+
+- **The missing half of validate-on-receipt.** The parent's rule covered a missing or mismatched
+  `preload_token` and nothing else. A payload carrying **no artifact pointer** is now stated to be a
+  failed dispatch regardless of the `status` field it reports.
+
+- **`skills/explore/reference/dispatch.md`** — new spoke carrying the parent's obligations, why
+  `test -s` alone was not enough, and the recovery ladder the reporting session had to find by trial
+  at a cost of roughly eight minutes. Resume the agent by **agent ID** with `SendMessage` when it is
+  still live; fix the envelope yourself on an exit 2; discard and re-dispatch on a refused resume.
+  Verified 2026-08-08 against the official subagents page
+  (<https://code.claude.com/docs/en/sub-agents>): "When a subagent completes, Claude receives its
+  agent ID", "Claude uses the `SendMessage` tool with the agent's ID or name as the `to` field to
+  resume it", "A completed subagent that receives a `SendMessage` auto-resumes in the background
+  without a new `Agent` invocation", and — the reason the ladder says ID rather than name — "As of
+  v2.1.199, `SendMessage` checks that a name still refers to the same agent it reached earlier in
+  the conversation". The same page bounds the claim: a subagent the **user** stopped "doesn't
+  auto-resume", and the built-in Explore agent this skill names as its one alternative is one-shot
+  and "can't be resumed", so the ladder is scoped to the custom `discovery:explorer`.
+
+## [0.9.3]
+
+### Fixed
+
+- **The `Workflow`-tool availability claim omitted the fork exception.** Three places stated flatly
+  that a subagent cannot reach `Workflow`, contradicting `skills/research-deep/SKILL.md`'s own
+  gotcha, which already scoped the filter to *non-fork* subagents. Verified 2026-08-05 against the
+  official subagent docs: "Subagents inherit the built-in tools and MCP tools available in the main
+  conversation, narrowed by two filters ... Forks skip both filters and receive the main
+  conversation's exact tool pool" — and `Workflow` is one of the tools that first filter removes.
+  A fork therefore *does* hold `Workflow`; the unqualified wording told it Tier 1 was categorically
+  out of reach and silently degraded it to Tier 2.
+  - `README.md` — the `/discovery:research-deep` row.
+  - `skills/research-deep/SKILL.md` — the frontmatter `description` and the Purpose paragraph.
+
+- **Tier 2 was labelled a fork, which it is not.** `/research-deep`'s fallback tier spawns an
+  ordinary isolated `general-purpose` subagent; nothing about it forks the conversation. Calling it
+  "forked" collided with the genuine fork distinction the fix above turns on — that a *fork* holds
+  `Workflow` and a non-fork subagent does not — so the same word carried two meanings, one of them
+  wrong. Tier 2 is no longer called a fork anywhere; its explicit label is now "isolated subagent".
+  The true-fork references (the `Workflow` filter and the `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`
+  nesting allowance) are unchanged.
+  - `skills/research-deep/SKILL.md` — the frontmatter `description`, the tier table, the Tier 2
+    heading, and the post-dispatch boundary paragraph.
+  - `skills/research-deep/evals/evals.json` — eval 3's name and first expectation, and eval 5's
+    expected output. Eval 3's expectation previously accepted "forked/isolated" and now requires
+    "isolated", tightening it in the direction of the corrected label.
+  - `reference/topic-docs.md` — the visibility section called the `-deep` executions "forks" and
+    named `EXPLORE.md` as one of their artifacts. `-deep` resolves solely to `research-deep`, whose
+    isolated subagent writes `RESEARCH.md`; `explore-deep`, whose frontmatter did declare
+    `context: fork`, was retired in 0.9.0. The checkout-locality claim the sentence exists to make
+    is unchanged. This document is loaded at runtime by the skills, so the stale label reached them.
+  - `README.md` — the graceful-degrade roster advertised "forked subagents" as an adjacent
+    capability; no skill in the plugin declares `context: fork`, so the roster now names subagents
+    plainly.
+
+- **The main-context rationale carried only half its reason.** All three statements of why
+  `/research-deep` must run inline cited the `Workflow` tool alone — which, once that claim is
+  correctly scoped to non-fork subagents, licenses a fork to dispatch the skill. The rationale now
+  also carries the `Agent`-spawn leg that `skills/research-deep/SKILL.md`'s *Dispatching this skill
+  itself* gotcha already stated, and which holds for forks too: at the configurable depth limit a
+  fork keeps `Agent` listed but the spawn errors, so no dispatched context guarantees it.
+  - `README.md` — the `/discovery:research-deep` row.
+  - `skills/research-deep/SKILL.md` — the frontmatter `description` and the Purpose paragraph.
+
+## [0.9.2]
+
+### Fixed
+
+- **`/research-deep`'s single-topic tiers returned an artifact nobody had graded.** The
+  post-dispatch verification boundary — dispatch the sibling verifier, apply project fit, write both
+  back into the index — was stated only inside the `N >= 2` multi-topic branch. Tier 2 returned the
+  worker's summary and artifact path directly and Tier 1 said to surface the engine's return, yet no
+  producing context can complete the `/research` outcome gate's verifier-owned rows (independent
+  corroboration, HIGH confidence) or its parent-owned row (project fit): the first two belong to a
+  fresh context by design, the third needs the consuming project's conventions, and nested `Agent`
+  availability is not something a producer can be relied on to have. The main session could
+  therefore present claims as gate-passed that were never graded.
+
+  The boundary is now **one section that every dispatching tier cites** rather than prose inside the
+  multi-topic branch, so Tier 1, Tier 2, and each topic worker are covered by construction and the
+  multi-topic paragraph points at it instead of restating it. Tier 2's dispatch envelope asks the
+  worker to leave those rows `pending`.
+
+- **The evals encoded the retired artifact layout and rewarded the defect above.** `evals/evals.json`
+  required each topic worker to write a sibling `research-<topic>.md` at the slice root — the
+  collision-prone contract replaced by per-topic sub-slices (`<memory_dir>/<slug>/<topic-slug>/`)
+  each holding a normal `RESEARCH.md` — so running it penalized the compliant layout and could not
+  protect the fix from regression. Eval 1 now requires per-topic sub-slices, session-assigned paths,
+  and the per-topic verification boundary. Evals 2 and 3 gain that boundary for Tier 1 and Tier 2;
+  eval 2 previously expected the engine's summary and artifact path to be surfaced directly, which
+  is exactly the behavior the fix removes.
+
 ## [0.9.1]
 
 ### Fixed

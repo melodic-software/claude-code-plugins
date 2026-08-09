@@ -339,8 +339,21 @@ IDs — the alias tracks the current recommended model and a pinned ID rots.
 - **Conflict and security subagents — `fable`.** Frontier tier, which
   babysit-loop requires for conflict workers unconditionally.
 - **Mechanical greps and log pulls — `haiku`.** Per-dispatch override
-  only: 200k context and an old cutoff, never for a question about
-  current harness behavior.
+  only: the smallest context window and the oldest cutoff of the four,
+  never for a question about current harness behavior.
+
+The per-model figures behind those two rationales — context window and
+knowledge cutoff — are upstream-owned
+([models overview](https://platform.claude.com/docs/en/about-claude/models/overview))
+and are not restated here. Both orderings resolved as written against that
+page on 2026-08-04. Both are *derived* comparisons rather than quoted
+figures, so either can flip while every underlying number still reads
+correctly: re-resolve them when a new Claude model family reaches GA,
+when one of the aliases above starts resolving to a different model, or
+when a model one of them resolves to is announced deprecated or retired
+([model deprecations](https://platform.claude.com/docs/en/about-claude/model-deprecations)
+— the announcement leads the alias move, and upstream warns deprecated
+models are likely to be less reliable than active ones).
 
 **The implementer tier is enforced structurally at the dispatch seam
 (#1649).** `/implementation:implement-dispatch` dispatches workers and
@@ -378,7 +391,12 @@ claude --model opus     # attended queue
 Pair the fast roots with a stronger advisor (`advisorModel: opus`). A fast
 orchestrator plus an advisor at or above the main tier is the convention's
 recommended shape, and it is what makes a `sonnet` root safe. Leave effort
-at its default; Opus and Sonnet already default to high in Claude Code.
+at its default; Opus and Sonnet already default to high in Claude Code
+(verified 2026-08-08 against
+[model config](https://code.claude.com/docs/en/model-config#adjust-effort-level):
+"The default effort is `high` on every model that supports effort, except
+Opus 4.7, which defaults to `xhigh`" — re-resolve if a lane pins a model
+whose default differs, or when the pinned models change).
 
 ## Concurrent workers on one repository
 
@@ -428,19 +446,30 @@ no shared state, no contention, and the sharding problem disappears.
 > all without a human turn. Prefix every comment and item you create with
 > the AI disclaimer specified by triage. You never merge.
 >
-> **Discipline.** Invoke `/discipline:sweep-all` **once per cycle, at the
-> cycle root only** — never inside a dispatch brief, and never from a
-> subagent. That skill fans out one audit fork per corrector itself, so a
-> brief that re-invokes it has each fork start another full sweep, and so on
-> down: the fan-out multiplies with depth and burns worker slots and rate
-> limit before any lane work runs. Dispatched subagents inherit the posture
-> the root sweep already set; they do not re-run it. Do not enumerate the
-> individual disciplines either — that skill resolves its own membership and
-> a hand-copied list drifts. If the `discipline` plugin is not installed
-> here, inline the equivalent standing instructions instead: verify claims
-> against authoritative sources before acting, prefer installed skills
-> over ad-hoc approaches, and re-check work against the active
-> conventions.
+> **Discipline.** Invoke `/discipline:sweep-all`'s **full batch pass once per
+> cycle, at the cycle root only** — never from inside that skill's own audit
+> forks. That is the one recursion worth forbidding: the batch fans out an
+> audit fork per corrector, so a fork that re-invoked it would start another
+> full sweep, and so on down, multiplying with depth and burning worker slots
+> and rate limit before any lane work runs.
+>
+> **Every dispatch brief still carries the standing discipline preamble**
+> (loop-lane convention, "Subagent discipline preamble"). A dispatched
+> subagent runs in a fresh, non-inherited context — it inherits no posture
+> from the root sweep and has to set its own. Doing so does not recurse and is
+> not the fan-out above: invoked at a subagent's conversation start, that
+> skill reports its cheap posture digest and runs **no** audit fan-out (its
+> full pass is its mid-session / explicitly-requested mode, and its own
+> preflight degrades to the digest when the fan-out cannot inherit a
+> conversation — a fresh subagent never can). The cost is one skill read per
+> dispatch, linear in dispatches.
+>
+> Do not enumerate the individual disciplines — that skill resolves its own
+> membership and a hand-copied list drifts. If the `discipline` plugin is not
+> installed here, the cycle root and every dispatch brief inline the
+> equivalent standing instructions instead: verify claims against
+> authoritative sources before acting, prefer installed skills over ad-hoc
+> approaches, and re-check work against the active conventions.
 >
 > **The sweep corrects forward in the working tree — yours is the lane
 > checkout.** Its correction step edits files where it runs, and you run on
@@ -562,12 +591,16 @@ wakeup ceiling for days rather than finishing.
 > subagent that did not produce it. If the two disagree, escalate rather
 > than pick.
 >
-> **Discipline.** Invoke `/discipline:sweep-all` **once per cycle, at the
-> cycle root only** — never inside a dispatch brief, and never from a
-> subagent. That skill fans out its own audit fork per corrector, so
-> re-invoking it inside a brief multiplies the fan-out with every nesting
-> level. Dispatched subagents inherit the posture the root sweep set. If that
-> plugin is absent here, inline the equivalent standing instructions instead.
+> **Discipline.** Invoke `/discipline:sweep-all`'s **full batch pass once per
+> cycle, at the cycle root only** — never from inside that skill's own audit
+> forks, the one recursion that would multiply its per-corrector fan-out with
+> every nesting level. **Every dispatch brief still carries the standing
+> discipline preamble** (loop-lane convention, "Subagent discipline
+> preamble"): a dispatched subagent starts in fresh context and inherits no
+> posture, and that skill invoked at a subagent's conversation start reports
+> its cheap posture digest with no audit fan-out at all. If that plugin is
+> absent here, both surfaces inline the equivalent standing instructions
+> instead.
 >
 > **Never apply an in-tree correction — you may not even be in the target
 > repo.** This lane takes `owner/repo` as an argument and works over the API,
@@ -1279,19 +1312,30 @@ machines; neither on the attended box.
 > all without a human turn. Prefix every comment and item you create with
 > the AI disclaimer specified by triage. You never merge.
 >
-> **Discipline.** Invoke `/discipline:sweep-all` **once per cycle, at the
-> cycle root only** — never inside a dispatch brief, and never from a
-> subagent. That skill fans out one audit fork per corrector itself, so a
-> brief that re-invokes it has each fork start another full sweep, and so on
-> down: the fan-out multiplies with depth and burns worker slots and rate
-> limit before any lane work runs. Dispatched subagents inherit the posture
-> the root sweep already set; they do not re-run it. Do not enumerate the
-> individual disciplines either — that skill resolves its own membership and
-> a hand-copied list drifts. If the `discipline` plugin is not installed
-> here, inline the equivalent standing instructions instead: verify claims
-> against authoritative sources before acting, prefer installed skills
-> over ad-hoc approaches, and re-check work against the active
-> conventions.
+> **Discipline.** Invoke `/discipline:sweep-all`'s **full batch pass once per
+> cycle, at the cycle root only** — never from inside that skill's own audit
+> forks. That is the one recursion worth forbidding: the batch fans out an
+> audit fork per corrector, so a fork that re-invoked it would start another
+> full sweep, and so on down, multiplying with depth and burning worker slots
+> and rate limit before any lane work runs.
+>
+> **Every dispatch brief still carries the standing discipline preamble**
+> (loop-lane convention, "Subagent discipline preamble"). A dispatched
+> subagent runs in a fresh, non-inherited context — it inherits no posture
+> from the root sweep and has to set its own. Doing so does not recurse and is
+> not the fan-out above: invoked at a subagent's conversation start, that
+> skill reports its cheap posture digest and runs **no** audit fan-out (its
+> full pass is its mid-session / explicitly-requested mode, and its own
+> preflight degrades to the digest when the fan-out cannot inherit a
+> conversation — a fresh subagent never can). The cost is one skill read per
+> dispatch, linear in dispatches.
+>
+> Do not enumerate the individual disciplines — that skill resolves its own
+> membership and a hand-copied list drifts. If the `discipline` plugin is not
+> installed here, the cycle root and every dispatch brief inline the
+> equivalent standing instructions instead: verify claims against
+> authoritative sources before acting, prefer installed skills over ad-hoc
+> approaches, and re-check work against the active conventions.
 >
 > **The sweep corrects forward in the working tree — yours is the lane
 > checkout.** Its correction step edits files where it runs, and you run on
@@ -1417,12 +1461,16 @@ the partition and the evidence predicate is met.
 > subagent that did not produce it. If the two disagree, escalate rather
 > than pick.
 >
-> **Discipline.** Invoke `/discipline:sweep-all` **once per cycle, at the
-> cycle root only** — never inside a dispatch brief, and never from a
-> subagent. That skill fans out its own audit fork per corrector, so
-> re-invoking it inside a brief multiplies the fan-out with every nesting
-> level. Dispatched subagents inherit the posture the root sweep set. If that
-> plugin is absent here, inline the equivalent standing instructions instead.
+> **Discipline.** Invoke `/discipline:sweep-all`'s **full batch pass once per
+> cycle, at the cycle root only** — never from inside that skill's own audit
+> forks, the one recursion that would multiply its per-corrector fan-out with
+> every nesting level. **Every dispatch brief still carries the standing
+> discipline preamble** (loop-lane convention, "Subagent discipline
+> preamble"): a dispatched subagent starts in fresh context and inherits no
+> posture, and that skill invoked at a subagent's conversation start reports
+> its cheap posture digest with no audit fan-out at all. If that plugin is
+> absent here, both surfaces inline the equivalent standing instructions
+> instead.
 >
 > **Never apply an in-tree correction — you may not even be in the target
 > repo.** This lane takes `owner/repo` as an argument and works over the API,

@@ -48,7 +48,23 @@ WITH latest AS (
 SELECT attr_type, sum(value)::BIGINT AS tokens
 FROM cc_metrics JOIN latest USING (session_id)
 WHERE metric_name = 'claude_code.token.usage' GROUP BY 1;
+
+-- cache health by model over the requested scope — the grain the report's Cache health section
+-- renders. Consume the scope workflow's cutoff (data-sources.md derives SINCE_ISO per scope;
+-- `all` maps to epoch so the predicate still holds). For `session` scope, replace the cutoff
+-- line with:  AND session_id = '<session_id>'  (the workflow requires the session filter there).
+SELECT model,
+       sum(value) FILTER (WHERE attr_type = 'cacheRead')::BIGINT     AS cache_read,
+       sum(value) FILTER (WHERE attr_type = 'cacheCreation')::BIGINT AS cache_creation
+FROM cc_metrics
+WHERE metric_name = 'claude_code.token.usage'
+  AND event_time >= TIMESTAMP '<SINCE_ISO>'
+GROUP BY 1 ORDER BY cache_creation DESC;
 ```
+
+Hot-tier only, deliberately: the `cc_*_cold()` macros raise `IO Error: No files found that match
+the pattern …` when the cold tier holds no parquet yet, so the union pattern above is for stores
+that have aged, not a safe default. Add the cold half only after confirming `cold/` is populated.
 
 Join logs to traces via shared `trace_id` / `span_id` on log rows.
 

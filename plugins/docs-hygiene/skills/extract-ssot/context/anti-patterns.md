@@ -118,17 +118,20 @@ Patterns are framed for markdown extraction (the dominant case) but apply to cod
 2. Phase boundaries surface the diff to the user explicitly; never auto-stage/commit/push
 3. Eval cases for any new skill MUST be human-reviewed against expected output before declaring done
 
-## 9. Cache invalidation cascade
+## 9. Always-loaded SSOT propagation lag
 
-**Pattern.** Extraction creates a new always-loaded file that gets edited often; downstream sessions' prompt caches invalidate on every edit; token cost rises for every session that loads it.
+**Pattern.** Extraction moves content into an always-loaded file (`CLAUDE.md`, an unscoped `.claude/rules/` file — rules with `paths:` frontmatter load lazily instead, so an edit before they load does take effect) that then gets edited often. Sessions already running never see the edits: those files are read once at session start, and a mid-session edit neither applies nor invalidates the cache — the new content loads on the next `/clear`, `/compact`, or restart. A correction lands in the repo while every live consumer keeps following the superseded version.
 
-**Symptom.** Cache-creation token volume rises relative to baseline in usage telemetry; cache hit rate for sessions in the repo drops after the SSOT lands.
+**Scope fence — Claude Code sessions, and the cost is propagation, not caching.** A mid-session edit to an always-loaded file keeps the cached prefix, and sequential sessions in a directory share a prefix only when the startup git-status snapshot matches, which captures branch and recent commits — so committing the edit breaks sharing exactly as any other commit does, and SSOT edit frequency is not a distinct driver of cache misses ([editing CLAUDE.md mid-session](https://code.claude.com/docs/en/prompt-caching#editing-claude-md-mid-session), [cache scope](https://code.claude.com/docs/en/prompt-caching#cache-scope), verified 2026-08-04). On the API surface a volatility cost is real, because cache hits there require byte-identical prefix segments — that reaches an Agent SDK fleet assembling one shared prefix across machines, not the tracked-markdown extractions this skill scopes to ([cache storage and sharing](https://platform.claude.com/docs/en/build-with-claude/prompt-caching#cache-storage-and-sharing), verified 2026-08-04).
+
+**Symptom.** A rule corrected hours ago is still being violated by long-running sessions; two concurrent sessions in the same repo follow different versions of the same extracted rule.
 
 **Mitigation.**
 
 1. Decision-framework test #3 (Stable — content changes <1×/quarter) is the up-front gate
-2. If the SSOT must be edited frequently, split it: stable categorical bits stay in the SSOT, volatile narrative goes back inline
+2. If the SSOT must be edited frequently, split it: stable categorical bits stay in the always-loaded SSOT, volatile narrative moves to a surface that loads late enough to see corrections — a skill body (injects at invocation), a `paths:`-scoped rule (loads on first matching read), or a file consulted on demand. Going back inline helps only when the original home was itself lazy-loaded; inline in `CLAUDE.md` or an unscoped rule is the same always-loaded surface with the same lag, and buys nothing
 3. A Recheck-triggers section in the SSOT documents anticipated edit frequency; if it drifts >1×/month, raise it as a side observation
+4. After a correction live sessions must honor, say so — the fix reaches them only on `/clear`, `/compact`, or restart
 
 ## 10. Encapsulation violation
 

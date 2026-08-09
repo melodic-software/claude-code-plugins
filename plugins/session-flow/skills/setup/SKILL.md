@@ -45,7 +45,8 @@ semantics.
    token or empty means the default): `${user_config.observer_enabled}` (default off),
    `${user_config.observer_analysis_enabled}` (default on), `${user_config.observer_analysis_model}`
    (default `claude-haiku-4-5`), `${user_config.observer_analysis_bare}` (default off),
-   `${user_config.observer_idle_seconds}` (default 900), `${user_config.observer_max_seconds}` (default
+   `${user_config.observer_idle_seconds}` (default 900), `${user_config.observer_poll_seconds}`
+   (default 5), `${user_config.observer_max_seconds}` (default
    86400). Call out two hazards: `observer_analysis_bare` on is a FAIL on an OAuth-login install (the
    analysis run reports "Not logged in"); `observer_idle_seconds` below the machine's longest expected
    single turn risks firing analysis on a partial transcript.

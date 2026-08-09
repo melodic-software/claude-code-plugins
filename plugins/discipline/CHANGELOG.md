@@ -5,6 +5,16 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.10.2]
+
+### Changed
+
+- **`script-the-deterministic-work` and `reuse-or-replace`: listing descriptions tightened
+  (1,054 → 872 and 1,022 → 836 chars)** — trimmed the explanatory prose from each frontmatter
+  `description` toward the shared skill-listing budget (claude-code-plugins#2022, option 2).
+  Every single-quoted trigger phrase is preserved verbatim (skill-quality check 3); both
+  correctors' disciplines and not-for boundaries are unchanged in the bodies.
+
 ## [0.10.1]
 
 ### Fixed

@@ -26,6 +26,17 @@ ownership, and a lease another worker already holds means no dispatch at all. Br
 blocker, the PR, and the convention's independence and frontier-tier requirements; it replies and
 resolves threads through babysit-prs's guarded-mutation path, never a raw mutation.
 
+**Resolved dimension overrides gate this dispatch, ahead of everything else in this file.** The
+widening pair is necessary, never sufficient. Resolving review threads is an exercise of autonomy
+**dimension 3 (thread resolution)**, so the lane's resolved value for that dimension binds the
+dispatch itself and not merely the mechanic invoked after it (`SKILL.md` Cycle shape, step 4,
+"Dimension overrides bind by tier flooring"). An invocation whose own argument line narrows thread
+resolution below the authority this dispatch needs — `autopilot --merge c3-this-run
+--thread-resolution safe` is the live shape — gets **no dispatch at all**: the PR escalates and the
+cycle report names it override-constrained. `${CLAUDE_PLUGIN_ROOT}/reference/config-resolution.md`
+makes invocation arguments win for every dimension but merge, and an argument narrowing thread
+resolution cannot be answered by dispatching a fresh subagent that resolves threads anyway.
+
 **Resolving a thread requires a D7.5 verification ledger, per finding, before the wrapper is
 called.** The guarded wrapper checks authorship and comment-state pins; it cannot check whether a
 finding was actually addressed, and `review-discipline.md`'s D7.5 routes a current bot thread here
@@ -58,7 +69,55 @@ verified is inspectable rather than asserted.
 **A blocker needing a code change runs the full per-PR worker lifecycle** — isolated PR worktree,
 HEAD asserted at the live PR head, commit and refspec push (`babysit-prs/reference/safety.md`) — not
 the wrappers alone, which implement merge and thread resolution and create no worktree; a lane
-launched from a neutral directory has no usable tree without it.
+launched from a neutral directory has no usable tree without it. That sentence governs how a **code
+change** is made and names no resolve mode; the mode is the next section's and wins wherever the two
+could be read against each other.
+
+## The resolver mode, and the two thread shapes it refuses
+
+**The mode is `--independent-resolver`, never `--autonomous`.** The two are parallel modes and the
+independent one is not a relaxation of the other
+(`babysit-prs/scripts/babysit_resolve_thread.py`). `--autonomous` is the *merging worker's* own
+guard: it refuses any thread not already `isOutdated` before that worker's own push, which is
+exactly the **current, non-outdated** bot thread `review-discipline.md`'s D7.5 routes here. Running
+it from this dispatch could therefore never clear the one blocker class the dispatch exists to
+clear. `--independent-resolver` drops the `isOutdated` requirement and replaces it with the two
+properties this dispatch already supplies — independence (a fresh context that is neither the
+merging worker nor the author of the fix) and machine-validated disposition evidence. Independence
+is a property of the dispatch and unverifiable by the script, which is why the evidence half is
+machine-checked.
+
+**The D7.5 ledger is the mode's input**, one flag tuple per disposition, each validated against the
+world rather than trusted:
+
+- `VALID (fix now)` → `--disposition fixed --fix-commit <sha>`, the sha reachable from the PR head.
+- `VALID (defer)` → `--disposition deferred --tracker-item <id>`, the item existing and open.
+- `INCORRECT` → `--disposition incorrect --counter-evidence <text>`, the text already present in a
+  reply on the thread posted by someone **other than the thread's opener** — so the reply goes up
+  first and a finding's own author cannot supply the words that rebut it.
+- `UNCERTAIN` → no resolve call at all: escalate, per the ledger rule above.
+
+Missing, unparsable, or unverifiable evidence **refuses** the resolve rather than warning, and only
+a confirmed 404 reports the evidence-specific refusal, so an outage is never read as a caller lying
+about its evidence. A refusal is the recoverable direction: the thread stays unresolved and the PR
+escalates.
+
+**Two thread shapes the mode refuses outright, which therefore escalate rather than resolve.** Named
+here because the ledger's per-finding phrasing does not by itself imply either:
+
+- **More than one source finding in the thread** — refused as `skipped-multi-finding-thread`. One
+  `--disposition` is a claim about one finding while resolution clears the whole thread, so
+  resolving on a single evidence tuple would drop the thread's other findings out of the readiness
+  denominator. An unknown count — a truncated comment page could hide another finding — refuses the
+  same way. The per-finding ledger rule above still governs the dispatched agent's judgment; this is
+  the wrapper declining to act on such a thread at all, so the PR escalates with the ledger
+  reported.
+- **A severity-flagged thread** — security or P1 — refused here as in `--autonomous`. The severity
+  bright line does not move for an unattended path, and this dispatch is one.
+
+Everything `--autonomous` guards other than `isOutdated` still binds: bot-authored threads only, a
+single pinned `--thread-id` carrying both TOCTOU pins, bulk resolves and `--allow-unpinned-thread`
+refused, and `--include-human` refused.
 
 ## Four blocker classes this dispatch never touches
 
@@ -74,9 +133,9 @@ those contracts:
   language, or an unresolved inline human thread stays a stop-and-ask condition until GitHub state
   resolves it — escalate, never fix or resolve past it (`babysit-prs/reference/feedback.md`,
   "Human Feedback"). No dispatch is made, and step 3 withholds the PR from the merge-capable
-  set. The one exception `babysit-prs` gained in this change is
-  scoped to security/P1 escalation and to that dispatch path alone (`babysit-prs/reference/safety.md`,
-  "Security/P1 escalation"); it does not widen to human blocks.
+  set. What the paired-argument invocation unlocks is this dispatch path alone
+  (`babysit-prs/reference/safety.md`, "Security/P1 escalation has no exception"); it widens neither
+  the severity bright line nor human blocks.
 - **Merge conflicts.** These route to the dedicated fresh conflict-resolution worker
   (`babysit-prs/reference/orchestration.md`, Merge Conflict Resolution), which integrates
   **merge-only and never rebases** — rebasing a PR branch needs the force-push babysit-prs forbids

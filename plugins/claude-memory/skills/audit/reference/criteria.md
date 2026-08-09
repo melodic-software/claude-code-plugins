@@ -1,7 +1,7 @@
 # Memory Health Criteria
 
-Version: 1.3.0
-Last updated: 2026-07-25
+Version: 1.5.2
+Last updated: 2026-08-05
 Source: Official Claude Code docs (code.claude.com/docs/en/memory, code.claude.com/docs/en/best-practices, code.claude.com/docs/en/sub-agents, code.claude.com/docs/en/skills)
 
 This file defines every check the audit runs. Each check has a severity, description, and instructions
@@ -29,26 +29,36 @@ To refresh this file against current official guidance, run the skill's `update`
 **Why**: Official docs: "Target under 200 lines per CLAUDE.md file. Longer files consume more context
 and reduce adherence." Files over 200 lines cause Claude to ignore instructions.
 
+**Diagnostic**: The symptom-first tell for this check: "If Claude keeps doing something you don't
+want despite having a rule against it, the file is probably too long and the rule is getting lost"
+(code.claude.com/docs/en/best-practices). When the audit was prompted by a rule being ignored, add a
+C1 WARN citing this tell even when steps 4-6 pass. The branch is prompt-conditioned, so it belongs
+to the judgment tier — label it "judgment candidate" in the report; steps 1-6 remain the
+deterministic spine, unaffected.
+
 **Allowances**: Complex monorepos using `.claude/rules/` extensively may justify overages, and a repo
 may document a deliberate exemption in its own rules (see SKILL.md "Consumer-convention extension
 seam"). Report overage and justification together.
 
-### C2: Deletion Test [WARN per section]
+### C2: Deletion Test [WARN per line]
 
-**What**: For each top-level section (H1/H2), ask: "Would Claude make mistakes without this section?"
+**What**: For each line, ask: "Would removing this cause Claude to make mistakes?" If not, cut it.
 
 **How to check**:
 
-1. Parse the file into sections by H1/H2 headers
-2. For each section, evaluate:
-   - Does this contain commands Claude can't guess? → KEEP
-   - Does this contain gotchas or non-obvious patterns? → KEEP
-   - Does this contain project-specific conventions? → KEEP
+1. Strip HTML comment blocks (human-only reference, as in C1) and skip blank and purely structural
+   lines (headers, separators, table/list scaffolding) — only substantive instruction lines enter
+   the loop
+2. For each remaining line, evaluate:
+   - A command Claude can't guess? → KEEP
+   - A gotcha or non-obvious pattern? → KEEP
+   - A project-specific convention? → KEEP
    - Could Claude figure this out by reading the code? → FLAG
-   - Is this a standard convention any senior engineer knows? → FLAG
-   - Is this detailed reference material better suited to a skill? → FLAG
-3. WARN for each section that fails the deletion test
-4. Include the reason ("could infer from code", "standard practice", "move to skill")
+   - A standard convention any senior engineer knows? → FLAG
+   - Detailed reference material better suited to a skill? → FLAG
+3. WARN per flagged line, with the reason ("could infer from code", "standard practice", "move to
+   skill"); group findings by H1/H2 section, and collapse a section whose every line flags into one
+   section-level finding
 
 **Why**: Official docs: "For each line, ask: 'Would removing this cause Claude to make mistakes?' If
 not, cut it. Bloated CLAUDE.md files cause Claude to ignore your actual instructions!"
@@ -204,6 +214,48 @@ instead)."
 **Why**: Prefer deterministic enforcement over documentation — when a guideline can become a
 compile-time or runtime check, that is the stronger default.
 
+### C9: Build and Test Commands Present [FAIL]
+
+**What**: Does a project CLAUDE.md state the repo's exact build and test commands, and are the
+commands it states correct?
+
+The only CLAUDE.md check that looks for missing or wrong content rather than surplus — C4 asks
+whether an instruction that exists is concrete, C5 whether it should have been cut. Applies to
+project CLAUDE.md only; skip for CLAUDE.local.md and for personal (`~/.claude/CLAUDE.md`) files,
+which are not repo-scoped.
+
+**How to check**:
+
+0. First ask whether the commands are stated on another loaded surface — a nested CLAUDE.md, a
+   path-scoped rule, or auto memory. If they are, this is a C3 placement question, not a C9
+   finding for ABSENCE: do not WARN that CLAUDE.md omits them. The carve-out suppresses only the
+   absence branch — any command CLAUDE.md itself still states goes through steps 2-3 regardless,
+   because a stale stated command misleads whether or not a correct one exists elsewhere
+1. Look for the repo's build and test invocations stated as runnable commands
+2. Verify each stated command against the repo's own manifest or task runner (`package.json`
+   scripts, `Makefile`, `*.csproj`, `pyproject.toml`, or ecosystem equivalent)
+3. FAIL for a stated command that does not exist there — worse than an absent one: Claude runs it
+   and the check fails for the wrong reason
+4. WARN if either command is absent, or if present only as prose naming the tool without the
+   invocation ("we use pytest" is not a command)
+5. Do not flag a repo that has no build or test step; flag only a missing statement of one that exists
+
+**Boundary with C7.** C7 owns *references* — file paths, version pins, counts. C9 owns *commands*.
+A wrong build command is not a C7 finding today, because a command is none of the three things C7
+checks. Report a wrong command under C9 only, and do not double-report it.
+
+**Why**: Official docs list "build and test commands" first among what project memory is for
+(code.claude.com/docs/en/memory), and `/init` populates them by analyzing the codebase — so without
+the statement, they are inferred every session rather than read. This check fires on a CLAUDE.md
+that exists but omits them. Absent commands make every verification loop start by guessing how to
+run the check.
+
+**Counter-evidence, and why step 0 exists**: the same page's CLAUDE.md-vs-auto-memory table puts
+"Build commands" in the *auto memory* column's "Use for" cell, against CLAUDE.md's "Coding
+standards, workflows, project architecture". The page states both, so the honest reading is that
+the commands must be *reachable*, not that they must sit in CLAUDE.md specifically. Step 0 is what
+keeps this check from flagging a repo that followed the other half of the same page.
+
 ---
 
 ## Checks for .claude/rules/ files
@@ -255,8 +307,40 @@ matching-file Read, so being unreferenced costs nothing per session. WARN per or
 
 **What**: Is MEMORY.md under 200 lines / 25KB?
 
-**How to check**: Count lines and file size. Only the first 200 lines (or 25KB) load at session start
-— anything beyond is silently dropped.
+**How to check**: Count lines and file size on the content that loads — strip YAML frontmatter and
+block-level HTML comments first, since they are removed before the index is loaded and don't count
+toward the limits. The SKILL.md pre-computed context already reports both post-strip figures
+(`memory-dir-stats.sh --memory-lines` / `--memory-bytes`); use them rather than re-measuring the raw
+file. Only the first 200 loaded lines (or 25KB) load at session start — anything beyond is silently
+dropped.
+
+Four readings the strip applies, so a hand count matches the reported figures:
+
+1. A block counts only once it closes, and a leading `---` opens frontmatter only for as long as
+   what follows is shaped like frontmatter. An opening `---` or `<!--` with no closing delimiter is
+   ordinary content and is counted. So is a leading `---` whose block reaches a line that is
+   neither blank nor a `key:` mapping entry, or that runs past 20 lines. Markdown carries
+   thematic breaks freely, so the next `---` in a file is usually another break rather than a
+   frontmatter close, and without both bounds the entire span between the two would be stripped.
+   A leading thematic break, or frontmatter clipped mid-file, must not blank the count. A `#`
+   line ends the block: it is a comment to YAML but a heading to markdown, and headings are
+   loaded content. When the block ends this way nothing in it is stripped — the opening `---`,
+   every entry held so far, and the rest of the block through its closing `---` all count.
+2. A block-level comment occupies whole lines. Text sharing a line with the comment's open or
+   close loads, and is counted — including text between two comments on one line, since each
+   comment ends at the first `-->` after its own opener.
+3. Comments inside fenced code blocks are preserved: a comment inside a fence is code, not
+   block-level markdown.
+4. Byte counts measure LF-normalized content, so a CRLF index reports about one byte per line
+   under its on-disk size — well under 1% of the 25KB cap.
+
+**Provenance**: the strip rule itself is doc-derived (code.claude.com/docs/en/memory, "How it
+works"). The four readings are not. The doc states the fenced-code carve-out for CLAUDE.md only and
+is silent on it for MEMORY.md, and says nothing about unterminated blocks, unbounded blocks,
+partial lines, or line endings. They are this plugin's reading, chosen so that no input silently
+under-reports and leaves this `[FAIL]` gate unable to fire. Where a reading has to guess, it guesses
+toward counting: an over-count can only make the gate fire early on a file near its limit, while an
+under-count stops it firing at all. The `update` action must not overwrite them.
 
 ### M2: Stale Entries [WARN]
 

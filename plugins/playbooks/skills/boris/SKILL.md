@@ -56,8 +56,8 @@ Read the reference file matching the user's question. Multi-topic question = rea
 | Tip | Key Action |
 |-----|------------|
 | Parallel work | Use git worktrees, 3-5 sessions |
-| Model | Opus with adaptive thinking |
-| Planning | Start in plan mode for complex tasks |
+| Model | Fable 5 for the hardest and longest tasks (Sections 94–95); Opus otherwise (Section 2, historical) |
+| Planning | Auto mode plans implicitly on 4.6+; reach for plan mode when you want the written artifact of intent (Section 87) |
 | CLAUDE.md | Update after every correction |
 | Skills | Create for repeated workflows |
 | Subagents | Offload to keep context clean |
@@ -68,7 +68,7 @@ Read the reference file matching the user's question. Multi-topic question = rea
 | Verification | Always give Claude a way to verify |
 | Learning | Use Claude to explain and teach |
 | Terminal | /config, /terminal-setup, /vim |
-| Effort | /model to set Low/Medium/High/xhigh/max |
+| Effort | `/effort` to set the level (low/medium/high/xhigh/max; default high, xhigh on Opus 4.7) |
 | Plugins | /plugin for LSPs, MCPs, skills |
 | Agents | .claude/agents, custom defaults |
 | Sandboxing | /sandbox for file & network isolation |
@@ -108,7 +108,7 @@ Read the reference file matching the user's question. Multi-topic question = rea
 | Routines | Scheduled / event-driven Claude Code — runs on Anthropic infra |
 | /rewind | Drop failed attempts from context instead of correcting |
 | /compact vs /clear | Lossy LLM summary vs hand-written brief — know which to use |
-| Auto-compact window | `CLAUDE_CODE_AUTO_COMPACT_WINDOW=400000` to dodge context rot |
+| Auto-compact window | `CLAUDE_CODE_AUTO_COMPACT_WINDOW=400000` to dodge context rot (Opus 4.7-era; see §64's amendment — premise does not carry to Opus 5) |
 | Delegation over Guidance | Treat Opus 4.7 like an engineer, not a pair programmer |
 | Full Task Context Upfront | Goal + constraints + acceptance criteria in the first turn |
 | xhigh effort | New default reasoning level for Opus 4.7 |
@@ -116,7 +116,7 @@ Read the reference file matching the user's question. Multi-topic question = rea
 | /fewer-permission-prompts | Scan history, tune your permission allowlist |
 | Recaps | Short summary of what happened and what's next |
 | Focus Mode | `/focus` — hide intermediate work, show only final result |
-| Effort Mastery | xhigh for most, max for hardest (max is session-only) |
+| Effort Mastery | xhigh for most, max for hardest — `max` is session-only except through `CLAUDE_CODE_EFFORT_LEVEL`, its one durable route; the persisted `effortLevel` setting does not accept it (Section 72) |
 | /go | Verify end-to-end + /simplify + put up a PR |
 | 4.6→4.7 Shifts | Calibrated length, less auto-tool-use, judicious subagents |
 | Task Notifications | Hooks and alerts for autonomous runs |

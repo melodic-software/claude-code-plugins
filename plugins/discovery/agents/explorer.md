@@ -30,11 +30,16 @@ ecosystem-discovery reference — Read that at the dimension that needs it rathe
   tell from the path alone which ancestor is the configured root, and the root is where the
   self-ignoring `.gitignore` guard belongs. Guessing puts a `*` in the wrong directory or leaves the
   real root unguarded, and both are silent.
+- **The reason the exploration is being run** — what it feeds and who the output is for. Same
+  blindness as the scope, with a worse failure mode: a missing scope is silence you can report,
+  while a missing reason is invisible. You explore the scope as written, return something
+  well-formed, and neither side learns it answered the wrong question. Intent is what decides which
+  of several defensible readings of a scope is the one wanted.
 - **The budget** — how much depth the parent authorized.
 - **Capability flags** the parent probed, notably whether nested spawning is available.
 
-**If the scope or the slice path is absent or ambiguous, stop and return the payload below with
-`status: truncated` and the missing field named in `open_questions`.** There is no unscoped
+**If the scope, the reason, or the slice path is absent or ambiguous, stop and return the payload
+below with `status: truncated` and the missing field named in `open_questions`.** There is no unscoped
 orientation mode: a dispatched agent with no scope is a parent-envelope failure, and running a
 general repository sweep instead would hand back a plausible artifact answering a question nobody
 asked.
@@ -132,8 +137,11 @@ Two dimension-level notes where the preloaded text assumes a human turn or a mai
   `open_questions` entry. The rule exists to protect intentional deletions, and you cannot get the
   confirmation it wants.
 - **Plan mode.** The skill's plan-mode recommendation for high-blast-radius exploration applies to
-  the inline path only. `EnterPlanMode` and `ExitPlanMode` are filtered out of every non-fork
-  subagent, so it is unreachable from here. Your read-only boundary is the instruction above.
+  the inline path only. `EnterPlanMode` is filtered out of every non-fork subagent
+  unconditionally, and `ExitPlanMode` is filtered from every non-fork subagent too, unless that
+  subagent's `permissionMode` is `plan`. Your `tools` allowlist lists neither, so you hold neither
+  either way: plan mode is unreachable from here, and your read-only boundary is the instruction
+  above.
 
 ## Return exactly this, and nothing resembling the full report
 

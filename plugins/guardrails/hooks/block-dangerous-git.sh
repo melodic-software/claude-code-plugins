@@ -20,8 +20,9 @@
 #   restore-dot    — git restore .   (worktree discard; --staged-only is fine)
 #   checkout-force — git checkout -f / switch -f/--discard-changes
 #
-# NOT blocked: a push whose lease spellings all pin an immutable <expect> — a
-# object id of the repository's own hash width, or the empty string asserting
+# NOT blocked: a push whose lease spellings all pin an immutable <expect> — an
+# object id of the repository's own hash width (a literal one: a substitution is
+# not evaluated, so it is never immutable here), or the empty string asserting
 # the ref must not exist —
 # so no background fetch can satisfy the lease on the pusher's behalf; a
 # no-expected-value lease paired with --force-if-includes; a lease
@@ -87,9 +88,16 @@ INPUT=$(hook::buffer_stdin) || {
 # (additionalContext), once per session — see docs/conventions/hook-observability/.
 hook::require_jq "PreToolUse" "guardrails-block-dangerous-git" "$INPUT"
 
-COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null | tr -d '\r')
+# Both payload fields in ONE jq process (hook::jq_fields), not two. A jq spawn is
+# ~140 ms of fork() emulation on Windows Git Bash and this guard runs on every
+# Bash/PowerShell call. Failure semantics are unchanged: a missing jq or an
+# unparsable payload yields rc 1 here, which exits 0 exactly as the empty-COMMAND
+# skip below did — hook::require_jq above has already made the degraded state
+# visible once per session.
+hook::jq_fields "$INPUT" '.tool_input.command' '.tool_name' || exit 0
+COMMAND="${HOOK_JQ_FIELDS[0]}"
 [[ -n "$COMMAND" ]] || exit 0
-TOOL_NAME=$(printf '%s' "$INPUT" | jq -r '.tool_name // "Bash"' 2>/dev/null | tr -d '\r')
+TOOL_NAME="${HOOK_JQ_FIELDS[1]:-Bash}"
 
 # Above this length the command is not parsed — a pathologically long command is
 # assumed to be obfuscation and blocked FAIL-CLOSED (generous cap; real git
@@ -638,12 +646,12 @@ check_segment() {
     if ((lease_movable)); then
       block "push-lease-unsafe" \
         "BLOCKED: git push --force-with-lease=<refname>:<expect> whose <expect> is a name git resolves at push time (origin/main, HEAD, a tag, an abbreviated object id, or hex of the wrong width for this repository's hash format) leases against a moving target, and git-push(1) declares --force-if-includes a no-op alongside an explicit :<expect>, so nothing mitigates it." \
-        "Pin the expectation to an object id of this repository's full hash width (--force-with-lease=<refname>:\$(git rev-parse <ref>)), or allow via the block_dangerous_git_allow option (add push-lease-unsafe)."
+        "Resolve the object id in a separate step (git rev-parse <ref>) and pass the literal result: --force-with-lease=<refname>:<full-sha> at this repository's full hash width. A substitution cannot stand in for it — this guard matches the command string statically and never evaluates one, so it arrives here as an unresolved name. Or allow via the block_dangerous_git_allow option (add push-lease-unsafe)."
     fi
     if ((lease_tracking)) && ((!if_includes)); then
       block "push-lease-unsafe" \
         "BLOCKED: git push --force-with-lease without an expected value leases against the remote-tracking ref, which a background fetch can satisfy while still clobbering unseen work." \
-        "State the expectation (--force-with-lease=<refname>:<full-sha>), or add --force-if-includes, or allow via the block_dangerous_git_allow option (add push-lease-unsafe)."
+        "State the expectation as a literal object id resolved in a separate step (--force-with-lease=<refname>:<full-sha>; a substitution is never evaluated here), or add --force-if-includes, or allow via the block_dangerous_git_allow option (add push-lease-unsafe)."
     fi
     k=$((sub_idx + 1))
     while ((k < nseg)); do
@@ -1073,7 +1081,9 @@ ps::classify_git_command "$TOOL_NAME" "$COMMAND"
 case $? in
 2)
   ps::print_unparsable_git_block_message
-  emit_tel "blocked" "powershell-unparsable"
+  # The trigger rides along in the form token: four distinct shapes reach this
+  # sink, and one collapsed token cannot show which of them is over-blocking.
+  emit_tel "blocked" "powershell-unparsable-${PS_SINK_TRIGGER:-unknown}"
   exit 2
   ;;
 1) exit 0 ;; # non-git PowerShell with an A2b-deferred construct

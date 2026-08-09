@@ -1,6 +1,6 @@
 ---
 name: audit-instructions
-description: "Audit locally-owned Claude Code instruction surfaces — user + project CLAUDE.md, .claude/rules, skill bodies, agent definitions, hook instruction text (prompt-type hooks, and hook output injected into context), output styles — for instructions current models no longer need: prior-model workarounds, over-prescriptive scaffolding, bare prohibitions, reasoning-echo directives, stale examples — plus instructions that misstate Claude Code's own behavior, cite a file in a form that never loads, or re-read a surface already in context. Also detects cross-surface conflicts: two surfaces that both claim authority over one behavior and contradict each other. Report-only: emits a findings report with proposed diffs, gated to the human, never auto-applied. Use when: 'after a model upgrade', 'are my instructions holding the model back', 'instructions the model no longer needs', 'too prescriptive', 'audit instructions', 'instruction audit', 'stale Claude Code behavior', 'outdated harness claim', 'my @path import is not loading', 'instruction re-reads CLAUDE.md', 'conflicting instructions', 'contradictory instructions', 'which instruction wins'. Not a brevity pass and not memory-layer hygiene."
+description: "Audit locally-owned Claude Code instruction surfaces — CLAUDE.md, .claude/rules, skill bodies, agent definitions, hook instruction text, output styles — for instructions current models no longer need (prior-model workarounds, over-prescriptive scaffolding, stale examples), instructions that misstate Claude Code's own behavior or cite files in forms that never load, and cross-surface conflicts where two surfaces contradict each other. Report-only: proposed diffs gated to the human, never auto-applied. Use when: 'after a model upgrade', 'are my instructions holding the model back', 'instructions the model no longer needs', 'too prescriptive', 'audit instructions', 'instruction audit', 'stale Claude Code behavior', 'outdated harness claim', 'my @path import is not loading', 'instruction re-reads CLAUDE.md', 'conflicting instructions', 'contradictory instructions', 'which instruction wins'. Not a brevity pass and not memory-layer hygiene."
 argument-hint: "[scope] [--target-model <version>] [--opinion] [--no-stopping-condition] — scope: claude-md|rules|skills|agents|hooks|output-styles|conflicts|all (default: all)"
 user-invocable: true
 disable-model-invocation: false
@@ -19,7 +19,7 @@ locally-owned instruction surfaces, cites each finding to current official promp
 it by how confident the evidence can be, and packages proposed removals or rewrites as a human-gated
 diff — so instruction surfaces shrink as models get better instead of only ever growing.
 
-The check catalog — the checks I1–I16, their evidence tier, authority tag, severity, per-surface
+The check catalog — the checks I1–I28, their evidence tier, authority tag, severity, per-surface
 applicability, and the `OPINION`-tier enablement policy — lives in
 [reference/criteria.md](reference/criteria.md); the deterministic pre-scan is
 `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/instruction-scan.sh`.
@@ -41,9 +41,13 @@ concerns its siblings already cover — route rather than re-answer:
 - Token brevity for its own sake is `docs-hygiene:compress`.
 - Config-file mechanics (settings.json, .mcp.json, hooks wiring) is `claude-config:audit`; grant
   portability is `claude-config:audit-permission-grants`.
+- The empirical bare-baseline experiment — strip the surfaces, observe the bare model, re-add on
+  repeated stumble evidence — is `unhobble` (same plugin): this skill judges instruction *text*
+  against doctrine; unhobble measures the *model*.
 
-On **memory-layer surfaces** (CLAUDE.md, CLAUDE.local.md, `.claude/rules/`, `~/.claude/rules/`),
-this skill runs only the model-era checks I6–I16. It never runs or reports the hygiene checks
+On **memory-layer surfaces** (CLAUDE.md, CLAUDE.local.md, `.claude/rules/`, and `rules/` under the
+user root Phase A resolves),
+this skill runs only the model-era checks I6–I28. It never runs or reports the hygiene checks
 I1–I5 (line-necessity, length, placement, inferable content, rule-to-hook) on these surfaces —
 that instruction-memory hygiene layer belongs to the `claude-memory` plugin. When that plugin is
 installed, route memory-layer hygiene to its `audit` skill; when it is not installed, emit a single
@@ -72,7 +76,7 @@ never which surfaces are read. Phase A always inventories the full comparison se
 relation between two surfaces and a scoped run still needs the counterpart:
 
 - `claude-md` — findings on user + project CLAUDE.md and CLAUDE.local.md
-- `rules` — findings on `.claude/rules/` and `~/.claude/rules/`
+- `rules` — findings on `.claude/rules/` and `rules/` under the user root Phase A resolves
 - `skills` — findings on skill bodies and their context/reference files
 - `agents` — findings on agent definition markdown
 - `hooks` — findings on hook instruction text: prompt-type hook text, and handler output injected
@@ -92,21 +96,33 @@ scope; non-matching ones are inert and the report lists them as `skipped-for-tar
   the session's EFFECTIVE model — what this session actually runs, which a `--model` launch
   override may have set, not the bare settings pin — and normalize it alias → model VERSION
   against the live model-config docs at run time; (3) anything that cannot be normalized to a
-  single version fails loud (below). Matching against catalog scopes is exact equality of the
-  normalized version token — the catalog's "Model scoping" section owns that predicate.
+  single version fails loud (below). The normalized token is the catalog's local grammar —
+  lowercase family and version joined by hyphens (`opus-5`, `sonnet-5`, `fable-5`), derived from
+  the documented model the alias or full model name resolves to, not a string upstream publishes.
+  Matching against catalog scopes is exact equality of the normalized version token — the
+  catalog's "Model scoping" section owns that predicate.
 - **Fail loud on ambiguity:** a value may carry no version at all — a family alias like `opus`
   (with or without a context-window suffix such as `[1m]`), an absent `model` setting in an
   out-of-session run, or a custom/gateway deployment ID that matches no documented pattern.
   Normalization MUST stop in that case by ABORTING the run with an error that names the exact
   argument to pass (`--target-model <version>`) — a non-interactive abort, never a mid-run prompt,
   and never a silent guess that a family alias means its newest version, which would misfire the
-  exact model-scoped distinctions the catalog draws. The resolved target (and how it was
+  exact model-scoped distinctions the catalog draws. When the ambiguous value is a documented
+  family alias, the abort message ALSO names the normalized token of the version that alias
+  currently resolves to per the live model-config docs — as a suggested `--target-model` value the
+  user confirms, never a value the run proceeds on (e.g. "`opus` currently resolves to `opus-5`;
+  re-run with `--target-model opus-5` to confirm"). Suggesting is not guessing: the user's
+  confirmation is what turns the resolution into a target. The resolved target (and how it was
   resolved) is named in the report's tier-transparency line.
 
 Two flags govern the `OPINION` tier, whose enablement policy the catalog defines:
 
-- `--opinion` — also run the `OPINION`-tier checks that emit findings (I16 today). Off by default;
-  their findings are capped at `info` and are never applied.
+- `--opinion` — also run the `OPINION`-tier checks that emit findings. Off by default; their
+  findings are capped at `info` and are never applied. **Which rows those are is read from the
+  catalog at run time and deliberately not restated here**: the catalog owns the enablement policy,
+  so a second copy of the set in this file is one more thing to keep in sync on every new
+  `OPINION` row, and a stale copy silently narrows the flag. The run's tier-transparency line
+  reports how many it found.
 - `--no-stopping-condition` — disable the `OPINION`-tier stopping condition that bounds I6 and I8.
   It is on by default because it withholds findings rather than emitting them, so turning it off
   makes both trimming checks more aggressive, not the audit more conservative.
@@ -159,15 +175,29 @@ official memory and `.claude`-directory docs (cited in the report's Sources line
 
 **The tree does not decide what is live.** Before the inventory is handed to any lane, resolve the
 session's effective liveness controls — the launch directory, the merged `claudeMdExcludes`,
-`--setting-sources`, and the additional-directory inputs — then drop what they exclude and add the
-memory files they contribute. A walk of the project tree alone both invents surfaces that are dead
-in this session and misses live ones that are not in the tree at all. The controls, their official
-sources, and the `liveness-unresolved` marking for values an out-of-session inventory cannot read
-are in [reference/conflict-criteria.md](reference/conflict-criteria.md), which owns the gate; name
-the resolved controls in the report's tier-transparency line.
+`--setting-sources`, the additional-directory inputs, **and effective hook enablement** — then drop
+what they exclude and add the memory files they contribute. A walk of the project tree alone both
+invents surfaces that are dead in this session and misses live ones that are not in the tree at all.
+The controls, their official sources, and the `liveness-unresolved` marking for values an
+out-of-session inventory cannot read are in
+[reference/conflict-criteria.md](reference/conflict-criteria.md), which owns the gate; name the
+resolved controls in the report's tier-transparency line.
+
+**Hook enablement is a liveness control, and configuration alone does not establish it.**
+`disableAllHooks` turns off hooks without removing them, so an enabled plugin's handler, or one wired
+in project settings, sits on disk unable to run — and a gate that cannot run this session constrains
+nothing to compare against. Its reach is all hooks with exactly one carve-out, and that carve-out is
+what makes this a per-scope resolution rather than a per-file one: set in user, project, or local
+settings it cannot disable **managed** hooks, so managed hook text stays live against it and must not
+be dropped with the rest; only a managed-level `disableAllHooks` reaches those too. The mirror
+control, `allowManagedHooksOnly`, cuts the other way and blocks user, project, and plugin hooks,
+exempting plugins force-enabled in managed `enabledPlugins`. Omit every hook surface they disable —
+both kinds, prompt-type and context-injecting alike, since neither reaches this session when the
+handler never fires — and report both resolved values with the other controls.
 
 Exclude from the **editable** set, and hold for the routing subsection: auto-memory
-(`~/.claude/projects/<project>/memory/`, owned by `claude-memory`), installed plugin-cache content,
+(`projects/<project>/memory/` under the resolved user root, owned by `claude-memory`), installed
+plugin-cache content,
 and any managed materialization per the Scope boundary. Record each surface found and each surface
 skipped, so the report's tier-transparency line can name both.
 
@@ -178,7 +208,10 @@ involving one still carries the no-change representation and its routing recomme
 
 - **Auto memory, when it is on** — the `MEMORY.md` entrypoint at the effective auto-memory location
   (the highest-precedence scope that sets `autoMemoryDirectory`, otherwise
-  `~/.claude/projects/<project>/memory/`). **Resolve the effective enabled state first, by
+  `projects/<project>/memory/` under the **resolved** user root above, never a hardcoded
+  `~/.claude` — `CLAUDE_CONFIG_DIR` moves `projects/` with the rest of the tree, so a hardcoded
+  default misses the live `MEMORY.md` and compares against a store the session no longer
+  writes). **Resolve the effective enabled state first, by
   precedence — not by any single scope's value.** `CLAUDE_CODE_DISABLE_AUTO_MEMORY` is authoritative
   wherever it is set (`=1` off, `=0` on, even against `autoMemoryEnabled: false`); with the variable
   unset, apply settings precedence (managed > local > project > user) to `autoMemoryEnabled`, which
@@ -194,6 +227,21 @@ involving one still carries the no-change representation and its routing recomme
   actually loads is compared (the first 200 lines or 25KB); topic files beside it are read on demand
   and are not resident. Ownership is unchanged: `claude-memory` still owns auto memory, and a finding
   here routes there rather than editing it.
+- **Each enabled agent's own memory, under that same gate** — an agent definition carrying a
+  `memory` field gets its **own** memory directory, separate from the main conversation's and named
+  per agent, and that subagent reads and writes its own `MEMORY.md` there. The field's value is the
+  scope, and each scope has its own location: `user` → `agent-memory/<name-of-agent>/` under the
+  **resolved** user root above (never a hardcoded `~/.claude`, for the reason the entry above gives),
+  `project` → `.claude/agent-memory/<name-of-agent>/`, `local` →
+  `.claude/agent-memory-local/<name-of-agent>/`.
+  [reference/conflict-criteria.md](reference/conflict-criteria.md) keeps an agent-definition-versus-
+  its-own-memory contradiction in scope precisely because those two *do* co-reside in that subagent,
+  so this inventory has to reach it: enumerate that `MEMORY.md` for every inventoried agent whose
+  definition enables the field, under the same loaded-portion bound. The gate is the effective state
+  resolved just above: subagent memory is part of auto memory, so with auto memory off the `memory`
+  field has no effect and the subagent launches without the memory instructions or the memory tool
+  access — an agent memory left on disk after the switch flipped is not inventoried.
+  Read-only and `claude-memory`-owned exactly as the main entrypoint is.
 - **Org-managed policy** — the managed-policy `CLAUDE.md`, any `claudeMd` value in managed settings,
   and hook instruction text configured in managed settings, of **both** kinds above. All three are
   live instruction text, and a managed hook contradicting a project skill is exactly the conflict I15
@@ -250,12 +298,21 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/instruction-scan.s
 ```
 
 It emits `file:line:check-id` candidate rows for I6 (bare prohibitions lacking a rationale
-marker), I10 (reasoning-echo directives), and the I8 families under per-family ids — `I8-a`
+marker), I10 (reasoning-echo directives), the I8 families under per-family ids — `I8-a`
 instructed self-check, `I8-b` conservative-reporting, `I8-c` don't-think / don't-reason (I8-c's
-tag-naming sub-detect is lane-only, not seeded); `--count` prints the row count. Advisory — a
-grep cannot judge whether a rationale is genuinely present, whether a restraint clause is a
-reporting gate, or which model a row targets, so the lane refines every candidate against the
-catalog's fences and the run's resolved target model.
+tag-naming sub-detect is lane-only, not seeded, as are I8's base row and `I8-d` short-turn
+assumptions, whose phrasings are too varied for a pattern that would earn its false-positive rate;
+`I8-e` forced interim-status cadence is likewise unseeded, but on a narrower ground — its skeleton is
+patternable, and it waits only on an attested instance to calibrate the interval forms against), I23
+(self-estimated context-budget phrasing — the budget clause alone, never the stop/summarize/hand-off
+verb it licenses, which routinely sits in a different sentence), I25 (retired sampling parameters),
+I27 (effort-for-brevity: an effort-lowering directive paired with a brevity token on one line), and
+the I28 families (`I28-a` forced-compliance emphasis, case-sensitive; `I28-b` blanket tool
+defaults); `--count` prints the row count.
+Advisory — a grep cannot judge whether a rationale is genuinely present, whether a restraint clause
+is a reporting gate, whether a budget mention is a directive or the counter-steer against one, or
+which model a row targets, so the lane refines every candidate against the catalog's fences and the
+run's resolved target model.
 
 Bound concurrency to 3–5 lanes at a time; the skills surface fans out one lane per skill. Before the
 total dispatch count (lanes plus Phase C verifiers) would exceed ~20, confirm with the user.
@@ -343,7 +400,8 @@ End with a **Routing** subsection listing every excluded upstream-owned
 or memory-layer surface and where its findings should go, and a **Recommended follow-through**
 subsection: apply an accepted change, then observe whether Claude's behavior actually shifts;
 re-add on the next mistake as the compounding safety net; for example blocks, A/B against the
-no-example default. That loop is prose guidance — this skill ships no eval tooling.
+no-example default. The full delete-and-watch loop is operationalized by `/claude-config:unhobble`
+(same plugin) — route there when the operator wants the experiment run rather than described.
 
 Open the Sources line with the two official pages the paths and doctrine derive from
 (code.claude.com memory + `.claude`-directory docs; the prompting pages cited per check in the
@@ -373,5 +431,8 @@ catalog).
 - Not memory-layer hygiene — checks I1–I5 on CLAUDE.md/rules route to `claude-memory`'s `audit`
   skill when installed, and upstream-owned plugin-cache or managed materializations route to the
   owning repository rather than being edited here.
-- Does not grade a contradiction whose two halves both sit in project-scope `CLAUDE.md` /
-  `CLAUDE.local.md` / `.claude/rules/**` — that is `claude-memory:audit`'s C6.
+- Does not grade a contradiction whose two halves both sit in **root-level** project `CLAUDE.md` /
+  `CLAUDE.local.md` / `.claude/rules/**` — that is `claude-memory:audit`'s C6. A **nested**
+  `CLAUDE.md` / `CLAUDE.local.md` side keeps the pair here, because C6 never discovers that file;
+  [reference/conflict-criteria.md](reference/conflict-criteria.md) owns the routing table and its
+  evidence.

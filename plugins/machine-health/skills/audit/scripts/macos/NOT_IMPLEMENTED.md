@@ -12,12 +12,9 @@ scripts/macos/
 
 ## Contract for the skill runtime
 
-When `machine-health` is invoked on macOS:
+Owned by [`../../references/macos/NOT_IMPLEMENTED.md`](../../references/macos/NOT_IMPLEMENTED.md) § "What the skill should do on macOS today" — detection, the `UNKNOWN` `os-support` report, and the clean exit.
 
-1. Skill detects `$IsMacOS` (or `uname -s` → `Darwin`).
-2. Reads both `references/macos/NOT_IMPLEMENTED.md` and this file.
-3. Produces an `UNKNOWN`-severity report (`id: "os-support"`, `category: "platform"`) with one-line summary and pointer to the porting checklist in `references/macos/NOT_IMPLEMENTED.md`.
-4. Exits cleanly — **do not attempt to execute any script from `scripts/windows/` on macOS.** Those scripts call Windows-only cmdlets and fail noisily.
+**Do not attempt to execute any script from `scripts/windows/` on macOS.** Those scripts call Windows-only cmdlets and fail noisily.
 
 ## Porting guidance
 

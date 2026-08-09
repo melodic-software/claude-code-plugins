@@ -1,11 +1,16 @@
 # Official Claude Code Guidance on Auto Memory State
 
-Last researched: 2026-07-22
+Last researched: 2026-07-22; code.claude.com/docs/en/claude-directory,
+code.claude.com/docs/en/settings, and code.claude.com/docs/en/cli-reference verified 2026-08-08
+(the other sources below were not re-checked on that date)
 Sources: [code.claude.com/docs/en/memory](https://code.claude.com/docs/en/memory),
 [code.claude.com/docs/en/settings](https://code.claude.com/docs/en/settings),
-[code.claude.com/docs/en/env-vars](https://code.claude.com/docs/en/env-vars)
+[code.claude.com/docs/en/env-vars](https://code.claude.com/docs/en/env-vars),
+[code.claude.com/docs/en/claude-directory](https://code.claude.com/docs/en/claude-directory),
+[code.claude.com/docs/en/cli-reference](https://code.claude.com/docs/en/cli-reference)
 
-Refresh this file from current official docs before relying on it (re-fetch both pages).
+Refresh this file from current official docs before relying on it (re-fetch every source listed
+above).
 
 ---
 
@@ -96,36 +101,107 @@ code.claude.com/docs/en/memory):
 > "Auto memory files are plain markdown you can edit or delete at any time."
 > — code.claude.com/docs/en/memory
 
-There is no built-in purge command — deletion is manual removal of these files.
+There is no auto-memory-only built-in command — selective deletion is manual removal of these
+files. `claude project purge` deletes the store only as part of the full per-project wipe (see
+"Out of scope" below, including the sourcing status of the `v2.1.124+` version floor).
 
 ## Settings scopes and precedence
 
-> "1. Managed (highest priority) — cannot be overridden 2. Command-line arguments 3. Local
-> (`.claude/settings.local.json`) 4. Project (`.claude/settings.json`) 5. User
-> (`~/.claude/settings.json`) — lowest priority"
-> — code.claude.com/docs/en/settings
+> "Settings apply in order of precedence. From highest to lowest:
+>
+> 1. **Managed settings** (server-managed, MDM/OS-level policies, or managed settings)
+> 2. **Command line arguments**
+> 3. **Local project settings** (`.claude/settings.local.json`)
+> 4. **Shared project settings** (`.claude/settings.json`)
+> 5. **User settings** (`~/.claude/settings.json`)"
+> — code.claude.com/docs/en/settings (verified 2026-08-08; each item's nested detail bullets are
+> omitted, and item 1's three parenthetical links are flattened to their labels)
+
+> "Cannot be overridden by any other level, including command line arguments, apart from the
+> exceptions in the bullets below"
+> — code.claude.com/docs/en/settings (a nested bullet under item 1, verified 2026-08-08)
+
+Item 1's exception bullets are longer and more varied than is useful to enumerate here — read
+them on the page. What matters here is a negative: none of them names `autoMemoryEnabled`,
+`CLAUDE_CODE_DISABLE_AUTO_MEMORY`, or auto memory at all (verified 2026-08-08), so no lower
+settings scope overrides a managed `autoMemoryEnabled` value. That negative governs settings
+scopes only: the `CLAUDE_CODE_DISABLE_AUTO_MEMORY` environment variable sits outside settings
+precedence and, when set, still overrides the effective value — managed or not (see "Precedence:
+the env var overrides the setting" above).
 
 Managed settings live outside the repo (macOS `/Library/Application Support/ClaudeCode/`,
 Linux/WSL `/etc/claude-code/`, Windows registry `HKLM`/`HKCU\SOFTWARE\Policies\ClaudeCode`).
 
-> "Environment variables defined in the `settings.json` `env` object are applied to every
-> session and passed to all subprocesses Claude Code spawns."
-> — code.claude.com/docs/en/settings
+> "Environment variables applied to every session and to subprocesses Claude Code spawns from
+> it."
+> — code.claude.com/docs/en/settings (the `env` setting's description, first sentence; verified
+> 2026-08-08)
 
 So `CLAUDE_CODE_DISABLE_AUTO_MEMORY` can be set as a real OS environment variable **or**
 inside a settings file's `env` block; the docs bless the `env`-block form explicitly.
 
 ## Out of scope for this skill (verified, deliberate)
 
-- **Transcripts / history / shell snapshots / sessions.** Session files are auto-cleaned at
-  startup by `cleanupPeriodDays` (default 30, minimum 1). Purging those is a different
-  concern and is deferred to a future skill.
-  > "cleanupPeriodDays ... Default: 30 days (minimum: 1) ... Age threshold for deleting
-  > session files and application data at startup"
-  > — code.claude.com/docs/en/settings
+- **Transcripts / history / shell snapshots / sessions.** Transcripts and shell snapshots are
+  auto-cleaned at startup by `cleanupPeriodDays` (default 30, minimum 1). The other two are
+  not: `history.jsonl` persists until deleted, and `sessions/` is cleared per session rather
+  than by age. Purging any of them is a different concern — the official per-project wipe is
+  `claude project purge`, quoted in full below (the deletion plan and flags live in the doc,
+  not here).
+  > "**Default**: `30` days, minimum `1`. Claude Code deletes session files and other
+  > application data older than this period at startup."
+  > — code.claude.com/docs/en/settings (the `cleanupPeriodDays` setting's description, first two
+  > sentences; verified 2026-08-08)
 
-  `CLAUDE_CODE_SKIP_PROMPT_HISTORY` disables transcript writes entirely — the true
-  "no session persistence" lever, recorded here for that future skill, not acted on by this one.
+  Read "session files" there as per-session data files, not the `sessions/` directory: the page
+  links that phrase to claude-directory's "Cleaned up automatically" table, whose rows are the
+  transcript, `shell-snapshots/`, `debug/`, `tasks/`, `file-history/`, and similar per-session
+  artifacts. `sessions/` is not a row in that table, and the same page says so directly two
+  quotes down.
+
+  > "The following paths are not covered by automatic cleanup and persist indefinitely."
+  > — code.claude.com/docs/en/claude-directory, heading the table whose first row is
+  > `history.jsonl` (verified 2026-08-08)
+
+  > "`sessions/` holds one small file per running session, used to detect concurrent sessions
+  > and crashes. It isn't part of the age-based sweep: Claude Code removes each file when its
+  > session exits and clears crash leftovers on the next launch."
+  > — code.claude.com/docs/en/claude-directory (verified 2026-08-08)
+
+  > "Run `claude project purge` to delete the state Claude Code holds for one project. It
+  > deletes:
+  >
+  > - Transcripts and auto memory under `projects/`
+  > - Per-session `tasks/`, `debug/`, and `file-history/` entries
+  > - Matching prompt lines in `history.jsonl`
+  > - The project's entry in `~/.claude.json`"
+  > — code.claude.com/docs/en/claude-directory (verified 2026-08-08)
+
+  As of that check the page no longer carries its "requires Claude Code v2.1.124 or later"
+  sentence, and code.claude.com/docs/en/cli-reference documents `claude project purge` with no
+  version requirement at all (verified 2026-08-08). The `v2.1.124+` floor this plugin still
+  states is therefore a retained claim with no current upstream source — treat it as a lower
+  bound to re-source, not as doc-backed.
+
+  What it leaves alone, from the same page:
+
+  > "The command leaves `shell-snapshots/` and `backups/` alone because those are not
+  > project-scoped, and warns about them in the plan output."
+  > — code.claude.com/docs/en/claude-directory (verified 2026-08-08)
+
+  `sessions/` appears nowhere in the deletion list above — this plugin's reading of that list,
+  not a separate upstream statement.
+
+  It also does not delete unprompted:
+
+  > "The command prints the full deletion plan and asks for confirmation before removing
+  > anything."
+  > — code.claude.com/docs/en/claude-directory (verified 2026-08-08)
+
+  `CLAUDE_CODE_SKIP_PROMPT_HISTORY` skips "writing transcripts and prompt history in any mode"
+  (code.claude.com/docs/en/claude-directory) — the true "no session persistence" lever, and the
+  complement to deleting the files after the fact. Recorded for that contrast; this skill acts
+  on neither.
 
 - **Claude Desktop / claude.ai account memory.** That is a server-side account store, not
   local files — this skill cannot delete it and only gives direction (see

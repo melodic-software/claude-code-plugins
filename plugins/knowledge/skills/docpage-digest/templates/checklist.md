@@ -26,8 +26,8 @@ collision check reads them to tell a resume from a slug collision.
 - [ ] Phase 3: Digest fan-out — one agent per digest unit → `digests/NN-slug.md` (fixed structure)
 - [ ] Phase 4: Dual verification — Verifier A (same-vendor) + Verifier B (cross-vendor) verdicts
       in `verification/` (append-only; degraded fallback recorded, never silent)
-- [ ] Phase 5: Interview handoff — `interview-handoff.md` authored; `/planning:interview` run or
-      artifact presented
+- [ ] Phase 5: Interview handoff — `interview-handoff.md` authored and its own commands replayed
+      (every Phase 4 check precedes it); `/planning:interview` run or artifact presented
 
 ## Skip criteria
 

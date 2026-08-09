@@ -1,6 +1,6 @@
 ---
 name: audit
-description: "Post-use behavioral audit of a Claude Code plugin component — a skill, agent, hook, command, or config — after using or setting it up, ending in a work item emitted to the plugin's maintainers. Use WHENEVER you are vetting, reviewing, stress-testing, or hardening a plugin component, when you say 'audit this plugin/skill/hook', 'review this plugin component', 'vet this plugin', 'is this plugin well-designed', 'is this hook well-designed', 'find bugs/gaps in this plugin', 'find gaps in this plugin', right after invoking a plugin skill/command and wanting to check whether it behaves correctly and is well-architected, after setting up a plugin and wanting to review it, or when producing a handoff/work item for plugin maintainers. NOT for: static skill QA in isolation (skill-quality:check), general code review (review), or MCP-server audits (mcp-tools:audit, when installed)."
+description: "Post-use behavioral audit of a Claude Code plugin component — a skill, agent, hook, command, or config — after using or setting it up, ending in a work item emitted to the plugin's maintainers. Use when vetting, reviewing, stress-testing, or hardening a plugin component, when you say 'audit this plugin/skill/hook', 'review this plugin component', 'vet this plugin', 'is this plugin well-designed', 'is this hook well-designed', 'find bugs/gaps in this plugin', 'find gaps in this plugin', right after invoking a plugin skill/command and wanting to check whether it behaves correctly and is well-architected, after setting up a plugin and wanting to review it, or when producing a handoff/work item for plugin maintainers. NOT for: static skill QA in isolation (skill-quality:check), general code review (review), or MCP-server audits (mcp-tools:audit, when installed)."
 argument-hint: "<plugin>[:<component>] … one or more, or a phrase naming several (e.g. source-control:commit, or guardrails)"
 user-invocable: true
 metadata:
@@ -488,7 +488,7 @@ cross-platform, escape hatches, observability).
 | `references/component-types/skill.md` | Auditing a skill (frontmatter, disclosure, triggering). |
 | `references/component-types/agent.md` | Auditing an agent/subagent definition. |
 | `references/component-types/command.md` | Auditing a slash command (merged into skills). |
-| `references/component-types/config.md` | Auditing plugin config / settings / userConfig surfaces. |
+| `references/component-types/config.md` | Auditing plugin config / settings / userConfig surfaces, incl. plugin-shipped `settings.json` / `.lsp.json` / `monitors.json`. |
 
 ## Extending this skill
 

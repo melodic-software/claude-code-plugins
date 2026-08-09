@@ -75,6 +75,17 @@ Why this works: stays below the rot zone while still getting most of the 1M bene
 
 Pair with proactive `/compact <hint>` when you feel bad-compact risk.
 
+> **Amended (verified 2026-08-08 against the
+> [Opus 5 prompting guide](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5)):**
+> the rot figure is an Opus 4.7-era calibration and does not carry to Opus 5 — the guide's
+> long-context bullet states the 1M window is both default and maximum "and its instruction
+> following, tool calling, and reasoning stay consistent throughout the window." On Opus 5 the
+> degradation premise for early compaction is gone; a lowered auto-compact window remains a
+> legitimate cost/compaction-timing choice on its own terms, and the figure may still apply to
+> other 1M models the guide does not cover. **Recheck trigger:** a re-fetch of the Opus 5 guide's
+> long-context bullet finds it no longer matching this record, or a later model generation's
+> guide states a different long-context consistency claim.
+
 Docs: [Claude Code settings](https://code.claude.com/docs/en/settings)
 Source: [@trq212 status 2044548257058328723](https://x.com/trq212/status/2044548257058328723)
 
@@ -201,6 +212,23 @@ Boris's setup: "I use xhigh effort for most tasks, and max effort for the hardes
 The effort scale: low → medium → high → xhigh → max (Speed ← → Intelligence)
 
 **Key detail:** Max applies only to current session. All other effort levels (including xhigh) are sticky and persist for next session too.
+
+> **Amended (verified 2026-08-02 against
+> [model config — adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level)):**
+> the session-only claim holds for the interactive surfaces Boris is describing, but it is not
+> exhaustive — there is one durable route to `max`. Upstream, verbatim: "`low`, `medium`, `high`,
+> and `xhigh` persist across sessions when you set them in an interactive session. `max` provides
+> the deepest reasoning and applies to the current session only, except when set through the
+> `CLAUDE_CODE_EFFORT_LEVEL` environment variable." The persisted `effortLevel` setting takes
+> `low`, `medium`, `high`, or `xhigh` — `max` and `ultracode` "are not accepted here" — and the
+> environment variable "takes precedence over all other methods". Two further limits on "sticky":
+> stickiness comes from setting the level *interactively* (a level set with `/effort` in
+> non-interactive `-p` mode "applies to the current session only and isn't saved as your
+> default"), and first-running Fable 5, Opus 4.8, or Opus 4.7 applies that model's default effort
+> and "holds it across sessions until you make an explicit effort choice" — Opus 5 has no such
+> hold. That page owns the current level names, persistence rules, and per-model availability;
+> read it rather than trusting this snapshot. **Recheck trigger:** a read-time re-fetch of that
+> page finds it no longer matching this record.
 
 To steer thinking without changing effort level:
 

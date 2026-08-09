@@ -131,6 +131,60 @@
         "On a doc-fetch failure the skill degrades to the durable distinction with a visible note and does not halt the interview or guess a model name",
         "The recommendation is framed as advisory (applied via /model, /advisor, effort setting), not as a read of the user's current config"
       ]
+    },
+    {
+      "id": 11,
+      "name": "bulk-application-collapses-to-execution-contract",
+      "prompt": "/planning:interview me — we've settled on the new frontmatter shape for our docs site. Now I want to apply it across the 40 markdown pages under docs/. Interview me so we lock this down properly.",
+      "expected_output": "The interview recognizes a corpus application of an already-settled shape: its output is TWO things only — the small set of genuinely contested decisions (e.g. how to treat pages that deviate from the template, whether to batch the PRs), plus an execution contract, one line in the session's output artifact (the Brief's `### Acceptance criteria` here, since this is an engineering session) naming the per-unit close-out loop (one page at a time: apply, verify, close) and what closed means for a page. It NEVER enumerates the 40 pages as decision rows. If candidate questions start scaling with the page count rather than with genuine forks, the tripwire fires: the per-unit rows collapse into the loop, only the forks remain, and the collapse is stated. The signal is distinguished from a ballooning frontier — this does not route to /planning:wayfind, because the decisions are settled and merely numerous.",
+      "files": [],
+      "expectations": [
+        "Output is exactly two things for the corpus work: a small contested-decision set plus an execution contract naming the per-unit close-out loop — never one decision row per page",
+        "The execution contract lands as one line in the session's output artifact routed by domain (the Brief's `### Acceptance criteria` for this engineering task)",
+        "The contract names the per-unit loop (apply, verify, close, one unit at a time) and what closed means for a unit",
+        "Candidate question count scaling with the number of pages rather than genuine forks is treated as the tripwire: per-unit rows collapse into the loop and the collapse is stated",
+        "Does not route to /planning:wayfind for this signal — the unit-scaling remedy is the collapse into the execution contract, distinct from the ballooning-frontier remedy"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "open-question-survives-an-unrelated-reply",
+      "prompt": "/planning:interview me — I want to add threaded comments to the course pages.\n\n[after the first round is asked] Oh, unrelated — the staging deploy is broken again, can you look at the pipeline config while we're here?",
+      "expected_output": "The round's questions were written into the ledger's open-question register at ask-time, each at `open`. The user's reply addresses none of them, so the skill treats the topic change as drift rather than consent: it restates the still-open questions in one line at the top of its next response instead of proceeding as though they were resolved or silently folding them into the Brief.",
+      "files": [],
+      "expectations": [
+        "A register row per asked question exists at ask-time, before any reply arrives — not written only once an answer lands",
+        "The unrelated reply does not resolve any open question; every unaddressed row stays `open`",
+        "The next response restates the still-open questions in one line rather than continuing as though they were answered",
+        "The skill does not lock the contract or hand off while a register row is still `open`"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "unattended-run-emits-named-blockers-not-assumptions",
+      "prompt": "/planning:interview lock the brief for the notification-batching change. This is running unattended from our nightly workflow — there is no human on this session to answer anything.",
+      "expected_output": "The caller declared the run unattended (the skill does not attempt to detect it). Codebase-resolvable and unambiguous-conventional decisions resolve as usual and are recorded as auto-resolved. A decision genuinely the user's — real tradeoffs, no codebase answer — is NOT captured as an assumption: it becomes a `blocked` register row, a Brief `### Deferred questions` entry tagged `arbiter: USER-RESERVED`, and a named blocker in the output. The run stops on its blockers and reports the contract as unconfirmed rather than idling for an answer or treating silence as confirmation.",
+      "files": [],
+      "expectations": [
+        "The unattended condition comes from the caller's declaration, not from the skill claiming to detect a non-interactive environment",
+        "A genuine user design decision is recorded as a named blocker (register `blocked` + a Brief deferred question leading with its Q<N> id and tagged arbiter USER-RESERVED), never as a silently captured assumption",
+        "Codebase-resolvable or unambiguous-conventional decisions still resolve, recorded as auto-resolved",
+        "The run terminates on its blockers instead of waiting indefinitely, and reports the contract as unconfirmed rather than reading absence of objection as confirmation"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "register-gate-halts-before-the-contract-locks",
+      "prompt": "/planning:interview — we've covered enough, write the brief for the audit-log retention work.",
+      "expected_output": "The skill runs scripts/check-open-questions.sh twice. At Step 3, before the contract is persisted, it passes --ledger ONLY — PLAN.md does not exist yet, and the gate exits 2 on a named-but-missing --brief. Then, immediately after Step 4 writes the Brief, it re-runs with --brief to prove every deferred/blocked row reached `### Deferred questions`, matched on the leading Q<N> id. A non-zero exit halts either time: exit 1 means a question is still `open`, exit 2 means the register could not be graded (missing register, malformed row, gapped or leading-zero Q numbering, a retired row the Brief never records). Neither is a pass — the skill resolves or explicitly retires the row, or fixes the Brief, and re-runs rather than locking the contract over a failing check. A run that asked no question wrote no register and skips the gate entirely.",
+      "files": [],
+      "expectations": [
+        "The Step 3 run passes --ledger only; --brief is NOT named before Step 4 has written PLAN.md",
+        "The gate re-runs with --brief immediately after the Brief is written, in an engineering session",
+        "Exit 1 halts the lock and the still-open question is resolved or explicitly retired first",
+        "Exit 2 (ungradeable) is treated as a halt, never as a pass; on the Step 4 run a missing question means the Brief is fixed, not the register row retired",
+        "A general session writing no Brief runs only the ledger-only form, and a run that asked no question skips the gate rather than failing it"
+      ]
     }
   ]
 }

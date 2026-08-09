@@ -3,6 +3,309 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.48.2]
+
+### Changed
+
+- **`babysit-loop`: listing description tightened (1,468 → 1,197 chars)** — trimmed the explanatory
+  prose from the frontmatter `description` toward the shared skill-listing budget
+  (claude-code-plugins#2022, option 2). Every single-quoted trigger phrase is preserved verbatim
+  (skill-quality check 3); the merge-authority invariants (fail-closed human-only default,
+  tracked-seam-only raises, the c3-this-run anti-spoofing clause, the independent frontier-tier
+  resolver) stay stated in the entry and fully stated in the skill body.
+
+## [0.48.1]
+
+### Changed
+
+- **`pull-request`: the CI-log grep rule leads with the instruction instead of a `CRITICAL:` prefix.**
+  `reference/monitor.md` opened with "CRITICAL: Do NOT use `grep -i ...`", which states the
+  prohibition before the thing to do. It now says to grep for `##[error]` annotations first and gives
+  the reason — a broad keyword grep matches cleanup steps, variable names, and incidental output. The
+  worked "Bad credentials" example and the fall-back-if-empty rule are unchanged.
+
+- **`pull-request`: section 1.3's heading is "Verify every finding".** The shout-caps `EVERY` and the
+  `(CRITICAL)` parenthetical restated emphasis the numbered verification procedure below already
+  carries. No step, classification, or drop rule changed.
+
+## [0.48.0]
+
+### Changed
+
+- **The merge lane's cycle report must now be grounded in tool results from that cycle**, with
+  unverified work said to be unverified rather than left undistinguished. The step already bounded
+  what the report contains and how often it is written; it said nothing about whether its claims were
+  true.
+  - This is the one surface where a fabricated line survives: nobody watched the cycle, no receiver
+    re-derives the report the way a dispatching orchestrator re-derives a worker's return, and the
+    comment is the operator's only record of what happened. Anthropic's Fable 5 prompting guide names
+    exactly this case — "Before reporting progress, audit each claim against a tool result from this
+    session" — and reports that the instruction nearly eliminated fabricated status reports in its
+    testing, including on tasks built to provoke them.
+  - The wording matches the sibling drain lane's word for word because their step 6 is the same step;
+    that is a coincidence of scope, not a shared source, and neither is registered as one.
+
+## [0.47.2]
+
+### Fixed
+
+- **`babysit-prs` `engine.test.sh` resolves ruff from the declared pin instead of PATH (#1856).**
+  A workstation `ruff` at a different version from the one CI installs made the harness report
+  findings on an unmodified tree that CI does not, or miss findings CI raises — the two disagree in
+  both directions once a release changes the default rule set, as 0.16.0 did. The lint pass now
+  goes through `scripts/run-ruff.sh`, which uses a PATH `ruff` only when it already matches the pin
+  in `.github/requirements-ci.txt` and otherwise runs `uvx ruff==<pin>`. The pin is read at run
+  time, so this follows the repository's version wherever it goes rather than freezing a value
+  here.
+
+- **`engine.test.sh` finds that wrapper on a relative invocation, so the lint pass actually runs.**
+  The suite re-derived the repository root from `BASH_SOURCE` *after* `cd`-ing into its own
+  directory. `BASH_SOURCE` holds the path as invoked, so a relative invocation resolved against the
+  new working directory and landed outside the repository: the wrapper was never found, the harness
+  printed `SKIP: scripts/run-ruff.sh not found (lint pass omitted)`, and the suite exited 0 having
+  linted nothing. `scripts/run-plugin-tests.sh` runs it from the repository root, so that was the
+  path CI took every time. The script directory is now captured once, before the `cd`.
+
+## [0.47.1]
+
+### Changed
+
+- **Shared `hook-utils.sh`: a hook invocation spawns three fewer external processes (#1978).**
+  Every hook that buffers its stdin paid an `awk` (one float division, to slice the read timeout), a
+  `printf | tr -d '\r'` pipeline (a fork and an exec to delete one byte class from a string bash
+  rewrites in place), and a `jq -e .` validity probe over a buffer the read loop had already parsed
+  with jq. On Windows Git Bash, where process creation is `fork()` emulation, each spawn costs
+  ~140 ms. Behavior is unchanged: the slice keeps the three-decimal form `read -t` is given, the
+  buffer is CR-stripped as before, and the completeness verdict is reused only when jq itself
+  produced it — so a host without jq still fails open exactly as it did. Also adds
+  `hook::jq_fields`, which extracts several fields from one payload in a single jq process for
+  hooks that read two or three of them. Synced from `lib/hook-utils.sh`.
+
+## [0.47.0]
+
+### Added
+
+- **`worktree` gains a stranded-work axis, and a detection engine to compute it.** The skill could
+  report that a worktree was old, quiet, and clean; it could not report whether removing it would
+  destroy a commit — different questions with the same surface symptoms. `scripts/landed-work.sh`
+  is the new read-only classifier: one TSV row per registered worktree carrying `unpushed`,
+  `landed`, the method and base SHA the verdict was reached with, the in-progress sequencer
+  operation, four independent working-tree counts, peer worktrees, a risk class, and a reason.
+
+  Only affirmative proof yields `landed=yes`. Every failed command, empty result set, unresolvable
+  base, and ambiguity yields `?`, which every consumer treats exactly as `no` — a false `no` costs
+  a confirmation prompt, a false `yes` destroys work.
+
+  The unpushed set is `HEAD --not --remotes`: `--branches` reports every other branch in the
+  repository and says nothing about a detached worktree's own commits, and `@{upstream}..HEAD`
+  returns nothing at all for a locally created branch. Landedness is decided by RANGE patch-id
+  first, because a squash-merge collapses N commits into one patch that no per-commit primitive —
+  `git cherry` included — can ever match, while the branch's range id equals the squash commit's
+  and stays matched as the base advances.
+
+  Patch ids are computed `--verbatim`. The default and `--stable` hash the patch AFTER stripping
+  whitespace, so `a b` and `ab` produce one id — measured on git 2.54, both `7ad14294…` — and a
+  branch whose unique change differed from the base's only in whitespace classified as landed.
+  `--verbatim` separates them, still matches a multi-commit squash, and still matches after the
+  base advances; what it gives up is the tolerance that let an EOL-renormalized branch match, which
+  now reports `no`. That is a confirmation prompt in exchange for a silent deletion, and the trade
+  is deliberate.
+
+  No affirmative verdict is drawn from an incomplete patch-id set: a commit that produces no patch
+  — an empty commit among them — is invisible to patch-id, so the id count must equal the non-merge
+  commit count before "every commit's content is on the base" is a statement about the branch
+  rather than about the commits that happened to hash.
+
+  The path-scoped two-dot fallback answers one question, whether the touched paths differ from the
+  base at all, and its verdict is stamped with the base SHA it was computed against. It carries no
+  direction test: `git diff base..HEAD` reports deletions both for a branch that is merely BEHIND
+  the base and for a branch whose own unique work IS a deletion, and the numstat rows are
+  identical, so "additions are zero" classified a delete-only branch as landed. The
+  behind-the-base shapes it was written for are caught by the range patch-id instead.
+
+  A registered path is confirmed to be a work-tree ROOT with `rev-parse --show-prefix`, since
+  `--is-inside-work-tree` returns true for a leftover directory inside a repository and reports
+  that repository's clean state as the directory's own. Enumeration reads
+  `git worktree list --porcelain -z` into a file and checks its exit status before parsing — a
+  process substitution's failure is invisible to the loop, and the row-count assertion can only
+  catch a truncated pass, never a truncated enumeration — and `-z` because a worktree path may
+  contain a newline. An ambiguous base ref and a criss-cross history with several merge bases both
+  yield `?` rather than a silently chosen one. `comm`'s exit status, the numstat reducer's result,
+  and `git status`'s exit status are each checked, because a failure in any of them produces the
+  same output shape as the favourable answer.
+
+- **The two-dot fallback hands its paths back to git instead of matching two diffs' text.** Two diff
+  invocations only agree on how a path is spelled when they agree on every escaping rule, and they
+  did not: `--name-only` quoted non-ASCII bytes while `--numstat` was pinned to
+  `core.quotepath=false`, so an i18n'd filename joined against nothing — and an empty join is the
+  same shape as "identical to the base", an unproven `landed=yes` on a commit that existed nowhere
+  else. Pinning quotepath on both sides closed that byte class and left another, since git escapes
+  `"`, `\`, and control characters regardless of the setting and only `-z` suppresses it. Rather
+  than chase escaping rules one class at a time, the touched paths are now passed back to git as
+  `:(literal)` pathspecs and git does its own matching, which removes the entire mismatch class.
+  `:(literal)` because a path is not a pattern — a file named `star[1].txt`, or one beginning with
+  `:`, would otherwise be read as pathspec magic. The pathspecs are chunked so a branch touching
+  thousands of files cannot exceed the platform's command-line limit.
+
+- **The base-side patch-id set gets the same completeness check as the branch side.** An
+  under-complete base set can only make a match less likely, so this was never the difference
+  between `yes` and `no` — it is here so the two sides cannot silently diverge under a later
+  refactor, and so a base range that failed to render is named rather than quietly narrowing the id
+  set every branch is compared against.
+
+- **`worktree-create-gate`: a `WorktreeCreate` hook that places every worktree at the configured
+  root.** `/worktree create` already routed through `worktree-create.sh`, but three creation paths
+  bypass the skill entirely — `claude --worktree`, a subagent with `isolation: "worktree"`, and a
+  background session. Those landed in the in-repo `.claude/worktrees/` default, which is the
+  placement the whole nesting invariant exists to prevent. The hook is a thin stdin adapter over
+  the same helper, so there is one placement implementation rather than two.
+
+  Its contract was measured rather than inferred, which settled the two questions that had blocked
+  it. A **user-scope** hook does fire — verified with a settings.json under a `CLAUDE_CONFIG_DIR`,
+  headless, before login was even resolved — and `${CLAUDE_PROJECT_DIR}` resolves to the project
+  root the session started in, never the worktree being created. And stdout's **last non-empty
+  line** is taken as the path: a hook printing a banner line before the path still succeeds and the
+  session lands in the printed directory, refuting the claim that any output but the path fails the
+  session. The hook still prints the path alone; the tolerance is margin, not interface.
+
+  Fail-closed: a hook failure fails the creation, because falling through would place the worktree
+  at exactly the nested path this prevents. The unconfigured case is not a failure — it resolves to
+  the plugin data directory, also outside every repository. The root is read from
+  `CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT` rather than substituted as `${user_config.worktree_root}`,
+  which Claude Code rejects in shell-running fields. Opt out with `worktree_create_gate_enabled`.
+
+### Changed
+
+- **`worktree status` classifies Work before Status.** `merged` widens to "PR merged **or** every
+  unpushed commit landed on the base"; `stale` narrows to require Work to be safe, so a worktree
+  holding unpushed unlanded commits is `stranded` rather than merely old. `stranded`,
+  `superseded`, `notgit`, and `unknown` join the table, and the summary names the at-risk commit
+  total. A stranded row whose commits survive in a peer worktree is presented as such — a
+  materially different decision from losing them.
+
+- **`worktree cleanup` guards both places work actually dies.** Removal is recoverable: it leaves
+  the branch ref intact. The `git branch -D` the procedure emits one step later is not, and a
+  detached-HEAD worktree has no branch ref to begin with — so the precondition is stated at the
+  pre-removal site AND carried through to the emitted branch deletion, which now emits nothing
+  destructive for stranded, unproven, or superseded work. `superseded` is a narrowed *reading* of a
+  `landed=no` row and never a safe one: the merged-PR evidence matches on the branch NAME, so a name
+  reused after that merge carries new commits that are still the only copy. It gates exactly as
+  stranded. The two pre-removal guards have a stated order
+  (stranded first, because it can abort the removal outright), the override is
+  `--acknowledge-stranded` per worktree rather than a bare `--force` answering a different
+  question, and every path offers `git -C <path> push -u origin HEAD` first as the resolution that
+  needs no judgement about whether the work matters. The escalation guard's unpushed probe moves
+  from `--branches` to `HEAD`.
+
+### Fixed
+
+- **The nesting invariant's evidence and upstream citations were stale.** The as-of stamp moves
+  from 2.1.220 / 2026-07-31 to 2.1.224 / 2026-08-07, and three control arms are added that narrow
+  what the invariant rests on: the leak is not specific to `.claude/worktrees/` (a plain non-dot
+  subdirectory leaks identically, so nesting itself is the cause); a worktree inside an
+  **unrelated** repository is worse rather than better, inheriting `CLAUDE.md` and unconditional
+  rules at `session_start` too; and the mechanism is that session-start ancestor traversal is
+  suppressed for ancestors of the worktree's own repository but not a different one, while
+  `path_glob_match` discovery is suppressed in neither.
+
+  The recheck trigger cited two issues that are both CLOSED — #29599 (`duplicate`, COMPLETED) and
+  #23565 (NOT_PLANNED), verified live against the GitHub API. It now cites #16600, which is OPEN,
+  and states the gap that citation leaves: #16600 concerns memory files, which 2.1.224 already
+  handles correctly, so the surface still leaking — path-scoped rules — has no open upstream issue
+  at all. `context/create.md` carried the same two dead citations and now points at the skill's
+  paragraph rather than restating them, so the state lives in one place.
+
+## [0.46.2]
+
+### Fixed
+
+- **`babysit-prs` `reference/safety.md`: the permission-mode enumeration behind the wrapper-path
+  invocation now matches the official page (#1941).** The list named "Manual and accept-edits" as
+  the prompting modes and then covered plan mode and auto mode, so it mixed the CLI display label
+  with config values and accounted for four of the six modes. `dontAsk` was the load-bearing
+  omission: it auto-denies every call that would otherwise prompt, so an uncovered wrapper
+  invocation is refused with no classifier and no prompt — the exact silent-failure hazard the
+  section exists to warn about — and `bypassPermissions` was missing too. The enumeration now names
+  all six config values (`default`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions`),
+  states once that `default` is the value behind the **Manual** display label with `manual` as a
+  v2.1.200 CLI alias, adds plan mode's third branch (bypass-permissions sessions do not enforce its
+  blocks), and splits the outcomes into prompt / no-prompt / auto-deny with the `permissions.ask`
+  exception stated per mode.
+
+## [0.46.0]
+
+### Added
+
+- **`babysit_loop_trusted_internal_bot_logins` — a reviewed internal-bot trust signal for the
+  babysit-loop C5 trust test (#1525, fixing #1520).** The rung partition's trust test classified
+  every non-`OWNER`/`MEMBER` author as C5 untrusted-provenance, but GitHub App bot identities are
+  never org member accounts, so repository-owned automation — which the autonomy guardrails' work
+  classes explicitly place in C2 — was categorically ineligible at every merge rung. The new
+  loop-lane key names the exact bot logins a repository attests as its own internal automation: a
+  flat bullet list on the tracked `.claude/source-control.md` surface, honored from the TARGET
+  repository's team-tracked layer only — always read from its default branch, never any working
+  tree, so a checkout sitting on a bot-authored branch cannot self-grant — making every trust
+  grant a recorded, reviewable config change; unset, unreadable, or malformed fails closed to
+  the empty set, leaving the trust test exactly `OWNER`/`MEMBER`. The match arm requires a
+  structural bot (the `[bot]` login suffix or provider `Bot` type), the fork test stays
+  independent (a listed bot authoring from a cross-repository head is still C5), the
+  dependency-manager hold-merge invariant wins on intersection with
+  `babysit_extra_dependency_manager_logins` and the built-in set, and a trust match never
+  establishes a work class — it only removes the categorical C5 bar. `babysit_watched_owners`
+  remains never a trusted-author list. Documented in `config-resolution.md` ("the C5 trust test's
+  one reviewed widening"); loop-lane convention bumped to 8.0.0 in lockstep; eval added for the
+  bot-author cases. Design decision, rejected alternatives, and cross-vendor review recorded on
+  #1525.
+
+## [0.45.1]
+
+### Fixed
+
+- **`babysit-loop`: the pre-escalation resolution dispatch now honors the resolved thread-resolution
+  dimension (#1786).** The dispatch fired on the widening pair alone, while the *"Dimension
+  overrides bind by tier flooring"* rule was scoped only to *"Before invoking"* the babysit-prs
+  tier — and `reference/pre-escalation-dispatch.md` contained no occurrence of `dimension` at all.
+  So `autopilot --merge c3-this-run --thread-resolution safe` still dispatched a fresh subagent to
+  mutate bot threads the operator's own argument had just denied, against
+  `reference/config-resolution.md`'s *"invocation arguments win"* rule for every dimension but
+  merge. Resolving review threads **is** an exercise of dimension 3, so the flooring rule now
+  explicitly binds every capability the cycle exercises for a PR rather than only the tier keyword
+  it passes on: a floored thread-resolution dimension withholds the dispatch outright and the PR
+  escalates, reported as override-constrained — never a dispatch made and then narratively told not
+  to resolve. New eval 6.
+- **`babysit-loop`: the pre-escalation dispatch names its resolver mode, and it is the one that can
+  actually clear the blocker (#1786).** Neither `SKILL.md` nor `reference/pre-escalation-dispatch.md`
+  stated which `babysit_resolve_thread.py` mode the dispatch runs; as written, *"the full per-PR
+  worker lifecycle"* implied `--autonomous`, which hard-refuses any thread not already `isOutdated`
+  before its own push — precisely the current, non-outdated bot thread D7.5 routes to this dispatch,
+  so it could never clear the blocker class it exists for. The mode is now stated as
+  `--independent-resolver` (landed in 0.42.0, #1782), with the D7.5 ledger mapped onto its validated
+  evidence flags (`fixed`/`--fix-commit`, `deferred`/`--tracker-item`,
+  `incorrect`/`--counter-evidence`, `UNCERTAIN` → escalate), and the worker-lifecycle sentence scoped
+  to how a **code change** is made rather than to mode selection. Two shapes the mode refuses are
+  named where the dispatch will meet them, because the ledger's per-finding phrasing does not imply
+  either: a thread carrying more than one source finding (`skipped-multi-finding-thread` — one
+  disposition cannot clear a thread whose other findings would drop out of the readiness
+  denominator) and a severity-flagged thread. Both escalate rather than resolve. New eval 7.
+- **`babysit-prs`: the security/P1 bright line is no longer documented as having an exception
+  (#1786).** `reference/safety.md` titled a section *"Security/P1 escalation: the one named
+  exception"* and presented the pre-escalation resolver as that exception, citing the loop-lane
+  convention's §1 — but that convention exception widens the **merge rung** for a single run and
+  never touches the severity line, and the same file's `--independent-resolver` rules (with the
+  wrapper itself) refuse a severity-flagged thread in every unattended mode. The documented
+  exception was therefore unreachable, and it now contradicted `babysit-loop`'s newly explicit
+  refusal. The section is retitled and reframed: the bright line has no exception, the paired
+  argument unlocks the *dispatch path* rather than the severity widening, and the four scoping
+  bullets stay with the dispatch they actually describe. Both inbound citations are corrected with
+  it: `SKILL.md`'s one-line restatement, and `babysit-loop/reference/pre-escalation-dispatch.md`,
+  which cited the old heading and repeated the refuted claim that the exception is *"scoped to
+  security/P1 escalation"*.
+- **`babysit-loop`: the subagent discipline preamble no longer hand-copies the discipline plugin's
+  membership (#1786).** `SKILL.md`'s Subagents section enumerated `(sweep-all, use-your-skills,
+  do-your-research)` inline, which the loop-lane convention's own no-enumeration rule forbids and
+  which drifts from the plugin that owns the list. It now points at the sweep skill, which resolves
+  its own membership.
+
 ## [0.45.0]
 
 ### Changed

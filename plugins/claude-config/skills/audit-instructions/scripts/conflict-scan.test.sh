@@ -30,14 +30,14 @@ assert_exit() {
 }
 assert_contains() {
   case "$2" in
-    *"$3"*) pass "$1" ;;
-    *) fail "$1" "expected to contain: $3" ;;
+  *"$3"*) pass "$1" ;;
+  *) fail "$1" "expected to contain: $3" ;;
   esac
 }
 assert_not_contains() {
   case "$2" in
-    *"$3"*) fail "$1" "unexpected substring: $3" ;;
-    *) pass "$1" ;;
+  *"$3"*) fail "$1" "unexpected substring: $3" ;;
+  *) pass "$1" ;;
   esac
 }
 
@@ -328,8 +328,8 @@ NOCOMMA="$TEST_TMPDIR/no-comma.md"
 cat >"$NOCOMMA" <<'EOF'
 Always use `Read` but never use `Bash` for file inspection.
 EOF
-assert_contains "an unpunctuated contrastive does not flip the earlier entity"   "$(bash "$SCRIPT" "$NOCOMMA" "$READNO")" "|Read|"
-assert_contains "the entity after an unpunctuated contrastive is still prohibited"   "$(bash "$SCRIPT" "$BASHYES2" "$NOCOMMA")" "|Bash|"
+assert_contains "an unpunctuated contrastive does not flip the earlier entity" "$(bash "$SCRIPT" "$NOCOMMA" "$READNO")" "|Read|"
+assert_contains "the entity after an unpunctuated contrastive is still prohibited" "$(bash "$SCRIPT" "$BASHYES2" "$NOCOMMA")" "|Bash|"
 
 # --- Case 32 (MUST NOT FLAG): temporal `while` is not a contrastive ---------
 # "use X while the flag is set" is one clause; splitting it would drop the
@@ -338,7 +338,65 @@ TEMPORAL="$TEST_TMPDIR/temporal.md"
 cat >"$TEMPORAL" <<'EOF'
 Always use `WebFetch` while the offline flag is unset.
 EOF
-assert_eq "temporal 'while' does not split the clause" "1"   "$(bash "$SCRIPT" --count "$TEMPORAL" "$POSTPOSED")"
+assert_eq "temporal 'while' does not split the clause" "1" "$(bash "$SCRIPT" --count "$TEMPORAL" "$POSTPOSED")"
+
+# --- Case 33: `and` coordinating an opposite directive splits too -----------
+# Opposite directives coordinate with `and` as readily as with a contrastive.
+# Without the split the earlier entity swallows the later `never` and is read as
+# prohibited, so it fails to pair with a real prohibition and drops the conflict.
+COORDAND="$TEST_TMPDIR/coord-and.md"
+cat >"$COORDAND" <<'EOF'
+Always use `Read` and never use `Bash` for file inspection.
+EOF
+assert_contains "a coordinated prohibition does not flip the earlier entity" \
+  "$(bash "$SCRIPT" "$COORDAND" "$READNO")" "|Read|"
+assert_contains "the entity inside the coordinated clause is still prohibited" \
+  "$(bash "$SCRIPT" "$BASHYES2" "$COORDAND")" "|Bash|"
+
+# --- Case 34: the mirror order coordinates the same way ----------------------
+COORDMIRROR="$TEST_TMPDIR/coord-mirror.md"
+cat >"$COORDMIRROR" <<'EOF'
+Never use `Bash` and always use `Read` for file inspection.
+EOF
+assert_contains "a coordinated mandate is not overtaken by the leading prohibition" \
+  "$(bash "$SCRIPT" "$COORDMIRROR" "$READNO")" "|Read|"
+assert_contains "the leading prohibition still classifies its own entity" \
+  "$(bash "$SCRIPT" "$BASHYES2" "$COORDMIRROR")" "|Bash|"
+
+# --- Case 34b: the coordinator honors EVERY mandate token, not a subset ------
+# COORD_ERE is composed from the two classifier alternations. When it carried a
+# hand-copied list instead, `use|present|ask` were in MANDATE_ERE and absent
+# here: `Never use X and use Y` found no boundary, Y inherited the leading
+# `never`, and the pair with `Never use Y` went unreported. `always` is the
+# control — it was in both lists, so it passed throughout and hid the gap.
+COORDBARE="$TEST_TMPDIR/coord-bare-mandate.md"
+cat >"$COORDBARE" <<'EOF'
+Never use `Bash` and use `Read` for file inspection.
+EOF
+assert_contains "a bare-'use' coordinated mandate splits like 'always use'" \
+  "$(bash "$SCRIPT" "$COORDBARE" "$READNO")" "|Read|"
+
+COORDPRESENT="$TEST_TMPDIR/coord-present.md"
+cat >"$COORDPRESENT" <<'EOF'
+Never use `Bash` and present `Read` to the operator.
+EOF
+assert_contains "a coordinated 'present' splits like every other mandate token" \
+  "$(bash "$SCRIPT" "$COORDPRESENT" "$READNO")" "|Read|"
+
+# --- Case 35 (MUST NOT FLAG): a bare `and` joins objects, not directives -----
+# "never use `Bash` and `Grep`" is one directive over two objects. Splitting on
+# every `and` would strip the `never` that governs the second object, so the
+# polarity token after the coordinator is what makes it a boundary.
+BAREAND="$TEST_TMPDIR/bare-and.md"
+cat >"$BAREAND" <<'EOF'
+Never use `Bash` and `Grep` for file inspection.
+EOF
+GREPYES="$TEST_TMPDIR/grep-yes.md"
+cat >"$GREPYES" <<'EOF'
+Always use `Grep` for file inspection.
+EOF
+assert_contains "a bare 'and' does not strip the token governing the second object" \
+  "$(bash "$SCRIPT" "$BAREAND" "$GREPYES")" "|Grep|"
 
 # --- Case 16: a missing runtime prerequisite exits 2 ------------------------
 # The tools the script executes are awk and sort, not grep. `mapfile < <(… |
