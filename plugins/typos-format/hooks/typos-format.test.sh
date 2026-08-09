@@ -434,8 +434,8 @@ fi
 # fixable scan entry and disclose the disallowed one instead: a rewrite claimed
 # at the wrong line with a blank correction, while the rewrite that really
 # happened goes unmentioned. The correction decision therefore belongs in the
-# key. Here line 1's `teh` is fixable and rewritten; line 2's is disallowed and
-# survives. Exactly one rewrite happened, on line 1.
+# key. Here line 1's occurrence is fixable and rewritten; line 2's is disallowed
+# and survives. Exactly one rewrite happened, on line 1.
 printf 'this has teh typo\nkeepteh line has teh here\n' >"$STUB_REPO/mixed.txt" # spellchecker:disable-line
 OUT_MX=$(run_stub "$STUB_REPO/mixed.txt" STUB_MIXED=1)
 CTX_MX=$(printf '%s' "$OUT_MX" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
