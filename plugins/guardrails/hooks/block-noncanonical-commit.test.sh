@@ -65,6 +65,8 @@ run "git commit --mess <abbreviated separated> single-line (allowed)" \
   "git commit --mess 'feat: x'" 0
 run "git commit --m=<shortest abbreviation> multi-line (blocked)" \
   "git commit --m='feat: x${NL}body'" 2
+run "git commit --m=<shortest abbreviation> single-line (allowed)" \
+  "git commit --m='feat: x'" 0
 run "git commit --m <shortest abbreviation, separated> multi-line (blocked)" \
   "git commit --m 'feat: x${NL}body'" 2
 run "git commit --m <shortest abbreviation, separated> single-line (allowed)" \
