@@ -378,8 +378,9 @@ dispositions accordingly:
   `OPINION` authority value but has never used it — all eleven seeds are `ANTHROPIC-DOCS` — so no
   consumer has ever had to decide what an `OPINION` finding means. This work is the first to populate
   the tier, and therefore owns defining its default enablement, its severity ceiling, and how a
-  consumer turns it on. Shipping `OPINION` rules enabled would let one practitioner's unconfirmed
-  preference mutate a consumer's instruction corpus under the same banner as documented doctrine.
+  consumer turns it on. Shipping `OPINION` rules enabled would let vendor blog advice that no
+  documentation confirms mutate a consumer's instruction corpus under the same banner as documented
+  doctrine.
 
 **If only D1 survives as a detector, stop and re-derive the deliverable's shape** before Phase 3
 builds a catalog. A versioned cross-plugin catalog, its convention-registry owner doc, a re-run

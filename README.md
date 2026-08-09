@@ -76,6 +76,39 @@ user opts in with `/plugin enable`; an existing install is never flipped by cata
 - `docs/OFFICIAL-DOCS.md` — canonical index of the official Claude Code doc pages the mandate
   sends you to.
 
+## Validate a change
+
+The shell suites here are spawn-bound, and Git Bash on Windows pays roughly
+140 ms per process spawn against roughly 3 ms on Linux — so running every
+`**/*.test.sh` locally is an hours-long wall on a Windows box and nobody does
+it. Run the suites that actually cover your change instead:
+
+```shell
+scripts/affected-tests.sh                 # list the suites covering your diff vs origin/main
+scripts/affected-tests.sh --run           # ... and run them, sequentially
+scripts/affected-tests.sh --explain       # ... and say why each one was selected
+scripts/affected-tests.sh path/to/file.sh # explicit paths instead of a diff
+```
+
+It maps a changed file to its co-located `*.test.sh`, to any suite that names
+it, and to its dependents transitively — and it fans a shared-lib change out to
+every carrying plugin by reading the `copies=(...)` array out of that lib's
+`scripts/sync-*.sh` manifest, the same manifest CI's `*-sync` lanes enforce. The
+fan-out is derived on every run, never transcribed, so a new carrying plugin is
+covered the moment it exists.
+
+A changed file that maps to nothing is an **error**, not an empty selection —
+"zero suites" must never be read as "nothing to run". Path classes that
+genuinely carry no shell suite are recorded, with the CI lane that does cover
+them, in [`scripts/affected-tests-no-suite.txt`](scripts/affected-tests-no-suite.txt);
+`--allow-unmapped` is the escape hatch for everything else.
+
+The runner is deliberately sequential: parallelising it measured sublinear
+(the suites are spawn-bound), and several guardrails suites assert wall-clock
+ceilings that fail spuriously under concurrency. Selection is the lever.
+
+CI is unaffected — it still runs everything.
+
 ## Official documentation
 
 This repo tracks policy and wiring only; authoritative behavior lives in the official docs, which must

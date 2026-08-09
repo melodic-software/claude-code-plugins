@@ -1,6 +1,6 @@
 ---
 name: improve
-description: "Scan an existing codebase for module-level friction and architecture improvement opportunities. Explores for shallow modules (interface nearly as complex as implementation), seam leaks, and locality gaps; presents candidates as a self-contained HTML report; runs an interview loop on the selected candidate, with a Design-It-Twice branch that fans out parallel subagents to design the interface several radically different ways; hands off an agreed candidate shape for planning. Use when: 'improve architecture', 'find deepening opportunities', 'shallow modules', 'architecture improvement', 'Ousterhout deepening', 'design it twice', 'compare alternative interfaces', 'make code more testable', 'make code more AI-navigable', 'find refactoring opportunities', 'what should we improve', 'architecture scan', 'codebase friction', 'module seams', 'locality'. Skip when: applying mechanical code-level tidyings (this operates at module level), reviewing a diff before merge, enforcing architecture rules on a change, or root-cause debugging a specific failure."
+description: "Scan an existing codebase for module-level friction and architecture improvement opportunities — shallow modules, seam leaks, locality gaps — present candidates as an HTML report, interview on the selected candidate with a Design-It-Twice branch that designs the interface several radically different ways in parallel, and hand off the agreed shape for planning. Use when: 'improve architecture', 'find deepening opportunities', 'shallow modules', 'architecture improvement', 'Ousterhout deepening', 'design it twice', 'compare alternative interfaces', 'make code more testable', 'make code more AI-navigable', 'find refactoring opportunities', 'what should we improve', 'architecture scan', 'codebase friction', 'module seams', 'locality'. Skip when: mechanical code-level tidyings, reviewing a diff before merge, enforcing architecture rules on a change, or root-cause debugging a specific failure."
 argument-hint: "[action] (e.g., deepening)"
 user-invocable: true
 disable-model-invocation: false
@@ -13,7 +13,7 @@ metadata:
 ## Pre-computed context
 
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Recent commits: !`git log --oneline -10 2>/dev/null || echo "no commits"`
+Recent commits: !`git log --oneline -20 2>/dev/null || echo "no commits"`
 Working tree status: !`git status --porcelain 2>/dev/null | head -10 || echo "clean"`
 
 ## Variables

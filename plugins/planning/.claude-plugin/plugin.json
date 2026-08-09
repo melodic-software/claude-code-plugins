@@ -1,12 +1,18 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "planning",
-  "version": "0.28.1",
+  "version": "0.29.0",
   "userConfig": {
     "use_ask_user_question": {
       "type": "boolean",
       "title": "Use AskUserQuestion for interview rounds",
       "description": "When enabled, the planning skills' question rounds (interview, prd, design, plan) render a round of up to 4 independent questions through the AskUserQuestion tool instead of inline prose. Default: inline prose (dictation-friendly).",
+      "default": false
+    },
+    "use_emoji_question_markers": {
+      "type": "boolean",
+      "title": "Emoji anchors on interview round questions",
+      "description": "When enabled, each inline interview round question leads with a ❓ anchor on its Q<N> line and its 'My recommendation:' line leads with ➡️. Purely presentational — Q<N> numbering stays the functional handle, and persisted artifacts (ledger, register, Brief) never carry the emoji. Default: plain text.",
       "default": false
     }
   },

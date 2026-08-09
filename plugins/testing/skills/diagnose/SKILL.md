@@ -19,6 +19,10 @@ Working tree status: !`git status --porcelain 2>/dev/null | head -20 || echo "cl
 
 The failure half of testing: understand WHY a test fails, then prove the fix. Never dismiss a failure, never retry blindly — "probably a timing issue" is not a diagnosis; even intermittent failures have deterministic root causes. Repo-specific shared-state workarounds and framework traps live in the consuming project's testing conventions — consult them before diagnosing.
 
+## Redact
+
+Diagnosis surfaces commands, test output, stack traces, and CI logs. Redact every secret before showing it — write `<REDACTED>` in its place. Reproductions that need credentials read them from env vars, so the secret never lands in a command line, a fixture, or the regression test you commit. Captured output carries auth headers — quote only the lines carrying the diagnostic signal; if that is not enough to diagnose, say so and ask.
+
 ## Arguments
 
 `$ARGUMENTS` — optional failure description or `loop` to enter the fix cycle directly for an already-diagnosed bug.

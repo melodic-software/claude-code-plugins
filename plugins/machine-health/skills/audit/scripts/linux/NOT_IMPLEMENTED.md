@@ -12,12 +12,9 @@ scripts/linux/
 
 ## Contract for the skill runtime
 
-When `machine-health` is invoked on Linux:
+Owned by [`../../references/linux/NOT_IMPLEMENTED.md`](../../references/linux/NOT_IMPLEMENTED.md) § "What the skill should do on Linux today" — detection, the `UNKNOWN` `os-support` report, and the clean exit.
 
-1. Skill detects `$IsLinux` (or `uname -s` → `Linux`).
-2. Reads both `references/linux/NOT_IMPLEMENTED.md` and this file.
-3. Produces an `UNKNOWN`-severity report (`id: "os-support"`, `category: "platform"`) with one-line summary and pointer to the porting checklist in `references/linux/NOT_IMPLEMENTED.md`.
-4. Exits cleanly — **do not attempt to execute any script from `scripts/windows/` on Linux.** Those scripts call Windows-only cmdlets and fail noisily.
+**Do not attempt to execute any script from `scripts/windows/` on Linux.** Those scripts call Windows-only cmdlets and fail noisily.
 
 ## Porting guidance
 

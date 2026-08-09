@@ -29,8 +29,8 @@ Repo: <slug> · Branch: <name>
 
 | Model | Input | Output | Cost USD |
 |---|---:|---:|---:|
-| claude-opus-4-8 | 1.2M | 0.4M | $X.XX |
-| claude-sonnet-4-6 | 0.6M | 0.2M | $X.XX |
+| <model> | 1.2M | 0.4M | $X.XX |
+| <model> | 0.6M | 0.2M | $X.XX |
 | **Total** | **1.8M** | **0.6M** | **$X.XX** |
 
 5-hour blocks (current + prior 3): <inline summary>

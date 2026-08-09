@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # PreToolUse hook: block Bash workarounds that bypass Write/Edit hook gates.
-# Triggered on Bash tool calls.
+# Triggered on Bash and PowerShell tool calls.
 #
 # Catches common file-write bypass patterns:
 #   cat > path
@@ -256,7 +256,28 @@ COMMAND_LC="${COMMAND,,}"
 # `cat` immediately before a redirect, with or without a space (`cat>file`).
 # Scanned PER SEGMENT (see cat_redirect_bypass), so `;|&()` never reach it — the
 # leading class is kept for the pre-segmentation shape and costs nothing.
-_cat_redir='(^|[[:space:];|&()]+)cat[[:space:]]*>'
+# Two spellings, deliberately NOT collapsed into `cat[[:space:]]*1?>`: the fd
+# digit needs a COMMAND BOUNDARY before it, or `cat1>file` — an unrelated binary
+# named `cat1` with an ordinary redirect — reads as `cat` plus an fd marker and
+# blocks. `cat>file` keeps zero-space (no digit to confuse), while the explicit
+# `1>` form requires whitespace after the command word, the same word-boundary
+# discipline `_producer_head` already applies to echo/printf. Other fds cannot
+# reach either branch: `cat 2>err` matches neither `cat[[:space:]]*>` nor
+# `cat[[:space:]]+1>`.
+_cat_redir='(^|[[:space:];|&()]+)cat([[:space:]]*>|[[:space:]]+1>)'
+# Runs on a NORMALIZED segment. normalize_segments sentinels `>&` / `<&` / `&>`
+# as `\x01` (and escaped separators as `\x02`) so an fd dup is not split as a
+# control operator, then restores them before storing NORMALIZED_SEGMENTS — the
+# text both call sites read. A segment therefore reaches this scan with a literal
+# `&`, and the `&` in the target class is what keeps `cat 1>&2` and `cat 1>&-`
+# out: a dup leaves NO file target, and both consumers — cat_redirect_bypass and
+# producer_redirect_bypass — skip a segment whose target came back empty.
+# Both SENTINELS are excluded as well, and that is not redundant. The restore was
+# silently version-dependent until it was fixed: on bash >= 5.2 an unquoted `&` in
+# a substitution replacement means "the text just matched", so the sentinel was
+# restored to itself and survived into the segment (see the `\&` note in
+# normalize_segments). Excluding both bytes means a dup is rejected whichever one
+# arrives, so a regression in the restore cannot silently turn one into a write.
 # One stdout redirect and its target word. `[^0-9&]` before the operator keeps
 # other-fd (`2>`, `21>`) and combined (`&>`) redirects out, while the optional
 # `1` admits the EXPLICIT stdout spelling — `1>file` is stdout exactly as `>file`
@@ -264,7 +285,7 @@ _cat_redir='(^|[[:space:];|&()]+)cat[[:space:]]*>'
 # target class excludes `&`, so an fd dup (`>&1`) is not mistaken for a file.
 # Used by set_last_stdout_target, never matched alone: the PRESENCE of a
 # `/dev/null` redirect proves nothing (see below).
-_redir_scan='(^|[^0-9&])1?>>?[[:space:]]*([^|&>[:space:]]+)'
+_redir_scan=$'(^|[^0-9&])1?>>?[[:space:]]*([^|&>[:space:]\x01\x02]+)'
 # A simple-command segment whose command token is `echo` or `printf` — the
 # content producers a `> file` redirect turns into a Write/Edit bypass. Anchored
 # to the segment start (see producer_redirect_bypass), so it never matches an
@@ -319,7 +340,7 @@ _leading_redir='^([0-9]*(>>?|<)&?|&>>?)[[:space:]]*'
 # is exempt — that's not a Write/Edit bypass — but the exemption is decided by
 # set_last_stdout_target, not by this pattern: the discard must be the EFFECTIVE
 # target, not merely present somewhere in the segment.
-_echo_file_out='(^|[^0-9&])>>?[[:space:]]*[^|&>[:space:]]'
+_echo_file_out='(^|[^0-9&])1?>>?[[:space:]]*[^|&>[:space:]]'
 # python file-write indicators that are unambiguous on their own. `pathlib` /
 # `path(` are identifier-boundary anchored so they match the write-capable
 # `pathlib.Path(` producer but NOT the read-only `os.path.*path(` helpers
@@ -422,7 +443,13 @@ normalize_segments() {
   # separator (quoted spans are already stripped), so a segment holds at most one
   # simple command and the redirect in it is that command's own.
   normalized="${normalized//[$seps]/$'\n'}"
-  normalized="${normalized//"$soh"/&}"
+  # `\&`, not a bare `&`: since bash 5.2 an UNQUOTED `&` in a substitution
+  # REPLACEMENT expands to the text the pattern just matched (the sed rule), so
+  # `${normalized//"$soh"/&}` restored the sentinel to itself — a silent no-op on
+  # every bash >= 5.2, while still restoring correctly on older ones. That left
+  # the surviving `\x01` for the per-segment scans to trip over, which is why
+  # _redir_scan's target class excludes the sentinel as well as `&`.
+  normalized="${normalized//"$soh"/\&}"
   normalized="${normalized//"$esc"/ }"
   NORMALIZED_SEGMENTS="$normalized"
 }
@@ -459,6 +486,12 @@ cat_redirect_bypass() {
   while IFS= read -r seg || [[ -n "$seg" ]]; do
     [[ "$seg" =~ $_cat_redir ]] || continue
     set_last_stdout_target "$seg"
+    # No FILE operand means no file write: `cat 1>&2` duplicates stdout onto
+    # stderr and `cat 1>&-` closes it. _redir_scan rejects `&` targets, so both
+    # leave the target empty — which must read as "nothing to block", never as a
+    # write. Checked before the /dev/null test so an empty value cannot fall
+    # through to `return 0`.
+    [[ -n "$LAST_STDOUT_TARGET" ]] || continue
     [[ "$LAST_STDOUT_TARGET" == "/dev/null" ]] && continue
     return 0
   done <<<"$NORMALIZED_SEGMENTS"
@@ -518,6 +551,16 @@ producer_redirect_bypass() {
     # Same left-to-right rule as the cat lane: `echo x > /dev/null > real.txt`
     # writes to real.txt. The old presence test exempted it.
     set_last_stdout_target "$seg"
+    # Mirror of the cat lane's emptiness skip, and UNREACHABLE today by design: the
+    # two patterns differ only in that _redir_scan also excludes the normalization
+    # sentinels, so a segment _echo_file_out matched always resolves to a target
+    # here. It is kept because that equivalence is exactly what failed silently
+    # once — while the `>&` sentinel survived NORMALIZED_SEGMENTS, _echo_file_out
+    # matched the stray `\x01` and _redir_scan correctly refused it, and with no
+    # guard the empty value fell through to block `echo x >&2`. Fail toward "no
+    # file operand, nothing to block" rather than re-blocking a dup if the two
+    # target classes ever drift apart again.
+    [[ -n "$LAST_STDOUT_TARGET" ]] || continue
     [[ "$LAST_STDOUT_TARGET" == "/dev/null" ]] && continue
     return 0
   done <<<"$NORMALIZED_SEGMENTS"
