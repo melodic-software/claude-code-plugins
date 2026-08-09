@@ -405,10 +405,14 @@ printf 'Run `/alpha:setxx` and note the xx convention.\n' >"$SHORT2"
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$SHORT2" 'xx')" 2>&1)
 assert_silent "a short anchor occurring twice is still ambiguous" "$OUT"
 
-# A large multiline Edit must not cost a subprocess per hunk line. The hook's own
-# timeout is 30 s (hooks.json) and a per-line full-file grep spent it, losing the
-# advisory entirely; the ceiling here is deliberately loose so the case fails only
-# on the defect, not on a slow host.
+# A large multiline Edit must cost neither a subprocess NOR a rescan per hunk line.
+# Both are anchors times file size; removing only the subprocess left a thousand-line
+# hunk spending the hook's own 30 s timeout (hooks.json) and losing the advisory. The
+# hunk is located whole, so this is one scan. The ceiling is deliberately loose so
+# the case fails only on the defect, not on a slow host.
+# Every line here is span-free ON PURPOSE: a hunk whose lines carry code spans hits
+# the span cap and stops early, which would hide the per-line rescan rather than
+# measure it.
 BIGDOC="$REPO/big.md"
 BIGHUNK="$TEST_TMPDIR/bighunk.txt"
 : >"$BIGDOC"
@@ -431,6 +435,32 @@ if ((big_elapsed < 30)); then
 else
   bad "1000-line Edit hunk took ${big_elapsed}s, at or past the hook's 30s timeout"
 fi
+
+# The whole-hunk locate is a fast path, not the only one. When the text on disk is
+# no longer the hunk verbatim — another PostToolUse hook reformatting the file
+# between the write and this read is the realistic cause — the per-line walk must
+# still recover the reference. Here a blank line separates two lines the Edit wrote
+# together, so the whole hunk cannot be found and only the lines can.
+SPLIT="$REPO/split.md"
+printf 'First edited line.\n\nSecond line with `/alpha:ghost-split`.\n' >"$SPLIT"
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" \
+  <<<"$(edit_json "$SPLIT" 'First edited line.
+Second line with `/alpha:ghost-split`.')" 2>&1)
+RC=$?
+assert_exit "hunk no longer contiguous on disk → exit 0" 0 "$RC"
+assert_contains "per-line fallback still recovers the reference" "$OUT" \
+  "UNRESOLVED_SKILL: /alpha:ghost-split"
+
+# A multi-line hunk whose every LINE repeats but whose whole text does not is where
+# the whole-hunk locate is strictly better than the per-line walk: the walk drops
+# every anchor as ambiguous, while the hunk itself names exactly one place.
+PAIR="$REPO/pair.md"
+printf 'shared line\nother\nshared line\ntail with `/alpha:ghost-pair`.\n' >"$PAIR"
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" \
+  <<<"$(edit_json "$PAIR" 'shared line
+tail with `/alpha:ghost-pair`.')" 2>&1)
+assert_contains "a unique whole hunk resolves lines that individually repeat" "$OUT" \
+  "UNRESOLVED_SKILL: /alpha:ghost-pair"
 
 # ============ MANIFEST-DECLARED SKILL PATHS =================================
 # A manifest may declare `skills` paths, which ADD to the conventional `skills/`

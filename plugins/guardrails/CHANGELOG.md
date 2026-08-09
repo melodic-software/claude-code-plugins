@@ -35,9 +35,23 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   full-file `grep` processes per hunk line, which a thousand-line Edit turned into a timeout — an
   advisory lost entirely, after delaying the tool call to get there. Reconstruction now reads the
   file once and keeps only the inline-code spans whose extent OVERLAPS the located anchor. Overlap
-  is exact where the token filter was approximate, has no minimum length to clear, and costs no
-  subprocess per hunk line. The occurrence-uniqueness gate is unchanged: an anchor that cannot say
-  which occurrence the edit landed on is still dropped rather than unioned.
+  is exact where the token filter was approximate, and has no minimum length to clear. The
+  occurrence-uniqueness gate is unchanged: an anchor that cannot say which occurrence the edit
+  landed on is still dropped rather than unioned.
+
+  The timeout half needed both halves of its cost removed. Dropping the subprocesses left the
+  per-line RESCAN, which is anchors TIMES file size — measured on a Windows/Git Bash host, a
+  thousand span-free hunk lines still cost 82 s against the 30-second budget. The hunk is written to
+  disk contiguously, so it is now located WHOLE: one scan for the entire edit, and the span set is
+  the same one the per-line walk produced, since a line anchor's extent is the text the edit wrote
+  on that line and the whole hunk's extent is the union of exactly those. The same measurement is
+  now 11 s at a thousand lines and 11 s at four thousand — the hunk-size term is gone. Locating
+  whole is also strictly better scoping: a hunk whose every line repeats but whose whole text does
+  not used to be dropped as ambiguous line by line, and now resolves to the one place it names. The
+  per-line walk survives as a fallback for a hunk that is no longer on disk verbatim — another
+  PostToolUse hook reformatting the file between the write and this read is the realistic cause —
+  under a total scanning budget, because bounding the anchor count or the file size alone leaves
+  their product free.
 
 - **`skill-reference-verify` reported a valid command as unresolved when its plugin declared custom
   skill paths.** Resolution hard-coded `plugins/<plugin>/skills/`, but a manifest's `skills` key

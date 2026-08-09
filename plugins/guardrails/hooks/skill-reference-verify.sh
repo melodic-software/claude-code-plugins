@@ -220,16 +220,23 @@ emit_refs() {
     sed -nE 's|^(/[a-z][a-z0-9-]*:[a-z][a-z0-9-]*)([[:space:]].*)?$|\1|p'
 }
 
-# Reconstruction is bounded on three axes, because this hook has a 30s timeout
+# Reconstruction is bounded on four axes, because this hook has a 30s timeout
 # (hooks.json) and a guard that loses its advisory to a timeout has stopped
 # guarding. A file too large to hold in a shell variable is not reconstructed at
 # all; a hunk stops contributing once it has yielded this many code spans, which is
-# far above any real edit given that only spans the anchor reaches are kept; and an
+# far above any real edit given that only spans the anchor reaches are kept; an
 # anchor stops being counted one occurrence past the cap, which is all the
-# uniqueness gate needs to know.
+# uniqueness gate needs to know; and the per-line FALLBACK below gets a total
+# scanning budget rather than an anchor count, because its cost is anchors TIMES
+# file size and bounding either factor alone leaves the product free. Measured on
+# the slowest host available (Windows/Git Bash): one anchor over a 41 KB file costs
+# ~66 ms, so 2 MB of total scanning is ~3 s — inside the budget with the fixed
+# per-invocation overhead accounted for. A big file therefore buys fewer anchors,
+# down to one.
 RECONSTRUCT_MAX_CHARS=4194304
 RECONSTRUCT_MAX_SPANS=40
 RECONSTRUCT_MAX_OCCURRENCES=40
+RECONSTRUCT_MAX_SCAN_CHARS=2097152
 
 # Append to the caller's $ctx every inline-code span in <region> whose extent
 # OVERLAPS [<hunk-start>, <hunk-end>), and count them in the caller's $nspan.
@@ -281,14 +288,22 @@ collect_overlapping_spans() {
 # leaves the anchor twice on that line, and reporting the reference would be an
 # advisory about text this call never wrote.
 #
+# ONE pattern operation per iteration. `${rest%%"$anchor"*}` both tests and locates:
+# it returns $rest unchanged when there is no match, and a literal `==` on that
+# result is a memcmp, not a second search. Asking `[[ $rest == *"$anchor"* ]]` first
+# and then stripping searched the same text twice, which doubled the cost of the
+# whole-hunk locate — where the anchor is the size of the edit and the search is the
+# dominant term.
+#
 # Call as: anchor_offsets <anchor> -> $offs
 # shellcheck disable=SC2154  # content and offs are the caller's frame, per the call contract
 anchor_offsets() {
   local anchor="$1" alen=${#1}
   local rest="$content" base=0 pre
   offs=()
-  while [[ "$rest" == *"$anchor"* ]]; do
+  while :; do
     pre="${rest%%"$anchor"*}"
+    [[ "$pre" == "$rest" ]] && return 0
     offs+=($((base + ${#pre})))
     ((${#offs[@]} > RECONSTRUCT_MAX_OCCURRENCES)) && return 0
     base=$((base + ${#pre} + alen))
@@ -312,11 +327,12 @@ anchor_offsets() {
 # the exact span of the file this call wrote. Diff-scope is then an overlap test
 # rather than a word-token heuristic. Two gates:
 #
-#   1. LOCATE by the hunk's own lines, never by its tokens, and only where a line
+#   1. LOCATE by the hunk's own text, never by its tokens, and only where that text
 #      OCCURS exactly once in the file. A unique occurrence IS where the edit
 #      landed. Anything repeated cannot say which copy that was, so it is dropped
 #      rather than unioned. Exception: under `replace_all` every occurrence is a
-#      place this call edited, so all are kept.
+#      place this call edited, so all are kept. The hunk is located WHOLE, falling
+#      back to line by line only when the whole no longer matches.
 #   2. KEEP only the inline-code spans whose extent OVERLAPS the located anchor.
 #
 # Gate 2 is what a word-token filter could never be: exact. Sharing a physical line
@@ -332,9 +348,12 @@ anchor_offsets() {
 # nothing in the payload separates those. Reconstruction is a best effort under an
 # advisory guard, not a proof that every reported line was written by this call.
 #
-# Cost is ONE read of the file, then in-memory scans — no subprocess per hunk line.
-# The per-anchor `grep` this replaced spawned two processes per line of the hunk,
-# which a large multiline Edit turned into the hook's timeout.
+# Cost is ONE read of the file and, normally, ONE scan of it — no subprocess per
+# hunk line and no rescan per hunk line either. The `grep` this replaced spawned two
+# processes per line of the hunk; scanning in-memory removed the processes but left
+# the per-line rescan, which is anchors TIMES file size and still spent the timeout
+# on a thousand-line hunk. Locating the hunk whole is what removes the factor; the
+# scanning budget bounds the fallback that cannot.
 reconstruct_partial_edit() {
   [[ "$TOOL" == "Edit" && -f "$FILE" ]] || return 0
   local content
@@ -345,14 +364,32 @@ reconstruct_partial_edit() {
   content=${content//$'\r'/}
   ((${#content} <= RECONSTRUCT_MAX_CHARS)) || return 0
 
-  local -a anchors=()
-  mapfile -t anchors < <(printf '%s' "$SCAN_CONTENT" | grep -vE '^[[:space:]]*$' 2>/dev/null)
-  ((${#anchors[@]})) || return 0
+  local ctx="" nspan=0 anchor alen off hs he head tail cap
+  local -a offs=() anchors=()
+
+  # The hunk is written to disk CONTIGUOUSLY, so locate it WHOLE first — one scan
+  # for the entire edit instead of one per line. The loop below is then driven by a
+  # single anchor, and the span set it produces is the same one the per-line walk
+  # produced: an anchor's extent is the text the edit wrote on its own line, and the
+  # whole hunk's extent is the union of exactly those. Multi-line is no obstacle —
+  # the extent is bounded by offset, and a code span never crosses a newline.
+  anchor_offsets "$SCAN_CONTENT"
+  if ((${#offs[@]})) && { [[ "$REPLACE_ALL" == "true" ]] || ((${#offs[@]} == 1)); }; then
+    anchors=("$SCAN_CONTENT")
+  else
+    # FALLBACK, for a hunk that is no longer on disk verbatim — another PostToolUse
+    # hook may have reformatted the file between the write and this read — or one
+    # whose whole text repeats. Individual lines can still locate, so walk them; the
+    # budget is what keeps that walk from costing anchors TIMES file size.
+    mapfile -t anchors < <(printf '%s' "$SCAN_CONTENT" | grep -vE '^[[:space:]]*$' 2>/dev/null)
+    ((${#anchors[@]})) || return 0
+    cap=$((RECONSTRUCT_MAX_SCAN_CHARS / (${#content} + 1)))
+    ((cap < 1)) && cap=1
+    ((${#anchors[@]} > cap)) && anchors=("${anchors[@]:0:cap}")
+  fi
 
   # A repeated anchor line resolves identically every time, so scan each once.
   declare -A seen=()
-  local ctx="" nspan=0 anchor alen off hs he head tail
-  local -a offs=()
   for anchor in "${anchors[@]}"; do
     alen=${#anchor}
     ((alen)) || continue
