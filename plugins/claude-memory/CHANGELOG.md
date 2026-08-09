@@ -24,7 +24,11 @@ All notable changes to the `claude-memory` plugin are documented here. Format fo
   already states. The `claude project purge` quote asserted `"The command requires Claude Code
   v2.1.124 or later"`, a sentence claude-directory no longer carries and cli-reference never did;
   it is out of the quote, and the retained `v2.1.124+` floor the plugin states elsewhere is
-  labelled a claim with no current upstream source rather than left looking doc-backed.
+  labelled a claim with no current upstream source rather than left looking doc-backed. Review
+  extended that reconciliation within the reference file itself: its second, unlabelled `v2.1.124+`
+  mention now defers to the labelled statement instead of restating the floor as doc-backed fact,
+  and the cli-reference negative carries its own citation — the page is in the file's Sources list
+  and documents `claude project purge` with no version requirement (verified 2026-08-08).
 
   The `env` and `cleanupPeriodDays` quotes were re-checked character-for-character against the
   live page and are verbatim as they stand, so their wording is untouched. What changed around

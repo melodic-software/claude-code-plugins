@@ -1,12 +1,13 @@
 # Official Claude Code Guidance on Auto Memory State
 
-Last researched: 2026-07-22; code.claude.com/docs/en/claude-directory and
-code.claude.com/docs/en/settings verified 2026-08-08 (the other sources below were not
-re-checked on that date)
+Last researched: 2026-07-22; code.claude.com/docs/en/claude-directory,
+code.claude.com/docs/en/settings, and code.claude.com/docs/en/cli-reference verified 2026-08-08
+(the other sources below were not re-checked on that date)
 Sources: [code.claude.com/docs/en/memory](https://code.claude.com/docs/en/memory),
 [code.claude.com/docs/en/settings](https://code.claude.com/docs/en/settings),
 [code.claude.com/docs/en/env-vars](https://code.claude.com/docs/en/env-vars),
-[code.claude.com/docs/en/claude-directory](https://code.claude.com/docs/en/claude-directory)
+[code.claude.com/docs/en/claude-directory](https://code.claude.com/docs/en/claude-directory),
+[code.claude.com/docs/en/cli-reference](https://code.claude.com/docs/en/cli-reference)
 
 Refresh this file from current official docs before relying on it (re-fetch every source listed
 above).
@@ -101,8 +102,8 @@ code.claude.com/docs/en/memory):
 > — code.claude.com/docs/en/memory
 
 There is no auto-memory-only built-in command — selective deletion is manual removal of these
-files. `claude project purge` (v2.1.124+) deletes the store only as part of the full
-per-project wipe (see "Out of scope" below).
+files. `claude project purge` deletes the store only as part of the full per-project wipe (see
+"Out of scope" below, including the sourcing status of the `v2.1.124+` version floor).
 
 ## Settings scopes and precedence
 
@@ -177,9 +178,10 @@ inside a settings file's `env` block; the docs bless the `env`-block form explic
   > — code.claude.com/docs/en/claude-directory (verified 2026-08-08)
 
   As of that check the page no longer carries its "requires Claude Code v2.1.124 or later"
-  sentence, and neither does cli-reference. The `v2.1.124+` floor this plugin still states is
-  therefore a retained claim with no current upstream source — treat it as a lower bound to
-  re-source, not as doc-backed.
+  sentence, and code.claude.com/docs/en/cli-reference documents `claude project purge` with no
+  version requirement at all (verified 2026-08-08). The `v2.1.124+` floor this plugin still
+  states is therefore a retained claim with no current upstream source — treat it as a lower
+  bound to re-source, not as doc-backed.
 
   What it leaves alone, from the same page:
 
