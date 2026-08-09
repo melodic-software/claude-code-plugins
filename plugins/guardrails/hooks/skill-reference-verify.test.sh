@@ -117,6 +117,10 @@ mkdir -p "$REPO/plugins/alpha/skills/ghost"
 OUT=$(run 'Run `/alpha:ghost`.')
 assert_contains "skills/ dir without SKILL.md → still unresolved" "$OUT" \
   "UNRESOLVED_SKILL: /alpha:ghost"
+# Naming the searched directories must not have changed how the conventional
+# layout reads — one root, rendered exactly as it always was.
+assert_contains "a plugin declaring no paths still reads as plugins/<plugin>/skills/" "$OUT" \
+  "(no such skill under plugins/alpha/skills/)"
 
 # A frontmatter name carrying a trailing YAML comment is a valid rename and must
 # resolve; the old end-of-line-anchored parser extracted nothing.
@@ -364,6 +368,250 @@ assert_contains "reference reachable both ways → reported" "$OUT" \
   "UNRESOLVED_SKILL: /alpha:ghost-mixed"
 assert_contains "reference reachable both ways → counted once" "$OUT" \
   "1 skill reference(s) do not resolve"
+
+# Sharing a physical LINE with the hunk is not evidence the edit wrote a
+# reference. Here the anchor is unique — so the uniqueness gate is satisfied and
+# cannot help — and it sits on the same line as an untouched broken reference,
+# which a shared word (`legacy`) then readmitted through the token filter. Only
+# keeping the part of the line the anchor OVERLAPS separates them.
+ONELINE="$REPO/oneline.md"
+printf 'Stale `/alpha:ghost-legacy` here. The legacy naming convention was updated today.\n' \
+  >"$ONELINE"
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" \
+  <<<"$(edit_json "$ONELINE" 'The legacy naming convention was updated today.')" 2>&1)
+RC=$?
+assert_exit "unique anchor beside an untouched reference → exit 0" 0 "$RC"
+assert_silent "a reference the anchor does not overlap is not reported" "$OUT"
+
+# The same line, edited INSIDE the reference this time: overlap must still admit
+# it, or the fix above would have bought scope by going blind.
+ONELINE2="$REPO/oneline2.md"
+printf 'Stale `/alpha:ghost-legacy` here. The legacy naming convention was updated today.\n' \
+  >"$ONELINE2"
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$ONELINE2" 'ghost-legacy')" 2>&1)
+assert_contains "an anchor inside the reference still reports it" "$OUT" \
+  "UNRESOLVED_SKILL: /alpha:ghost-legacy"
+
+# A SHORT substring edit. Replacing `up` with `xx` inside `/alpha:setup` leaves
+# `/alpha:setxx` on disk and a two-character hunk; a minimum token length left
+# every such edit uncovered, while overlap has no length to clear.
+SHORT="$REPO/short.md"
+printf 'Run `/alpha:setxx` to begin.\n' >"$SHORT"
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$SHORT" 'xx')" 2>&1)
+RC=$?
+assert_exit "two-character Edit hunk → exit 0" 0 "$RC"
+assert_contains "two-character Edit hunk → containing reference recovered" "$OUT" \
+  "UNRESOLVED_SKILL: /alpha:setxx"
+
+# A short anchor is still subject to the uniqueness gate — it buys no scope.
+SHORT2="$REPO/short2.md"
+printf 'Run `/alpha:setxx` and note the xx convention.\n' >"$SHORT2"
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$SHORT2" 'xx')" 2>&1)
+assert_silent "a short anchor occurring twice is still ambiguous" "$OUT"
+
+# A large multiline Edit must cost neither a subprocess NOR a rescan per hunk line.
+# Both are anchors times file size; removing only the subprocess left a thousand-line
+# hunk spending the hook's own 30 s timeout (hooks.json) and losing the advisory. The
+# hunk is located whole, so this is one scan. The ceiling is deliberately loose so
+# the case fails only on the defect, not on a slow host.
+# Every line here is span-free ON PURPOSE: a hunk whose lines carry code spans hits
+# the span cap and stops early, which would hide the per-line rescan rather than
+# measure it.
+BIGDOC="$REPO/big.md"
+BIGHUNK="$TEST_TMPDIR/bighunk.txt"
+: >"$BIGDOC"
+: >"$BIGHUNK"
+{
+  for ((i = 1; i <= 1000; i++)); do printf 'Line %s of the large replaced passage.\n' "$i"; done
+} >"$BIGHUNK"
+{
+  cat "$BIGHUNK"
+  printf 'Run `/alpha:ghost-big` at the end.\n'
+} >"$BIGDOC"
+big_start=$SECONDS
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" \
+  <<<"$(edit_json "$BIGDOC" "$(cat "$BIGHUNK")")" 2>&1)
+RC=$?
+big_elapsed=$((SECONDS - big_start))
+assert_exit "1000-line Edit hunk → exit 0" 0 "$RC"
+if ((big_elapsed < 30)); then
+  ok "1000-line Edit hunk stays inside the hook's 30s timeout (${big_elapsed}s)"
+else
+  bad "1000-line Edit hunk took ${big_elapsed}s, at or past the hook's 30s timeout"
+fi
+
+# The whole-hunk locate is a fast path, not the only one. When the text on disk is
+# no longer the hunk verbatim — another PostToolUse hook reformatting the file
+# between the write and this read is the realistic cause — the per-line walk must
+# still recover the reference. Here a blank line separates two lines the Edit wrote
+# together, so the whole hunk cannot be found and only the lines can.
+SPLIT="$REPO/split.md"
+printf 'First edited line.\n\nSecond line with `/alpha:ghost-split`.\n' >"$SPLIT"
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" \
+  <<<"$(edit_json "$SPLIT" 'First edited line.
+Second line with `/alpha:ghost-split`.')" 2>&1)
+RC=$?
+assert_exit "hunk no longer contiguous on disk → exit 0" 0 "$RC"
+assert_contains "per-line fallback still recovers the reference" "$OUT" \
+  "UNRESOLVED_SKILL: /alpha:ghost-split"
+
+# A multi-line hunk whose every LINE repeats but whose whole text does not is where
+# the whole-hunk locate is strictly better than the per-line walk: the walk drops
+# every anchor as ambiguous, while the hunk itself names exactly one place.
+PAIR="$REPO/pair.md"
+printf 'shared line\nother\nshared line\ntail with `/alpha:ghost-pair`.\n' >"$PAIR"
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" \
+  <<<"$(edit_json "$PAIR" 'shared line
+tail with `/alpha:ghost-pair`.')" 2>&1)
+assert_contains "a unique whole hunk resolves lines that individually repeat" "$OUT" \
+  "UNRESOLVED_SKILL: /alpha:ghost-pair"
+
+# SCALE meets the FALLBACK. The two cases above force the fallback but on three
+# lines, and the timing case above is large but takes the whole-hunk fast path, so
+# neither measures what the original defect actually cost: one scan PER ANCHOR over
+# a big file. This case combines them — a file near RECONSTRUCT_MAX_CHARS and a
+# many-line hunk that a reformat has made non-contiguous — and it is the case the
+# fallback's anchor cap exists for.
+#
+# What the cap DOES is asserted, not how long it takes. A wall-clock bound here
+# measures the host: the same fixture read 21 s loaded and the smaller one below
+# read 23 s, while the isolated scan it is supposed to be bounding is ~1 s at this
+# size. A timing assertion that noisy is worse than none — it fails on load and
+# passes on a regression that happens to run on a quiet box. The scan cost itself
+# is measured directly (see the constants' docblock); what a test can pin
+# deterministically is the cap's BEHAVIOR, so this case pins it from both sides.
+#
+# Both references are reached only through reconstruction: each hunk line carrying
+# one is a bare SUBSTRING, never the reference itself, so the direct hunk scan
+# cannot see either and an assertion cannot pass on the direct scan alone.
+FBIG="$REPO/fallback-big.md"
+FBIGHUNK="$TEST_TMPDIR/fallback-hunk.txt"
+{
+  printf 'ghost-fallback\n'
+  for ((i = 2; i <= 300; i++)); do printf 'Body line %s of the reformatted passage.\n' "$i"; done
+  printf 'ghost-deep\n'
+  for ((i = 302; i <= 401; i++)); do printf 'Body line %s of the reformatted passage.\n' "$i"; done
+} >"$FBIGHUNK"
+# On disk those two lines read as part of code spans, so the hunk is not contiguous
+# here and the whole-hunk locate cannot match it. Unrelated prose follows, putting
+# the file just under RECONSTRUCT_MAX_CHARS (128 KiB).
+{
+  printf 'Opening line with `/alpha:ghost-fallback` in it.\n'
+  for ((i = 2; i <= 300; i++)); do printf 'Body line %s of the reformatted passage.\n' "$i"; done
+  printf 'Deep line with `/alpha:ghost-deep` in it.\n'
+  for ((i = 302; i <= 401; i++)); do printf 'Body line %s of the reformatted passage.\n' "$i"; done
+  for ((i = 1; i <= 1450; i++)); do
+    printf 'Filler paragraph %s padding this file toward the reconstruction cap.\n' "$i"
+  done
+} >"$FBIG"
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$FBIG" "$(cat "$FBIGHUNK")")" 2>&1)
+RC=$?
+assert_exit "large file forced onto the fallback path → exit 0" 0 "$RC"
+# The bound ADMITS: the first hunk line is inside the anchor cap, so its reference
+# is still recovered. A cap that had collapsed to nothing would stop guarding while
+# passing every timing check ever written.
+assert_contains "the capped fallback still reports the reference it admits" "$OUT" \
+  "UNRESOLVED_SKILL: /alpha:ghost-fallback"
+# The bound BINDS: hunk line 301 is far past the cap this file size buys, so its
+# reference is not reached. Asserting the silence is what makes the cap observable
+# without a clock — if the anchor walk ever went unbounded again, this fails.
+assert_absent "the fallback stops at the anchor cap instead of walking the hunk" "$OUT" \
+  "UNRESOLVED_SKILL: /alpha:ghost-deep"
+
+# Above the cap, reconstruction does not run at all — one scan of a file that size
+# would spend the budget by itself. The direct hunk scan is unaffected, so a
+# COMPLETE reference in the hunk is still reported; only partial-edit recovery
+# stops, which is this guard's permitted failure direction.
+OVER="$REPO/over-cap.md"
+{
+  printf 'Complete reference `/alpha:ghost-over` written by this edit.\n'
+  for ((i = 1; i <= 2200; i++)); do
+    printf 'Filler paragraph %s pushing this file past the reconstruction cap.\n' "$i"
+  done
+} >"$OVER"
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" \
+  <<<"$(edit_json "$OVER" 'Complete reference `/alpha:ghost-over` written by this edit.')" 2>&1)
+RC=$?
+assert_exit "file past RECONSTRUCT_MAX_CHARS → exit 0" 0 "$RC"
+assert_contains "the direct scan still reports a complete reference above the cap" "$OUT" \
+  "UNRESOLVED_SKILL: /alpha:ghost-over"
+
+# ============ MANIFEST-DECLARED SKILL PATHS =================================
+# A manifest may declare `skills` paths, which ADD to the conventional `skills/`
+# directory rather than replacing it. A command loaded from a declared location is
+# real, so reporting it unresolved is a false advisory.
+mk_plugin gamma gamma
+mk_skill gamma conventional
+mkdir -p "$REPO/plugins/gamma/custom/extras/declared"
+printf -- '---\nname: declared\ndescription: x\n---\n' \
+  >"$REPO/plugins/gamma/custom/extras/declared/SKILL.md"
+# A declared path may point straight AT a skill directory, not only at a directory
+# of them.
+mkdir -p "$REPO/plugins/gamma/solo"
+printf -- '---\nname: solo-command\ndescription: x\n---\n' \
+  >"$REPO/plugins/gamma/solo/SKILL.md"
+MSYS_NO_PATHCONV=1 jq -n '{name:"gamma",version:"0.1.0",skills:["./custom/extras/","./solo/"]}' \
+  >"$REPO/plugins/gamma/.claude-plugin/plugin.json"
+
+OUT=$(run 'Run `/gamma:declared`.')
+RC=$?
+assert_exit "manifest-declared skill path → exit 0" 0 "$RC"
+assert_silent "skill under a manifest-declared path resolves" "$OUT"
+
+OUT=$(run 'Run `/gamma:solo-command`.')
+assert_silent "declared path pointing AT a skill directory resolves" "$OUT"
+
+# Declared paths ADD to `skills/`; the conventional directory must still resolve.
+OUT=$(run 'Run `/gamma:conventional`.')
+assert_silent "declared paths add to skills/, they do not replace it" "$OUT"
+
+# The guard must not go blind for a plugin that declares paths — a command in
+# neither location still fires.
+OUT=$(run 'Run `/gamma:nowhere`.')
+assert_contains "declared paths do not suppress a genuinely missing command" "$OUT" \
+  "UNRESOLVED_SKILL: /gamma:nowhere"
+# The message names WHERE it looked, and the advisory's next line tells the reader
+# to confirm against the tree — so the full rendering is asserted, not its prefix.
+# A prefix match passes on any wrong directory list, which is the whole subject
+# here.
+assert_contains "the advisory names every directory the search covered" "$OUT" \
+  "(no such skill under plugins/gamma/skills/, plugins/gamma/custom/extras/, plugins/gamma/solo/)"
+
+# A declared skill's DIRECTORY name is no more an alias than a conventional one's.
+OUT=$(run 'Run `/gamma:solo`.')
+assert_contains "declared skill's directory name is NOT an alias" "$OUT" \
+  "UNRESOLVED_SKILL: /gamma:solo"
+
+# A string `skills` value is as valid as an array.
+mk_plugin delta delta
+mkdir -p "$REPO/plugins/delta/elsewhere/one"
+printf -- '---\nname: one\ndescription: x\n---\n' \
+  >"$REPO/plugins/delta/elsewhere/one/SKILL.md"
+MSYS_NO_PATHCONV=1 jq -n '{name:"delta",version:"0.1.0",skills:"./elsewhere/"}' \
+  >"$REPO/plugins/delta/.claude-plugin/plugin.json"
+OUT=$(run 'Run `/delta:one`.')
+assert_silent "a string skills value resolves like a one-element array" "$OUT"
+
+# The single-skill plugin layout: a SKILL.md at the plugin root, no `skills/`
+# subdirectory and no `skills` key, auto-loads as one skill named by its
+# frontmatter.
+mk_plugin epsilon epsilon
+printf -- '---\nname: eps-command\ndescription: x\n---\n' >"$REPO/plugins/epsilon/SKILL.md"
+OUT=$(run 'Run `/epsilon:eps-command`.')
+assert_silent "root SKILL.md with no skills/ and no manifest key auto-loads" "$OUT"
+OUT=$(run 'Run `/epsilon:missing`.')
+assert_contains "single-skill plugin still fires for a command it does not have" "$OUT" \
+  "UNRESOLVED_SKILL: /epsilon:missing"
+
+# The auto-load applies only under its documented conditions. A root SKILL.md
+# BESIDE a populated `skills/` is not loaded, so it must not resolve — accepting it
+# would suppress the advisory for a command Claude Code does not offer.
+mk_plugin zeta zeta
+mk_skill zeta real
+printf -- '---\nname: zeta-root\ndescription: x\n---\n' >"$REPO/plugins/zeta/SKILL.md"
+OUT=$(run 'Run `/zeta:zeta-root`.')
+assert_contains "root SKILL.md beside a populated skills/ is not auto-loaded" "$OUT" \
+  "UNRESOLVED_SKILL: /zeta:zeta-root"
 
 # ============================ KILL SWITCH ===================================
 

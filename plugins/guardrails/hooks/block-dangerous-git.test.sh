@@ -82,6 +82,27 @@ run "git --git-dir=<sha256-repo>/.git push --force-with-lease=main:<40-hex> (blo
 run "git -C <not-a-repo> push --force-with-lease=main:<40-hex> (width undeterminable, fail-closed block)" "git -C $NOT_A_REPO push --force-with-lease=main:$SHA1_OID origin main" 2
 run "git -c x=y -C <sha256-repo> push --force-with-lease=main:<64-hex> (config value skipped, not mistaken for a path, allowed)" "git -c x=y -C $REPO_SHA256 push --force-with-lease=main:$SHA256_OID origin main" 0
 
+# A WRAPPER's chdir moves git just as git's own -C does, and the width probe must
+# follow it. The locating-option walk is deliberately scoped to `[git, subcommand)`
+# — it cannot know which wrapper options take a value — so the relocation reaches
+# it only through hook::git_resolve_index, the one parser that can tell `env -C
+# <dir>` (a real chdir) from the `-C` in `env -u -C git` (the operand of -u).
+# Losing it probed the INVOKING directory, where a 40-hex lease reads as an object
+# id while the push runs where it is a movable ref name.
+run "env -C <sha256-repo> git push --force-with-lease=main:<40-hex> (40-hex is a name where git runs, blocked)" "env -C $REPO_SHA256 git push --force-with-lease=main:$SHA1_OID origin main" 2
+run "env -C <sha256-repo> git push --force-with-lease=main:<64-hex> (object id where git runs, allowed)" "env -C $REPO_SHA256 git push --force-with-lease=main:$SHA256_OID origin main" 0
+run_in "$REPO_SHA256" "env -C <sha1-repo> git push --force-with-lease=main:<64-hex> (64-hex is a name where git runs, blocked)" "env -C $REPO_SHA1 git push --force-with-lease=main:$SHA256_OID origin main" 2
+run "env --chdir=<sha256-repo> git push --force-with-lease=main:<40-hex> (long form, blocked)" "env --chdir=$REPO_SHA256 git push --force-with-lease=main:$SHA1_OID origin main" 2
+run "sudo -D <sha256-repo> git push --force-with-lease=main:<40-hex> (sudo's chdir, blocked)" "sudo -D $REPO_SHA256 git push --force-with-lease=main:$SHA1_OID origin main" 2
+# The mirror image: an option that only LOOKS like a chdir must not move the probe.
+# GNU env's `-u NAME` consumes the next word, so the `-C` in `env -u -C git` is
+# the variable name and git never moves — the lease is judged where it stands.
+run "env -u -C git push --force-with-lease=main:<40-hex> (-C is -u's operand, no chdir, allowed)" "env -u -C git push --force-with-lease=main:$SHA1_OID origin main" 0
+# A wrapper chdir composes AHEAD of git's own -C, in that order: env relocates
+# before git starts, so a relative `-C` resolves against the wrapper's directory.
+run "env -C <sha256-parent> git -C <basename> push --force-with-lease=main:<64-hex> (composed, allowed)" "env -C $TEST_TMPDIR git -C repo-sha256 push --force-with-lease=main:$SHA256_OID origin main" 0
+run "env -C <sha256-parent> git -C <basename> push --force-with-lease=main:<40-hex> (composed, blocked)" "env -C $TEST_TMPDIR git -C repo-sha256 push --force-with-lease=main:$SHA1_OID origin main" 2
+
 # The width probe is the guard's only subprocess, and a command may carry many
 # lease expectations. Counting real git invocations catches the cache being lost
 # to a subshell — a per-expectation probe would spawn one git each and push a
