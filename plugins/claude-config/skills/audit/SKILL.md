@@ -116,7 +116,7 @@ Load the audit checklist: [audit-checklist.md](reference/audit-checklist.md)
 
 Run each category's checks. Record findings with severity ratings.
 
-Eight categories — names + the question each answers below; **full per-check criteria in
+Nine categories — names + the question each answers below; **full per-check criteria in
 [context/validation-categories.md](context/validation-categories.md)** (read it when running Phase 2).
 
 - **A — Schema & Structure**: `$schema` present, no unknown keys, `mcpServers` not in `settings.local.json`
@@ -127,6 +127,7 @@ Eight categories — names + the question each answers below; **full per-check c
 - **F — Environment Variables**: documented/justified vars, secrets in `settings.local.json` only, forward-slash paths
 - **G — Skill-listing budget**: `/doctor` overflow check and trim levers (description trimming, `skillOverrides`, budget settings)
 - **H — Model and effort settings**: `effortLevel`, `fallbackModel`, `availableModels`, `enforceAvailableModels` — values the harness accepts into the file but does not apply as written
+- **I — Deep-link registration**: `disableDeepLinkRegistration` — the one documented value that takes effect, and user-scope placement where an organization requires enforcement
 
 ---
 

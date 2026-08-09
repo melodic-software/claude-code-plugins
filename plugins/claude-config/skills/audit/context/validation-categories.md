@@ -1,6 +1,6 @@
 # audit — Phase 2 validation categories
 
-Detailed checks for each Phase 2 category (A–H). SKILL.md Phase 2 names the categories + points here;
+Detailed checks for each Phase 2 category (A–I). SKILL.md Phase 2 names the categories + points here;
 this file carries the per-check criteria. Run each category's checks and record findings with severity
 ratings.
 
@@ -145,3 +145,24 @@ effort settings". What governs the category:
   highest-precedence managed source, and admin-deployed managed sources do not merge. Nothing in the
   files this skill reads decides whether that holds, so report the value-level finding and leave
   placement to the administrator
+
+## Category I: Deep-link registration
+
+Row-by-row criteria are in [audit-checklist.md](../reference/audit-checklist.md) "I. Deep-link
+registration". What governs the category:
+
+- **Scope** — the single key `disableDeepLinkRegistration`, in the files this skill reads by value
+  (`.claude/settings.json`, `~/.claude/settings.json`). `check-structure.sh` does not report it, so
+  a `settings.local.json` or managed-settings occurrence is not inspectable rather than absent.
+  Whether the OS handler is actually registered is workstation state, not configuration, and is not
+  audited here
+- **Fetch before reporting** — the accepted value is upstream-owned, so a finding requires the
+  Phase 3.1 settings fetch, the way Category F resolves environment variables against their own page
+- **Two authorities that agree here** — the declared settings schema types the key
+  `"type": "string", "enum": ["disable"]`, so a schema-aware editor flags a wrong value before the
+  file is loaded, the same authoring-time path two of Category H's rows have. The row stays because
+  the schema is advisory and the harness still reads a file that violates it
+- **Value first, then placement** — a value other than the string `"disable"` is a prevention that
+  was never invoked (warning). A correct value placed only where a user can revert it, where an
+  organization requires enforcement, is an enforcement bypass (error). Absent a declared enforcement
+  requirement, user-scope placement is the documented single-machine usage and is not a finding

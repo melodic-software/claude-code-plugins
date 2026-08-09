@@ -5,11 +5,11 @@
       "id": 1,
       "name": "scope-filter-permissions-only",
       "prompt": "/audit permissions",
-      "expected_output": "An audit limited to Category B (permissions) only — required deny/ask patterns, deny-rules-in-settings.json placement — presented as a severity-rated findings table. Categories C-G (MCP, hooks, plugins, env vars, skill-listing budget) are not run.",
+      "expected_output": "An audit limited to Category B (permissions) only — required deny/ask patterns, deny-rules-in-settings.json placement — presented as a severity-rated findings table. Categories C-I (MCP, hooks, plugins, env vars, skill-listing budget, model and effort settings, deep-link registration) are not run.",
       "files": [],
       "expectations": [
         "Runs only the permissions category (Category B) checks — required deny/ask patterns, deny-rule placement",
-        "Does NOT run MCP, hooks, plugins, environment-variable, or skill-listing-budget checks",
+        "Does NOT run MCP, hooks, plugins, environment-variable, skill-listing-budget, model-and-effort, or deep-link-registration checks",
         "Presents findings as a severity-rated table using the error/warning/info vocabulary"
       ]
     },
@@ -54,7 +54,7 @@
       "id": 5,
       "name": "findings-table-output-contract",
       "prompt": "/audit all",
-      "expected_output": "A full seven-category audit whose findings are presented as a GFM table with columns #, Category, Severity, Finding, Current, Recommended; each finding carries an error/warning/info severity and is tagged auto-fixable vs judgment-required; closes with a summary and a recheck-frequency recommendation.",
+      "expected_output": "A full nine-category audit whose findings are presented as a GFM table with columns #, Category, Severity, Finding, Current, Recommended; each finding carries an error/warning/info severity and is tagged auto-fixable vs judgment-required; closes with a summary and a recheck-frequency recommendation.",
       "files": [],
       "expectations": [
         "Findings are presented as a GFM table with a per-finding severity column",

@@ -166,3 +166,31 @@ when this subagent is active. Overrides the session effort level. Default: inher
 The same row admits `max`, which the `effortLevel` settings key does not, so a level valid here is
 not evidence it is valid in a settings file. **As of:** 2026-08-08, fetched as raw markdown.
 **Recheck trigger:** that field's precedence or its accepted-level list changing on the page.
+
+## I. Deep-link registration
+
+Claude Code "registers the `claude-cli://` handler with your operating system on macOS, Linux, and
+Windows when you send your first prompt of an interactive session" — not at install, and
+"starting `claude` and exiting without sending a prompt doesn't register the handler"
+([deep links](https://code.claude.com/docs/en/deep-links)). Registration "writes to user-level
+locations only" (`~/Applications/Claude Code URL Handler.app`, a
+`claude-code-url-handler.desktop` under `$XDG_DATA_HOME/applications`,
+`HKEY_CURRENT_USER\Software\Classes\claude-cli`). Whether the handler is in fact registered on a
+given machine is workstation state, not configuration: these rows read the setting that governs
+registration, never those locations.
+
+Like two of section H's rows, the value check has an authoring-time path: the declared schema
+section A checks for types this key `"type": "string", "enum": ["disable"]`, so an editor validating
+against it flags a boolean before the file is ever loaded. The row stays for the same reasons those
+do — the schema is advisory, the harness still reads a file that violates it, and section A checks
+that `$schema` is present, not what the values are.
+
+**Reach.** Read the key by value from `.claude/settings.json` and `~/.claude/settings.json`.
+`check-structure.sh` does not report it, so a `settings.local.json` or managed-settings occurrence
+is outside what this skill's safe-read rule surfaces — record it as not inspectable rather than
+reporting the key as absent.
+
+| Check | Severity | How to verify |
+| --- | --- | --- |
+| `disableDeepLinkRegistration` is the string `"disable"` | warning | `jq '.disableDeepLinkRegistration'`. **MANDATORY**: confirm the accepted value against a live fetch of [settings](https://code.claude.com/docs/en/settings) rather than this row's wording — it is upstream-owned and moves with the harness. The page documents exactly one value that produces the effect: "Set to `"disable"` to prevent Claude Code from registering the `claude-cli://` protocol handler", with `"disable"` as its only example. Boolean `true` is the likely author error, the key reading as a flag; the declared schema's `enum` and `type` already flag it too, so a schema-aware editor catches it first. Report that the documented prevention is not invoked, so nothing exempts the machine from the default first-prompt registration above. Do **not** assert what the harness does with an unrecognized value, or that anything surfaces when it reads one — neither page states either |
+| An enforcement requirement for `disableDeepLinkRegistration` is met by managed settings, not by a user-scope `settings.json` | error | The deep-links page: "To prevent registration entirely, set `disableDeepLinkRegistration` to `"disable"` in `settings.json`. To enforce this across an organization so users cannot re-enable it, set it in [managed settings](https://code.claude.com/docs/en/server-managed-settings) instead." A user-scope placement is overridable twice over — the user owns the file, and the settings page ranks user scope lowest, below project and local. Like `enforceAvailableModels`, gate on the condition rather than the key's presence: the finding requires BOTH a declared enforcement requirement (the consuming repo's own rules, or the run's stated policy context) AND the key living only where a user can revert it. Someone setting it in their own `~/.claude/settings.json` with no such policy in play is the documented single-machine usage and is never a finding. When it does fire, an administrator believes registration is prevented while a user can re-enable it — an enforcement bypass, which this skill's severity guide rates `error`. Whether managed settings also carry the key is not decidable from the files this skill reads, so report the placement you can see and route it to the administrator; never assert managed settings lack it |
