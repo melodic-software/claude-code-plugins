@@ -1041,40 +1041,105 @@ fi
 # soon as the buffer already parses as whole JSON. One window is the floor —
 # until a window expires, a held-open pipe is indistinguishable from a slow one.
 #
-# Asserted by COMPARISON, not against a wall-clock constant: both variants run
-# back to back on the same host, so runner load cancels out and no absolute
-# threshold has to be tuned. The slow variant is produced by overriding the
-# completeness predicate in a child shell (the same idiom Test 18e uses), which
-# reproduces the pre-fix behavior exactly. Timing is taken INSIDE the consumer —
-# the pipeline as a whole does not finish until the producer's sleep ends, so
-# bracketing the pipeline would measure the producer, not the read.
-#
 # There is no non-clock proxy to convert this to: both the correct and the
 # reading-on implementations return rc 0 and the identical payload, so latency is
-# the only observable that tells them apart.
+# the only observable that tells them apart. Everything below is about making a
+# latency comparison that a loaded host cannot invert.
 #
-# What makes the comparison trustworthy is that the slow arm must do strictly
-# MORE work than the fast one in every dimension — then any load that inflates a
-# unit of work widens the gap instead of closing it. The override below therefore
-# performs the real completeness check and only LIES about the verdict. An
-# override that skipped the work (`json_complete() { return 1; }`, which this
-# case used until 2026-08-09) made the slow arm pay ZERO jq forks while the fast
-# arm paid one, so on a host where a spawn costs seconds the "slow" arm won:
-# measured 4855 ms fast vs 4330 ms slow, inverting the result. With the work
-# restored the ledger is fast = 1 read + 1 fork, slow = 5 reads + 2 forks, which
-# no amount of load can invert.
+# TWO PROPERTIES DO THE WORK, and a third that was claimed here does not.
 #
-# The producer's HOLD has to outlast the SLOW arm, or EOF cuts that arm short and
-# the measured gap is the hold, not the behavior. The same 2026-08-09 run shows
-# it: the slow arm read 4330 ms against a 3 s hold, i.e. it was truncated and the
-# real separation never got to appear. The hold below covers the slow arm's whole
-# bound plus the spawns around it, with room for a host several times slower.
+# 1. The slow arm must do strictly MORE work than the fast one in every
+#    dimension. The override therefore performs the real completeness check and
+#    only LIES about the verdict. An override that SKIPPED the work
+#    (`json_complete() { return 1; }`, used here until 2026-08-09) made the slow
+#    arm pay ZERO jq forks while the fast arm paid one, so on a host where a
+#    spawn costs seconds the "slow" arm won: 4855 ms fast vs 4330 ms slow, an
+#    inverted result. The ledger is now fast = 1 read + 1 fork against slow =
+#    5 reads + 3 forks (two json_complete probes plus the `validated=0` probe at
+#    hook-utils.sh:586, which only the slow arm reaches).
+#
+# 2. The producer must hold its stdout open until the CONSUMER is done. A fixed
+#    `sleep` cannot do that: reaching the slow arm's verdict costs the bound plus
+#    buffer_stdin's startup spawns, and when those spawns outran the hold, EOF cut
+#    the slow arm short and the comparison measured the hold instead of the
+#    behavior (the same run: slow arm 4330 ms against a 3 s hold). bs_hold_open
+#    replaces the sleep with a handshake, so the hold is exactly as long as the
+#    consumer needs and no constant has to be guessed.
+#
+# 3. NOT TRUE, and was asserted here: that more work on the slow side means "no
+#    amount of load can invert" the result. The two arms are separate processes
+#    run SEQUENTIALLY, so they never share a load sample — dominance holds in
+#    expectation, not per sample. Instrumenting buffer_stdin's two startup forks
+#    across four back-to-back runs on an idle box gave 93/92, 762/1277,
+#    1755/3234, 107/100 ms: a 35x swing on one fork, up to 3.2 s, against a
+#    structural gap under 1 s. Single-sample comparison is therefore not
+#    measurable here at all, which is why these cases now take N interleaved
+#    samples per arm and compare the MEDIAN of the paired deltas. The median is
+#    robust to the occasional multi-second fork; one sample is not.
+#
+# Timing is taken INSIDE the consumer: bracketing the pipeline would fold the
+# producer and the handshake into the measurement.
+
+# The release handshake. Opening a FIFO for READ blocks until a writer appears,
+# so the producer stays alive — and its stdout stays open, so the consumer never
+# sees EOF — until the consumer opens the same FIFO for write. Both sides are
+# builtins with redirects: a `cat` here would put a spawn back on the path this
+# exists to keep spawns off. Measured: the pipeline ends at consumer completion
+# (2271 ms for a 2000 ms consumer) where a fixed 8 s hold cost 8180 ms.
+bs_release_fifo="$(mktemp -u)"
+if mkfifo "$bs_release_fifo" 2>/dev/null; then
+  bs_hold_open() { read -r _ <"$bs_release_fifo"; }
+  bs_release() { : >"$bs_release_fifo"; }
+else
+  # No FIFO on this host: fall back to a generous fixed hold, which is what this
+  # replaced. Slower and truncatable, but never wrong in the passing direction.
+  bs_hold_open() { sleep 12; }
+  bs_release() { :; }
+fi
+
+# bs_median <n> ... — the middle value. Used instead of a mean because the noise
+# is a heavy tail (one 3.2 s fork in four samples), which a mean would swallow.
+bs_median() { printf '%s\n' "$@" | sort -n | awk '{v[NR] = $0} END {print v[int((NR + 1) / 2)]}'; }
+
+# bs_paired_verdict <label> <slack-ms> <a-name> <b-name> <deltas...> — asserts
+# that the MEDIAN of B-minus-A clears <slack-ms>, and prints every delta so a
+# marginal pass is visible in the log rather than hidden behind the summary.
+bs_paired_verdict() {
+  local label="$1" slack="$2" a="$3" b="$4" med
+  shift 4
+  med=$(bs_median "$@")
+  if ((med >= slack)); then
+    ok "$label: median $b-minus-$a is ${med} ms (slack ${slack} ms; deltas: $*)"
+  else
+    fail "$label: median $b-minus-$a is only ${med} ms, under the ${slack} ms slack (deltas: $*)"
+  fi
+}
+
+# bs_samples <n> <fn> <arm-a-arg> <arm-b-arg> — runs <fn> alternately with each
+# argument, INTERLEAVED, so the two arms sample the same load window rather than
+# two different ones. Fills bs_deltas with per-pair B-minus-A, or empties it if
+# any sample came back untimed.
+bs_deltas=()
+bs_samples() {
+  local n="$1" fn="$2" arg_a="$3" arg_b="$4" i a b
+  bs_deltas=()
+  for ((i = 0; i < n; i++)); do
+    a=$("$fn" "$arg_a")
+    b=$("$fn" "$arg_b")
+    if [[ -z "$a" || -z "$b" ]]; then
+      bs_deltas=()
+      return 1
+    fi
+    bs_deltas+=("$((b - a))")
+  done
+}
+
 bs_time_late_eof() { # $1 = shell prelude; prints elapsed ms (empty if untimed)
   local t_file
   t_file="$(mktemp)"
   {
     printf '{"complete":true}'
-    sleep 8
+    bs_hold_open
   } | {
     CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=1.2 bash -c '
       source "$1"
@@ -1083,32 +1148,27 @@ bs_time_late_eof() { # $1 = shell prelude; prints elapsed ms (empty if untimed)
       hook::buffer_stdin >/dev/null 2>&1
       printf "%s\n" "${EPOCHREALTIME:-0}"
     ' _ "$HOOK_DIR/hook-utils.sh" "$1" >"$t_file"
+    bs_release
   }
   awk 'NR==1 {s=$0} NR==2 {e=$0}
        END { if (s == 0 || e == 0 || NR < 2) print ""; else printf "%.0f", (e - s) * 1000 }' \
     "$t_file"
   rm -f "$t_file"
 }
-bs_fast=$(bs_time_late_eof "")
 # Mirrors hook::json_complete's real `printf | jq -e .` body (never a here-string
 # — see that function: a here-string at pipe capacity deadlocks the shell), then
 # returns 1 regardless. Same spawn, opposite verdict.
 # shellcheck disable=SC2016 # $1 is the overriding function's own positional, not this shell's
 bs_reads_on='hook::json_complete() { printf "%s" "$1" | jq -e . >/dev/null 2>&1; return 1; }'
-bs_slow=$(bs_time_late_eof "$bs_reads_on")
-if [[ -z "$bs_fast" || -z "$bs_slow" ]]; then
-  # Only legitimate below Bash 5.0, where EPOCHREALTIME does not exist. On a
-  # host that HAS it, an empty measurement means the harness broke — which would
-  # silently turn this case into a vacuous pass, so it fails instead.
-  if [[ -n "${EPOCHREALTIME:-}" ]]; then
-    fail "late-EOF timing harness produced no measurement (fast='$bs_fast' slow='$bs_slow')"
-  else
-    ok "buffer_stdin: late-EOF window count not timed (EPOCHREALTIME absent, Bash < 5.0)"
-  fi
-elif ((bs_fast < bs_slow - 400)); then
-  ok "buffer_stdin: late-EOF stops at the payload, not the bound (${bs_fast} ms vs ${bs_slow} ms)"
+if bs_samples 5 bs_time_late_eof "" "$bs_reads_on"; then
+  bs_paired_verdict "buffer_stdin: late-EOF stops at the payload, not the bound" \
+    400 fast slow "${bs_deltas[@]}"
+elif [[ -n "${EPOCHREALTIME:-}" ]]; then
+  # On a host that HAS EPOCHREALTIME an empty measurement means the harness
+  # broke, which would silently turn this case into a vacuous pass.
+  fail "late-EOF timing harness produced no measurement"
 else
-  fail "buffer_stdin late-EOF: ${bs_fast} ms vs ${bs_slow} ms reading on — expected >400 ms faster"
+  ok "buffer_stdin: late-EOF window count not timed (EPOCHREALTIME absent, Bash < 5.0)"
 fi
 rm -f "$bs_rc_file" "$bs_out_file"
 
@@ -1200,6 +1260,13 @@ fi
 # least 400 ms of the nominal 500 ms. A tick that silently does not delay — the
 # Bash 3.2 hazard above, or a FIFO that turns out to deliver — lands near 0 ms
 # and fails here rather than hollowing out the case below.
+#
+# One host is left unguarded and it is not reachable from here: Bash 4.x, which
+# HAS fractional `read -t` (so the probe selects the FIFO) but lacks
+# EPOCHREALTIME (so this takes the untimed branch and cannot check it). The tick
+# is exercised for real there — it just is not measured. Timing it would need an
+# external clock, i.e. the process spawn per sample that this whole mechanism
+# exists to avoid, so the guard is left where the measurement is free.
 bs_tick_t0=${EPOCHREALTIME:-}
 for _ in 1 2 3 4 5; do bs_tick 0.1; done
 bs_tick_t1=${EPOCHREALTIME:-}
@@ -1385,29 +1452,31 @@ rm -f "$bs_rc_file"
 #
 # There is no non-clock proxy: both variants end in the same rc 2 stall with the
 # same empty payload, and only WHEN the stall is declared differs, which is the
-# whole property under test. Two things had to change for the comparison to hold
-# on a loaded host, and the 2026-08-09 runs show both:
+# whole property under test. Three things had to change for the comparison to
+# hold on a loaded host, and the 2026-08-09 runs show all three:
 #
 #  * The HOLD has to outlast the SLOW arm. The unsliced arm read 4293 ms against
 #    a 4 s hold — EOF had cut it off, so the comparison was measuring the hold
-#    rather than the overshoot. The hold below covers two whole bounds plus the
-#    spawns around them several times over.
-#  * Unlike the other cases here, this one's arms are NOT symmetric in work: the
+#    rather than the overshoot. bs_hold_open now ends the hold when the consumer
+#    says so, which removes the constant rather than retuning it.
+#  * Unlike the late-EOF case, this one's arms are NOT symmetric in work: the
 #    sliced arm does slice_count+1 reads where the unsliced does 2, and it is the
 #    arm that has to finish FIRST. Every read costs a wakeup, so load taxes
-#    precisely the arm that must win. Measured with the hold already fixed:
-#    5339 ms sliced vs 5719 ms unsliced — a 380 ms advantage where the structural
-#    gap is 900 ms, i.e. ~520 ms eaten by three extra reads. That overhead is
-#    fixed per read and does not grow with the bound, so the fix is to grow the
-#    GAP: at a 2.4 s bound the gap is 1.8 s (0.6 s sliced slice + 2.4 s vs two
-#    2.4 s bounds), leaving ~1.28 s of advantage against a 400 ms slack.
+#    precisely the arm that must win — measured at ~520 ms across three extra
+#    reads. That overhead is fixed per read and does not grow with the bound, so
+#    the bound is 2.4 s: the gap is then 1.8 s (0.6 s slice + 2.4 s against two
+#    2.4 s bounds), which the per-read tax cannot close.
+#  * ONE sample of each arm decides nothing. The startup-fork swing documented
+#    above the late-EOF case (up to 3.2 s on a single fork) dwarfs even a 1.8 s
+#    gap on a bad sample, so this takes 5 interleaved pairs and compares the
+#    MEDIAN delta. Every delta is printed, so a marginal pass is visible.
 bs_time_stall() { # $1 = shell prelude; prints elapsed ms (empty if untimed)
   local t_file
   t_file="$(mktemp)"
-  # Bytes land immediately, then the pipe goes quiet well past two bounds.
+  # Bytes land immediately, then the pipe goes quiet past two whole bounds.
   {
     printf '{"partial":'
-    sleep 12
+    bs_hold_open
   } | {
     CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=2.4 bash -c '
       source "$1"
@@ -1416,14 +1485,28 @@ bs_time_stall() { # $1 = shell prelude; prints elapsed ms (empty if untimed)
       hook::buffer_stdin >/dev/null 2>&1
       printf "%s\n" "${EPOCHREALTIME:-0}"
     ' _ "$HOOK_DIR/hook-utils.sh" "$1" >"$t_file"
+    bs_release
   }
   awk 'NR==1 {s=$0} NR==2 {e=$0}
        END { if (s == 0 || e == 0 || NR < 2) print ""; else printf "%.0f", (e - s) * 1000 }' \
     "$t_file"
   rm -f "$t_file"
 }
+# The unsliced override must pay the same COMMAND SUBSTITUTION the real
+# hook::resolve_read_slice pays at hook-utils.sh:491 to probe its slice value.
+# `printf "%s 1" "$1"` alone — what this was until 2026-08-09 — forks zero times
+# where the sliced arm forks once, and it is the arm that must come out SLOWER,
+# so the missing fork shrinks the very gap this case measures. On a host where a
+# fork has been measured at up to 3.2 s that is enough to invert the result: the
+# run that exposed it had two of five paired deltas negative. Identical mistake
+# to the json_complete override above, in a second place; the rule is that an
+# override may lie about a VERDICT but must never skip the WORK.
 # shellcheck disable=SC2016 # $1 is the overriding function's own positional, not this shell's
-bs_unsliced='hook::resolve_read_slice() { printf "%s 1" "$1"; }'
+bs_unsliced='hook::resolve_read_slice() {
+  local probe
+  probe=$(read -r -t "$1" discard </dev/null 2>&1)
+  printf "%s 1" "$1"
+}'
 bs_slices=$(bash -c 'source "$1"; hook::resolve_read_slice 2.4' _ "$HOOK_DIR/hook-utils.sh")
 bs_slices_forced=$(bash -c 'source "$1"; '"$bs_unsliced"'; hook::resolve_read_slice 2.4' \
   _ "$HOOK_DIR/hook-utils.sh")
@@ -1435,9 +1518,44 @@ fi
 # A late-EOF payload whose length lands exactly on a 65536-character read
 # boundary completes on a read that returns rc 0, so it never reaches the
 # with-bytes completeness check — only the empty-slice one catches it. Without
-# that, this case waits out the whole bound instead of a slice. Asserted against
-# a deliberately NON-boundary length of the same shape, so the comparison isolates
-# the boundary rather than measuring absolute latency.
+# that, this case waits out the whole bound instead of a slice.
+#
+# THE LATENCY HALF OF THIS CASE HAS BEEN REMOVED AS UNMEASURABLE. It compared the
+# boundary payload against a deliberately non-boundary one of the same shape, and
+# unlike the two comparisons above, its arms are structurally IDENTICAL — one
+# slice and one jq probe each — so there is no work asymmetry for the tolerance
+# to sit inside, and nothing but the regression separates them. The evidence,
+# collected 2026-08-09 on Windows Git Bash:
+#
+#  * At a 1.2 s bound with a 400 ms tolerance: failed (1866 vs 1275 ms).
+#  * At a 3.0 s bound with a 1200 ms tolerance — a 2.25 s signal — single samples
+#    on an otherwise idle box gave paired deltas of +2938, +1688, +1110, -2245,
+#    -837 ms. The noise EXCEEDS the signal and straddles zero, so no fixed
+#    tolerance discriminates.
+#  * With the median-of-five machinery the other two cases now use, five
+#    interleaved pairs gave +3216, -2886, -4427, +433, -3850 ms: a 7.6 s spread
+#    and a MEDIAN of -2886 ms, i.e. a systematic 2.9 s offset between two arms
+#    that the mechanism says should match. That offset is unexplained. Setting a
+#    tolerance on a number whose cause is unknown is how this case kept failing,
+#    so it is not being retuned again.
+#
+# The cause is buffer_stdin's own startup: it spends two command-substitution
+# forks resolving its timeout and slice, and a fork on this platform measured
+# 93 ms to 3234 ms across four back-to-back runs — a single fork's variance
+# exceeds the whole signal. The other two comparisons survive that because their
+# arms differ by several seconds of real work; this one has no such margin.
+#
+# WHAT IS NO LONGER COVERED, stated plainly: a regression that removed the
+# empty-slice completeness check would make an exactly-chunk-sized payload wait
+# out the whole idle bound instead of one slice. That is a latency regression
+# only — the payload still comes back whole, with rc 0 — and no non-temporal
+# observable distinguishes the two paths (both end with validated/probed JSON and
+# the same output). It would need a host whose fork cost is small next to the
+# bound, which CI's Linux runners are and this one is not.
+#
+# WHAT IS STILL COVERED, below and load-independently: that the fixtures really
+# are exactly chunk-sized, and that a payload landing exactly on the boundary
+# comes back WHOLE and with rc 0 — the correctness half of the same edge.
 bs_make_payload() { # $1 = exact payload length in bytes, $2 = destination file
   # `{"p":"` + pad + `"}` — 8 bytes of envelope. Built with pure parameter
   # expansion rather than a `yes | … | head -c` pipeline: the exact length is the
@@ -1447,42 +1565,6 @@ bs_make_payload() { # $1 = exact payload length in bytes, $2 = destination file
   local pad
   printf -v pad '%*s' "$(($1 - 8))" ''
   printf '{"p":"%s"}' "${pad// /a}" >"$2"
-}
-#
-# This is the one case here whose two arms are nominally EQUAL — the regression
-# makes the boundary arm jump by a whole bound, so the slack is pure noise
-# tolerance with no structural separation underneath it to absorb load. At a
-# 1.2 s bound the separation to detect was 0.9 s (bound minus one slice) and the
-# slack was 400 ms, and it FAILED on a loaded Windows box on 2026-08-09:
-# 1866 ms vs 1275 ms, i.e. 591 ms of inter-arm noise between two arms that should
-# have matched. No slack fits between 591 ms of noise and a 900 ms signal, so the
-# fix is to widen the SIGNAL rather than the slack: the bound below is 3.0 s
-# (slices of 0.750 s), which puts the separation at 2.25 s and lets the slack go
-# to 1200 ms — twice the observed noise, and still 1.05 s clear of the signal.
-# The producer holds the pipe well past the whole bound AND the spawns around it,
-# so a regressed read really does pay the full 3.0 s instead of being cut short
-# by an early EOF — a truncated arm shrinks the very signal this case measures,
-# which is how the late-EOF and stall cases above were failing.
-bs_time_held_open() { # $1 = exact payload length in bytes; prints elapsed ms
-  local payload_file t_file
-  payload_file="$(mktemp)"
-  t_file="$(mktemp)"
-  bs_make_payload "$1" "$payload_file"
-  {
-    cat "$payload_file"
-    sleep 8
-  } | {
-    CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=3.0 bash -c '
-      source "$1"
-      printf "%s\n" "${EPOCHREALTIME:-0}"
-      hook::buffer_stdin >/dev/null 2>&1
-      printf "%s\n" "${EPOCHREALTIME:-0}"
-    ' _ "$HOOK_DIR/hook-utils.sh" >"$t_file"
-  }
-  awk 'NR==1 {s=$0} NR==2 {e=$0}
-       END { if (s == 0 || e == 0 || NR < 2) print ""; else printf "%.0f", (e - s) * 1000 }' \
-    "$t_file"
-  rm -f "$payload_file" "$t_file"
 }
 # The whole case turns on the payload being EXACTLY chunk-sized, and an off-by-a-
 # few generator would quietly compare two non-boundary payloads. Assert the
@@ -1498,33 +1580,40 @@ if ((bs_len_a == 65536)) && ((bs_len_b == 65000)); then
 else
   fail "chunk-boundary fixtures wrong size ($bs_len_a / $bs_len_b); the case below is vacuous"
 fi
-bs_boundary_ms=$(bs_time_held_open 65536)
-bs_offset_ms=$(bs_time_held_open 65000)
-if [[ -z "$bs_boundary_ms" || -z "$bs_offset_ms" ]]; then
-  if [[ -n "${EPOCHREALTIME:-}" ]]; then
-    fail "boundary timing harness produced no measurement ('$bs_boundary_ms' / '$bs_offset_ms')"
-  else
-    ok "buffer_stdin: chunk-boundary latency not timed (EPOCHREALTIME absent, Bash < 5.0)"
-  fi
-elif ((bs_boundary_ms < bs_offset_ms + 1200)); then
-  ok "buffer_stdin: a 65536-char payload costs no more than a non-boundary one (${bs_boundary_ms} ms vs ${bs_offset_ms} ms)"
+# The correctness half of the boundary edge, asserted on CONTENT so no clock is
+# involved: an exactly-chunk-sized payload on a pipe that never closes must come
+# back whole, with rc 0. The pipe is held open by the same handshake the timing
+# cases use, so this really is the late-EOF path and not an EOF-terminated read.
+bs_payload_file="$(mktemp)"
+bs_rc_file="$(mktemp)"
+bs_out_file="$(mktemp)"
+bs_make_payload 65536 "$bs_payload_file"
+{
+  cat "$bs_payload_file"
+  bs_hold_open
+} | {
+  CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=1.2 hook::buffer_stdin >"$bs_out_file" 2>/dev/null
+  echo "$?" >"$bs_rc_file"
+  bs_release
+}
+bs_rc=$(cat "$bs_rc_file")
+bs_len=$(wc -c <"$bs_out_file")
+if [[ "$bs_rc" == "0" ]] && ((bs_len == 65536)); then
+  ok "buffer_stdin: an exactly-chunk-sized payload on a held-open pipe returns whole (rc 0, $bs_len bytes)"
 else
-  fail "buffer_stdin chunk boundary: ${bs_boundary_ms} ms vs ${bs_offset_ms} ms non-boundary — boundary payload waits out the bound"
+  fail "buffer_stdin chunk boundary: rc=$bs_rc len=$bs_len (expected rc 0, 65536 bytes)"
 fi
+rm -f "$bs_payload_file" "$bs_rc_file" "$bs_out_file"
 
-bs_sliced_ms=$(bs_time_stall "")
-bs_unsliced_ms=$(bs_time_stall "$bs_unsliced")
-if [[ -z "$bs_sliced_ms" || -z "$bs_unsliced_ms" ]]; then
-  if [[ -n "${EPOCHREALTIME:-}" ]]; then
-    fail "stall timing harness produced no measurement (sliced='$bs_sliced_ms' unsliced='$bs_unsliced_ms')"
-  else
-    ok "buffer_stdin: stall overshoot not timed (EPOCHREALTIME absent, Bash < 5.0)"
-  fi
-elif ((bs_sliced_ms < bs_unsliced_ms - 400)); then
-  ok "buffer_stdin: stall declared near one bound, not two (${bs_sliced_ms} ms vs ${bs_unsliced_ms} ms unsliced)"
+if bs_samples 5 bs_time_stall "" "$bs_unsliced"; then
+  bs_paired_verdict "buffer_stdin: stall declared near one bound, not two" \
+    400 sliced unsliced "${bs_deltas[@]}"
+elif [[ -n "${EPOCHREALTIME:-}" ]]; then
+  fail "stall timing harness produced no measurement"
 else
-  fail "buffer_stdin stall overshoot: ${bs_sliced_ms} ms vs ${bs_unsliced_ms} ms unsliced — expected >400 ms faster"
+  ok "buffer_stdin: stall overshoot not timed (EPOCHREALTIME absent, Bash < 5.0)"
 fi
+rm -f "$bs_release_fifo"
 
 # --- Test 19: hook::emit_telemetry — EPOCHREALTIME-absent (Bash < 5.0) skip ---
 # On Bash < 5.0 EPOCHREALTIME is unset, so the caller's `start=${EPOCHREALTIME:-}`
