@@ -83,11 +83,13 @@ means passing its phase commands from inside the same checkout its manifest name
    plugins alike: `policy` (enforces team/safety policy regardless of model — kept), `behavioral`
    (corrects or scaffolds model behavior — stripped), `hybrid` (one unit carrying both, with the
    split named — trimmed, never removed whole), or `convention` (team conventions in git —
-   operator's call, default kept per the official carve-out). The classification rubric —
-   mechanism vs class, the hybrid trim-not-delete rule, and the ground-truth-oracle carve-out
-   (behavioral purpose with a non-derivable machine oracle is a keep) — is owned by the
-   marketplace's PLUGIN-PHILOSOPHY "Classifying a hook" section; this phase applies it, never
-   re-derives it. Classification is per unit that
+   operator's call, default kept per the official carve-out). For hook entries specifically, the
+   classification rubric — mechanism vs class, the hybrid trim-not-delete rule, and the
+   ground-truth-oracle carve-out (behavioral purpose with a non-derivable machine oracle is a
+   keep) — is owned by the marketplace's PLUGIN-PHILOSOPHY "Classifying a hook" section; this
+   phase applies it to hooks, never re-derives it. Non-hook surfaces (rules, instruction files,
+   skills, agents, plugins) classify by the class definitions above; `hybrid` applies to any unit
+   whose behavioral and policy surfaces can be split in place. Classification is per unit that
    Phase 2 acts on: a hook entry, a rule file, a skill, an agent, a plugin. A **mixed** instruction
    file — a CLAUDE.md carrying both convention sections and behavioral lines is the common case —
    is not classified whole: split it in the strip plan, naming which sections are stripped and
@@ -122,7 +124,12 @@ Apply the confirmed strip plan:
   bundles any `policy`-classified surface (e.g. a policy hook alongside behavioral convenience
   skills) is **kept whole**, with its behavioral components recorded in the manifest as
   `unstripped-mixed-plugin`; the observe phase notes them as still-loaded confounds rather than
-  silently taking the policy gate down with the plugin.
+  silently taking the policy gate down with the plugin. Within a kept-whole mixed plugin, a
+  behavioral or hybrid HOOK may still be individually stripped when the plugin exposes a per-hook
+  kill switch (a `<hook>_enabled`-style userConfig option): record the option flipped and its
+  prior value in the manifest as a partial strip, restoring by flipping it back. No per-hook
+  switch → the hook stays loaded and is recorded as `unstripped-hybrid-hook` alongside the
+  plugin's confound note.
 - Print the "you are bare" summary: what a fresh session will now load (ideally: nothing but the
   code) and how to restore everything (`readd` phase reads the manifest; `git` holds the files).
 
