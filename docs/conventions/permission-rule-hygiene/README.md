@@ -97,7 +97,7 @@ Three official constraints mean the operative allow-rule cannot be shipped by th
 
 - **Skill `allowed-tools` is turn-scoped and (per anti-pattern 1) ineffective for auto-mode-gated
   action classes.** It "grants permission for the listed tools during the turn that invokes the
-  skill." "The grant clears when you send your next message." It "does not restrict which tools
+  skill"; "The grant clears when you send your next message." It "does not restrict which tools
   are available" —
   [skills](https://code.claude.com/docs/en/skills) — but auto mode still drops the broad/interpreter
   shapes.
