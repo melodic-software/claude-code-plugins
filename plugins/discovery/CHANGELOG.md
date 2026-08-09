@@ -19,6 +19,11 @@
     research-specific recovery ladder.
   - `skills/research/evals/evals.json` — a gate eval (`empty-payload-halts-the-dispatch`), the
     counterpart of the explore suite's.
+  - `skills/research-deep/SKILL.md` — the **other** parent of `discovery:researcher`, and the one
+    that actually performs the N-topic fan-out. Its post-dispatch boundary now names the gate as the
+    step that comes before the four obligations, and carries the fan-out rule the gate implies:
+    grade each topic against the sub-slice it was assigned, before synthesizing the slice-root
+    index, because the gate reads a synthesized root alongside its sub-slices as ambiguous.
 
 ### Changed
 
