@@ -3,6 +3,25 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.3]
+
+### Fixed
+
+- **`audit-instructions`: the hook-event blockability partition in `conflict-criteria.md` was
+  closed** (conflict-criteria 1.3.0 → 1.4.0; issue #1989 row 244). The exit-2 bullet enumerated six
+  "blockable" and five "non-blockable" events as an exhaustive split, while the hooks page's
+  "Exit code 2 behavior per event" table documents far more — including five events this repository's
+  own hooks already register (`ConfigChange` and `PostToolBatch` block; `StopFailure`,
+  `PermissionDenied`, and `InstructionsLoaded` have their exit code ignored), every one of them
+  ungradeable under the old text. The bullet now defers to that table as the sole authority and
+  restates none of its rows: resolve the handler's event, read its row, and pair on the row's own
+  `Can block?` cell — taking the paired content from what the row states is prevented rather than
+  assuming a tool call or a prompt, and recording an event with no row (or an unreachable table) as
+  `blockability-unresolved` instead of inferring it. The `SubagentStop` subagent-scoping rule and
+  the `PostToolUse`/`PreToolUse` worked pair are kept as examples. The file's recheck trigger no
+  longer fires on a row added to the upstream table, and `evals/evals.json` eval 16 now tests the
+  lookup procedure rather than the memorized split.
+
 ## [0.27.2]
 
 ### Fixed

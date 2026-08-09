@@ -3,6 +3,21 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.34.3]
+
+### Fixed
+
+- **`work-loop`'s post-snapshot intake report reads open items, not the autonomous frontier.**
+  0.34.2 gave that report a mechanism — diff a fresh reading against the retained ids — but named
+  `list-frontier --autonomous` as the reading, which cannot see the case the report exists for.
+  Step 2's sweep hardening routes a bot-authored advisory issue to the human-gated role by default,
+  and `list-frontier --autonomous` excludes exactly that role (tracker `CONTRACT.md`,
+  `list-frontier`; `reference/label-taxonomy.md`), so the bot-filed mid-cycle intake the stop report
+  promises to name is filtered out of the reading meant to find it and the report names nothing —
+  the "reported, never chased" invariant failing silently one layer below where 0.34.2 fixed it.
+  The report now repeats step 1's open-items reading, the superset the frontier is derived from,
+  which sees the routed advisory item and the ordinary one alike.
+
 ## [0.34.2]
 
 ### Fixed
@@ -24,12 +39,9 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   nowhere specified as a single read, so testing the open ids alone would drop an item created
   between two of them — and both stop paths name the post-snapshot intake left unworked, which is
   what keeps "reported, never chased" true once there is no next cycle to sweep it. That naming now
-  carries its mechanism: repeat step 1's open-items reading *after* the exit is decided and diff it
-  against the retained ids. Deliberately not a `list-frontier --autonomous` reading — step 2's sweep
-  hardening routes bot-authored advisory intake to the human-gated role, which that filter excludes,
-  so a frontier reading would name nothing in the very case the requirement exists for. The read is
-  reporting-only and cannot change the verdict it follows, and stating it is what stops the
-  requirement degrading to nothing in the hands of an agent given no procedure for it.
+  carries its mechanism: diff a fresh frontier reading against the retained ids *after* the exit is
+  decided. It is reporting-only and cannot change the verdict it follows, and stating it is what
+  stops the requirement degrading to nothing in the hands of an agent given no procedure for it.
 
 - **`setup` proves the checkout is a GitHub repository before auto-binding the `github` provider.**
   The unattended first bind required only that `gh` was installed and `gh auth status` succeeded —
