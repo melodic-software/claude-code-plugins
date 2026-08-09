@@ -51,9 +51,10 @@ run "git commit --message <separated> multi-line (blocked)" \
 run "git commit --message <separated> single-line (allowed)" \
   "git commit --message 'feat: x'" 0
 # git's parse-options accepts any UNIQUE prefix of a long option, and --message
-# is git commit's only m-initial long option, so --m..--messag all parse as
-# --message (verified on git 2.55) — the abbreviated spellings must hit the
-# same gate in both the =-attached and the separated form.
+# is git commit's only m-initial long option, so every prefix from --m up to
+# one letter short of the full spelling parses as --message (verified on git
+# 2.55) — the abbreviated spellings must hit the same gate in both the
+# =-attached and the separated form.
 run "git commit --mess=<abbreviated attached> multi-line (blocked)" \
   "git commit --mess='feat: x${NL}body'" 2
 run "git commit --mess=<abbreviated attached> single-line (allowed)" \
