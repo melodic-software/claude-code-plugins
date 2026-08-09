@@ -443,10 +443,13 @@ ends the loop: when every remaining open item is human-gated or escalated and no
 report and stop cleanly rather than idling forever. Either stop's report **names the intake that
 arrived after the snapshot and was left unworked** — that report is what keeps "reported, never
 chased" true once there is no next cycle to sweep it. Compute that list once, after the exit is
-already decided, by diffing a fresh `list-frontier --autonomous` reading against the retained
-snapshot ids. **That read is reporting-only and can never change the verdict it follows** — what
-the paragraph above bans is the *exit* reading the seam, not the report doing so, and without a
-stated mechanism an agent has none and the naming silently degrades to nothing.
+already decided, by repeating step 1's **open-items** reading and diffing it against the retained
+ids. Not a `list-frontier --autonomous` reading: step 2's sweep hardening routes bot-authored
+advisory intake to the human-gated role, which is precisely what that filter excludes, so the
+frontier reading would report nothing in the case this sentence exists for. **The read is
+reporting-only and can never change the verdict it follows** — what the paragraph above bans is the
+*exit* reading the seam, not the report doing so, and with no stated mechanism an agent has none
+and the naming silently degrades to nothing.
 
 ## Gotchas
 

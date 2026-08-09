@@ -24,9 +24,12 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   nowhere specified as a single read, so testing the open ids alone would drop an item created
   between two of them — and both stop paths name the post-snapshot intake left unworked, which is
   what keeps "reported, never chased" true once there is no next cycle to sweep it. That naming now
-  carries its mechanism: diff a fresh frontier reading against the retained ids *after* the exit is
-  decided. It is reporting-only and cannot change the verdict it follows, and stating it is what
-  stops the requirement degrading to nothing in the hands of an agent given no procedure for it.
+  carries its mechanism: repeat step 1's open-items reading *after* the exit is decided and diff it
+  against the retained ids. Deliberately not a `list-frontier --autonomous` reading — step 2's sweep
+  hardening routes bot-authored advisory intake to the human-gated role, which that filter excludes,
+  so a frontier reading would name nothing in the very case the requirement exists for. The read is
+  reporting-only and cannot change the verdict it follows, and stating it is what stops the
+  requirement degrading to nothing in the hands of an agent given no procedure for it.
 
 - **`setup` proves the checkout is a GitHub repository before auto-binding the `github` provider.**
   The unattended first bind required only that `gh` was installed and `gh auth status` succeeded —
