@@ -392,6 +392,105 @@ class StaleWorktreeRegistrationTests(unittest.TestCase):
                 prune.registered_repo_from_gitdir_pointer(wt), owner_repo
             )
 
+    def _orphan_with_pointer(
+        self, tmp: pathlib.Path
+    ) -> "tuple[pathlib.Path, pathlib.Path, pathlib.Path, pathlib.Path]":
+        root = tmp / "root"
+        root.mkdir()
+        wt = root / "owner__repo__pr-5"
+        wt.mkdir()
+        owner_repo = tmp / "somerepo"
+        pointer = wt / ".git"
+        pointer.write_text(f"gitdir: {owner_repo}/.git/worktrees/x\n", encoding="utf-8")
+        return root, wt, pointer, owner_repo
+
+    def test_restores_the_pointer_when_the_rescan_fails(self) -> None:
+        # The rescan runs AFTER the unlink, so an OSError there -- a transient
+        # access failure on the directory -- leaves the directory standing with
+        # its only ownership record already gone. Restoration cannot be keyed on
+        # the rmdir failing.
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
+            tmp = pathlib.Path(td)
+            root, wt, pointer, owner_repo = self._orphan_with_pointer(tmp)
+
+            real_iterdir = pathlib.Path.iterdir
+            scans = []
+
+            def failing_rescan(self: pathlib.Path):
+                scans.append(self)
+                if len(scans) == 2:
+                    raise OSError("directory unreadable mid-scan")
+                return real_iterdir(self)
+
+            with mock.patch.object(pathlib.Path, "iterdir", failing_rescan):
+                removed = prune.remove_empty_orphan_directory(wt, root)
+
+            self.assertFalse(removed)
+            self.assertTrue(wt.is_dir())
+            self.assertTrue(pointer.is_file())
+            self.assertEqual(prune.registered_repo_from_gitdir_pointer(wt), owner_repo)
+
+    def test_restores_the_pointer_when_a_file_appears_before_the_rmdir(self) -> None:
+        # A file landing in the window between the unlink and the rmdir skips
+        # the removal without raising at all, so this path never reaches an
+        # exception handler -- and the directory survives holding someone's
+        # file plus no way back to the owning repository.
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
+            tmp = pathlib.Path(td)
+            root, wt, pointer, owner_repo = self._orphan_with_pointer(tmp)
+            stray = wt / "appeared.txt"
+
+            real_iterdir = pathlib.Path.iterdir
+            scans = []
+
+            def racing_rescan(self: pathlib.Path):
+                scans.append(self)
+                if len(scans) == 2:
+                    stray.write_text("x", encoding="utf-8")
+                return real_iterdir(self)
+
+            with mock.patch.object(pathlib.Path, "iterdir", racing_rescan):
+                removed = prune.remove_empty_orphan_directory(wt, root)
+
+            self.assertFalse(removed)
+            self.assertTrue(stray.is_file())
+            self.assertTrue(pointer.is_file())
+            self.assertEqual(prune.registered_repo_from_gitdir_pointer(wt), owner_repo)
+
+    def test_a_raising_existence_probe_does_not_escape_the_restoration(self) -> None:
+        # `Path.exists()` re-raises an OSError outside the ignored not-found
+        # family, so a permission denial on the very directory the restoration
+        # exists to rescue must not escape the `finally` -- an exception thrown
+        # there replaces the original one AND leaves the pointer deleted.
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
+            tmp = pathlib.Path(td)
+            root, wt, pointer, owner_repo = self._orphan_with_pointer(tmp)
+
+            real_iterdir = pathlib.Path.iterdir
+            real_exists = pathlib.Path.exists
+            scans = []
+            probes = []
+
+            def failing_rescan(self: pathlib.Path):
+                scans.append(self)
+                if len(scans) == 2:
+                    raise OSError("directory unreadable mid-scan")
+                return real_iterdir(self)
+
+            def denying_exists(self: pathlib.Path, **kwargs):
+                if self == pointer:
+                    probes.append(self)
+                    raise PermissionError("access denied probing the gitfile")
+                return real_exists(self, **kwargs)
+
+            with mock.patch.object(pathlib.Path, "iterdir", failing_rescan):
+                with mock.patch.object(pathlib.Path, "exists", denying_exists):
+                    removed = prune.remove_empty_orphan_directory(wt, root)
+
+            self.assertTrue(probes, "the fixture never reached the pointer probe")
+            self.assertFalse(removed)
+            self.assertTrue(wt.is_dir())
+
     def test_a_locked_record_is_not_reported_as_pruned(self) -> None:
         # A locked record is deliberately kept: `git worktree prune` kept it
         # while exiting 0, and `git worktree remove` refuses it with a nonzero
