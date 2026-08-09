@@ -26,17 +26,33 @@
 #       idiomatic uses ("do not think of this as…"), and substring near-misses
 #       ("don't reasonably…") ARE emitted; the fences live in
 #       reference/criteria.md, never here.
+#   I23 self-estimated context-budget trigger ("context is heavy", "running low
+#       on context", "remaining context", "check /context", "final third of the
+#       window"). The catalog's subject is a directive to judge one's own window
+#       and then stop, summarize, hand off, or trim on that basis — but the
+#       scanner marks the BUDGET PHRASING alone and never the verb it governs,
+#       because the two routinely sit in different sentences. It therefore also
+#       emits the counter-steer text that forbids the behavior (inverted
+#       polarity), documents ABOUT the pattern, and operator-facing budgets:
+#       all three are criteria-owned exemptions the model lane applies.
 #   I27 effort-for-brevity candidates: a line pairing an effort-lowering
 #       directive ("lower/reduce/decrease/drop … effort") with a brevity token
 #       (short/brief/concise/terse/length/verbose/wordy). The model lane
 #       adjudicates whether the line actually premises brevity on effort.
+#   I28 trigger-emphasis / blanket-default candidates, two families:
+#         I28-a forced-compliance emphasis ("CRITICAL:", "You MUST", "MANDATORY";
+#              case-sensitive — the all-caps marker is the signal)
+#         I28-b blanket tool defaults ("default to using", "if in doubt, use")
+#   I25 retired sampling parameters (temperature/top_p/top_k prescriptions; the
+#       affected-model range is a criteria-owned Detect condition)
 #
 # Advisory: prints candidate rows, ALWAYS exits 0 (candidates never fail a run).
 # Requires grep; exits 2 when grep is absent.
 #
 # Rows are `file:line:check-id` (grep -n convention). With no rationale on a line
 # a prohibition surfaces as an I6 row; a line may surface once per matching check
-# id (I6, I10, I27, and one of the I8 families). Nonexistent path arguments are
+# id (I6, I10, I23, I27, and one of the I8 families). Nonexistent path arguments
+# are
 # skipped, not errors.
 #
 # Usage:
@@ -48,7 +64,7 @@ set -uo pipefail
 
 usage() {
   cat <<'EOF'
-instruction-scan.sh — mark I6/I8/I10/I27 instruction candidates in given files.
+instruction-scan.sh — mark I6/I8/I10/I23/I25/I27/I28 instruction candidates in given files.
 
 Usage: instruction-scan.sh [--count|--help] FILE...
 
@@ -58,8 +74,11 @@ Usage: instruction-scan.sh [--count|--help] FILE...
 
 I8 pattern families (model-era candidates; model lane adjudicates): I8-a
 instructed self-check, I8-b conservative-reporting, I8-c don't-think /
-don't-reason. I27 marks effort-for-brevity candidates (effort-lowering
-directive paired with a brevity token on one line).
+don't-reason. I23 marks self-estimated context-budget phrasing. I27 marks
+effort-for-brevity candidates (effort-lowering directive paired with a brevity
+token on one line). I28 families: I28-a forced-compliance emphasis
+(case-sensitive), I28-b blanket tool defaults. I25: retired sampling
+parameters.
 
 Advisory — always exits 0 (candidates never fail the run). Requires grep
 (exit 2 when absent). Seeds the candidate set of the audit-instructions
@@ -110,12 +129,32 @@ I10_ERE="${I10_ERE}|think out loud|walk (me|us) through your (thinking|reasoning
 I8_A_ERE="double[- ]check|${WB_L}re[- ]?verif|final verification step|(sub)?agent to verify|have (a |an )?(sub)?agent verify|verifier (sub)?agent|verify your (own )?work"
 I8_B_ERE="be conservative|(only report|report only) (the )?(high|critical)|(don('|’)?t|do not) nitpick"
 I8_C_ERE="(do not|don('|’)?t) (think|reason)|without thinking|skip the reasoning"
+# I23 self-estimated context-budget phrasing. Deliberately anchored to
+# BUDGET-AS-TRIGGER forms, never to the bare term "context window" — that term
+# is ordinary vocabulary in any instruction surface discussing sessions, and
+# matching it would return the whole corpus rather than a candidate set.
+I23_ERE="context (is |gets |getting |grows )?(heavy|tight|saturated|exhausted)|heavy context"
+I23_ERE="${I23_ERE}|(running|runs|run) (out of|low on) context|low on context"
+I23_ERE="${I23_ERE}|remaining[- ](context|window|tokens)|context[- ](budget|percentage|occupancy|countdown)|token[- ](budget|countdown)"
+I23_ERE="${I23_ERE}|(check|checking|watch|watching|monitor|monitoring) (the |your )?/context|/context output"
+I23_ERE="${I23_ERE}|(final|last) (third|quarter|half) of (the|your|its) window|window position"
+I23_ERE="${I23_ERE}|(nearing|approaching) (the )?(context|token)[- ](limit|cap|budget|window)"
 # I27 effort-for-brevity: both patterns must hit the SAME line — the AND lives
 # in scan_file. Stem forms catch inflections (decrease/decreasing via the bare
 # stem, drop/dropped/dropping via the doubled-p form; verbos carries no left
 # boundary so compounds match too); over-production is the contract, as with I8.
 I27_EFFORT_ERE="(lower|reduc|decreas|dropp?)(e|ed|es|ing|s)? (the |your )?effort" # spellchecker:disable-line
 I27_BREVITY_ERE="${WB_L}short|${WB_L}brief|${WB_L}concise|${WB_L}terse|${WB_L}length|verbos|${WB_L}wordy"
+# I28 trigger-emphasis / blanket-default candidates (criteria fences decide:
+# emphasis guarding a destructive gate or a stated hard precondition is not a
+# finding). Case-sensitive arm: the all-caps markers themselves. "use even
+# when" is an attested blanket-default form ("Use even when you think you know
+# the answer"), not a quoted guide example — over-production by design.
+I28_A_ERE="CRITICAL:|IMPORTANT:|(You|you) MUST|MANDATORY|ALWAYS use|NEVER skip"
+I28_B_ERE="${WB_L}default to (using|running|calling)${WB_R}|if in doubt,? use|${WB_L}always use${WB_R}|use even when"
+# I25 retired sampling parameters (model range is a criteria-owned Detect
+# condition; the scanner is model-blind and marks every prescription).
+I25_ERE="${WB_L}temperature${WB_R}|${WB_L}top_p${WB_R}|${WB_L}top_k${WB_R}"
 
 rows=()
 
@@ -136,6 +175,12 @@ scan_file() {
     lineno="${hit%%:*}"
     rows+=("$file:$lineno:I10")
   done < <(grep -niE "$I10_ERE" "$file" 2>/dev/null)
+
+  while IFS= read -r hit; do
+    [[ -n "$hit" ]] || continue
+    lineno="${hit%%:*}"
+    rows+=("$file:$lineno:I23")
+  done < <(grep -niE "$I23_ERE" "$file" 2>/dev/null)
 
   local fam ere
   for fam in a b c; do
@@ -159,6 +204,25 @@ scan_file() {
     printf '%s\n' "$text" | grep -qiE "$I27_BREVITY_ERE" || continue
     rows+=("$file:$lineno:I27")
   done < <(grep -niE "$I27_EFFORT_ERE" "$file" 2>/dev/null)
+
+  # I28-a is case-sensitive by design: the all-caps marker IS the signal.
+  while IFS= read -r hit; do
+    [[ -n "$hit" ]] || continue
+    lineno="${hit%%:*}"
+    rows+=("$file:$lineno:I28-a")
+  done < <(grep -nE "$I28_A_ERE" "$file" 2>/dev/null)
+
+  while IFS= read -r hit; do
+    [[ -n "$hit" ]] || continue
+    lineno="${hit%%:*}"
+    rows+=("$file:$lineno:I28-b")
+  done < <(grep -niE "$I28_B_ERE" "$file" 2>/dev/null)
+
+  while IFS= read -r hit; do
+    [[ -n "$hit" ]] || continue
+    lineno="${hit%%:*}"
+    rows+=("$file:$lineno:I25")
+  done < <(grep -niE "$I25_ERE" "$file" 2>/dev/null)
 }
 
 for file in "$@"; do

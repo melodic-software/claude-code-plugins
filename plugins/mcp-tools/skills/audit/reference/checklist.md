@@ -35,7 +35,7 @@ Severity levels:
 | C1 | **Has "what"** — the description states what the tool does | ANTHROPIC | FAIL | First sentence should clearly describe the action. Missing or generic ("handles X") fails |
 | C2 | **Has "when"** — the description states when to use the tool | ANTHROPIC | WARN | Look for usage context: "Use this when...", "Call this before...", "Useful for...". Absent = warn |
 | C3 | **Has "returns"** — the description states what the tool returns | ANTHROPIC | WARN | Look for return documentation: "Returns the board id and...", "Returns a list of...". Absent = warn |
-| C4 | **Within size budget** — Claude Code truncates tool descriptions and server instructions at 2KB each | OPINION | FAIL | Estimate character count — per tool description, and once per server for the server `instructions` field. Over ~2000 characters risks truncation; critical details belong near the start. This is a client limit, not a spec rule |
+| C4 | **Within size budget** — Claude Code truncates tool descriptions and server instructions at 2KB each | OPINION | FAIL | Estimate the byte size — per tool description, and once per server for the server `instructions` field. Over 2KB risks truncation; because the budget is measured in bytes, each non-ASCII UTF-8 character spends more than one. Critical details belong near the start. This is a client limit, not a spec rule |
 | C5 | **No implementation-detail leak** — no database types, API names, partition keys, or internal structure | ANTHROPIC | WARN | Prefer semantic names over technical identifiers. Scan for terms that belong to the implementation, not the domain |
 
 ## 2. Parameter quality (C6-C8)
@@ -109,6 +109,9 @@ field. C18 turns on the value's JSON type, so read it in that language's own syn
 ## Scoring
 
 - **19 criteria** across 7 categories.
-- Per-tool score: count of PASS / WARN / FAIL.
-- Per-server score: aggregate across all tools.
+- Per-tool score: count of PASS / WARN / FAIL / info.
+- Per-server score: those counts aggregated across the server's tools **plus** its server-level
+  criterion outcomes (C4's per-server `instructions` clause), so nothing evaluated is dropped. `n/a`
+  and `undetermined` arise only at server level; they are reported in the server-level row and never
+  folded into a severity count.
 - **Priority order for fixes:** FAIL first, then WARN on high-traffic tools, then info items.

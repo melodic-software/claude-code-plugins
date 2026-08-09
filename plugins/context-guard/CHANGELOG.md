@@ -5,6 +5,67 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1]
+
+### Changed
+
+- **`setup`'s shell-wrapped statusline step now verifies its escaping by running a command instead
+  of asking for a mental round-trip.** The check is `printf '%s\n' '<escaped original command>'`,
+  compared against the original. Its single-quoted argument reproduces exactly the quoting context
+  the emitted `sh -c '<escaped>'` uses; a double-quoted wrapper would instead let the outer shell
+  expand any `$(...)` or backticks in the operator's own command before the check ever ran.
+
+## [0.5.0]
+
+### Changed
+
+- **The zone-crossing report is split by audience: the continuation menu goes to the operator, the
+  counter-steer goes to the model.** The hook injected one block into model context naming the zone
+  and then enumerating four continuation options — continue, `/clear`, handoff-then-`/clear`,
+  `/compact` — plus the `/session-flow:workflow` router. Those are precisely the behaviors a model
+  guide reports current models are already predisposed to volunteer, and handing them to the model
+  as a menu manufactures that initiative rather than replacing it: the measurement decides only
+  *when to ask*, while the model still decides *whether to stop*. That is a live finding under the
+  `claude-config` instruction-audit catalog's check I23, which this repository ships.
+
+  The menu now renders on `systemMessage` — the operator channel, whose whole content is a human's
+  choice to make — and `additionalContext` carries the zone determination plus the counter-steer:
+  this is a measurement and not a decay signal, degradation shows up in the model's own output
+  rather than in a zone word, so do not volunteer to end the session, summarize, hand off, or trim
+  work on the strength of the reading. The `dumb` zone keeps its extra clause, restated as the
+  model-independent fact it always was — compaction distance is short, so write expensive
+  conclusions to a durable note as they stabilize.
+
+  **The counter-steer is stated inline rather than delegated** to the `playbooks:fable-5` doctrine
+  that also carries it. The two plugins are independently installable with no dependency wiring, so
+  a `context-guard`-only install previously received the menu with nothing in context to interpret
+  it against.
+
+  **The model channel states ownership, never delivery.** It says continuation is the operator's
+  call; it does not say the operator has seen the menu. No documented hook behavior tells a hook
+  whether an operator is present — `systemMessage` is documented only as a message shown to the
+  user, with nothing said about non-interactive runs — so a delivery claim would be a fact the hook
+  cannot know in *any* mode, not only headless ones. Emitting to an unread operator channel is
+  harmless; telling the model a human holds the choice when none does is not. A regression assertion
+  locks it, because the sentence is the kind that creeps back on a rewording pass.
+
+  **The `hook-observability` convention is amended in the same change**, because this is the first
+  fleet payload that is neither a prerequisite-skip nor a content-mutation notice. Its
+  advisory-findings exclusion now names its own predicate — *who can act* — and admits a carve-out
+  only on three conditions together: the payload is a choice whose only legitimate actor is the
+  human, the model channel separately carries the determination the model does need, and the
+  emission is keyed to a state transition. The convention also now forbids any model-channel text
+  from asserting operator presence, fleet-wide. This **creates** an exception rather than codifying
+  practice — every other `systemMessage` site in the fleet is a prerequisite skip or a formatter's
+  content-mutation notice — and the conformance section says so, so a second site re-reads the
+  conditions instead of following the precedent.
+
+  **Firing cadence is unchanged**, deliberately. Whether a four-option exit menu belonged on the
+  `smart → acceptable` crossing was an open calibration question; it dissolves rather than gets
+  answered, because the model-facing payload no longer carries a menu at any zone, and a budget
+  rendered to a human is outside I23's subject entirely. Zone mechanics, bands, state, kill switch,
+  and telemetry are untouched.
+
 ## [0.4.9]
 
 ### Changed

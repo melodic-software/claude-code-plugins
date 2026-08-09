@@ -11,9 +11,7 @@ Copy into your working task notes. Tick as each phase completes.
 
 ## Anti-noise doctrine (applied throughout Phase 2)
 
-- [ ] Skip candidate if implementation cost > 2× expected benefit
-- [ ] Skip candidate if false-positive risk > 30% on representative sample
-- [ ] Skip candidate if same concern already enforced higher up the hierarchy
+- [ ] Each candidate cleared every quality gate in SKILL.md §2.3, with the required evidence cited
 
 ## Skip criteria
 
