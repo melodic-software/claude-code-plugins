@@ -153,7 +153,7 @@ fi
 # assumption recorded in criteria.md M1); the arithmetic expansion strips the leading
 # padding BSD `wc` emits on macOS.
 strip_unloaded() {
-  tr -d '\r' <"$index" | awk '
+  tr -d '\r' <"$index" | LC_ALL=C awk '
     BEGIN { fmcap = 20; fmbytecap = 1024 }
     function emit(s) { if (s ~ /[^[:space:]]/) print s }
     # Remove every complete comment from s, each ending at the first `-->` after its

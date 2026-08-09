@@ -177,6 +177,22 @@ HEAVY=$(printf '%26000s' '' | tr ' ' 'x')
 assert_eq "a heavy one-line runaway is bounded by weight" "$(raw_bytes)" "$(run "$H3" --memory-bytes)"
 assert_eq "a heavy one-line runaway counts every line" "$(raw_lines)" "$(run "$H3" --memory-lines)"
 
+# The weight cap measures BYTES, not characters: in a multibyte locale awk's length()
+# counts characters, so 900 two-byte characters (1800 bytes) would read as 906 and slip
+# under the 1024-byte cap — the same under-count, resurrected by locale. LC_ALL=C on the
+# awk pass pins byte semantics; this fixture fails without it.
+WIDE=$(i=0; while [ "$i" -lt 900 ]; do printf 'Ã©'; i=$((i+1)); done)
+{
+  printf -- '---
+'
+  printf 'Note: %s
+' "$WIDE"
+  printf -- '---
+body
+'
+} >"$M3/MEMORY.md"
+assert_eq "a multibyte heavy line is bounded by weight in bytes" "$(raw_bytes)" "$(run "$H3" --memory-bytes)"
+
 # The weight cap must not cost real frontmatter its strip: a block comfortably under the
 # cap — far heavier than the `modified` scalar Claude Code stamps — still strips whole.
 {
