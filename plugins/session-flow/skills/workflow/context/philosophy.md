@@ -19,8 +19,7 @@ in depth; context pressure (approaching compaction) is the budget constraint, no
 
 ## No assumptions
 
-Default to HIGH confidence, HIGH accuracy, HIGH attention to detail before making claims or
-submitting code. Dig into the details, verify the specifics, confirm the edge cases.
+Default to high confidence and accuracy; verify specifics and edge cases before submitting.
 
 ## Task tracking
 

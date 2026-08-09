@@ -55,7 +55,7 @@ Tool warnings that lack `##[warning]`/`##[error]` markers: compiler warnings in 
 
 ## Output format
 
-Compact structured summary — the calling session reads this; raw logs stay in YOUR context. Keep it under 500 words.
+Compact structured summary — the calling session reads this; raw logs stay in YOUR context. Keep it under 500 words. If findings exceed that budget, keep every finding row and compress evidence and recommendations instead — never omit a finding to fit.
 
 ```markdown
 ## CI Run Audit — Run <run-id>

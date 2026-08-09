@@ -15,7 +15,9 @@ boxes lacked.
 > Put separate ideas in separate boxes.
 
 This is Pat's division-of-labor principle: every verse system has its own
-exclusive job. Two verses with the same job = travelogue (*Writing Better Lyrics* (2009), Chapter 8).
+exclusive job. Two verses doing the same job is a **same-color** failure
+(*Writing Better Lyrics* (2009), Chapter 7) — NOT a travelogue. The two are
+opposite poles; see [Travelogue vs same-color](#travelogue-vs-same-color).
 
 ## Box weight rule
 
@@ -83,27 +85,65 @@ that made verse 1's situation possible?" Often the answer becomes verse 2,
 and verse 1 becomes verse 3 — the chronology was wrong but the material was
 right.
 
-## Travelogue test (*Writing Better Lyrics* (2009), Chapter 8)
+## Travelogue vs same-color
+
+Two verse failures sit at OPPOSITE ends of one axis, and Chapter 8 closes by
+naming both poles: verse ideas that sit too close together make the repeated
+chorus static and boring, and verse ideas that sit too far apart become a
+travelogue. Diagnosing one as the other prescribes the wrong fix.
+
+| | **Travelogue** (Chapter 8) | **Same-color** (Chapter 7) |
+|---|---|---|
+| Verse ideas are | too far apart | too close together |
+| What links the verses | nothing but the title / refrain / chorus | they say the same thing twice |
+| What breaks | accumulation — each box starts a separate avalanche instead of one rolling downhill | repainting — each verse shines the same colored light, so the chorus never looks new |
+| Box symptom | boxes gain no weight; all the same size | Box 2 = Box 1 |
+| Fix | find the chain — what in verse 1 CAUSES verse 2, what verse 2 makes inevitable | shift the job via You-I-We, Past-Present-Future, or another division axis |
+
+Chapter 8's own image for the difference: three avalanches started separately
+a third of the way up a mountain do less damage than one snowball rolled from
+the top. Travelogue is three separate avalanches.
+
+### Travelogue test (*Writing Better Lyrics* (2009), Chapter 8)
 
 Remove the chorus and read only the verses in sequence.
 
-- Do the verses tell a coherent story without the chorus glue?
-- Does each verse have its own job that the others don't share?
-- Or do they project the same color in different words?
+- Without the title's glue, would a listener know what is going on?
+- Does each verse carry information forward into the next, or does each one
+  start over?
+- Does verse 2 gain any weight from verse 1 having happened?
 
 If the verses are independent observations linked only by the title /
 refrain / chorus, the song is a **travelogue**. Pat's diagnosis: verse
 development should mean verse relationship.
 
+### Same-color test (*Writing Better Lyrics* (2009), Chapter 7)
+
+Read each verse, then read the chorus that follows it, and name the color the
+verse just cast on it.
+
+- Does each verse have its own job the others don't share?
+- Do two verses project the same color in different words?
+- Say the chorus's meaning after verse 1 and again after verse 2 — if the two
+  statements match, the verses are the same color.
+
+Verses connected but same-colored is NOT a travelogue; the chain is intact and
+the repainting is missing.
+
 ## Box weight failure modes
 
 | Failure | Symptom | Fix |
 |---|---|---|
-| Box 2 = Box 1 | second verse feels redundant | apply You-I-We or Past-Present-Future shift |
+| Box 2 = Box 1 | second verse feels redundant; chorus never repaints | same-color (Chapter 7) — apply You-I-We or Past-Present-Future shift |
 | Box 3 ≤ Box 2 | song sags at the end | promote bridge or final verse to carry "why" |
 | All boxes same weight | song feels flat / no destination | redistribute via division-of-labor axis |
 | Box 1 too heavy | listener lost in detail before chorus | move heavy material to Box 2 or Box 3 |
-| Boxes unconnected | travelogue (*Writing Better Lyrics* (2009), Chapter 8) | find the chain — what causes / what consequences link them |
+| Boxes unconnected | travelogue (Chapter 8) — verses share only the title | find the chain — what causes / what consequences link them |
+
+Equal box weight is a symptom of travelogue, not a synonym for it: a
+travelogue always leaves the boxes the same size, but boxes can also flatten
+inside a properly chained lyric. Diagnose the connection first, the weight
+second.
 
 ## Repaintable chorus across boxes
 
