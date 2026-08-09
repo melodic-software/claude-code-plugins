@@ -32,7 +32,7 @@
 # JSON — plugin/marketplace manifests, JSON Schemas, eval graders, registries,
 # lockfiles. The validators here are FILE-SCOPED, so read the SCOPES rather than
 # the tool names: check-jsonschema covers .claude-plugin/marketplace.json,
-# plugins/*/.claude-plugin/plugin.json, .github/dependabot.yml and five named
+# plugins/*/.claude-plugin/plugin.json, .github/dependabot.yml and seven named
 # workflow files; scripts/check-manifest-duplicate-keys.py covers those same
 # plugin and marketplace manifests and nothing else; skill-quality-gate covers
 # plugins/*/skills/*/evals/evals.json; scripts/validate-plugin-contracts.mjs
