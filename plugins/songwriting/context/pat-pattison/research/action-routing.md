@@ -13,7 +13,8 @@ content under `context/pat-pattison/`.
 | --- | --- |
 | `/songwriting:workflow` | situation routing (11 scenarios), coaching dialog, blank-page/idea/fragment starts, response-filter diagnostic, going-deeper resources |
 | `/songwriting:rhyme` | rhyme generation, rhyme types, mosaic, worksheets, Datamuse lookup |
-| `/songwriting:object-writing` | object writing, metaphor, cliche repair, point of view |
+| `/songwriting:object-writing` | object writing (including the agent that performs it), cliche repair, point of view |
+| `/songwriting:metaphor` | metaphor generation and diagnosis, collisions, playing in keys, simile focus |
 | `/songwriting:meter-prosody` | scansion/meter, prosody, phrasing, stability, lyric-melody fit |
 | `/songwriting:song-form` | form, song forms, hook, repetition, verse, bridge, box model |
 | `/songwriting:co-write` | co-write protocol, Title Game, titles, high-volume line/section dumps |
@@ -41,9 +42,13 @@ content under `context/pat-pattison/`.
 | "Why does this rhyme feel weak?" | `/songwriting:rhyme` |
 | "Make this verse less abstract." | `/songwriting:object-writing` + `/songwriting:diagnose rewrite` |
 | "Give me a 90-second writing prompt." | `/songwriting:object-writing` or `/songwriting:practice` |
-| "I need a metaphor for trust." | `/songwriting:object-writing metaphor` or `metaphor-recipe` |
-| "Generate eight metaphor options for X." | `/songwriting:object-writing metaphor-recipe` |
-| "Should this be like or is?" | `/songwriting:object-writing metaphor` |
+| "You do the object writing — I don't want to." | `/songwriting:object-writing generate` (dispatches the `object-writer` agent) |
+| "I need a metaphor for trust." | `/songwriting:metaphor collide` |
+| "Generate eight metaphor options for X." | `/songwriting:metaphor recipe` |
+| "Should this be like or is?" | `/songwriting:metaphor simile` |
+| "Sustain this image across the whole song." | `/songwriting:metaphor keys` |
+| "Is this metaphor dead / grounded / too strained?" | `/songwriting:metaphor diagnose` |
+| "This song has no metaphor at all." | `/songwriting:metaphor collide`, seeded from `/songwriting:object-writing` material |
 | "Scan this line." | `/songwriting:meter-prosody meter` |
 | "Can this be common meter?" | `/songwriting:meter-prosody meter` |
 | "My chorus does not land." | `/songwriting:song-form hook` + `/songwriting:meter-prosody` |
@@ -88,7 +93,12 @@ content under `context/pat-pattison/`.
 /songwriting:rhyme worksheet "last call at the Moonlight"
 /songwriting:rhyme datamuse syllables disappointment
 /songwriting:object-writing 90 seconds hotel bar
-/songwriting:object-writing metaphor-recipe trust
+/songwriting:object-writing generate "hotel bar"
+/songwriting:metaphor collide trust
+/songwriting:metaphor recipe trust
+/songwriting:metaphor keys tide
+/songwriting:metaphor simile "my love is an engine"
+/songwriting:metaphor diagnose "<paste metaphor in context>"
 /songwriting:meter-prosody meter "I woke up under a borrowed sky"
 /songwriting:meter-prosody stability chorus
 /songwriting:meter-prosody align-melody "<lyric>" "<melody description>"

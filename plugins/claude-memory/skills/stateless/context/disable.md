@@ -15,7 +15,8 @@ Ask which reach the user wants; recommend based on intent:
   or local `<repo>/.claude/settings.local.json` (personal, gitignored). Ask which; local for a
   personal choice, project to disable it for everyone on the team.
 
-Do not proceed until the scope is chosen.
+Do not proceed until the scope is chosen — the wrong scope silently changes memory behavior for the
+wrong audience (machine-wide vs. this repo).
 
 ## Step 2: Apply both levers
 

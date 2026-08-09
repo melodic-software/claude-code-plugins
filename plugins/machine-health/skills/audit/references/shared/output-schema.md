@@ -95,6 +95,28 @@ Emitted by the orchestrator at the end of every run. Overwrites the previous sna
 }
 ```
 
+### Example (weekly run)
+
+`checks` and `remediations` are shown empty for brevity; each element is the § 1 / § 3 object.
+
+```json
+{
+  "run_id": "2026-04-27T09:00:00-04:00",
+  "hostname": "WORKSTATION-01",
+  "os": "windows",
+  "os_version": "10.0.26100",
+  "elevated": false,
+  "run_mode": "weekly",
+  "dry_run": false,
+  "powershell_version": "7.4.6",
+  "checks": [],
+  "remediations": [],
+  "discovered_checks": [],
+  "urls_called": ["https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"],
+  "duration_seconds": 247
+}
+```
+
 ## 3. Remediation attempt
 
 Emitted by `scripts/<os>/remediations/*.ps1` and embedded in the run snapshot.
@@ -115,6 +137,22 @@ Emitted by `scripts/<os>/remediations/*.ps1` and embedded in the run snapshot.
     "bytes_freed":   { "type": ["integer", "null"] },
     "error":         { "type": ["string", "null"] }
   }
+}
+```
+
+### Example (`restart-stopped-service` on a stopped Automatic service)
+
+```json
+{
+  "id": "restart-stopped-service",
+  "target": "W32Time",
+  "finding_id": "services",
+  "attempted_at": "2026-04-27T09:02:41-04:00",
+  "succeeded": true,
+  "before": { "status": "Stopped", "start_type": "Automatic" },
+  "after": { "status": "Running", "start_type": "Automatic" },
+  "bytes_freed": null,
+  "error": null
 }
 ```
 

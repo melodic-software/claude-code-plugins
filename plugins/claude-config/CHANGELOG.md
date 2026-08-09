@@ -3,6 +3,185 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.2]
+
+### Fixed
+
+- **`conflict-scan.sh`: the coordinated-directive boundary honored only a subset of the mandate
+  tokens, so the most common phrasing silently dropped real conflicts.** `COORD_ERE` carried a
+  hand-copied token list that had fallen behind `MANDATE_ERE`: `use`, `present`, and `ask` were in
+  the classifier and absent from the coordinator. ``Never use `Bash` and use `Read` `` therefore
+  found no boundary, `Read` inherited the leading `never`, and its pair with ``Never use `Read` ``
+  went unreported — while ``Always use `Read` `` produced a false conflict from the same misreading.
+  `always` masked the gap throughout, being present in both lists. The coordinator is now COMPOSED
+  from the two classifier alternations rather than restated, so the divergence that caused this is
+  unrepresentable; two regression cases cover the bare-`use` and `present` forms.
+
+- **`audit-instructions`: the skill hardcoded `~/.claude` in the very paths its own rule forbids
+  hardcoding.** Phase A resolves the user root as `${CLAUDE_CONFIG_DIR:-~/.claude}` and says never to
+  hardcode it, yet the auto-memory entrypoint, the scope-filter list, and the memory-layer surface
+  list all named `~/.claude` literally. `CLAUDE_CONFIG_DIR` relocates the whole tree including
+  `projects/`, so a hardcoded default read a store the session no longer writes. Every operative path
+  now resolves against that root; quoted upstream text and the `${CLAUDE_CONFIG_DIR:-~/.claude}` form
+  itself are unchanged.
+
+- **`audit-instructions`: I3 named a `skills:` preload as a valid deferral destination, which defers
+  nothing.** The check rejects `@path` imports because they load unconditionally, then offered a
+  preload — but the full content of each skill named in an agent's `skills:` field is injected into
+  every dispatch, exactly the load profile the check exists to avoid, as the skill's own co-residency
+  table states. I3 now permits only conditional runtime invocation, and says to report that no safe
+  deferral is available rather than proposing a preload.
+
+- **`audit-instructions`: Phase A never inventoried a subagent's own memory, so a criterion it
+  declares in scope could not fire.** The co-residency table graded an agent-definition-versus-its-own
+  `memory` contradiction as real, but no inventory step reached that `MEMORY.md`. Phase A now
+  enumerates it per scope (`user` under the resolved user root, `project`, `local`), and the
+  co-residency table carries its own row.
+
+- **`audit-instructions`: the liveness gate resolved a closed five-input list that omitted hook
+  enablement.** A hook that cannot fire carries no live instruction text, so a pass comparing against
+  it grades a dead surface. The gate now resolves `disableAllHooks` **per settings scope** — a user,
+  project, or local disable cannot reach managed hooks, so managed hook text stays live and must not
+  be dropped with the rest — together with `allowManagedHooksOnly` and its force-enabled-plugin
+  exemption.
+
+- **`audit-instructions`: a nested project memory pair was routed to a check that never discovers the
+  file.** The skill routed any project-scope pair to `claude-memory`'s C6, which discovers with
+  `find . -maxdepth 1`, so a `src/api/CLAUDE.md` pair was graded by neither pass. The boundary is now
+  **root-level** project, matching the routing table the criteria reference already owned. Scoped
+  narrowly: `.claude/rules/**` still routes to C6, whose rules discovery is recursive.
+
+- **`conflict-scan.sh`: `and` coordinating an opposite directive was not a window boundary.** "Always
+  use `Read` and never use `Bash`" against "Never use `Read`" yielded zero candidates, because the
+  first entity's window swallowed the second directive's `never` and took its polarity; the same line
+  with `but never` yielded one. A **bare** `and` cannot be the boundary — "never use `Bash` and
+  `Grep`" is one directive over two objects, and cutting there strips the token governing the second.
+  The boundary therefore requires a polarity token after the coordinator, and is consumed
+  asymmetrically: a leading window resumes after the coordinator alone so that token still classifies
+  its entity. Three cases cover the fix and the false negative it must not introduce.
+
+- **`audit-instructions`: I14's startup set omitted `./.claude/CLAUDE.md`.** A project keeping its
+  memory there loads it at launch exactly as `./CLAUDE.md` would, so naming only the bare path let the
+  redundant read of the active file escape the check. Both supported root locations are now in the
+  set, matching what Phase A already inventories.
+
+- **`audit-instructions`: I14 exempted supporting documents unconditionally, ignoring startup
+  imports.** `@path` imports are expanded into context at launch, recursively, so a startup file
+  carrying `@AGENTS.md` or `@docs/CONTRIBUTING.md` makes that document resident and an instruction to
+  go read it is the redundant retrieval the check exists to find. The exemption now applies only to
+  what no active startup import reaches, resolved the way I15 already resolves imports.
+
+- **`setup` and the README: `awk` and `sort` were scoped to one skill and are used by three.**
+  `check-plugin-drift.sh` (both), `permission-rule-check.sh` (both), and `fix-plugin-drift.sh`
+  (`sort`) call them with no prerequisite check, so `audit` and `audit-permission-grants` fail
+  mid-run on a bare `command not found` rather than on a named prerequisite. Only
+  `conflict-scan.sh` probes and `exit 2`s. Both surfaces now name all three skills, and the README's
+  requirements section names `awk` and `sort` alongside `jq` and `curl`.
+
+## [0.27.1]
+
+### Changed
+
+- **`audit-instructions`: listing description tightened (1,197 → 948 chars)** — trimmed the
+  explanatory prose from the frontmatter `description` toward the shared skill-listing budget
+  (claude-code-plugins#2022, option 2). Every single-quoted trigger phrase is preserved verbatim
+  (skill-quality check 3); the audit's scope and report-only contract are unchanged in the body.
+
+## [0.27.0]
+
+### Added
+
+- **New skill `audit-prompting-postures` — the additive lane of prompting-guide alignment.** The
+  existing `audit-instructions` catalog detects instruction text that is present and wrong; nothing
+  detected posture guidance that is absent and needed. The new skill classifies each locally-owned
+  component by purpose (orchestrating, code-changing, long-running, destructive-capable, …) and
+  judges ten guide-prescribed postures (`reference/postures.md`: delegation criteria/caps,
+  minimal-scope, anti-test-gaming, investigate-before-answering, progress-claim grounding,
+  autonomy/checkpoint, destructive-action confirmation, context-budget reassurance, multi-window
+  state, parallel-call steering) against applicability predicates, defaulting to NOT-APPLICABLE.
+  Report-only; proposal wording comes from a live fetch of the guide, never from the catalog
+  (pointer-not-copy).
+- **`audit-instructions`: catalog row I28 — over-aggressive trigger emphasis and blanket tool
+  defaults** (criteria 1.20.0 → 1.21.0). Detects forced-compliance emphasis ("CRITICAL: You MUST
+  use…") and blanket tool defaults ("If in doubt, use [tool]") — unscoped, sourced to the
+  best-practices page's Tool-usage, Overthinking, and Migration sections, fenced for
+  destructive-gate emphasis and stated hard preconditions. `instruction-scan.sh` now seeds it
+  (`I28-a` case-sensitive emphasis, `I28-b` blanket defaults) and also seeds the existing I25
+  sampling-parameter row (`temperature`/`top_p`/`top_k` prescriptions).
+
+### Changed
+
+- **`audit-instructions`: I8 base (over-prescriptive scaffolding) is now unscoped** (criteria
+  1.20.0 → 1.21.0) via the model-agnostic best-practices statement ("Prefer general instructions
+  over prescriptive steps…"); the delegation-throttle worked instance keeps its own `fable-5`
+  scope because the Opus 5 and Opus 4.8 guides recommend the opposite shape (caps) on their
+  targets. **I21** gains a sentence separating calibration staleness (its subject) from level
+  adequacy (the Opus 4.8 guide's `xhigh` recommendation for coding and agentic lanes, which is
+  the surface's sizing decision).
+- **`setup` and `audit-pass` prose carry their reasoning.** `setup`'s read-only instruction is
+  stated as what the check does rather than as a bare prohibition, and its repo-root anchoring rule
+  now says why a CWD-relative read is wrong (it resolves a different — or missing — file depending
+  on the invoking subdirectory or worktree). Five passages in `audit-pass`'s run contract that
+  narrated the authoring session's own history are restated as present-tense rejected-alternative
+  rationale, keeping the anti-relitigation content.
+- **`audit`'s Phase 4 report table carries a worked example row**, so a model generating the report
+  has a concrete shape to match rather than a bare header.
+- **`audit-pass`: the 892-line run contract is split per topic.** `reference/run-contract.md` is
+  now a routing index over five topic files that follow the contract's own section structure —
+  `terms.md`, `finding-identity.md` (§1), `report-location-and-schema.md` (§2, §7),
+  `run-state-and-resumability.md` (§3, §5), `suppression.md` (§4), `determinism-tiers.md` (§6) —
+  so a lane needing one mechanic loads that file, not the whole contract. Content moved verbatim,
+  the §-numbering travels with it, inbound links repointed to the owning files, and the one
+  remaining authoring-history clause is restated in present tense.
+
+### Fixed
+
+- **`audit` now actually covers machine-scope managed settings, closing the false coverage claim
+  its checklist made.** Phase 1's `check-structure.sh` resolves the OS-specific managed-settings
+  path (macOS `/Library/Application Support/ClaudeCode/`, Linux/WSL `/etc/claude-code/`, Windows
+  `%ProgramFiles%\ClaudeCode\`; the pre-v2.1.75 ProgramData location deliberately unprobed) and
+  reports the file and its `managed-settings.d/` drop-in directory structure-only — same
+  no-secrets posture as `settings.local.json` — with the Config Files table naming the layer as
+  report-only routing that `--fix` never edits. The checklist's "+ managed settings" tick is
+  restored, now truthful. Paths verified against the live settings doc 2026-08-08.
+- **`audit-automation-gaps`' checklist replaced two unmeasurable thresholds with the real gate.**
+  "cost > 2× expected benefit" and "false-positive risk > 30% on representative sample" appeared
+  only in the template; neither cost, benefit, nor a representative sample is defined or measured
+  anywhere in the skill. The three anti-noise ticks fold into one that points at SKILL.md §2.3's
+  eight named gates, each of which states the evidence it requires.
+
+## [0.26.0]
+
+### Added
+
+- **`audit-instructions`: I23 gains a pre-scan pattern, and the calibration it was waiting on is
+  now recorded** (catalog 1.20.0). The row shipped unseeded because the threshold and
+  window-position phrasings vary far more than the fixed shapes I8-b matches, and because a
+  continuation skill can barely be model-invocable without naming a context trigger somewhere — so
+  a loose pattern would have fired on every consumer's handoff skill. **What the seeding actually
+  waited on was a policy, not a regex.** It is now stated: three signals license a surface to route
+  into a handoff, a fork, or a new session — the user's own report, an instrument that measures the
+  window, and visible decay in the model's own output — and a self-estimated budget is none of the
+  three. Under that rule the population the blast-radius argument feared resolves into true
+  positives rather than noise.
+
+  Two supporting clauses ship with it. **Residency is a severity input, not an admission test:** a
+  trigger in a `description` is resident whenever the skill listing admits it, which is the default
+  since `disable-model-invocation: true` also suppresses the description from context
+  (<https://code.claude.com/docs/en/skills>, verified 2026-08-08), while a body-borne trigger costs
+  context only on load or at subagent startup under preloading — both are findings, the resident one
+  merely costlier to leave. And **remediation moves the trigger rather than withdrawing the skill:**
+  flipping continuation skills to `disable-model-invocation: true` was considered and refused, since
+  it forfeits every model-side invocation the skill has to remove one clause.
+
+- **`instruction-scan.sh` emits `I23` candidate rows.** The pattern marks budget phrasing alone and
+  never the stop/summarize/hand-off verb it licenses, because the trigger and the action routinely
+  sit in different sentences; counter-steer text, documents about the pattern, and operator-facing
+  budgets therefore match too, on the same advisory over-production contract the I8 families carry.
+  It is deliberately not anchored to the bare term "context window" — ordinary vocabulary in any
+  surface discussing sessions, and matching it would return the corpus instead of a candidate set.
+  Measured over the marketplace's 193 skills the pattern yields 20 rows in 10 files.
+
 ## [0.25.0]
 
 ### Added

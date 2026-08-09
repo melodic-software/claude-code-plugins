@@ -61,13 +61,13 @@ After the timer, mine for:
 From the mined material AND the distilled seed sentence, generate 10-15
 title candidates. Pat's seven title types (per `hook.md` "Title generation"):
 
-1. **Statement** — declarative, ends with closure ("I Was Born in the Wrong Decade")
-2. **Question** — interrogative ("Who Taught You How to Leave?")
-3. **Command** — imperative ("Throw Away the Map")
-4. **Phrase from the lyric** — a memorable line lifted from the verse
-5. **Image-as-noun** — the central image becomes the title ("Brown Eyed Girl")
-6. **Idiom recontextualized** — a familiar phrase used in new way
-7. **Name** — a proper noun as title ("Eleanor Rigby")
+1. **One-word** — a single noun, verb, or adjective
+2. **Place-name** — a location, real or invented
+3. **Person-name** — a character, real or invented
+4. **Color or sensory** — a visible or felt detail
+5. **Comparative** — "more X than Y", "less X than Y"
+6. **Word-play** — pun, idiom flip, double meaning
+7. **Sonic-bonding** — alliteration, assonance, internal rhyme
 
 Generate rapid-fire across all seven types. Don't edit. First-pass output.
 

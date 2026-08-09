@@ -10,6 +10,7 @@ import math
 import os
 import re
 import shutil
+import stat
 import subprocess
 import tempfile
 import types
@@ -392,6 +393,109 @@ class HygieneTests(unittest.TestCase):
             )
             self.assertNotIn("OneDrive - Contoso/quarterly.xlsx", entries)
             self.assertEqual(["OneDrive - Contoso"], snapshot["truncated_paths"])
+            # Truncation must not look like emptiness: null + not-walked, never 0.
+            self.assertIsNone(entries["OneDrive - Contoso"]["logical_size"])
+            self.assertIn("not-walked", entries["OneDrive - Contoso"]["size_qualifiers"])
+            self.assertIn("not-walked", snapshot["target_identity"]["size_qualifiers"])
+
+    def test_truncated_directory_logical_size_is_unknown_not_zero(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            (root / "deep" / "sub").mkdir(parents=True)
+            (root / "deep" / "sub" / "leaf.txt").write_text("hidden", encoding="utf-8")
+            (root / "empty").mkdir()
+            (root / "visible.tmp").write_text("x", encoding="utf-8")
+            # max_depth=2 walks top-level dirs (so empty is inventoriable) and
+            # truncates only the next level (deep/sub), which is the contrast.
+            snapshot = hygiene.scan_tree(
+                root.resolve(), hygiene.load_policy(None), max_depth=2
+            )
+            entries = hygiene.entry_map(snapshot)
+            self.assertIsNone(entries["deep/sub"]["logical_size"])
+            self.assertEqual(["not-walked"], entries["deep/sub"]["size_qualifiers"])
+            # A genuinely empty walked directory still reports 0 with no qualifier.
+            self.assertEqual(0, entries["empty"]["logical_size"])
+            self.assertEqual([], entries["empty"]["size_qualifiers"])
+            self.assertEqual(
+                entries["visible.tmp"]["logical_size"],
+                snapshot["target_reclaimable_local_bytes"],
+            )
+
+    def test_hard_linked_names_are_qualified_and_excluded_from_reclaimable(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            primary = root / "bun.exe"
+            alias = root / "bunx.exe"
+            primary.write_bytes(b"shared-object-bytes")
+            try:
+                os.link(primary, alias)
+            except OSError as exc:
+                self.skipTest(f"hard links unavailable here: {exc}")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            entries = hygiene.entry_map(snapshot)
+            for name in ("bun.exe", "bunx.exe"):
+                self.assertGreater(entries[name]["nlink"], 1, name)
+                self.assertIn("hardlinked", entries[name]["size_qualifiers"], name)
+            # Both names carry the full logical size, but reclaimable must not
+            # double-count — deleting one name frees nothing while the other lives.
+            self.assertEqual(
+                entries["bun.exe"]["logical_size"] + entries["bunx.exe"]["logical_size"],
+                snapshot["target_logical_bytes"],
+            )
+            self.assertEqual(0, snapshot["target_reclaimable_local_bytes"])
+
+    def test_link_created_after_scan_breaks_stat_identity(self) -> None:
+        """A name hard-linked after the scan must fail identity, not stay ready.
+
+        Linking changes st_nlink and ctime but leaves size, mtime, device,
+        inode, and mode untouched — every field the pre-nlink identity check
+        compared. Without nlink in the comparison the entry still matched, so
+        preview kept counting the full size as reclaimable even though deleting
+        that name now frees nothing.
+        """
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            candidate = root / "artifact.tmp"
+            candidate.write_bytes(b"candidate-object-bytes")
+
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            entry = hygiene.entry_map(snapshot)["artifact.tmp"]
+            self.assertEqual(1, entry["nlink"])
+            self.assertEqual([], entry["size_qualifiers"])
+
+            before = os.stat(candidate)
+            self.assertTrue(hygiene.same_stat_identity(before, entry))
+
+            try:
+                os.link(candidate, root / "artifact.link")
+            except OSError as exc:
+                self.skipTest(f"hard links unavailable here: {exc}")
+
+            after = os.stat(candidate)
+            # The fields the old check compared are all unchanged...
+            self.assertEqual(before.st_size, after.st_size)
+            self.assertEqual(before.st_mtime_ns, after.st_mtime_ns)
+            self.assertEqual(before.st_ino, after.st_ino)
+            self.assertEqual(before.st_dev, after.st_dev)
+            self.assertEqual(stat.S_IFMT(before.st_mode), stat.S_IFMT(after.st_mode))
+            # ...so only the nlink comparison can catch this.
+            self.assertGreater(after.st_nlink, before.st_nlink)
+            self.assertFalse(hygiene.same_stat_identity(after, entry))
+
+    def test_metadata_records_nlink_and_allocated_size_shape(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "plain.txt"
+            path.write_text("hello", encoding="utf-8")
+            data = hygiene.metadata(path, "file")
+            self.assertEqual(1, data["nlink"])
+            self.assertIn("allocated_size", data)
+            self.assertEqual([], data["size_qualifiers"])
+            # allocated_size is null where the platform has no cheap signal
+            # (Windows), and a non-negative int where st_blocks exists.
+            allocated = data["allocated_size"]
+            self.assertTrue(allocated is None or (isinstance(allocated, int) and allocated >= 0))
 
     def test_reparse_in_any_target_component_is_rejected(self) -> None:
         target = Path("root") / "junction" / "child"

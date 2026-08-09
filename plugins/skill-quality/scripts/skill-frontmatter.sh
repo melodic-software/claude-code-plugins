@@ -25,9 +25,46 @@ skill_frontmatter::extract() {
 # its text so downstream length / trigger / phrasing checks see the content
 # rather than the `|` / `>` marker: literal (`|`) joins lines with newlines,
 # folded (`>`) with spaces.
+#
+# A trailing YAML comment on the key line is dropped, because a real YAML reader
+# — which is what the harness loads frontmatter with — never delivers it as part
+# of the value. Without this, `description: "12345" # note` measures the comment
+# and the quotes `strip_quotes` can no longer see as outer, inflating every
+# length / trigger check that reads the field. Stripping is quote-aware and is
+# confined to this plain/flow branch: inside a block scalar a `#` is content
+# (a markdown heading in a `description: |` body), never a comment.
 skill_frontmatter::field() {
   local key="$1"
   awk -v k="$key" '
+    # Cut a trailing YAML comment from a plain or flow scalar. A quoted scalar
+    # ends at its closing quote and anything after it is comment; a plain scalar
+    # ends at the first whitespace-preceded `#`. An unterminated quote is left
+    # whole, because malformed YAML is not for this helper to guess at.
+    # \047 is a single quote: the awk program is single-quoted by the shell, so
+    # spelling the character out would end the program mid-expression.
+    function fm_strip_comment(v,   n, q, i, ch) {
+      n = length(v)
+      if (n == 0) return v
+      q = substr(v, 1, 1)
+      if (q == "\"" || q == "\047") {
+        i = 2
+        while (i <= n) {
+          ch = substr(v, i, 1)
+          if (q == "\"" && ch == "\\") { i += 2; continue }
+          if (ch == q) {
+            # A single-quoted YAML scalar escapes one quote by doubling it.
+            if (q == "\047" && substr(v, i + 1, 1) == "\047") { i += 2; continue }
+            return substr(v, 1, i)
+          }
+          i++
+        }
+        return v
+      }
+      # A value that opens with `#` is all comment: the scalar is empty.
+      if (q == "#") return ""
+      if (match(v, /[[:space:]]+#/)) return substr(v, 1, RSTART - 1)
+      return v
+    }
     $0 ~ "^" k ":[[:space:]]*" {
       val = $0
       sub("^" k ":[[:space:]]*", "", val)
@@ -51,7 +88,7 @@ skill_frontmatter::field() {
         print out
         exit
       }
-      print val
+      print fm_strip_comment(val)
       exit
     }
   '
