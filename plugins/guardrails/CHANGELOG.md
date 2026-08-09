@@ -71,6 +71,28 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 - **Three stale hook headers said "Triggered on Bash tool calls" while wired `Bash|PowerShell`:**
   `block-hook-bypass.sh`, `block-noncanonical-commit.sh`, and `flag-commit-pr-skill-bypass.sh` now
   say Bash and PowerShell (cosmetic; the wiring itself was already correct).
+## [0.19.4]
+
+### Fixed
+
+- **`block-dangerous-git`'s movable-lease block no longer prescribes a form it rejects.** The
+  message told producers to pin the expectation with
+  `--force-with-lease=<refname>:$(git rev-parse <ref>)`, but detection is static over the literal
+  command string and never evaluates substitutions, so `$(git rev-parse <ref>)` reached the scan as
+  an unresolved name in the `<expect>` slot and was blocked by the very message prescribing it. With
+  every stated-expectation spelling rejected, amend-and-force was effectively unavailable without
+  widening `block_dangerous_git_allow`; two independent producer lanes hit this and fell back to
+  corrective commits.
+
+  The message now prescribes what the hook already accepts — a literal object id of the repository's
+  full hash width, resolved by running `git rev-parse` as a **separate** step — and says why a
+  substitution cannot stand in for it. The no-expected-value message gained the same clause, so a
+  producer bounced there does not walk into the movable block next.
+
+  **Acceptance behavior is unchanged** (hence a patch bump): the literal-SHA form was already
+  accepted, and the plain `--force`, bare `--force-with-lease`, refname-only, movable-name, and
+  `${VAR}` / `$(…)`-in-`<expect>` forms are all still blocked. New cases assert the message text
+  itself, the surface that was wrong.
 
 ## [0.19.3]
 
