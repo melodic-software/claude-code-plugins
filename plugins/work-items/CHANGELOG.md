@@ -3,7 +3,7 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.34.1]
+## [0.34.2]
 
 ### Fixed
 
@@ -49,6 +49,16 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   which only the intended remote-tracking ref can satisfy and which sets the new branch's upstream
   exactly as the abbreviation did. The default-branch name is normalized once, so the offline
   `refs/remotes/origin/HEAD` fallback and the charset guard both operate on the branch name alone.
+
+## [0.34.1]
+
+### Added
+
+- **`work-loop` and `attend-queue`: the rate-limit floor's reactive-only mode now reads the
+  detection records.** The fail-open bullet named reactive-only but gave the lane no
+  `stop-events.jsonl` behavior; both skills now carry the reader contract's read cadence (read on
+  mode entry and before each new work claim, recency baseline = lane start advanced by each resume
+  attempt). Mirrors rate-limit-guard 0.4.4's reader-contract addition.
 
 ## [0.34.0]
 
