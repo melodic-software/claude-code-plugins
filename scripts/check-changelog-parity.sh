@@ -212,9 +212,9 @@ fi
 # Scope the bump check to plugins THIS change set actually touched. A stale
 # branch whose base ref (main) has advanced an UNTOUCHED plugin's version must
 # not red-line on it and force a merge-from-main — the untouched plugin is not in
-# the PR's own diff. Three-dot base...HEAD is diff(merge-base(base,HEAD), HEAD),
-# i.e. only the commits unique to this branch, so a version main advanced after
-# the branch forked is excluded whether CI checks out the PR head or the
+# the PR's own diff. Diffing fork point to branch tip (resolved below) covers
+# only the commits unique to this branch, so a version main advanced after the
+# branch forked is excluded whether CI checks out the PR head or the
 # auto-merge commit. The filter keys on the MANIFEST path, not the plugin root:
 # the gate compares .version in exactly plugins/<name>/.claude-plugin/plugin.json,
 # so a version bump is definitionally a change to that file — manifest-scoping is
@@ -232,8 +232,23 @@ declare -A bumped_candidate
 # propagates that non-zero status so the guard fires. A legitimate empty diff
 # ("zero files changed") succeeds with empty output and correctly leaves
 # bumped_candidate empty.
-if ! diff_paths="$(git diff --name-only "$base...HEAD")"; then
-  echo "check-changelog-parity: 'git diff --name-only $base...HEAD' failed (no common ancestor between '$base' and HEAD, or history not fetched deeply enough); refusing to pass without checking." >&2
+# The change set is THIS BRANCH's own commits: fork point to branch tip. On a
+# pull_request checkout HEAD is the event's synthetic merge commit (parent 1 =
+# base tip, parent 2 = the branch's own tip); diffing or merge-basing against
+# that commit degenerates to the base tip, which hides a same-number collision
+# twice over — the manifest byte-matches the base tip (so it never becomes a
+# candidate) and fork_version equals head_version (so it reads as not-bumped).
+# When HEAD has that shape, use the branch's own tip.
+head_commit=HEAD
+if git rev-parse -q --verify 'HEAD^2' >/dev/null 2>&1    && git merge-base --is-ancestor 'HEAD^1' "$base" 2>/dev/null; then
+  head_commit='HEAD^2'
+fi
+if ! merge_base="$(git merge-base "$base" "$head_commit")"; then
+  echo "check-changelog-parity: 'git merge-base $base $head_commit' failed (no common ancestor, or history not fetched deeply enough); refusing to pass without checking." >&2
+  exit 2
+fi
+if ! diff_paths="$(git diff --name-only "$merge_base" "$head_commit")"; then
+  echo "check-changelog-parity: 'git diff --name-only $merge_base $head_commit' failed; refusing to pass without checking." >&2
   exit 2
 fi
 while IFS= read -r path; do
@@ -245,15 +260,6 @@ while IFS= read -r path; do
   *) ;;
   esac
 done <<<"$diff_paths"
-
-# The fork point, for "did THIS branch change the version?" (see fork_version
-# below). The three-dot diff above already proved a merge base exists, so a
-# failure here is unexpected — but this is a required merge gate, so it fails
-# loud rather than silently passing.
-if ! merge_base="$(git merge-base "$base" HEAD)"; then
-  echo "check-changelog-parity: 'git merge-base $base HEAD' failed; refusing to pass without checking." >&2
-  exit 2
-fi
 
 undocumented=0
 malformed=0
@@ -290,6 +296,12 @@ for manifest in "${manifests[@]}"; do
   # valid parity pair), and concurrent branches staging one number merge as an
   # equal-version collision. Compare on the zero-padded key (see
   # version_sort_key) so 0.10.0 outranks 0.9.0 numerically, not lexically.
+  for v in "$head_version" "$base_version"; do
+    if [[ ! "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+([+-].*)?$ ]]; then
+      echo "check-changelog-parity: $name carries a non-SemVer manifest version '$v'; refusing to pass without a comparable version." >&2
+      exit 2
+    fi
+  done
   head_key="$(version_sort_key "$head_version")"
   base_key="$(version_sort_key "$base_version")"
   if [[ ! "$head_key" > "$base_key" ]]; then

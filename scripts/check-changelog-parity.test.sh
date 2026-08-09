@@ -420,6 +420,73 @@ rc=$?
 if [[ $rc -ne 0 && "$out" == *"VERSION COLLISION"*"alpha"* && "$out" != *"UNDOCUMENTED"* ]]; then ok "bump equal to the base ref's current version fails as VERSION COLLISION (not skipped as not-bumped)"; else fail "version collision not caught: rc=$rc out='$out'"; fi
 rm -rf "$repo"
 
+# SYNTHETIC PR MERGE COMMIT (pull_request checkout): same collision as above,
+# but HEAD is a merge of the PR branch into the base tip — the shape CI checks
+# out. merge-base(base, HEAD) degenerates to the base tip there, which read the
+# collision as not-bumped; the gate must fork from HEAD^2 instead.
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 1.0.0 yes
+printf '# Changelog
+
+## [1.0.0]
+' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+fork="$(git -C "$repo" rev-parse HEAD)"
+printf '{ "name": "alpha", "version": "1.1.0" }
+' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
+printf '# Changelog
+
+## [1.1.0]
+
+## [1.0.0]
+' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'main merges its own 1.1.0'
+main="$(git -C "$repo" rev-parse HEAD)"
+git -C "$repo" checkout -q -b pr "$fork"
+printf '{ "name": "alpha", "version": "1.1.0" }
+' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
+printf '# Changelog
+
+## [1.1.0]
+
+## [1.0.0]
+' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'pr also bumps to 1.1.0'
+git -C "$repo" checkout -q "$main"
+git -C "$repo" checkout -q -b synthetic
+git -C "$repo" merge -q --no-ff -m 'synthetic PR merge' pr >/dev/null 2>&1
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$main" 2>&1)"
+rc=$?
+if [[ $rc -ne 0 && "$out" == *"VERSION COLLISION"*"alpha"* ]]; then ok "collision detected from a synthetic PR merge-commit checkout (fork from HEAD^2)"; else fail "synthetic-merge collision not caught: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
+# NON-SEMVER MANIFEST VERSION: a malformed version must refuse loudly, never
+# reach the arithmetic sort key.
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 1.0.0 yes
+printf '# Changelog
+
+## [1.0.0]
+' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+main="$(git -C "$repo" rev-parse HEAD)"
+git -C "$repo" checkout -q -b pr
+printf '{ "name": "alpha", "version": "1.two.0" }
+' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
+printf '# Changelog
+
+## [1.two.0]
+
+## [1.0.0]
+' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'pr ships a malformed version'
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$main" 2>&1)"
+rc=$?
+if [[ $rc -ne 0 && "$out" == *"non-SemVer"*"1.two.0"* ]]; then ok "malformed manifest version refuses loudly before the sort key"; else fail "malformed version not refused: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
 # FORWARD PAST AN ADVANCED BASE: main moved alpha to 1.1.0 after the fork; the
 # branch bumps past it to 1.2.0 with a proper new entry -> passes. Proves
 # monotonicity compares against the base ref's CURRENT version and lets a
