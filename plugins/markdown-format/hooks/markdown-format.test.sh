@@ -415,6 +415,83 @@ EOF
 fi
 rm -rf "$OUTOFTREE"
 
+# --- Git-tree scoping: git ABSENT must not read as "out of tree" -------------
+# Regression for the review finding stranded on #1030, the PR that added the
+# membership scope above. `in_git_working_tree` fails identically for the two
+# cases it must distinguish: a file outside every working tree, and a host
+# where git is not installed at all. Reading the second as the first skipped
+# EVERY Markdown edit on such a host — silently, repo-wide, with jq and
+# markdownlint-cli2 present and a config in place, and although git is not a
+# documented prerequisite of this hook (README "Requirements" lists Bash, jq
+# and markdownlint-cli2; the setup skill checks those). The skip is now gated
+# on git being available, so an undecidable verdict lints — the direction the
+# gitignore scope further down already documents for the same input.
+#
+# Absence is simulated in-process rather than by rebuilding PATH: on Git Bash —
+# the platform this hook most needs to keep working on — every coreutil is an
+# MSYS binary that will not start once copied away from its DLL directory, so a
+# sanitized bin directory is not portable here. The BASH_ENV shim is the same
+# technique the markdownlint-cli2 PATH-hiding case below uses, and it is exact
+# for this predicate: `command -v git` fails, and a direct `git` call exits 127
+# on stderr, which is what bash does for a command that is not on PATH.
+NO_GIT_ENV="$WORK/no-git.bashenv"
+cat >"$NO_GIT_ENV" <<'EOF'
+command() {
+  if [[ "${1:-}" == "-v" && "${2:-}" == "git" ]]; then
+    return 1
+  fi
+  builtin command "$@"
+}
+git() {
+  printf 'bash: git: command not found\n' >&2
+  return 127
+}
+EOF
+
+run_hook_no_git() {
+  (cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$1" |
+    env -u CLAUDE_PROJECT_DIR BASH_ENV="$NO_GIT_ENV" \
+      CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")
+}
+
+# Asserted on file BYTES, not stdout: without git the finding-digest and
+# telemetry paths go quiet on their own, and this fixture is clean after --fix,
+# so an empty stdout is what BOTH a working run and a skipped run produce.
+NOGIT_FIXTURE="$REPO/fixtureNoGit.md"
+printf '# No Git\n\n* star item\n' >"$NOGIT_FIXTURE"
+OUT_NOGIT="$(run_hook_no_git "$NOGIT_FIXTURE")"
+RC_NOGIT=$?
+if [[ $RC_NOGIT -eq 0 ]]; then
+  ok "git absent: hook exits 0"
+else
+  fail "git absent: hook exit $RC_NOGIT (out=$OUT_NOGIT)"
+fi
+if grep -q '^- star item$' "$NOGIT_FIXTURE"; then
+  ok "git absent + CLAUDE_PROJECT_DIR unset: in-repo .md still linted (--fix applied)"
+else
+  fail "git absent: in-repo .md silently skipped, file unmodified: $(cat "$NOGIT_FIXTURE")"
+fi
+
+# Control for the assertion above: the shim must not be what decides the
+# outcome by itself. The SAME shim with CLAUDE_PROJECT_DIR SET bypasses the
+# membership scope entirely, so linting here proves the remainder of the hook
+# is already git-independent and leaves the scope as the only variable between
+# the two runs.
+NOGIT_CONTROL="$REPO/fixtureNoGitControl.md"
+printf '# No Git Control\n\n* star item\n' >"$NOGIT_CONTROL"
+OUT_NOGIT_CTL="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$NOGIT_CONTROL" |
+  env BASH_ENV="$NO_GIT_ENV" CLAUDE_PROJECT_DIR="$REPO" \
+    CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+RC_NOGIT_CTL=$?
+if [[ $RC_NOGIT_CTL -eq 0 ]] && grep -q '^- star item$' "$NOGIT_CONTROL"; then
+  ok "control: git absent with CLAUDE_PROJECT_DIR set still lints (hook is otherwise git-independent)"
+else
+  fail "control failed: the git-absence shim disabled the hook independently of the membership scope (rc=$RC_NOGIT_CTL out=$OUT_NOGIT_CTL)"
+fi
+
+# The scope must still fire when git CAN answer — that half is the out-of-tree
+# case above, which runs with git present and asserts the skip.
+
 # --- Repository-local markdownlint: use contained npm/Git Bash shim ---------
 # Hide the PATH copy, then provide the extensionless POSIX shim npm installs
 # beside its Windows .cmd launcher. The hook must execute it directly from the

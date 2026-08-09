@@ -3,6 +3,31 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.2]
+
+### Fixed
+
+- **A host without `git` no longer looks like "this file is outside every repository".** The
+  working-tree membership scope added in 0.6.3 (#1030) skips a `.md` edited while
+  `CLAUDE_PROJECT_DIR` is unset and the file sits outside any git working tree. Its probe,
+  `git rev-parse --show-toplevel`, fails identically when git is not installed at all — so on a
+  POSIX host without git the hook skipped **every** Markdown edit, including files inside a
+  repository that carries a markdownlint config, with `jq` and `markdownlint-cli2` both present.
+  The skip was silent and repo-wide, and git has never been a documented prerequisite of this hook:
+  the README "Requirements" section lists Bash, `jq` and `markdownlint-cli2`, the setup skill checks
+  those, and `hook::repo_root` has always tolerated git being unavailable by falling back to the
+  file's own directory.
+
+  The membership skip is now gated on git being available, so an undecidable verdict lints rather
+  than skips — the same direction the gitignore scope already documents for the same input ("no
+  `git` on `PATH`, no working tree, `git check-ignore` erroring → the hook lints"). The scope itself
+  is unchanged wherever git can answer: an out-of-tree scratch file is still skipped, an inherited
+  `GIT_DIR`/`GIT_WORK_TREE` still cannot admit one, and the fail-closed symlink-escape check ahead
+  of it is untouched. Exposure of the fail-open is bounded by the consumer opt-in gate rather than
+  by this scope: without git, `hook::repo_root` falls back to the edited file's own directory, so
+  config discovery searches that single directory — a scratch `/tmp/comment-body.md` still does not
+  lint unless `/tmp` itself carries a markdownlint config.
+
 ## [0.10.1]
 
 ### Changed

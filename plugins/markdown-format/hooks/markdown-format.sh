@@ -170,12 +170,31 @@ in_git_working_tree() {
 # unchanged is therefore the observable signature of failed canonicalization —
 # checking the outcome rather than probing for a resolver also covers a
 # resolver that exists but fails — and this scope fails closed on it.
+#
+# The membership skip requires git to be ON PATH, because without it
+# `in_git_working_tree` cannot distinguish "outside every working tree" from
+# "the question was never asked": both come back non-zero. Reading
+# command-not-found as a negative membership verdict skipped EVERY Markdown
+# edit on a git-less POSIX host — silently, repo-wide, and although git is not
+# a documented prerequisite of this hook (README "Requirements" lists Bash, jq
+# and markdownlint-cli2; the setup skill checks those). An undecidable verdict
+# therefore lints, the same direction file_is_gitignored takes below for the
+# same reason.
+#
+# Exposure of that fail-open is bounded by the consumer opt-in gate, not by
+# this scope: without git, hook::repo_root cannot resolve a working-tree top
+# and falls back to the edited file's own directory, so
+# markdownlint_config_discoverable searches that single directory — a scratch
+# `/tmp/comment-body.md` still does not lint unless `/tmp` itself carries a
+# markdownlint config. The noise class this scope exists to stop stays stopped
+# wherever git can actually answer.
 if [[ -z "${CLAUDE_PROJECT_DIR:-}" ]]; then
   FILE_PHYSICAL="$(hook::physical_path "$FILE")"
   if [[ -L "$FILE" && "$FILE_PHYSICAL" == "$FILE" ]]; then
     exit 0
   fi
-  if ! in_git_working_tree "$(dirname "$FILE_PHYSICAL")"; then
+  if command -v git >/dev/null 2>&1 &&
+    ! in_git_working_tree "$(dirname "$FILE_PHYSICAL")"; then
     exit 0
   fi
 fi
