@@ -3,6 +3,25 @@
 All notable changes to the `typos-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.3]
+
+### Fixed
+
+- **A residual finding that moved between the hook's two passes is no longer disclosed as a rewrite
+  typos never made.** Classification keyed each residual by `line_num` + token, which assumes both
+  passes saw the same file. They need not: Claude Code runs every matching `PostToolUse` hook in
+  parallel, and `typos-format` and `markdown-format` both declare the matcher `"Write|Edit"`, so a
+  sibling formatter can reflow the file between the scan and the write and carry an untouched
+  finding to a different line. The moved residual then failed to match its own scan entry and was
+  reported as an applied correction — a false mutation disclosure on the one channel this hook
+  exists to make trustworthy. Residuals are now matched by token and cancelled by COUNT, so a
+  finding that merely moved still cancels its scan entry, and residual line numbers are taken from
+  the write pass's own output rather than the scan's stale ones. The trade is deliberate and
+  one-directional: counting can only UNDER-report an applied correction (a missing disclosure
+  line), never invent one. Still unclosed, and stated in the source: a concurrent writer that
+  DELETES a finding outright is attributed to typos, which needs file locking no hook-level
+  primitive offers.
+
 ## [0.5.2]
 
 ### Changed
