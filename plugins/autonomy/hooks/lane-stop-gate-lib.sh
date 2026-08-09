@@ -124,6 +124,16 @@ gate_arm_record_path() {
   printf '%s/lane-arms/%s' "$dir" "$id"
 }
 
+# The sidecar that binds an arm record to exactly one session: the gate creates
+# it exclusively to claim a record, the arm helper clears it so a re-armed id
+# starts unclaimed. One spelling so those two can never diverge. It sits beside
+# the record, inside lane-arms/, so the helper's own TTL sweep retires it too.
+gate_arm_claim_path() {
+  local rec
+  rec=$(gate_arm_record_path "$1") || return 1
+  printf '%s.claim' "$rec"
+}
+
 # The user settings file that carries pluginConfigs, derived from the anchor.
 gate_user_settings_file() {
   [[ -n "$GATE_CONFIG_ROOT" ]] || return 1

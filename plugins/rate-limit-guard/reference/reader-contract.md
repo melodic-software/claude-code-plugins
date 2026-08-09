@@ -99,6 +99,13 @@ The hook is side-effect-only (the harness ignores StopFailure output and exit co
 payload carries no reset or quota data — a record means "a rate limit stopped a turn at this time",
 nothing more. The file is bounded (rotated to the newest 100 records past 200).
 
+Read cadence: a reactive-only consumer reads the file on entering reactive-only mode and again
+before each new work claim. The recency baseline starts at the consumer's own start time — records
+older than that are history even on the first read — and each later resume attempt advances it.
+Records with `detected_at` newer than the baseline are live signal; older ones are history and
+never justify a new pause on their own. The baseline is per-consumer and in-memory; nothing
+persists it, and a fresh consumer deliberately ignores prior sessions' records.
+
 The contract directory holds two more shapes, neither of which readers consume, listed so tooling
 sweeping the directory expects them:
 

@@ -3,6 +3,16 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.5]
+
+### Fixed
+
+- **README: the "copy the reference sink into your repo" wiring form now names its
+  `hook-utils.sh` dependency.** The sink `source`s `hook-utils.sh` from its own directory, so the
+  documented bare copy failed at startup (`No such file or directory`) — found dogfooding the
+  wiring in the marketplace repo itself (#2021 line 5 disposition). The README now says to copy
+  `hook-utils.sh` alongside or repoint the copy's `source` line.
+
 ## [0.27.4]
 
 ### Changed

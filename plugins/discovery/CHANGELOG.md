@@ -1,5 +1,49 @@
 # Changelog — discovery plugin
 
+## [0.11.3]
+
+### Changed
+
+- **`research-deep` now dispatches `discovery:researcher` at both of its worker-spawning call
+  sites.** Tier 2 spawned a bare `general-purpose` agent with a long inline prompt that hand-carried
+  the research discipline, and the N-topic fan-out spawned N more the same way — while the plugin
+  already ships the purpose-built worker that `/discovery:research` routes to. Two ways of running
+  one discipline, and the second was the weaker one: a hand-written prompt is a copy of a contract
+  that lives in `skills/research/`, so it is only ever as disciplined as that copy is faithful, and
+  a spawn with no calibration runs at whatever effort and turn budget it inherits rather than the
+  ones tuned for this work.
+  - **Both call sites move together.** Migrating one would have left the other as a silent second
+    way of doing the same thing, which is the shape this change exists to remove.
+  - **One shared envelope section** now serves both paths — the six fields the agent refuses to
+    guess (topic, the reason it is being researched, memory-slice path, memory root as its own
+    field, budget, capability flags), with the field-by-field rationale pointed at
+    `skills/research/context/dispatch.md` rather than restated. The N-topic path keeps its
+    parent-assigned sub-slices and passes the memory root separately, which is exactly the nested
+    case the agent names: a worker handed a sub-slice path cannot tell from it which ancestor is the
+    configured root.
+  - **The researcher's `tools` allowlist is gone, so session MCP tools reach the worker again.**
+    The migration's review surfaced that the allowlist silently dropped every MCP tool the former
+    `general-purpose` spawn inherited — the sub-agents reference is explicit that a `tools`
+    allowlist excludes MCP tools while an unrestricted definition keeps them. The agent now
+    inherits its pool (background tool filtering still applies), restoring source-specific
+    documentation and synthesis MCP tools to both this skill's dispatches and `/discovery:research`'s.
+  - **`Budget` is documented as narrowing-only** — the researcher's fixed `maxTurns: 40` is a
+    ceiling the envelope cannot raise; work needing more depth belongs to Tier 1's engine. The
+    envelope-rationale pointer is scoped honestly: `dispatch.md` carries five of the six fields,
+    and `Memory root`'s rationale lives in the researcher's own contract.
+  - **The dispatch prompt is envelope fields only.** The disciplines, the citation rule, the outcome
+    gate, and the return-payload shape are the agent's own standing contract; the old prompt's
+    carry-verbatim reminders are the copy that drifts the moment the parent skill changes.
+  - Everything the old prompt enforced that is genuinely parent-side is unchanged: per-topic
+    sub-slice assignment, the N ≥ 2 decomposition rule, and the post-dispatch boundary this session
+    closes for every dispatched run before surfacing anything. The Tier 2 rationale sentence now
+    reads on discipline-at-turn-zero and calibration; the tool-access half — Phase 3 needs
+    direct-fetch and MCP tools, and the artifact must be written, which a read-only Explore agent
+    cannot do — survives as the secondary reason it always was.
+  - `agents/researcher.md` and the README agent table named `/discovery:research` as the sole
+    dispatcher; both now name `/discovery:research-deep` too, and evals 1 and 3 grade the agent type
+    and the envelope rather than a `general-purpose` spawn.
+
 ## [0.11.2]
 
 ### Changed
