@@ -3,6 +3,75 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.0]
+
+> Version note: `0.14.0` is never published. This entry claimed it while open, and 0.15.0 shipped
+> first with a note pointing here; taking the next free number on merge is what keeps both entries
+> truthful about the order they actually landed in.
+
+### Fixed
+
+- **Byte accounting can say "unknown" and "not reclaimable local bytes" (#1806).** Finding 2 of
+  the live audit: a truncated subtree emitted `logical_size: 0`, byte-identical to a genuinely empty
+  directory, while hard-linked names each contributed their full `st_size` to every total. PR #1818
+  landed the `size_qualifiers` / `file_attributes` mechanism for cloud placeholders and deliberately
+  left aggregates alone so this change could own the rest.
+
+  Every entry now records `nlink` and `allocated_size` (cheap `st_blocks * 512` on POSIX; null on
+  Windows where that field is absent). A truncated directory — max-depth, protected name, or VCS
+  boundary — carries `logical_size: null` and `not-walked` rather than pretending to be empty. Files
+  with `st_nlink > 1` carry `hardlinked`; sparse files carry `sparse` when the platform exposes the
+  signal. Snapshot, preview, apply, and the scan-complete summary each report
+  `reclaimable_local_bytes` (or `target_reclaimable_local_bytes` /
+  `reclaimable_local_bytes_removed`) as a figure distinct from the walked logical roll-up: every
+  qualified entry is excluded, so a report can no longer honestly claim gigabytes removed when the
+  observed free-space delta is ~0 because the bytes were shared, remote, or never inventoried.
+
+### Follow-ups left open on #1806
+
+Findings 3 (a `summarize` surface), 4 (Stop-detector marker amortisation), 6 (probe path
+provenance vs the guard's trusted settings channel), and 7 (run-state retention / snapshot path
+containment) stay out of this PR — each needs a design or coupled-grammar call rather than a
+mechanical completion of the byte-qualification vertical slice. Findings 1 and 5 already shipped in
+0.13.0.
+
+## [0.15.0]
+
+### Fixed
+
+- **A confirmation question is unanswerable when its acceptance bar names something the question
+  never showed.** The gate applied one bar — "an affirmative answer naming exactly the tier and path
+  list just shown" — to every question the skill asks, including the no-target prompt and §1's
+  large-scan confirmation. Neither has presented a tier or a path list, so no reply a human could
+  give satisfied the stated bar, and the two questions the gate exists to protect were the only ones
+  it could actually be cleared for. The question surface rule and the answer floor (the user's own
+  answer, this session, never inferred, stop on rejection) stay common to all four questions; what an
+  answer must *name* is now stated per question — a directory for target selection, the target plus a
+  deliberate unbounded walk for scan scope, the exact tier and path list for removal and the manual
+  handoff. §1's and §6's cross-references now name their row instead of asserting the deletion bar
+  applies unchanged, and the gate states the obligation that generated the defect: ask each question
+  so it shows what its row requires the answer to name.
+
+- **The confirmation gate fell back to an inline question only when `AskUserQuestion` was
+  *absent*.** Permission mode `dontAsk` "auto-denies tools unless pre-approved … `AskUserQuestion` …
+  denied even if you've allowed them"
+  ([permissions](https://code.claude.com/docs/en/permissions), fetched 2026-08-08), which leaves the
+  tool visible in the pool while every call fails; only a bare-name deny rule "removes the tool from
+  Claude's context entirely". Absence and denial are therefore distinct states, and keying the
+  fallback on absence let a `dontAsk` session pick a tool it cannot use and leave the destructive
+  confirmation gate unsatisfied rather than asking inline. The fallback now triggers on absent,
+  denied, **or otherwise unusable** — including a denial discovered only by calling it — so a state
+  neither named case anticipates still routes to the inline question.
+
+- **The `python3` alias probe could not be reached on a machine whose only alternate interpreter
+  cannot run it.** `setup` step 1(b) classifies the `python3` resolution with a bundled inspect-only
+  probe launched through some other interpreter, and routed to the PowerShell equivalent only when no
+  such interpreter existed at all. A real-but-incompatible launcher — Python 3.6, which the same
+  section already names as an interpreter that rejects `from __future__ import annotations`, or a
+  legacy `python` 2.x — is not absent, so the check had no path to a verdict and could classify
+  neither the Store stub nor its own remediation. The PowerShell fallback now also covers a chosen
+  interpreter that emits no verdict.
+
 ## [0.13.0]
 
 > Version note: `0.11.0` is claimed by #1804 (PR #1818) and `0.12.0` by #1805 (PR #1819), both open

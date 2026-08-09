@@ -33,7 +33,7 @@ For each affected ecosystem, in this order:
 2. **Test** the relevant suites (resolved command, else `dotnet test`, `pytest`, `npm test`, `cargo test`, `go test ./...`)
 3. **Lint/format-check** (resolved command, else the configured linter: `ruff check`, `eslint`/`biome check`, `shellcheck`, `golangci-lint`)
 
-Skip a step cleanly when the ecosystem has no such phase (see the per-command-key resolution in "Command-truth resolution" above). Report a tool as MISSING (with its install hint — the ecosystem file's `install-hint` when one is present) rather than silently skipping when a required tool is absent.
+Skip a step cleanly when the ecosystem has no such phase (see the per-command-key resolution in "Command-truth resolution" above). Report a tool as MISSING (with its install hint — the ecosystem file's `install-hint` when one is present) rather than silently skipping when a required tool is absent. A detected ecosystem with no default listed above (e.g. PowerShell) is not thereby phase-less: resolve its commands from the repo (rungs 1–2), and when that yields nothing, report the phase as UNVERIFIED for that ecosystem rather than skipping it.
 
 ## Report format
 

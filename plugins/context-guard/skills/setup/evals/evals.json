@@ -115,6 +115,58 @@
         "Names the provenance test (adapter is emitted only for a renderer carrying shell syntax) rather than peeling any `sh -c` on sight",
         "Prints exactly one shim invocation and exactly one `sh -c` layer"
       ]
+    },
+    {
+      "id": 10,
+      "name": "multiple-generated-layers-collapse-in-one-run",
+      "prompt": "/context-guard:setup check\n\nMy statusLine command is: bash ~/.claude/context-guard/bin/statusline-shim.sh sh -c 'sh -c '\\''THEME=dark my-statusline'\\''' — two earlier runs of this skill each added a layer. Both the shim and the plugin are installed.",
+      "expected_output": "Applies the unwrap rules repeatedly rather than once: the first pass strips the shim prefix and recovers sh -c 'THEME=dark my-statusline', the second recovers THEME=dark my-statusline, and a third strips nothing. Re-applies the shell-syntax guard to that renderer and prints wiring carrying exactly one sh -c layer: bash ~/.claude/context-guard/bin/statusline-shim.sh sh -c 'THEME=dark my-statusline'.",
+      "files": [],
+      "expectations": [
+        "Peels BOTH generated layers in ONE invocation — stopping after a single peel and treating `sh -c '\\''THEME=dark my-statusline'\\''` as the renderer is a failure",
+        "Peels the OUTER layer on the nested-`sh -c` branch of the provenance test, never concluding the layer is operator-written because its carried string has no UNQUOTED top-level shell syntax",
+        "Recovers `THEME=dark my-statusline` byte-for-byte, unescaping `'\\''` back to `'` at each layer",
+        "Prints exactly ONE `sh -c` layer and one context-guard shim invocation",
+        "States that the rules repeat until a pass strips nothing, rather than presenting one peel as sufficient"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "adapter-hiding-a-sibling-shim-is-peeled",
+      "prompt": "/context-guard:setup check\n\nMy statusLine command is: bash ~/.claude/context-guard/bin/statusline-shim.sh sh -c 'bash ~/.claude/rate-limit-guard/bin/statusline-shim.sh my-renderer --format '\\''a b'\\''' — I wired rate-limit-guard first and ran this skill once, back when it wrapped anything quoted. Both plugins are installed and both shims are present.",
+      "expected_output": "Peels the generated sh -c even though its carried string has no unquoted top-level shell syntax, because that string BEGINS WITH a guard-shim prefix — a shape this skill never emits inside an adapter. That exposes the rate-limit-guard shim to rule 1, which strips it, leaving the renderer my-renderer --format 'a b'. Prints the combined wiring naming each shim exactly once: bash ~/.claude/context-guard/bin/statusline-shim.sh bash ~/.claude/rate-limit-guard/bin/statusline-shim.sh my-renderer --format 'a b'.",
+      "files": [],
+      "expectations": [
+        "Peels the adapter on the shim-prefix branch of the provenance test — treating it as the operator's own renderer because the carried string has no unquoted top-level syntax is a failure",
+        "Names the rate-limit-guard shim EXACTLY ONCE in the printed wiring, never once from the sealed adapter and again from the composed sibling form",
+        "Recovers `my-renderer --format 'a b'` byte-for-byte and wraps it plainly — the quoted argument is not itself a reason to re-emit an `sh -c`",
+        "Explains that a duplicated tee runs and writes on every refresh and adds another ~0.6-0.9 s per refresh"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "bare-builtin-renderer-gets-a-shell",
+      "prompt": "/context-guard:setup check\n\nI have never run this skill. My statusLine command is: ulimit '-n' — I wrote it that way myself; the quotes are just habit. The plugin is installed.",
+      "expected_output": "Recognizes that the command word `ulimit` resolves as a shell builtin and not as an executable, so the plain wrapped form would reach `exec ulimit -n` and die with exit 127. Prints the shell-wrapped variant: bash ~/.claude/context-guard/bin/statusline-shim.sh sh -c 'ulimit '''-n''''.",
+      "files": [],
+      "expectations": [
+        "Emits the SHELL-WRAPPED variant, not the plain wrapped one — `exec` cannot run a builtin, so the plain form would exit 127 on every refresh",
+        "Reaches that decision through the not-an-executable trigger, NOT through the shell-syntax trigger — the renderer carries no unquoted top-level shell syntax at all",
+        "Does not justify the wrap by the presence of quotes — bare quoting is explicitly not a trigger",
+        "Resolves builtin-ness the way the shim will (`type -P` finding nothing while `type -t` reports `builtin`), never by matching a hardcoded list of builtin names"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "shell-syntax-sealed-inside-quotes-is-not-a-trigger",
+      "prompt": "/context-guard:setup check\n\nI have never run this skill. My statusLine command is: my-statusline --format 'a | b' — the pipe is part of the format string, not a pipeline. The plugin is installed.",
+      "expected_output": "Prints the PLAIN wrapped form: bash ~/.claude/context-guard/bin/statusline-shim.sh my-statusline --format 'a | b'. The pipe is sealed inside a quoted argument, so it is one ordinary ARGV word and needs no adapter.",
+      "files": [],
+      "expectations": [
+        "Emits the PLAIN wrapped form with no `sh -c` adapter",
+        "Does NOT treat the `|` as a control operator — the guard tests for syntax that is UNQUOTED and at the TOP LEVEL, and this pipe is neither",
+        "Reads `my-statusline` as an ordinary executable, so the not-an-executable trigger does not fire either"
+      ]
     }
   ]
 }

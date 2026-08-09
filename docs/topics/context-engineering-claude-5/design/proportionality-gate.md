@@ -450,13 +450,16 @@ placement rule, the S10 artifacts claim.
 - **Default enablement: off.** An emitting `OPINION` rule produces no finding on bare invocation.
 - **Opt-in is explicit** — a named argument or configuration key, never a side effect of another
   setting.
-- **Severity ceiling: `info`.** An unconfirmed practitioner preference cannot raise an `error` or a
-  `warning` against a consumer's instruction corpus.
+- **Severity ceiling: `info`.** The source is a post on Anthropic's Claude blog — vendor-published,
+  but a blog post rather than reference documentation — and a rule sits in this tier precisely
+  because the corroboration pass found no official doc that confirms it. `error` and `warning`
+  assert a breach of documented doctrine — a force that vendor blog advice, uncorroborated by
+  documentation, cannot carry against a consumer's instruction corpus.
 - **Never fix-applied.** `OPINION` findings are reported, never mutated automatically, regardless of
   the sweep's apply posture.
 
-Rationale: shipping them enabled would let one practitioner's unconfirmed preference mutate a
-consumer's instruction corpus under the same banner as documented doctrine. Dropping them instead
+Rationale: shipping them enabled would let vendor blog advice that no documentation confirms mutate
+a consumer's instruction corpus under the same banner as documented doctrine. Dropping them instead
 would violate the Brief's settled scope, which keeps every rule and marks the unbacked ones.
 
 **Advice attached to a backed finding — the case the two-way split missed.** D2 is `OPINION`-tier
@@ -471,7 +474,7 @@ is told to do about a finding that was going to be reported anyway. So:
 - **The finding's enablement and severity follow the host check**, because the detection is the
   host's and is backed.
 - **The `OPINION`-derived remediation is labelled inline as such**, so an operator can see which part
-  of the advice rests on a practitioner's preference rather than on documentation.
+  of the advice rests on uncorroborated vendor blog guidance rather than on documentation.
 - **It is never fix-applied**, which is the one clause of the emitting-rule policy that does carry
   over, and the one that actually protects the consumer's corpus.
 

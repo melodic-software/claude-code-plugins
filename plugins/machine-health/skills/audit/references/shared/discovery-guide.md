@@ -11,7 +11,7 @@ Describes what discovery does, what counts as "straightforward" vs "needs approv
 3. **Propose 1–3 new checks.** Cap at three per run to avoid floods. Prioritize: (a) subsystems with a trend angle (disk usage, version skew), (b) security-relevant subsystems (cert expiry, TPM/BitLocker), (c) noisy-in-event-log subsystems not covered.
 4. **Classify each proposal.** Straightforward vs needs approval (see next section).
 5. **Implement straightforward proposals immediately.** Write the new check script, add a catalog entry; check runs next week. No human in the loop.
-6. **Queue non-straightforward proposals in `TODO.md`.** Human approval required.
+6. **Queue non-straightforward proposals in `<StateBase>/TODO.md`.** Human approval required.
 7. **Surface both kinds** in the report under "Newly discovered checks" with rationale.
 
 ## Straightforward vs. needs approval
@@ -25,29 +25,29 @@ A proposal is **straightforward** when *all* of these hold:
 - **Narrow scope.** One metric, one category. Don't pack five unrelated signals into one check.
 - **Schema-compliant.** Emits the `CheckResult` schema from `output-schema.md`.
 
-Anything else — new egress, required elevation, complex parsing, proposed remediations, writes of any kind — lands in `TODO.md`. Human approves by editing the checkbox in `TODO.md` to `[x]`; next run picks it up and moves the entry into the catalog.
+Anything else — new egress, required elevation, complex parsing, proposed remediations, writes of any kind — lands in `<StateBase>/TODO.md` as a proposal for human review. Approval is never a checkbox: the human approves through `/machine-health:setup apply`, which writes the decision to `<StateBase>/state/approvals.json` for a remediation (see [`approvals.md`](approvals.md)) or to the catalog overlay for a check (see [`catalog-overlay.md`](catalog-overlay.md)) — never to the shipped catalog.
 
 ## How the skill modifies itself
 
 **Adding a check:**
 
-1. Create `scripts/<os>/checks/Test-<Thing>.ps1`. Use an existing check as template. Emit via `Write-HealthResult.ps1`.
-2. Append to `catalog/checks.jsonc` with `added_on: <run_id_date>`, `crash_count: 0`, `identical_streak: 0`.
+1. Create `<StateBase>/scripts/<os>/checks/Test-<Thing>.ps1`. Use an existing check as template. Emit via `Write-HealthResult.ps1`.
+2. Append a full entry to the overlay at `<StateBase>/catalog/checks.local.jsonc` with `added_on: <run_id_date>`, `crash_count: 0`, `identical_streak: 0` — see `catalog-overlay.md` § Custom checks.
 3. Note the addition in this run's report under "Newly discovered checks" with one-line rationale.
 
 **Deprecating a check** (never silent removal):
 
-1. Set `"deprecated": true`, `"deprecation_reason": "..."`, `"deprecated_on": "<run_id_date>"` on the catalog entry.
-2. Leave the script file in place — catalog entry is source of truth for what runs.
+1. Set `"deprecated": true`, `"deprecation_reason": "..."`, `"deprecated_on": "<run_id_date>"` on that check's entry in `<StateBase>/catalog/checks.local.jsonc` — never on the shipped catalog, which a plugin update replaces.
+2. Leave the script file in place — the merged catalog entry is source of truth for what runs.
 3. Surface the deprecation in the report once; subsequent runs skip the entry.
 
 **Proposing removal** of a deprecated check:
 
-- After **3 consecutive crashes** (`crash_count: 3`), propose removal in `TODO.md`. Human decides whether to delete script + catalog entry or keep for investigation.
+- After **3 consecutive crashes** (`crash_count: 3`), propose removal in `<StateBase>/TODO.md`. Human decides whether to delete script + catalog entry or keep for investigation.
 
 **Proposing demotion** of a chronically quiet check:
 
-- After **4 consecutive identical outputs** (`identical_streak: 4`), propose in `TODO.md` that the check move to monthly cadence. Cadence changes never applied automatically — only the human redefines "how often."
+- After **4 consecutive identical outputs** (`identical_streak: 4`), propose in `<StateBase>/TODO.md` that the check move to monthly cadence. Cadence changes never applied automatically — only the human redefines "how often."
 
 **Never** rewrite `state/history.jsonl`. If historical data was wrong, add a correction entry; don't mutate old lines.
 

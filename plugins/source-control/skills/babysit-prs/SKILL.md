@@ -219,7 +219,10 @@ home in [reference/safety.md](reference/safety.md). Both fail closed without `--
   more than one finding is refused outright (`skipped-multi-finding-thread`) and escalates: one
   disposition cannot clear a thread whose other findings nothing validated. Bot-only and the
   security/P1 bright line still hold, and `--autonomous`, `--include-human`, and
-  `--allow-unpinned-thread` are all refused alongside it.
+  `--allow-unpinned-thread` are all refused alongside it. Who dispatches this mode, the per-finding
+  D7.5 ledger owed before the wrapper is called, the fresh-pin rule, and the fail-closed fallback
+  for every bound it cannot cross are the single home in
+  [reference/independent-resolution.md](reference/independent-resolution.md).
 
 - **The agent** decides severity (is this security/P1?), whether a finding is genuinely addressed,
   what a label means, and every fix-vs-escalate call — never a script. Escalate a security/P1

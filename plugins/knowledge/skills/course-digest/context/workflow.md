@@ -50,7 +50,6 @@ Repo → Validate → THEN Synthesize.
 
 **Pacing:**
 
-- Report progress every 5 lessons
 - Save after every lesson (crash-safe)
 - If transcript extraction fails for a lesson, log error and continue to next
 

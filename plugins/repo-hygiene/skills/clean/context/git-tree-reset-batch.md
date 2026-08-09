@@ -7,12 +7,13 @@ additive orchestrator over it.
 
 ## Why this exists
 
-A hand-rolled `ghq list` reset loop `reset --hard`'d a repo it was meant to skip:
-the skip-match compared a Windows backslash path against a forward-slash path and
-silently failed, discarding an uncommitted `.claude/settings.json` edit that was
-never staged and could not be recovered. `tree-batch` is the supported capability
-that closes both defects — separator-agnostic skip-matching and a dirty-by-default
-guard — so the batch reset never has to be hand-rolled again.
+A hand-rolled `ghq list` reset loop `reset --hard`s repos it was meant to skip: a
+skip entry written with one path separator silently fails to match the same path
+carrying the other, and unstaged work in the repo it hits is unrecoverable.
+`tree-batch` is the supported capability that closes both defects — skip-matching
+is separator-agnostic so an entry matches whichever separator the path carries,
+and the dirty guard is on by default so a repo with uncommitted work is skipped
+rather than reset.
 
 ## Scope
 

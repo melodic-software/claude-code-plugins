@@ -124,6 +124,10 @@ expansion). Two workable forms:
   { "env": { "HOOK_TELEMETRY_SINK": ".claude/hooks/hook-telemetry-sink.sh" } }
   ```
 
+  The sink `source`s `hook-utils.sh` from its own directory, so a bare copy
+  fails at startup: either copy `hook-utils.sh` alongside it, or edit the copy's
+  `source` line to point at a `hook-utils.sh` your repo already carries.
+
 - **Or** point at an **absolute** path to the installed sink under your plugin
   cache — per-machine, and it moves on each plugin update, so it is not
   clone-portable.

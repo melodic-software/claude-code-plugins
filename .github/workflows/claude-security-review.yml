@@ -41,6 +41,29 @@ jobs:
       # rewrites the exception whenever ci-workflows changes it — which is how
       # `claude[bot]` and `melodic-ai[bot]` entered it (#1766 dropped this line
       # while re-pinning to a version whose default had widened).
+      #
+      # DO NOT delete this line at a re-pin, and do not "simplify" it away.
+      # Deleting it is not a no-op even when the value matches the upstream
+      # default of the moment: the four actors here are ADR 0002's 2026-08-04
+      # ratified baseline, and inheriting instead re-delegates that decision to
+      # whatever ci-workflows ships next. Every actor in an inherited default
+      # satisfies this repo's REQUIRED `security-review / security-review`
+      # check with no review run, on security-sensitive paths.
+      #
+      # The failure directions are asymmetric, which is why explicit wins here
+      # and not everywhere. A stale explicit list fails CLOSED and LOUD: for an
+      # actor the reusable's `allowed_bots` does not permit, the action throws
+      # and this lane's fail-closed mapping turns that into a RED required
+      # check no push can fix — a merge block, not an extra review (ADR 0002,
+      # "skip-actors and the action's allowed_bots are different levers").
+      # Un-skipping such an actor for real means widening `allowed_bots`
+      # upstream, which is why removing a name here is never a one-line change.
+      # A stale inherited default fails OPEN and SILENT: an actor this repo
+      # never deliberated skips review with CI green — exactly what #1766 did.
+      # Loud-and-blocking is the direction to fail in; silent-and-permissive is
+      # not. runner-policy rejects inputs outside the reviewed contract but
+      # cannot REQUIRE one, so dropping this line re-widens the exception with
+      # nothing said. That residual gap is standards#308.
       skip-actors: dependabot[bot],claude[bot],melodic-ai[bot],melodic-standards-sync[bot]
     # One named secret (least privilege), never `secrets: inherit`.
     secrets:

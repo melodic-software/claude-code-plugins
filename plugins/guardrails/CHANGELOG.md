@@ -3,6 +3,85 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.5]
+
+### Fixed
+
+- **`block-hook-bypass` missed the explicit stdout redirect entirely — `cat 1>file` and
+  `echo x 1>file` were never caught.** `1>file` writes the file exactly as `>file` does, but both
+  detection patterns only ever admitted the bare `>`: `_cat_redir` required `cat[[:space:]]*>` and
+  `_echo_file_out` excluded any operator preceded by a digit, in order to keep `2>` out. That
+  exclusion took the legitimate fd-1 spelling with it, so a single character defeated both lanes of
+  the guard. Verified live against the shipped hook before the fix: `cat 1>real.txt` exited 0 while
+  `cat > real.txt` exited 2.
+
+  Both patterns now admit the explicit `1` before the operator. Other fds stay out: `_echo_file_out`
+  still rejects a digit-prefixed operator except that `1`, so `2>` and `21>` do not match, and the
+  `cat` lane matches neither. The fd-1 discard (`cat 1>/dev/null`) is still a discard, since the
+  exemption reads the effective stdout target.
+
+  **Three things a naive `1?>` widening gets wrong, all now pinned by cases.** (1) The fd digit
+  needs a COMMAND BOUNDARY: `cat[[:space:]]*1?>` also matches `cat1>file`, an unrelated binary named
+  `cat1` with an ordinary redirect, so the two spellings stay separate branches
+  (`cat[[:space:]]*>` for the zero-space form, `cat[[:space:]]+1>` for the explicit one) — the same
+  word-boundary discipline `_producer_head` already applies to echo/printf. (2) An fd DUPLICATION or
+  close has no file operand: `cat 1>&2` and `cat 1>&-` are not writes, and the segment is skipped
+  when no file target was found. (3) That skip needs the target class to reject BOTH spellings of
+  the dup's `&` — the literal one a correct `normalize_segments` restore produces, and the `\x01`
+  sentinel that survived when the restore silently failed (see the next entry). Excluding only one
+  of the two lets a dup read as a file named `2`, or as one named `\x012`, depending on the bash in
+  use. Verified across the full matrix: write forms block, discards and dups and other-fds pass.
+
+  **This was pre-existing, not a 0.19.3 regression.** 0.19.3 widened the same `1?>` spelling on the
+  EXEMPTION side (`set_last_stdout_target`, so `cat >/dev/null 1>real.txt` could not sneak a write
+  past the discard check) and did not touch detection. The two sides disagreeing is what left the
+  hole visible: the exemption understood a spelling the detection never looked for.
+
+- **`echo x >&2` and `printf x >&2` were blocked as file writes on bash 5.2 and newer.** Writing to
+  a duplicated fd is not a file write, and both were refused. Reproduced against the shipped hook:
+  `echo x >&2` exited 2 on `main`, 0 after the fix, while `echo x >&2 > real.txt` still exits 2 —
+  bash applies redirections left to right, so the file is the effective stdout target there.
+
+  **Cause: a substitution replacement that stopped meaning what it said.** `normalize_segments`
+  protects a redirect `&` with a `\x01` sentinel so an fd dup is not split as a control operator,
+  then restores it with `${normalized//"$soh"/&}`. Since **bash 5.2**, an unquoted `&` in a
+  substitution REPLACEMENT expands to the text the pattern just matched — the `sed` rule — so that
+  line restored the sentinel to itself. A silent no-op on new bash, still correct on old: the guard
+  quietly behaved differently depending on the interpreter running it. The surviving `\x01` then
+  matched `_echo_file_out`'s target class, and the producer lane — unlike the `cat` lane — has no
+  emptiness skip, so an empty effective target fell through to a block. Restoring with `\&` fixes
+  it. Confirmed by dumping the stored segment: `cat 1>&2` normalized to `$'cat 1>\0012'` before,
+  `cat 1>&2` after.
+
+  **Two defenses are kept against the same class of regression.** The sentinel exclusions in
+  `_redir_scan` stay, so a dup is rejected whichever byte reaches the scan; and
+  `producer_redirect_bypass` gained the `cat` lane's emptiness skip, whose absence is what turned an
+  empty effective target into a block in the first place. Both are unreachable while the two target
+  classes agree — which is precisely the equivalence that failed silently here.
+
+## [0.19.4]
+
+### Fixed
+
+- **`block-dangerous-git`'s movable-lease block no longer prescribes a form it rejects.** The
+  message told producers to pin the expectation with
+  `--force-with-lease=<refname>:$(git rev-parse <ref>)`, but detection is static over the literal
+  command string and never evaluates substitutions, so `$(git rev-parse <ref>)` reached the scan as
+  an unresolved name in the `<expect>` slot and was blocked by the very message prescribing it. With
+  every stated-expectation spelling rejected, amend-and-force was effectively unavailable without
+  widening `block_dangerous_git_allow`; two independent producer lanes hit this and fell back to
+  corrective commits.
+
+  The message now prescribes what the hook already accepts — a literal object id of the repository's
+  full hash width, resolved by running `git rev-parse` as a **separate** step — and says why a
+  substitution cannot stand in for it. The no-expected-value message gained the same clause, so a
+  producer bounced there does not walk into the movable block next.
+
+  **Acceptance behavior is unchanged** (hence a patch bump): the literal-SHA form was already
+  accepted, and the plain `--force`, bare `--force-with-lease`, refname-only, movable-name, and
+  `${VAR}` / `$(…)`-in-`<expect>` forms are all still blocked. New cases assert the message text
+  itself, the surface that was wrong.
+
 ## [0.19.3]
 
 ### Fixed

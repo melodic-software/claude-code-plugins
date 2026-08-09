@@ -171,7 +171,11 @@ Two further reader-contract rules apply alongside the floor (outside the byte-au
   absent, stale, or missing `rate_limits` → whole guard **unknown → reactive-only**. An absurd
   `used_percentage` or `resets_at` makes only **that window** unknown: keep applying the floor to
   every still-plausible window, and drop to reactive-only only when no window is plausible. Never
-  throttle proactively on untrusted data and never fabricate a pause.
+  throttle proactively on untrusted data and never fabricate a pause. In reactive-only mode,
+  additionally read `~/.claude/rate-limit-guard/stop-events.jsonl` (reader contract, "Detection
+  records") on mode entry and again before each new work claim; the recency baseline is the lane's
+  own start time, advanced by each resume attempt — records newer than it are live signal, older
+  ones history that never justifies a new pause on its own.
 - **Untrusted fields** (reader contract, "Tee file shape"): session-distinguishing fields (`session_id`,
   `session_name`, any future account field) are user/AI-influenced — parse them only with a JSON
   parser; never string-interpolate them into a shell command, another interpreter, or a prompt.
@@ -188,9 +192,12 @@ while the latch is set (clear it on a fresh healthy snapshot after the pause end
    per-clone and untracked, so this repairs an existing consumer that upgraded without adding a
    tracked rule, changes nothing the repo tracks, and no-ops where the rule is already present.
 1. **Re-anchor.** Re-read the durable loop state block; classify guard mode against the floor
-   above; take the cycle-start snapshot of the frontier and open items. The drain exit is evaluated
-   against this snapshot — new automated intake arriving mid-cycle is **reported, never chased**
-   (per the convention).
+   above; take the cycle-start snapshot of the frontier and open items, **retaining every captured
+   id** — the exit condition tests their union and never re-reads the seam. Test the union, not the
+   open ids alone: the two are one derivation apart on paper, but nothing here says the snapshot is
+   one read, and an item created between two reads would otherwise be captured yet never tested.
+   The drain exit is evaluated against this snapshot — new automated intake arriving mid-cycle is
+   **reported, never chased** (per the convention).
 2. **Intake sweep.** Run `/work-items:triage` over untriaged intake in its **autonomous lane** —
    this loop's launch-prompt standing rules are the direction its mutation gate requires, and every
    comment or item it creates carries the AI disclaimer. Sweep hardening: an advisory issue
@@ -248,7 +255,10 @@ while the latch is set (clear it on a fresh healthy snapshot after the pause end
    below; upsert the telemetry comment (cycle report + updated state block + guard mode + the
    `usage_sample` built from step 1's cycle-start reading, whose delta covers the preceding interval
    and never this cycle's work); then evaluate the exit condition; if not exiting, `ScheduleWakeup`
-   the next cycle.
+   the next cycle. **Ground every claim in the cycle report against a tool result from this cycle,
+   and say which work is unverified rather than omitting the distinction.** Nobody watched this
+   cycle, so the report is the only record of it and a fabricated line is indistinguishable from a
+   true one until someone re-does the work.
 
 ## Admission gate (work-class, fail-closed)
 
@@ -405,23 +415,38 @@ citation. This lane's specifics:
 
 ## Exit condition
 
-Evaluate at cycle end, against the cycle-start snapshot:
+Evaluate at cycle end against the cycle-start snapshot's **retained ids, never a fresh seam read**:
+every id the snapshot captured — its open items and its autonomous-frontier candidates alike — is
+closed or has an **open, non-draft** PR the bound adapter's "Open linked PRs" operation reports as
+close-linked (the provider's own computed close-linkage, whose query mechanics and draft exclusion
+the adapter owns).
 
-1. The seam frontier is empty — `list-frontier --autonomous` returns no candidates, **and**
-2. Every open issue in the snapshot is closed or has an **open, non-draft** PR the bound
-   adapter's "Open linked PRs" operation reports as close-linked — the provider's own computed
-   close-linkage, whose query mechanics (and the draft exclusion) the adapter owns.
+There is deliberately **no second frontier-emptiness limb**. Re-running `list-frontier --autonomous`
+here would see items that joined the frontier *after* the snapshot — precisely the mid-cycle intake
+step 1 reports and never chases — so a bot filing agent-ready items could hold the drain open
+forever. Absence from a later frontier read is also not resolution: an item another session claims,
+or one that becomes blocked, leaves the frontier unresolved. Nothing is lost by dropping the limb:
+the frontier is derived by filtering `state == open`, so a snapshot frontier candidate is a
+snapshot open item either way, and the single test above already covers it — including an item the
+snapshot held as untriaged intake that step 2 promoted mid-cycle. That item still holds the drain
+open, and it is worked once the admission gate passes it and a cap slot is free.
 
 Lane-infrastructure items never gate the drain: the per-lane telemetry tracking issues — this
 lane's and any sibling lane's, identified as `/work-items:triage` ("Scope: raw intake only")
 defines them, by pinned config identity or sentinel comment and never by title alone — are
-excluded from the cycle-start snapshot, the intake sweep, and both exit evaluations. The loop never works,
+excluded from the cycle-start snapshot, the intake sweep, and the exit evaluation. The loop never works,
 closes, or waits on them; an open telemetry issue is the lane operating, not backlog.
 
-Both true → the drain is complete: set `first_drain_complete`, write the final report (items
+Satisfied → the drain is complete: set `first_drain_complete`, write the final report (items
 closed, PR'd, escalated), and stop cleanly. The **drain-terminal state** (per the convention) also
 ends the loop: when every remaining open item is human-gated or escalated and no PR is in flight,
-report and stop cleanly rather than idling forever.
+report and stop cleanly rather than idling forever. Either stop's report **names the intake that
+arrived after the snapshot and was left unworked** — that report is what keeps "reported, never
+chased" true once there is no next cycle to sweep it. Compute that list once, after the exit is
+already decided, by diffing a fresh `list-frontier --autonomous` reading against the retained
+snapshot ids. **That read is reporting-only and can never change the verdict it follows** — what
+the paragraph above bans is the *exit* reading the seam, not the report doing so, and without a
+stated mechanism an agent has none and the naming silently degrades to nothing.
 
 ## Gotchas
 
@@ -432,7 +457,8 @@ report and stop cleanly rather than idling forever.
   loop cycle that restates "dispatch each item to a worktree subagent" has not replaced the seam
   claim; dispatching before the claim is held is a defect.
 - **Do not chase intake.** A bot filing items mid-cycle can hold a drain open forever; the
-  snapshot rule exists precisely so new intake is reported and left for the next cycle's sweep.
+  snapshot rule exists precisely so new intake is reported and left for the next cycle's sweep —
+  or, when the drain exits, named in the final report and left for the next launch.
 - **Telemetry is the report surface, never the escalation channel.** When human action is
   required, the escalation contract (role label + machine-marked comment + the step-5 record
   write) is the path; a note in the telemetry comment alone is invisible to the attended queue.

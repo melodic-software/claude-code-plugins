@@ -3,6 +3,65 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.6]
+
+### Fixed
+
+- **`lanes`: the launch-commit marker is keyed in the repository it describes, so staleness
+  detection survives a SHA-256 checkout (#1383).** `git hash-object` digests with the object format
+  of whatever repository it resolves, and the launcher called it unscoped — keying on the CALLER's
+  format while taking the toplevel from the repository `--repo` names. Reached from a SHA-1 working
+  directory, a SHA-256 target produced a 40-character key, while `lanes/context/refresh.md`'s probe
+  runs inside that checkout and computed the 64-character one: the launcher wrote its marker to a
+  directory the probe never reads, and staleness detection was off with nothing to show for it. The
+  comment above the key claimed both sides agreed because both call `git rev-parse --show-toplevel`,
+  which settles the path and says nothing about the digest. Both digests are now taken with
+  `-C "$REPO"`. `restart-consumer.sh` derived its ledger key the same unscoped way and is fixed with
+  it; the hand-recompute snippets in the README, this changelog, and `refresh.md` already run inside
+  the target repository and were correct as written.
+
+- **`lanes`: a lane that sets an empty stop-gate marker disables that channel instead of falling
+  through to the user's (#1865).** The option read ended `select(type == "string") ] | last //
+  empty`, which prints nothing for an explicit `""` and nothing for an absent key — so the launcher
+  could not tell the two apart, and dropped `--marker` for both. The arm record then carried no
+  marker at all, and the gate's precedence (managed ▷ arm record ▷ user settings ▷ default) walked
+  past it to the user-level marker, where a marker file left over from another lane can authorize a
+  stop this lane never signaled. A `v:` prefix now carries "the lane set this" through the shell, so
+  an explicit empty value reaches the helper. The sentinel is deliberately not symmetric: the gate
+  substitutes the default token for an empty sentinel, so recording one would only shadow the
+  user-level value without changing which token is matched.
+
+- **`lanes`: the stop-gate arm id reaches only the autonomy installs that asked for it (#1865).**
+  Arming keyed off an any-quantifier over the `autonomy` / `autonomy@*` namespace, then injected
+  `lane_stop_gate_arm_id` into every entry in it — so one install requesting the gate had the id
+  written into siblings that did not, and the option read likewise took its last match from any
+  entry rather than a requesting one. The gate never treats this channel as a trusted verdict in
+  either direction, so an id landing on an entry set to `false` was not overriding that `false`;
+  what it did was mark installs the lane never asked to arm, leaving the settings handed to `claude`
+  an inaccurate record of what was requested and letting a non-requesting entry's marker reach the
+  arm call. One shared filter now defines "an entry that requested the gate", and detection, option
+  extraction, and injection all use it. Arming every discovered helper script is unchanged and
+  deliberate.
+
+## [0.27.5]
+
+### Fixed
+
+- **README: the "copy the reference sink into your repo" wiring form now names its
+  `hook-utils.sh` dependency.** The sink `source`s `hook-utils.sh` from its own directory, so the
+  documented bare copy failed at startup (`No such file or directory`) — found dogfooding the
+  wiring in the marketplace repo itself (#2021 line 5 disposition). The README now says to copy
+  `hook-utils.sh` alongside or repoint the copy's `source` line.
+
+## [0.27.4]
+
+### Changed
+
+- **`observability`'s report skeleton uses `<model>` placeholders in its token/cost table.** The two
+  sample rows carried real model IDs, which read as data rather than as a template and date the
+  skeleton as models turn over. They now match the `<model>` convention the Cache health table
+  immediately below already used.
+
 ## [0.27.3]
 
 ### Changed

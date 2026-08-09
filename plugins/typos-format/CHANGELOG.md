@@ -3,6 +3,20 @@
 All notable changes to the `typos-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.2]
+
+### Changed
+
+- **Wrapper coaching prose trimmed from the hook's injected reports (#2021, remediation line 3).**
+  The hook-surface classification pass marked typos-format a hybrid whose wired surface is mostly
+  injected wrapper prose around the report-only findings. The per-finding remediation tail ("if
+  intentional, add it to extend-words…"), formerly repeated on every residual line, is replaced by
+  one trailing pointer for the whole list; the applied-path disclosure keeps its facts (dictionary
+  source, no-memory re-correction, allow-list route) at less than half the length; and the
+  report-only header drops its option-explainer parenthetical. The finding lists themselves —
+  residual findings with the tool's suggested corrections, and applied rewrites disclosed on both
+  channels — are policy-class ground truth and are unchanged.
+
 ## [0.5.1]
 
 ### Changed

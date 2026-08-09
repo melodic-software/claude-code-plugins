@@ -20,6 +20,10 @@ And stop repeating yourself. Older models leaned on repetition and end-of-contex
 
 **Memory:** hand-saving context to CLAUDE.md with the `#` hotkey is no longer the mechanism — Claude automatically saves memories relevant to the work and to you and loads them across sessions. Memory, artifacts, and skills now share the job CLAUDE.md used to do alone.
 
+> **Clarified:** what this retires is ad-hoc hotkey capture, not rule-writing — encoding a
+> correction as a durable CLAUDE.md or skill rule (Section 89) is a different mechanism and still
+> applies.
+
 **References got richer.** A spec no longer means a markdown file, and code-shaped references carry the highest fidelity: an HTML artifact beats a screenshot or a description; a function in another codebase is a portable spec; a detailed test suite is a spec that verifies itself; and a rubric encodes your taste for verifier agents in a dynamic workflow to check against.
 
 ## 114. Applying It to Your Own Context

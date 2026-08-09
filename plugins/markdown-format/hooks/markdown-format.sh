@@ -951,7 +951,7 @@ if ((FINDING_COUNT > 0)); then
 
   CTX+="markdown-format: $BASE has $FINDING_COUNT markdownlint finding(s)${RULE_SUMMARY:+ — $RULE_SUMMARY}."$'\n'
   if ((SAME_AS_LAST == 1)); then
-    CTX+="  Unchanged from the previous run on this file; per-finding detail omitted. A rule firing in bulk here (a house style markdownlint does not know about) is configured away once in this repository's markdownlint config, not re-read every edit."$'\n'
+    CTX+="  Unchanged from the previous run on this file; per-finding detail omitted."$'\n'
   else
     shown=0
     while IFS= read -r line; do
@@ -961,7 +961,7 @@ if ((FINDING_COUNT > 0)); then
       shown=$((shown + 1))
     done <<<"$findings_raw"
     if ((FINDING_COUNT > shown)); then
-      CTX+="  ... and $((FINDING_COUNT - shown)) more finding(s), omitted to bound context. Raise markdown_format_max_findings to see them, or configure the dominant rule in this repository's markdownlint config."$'\n'
+      CTX+="  ... and $((FINDING_COUNT - shown)) more finding(s) (cap: markdown_format_max_findings)."$'\n'
     fi
   fi
 elif ((LINT_RC != 0)) && [[ -n "$FIX_OUTPUT" ]]; then
