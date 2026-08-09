@@ -194,8 +194,9 @@ Exclude every qualified entry from any reclaimable-bytes total and state the qua
 separately with their reasons — a `cloud-placeholder` carries its REMOTE size while occupying
 roughly nothing locally; a `hardlinked` name shares one object with other names; a `sparse` file's
 logical size overstates local allocation; and `not-walked` means the subtree was never inventoried,
-so `logical_size` is `null` rather than `0`. Prefer the snapshot's
-`target_reclaimable_local_bytes` (and preview/apply `reclaimable_local_bytes*`) over summing
+so `logical_size` is `null` rather than `0` — except on the target's own record, which keeps its
+partial walked sum alongside a `not-walked` qualifier, so read that number as a floor. Prefer the
+snapshot's `target_reclaimable_local_bytes` (and preview/apply `reclaimable_local_bytes*`) over summing
 `logical_size` yourself — folding qualified or unknown sizes into a total claims space that
 deleting the path would never return.
 

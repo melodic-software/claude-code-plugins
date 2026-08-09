@@ -662,6 +662,13 @@ def metadata(
     A truncated directory's `logical_size` is null, never 0. Zero remains the
     genuine empty-directory signal; collapsing "not walked" into zero made a
     1.35 GB truncated `.cache` indistinguishable from an empty folder.
+
+    One entry is deliberately exempt: `scan_tree` appends `not-walked` to the
+    TARGET's own qualifiers while keeping its partial walked sum, because the
+    root is the one number a caller reaches first and nulling it costs more than
+    the imprecision. So `not-walked` implies a null `logical_size` for every
+    entry this function produces, but not for the target record, which is
+    assembled there rather than here.
     """
     info = path.lstat()
     attributes = int(getattr(info, "st_file_attributes", 0))
