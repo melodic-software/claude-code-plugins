@@ -10,9 +10,9 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 - **`conflict-scan.sh`: the coordinated-directive boundary honored only a subset of the mandate
   tokens, so the most common phrasing silently dropped real conflicts.** `COORD_ERE` carried a
   hand-copied token list that had fallen behind `MANDATE_ERE`: `use`, `present`, and `ask` were in
-  the classifier and absent from the coordinator. `Never use`Bash` and use `Read``therefore found
-  no boundary, `Read` inherited the leading `never`, and its pair with `Never use `Read`` went
-  unreported — while `Always use`Read`` produced a false conflict from the same misreading.
+  the classifier and absent from the coordinator. ``Never use `Bash` and use `Read` `` therefore
+  found no boundary, `Read` inherited the leading `never`, and its pair with ``Never use `Read` ``
+  went unreported — while ``Always use `Read` `` produced a false conflict from the same misreading.
   `always` masked the gap throughout, being present in both lists. The coordinator is now COMPOSED
   from the two classifier alternations rather than restated, so the divergence that caused this is
   unrepresentable; two regression cases cover the bare-`use` and `present` forms.
