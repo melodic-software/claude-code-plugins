@@ -46,9 +46,12 @@ A missing or mismatched token is a **hard failure: the parent discards the run**
 2. **The artifact set is actually on disk, and this run put it there:**
 
    ```bash
-   bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-explore-artifact.sh" <the retained memory-slice path> \
+   bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-dispatch-artifact.sh" <the retained memory-slice path> \
+     --index-name EXPLORE.md \
      --newer-than <that slice>/.explore-dispatch --expect-index <the payload's artifact: value>
    ```
+
+   `--index-name` is required, not defaulted — the same gate grades `/discovery:research` runs, the two artifact families differ only in that name, and a gate that fails closed everywhere else must not guess which family it is looking at.
 
    Cite the **exit status** — 0 usable, 1 no usable artifact set, 2 ungradeable — not a reading of the directory, because the context most motivated to call the dispatch finished is the one that would be doing the reading. It fails closed. Only the slice path is required, and the bare form is still a real gate; every optional check reports `unchecked` in the output line rather than passing quietly, so a skipped one never reads as a passed one. Append `--expect-sidecars <n>` when the payload reported a `sidecars:` count, and drop any flag whose value the payload did not supply — the malformed payload this gate exists to catch has no such fields, and substituting `0` or a guessed path asks the gate a question the run never answered.
 
