@@ -111,7 +111,9 @@ Apply the confirmed strip plan:
 - Tracked instruction files: per the plan's per-file (and, for mixed files, per-section)
   classification — `git rm` / `git mv` a file classified behavioral whole; for a mixed file,
   remove the behavioral sections and keep the convention sections in place or in an extracted
-  retained file. One commit, message
+  retained file. A file classified `hybrid` operationalizes exactly like a mixed file — strip the
+  behavioral sections, keep the policy residue in place or extracted — the classes differ in what
+  the residue is (policy vs convention), not in the mechanics. One commit, message
   `experiment: strip instruction surfaces for unhobble baseline`.
 - Project-settings hook entries classified `behavioral`: back up the settings file to `backups/`,
   remove the entries, record the exact JSON paths removed in the manifest. An entry classified
@@ -128,8 +130,10 @@ Apply the confirmed strip plan:
   behavioral or hybrid HOOK may still be individually stripped when the plugin exposes a per-hook
   kill switch (a `<hook>_enabled`-style userConfig option): record the option flipped and its
   prior value in the manifest as a partial strip, restoring by flipping it back. No per-hook
-  switch → the hook stays loaded and is recorded as `unstripped-hybrid-hook` alongside the
-  plugin's confound note.
+  switch → the hook stays loaded, recorded by its own class — `unstripped-behavioral-hook` for a
+  plain behavioral hook (nothing of it is legitimately loaded; the whole hook is the confound),
+  `unstripped-hybrid-hook` for a hybrid (its policy residue is legitimately loaded; only the
+  behavioral surface is the confound) — alongside the plugin's confound note.
 - Print the "you are bare" summary: what a fresh session will now load (ideally: nothing but the
   code) and how to restore everything (`readd` phase reads the manifest; `git` holds the files).
 
