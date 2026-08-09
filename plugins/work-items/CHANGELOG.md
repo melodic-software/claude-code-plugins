@@ -16,7 +16,10 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   promises to name is filtered out of the reading meant to find it and the report names nothing —
   the "reported, never chased" invariant failing silently one layer below where 0.34.2 fixed it.
   The report now repeats step 1's open-items reading, the superset the frontier is derived from,
-  which sees the routed advisory item and the ordinary one alike.
+  which sees the routed advisory item and the ordinary one alike. The lane-infrastructure exclusion
+  is extended to that reading in the same breath: a telemetry issue is deliberately never among the
+  retained ids, so a re-read that did not re-apply the exclusion would diff it in as post-snapshot
+  intake and misreport it as unworked on every run.
 
 ## [0.34.2]
 
