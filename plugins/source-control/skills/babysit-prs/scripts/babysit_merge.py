@@ -18,8 +18,12 @@ Contract enforced here (encoded as code, not convention):
 - A PR authored by a dependency manager (Dependabot/Renovate-class) is held --
   never merged -- unless `--allow-dependency` is passed.
 - A PR on an unprotected base (zero required reviews AND zero required contexts)
-  authored by someone other than a configured self login is held unless
-  `--allow-unprotected` is passed: on such a base `CLEAN` proves nothing.
+  is held unless `--allow-unprotected` is passed: on such a base `CLEAN` proves
+  nothing. A configured self login is exempt only when that base is the
+  repository's default branch -- the solo-owner repo the exemption exists for.
+  A self-authored PR onto an unprotected NON-default base (a stack layer, or any
+  feature-onto-feature merge) is held: the default branch's required checks never
+  governed it.
 - A merge is held while a configured review bot still owes the LIVE head a
   review (`--review-bot-logins` with `--review-settle-minutes`, both or
   neither). A reviewer that re-reviews on push posts minutes after the head
@@ -208,6 +212,25 @@ def unresolved_threads(repo: str, number: int) -> list[dict[str, object]]:
             repo, number, include_resolved=False, comments_first=1, projection=project
         )
     ]
+
+
+def repository_default_branch(repo: str) -> str | None:
+    """Return the repository's default branch, or None when it cannot be read.
+
+    Called only when an unprotected base has already cleared every other blocker,
+    so neither a protected-base run nor an already-held PR makes a request it did
+    not make before. A read failure returns None, which leaves the pre-existing
+    self-login exemption in place rather than inventing a hold from missing
+    evidence.
+    """
+    try:
+        data = gh_json(["api", f"repos/{repo}", "--jq", "{name: .default_branch}"])
+    except (RuntimeError, json.JSONDecodeError):
+        return None
+    if not is_json_object(data):
+        return None
+    name = cast(dict[str, Any], data).get("name")
+    return str(name) if name else None
 
 
 def branch_rules(repo: str, branch: str) -> dict[str, object]:
@@ -983,6 +1006,31 @@ def evaluate(
         )
         blockers.extend(tier_blockers)
 
+    # The self-login exemption from the unprotected-base hold above exists for a
+    # repository whose DEFAULT branch carries no rules -- a solo owner merging
+    # their own work, where holding every PR would make the gate useless. It must
+    # not extend to a base that is not the default branch: there, "unprotected"
+    # means the required checks that govern the default branch were never
+    # evaluated for this merge at all, and the PR lands on an integration branch
+    # instead of passing the gate. A stacked pull request is exactly that shape
+    # (self-authored, base = the layer below), but so is any feature-onto-feature
+    # merge.
+    #
+    # Evaluated last, after the settle and tier blockers, so `not blockers` is the
+    # COMPLETE set: the lookup below is a network call, and a PR already held for
+    # any other reason cannot be made ready by this hold, so the fleet loop must
+    # never pay that call per cycle for a PR it already knows is ineligible.
+    if not blockers and base_is_unprotected and author_is_self and not allow_unprotected:
+        base_ref = str(pr.get("baseRefName") or "")
+        default_branch = repository_default_branch(repo)
+        if default_branch and base_ref and base_ref != default_branch:
+            blockers.append(
+                f"base branch {base_ref!r} is unprotected (0 required reviews AND "
+                "0 required contexts) and is not the default branch "
+                f"{default_branch!r} -- the default branch's required checks never "
+                "governed this merge -- held (pass --allow-unprotected to override)"
+            )
+
     ready = not blockers
     return {
         "pr": f"{repo}#{number}",
@@ -1061,7 +1109,8 @@ def main() -> int:
         default=None,
         help=(
             "comma-separated logins treated as self (exempt from the "
-            "unprotected-base hold); '@me' resolves to your gh login"
+            "unprotected-base hold on the DEFAULT branch only); '@me' resolves "
+            "to your gh login"
         ),
     )
     parser.add_argument(
@@ -1100,7 +1149,10 @@ def main() -> int:
     parser.add_argument(
         "--allow-unprotected",
         action="store_true",
-        help="permit merging a non-self PR on an unprotected base (held by default)",
+        help=(
+            "permit merging on an unprotected base (held by default): a non-self "
+            "PR anywhere, or a self PR onto a non-default base"
+        ),
     )
     parser.add_argument(
         "--allow-unpinned-head",

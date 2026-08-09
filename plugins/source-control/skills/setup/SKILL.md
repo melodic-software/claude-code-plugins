@@ -122,9 +122,10 @@ diagnostics:
    the default branch's effective rules (`gh api repos/<owner>/<repo>/rules/branches/<default-branch>`,
    falling back to `gh api repos/<owner>/<repo>/branches/<default-branch>/protection` for classic
    protection). Flag every repo reporting zero required reviews AND zero required status contexts as
-   **unprotected**: the merge gate refuses gate-proven merges there for non-self authors
-   (`--allow-unprotected` is the deliberate override), so an unprotected repo in an autopilot fleet
-   deserves a protection rule, not an override.
+   **unprotected**: the merge gate refuses gate-proven merges there for non-self authors, and for a
+   self author whenever the base is not the default branch (`--allow-unprotected` is the deliberate
+   override), so an unprotected repo in an autopilot fleet deserves a protection rule, not an
+   override.
 3. **Windows long-path support for the worktree root.** On Windows, worktrees under the (possibly
    deep) worktree root can exceed 260 characters. Probe `git config --get core.longpaths` and the OS
    policy (registry value `LongPathsEnabled` under
