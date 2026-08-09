@@ -5,7 +5,7 @@ contract gate) when installed, and lean on its findings; absent, this file is th
 
 ## Read first
 
-- `SKILL.md` frontmatter (`name`, `description`, invocation-control fields) and body.
+- `SKILL.md` frontmatter (`description`, invocation-control fields) and body.
 - Any `references/` files and whether the hub points at them with "load when" guidance.
 
 ## Check

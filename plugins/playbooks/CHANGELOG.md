@@ -6,6 +6,11 @@ only after that version increases.
 
 ## [0.8.0]
 
+### Fixed
+
+- **`update`'s references to a pack's vendored baseline are pack-rooted** (`skills/<pack>/vendor/SKILL.md`).
+  Written bare, they read as paths under the `update` skill's own directory, which has no `vendor/`.
+
 ### Removed
 
 - **The bare `/<skill>` alias for this plugin's skills.** Their `SKILL.md` files no longer
