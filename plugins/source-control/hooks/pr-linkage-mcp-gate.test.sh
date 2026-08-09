@@ -115,6 +115,28 @@ cat >"$GATED/.claude/settings.json" <<'JSON'
 {"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/other-gate.sh"}]}]}}
 JSON
 run 2 "unrelated settings hooks do not defer" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$NO_RELATED")"
+
+# Deferral telemetry envelope: status must be the documented "skipped" (an
+# unknown status maps to error in the reference sink); the domain detail rides
+# data.outcome. Capture the envelope with a stub sink and assert both fields.
+cat >"$GATED/.claude/settings.json" <<'JSON'
+{"hooks":{"PreToolUse":[{"matcher":"^mcp__github__(create|update)_pull_request$","hooks":[{"type":"command","command":"\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/pr-linkage-mcp-gate.sh"}]}]}}
+JSON
+SINK="$WORK/capture-sink.sh"
+CAPTURE="$WORK/captured-envelope.json"
+printf '#!/usr/bin/env bash\ncat > "%s"\n' "$CAPTURE" >"$SINK"
+chmod +x "$SINK"
+HOOK_TELEMETRY_SINK="$SINK" CLAUDE_PROJECT_DIR="$GATED" \
+  bash "$HOOK" <<<"$(payload "$GATED" $CREATE $OWNER $REPO "$NO_RELATED")" >/dev/null 2>&1 || true
+# The sink is fire-and-forget (backgrounded); give it a beat to land.
+for _ in 1 2 3 4 5 6 7 8 9 10; do [[ -s "$CAPTURE" ]] && break; sleep 0.3; done
+if [[ -s "$CAPTURE" ]] &&
+  jq -e '.status == "skipped" and .data.outcome == "deferred"' "$CAPTURE" >/dev/null 2>&1; then
+  PASS=$((PASS + 1))
+else
+  FAIL=$((FAIL + 1))
+  echo "FAIL: deferral envelope carries status=skipped + data.outcome=deferred (got: $(cat "$CAPTURE" 2>/dev/null))" >&2
+fi
 rm -rf "$GATED/.claude"
 
 # Kill switch: disabled via the userConfig mirror allows a bad body through.
