@@ -12,6 +12,42 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
   declaring it only restated the path while registering a second, unnamespaced command — which
   the slash-command picker then echoed back as `/plugin:skill (skill)`. Invoke a skill by its
   namespaced command; the command itself is unchanged.
+## [0.5.3]
+
+### Fixed
+
+- **A residual finding that moved between the hook's two passes is no longer disclosed as a rewrite
+  typos never made.** Classification keyed each residual by `line_num` + token, which assumes both
+  passes saw the same file. They need not: Claude Code runs every matching `PostToolUse` hook in
+  parallel, and `typos-format` and `markdown-format` both declare the matcher `"Write|Edit"`, so a
+  sibling formatter can reflow the file between the scan and the write and carry an untouched
+  finding to a different line. The moved residual then failed to match its own scan entry and was
+  reported as an applied correction — a false mutation disclosure on the one channel this hook
+  exists to make trustworthy. Residuals are now matched by token PAIRED WITH their correction
+  decision and cancelled by COUNT, so a finding that merely moved still cancels its scan entry, and
+  residual line numbers are taken from the write pass's own output rather than the scan's stale
+  ones. The correction list is part of the key because one spelling can carry two decisions in one
+  file — an occurrence reached by `extend-identifiers` beside one reached by `extend-words`, or a
+  fixable occurrence beside a disallowed one. Keyed on the token alone those merge, and the count
+  can then retire the fixable entry and disclose the disallowed one instead: a rewrite claimed at
+  the wrong line with a blank correction, while the rewrite that really happened goes unmentioned.
+  Which scan occurrences a cancellation consumes is chosen by line first: a scan finding sitting on
+  a line the write pass reported as residual is cancelled ahead of one that is not, so when nothing
+  moved the attribution is exact and only a real reflow falls back to dropping the earliest. Without
+  that preference a token appearing three times with only the middle one residual reported the
+  residual line as applied and dropped a rewrite that really happened. The count is the guarantee;
+  the applied line numbers are best-effort for a repeated finding that genuinely moved. That
+  preference is a linear partition over an object lookup rather than a sort over `index`, for the
+  same reason the membership check beside it is an object: `index` is a linear scan, and one per
+  entry over a cluster of repeats is quadratic — 10,000 repeats of one token measured 31s against
+  the 15s handler budget, and 0.07s at the 500 the existing scale fixtures use, so a fixture that
+  size cannot see it. Classification runs after the file is already rewritten, so blowing that
+  budget is a silent mutation with no disclosure.
+  The trade is deliberate and
+  one-directional: counting can only UNDER-report an applied correction (a missing disclosure
+  line), never invent one. Still unclosed, and stated in the source: a concurrent writer that
+  DELETES a finding outright is attributed to typos, which needs file locking no hook-level
+  primitive offers.
 
 ## [0.5.2]
 

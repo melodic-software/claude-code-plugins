@@ -9,6 +9,28 @@
   declaring it only restated the path while registering a second, unnamespaced command — which
   the slash-command picker then echoed back as `/plugin:skill (skill)`. Invoke a skill by its
   namespaced command; the command itself is unchanged.
+## [0.12.2]
+
+### Fixed
+
+- **The coverage-ledger case no longer advertises coverage it does not have — the same defect 0.12.1
+  was written to remove.** Both 0.12.1's entry above and the block comment at
+  `scripts/check-dispatch-artifact.test.sh` claimed the case fails against a harvest that "globs the
+  directory instead of reading the index". It does not. Found by an independent verification pass
+  that ran exactly that mutation: a directory-glob harvest emits `sidecars=1 missing=0`, exit 0 —
+  byte-identical to the correct gate, so the assertion cannot tell them apart.
+
+  **The stated mechanism was wrong in principle, not merely here.** The comment reasoned that a glob
+  "picks it up on any case-insensitive filesystem — which is what this repo is developed on". Bash
+  matches a glob against the DIRENT STRING, so how the filesystem compares names for *lookup* never
+  enters. Probed on this platform: `shopt -s nullglob; echo RESEARCH-*.md` yields only
+  `RESEARCH-tiers.md`, while `test -f RESEARCH-checklist.md` succeeds.
+
+  Both claims are struck. The two legs that ARE real — a dropped `RESEARCH-` anchor and a
+  case-insensitive `grep -oiE` harvest — were verified by mutation and are unchanged. A glob rewrite
+  is still caught, by the named-but-missing sidecar cases it cannot satisfy; that is now stated where
+  the wrong claim used to be. No behavior changes: the gate, the fixture, and all 103 cases are
+  untouched.
 
 ## [0.12.1]
 
@@ -27,9 +49,8 @@
   **text** — so no implementation of the current design could have counted it, and the case asserted
   something its label implied but did not test. The index now mentions the ledger the way a real run's
   restatement or handoff does, with the file still on disk beside it, so the case fails against a
-  harvest that drops the `RESEARCH-` anchor, matches case-insensitively, or globs the directory
-  instead of reading the index. Verified by mutation: under a `grep -oiE` harvest the case fails,
-  where the previous fixture passed.
+  harvest that drops the `RESEARCH-` anchor or matches case-insensitively. Verified by mutation:
+  under a `grep -oiE` harvest the case fails, where the previous fixture passed.
 
 ### Changed
 

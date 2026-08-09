@@ -188,6 +188,92 @@ else
   fail "--allow-unmapped should exit 0 (rc=$RC): $out"
 fi
 
+# --- a FAILING git grep is fatal, never a narrower selection ---------------
+# The reverse lookup used to read from `< <(git grep ... 2>/dev/null || true)`,
+# which discarded git's diagnostic and erased its exit code, making a git ERROR
+# (>=2) identical to NO MATCH (1). Both came back as "no dependents": a change
+# that normally fans out to many suites selected one or none, at exit 0. That is
+# under-selection reported as success — the exact fail-open this tool exists to
+# refuse — so the shim below makes `git grep` fail and demands a loud exit.
+#
+# The shim delegates every other subcommand to the REAL git, captured as an
+# absolute path so the shim cannot recurse into itself via PATH.
+shimdir="$(mktemp -d "${TMPDIR:-/tmp}/affected-tests-shim.XXXXXX")"
+REAL_GIT="$(command -v git)"
+# shellcheck disable=SC2016 # deliberate: the emitted shim must expand these, not this shell
+printf '#!/usr/bin/env bash\nif [[ "${1:-}" == "grep" ]]; then\n  echo "fatal: simulated git grep failure" >&2\n  exit 128\nfi\nexec "%s" "$@"\n' "$REAL_GIT" >"$shimdir/git"
+chmod +x "$shimdir/git"
+
+# Vacuity check: the SAME invocation must succeed without the shim, or the
+# assertion below would pass for a reason that has nothing to do with git grep.
+out="$(cd "$repo" && bash scripts/affected-tests.sh lib/widget.sh 2>&1)"
+RC=$?
+if [[ "$RC" -eq 0 ]]; then
+  ok "vacuity: the shared-lib selection succeeds when git grep works"
+else
+  fail "vacuity check failed — the shim case below would prove nothing (rc=$RC): $out"
+fi
+
+out="$(cd "$repo" && PATH="$shimdir:$PATH" bash scripts/affected-tests.sh lib/widget.sh 2>&1)"
+RC=$?
+if [[ "$RC" -eq 2 ]] && printf '%s' "$out" | grep -q "git grep' failed"; then
+  ok "a failing git grep exits 2 with a diagnostic instead of under-selecting"
+else
+  fail "git grep failure should be fatal, not a silent narrow selection (rc=$RC): $out"
+fi
+rm -rf "$shimdir"
+
+# --- a usage error exits 2, not 1 ------------------------------------------
+# `${2:?...}` exits 1, which this script already spends on an unmapped file and
+# on a failing suite under --run, while the header documents usage errors as 2.
+for flag in --base --print-fanout; do
+  out="$(cd "$repo" && bash scripts/affected-tests.sh "$flag" 2>&1)"
+  RC=$?
+  if [[ "$RC" -eq 2 ]] && printf '%s' "$out" | grep -q "needs a"; then
+    ok "$flag with no value exits 2 (usage), not 1"
+  else
+    fail "$flag with no value should exit 2 (rc=$RC): $out"
+  fi
+done
+
+# --- a sync-*.sh that is not a manifest is skipped, not fatal --------------
+# build_sync_map used to exit 2 on ANY scripts/sync-*.sh without a src=. This
+# suite runs in a REQUIRED CI lane, so the first future helper that merely
+# shares the prefix would have turned that lane red repo-wide. Half a manifest
+# (one key, not the other) must still be fatal — that is real shape rot.
+printf '#!/usr/bin/env bash\necho "a helper, not a copy manifest"\n' >"$repo/scripts/sync-helper.sh"
+out="$(cd "$repo" && bash scripts/affected-tests.sh lib/widget.sh 2>&1)"
+RC=$?
+if [[ "$RC" -eq 0 ]] && has_line "$out" plugins/alpha/hooks/alpha-hook.test.sh; then
+  ok "a sync-*.sh declaring neither src= nor copies=() is skipped, not fatal"
+else
+  fail "non-manifest sync-*.sh should be skipped (rc=$RC): $out"
+fi
+
+printf '#!/usr/bin/env bash\ncopies=(plugins/*/hooks/widget.sh)\n' >"$repo/scripts/sync-helper.sh"
+out="$(cd "$repo" && bash scripts/affected-tests.sh lib/widget.sh 2>&1)"
+RC=$?
+if [[ "$RC" -eq 2 ]] && printf '%s' "$out" | grep -q 'no src='; then
+  ok "a sync-*.sh with a populated copies=() but no src= is still fatal"
+else
+  fail "half a manifest should exit 2 (rc=$RC): $out"
+fi
+
+# The skip must key on whether `copies=(` is DECLARED, not on whether it yielded
+# entries. A literally EMPTY `copies=()` parses to zero patterns, so an
+# emptiness test would misread this half-manifest as a helper and skip it
+# silently — and the zero-manifests guard cannot catch that while the fixture's
+# real sync-widget.sh still parses.
+printf '#!/usr/bin/env bash\ncopies=()\n' >"$repo/scripts/sync-helper.sh"
+out="$(cd "$repo" && bash scripts/affected-tests.sh lib/widget.sh 2>&1)"
+RC=$?
+if [[ "$RC" -eq 2 ]] && printf '%s' "$out" | grep -q 'no src='; then
+  ok "an EMPTY copies=() with no src= is a half-manifest, not a helper"
+else
+  fail "empty copies=() with no src= should exit 2 (rc=$RC): $out"
+fi
+rm -f "$repo/scripts/sync-helper.sh"
+
 # --- a file an earlier seed already walked past is still MAPPED ------------
 # Regression: the shared lib's walk reaches alpha-hook.sh as a dependent. With
 # one visited set across seeds, alpha-hook.sh's own walk was short-circuited,
@@ -298,8 +384,16 @@ for src in lib/hook-utils.sh lib/parse-concern-value.sh docs/conventions/standar
   docs/conventions/standards/README.md) manifest="scripts/sync-standards-contract.sh" ;;
   *) ;;
   esac
-  # Re-derive independently: read the manifest's own copies array with a
-  # different implementation than the selector's, then compare.
+  # Re-derive the copy set here and compare. Be clear about what this does and
+  # does not prove: the awk below is a TRANSCRIPTION of the selector's own
+  # manifest_copy_patterns (same rules, same order, same sub(/#.*$/)-before-`)`
+  # sequencing), minus its quote-stripping gsub. So it catches ONE-SIDED drift —
+  # the selector's parser changing, or the manifest growing a shape only one
+  # side handles (a quoted entry breaks THIS copy, loudly) — and it pins the
+  # derivation to what the LIVE manifests declare today, which is the rot that
+  # matters. It structurally CANNOT catch a misparse the two share, because
+  # they share the implementation. An independent oracle would have to parse the
+  # manifest by sourcing it, not by re-reading it the same way.
   expected="$(cd "$REPO_ROOT" && awk '
     /^copies=\(/ { inarr = 1; line = $0; sub(/^copies=\(/, "", line) }
     !inarr { next }
@@ -350,6 +444,69 @@ if [[ "$RC" -eq 0 ]] &&
 else
   fail "standards-contract fan-out (rc=$RC): $out"
 fi
+
+# --- LIVE repo: reference YAML with no lane is UNMAPPED, not silently clean --
+# The no-suite list used to carry bare *.yaml and *.yml entries whose comment
+# named actionlint, zizmor, the workflow check-jsonschema step and the
+# runner-policy lane. That is true for workflow YAML and false for the reference
+# YAML under plugins/toolchain/ and docs/conventions/ecosystem-commands/, which
+# NO lane reads: no yamllint step exists, every check-jsonschema step names its
+# files and none names these, validate-plugin-contracts.mjs never mentions yaml,
+# and plugins/toolchain ships no *.test.sh. The entries were removed so these
+# fail loud instead of reporting a covering lane that does not exist.
+#
+# This case pins that. If someone gives these files a real lane and records the
+# class again, this assertion is SUPPOSED to fail — update it together with the
+# no-suite entry, and make sure the entry names the lane that actually reads
+# them. Workflow YAML must stay covered via the .github/* entry throughout.
+# The probe paths are DISCOVERED with a glob, never written out literally. That
+# is not tidiness — a literal basename here would make this file a suite that
+# "references" the probe, R3 would select it, and the path would come back
+# MAPPED at exit 0. The assertion would then fail for a reason that has nothing
+# to do with the no-suite list. This is the substring-match limit documented in
+# affected-tests.sh's header, met head-on: naming a file in a suite is exactly
+# what makes the selector consider it covered.
+mapfile -t eco_yaml < <(cd "$REPO_ROOT" && git ls-files \
+  'plugins/toolchain/reference/ecosystems/*.yaml' \
+  'docs/conventions/ecosystem-commands/examples/*.yaml' | head -2)
+if [[ ${#eco_yaml[@]} -eq 0 ]]; then
+  fail "no reference YAML found to probe — the case below would be vacuous"
+fi
+for y in ${eco_yaml[@]+"${eco_yaml[@]}"}; do
+  out="$(cd "$REPO_ROOT" && bash scripts/affected-tests.sh "$y" 2>&1)"
+  RC=$?
+  if [[ "$RC" -eq 1 ]] && printf '%s' "$out" | grep -q 'UNMAPPED'; then
+    ok "reference YAML with no covering lane is UNMAPPED: $y"
+  else
+    fail "$y should be UNMAPPED, not silently covered (rc=$RC): $out"
+  fi
+done
+
+# ... while YAML under .github/, which actionlint/zizmor/check-jsonschema DO
+# read, stays covered by the .github/* entry. Without this, the cases above
+# would pass just as well if someone deleted .github/* too — and since the
+# probe here is itself a *.yaml, it is the direct evidence that dropping the
+# bare *.yaml entry did not orphan the one YAML that had a real lane.
+#
+# Asserted as a SILENT no-suite exit (rc 0 AND an empty selection), not merely
+# rc 0: a path that some suite happens to name is selected by R3 long before the
+# no-suite list is consulted, which would pass a bare rc-0 check while proving
+# nothing about .github/*. That is not hypothetical — .github/workflows/ci.yml
+# is named by two suites and reaches exit 0 through R3, so it cannot serve as
+# this probe. Discovered by glob for the R3 reason given above.
+mapfile -t wf_yaml < <(cd "$REPO_ROOT" && git ls-files '.github/*.yaml' | head -1)
+if [[ ${#wf_yaml[@]} -eq 0 ]]; then
+  fail "no .github YAML found to probe — the case below would be vacuous"
+fi
+for y in ${wf_yaml[@]+"${wf_yaml[@]}"}; do
+  out="$(cd "$REPO_ROOT" && bash scripts/affected-tests.sh "$y" 2>/dev/null)"
+  RC=$?
+  if [[ "$RC" -eq 0 && -z "$out" ]]; then
+    ok ".github YAML stays a recorded no-suite class via .github/*: $y"
+  else
+    fail ".github YAML should exit 0 with no suites (rc=$RC): $out"
+  fi
+done
 
 # --- LIVE repo: a co-located change stays narrow ---------------------------
 out="$(cd "$REPO_ROOT" && bash scripts/affected-tests.sh plugins/eol-normalizer/hooks/eol-normalizer.sh 2>/dev/null)"

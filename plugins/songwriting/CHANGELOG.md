@@ -12,6 +12,33 @@ All notable changes to the `songwriting` plugin are documented here. Format foll
   declaring it only restated the path while registering a second, unnamespaced command — which
   the slash-command picker then echoed back as `/plugin:skill (skill)`. Invoke a skill by its
   namespaced command; the command itself is unchanged.
+## [0.7.4]
+
+A source-fidelity pass over `object-writing.md` (Chapter 2), `worksheets.md`
+(Chapter 4), and `cliche.md` (Chapter 5) against *Writing Better Lyrics* (2009),
+all three read in full with their figures. Paraphrase only; no chapter prose,
+example writes, or student work reaches this public repository.
+
+### Fixed
+
+- **The worksheet layout sorted rhymes into per-type buckets; Chapter 4's does
+  not.** The file gave every core word five labelled rows — perfect, family,
+  additive/subtractive, assonance, consonance. The chapter's own worksheet is
+  ten numbered core words, each heading ONE undifferentiated column with every
+  rhyme type mixed together. The mixing is the point: a single field is scanned
+  and compared on meaning, where five labelled rows turn one choice into five
+  sub-choices and invite filling each to a quota — the opposite of generating a
+  surplus in order to reject most of it. The per-type SEARCH still runs — each
+  type is a different lookup and skipping one loses candidates — but its results
+  are recorded together; type matters again only when placing a survivor, which
+  is `rhyme-strategy.md`'s job.
+- **The template carried keep/maybe/reject and notes fields the chapter's
+  worksheet does not have.** Its only annotation is parentheses, doing two jobs:
+  holding an alternate word behind a first choice that shares its vowel
+  (`freeze (wheel, shield)`), and marking an optional morpheme that records two
+  candidates in one entry (`(re)born`, `guarantee(s)`). Rejection happens by not
+  writing the word down. The workflow step that told the model to mark each word
+  now matches the page it writes on.
 
 ## [0.7.3]
 

@@ -30,23 +30,53 @@
 *.md
 
 # JSON — plugin/marketplace manifests, JSON Schemas, eval graders, registries,
-# lockfiles. Covered by the hygiene lane's four check-jsonschema steps,
-# scripts/check-manifest-duplicate-keys.py, scripts/validate-plugins.sh,
-# scripts/validate-plugin-contracts.mjs and the skill-quality-gate evals
-# validation. A JSON fixture a suite actually names is selected by the
-# reference rule before this line is ever consulted.
+# lockfiles. The validators here are FILE-SCOPED, so read the SCOPES rather than
+# the tool names: check-jsonschema covers .claude-plugin/marketplace.json,
+# plugins/*/.claude-plugin/plugin.json, .github/dependabot.yml and seven named
+# workflow files; scripts/check-manifest-duplicate-keys.py covers those same
+# plugin and marketplace manifests and nothing else; skill-quality-gate covers
+# plugins/*/skills/*/evals/evals.json; scripts/validate-plugin-contracts.mjs
+# reads only under plugins/, and its JSON reach there is plugins/**/*.schema.json
+# plus .md/.json under plugins/*/skills/setup/ and the ai-briefing tree.
+#
+# Every OTHER .json in the repo — .github/recurring-schedule.json, the
+# docs/conventions/hook-telemetry/data/*.schema.json set, the runner-policy
+# tree — is a DATA file whose only gate is that something parses it. That is a
+# real but thin lane, and it is deliberately what this entry claims: no shell
+# suite covers JSON, and none should have to. A JSON fixture a suite actually
+# names is selected by the reference rule before this line is ever consulted.
 *.json
 
-# Workflows and repository configuration. Covered by actionlint, zizmor, the
-# workflow check-jsonschema step, and the runner-policy lane.
+# Workflows and repository configuration — every path here is CONSUMED by a
+# lane that fails when the file is malformed, which is the coverage being
+# claimed. .github/* is read by actionlint, zizmor, the workflow and dependabot
+# check-jsonschema steps, and the runner-policy lane; the dotfiles and *.toml
+# configure the hygiene-lane tools that read them (editorconfig-checker,
+# shellcheck, gitleaks, typos, lychee, ruff), so a broken one fails its own
+# tool's step.
+#
+# There is deliberately NO bare *.yaml / *.yml entry. Both used to be here, and
+# both were a coverage claim this repo could not honor. Every .yml in the repo
+# already sits under .github/*, so the entry bought nothing; *.yaml additionally
+# swept in 13 files that NO lane reads —
+# plugins/toolchain/reference/ecosystems/*.yaml (9) and
+# docs/conventions/ecosystem-commands/examples/*.yaml (4). Verified absent, not
+# merely unattributed: there is no yamllint step anywhere in .github or scripts;
+# every check-jsonschema step names its files and none names these;
+# validate-plugin-contracts.mjs does not mention yaml at all; and
+# `git ls-files 'plugins/toolchain/**/*.test.sh'` is empty. The generic hygiene
+# steps (typos, editorconfig-checker, gitleaks) read the bytes but validate
+# nothing about these files' contract. So they now fail loud, which is this
+# tool working. To bring them back, give them a real lane first: they have a
+# schema already — docs/conventions/ecosystem-commands/ecosystem.schema.json —
+# and wiring a check-jsonschema step against it is the natural way to earn an
+# entry here.
 .github/*
 .gitattributes
 .gitignore
 .editorconfig
 .shellcheckrc
 .node-version
-*.yml
-*.yaml
 *.toml
 
 # Session-local working docs and this checkout's own Claude Code configuration
