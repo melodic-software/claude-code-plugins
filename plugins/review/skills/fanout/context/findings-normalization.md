@@ -20,14 +20,25 @@ Line numbers from LLM reviewers drift — treat inferred lines as approximate an
 
 **One row's raw text is not returned to the session:** the `code-review` plugin ends by posting its surviving findings as a PR comment, so the dispatch itself yields no parsable output. After an opted-in dispatch, fetch that comment and feed the body to Stage 0 as this surface's raw text — selected by the plugin's `### Code review` heading, never by position:
 
+Capture the newest heading match's timestamp BEFORE dispatching, so a leftover comment from an earlier run on the same PR cannot be read as this run's output:
+
 ```shell
-gh pr view <n> --json comments \
-  --jq '[.comments[] | select(.body | contains("### Code review"))] | last | .body'
+since=$(gh pr view <n> --json comments |
+  jq -r '[.comments[] | select(.body | contains("### Code review"))] | last | .createdAt // ""')
 ```
 
-`.comments[-1]` is whatever landed most recently, with no heading, author, or timestamp filter — so any bot or reviewer that comments between the dispatch and this fetch is normalized as `code-review` findings and corrupts the persisted report. Note the newest heading match's `createdAt` BEFORE dispatching and require the selected comment to postdate it, so a leftover comment from an earlier run on the same PR is not read as this run's output.
+Then dispatch, and retrieve with both filters applied:
 
-No heading match, only a match predating the dispatch, or the retrieval skipped — the row has no input: the surface is not normalized and belongs in `## Surfaces` as a skip, never a fallback to the latest comment.
+```shell
+gh pr view <n> --json comments |
+  jq -r --arg since "$since" '[.comments[]
+    | select(.body | contains("### Code review"))
+    | select(.createdAt > $since)] | last | .body // empty'
+```
+
+Both filters are load-bearing. `.comments[-1]` is whatever landed most recently, with no heading, author, or timestamp filter — so any bot or reviewer that comments between the dispatch and this fetch is normalized as `code-review` findings and corrupts the persisted report. The heading filter alone still admits a previous run's comment on the same PR; `$since` is what narrows the match to this invocation. GitHub returns `createdAt` as fixed-width UTC (`2026-01-31T09:15:00Z`), so the string comparison orders chronologically; an empty `$since` means no prior match existed and every heading match qualifies.
+
+Empty output means no comment satisfied both filters — the row has no input, so the surface is not normalized and belongs in `## Surfaces` as a skip. Never widen the filters or fall back to the latest comment to fill it.
 
 **Not in this table:** the bundled `/code-review` command and the managed Code Review GitHub App service (SKILL.md "Boundary — the bundled command and the managed service"), both distinct from the `code-review` plugin row above. The managed service posts its findings to the PR rather than returning them to normalize; bare `/code-review` is report-only, but is itself a multi-agent review of the same diff whose output has no documented schema to parse. Neither is dispatched as a fan-out leaf here.
 

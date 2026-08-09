@@ -12,10 +12,11 @@ All notable changes to the `review` plugin are documented here. Format follows
   `.comments[-1].body`, which is whatever landed most recently — the prose named the plugin's
   `### Code review` heading but the expression applied no heading, author, or timestamp filter. Any
   bot or reviewer commenting between the dispatch and the fetch was therefore normalized as
-  `code-review` findings and written into the persisted report. The retrieval now filters on the
-  heading and takes the newest match, requires that match to postdate the dispatch so a previous
-  run's comment is not mistaken for this one's, and states that no match is a `## Surfaces` skip —
-  never a fallback to the latest comment.
+  `code-review` findings and written into the persisted report. The retrieval is now a two-step
+  `jq` filter that selects on the heading AND on a `createdAt` captured before the dispatch, so
+  neither an interleaved third-party comment nor a previous run's comment on the same PR can be
+  mistaken for this invocation's output. No match now yields empty output, documented as a
+  `## Surfaces` skip — never a fallback to the latest comment.
 
 ## [0.17.1]
 
