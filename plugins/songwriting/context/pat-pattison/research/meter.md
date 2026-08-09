@@ -976,9 +976,9 @@ applied across domains.
 - [Five Compositional Elements](five-compositional-elements.md) —
   levers under the Pentad.
 - [phrasing](phrasing.md) — front/back-heavy at bar level.
-- [stable / unstable](stable-unstable-meta.md) — Pentad properties
-  feed the stable/unstable diagnostic; its own per-domain stability
-  criteria, not the Pentad applied across domains.
+- [stable / unstable](stable-unstable-meta.md) — a separate song-wide
+  diagnostic with per-domain stability criteria of its own; it does not
+  apply the Pentad's five properties.
 - [hook](hook.md) — strategic vs balancing position in Common Meter.
 - [prosody](prosody.md) — greedy spots; pitch-stress in melody setting.
 - [exercises](exercises.md) — *Essential Guide to Lyric Form and Structure* (1991) Ex 8-17 cover Pentad properties
