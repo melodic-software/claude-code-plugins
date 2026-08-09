@@ -708,6 +708,91 @@ class DependencyHoldIntegrationTests(unittest.TestCase):
         self.assertIn(self.DEP_BOT, blockers[0])
 
 
+class SelfAuthoredUnprotectedBaseTests(unittest.TestCase):
+    """The self-login exemption from the unprotected-base hold is scoped to the
+    repository's DEFAULT branch.
+
+    It exists for the solo-owner repository whose default branch carries no
+    rules; on any other unprotected base the default branch's required checks
+    never governed the merge, so a self-authored PR is held there. A stacked
+    pull request's upper layer is exactly that shape.
+    """
+
+    SELF = "solo-owner"
+    UNPROTECTED: list[dict[str, Any]] = []
+
+    def _evaluate(
+        self,
+        base_ref: str,
+        *,
+        default_branch: str | None = "main",
+        allow_unprotected: bool = False,
+        rules: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        pr = _pr(author={"login": self.SELF}, baseRefName=base_ref)
+        repo_calls: list[list[str]] = []
+
+        def gh_json(args: list[str]) -> Any:
+            if args[:2] == ["pr", "view"]:
+                return pr
+            if args[0] == "api" and args[1] == "repos/owner/repo":
+                repo_calls.append(args)
+                if default_branch is None:
+                    raise RuntimeError("simulated repository read failure")
+                return {"name": default_branch}
+            if args[0] == "api":
+                return self.UNPROTECTED if rules is None else rules
+            raise AssertionError(f"unexpected gh_json call: {args}")
+
+        with (
+            mock.patch.object(merge, "gh_json", side_effect=gh_json),
+            mock.patch.object(merge, "fetch_review_threads", return_value=[]),
+            mock.patch.object(
+                merge, "fetch_pull_request_reviews", return_value=[],
+            ),
+            mock.patch.object(merge, "fetch_issue_comments", return_value=[]),
+            mock.patch.object(
+                merge, "fetch_pull_request_review_comments", return_value=[],
+            ),
+        ):
+            result = merge.evaluate(
+                "owner/repo", PR_NUMBER, HEAD, {"owner"},
+                frozenset({self.SELF}), False, allow_unprotected, None,
+            )
+        result["_repo_reads"] = len(repo_calls)
+        return result
+
+    def _unprotected_blockers(self, result: dict[str, Any]) -> list[str]:
+        return [b for b in result["blockers"] if "unprotected" in b]
+
+    def test_default_branch_keeps_the_self_exemption(self) -> None:
+        result = self._evaluate("main")
+        self.assertEqual(self._unprotected_blockers(result), [], result["blockers"])
+
+    def test_non_default_base_is_held(self) -> None:
+        result = self._evaluate("stack-layer-1")
+        blockers = self._unprotected_blockers(result)
+        self.assertEqual(len(blockers), 1, result["blockers"])
+        self.assertIn("stack-layer-1", blockers[0])
+        self.assertIn("main", blockers[0])
+
+    def test_allow_unprotected_overrides_the_hold(self) -> None:
+        result = self._evaluate("stack-layer-1", allow_unprotected=True)
+        self.assertEqual(self._unprotected_blockers(result), [], result["blockers"])
+
+    def test_unreadable_default_branch_leaves_the_exemption_standing(self) -> None:
+        # Missing evidence never invents a hold; it falls back to prior behavior.
+        result = self._evaluate("stack-layer-1", default_branch=None)
+        self.assertEqual(self._unprotected_blockers(result), [], result["blockers"])
+
+    def test_protected_base_reads_no_repository_metadata(self) -> None:
+        # The default-branch lookup is reached only by an unprotected base, so a
+        # protected-base run makes no request it did not make before.
+        result = self._evaluate("release/1.x", rules=RULES)
+        self.assertEqual(result["_repo_reads"], 0)
+        self.assertEqual(self._unprotected_blockers(result), [], result["blockers"])
+
+
 class NoAbbreviatedFlags(unittest.TestCase):
     def test_merge_abbreviation_is_rejected(self) -> None:
         # The permission grants state "no --merge means check-only" as a

@@ -3,6 +3,28 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.50.0]
+
+### Changed
+
+- **The self-login exemption from the merge gate's unprotected-base hold is scoped to the
+  repository's default branch.** `babysit_merge.py` held a PR on an unprotected base — zero required
+  reviews AND zero required status contexts — only when its author was not a configured self login.
+  That exemption exists for the solo-owner repository whose default branch carries no rules, where
+  holding every PR would make the gate useless; it silently extended to *any* unprotected base, so a
+  self-authored pull request onto another branch merged under `worker`/`autopilot` with no required
+  check having governed it. The default branch's rules are the only ones such a merge would ever
+  face, and they never ran.
+
+  The hold now also fires for a self author whose base is not the repository's default branch, with
+  `--allow-unprotected` as the same deliberate override. A stacked pull request's upper layer is
+  exactly this shape (self-authored, base = the layer below), but so is any feature-onto-feature
+  merge — the gap did not depend on stacks and is not fixed by detecting them.
+
+  The default branch is read only after an unprotected base has met every other gate, so a
+  protected-base run issues no request it did not issue before. A repository-metadata read failure
+  leaves the prior exemption standing rather than inventing a hold from missing evidence.
+
 ## [0.49.3]
 
 ### Fixed
