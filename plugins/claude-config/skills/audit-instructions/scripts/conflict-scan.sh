@@ -63,11 +63,11 @@ EOF
 }
 
 case "${1:-}" in
-  -h | --help)
-    usage
-    exit 0
-    ;;
-  *) ;;
+-h | --help)
+  usage
+  exit 0
+  ;;
+*) ;;
 esac
 
 # Check the tools this script actually executes. `mapfile < <(… | sort -u)`
@@ -107,10 +107,12 @@ BACKTICK=$(printf '\140')
 ENTITY_ERE="[A-Z][a-z]+([A-Z][a-z]*)+|${BACKTICK}[A-Z][a-z]+${BACKTICK}"
 # Prohibition tokens — the I6 set, kept semantically identical to
 # instruction-scan.sh so the two scans classify a line's polarity the same way.
-PROHIBIT_ERE='[^a-z](never|do not|don[^a-z]?t|must ?not|mustn[^a-z]?t|should ?not|shouldn[^a-z]?t)[^a-z]'
+PROHIBIT_ALT='never|do not|don[^a-z]?t|must ?not|mustn[^a-z]?t|should ?not|shouldn[^a-z]?t'
+PROHIBIT_ERE="[^a-z](${PROHIBIT_ALT})[^a-z]"
 # Mandate tokens. Checked only after prohibition, so "never use X" is a
 # prohibition rather than an ambiguous both-polarity line.
-MANDATE_ERE='[^a-z](must|always|mandator(y|ily)|require[ds]?|shall|use|present|ask)[^a-z]'
+MANDATE_ALT='must|always|mandator(y|ily)|require[ds]?|shall|use|present|ask'
+MANDATE_ERE="[^a-z](${MANDATE_ALT})[^a-z]"
 # Exception clauses — flagged, not suppressed. Whether the exception reaches the
 # other surface is gate 4, which the lane decides.
 EXCEPTION_ERE='[^a-z](unless|except|only when|only if|other than)[^a-z]'
@@ -136,7 +138,14 @@ BOUNDARY_ERE='([.;!?] |[^a-z],? *(but|whereas|though|although|yet)[^a-z]|, while
 # objects of one directive ("never use `Bash` and `Grep`"), where cutting would
 # strip the token that governs the second object. Requiring the polarity token
 # is what separates the two readings.
-COORD_ERE='[^a-z],? *and +(never|do not|don[^a-z]?t|must ?not|mustn[^a-z]?t|should ?not|shouldn[^a-z]?t|must|always|mandator(y|ily)|require[ds]?|shall)[^a-z]'
+#
+# The token set is COMPOSED from the two classifier alternations rather than
+# retyped. A hand-copied list drifts the moment either classifier gains a token:
+# `use|present|ask` were added to MANDATE_ERE and not here, so `Never use X and
+# use Y` found no boundary, Y inherited the leading `never`, and a real conflict
+# with `Never use Y` went unreported while `Always use Y` reported a false one.
+# Composition makes that divergence unrepresentable.
+COORD_ERE="[^a-z],? *and +(${PROHIBIT_ALT}|${MANDATE_ALT})[^a-z]"
 # The coordinator alone. A LEADING window resumes after this much of a COORD
 # match rather than after the whole of it, so the second directive's polarity
 # token stays on the entity's side of the cut and still classifies it.

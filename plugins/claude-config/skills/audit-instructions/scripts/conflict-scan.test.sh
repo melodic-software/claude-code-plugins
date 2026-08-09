@@ -363,6 +363,26 @@ assert_contains "a coordinated mandate is not overtaken by the leading prohibiti
 assert_contains "the leading prohibition still classifies its own entity" \
   "$(bash "$SCRIPT" "$BASHYES2" "$COORDMIRROR")" "|Bash|"
 
+# --- Case 34b: the coordinator honors EVERY mandate token, not a subset ------
+# COORD_ERE is composed from the two classifier alternations. When it carried a
+# hand-copied list instead, `use|present|ask` were in MANDATE_ERE and absent
+# here: `Never use X and use Y` found no boundary, Y inherited the leading
+# `never`, and the pair with `Never use Y` went unreported. `always` is the
+# control — it was in both lists, so it passed throughout and hid the gap.
+COORDBARE="$TEST_TMPDIR/coord-bare-mandate.md"
+cat >"$COORDBARE" <<'EOF'
+Never use `Bash` and use `Read` for file inspection.
+EOF
+assert_contains "a bare-'use' coordinated mandate splits like 'always use'" \
+  "$(bash "$SCRIPT" "$COORDBARE" "$READNO")" "|Read|"
+
+COORDPRESENT="$TEST_TMPDIR/coord-present.md"
+cat >"$COORDPRESENT" <<'EOF'
+Never use `Bash` and present `Read` to the operator.
+EOF
+assert_contains "a coordinated 'present' splits like every other mandate token" \
+  "$(bash "$SCRIPT" "$COORDPRESENT" "$READNO")" "|Read|"
+
 # --- Case 35 (MUST NOT FLAG): a bare `and` joins objects, not directives -----
 # "never use `Bash` and `Grep`" is one directive over two objects. Splitting on
 # every `and` would strip the `never` that governs the second object, so the
