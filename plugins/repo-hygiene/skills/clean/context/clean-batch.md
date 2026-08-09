@@ -8,11 +8,11 @@ sibling of `tree-batch` ([git-tree-reset-batch.md](git-tree-reset-batch.md)).
 
 ## Why this exists
 
-Invoking the clean skill over an 82-repo `ghq` fleet from a non-repo cwd yielded
-no fleet path — the session had to hand-roll batch dry-run/apply scripts around
-the per-repo tiers, and the auto-mode classifier then blocked the hand-rolled bulk
-`rm` pipeline even after explicit confirmation while the sanctioned skill-script
-apply passed. Batch mode must live IN the skill as a sanctioned script. This is it.
+Batch mode lives in the skill as a sanctioned script. Without a fleet path, a
+session cleaning a large `ghq` fleet from a non-repo cwd has to hand-roll batch
+dry-run/apply scripts around the per-repo tiers — and a hand-rolled bulk `rm`
+pipeline is blocked by the auto-mode classifier even after explicit confirmation,
+while the sanctioned skill-script apply passes.
 
 ## Scope
 

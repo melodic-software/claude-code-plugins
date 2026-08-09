@@ -48,7 +48,7 @@ The subagent receives a self-contained prompt. Skeleton:
 
 ```text
 Goal: EXHAUSTIVE duplication survey for /extract-ssot. Find ANY and ALL duplication
-candidates across markdown in this repo. Apply STRICT Tier 0 discipline — see
+candidates across markdown in this repo. Apply Tier 0 discipline — see
 "Discrimination rules" below before adding any candidate to the roster.
 
 Repo: <repo-root>
@@ -73,7 +73,7 @@ In-scope authoring surfaces (adapt to what this repo actually has):
 - ADRs and docs/**/*.md
 - .github/**/*.md and per-tool markdown (contributor docs, tool READMEs)
 
-## Discrimination rules — CRITICAL
+## Discrimination rules
 
 Each candidate MUST be classified by repetition form. Forms (a), (e)+(framing-only), and
 (i) count as extraction candidates. Form (c2) full-paragraph semantic reword also counts

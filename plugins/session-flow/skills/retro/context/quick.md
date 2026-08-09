@@ -5,7 +5,7 @@ limited (post-compaction, short session), or the user explicitly requests a quic
 
 ## When to use
 
-- Context window >75% used or compaction has occurred
+- Long or quality-degraded session, or compaction has occurred
 - Short session (single task, <30 minutes)
 - User says "quick retro" or "abbreviated retro"
 - Post-merge when a full retro would exceed the remaining context budget

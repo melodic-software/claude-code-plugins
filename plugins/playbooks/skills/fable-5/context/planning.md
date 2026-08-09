@@ -4,7 +4,7 @@ Apply this chapter before your first mutating action on any task: it governs whe
 
 ## The threshold: plan-worthy versus act-directly
 
-**TRIGGER — the moment before your first mutating action (first edit, first destructive command). RULE — ask two questions:** (1) Can you state the complete sequence of changes concretely enough that a different agent could execute it from your description alone? (2) Would you bet the sequence survives contact with the actual code unchanged? Two yeses → act directly; a plan here is transcription. Any no → the missing answer is itself your first work item, and producing it is what planning is.
+TRIGGER: the moment before your first mutating action (first edit, first destructive command). RULE: ask two questions: (1) Can you state the complete sequence of changes concretely enough that a different agent could execute it from your description alone? (2) Would you bet the sequence survives contact with the actual code unchanged? Two yeses → act directly; a plan here is transcription. Any no → the missing answer is itself your first work item, and producing it is what planning is.
 
 The sizes below elaborate the same test; when their wording and the two questions seem to disagree, the two questions govern:
 
@@ -38,7 +38,7 @@ Sort unknowns into two bins and treat them differently:
 
 ## Lead a durable plan with the decisions, not the steps
 
-**TRIGGER: the plan is a durable artifact someone will read separately from the conversation that produced it.** A plan delivered inside a message is already covered — the communication chapter, section "Surface every unbriefed decision", owns that surface.
+TRIGGER: the plan is a durable artifact someone will read separately from the conversation that produced it. A plan delivered inside a message is already covered — the communication chapter, section "Surface every unbriefed decision", owns that surface.
 
 Give the same plan a second view, above the ordered steps: the choices the reader would most plausibly make differently — data shapes, interfaces other work will bind to, anything they will see — ranked by the rework a late veto would cause. Steps whose only content is a behavior-preserving mechanical transformation go last in this view. A reader who has to reconstruct the decisions by reading twelve steps in execution order finds the one they object to only after agreeing to the eleven built on top of it — the pricing prior in the problem-framing chapter, applied to the reader's attention instead of your own.
 
@@ -46,7 +46,7 @@ Give the same plan a second view, above the ordered steps: the choices the reade
 
 ## Order by risk and information gain
 
-**TRIGGER — every time you sequence steps. RULE — the step whose failure would invalidate the most downstream work goes first**, even when doing it first feels premature; "logical build order" (foundations first, integration last) is the default to override, not to follow.
+TRIGGER: every time you sequence steps. RULE: the step whose failure would invalidate the most downstream work goes first, even when doing it first feels premature; "logical build order" (foundations first, integration last) is the default to override, not to follow.
 
 The move: find the step you are least sure of, extract its uncertain core into the smallest probe that yields a real answer, and run the probe before building anything that depends on the answer.
 
@@ -60,7 +60,7 @@ Tie-break when two steps carry comparable risk: run the cheaper probe first. Inf
 
 ## Reversibility tiers
 
-**TRIGGER — any step involving deletion, external emission, or a contract change: classify its tier explicitly before executing.** Spend deliberation in proportion to how hard the choice is to undo, because the cost of a wrong call — not your confidence in it — is what justifies rigor.
+TRIGGER: any step involving deletion, external emission, or a contract change. RULE: classify its tier explicitly before executing. Spend deliberation in proportion to how hard the choice is to undo, because the cost of a wrong call — not your confidence in it — is what justifies rigor.
 
 | Tier | Members | Rigor owed |
 |---|---|---|
@@ -78,7 +78,7 @@ The failure this prevents is uniform rigor: agonizing over trivially reversible 
 
 ## Blast radius census
 
-**TRIGGER — before editing anything plural:** a shared utility, base type, public contract, build or config file, common test fixture, serialization format. The first move is not the edit; it is the census — search out every consumer and count them, because the edit site is the one place a shared-surface bug never shows up.
+TRIGGER: before editing anything plural — a shared utility, base type, public contract, build or config file, common test fixture, serialization format. The first move is not the edit; it is the census — search out every consumer and count them, because the edit site is the one place a shared-surface bug never shows up.
 
 This census picks the change **strategy**; how much of each consumer to actually read before editing is the execution chapter's read-radius rule — one census feeds both, so never enumerate the consumers twice.
 
@@ -105,7 +105,7 @@ A decomposition that comes out mostly sequential is diagnostic, not merely unluc
 
 ## Update the plan when reality disagrees
 
-Every executed step returns a verdict against its recorded prediction. **TRIGGER — the moment an outcome differs from the prediction: stop before the next step and classify the surprise.**
+Every executed step returns a verdict against its recorded prediction. TRIGGER: the moment an outcome differs from the prediction. RULE: stop before the next step and classify the surprise.
 
 - **Local** — the step needed a different tactic but its end-state holds → absorb it with the *conservative* variant — the tactic that adds the least new surface and forecloses the fewest later options — note the delta, continue. Mid-plan is the worst vantage for judging a clever deviation's blast radius; cleverness can wait for the replan, where it gets evaluated instead of improvised.
 - **Structural** — the outcome invalidates a *later* step's premise → stop executing; rewrite the affected steps explicitly before proceeding.

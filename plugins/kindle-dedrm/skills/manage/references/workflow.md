@@ -18,7 +18,7 @@ Run `scripts/status.sh` and confirm:
 | Existing ICACLS deny | absent (will be applied) |
 | `~/Tools/Kindle_Key_Finder` | absent (will be created) |
 
-If a non-2.8.0 Kindle for PC is installed, user must uninstall it first (Settings → Apps → Amazon Kindle → Uninstall). Skill does NOT auto-uninstall — that's destructive and reversible damage.
+If a non-2.8.0 Kindle for PC is installed, user must uninstall it first (Settings → Apps → Amazon Kindle → Uninstall). Skill does NOT auto-uninstall — that's destructive and costly to reverse (a full re-download/re-sync of the library), so it stays user-driven.
 
 ## Step 1 — Download three artifacts
 

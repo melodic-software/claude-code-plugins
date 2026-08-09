@@ -56,8 +56,8 @@ Read the reference file matching the user's question. Multi-topic question = rea
 | Tip | Key Action |
 |-----|------------|
 | Parallel work | Use git worktrees, 3-5 sessions |
-| Model | Opus with adaptive thinking |
-| Planning | Start in plan mode for complex tasks |
+| Model | Fable 5 for the hardest and longest tasks (Sections 94–95); Opus otherwise (Section 2, historical) |
+| Planning | Auto mode plans implicitly on 4.6+; reach for plan mode when you want the written artifact of intent (Section 87) |
 | CLAUDE.md | Update after every correction |
 | Skills | Create for repeated workflows |
 | Subagents | Offload to keep context clean |
@@ -68,7 +68,7 @@ Read the reference file matching the user's question. Multi-topic question = rea
 | Verification | Always give Claude a way to verify |
 | Learning | Use Claude to explain and teach |
 | Terminal | /config, /terminal-setup, /vim |
-| Effort | /model to set Low/Medium/High/xhigh/max |
+| Effort | `/effort` to set the level (low/medium/high/xhigh/max; default high, xhigh on Opus 4.7) |
 | Plugins | /plugin for LSPs, MCPs, skills |
 | Agents | .claude/agents, custom defaults |
 | Sandboxing | /sandbox for file & network isolation |

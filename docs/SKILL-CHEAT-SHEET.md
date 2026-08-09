@@ -139,6 +139,7 @@ owned by [docs/CATALOG-TAXONOMY.md](CATALOG-TAXONOMY.md).
 | [`/claude-config:audit-instructions`](../plugins/claude-config/skills/audit-instructions/SKILL.md) | `claude-config` | Find instructions current models no longer need across CLAUDE.md, rules, and skill bodies |
 | [`/claude-config:audit-pass`](../plugins/claude-config/skills/audit-pass/SKILL.md) | `claude-config` | Run one coordinated, resumable audit pass over a repo with a single human gate |
 | [`/claude-config:audit-permission-grants`](../plugins/claude-config/skills/audit-permission-grants/SKILL.md) | `claude-config` | Audit permission grants for portability and auto-mode durability |
+| [`/claude-config:audit-prompting-postures`](../plugins/claude-config/skills/audit-prompting-postures/SKILL.md) | `claude-config` | Find posture guidance the prompting guide says a component needs but does not carry |
 | [`/claude-config:unhobble`](../plugins/claude-config/skills/unhobble/SKILL.md) | `claude-config` | Strip instructions to a bare baseline, log real stumbles, re-add only what evidence earns |
 | [`/claude-memory:audit`](../plugins/claude-memory/skills/audit/SKILL.md) | `claude-memory` | Audit CLAUDE.md, rules, and auto-memory against the official-docs checklist |
 | [`/claude-memory:stateless`](../plugins/claude-memory/skills/stateless/SKILL.md) | `claude-memory` | Inspect, disable, or purge Claude Code's per-repo auto memory |
