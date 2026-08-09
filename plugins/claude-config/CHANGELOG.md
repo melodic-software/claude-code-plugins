@@ -3,6 +3,21 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.1]
+
+### Fixed
+
+- **`unhobble`: the classification contract can now represent a hybrid hook entry.** The phase-1
+  contract allowed only `policy` | `behavioral` | `convention` per hook entry and reserved
+  splitting for instruction files, while phase 2 removed a behavioral entry's wiring whole — so a
+  hook carrying both a policy gate and behavioral prose could only be over-stripped or
+  over-kept, contradicting the marketplace rubric's trim-not-delete rule for hybrids
+  (PLUGIN-PHILOSOPHY "Classifying a hook"; flagged by review on the rubric PR #2033). Phase 1 adds
+  the `hybrid` class (delegating the rubric itself to the philosophy doc), phase 2 strips a
+  hybrid's behavioral surface via the hook's own kill switch or config where one exists and
+  otherwise records `unstripped-hybrid-hook` with the observe-phase confound noted, and the
+  manifest enum carries the new class.
+
 ## [0.28.0]
 
 ### Added

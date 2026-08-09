@@ -15,6 +15,15 @@ to such a file is silently lost. When one of them is wrong, fix the cause
 upstream in `melodic-software/standards` and let the sync carry the correction
 back — never patch the materialized copy here.
 
+## Run the affected suites, not all of them
+
+Running every `**/*.test.sh` is an hours-long wall on a Windows box, so it does
+not happen and regressions reach CI instead. `scripts/affected-tests.sh` prints
+(or `--run`s) the suites covering your diff; see the README's "Validate a
+change" section for the mapping rules and the flags. It exits non-zero when a
+changed file maps to no suite — that is the tool working, not a bug to route
+around, because an empty selection would otherwise read as "nothing to run".
+
 ## Stage explicit paths
 
 Stage the specific files a change touches. Never `git add -A` or `git add .`:

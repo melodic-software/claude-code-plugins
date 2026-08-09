@@ -1,0 +1,60 @@
+# Path classes that carry NO shell test suite (**/*.test.sh), each paired with
+# the CI lane that DOES cover it. Read by scripts/affected-tests.sh, which
+# treats a changed file matching one of these as "covered, but not by a shell
+# suite" instead of the loud "I do not know what covers this" error.
+#
+# Consulted LAST — only after every selection rule has come up empty for the
+# file. A doc or manifest that a suite genuinely names is still selected by the
+# reference rule, so listing a broad pattern here never suppresses a real match.
+#
+# This list is deliberately SEPARATE from scripts/docs-only-paths.txt even
+# though the two overlap. They answer different questions: docs-only asks "can
+# this path affect ANY code lane" (a very narrow yes, because a wrong answer
+# turns CI false-green), while this asks "is there a SHELL SUITE covering this"
+# (a broader yes, because a wrong answer only costs a developer a needless
+# error). Coupling them would drag the narrow gate's answer into the wrong
+# question. Keep both; do not make one read the other.
+#
+# Format: one bash glob pattern per line, matched against the repo-relative
+# path. `*` crosses `/`. Blank lines and `#` comments are ignored. Adding an
+# entry is a claim that a named non-shell lane covers the class — write the
+# lane in the comment above it, the way every other data file in scripts/ does.
+#
+# ADDING A NEW CODE FILE? Do not reach for this list. A new .sh/.py/.mjs with
+# no coverage should FAIL here; that failure is the tool working.
+
+# Markdown prose — skills, references, conventions, design records, changelogs.
+# Covered by the hygiene lane (markdownlint-cli2, typos, comment-hygiene,
+# machine-specific-paths, lychee) and, for skill bodies, by skill-quality-gate
+# (check-skill.sh, check-listing-budget.sh). None of those is a *.test.sh.
+*.md
+
+# JSON — plugin/marketplace manifests, JSON Schemas, eval graders, registries,
+# lockfiles. Covered by the hygiene lane's four check-jsonschema steps,
+# scripts/check-manifest-duplicate-keys.py, scripts/validate-plugins.sh,
+# scripts/validate-plugin-contracts.mjs and the skill-quality-gate evals
+# validation. A JSON fixture a suite actually names is selected by the
+# reference rule before this line is ever consulted.
+*.json
+
+# Workflows and repository configuration. Covered by actionlint, zizmor, the
+# workflow check-jsonschema step, and the runner-policy lane.
+.github/*
+.gitattributes
+.gitignore
+.editorconfig
+.shellcheckrc
+.node-version
+*.yml
+*.yaml
+*.toml
+
+# Session-local working docs and this checkout's own Claude Code configuration
+# prose. Ships to no one; the hooks under .claude/hooks/ are NOT covered by
+# this line — they carry their own *.test.sh and are selected normally.
+.work/*
+docs/topics/*
+
+# Repository top-level prose and licensing, already covered by *.md above; the
+# bare LICENSE file has no extension, so it needs its own line.
+LICENSE
