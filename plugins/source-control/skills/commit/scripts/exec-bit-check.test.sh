@@ -537,6 +537,38 @@ assert_eq "the fixture's destination really is 100644 with a shebang" \
 assert_eq "a rename whose SOURCE was never executable is NOT reported" \
   "" "$(bash "$HELPER" --repo-dir "$repo19" --list 2>/dev/null)"
 
+# The same negative for the COPY branch. `R*` and `C*` share one `src_mode`
+# gate, so this looks redundant -- it is not. The copy branch's other coverage
+# is the POSITIVE case above, so without this one a `C*` branch that ignored
+# the source mode would still pass the whole suite. The pairing setup mirrors
+# repo16 (source edited in the same change, similarity lines) because copy
+# detection needs it; unlike repo16 the source is never made executable.
+repo21="$(mkrepo)"
+(
+  cd "$repo21" || exit 1
+  git config core.filemode false
+  git config diff.renames copies
+  {
+    printf '#!/usr/bin/env bash\n'
+    for _ in $(seq 1 30); do printf 'echo line\n'; done
+  } >tpl.sh
+  git add tpl.sh
+  git commit -qm "seed the deliberately non-executable copy source"
+  printf 'echo appended\n' >>tpl.sh
+  cp tpl.sh tpl-copy.sh
+  git add tpl.sh tpl-copy.sh
+) >/dev/null 2>&1
+
+nonexec_copy_status="$(cd "$repo21" && git diff --cached --name-status | grep -c '^C' | tr -d ' \r')"
+if [[ "$nonexec_copy_status" == "1" ]]; then
+  assert_eq "the copy fixture's destination really is 100644 with a shebang" \
+    "100644" "$(staged_mode "$repo21" tpl-copy.sh)"
+  assert_eq "a copy whose SOURCE was never executable is NOT reported" \
+    "" "$(bash "$HELPER" --repo-dir "$repo21" --list 2>/dev/null)"
+else
+  skip_case "this git did not pair the non-executable fixture as a copy"
+fi
+
 # The pair branch reads THREE fields per record, so a space in either path is
 # the input shape most likely to break it. `--raw -z` NUL-terminates the info
 # field and each path separately, which is what makes the explicit field reads
