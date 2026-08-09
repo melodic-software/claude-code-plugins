@@ -105,7 +105,7 @@ Per-project walking (ecosystems with `project-discovery`):
 - typescript: walk each `package.json` directory and run check/fix from there
 - go: walk each `go.mod` directory and run check/fix from there (a root `./...` invocation stops at a nested module boundary — see `/toolchain:check`'s per-ecosystem context file)
 
-Tool presence: verify tools on `PATH` before each ecosystem; report `skip` with `install-hint` when missing.
+Tool presence: verify on `PATH` before each ecosystem the tool its commands are invoked through (python's `uv`, not the `ruff` and `pyright` behind it); report `skip` with `install-hint` when missing. The probe is per ecosystem, not per sub-tool: a sub-tool bundled inside an opaque compound `check-cmd` is not probed, so its absence surfaces at execution time as a real non-zero exit and the ecosystem reports `FAIL`, not `skip` — same rule `/toolchain:check` states, so both skills classify an identical environment identically.
 
 Tool pins (`tool-pin` sub-key, e.g. zizmor): when the resolved config pins a tool version, warn if the installed version drifts from the pin (a pin typically mirrors the consumer's own CI pin). No pin, no check.
 
@@ -147,7 +147,7 @@ When `--fix` is used, auto-fix capability is derived from the config: an ecosyst
 ## Edge cases
 
 - **No git changes but `/toolchain:lint all`**: run all applicable ecosystems (useful after rebase or pull)
-- **Missing tools**: report as `skip` with tool name and install hint, not as failure
+- **Missing tools**: report as `skip` with tool name and install hint, not as failure — scoped to the tool the ecosystem's commands are invoked through, not every sub-tool a compound command reaches (an un-probed sub-tool's absence is a real non-zero exit, so `FAIL`; see `/toolchain:check`'s Gotchas)
 - **Opt-in unmet**: report as `skip (opt-in unmet: ...)` with the condition, not as failure and not a silent omission (e.g., dotnet with no C#-relevant `.editorconfig`)
 - **Multiple projects in same ecosystem**: run per-project (each `pyproject.toml`, each `package.json`)
 - **File outside any ecosystem**: silently skip (no noise for binary files, images, etc.)

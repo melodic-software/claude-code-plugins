@@ -171,13 +171,25 @@ if [[ -n "${STUB_LONG:-}" ]]; then
   done
 fi
 
+# STUB_REFLOW: on the WRITE pass, report every surviving finding one line lower
+# than the scan reported it — a sibling formatter (markdown-format on the same
+# .md, say) reflowing the file between the hook's two passes. Claude Code runs
+# matching PostToolUse hooks in parallel, so nothing orders them. typos changed
+# nothing about these findings; only their position moved.
+shift_lines=0
+if ((write == 1)) && [[ -n "${STUB_REFLOW:-}" ]]; then
+  shift_lines=1
+fi
+
 residual=0
 out=""
+survive=""
 lineno=0
 tmp="$target.stubtmp"
 : >"$tmp"
 while IFS= read -r line || [[ -n "$line" ]]; do
   lineno=$((lineno + 1))
+  reported=$((lineno + shift_lines))
   for tok in teh wnat disallowme; do
     case " $line " in
     *" $tok "*) ;;
@@ -185,15 +197,35 @@ while IFS= read -r line || [[ -n "$line" ]]; do
     esac
     case "$tok" in
     teh)
-      out+='{"type":"typo","path":"'"$target"'","line_num":'"$lineno"',"byte_offset":0,"typo":"teh","corrections":["'"${long:-the}"'"]}'$'\n'
-      if ((write == 1)); then line="${line//" teh "/" the "}"; else residual=1; fi
+      # STUB_MIXED: one spelling, two correction decisions in one file — the
+      # shape typos produces when extend-identifiers reaches an occurrence that
+      # extend-words does not. A line carrying the marker is DISALLOWED (null
+      # corrections) and survives the write; every other occurrence is fixable
+      # and gets rewritten.
+      # STUB_PARTIAL: one repeatable token, several occurrences, only SOME of
+      # them surviving the write — the case where cancelling by count alone has
+      # to choose which scan occurrences it calls applied. A line carrying the
+      # marker survives with the same fixable correction set as the others, so
+      # the two are indistinguishable by key and only the line separates them.
+      if [[ -n "${STUB_PARTIAL:-}" && "$line" == *keepteh* ]]; then
+        entry='{"type":"typo","path":"'"$target"'","line_num":'"$reported"',"byte_offset":0,"typo":"teh","corrections":["the"]}'
+        out+="$entry"$'\n'
+        survive+="$entry"$'\n'
+        residual=1
+      elif [[ -n "${STUB_MIXED:-}" && "$line" == *keepteh* ]]; then
+        out+='{"type":"typo","path":"'"$target"'","line_num":'"$reported"',"byte_offset":0,"typo":"teh","corrections":null}'$'\n'
+        residual=1
+      else
+        out+='{"type":"typo","path":"'"$target"'","line_num":'"$reported"',"byte_offset":0,"typo":"teh","corrections":["'"${long:-the}"'"]}'$'\n'
+        if ((write == 1)); then line="${line//" teh "/" the "}"; else residual=1; fi
+      fi
       ;;
     wnat)
-      out+='{"type":"typo","path":"'"$target"'","line_num":'"$lineno"',"byte_offset":0,"typo":"wnat","corrections":["want","what"]}'$'\n'
+      out+='{"type":"typo","path":"'"$target"'","line_num":'"$reported"',"byte_offset":0,"typo":"wnat","corrections":["want","what"]}'$'\n'
       residual=1
       ;;
     disallowme)
-      out+='{"type":"typo","path":"'"$target"'","line_num":'"$lineno"',"byte_offset":0,"typo":"disallowme","corrections":null}'$'\n'
+      out+='{"type":"typo","path":"'"$target"'","line_num":'"$reported"',"byte_offset":0,"typo":"disallowme","corrections":null}'$'\n'
       residual=1
       ;;
     esac
@@ -203,8 +235,19 @@ done <"$target"
 
 if ((write == 1)); then
   mv -f "$tmp" "$target"
-  # Re-emit only what survived the write.
-  printf '%s' "$out" | grep -v '"typo":"teh"'
+  # Re-emit only what survived the write. Under STUB_MIXED the disallowed `teh`
+  # survives too, so drop only the fixable form (the one carrying a corrections
+  # array) rather than every `teh` line.
+  if [[ -n "${STUB_PARTIAL:-}" ]]; then
+    # Every fixable `teh` was rewritten except the marked ones, which are
+    # byte-identical to the rewritten ones in every field but the line number.
+    printf '%s' "$out" | grep -v '"typo":"teh"'
+    printf '%s' "$survive"
+  elif [[ -n "${STUB_MIXED:-}" ]]; then
+    printf '%s' "$out" | grep -v '"typo":"teh","corrections":\['
+  else
+    printf '%s' "$out" | grep -v '"typo":"teh"'
+  fi
   ((residual == 1)) && exit 2
   exit 0
 fi
@@ -351,6 +394,139 @@ if printf '%s' "$OUT_BOTH" | jq -e '.systemMessage and .hookSpecificOutput.addit
   ok "stub/both: both channels composed into ONE stdout document"
 else
   fail "stub/both: channels not composed: $OUT_BOTH"
+fi
+
+# --- A residual that MOVED between the passes is not a rewrite ---------------
+# Claude Code runs matching PostToolUse hooks in parallel, so a sibling
+# formatter can reflow the file between this hook's scan and write passes and
+# carry an untouched finding to a different line. STUB_REFLOW forces exactly
+# that, deterministically: every write-pass finding is reported one line below
+# where the scan reported it. Nothing else about the run changes.
+#
+# The planted misspelling below is ambiguous, so typos declines it and it
+# survives the write. The truth is therefore that NOTHING was applied. Keyed
+# by line, the moved
+# residual misses its own scan entry and the finding is reported as a rewrite
+# typos never made — a false mutation disclosure on the one channel this hook
+# exists to make trustworthy.
+printf 'this has wnat here\n' >"$STUB_REPO/reflow.txt" # spellchecker:disable-line
+BEFORE_RF="$(cat "$STUB_REPO/reflow.txt")"
+SINKRF="$WORK/tel-reflow.jsonl"
+OUT_RF=$(run_stub "$STUB_REPO/reflow.txt" STUB_REFLOW=1 HOOK_TELEMETRY_SINK="$SINKRF")
+if [[ "$(cat "$STUB_REPO/reflow.txt")" == "$BEFORE_RF" ]]; then
+  ok "stub/reflow: file unchanged (the ambiguous finding was never fixable)"
+else
+  fail "stub/reflow: stub wrote to a file with no fixable finding: $(cat "$STUB_REPO/reflow.txt")"
+fi
+CTX_RF=$(printf '%s' "$OUT_RF" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+if printf '%s' "$CTX_RF" | grep -qF '"wnat" ->'; then # spellchecker:disable-line
+  fail "stub/reflow: moved residual reported as an applied rewrite: $CTX_RF"
+else
+  ok "stub/reflow: moved residual is NOT reported as an applied rewrite"
+fi
+if printf '%s' "$CTX_RF" | grep -q 'wnat'; then # spellchecker:disable-line
+  ok "stub/reflow: the finding is still reported, as a residual"
+else
+  fail "stub/reflow: moved residual vanished from the report entirely: $CTX_RF"
+fi
+if [[ -z "$(printf '%s' "$OUT_RF" | jq -r '.systemMessage // empty' 2>/dev/null)" ]]; then
+  ok "stub/reflow: no user-channel mutation message (nothing was mutated)"
+else
+  fail "stub/reflow: claimed a mutation that never happened: $(printf '%s' "$OUT_RF" | jq -r '.systemMessage')"
+fi
+if [[ -s "$SINKRF" ]]; then
+  if [[ "$(jq -s '.[-1].data.applied | length' "$SINKRF" 2>/dev/null)" == "0" ]]; then
+    ok "stub/reflow: telemetry records zero applied rewrites"
+  else
+    fail "stub/reflow: telemetry claims rewrites: $(jq -s -c '.[-1].data.applied' "$SINKRF")"
+  fi
+fi
+
+# --- One spelling, two correction decisions ----------------------------------
+# typos can flag the same spelling with different correction sets in one file —
+# an occurrence reached by extend-identifiers beside one reached by
+# extend-words, or a fixable occurrence beside a disallowed one. Cancelling
+# residuals by token ALONE merges those, and the count can then retire the
+# fixable scan entry and disclose the disallowed one instead: a rewrite claimed
+# at the wrong line with a blank correction, while the rewrite that really
+# happened goes unmentioned. The correction decision therefore belongs in the
+# key. Here line 1's occurrence is fixable and rewritten; line 2's is disallowed
+# and survives. Exactly one rewrite happened, on line 1.
+printf 'this has teh typo\nkeepteh line has teh here\n' >"$STUB_REPO/mixed.txt" # spellchecker:disable-line
+OUT_MX=$(run_stub "$STUB_REPO/mixed.txt" STUB_MIXED=1)
+CTX_MX=$(printf '%s' "$OUT_MX" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+if printf '%s' "$CTX_MX" | grep -qF '"teh" -> "the" (line 1)'; then # spellchecker:disable-line
+  ok "stub/mixed: the rewrite that happened is disclosed at its own line"
+else
+  fail "stub/mixed: real rewrite missing from the disclosure: $CTX_MX"
+fi
+if printf '%s' "$CTX_MX" | grep -qF '"teh" -> ""'; then # spellchecker:disable-line
+  fail "stub/mixed: disallowed occurrence disclosed as an applied rewrite with a blank correction: $CTX_MX"
+else
+  ok "stub/mixed: no blank-correction rewrite claimed"
+fi
+if printf '%s' "$CTX_MX" | grep -qF '(line 2)'; then
+  ok "stub/mixed: the disallowed occurrence is still reported, as a residual"
+else
+  fail "stub/mixed: disallowed occurrence vanished from the report: $CTX_MX"
+fi
+
+# --- One token, many occurrences, only SOME of them applied ------------------
+# Cancelling residuals by count has to choose WHICH scan occurrences it calls
+# applied, and for a repeated finding nothing in the key distinguishes them.
+# Here the same fixable spelling appears on lines 1, 2 and 3; line 2 survives
+# the write. Cancelling by count alone drops the EARLIEST occurrence, which
+# would report line 2 — the one that was not rewritten — as applied and drop
+# line 1's real rewrite. Preferring a scan finding whose line the write pass
+# reported as residual gets it right whenever nothing moved.
+printf 'a has teh one\nkeepteh has teh two\nc has teh three\n' >"$STUB_REPO/partial.txt" # spellchecker:disable-line
+OUT_PT=$(run_stub "$STUB_REPO/partial.txt" STUB_PARTIAL=1)
+CTX_PT=$(printf '%s' "$OUT_PT" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+if printf '%s' "$CTX_PT" | grep -qF '(line 1)' && printf '%s' "$CTX_PT" | grep -qF '(line 3)'; then
+  ok "stub/partial: both real rewrites are attributed to their own lines"
+else
+  fail "stub/partial: applied lines misattributed: $CTX_PT"
+fi
+if printf '%s' "$CTX_PT" | grep -qE '^  "[^"]*" -> "[^"]*" \(line 2\)'; then
+  fail "stub/partial: the surviving occurrence was disclosed as a rewrite: $CTX_PT"
+else
+  ok "stub/partial: the surviving occurrence is not disclosed as a rewrite"
+fi
+if printf '%s' "$CTX_PT" | grep -q 'REWROTE 2 word'; then
+  ok "stub/partial: the applied COUNT is exact"
+else
+  fail "stub/partial: applied count wrong: $CTX_PT"
+fi
+
+# The attribution step above is per-cluster, and a cluster is ONE token+corrections
+# pair repeated. The other scale fixtures cannot see this shape at all: they
+# repeat DISTINCT tokens, each uniformly applied or uniformly residual, so no
+# cluster there ever combines size with a partial outcome. This one does, and
+# asserts the count stays exact when it is the attribution step doing the work.
+#
+# Deliberately NOT a wall-clock assertion, unlike the two scale cases above. The
+# quadratic form this logic replaced measured 0.07s at 500 and 31s at 10,000, so
+# a timing gate is the obvious guard — but at this size the stub's own per-line
+# bash loop, run twice, dominates the elapsed time, so the number would report
+# the harness rather than the classification and go red under load for reasons
+# that have nothing to do with a regression. The linear property is pinned where
+# it can be measured honestly: the benchmark recorded against the classification
+# filter itself in typos-format.sh, plus the handler's own 15s timeout.
+PARTIAL_N=2000
+: >"$STUB_REPO/partial-scale.txt"
+for _i in $(seq 1 "$PARTIAL_N"); do
+  if ((_i % 1000 == 0)); then
+    printf 'keepteh line %s has teh here\n' "$_i" >>"$STUB_REPO/partial-scale.txt" # spellchecker:disable-line
+  else
+    printf 'line %s has teh here\n' "$_i" >>"$STUB_REPO/partial-scale.txt" # spellchecker:disable-line
+  fi
+done
+OUT_PS=$(run_stub "$STUB_REPO/partial-scale.txt" STUB_PARTIAL=1)
+CTX_PS=$(printf '%s' "$OUT_PS" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+if printf '%s' "$CTX_PS" | grep -q "REWROTE $((PARTIAL_N - 2)) word"; then
+  ok "stub/partial-scale: the applied count is exact across $PARTIAL_N repeats of one token"
+else
+  fail "stub/partial-scale: applied count wrong at scale: $(printf '%s' "$CTX_PS" | head -1)"
 fi
 
 # --- Disclosure is capped ----------------------------------------------------

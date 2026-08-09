@@ -43,17 +43,37 @@ run_raw() {
   fi
 }
 
-# stdout_raw <expected-substring> <label> [args...] — the stdout line is what a
-# parent greps, so its shape is part of the contract, not debug output.
+# stdout_raw <expected-exit> <expected-substring> <label> [args...] — the stdout
+# line is what a parent greps, so its shape is part of the contract, not debug
+# output.
+#
+# The exit status is asserted here rather than left to a paired `run_raw` case,
+# because a caller acts on BOTH halves: it branches on the status and then reads
+# the line. An earlier revision checked only the substring, so a mutation that
+# emitted the right line under the wrong status was invisible to every stdout
+# case that had no exit-code twin over the same fixture — and at least one did
+# not. `$?` is captured on the line immediately after the substitution; anything
+# in between overwrites it.
+#
+# The two halves are reported INDEPENDENTLY rather than as a short-circuiting
+# chain: when both drift at once, an `elif` would hide the exit-status failure
+# behind the substring one and cost a second run to discover it.
 stdout_raw() {
-  local needle="$1" label="$2"
-  shift 2
-  local out
+  local expected="$1" needle="$2" label="$3"
+  shift 3
+  local out actual ok=1
   out="$(bash "$SUT" "$@" 2>/dev/null)"
-  if [[ "$out" == *"$needle"* ]]; then
-    pass "$label"
-  else
+  actual=$?
+  if [[ "$out" != *"$needle"* ]]; then
     fail "$label — stdout lacked '$needle': $out"
+    ok=0
+  fi
+  if [[ "$actual" -ne "$expected" ]]; then
+    fail "$label — exit was $actual, expected $expected"
+    ok=0
+  fi
+  if [[ "$ok" -eq 1 ]]; then
+    pass "$label"
   fi
 }
 
@@ -71,9 +91,9 @@ run() {
 }
 
 stdout_has() {
-  local needle="$1" label="$2"
-  shift 2
-  stdout_raw "$needle" "$label [$INDEX_NAME]" --index-name "$INDEX_NAME" "$@"
+  local expected="$1" needle="$2" label="$3"
+  shift 3
+  stdout_raw "$expected" "$needle" "$label [$INDEX_NAME]" --index-name "$INDEX_NAME" "$@"
 }
 
 # slice <name> — make an empty slice directory and echo its path.
@@ -117,7 +137,7 @@ suite() {
     "| codebase | [$PREFIX-codebase.md]($PREFIX-codebase.md#codebase) |"
   sidecar "$good" "$PREFIX-codebase.md" '---' 'section: codebase' '---'
   run 0 "index plus its one named sidecar is usable" "$good"
-  stdout_has 'sidecars=1 missing=0 freshness=unchecked pointer=unchecked status=usable' \
+  stdout_has 0 'sidecars=1 missing=0 freshness=unchecked pointer=unchecked status=usable' \
     "usable run reports its counts" "$good"
 
   # A trailing slash is what a parent's own path variable usually carries.
@@ -129,7 +149,7 @@ suite() {
   dupes="$(slice dupes)"
   index "$dupes" "abstract for $PREFIX-tests.md" "table row for $PREFIX-tests.md"
   sidecar "$dupes" "$PREFIX-tests.md" 'content'
-  stdout_has 'sidecars=1 missing=0 freshness=unchecked pointer=unchecked status=usable' \
+  stdout_has 0 'sidecars=1 missing=0 freshness=unchecked pointer=unchecked status=usable' \
     "a sidecar named twice counts once" "$dupes"
 
   multi="$(slice multi)"
@@ -146,7 +166,7 @@ suite() {
   index "$sub/rounding-scope" "$PREFIX-codebase.md"
   sidecar "$sub/rounding-scope" "$PREFIX-codebase.md" 'a'
   run 0 "an index in a sub-slice one level below is found" "$sub"
-  stdout_has "rounding-scope/$INDEX_NAME" "the sub-slice path is the one reported" "$sub"
+  stdout_has 0 "rounding-scope/$INDEX_NAME" "the sub-slice path is the one reported" "$sub"
 
   # --- unusable -------------------------------------------------------------
   # Every case below is a slice the parent must NOT proceed from.
@@ -164,7 +184,7 @@ suite() {
   run 1 "an index naming no sidecar is unusable" "$stub"
   # The no-sidecar branch reports through the same verdict line as every other
   # failure — a parent greps one shape, not one shape per failure path.
-  stdout_has 'sidecars=0 missing=0 freshness=unchecked pointer=unchecked status=unusable' \
+  stdout_has 1 'sidecars=0 missing=0 freshness=unchecked pointer=unchecked status=unusable' \
     "the no-sidecar branch reports the full verdict line" "$stub"
 
   # The angle-bracketed placeholder is not a filename.
@@ -178,7 +198,7 @@ suite() {
   index "$orphan" "$PREFIX-codebase.md" "$PREFIX-tests.md"
   sidecar "$orphan" "$PREFIX-codebase.md" 'a'
   run 1 "an index naming a sidecar that was never written is unusable" "$orphan"
-  stdout_has 'sidecars=2 missing=1 freshness=unchecked pointer=unchecked status=unusable' \
+  stdout_has 1 'sidecars=2 missing=1 freshness=unchecked pointer=unchecked status=unusable' \
     "the missing count is reported" "$orphan"
 
   hollow="$(slice hollow)"
@@ -248,15 +268,15 @@ suite() {
   touch -t 203001010000 "$future_baseline"
 
   run 0 "an index newer than the baseline is usable" "$good" --newer-than "$old_baseline"
-  stdout_has 'freshness=newer' "a checked-and-fresh index reports freshness=newer" "$good" --newer-than "$old_baseline"
+  stdout_has 0 'freshness=newer' "a checked-and-fresh index reports freshness=newer" "$good" --newer-than "$old_baseline"
 
   # The finding this check exists for: a slice already holding a complete
   # artifact set from an EARLIER run, graded after a dispatch that wrote nothing.
   run 1 "an index no newer than the baseline is unusable" "$good" --newer-than "$future_baseline"
-  stdout_has 'freshness=stale' "a stale index reports freshness=stale" "$good" --newer-than "$future_baseline"
+  stdout_has 1 'freshness=stale' "a stale index reports freshness=stale" "$good" --newer-than "$future_baseline"
 
   # An opt-in check that did not run must say so rather than reading as passed.
-  stdout_has 'freshness=unchecked pointer=unchecked' "omitted checks report unchecked" "$good"
+  stdout_has 0 'freshness=unchecked pointer=unchecked' "omitted checks report unchecked" "$good"
 
   # A baseline that is not there makes freshness ungradeable, and the caller
   # asked for it — downgrading to `unchecked` would hand back a check that only
@@ -267,7 +287,7 @@ suite() {
   # --- pointer agreement (--expect-index) -----------------------------------
 
   run 0 "a payload pointer naming the graded index is usable" "$good" --expect-index "$good/$INDEX_NAME"
-  stdout_has 'pointer=matches' "an agreeing pointer reports pointer=matches" "$good" --expect-index "$good/$INDEX_NAME"
+  stdout_has 0 'pointer=matches' "an agreeing pointer reports pointer=matches" "$good" --expect-index "$good/$INDEX_NAME"
 
   # Two spellings of one file are one file. Comparing raw strings would report a
   # mismatch here and halt a run whose artifact is fine.
@@ -276,7 +296,7 @@ suite() {
   # The finding: the payload's pointer — and so its verification_request.target
   # — names a file this gate never graded.
   run 1 "a payload pointer naming another file is unusable" "$good" --expect-index "$multi/$INDEX_NAME"
-  stdout_has 'pointer=mismatch' "a disagreeing pointer reports pointer=mismatch" "$good" --expect-index "$multi/$INDEX_NAME"
+  stdout_has 1 'pointer=mismatch' "a disagreeing pointer reports pointer=mismatch" "$good" --expect-index "$multi/$INDEX_NAME"
 
   run 1 "a payload pointer into a directory that does not exist is unusable" "$good" --expect-index "$WORKROOT/nowhere/$INDEX_NAME"
   run 2 "--expect-index with no value is a usage error" "$good" --expect-index
@@ -284,7 +304,7 @@ suite() {
   # The opt-in checks compose, and a single verdict line carries all of them.
   run 0 "all three opt-in checks together pass on a good slice" "$good" \
     --newer-than "$old_baseline" --expect-index "$good/$INDEX_NAME" --expect-sidecars 1
-  stdout_has 'freshness=newer pointer=matches status=usable' "a fully-checked pass reports every field" "$good" \
+  stdout_has 0 'freshness=newer pointer=matches status=usable' "a fully-checked pass reports every field" "$good" \
     --newer-than "$old_baseline" --expect-index "$good/$INDEX_NAME" --expect-sidecars 1
 }
 
@@ -332,19 +352,43 @@ run_raw 0 "the same slice is usable under --index-name EXPLORE.md" \
 # The research coverage ledger is a sibling of the index, lowercase, and is NOT
 # a sidecar. Counting it would inflate the count and disagree with the payload's
 # honest number; grading its contents belongs to check-coverage-complete.sh.
+#
+# The fixture puts the ledger in BOTH places a wrong implementation could reach
+# it from, because the gate harvests sidecar names out of the index TEXT and a
+# ledger the index never mentions is unreachable by construction — an assertion
+# no implementation of that design could fail is not coverage:
+#
+#   - NAMED IN THE INDEX. `artifact-shape.md` does not put the ledger in the
+#     index's section table, but nothing stops a run mentioning it in the
+#     restatement or the handoff, and real ones do. A harvest that dropped the
+#     `RESEARCH-` anchor for a bare `[A-Za-z0-9._-]+\.md`, or that matched
+#     case-insensitively (`research-checklist.md` matches `RESEARCH-…` under
+#     `grep -oiE`), counts it and reports sidecars=2.
+#   - ON DISK BESIDE THE INDEX, which keeps the fixture realistic but is NOT
+#     what this case discriminates on. A directory-glob rewrite does not fail
+#     here: bash matches a glob against the DIRENT STRING, so `RESEARCH-*.md`
+#     never picks up `research-checklist.md` regardless of how the filesystem
+#     compares names for lookup. Probed on this platform — `shopt -s nullglob;
+#     echo RESEARCH-*.md` yields only `RESEARCH-tiers.md` while
+#     `test -f RESEARCH-checklist.md` succeeds. A glob rewrite is caught
+#     instead by the named-but-missing sidecar cases, which it cannot satisfy.
+#
+# So the anchor and the case-fold inflate the count and fail the assertion
+# below, which is the point of having it.
 ledgered="$(slice ledgered)"
-index "$ledgered" 'RESEARCH-tiers.md'
+index "$ledgered" 'RESEARCH-tiers.md' \
+  'Corpus coverage is tracked in research-checklist.md beside this index.'
 sidecar "$ledgered" RESEARCH-tiers.md 'a'
 sidecar "$ledgered" research-checklist.md '| # | Corpus item | Depth criterion | Done |'
-stdout_raw 'sidecars=1 missing=0' "research-checklist.md is not counted as a sidecar" \
+stdout_raw 0 'sidecars=1 missing=0' "research-checklist.md is not counted as a sidecar" \
   "$ledgered" --index-name RESEARCH.md
 
 # --- help -------------------------------------------------------------------
 # --help answers before the required-argument check, so it works with no flags.
 
 run_raw 0 "--help exits 0" --help
-stdout_raw 'Deterministic acceptance gate' "--help prints the header" --help
-stdout_raw '--index-name' "--help documents the required index name" --help
+stdout_raw 0 'Deterministic acceptance gate' "--help prints the header" --help
+stdout_raw 0 '--index-name' "--help documents the required index name" --help
 
 # ----------------------------------------------------------------------------
 
