@@ -1,5 +1,4 @@
 ---
-name: babysit-prs
 description: "Babysit your own open GitHub pull requests as a tiered fleet loop. The safe default discovers YOUR PRs under the current repo's owner, checks readiness, fixes clear branch-owned issues, and reports — it never resolves threads or merges. Explicit 'worker' tier adds auto-resolving outdated bot threads and gate-proven merges; explicit 'autopilot' adds all authors under the watched owners. Use when: 'babysit PRs', 'babysit my PRs', 'watch my open PRs', 'keep my PRs moving', 'advance all open PRs', 'babysit worker', 'run the PR queue on autopilot', or pairing with /loop for continuous coverage — not for the single-PR lifecycle: prep, create, monitor one PR, or merge (use /pull-request)."
 user-invocable: true
 disable-model-invocation: false

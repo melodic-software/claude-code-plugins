@@ -1,5 +1,4 @@
 ---
-name: work-loop
 description: "Run the work-item backlog as a self-paced autonomous drain loop: each cycle sweeps raw intake through mechanical triage, admits items through the work-class gate (fail-closed), executes admitted items via /work-items:work under an adaptive item cap, and evaluates the drain exit condition. Worker lane of the loop-lane three-session topology — authors PRs, NEVER merges. Use when: 'work loop', 'run the work loop', 'start the worker loop', 'drain the backlog', 'autonomous drain', 'loop the backlog', 'drain the issue backlog to done'. Launch via /loop (self-paced). Sibling skills: /work-items:attend-queue (attended escalation lane), /work-items:work (single-item pick + execute), /work-items:triage (raw intake), /work-items:track (backlog CRUD)."
 argument-hint: "(no arguments — cycle behavior comes from the launch prompt's standing rules and persisted config)"
 user-invocable: true

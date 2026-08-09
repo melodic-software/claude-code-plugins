@@ -1,5 +1,4 @@
 ---
-name: orchestrate
 description: "Arm the CURRENT session for an orchestration-heavy task by loading seven proactive-orchestration imperatives (delegate/fan-out, spec-every-spawn, fresh-context verify, run-workers-well, nested subagents, surface drift, calibrate-to-conditions) as active standing instructions; optionally export them as a paste-ready brief for a spawned worker or fresh session. Use when: 'orchestrate', 'orchestration brief', 'prime this session', 'arm for orchestration', 'about to do heavy delegation', 'worker spawn prompt', 'delegation preamble'."
 argument-hint: "[<task>] | handoff [compact] | worker [compact]"
 user-invocable: true

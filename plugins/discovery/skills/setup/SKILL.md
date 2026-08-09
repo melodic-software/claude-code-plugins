@@ -1,5 +1,4 @@
 ---
-name: setup
 description: "Verify or configure where discovery artifacts land in this repository: report the effective topic-docs concern, or persist it to the tracked .claude/topic-docs.yaml. Use when: 'set up discovery', 'configure the discovery plugin', 'is discovery configured', 'discovery setup', 'where do EXPLORE.md / RESEARCH.md land', or a discovery skill reports missing or thin config. Actions: check (read-only, default) | apply (persist the concern file). Re-runnable — safe to invoke again."
 argument-hint: "check | apply [<key>=<value> ...]"
 user-invocable: true

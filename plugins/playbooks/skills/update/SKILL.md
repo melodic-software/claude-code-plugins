@@ -1,5 +1,4 @@
 ---
-name: update
 description: "Maintainer-facing drift-check and upstream sync for the playbooks plugin's vendored packs (boris, skill-authoring). Run only from a working-tree checkout. Actions: --check (default, read-only drift report) and --apply (refresh vendored baselines). Not for consumers — consumers update via /plugin marketplace update."
 argument-hint: "[--check | --apply]"
 user-invocable: true

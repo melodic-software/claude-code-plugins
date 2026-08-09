@@ -1,5 +1,4 @@
 ---
-name: pull-request
 description: "Orchestrate the full PR lifecycle: prep (review + verify), create, monitor CI + review comments, merge, and fetch CI logs. Use when: 'create pr', 'ship it', 'pr prep', 'fix CI', 'address comments', 'monitor PR', 'merge this', 'check pr status' — not for the all-PR babysit loop (use /babysit-prs), branch/worktree lifecycle (use /worktree), or committing without a PR (use /commit)."
 user-invocable: true
 disable-model-invocation: false

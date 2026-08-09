@@ -1,5 +1,4 @@
 ---
-name: principles
 description: "Answers test design questions from authoritative TDD sources (Beck, Khorikov), producing WHY reasoning to improve test design decisions. Use when: 'should I mock this', 'four pillars of a good test', 'red green refactor', 'classical vs london school', 'test doubles', 'what makes a good test', 'testing anti-patterns', 'when to mock', 'TDD cycle', 'resistance to refactoring', 'code coverage', 'observable behavior', 'humble object', 'integration test', 'test pyramid', 'output vs state vs communication test' — not for HOW to run tests in your project (use your project's own test tooling and workflow for that)."
 argument-hint: "[question or concept]"
 user-invocable: true

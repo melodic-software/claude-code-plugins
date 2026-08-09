@@ -1,5 +1,4 @@
 ---
-name: setup
 description: "Verify or configure where verification artifacts land in this repository: report the effective topic-docs concern, or persist it to the tracked .claude/topic-docs.yaml. Use when: 'set up verification', 'configure the verification plugin', 'is verification configured', 'verification setup', 'where do verification manifests / baselines land', or a verification skill reports missing or thin config. Actions: check (read-only, default) | apply (persist the concern file). Re-runnable — safe to invoke again."
 argument-hint: "check | apply [<key>=<value> ...]"
 user-invocable: true

@@ -1,5 +1,4 @@
 ---
-name: audit-permission-grants
 description: "Audit Claude Code permission GRANTS for portability and auto-mode durability — scans skill/command/agent frontmatter allowed-tools and settings.json/settings.local.json permissions.allow for interpreter-wildcard rules dropped in auto mode, hardcoded machine/user paths, and inert plugin self-grants. Use when: 'check permission rules', 'why was my allowed-tools grant ignored', 'audit allow rules', 'is this permission portable', after authoring a code-execution grant, or when a guarded helper is denied despite an allow rule. Report-only."
 argument-hint: "[scope] — scope: frontmatter|settings|plugins|all (default: all)"
 user-invocable: true
