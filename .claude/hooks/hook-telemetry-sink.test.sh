@@ -21,15 +21,19 @@ upstream="$repo_root/plugins/claude-ops/hooks/hook-telemetry-sink.sh"
 
 # Strip the resolution block from both: the shellcheck source directive, the
 # source line itself, and the repo-copy-only comment lines that explain it.
-normalize() {
-  grep -v -E '^# shellcheck source=|^source "\$\(dirname|^# Repo-local copy of the claude-ops reference sink|^# colocated here, so source the repository|^# the sibling pr-linkage-mcp-gate\.sh' "$1"
-}
+strip_re='^# shellcheck source=|^source "\$\(dirname|^# Repo-local copy of the claude-ops reference sink|^# colocated here, so source the repository|^# the sibling pr-linkage-mcp-gate\.sh'
 
-if diff -u <(normalize "$upstream") <(normalize "$local_copy") >/dev/null; then
+norm_upstream="$(mktemp)"
+norm_local="$(mktemp)"
+trap 'rm -f "$norm_upstream" "$norm_local"' EXIT
+grep -v -E "$strip_re" "$upstream" >"$norm_upstream" || true
+grep -v -E "$strip_re" "$local_copy" >"$norm_local" || true
+
+if diff -u "$norm_upstream" "$norm_local" >/dev/null; then
   echo "PASS: repo-local telemetry sink matches the claude-ops reference sink (modulo the source block)"
 else
   echo "FAIL: .claude/hooks/hook-telemetry-sink.sh has drifted from plugins/claude-ops/hooks/hook-telemetry-sink.sh"
   echo "Re-copy the reference sink and re-apply the lib/hook-utils.sh source repoint:"
-  diff -u <(normalize "$upstream") <(normalize "$local_copy") || true
+  diff -u "$norm_upstream" "$norm_local" || true
   exit 1
 fi
