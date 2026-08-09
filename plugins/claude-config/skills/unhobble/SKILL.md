@@ -122,10 +122,12 @@ Apply the confirmed strip plan:
   phase notes the confound), per the plan's named split.
 - Project-enabled plugins: record the current enabled set in the manifest, then disable the ones
   classified `behavioral` for this project (leave policy/tooling plugins the operator marked keep).
-  Plugins toggle whole — project settings offer no partial disable — so a **mixed** plugin that
-  bundles any `policy`-classified surface (e.g. a policy hook alongside behavioral convenience
-  skills) is **kept whole**, with its behavioral components recorded in the manifest as
-  `unstripped-mixed-plugin`; the observe phase notes them as still-loaded confounds rather than
+  Plugins toggle whole — project settings offer no partial disable — so a plugin classified
+  **`hybrid`** (any `policy`-classified surface alongside behavioral components, e.g. a policy
+  hook next to behavioral convenience skills; older strip plans say "mixed" for the same class)
+  is **kept whole**, with its behavioral components recorded in the manifest as
+  `unstripped-mixed-plugin` (label unchanged for manifest continuity); the observe phase notes
+  them as still-loaded confounds rather than
   silently taking the policy gate down with the plugin. Within a kept-whole mixed plugin, a
   behavioral or hybrid HOOK may still be individually stripped when the plugin exposes a per-hook
   kill switch (a `<hook>_enabled`-style userConfig option): record the option flipped and its
