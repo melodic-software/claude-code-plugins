@@ -242,11 +242,17 @@ sort[^;&|\n]*[[:space:]]['"]?--sort['"]?(=|[[:space:]]+)['"]?version([[:space:]|
 # concatenates it onto the word it touches rather than making it a command of
 # its own, so `sed -f <(gen) -Ei "$f"` is a single GNU-only sed call and the
 # earlier `[^;&|()`\n]*` spelling stopped at its `(` and missed the `-Ei`
-# entirely. `[<>]\([^)]*\)` readmits exactly that shape and nothing else:
-# `collapse_subs` keeps process substitutions verbatim in BOTH views (see
-# check-shell-portability.sh) precisely because they are not their own word,
-# so the alternative matches on either. A `)` closing a real subshell still
-# ends the gap.
+# entirely. `[<>]\([^)]*\)` readmits it: `collapse_subs` keeps process
+# substitutions verbatim in BOTH views (see check-shell-portability.sh)
+# precisely because they are not their own word, so the alternative matches on
+# either. A `)` closing a real subshell still ends the gap.
+#
+# `[^)]*` is not recursive, so a process substitution whose body itself
+# contains one (`sed -f <(diff <(a) <(b)) -i "$f"`) still stops the gap at the
+# inner `)` and goes unreported. An ERE cannot balance parens; catching that
+# shape needs real parsing, which this grep-level tripwire does not attempt.
+# It is a false NEGATIVE on a rare shape, the direction this gate already
+# accepts everywhere else.
 (^|[^[:alnum:]_])sed([[:space:]]([^;&|()`\n]|[<>]\([^)]*\))*)?[[:space:]]-[bEnrsuz]*i([[:space:]|&;()<>]|$)
 
 # `sed --in-place[=SUFFIX]` (GNU long-form spelling of `-i`) — BSD sed has no
