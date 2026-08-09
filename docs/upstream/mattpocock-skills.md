@@ -95,4 +95,4 @@ Two `writing-for-agents` strands from v1.2 (lane 5) — tracked on events, never
 ## Map
 
 Full verified 35-skill upstream↔ours map (relations, v1.2 deltas, drift findings):
-[`docs/topics/pocock-skills-v12-sync/his-ours-map.md`](../topics/pocock-skills-v12-sync/his-ours-map.md).
+[`docs/upstream/mattpocock-skills-v12-map.md`](mattpocock-skills-v12-map.md).
