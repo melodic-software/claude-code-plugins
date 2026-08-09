@@ -117,6 +117,10 @@ mkdir -p "$REPO/plugins/alpha/skills/ghost"
 OUT=$(run 'Run `/alpha:ghost`.')
 assert_contains "skills/ dir without SKILL.md → still unresolved" "$OUT" \
   "UNRESOLVED_SKILL: /alpha:ghost"
+# Naming the searched directories must not have changed how the conventional
+# layout reads — one root, rendered exactly as it always was.
+assert_contains "a plugin declaring no paths still reads as plugins/<plugin>/skills/" "$OUT" \
+  "(no such skill under plugins/alpha/skills/)"
 
 # A frontmatter name carrying a trailing YAML comment is a valid rename and must
 # resolve; the old end-of-line-anchored parser extracted nothing.
@@ -469,43 +473,50 @@ assert_contains "a unique whole hunk resolves lines that individually repeat" "$
 # many-line hunk that a reformat has made non-contiguous — and it is the case the
 # fallback's anchor cap exists for.
 #
-# The cap is what the assertions are about, so they assert what a bound DELIVERS,
-# not merely that it exists. At this file size the budget buys about one anchor, so
-# the first hunk line carries the reference: a bound that admitted nothing would
-# pass a timing-only check while having stopped guarding.
+# What the cap DOES is asserted, not how long it takes. A wall-clock bound here
+# measures the host: the same fixture read 21 s loaded and the smaller one below
+# read 23 s, while the isolated scan it is supposed to be bounding is ~1 s at this
+# size. A timing assertion that noisy is worse than none — it fails on load and
+# passes on a regression that happens to run on a quiet box. The scan cost itself
+# is measured directly (see the constants' docblock); what a test can pin
+# deterministically is the cap's BEHAVIOR, so this case pins it from both sides.
 #
-# The hunk's first line is a bare SUBSTRING of the reference, never the reference
-# itself, so the direct hunk scan cannot see it and only reconstruction can report
-# it — the assertion below would otherwise pass on the direct scan alone and prove
-# nothing about the fallback.
+# Both references are reached only through reconstruction: each hunk line carrying
+# one is a bare SUBSTRING, never the reference itself, so the direct hunk scan
+# cannot see either and an assertion cannot pass on the direct scan alone.
 FBIG="$REPO/fallback-big.md"
 FBIGHUNK="$TEST_TMPDIR/fallback-hunk.txt"
 {
   printf 'ghost-fallback\n'
-  for ((i = 1; i <= 400; i++)); do printf 'Body line %s of the reformatted passage.\n' "$i"; done
+  for ((i = 2; i <= 300; i++)); do printf 'Body line %s of the reformatted passage.\n' "$i"; done
+  printf 'ghost-deep\n'
+  for ((i = 302; i <= 401; i++)); do printf 'Body line %s of the reformatted passage.\n' "$i"; done
 } >"$FBIGHUNK"
-# On disk that first line reads as part of a code span, so the hunk is not
-# contiguous here and the whole-hunk locate cannot match it. ~200 KiB of unrelated
-# prose follows, putting the file just under RECONSTRUCT_MAX_CHARS.
+# On disk those two lines read as part of code spans, so the hunk is not contiguous
+# here and the whole-hunk locate cannot match it. Unrelated prose follows, putting
+# the file just under RECONSTRUCT_MAX_CHARS (128 KiB).
 {
   printf 'Opening line with `/alpha:ghost-fallback` in it.\n'
-  for ((i = 1; i <= 400; i++)); do printf 'Body line %s of the reformatted passage.\n' "$i"; done
-  for ((i = 1; i <= 2600; i++)); do
+  for ((i = 2; i <= 300; i++)); do printf 'Body line %s of the reformatted passage.\n' "$i"; done
+  printf 'Deep line with `/alpha:ghost-deep` in it.\n'
+  for ((i = 302; i <= 401; i++)); do printf 'Body line %s of the reformatted passage.\n' "$i"; done
+  for ((i = 1; i <= 1450; i++)); do
     printf 'Filler paragraph %s padding this file toward the reconstruction cap.\n' "$i"
   done
 } >"$FBIG"
-fb_start=$SECONDS
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$FBIG" "$(cat "$FBIGHUNK")")" 2>&1)
 RC=$?
-fb_elapsed=$((SECONDS - fb_start))
 assert_exit "large file forced onto the fallback path → exit 0" 0 "$RC"
-if ((fb_elapsed < 30)); then
-  ok "fallback at scale stays inside the hook's 30s timeout (${fb_elapsed}s)"
-else
-  bad "fallback at scale took ${fb_elapsed}s, at or past the hook's 30s timeout"
-fi
+# The bound ADMITS: the first hunk line is inside the anchor cap, so its reference
+# is still recovered. A cap that had collapsed to nothing would stop guarding while
+# passing every timing check ever written.
 assert_contains "the capped fallback still reports the reference it admits" "$OUT" \
   "UNRESOLVED_SKILL: /alpha:ghost-fallback"
+# The bound BINDS: hunk line 301 is far past the cap this file size buys, so its
+# reference is not reached. Asserting the silence is what makes the cap observable
+# without a clock — if the anchor walk ever went unbounded again, this fails.
+assert_absent "the fallback stops at the anchor cap instead of walking the hunk" "$OUT" \
+  "UNRESOLVED_SKILL: /alpha:ghost-deep"
 
 # Above the cap, reconstruction does not run at all — one scan of a file that size
 # would spend the budget by itself. The direct hunk scan is unaffected, so a
@@ -514,7 +525,7 @@ assert_contains "the capped fallback still reports the reference it admits" "$OU
 OVER="$REPO/over-cap.md"
 {
   printf 'Complete reference `/alpha:ghost-over` written by this edit.\n'
-  for ((i = 1; i <= 4200; i++)); do
+  for ((i = 1; i <= 2200; i++)); do
     printf 'Filler paragraph %s pushing this file past the reconstruction cap.\n' "$i"
   done
 } >"$OVER"
@@ -559,6 +570,12 @@ assert_silent "declared paths add to skills/, they do not replace it" "$OUT"
 OUT=$(run 'Run `/gamma:nowhere`.')
 assert_contains "declared paths do not suppress a genuinely missing command" "$OUT" \
   "UNRESOLVED_SKILL: /gamma:nowhere"
+# The message names WHERE it looked, and the advisory's next line tells the reader
+# to confirm against the tree — so the full rendering is asserted, not its prefix.
+# A prefix match passes on any wrong directory list, which is the whole subject
+# here.
+assert_contains "the advisory names every directory the search covered" "$OUT" \
+  "(no such skill under plugins/gamma/skills/, plugins/gamma/custom/extras/, plugins/gamma/solo/)"
 
 # A declared skill's DIRECTORY name is no more an alias than a conventional one's.
 OUT=$(run 'Run `/gamma:solo`.')

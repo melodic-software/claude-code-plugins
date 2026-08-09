@@ -55,13 +55,20 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   linear in file size, it is QUADRATIC — 0.07 s at 32 KiB, 0.24 s at 64, 1.07 s at 128, 3.94 s at
   256 on the same host, because bash's `%%` pattern strip walks the string rather than indexing it.
   A 4 MiB file, which the previous cap allowed, is ~18 minutes for a SINGLE scan, so the guard's
-  worst case had never actually been bounded, only moved. Reconstruction now stops above 256 KiB,
-  where one scan is still ~4 s, and the fallback's anchor cap falls along that same curve instead of
-  being a flat count — 123 anchors at 32 KiB down to one at 256. Above the cap the direct hunk scan
-  is unaffected, so a complete reference is still reported and only partial-edit recovery stops,
-  which is this guard's permitted failure direction. Covered by a case that puts a large file and
-  the fallback path together, which neither the timing case (whole-hunk fast path) nor the
-  correctness cases (three lines) had done.
+  worst case had never actually been bounded, only moved. Reconstruction now stops above 128 KiB,
+  and the fallback's anchor cap falls along that same curve instead of being a flat count — 58
+  anchors at 32 KiB, 14 at 64, 3 at 128. Above the cap the direct hunk scan is unaffected, so a
+  complete reference is still reported and only partial-edit recovery stops, which is this guard's
+  permitted failure direction. Both numbers are calibrated end to end against the hook rather than
+  from the isolated curve, which understates the cost: it times an anchor that matches near the end,
+  where one strip walks the file and the second is free, while a no-match strip walks it twice and
+  the whole-hunk probe pays a scan before the fallback runs at all. Covered by a case that puts a
+  large file and the fallback path TOGETHER, which neither the timing case (whole-hunk fast path)
+  nor the correctness cases (three lines) reached. That case asserts what the cap DOES rather than
+  how long it takes — one reference inside the cap is still reported, one past it is not — because a
+  wall-clock bound there measures the host: the same fixture read 21 s loaded and a smaller one 23 s,
+  against an isolated scan of ~1 s at that size. A timing assertion that noisy fails on load and
+  passes on a regression that happens to run on a quiet box.
 
 - **`skill-reference-verify` reported a valid command as unresolved when its plugin declared custom
   skill paths.** Resolution hard-coded `plugins/<plugin>/skills/`, but a manifest's `skills` key

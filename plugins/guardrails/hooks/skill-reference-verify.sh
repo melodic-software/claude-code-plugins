@@ -233,19 +233,27 @@ emit_refs() {
 # rather than indexing it, so the scan is quadratic in FILE size no matter how
 # short the anchor is. Extrapolated: ~67 s at 1 MiB, ~18 minutes at 4 MiB.
 #
+# Those figures are the FLOOR, not the cost: they time an anchor that matches near
+# the end, so one strip walks the file and the second is free. A no-match strip
+# walks it twice (2.31 s at 200 KiB, measured the same way), and the whole-hunk
+# probe pays a scan of its own before the fallback runs at all. Both bounds below
+# are therefore calibrated end to end against the hook, not from that table.
+#
 #   * RECONSTRUCT_MAX_CHARS — above this, reconstruction does not run at all,
-#     because a SINGLE scan of a larger file already exceeds the hook's budget.
-#     Complete references in the hunk are still reported by the direct scan; only
+#     because scanning a larger file already spends the hook's budget. Complete
+#     references in the hunk are still reported by the direct scan; only
 #     partial-edit recovery is skipped, which is this guard's permitted failure
-#     direction. 256 KiB is far above any real markdown file and is where one
-#     scan is still ~4 s.
+#     direction. 128 KiB is far above any real markdown file this guard reads
+#     (CHANGELOGs, the one shape that grows without bound, are excluded upstream).
 #   * RECONSTRUCT_FALLBACK_SCAN_BUDGET — the per-line fallback scans once per
 #     anchor, so its cap must fall as the file grows, on the same curve: the
-#     anchor cap is this budget divided by (KiB)^2. 126000 holds the fallback's
-#     total scanning near 8 s at every file size on that host — 123 anchors at
-#     32 KiB, 30 at 64 KiB, 7 at 128 KiB, 1 at 256 KiB. A flat anchor count
-#     cannot do this, and neither can a total-characters budget, which assumes
-#     the linear cost this scan does not have.
+#     anchor cap is this budget divided by (KiB)^2. 60000 holds the whole
+#     invocation near 7 s at every file size on that host — 58 anchors at 32 KiB,
+#     14 at 64 KiB, 3 at 128 KiB. A flat anchor count cannot do this, and neither
+#     can a total-characters budget, which assumes the linear cost this scan does
+#     not have. The end-to-end scale case in the test suite is what holds these
+#     two numbers honest; an earlier pair passed the same case at 21 s of a 30 s
+#     budget, which is a bound in name only.
 #
 # The other two are ordinary counts: a hunk stops contributing once it has
 # yielded this many code spans, far above any real edit given that only spans the
@@ -257,10 +265,10 @@ emit_refs() {
 # not done here because every portable option is a subprocess whose offsets are
 # BYTES where these are characters, or a line-oriented tool that cannot match a
 # multi-line hunk at all. Revisit if a real markdown file ever exceeds the cap.
-RECONSTRUCT_MAX_CHARS=262144
+RECONSTRUCT_MAX_CHARS=131072
 RECONSTRUCT_MAX_SPANS=40
 RECONSTRUCT_MAX_OCCURRENCES=40
-RECONSTRUCT_FALLBACK_SCAN_BUDGET=126000
+RECONSTRUCT_FALLBACK_SCAN_BUDGET=60000
 
 # Append to the caller's $ctx every inline-code span in <region> whose extent
 # OVERLAPS [<hunk-start>, <hunk-end>), and count them in the caller's $nspan.
@@ -382,11 +390,15 @@ reconstruct_partial_edit() {
   [[ "$TOOL" == "Edit" && -f "$FILE" ]] || return 0
   local content
   content=$(<"$FILE") || return 0
+  # Gate on the size BEFORE touching the string: every step past this point is a
+  # whole-string operation, so a gate that runs after one of them has left that one
+  # unbounded. Measuring the raw text rather than the normalized text also errs
+  # toward not reconstructing, which is the safe direction here.
+  ((${#content} <= RECONSTRUCT_MAX_CHARS)) || return 0
   # new_string arrived with CR stripped, so a CRLF file must be searched the same
   # way or no anchor would ever locate. Offsets are read back off this normalized
   # text only, never off the bytes on disk.
   content=${content//$'\r'/}
-  ((${#content} <= RECONSTRUCT_MAX_CHARS)) || return 0
 
   local ctx="" nspan=0 anchor alen off hs he head tail cap kib located_whole=0
   local -a offs=() anchors=()
