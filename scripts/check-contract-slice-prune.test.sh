@@ -261,6 +261,34 @@ rc=$?
 if ((rc == 2)) && [[ "$out" == *"escapes the repo root"* ]]; then ok "an escaping contract_dir exits 2"; else fail "an escaping contract_dir must exit 2, got rc=$rc"; fi
 rm -rf "$repo"
 
+# --- a Windows-dialect absolute contract_dir is refused, not silently honoured
+# Git names repo-relative diff paths with '/' and never with a drive qualifier
+# or a raw backslash, so accepting one as repo-relative leaves the gate matching
+# nothing at all while reporting success -- policing an empty set.
+while IFS= read -r cfg; do
+  repo="$(mk_repo)"
+  mkdir -p "$repo/.claude"
+  printf 'contract_dir: %s\n' "$cfg" >"$repo/.claude/topic-docs.yaml"
+  (cd "$repo" && git_q add -A && git_q commit -m concern && git_q checkout base && git_q merge work && git_q checkout work)
+  mkdir -p "$repo/docs/topics/newslug"
+  printf 'plan\n' >"$repo/docs/topics/newslug/PLAN.md"
+  commit_work "$repo"
+  out="$(run_diff "$repo")"
+  rc=$?
+  if ((rc == 2)) && [[ "$out" == *"escapes the repo root"* ]]; then
+    ok "a Windows-absolute contract_dir ($cfg) exits 2"
+  else
+    fail "contract_dir '$cfg' must exit 2 rather than police nothing, got rc=$rc out=$out"
+  fi
+  rm -rf "$repo"
+done <<'CONFIGS'
+C:/outside
+C:\outside
+c:outside
+\outside
+\\host\public
+CONFIGS
+
 # --- a literal hash inside contract_dir is not a comment ---------------------
 # Truncating at an adjacent '#' would silently police 'docs/a' and leave the
 # real 'docs/a#b' root unchecked.

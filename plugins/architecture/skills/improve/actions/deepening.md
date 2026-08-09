@@ -6,6 +6,19 @@ Three phases, with a verification gate (Phase 1.5) between the scan and the repo
 
 ## Phase 1 — Explore for friction
 
+**Scope before scanning — YAGNI.** Deepening pays off by making future changes easier, so weight
+the scan toward where change keeps landing — a deepening opportunity in code nobody touches is
+leverage never cashed in. Decide *where* to look before looking:
+
+- If the user named a direction — a module, a subsystem, a pain point, whether in the invocation
+  arguments or the conversation — scope the scan to it and skip the inference below.
+- Otherwise, walk back the recent commit history to find the hot spots — the files and areas that
+  keep coming up — and let those paths pull the scan first. The pre-computed **Recent commits**
+  context is the starting evidence; extend with `git log --oneline -20` when it runs thin. If the
+  changes are scattered with no clear hot spot, widen the net.
+
+The scope chosen here sets each scan subagent's assigned area.
+
 Read the project's domain glossary if it maintains one — the nearest `UBIQUITOUS-LANGUAGE.md` (or equivalent), found by walking UP from the directory being examined toward the repo root and stopping at the first match (the same way `.editorconfig` / `.gitignore` resolve).
 
 Also read any architecture decision records (ADRs) in the area being examined — give them the same discovery discipline as the glossary rather than one shallow glob. If the consuming project declares where its decisions live (a path in its `CLAUDE.md` / rules, or a documented convention), honor that. Otherwise walk a short ladder of the common homes, from the examined directory up to the repo root: `docs/adr/`, `docs/decisions/`, `doc/adr/`, `.adr/`, `adr/`, plus any `*.md` whose name matches `adr-*` / `*-decision*`. ADR placement varies widely; a single default glob misses most of them.

@@ -3,6 +3,16 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.49.1]
+
+### Added
+
+- **`babysit-loop`: the rate-limit floor's reactive-only mode now reads the detection records.**
+  The fail-open bullet named reactive-only but gave the lane no `stop-events.jsonl` behavior; the
+  skill now carries the reader contract's read cadence (read on mode entry and before each new work
+  claim, recency baseline = lane start advanced by each resume attempt). Mirrors rate-limit-guard
+  0.4.4's reader-contract addition.
+
 ## [0.49.0]
 
 ### Added

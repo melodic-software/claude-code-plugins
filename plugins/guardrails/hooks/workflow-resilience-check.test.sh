@@ -16,6 +16,11 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 # shellcheck source=guardrails-test-helpers.sh
 source "$HOOK_DIR/guardrails-test-helpers.sh"
 
+# The advisory is OPT-IN since 0.20.0 (default off — behavioral-class injector,
+# config-disabled per #2021). Every behavior case below runs with the switch on;
+# the default-off posture has its own case (CASE 7b).
+export CLAUDE_PLUGIN_OPTION_WORKFLOW_RESILIENCE_CHECK_ENABLED=true
+
 # PreToolUse Workflow payload builders.
 workflow_script_json() { jq -nc --arg s "$1" '{tool_name:"Workflow",tool_input:{script:$s}}'; }
 workflow_path_json() { jq -nc --arg p "$1" '{tool_name:"Workflow",tool_input:{scriptPath:$p}}'; }
@@ -54,6 +59,11 @@ assert_silent "no fan-out stays silent" "$out"
 # CASE 7: kill switch off → silent even on un-throttled fan-out.
 out=$(run_hook "$(workflow_script_json 'await pipeline(FILES, s1)')" CLAUDE_PLUGIN_OPTION_WORKFLOW_RESILIENCE_CHECK_ENABLED=false)
 assert_silent "kill switch silences hook" "$out"
+
+# CASE 7b: default posture is OFF (0.20.0) — an UNSET switch is a clean no-op.
+out=$(env -u CLAUDE_PLUGIN_OPTION_WORKFLOW_RESILIENCE_CHECK_ENABLED \
+  bash "$HOOK" <<<"$(workflow_script_json 'await pipeline(FILES, s1)')" 2>&1)
+assert_silent "unset switch → no-op (advisory is opt-in by default)" "$out"
 
 # CASE 8: saved scriptPath with un-throttled fan-out → advisory fires (reads file).
 SAVED="$TEST_TMPDIR/engine.js"
