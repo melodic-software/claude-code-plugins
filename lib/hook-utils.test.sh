@@ -999,10 +999,19 @@ fi
 # (2271 ms for a 2000 ms consumer) where a fixed 8 s hold cost 8180 ms — so this
 # is also what makes the repeated sampling further down affordable.
 bs_release_fifo="$(mktemp -u)"
-if mkfifo "$bs_release_fifo" 2>/dev/null; then
+bs_mkfifo_err=$(mkfifo "$bs_release_fifo" 2>&1)
+if [[ -z "$bs_mkfifo_err" ]] && [[ -p "$bs_release_fifo" ]]; then
   bs_hold_open() { read -r _ <"$bs_release_fifo"; }
   bs_release() { : >"$bs_release_fifo"; }
 else
+  # Say so, loudly. Dropping to the fallback costs minutes of extra wall time
+  # across the cases below, and without this line the only symptom is a run that
+  # is mysteriously slower — indistinguishable from the host being busy, which is
+  # the exact confusion this whole file is about. The reason mkfifo refused is
+  # part of the message because a container or network filesystem that rejects
+  # FIFOs is the plausible way to get here, and that is worth knowing.
+  printf 'WARNING: mkfifo unavailable (%s); buffer_stdin cases fall back to a fixed hold, which is slower and less precise.\n' \
+    "${bs_mkfifo_err:-no FIFO created}" >&2
   # No FIFO on this host: fall back to a fixed hold, which is what this replaced.
   # It has to clear the WORST case any call site can reach, and the worst is the
   # stall comparison's unsliced arm: a 3.6 s bound plus three sequential forks,
@@ -1103,11 +1112,14 @@ fi
 #    run SEQUENTIALLY, so they never share a load sample — dominance holds in
 #    expectation, not per sample. Instrumenting buffer_stdin's two startup forks
 #    across four back-to-back runs on an idle box gave 93/92, 762/1277,
-#    1755/3234, 107/100 ms: a 35x swing on one fork, up to 3.2 s, against a
-#    structural gap under 1 s. Single-sample comparison is therefore not
-#    measurable here at all, which is why these cases now take N interleaved
-#    samples per arm and compare the MEDIAN of the paired deltas. The median is
-#    robust to the occasional multi-second fork; one sample is not.
+#    1755/3234, 107/100 ms: a 35x swing on ONE fork, up to 3.2 s. The structural
+#    gaps it has to be read against are 1.2 s for this case (one slice against a
+#    whole bound plus a slice) and 2.7 s for the stall case below, so a single
+#    bad fork exceeds one of them outright and eats most of the other. Since each
+#    arm pays several forks, single-sample comparison is not measurable here at
+#    all — which is why these cases take N interleaved samples per arm and
+#    compare the MEDIAN of the paired deltas. The median is robust to the
+#    occasional multi-second fork; one sample is not.
 #
 # Timing is taken INSIDE the consumer: bracketing the pipeline would fold the
 # producer and the handshake into the measurement.
