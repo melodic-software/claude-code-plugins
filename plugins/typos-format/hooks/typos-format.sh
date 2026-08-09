@@ -290,7 +290,8 @@ fi
 # else here (typos itself runs in ~80 ms on a 68 KB file), so the loop is gone
 # and the total spawn count is constant in the number of findings.
 #
-# Residual identity: the flagged TOKEN, matched by COUNT — never by position.
+# Residual identity: the flagged token PAIRED WITH its correction decision,
+# matched by COUNT — never by position.
 # Byte offsets shift as earlier corrections on the same line change its length,
 # and line numbers are no more stable: Claude Code runs every matching
 # PostToolUse hook in parallel, so a sibling formatter can reflow the file
@@ -298,9 +299,17 @@ fi
 # A position-keyed lookup then fails to match that finding against its own scan
 # entry and reports a word typos never touched as a rewrite — a false mutation
 # disclosure on the one channel this hook exists to make trustworthy. Counting
-# per token cannot do that: a scan finding is applied only once its token's
-# residual occurrences are exhausted, so a moved residual still cancels its scan
-# entry. The trade is deliberate and one-directional — counting can only
+# cannot do that: a scan finding is applied only once its key's residual
+# occurrences are exhausted, so a moved residual still cancels its scan entry.
+# The correction list is IN the key, not just the token, because one spelling can
+# carry two different decisions in one file — an identifier reached by
+# extend-identifiers and prose reached by extend-words, or a fixable occurrence
+# beside a disallowed one. Keyed on the token alone those merge, and cancelling
+# by count can then retire the fixable entry and disclose the disallowed one — a
+# rewrite reported at the wrong line with a blank correction, while the real
+# rewrite goes unmentioned. Pairing the decision with the token keeps them
+# distinct, and since neither element is positional a moved residual still
+# cancels. The trade is deliberate and one-directional — counting can only
 # UNDER-report applied (a missing disclosure line), never over-report one.
 # Residual findings are reported from the write pass's own output, so their line
 # numbers are the file's current ones rather than the scan's stale ones.
@@ -333,7 +342,7 @@ fi
 CLASSIFIED=$(printf '%s\n@@typos-format-split@@\n%s\n' "$SCAN_OUTPUT" "$RESIDUAL_OUTPUT" |
   jq -R -s -c --argjson max "$MAX_REPORT" '
     def parse($lines): [$lines[] | select(length > 0) | (fromjson? // empty) | select(.type == "typo")];
-    def tokof: (.typo // "");
+    def tokof: [(.typo // ""), .corrections] | tojson;
     # Entry count is capped, but a single entry is not bounded by that: a token
     # or correction is arbitrary text from the file, so ten of them can still
     # blow the systemMessage character cap. Rendered tokens are elided; the

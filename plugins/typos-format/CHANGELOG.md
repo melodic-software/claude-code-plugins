@@ -14,9 +14,15 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
   sibling formatter can reflow the file between the scan and the write and carry an untouched
   finding to a different line. The moved residual then failed to match its own scan entry and was
   reported as an applied correction — a false mutation disclosure on the one channel this hook
-  exists to make trustworthy. Residuals are now matched by token and cancelled by COUNT, so a
-  finding that merely moved still cancels its scan entry, and residual line numbers are taken from
-  the write pass's own output rather than the scan's stale ones. The trade is deliberate and
+  exists to make trustworthy. Residuals are now matched by token PAIRED WITH their correction
+  decision and cancelled by COUNT, so a finding that merely moved still cancels its scan entry, and
+  residual line numbers are taken from the write pass's own output rather than the scan's stale
+  ones. The correction list is part of the key because one spelling can carry two decisions in one
+  file — an occurrence reached by `extend-identifiers` beside one reached by `extend-words`, or a
+  fixable occurrence beside a disallowed one. Keyed on the token alone those merge, and the count
+  can then retire the fixable entry and disclose the disallowed one instead: a rewrite claimed at
+  the wrong line with a blank correction, while the rewrite that really happened goes unmentioned.
+  The trade is deliberate and
   one-directional: counting can only UNDER-report an applied correction (a missing disclosure
   line), never invent one. Still unclosed, and stated in the source: a concurrent writer that
   DELETES a finding outright is attributed to typos, which needs file locking no hook-level
