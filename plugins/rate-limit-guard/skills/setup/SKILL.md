@@ -168,8 +168,9 @@ owned by `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`.
    `<escaped original command>` is the original command POSIX-escaped for single-quote embedding:
    replace every `'` in it with `'\''` before substituting (then JSON-escape the whole `command`
    string as usual). Show the final, fully escaped line — never hand the operator a template with
-   raw quotes left to fix. Verify your printed edit round-trips: mentally unquote it back and
-   confirm it reproduces the original command byte-for-byte.
+   raw quotes left to fix. Verify your printed edit round-trips: run
+   `printf '%s\n' '<escaped original command>'` and confirm the output matches the original
+   command.
 
    Sibling tees compose by nesting, each through its OWN shim — the tees are transparent wrappers,
    so the innermost command still owns stdout and the exit code. Print this form (its tee outermost,

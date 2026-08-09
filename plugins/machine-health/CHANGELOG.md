@@ -3,6 +3,32 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.1]
+
+### Fixed
+
+- **Finding-section template no longer renders as live markdown.** The example block in
+  `report-template.md` nested a ` ```powershell ` fence inside a same-width ` ```markdown ` fence, so
+  the inner closer ended the outer block early: `**Suggested action:**` rendered as real markdown and
+  the trailing fence swallowed the rest of the file. The outer fence is now four backticks.
+
+### Changed
+
+- **Self-modification docs now target the state root and `approvals.json`.** `discovery-guide.md` and
+  `remediation-philosophy.md` described the retired checkbox-in-`TODO.md` approval model and told the
+  skill to write new checks and deprecations into the shipped catalog inside the plugin install
+  directory. Both now route proposals to `<StateBase>/TODO.md`, approvals to
+  `<StateBase>/state/approvals.json` via `/machine-health:setup`, and catalog edits to the machine-local
+  overlay.
+- **Setup validates against the real schema artifacts** (`catalog/schemas/checks.schema.json`,
+  `approvals.schema.json`) instead of the prose reference docs, and no longer calls a config write a
+  "remediation" — that term stays reserved for the audit skill's approval-gated OS actions.
+- **Reference corrections and rationale.** The severity rubric lists a healthy battery as `OK` (matching
+  `Test-Battery.ps1`) and its `UNKNOWN` timeout row now covers a check's own narrower budget; the
+  Windows catalog records Kernel-Power 41 as `CRIT`, states the passive-AV re-bucketing levels
+  explicitly, and explains why the temp-root walk stops at 60s. Guardrails, the approval-contract
+  references, and the `NOT_IMPLEMENTED` stubs carry their reasons or point at the file that owns them.
+
 ## [0.8.0]
 
 ### Added
