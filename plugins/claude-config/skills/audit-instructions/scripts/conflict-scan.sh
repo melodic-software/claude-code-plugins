@@ -63,11 +63,11 @@ EOF
 }
 
 case "${1:-}" in
-  -h | --help)
-    usage
-    exit 0
-    ;;
-  *) ;;
+-h | --help)
+  usage
+  exit 0
+  ;;
+*) ;;
 esac
 
 # Check the tools this script actually executes. `mapfile < <(… | sort -u)`
@@ -107,10 +107,12 @@ BACKTICK=$(printf '\140')
 ENTITY_ERE="[A-Z][a-z]+([A-Z][a-z]*)+|${BACKTICK}[A-Z][a-z]+${BACKTICK}"
 # Prohibition tokens — the I6 set, kept semantically identical to
 # instruction-scan.sh so the two scans classify a line's polarity the same way.
-PROHIBIT_ERE='[^a-z](never|do not|don[^a-z]?t|must ?not|mustn[^a-z]?t|should ?not|shouldn[^a-z]?t)[^a-z]'
+PROHIBIT_ALT='never|do not|don[^a-z]?t|must ?not|mustn[^a-z]?t|should ?not|shouldn[^a-z]?t'
+PROHIBIT_ERE="[^a-z](${PROHIBIT_ALT})[^a-z]"
 # Mandate tokens. Checked only after prohibition, so "never use X" is a
 # prohibition rather than an ambiguous both-polarity line.
-MANDATE_ERE='[^a-z](must|always|mandator(y|ily)|require[ds]?|shall|use|present|ask)[^a-z]'
+MANDATE_ALT='must|always|mandator(y|ily)|require[ds]?|shall|use|present|ask'
+MANDATE_ERE="[^a-z](${MANDATE_ALT})[^a-z]"
 # Exception clauses — flagged, not suppressed. Whether the exception reaches the
 # other surface is gate 4, which the lane decides.
 EXCEPTION_ERE='[^a-z](unless|except|only when|only if|other than)[^a-z]'
@@ -128,6 +130,26 @@ CONDITIONAL_ERE='[^a-z](only when|only if|unless|requires?|gated|enabled|is on|w
 # temporal conjunction as often as a contrastive one ("use X while the flag is
 # set" must not split).
 BOUNDARY_ERE='([.;!?] |[^a-z],? *(but|whereas|though|although|yet)[^a-z]|, while[^a-z])'
+# Coordinated second directive — `and` joining a directive that carries its OWN
+# polarity token ("always use `Read` and never use `Bash`"). Opposite polarities
+# coordinate with `and` as readily as with a contrastive, and without a boundary
+# the first entity's trailing window swallows the second directive's token and
+# takes its polarity. A bare `and` is NOT a boundary: it usually joins the
+# objects of one directive ("never use `Bash` and `Grep`"), where cutting would
+# strip the token that governs the second object. Requiring the polarity token
+# is what separates the two readings.
+#
+# The token set is COMPOSED from the two classifier alternations rather than
+# retyped. A hand-copied list drifts the moment either classifier gains a token:
+# `use|present|ask` were added to MANDATE_ERE and not here, so `Never use X and
+# use Y` found no boundary, Y inherited the leading `never`, and a real conflict
+# with `Never use Y` went unreported while `Always use Y` reported a false one.
+# Composition makes that divergence unrepresentable.
+COORD_ERE="[^a-z],? *and +(${PROHIBIT_ALT}|${MANDATE_ALT})[^a-z]"
+# The coordinator alone. A LEADING window resumes after this much of a COORD
+# match rather than after the whole of it, so the second directive's polarity
+# token stays on the entity's side of the cut and still classifies it.
+COORD_HEAD_ERE='[^a-z],? *and +'
 
 # Polarity is read from a window around each entity mention, not from the whole
 # line. A prose line often carries a prohibition about one object and names an
@@ -143,7 +165,32 @@ mapfile -t rows < <(
     [[ -f "$file" ]] && printf '%s\n' "$file"
   done | awk -v w="$WINDOW_CHARS" -v entpat="$ENTITY_ERE" -v prohibit="$PROHIBIT_ERE" \
     -v mandate="$MANDATE_ERE" -v exception="$EXCEPTION_ERE" -v gated="$GATED_ERE" \
-    -v conditional="$CONDITIONAL_ERE" -v bnd="$BOUNDARY_ERE" '
+    -v conditional="$CONDITIONAL_ERE" -v bnd="$BOUNDARY_ERE" -v coord="$COORD_ERE" \
+    -v coordhead="$COORD_HEAD_ERE" '
+    # Leading half of a window: resume after the LAST boundary before the entity.
+    # Contrastives and sentence marks are consumed whole; a coordinated directive
+    # is consumed only up to its coordinator, leaving its polarity token in the
+    # returned text because that token is what governs this entity.
+    function cut_lead(t,   cut, off, tail, cs, hl) {
+      cut = 0; off = 0; tail = t
+      while (match(tail, bnd)) {
+        off += RSTART + RLENGTH - 1
+        cut = off
+        tail = substr(tail, RSTART + RLENGTH)
+      }
+      if (cut > 0) t = substr(t, cut + 1)
+      cut = 0; off = 0; tail = t
+      while (match(tail, coord)) {
+        cs = RSTART
+        match(substr(tail, cs), coordhead)
+        hl = RLENGTH
+        off += cs + hl - 1
+        cut = off
+        tail = substr(tail, cs + hl)
+      }
+      if (cut > 0) t = substr(t, cut + 1)
+      return t
+    }
     function classify(file, lineno, ent, prewindow, postwindow, window,   pol, exc, key) {
       # Every test here reads `window`, which the caller builds from the
       # sentence-bounded halves plus the mention itself. Nothing classifies an
@@ -200,18 +247,16 @@ mapfile -t rows < <(
           # entities at opposite polarity ("always use X but never use Y"), while
           # ordinary comma-separated prose keeps its polarity throughout, so
           # cutting on every comma would drop the token that governs the entity.
+          #
+          # A coordinated second directive bounds the window too, but
+          # asymmetrically: a contrastive carries no polarity of its own and is
+          # consumed whole, whereas the coord pattern matches THROUGH the second
+          # polarity token, so a leading window resumes after the coordinator
+          # alone and keeps that token. See cut_lead.
           post = substr(pad, e + 2, w)
           if (match(post, bnd)) post = substr(post, 1, RSTART - 1)
-          pre = substr(pad, ws + 1, s - ws)
-          precut = 0
-          preoff = 0
-          pretail = pre
-          while (match(pretail, bnd)) {
-            preoff += RSTART + RLENGTH - 1
-            precut = preoff
-            pretail = substr(pretail, RSTART + RLENGTH)
-          }
-          if (precut > 0) pre = substr(pre, precut + 1)
+          if (match(post, coord)) post = substr(post, 1, RSTART - 1)
+          pre = cut_lead(substr(pad, ws + 1, s - ws))
           # The full window is rebuilt from the bounded halves plus the mention,
           # so mandate, gate and exception tests see the same sentence the
           # polarity tests do rather than the raw span.

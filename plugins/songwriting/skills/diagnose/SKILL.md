@@ -11,9 +11,9 @@ disable-model-invocation: false
 Before emitting a critique, diagnosis, audit verdict, variation set, or rewrite, run **§3 Critique
 filter** and **§8 Pre-lock filter** of
 [response-filter](../../context/pat-pattison/research/response-filter.md) (add **§2 Line-writing**
-when producing rewritten lines). NAME each box's pass / fail / skip-with-reason; correct before
-emission. Skips are valid; silent skips are not — list-and-leave critique is the default this
-filter catches.
+when producing rewritten lines). NAME each box's pass / fail / skip-with-reason (aloud or in
+reasoning); correct before emission. Skips are valid; silent skips are not — list-and-leave
+critique is the default this filter catches.
 
 ## Purpose
 
@@ -21,7 +21,7 @@ The review-and-revise layer: name the dominant problem, offer one focused revisi
 checklist as deliberate choice points, and generate labeled alternates. Diagnosis names problems;
 it does not silently rewrite the whole song.
 
-Method content is Pat Pattison's, under `context/pat-pattison/`. A future author's method plugs in
+Method content is Pat Pattison's, under the plugin-root `../../context/pat-pattison/`. A future author's method plugs in
 at `context/<author>/` without changing this skill.
 
 ## Action Router

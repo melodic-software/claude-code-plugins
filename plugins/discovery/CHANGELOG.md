@@ -1,5 +1,40 @@
 # Changelog — discovery plugin
 
+## [0.11.2]
+
+### Changed
+
+- **`research-deep`: the multi-topic fan-out now has a ceiling.** N came straight from the user's own
+  topic count with a stated floor (N ≥ 2 dispatches parallel agents) and nothing above it, so a
+  twenty-topic ask dispatched twenty agents. N is now capped at roughly a dozen, past which the ask
+  gets narrowed with the user before dispatching — the same wave cap the `discipline` plugin already
+  uses, rather than a new threshold invented here.
+
+## [0.11.1]
+
+### Fixed
+
+- **The plan-mode filter claim bundled two tools under one unconditional rule, and only one of them
+  is unconditional.** `skills/explore/SKILL.md` and `agents/explorer.md` both stated that
+  "`EnterPlanMode` and `ExitPlanMode` are filtered out of every non-fork subagent". Verified
+  2026-08-08 against the official subagent docs, which list the first filter's removals as
+  "`EnterPlanMode`" with no qualifier and "`ExitPlanMode`, unless the subagent's `permissionMode` is
+  `plan`". `ExitPlanMode` carries a carve-out; `EnterPlanMode` does not.
+  - The correction is not an appended qualifier. Attaching the carve-out to the joined sentence
+    would have spread it to `EnterPlanMode`, replacing a claim that is too strong with one that is
+    too weak — and too weak in the direction that matters, since it would imply a dispatched run
+    could enter plan mode. The two tools are now stated separately.
+  - **The surrounding conclusion survives, and now rests on the `tools` allowlist rather than on
+    the filter alone.** Both sites conclude that a dispatched run's read-only boundary is the
+    agent's own instruction, not harness enforcement. Deriving that from `permissionMode` would
+    not hold: the same page states subagents "inherit the permission context from the main
+    conversation", naming only `bypassPermissions`, `acceptEdits`, and `auto` in its precedence
+    rules, so a definition's silence on `permissionMode` does not by itself settle which mode the
+    subagent runs in. `agents/explorer.md` instead declares `tools: "Read, Grep, Glob, Bash,
+    Write, Skill, Agent"` — an allowlist naming neither plan-mode tool — so it holds neither
+    however the filters and inheritance resolve. That is a property of the definition in the
+    repository, checkable without reasoning about permission-mode precedence at all.
+
 ## [0.11.0]
 
 ### Changed
