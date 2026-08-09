@@ -500,12 +500,19 @@ fi
 # noise.
 #
 # Only the PERSISTED branch forks, so these fixtures — not the inline chains
-# earlier in this file — are where the cost lives. Measured with the shim below,
-# the 20-hop dual-spelling, 60-hop single-spelling and 12-hop divergent INLINE
-# chains cost ZERO `git` spawns each: an inline expansion sets
-# inline_alias_handled and skips the config lookup entirely, and effective_dir is
-# pure string composition. Those traversal cases could never have caught a
-# fork-cost regression, which is why this section builds persisted fixtures.
+# earlier in this file — are where the cost lives, and a persisted chain is the
+# only shape that gives one fork PER HOP for the linear ceilings below.
+# An inline HOP is free: it sets inline_alias_handled and skips the config
+# lookup, and effective_dir is pure string composition. Measured with the shim
+# below, the 20-hop dual-spelling and 60-hop single-spelling inline chains to
+# `commit -F -` cost ZERO spawns. But an inline chain is not uniformly free —
+# its TERMINAL subcommand has no inline definition, so the walk still pays one
+# persisted_alias lookup for it: a 12-hop divergent chain to `status` costs 1,
+# as does the dual-spelling chain's blocked `commit -m` variant.
+# That single fork is not nothing — it moves 1 -> 40 under the same cache
+# regression this section pins. The inline cases are still the wrong fixtures
+# here, not because they cannot move, but because one fork cannot express a
+# per-hop ceiling, and because none of them carries a spawn assertion.
 #
 # The shim LOGS AND DELEGATES. This hook genuinely needs git to answer, so a
 # log-only stub would change the very verdicts being measured. The real binary is
@@ -612,7 +619,8 @@ if [[ -n "$FORK_REAL_GIT" && -d "$FORK10/.git" && -d "$FORK20/.git" ]]; then
   # Guarded on BOTH shapes, not just one: the divergent case carries the load-
   # bearing ceiling, and it can go vacuous on its own. If `alias.d` ever falls out
   # of the fixture, or the chain stops reaching it, the walk still exhausts the
-  # budget and still exits 2 while forking nothing — and a 0 <= 16 ceiling would
+  # budget and still exits 2 while forking far below the ceiling — measured at 1,
+  # the terminal `alias.status` lookup alone — and a `1 <= 16` ceiling would
   # report green over a fixture that had quietly stopped testing anything. Two is
   # the measured floor: `alias.d`, then `alias.status`.
   if ((FORKS_10 > 0)); then
