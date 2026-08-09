@@ -453,8 +453,8 @@ placement rule, the S10 artifacts claim.
 - **Severity ceiling: `info`.** The source is a post on Anthropic's Claude blog — vendor-published,
   but a blog post rather than reference documentation — and a rule sits in this tier precisely
   because the corroboration pass found no official doc that confirms it. `error` and `warning`
-  assert a breach of documented doctrine, a force vendor blog advice that documentation does not
-  corroborate cannot carry against a consumer's instruction corpus.
+  assert a breach of documented doctrine — a force that vendor blog advice, uncorroborated by
+  documentation, cannot carry against a consumer's instruction corpus.
 - **Never fix-applied.** `OPINION` findings are reported, never mutated automatically, regardless of
   the sweep's apply posture.
 
