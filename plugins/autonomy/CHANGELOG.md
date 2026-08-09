@@ -26,10 +26,15 @@ merged work-package PRs (#333, #343, #356, #372, #377, #600, #676).
   store the hook cannot write leaves no claim, and a claim whose owner never lands exhausts that
   budget; both honor the arm, because a legitimate lane losing its gate is the harm, not an extra
   gated stop, and refusing a durably ownerless claim would make the record permanently unclaimable.
-  A record
-  claimed by an earlier version carries its owner in the record itself and stays bound to that
-  session; `lane-stop-gate-arm.sh` clears the sidecar when it (re)writes a record so a re-armed id
-  starts unclaimed, and the gate's TTL sweep drops record and sidecar together.
+  A record claimed by an earlier version carries its owner in the record itself and stays bound to
+  that session; `lane-stop-gate-arm.sh` clears the sidecar before it (re)writes a record so a
+  re-armed id starts unclaimed, and the gate's TTL sweep drops record and sidecar together. The
+  clear precedes the write rather than following it, so a crash between the two leaves the old
+  record with no claim — an extra gated stop — instead of a fresh record beside a stale claim,
+  which refuses the new lane on every stop until the record ages out. And the claim path carries the
+  record path's own `[[ -f ]]` asymmetry: anything there that this hook did not write decides
+  nothing and the arm is honored, so a planted FIFO cannot take the write with no reader and hang
+  the whole Stop event into a permanently allowed stop.
 
 ## [0.13.0]
 

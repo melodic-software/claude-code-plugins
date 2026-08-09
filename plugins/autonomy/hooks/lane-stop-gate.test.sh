@@ -693,6 +693,11 @@ OUT="$(run "$(build_input Stop "no token here" false)" \
   CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL="")"
 if [[ "$OUT" == *'LANE-STOP-OK'* ]]; then ok "the nudge names the default token, never an empty one"; else fail "the nudge did not name a usable token: $OUT"; fi
 
+# The claim-ownership cases below assert the exit code alongside the decision.
+# A Stop hook that starts exiting non-zero — 127 for a helper that stopped
+# resolving — is a regression a stdout-only assertion passes over in silence.
+rc0() { [[ "$1" -eq 0 ]] || fail "$2 exited $1"; }
+
 # --- Case 41: the PERSISTED owner decides, not the presenting session --------
 # Case 32 proves a sequential replay is refused; that passes whether the claim
 # is atomic or a read-then-write. This pins the verify-the-owner clause with a
@@ -703,9 +708,11 @@ bash "$ARM" --id "$ARM_ID_6" --cwd "$WORK" 2>/dev/null
 printf 'sess-owner\n' >"$DATA_DIR/lane-arms/$ARM_ID_6.claim"
 OUT="$(run_bare "$(build_input Stop "no token" false "" "sess-intruder")" \
   CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID="$ARM_ID_6")"
+rc0 $? "the non-owner refusal on a pre-claimed record"
 if is_block "$OUT"; then fail "a pre-claimed record was honored for a non-owner: $OUT"; else ok "a pre-claimed record is refused for a non-owner"; fi
 OUT="$(run_bare "$(build_input Stop "no token" false "" "sess-owner")" \
   CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID="$ARM_ID_6")"
+rc0 $? "the persisted owner's honored stop"
 if is_block "$OUT"; then ok "a pre-claimed record is honored for its persisted owner"; else fail "the persisted owner was not honored: $OUT"; fi
 
 # --- Case 42: re-arming the same id clears the claim ------------------------
@@ -715,6 +722,7 @@ bash "$ARM" --id "$ARM_ID_6" --cwd "$WORK" 2>/dev/null
 if [[ -e "$DATA_DIR/lane-arms/$ARM_ID_6.claim" ]]; then fail "re-arming left the previous lane's claim in place"; else ok "re-arming clears the previous lane's claim"; fi
 OUT="$(run_bare "$(build_input Stop "no token" false "" "sess-relaunched")" \
   CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID="$ARM_ID_6")"
+rc0 $? "the relaunched lane's first claim"
 if is_block "$OUT"; then ok "a re-armed id is claimable by the relaunched lane"; else fail "a re-armed id stayed bound to the previous lane: $OUT"; fi
 
 # --- Case 43: a record claimed before the sidecar existed stays bound -------
@@ -726,9 +734,11 @@ REC_7="$DATA_DIR/lane-arms/$ARM_ID_7"
 jq -c '.session_id = "legacy-owner"' <"$REC_7" >"$REC_7.new" && mv -f "$REC_7.new" "$REC_7"
 OUT="$(run_bare "$(build_input Stop "no token" false "" "sess-intruder")" \
   CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID="$ARM_ID_7")"
+rc0 $? "the non-owner refusal on a legacy-claimed record"
 if is_block "$OUT"; then fail "a legacy-claimed record was honored for a non-owner: $OUT"; else ok "a legacy-claimed record is refused for a non-owner"; fi
 OUT="$(run_bare "$(build_input Stop "no token" false "" "legacy-owner")" \
   CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID="$ARM_ID_7")"
+rc0 $? "the legacy owner's honored stop"
 if is_block "$OUT"; then ok "a legacy-claimed record is still honored for its owner"; else fail "a legacy-claimed record stopped gating its own session: $OUT"; fi
 
 # --- Case 44: concurrent presenters of one fresh id — exactly one wins ------
@@ -743,14 +753,17 @@ rm -f "$SETTINGS"
 RACE_DIR="$WORK/race"
 mkdir -p "$RACE_DIR"
 for i in 1 2 3 4 5 6; do
-  (cd "$UNRELATED" && printf '%s' "$(build_input Stop "no token" false "" "race-$i")" |
-    env -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED \
-      -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL \
-      -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER \
-      -u CLAUDE_PLUGIN_DATA \
-      CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_ENABLED=false \
-      CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID="$ARM_ID_8" \
-      bash "$HOOK" 2>/dev/null >"$RACE_DIR/$i") &
+  (
+    cd "$UNRELATED" && printf '%s' "$(build_input Stop "no token" false "" "race-$i")" |
+      env -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED \
+        -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL \
+        -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER \
+        -u CLAUDE_PLUGIN_DATA \
+        CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_ENABLED=false \
+        CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID="$ARM_ID_8" \
+        bash "$HOOK" 2>/dev/null >"$RACE_DIR/$i"
+    printf '%s\n' "$?" >"$RACE_DIR/$i.rc"
+  ) &
 done
 wait
 RACE_WINNERS=0
@@ -763,6 +776,7 @@ for i in 1 2 3 4 5 6; do
 done
 if [[ $RACE_WINNERS -eq 1 ]]; then ok "exactly one concurrent presenter claims a fresh arm id"; else fail "$RACE_WINNERS of 6 concurrent presenters were honored for one fresh arm id"; fi
 RACE_CLAIMED="$(head -n 1 "$DATA_DIR/lane-arms/$ARM_ID_8.claim" 2>/dev/null)"
+for i in 1 2 3 4 5 6; do rc0 "$(cat "$RACE_DIR/$i.rc" 2>/dev/null || echo 1)" "concurrent presenter race-$i"; done
 if [[ -n "$RACE_WINNER" && "$RACE_CLAIMED" == "$RACE_WINNER" ]]; then ok "the persisted claim names the session that was honored"; else fail "persisted claim '$RACE_CLAIMED' does not name the honored session '$RACE_WINNER'"; fi
 
 # --- Case 45: a durably ownerless claim honors the arm ----------------------
@@ -775,7 +789,42 @@ bash "$ARM" --id "$ARM_ID_9" --cwd "$WORK" 2>/dev/null
 : >"$DATA_DIR/lane-arms/$ARM_ID_9.claim"
 OUT="$(run_bare "$(build_input Stop "no token" false "" "sess-after-a-dead-writer")" \
   CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID="$ARM_ID_9")"
+rc0 $? "the stop that met an ownerless claim"
 if is_block "$OUT"; then ok "an ownerless claim still honors the arm (fail direction: gate ON)"; else fail "an ownerless claim left the lane ungated: $OUT"; fi
+
+# --- Case 46: a non-regular file at the claim path decides nothing ----------
+# The claim is a second predictable name in the store, and the record path has
+# always been `[[ -f ]]`-guarded. Without the same guard a planted FIFO takes
+# the write with no reader and the whole Stop event hangs until the harness
+# gives up — a stop allowed on every attempt, i.e. an ungated lane. Watchdogged
+# rather than run bare, so a regression fails this suite instead of stalling CI.
+ARM_ID_10="fedcba9876543210"
+bash "$ARM" --id "$ARM_ID_10" --cwd "$WORK" 2>/dev/null
+rm -f "$SETTINGS"
+mkfifo "$DATA_DIR/lane-arms/$ARM_ID_10.claim"
+FIFO_OUT="$WORK/fifo-out"
+(cd "$UNRELATED" && printf '%s' "$(build_input Stop "no token" false "" "sess-fifo")" |
+  env -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED \
+    -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL \
+    -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER \
+    -u CLAUDE_PLUGIN_DATA \
+    CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_ENABLED=false \
+    CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID="$ARM_ID_10" \
+    bash "$HOOK" 2>/dev/null >"$FIFO_OUT") &
+FIFO_PID=$!
+for _ in $(seq 1 60); do
+  kill -0 "$FIFO_PID" 2>/dev/null || break
+  sleep 0.25
+done
+if kill -0 "$FIFO_PID" 2>/dev/null; then
+  kill -9 "$FIFO_PID" 2>/dev/null
+  fail "a planted FIFO at the claim path hung the Stop hook"
+elif is_block "$(cat "$FIFO_OUT" 2>/dev/null)"; then
+  ok "a non-regular file at the claim path neither hangs the hook nor loses the gate"
+else
+  fail "a planted FIFO at the claim path left the lane ungated"
+fi
+wait "$FIFO_PID" 2>/dev/null
 
 echo
 echo "PASS=$PASS FAIL=$FAIL"

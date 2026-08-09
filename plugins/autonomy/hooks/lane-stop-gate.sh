@@ -186,6 +186,12 @@ GATE_ARM_JSON=""
 # the value read back are the same shape whatever the payload carried.
 gate_arm_owned() {
   local claim="$1" me="${SESSION_ID//[$'\r\n']/}" owner=""
+  # The record path has always been guarded by `[[ -f ]]`; the claim is a second
+  # predictable name in the same store and earns the same asymmetry. Anything
+  # sitting there that this hook did not write is not a claim: a FIFO would
+  # block the write with no reader and hang the whole Stop event, a directory or
+  # a symlink aimed elsewhere decides nothing. Leave it untouched and honor.
+  [[ ! -e "$claim" || (-f "$claim" && ! -L "$claim") ]] || return 0
   if [[ -n "$me" ]] && (
     umask 077
     set -o noclobber
