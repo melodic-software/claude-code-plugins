@@ -186,21 +186,39 @@ if [[ "$mode" == "fix" ]] && [[ "$all" -eq 0 ]] && [[ "${#paths[@]}" -eq 0 ]]; t
   exit 2
 fi
 
-# Collect paths staged as NEW files (status A). -z keeps paths with spaces,
-# quotes, or newlines intact; --name-status emits status and path as separate
-# NUL-terminated fields, and a rename emits THREE fields (Rxxx, old, new), so
-# each status is consumed with its own explicit field reads rather than a
-# positional split.
+# Collect every path this change stages at a NEW index entry. -z keeps paths
+# with spaces, quotes, or newlines intact; each record is one NUL-terminated
+# info field followed by its path field(s), and a rename or copy emits TWO paths
+# (source, destination), so each status is consumed with its own explicit field
+# reads rather than a positional split.
+#
+# `A` alone is NOT the candidate set. Rename and copy detection rewrite the very
+# entries this check exists to catch: the same staged file reports as `A <path>`
+# with detection off and as `R<score> <old> <new>` or `C<score> <src> <dst>` with
+# it on -- `git diff -h` documents `-M`/`-C` as "detect renames"/"detect copies",
+# rename detection is on by default (`diff.renames`), and copy detection turns on
+# with `diff.renames=copies`. Keying on `A` would make the check fail open on the
+# consumer's diff configuration rather than on the staged content.
+#
+# `--raw` rather than `--name-status` because a pair needs BOTH modes to judge:
+# its record is `:<srcmode> <dstmode> <srcsha> <dstsha> <status>`, and the
+# SOURCE mode is what says whether the destination actually dropped the bit.
+# `100755 -> 100644` did; `100644 -> 100644` is a deliberately non-executable
+# tracked file merely being moved, and reporting it would flip a mode nobody
+# changed -- squarely outside this check's newly-added-only scope. A pair whose
+# destination kept `100755` is dropped by the `100644` filter below regardless.
 added=()
-while IFS= read -r -d '' status; do
+while IFS= read -r -d '' info; do
+  info="${info#:}"
+  src_mode="${info%% *}"
+  status="${info##* }"
   case "$status" in
-  R*)
-    IFS= read -r -d '' _old || break
-    IFS= read -r -d '' _new || break
-    ;;
-  C*)
-    IFS= read -r -d '' _src || break
-    IFS= read -r -d '' _dst || break
+  R* | C*)
+    IFS= read -r -d '' _source || break
+    IFS= read -r -d '' path || break
+    if [[ "$src_mode" == "100755" ]]; then
+      added+=("$path")
+    fi
     ;;
   A)
     IFS= read -r -d '' path || break
@@ -210,7 +228,7 @@ while IFS= read -r -d '' status; do
     IFS= read -r -d '' _path || break
     ;;
   esac
-done < <(git diff --cached --name-status -z -- ${paths[@]+"${paths[@]}"} 2>/dev/null)
+done < <(git diff --cached --raw -z -- ${paths[@]+"${paths[@]}"} 2>/dev/null)
 
 offenders=()
 for path in ${added+"${added[@]}"}; do

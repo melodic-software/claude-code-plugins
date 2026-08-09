@@ -1103,6 +1103,266 @@ fi
 rm -f "$f" "$tok"
 
 # =============================================================================
+# !subst-replacement-ampersand — an UNQUOTED `&` in the REPLACEMENT half of a
+# `${var/pat/repl}` / `${var//pat/repl}` expansion.
+#
+# Since bash 5.2 that `&` expands to the text the pattern just matched, under
+# the `patsub_replacement` option that is on by default; macOS ships bash 3.2,
+# where the same character is an ordinary literal — the gate's own uncovered
+# platform, reached through a version rather than a utility. Every grammar
+# expectation below was measured against bash 5.3.15 before it was encoded,
+# never recalled; the first fixture is the real defect #2008 fixed in
+# plugins/guardrails/hooks/block-hook-bypass.sh, where a sentinel restored to
+# itself became a no-op and produced a live guardrails false positive.
+#
+# The class is implemented in the script rather than as an ERE (the `&` is
+# neutralized on both matching views before a pattern could see it), so these
+# fixtures activate it through its `!name` token line exactly as an ERE fixture
+# activates a pattern — activation stays data either way, which the inertness
+# case at the end of this section pins.
+# =============================================================================
+
+amptok="$(one_token_list '!subst-replacement-ampersand')"
+
+# amp_fires <label> <fixture-body> — the body is one line and must be reported
+# by THIS class, at file:line, so a silently inert rule cannot pass.
+amp_fires() {
+  local label="$1" body="$2" f out
+  f="$(tmpsh "$body")"
+  if out="$(scan_paths "$amptok" "$f" 2>&1)"; then
+    fail "$label should fire, got success: $out"
+  elif echo "$out" | grep -q "PORTABILITY: ${f}:1: !subst-replacement-ampersand"; then
+    ok "$label fires"
+  else
+    fail "$label: expected the & class at file:line, got: $out"
+  fi
+  rm -f "$f"
+}
+# amp_clean <label> <fixture-body> — the body must be reported by nothing.
+amp_clean() {
+  local label="$1" body="$2" f out
+  f="$(tmpsh "$body")"
+  if out="$(scan_paths "$amptok" "$f" 2>&1)"; then
+    ok "$label does not fire"
+  else
+    fail "$label must not fire: $out"
+  fi
+  rm -f "$f"
+}
+
+# --- the exact shape that shipped the defect ------------------------------
+amp_fires 'the #2008 defect shape (quoted pattern, bare & replacement)' \
+  'normalized="${normalized//"$soh"/&}"'
+# --- the non-global spelling is the same expansion -------------------------
+amp_fires 'the single-substitution ${var/pat/&} spelling' 'v="${v/X/&}"'
+# --- the `&` need not be the whole replacement, nor sit last ---------------
+amp_fires 'a bare & in the middle of a replacement' 'v="${v//X/p&q}"'
+amp_fires 'a doubled && replacement' 'v="${v//X/&&}"'
+# --- the replacement runs to the closing brace, so a `/` AFTER the separator
+# is replacement text. Bash ends the PATTERN at the FIRST unquoted, unescaped
+# `/` (`v=aXbXc; "${v//X/Y/Z}"` yields `aY/ZbY/Zc`), so a last-slash reading of
+# the grammar would report this line clean.
+amp_fires 'a replacement containing its own slash' 'v="${v//X/b&/c}"'
+# --- a correctly escaped or quoted ampersand EARLIER on the line does not
+# excuse a bare one after it: each occurrence is decided on its own.
+amp_fires 'a bare & after an escaped one' 'v="${v//X/\&&}"'
+amp_fires 'a bare & after a double-quoted one' 'v="${v//X/"&"&}"'
+amp_fires 'a bare & after a nested expansion' 'v="${v//X/${r}&}"'
+# --- nasty patterns: the separator search must survive a nested expansion, a
+# quoted slash and an escaped slash inside the pattern half.
+amp_fires 'a nested expansion in the pattern half' 'v="${v//${pat}/&}"'
+amp_fires 'a double-quoted slash inside the pattern' 'v="${v//"a/b"/&}"'
+amp_fires 'a backslash-escaped slash as the pattern' 'v="${v//\//&}"'
+# --- parameter spellings other than a plain name ---------------------------
+amp_fires 'an anchored ${var/#pat/&} substitution' 'v="${v/#X/&}"'
+amp_fires 'an array element substitution' 'v="${arr[@]//X/&}"'
+amp_fires 'a positional-parameter substitution' 'v="${1//X/&}"'
+amp_fires 'an unquoted expansion context' 'v=${v//X/&}'
+
+# --- the CORRECT form. `\&` is what the failure message recommends: the
+# backslash is removed on every bash (verified across BASH_COMPAT 32/42/44/50/
+# 51 and the default on 5.3.15), so it is a literal ampersand on both sides of
+# the 5.2 boundary.
+amp_clean 'a backslash-escaped \& replacement' 'n="${n//"$soh"/\&}"'
+# --- quoting also inhibits the replacement ("Quoting any part of string
+# inhibits replacement in the expansion of the quoted portion" — GNU Bash
+# Reference Manual, Shell Parameter Expansion), verified on 5.3.15 for both
+# quote characters. Neither is flagged; the failure message still steers to
+# `\&`, because the quoted spellings carry their own pre-4.3 quote-removal
+# divergence.
+amp_clean 'a double-quoted "&" replacement' 'v="${v//X/"&"}"'
+amp_clean 'a single-quoted &-replacement' "v=\"\${v//X/'&'}\""
+# --- the DELETION form has no replacement at all ---------------------------
+amp_clean 'the ${var//pat} deletion form' 'v="${v//X}"'
+amp_clean 'an empty replacement' 'v="${v//X/}"'
+# --- expansions whose operator is not `/` are not substitutions, however many
+# slashes and ampersands their word carries.
+amp_clean 'a :- default-value word containing a slash and an &' 'v="${v:-a/b/&}"'
+amp_clean 'a := assign-default word containing an &' 'v="${v:=a/b/&}"'
+amp_clean 'a # prefix-strip pattern' 'v="${v#*/}"'
+amp_clean 'a % suffix-strip pattern' 'v="${v%/*}"'
+amp_clean 'a substring expansion' 'v="${v:0:1}"'
+amp_clean 'a length expansion' 'v="${#v}"'
+# --- an `&` that is not in a substitution at all ---------------------------
+amp_clean 'an && control operator' 'a && b'
+amp_clean 'a backgrounding &' 'cmd &'
+amp_clean 'a 2>&1 file-descriptor duplication' 'printf x 2>&1'
+amp_clean 'a quoted & in ordinary text' 'echo "a & b"'
+amp_clean 'an & in the PATTERN half' 'v="${v//&/X}"'
+# --- a nested command substitution in the replacement is command text, where
+# `&` is ordinary shell syntax rather than a match reference.
+amp_clean 'an && inside a nested substitution in the replacement' 'v="${v//X/$(a && b)}"'
+# --- a single-quoted expansion is literal text: no expansion, no rule -------
+amp_clean 'the construct inside single quotes (no expansion at all)' "printf '%s' '\${v//X/&}'"
+
+# --- `#` straight after `${` is the LENGTH operator only while what follows it
+# could start a parameter name. A `/` cannot, so `${#//2/&}` is a substitution
+# on the positional-argument COUNT and is exactly this class. Measured on 5.3.15
+# with two positional parameters: `2` with patsub_replacement on, `&` with it
+# off. Review round on #2097 — the earlier unconditional bail on `#` reported
+# this shape clean, a false PASS on a literal `${var//pat/&}`.
+amp_fires 'a substitution on the ${#} positional-argument count' 'v="${#//2/&}"'
+amp_fires 'a single substitution on ${#}' 'v="${#/2/&}"'
+amp_clean 'a plain ${#} count' 'v="${#}"'
+amp_clean 'a ${##} length-of-$# expansion' 'v="${##}"'
+amp_clean 'a ${#arr[@]} array length' 'v="${#arr[@]}"'
+
+# --- a PROCESS SUBSTITUTION body is a command list, so its `&`/`&&` is shell
+# syntax and never a match reference. Measured on 5.3.15: `v=aXb;
+# "${v//X/<(a && b)}"` yields `a/dev/fd/63b` with patsub_replacement BOTH on and
+# off — zero version divergence, so flagging it was a false POSITIVE on portable
+# code, the direction this hard-error class must never take. Review round on
+# #2097.
+amp_clean 'an && inside a <( ) process substitution in the replacement' \
+  'v="${v//X/<(cmd1 && cmd2)}"'
+amp_clean 'an && inside a >( ) process substitution in the replacement' \
+  'v="${v//X/>(cmd1 && cmd2)}"'
+amp_clean 'a single & inside a process substitution in the replacement' \
+  'v="${v//X/<(cmd1 & cmd2)}"'
+amp_clean 'a process substitution in the PATTERN half' \
+  'v="${v//<(cmd1 && cmd2)/y}"'
+# ...and skipping the frame must not swallow a real hit that follows it, in
+# either half — the frame is stepped over, not treated as end of scan.
+amp_fires 'a bare & after a process substitution in the replacement' \
+  'v="${v//X/<(cmd1 && cmd2)&}"'
+amp_fires 'a bare & replacement after a process substitution in the pattern' \
+  'v="${v//<(cmd1 && cmd2)/&}"'
+
+# --- the class honours the SAME escapes every other class does -------------
+f="$(tmpsh 'v="${v//X/&}" # portability-ok: the sed-rule expansion is what this line wants')"
+if scan_paths "$amptok" "$f" >/dev/null 2>&1; then
+  ok "a same-line portability-ok excuses an & hit"
+else
+  fail "an annotated & hit must be excused: $(scan_paths "$amptok" "$f" 2>&1)"
+fi
+rm -f "$f"
+
+f="$(tmpsh '# portability-ok: bash >= 5.2 is guaranteed here
+v="${v//X/&}"')"
+if scan_paths "$amptok" "$f" >/dev/null 2>&1; then
+  ok "a portability-ok comment block above excuses an & hit"
+else
+  fail "a block-annotated & hit must be excused: $(scan_paths "$amptok" "$f" 2>&1)"
+fi
+rm -f "$f"
+
+f="$(tmpsh '# portability-scope: this fixture IS a bash-5.2-construct corpus, on purpose
+v="${v//X/&}"')"
+if scan_paths "$amptok" "$f" >/dev/null 2>&1; then
+  ok "a whole-file portability-scope excuses an & hit"
+else
+  fail "a file-scoped & hit must be excused: $(scan_paths "$amptok" "$f" 2>&1)"
+fi
+rm -f "$f"
+
+# --- a comment-only line naming the construct is prose, not code -----------
+amp_clean 'a comment-only line naming the construct' '# never write ${var//pat/&} here'
+
+# --- a QUOTE-JOINED record spans physical lines, and the hit is attributed to
+# the physical line it actually sits on — the same per-line attribution the ERE
+# classes get, reached through the shared report path.
+f="$(mktemp --suffix=.sh)"
+printf 'msg="opened here\nv=${v//X/&}"\n' >"$f"
+if out="$(scan_paths "$amptok" "$f" 2>&1)"; then
+  fail "an & hit on the second physical line should fire, got success: $out"
+elif echo "$out" | grep -q "PORTABILITY: ${f}:2: !subst-replacement-ampersand"; then
+  ok "an & hit inside a joined record is attributed to its own physical line"
+else
+  fail "expected the & hit at line 2 of the joined record, got: $out"
+fi
+rm -f "$f"
+
+# --- ACTIVATION IS DATA: with the `!name` line absent the class is inert, so a
+# fixture scoped to another class is never coupled to this one.
+tok="$(one_token_list '\\b')"
+f="$(tmpsh 'v="${v//X/&}"')"
+if scan_paths "$tok" "$f" >/dev/null 2>&1; then
+  ok "the & class is inert while its token line is absent"
+else
+  fail "the & class fired without its token line: $(scan_paths "$tok" "$f" 2>&1)"
+fi
+rm -f "$f" "$tok"
+
+# --- and a token list holding ONLY the directive is a loaded config, not the
+# empty pattern set the gate fails closed on.
+f="$(tmpsh 'v="${v//X/y}"')"
+out="$(scan_paths "$amptok" "$f" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]]; then
+  ok "a directive-only token list is a loaded config, not an empty pattern set"
+else
+  fail "a directive-only token list failed closed: rc=$rc out=$out"
+fi
+rm -f "$f"
+
+# --- an UNRECOGNIZED `!name` fails the run closed. Ignoring it would let one
+# typo silently disable a whole class while the run still reported clean.
+BADCLS="$(one_token_list '!no-such-class')"
+f="$(tmpsh 'v="${v//X/&}"')"
+out="$(scan_paths "$BADCLS" "$f" 2>&1)"
+rc=$?
+if [[ $rc -eq 2 && "$out" == *"unknown script-implemented class"* ]]; then
+  ok "an unknown script-implemented class fails closed"
+else
+  fail "an unknown !name did not fail closed: rc=$rc out=$out"
+fi
+rm -f "$f" "$BADCLS"
+
+# --- the class remediation paragraph is SCOPED to a hit of this class. Printed
+# unconditionally it followed every `grep -P` / `sed -i` failure with advice
+# about an ampersand the developer never wrote — the mirror of the inertness
+# case above, and asserted in both directions for the same reason.
+f="$(tmpsh 'v="${v//X/&}"')"
+out="$(scan_paths "$amptok" "$f" 2>&1)"
+if [[ "$out" == *"!subst-replacement-ampersand names the one class"* ]]; then
+  ok "an & hit prints the bash-version remediation paragraph"
+else
+  fail "an & hit must carry its own remediation paragraph, got: $out"
+fi
+rm -f "$f"
+
+tok="$(one_token_list 'grep[^\n]*[[:space:]]-[A-Za-z]*P([[:space:]]|$)')"
+f="$(tmpsh 'grep -P foo "$file"')"
+out="$(scan_paths "$tok" "$f" 2>&1)"
+if [[ "$out" == *"PORTABILITY:"* && "$out" != *"!subst-replacement-ampersand names the one class"* ]]; then
+  ok "an unrelated class failure does not print the bash-version paragraph"
+else
+  fail "the & remediation paragraph leaked onto an unrelated failure, got: $out"
+fi
+rm -f "$f" "$tok"
+
+# --- the SHIPPING token list has the class active, not just the mechanism ---
+f="$(tmpsh 'normalized="${normalized//"$soh"/&}"')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "the shipped token list must flag the & class, got success: $out"
+elif echo "$out" | grep -q "!subst-replacement-ampersand"; then
+  ok "the shipped token list has the & class active"
+else
+  fail "expected the & class from the shipped list, got: $out"
+fi
+rm -f "$f" "$amptok"
+
+# =============================================================================
 # Opt-out annotation
 # =============================================================================
 
