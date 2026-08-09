@@ -26,8 +26,9 @@ user approval. `audit-permission-grants` is report-only (its correct remediation
 
 ### audit
 
-Five phases: load/parse config files, validate seven categories (schema, permissions, MCP servers,
-hooks, plugins, env vars, skill-listing budget), recheck against live official docs and known upstream
+Five phases: load/parse config files, validate nine categories (schema, permissions, MCP servers,
+hooks, plugins, env vars, skill-listing budget, model and effort settings, deep-link registration),
+recheck against live official docs and known upstream
 issues, report severity-rated findings, and optionally fix. Includes live plugin-drift detection
 against each registered marketplace's upstream `marketplace.json` (ORPHAN / NEW / RENAME modes) with an
 asymmetric auto-fix policy that never removes a plugin the user explicitly enabled. `settings.local.json`
