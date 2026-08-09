@@ -30,7 +30,7 @@ modify anything.
    the npm package is `@playwright/cli`). FAIL if absent — remediation is `apply install-cli`
    below. When present, report the version (`playwright-cli --version`).
 2. **Browser availability** — the CLI needs a browser beyond its own install. Per the plugin's
-   own `reference/windows-quirks.md`, local sessions on Windows/macOS/Linux auto-detect system
+   own `skills/playwright/reference/windows-quirks.md`, local sessions on Windows/macOS/Linux auto-detect system
    Chrome, while a sandboxed/cloud session must run `playwright-cli install-browser` and that
    download can be egress-blocked. INFO: state whether a system browser is resolvable on this
    host and, when it is not, surface the `playwright-cli install-browser` step and the

@@ -5,6 +5,11 @@ All notable changes to the `playwright` plugin are documented here. Format follo
 
 ## [0.6.0]
 
+### Fixed
+
+- **`setup`'s pointer to the Windows-quirks reference names the skill that owns it**
+  (`skills/playwright/reference/windows-quirks.md`). Written bare, it read as a file under `setup/`.
+
 ### Removed
 
 - **The bare `/<skill>` alias for this plugin's skills.** Their `SKILL.md` files no longer
