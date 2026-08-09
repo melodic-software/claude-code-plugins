@@ -613,9 +613,10 @@ On the conflict worker's return, and before pushing anything:
   worker reported — two parents alone proves a merge happened, not that it merged the intended
   base; a wrong-ref merge passes every other check here. Then re-read the live PR head
   (`GH_REPO=<owner>/<repo> gh pr view <N> --json headRefOid` — the orchestrator's own cwd is
-  whatever the fleet run started from, never reliably the target repository, so every `gh` call in
-  this section carries its explicit remote target exactly as the worker contract below requires;
-  `--repo <owner>/<repo>` is the equivalent spelling) and require it to equal that commit's
+  whatever the fleet run started from, never reliably the target repository, and unlike a worker it
+  has no assigned worktree to `cd` into, so both head checks in this section take the explicit
+  remote target the Worker Contract below prescribes for remote-only `gh`; `--repo <owner>/<repo>`
+  is the equivalent spelling) and require it to equal that commit's
   **first parent** (`git -C <worktree> rev-parse HEAD^1`): the assigned-worktree head assertion
   (`safety.md`, Checkout And Push Invariants) is checked one commit back, because `HEAD` is the
   merge commit now. If the live head moved while the conflict worker worked, do not push — the
