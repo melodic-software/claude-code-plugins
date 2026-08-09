@@ -21,6 +21,15 @@ All notable changes to the `rate-limit-guard` plugin are documented here. Format
   stays rejected. Port of the context-guard fix from #1787 / PR #1844; the two shims remain
   deliberately unregistered as a byte-identical cluster (plugin name and header prose differ).
 
+  **Existing installs need one `apply`.** The statusline runs the durable copy at
+  `~/.claude/rate-limit-guard/bin/statusline-shim.sh`, which a plugin update never overwrites, so
+  an operator who ran `apply` before this release keeps running the old shim — and keeps selecting
+  orphaned tees — until they re-run it. `setup check` previously reported any installed-vs-shipped
+  difference as INFO on the premise that an older revision "still resolves the newest tee"; that
+  premise is what this fix falsifies, so a copy below revision 3 is now a FAIL with the migration
+  stated in the finding. Uninstalling first is the trap worth naming: the setup skill goes with the
+  plugin while the stale shim stays behind, leaving no in-product path to the remediation.
+
 ## [0.4.2]
 
 ### Changed
