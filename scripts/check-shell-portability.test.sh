@@ -1215,6 +1215,39 @@ amp_clean 'an && inside a nested substitution in the replacement' 'v="${v//X/$(a
 # --- a single-quoted expansion is literal text: no expansion, no rule -------
 amp_clean 'the construct inside single quotes (no expansion at all)' "printf '%s' '\${v//X/&}'"
 
+# --- `#` straight after `${` is the LENGTH operator only while what follows it
+# could start a parameter name. A `/` cannot, so `${#//2/&}` is a substitution
+# on the positional-argument COUNT and is exactly this class. Measured on 5.3.15
+# with two positional parameters: `2` with patsub_replacement on, `&` with it
+# off. Review round on #2097 — the earlier unconditional bail on `#` reported
+# this shape clean, a false PASS on a literal `${var//pat/&}`.
+amp_fires 'a substitution on the ${#} positional-argument count' 'v="${#//2/&}"'
+amp_fires 'a single substitution on ${#}' 'v="${#/2/&}"'
+amp_clean 'a plain ${#} count' 'v="${#}"'
+amp_clean 'a ${##} length-of-$# expansion' 'v="${##}"'
+amp_clean 'a ${#arr[@]} array length' 'v="${#arr[@]}"'
+
+# --- a PROCESS SUBSTITUTION body is a command list, so its `&`/`&&` is shell
+# syntax and never a match reference. Measured on 5.3.15: `v=aXb;
+# "${v//X/<(a && b)}"` yields `a/dev/fd/63b` with patsub_replacement BOTH on and
+# off — zero version divergence, so flagging it was a false POSITIVE on portable
+# code, the direction this hard-error class must never take. Review round on
+# #2097.
+amp_clean 'an && inside a <( ) process substitution in the replacement' \
+  'v="${v//X/<(cmd1 && cmd2)}"'
+amp_clean 'an && inside a >( ) process substitution in the replacement' \
+  'v="${v//X/>(cmd1 && cmd2)}"'
+amp_clean 'a single & inside a process substitution in the replacement' \
+  'v="${v//X/<(cmd1 & cmd2)}"'
+amp_clean 'a process substitution in the PATTERN half' \
+  'v="${v//<(cmd1 && cmd2)/y}"'
+# ...and skipping the frame must not swallow a real hit that follows it, in
+# either half — the frame is stepped over, not treated as end of scan.
+amp_fires 'a bare & after a process substitution in the replacement' \
+  'v="${v//X/<(cmd1 && cmd2)&}"'
+amp_fires 'a bare & replacement after a process substitution in the pattern' \
+  'v="${v//<(cmd1 && cmd2)/&}"'
+
 # --- the class honours the SAME escapes every other class does -------------
 f="$(tmpsh 'v="${v//X/&}" # portability-ok: the sed-rule expansion is what this line wants')"
 if scan_paths "$amptok" "$f" >/dev/null 2>&1; then

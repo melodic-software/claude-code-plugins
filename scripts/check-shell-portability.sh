@@ -1180,7 +1180,7 @@ scan_file() {
     }
     # ---- bash-5.2 `&`-in-replacement class (!subst-replacement-ampersand) ----
     # skip_frame <line> <at> <limit> — the offset just PAST the nested frame
-    # opening at <at> (`$(`, `$((`, `${`, or a backquote). Its body is not part
+    # opening at <at> (any opener opens_frame() recognizes). Its body is not part
     # of the enclosing pattern or replacement text: a `/` inside `${x:-a/b}` is
     # data belonging to the inner expansion and never the separator, and a `&`
     # inside `$(a && b)` is inner command syntax, never a match reference.
@@ -1188,6 +1188,26 @@ scan_file() {
     # it early. An UNTERMINATED frame runs to <limit>, which ends the scan with
     # no hit — the under-flag direction, and unreachable in practice because the
     # record loop only calls this once every frame the mask opened has closed.
+    # opens_frame <line> <at> — does a nested frame open at <at>? A backquote,
+    # a `$(` / `$((` / `${`, or a PROCESS substitution `<(` / `>(`.
+    #
+    # The process-substitution body is a COMMAND LIST, so an `&` or `&&` in it
+    # is shell syntax and never a match reference, and the whole construct is
+    # version-INdependent: verified on 5.3.15 that `v=aXb; "${v//X/<(a && b)}"`
+    # yields `a/dev/fd/63b` with patsub_replacement both on AND off. Leaving it
+    # out of the opener set walked into the body and reported the `&&` — a false
+    # POSITIVE on portable code, the direction this class must not take. (This
+    # is the one paren the collapse_subs() layer above deliberately keeps
+    # verbatim, for the opposite reason: there it is not its own word. Here it
+    # is not its own text.)
+    function opens_frame(l, at,   c, n) {
+      c = substr(l, at, 1)
+      if (c == BT) return 1
+      n = substr(l, at + 1, 1)
+      if (c == "$" && (n == "(" || n == "{")) return 1
+      if ((c == "<" || c == ">") && n == "(") return 1
+      return 0
+    }
     function skip_frame(l, at, limit,   c, o, cl, depth, st) {
       c = substr(l, at, 1)
       if (c == BT) {
@@ -1276,21 +1296,36 @@ scan_file() {
     #   - a substitution assembled from fragments before use, exactly as the
     #     script header records for the ERE classes;
     #   - a parameter spelling this walk does not recognize (a name that is not
-    #     an identifier, a digit run, or one of `@ * ? $ ! -`) is skipped.
-    function amp_in_frame(l, s, e,   i, c, st, sep) {
+    #     an identifier, a digit run, or one of `@ * ? $ ! - #`) is skipped.
+    function amp_in_frame(l, s, e,   i, c, st, sep, named) {
       i = s + 2
       if (i > e - 1) return 0
       c = substr(l, i, 1)
-      if (c == "#") return 0
-      if (c == "!") i++
-      c = substr(l, i, 1)
-      if (c ~ /[A-Za-z_]/) {
-        while (i < e && substr(l, i, 1) ~ /[A-Za-z0-9_]/) i++
-      } else if (c ~ /[0-9]/) {
-        while (i < e && substr(l, i, 1) ~ /[0-9]/) i++
-      } else if (c ~ /[@*?$!-]/) {
+      # A `#` straight after `${` is USUALLY the length operator — but `#` is
+      # also the special parameter holding the positional-argument count, and
+      # bash resolves the ambiguity by what FOLLOWS it. When that is a `/`, no
+      # parameter name can be starting, so the `#` is the parameter itself and
+      # the rest is a real pattern substitution. Measured on 5.3.15 with two
+      # positional parameters: `${#//2/&}` yields `2` with patsub_replacement on
+      # and `&` with it off — the exact divergence this class exists for, which
+      # an unconditional bail reported clean. `${#}`, `${##}`, `${#v}` and
+      # `${#arr[@]}` all keep a non-`/` successor and stay length expansions.
+      named = 1
+      if (c == "#") {
+        if (substr(l, i + 1, 1) != "/") return 0
         i++
-      } else return 0
+        named = 0
+      } else if (c == "!") i++
+      if (named) {
+        c = substr(l, i, 1)
+        if (c ~ /[A-Za-z_]/) {
+          while (i < e && substr(l, i, 1) ~ /[A-Za-z0-9_]/) i++
+        } else if (c ~ /[0-9]/) {
+          while (i < e && substr(l, i, 1) ~ /[0-9]/) i++
+        } else if (c ~ /[@*?$!-]/) {
+          i++
+        } else return 0
+      }
       if (substr(l, i, 1) == "[") {
         sep = 1
         i++
@@ -1325,7 +1360,7 @@ scan_file() {
           i++
           continue
         }
-        if (c == BT || (c == "$" && (substr(l, i + 1, 1) == "(" || substr(l, i + 1, 1) == "{"))) {
+        if (opens_frame(l, i)) {
           i = skip_frame(l, i, e - 1)
           continue
         }
@@ -1351,7 +1386,7 @@ scan_file() {
           i++
           continue
         }
-        if (c == BT || (c == "$" && (substr(l, i + 1, 1) == "(" || substr(l, i + 1, 1) == "{"))) {
+        if (opens_frame(l, i)) {
           i = skip_frame(l, i, e - 1)
           continue
         }
@@ -1465,10 +1500,11 @@ scan_file() {
         report_hit(line, lineno, patterns[i], annotated_above,
           has_unguarded(cline, qline, patterns[i], mask, 1), cline, qline, mask, "ere")
       }
-      # The script-implemented class reads the ORIGINAL record text — the `&` it
-      # looks for is blanked on both derived views — and sits INSIDE this
-      # escapes of this function on purpose: hoisting it above the comment-skip
-      # annotation returns above would silently lose every one of them.
+      # The script-implemented class reads the ORIGINAL record text, because the
+      # `&` it looks for is blanked on both derived views. It runs HERE, below
+      # the comment-skip and annotation returns above, so that it inherits every
+      # escape this function applies to the ERE classes; hoisting it above those
+      # returns would silently lose all of them.
       if (CLS_AMP)
         report_hit(line, lineno, AMPTOK, annotated_above,
           subst_amp_hit(line, 1), line, qline, mask, "amp")
@@ -1477,6 +1513,9 @@ scan_file() {
     # stepping past any the annotation on that line covers. Returns 1 if
     # anything was printed, so the second view is only consulted when the first
     # found nothing (one report per pattern per record, as before).
+    # (Definition below; next_hit() has to be declared first because report_hit()
+    # advances through it.)
+    #
     # next_hit — the next occurrence at or after <from>, dispatched by CLASS
     # KIND. awk has no function references, so the kind is passed explicitly at
     # every call site rather than defaulted: a dropped argument arrives as the
@@ -1487,6 +1526,7 @@ scan_file() {
       if (kind == "amp") return subst_amp_hit(view, from)
       return has_unguarded(view, q, p, m, from)
     }
+    # report_hit — see the doc block above next_hit().
     function report_hit(line, lineno, p, annotated_above, off, view, q, m, kind,   k) {
       # A backslash continuation removes the newline, so its physical lines are
       # one line in the strongest sense: the record is reported whole, at its
