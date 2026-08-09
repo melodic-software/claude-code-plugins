@@ -3,6 +3,15 @@
 All notable changes to the `kindle-dedrm` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.4]
+
+### Fixed
+
+- **The pre-flight rule for a non-2.8.0 Kindle install no longer gives a self-contradictory reason.**
+  "that's destructive and reversible damage" argued against its own warning; it now reads
+  "destructive and costly to reverse (a full re-download/re-sync of the library), so it stays
+  user-driven", naming the actual cost the manual-uninstall rule guards against.
+
 ## [0.6.3]
 
 ### Changed

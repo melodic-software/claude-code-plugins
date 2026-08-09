@@ -95,7 +95,7 @@ All checks emit the schema in `references/shared/output-schema.md`, use `scripts
   ```
 
 - **Severity rubric:**
-  - `CRIT` — any BugCheck event in last 7 days OR any `disk`-source Error/Critical event in last 7 days.
+  - `CRIT` — any BugCheck **or Kernel-Power 41** event in last 7 days OR any `disk`-source Error/Critical event in last 7 days.
   - `WARN` — >5 repeat errors from the same `ProviderName + Id` in last 7 days.
   - `INFO` — fewer than 5 repeats; otherwise OK.
 
@@ -149,7 +149,7 @@ All checks emit the schema in `references/shared/output-schema.md`, use `scripts
   - `WARN` — `AntivirusSignatureAge` in (3, 7] days.
   - `OK` — signatures ≤3 days old, RTP on, tamper protection on, no recent threats.
 
-- **Notes:** If Defender is disabled because a third-party AV is active (`AMRunningMode -eq 'Passive Mode'`), note that in `detail` and downgrade severity — don't cry CRIT for a system intentionally running, say, CrowdStrike.
+- **Notes:** When a third-party AV is the active protection, Defender reports `AMRunningMode` as `Passive Mode` or `SxS Passive Mode`. Record that in `detail` and apply the passive re-bucketing: passive mode itself is `INFO`; a signature age over 3 days drops to `INFO` (the other product owns detection); real-time protection being off is not a finding at all. Tamper protection and any recorded detection keep their normal severity — but don't cry CRIT for a system intentionally running, say, CrowdStrike. This is a check-local rule, independent of the ±1 trend adjustment in `references/shared/severity-rubric.md`.
 
 ---
 
@@ -267,6 +267,11 @@ All checks emit the schema in `references/shared/output-schema.md`, use `scripts
     reclaimable-storage check — caps at `WARN` for the same reason. Sustained growth still reaches
     `CRIT`: the orchestrator's trend rule upgrades a `WARN` whose `total_gb` rose ≥5 GB since the
     prior run.
+
+- **Why the walk budget is 60s and not the orchestrator's 90s:** the orchestrator kills a check at
+  90s and `check-result.schema.json` caps `duration_ms` at 90000, so an unbounded walk of a
+  multi-gigabyte tree does not merely time out — it emits a schema-invalid result and loses the
+  partial figures entirely. Stopping at 60s keeps them and reports `UNKNOWN` per the rubric.
 
 - **Why the age arm is independent of size:** the failure this check exists for is *unpruned* growth.
   A modest tree whose oldest entry keeps aging is evidence that nothing reclaims it, which a size

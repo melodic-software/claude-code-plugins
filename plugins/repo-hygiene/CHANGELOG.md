@@ -3,6 +3,20 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.1]
+
+### Changed
+
+- **`clean`'s Workflow no longer opens with two different steps both numbered 0.** "Resolve action"
+  and "Resolve repo root" are now the single step "Resolve action and repo root", with the repo-root
+  assignment as a sub-bullet, so the order-sensitive procedure reads as one unambiguous sequence.
+  Folding rather than renumbering keeps every existing § cross-reference (§1.5 through §8, cited from
+  the context spokes, the reference docs, and the scripts) valid.
+- **The batch spokes' "Why this exists" sections state the standing constraint instead of narrating
+  the session that prompted them.** `clean-batch.md` and `git-tree-reset-batch.md` keep every durable
+  rationale — the auto-mode classifier blocking a hand-rolled bulk `rm` even after confirmation,
+  separator-agnostic skip-matching, and the dirty-by-default guard — with the chronology dropped.
+
 ## [0.8.0]
 
 ### Changed

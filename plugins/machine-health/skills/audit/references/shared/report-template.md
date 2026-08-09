@@ -95,7 +95,7 @@ One row per check. Trend arrow uses `↑` (worsening), `↓` (improving), `→` 
 
 Each finding within CRIT/WARN/INFO gets this structure:
 
-```markdown
+````markdown
 #### {{check.id}} — {{check.summary}}
 
 **Severity:** {{check.severity}} {{trend_arrow}} {{trend_note}}
@@ -110,7 +110,7 @@ Each finding within CRIT/WARN/INFO gets this structure:
 
 **Suggested action:** {{human_authored_or_omitted}}
 
-```
+````
 
 The **Suggested action** line is only rendered when the catalog entry or check script itself provides one. Skills should not manufacture actions; an empty action line encourages the human to investigate rather than rubber-stamp.
 
