@@ -3,6 +3,21 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.1]
+
+### Changed
+
+- **Conduct-coaching prose trimmed from the hook's injected reports (#2021, remediation line 3).**
+  The hook-surface classification pass marked markdown-format a hybrid whose only ablatable surface
+  is the behavioral coaching text riding on its reports. Two strings are trimmed: the delta-gate
+  repeat line drops its "a rule firing in bulk is configured away once in this repository's
+  markdownlint config" lecture (now just the fact — unchanged from the previous run, detail
+  omitted), and the truncation hint shrinks to a terse `(cap: markdown_format_max_findings)`
+  pointer instead of instructing what to raise or configure. Everything policy-class is untouched:
+  the deterministic `--fix` transform, the markdownlint finding relay (counts, rule histogram,
+  per-finding lines), the rewrite disclosure on both channels, and the fail-closed code-execution
+  trust gate on `.cjs`/`.mjs` configuration.
+
 ## [0.10.0]
 
 ### Added
