@@ -60,7 +60,7 @@ topic qualifier follows the verb with a hyphen (`audit-noise` beside `audit-enca
 `scan-todos` under `work-items`); the verb keeps its fixed meaning from the table.
 
 Nouns are reserved for knowledge routers (`principles`, `methodology`) and lifecycle-object routers
-(`worktree`, `pull-request`). Five further documented exceptions: a single-skill vendor-CLI wrapper
+(`worktree`, `pull-request`). Six further documented exceptions: a single-skill vendor-CLI wrapper
 repeats its tool name (`firecrawl:firecrawl`); a `-deep` suffix marks the heavier
 isolated-execution tier of a sibling skill (`research`/`research-deep`); a knowledge router named by
 its method's own literature term keeps that term when renaming would destroy recognized craft
@@ -70,7 +70,12 @@ content's identity (`playbooks:boris`, `playbooks:fable-5` — one scheme, perso
 and an object-pronoun qualifier is kept when the skill's defining boundary IS that the object under
 test is the user themself (`education:quiz-me` — the `-me` distinguishes quizzing the human on
 completed work from teach's in-workspace content quizzing, where a bare `quiz` would under-specify
-the object the grammar normally delegates to the namespace).
+the object the grammar normally delegates to the namespace); and an upstream utterance-interjection
+is kept when the skill is a port whose typed phrase IS the mechanism — the user's own words at the
+moment of use — and the upstream name carries cross-repo muscle-memory parity
+(`discipline:wait-what` — the lost reader's literal interjection; an imperative paraphrase destroys
+the zero-translation recall the command depends on precisely when its user is, by definition, lost,
+and orphans users arriving from the upstream repo).
 Every exception is an entry on this list, decided per name — a name class is never
 blanket-sanctioned.
 

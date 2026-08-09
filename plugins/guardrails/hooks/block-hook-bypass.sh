@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # PreToolUse hook: block Bash workarounds that bypass Write/Edit hook gates.
-# Triggered on Bash tool calls.
+# Triggered on Bash and PowerShell tool calls.
 #
 # Catches common file-write bypass patterns:
 #   cat > path

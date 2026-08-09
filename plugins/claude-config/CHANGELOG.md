@@ -3,6 +3,61 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.0]
+
+### Added
+
+- **`audit`: Category I — deep-link registration** (issue #2072). `disableDeepLinkRegistration` had
+  no coverage, leaving two findings undetectable. The settings page documents exactly one value that
+  produces the effect — the string `"disable"` — so a key that is **present** and set to something
+  the author meant as a flag (boolean `true`) leaves the documented prevention simply never invoked,
+  and nothing exempts the machine from the default first-prompt handler registration (warning; an
+  absent key is a consumer accepting the default on purpose and never fires). Separately, the
+  deep-links page states that enforcing this "across an organization so users cannot re-enable it"
+  requires managed settings, so no scope this skill reads by value can satisfy such a requirement —
+  and where one is declared and the key nonetheless sits with `"disable"` in a readable scope, that
+  visible attempt is reported as a placement that cannot enforce it (warning). The claim stops at
+  the placement: server-managed delivery, MDM plist, and registry policy are managed sources with no
+  file on the path this skill resolves, so nothing about the managed layer is decidable here and a
+  bypass is exactly what cannot be proven — which is why this row sits a tier below its
+  `enforceAvailableModels` sibling rather than mirroring its `error`. The row routes the
+  administrator to `/status`, which names the active managed source. Like two of
+  Category H's rows, the value check also has an authoring-time path — the declared settings schema
+  types the key `"type": "string", "enum": ["disable"]`, so a schema-aware editor flags a boolean
+  before the file is ever loaded — and the row says why it stays anyway. The section states its own
+  reach: `check-structure.sh` does not report this key, so a `settings.local.json` or
+  managed-settings occurrence is recorded as not inspectable rather than absent, and handler
+  presence on the machine is workstation state the section explicitly does not audit.
+
+  The section takes the letter **I**, not the G the issue named: G is live as the table-less
+  procedural "skill-listing budget" category.
+
+### Fixed
+
+- **Four category enumerations had fallen behind the checklist.** `README.md` advertised "seven
+  categories" and `evals/evals.json` eval 5 "a full seven-category audit", while
+  `validation-categories.md`'s own header and eval 1's expectations both stopped at G — every one
+  already stale when Category H landed, and two behind after this one.
+
+## [0.27.5]
+
+### Fixed
+
+- **`audit`: Category E's incompatible-marketplace check rested on a false premise** (issue #1989
+  row 253). The checklist flagged "plugins from incompatible marketplaces (Agent Skills format)"
+  by the rule "Repos with only root `marketplace.json` but no per-plugin `plugin.json` are
+  incompatible" — a shape the [Strict mode
+  section](https://code.claude.com/docs/en/plugin-marketplaces#strict-mode) documents as SUPPORTED:
+  under `strict: false` "the marketplace entry is the entire definition", the plugin repo provides
+  raw files, and the entry's `skills`/`agents`/`hooks` fields expose them. Anthropic's own
+  `anthropic-agent-skills` marketplace ships three such plugins with zero `plugin.json` files
+  repo-wide, so the old rule fired an `error` on a conforming marketplace. The row now tests
+  `strict` rather than `plugin.json` presence: it flags only a plugin with NEITHER a per-plugin
+  `plugin.json` NOR a `strict: false` entry declaring its components — the residual case where
+  nothing defines what loads — and records the same page's inverse failure, a `strict: false`
+  entry paired with a component-declaring `plugin.json`. Severity stays `error`; both the check
+  label and its verify cell were rewritten, since the label carried the false premise too.
+
 ## [0.27.4]
 
 ### Fixed

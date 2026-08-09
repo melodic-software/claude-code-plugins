@@ -2,7 +2,7 @@
 # PreToolUse hook: advisory guard for direct `gh pr create` calls that bypass
 # this marketplace's own canonical `/pull-request create` skill
 # (source-control plugin).
-# Triggered on Bash tool calls.
+# Triggered on Bash and PowerShell tool calls.
 #
 # SCOPE — only fires when the source-control plugin is actually enabled for this
 # session. Claude Code merges `enabledPlugins` across scopes, so enablement is
@@ -44,14 +44,21 @@
 # substitution, and a determined author can construct a form that evades the
 # match. This is a nudge toward the canonical skills, not an enforcement gate.
 #
-# Kill switch: flag_commit_pr_skill_bypass_enabled userConfig option
+# Opt-in switch: flag_commit_pr_skill_bypass_enabled userConfig option.
+# DEFAULT OFF since 0.20.0: the #2021 hook-surface classification found this
+# is a behavioral-class context injector — a fixed prose nudge that consults no
+# external ground truth — and PLUGIN-PHILOSOPHY.md's instruction-economy
+# evidence gate ablates that class config-off first (the script stays; a
+# consumer opts back in by setting the option to true).
 
 set -uo pipefail
 
 # shellcheck source=hook-utils.sh
 source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
 
-hook::check_enabled "FLAG_COMMIT_PR_SKILL_BYPASS"
+# Explicit opt-in (NOT hook::check_enabled, whose unset-var fallback is "true"):
+# an unset switch must read as the plugin.json default, which is false.
+[[ "${CLAUDE_PLUGIN_OPTION_FLAG_COMMIT_PR_SKILL_BYPASS_ENABLED:-false}" == "true" ]] || exit 0
 
 # Bundled PowerShell-command classifier — this guard is matched on both the Bash
 # and the (opt-in) PowerShell tool. Resolved under the plugin root (CC sets
