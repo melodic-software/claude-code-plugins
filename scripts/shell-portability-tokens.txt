@@ -235,15 +235,19 @@ sort[^;&|\n]*[[:space:]]['"]?--sort['"]?(=|[[:space:]]+)['"]?version([[:space:]|
 # (see check-shell-portability.sh), so a `;` inside a sed script or a filename
 # stays ordinary data and does not end the gap.
 #
-# That same gap class also excludes `(` and `)`, which are not separators. It
-# buys the converse catch — `foo=$(sed -n 'p' "$a") bar=$(tool -i "$b")` no
-# longer misattributes `tool`'s `-i` to `sed` — at the cost of a blind spot on
-# a process substitution sitting between the command and its flag
-# (`sed -f <(gen) -Ei "$f"`), which `collapse_subs` preserves verbatim. The
-# `date -d` / `stat -c` / `mktemp -p` tokens carry the identical tradeoff; a
-# shape that reaches past a subshell without reaching past a separator needs
-# real parsing, not a wider character class.
-(^|[^[:alnum:]_])sed([[:space:]][^;&|()`\n]*)?[[:space:]]-[bEnrsuz]*i([[:space:]|&;()<>]|$)
+# The gap also excludes a bare `(` or `)`, which are not separators but DO end
+# the command that owns the flag: without that, `foo=$(sed -n 'p' "$a")
+# bar=$(tool -i "$b")` misattributes `tool`'s `-i` to `sed`. A PROCESS
+# substitution is the one paren that must survive the gap — the shell
+# concatenates it onto the word it touches rather than making it a command of
+# its own, so `sed -f <(gen) -Ei "$f"` is a single GNU-only sed call and the
+# earlier `[^;&|()`\n]*` spelling stopped at its `(` and missed the `-Ei`
+# entirely. `[<>]\([^)]*\)` readmits exactly that shape and nothing else:
+# `collapse_subs` keeps process substitutions verbatim in BOTH views (see
+# check-shell-portability.sh) precisely because they are not their own word,
+# so the alternative matches on either. A `)` closing a real subshell still
+# ends the gap.
+(^|[^[:alnum:]_])sed([[:space:]]([^;&|()`\n]|[<>]\([^)]*\))*)?[[:space:]]-[bEnrsuz]*i([[:space:]|&;()<>]|$)
 
 # `sed --in-place[=SUFFIX]` (GNU long-form spelling of `-i`) — BSD sed has no
 # long options at all, so this flags suffixed or not (unlike short `-i`, where
@@ -258,11 +262,13 @@ sort[^;&|\n]*[[:space:]]['"]?--sort['"]?(=|[[:space:]]+)['"]?version([[:space:]|
 # either, kept alongside the pre-existing `=` alternative for the
 # `--in-place=SUFFIX` attached-value form: `x=$(sed --in-place)`,
 # `sed --in-place|cat`, `sed --in-place; echo done` are now detected, not
-# only the whitespace- or `=`-terminated forms. Its command gap stops at a
-# shell command separator for the same reason the cluster token's does —
-# `sed -n 'p' "$file" && tool --in-place x` was reported as a GNU sed call
-# even though the option belongs to `tool`.
-(^|[^[:alnum:]_])sed([[:space:]][^;&|()`\n]*)?[[:space:]]--in-place([[:space:]|&;()<>]|=|$)
+# only the whitespace- or `=`-terminated forms. Its command gap is the
+# cluster token's, character for character, and carries that comment's whole
+# rationale: it stops at a shell command separator — `sed -n 'p' "$file" &&
+# tool --in-place x` was reported as a GNU sed call even though the option
+# belongs to `tool` — and at a bare paren, while still admitting a process
+# substitution, so `sed -f <(gen) --in-place "$f"` stays detected.
+(^|[^[:alnum:]_])sed([[:space:]]([^;&|()`\n]|[<>]\([^)]*\))*)?[[:space:]]--in-place([[:space:]|&;()<>]|=|$)
 
 # `readlink -f` (canonicalize) — a GNU coreutils extension; BSD/macOS readlink
 # has no `-f`/`--canonicalize`. Auto-guarded when a `realpath` attempt is

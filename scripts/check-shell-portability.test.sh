@@ -547,7 +547,7 @@ rm -f "$f"
 # cluster (one token covers both), and --in-place (GNU long form) — #1513
 # =============================================================================
 
-tok="$(one_token_list '(^|[^[:alnum:]_])sed([[:space:]][^;&|()`\n]*)?[[:space:]]-[bEnrsuz]*i([[:space:]|&;()<>]|$)')"
+tok="$(one_token_list '(^|[^[:alnum:]_])sed([[:space:]]([^;&|()`\n]|[<>]\([^)]*\))*)?[[:space:]]-[bEnrsuz]*i([[:space:]|&;()<>]|$)')"
 
 f="$(tmpsh "sed -i 's/foo/bar/' \"\$file\"")"
 if out="$(scan_paths "$tok" "$f" 2>&1)"; then
@@ -639,6 +639,32 @@ done <<'CASES'
 sed -n 'p' "$file"; grep -Ei pattern "$file"
 sed -n 'p' "$file" && grep -i pattern "$file"
 sed -n 'p' "$file" | grep -si pattern
+CASES
+
+# --- a bare paren ends the gap because it ends the command that owns the flag
+f="$(tmpsh "foo=\$(sed -n 'p' \"\$a\") bar=\$(tool -i \"\$b\")")"
+if scan_paths "$tok" "$f" >/dev/null 2>&1; then
+  ok "a subshell close ends the gap -- tool's -i is not attributed to sed"
+else
+  fail "\$(sed ...) \$(tool -i ...) must not fire -- the -i belongs to tool"
+fi
+rm -f "$f"
+
+# --- ...but a PROCESS substitution is the one paren the shell does NOT make a
+# separate word: it expands to /dev/fd/N and concatenates onto the word it
+# touches, so the flag after it is still sed's own. Excluding a bare paren
+# without readmitting this shape dropped a genuine unsuffixed in-place call.
+while IFS= read -r case; do
+  f="$(tmpsh "$case")"
+  if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+    fail "[$case] should fail -- a process substitution is one word, got success: $out"
+  else
+    ok "[$case] (process substitution before the cluster) is detected"
+  fi
+  rm -f "$f"
+done <<'CASES'
+sed -f <(gen_script) -i "$file"
+sed -f <(gen_script) -Ei "$file"
 CASES
 
 # --- a separator INSIDE a quoted run is ordinary data, not a command
@@ -761,7 +787,7 @@ sed -Ei; echo done
 CASES
 rm -f "$tok"
 
-tok="$(one_token_list '(^|[^[:alnum:]_])sed([[:space:]][^\n]*)?[[:space:]]--in-place([[:space:]|&;()<>]|=|$)')"
+tok="$(one_token_list '(^|[^[:alnum:]_])sed([[:space:]]([^;&|()`\n]|[<>]\([^)]*\))*)?[[:space:]]--in-place([[:space:]|&;()<>]|=|$)')"
 
 f="$(tmpsh "sed --in-place 's/foo/bar/' \"\$file\"")"
 if out="$(scan_paths "$tok" "$f" 2>&1)"; then
@@ -803,6 +829,35 @@ x=$(sed --in-place)
 sed --in-place|cat
 sed --in-place; echo done
 CASES
+
+# --- the command gap stops at a shell command separator here too: the long
+# form got the identical narrowing as the cluster token, so it needs the
+# identical coverage -- a LATER command's --in-place must not arm this token
+while IFS= read -r case; do
+  f="$(tmpsh "$case")"
+  if scan_paths "$tok" "$f" >/dev/null 2>&1; then
+    ok "[$case] is not flagged -- the --in-place belongs to a later command"
+  else
+    fail "[$case] must not be flagged -- only the sed command's own options count"
+  fi
+  rm -f "$f"
+done <<'CASES'
+sed -n 'p' "$file"; tool --in-place x
+sed -n 'p' "$file" && tool --in-place x
+sed -n 'p' "$file" | tool --in-place x
+CASES
+
+# --- ...but a PROCESS substitution is not a command boundary: the shell
+# concatenates it onto the word it touches, so the sed call owns the flag that
+# follows. Excluding a bare paren from the gap without readmitting this shape
+# silently dropped a genuine GNU-only call.
+f="$(tmpsh "sed -f <(gen_script) --in-place \"\$file\"")"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "sed -f <(gen) --in-place should fail -- a process substitution is one word, got success: $out"
+else
+  ok "a process substitution before --in-place does not end the command gap"
+fi
+rm -f "$f"
 rm -f "$tok"
 
 # =============================================================================
@@ -1561,6 +1616,37 @@ elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 6 ]]; then
   ok "the shipped list detects every operator-terminated sed -Ei/--in-place form"
 else
   fail "expected all 6 operator-terminated forms flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- both sed tokens' command gap, proven against the SHIPPED list rather than
+# an isolated copy. The isolated-token blocks above each build their own
+# pattern by hand, so one can silently drift from the token it claims to
+# cover -- the --in-place block did exactly that, keeping the pre-narrowing
+# `[^\n]*` gap and leaving the narrowing it was meant to prove untested.
+# A LATER command's flag must not arm either token...
+f="$(tmpsh "$(printf '%s\n' \
+  "sed -n 'p' \"\$file\"; grep -Ei pattern \"\$file\"" \
+  "sed -n 'p' \"\$file\" && tool --in-place x")")"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "the shipped list scopes both sed gaps to the sed command's own segment"
+else
+  fail "a later command's -Ei/--in-place must not fire the shipped sed tokens: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
+fi
+rm -f "$f"
+
+# ...while a process substitution, which the shell folds into the word it
+# touches rather than making a command of its own, must leave the call visible
+f="$(tmpsh "$(printf '%s\n' \
+  'sed -f <(gen_script) -i "$file"' \
+  'sed -f <(gen_script) -Ei "$file"' \
+  'sed -f <(gen_script) --in-place "$file"')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a process substitution must not hide a GNU-only sed call, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 3 ]]; then
+  ok "the shipped list still detects sed calls whose flag follows a process substitution"
+else
+  fail "expected all 3 process-substitution forms flagged, got: $out"
 fi
 rm -f "$f"
 
