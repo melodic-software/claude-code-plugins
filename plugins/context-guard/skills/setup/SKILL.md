@@ -205,10 +205,23 @@ zone bands, zones.json shape) are owned by
    Shell-syntax guard: the wrapped form passes the user's command as ARGV — the shell that runs
    the `statusLine` command splits the whole line into words and consumes its quotes, and the shim
    `exec`s those words unchanged. It therefore only works for plain `executable arg…` commands. Test
-   the UNWRAPPED renderer, never the raw effective `command` string — the rules above run first. If
-   it carries — UNQUOTED, at the top level — shell syntax no ARGV word can express (an inline env
-   assignment like `THEME=dark my-statusline`, a redirection, or any control operator: `|`, `|&`,
-   `&&`, `||`, `;`, `&`, a newline), print the shell-wrapped variant instead:
+   the UNWRAPPED renderer, never the raw effective `command` string — the rules above run first.
+   Print the shell-wrapped variant instead when EITHER of these holds:
+
+   - It carries — UNQUOTED, at the top level — shell syntax no ARGV word can express: an inline env
+     assignment like `THEME=dark my-statusline`, a redirection, or any control operator (`|`, `|&`,
+     `&&`, `||`, `;`, `&`, a newline).
+   - **Its command word is not an executable** — a shell builtin, function, or alias, which `exec`
+     cannot run because there is no file to exec. `ulimit '-n'` is the standing example: `ulimit`
+     exists only as a builtin, so the plain wrapped form reaches `exec ulimit -n` and the statusline
+     dies with exit 127 on every refresh. Resolve it the way the shim will —
+     `type -P <word>` finding nothing while `type -t <word>` reports `builtin`, `function`, or
+     `alias` is the test — not by matching a hardcoded list of builtin names.
+
+     This trigger is load-bearing precisely because it is *not* about syntax. Such a renderer often
+     carries none at all, and before the guard was scoped to real syntax the bare presence of quotes
+     wrapped it by accident. That accident was doing real work, and dropping it without this
+     replacement is what turns a working statusline into exit 127.
 
    ```json
    {

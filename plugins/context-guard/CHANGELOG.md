@@ -17,14 +17,23 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `sh -c 'sh -c '\''ulimit -n'\'''` — one more shell on every refresh, exactly the compounding the
   peel rule exists to prevent. A faithful reading of the guard failed this skill's own eval 9.
 
-  Quoting was never a valid trigger. The `statusLine` `command` field "runs in a shell"
-  (<https://code.claude.com/docs/en/statusline>, fetched 2026-08-07), so that shell consumes the
-  quotes and hands words to `statusline-shim.sh`, which `exec`s them unchanged. A quoted argument —
-  and an operator's `sh -c '<string>'`, where `sh` is the executable and `-c` and the carried string
-  are two ordinary ARGV words — already survives the plain wrapped form intact. The trigger is now
-  the syntax no ARGV word can express — an inline env assignment, a pipe, `&&`, `||`, `;`, a
-  trailing `&`, or a redirection — and only where it stands UNQUOTED at the top level, so syntax
-  sealed inside a quoted argument no longer counts either.
+  Quoting was never a valid trigger *for the reason the guard gave*. The `statusLine` `command`
+  field "runs in a shell" (<https://code.claude.com/docs/en/statusline>, fetched 2026-08-07), so
+  that shell consumes the quotes and hands words to `statusline-shim.sh`, which `exec`s them
+  unchanged. A quoted argument — and an operator's `sh -c '<string>'`, where `sh` is the executable
+  and `-c` and the carried string are two ordinary ARGV words — already survives the plain wrapped
+  form intact. The trigger is now the syntax no ARGV word can express — an inline env assignment, a
+  pipe, `&&`, `||`, `;`, a trailing `&`, or a redirection — and only where it stands UNQUOTED at the
+  top level, so syntax sealed inside a quoted argument no longer counts either.
+
+  **Quoting was, however, doing one job by accident, and that job is now done on purpose.** A
+  renderer whose command word is a shell BUILTIN — `ulimit '-n'`, which exists as no executable at
+  all — needs a shell for reasons that have nothing to do with syntax, and it was reaching the
+  adapter only because its quotes tripped the old trigger. Removing quoting with no replacement
+  would have sent it to `exec ulimit -n` and exit 127 on every refresh. So the guard gains a second,
+  independent trigger: the command word does not resolve as an executable (`type -P` finds nothing
+  while `type -t` reports `builtin`, `function`, or `alias`). Resolved the way the shim resolves it,
+  never against a hardcoded list of builtin names.
 
   Scoping the guard that way rescoped the peel rule with it, because the peel rule cites the guard
   to define "carries shell syntax". Its provenance test is now three explicit branches, two of them
