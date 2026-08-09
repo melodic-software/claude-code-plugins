@@ -1,5 +1,4 @@
 ---
-name: setup
 description: "Verify or configure Context7 for this plugin's lookups — check the ctx7 CLI, CONTEXT7_API_KEY auth, and the Context7 MCP server, then install/upgrade the CLI on request. Use when: 'set up context7', 'configure context7', 'is context7 working', 'context7 setup', 'install ctx7', 'context7 auth', 'add the Context7 MCP server'. Actions: check (read-only verification, default) | apply (resolve what check found) | apply install-cli (also install/upgrade the ctx7 CLI)."
 argument-hint: "check | apply [install-cli]"
 user-invocable: true

@@ -1,5 +1,4 @@
 ---
-name: book-distill
 description: "Distill a technical book (PDF or EPUB) into concept-organized skill reference files via a structured multi-session pipeline. Use when: 'distill this book', 'book to skill', 'PDF to skill', 'EPUB to skill', 'read this book for me', 'extract knowledge from this book', 'book distillation', 'turn this book into a skill', 'extract from PDF'; or when user provides a PDF/EPUB path and asks to create or extend a skill from it. Produces author-attributed reference files (60-160 lines each), named by concept not chapter, with routing table updates to the target skill's SKILL.md. Handles multi-author merges and Phase 3 shared-file consolidation. Not for ad-hoc book summaries — output is structured developer-facing context files the target skill routes at query time."
 argument-hint: "[path to PDF/EPUB] [target skill name]"
 user-invocable: true

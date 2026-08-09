@@ -1,5 +1,4 @@
 ---
-name: pressure-test
 description: "Builds a throwaway interactive terminal app to pressure-test business logic, a state machine, a data model, or an API surface before committing to it. Use when: 'does this state machine handle X then Y', 'sanity-check this data model', 'feel out the API', 'prototype this logic', 'does this reducer handle the edge case', 'is this data shape right' — any question answered by driving state by hand and watching it change. Produces a portable pure logic module (liftable into production) behind a disposable shell — a terminal app by default, or a self-contained HTML demo a non-developer can drive by clicking buttons when no terminal fits. Captures the validated answer in a durable note. Not for visual or design questions — use /prototype:explore-directions for those."
 argument-hint: "[scope] (e.g., /prototype:pressure-test scheduling state machine)"
 user-invocable: true

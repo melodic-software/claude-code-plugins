@@ -1,5 +1,4 @@
 ---
-name: diagnose
 description: "Diagnose and fix failing tests — failure classification, root-cause analysis (never retry blindly), then the reproduce → isolate → fix → retest → regression loop. Use for 'why does this fail', visible test failures, stack traces, or flaky tests; for authoring new tests use /testing:write, for running the suite /toolchain:check."
 argument-hint: "[failure] (e.g., /testing:diagnose, /testing:diagnose the frozen-logger error, /testing:diagnose loop)"
 user-invocable: true

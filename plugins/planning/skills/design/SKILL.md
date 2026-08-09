@@ -1,5 +1,4 @@
 ---
-name: design
 description: "Explore and resolve design decisions — types, contracts, package topology, module boundaries — through collaborative discussion rounds before /planning:plan plans implementation, producing capability-matrix / type-inventory / design-threads / topology artifacts. Use for 'design this', 'type modeling', 'figure out the abstractions', 'model this domain', or entering /planning:plan without exploring the design space first; scales from a single-file early-exit to a multi-session design effort."
 argument-hint: "[scope] [action] (e.g., /planning:design library, /planning:design module, /planning:design status, /planning:design discuss, /planning:design handoff)"
 user-invocable: true

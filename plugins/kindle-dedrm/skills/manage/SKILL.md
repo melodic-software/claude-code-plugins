@@ -1,5 +1,4 @@
 ---
-name: manage
 description: "Manage the Kindle for PC 2.8.0 + Calibre DeDRM workflow for personal-use ebook DRM removal on books you own (Windows only). Action router: setup (first-time provisioning — download, firewall block, ICACLS lock, Calibre plugins, keyfinder; delegated to the dedicated /kindle-dedrm:setup check/apply skill), sync (new purchases — disable firewall, sync Kindle, re-enable, re-run keyfinder), update (drift check — upstream version pins and tutorial URLs, no mutations), cleanup (reversible decommission — per-item confirmation, --soft or --full), status (diagnostic). Every state mutation has a documented compensating reversal. Use when: \"set up Kindle DRM removal\", \"remove DRM from Kindle books\", \"extract keys from my Kindle library\", \"sync new Kindle books I bought\", \"check if DeDRM setup is current\", \"clean up Kindle DRM tools\", \"undo DeDRM setup\", \"convert Kindle books to EPUB\", Calibre + Kindle mentioned together, or making Kindle library readable on a non-Kindle device."
 argument-hint: "[setup|sync|update|cleanup|status] [--dry-run] [--soft|--full]"
 user-invocable: true

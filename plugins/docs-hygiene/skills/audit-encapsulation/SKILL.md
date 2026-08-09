@@ -1,5 +1,4 @@
 ---
-name: audit-encapsulation
 description: "Audit and remediate skill-encapsulation violations — external citations reaching into private surfaces inside `.claude/skills/<X>/` beyond the slash invocation. Use when: 'audit encapsulation', 'find skill leaks', 'skill boundary violation', 'who is reaching into <skill>', 'check skill boundaries', 'public API drift', or before refactoring a skill."
 argument-hint: "[detect|fix|file-issues]"
 user-invocable: true

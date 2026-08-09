@@ -1,5 +1,4 @@
 ---
-name: known-issues
 description: "Looks up and tracks known Claude product issues — searches known GitHub bugs, checks service health and model quality, and maintains a persistent registry of tracked issues. Use when: 'is this broken', 'known CC bugs', 'troubleshoot Claude Code', 'any workarounds', 'feature behaves unexpectedly', 'scan repo for issues', 'file a bug' — actions: status (default), search <feature>, check-all, scan, list, quality, create."
 argument-hint: "<action> [args] — actions: status (default), search, check-all, scan, list, quality, create. e.g., 'search Stop hook', 'check-all', 'create bug \"title\"'"
 user-invocable: true

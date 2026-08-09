@@ -1,5 +1,4 @@
 ---
-name: audit
 description: "Audit a codebase for drift between docs, config, code, and architecture. Verifies every factual claim against reality via parallel subagent fan-out, severity-rates findings and reports read-only; remediation is delegated to the implementation/verification lanes (`--fix` hands the findings to `/implementation:implement` then `/verification:confirm`). Use when: 'audit codebase', 'check for drift', 'verify docs', 'full audit'. Flags: `--fix` (hand findings to the remediation lanes after reporting), `--docs-only`, `--code-only`, `--config-only`, `--arch-only`."
 argument-hint: "[scope] [--fix] [--docs-only|--code-only|--config-only|--arch-only]"
 user-invocable: true

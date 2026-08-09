@@ -1,5 +1,4 @@
 ---
-name: update
 description: "Maintainer-facing drift-check and upstream sync for the firecrawl plugin's wrapper skill — tracks the firecrawl-cli npm release and the upstream SKILL.md source. Run only from a working-tree checkout. Actions: --check (default, read-only drift report) and the bare full update (gated npm upgrade + advisory skill-content integration). Not for consumers — consumers update via /plugin marketplace update."
 argument-hint: "[--check] (bare = full gated update pipeline)"
 user-invocable: true
