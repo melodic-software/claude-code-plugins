@@ -3,6 +3,122 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.3]
+
+A source-fidelity pass over `prosody.md` against *Writing Better Lyrics* (2009)
+Chapters 18-19, read in full including both figures. Paraphrase only; no chapter
+prose, example writes, or student work reaches this public repository.
+
+### Fixed
+
+- **`XAAA` was described as doing the opposite of what it does.** The file
+  claimed "stronger end pressure after an opening unmatched line"; Chapter 19
+  says the structure floats rather than pushes, and locates the instability in
+  the odd number of `A`s — line count and matched-element count disagreeing —
+  not in the opening unmatched line. Line lengths modulate the effect, and the
+  file now says so.
+- **`ABCBB`'s spotlight was attributed to the wrong line length.** The long `C`
+  weakens line four's closure and dims line five with it; it is the *shortened*
+  `C` that lets line four close and brightens the spotlight on line five.
+- **`AABA` was reduced to "points forward toward another `AB`."** The `B` line
+  asks for another `B`, not another pair, and the section balances at the
+  opening couplet so there is no push before it. Line four mildly fools that
+  expectation, leaving a small spotlight on the last line.
+- **The rhyme-type scale collapsed two of its five tiers.** Additive/subtractive
+  and assonance are separate rungs between family and consonance, not a pair.
+
+### Added
+
+- **The two-line stability ladder, and the rule it yields.** Four rungs, not
+  two: matched length with rhyme, matched length without rhyme, rhymed but
+  unmatched, neither. The middle pair is the point — matched length without
+  rhyme outranks rhyme without matched length, so **line length is a stronger
+  motion creator than rhyme.** Nothing in the plugin carried this. It is a
+  tiebreak between those two elements specifically — the ladder says nothing
+  about line length against rhythm or line count, where the biggest-mismatch
+  rule still decides.
+- **Closure extended past common meter.** `meter.md` defines deceptive and
+  unexpected closure and keeps that ownership; Chapter 19 applies the same
+  expectation test to any section shape, so `prosody.md` carries only the delta
+  — unexpected closure as the mechanic organizing the five-line
+  one-matching-element group, and sections firing both effects in either order.
+  `stable-unstable-meta.md`, whose Closure row sorts by the terms without
+  defining them, now points at the definition.
+- **A five-line section ending in an unmatched line is the most unstable of its
+  group** — a flat rule the file had replaced with "depends on how late the
+  matching material arrives."
+- **Which line is the targeting slot.** An unmatched line's end sound points
+  into the next section: aim it at a vowel inside the oncoming title for a sonic
+  boost, at the title's end rhyme for a harder resolution, or waste it. `hook.md`
+  owns the hook-side strategy; this is the structural question of which line
+  carries it.
+- **The order in which structure becomes audible** — rhythm, line length, rhyme
+  structure, number of lines, rhyme type. This is what the listener receives,
+  which is why expectations exist by a given line; it is distinct from the
+  Analysis workflow's marking order, and the file now says so rather than
+  leaving two orders to be read as one instruction.
+- **`response-filter` §3 gains two boxes.** Chapter 19's two generation-time
+  rules bind rather than sit in a research file: line length is checked before a
+  finding prescribes a rhyme change, and a closure called deceptive must name
+  the prediction the section actually built.
+- **The flat-song diagnostic**, deferred from 0.7.1's Chapter 15 read pending
+  this chapter. Chapter 19 states it in motion terms, so `prosody.md` is its
+  home: a good line landing flat is a structure problem, not an inspiration
+  problem.
+
+## [0.7.2]
+
+A source-fidelity pass over `meter.md` against *Writing Better Lyrics* (2009)
+Chapters 14-17, read in full including the chapters' page-scan figures, plus
+one binding fix in `meter-prosody`. Paraphrase only; no chapter prose, example
+writes, or student work reaches this public repository.
+
+### Fixed
+
+- **`meter-prosody`'s mandatory pre-flight ran the wrong filter.** It routed to
+  `response-filter` §6 Form, whose boxes decide song shape — chorus versus
+  refrain, whether a bridge is needed — while the skill's own emission boundary
+  forbids it from making that call. The skill was required to check boxes it is
+  not allowed to act on, and nothing gated the output it actually emits. It now
+  routes to §3 Critique, the filter for findings delivered on a draft.
+- **Chapter 16's nine couplet / common-meter models were transcribed wrong.** The
+  exercise listed eight of the nine, dropped `abaa` entirely, corrupted two
+  rhyme schemes (`ababaccc` for `aaabcccb`, `abacccc` for `ababcccc`), stripped
+  every stress count, and labelled the whole set four-stress when five of the
+  nine set a three-stress line against four-stress neighbours. The models now
+  carry both dimensions in their own table.
+- **The Structural Pentad was defined two incompatible ways in one file.** One
+  section listed the Five Compositional Elements (number of lines, length of
+  lines, rhythm, rhyme scheme, rhyme type) under the Pentad's name, while the
+  file's two other definitions — and `five-compositional-elements.md` — name
+  balance, pace, flow, closure, and type of closure. Corrected, with the
+  distinction between the two frameworks stated where the confusion occurred.
+  The same section's claim that `stable-unstable-meta.md` applies the Pentad
+  across domains was also wrong: that file carries per-domain stability
+  criteria of its own.
+- **The eight-line couplet escape omitted its line lengths.** Its fourth and
+  eighth lines are shorter — three stresses — not merely unrhymed and answered;
+  an unrhymed line of matched length does not open the same IOU.
+
+### Added
+
+- **`response-filter` §3 gains two boxes.** Line length must be claimed in
+  stressed syllables, with no stress map meaning no length claim; and every
+  position the structure marks must be named along with the content sitting
+  there, so a spotlight over filler reads as a finding rather than a flourish.
+- **The extension-inside-line-four move lights two positions, not one** — the
+  third stressed syllable, where the expected rhyme failed to arrive, and the
+  fourth, which protrudes past the promised end. Its insertion is also two
+  syllables, one unstressed and one stressed.
+- **Closure defeats rhyme independently of distance.** A rhyme whose partner
+  sits two lines away can still read as unrhymed once an intervening unit has
+  closed and the ear has stopped listening back across the seam.
+- **Composite destabilizing.** Several destabilizers can fire in one section at
+  once and compound — odd line count, odd rhyme scheme, a first-use short line,
+  and a section outrunning the bar count the song had established. Bar-count
+  overrun is a device in its own right and the one most easily missed on the
+  page.
+
 ## [0.7.1]
 
 ### Fixed

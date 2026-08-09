@@ -3,6 +3,24 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.34.3]
+
+### Fixed
+
+- **`work-loop`'s post-snapshot intake report reads open items, not the autonomous frontier.**
+  0.34.2 gave that report a mechanism — diff a fresh reading against the retained ids — but named
+  `list-frontier --autonomous` as the reading, which cannot see the case the report exists for.
+  Step 2's sweep hardening routes a bot-authored advisory issue to the human-gated role by default,
+  and `list-frontier --autonomous` excludes exactly that role (tracker `CONTRACT.md`,
+  `list-frontier`; `reference/label-taxonomy.md`), so the bot-filed mid-cycle intake the stop report
+  promises to name is filtered out of the reading meant to find it and the report names nothing —
+  the "reported, never chased" invariant failing silently one layer below where 0.34.2 fixed it.
+  The report now repeats step 1's open-items reading, the superset the frontier is derived from,
+  which sees the routed advisory item and the ordinary one alike. The lane-infrastructure exclusion
+  is extended to that reading in the same breath: a telemetry issue is deliberately never among the
+  retained ids, so a re-read that did not re-apply the exclusion would diff it in as post-snapshot
+  intake and misreport it as unworked on every run.
+
 ## [0.34.2]
 
 ### Fixed

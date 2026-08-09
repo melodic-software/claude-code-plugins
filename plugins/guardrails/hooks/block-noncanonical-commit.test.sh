@@ -31,12 +31,52 @@ run() {
 }
 
 # --- the anti-pattern this guard exists for -----------------------------------
-run "git commit -m (blocked)" "git commit -m 'feat: x'" 2
-run "git commit -am (bundled, blocked)" "git commit -am 'feat: x'" 2
-run "git commit -m with --trailer (still blocked — trailer is not the mechanic)" \
-  "git commit -m 'feat: x' --trailer 'Co-Authored-By: X <x@y.z>'" 2
-run "bare git commit (opens EDITOR, blocked)" "git commit" 2
-run "git commit -a (no message source, blocked)" "git commit -a" 2
+# NARROWED (0.20.0, #2021): only a `-m` whose message ACTUALLY carries a newline
+# blocks — that is the cross-shell mangling hazard. Single-line `-m`, bare
+# `git commit`, and repeated single-line `-m` paragraphs all pass. `NL` embeds a
+# real newline where the fixture's own quoting cannot use the $'…' spelling.
+NL=$'\n'
+run "git commit -m multi-line (blocked)" "git commit -m 'feat: x${NL}body'" 2
+run "git commit -m multi-line via \$'…' (blocked — tokenizer decodes ANSI-C)" \
+  "git commit -m \$'feat: x\nbody'" 2
+run "git commit -m single-line (allowed — no newline, no mangling hazard)" \
+  "git commit -m 'feat: x'" 0
+run "git commit -am multi-line (bundled cluster, blocked)" "git commit -am 'feat: x${NL}body'" 2
+run "git commit -am single-line (allowed)" "git commit -am 'feat: x'" 0
+run "git commit -m<attached> multi-line (blocked)" "git commit -m'feat: x${NL}body'" 2
+run "git commit --message=<attached> multi-line (blocked)" \
+  "git commit --message='feat: x${NL}body'" 2
+run "git commit --message <separated> multi-line (blocked)" \
+  "git commit --message 'feat: x${NL}body'" 2
+run "git commit --message <separated> single-line (allowed)" \
+  "git commit --message 'feat: x'" 0
+# git's parse-options accepts any UNIQUE prefix of a long option, and --message
+# is git commit's only m-initial long option, so every prefix from --m up to
+# one letter short of the full spelling parses as --message (verified on git
+# 2.55) — the abbreviated spellings must hit the same gate in both the
+# =-attached and the separated form.
+run "git commit --mess=<abbreviated attached> multi-line (blocked)" \
+  "git commit --mess='feat: x${NL}body'" 2
+run "git commit --mess=<abbreviated attached> single-line (allowed)" \
+  "git commit --mess='feat: x'" 0
+run "git commit --mess <abbreviated separated> multi-line (blocked)" \
+  "git commit --mess 'feat: x${NL}body'" 2
+run "git commit --mess <abbreviated separated> single-line (allowed)" \
+  "git commit --mess 'feat: x'" 0
+run "git commit --m=<shortest abbreviation> multi-line (blocked)" \
+  "git commit --m='feat: x${NL}body'" 2
+run "git commit --m=<shortest abbreviation> single-line (allowed)" \
+  "git commit --m='feat: x'" 0
+run "git commit --m <shortest abbreviation, separated> multi-line (blocked)" \
+  "git commit --m 'feat: x${NL}body'" 2
+run "git commit --m <shortest abbreviation, separated> single-line (allowed)" \
+  "git commit --m 'feat: x'" 0
+run "git commit -m multi-line with --trailer (still blocked — trailer is not the mechanic)" \
+  "git commit -m 'feat: x${NL}body' --trailer 'Co-Authored-By: X <x@y.z>'" 2
+run "repeated single-line -m (allowed — git itself joins the paragraphs)" \
+  "git commit -m 'feat: x' -m 'body'" 0
+run "bare git commit (no -m, allowed — opens EDITOR, no mangling hazard)" "git commit" 0
+run "git commit -a (no message source, allowed)" "git commit -a" 0
 
 # --- the canonical form -------------------------------------------------------
 run "git commit -F - (allowed)" "git commit -F - --cleanup=verbatim" 0
@@ -52,10 +92,13 @@ run "git commit -F - without --trailer (allowed — trailer_policy none)" \
 # --- exempt operations (no message-on-stdin form exists) ----------------------
 run "git commit --amend --no-edit (allowed)" "git commit --amend --no-edit" 0
 # --no-edit is NOT an exemption on its own: git accepts it for an ordinary
-# commit, so exempting it unconditionally would let `--no-edit -m` straight past.
-run "git commit --no-edit -m (blocked — --no-edit is not an amend)" \
-  "git commit --no-edit -m subject" 2
+# commit, so exempting it unconditionally would let a multi-line `--no-edit -m`
+# straight past.
+run "git commit --no-edit -m multi-line (blocked — --no-edit is not an amend)" \
+  "git commit --no-edit -m 'subject${NL}body'" 2
 run "git commit --amend (allowed)" "git commit --amend" 0
+run "git commit --amend -m multi-line (allowed — amending is exempt)" \
+  "git commit --amend -m 'subject${NL}body'" 0
 run "git commit -C HEAD (allowed)" "git commit -C HEAD" 0
 run "git commit --reuse-message=HEAD (allowed)" "git commit --reuse-message=HEAD" 0
 run "git commit --fixup HEAD (allowed)" "git commit --fixup HEAD" 0
@@ -65,20 +108,25 @@ run "git commit --file=msg.txt (path, allowed)" "git commit --file=msg.txt" 0
 
 # --- top-level git options must not be confused with commit options ----------
 # `-c` BEFORE the subcommand is config; only after `commit` is it --reedit.
-run "git -c user.name=x commit -m (config, still blocked)" \
-  "git -c user.name=x commit -m 'feat: x'" 2
+run "git -c user.name=x commit -m multi-line (config, still blocked)" \
+  "git -c user.name=x commit -m 'feat: x${NL}body'" 2
 run "git -c user.name=x commit -F - (config, allowed)" \
   "git -c user.name=x commit -F -" 0
 
 # --- inline git aliases are expanded before the subcommand verdict -----------
 # `git -c alias.c=commit c -m x` commits. Without expansion the subcommand reads
-# as `c`, not `commit`, and the guard waves the whole thing through.
-run "inline git alias to commit -m (blocked)" \
-  "git -c alias.c=commit c -m bypass" 2
-run "inline git alias carrying -m in the expansion (blocked)" \
-  "git -c alias.ci='commit -m x' ci" 2
-run "inline shell alias (leading !) to commit -m (blocked)" \
-  "git -c alias.sh='!git commit -m x' sh" 2
+# as `c`, not `commit`, and the guard waves the whole thing through. Blocked
+# terminals carry a REAL newline in the `-m` message (the narrowed hazard);
+# expansions embed it inside double quotes, since the alias splitter does not
+# decode \$'…'.
+run "inline git alias to a multi-line commit -m (blocked)" \
+  "git -c alias.c=commit c -m 'bypass${NL}body'" 2
+run "inline git alias carrying a multi-line -m in the expansion (blocked)" \
+  "git -c alias.ci='commit -m \"x${NL}y\"' ci" 2
+run "inline shell alias (leading !) to a multi-line commit -m (blocked)" \
+  "git -c alias.sh='!git commit -m \"x${NL}y\"' sh" 2
+run "inline git alias to a single-line commit -m (allowed)" \
+  "git -c alias.c=commit c -m bypass" 0
 run "inline git alias to a canonical commit (allowed)" \
   "git -c alias.c=commit c -F -" 0
 run "inline alias to an unrelated subcommand (allowed)" \
@@ -86,23 +134,23 @@ run "inline alias to an unrelated subcommand (allowed)" \
 # git applies the LAST -c value for a key; taking the first would let a decoy
 # earlier value expanding to a harmless subcommand mask the real one.
 run "last inline alias value wins (blocked)" \
-  "git -c alias.c=status -c alias.c=commit c -m x" 2
+  "git -c alias.c=status -c alias.c=commit c -m 'x${NL}y'" 2
 run "last inline alias value wins (allowed when the last is harmless)" \
-  "git -c alias.c=commit -c alias.c=status c -m x" 0
+  "git -c alias.c=commit -c alias.c=status c -m 'x${NL}y'" 0
 
 # --- #964: git chains aliases — re-expansion recurses to the commit -----------
 # git expands an alias whose first word is itself an alias, so a non-canonical
 # commit reached through a SECOND hop must still block. Command-line globals ride
 # into each hop (so a second-hop --config-env alias is refused by shape), and the
 # recursion stops on git's own alias-loop.
-run "#964 case C: two-hop inline chain to commit -m (blocked)" \
-  "git -c alias.c=x -c alias.x='commit -m bypass' c" 2
+run "#964 case C: two-hop inline chain to a multi-line commit -m (blocked)" \
+  "git -c alias.c=x -c alias.x='commit -m \"bypass${NL}b\"' c" 2
 run "#964 H1: inline first hop, --config-env second hop (blocked by shape)" \
   "git -c alias.c=x --config-env=alias.x=AV c" 2 "AV=commit"
-run "#964 three-hop inline chain to commit -m (blocked)" \
-  "git -c alias.a=b -c alias.b=c -c alias.c='commit -m bypass' a" 2
-run "#964 .command-spelled second hop to commit -m (blocked)" \
-  "git -c alias.c=x -c alias.x.command='commit -m bypass' c" 2
+run "#964 three-hop inline chain to a multi-line commit -m (blocked)" \
+  "git -c alias.a=b -c alias.b=c -c alias.c='commit -m \"bypass${NL}b\"' a" 2
+run "#964 .command-spelled second hop to a multi-line commit -m (blocked)" \
+  "git -c alias.c=x -c alias.x.command='commit -m \"bypass${NL}b\"' c" 2
 # Benign controls — a two-hop chain to the canonical -F - form still ALLOWS, and
 # an alias cycle terminates (git's alias-loop stop) and allows without hanging.
 run "#964 benign two-hop chain to canonical commit -F - (allowed)" \
@@ -113,7 +161,7 @@ run "#964 alias cycle terminates and allows (no hang)" \
 # empty, so a body that re-invokes a name from the outer chain is re-expanded
 # there — the reparse must not inherit the outer chain's seen-set.
 run "#964 shell-alias body re-invoking the outer chain name (blocked)" \
-  "git -c alias.a='!git -c alias.a=\"commit --allow-empty -m bypass\" a' a" 2
+  "git -c alias.a='!git -c alias.a=\"commit --allow-empty -m \\\"bypass${NL}b\\\"\" a' a" 2
 run "#964 shell-alias re-invocation, canonical -F - twin (allowed)" \
   "git -c alias.a='!git -c alias.a=\"commit -F -\" a' a" 0
 
@@ -170,8 +218,8 @@ run_bounded "traversal: 20-hop dual-spelling chain to a canonical commit (allowe
 # Coverage is not what the collapse trades away: the same depth still reaches the
 # non-canonical commit and blocks. (This one always returned fast — the walk exits
 # on the first path that finds the commit — so it asserts reach, not runtime.)
-run_bounded "traversal: 20-hop dual-spelling chain to commit -m (blocked, bounded)" \
-  "$(alias_chain 20 'commit -m bypass')" 2 30
+run_bounded "traversal: 20-hop dual-spelling chain to a multi-line commit -m (blocked, bounded)" \
+  "$(alias_chain 20 "commit -m \"bypass${NL}b\"")" 2 30
 # A long chain that does NOT branch (one spelling per hop) must stay allowed —
 # the budget bounds branching, not depth. Ceiling-guarded too: a regression that
 # made this one branch would otherwise hang the suite rather than fail it.
@@ -229,24 +277,24 @@ run "injection-shaped config-env env name (allowed — never evaluated)" \
 assert_file_absent "config-env injection: no exec for a shell-metachar env name" "$TEST_TMPDIR/pwned-nc"
 
 # --- case-insensitive alias resolution (git folds config names) --------------
-run "inline alias, uppercase subcommand (blocked)" "git -c alias.c=commit C -m x" 2
-run "inline alias, uppercase alias key (blocked)" "git -c alias.C=commit c -m x" 2
+run "inline alias, uppercase subcommand (blocked)" "git -c alias.c=commit C -m 'x${NL}y'" 2
+run "inline alias, uppercase alias key (blocked)" "git -c alias.C=commit c -m 'x${NL}y'" 2
 run "inline alias, uppercase both, to canonical form (allowed)" "git -c alias.C=commit C -F -" 0
 
 # --- `alias.<sub>.command` subkey is an alias definition too ------------------
 # git reads the `alias.<sub>.command` subkey as the alias (`git -c alias.c.command=commit
 # c -m x` commits non-canonically); the guard classifies that spelling inline and by shape.
-run "inline .command-subkey alias to commit -m (blocked)" "git -c alias.c.command=commit c -m bypass" 2
+run "inline .command-subkey alias to a multi-line commit -m (blocked)" "git -c alias.c.command=commit c -m 'bypass${NL}b'" 2
 run "config-env .command-subkey alias for the invoked sub (blocked by shape)" "git --config-env=alias.c.command=AV c" 2
-run ".command-subkey alias, case-folded key (blocked)" "git -c alias.C.command=commit c -m x" 2
+run ".command-subkey alias, case-folded key (blocked)" "git -c alias.C.command=commit c -m 'x${NL}y'" 2
 # A non-`command` alias subkey is not an alias to git, so it must not be blocked.
-run "non-command alias subkey is not an alias (allowed)" "git -c alias.c.nope=commit c -m bypass" 0
+run "non-command alias subkey is not an alias (allowed)" "git -c alias.c.nope=commit c -m 'bypass${NL}b'" 0
 # MAX-DANGER UNION: which spelling git runs when both are set is version-dependent, so a
 # benign value in one spelling must never mask a commit alias in the other — the guard
 # blocks if EITHER spelling commits non-canonically, and allows only when BOTH are benign.
-run "commit plain masked by a benign .command (blocked by union)" "git -c alias.c=commit -c alias.c.command=status c -m x" 2
-run "commit .command masked by a benign plain (blocked by union)" "git -c alias.c=status -c alias.c.command=commit c -m x" 2
-run "commit plain, benign .command decoy first (blocked by union)" "git -c alias.c.command=status -c alias.c=commit c -m x" 2
+run "commit plain masked by a benign .command (blocked by union)" "git -c alias.c=commit -c alias.c.command=status c -m 'x${NL}y'" 2
+run "commit .command masked by a benign plain (blocked by union)" "git -c alias.c=status -c alias.c.command=commit c -m 'x${NL}y'" 2
+run "commit plain, benign .command decoy first (blocked by union)" "git -c alias.c.command=status -c alias.c=commit c -m 'x${NL}y'" 2
 run "both spellings benign non-commit (allowed)" "git -c alias.c=status -c alias.c.command=log c" 0
 # Union on the --config-env shape path: an env spelling refuses even when the sibling
 # inline spelling is benign (both command-line orders).
@@ -256,7 +304,7 @@ run "env .command spelling refuses despite a benign inline plain (blocked)" "git
 # --- other subcommands are untouched -----------------------------------------
 run "git log (allowed)" "git log --oneline -5" 0
 run "git push (allowed)" "git push origin main" 0
-run "non-git command (allowed)" "echo git commit -m nope" 0
+run "non-git command (allowed)" "echo git commit -m 'no${NL}pe'" 0
 
 # --- prose containing the anti-pattern is not a false positive ---------------
 run "quoted mention in a heredoc body (allowed)" \
@@ -265,18 +313,18 @@ docs: explain why git commit -m 'x' is wrong
 EOF" 0
 
 # --- shell -c wrappers are re-parsed -----------------------------------------
-run "bash -lc wrapped -m (blocked)" "bash -lc \"git commit -m 'feat: x'\"" 2
+run "bash -lc wrapped multi-line -m (blocked)" "bash -lc \"git commit -m 'feat: x${NL}body'\"" 2
 run "bash -lc wrapped -F - (allowed)" "bash -lc 'git commit -F -'" 0
 
 # --- control operators: a later segment is still checked ---------------------
-run "second segment carries -m (blocked)" "git add -A && git commit -m 'x'" 2
+run "second segment carries a multi-line -m (blocked)" "git add -A && git commit -m 'x${NL}y'" 2
 
 # --- kill switch and allow-list ----------------------------------------------
-run "kill switch disables the guard" "git commit -m 'feat: x'" 0 \
+run "kill switch disables the guard" "git commit -m 'feat: x${NL}body'" 0 \
   CLAUDE_PLUGIN_OPTION_BLOCK_NONCANONICAL_COMMIT_ENABLED=false
-run "allow-list message-flag permits -m" "git commit -m 'feat: x'" 0 \
+run "allow-list message-flag permits a multi-line -m" "git commit -m 'feat: x${NL}body'" 0 \
   CLAUDE_PLUGIN_OPTION_BLOCK_NONCANONICAL_COMMIT_ALLOW=message-flag
-run "unrelated allow token does not permit -m" "git commit -m 'feat: x'" 2 \
+run "unrelated allow token does not permit a multi-line -m" "git commit -m 'feat: x${NL}body'" 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_NONCANONICAL_COMMIT_ALLOW=something-else
 
 # --- in-progress sequencer is exempt -----------------------------------------
@@ -298,14 +346,14 @@ GITDIR="$SEQ/.git"
 if [[ -d "$GITDIR" ]]; then
   : >"$GITDIR/MERGE_HEAD"
   rc=0
-  MSYS_NO_PATHCONV=1 jq -n --arg c "git commit -m 'merge fix'" --arg d "$SEQ" \
+  MSYS_NO_PATHCONV=1 jq -n --arg c "git commit -m 'merge${NL}fix'" --arg d "$SEQ" \
     '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
     bash "$HOOK" >/dev/null 2>&1
   rc=$?
-  assert_exit "in-progress merge is exempt" 0 "$rc"
+  assert_exit "in-progress merge is exempt (even with a multi-line -m)" 0 "$rc"
 
   rm -f "$GITDIR/MERGE_HEAD"
-  MSYS_NO_PATHCONV=1 jq -n --arg c "git commit -m 'not a merge'" --arg d "$SEQ" \
+  MSYS_NO_PATHCONV=1 jq -n --arg c "git commit -m 'not a${NL}merge'" --arg d "$SEQ" \
     '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
     bash "$HOOK" >/dev/null 2>&1
   rc=$?
@@ -320,13 +368,13 @@ fi
 # state, not the session cwd's.
 if [[ -d "$GITDIR" ]]; then
   : >"$GITDIR/MERGE_HEAD"
-  MSYS_NO_PATHCONV=1 jq -n --arg c "git -C $SEQ commit -m 'merge fix'" \
+  MSYS_NO_PATHCONV=1 jq -n --arg c "git -C $SEQ commit -m 'merge${NL}fix'" \
     '{tool_name:"Bash",tool_input:{command:$c},cwd:"/"}' |
     bash "$HOOK" >/dev/null 2>&1
   assert_exit "git -C honors the target repo's in-progress merge" 0 $?
 
   rm -f "$GITDIR/MERGE_HEAD"
-  MSYS_NO_PATHCONV=1 jq -n --arg c "git -C $SEQ commit -m 'not a merge'" \
+  MSYS_NO_PATHCONV=1 jq -n --arg c "git -C $SEQ commit -m 'not a${NL}merge'" \
     '{tool_name:"Bash",tool_input:{command:$c},cwd:"/"}' |
     bash "$HOOK" >/dev/null 2>&1
   assert_exit "git -C with no sequencer state in the target repo is blocked" 2 $?
@@ -335,13 +383,13 @@ fi
 # --- explicit --git-dir names the repo whose sequencer state matters ---------
 if [[ -d "$GITDIR" ]]; then
   : >"$GITDIR/MERGE_HEAD"
-  MSYS_NO_PATHCONV=1 jq -n --arg c "git --git-dir=$GITDIR --work-tree=$SEQ commit -m x" \
+  MSYS_NO_PATHCONV=1 jq -n --arg c "git --git-dir=$GITDIR --work-tree=$SEQ commit -m 'x${NL}y'" \
     '{tool_name:"Bash",tool_input:{command:$c},cwd:"/"}' |
     bash "$HOOK" >/dev/null 2>&1
   assert_exit "--git-dir honors that repo's in-progress merge" 0 $?
 
   rm -f "$GITDIR/MERGE_HEAD"
-  MSYS_NO_PATHCONV=1 jq -n --arg c "git --git-dir=$GITDIR --work-tree=$SEQ commit -m x" \
+  MSYS_NO_PATHCONV=1 jq -n --arg c "git --git-dir=$GITDIR --work-tree=$SEQ commit -m 'x${NL}y'" \
     '{tool_name:"Bash",tool_input:{command:$c},cwd:"/"}' |
     bash "$HOOK" >/dev/null 2>&1
   assert_exit "--git-dir with no sequencer state is blocked" 2 $?
@@ -361,7 +409,9 @@ mkdir -p "$PCFG"
 ) >/dev/null 2>&1
 
 if [[ -d "$PCFG/.git" ]]; then
-  for spec in "git c -m bypass:2" "git c -F -:0"; do
+  # The $'…' spelling keeps each spec single-line; the hook's tokenizer decodes
+  # it to a real newline in the -m message (the narrowed blocking hazard).
+  for spec in "git c -m \$'bypass\nb':2" "git c -F -:0"; do
     cmd="${spec%:*}"
     want="${spec##*:}"
     MSYS_NO_PATHCONV=1 jq -n --arg c "$cmd" --arg d "$PCFG" \
@@ -386,7 +436,7 @@ mkdir -p "$PCHAIN"
 ) >/dev/null 2>&1
 
 if [[ -d "$PCHAIN/.git" ]]; then
-  for spec in "git c -m bypass:2" "git c -F -:0"; do
+  for spec in "git c -m \$'bypass\nb':2" "git c -F -:0"; do
     cmd="${spec%:*}"
     want="${spec##*:}"
     MSYS_NO_PATHCONV=1 jq -n --arg c "$cmd" --arg d "$PCHAIN" \
@@ -402,7 +452,7 @@ if [[ -d "$PCHAIN/.git" ]]; then
   mixed="git"
   for ((i = 1; i < 12; i++)); do mixed+=" -c alias.a$i=a$((i + 1)) -c alias.a$i.command=a$((i + 1))"; done
   mixed+=" -c alias.a12=c -c alias.a12.command=c a1"
-  for spec in "-m bypass:2" "-F -:0"; do
+  for spec in "-m \$'bypass\nb':2" "-F -:0"; do
     args="${spec%:*}"
     want="${spec##*:}"
     MSYS_NO_PATHCONV=1 jq -n --arg c "$mixed $args" --arg d "$PCHAIN" \
@@ -434,7 +484,7 @@ mkdir -p "$PSHELL"
 ) >/dev/null 2>&1
 
 if [[ -d "$PSHELL/.git" ]]; then
-  for spec in "git sc -m bypass:2" "git sc -F -:0" "git a:0" "git ma:0"; do
+  for spec in "git sc -m \$'bypass\nb':2" "git sc -F -:0" "git a:0" "git ma:0"; do
     cmd="${spec%:*}"
     want="${spec##*:}"
     MSYS_NO_PATHCONV=1 jq -n --arg c "$cmd" --arg d "$PSHELL" \
@@ -445,9 +495,10 @@ if [[ -d "$PSHELL/.git" ]]; then
 fi
 
 # --- the block message names the fix -----------------------------------------
-out=$(bash "$HOOK" <<<"$(command_json "git commit -m 'feat: x'")" 2>&1)
+out=$(bash "$HOOK" <<<"$(command_json "git commit -m 'feat: x${NL}body'")" 2>&1)
 assert_contains "block message names -F -" "$out" '-F -'
 assert_contains "block message names the skill" "$out" '/commit'
+assert_contains "block message names the multi-line hazard" "$out" 'multi-line'
 
 # --- persisted `!` hops across NESTED repositories ----------------------------
 # One persisted alias text can mean a different hop in each repository it appears
@@ -474,7 +525,7 @@ if [[ -d "$NESTED/a/.git" && -d "$NESTED/a/child/child/.git" ]]; then
   # Descent to a NON-canonical commit must block; the canonical twin must not.
   git -C "$NESTED/a" config alias.a '!git -C child a'
   git -C "$NESTED/a/child" config alias.a '!git -C child a'
-  git -C "$NESTED/a/child/child" config alias.a 'commit --allow-empty -m bypass'
+  git -C "$NESTED/a/child/child" config alias.a $'commit --allow-empty -m "bypass\nb"'
   git -C "$NESTED/b" config alias.a '!git -C child a'
   git -C "$NESTED/b/child" config alias.a '!git -C child a'
   git -C "$NESTED/b/child/child" config alias.a 'commit -F -'
@@ -484,13 +535,13 @@ if [[ -d "$NESTED/a/.git" && -d "$NESTED/a/child/child/.git" ]]; then
   # normalization this minted a fresh key per hop and ran for 34s.
   git -C "$NESTED/dot" config alias.selfdot '!git -C . selfdot'
   git -C "$NESTED/dot" config alias.viadot '!git -C . realcommit'
-  git -C "$NESTED/dot" config alias.realcommit 'commit --allow-empty -m bypass'
+  git -C "$NESTED/dot" config alias.realcommit $'commit --allow-empty -m "bypass\nb"'
   # The INLINE `!` site composes the directory too, and a `!` body is reparsed as
   # its own command — the outer `-c` globals do not ride along — so the hop it
   # descends into resolves against PERSISTED config in the child. That crosses
   # inline -> persisted at a directory boundary, which neither branch's own cases
   # reach on their own.
-  git -C "$NESTED/a/child" config alias.z2 'commit --allow-empty -m bypass'
+  git -C "$NESTED/a/child" config alias.z2 $'commit --allow-empty -m "bypass\nb"'
   git -C "$NESTED/b/child" config alias.z2 'commit -F -'
 
   for spec in \
@@ -531,7 +582,7 @@ if [[ -d "$WRAP/outer/child/.git" && -d "$WRAP/outer/git/child/.git" ]]; then
   # The repository git ACTUALLY reaches carries the non-canonical commit; the
   # decoy a wrongly-sliced parser would reach carries the canonical one, so a
   # bypass shows up as a wrongly-allowed exit 0.
-  git -C "$WRAP/outer/child" config alias.p 'commit --allow-empty -m bypass'
+  git -C "$WRAP/outer/child" config alias.p $'commit --allow-empty -m "bypass\nb"'
   git -C "$WRAP/outer/git/child" config alias.p 'commit -F -'
 
   # `env -u -C git`: -u consumes `-C` as the variable name, so `git` is the
@@ -546,7 +597,7 @@ if [[ -d "$WRAP/outer/child/.git" && -d "$WRAP/outer/git/child/.git" ]]; then
 
   # git's OWN -C must keep working — the fix narrows the slice, it does not
   # stop honouring a relocation git really performs.
-  git -C "$WRAP/outer/git/child" config alias.q 'commit --allow-empty -m bypass'
+  git -C "$WRAP/outer/git/child" config alias.q $'commit --allow-empty -m "bypass\nb"'
   MSYS_NO_PATHCONV=1 jq -n --arg c "git -C git -c alias.a='!git -C child q' a" --arg d "$WRAP/outer" \
     '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
     timeout 30 bash "$HOOK" >/dev/null 2>&1
@@ -578,12 +629,12 @@ if [[ -d "$WRAP/outer/other/.git" ]]; then
   # `other` (where git lands) is non-canonical under `a` and canonical under `k`;
   # the payload cwd `outer` is the reverse. So a dropped chdir shows up as exit 0
   # on `a`, and an over-applied one as exit 2 on `k`.
-  git -C "$WRAP/outer/other" config alias.a 'commit --allow-empty -m bypass'
+  git -C "$WRAP/outer/other" config alias.a $'commit --allow-empty -m "bypass\nb"'
   git -C "$WRAP/outer/other" config alias.k 'commit -F -'
   git -C "$WRAP/outer" config alias.a 'commit -F -'
-  git -C "$WRAP/outer" config alias.k 'commit --allow-empty -m bypass'
+  git -C "$WRAP/outer" config alias.k $'commit --allow-empty -m "bypass\nb"'
   [[ -d "$WRAP/outer/has space/.git" ]] &&
-    git -C "$WRAP/outer/has space" config alias.a 'commit --allow-empty -m bypass'
+    git -C "$WRAP/outer/has space" config alias.a $'commit --allow-empty -m "bypass\nb"'
 
   wrapper_cd_case "env -C moves git, so the alias lookup follows" \
     "env -C other git a" 2
@@ -656,7 +707,7 @@ fi
 # at all — and reading no alias there allows. The canonical twin pins the arrival
 # point: exit 0 is only reachable from `other/child` itself.
 if [[ -d "$WRAP/outer/other/child/.git" ]]; then
-  git -C "$WRAP/outer/other/child" config alias.a 'commit --allow-empty -m bypass'
+  git -C "$WRAP/outer/other/child" config alias.a $'commit --allow-empty -m "bypass\nb"'
   git -C "$WRAP/outer/other/child" config alias.c 'commit -F -'
 
   wrapper_cd_case "env -C composes ahead of git's own -C" \
@@ -682,7 +733,7 @@ fi
 if [[ -d "$WRAP/outer/other/child/child/.git" ]]; then
   git -C "$WRAP/outer/other" config alias.p '!git -C child p'
   git -C "$WRAP/outer/other/child" config alias.p '!git -C child p'
-  git -C "$WRAP/outer/other/child/child" config alias.p 'commit --allow-empty -m bypass'
+  git -C "$WRAP/outer/other/child/child" config alias.p $'commit --allow-empty -m "bypass\nb"'
   git -C "$WRAP/outer/other" config alias.s '!git -C child s'
   git -C "$WRAP/outer/other/child" config alias.s '!git -C child s'
   git -C "$WRAP/outer/other/child/child" config alias.s 'commit -F -'
@@ -714,7 +765,7 @@ mkdir -p "$TOPLEVEL/canon/sub"
 
 if [[ -d "$TOPLEVEL/outer/child/.git" ]]; then
   git -C "$TOPLEVEL/outer" config alias.a '!git -C child a'
-  git -C "$TOPLEVEL/outer/child" config alias.a 'commit --allow-empty -m bypass'
+  git -C "$TOPLEVEL/outer/child" config alias.a $'commit --allow-empty -m "bypass\nb"'
   git -C "$TOPLEVEL/canon" config alias.a '!git -C child a'
   git -C "$TOPLEVEL/canon/child" config alias.a 'commit -F -'
   for spec in \
@@ -747,7 +798,7 @@ if [[ -L "$SYMDIR/base/link" ]]; then
   sym_top=$(git -C "$SYMDIR/base/link/.." rev-parse --show-toplevel 2>/dev/null | tr -d '\r')
 fi
 if [[ -n "$sym_top" ]] && [[ "$(cd -P "$SYMDIR/target" && pwd -P)" == "$(cd -P "$sym_top" && pwd -P)" ]]; then
-  git -C "$SYMDIR/target" config alias.a 'commit --allow-empty -m bypass'
+  git -C "$SYMDIR/target" config alias.a $'commit --allow-empty -m "bypass\nb"'
   git -C "$SYMDIR/target" config alias.c 'commit -F -'
   for spec in "git -C link/.. a|2|symlinked parent: guard follows git into the link target" \
     "git -C link/.. c|0|symlinked parent: canonical commit there is allowed"; do
@@ -780,9 +831,9 @@ mkdir -p "$DOTS/sub"
 if [[ -d "$DOTS/.git" ]]; then
   git -C "$DOTS" config alias.selfdeep '!git -C ./././. selfdeep'
   git -C "$DOTS" config alias.livedot '!git -C . realdot'
-  git -C "$DOTS" config alias.realdot 'commit --allow-empty -m bypass'
+  git -C "$DOTS" config alias.realdot $'commit --allow-empty -m "bypass\nb"'
   git -C "$DOTS" config alias.up '!git -C sub/.. realup'
-  git -C "$DOTS" config alias.realup 'commit --allow-empty -m bypass'
+  git -C "$DOTS" config alias.realup $'commit --allow-empty -m "bypass\nb"'
   git -C "$DOTS" config alias.upcanon '!git -C sub/.. canonup'
   git -C "$DOTS" config alias.canonup 'commit -F -'
   for spec in \
@@ -811,7 +862,7 @@ nested_repo "$TRAIL/cur"
 nested_repo "$TRAIL/safe"
 
 if [[ -d "$TRAIL/cur/.git" && -d "$TRAIL/safe/.git" ]]; then
-  git -C "$TRAIL/cur" config alias.b 'commit --allow-empty -m bypass'
+  git -C "$TRAIL/cur" config alias.b $'commit --allow-empty -m "bypass\nb"'
   # A trailing `-C` also lands in the commit-argument scan, where `-C` is
   # `--reuse-message` and exempts — so the prefix slice has no independently
   # observable effect on this guard's verdicts today, and there is deliberately no
@@ -842,12 +893,15 @@ mkdir -p "$GLOB/outside"
 nested_repo "$GLOB/repo"
 
 if [[ -d "$GLOB/repo/.git" ]]; then
+  # The alias body is embedded DOUBLE-quoted in the command so the blocked twin
+  # can spell its newline as \$'x\ny' (the tokenizer decodes it in the ! body
+  # reparse; a single-quoted embedding would end at the \$' quote instead).
   for spec in \
     "!git commit -F -|0|--git-dir/--work-tree: canonical commit through a ! alias is allowed" \
-    "!git commit -m x|2|--git-dir/--work-tree: -m commit through a ! alias still blocks"; do
+    "!git commit -m \$'x\ny'|2|--git-dir/--work-tree: multi-line -m through a ! alias still blocks"; do
     IFS='|' read -r body want label <<<"$spec"
     MSYS_NO_PATHCONV=1 jq -n \
-      --arg c "git --git-dir=$GLOB/repo/.git --work-tree=$GLOB/repo -c alias.a='$body' a" \
+      --arg c "git --git-dir=$GLOB/repo/.git --work-tree=$GLOB/repo -c alias.a=\"$body\" a" \
       --arg d "$GLOB/outside" \
       '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
       timeout 30 bash "$HOOK" >/dev/null 2>&1
@@ -881,8 +935,8 @@ launch_tree() { # <root> <out-child-alias> <work-child-alias> <sub-child-alias>
   git -C "$1/work/child" config alias.p "$3"
   git -C "$1/work/sub/child" config alias.p "$4"
 }
-launch_tree "$LAUNCH/a" 'commit --allow-empty -m bypass' 'commit -F -' 'commit --allow-empty -m bypass'
-launch_tree "$LAUNCH/b" 'commit -F -' 'commit --allow-empty -m bypass' 'commit -F -'
+launch_tree "$LAUNCH/a" $'commit --allow-empty -m "bypass\nb"' 'commit -F -' $'commit --allow-empty -m "bypass\nb"'
+launch_tree "$LAUNCH/b" 'commit -F -' $'commit --allow-empty -m "bypass\nb"' 'commit -F -'
 
 if [[ -d "$LAUNCH/a/out/child/.git" && -d "$LAUNCH/b/out/child/.git" ]]; then
   launch_body='!unset GIT_DIR GIT_WORK_TREE; git -C child p'
@@ -905,9 +959,11 @@ fi
 
 # --- PowerShell tool coverage ------------------------------------------------
 # The canonical PowerShell commit form (a here-string piped to `git commit -F -`)
-# must be allowed exactly as the Bash `-F -` form is; a `-m` PowerShell commit
-# must be blocked; commit-shaped PowerShell the classifier cannot parse is
-# DEFERRED here (#1858) and blocked by `block-dangerous-git`, asserted below.
+# must be allowed exactly as the Bash `-F -` form is; a here-string `-m` value
+# must be blocked (uninspectable, multi-line by construction of the form) while
+# a single-line literal `-m` passes; commit-shaped PowerShell the classifier
+# cannot parse is DEFERRED here (#1858) and blocked by `block-dangerous-git`,
+# asserted below.
 run_pwsh() {
   local label="$1" command="$2" expected="$3" rc
   bash "$HOOK" <<<"$(pwsh_command_json "$command")" >/dev/null 2>&1
@@ -916,9 +972,12 @@ run_pwsh() {
 }
 run_pwsh "PS: canonical here-string | git commit -F - (allowed)" \
   "$(printf '%s\n%s\n%s' "@'" "feat: x" "'@ | git commit -F -")" 0
-run_pwsh "PS: git commit -m here-string (blocked — not the stdin form)" \
+# A here-string `-m` VALUE blanks to a placeholder whose content the guard
+# cannot inspect — multi-line by construction of the form — so it fails closed.
+run_pwsh "PS: git commit -m here-string (blocked — uninspectable, multi-line by form)" \
   "$(printf '%s\n%s\n%s' "git commit -m @'" "feat: x" "'@")" 2
-run_pwsh "PS: git commit -m literal (blocked)" "git commit -m 'feat: x'" 2
+run_pwsh "PS: git commit -m single-line literal (allowed — no newline)" \
+  "git commit -m 'feat: x'" 0
 run_pwsh "PS: git commit --amend (allowed — exempt)" "git commit --amend" 0
 run_pwsh "PS: git status (allowed — not a commit)" "git status" 0
 
@@ -962,7 +1021,8 @@ for command in "$PS_UNPARSABLE_BACKTICK" "$PS_UNPARSABLE_HERESTRING"; do
 done
 
 # The PowerShell block message shows the here-string form, not a Bash heredoc.
-psout=$(bash "$HOOK" <<<"$(pwsh_command_json "git commit -m 'x'")" 2>&1)
+# (The blocking fixture is the -m here-string form — single-line -m no longer blocks.)
+psout=$(bash "$HOOK" <<<"$(pwsh_command_json "$(printf '%s\n%s\n%s' "git commit -m @'" "feat: x" "'@")")" 2>&1)
 assert_contains "PS block message shows the here-string form" "$psout" "'@ | git commit -F -"
 assert_absent "PS block message omits the Bash heredoc" "$psout" "<<'EOF'"
 

@@ -147,6 +147,22 @@
         "Outcome-gate criterion 11 cites the exit status of check-coverage-complete.sh rather than a reading of the table, and treats any non-zero exit — including exit 2 for a ledger the script cannot parse — as a FAIL",
         "Does NOT report coverage as complete while any row is unmarked; narrowing the corpus is acceptable only when the ledger records what was cut and why"
       ]
+    },
+    {
+      "id": 11,
+      "name": "empty-payload-halts-the-dispatch",
+      "prompt": "Research whether we should move our job scheduler from Hangfire to Quartz.NET, then draft the migration plan. [The dispatched discovery:researcher returns: status: completed, coverage: complete — 'Fetching the Quartz.NET release notes ...' — with no preload_token, no artifact path, no sidecar count.]",
+      "expected_output": "Treats the dispatch as FAILED rather than finished, despite the completed status: the payload carries no preload_token and no artifact pointer, and coverage: complete is the run's own self-grade rather than evidence. Grades the run off disk by running scripts/check-dispatch-artifact.sh --index-name RESEARCH.md against the memory-slice path the parent itself resolved before dispatching — not a path taken from the payload — and halts on the non-zero exit instead of proceeding to the migration plan. Recovers by resuming the still-live agent by agent ID with SendMessage, or by discarding the slice — clearing it first — and re-dispatching with the same envelope.",
+      "files": [],
+      "expectations": [
+        "The completed status is NOT accepted as evidence of finished research; the missing preload_token and the missing artifact pointer each independently mark the dispatch failed",
+        "Verification runs scripts/check-dispatch-artifact.sh with --index-name RESEARCH.md against the memory-slice path the parent resolved pre-dispatch, rather than a path read out of the payload, and cites its exit status rather than eyeballing the directory",
+        "The freshness baseline is established BEFORE the dispatch (mkdir -p <slice> then touch <slice>/.research-dispatch, so a first-time topic whose slice does not exist yet does not fail on the touch) and passed as --newer-than, so an artifact an earlier run left in the same slice cannot be accepted as evidence that this dispatch succeeded",
+        "coverage: complete is regraded parent-side from research-checklist.md via check-coverage-complete.sh rather than believed from the payload, with both exit 1 and exit 2 treated as FAIL; a missing ledger passes only when the artifact records the corpus as unbounded",
+        "Flags whose values the payload never supplied are dropped rather than guessed at; a malformed payload carries no sidecars: count and no artifact: pointer, so only the slice path and --index-name are passed",
+        "A non-zero exit halts the workflow and is reported; the run does NOT proceed to the migration plan, a decision, or an edit on the strength of research that did not happen",
+        "Recovery resumes the existing agent by agent ID with SendMessage rather than immediately re-dispatching, and when it discards instead it clears the slice (or assigns a fresh sub-slice) first so a dead run's coverage ledger cannot be graded as the replacement run's"
+      ]
     }
   ]
 }

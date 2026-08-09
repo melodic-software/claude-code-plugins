@@ -9,9 +9,13 @@ disable-model-invocation: false
 ## Mandatory pre-flight — Response Filter
 
 Before emitting a scansion verdict, stability call, phrasing judgement, or any rewrite, run
-**§6 Form filter** of [response-filter](../../context/pat-pattison/research/response-filter.md)
+**§3 Critique filter** of [response-filter](../../context/pat-pattison/research/response-filter.md)
 (add **§2 Line-writing** when producing lines). NAME each box's pass / fail / skip-with-reason
 (aloud or in reasoning); correct before emission. Skips are valid; silent skips are not.
+
+§3 is the filter for findings delivered on a draft, which is what this skill emits. §6 Form is
+NOT the gate here: its boxes decide song shape — chorus versus refrain, whether a bridge is
+needed — and this skill's own boundary forbids it from making that call.
 
 ## Purpose
 
@@ -37,7 +41,7 @@ No action → route on context (a pasted line → `meter`; a "does this feel rig
 
 ## Handlers
 
-- **Pre-flight ALWAYS:** run response-filter §6 (+ §2 when producing lines) before output.
+- **Pre-flight ALWAYS:** run response-filter §3 (+ §2 when producing lines) before output.
 - Scan concretely: mark stresses, name the paradigm, and say what the meter does FOR the meaning —
   not scansion for its own sake.
 - Stability is a tool, not a verdict: name whether a section reads stable or unstable and whether

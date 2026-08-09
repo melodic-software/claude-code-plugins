@@ -50,7 +50,10 @@ than route past it.
 2. **Is there enough smart zone left — or is the remaining work simple enough for a degraded
    context?** → continue in session. *The zero-cost exit for everything question 1 didn't already
    claim; every other remaining mechanism spends setup cost or loss. In a degraded zone only
-   mechanical, low-judgment steps qualify as "simple enough".*
+   mechanical, low-judgment steps qualify as "simple enough". Within a still-healthy zone, prefer
+   continue when the next stage consumes this stage's reasoning verbatim — a summary of the
+   reasoning is not the reasoning; this never overrides a degraded zone, where handoff remains
+   the route.*
 3. **Is this session's context disposable — nothing in it worth carrying forward?** → `/clear`.
    *The cheapest reset, asked before any writing mechanism: capturing state nothing needs is
    pure cost.*
