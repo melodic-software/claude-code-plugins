@@ -1094,6 +1094,66 @@ that is labeled advisory.
 pre-approval, shipping the deferred validating `PreToolUse` hook, or adding an MCP surface each
 re-opens this review.
 
+### Review record — `wizard` (ACCEPT, 2026-08-09)
+
+Reviewed at `0.1.0`; a version bump adding a new trust surface re-triggers this review. Ported
+from mattpocock/skills v1.2.3 (`main@84fdeff`, MIT), hardened; provenance SSOT
+`docs/upstream/mattpocock-skills.md`. The weight here is a surface no prior record carries: the
+plugin's **product is a model-generated executable**. The statusline-shim delta review (above)
+accepted an executable write precisely because it was "a byte-identical copy of a reviewed,
+tested, bundled script — no generation, no templating". This plugin deliberately breaks that
+precedent: the skill's whole capability is authoring per-procedure stages onto a bundled
+library. That is accepted here as an explicit, recorded exception with the mitigations below —
+not a quiet widening of the shim rationale.
+
+- **Code execution (1). The generated-executable surface, accepted with layered conditions.**
+  No hooks, no `bin/`, nothing event-wired; the plugin ships prompt artifacts plus one bundled
+  bash template. The trust argument for generation, layered:
+  - **The agent authors; it never executes.** The skill forbids running the wizard end-to-end
+    (verification is `bash -n`/`shellcheck` plus a fresh-context static trace); the human runs
+    the script in their own terminal. The template enforces the same doctrine mechanically —
+    it aborts without a controlling TTY (`exec 3</dev/tty`, fail-closed), so neither an agent
+    nor piped/pasted input can drive its gates.
+  - **A human reads before anything is runnable.** The skill's verify step is stop-the-line:
+    the full `STAGES` block is printed to the user and explicitly approved BEFORE `chmod +x`
+    and before any run instruction. The generated content a human is asked to trust is exactly
+    the content they are made to read.
+  - **The generated region is bounded.** Model-authored content goes only below the `STAGES`
+    marker; the library above it is fixed, reviewed here, and never hand-edited. Stage authoring
+    composes reviewed helpers whose dangerous edges are hardened in the library itself:
+    https-only `open_url` with the URL printed before dispatch (also closing a Windows UNC/NTLM
+    leak via the `explorer.exe` branch); fail-closed `pause`/`confirm` (fatal on read failure,
+    never `|| true`); key-name validation in every helper; single-quoted escaped `.env` values,
+    `chmod 600` after every write, a gitignore assert, trap-cleaned same-filesystem mktemp;
+    gh writes that resolve/echo/confirm the target repo before the first write, pass explicit
+    `--repo`, pipe values via stdin (`set_secret` pipe, `set_var --body-file -`), refuse empty
+    values, and surface stderr into the closing summary.
+- **MCP servers (2).** None.
+- **Consumer config (3).** No `userConfig`, no tracked config surface; setup-skill exemption
+  recorded in the plugin README ((a)/(b)/(c) all absent for generation itself).
+- **Cache isolation (4).** The skill references only its own bundled `template.sh` relatively;
+  generated wizards are written into the consumer's project or scratch space at the user's
+  direction, which is the deliverable, not a reach-out. No `../`, no constructed absolute paths.
+- **Data egress (5).** None by the plugin. The generated script's egress is operator-visible and
+  operator-driven: browser opens of https URLs printed before dispatch, and `gh` writes to a
+  repo the human explicitly confirmed. Captured values flow terminal → `.env`/`gh` only; the
+  closing summary prints names, never values. The skill's scoping step reads key NAMES only from
+  a live `.env`, and states honestly that a value pasted into chat is in context.
+- **Provenance & third-party trust (6).** Derived from mattpocock/skills (MIT) with the
+  hardening deltas recorded in the plugin CHANGELOG; authored/maintained first-party (Melodic
+  Software), MIT. No third-party service is wired: `gh` is the consumer's own authenticated CLI,
+  optional, degrading to warn + summary when absent.
+- **Main-thread / PATH (7).** None; no `settings.json` `agent`, no plugin `bin/`.
+
+**Verdict: ACCEPT** — surfaces 2/3/7 absent; 1 is the recorded model-generated-executable
+exception, bounded to the below-the-marker region and gated by the mandatory human
+read-and-approve before `chmod +x`, with the library's fail-closed hardening as defense in
+depth; 4 conforms; 5 is operator-driven with names-only output; 6 first-party over an MIT
+upstream. **Conditions shipped, load-bearing for this ACCEPT:** the human STAGES approval gate,
+the agent-never-executes instruction, the TTY-only fail-closed library, https-only `open_url`,
+and the hardened `.env`/gh write path. Removing or weakening any of them re-opens this review,
+as does any move to have the agent execute a generated wizard.
+
 ## Local development loop
 
 For a plugin that already ships here, iterate against your local clone without re-publishing and

@@ -40,7 +40,7 @@ Every v1.2 change that touches a skill we derived is either adopted, consciously
 ### Deferred questions
 
 - Q9 — RESOLVED (lane-3 interview, 2026-08-09): PORT as `discipline:wait-what`; upstream name kept with a PLUGIN-PHILOSOPHY naming-exception entry; read-pointer glossary seam (no curate-language invocation); ASD-STE100 inline in the body with a short gloss. Record: `### Lane 3` below + SSOT row.
-- Q10 — `/wizard`: go/no-go, plugin home, security posture (template.sh audit, .env/gh-secret writes, Windows portability). Arbiter: USER-RESERVED (lane-4 interview).
+- Q10 — RESOLVED (lane-4 interview, 2026-08-09): PORT, hardened, as a NEW single-capability plugin `wizard` with one skill `generate` (`/wizard:generate`, leaf named via a `/naming:name-it-better` tournament — grammar-clean imperative verb, noun namespace legal, no naming-exception entry); model-invoked with upstream's non-trigger fence kept; all security-review gating conditions shipped in the hardened template (human STAGES approval before `chmod +x`, https-only `open_url`, `/dev/tty` fail-closed prompts, hardened `.env`/gh writes, key-name validation, agent-never-executes doctrine). Record: `### Lane 4` below + SSOT row.
 - Q11 — lane-5 subset: which of M10/M13/M14/M15/M16 to adopt vs reject. Arbiter: USER-RESERVED (lane-5 interview).
 
 ## Lanes
@@ -50,7 +50,7 @@ Every v1.2 change that touches a skill we derived is either adopted, consciously
 | 1 | Hygiene + record | M1 M2 M19 M20 + SSOT + map promotion + provenance strip | this session |
 | 2 | Owned-skill deltas | M6 M7 M8 M9 M11 M12 | done |
 | 3 | /wait-what port | M4 (Q9) | done |
-| 4 | /wizard port | M5 (Q10) | pending |
+| 4 | /wizard port | M5 (Q10) | done |
 | 5 | Infra / P2 | M10 M13 M14 M15 M16 (Q11) | pending |
 
 ## Plan
@@ -98,3 +98,48 @@ exception-eligible incumbent), and the user locked:
   (code.claude.com/docs/en/skills, this session); security review trivial-pass (no hooks, no
   code, no egress, no config secrets; plugin-form-safe — no reach-outs, same-plugin references
   only). Provenance in SSOT + CHANGELOG only; skill body carries none.
+
+### Lane 4 — /wizard port (closed)
+
+Q10 resolved through the lane interview; a completed security review of upstream `template.sh`
+supplied the gating conditions, a `/naming:name-it-better` tournament ran the name question
+(grammar-clean winner `generate` under a `wizard` noun namespace — legal per PLUGIN-PHILOSOPHY,
+no naming-exception entry), and the user locked (decisions Q23–Q27):
+
+- **Q23 — PORT, hardened**, as a NEW single-capability plugin `wizard` 0.1.0 (not a home in an
+  existing plugin: the capability — agent-authored, human-run interactive setup scripts — is its
+  own cohesive vertical slice).
+- **Q24 — one skill `generate`** → `/wizard:generate` via the naming tournament; imperative verb
+  leaf, noun namespace, grammar-clean.
+- **Q25 — model-invoked** (no `disable-model-invocation`), keeping upstream's well-fenced
+  triggers including the explicit non-trigger ("Don't invoke this for steps the agent can
+  perform itself").
+- **Q26 — security posture (gating outcome of the review, all shipped):** (a) mandatory human
+  read-and-approve of the full STAGES block before `chmod +x` — stop-the-line in the skill's
+  verify step; (b) https-only `open_url` with the URL printed before dispatch (also closes the
+  Windows UNC/NTLM leak via explorer.exe); (c) all prompts read `/dev/tty` (fd 3), fail-closed
+  abort without a TTY, fatal read failures in `pause`/`confirm` (retires the multi-line-paste
+  confirm bypass and pause's EOF fail-open); (d) `chmod 600` `.env` after every write +
+  `git check-ignore` assert + trap-cleaned same-filesystem mktemp; (e) gh writes resolve/echo/
+  confirm the repo once, explicit `--repo` on every call, stderr into SKIPPED, empty values
+  refused, `set_var` via `--body-file -`; (f) key-name validation in every helper; (g)
+  single-quoted escaped `write_env` values; (h) `_existing` strips one matched quote pair.
+  Ride-alongs: readline (`read -e`) on non-secret asks (upstream #741 fixed where safe), secrets
+  via stdin, hidden entry, names-only output, gh-absence graceful degradation.
+- **Q27 — scoping honesty fix:** step 1 reads `.env.example`/README/workflows fully but takes
+  KEY NAMES ONLY from a live `.env`; the skill states the secrets-and-context property honestly
+  (runtime capture never reaches the model; authoring reads are names-only by design; a value
+  pasted into chat is in context).
+- Files landed: `plugins/wizard/` (plugin.json 0.1.0, README, CHANGELOG with provenance +
+  hardening deltas, `skills/generate/SKILL.md` + hardened `template.sh`), marketplace entry,
+  regenerated CATALOG/cheat-sheet, SSOT row + open-evaluations update, map row 18, this record,
+  MIGRATION-PLAYBOOK acceptance record (model-generated-executable rationale — deliberately
+  breaks the statusline-shim "no templating" precedent, with the mitigations shipped).
+- Migration gate: fresh docs fetched this session for skills frontmatter
+  (code.claude.com/docs/en/skills), plugin manifest (code.claude.com/docs/en/plugins-reference),
+  and marketplace schema (code.claude.com/docs/en/plugin-marketplaces). Gates run: `bash -n` +
+  shellcheck (clean), skill-quality check-skill PASS, portability gate clean (gh coupling
+  declared per-site `portability-ok` — GitHub Actions is the inherent CI-secret destination),
+  markdownlint clean, JSON validity + catalog/cheat-sheet drift checks green. Fresh-context
+  verifier subagent confirmed every hardening item line-by-line before commit. Provenance in
+  SSOT + CHANGELOG only; skill body carries none.
