@@ -497,10 +497,10 @@ verified 2026-08-08). Four rules follow:
 
 ### Classifying a hook
 
-The standing rubric for the classification the durable-tier rule requires — first applied across
-this marketplace's 44 wired hook entries in the 2026-08 audit (issue #2021), and the pass any
-consumer repo can run over its own hook surface at each generation-triggered ablation. Score every
-wired hook entry on two independent axes:
+This is the standing rubric for the classification the durable-tier rule requires. It was first
+applied across this marketplace's 44 wired hook entries in the 2026-08 audit (issue #2021), and it
+is the pass any consumer repo can run over its own hook surface at each generation-triggered
+ablation. Score every wired hook entry on two independent axes:
 
 - **Mechanism** — what the hook does structurally: deny-gate (blocks a tool call), context-injection
   (adds text to the model's context), deterministic-transform (edits an artifact, model not in the
@@ -520,9 +520,10 @@ after a rename, querying git history for a path's disappearance — is a keep, n
 candidate. It corrects hallucination with machine ground truth no model can know unaided, so "it
 corrects the model" alone is never the delete criterion; "the model could derive this itself" is.
 
-Remediation follows the evidence gate above: config-disable first where a kill switch exists,
-delete only with recorded rationale; a hybrid gets its behavioral surface trimmed while its policy
-residue stays; and the security carve-out below overrides every row of the rubric.
+Remediation applies the same evidentiary rigor to removal that **Evidence-gated additions** above
+requires for addition: config-disable first where a kill switch exists, delete only with recorded
+rationale; a hybrid gets its behavioral surface trimmed while its policy residue stays; and the
+security carve-out below overrides every row of the rubric.
 
 Model-capability claims never relax the security posture. Injection resistance in current models is
 measurably better but bounded and hedged in the primary sources; the plugin-acceptance security
