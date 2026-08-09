@@ -111,7 +111,7 @@ Substitute placeholders from the ecosystem config:
 
 Run build → test → lint in order per ecosystem. Stop that ecosystem on first failure but continue to next ecosystem.
 
-Tool presence: before each ecosystem runs, verify the tool is on `PATH`. If missing, report `skip` with the ecosystem's `install-hint` from the ecosystem config — never report `FAIL` for a missing tool.
+Tool presence: before each ecosystem runs, verify the tool is on `PATH`. If missing, report `skip` with the ecosystem's `install-hint` from the ecosystem config — never report `FAIL` for a missing tool. **What "the tool" means here is the one the ecosystem's commands are invoked through** (python's `uv`, not the `ruff` and `pyright` behind it) — the probe is per ecosystem, not per sub-tool. A sub-tool bundled inside an opaque compound `check-cmd` is not probed and cannot be: its absence is discoverable only at execution time, where it surfaces as a real non-zero exit and the ecosystem reports `FAIL`. Do not extend this rule into a per-sub-tool probe to convert that into a `skip` — that contradicts the atomicity rule below, and each affected ecosystem documents the consequence in its own `context/<ecosystem>.md`.
 
 **Opt-in gate (lint phase only)**: before running an ecosystem's `check-cmd`, evaluate its resolved `opt-in` condition (if present) against the repo. Build and test always run regardless of `opt-in` — only the lint phase is gated, since compiling and testing don't depend on style configuration.
 

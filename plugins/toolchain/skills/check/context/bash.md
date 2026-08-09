@@ -32,6 +32,7 @@ shfmt reads `.editorconfig` for style; only format when the repo opts in with sh
 - **`-x` flag** — enables following `source`d files for cross-file analysis
 - **`-S warning`** — sets minimum severity to warning (excludes info/style)
 - **Use absolute paths** — ShellCheck and shfmt operate on individual files, not directories
+- **shfmt absent is a `FAIL`, not a missing-tool `skip`** — `check-cmd` is the single opaque string `shellcheck -x -S warning <files> && shfmt -d <files>`, and the preflight probes the ecosystem's tool, never each sub-tool. So on a project with ShellCheck installed, shfmt absent, and the `.editorconfig` shell-style opt-in met, nothing skips: ShellCheck runs and passes, then `shfmt -d` fails to spawn and the ecosystem reports Lint **`FAIL`**. Because `check-cmd` is one string, that FAIL cannot be narrowed to shfmt alone. Install shfmt alongside ShellCheck (see the ecosystem's `install-hint`), or drop it by overriding `check-cmd` in the consumer's own `.claude/ecosystems/bash.yaml`. Same shape as python's `pyright` behind `uv` (`context/python.md`)
 
 ## File discovery
 
