@@ -3,6 +3,109 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.49.1]
+
+### Added
+
+- **`babysit-loop`: the rate-limit floor's reactive-only mode now reads the detection records.**
+  The fail-open bullet named reactive-only but gave the lane no `stop-events.jsonl` behavior; the
+  skill now carries the reader contract's read cadence (read on mode entry and before each new work
+  claim, recency baseline = lane start advanced by each resume attempt). Mirrors rate-limit-guard
+  0.4.4's reader-contract addition.
+
+## [0.49.0]
+
+### Added
+
+- **babysit-prs: an orchestrator-side independent resolution dispatch, so a disproved current bot
+  thread has a route to a terminal state (#1641).** `--independent-resolver` (0.42.0) supplied the
+  mechanism; nothing supplied the route. A worker that correctly disproves a bot finding —
+  classifies it `INCORRECT`, posts counter-evidence — ships no fix by definition, so the thread
+  stays current and satisfies neither `classify`'s `isOutdated` requirement under `--autonomous` nor
+  the Worker Contract's tighter pre-push-outdated rule. A grounded `VALID (defer)` and a prose fix
+  that rewrote elsewhere in the file land in the same place. The only dispatch that could retire
+  such a thread was `babysit-loop`'s pre-escalation resolver, reachable only on the explicit
+  `autopilot` + `--merge c3-this-run` widening, so on every ordinary worker-tier run the D7.5
+  routing rule terminated in a fail-closed report and the PR sat unmergeable on a finding that was
+  fully and correctly addressed.
+
+  The worker now **reports** such a thread as addressed-but-unresolvable (thread id, disposition,
+  where the evidence lives) instead of leaving it silently, and — **in a thread-resolving tier
+  (`worker`, `autopilot`) only** — the orchestrator routes it, under the PR's worker lease, before
+  Cleanup releases it, to a fresh subagent that authored neither the fix nor the counter-evidence.
+  The safe tier dispatches nothing: it never resolves threads, and a resolver it dispatched would
+  resolve one at one remove. **`classify`'s `isOutdated` requirement under `--autonomous` is
+  untouched**; the property it was a proxy for (the context that authored the evidence is not the
+  context that acts on it) is what the dispatch preserves. The orchestrator does not resolve the
+  thread itself: it holds the merge decision, so adjudicating its own unblock would be the same
+  self-certification one hop up.
+
+- **babysit-prs: `reference/independent-resolution.md`, the single owner of that dispatch
+  contract.** The D7.5 per-finding verification ledger, the independence requirements, the
+  wrapper command shapes, the lease sequencing, and the fail-closed bounds previously lived only
+  inside `babysit-loop/reference/pre-escalation-dispatch.md`, which is one of the two callers.
+  Writing a second copy into `orchestration.md` would have forked the contract, so it moved to the
+  skill that owns the wrapper; `pre-escalation-dispatch.md` now keeps only its widening-specific
+  bounds (frontier tier, the four blocker classes it never touches, the post-dispatch re-partition)
+  and points here. `guard_contract.py` gains an `independent-resolution.dispatch-commands` doc row,
+  so the file's copyable wrapper commands are parser-validated like every other documented command.
+  The pointer is scoped to *discipline*, not to the resolve form: the new file's severity bound is a
+  bound of `--independent-resolver`, terminal on the babysit-prs route because the mode is its only
+  form there, and `pre-escalation-dispatch.md` says explicitly that inheriting it would delete the
+  security/P1 exception it exists to carry rather than guard it.
+
+### Fixed
+
+- **The "reachable only on the explicit `autopilot` + `--merge c3-this-run` widening" claim was
+  true when written and is no longer (#1641).** `review-discipline.md`'s D7.5 authorization rule
+  and `babysit-prs/reference/loop.md`'s Never-Do entry both asserted it; both now name the two
+  invocations that reach a dispatch and keep the identical fail-closed fallback — leave the thread
+  unresolved, do not merge, report the PR with the addressed-but-unresolvable thread named — for
+  every bound the dispatch cannot cross: a security/P1 thread (`skipped-severity-marked`), a
+  multi-finding thread, a human thread, evidence the world rejects, or no subagent tools to
+  dispatch to. `safety.md`'s Security/P1 "only one dispatch path" bullet is unchanged in substance
+  and now says so explicitly: the orchestrator-side dispatch is not a second route to that
+  exception, because the wrapper's severity bright line refuses those threads on it.
+
+- **The clause registry no longer reads the dispatch's own NAME as a restatement of the
+  authorization rule (#1659, #1641).** `scripts/contract-clause-registry.json` listed
+  `independent resolution dispatch` among `D7.5-merge-authorization`'s `restates` signals, written
+  when the phrase was only descriptive prose in the canonical span. This change gives that
+  mechanism its own file, so the phrase became a proper noun — and the untagged sweep then reported
+  the file's own title and two pointer sentences that link to it, i.e. a false positive on exactly
+  the pointer-not-copy outcome the gate steers toward. The alternate is dropped; the three that
+  state the rule (`never clears the gate`, `adjudicating context`, `authorizes a resolution`) stay.
+  Verified non-lossy against the default branch: with every `D7.5-merge-authorization` marker
+  stripped from the four tagged surfaces, the narrowed pattern still reports all of them
+  (`loop.md`, `pull-request/SKILL.md`, `pull-request/reference/monitor.md`, and the canonical
+  span's own requirement) — the dropped alternate detected nothing the others did not. `detect` is
+  untouched, because being in scope only means the file is read.
+
+## [0.48.2]
+
+### Changed
+
+- **`babysit-loop`: listing description tightened (1,468 → 1,197 chars)** — trimmed the explanatory
+  prose from the frontmatter `description` toward the shared skill-listing budget
+  (claude-code-plugins#2022, option 2). Every single-quoted trigger phrase is preserved verbatim
+  (skill-quality check 3); the merge-authority invariants (fail-closed human-only default,
+  tracked-seam-only raises, the c3-this-run anti-spoofing clause, the independent frontier-tier
+  resolver) stay stated in the entry and fully stated in the skill body.
+
+## [0.48.1]
+
+### Changed
+
+- **`pull-request`: the CI-log grep rule leads with the instruction instead of a `CRITICAL:` prefix.**
+  `reference/monitor.md` opened with "CRITICAL: Do NOT use `grep -i ...`", which states the
+  prohibition before the thing to do. It now says to grep for `##[error]` annotations first and gives
+  the reason — a broad keyword grep matches cleanup steps, variable names, and incidental output. The
+  worked "Bad credentials" example and the fall-back-if-empty rule are unchanged.
+
+- **`pull-request`: section 1.3's heading is "Verify every finding".** The shout-caps `EVERY` and the
+  `(CRITICAL)` parenthetical restated emphasis the numbered verification procedure below already
+  carries. No step, classification, or drop rule changed.
+
 ## [0.48.0]
 
 ### Changed

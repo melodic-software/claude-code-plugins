@@ -5,6 +5,97 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.3]
+
+### Fixed
+
+- **`setup check` FAILs a pre-revision-3 installed shim instead of reporting INFO.** The rule
+  already described the defect accurately — a copy predating `# shim-revision: 3` picks the newest
+  tee by mtime alone and keeps teeing from an UNINSTALLED plugin for the whole orphan window — but
+  still classified it INFO because the statusline keeps rendering. Rendering is not the property
+  that matters; what the operator is running has a behavior defect, and INFO files it under a
+  heading operators are told they can defer. Classification now turns on the installed revision:
+  `>= 3` stays INFO, below 3 or unmarked is FAIL.
+
+  **Existing installs need one `apply`.** The statusline runs the durable copy at
+  `~/.claude/context-guard/bin/statusline-shim.sh`, which a plugin update never overwrites, so an
+  operator who ran `apply` before revision 3 shipped keeps running the old shim until they re-run
+  it. Uninstalling first is the trap worth naming: the setup skill goes with the plugin while the
+  stale shim stays behind, leaving no in-product path to the remediation. Kept in step with the
+  identical `rate-limit-guard` change (#1866) — the two shims are a deliberate byte-identical
+  cluster, so their setup contracts must not drift apart.
+
+## [0.5.2]
+
+### Fixed
+
+- **The statusline shell-syntax guard no longer counts quoting as a trigger, so an operator's own
+  `sh -c '<command>'` renderer stops being wrapped in a second one.** 0.4.4 stopped the unwrap rules
+  from PEELING an `sh -c` the operator wrote themselves. The guard that decides whether to EMIT an
+  adapter still listed bare quoting among the syntax needing one, so the preserved renderer reached
+  it, matched on its own quote characters, and was printed back as
+  `sh -c 'sh -c '\''ulimit -n'\'''` — one more shell on every refresh, exactly the compounding the
+  peel rule exists to prevent. A faithful reading of the guard failed this skill's own eval 9.
+
+  Quoting was never a valid trigger *for the reason the guard gave*. The `statusLine` `command`
+  field "runs in a shell" (<https://code.claude.com/docs/en/statusline>, fetched 2026-08-07), so
+  that shell consumes the quotes and hands words to `statusline-shim.sh`, which `exec`s them
+  unchanged. A quoted argument — and an operator's `sh -c '<string>'`, where `sh` is the executable
+  and `-c` and the carried string are two ordinary ARGV words — already survives the plain wrapped
+  form intact. The trigger is now the syntax no ARGV word can express — an inline env assignment, a
+  pipe, `&&`, `||`, `;`, a trailing `&`, or a redirection — and only where it stands UNQUOTED at the
+  top level, so syntax sealed inside a quoted argument no longer counts either.
+
+  **Quoting was, however, doing one job by accident, and that job is now done on purpose.** A
+  renderer whose command word is a shell BUILTIN — `ulimit '-n'`, which exists as no executable at
+  all — needs a shell for reasons that have nothing to do with syntax, and it was reaching the
+  adapter only because its quotes tripped the old trigger. Removing quoting with no replacement
+  would have sent it to `exec ulimit -n` and exit 127 on every refresh. So the guard gains a second,
+  independent trigger: the command word does not resolve as an executable (`type -P` finds nothing
+  while `type -t` reports `builtin`, `function`, or `alias`). Resolved the way the shim resolves it,
+  never against a hardcoded list of builtin names.
+
+  Scoping the guard that way rescoped the peel rule with it, because the peel rule cites the guard
+  to define "carries shell syntax". Its provenance test is now three explicit branches, two of them
+  keyed to the SHAPE of the carried string rather than the syntax in it, so neither inherits the
+  top-level scoping:
+
+  - The carried string is itself an `sh -c '<string>'` — a generated layer whatever the guard would
+    say, since an operator's renderer is at most one `sh -c` deep. Without this branch the peel
+    stops one layer early and hands back the two-layer wrap it was supposed to collapse.
+  - The carried string begins with a guard-shim prefix. This skill never puts a shim inside an
+    adapter, and sealing one there hides it from the prefix rule, which strips only leading
+    prefixes — so the composed wiring named that sibling shim a SECOND time and ran its tee twice
+    on every refresh.
+  - The carried string is a command the guard would wrap — the only shape this skill's own adapter
+    ever carries.
+
+  Absent all three the `sh -c` is the operator's and is preserved. One shape stays ambiguous by
+  design: a single `sh -c` over a merely-quoted command, which the buggy guard also emitted and
+  which carries no evidence either way. It is preserved, at the cost of one spurious shell per
+  refresh, because peeling on a guess costs a broken statusline.
+
+  What makes a re-run byte-identical is that peel and wrap are inverses — not a fixed layer count.
+  The printed wiring carries no `sh -c` for a plain renderer, one for a renderer with top-level
+  syntax, and two where an operator's own `sh -c` sits inside one that needs wrapping (an
+  unwrappable `&&`, say). Each of those is idempotent at its own count.
+
+- **`check` no longer reports a differing installed shim as harmless.** The report said an older or
+  hand-edited copy "still resolves the newest tee", which stopped being true when
+  `# shim-revision: 3` added the orphan skip: a copy predating it picks by mtime alone, so it also
+  resolves a tee left behind by an UNINSTALLED plugin and keeps teeing for the whole ~14-day grace
+  window. `check` now states which of the two behaviors the installed copy has.
+
+## [0.5.1]
+
+### Changed
+
+- **`setup`'s shell-wrapped statusline step now verifies its escaping by running a command instead
+  of asking for a mental round-trip.** The check is `printf '%s\n' '<escaped original command>'`,
+  compared against the original. Its single-quoted argument reproduces exactly the quoting context
+  the emitted `sh -c '<escaped>'` uses; a double-quoted wrapper would instead let the outer shell
+  expand any `$(...)` or backticks in the operator's own command before the check ever ran.
+
 ## [0.5.0]
 
 ### Changed

@@ -143,7 +143,7 @@ vowels in spelling.
   → re-establish No-Free Zone; silence = keep going
 
 "All titles in chain are the same type"
-  → vary type deliberately (Statement → Question → Image → Command)
+  → vary type deliberately (One-word → Place-name → Word-play → Comparative)
 
 "Stressed vowel keeps drifting"
   → tighten the vowel constraint OR move to vowel-triangle mode
