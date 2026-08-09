@@ -3,12 +3,12 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.5.8]
+## [0.5.9]
 
 ### Fixed
 
 - **Attributed blockquotes in `stateless`'s `reference/official-guidance.md` carried text the
-  cited pages do not say** (claude-memory 0.5.7 → 0.5.8). The settings-page precedence quote
+  cited pages do not say** (claude-memory 0.5.8 → 0.5.9). The settings-page precedence quote
   substituted a bare `(…)` for item 1's parenthetical, so an ellipsis inside quote marks stood
   where real page words belong; it now reads `(server-managed, MDM/OS-level policies, or managed
   settings)`, with the attribution note recording that the three links are flattened to their
@@ -38,6 +38,23 @@ All notable changes to the `claude-memory` plugin are documented here. Format fo
   `tasks/`, `file-history/` — and states that `sessions/` is not a row in it, which is what the
   quote two paragraphs down already said. Every settings and claude-directory verification stamp
   in the file moves to 2026-08-08, the date each quote was re-checked.
+
+## [0.5.8]
+
+### Fixed
+
+- **The `audit` workflow told the model to be mechanical on every check, contradicting the skill's
+  own determinism contract.** "Be mechanical, not interpretive" sat unscoped at the end of the
+  generic per-check loop, but only C1/M1/M2/RD1 are the deterministic spine; C2-C9, R1-R4, and
+  M3-M4 are a judgment tier that requires reading and interpreting content by design. The
+  instruction is now scoped to the spine, and the judgment tier is told to apply its fixed criteria
+  consistently rather than to skip the judgment.
+
+### Changed
+
+- **`stateless`' disable workflow says why the scope gate exists** — applying the wrong scope
+  silently changes memory behavior for the wrong audience (machine-wide vs. this repo) — instead of
+  stating the stop as a bare prohibition.
 
 ## [0.5.7]
 

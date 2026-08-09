@@ -45,6 +45,8 @@ Read references/shared/output-schema.md
 Read references/shared/report-template.md
 Read references/shared/discovery-guide.md
 Read references/shared/remediation-philosophy.md
+Read references/shared/approvals.md
+Read references/shared/catalog-overlay.md
 Read references/<os>/*.md
 
 # If the detected OS folder contains NOT_IMPLEMENTED.md, STOP.
@@ -70,7 +72,7 @@ Routing table:
 5. **Receive the structured result.** Run discovery per `references/shared/discovery-guide.md` — propose 1–3 OS-appropriate new checks. Straightforward read-only ones may be implemented as custom checks (script under `<StateBase>/scripts/<os>/checks/`, registered in the catalog overlay); anything needing new permissions or remediation lands in `<StateBase>/TODO.md` for human approval. Checks broadly useful to every consumer are best contributed to the plugin itself.
 6. **Render the markdown report** from `references/shared/report-template.md` into `<OutputBase>/reports/health-<UTC-timestamp>.md` (one file per run, so a same-day rerun does not overwrite the earlier report).
 
-   When the severity spread or trend deltas would read better visually, also offer a self-contained static HTML view of that report (color-coded CRIT/WARN/UNKNOWN, no remote fetch) — the markdown `.md` report stays the durable record.
+   When the severity spread or trend deltas would read better visually, also generate a self-contained static HTML view of that report (color-coded CRIT/WARN/UNKNOWN, no remote fetch) — the markdown `.md` report stays the durable record.
 7. **Update state.** Write `<StateBase>/state/latest.json`. Append one compact line to `<StateBase>/state/history.jsonl` — the trend source of truth.
 8. **Verify and summarize.** Confirm the report exists. Print CRIT/WARN counts + report path to session output. A clean run may still include `UNKNOWN` findings — call those out too.
 
@@ -78,11 +80,11 @@ Routing table:
 
 - **Max total runtime:** 15 minutes. Partial results mark missing checks `UNKNOWN` with reason `"timeout"`.
 - **Per-check timeout:** 90 seconds.
-- **No interactive prompts.** Ever. The skill never pauses for input.
-- **No retry loops on failure.** One attempt per check, one attempt per remediation.
+- **No interactive prompts.** Ever — this runs unattended on a schedule; a stalled prompt would hang the weekly job.
+- **No retry loops on failure.** One attempt per check, one attempt per remediation. `references/shared/remediation-philosophy.md` carries the one-attempt rationale for remediations; checks stay one-attempt for the same reason — a flaky check should read as flaky, not as eventually-fine.
 - **First-run dry mode.** The first ever run (RunMode `first-run`) forces `DryRun = true`. Seeds state, produces the first report, queues remediation approval in `<StateBase>/TODO.md`.
 - **Idempotency.** Two runs back-to-back produce two valid reports and two history entries with no partial state.
-- **Egress allowlist.** Microsoft Update endpoints, winget sources, and the CISA KEV feed are the only permitted outbound URLs. Every outbound URL is logged to `<StateBase>/logs/run-YYYY-MM-DD.log`.
+- **Egress allowlist.** Microsoft Update endpoints, winget sources, and the CISA KEV feed are the only permitted outbound URLs — this keeps the skill's network footprint auditable and prevents an unvetted check or remediation from calling an arbitrary host. Every outbound URL is logged to `<StateBase>/logs/run-YYYY-MM-DD.log`.
 - **No `Invoke-Expression`** on any data the skill did not author itself in this session. No "run whatever came back" patterns.
 - **Admin is not assumed.** Any check requiring elevation self-checks and returns `UNKNOWN` with `needs_admin: true` rather than prompting UAC.
 - **Defer remediations under user load.** If the interactive session has had input in the last 60 seconds, log a note and run read-only checks only — defer remediations to next run.
@@ -96,7 +98,7 @@ The skill grows itself within narrow, auditable bounds:
 - **Mark catalog entries `deprecated: true`** (never delete silently) with a `deprecation_reason` when a check has become meaningless for this host — via the catalog overlay (`references/shared/catalog-overlay.md`), never by editing the shipped catalog. Propose removal after 3 consecutive crashes (each increments `crash_count`).
 - **Demote chronically quiet checks** — after 4 consecutive identical outputs, propose demotion to monthly cadence (write to `<StateBase>/TODO.md`; the approved demotion is an overlay `cadence` patch — don't reshuffle cadence on your own).
 - **Refresh the CISA KEV cache** weekly via `scripts/<os>/lib/Get-CisaKevCache.ps1` (the winget-upgrades check does this automatically; the live cache lives under `$env:LOCALAPPDATA\machine-health\cache`, seeded from the shipped `catalog/cisa-kev.json` stub). Skip if younger than 7 days.
-- **Never rewrite history.** `state/history.jsonl` is append-only. If a historical entry is wrong, add a correction entry; don't edit the old line.
+- **Never rewrite history.** `state/history.jsonl` is append-only — it is the trend-detection source of truth, and rewriting an old line corrupts every severity-trend comparison drawn from it. If a historical entry is wrong, add a correction entry; don't edit the old line.
 
 ## Consumer configuration
 

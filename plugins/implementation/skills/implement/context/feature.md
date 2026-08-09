@@ -25,6 +25,7 @@ Commit after each of these milestones:
 - **Starting from the outside in** — building the API endpoint before the domain model leads to anemic models shaped by HTTP concerns
 - **Implementing everything before testing anything** — large untested batches hide compounding errors
 - **Skipping the scaffold commit** — if the scaffold is wrong (wrong project, wrong namespace, wrong layer), you want to revert just the scaffold, not scaffold plus implementation
+- **Building beyond the slice** — implementing options, hooks, or abstractions the plan did not ask for; add them when a second caller exists, not in anticipation of one
 
 ## Marketplace plugin skills (invoke only when installed)
 

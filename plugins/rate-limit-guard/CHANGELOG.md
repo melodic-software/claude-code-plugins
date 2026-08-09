@@ -3,6 +3,17 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.2]
+
+### Changed
+
+- **`setup`'s shell-wrapped statusline step now verifies its escaping by running a command instead
+  of asking for a mental round-trip.** The check is `printf '%s\n' '<escaped original command>'`,
+  compared against the original. Its single-quoted argument reproduces exactly the quoting context
+  the emitted `sh -c '<escaped>'` uses; a double-quoted wrapper would instead let the outer shell
+  expand any `$(...)` or backticks in the operator's own command before the check ever ran. Applied
+  in step with `context-guard`'s near-identical setup skill.
+
 ## [0.4.1]
 
 ### Changed
