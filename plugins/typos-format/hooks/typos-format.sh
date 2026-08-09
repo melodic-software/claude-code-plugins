@@ -344,9 +344,9 @@ CLASSIFIED=$(printf '%s\n@@typos-format-split@@\n%s\n' "$SCAN_OUTPUT" "$RESIDUAL
         appliedInline: ([limit($max; $a[])] | map("\"\(tok)\" -> \"\(corr1)\" (line \(.line_num // 0))") | join("; ")),
         residualText: ([limit($max; $r[])] | map(
             if .corrections == null then
-              "  \"\(tok)\" (line \(.line_num // 0)) is disallowed with no known correction — if intentional, add it to extend-words / extend-identifiers (or an extend-ignore-re pattern) in your typos config."
+              "  \"\(tok)\" (line \(.line_num // 0)) is disallowed, no known correction."
             else
-              "  \"\(tok)\" (line \(.line_num // 0)) should be \"\(corr1)\" — if intentional, add it to extend-words / extend-identifiers in your typos config."
+              "  \"\(tok)\" (line \(.line_num // 0)) should be \"\(corr1)\"."
             end) | join("\n"))
       }' 2>/dev/null) || CLASSIFIED=""
 
@@ -398,7 +398,7 @@ if ((APPLIED_COUNT > 0)); then
   if ((APPLIED_COUNT > MAX_REPORT)); then
     CTX+="  ... and $((APPLIED_COUNT - MAX_REPORT)) more."$'\n'
   fi
-  CTX+="  These come from typos' built-in dictionary, not from this repository. If any is wrong here (an acronym, an identifier, a proper noun), add it to extend-words / extend-identifiers in your typos config; for a region quoted verbatim — a Markdown code fence, a transcript, a signature block — use an extend-ignore-re pattern instead, which typos documents for exactly that case. The autocorrect has no memory, so repairing the word by hand alone gets it rewritten again on the next edit."$'\n'
+  CTX+="  Corrections come from typos' built-in dictionary; the autocorrect has no memory, so a hand repair alone is re-corrected on the next edit. A wrong rewrite is allow-listed via extend-words / extend-identifiers (or an extend-ignore-re pattern) in the repo's typos config."$'\n'
   # The person whose file was just changed is the one who has to judge whether
   # the change was correct, and they never asked for it. This is a content
   # mutation, not a lint finding, so it goes to the user channel too.
@@ -406,9 +406,9 @@ if ((APPLIED_COUNT > 0)); then
   if ((APPLIED_COUNT > MAX_REPORT)); then
     SYSMSG+="; ... and $((APPLIED_COUNT - MAX_REPORT)) more"
   fi
-  SYSMSG+=". Add any wrong rewrite to extend-words / extend-identifiers in your typos config, or set the typos_format_write_changes option back to false (the default) for report-only mode."
+  SYSMSG+=". Add any wrong rewrite to extend-words / extend-identifiers in the repo's typos config, or set the typos_format_write_changes option back to false (the default) for report-only mode."
 elif [[ "$WRITE_CHANGES" != "true" ]]; then
-  CTX+="typos-format is report-only (typos_format_write_changes is off — the shipped default) — $BASE was NOT modified. Findings:"$'\n'
+  CTX+="typos-format is report-only — $BASE was NOT modified. Findings:"$'\n'
 fi
 
 if ((RESIDUAL_COUNT > 0)); then
@@ -421,6 +421,8 @@ if ((RESIDUAL_COUNT > 0)); then
   if ((RESIDUAL_COUNT > MAX_REPORT)); then
     CTX+="  ... and $((RESIDUAL_COUNT - MAX_REPORT)) more."$'\n'
   fi
+  # One remediation pointer for the whole list (it used to ride on every line).
+  CTX+="  Intentional terms are allow-listed via extend-words / extend-identifiers (or an extend-ignore-re pattern) in the repo's typos config."$'\n'
 fi
 
 # Trim the trailing newline the same way hook::ctx_flush does.
