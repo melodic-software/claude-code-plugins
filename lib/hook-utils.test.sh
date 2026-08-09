@@ -979,31 +979,54 @@ else
   fail "git alias (env .command masked): rc=$rc"
 fi
 
+# --- The release handshake, used by every held-open-pipe case below -----------
+# A case that needs a stall declared BEFORE EOF is bounded by the producer's
+# hold, not by the read timeout: reaching a stall costs the bound PLUS the two
+# subshell forks buffer_stdin spends resolving its timeout and slice, PLUS a jq
+# probe — and a fork on this platform has been measured between 93 ms and 3.2 s.
+# Every fixed `sleep` hold in this file was therefore a constant guessed against
+# an unbounded quantity, and each one was observed failing in turn: 1 s, then 5 s,
+# then the timing helpers' 3 s and 4 s holds, all outrun by spawns, each showing
+# up as rc 1 (EOF first, so no stall) or as a comparison measuring the hold
+# instead of the behavior.
+#
+# The handshake removes the constant instead of retuning it. Opening a FIFO for
+# READ blocks until a writer appears, so the producer stays alive — and its
+# stdout stays open, so the consumer never sees EOF — until the consumer opens
+# the same FIFO for write, which it does once it has its verdict. Both sides are
+# builtins with redirects; a `cat` would put a spawn back on the very path this
+# exists to keep spawns off. Measured: the pipeline ends at consumer completion
+# (2271 ms for a 2000 ms consumer) where a fixed 8 s hold cost 8180 ms — so this
+# is also what makes the repeated sampling further down affordable.
+bs_release_fifo="$(mktemp -u)"
+if mkfifo "$bs_release_fifo" 2>/dev/null; then
+  bs_hold_open() { read -r _ <"$bs_release_fifo"; }
+  bs_release() { : >"$bs_release_fifo"; }
+else
+  # No FIFO on this host: fall back to a generous fixed hold, which is what this
+  # replaced. Slower and truncatable, but never wrong in the passing direction.
+  bs_hold_open() { sleep 12; }
+  bs_release() { :; }
+fi
+
 # --- Test 18: hook::buffer_stdin — timeout path (return 2 / BLOCKED) ----------
 # Incomplete JSON on a pipe that stays open past the read timeout must trip the
 # bounded-read timeout branch: return 2 and a `BLOCKED:` diagnostic on stderr
 # (the Win32-pipe late-EOF stall the bounded read exists to survive). Drives the
-# real function: a producer emits a partial payload then sleeps to hold the pipe
-# open, and STDIN_READ_TIMEOUT is shortened so the case is fast. jq present (this
-# host) is what lets the function distinguish a truncated read from a small-but-
-# complete one; without it the branch fails open to return 1, so this asserts the
+# real function: a producer emits a partial payload then holds the pipe open, and
+# STDIN_READ_TIMEOUT is shortened so the case is fast. jq present (this host) is
+# what lets the function distinguish a truncated read from a small-but-complete
+# one; without it the branch fails open to return 1, so this asserts the
 # jq-present timeout shape specifically.
-#
-# The producer's HOLD, not the bound, is the binding constraint here: the stall
-# has to be declared before EOF, and reaching it costs the bound PLUS the two
-# subshell forks buffer_stdin spends resolving its timeout and slice, plus a jq
-# probe. A 1 s hold against a 0.4 s bound looked like 2.5x of headroom and was
-# not — this failed with rc 1 (EOF first, so no stall) on a loaded Windows box on
-# 2026-08-09, because those spawns alone outran the hold. A longer hold is free
-# of any opposite risk: it can only give the correct behavior more room.
 bs_rc_file="$(mktemp)"
 bs_err_file="$(mktemp)"
 {
   printf '{"incomplete":'
-  sleep 5
+  bs_hold_open
 } | {
   CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=0.4 hook::buffer_stdin >/dev/null 2>"$bs_err_file"
   echo "$?" >"$bs_rc_file"
+  bs_release
 }
 bs_rc=$(cat "$bs_rc_file")
 if [[ "$bs_rc" == "2" ]] && grep -q 'BLOCKED:' "$bs_err_file"; then
@@ -1023,10 +1046,11 @@ bs_rc_file="$(mktemp)"
 bs_out_file="$(mktemp)"
 {
   printf '{"complete":true}'
-  sleep 1
+  bs_hold_open
 } | {
   CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=0.4 hook::buffer_stdin >"$bs_out_file" 2>/dev/null
   echo "$?" >"$bs_rc_file"
+  bs_release
 }
 bs_rc=$(cat "$bs_rc_file")
 if [[ "$bs_rc" == "0" ]] && [[ "$(cat "$bs_out_file")" == '{"complete":true}' ]]; then
@@ -1079,23 +1103,6 @@ fi
 #
 # Timing is taken INSIDE the consumer: bracketing the pipeline would fold the
 # producer and the handshake into the measurement.
-
-# The release handshake. Opening a FIFO for READ blocks until a writer appears,
-# so the producer stays alive — and its stdout stays open, so the consumer never
-# sees EOF — until the consumer opens the same FIFO for write. Both sides are
-# builtins with redirects: a `cat` here would put a spawn back on the path this
-# exists to keep spawns off. Measured: the pipeline ends at consumer completion
-# (2271 ms for a 2000 ms consumer) where a fixed 8 s hold cost 8180 ms.
-bs_release_fifo="$(mktemp -u)"
-if mkfifo "$bs_release_fifo" 2>/dev/null; then
-  bs_hold_open() { read -r _ <"$bs_release_fifo"; }
-  bs_release() { : >"$bs_release_fifo"; }
-else
-  # No FIFO on this host: fall back to a generous fixed hold, which is what this
-  # replaced. Slower and truncatable, but never wrong in the passing direction.
-  bs_hold_open() { sleep 12; }
-  bs_release() { :; }
-fi
 
 # bs_median <n> ... — the middle value. Used instead of a mean because the noise
 # is a heavy tail (one 3.2 s fork in four samples), which a mean would swallow.
@@ -1303,11 +1310,11 @@ fi
 # And the other side of the same contract: a trickle that then goes SILENT with
 # an incomplete payload must still fail closed. Re-arming on progress must not
 # become "never time out". The bound stays SHORT here on purpose: this case needs
-# the stall declared before the producer's EOF, so load pushing the gaps out only
-# makes it fire sooner. It has no flaky direction, which is why it keeps the
-# 0.3 s bound the case above had to give up. The trailing HOLD is widened for the
-# reason Test 18a records: reaching a stall costs the bound plus buffer_stdin's
-# startup spawns, and it is the hold, not the bound, that has to cover them.
+# the stall declared before the producer stops holding, so load pushing the gaps
+# out only makes it fire sooner. It has no flaky direction, which is why it keeps
+# the 0.3 s bound the case above had to give up — but it does need the release
+# handshake, not a fixed hold: a 5 s hold was still outrun by buffer_stdin's
+# startup spawns and this failed with rc 1 (EOF first, so no stall).
 : >"$bs_out_file"
 {
   printf '{"a":"'
@@ -1315,10 +1322,11 @@ fi
     bs_tick 0.1
     printf 'x'
   done
-  sleep 5
+  bs_hold_open
 } | {
   CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=0.3 hook::buffer_stdin >"$bs_out_file" 2>/dev/null
   echo "$?" >"$bs_rc_file"
+  bs_release
 }
 bs_rc=$(cat "$bs_rc_file")
 if [[ "$bs_rc" == "2" ]]; then
@@ -1372,16 +1380,18 @@ else
 fi
 
 : >"$bs_out_file"
-# Hold sized per Test 18a: the stall costs the bound plus buffer_stdin's startup
-# spawns, and this variant adds a whole `bash -c` on top of them.
+# Held by the handshake, not a constant: this variant adds a whole `bash -c` on
+# top of buffer_stdin's own startup spawns, so it is the hardest one here to size
+# a fixed hold for.
 {
   printf '{"incomplete":'
-  sleep 6
+  bs_hold_open
 } | {
   CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=0.4 \
     bash -c "${force_legacy}"'hook::buffer_stdin' _ "$HOOK_DIR/hook-utils.sh" \
     >"$bs_out_file" 2>/dev/null
   echo "$?" >"$bs_rc_file"
+  bs_release
 }
 bs_rc=$(cat "$bs_rc_file")
 if [[ "$bs_rc" == "2" ]]; then
@@ -1421,15 +1431,16 @@ for bs_bad in "abc" "0" "-1" "1e3" ""; do
 done
 
 # A VALID non-default value must still be honored — the guard must not collapse
-# every setting to the default. 0.5 s against a producer that holds the pipe far
-# longer than the bound plus buffer_stdin's startup spawns (see Test 18a).
+# every setting to the default. 0.5 s against a producer that holds the pipe until
+# the verdict is in, so the stall cannot lose a race with EOF.
 bs_rc_file="$(mktemp)"
 {
   printf '{"incomplete":'
-  sleep 6
+  bs_hold_open
 } | {
   CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=0.5 hook::buffer_stdin >/dev/null 2>&1
   echo "$?" >"$bs_rc_file"
+  bs_release
 }
 bs_rc=$(cat "$bs_rc_file")
 if [[ "$bs_rc" == "2" ]]; then
