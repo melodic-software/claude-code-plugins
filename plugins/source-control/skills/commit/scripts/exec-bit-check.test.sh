@@ -514,5 +514,28 @@ assert_eq "the fixture's rename destination KEPT the exec bit" \
 assert_eq "a rename that preserved the exec bit is NOT reported" \
   "" "$(bash "$HELPER" --repo-dir "$repo18" --list 2>/dev/null)"
 
+# The second negative half, and the reason the pair branch reads the SOURCE
+# mode: a shebang file that is deliberately NOT executable (a sourced library, a
+# template) stays 100644 on both sides of a rename. Nothing dropped a bit, the
+# file is already tracked, and flipping it to 100755 would change a mode nobody
+# touched. Only a 100755 source can have dropped the bit — a candidate set that
+# ignores the source mode reports this one.
+repo19="$(mkrepo)"
+(
+  cd "$repo19" || exit 1
+  printf '#!/usr/bin/env bash\necho sourced\n' >lib.sh
+  git add lib.sh
+  git commit -qm "seed the deliberately non-executable shebang source"
+  git mv lib.sh lib-moved.sh
+) >/dev/null 2>&1
+
+nonexec_raw="$(cd "$repo19" && git diff --cached --raw | head -n 1)"
+assert_contains "the fixture really is a rename off a 100644 source" \
+  "$nonexec_raw" ":100644 100644"
+assert_eq "the fixture's destination really is 100644 with a shebang" \
+  "100644" "$(staged_mode "$repo19" lib-moved.sh)"
+assert_eq "a rename whose SOURCE was never executable is NOT reported" \
+  "" "$(bash "$HELPER" --repo-dir "$repo19" --list 2>/dev/null)"
+
 printf '\n%d case(s), %d failure(s)\n' "$CASE_NUM" "$FAILED"
 [[ $FAILED -eq 0 ]] || exit 1
