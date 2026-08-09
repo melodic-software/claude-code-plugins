@@ -122,6 +122,10 @@ Use this when the third verse is still needed as a verse, but the song needs a
 contrasting section first. The bridge should supply a missing angle and change
 structure significantly.
 
+Chapter 23 names the cost: because the form returns to a full verse before the
+last chorus, the lyric can still get — or seem — long. That is the risk this
+whole chapter exists to manage, so weigh it against Option 2.
+
 Option 2 replaces the third verse with a short bridge and moves directly to
 the final chorus:
 
@@ -238,6 +242,13 @@ A: return home
 The first two A sections make the third A feel like a homecoming after the
 bridge. The bridge does not need to be chaotic; it needs enough structural and
 perspective contrast that the return resolves tension.
+
+*Writing Better Lyrics* (2009), Chapter 23 adds a system-level observation
+that is easy to miss when counting AABA by sections: the last system is
+actually **bridge / verse**, not a lone verse. That pairing is what supplies
+the contrast against the two opening A sections and what sponsors the
+homecoming — so when an AABA return feels unearned, check the B-to-final-A
+unit as a whole rather than only the final A.
 
 Use AABA when the song's emotional power depends on leaving familiar ground and
 then feeling the arrival back at it.
@@ -500,7 +511,7 @@ Use the home-base principle to:
 
 ## Form potency — when delivery matches package
 
-Pat's "Im(potent) Packages" framing from *Writing Better Lyrics* (2009), Chapter 22-23 (extends
+Pat's "(Im)potent Packages" framing from *Writing Better Lyrics* (2009), Chapter 22-23 (extends
 *Essential Guide to Lyric Form and Structure* (1991), Chapter 6): a song's form is potent when it delivers the strongest
 version of its idea, impotent when repetition causes the message to
 sag.
@@ -526,17 +537,22 @@ risks boredom even with strong verses.
 Three named repair strategies:
 
 1. **Distill verses 3 and 4 into one stronger verse.** Combine the
-   load-bearing ideas; cut the rest.
-2. **Convert one of the late verses into a bridge.** Same content,
-   recast as a section with different structure, POV, or tense.
-3. **Restructure internally so the four verses move differently.**
-   Verse 1 establishes; verse 2 develops; verse 3 turns; verse 4
-   resolves. Each verse has a different job within the form.
+   load-bearing ideas; cut the rest. Result: `v / v / ch / v / ch`.
+2. **Convert one of the late verses into a bridge.** Change both the
+   structure and the *kind of information* the section carries — a
+   bridge is a contrasting element on both counts, so reusing the
+   verse's content unchanged does not produce one. Result:
+   `v / v / ch / v / ch / br / ch`.
+3. **Restructure the two verses of a system into one larger verse.**
+   Keep every line, but make the combined verse change shape partway
+   through so the material stops repeating itself. Result:
+   `v / ch / v / ch` — two verses, not four.
 
-> "Four times is a lot." — Pat (*Essential Guide to Lyric Form and Structure* (1991), Chapter 6, paraphrase)
+> "Four times is a lot." — Pat (*Writing Better Lyrics* (2009), Chapter 22)
 
-Use the warning at form-planning time, not at revision time. Catching
-the V/V/Ch/V/V/Ch shape before drafting saves a rewrite.
+The warning is most useful at form-planning time, before the shape is
+drafted. Chapter 22 nonetheless applies all three repairs to a finished
+draft, so it is a revision procedure too.
 
 ## Third-system risk — V/Ch/V/Ch/V/Ch
 
@@ -547,13 +563,17 @@ third arrival.
 Three named alternatives:
 
 1. **Bridge before the third verse.** Inserts contrast before the
-   final V/Ch arrival.
-2. **Bridge before the third chorus.** Verse 3 builds normally;
-   bridge releases, then final chorus arrives transformed.
-3. **AABA conversion.** If the song's third system doesn't earn its
-   place, recast the form: drop the third verse, treat the bridge
-   as a B section, and the AABA shape may fit better than the
-   original V/Ch/V/Ch/V/Ch.
+   final V/Ch arrival: `v / ch / v / ch / br / v / ch`. Carries its
+   own risk — the song returns to a full verse before the last
+   chorus, so it can still read as long.
+2. **Bridge replacing the third verse.** The bridge carries the turn
+   the third verse would have carried, and the final chorus follows
+   directly: `v / ch / v / ch / br / ch`. There is no third verse.
+3. **AABA verse/refrain conversion.** For the opposite case — when
+   the third idea genuinely needs to stay a verse. AABA thrives on
+   three-idea development, so all three verse ideas survive; the
+   title becomes a refrain inside each verse rather than a separate
+   chorus.
 
 Diagnose at form-planning: count the systems, name what each is
 supposed to add, choose the alternative if needed.
