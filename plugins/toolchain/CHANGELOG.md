@@ -3,6 +3,32 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.2]
+
+### Fixed
+
+- **The documented pyright prerequisite now matches what `/toolchain:check` actually does.**
+  `context/python.md` claimed that a ruff-configured project with pyright absent reports a
+  whole-ecosystem missing-tool `skip`. It does not: the preflight probes `uv` — the runner every
+  python command is invoked through — and never probes pyright, so with `uv` installed nothing
+  skips. The two ruff commands run and pass, `uv run pyright` then exits 2 (`Failed to spawn` /
+  `program not found`, reproduced locally), and the Lint cell reports `FAIL`. The doc now states
+  that outcome and names both remedies: install pyright alongside ruff, or drop it by overriding
+  `check-cmd` in the consumer's own `.claude/ecosystems/python.yaml`. `skills/check/SKILL.md`'s
+  missing-tool and `check-cmd`-atomicity gotchas gained the matching clause, so the cross-ecosystem
+  rule and the python page no longer contradict each other. Docs-only; no runtime behavior change.
+- **The tool-presence rule now says the same thing in every place that states it.** These skills are
+  the executable instructions, so a rule worded three different ways is a real classification fork:
+  `skills/lint/SKILL.md` said "verify **tools** on `PATH`" and listed missing tools as a `skip` edge
+  case, which invited probing `pyright` and reporting `skip` for the very environment
+  `context/python.md` now documents as a `FAIL`. Both skills' normative statements are scoped
+  explicitly to the tool an ecosystem's commands are invoked through, so an identical environment
+  can no longer be classified differently depending on which skill the agent read.
+- **`context/bash.md` gained the note its own ecosystem needed.** The atomicity gotcha names bash's
+  `shellcheck … && shfmt -d <files>` as the parallel case, but only python documented the
+  consequence. A project with ShellCheck present, shfmt absent, and the `.editorconfig` opt-in met
+  hits the identical outcome, and now says so.
+
 ## [0.11.1]
 
 ### Changed
