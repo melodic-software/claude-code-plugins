@@ -141,6 +141,15 @@ check.
    present, `local-markdown` additionally carries `config.storage_dir`, and `jira` additionally carries
    `config.jira` (`site`, non-empty `project_keys[]`, `auth_email`, `auth_env`). A malformed shape, an
    unknown/unresolvable provider, or a missing required config key is FAIL, naming what is wrong.
+   A `github` binding must additionally be **addressable from this checkout**, because everything
+   above is shape and owner/repo are never recorded in the binding — every repo-scoped verb derives
+   them here (`gh repo view --json owner,name`, per the tracker CONTRACT's "Setup (binding file)"),
+   so a shape-valid `github` binding in a non-GitHub checkout would otherwise PASS every probe and
+   surface only when a verb fails at call time. Probe that same call: it resolves → INFO naming the
+   `owner/repo` the seam will address; it reports no repository → FAIL — the provider is wrong for
+   this checkout, remediated by `/work-items:setup apply` with a user present to re-choose it.
+   Probe `gh auth status` first and report INFO, not FAIL, when `gh` is absent or unauthenticated:
+   that is an account gap, which this probe cannot tell apart from a wrong binding.
 3. **Schedule presence** — resolve `SCHEDULE` (above). Absent → INFO: `due` / `recheck` / `work`
    degrade to "no recurring schedule configured"; `apply` seeds it. Present → continue.
 4. **Schedule validity** — a present file parses as JSON with the root `{"items": [ ... ]}` shape

@@ -31,7 +31,10 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   checkout with `gh repo view --json owner,name`. That probe is now a third precondition on the
   unattended bind, its resolved `owner/repo` is reported with the other defaults taken, and a probe
   that does not resolve stops with the existing named-blocker report rather than persisting an
-  unusable binding. The interactive provider choice confirms the same thing.
+  unusable binding. The interactive provider choice confirms the same thing, and `check`'s binding
+  probe makes the same call instead of PASSing a shape-valid `github` binding no repository backs —
+  INFO with the resolved `owner/repo`, FAIL when none resolves, and INFO when `gh` is absent or
+  unauthenticated, an account gap the probe cannot tell apart from a wrong binding.
 
 - **`track start` verifies the fully qualified remote-tracking ref when resolving the base branch.**
   The guard checked `git rev-parse --verify "origin/<name>^{commit}"`, an abbreviated ref git
