@@ -146,6 +146,21 @@ run "git push same ref movable first, pinned second (git uses the first, blocked
 run "git push same ref no-expect first, pinned second (first is tracking-based, blocked)" "git push --force-with-lease=main --force-with-lease=main:$SHA1_OID origin main" 2
 run "git push same ref no-expect first, pinned second, mitigated (allowed)" "git push --force-with-lease=main --force-with-lease=main:$SHA1_OID --force-if-includes origin main" 0
 run "git push different refs, one pinned one movable (both entries live, blocked)" "git push --force-with-lease=main:$SHA1_OID --force-with-lease=other:origin/other origin main other" 2
+# A block message is a producer-facing prescription, so the form it names must be
+# one this guard accepts. Detection is static over the literal command string —
+# substitutions are never evaluated — so a `$(…)` in the <expect> slot arrives as
+# an unresolved name and is blocked by the very message prescribing it. Asserted
+# on the message text rather than an exit code: both cases below already exit 2,
+# and it is the prescription that was wrong.
+# shellcheck disable=SC2016  # '$(' is the substitution syntax being asserted absent, not an expansion
+for lease_case in "--force-with-lease=main:origin/main" "--force-with-lease"; do
+  lease_msg=$(cd "$REPO_SHA1" && bash "$HOOK" <<<"$(command_json "git push $lease_case origin main")" 2>&1)
+  assert_absent "lease block message ($lease_case) prescribes no command substitution" \
+    "$lease_msg" '$('
+  assert_contains "lease block message ($lease_case) prescribes a resolved literal object id" \
+    "$lease_msg" '<full-sha>'
+done
+
 run "git push (plain, allowed)" "git push" 0
 run "git push -u origin main (allowed)" "git push -u origin main" 0
 run "git push -o f (option value f, allowed)" "git push -o f origin main" 0

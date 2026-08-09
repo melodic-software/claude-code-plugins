@@ -49,8 +49,11 @@ zone bands, zones.json shape) are owned by
    - **Present and identical** — PASS. Nothing about it needs revisiting on a plugin update; that
      is the whole point of the shim.
    - **Present but differing** — INFO, not FAIL: the installed copy is an older (or hand-edited)
-     revision that still resolves the newest tee. Report the shipped `# shim-revision:` marker
-     against the installed one and offer `apply` as the refresh.
+     revision, and it still resolves a tee, so the statusline keeps rendering. Do NOT report the
+     difference as harmless: a copy predating `# shim-revision: 3` picks the newest tee by mtime
+     alone, so it also resolves one left behind by an UNINSTALLED plugin and keeps teeing for the
+     whole orphan grace window. Report the shipped `# shim-revision:` marker against the installed
+     one, say which of the two behaviors the installed copy has, and offer `apply` as the refresh.
    - **The SHIPPED source is absent** (no `${CLAUDE_PLUGIN_ROOT}/scripts/statusline-shim.sh`) —
      INFO, and skip the comparison entirely: this installed plugin version predates the shim
      (< 0.2.0). Never report the operator's installed copy as drifted on this branch. Remediation:
@@ -138,19 +141,35 @@ zone bands, zones.json shape) are owned by
       `bash <path>/rate-limit-guard/bin/statusline-shim.sh`, in whatever order they appear, plus any
       legacy `bash <plugin-cache>/…/statusline-tee.sh` prefix.
    2. **A generated `sh -c` adapter** — when what remains is EXACTLY `sh -c '<single-quoted string>'`
-      with nothing after the closing quote, AND the string it carries itself contains shell syntax,
-      that is the shell-syntax adapter a previous run printed, not the renderer. Unescape it back:
-      drop the leading `sh -c` and the outer quotes, then replace every `'\''` with `'`.
+      with nothing after the closing quote, AND, once that string is unescaped, ANY of the following
+      holds, that is an adapter a previous run printed, not the renderer. Unescape it back: drop the
+      leading `sh -c` and the outer quotes, then replace every `'\''` with `'`.
 
-      Both conditions establish provenance, and the second is load-bearing. This skill emits the
-      adapter ONLY for a renderer that carries shell syntax (the guard below), so an `sh -c` over a
-      string carrying NONE was written by the operator and must be preserved: peeling
-      `sh -c 'ulimit -n'` to `ulimit -n` would leave the shim `exec`-ing a shell builtin that no
-      longer has a shell, and the statusline would exit 127 instead of rendering. A trailing word
-      (`sh -c '…' extra`) makes it a real command, not an adapter — leave that alone too.
+      - **A — it is itself EXACTLY `sh -c '<single-quoted string>'`, nothing after the closing
+        quote.** A nested `sh -c` is always a layer some run added: an operator's own renderer is at
+        most one `sh -c` deep. Apply the same strictness here as to the outer shape, so two readers
+        peel the same number of layers.
+      - **B — it begins with a guard-shim prefix from rule 1.** This skill never puts a shim inside
+        an adapter, and an operator would not write one inside their own `sh -c`. Leaving it sealed
+        there hides it from rule 1, which strips only LEADING prefixes, and the composed wiring then
+        names that shim a second time.
+      - **C — it is a command the guard below would send for wrapping.** That is the only shape this
+        skill's own adapter ever carries.
+
+      Branches A and B must NOT inherit the guard's top-level scoping — their evidence is the shape
+      of the carried string, not the syntax in it. Absent all three, the `sh -c` was written by the
+      operator and must be preserved: peeling `sh -c 'ulimit -n'` to `ulimit -n` would leave the
+      shim `exec`-ing a shell builtin that no longer has a shell, and the statusline would exit 127
+      instead of rendering. A trailing word (`sh -c '…' extra`) makes it a real command, not an
+      adapter — leave that alone too.
+
+      One shape stays ambiguous on purpose: a single `sh -c` over a merely-quoted command, which a
+      version of this skill that wrongly counted quoting as a trigger also emitted. Nothing in it
+      distinguishes that from an operator's own, so it is preserved. The cost is one spurious shell
+      per refresh; peeling on a guess costs a broken statusline.
 
    One pass is not enough: an operator may already carry several layers from earlier reruns, and a
-   single peel over three layers leaves three.
+   single peel over three layers leaves two.
 
    Substituting the raw string instead is what produces `context → rate → rate → renderer` when the
    sibling plugin was configured first, or a doubled self-wrap on a re-run: each duplicated tee runs
@@ -183,27 +202,62 @@ zone bands, zones.json shape) are owned by
    }
    ```
 
-   Shell-syntax guard: the wrapped form passes the user's command as ARGV — it only works for
-   plain `executable arg…` commands. If the current command contains shell syntax (an inline env
-   assignment like `THEME=dark my-statusline`, a pipe, `&&`, `;`, or quoting), print the
-   shell-wrapped variant instead:
+   Shell-syntax guard: the wrapped form passes the user's command as ARGV — the shell that runs
+   the `statusLine` command splits the whole line into words and consumes its quotes, and the shim
+   `exec`s those words unchanged. It therefore only works for plain `executable arg…` commands. Test
+   the UNWRAPPED renderer, never the raw effective `command` string — the rules above run first.
+   Print the shell-wrapped variant instead when EITHER of these holds:
+
+   - It carries — UNQUOTED, at the top level — shell syntax no ARGV word can express: an inline env
+     assignment like `THEME=dark my-statusline`, a redirection, or any control operator (`|`, `|&`,
+     `&&`, `||`, `;`, `&`, a newline).
+   - **Its command word is not an executable** — a shell builtin, function, or alias, which `exec`
+     cannot run because there is no file to exec. `ulimit '-n'` is the standing example: `ulimit`
+     exists only as a builtin, so the plain wrapped form reaches `exec ulimit -n` and the statusline
+     dies with exit 127 on every refresh. Resolve it the way the shim will —
+     `type -P <word>` finding nothing while `type -t <word>` reports `builtin`, `function`, or
+     `alias` is the test — not by matching a hardcoded list of builtin names.
+
+     This trigger is load-bearing precisely because it is *not* about syntax. Such a renderer often
+     carries none at all, and before the guard was scoped to real syntax the bare presence of quotes
+     wrapped it by accident. That accident was doing real work, and dropping it without this
+     replacement is what turns a working statusline into exit 127.
 
    ```json
    {
      "statusLine": {
        "type": "command",
-       "command": "bash ~/.claude/context-guard/bin/statusline-shim.sh sh -c '<escaped original command>'"
+       "command": "bash ~/.claude/context-guard/bin/statusline-shim.sh sh -c '<escaped renderer>'"
      }
    }
    ```
 
-   `<escaped original command>` is the original command POSIX-escaped for single-quote embedding:
-   replace every `'` in it with `'\''` before substituting (then JSON-escape the whole `command`
-   string as usual). Show the final, fully escaped line — never hand the operator a template with
-   raw quotes left to fix. Verify your printed edit round-trips: mentally unquote it back and
-   confirm it reproduces the original command byte-for-byte. Print this variant only when the
-   UNWRAPPED renderer still carries shell syntax — an already-adapted command reaching this step
-   with its `sh -c` layer intact is rule 2 above having been skipped, and wrapping it adds a layer.
+   `<escaped renderer>` is that same unwrapped renderer, POSIX-escaped for single-quote
+   embedding: replace every `'` in it with `'\''` before substituting (then JSON-escape the whole
+   `command` string as usual). Show the final, fully escaped line — never hand the operator a
+   template with raw quotes left to fix. Verify your printed edit round-trips: run
+   `printf '%s\n' '<escaped renderer>'` and confirm the output matches the renderer
+   byte-for-byte. The single-quoted argument reproduces exactly the quoting context the emitted
+   `sh -c '<escaped renderer>'` uses; a double-quoted wrapper would instead let the outer shell
+   expand any `$(...)` or backticks in the operator's own renderer before the check ever ran.
+
+   **Syntax inside a quoted argument does not count, and bare quoting is never itself a trigger.**
+   The quotes make it one ordinary ARGV word that reaches the renderer intact through the plain
+   wrapped form. So an operator's own `sh -c '<string>'` — the one shape rule 2 preserves — is
+   ALREADY a plain `executable arg…` command: `sh` is the executable, `-c` and the carried string
+   are two ordinary ARGV words. Substitute it VERBATIM.
+
+   For an input that is ITSELF `sh -c '<string>'`, rule 2 and this guard therefore never both wrap
+   it, and leave exactly one layer: rule 2 peels every generated layer before the guard runs, and
+   what rule 2 preserves is a renderer this guard declines. Do not generalize that to a layer count
+   for every input — the guard adds whatever the renderer genuinely needs, which is NONE for a plain
+   command and ONE for top-level syntax, and that one is a layer more when the operator's own
+   `sh -c` sits inside it. `sh -c 'ulimit -n' && echo ok` correctly prints TWO: the `&&` cannot be an
+   ARGV word, so the adapter is mandatory, and peeling the inner `sh -c` would strand the builtin.
+   What is invariant is that peel and wrap are inverses, which is what makes a re-run byte-identical
+   at whatever count the renderer needs. Firing on the quotes instead is what turned an operator's
+   `sh -c 'ulimit -n'` into `sh -c 'sh -c '\''ulimit -n'\'''`, one more shell on every refresh and
+   the same compounding rule 2 exists to prevent.
 
    Sibling tees compose by nesting, each through its OWN shim — the tees are transparent wrappers,
    so the innermost command still owns stdout and the exit code. Print this form only when
@@ -225,8 +279,8 @@ zone bands, zones.json shape) are owned by
    ```
 
    The shell-syntax guard applies UNCHANGED to this form: `<current statusline command>` is the
-   innermost ARGV here too, so a command carrying shell syntax must be substituted as
-   `sh -c '<escaped original command>'` — never raw. Substituting `THEME=dark my-statusline` raw
+   innermost ARGV here too, so run the same test above on the same unwrapped renderer and substitute
+   whichever of the two forms it selects — never the raw string. Substituting `THEME=dark my-statusline` raw
    makes `THEME=dark` the executable, which fails `command not found` (127) instead of setting the
    variable. The shim paths are the only part that nests; the innermost substitution rule never
    changes:
@@ -235,7 +289,7 @@ zone bands, zones.json shape) are owned by
    {
      "statusLine": {
        "type": "command",
-       "command": "bash ~/.claude/context-guard/bin/statusline-shim.sh bash ~/.claude/rate-limit-guard/bin/statusline-shim.sh sh -c '<escaped original command>'"
+       "command": "bash ~/.claude/context-guard/bin/statusline-shim.sh bash ~/.claude/rate-limit-guard/bin/statusline-shim.sh sh -c '<escaped renderer>'"
      }
    }
    ```
