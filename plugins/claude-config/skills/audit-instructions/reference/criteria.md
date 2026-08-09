@@ -14,8 +14,10 @@ cited URL, not restated here).
 docs when any fires: a new frontier model release; **a change to any page listed under Sources
 below**. Every check that cites a source cites one of those pages, so the trigger set is the source
 set — naming a subset would leave the harness-behavior rows depending on pages nothing watches. A
-row whose Source line reads `none` rests on no upstream page, so no docs change can stale it and it
-needs no watcher. One staleness event fires the whole catalog, not the check that noticed it. Model-specific pages — the per-model
+row whose Source line reads `none` for a categorical absence — no official page states the rule —
+has nothing of its own to go stale; a sourceless row that instead calibrates against page content
+(the Stopping condition's carve-out phrasing) is staled by the pages it calibrates against, which
+the catalog-wide trigger already covers. One staleness event fires the whole catalog, not the check that noticed it. Model-specific pages — the per-model
 prompting guides under Sources — are superseded on each model generation.
 
 **Per-row verification stamps.** A row that restates a volatile upstream *literal* — a level name, a
