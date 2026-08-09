@@ -364,6 +364,51 @@ else
   fail "stub/both: channels not composed: $OUT_BOTH"
 fi
 
+# --- A residual that MOVED between the passes is not a rewrite ---------------
+# Claude Code runs matching PostToolUse hooks in parallel, so a sibling
+# formatter can reflow the file between this hook's scan and write passes and
+# carry an untouched finding to a different line. STUB_REFLOW forces exactly
+# that, deterministically: every write-pass finding is reported one line below
+# where the scan reported it. Nothing else about the run changes.
+#
+# `wnat` is ambiguous, so typos declines it and it survives the write. The
+# truth is therefore that NOTHING was applied. Keyed by line, the moved
+# residual misses its own scan entry and the finding is reported as a rewrite
+# typos never made — a false mutation disclosure on the one channel this hook
+# exists to make trustworthy.
+printf 'this has wnat here\n' >"$STUB_REPO/reflow.txt" # spellchecker:disable-line
+BEFORE_RF="$(cat "$STUB_REPO/reflow.txt")"
+SINKRF="$WORK/tel-reflow.jsonl"
+OUT_RF=$(run_stub "$STUB_REPO/reflow.txt" STUB_REFLOW=1 HOOK_TELEMETRY_SINK="$SINKRF")
+if [[ "$(cat "$STUB_REPO/reflow.txt")" == "$BEFORE_RF" ]]; then
+  ok "stub/reflow: file unchanged (the ambiguous finding was never fixable)"
+else
+  fail "stub/reflow: stub wrote to a file with no fixable finding: $(cat "$STUB_REPO/reflow.txt")"
+fi
+CTX_RF=$(printf '%s' "$OUT_RF" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+if printf '%s' "$CTX_RF" | grep -qF '"wnat" ->'; then # spellchecker:disable-line
+  fail "stub/reflow: moved residual reported as an applied rewrite: $CTX_RF"
+else
+  ok "stub/reflow: moved residual is NOT reported as an applied rewrite"
+fi
+if printf '%s' "$CTX_RF" | grep -q 'wnat'; then # spellchecker:disable-line
+  ok "stub/reflow: the finding is still reported, as a residual"
+else
+  fail "stub/reflow: moved residual vanished from the report entirely: $CTX_RF"
+fi
+if [[ -z "$(printf '%s' "$OUT_RF" | jq -r '.systemMessage // empty' 2>/dev/null)" ]]; then
+  ok "stub/reflow: no user-channel mutation message (nothing was mutated)"
+else
+  fail "stub/reflow: claimed a mutation that never happened: $(printf '%s' "$OUT_RF" | jq -r '.systemMessage')"
+fi
+if [[ -s "$SINKRF" ]]; then
+  if [[ "$(jq -s '.[-1].data.applied | length' "$SINKRF" 2>/dev/null)" == "0" ]]; then
+    ok "stub/reflow: telemetry records zero applied rewrites"
+  else
+    fail "stub/reflow: telemetry claims rewrites: $(jq -s -c '.[-1].data.applied' "$SINKRF")"
+  fi
+fi
+
 # --- Disclosure is capped ----------------------------------------------------
 # A file with hundreds of corrections must not turn the disclosure into the
 # unbounded context flood it exists to prevent.
