@@ -537,5 +537,27 @@ assert_eq "the fixture's destination really is 100644 with a shebang" \
 assert_eq "a rename whose SOURCE was never executable is NOT reported" \
   "" "$(bash "$HELPER" --repo-dir "$repo19" --list 2>/dev/null)"
 
+# The pair branch reads THREE fields per record, so a space in either path is
+# the input shape most likely to break it. `--raw -z` NUL-terminates the info
+# field and each path separately, which is what makes the explicit field reads
+# correct -- pin that rather than trusting it.
+repo20="$(mkrepo)"
+(
+  cd "$repo20" || exit 1
+  git config core.filemode false
+  printf '#!/usr/bin/env bash\necho spaced\n' >"old name.sh"
+  git add "old name.sh"
+  git update-index --chmod=+x -- "old name.sh"
+  git commit -qm "seed the spaced rename source"
+  git mv "old name.sh" "new name.sh"
+  git rm -q --cached "new name.sh"
+  git add "new name.sh"
+) >/dev/null 2>&1
+
+assert_contains "the spaced fixture really is a rename off a 100755 source" \
+  "$(cd "$repo20" && git diff --cached --raw | head -n 1)" ":100755 100644"
+assert_eq "a rename destination is reported when BOTH paths contain spaces" \
+  "new name.sh" "$(bash "$HELPER" --repo-dir "$repo20" --list 2>/dev/null)"
+
 printf '\n%d case(s), %d failure(s)\n' "$CASE_NUM" "$FAILED"
 [[ $FAILED -eq 0 ]] || exit 1
