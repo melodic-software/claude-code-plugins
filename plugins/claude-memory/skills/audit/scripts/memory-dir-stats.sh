@@ -107,7 +107,7 @@ fi
 # a file opening with `---` and carrying any later `---` would otherwise have the whole
 # span between them stripped — a 253-line index reporting one loaded line, disarming
 # the very gate the flush-at-EOF rule above exists to arm. Frontmatter mode is
-# therefore bounded twice, and abandoning it re-emits the held lines as content:
+# therefore bounded three ways, and abandoning it re-emits the held lines as content:
 #   * grammar — the block ends at the first line that is not blank and not a `key:`
 #     mapping entry, which is all YAML a memory index's frontmatter holds. A `#` line
 #     is deliberately NOT frontmatter here: it is a comment to YAML but a heading to
@@ -119,11 +119,20 @@ fi
 #     scalar and never authors comments, so this needs a hand-edited index;
 #   * length — `fmcap` lines, because grammar alone still swallows a runaway whose
 #     every line happens to be a `Label: value` pair, a plausible shape for a
-#     hand-written index.
-# Both bounds fail toward counting when they fire: an over-count can only make this gate
-# fire early, while the under-count they replace stopped it firing at all. They bound the
-# block by shape and by line count, never by bytes — a short `key:`-shaped block is
-# frontmatter under YAML grammar and is stripped whatever those entries weigh.
+#     hand-written index;
+#   * weight — `fmbytecap` bytes of held block, because the line bound still swallows a
+#     runaway whose few lines are individually heavy. Markdown prose opening `Note:` or
+#     `Important:` parses as a mapping entry, so a single long paragraph between a leading
+#     thematic break and any later `---` was stripped however much it weighed. The cap is
+#     measured in characters, which is bytes for the ASCII a memory index's frontmatter
+#     holds and merely a looser — still finite — bound otherwise.
+# All three bounds fail toward counting when they fire: an over-count can only make this
+# gate fire early, while the under-count they replace stopped it firing at all. Each leaves
+# a residue, since a misparsed block still strips up to `fmcap` lines and `fmbytecap` bytes
+# before the bound ends it. `fmbytecap` is set so its residue is the smaller share of M1's
+# two limits — 1KB of 25KB against 20 lines of 200 — while clearing every real shape by a
+# wide margin: Claude Code stamps only a `modified` scalar, and even a hand-written block
+# of twenty entries runs to a few hundred bytes.
 #
 # A block-level comment occupies whole lines; text sharing a line with the comment's
 # open or close is loaded content and survives. Each comment ends at the FIRST `-->`
@@ -144,8 +153,8 @@ fi
 # assumption recorded in criteria.md M1); the arithmetic expansion strips the leading
 # padding BSD `wc` emits on macOS.
 strip_unloaded() {
-  tr -d '\r' <"$index" | awk '
-    BEGIN { fmcap = 20 }
+  tr -d '\r' <"$index" | LC_ALL=C awk '
+    BEGIN { fmcap = 20; fmbytecap = 1024 }
     function emit(s) { if (s ~ /[^[:space:]]/) print s }
     # Remove every complete comment from s, each ending at the first `-->` after its
     # own opener. An opener with no close takes the rest of s and arms `incomment`,
@@ -162,8 +171,9 @@ strip_unloaded() {
     NR == 1 && $0 == "---" { pending = $0 "\n"; fm = 1; next }
     fm == 1 {
       if ($0 == "---") { fm = 2; pending = ""; next }
-      if (++fmlines <= fmcap && ($0 ~ /^[[:space:]]*$/ ||
-                                 $0 ~ /^[[:space:]]*[A-Za-z_][A-Za-z0-9_-]*:/)) {
+      if (++fmlines <= fmcap && length(pending) + length($0) + 1 <= fmbytecap &&
+          ($0 ~ /^[[:space:]]*$/ ||
+           $0 ~ /^[[:space:]]*[A-Za-z_][A-Za-z0-9_-]*:/)) {
         pending = pending $0 "\n"
         next
       }

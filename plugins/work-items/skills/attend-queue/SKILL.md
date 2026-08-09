@@ -251,7 +251,11 @@ Two further reader-contract rules apply alongside the floor (outside the byte-au
   absent, stale, or missing `rate_limits` → whole guard **unknown → reactive-only**. An absurd
   `used_percentage` or `resets_at` makes only **that window** unknown: keep applying the floor to
   every still-plausible window, and drop to reactive-only only when no window is plausible. Never
-  throttle proactively on untrusted data and never fabricate a pause.
+  throttle proactively on untrusted data and never fabricate a pause. In reactive-only mode,
+  additionally read `~/.claude/rate-limit-guard/stop-events.jsonl` (reader contract, "Detection
+  records") on mode entry and again before each new work claim; the recency baseline is the lane's
+  own start time, advanced by each resume attempt — records newer than it are live signal, older
+  ones history that never justifies a new pause on its own.
 - **Untrusted fields** (reader contract, "Tee file shape"): session-distinguishing fields (`session_id`,
   `session_name`, any future account field) are user/AI-influenced — parse them only with a JSON
   parser; never string-interpolate them into a shell command, another interpreter, or a prompt.

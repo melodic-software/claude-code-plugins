@@ -1,6 +1,6 @@
 ---
-version: 1.21.0
-last-updated: 2026-08-08
+version: 1.21.1
+last-updated: 2026-08-09
 ---
 
 # Instruction-Audit Criteria
@@ -12,9 +12,12 @@ cited URL, not restated here).
 
 **Recheck triggers** — treat these as staleness signals and re-verify the catalog against live
 docs when any fires: a new frontier model release; **a change to any page listed under Sources
-below**. Every check cites one of those pages, so the trigger set is the source set — naming a
-subset would leave the harness-behavior rows depending on pages nothing watches. One staleness event
-fires the whole catalog, not the check that noticed it. Model-specific pages — the per-model
+below**. Every check that cites a source cites one of those pages, so the trigger set is the source
+set — naming a subset would leave the harness-behavior rows depending on pages nothing watches. A
+row whose Source line reads `none` for a categorical absence — no official page states the rule —
+has nothing of its own to go stale; a sourceless row that instead calibrates against page content
+(the Stopping condition's carve-out phrasing) is staled by the pages it calibrates against, which
+the catalog-wide trigger already covers. One staleness event fires the whole catalog, not the check that noticed it. Model-specific pages — the per-model
 prompting guides under Sources — are superseded on each model generation.
 
 **Per-row verification stamps.** A row that restates a volatile upstream *literal* — a level name, a
@@ -25,10 +28,13 @@ parts, not the path, are the requirement). A row that restates nothing and only 
 carries no stamp, because a pointer cannot go stale.
 
 A per-row stamp **supplements** the catalog-wide trigger above; it never replaces or narrows it.
-The catalog trigger still fires every row on any Sources change — that is why a row's own trigger
-names only the events the Sources set would *miss*, such as a value set changing while its page
-keeps the same URL. **Where the two disagree, the catalog trigger wins**, because it is the wider
-one and a staleness signal is not something to resolve by picking the narrower authority.
+The catalog trigger already fires every row on any Sources change, so a per-row trigger adds no
+coverage the Sources set lacks — a value change on a Sources page *is* a change to that page. What
+it adds is **specificity about what to re-read**: it names the literal that row restates and the
+event that would move it, so a re-verification pass goes straight to that value instead of
+re-reading the page to find what mattered. **Where the two disagree, the catalog trigger wins**,
+because it is the wider one and a staleness signal is not something to resolve by picking the
+narrower authority.
 
 The requirement **binds on touch**, per the convention above: rows predating this rule keep their
 citations as they are and adopt the four parts the next time they change. A missing stamp on an
@@ -210,8 +216,13 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
   in its own context, and path-scoped rules are invisible there
   (<https://code.claude.com/docs/en/sub-agents>), so proposing one for instructions the agent needs
   removes them from every dispatch rather than deferring them. Name a destination the agent itself
-  reaches — a skill the agent's definition invokes or preloads, or text kept in the definition — and
-  never a `paths:`-scoped rule.
+  reaches — a skill the agent's definition **invokes at runtime**, or text kept in the definition —
+  and never a `paths:`-scoped rule. **A `skills:` preload is not such a destination**: the full
+  content of each listed skill is injected into every dispatch of that agent, so the content is
+  resident for every unrelated use exactly as it was in the definition, and the move defers nothing —
+  the same disqualification `@path` imports carry above. When the agent has no conditional runtime
+  invocation to move the content to, report that no safe deferral is available rather than proposing
+  a preload that satisfies this check's letter and changes the load profile not at all.
 - **Adjacent axis:** this check is load *timing*. Definition-site *locality* — an instruction sitting
   away from the thing it governs — is I16, and an instruction can be correctly deferred here and
   still misplaced there.
@@ -222,7 +233,8 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
   descriptions are loaded into context so Claude knows what's available, but full skill content only
   loads when invoked", the combined `description` and `when_to_use` text "is truncated at 1,536
   characters in the skill listing to reduce context usage", and "Plugin skills are not affected by
-  `skillOverrides`."
+  `skillOverrides`."; subagents, on a skill named in an agent's `skills:` field — "The full content
+  of each listed skill is injected into the subagent's context at startup."
 
 ### I4: Inferable or redundant content
 
@@ -663,14 +675,18 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `info` · Surfaces: 
 skill bodies.
 
 - **Detect:** an instruction directing the agent to go read a surface the main conversation loads at
-  startup and therefore already carries — the **root** `CLAUDE.md`, the user `CLAUDE.md` at the
-  **resolved** `${CLAUDE_CONFIG_DIR:-~/.claude}`, the **root** `CLAUDE.local.md`, unconditional
-  project rules (no `paths` frontmatter), and managed policy files. Two qualifiers are load-bearing.
+  startup and therefore already carries — the **root** project `CLAUDE.md` in **either** supported
+  location (`./CLAUDE.md` **or** `./.claude/CLAUDE.md`), the user `CLAUDE.md` at the **resolved**
+  `${CLAUDE_CONFIG_DIR:-~/.claude}`, the **root** `CLAUDE.local.md`, unconditional
+  project rules (no `paths` frontmatter), and managed policy files. Three qualifiers are load-bearing.
   Root-level: the startup guarantee is scoped to the hierarchy discovered from the launch directory,
   not to every file of that name in the tree. Resolved: `CLAUDE_CONFIG_DIR` moves the whole config
   tree, so a hardcoded `~/.claude/CLAUDE.md` both flags a read that is now necessary and misses the
-  redundant read of the configured path. Phase A resolves this variable already (`SKILL.md:76-78`);
-  match it. The read spends a turn to retrieve text that is already present.
+  redundant read of the configured path. Either location: a project that keeps its memory at
+  `./.claude/CLAUDE.md` loads it at startup exactly as `./CLAUDE.md` would, so a set naming only the
+  bare path lets the redundant read of the active file escape this check entirely. Phase A resolves
+  the variable and inventories both project locations already; match it. The read spends a turn to
+  retrieve text that is already present.
 - **Remediate:** cut the retrieval step and state the requirement the read was meant to satisfy.
 - **Must NOT flag: anything that loads on demand rather than at startup.** The guarantee this check
   rests on covers the hierarchy *the main conversation loads*, which is not the whole memory family.
@@ -682,7 +698,13 @@ skill bodies.
   established, leave it.
 - **Must NOT flag:** an instruction to read a surface that is *not* auto-loaded — `AGENTS.md`,
   contributing guides, ADRs, CI workflow files, per-ecosystem convention docs. Those are ordinary
-  progressive disclosure. **Any read where the file is the operation's subject rather than its
+  progressive disclosure — **but only while no active startup import reaches them.** A startup file
+  that carries `@docs/CONTRIBUTING.md`, or the `@AGENTS.md` the docs themselves recommend for an
+  `AGENTS.md` repo, has that file expanded into context at launch, so the document is resident and
+  an instruction to go read it is exactly the redundant retrieval this check exists to find.
+  **Resolve the startup set's `@path` imports first** — recursively, to memory's documented maximum
+  depth of four hops — and add what they reach to the loaded set; this exemption applies only to what
+  no such import reaches. **Any read where the file is the operation's subject rather than its
   instructions** — auditing it, editing it, patching it, reporting on it, or anything else needing
   current disk contents. The startup copy is a snapshot taken at launch; another process can have
   changed the file since, and a pre-edit read cut on the grounds that "it is already in context"
@@ -694,6 +716,11 @@ skill bodies.
   `~/.claude/CLAUDE.md`, project rules, `CLAUDE.local.md`, and managed policy files." The qualifier
   *the main conversation loads* is what bounds this check: memory documents lazy loading for
   "path-specific rules or lazy-loaded files in subdirectories", so those are outside the guarantee.
+  memory, on `@path` imports — "Imported files are expanded and loaded into context at launch
+  alongside the CLAUDE.md that references them", and "Imported files can recursively import other
+  files, with a maximum depth of four hops" — is what puts an imported supporting document inside it;
+  memory's `AGENTS.md` guidance recommends exactly such an import, and requires it on Windows, where
+  the symlink alternative needs elevation.
 
 ### I15: Cross-surface instruction conflict
 
