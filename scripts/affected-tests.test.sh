@@ -294,6 +294,23 @@ else
   fail "live hook-utils fan-out (rc=$RC): $out"
 fi
 
+# --- LIVE repo: a STRUCTURAL basename that is also a sync src -------------
+# docs/conventions/standards/README.md is both. R3/R4 must ignore the basename
+# (every plugin has a README.md, so the match carries no signal) while R5 must
+# still fan the change out to the differently-named copies the manifest
+# declares — plugins/*/reference/standards-contract.md — and on to the suites
+# that bind against them. Neither the synthetic fixture nor the copy-set
+# assertions above isolate that interaction.
+out="$(cd "$REPO_ROOT" && bash scripts/affected-tests.sh docs/conventions/standards/README.md 2>/dev/null)"
+RC=$?
+if [[ "$RC" -eq 0 ]] &&
+  has_line "$out" plugins/planning/tests/standards-binding.test.sh &&
+  has_line "$out" plugins/review/tests/standards-binding.test.sh; then
+  ok "a structural basename that is also a sync src still fans out"
+else
+  fail "standards-contract fan-out (rc=$RC): $out"
+fi
+
 # --- LIVE repo: a co-located change stays narrow ---------------------------
 out="$(cd "$REPO_ROOT" && bash scripts/affected-tests.sh plugins/eol-normalizer/hooks/eol-normalizer.sh 2>/dev/null)"
 RC=$?
