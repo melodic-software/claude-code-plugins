@@ -44,10 +44,13 @@ told:
    work-type — sequential or shared-context steps stay in one agent. Coding parallelizes less than
    research: never split one feature across agents. Multi-agent costs 3–10× the tokens (returns
    cost context too), so spend it on value + parallelism, not convenience.
-2. SPEC EVERY SPAWN — give each worker an objective, an output format, the tools/sources to use,
+2. SPEC EVERY SPAWN — give each worker an objective, the REASON it is being asked (the larger task
+   it feeds, who the output is for, what it enables), an output format, the tools/sources to use,
    explicit task boundaries, and a deliberately chosen model tier. Vague delegation makes workers
    duplicate each other, leave gaps, or wander; absent a consumer-level subagent-model override,
    an unspecified model silently inherits the parent session's — often its most expensive — model.
+   Holding only an objective, a worker resolves each ambiguity toward the sentence you wrote rather
+   than the outcome you wanted, and returns something well-formed and wrong.
 3. FRESH-CONTEXT VERIFY — after an edit batch or a finding set, hand it to a SEPARATE verifier;
    never self-audit in the context that produced it. Give the verifier concrete pass/fail criteria
    ("run the full suite, report all failures"), scope it to correctness/requirements (not style),

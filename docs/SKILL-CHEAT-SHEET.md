@@ -84,6 +84,8 @@ owned by [docs/CATALOG-TAXONOMY.md](CATALOG-TAXONOMY.md).
 
 | Skill | Plugin | What it does |
 | --- | --- | --- |
+| [`/evals:design`](../plugins/evals/skills/design/SKILL.md) | `evals` | Interview for success criteria and scaffold an eval suite in the consumer repo |
+| [`/evals:methodology`](../plugins/evals/skills/methodology/SKILL.md) | `evals` | Answer LLM-evaluation design questions from Anthropic's official guidance |
 | [`/playwright:playwright`](../plugins/playwright/skills/playwright/SKILL.md) | `playwright` | Live E2E browser automation with disk-written artifacts |
 | [`/tdd:principles`](../plugins/tdd/skills/principles/SKILL.md) | `tdd` | Answer test design questions from authoritative TDD sources |
 | [`/testing:diagnose`](../plugins/testing/skills/diagnose/SKILL.md) | `testing` | Root-cause failing tests — never retry blindly |
@@ -137,6 +139,8 @@ owned by [docs/CATALOG-TAXONOMY.md](CATALOG-TAXONOMY.md).
 | [`/claude-config:audit-instructions`](../plugins/claude-config/skills/audit-instructions/SKILL.md) | `claude-config` | Find instructions current models no longer need across CLAUDE.md, rules, and skill bodies |
 | [`/claude-config:audit-pass`](../plugins/claude-config/skills/audit-pass/SKILL.md) | `claude-config` | Run one coordinated, resumable audit pass over a repo with a single human gate |
 | [`/claude-config:audit-permission-grants`](../plugins/claude-config/skills/audit-permission-grants/SKILL.md) | `claude-config` | Audit permission grants for portability and auto-mode durability |
+| [`/claude-config:audit-prompting-postures`](../plugins/claude-config/skills/audit-prompting-postures/SKILL.md) | `claude-config` | Find posture guidance the prompting guide says a component needs but does not carry |
+| [`/claude-config:unhobble`](../plugins/claude-config/skills/unhobble/SKILL.md) | `claude-config` | Strip instructions to a bare baseline, log real stumbles, re-add only what evidence earns |
 | [`/claude-memory:audit`](../plugins/claude-memory/skills/audit/SKILL.md) | `claude-memory` | Audit CLAUDE.md, rules, and auto-memory against the official-docs checklist |
 | [`/claude-memory:stateless`](../plugins/claude-memory/skills/stateless/SKILL.md) | `claude-memory` | Inspect, disable, or purge Claude Code's per-repo auto memory |
 | [`/claude-ops:changelog`](../plugins/claude-ops/skills/changelog/SKILL.md) | `claude-ops` | Ingest a Claude Code release changelog and integrate its changes into the repo |

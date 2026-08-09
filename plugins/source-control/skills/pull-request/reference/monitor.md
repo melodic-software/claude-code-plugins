@@ -214,7 +214,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/fetch-failed-logs.sh" <r
 gh run view <run-id> --log-failed 2>&1 | grep '##\[error\]'
 ```
 
-**CRITICAL: Do NOT use `grep -i "error\|fail\|..."` on CI logs.** It produces false matches from cleanup steps, variable names, and incidental output (e.g., "Bad credentials" from a token cleanup step when the real error is a workflow validation failure). GitHub Actions marks real errors with `##[error]` annotations — grep for those first. Only fall back to broader searches if `##[error]` returns nothing.
+**Grep CI logs for `##[error]` annotations first, not `grep -i "error\|fail\|..."`.** GitHub Actions marks real errors with `##[error]`; a broad keyword grep produces false matches from cleanup steps, variable names, and incidental output (e.g., "Bad credentials" from a token cleanup step when the real error is a workflow validation failure). Only fall back to broader searches if `##[error]` returns nothing.
 
 **Stop at the first complete picture.** Tier 1 annotations are usually sufficient for "what failed in this job?". Escalate to the Tier 2 full ZIP only when annotations don't pinpoint the cause.
 

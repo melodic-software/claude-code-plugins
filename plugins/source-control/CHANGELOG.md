@@ -3,6 +3,48 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.48.2]
+
+### Changed
+
+- **`babysit-loop`: listing description tightened (1,468 → 1,197 chars)** — trimmed the explanatory
+  prose from the frontmatter `description` toward the shared skill-listing budget
+  (claude-code-plugins#2022, option 2). Every single-quoted trigger phrase is preserved verbatim
+  (skill-quality check 3); the merge-authority invariants (fail-closed human-only default,
+  tracked-seam-only raises, the c3-this-run anti-spoofing clause, the independent frontier-tier
+  resolver) stay stated in the entry and fully stated in the skill body.
+
+## [0.48.1]
+
+### Changed
+
+- **`pull-request`: the CI-log grep rule leads with the instruction instead of a `CRITICAL:` prefix.**
+  `reference/monitor.md` opened with "CRITICAL: Do NOT use `grep -i ...`", which states the
+  prohibition before the thing to do. It now says to grep for `##[error]` annotations first and gives
+  the reason — a broad keyword grep matches cleanup steps, variable names, and incidental output. The
+  worked "Bad credentials" example and the fall-back-if-empty rule are unchanged.
+
+- **`pull-request`: section 1.3's heading is "Verify every finding".** The shout-caps `EVERY` and the
+  `(CRITICAL)` parenthetical restated emphasis the numbered verification procedure below already
+  carries. No step, classification, or drop rule changed.
+
+## [0.48.0]
+
+### Changed
+
+- **The merge lane's cycle report must now be grounded in tool results from that cycle**, with
+  unverified work said to be unverified rather than left undistinguished. The step already bounded
+  what the report contains and how often it is written; it said nothing about whether its claims were
+  true.
+  - This is the one surface where a fabricated line survives: nobody watched the cycle, no receiver
+    re-derives the report the way a dispatching orchestrator re-derives a worker's return, and the
+    comment is the operator's only record of what happened. Anthropic's Fable 5 prompting guide names
+    exactly this case — "Before reporting progress, audit each claim against a tool result from this
+    session" — and reports that the instruction nearly eliminated fabricated status reports in its
+    testing, including on tasks built to provoke them.
+  - The wording matches the sibling drain lane's word for word because their step 6 is the same step;
+    that is a coincidence of scope, not a shared source, and neither is registered as one.
+
 ## [0.47.2]
 
 ### Fixed

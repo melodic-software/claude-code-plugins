@@ -84,13 +84,13 @@ Output a markdown report with this structure:
 **Date:** YYYY-MM-DD
 **Servers audited:** N
 **Tools audited:** N
-**Overall:** X pass, Y warn, Z fail
+**Overall:** X pass, Y warn, Z fail, W info
 
 ## Summary by server
 
-| Server | Tools | Pass | Warn | Fail |
-|--------|-------|------|------|------|
-| <server-name> | N | ... | ... | ... |
+| Server | Tools | Pass | Warn | Fail | Info |
+|--------|-------|------|------|------|------|
+| <server-name> | N | ... | ... | ... | ... |
 
 ## Findings by server
 
@@ -116,8 +116,11 @@ Server-level criteria — the outcomes that belong to the server, not to any one
 ```
 
 **Prioritize FAIL items** — highest-value improvements. WARN items are suggestions and info items are
-optimizations; `n/a` and `undetermined` record that a criterion had no subject, or none reachable, and
-neither counts as a pass in the summary table. A missing annotation is never FAIL — annotations are
+optimizations. The `Overall` line and the summary table count every outcome recorded for a server —
+its tools' criterion rows and its server-level rows — across the four severity buckets. `n/a` and
+`undetermined` are not severities: they record that a criterion had no subject, or none reachable, so
+they appear only in the server-level criterion table and never count as a pass. A missing annotation
+is never FAIL — annotations are
 OPTIONAL in the spec (C12-C14) or Claude-Code-specific advisories (C17-C19); only a declared value
 Claude Code silently ignores can FAIL (C18).
 

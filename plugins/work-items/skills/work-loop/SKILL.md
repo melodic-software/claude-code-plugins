@@ -249,7 +249,10 @@ while the latch is set (clear it on a fresh healthy snapshot after the pause end
    below; upsert the telemetry comment (cycle report + updated state block + guard mode + the
    `usage_sample` built from step 1's cycle-start reading, whose delta covers the preceding interval
    and never this cycle's work); then evaluate the exit condition; if not exiting, `ScheduleWakeup`
-   the next cycle.
+   the next cycle. **Ground every claim in the cycle report against a tool result from this cycle,
+   and say which work is unverified rather than omitting the distinction.** Nobody watched this
+   cycle, so the report is the only record of it and a fabricated line is indistinguishable from a
+   true one until someone re-does the work.
 
 ## Admission gate (work-class, fail-closed)
 
