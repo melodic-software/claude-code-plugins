@@ -187,9 +187,17 @@ from `raw.githubusercontent.com` (read-only; a failed fetch degrades to SKIP).
 ## Requirements
 
 The bundled scripts run in `bash` (Claude Code's Bash-tool shell on every platform;
-[Git Bash](https://code.claude.com/docs/en/setup#set-up-on-windows) on native Windows) and require
-`jq`; the plugin-drift check additionally requires `curl`. Run `/claude-config:setup` (`check` by
-default) to verify these prerequisites; `apply` gives platform install guidance and re-verifies.
+[Git Bash](https://code.claude.com/docs/en/setup#set-up-on-windows) on native Windows). The
+JSON-parsing scripts require `jq`; the plugin-drift check additionally requires `curl`; and `awk`
+and `sort` are required across three skills, not one — `audit`'s plugin-drift check (both) and its
+fix (`sort`), `audit-permission-grants`' rule check (both), and `audit-instructions`' conflict pass
+(both). Only the conflict pass probes for them and `exit 2`s naming the one that is missing; the
+others call them unguarded, so an absent `awk` or `sort` surfaces there as a bare `command not
+found` partway through a run. Both ship with every POSIX userland, so a missing one means a minimal
+shell environment (Git Bash, a `busybox` shim) rather than an absent package — install a full
+userland (Git for Windows; `gawk`/`mawk` plus `coreutils` on Linux; `brew install gawk coreutils`
+on macOS). Run `/claude-config:setup` (`check` by default) to verify these prerequisites; `apply`
+gives platform install guidance and re-verifies.
 
 ## License
 
