@@ -39,6 +39,45 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   `validation-categories.md`'s own header and eval 1's expectations both stopped at G — every one
   already stale when Category H landed, and two behind after this one.
 
+## [0.27.5]
+
+### Fixed
+
+- **`audit`: Category E's incompatible-marketplace check rested on a false premise** (issue #1989
+  row 253). The checklist flagged "plugins from incompatible marketplaces (Agent Skills format)"
+  by the rule "Repos with only root `marketplace.json` but no per-plugin `plugin.json` are
+  incompatible" — a shape the [Strict mode
+  section](https://code.claude.com/docs/en/plugin-marketplaces#strict-mode) documents as SUPPORTED:
+  under `strict: false` "the marketplace entry is the entire definition", the plugin repo provides
+  raw files, and the entry's `skills`/`agents`/`hooks` fields expose them. Anthropic's own
+  `anthropic-agent-skills` marketplace ships three such plugins with zero `plugin.json` files
+  repo-wide, so the old rule fired an `error` on a conforming marketplace. The row now tests
+  `strict` rather than `plugin.json` presence: it flags only a plugin with NEITHER a per-plugin
+  `plugin.json` NOR a `strict: false` entry declaring its components — the residual case where
+  nothing defines what loads — and records the same page's inverse failure, a `strict: false`
+  entry paired with a component-declaring `plugin.json`. Severity stays `error`; both the check
+  label and its verify cell were rewritten, since the label carried the false premise too.
+
+## [0.27.4]
+
+### Fixed
+
+- **`audit-instructions`: two internally-inconsistent claims in the criteria preamble** (criteria
+  1.21.0 → 1.21.1; issue #1989 row 248). The per-row-trigger rationale justified stamps as naming
+  "only the events the Sources set would *miss*" — but a value change on a Sources page IS a change
+  to that page, so the catalog trigger already fires and nothing is missed. The paragraph now states
+  what a per-row trigger actually buys: **specificity about what to re-read** — the literal the row
+  restates and the event that would move it — so a re-verification pass goes straight to that value
+  instead of re-reading the page to find what mattered. The recheck-trigger paragraph's "Every check
+  cites one of those pages" was falsified by the three checks whose Source line reads `none` — I16,
+  I19, I22 (the Stopping condition rule is sourceless too, but is not a check) — and is now scoped
+  to checks that cite a source, with the exception stated on the two-way split the file now
+  makes: a sourceless row grounded in a categorical absence has nothing of its own to go stale,
+  while one that calibrates against page content (the Stopping condition) is staled by the pages it
+  calibrates against, which the catalog-wide trigger already covers. No source was invented
+  for any sourceless row, and the catalog-trigger-wins precedence and whole-catalog firing rule are
+  unchanged.
+
 ## [0.27.3]
 
 ### Fixed
