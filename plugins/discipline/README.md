@@ -37,13 +37,13 @@ report — lives once at plugin scope in
 [`context/re-anchor-audit-correct.md`](context/re-anchor-audit-correct.md);
 each skill carries only its own delta.
 
-Beyond the correctors, the plugin ships one **composed runbook** — a declared
-second species that is *not* a corrector and re-anchors no discipline of its
-own:
+Beyond the correctors, the plugin ships two **declared further species** —
+skills that are *not* correctors and re-anchor no discipline of their own:
 
-| Runbook | What it composes |
-|---|---|
-| `/discipline:sweep-all` | Runs the whole bundle as one pass — fans out an audit-only subagent per in-scope corrector, then applies the corrections on the main thread in a fixed order; at session start it reports a cheap posture digest instead |
+| Skill | Species | What it does |
+|---|---|---|
+| `/discipline:sweep-all` | Composed runbook | Runs the whole bundle as one pass — fans out an audit-only subagent per in-scope corrector, then applies the corrections on the main thread in a fixed order; at session start it reports a cheap posture digest instead |
+| `/discipline:wait-what` | One-shot communication repair | User-invoked only — type it when the last message did not land; the model re-pitches it with the missing context, in ASD-STE100 Simplified Technical English, using the project's ubiquitous language. Never model-invoked, never in the batch |
 
 ## What each skill does
 
@@ -301,7 +301,7 @@ single-axis flaws to the sibling that owns them.
 
 ### sweep-all (composed runbook)
 
-The plugin's one **second species** — a router that composes the correctors,
+A **declared further species** — a router that composes the correctors,
 carrying no discipline of its own. Two modes: at conversation start it derives
 a cheap posture digest from the skill listing and each corrector's tier
 metadata (no bodies load, no audit); mid-session it runs the full pass —
@@ -319,6 +319,25 @@ preserves every member's human gate.
 
 ```shell
 /discipline:sweep-all   # batch re-anchor, or a session-start posture digest
+```
+
+### wait-what (one-shot communication repair)
+
+A **declared further species** — not a corrector, and the plugin's only
+user-invoked-only skill (`disable-model-invocation: true`): the human is the
+only party who can detect that a message did not land, so the model never
+fires it. Type it the moment you notice you are skimming — the model has
+drifted into jargon it invented, stacked acronyms, or explained a decision
+whose premise you never saw. The re-pitch backs up as far as needed, adds the
+context you were missing, talks in ASD-STE100 Simplified Technical English
+(short sentences, one meaning per word, technical terms exact), and uses the
+project's ubiquitous language — read from the nearest domain glossary or
+context map per the project's own convention, degrading silently when none
+exists. Re-pitch means re-ground, not compress: it stays out of the batch
+sweep, and a shorter-but-blunter reply is the failure it exists to avoid.
+
+```shell
+/discipline:wait-what   # that didn't land — re-pitch it
 ```
 
 ## Consumer conventions

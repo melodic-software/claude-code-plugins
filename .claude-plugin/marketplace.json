@@ -492,6 +492,12 @@
           "hosts": ["x.com", "www.x.com", "twitter.com", "www.twitter.com", "mobile.twitter.com", "xtomd.com", "threadreaderapp.com"]
         }
       }
+    },
+    {
+      "name": "wizard",
+      "source": "./plugins/wizard",
+      "category": "development",
+      "tags": ["wizard", "setup", "provisioning", "credentials", "ci-secrets", "migration", "cutover", "bash", "skill"]
     }
   ],
   "renames": {

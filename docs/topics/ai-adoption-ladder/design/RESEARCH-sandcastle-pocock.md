@@ -2,6 +2,8 @@
 
 > Memory-tier research artifact. Not committed. Produced by `/discovery:research` on 2026-07-16.
 > Every accepted claim below carries ≥1 primary source (Tier 0 `gh api` / npm registry / Tier 1 fetch) captured THIS run, plus independent corroborators.
+>
+> **Staleness note (2026-08-08, v1.2 sync):** upstream shipped v1.2.x after this run — `writing-great-skills` (rows 14, 16) was breaking-renamed to `writing-for-agents`; six skills were removed (`ubiquitous-language`, `design-an-interface`, `qa`, `request-refactor-plan`, `edit-article`, `obsidian-vault`); star count is now ~210K. Current mapping SSOT: `docs/upstream/mattpocock-skills.md`.
 
 ## Task restatement
 

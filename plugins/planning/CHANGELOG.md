@@ -3,6 +3,38 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.0]
+
+### Added
+
+- **`interview`: opt-in emoji anchors for inline rounds.** New `userConfig` boolean
+  `use_emoji_question_markers` (default off): each round question's `Q<N>:` line leads with ❓
+  and its `My recommendation:` line with ➡️ — decoration of the existing single verdict marker,
+  never a second one. Conversational rendering only; the ledger, register, and Brief stay
+  plain, and `Q<N>` remains the answer handle. (Shape from upstream mattpocock/skills
+  `grilling` v1.2; registry: the marketplace repository's `docs/upstream/mattpocock-skills.md`.)
+- **`wayfind`: parallel research burn-down.** Work mode's one-item-per-session rule gains its
+  one exception: `research`-typed items are autonomous-capable by construction, so a session
+  may claim several individually and dispatch `/discovery:research` per item in parallel;
+  chart mode's hand-off now offers to fire them immediately. `needs-human` items never fan out.
+- **`wayfind`: no-fog bail-out in chart mode.** The skill description already gated
+  model-invocation, but an explicit `chart` invocation bypassed it and the procedure would
+  fabricate a degenerate all-sharp map. Chart step 1 now stops and routes out (interview /
+  work-items / just do it) when the too-big-AND-foggy trigger is not met.
+
+## [0.28.4]
+
+### Changed
+
+- **`questionnaire`, `wayfind`: upstream-provenance notes moved out of the skill bodies.** The
+  `questionnaire` "Upstream provenance" section and `wayfind`'s inline adaptation notes were
+  maintainer-facing bookkeeping in agent-facing files — noise at load time, and the
+  questionnaire line had gone stale (upstream `to-questionnaire` graduated out of in-progress in
+  its v1.2.0). Provenance for all upstream-derived material now lives in the marketplace
+  repository's `docs/upstream/mattpocock-skills.md` registry, which also carries the observable
+  recheck trigger the removed "re-audit opportunistically" wording lacked. Skill behavior is
+  unchanged.
+
 ## [0.28.3]
 
 ### Changed
