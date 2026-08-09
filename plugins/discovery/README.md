@@ -11,13 +11,13 @@ understanding rather than the agent's.
 |---|---|---|
 | `/discovery:explore` | Local | Six-dimension codebase exploration — code reading, git history, project structure, test discovery, build config, environment — persisting an `EXPLORE.md` index plus sidecars. Dispatches `discovery:explorer` by default. |
 | `/discovery:research` | External | Corpus enumeration, then three chained research phases (broad → targeted + falsification → preferred sources) with per-claim source tiers, independent-corroborator ratios, a recency gate, a coverage ledger, and a binary outcome gate before presenting. Dispatches `discovery:researcher` by default. |
-| `/discovery:research-deep` | External, tiered | Dispatcher that routes deep research to the heaviest isolated tier available — a deep-research workflow engine, a subagent, or inline as last resort — with a multi-topic check that fans out one agent per separable topic. Runs in main context itself — the only place both the `Workflow` tool (absent from every non-fork subagent) and a dependable `Agent` spawn are guaranteed. |
+| `/discovery:research-deep` | External, tiered | Dispatcher that routes deep research to the heaviest isolated tier available — a deep-research workflow engine, a `discovery:researcher` subagent, or inline as last resort — with a multi-topic check that fans one `discovery:researcher` out per separable topic. Runs in main context itself — the only place both the `Workflow` tool (absent from every non-fork subagent) and a dependable `Agent` spawn are guaranteed. |
 | `/discovery:blindspot` | Local, user-facing | Surfaces the USER's unknown-unknowns before they work in unfamiliar territory (a codebase area or a domain vocabulary), emitting blindspot cards and coaching one improved prompt. Deliverable is the user's understanding, not `EXPLORE.md`. |
 
 | Agent | Dispatched by | What it does |
 |---|---|---|
 | `discovery:explorer` | `/discovery:explore` | Runs the six dimensions in a fresh context, loads path-scoped project rules explicitly, writes the artifact set, returns a bounded summary and a file pointer. |
-| `discovery:researcher` | `/discovery:research` | Runs the full research discipline in a fresh context, writes the artifact set and coverage ledger, returns a file pointer plus a verification request. |
+| `discovery:researcher` | `/discovery:research`, `/discovery:research-deep` | Runs the full research discipline in a fresh context, writes the artifact set and coverage ledger, returns a file pointer plus a verification request. |
 
 The two artifact-persisting skills (`/discovery:explore`, `/discovery:research`)
 persist handoff artifacts (`EXPLORE.md` / `RESEARCH.md`) so a fresh session can
