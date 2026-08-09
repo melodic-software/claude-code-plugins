@@ -151,28 +151,45 @@ rhymes belong inside a section.
 
 ## Worksheet layout
 
-A practical lyric worksheet can use this structure:
+Chapter 4's own worksheet is ten numbered core words, each heading a single
+undifferentiated column of rhymes:
 
 ```text
 Title / working idea:
 Angle:
 Objective correlative:
 
-Core words:
-1.
-2.
-3.
-...
-
-For each core word:
-- perfect:
-- family:
-- additive/subtractive:
-- assonance:
-- consonance:
-- image/idea notes:
-- keep / maybe / reject:
+1. <core word>     2. <core word>     3. <core word>
+   <rhyme>            <rhyme>            <rhyme>
+   <rhyme>            (<alternate>)      <rhyme>
+   ...                ...                ...
 ```
+
+Parentheses are the chapter's only annotation, and they do two jobs:
+
+- **Alternates** — a whole word held behind a first choice sharing its vowel
+  sound, as in the core-word list's `freeze (wheel, shield)`. This is Stage 2's
+  duplicate-vowel rule written on the page.
+- **Optional morphemes** — a prefix or ending that may or may not be used, as in
+  the columns' `(re)born` and `guarantee(s)`, which record two rhyme candidates
+  in one entry.
+
+There is no keep / maybe / reject field and no notes field. Rejection happens by
+not writing the word down. Keep that convention rather than adding columns the
+worksheet does not have.
+
+**Search by type; record unsorted.** Stage 3 above still runs a separate search
+per rhyme type — each one is a different lookup and skipping any of them loses
+candidates. What the worksheet does not do is keep those searches apart on the
+page. Perfect, family, additive, subtractive, assonance, and consonance results
+land in one column together, and the mixing is the point: the eye scans a single
+field and compares candidates on what they *mean* for this lyric.
+
+Labelled per-type rows turn one choice into five sub-choices and invite filling
+each row to a quota — the opposite of generating a surplus in order to reject
+most of it. Which type a surviving candidate belongs to matters again when
+deciding where it lands, and that stability question is
+[rhyme strategy](rhyme-strategy.md)'s, after the column exists.
 
 Keep the page flexible. Add, remove, and swap core words as the lyric clarifies.
 
@@ -187,7 +204,7 @@ Exercise 9 - Focus and worksheet seed:
 - Save strong idea-words on a separate list.
 - Expand those words with a thesaurus or concept map.
 - Trim to ten or twelve core words with useful stressed vowels.
-- Build rhyme columns for each core word.
+- Build one mixed rhyme column under each core word.
 
 ## Skill workflow
 
@@ -199,6 +216,9 @@ When applying this file:
 4. Select an objective correlative.
 5. Build a core idea-word list.
 6. Trim the list for vowels, stress, and relevance.
-7. Expand rhyme options across perfect and imperfect types.
-8. Mark each word as keep, maybe, or reject.
+7. Search each rhyme type separately — perfect, family, additive, subtractive,
+   assonance, consonance — and record every survivor into one mixed, unsorted
+   column per core word.
+8. Parenthesise alternates and optional morphemes; drop everything else by
+   leaving it off the page.
 9. Draft only after the worksheet contains enough options to say no.
