@@ -45,7 +45,8 @@ concerns its siblings already cover — route rather than re-answer:
   repeated stumble evidence — is `unhobble` (same plugin): this skill judges instruction *text*
   against doctrine; unhobble measures the *model*.
 
-On **memory-layer surfaces** (CLAUDE.md, CLAUDE.local.md, `.claude/rules/`, `~/.claude/rules/`),
+On **memory-layer surfaces** (CLAUDE.md, CLAUDE.local.md, `.claude/rules/`, and `rules/` under the
+user root Phase A resolves),
 this skill runs only the model-era checks I6–I28. It never runs or reports the hygiene checks
 I1–I5 (line-necessity, length, placement, inferable content, rule-to-hook) on these surfaces —
 that instruction-memory hygiene layer belongs to the `claude-memory` plugin. When that plugin is
@@ -75,7 +76,7 @@ never which surfaces are read. Phase A always inventories the full comparison se
 relation between two surfaces and a scoped run still needs the counterpart:
 
 - `claude-md` — findings on user + project CLAUDE.md and CLAUDE.local.md
-- `rules` — findings on `.claude/rules/` and `~/.claude/rules/`
+- `rules` — findings on `.claude/rules/` and `rules/` under the user root Phase A resolves
 - `skills` — findings on skill bodies and their context/reference files
 - `agents` — findings on agent definition markdown
 - `hooks` — findings on hook instruction text: prompt-type hook text, and handler output injected
@@ -174,15 +175,29 @@ official memory and `.claude`-directory docs (cited in the report's Sources line
 
 **The tree does not decide what is live.** Before the inventory is handed to any lane, resolve the
 session's effective liveness controls — the launch directory, the merged `claudeMdExcludes`,
-`--setting-sources`, and the additional-directory inputs — then drop what they exclude and add the
-memory files they contribute. A walk of the project tree alone both invents surfaces that are dead
-in this session and misses live ones that are not in the tree at all. The controls, their official
-sources, and the `liveness-unresolved` marking for values an out-of-session inventory cannot read
-are in [reference/conflict-criteria.md](reference/conflict-criteria.md), which owns the gate; name
-the resolved controls in the report's tier-transparency line.
+`--setting-sources`, the additional-directory inputs, **and effective hook enablement** — then drop
+what they exclude and add the memory files they contribute. A walk of the project tree alone both
+invents surfaces that are dead in this session and misses live ones that are not in the tree at all.
+The controls, their official sources, and the `liveness-unresolved` marking for values an
+out-of-session inventory cannot read are in
+[reference/conflict-criteria.md](reference/conflict-criteria.md), which owns the gate; name the
+resolved controls in the report's tier-transparency line.
+
+**Hook enablement is a liveness control, and configuration alone does not establish it.**
+`disableAllHooks` turns off hooks without removing them, so an enabled plugin's handler, or one wired
+in project settings, sits on disk unable to run — and a gate that cannot run this session constrains
+nothing to compare against. Its reach is all hooks with exactly one carve-out, and that carve-out is
+what makes this a per-scope resolution rather than a per-file one: set in user, project, or local
+settings it cannot disable **managed** hooks, so managed hook text stays live against it and must not
+be dropped with the rest; only a managed-level `disableAllHooks` reaches those too. The mirror
+control, `allowManagedHooksOnly`, cuts the other way and blocks user, project, and plugin hooks,
+exempting plugins force-enabled in managed `enabledPlugins`. Omit every hook surface they disable —
+both kinds, prompt-type and context-injecting alike, since neither reaches this session when the
+handler never fires — and report both resolved values with the other controls.
 
 Exclude from the **editable** set, and hold for the routing subsection: auto-memory
-(`~/.claude/projects/<project>/memory/`, owned by `claude-memory`), installed plugin-cache content,
+(`projects/<project>/memory/` under the resolved user root, owned by `claude-memory`), installed
+plugin-cache content,
 and any managed materialization per the Scope boundary. Record each surface found and each surface
 skipped, so the report's tier-transparency line can name both.
 
@@ -193,7 +208,10 @@ involving one still carries the no-change representation and its routing recomme
 
 - **Auto memory, when it is on** — the `MEMORY.md` entrypoint at the effective auto-memory location
   (the highest-precedence scope that sets `autoMemoryDirectory`, otherwise
-  `~/.claude/projects/<project>/memory/`). **Resolve the effective enabled state first, by
+  `projects/<project>/memory/` under the **resolved** user root above, never a hardcoded
+  `~/.claude` — `CLAUDE_CONFIG_DIR` moves `projects/` with the rest of the tree, so a hardcoded
+  default misses the live `MEMORY.md` and compares against a store the session no longer
+  writes). **Resolve the effective enabled state first, by
   precedence — not by any single scope's value.** `CLAUDE_CODE_DISABLE_AUTO_MEMORY` is authoritative
   wherever it is set (`=1` off, `=0` on, even against `autoMemoryEnabled: false`); with the variable
   unset, apply settings precedence (managed > local > project > user) to `autoMemoryEnabled`, which
@@ -209,6 +227,21 @@ involving one still carries the no-change representation and its routing recomme
   actually loads is compared (the first 200 lines or 25KB); topic files beside it are read on demand
   and are not resident. Ownership is unchanged: `claude-memory` still owns auto memory, and a finding
   here routes there rather than editing it.
+- **Each enabled agent's own memory, under that same gate** — an agent definition carrying a
+  `memory` field gets its **own** memory directory, separate from the main conversation's and named
+  per agent, and that subagent reads and writes its own `MEMORY.md` there. The field's value is the
+  scope, and each scope has its own location: `user` → `agent-memory/<name-of-agent>/` under the
+  **resolved** user root above (never a hardcoded `~/.claude`, for the reason the entry above gives),
+  `project` → `.claude/agent-memory/<name-of-agent>/`, `local` →
+  `.claude/agent-memory-local/<name-of-agent>/`.
+  [reference/conflict-criteria.md](reference/conflict-criteria.md) keeps an agent-definition-versus-
+  its-own-memory contradiction in scope precisely because those two *do* co-reside in that subagent,
+  so this inventory has to reach it: enumerate that `MEMORY.md` for every inventoried agent whose
+  definition enables the field, under the same loaded-portion bound. The gate is the effective state
+  resolved just above: subagent memory is part of auto memory, so with auto memory off the `memory`
+  field has no effect and the subagent launches without the memory instructions or the memory tool
+  access — an agent memory left on disk after the switch flipped is not inventoried.
+  Read-only and `claude-memory`-owned exactly as the main entrypoint is.
 - **Org-managed policy** — the managed-policy `CLAUDE.md`, any `claudeMd` value in managed settings,
   and hook instruction text configured in managed settings, of **both** kinds above. All three are
   live instruction text, and a managed hook contradicting a project skill is exactly the conflict I15
@@ -398,5 +431,8 @@ catalog).
 - Not memory-layer hygiene — checks I1–I5 on CLAUDE.md/rules route to `claude-memory`'s `audit`
   skill when installed, and upstream-owned plugin-cache or managed materializations route to the
   owning repository rather than being edited here.
-- Does not grade a contradiction whose two halves both sit in project-scope `CLAUDE.md` /
-  `CLAUDE.local.md` / `.claude/rules/**` — that is `claude-memory:audit`'s C6.
+- Does not grade a contradiction whose two halves both sit in **root-level** project `CLAUDE.md` /
+  `CLAUDE.local.md` / `.claude/rules/**` — that is `claude-memory:audit`'s C6. A **nested**
+  `CLAUDE.md` / `CLAUDE.local.md` side keeps the pair here, because C6 never discovers that file;
+  [reference/conflict-criteria.md](reference/conflict-criteria.md) owns the routing table and its
+  evidence.
