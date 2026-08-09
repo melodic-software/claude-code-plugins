@@ -92,15 +92,11 @@ Per-tier targets: [reference/cleanup-config.md](reference/cleanup-config.md). Sc
 
 ## Workflow
 
-### 0. Resolve action
+### 0. Resolve action and repo root
 
 Run `resolve-clean-action.sh`. If `Action: menu`, show table + ask. Otherwise dispatch to the matching § below. **Never `--apply` on first invocation.**
 
-### 0. Resolve repo root
-
-```bash
-REPO_ROOT=$(git rev-parse --show-toplevel)
-```
+- Repo root for the run: `REPO_ROOT=$(git rev-parse --show-toplevel)`
 
 ### 1. Scan (`scan`)
 

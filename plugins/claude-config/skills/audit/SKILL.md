@@ -55,6 +55,7 @@ Parse `$ARGUMENTS` for:
 | `.claude/settings.local.json` | `jq` via Bash only | Commonly deny-listed for the Read tool because it holds tokens. Parse structure/key counts only. **Never echo secret values** |
 | `.mcp.json` | Read tool or `jq` | Project-level MCP server definitions |
 | `~/.claude/settings.json` | Read tool | User-level defaults (optional — check if exists) |
+| `managed-settings.json` + `managed-settings.d/` | `check-structure.sh` (structure only) | Machine-scope managed policy, the highest-precedence layer. OS-specific path resolved by the script (macOS `/Library/Application Support/ClaudeCode/`, Linux/WSL `/etc/claude-code/`, Windows `%ProgramFiles%\ClaudeCode\`). Findings on it are report-only routing — managed policy is the administrator's, never edited by `--fix` |
 
 ### Reading settings.local.json safely
 
@@ -173,6 +174,7 @@ Present all findings as a severity-rated GFM table:
 
 | # | Category | Severity | Finding | Current | Recommended |
 | --- | --- | --- | --- | --- | --- |
+| 1 | B — Permissions | error | Deny rule placed in `settings.local.json`, where bug #8961 leaves it inert | `settings.local.json` → `permissions.deny: ["Bash(rm -rf:*)"]` | Move the rule into `settings.json`; keep `settings.local.json` deny empty |
 
 ### Severity guide
 

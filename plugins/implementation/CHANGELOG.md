@@ -3,6 +3,33 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.1]
+
+### Added
+
+- **The TDD cadence now defines "minimum to pass" so it cannot be satisfied by gaming the
+  assertion.** "Implement the minimum to pass (green)" is exactly the phrasing a literal model can
+  meet by hardcoding the test's expected values, special-casing its inputs, or weakening the
+  assertion. Step 2 now states that the minimum means the smallest *correct* implementation, and
+  requires a deliberate, stated correction when the test itself is wrong.
+- **`feature.md` gained a gold-plating pitfall.** Its sibling `bugfix.md` has carried "Fix minimally"
+  all along, and `SKILL.md`'s scope-creep guard only routes a *bigger task* back to planning — it
+  never addressed building beyond an agreed slice. The new pitfall sets the bar at a second caller
+  existing rather than being anticipated.
+
+## [0.12.0]
+
+### Changed
+
+- **`implement`: the mid-phase handoff no longer triggers on a self-estimated context budget.** The
+  guidance read "Mid-phase handoff is still appropriate when context is heavy or a pause is
+  imminent", which asks the model to judge its own window and hand off on that judgement — the shape
+  the `claude-config` instruction-audit catalog's check I23 detects, and the same clause removed from
+  `session-flow`'s `handoff` in this pass. The licensed triggers are now an imminent pause, the
+  user's report, an instrument that measures the window, or visible drift in the responses; a budget
+  reading is a measurement, not a decay signal. Writing the ad-hoc note stays exactly as valuable as
+  before — only the trigger that invented the occasion is gone.
+
 ## [0.11.0]
 
 ### Changed
