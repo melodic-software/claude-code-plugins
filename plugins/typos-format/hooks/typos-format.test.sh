@@ -498,6 +498,39 @@ else
   fail "stub/partial: applied count wrong: $CTX_PT"
 fi
 
+# The attribution step above is per-cluster, and a cluster is ONE token+corrections
+# pair repeated. The other scale fixtures cannot see a regression in it: they
+# repeat DISTINCT tokens, each uniformly applied or uniformly residual, so no
+# cluster ever combines size with a partial outcome. Sizing this one at 500 would
+# be equally blind — the quadratic form this logic replaced measured 0.07s at 500
+# and 31s at 10,000. 5,000 is the floor that separates them (9.3s quadratic,
+# 0.7s linear), and it must stay under the handler's 15s timeout, because
+# classification runs AFTER the file is rewritten: blowing the budget here is a
+# silent mutation with no disclosure, the failure this hook exists to prevent.
+PARTIAL_N=5000
+: >"$STUB_REPO/partial-scale.txt"
+for _i in $(seq 1 "$PARTIAL_N"); do
+  if ((_i % 1000 == 0)); then
+    printf 'keepteh line %s has teh here\n' "$_i" >>"$STUB_REPO/partial-scale.txt" # spellchecker:disable-line
+  else
+    printf 'line %s has teh here\n' "$_i" >>"$STUB_REPO/partial-scale.txt" # spellchecker:disable-line
+  fi
+done
+PS_START=$(date +%s)
+OUT_PS=$(run_stub "$STUB_REPO/partial-scale.txt" STUB_PARTIAL=1)
+PS_ELAPSED=$(($(date +%s) - PS_START))
+CTX_PS=$(printf '%s' "$OUT_PS" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+if printf '%s' "$CTX_PS" | grep -q "REWROTE $((PARTIAL_N - 5)) word"; then
+  ok "stub/partial-scale: the applied count is exact across $PARTIAL_N repeats of one token"
+else
+  fail "stub/partial-scale: applied count wrong at scale: $(printf '%s' "$CTX_PS" | head -1)"
+fi
+if [[ "$PS_ELAPSED" -lt 10 ]]; then
+  ok "stub/partial-scale: completed in ${PS_ELAPSED}s, inside the handler's 15s timeout"
+else
+  fail "stub/partial-scale: took ${PS_ELAPSED}s — quadratic attribution regression?"
+fi
+
 # --- Disclosure is capped ----------------------------------------------------
 # A file with hundreds of corrections must not turn the disclosure into the
 # unbounded context flood it exists to prevent.

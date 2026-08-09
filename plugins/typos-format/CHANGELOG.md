@@ -27,7 +27,13 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
   moved the attribution is exact and only a real reflow falls back to dropping the earliest. Without
   that preference a token appearing three times with only the middle one residual reported the
   residual line as applied and dropped a rewrite that really happened. The count is the guarantee;
-  the applied line numbers are best-effort for a repeated finding that genuinely moved.
+  the applied line numbers are best-effort for a repeated finding that genuinely moved. That
+  preference is a linear partition over an object lookup rather than a sort over `index`, for the
+  same reason the membership check beside it is an object: `index` is a linear scan, and one per
+  entry over a cluster of repeats is quadratic — 10,000 repeats of one token measured 31s against
+  the 15s handler budget, and 0.07s at the 500 the existing scale fixtures use, so a fixture that
+  size cannot see it. Classification runs after the file is already rewritten, so blowing that
+  budget is a silent mutation with no disclosure.
   The trade is deliberate and
   one-directional: counting can only UNDER-report an applied correction (a missing disclosure
   line), never invent one. Still unclosed, and stated in the source: a concurrent writer that

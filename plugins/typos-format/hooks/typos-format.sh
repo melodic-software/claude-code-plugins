@@ -363,14 +363,23 @@ CLASSIFIED=$(printf '%s\n@@typos-format-split@@\n%s\n' "$SCAN_OUTPUT" "$RESIDUAL
     # the guarantee and the applied LINE numbers are best-effort for a repeated
     # finding. Without the line preference, a token appearing three times with
     # only the middle one residual would report the residual line as applied and
-    # drop a rewrite that really happened. jq sorts stably, so equal-rank
-    # entries keep scan order. The final sort undoes group_by clustering so the
-    # disclosure still reads in file order — the order a person checking the
-    # rewrites reads the file in.
+    # drop a rewrite that really happened. The preference is a partition into two
+    # `map`s over an OBJECT lookup, not a sort over `index` — same reason the
+    # membership check above is an object and not `index`: `index` is a linear
+    # scan, and one per entry over a k-entry cluster is quadratic, which at
+    # 10,000 repeats of one token measured 31s against the 15s handler budget
+    # (0.07s at the 500 the scale fixtures use, so a fixture that size cannot
+    # see it). Partitioning keeps both passes linear and, being two ordered
+    # `map`s, preserves scan order within each side for free. The final sort
+    # undoes group_by clustering so the disclosure still reads in file order —
+    # the order a person checking the rewrites reads the file in.
     | (parse($lines[0:$sep])
        | group_by(tokof)
        | map(($reslines[(.[0] | tokof)] // []) as $rl
-             | sort_by((.line_num // 0) as $ln | if ($rl | index($ln)) then 0 else 1 end)
+             | (reduce $rl[] as $ln ({}; .["\($ln)"] = true)) as $rlset
+             | . as $g
+             | ($g | map(select($rlset[("\(.line_num // 0)")])))
+               + ($g | map(select($rlset[("\(.line_num // 0)")] | not)))
              | .[($rl | length):])
        | add // []
        | sort_by(.line_num // 0)) as $a
