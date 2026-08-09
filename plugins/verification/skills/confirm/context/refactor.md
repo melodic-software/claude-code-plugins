@@ -35,7 +35,7 @@ What behavior should be preserved? This defines what to test:
 
 ### 3. Run the full test suite
 
-Not just tests for the refactored code — ALL tests in affected projects. Refactors can break distant consumers.
+Not just tests for the refactored code — all tests in affected projects. Refactors can break distant consumers.
 
 The Stage 1 mechanical-prerequisite results from `/verification:confirm` provide this. If Stage 1 passed, that's the primary evidence.
 

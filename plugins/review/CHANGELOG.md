@@ -3,6 +3,22 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.1]
+
+### Changed
+
+- **`ci-log-auditor`: the 500-word output budget now says what to do when findings exceed it.** A hard
+  word cap on a finding-bearing report with no overflow rule leaves dropping findings as the only way
+  to comply — the opposite of the never-drop normalization `fanout` applies to the same findings. The
+  agent now keeps every finding row and compresses evidence and recommendations instead.
+
+- **`quality-gate` criteria mode: the five-step "Applying criteria to changes" list is one sentence.**
+  The steps enumerated a procedure the model already performs, and step 2's change-nature taxonomy
+  (new feature, refactor, bug fix, config) routed nothing — no other file in the plugin reads it, and
+  step 1 matched on the change's surfaces rather than its nature. The replacement keeps all three
+  load-bearing elements: grounding in the actual changes, selectivity, and the resolved severity
+  vocabulary. The skip-list paragraph and the "How to use" routing list are untouched.
+
 ## [0.17.0]
 
 ### Added
