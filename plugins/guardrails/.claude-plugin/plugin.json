@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "guardrails",
   "version": "0.20.0",
-  "description": "Twelve safety guards that block secret/credential writes, hardcoded machine-specific paths, git hook-bypass attempts, irreversible git operations (force-push, reset --hard, worktree-wide checkout/restore discards), Bash file-write workarounds that circumvent Write/Edit hooks, commit subjects and gh pr create titles that violate the repo's tracked team convention (when one is declared in .claude/source-control.md), (advisory) hallucinated CLI flags, (advisory) /plugin:skill references that do not resolve, (advisory) markdown citing a repo path the repo's own history shows was removed, (advisory) un-throttled Workflow fan-out that risks burst 529s, and (advisory) direct git commit/gh pr create calls bypassing this marketplace's own commit/pull-request skills — each independently toggleable.",
+  "description": "Twelve safety guards that block secret/credential writes, hardcoded machine-specific paths, git hook-bypass attempts, irreversible git operations (force-push, reset --hard, worktree-wide checkout/restore discards), Bash file-write workarounds that circumvent Write/Edit hooks, multi-line `git commit -m` messages (an actual-newline `-m` mangles across shells; single-line `-m` passes), commit subjects and gh pr create titles that violate the repo's tracked team convention (when one is declared in .claude/source-control.md), (advisory) hallucinated CLI flags, (advisory) /plugin:skill references that do not resolve, (advisory) markdown citing a repo path the repo's own history shows was removed, (advisory, opt-in) un-throttled Workflow fan-out that risks burst 529s, and (advisory, opt-in) direct gh pr create calls bypassing this marketplace's own pull-request skill — each independently toggleable.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
@@ -53,7 +53,7 @@
     "block_noncanonical_commit_enabled": {
       "type": "boolean",
       "title": "block-noncanonical-commit guard",
-      "description": "Block `git commit` that does not pipe its message via `-F -`; --amend, -C/-c, --fixup/--squash, -F <path>, and an in-progress merge/rebase are exempt",
+      "description": "Block `git commit -m` when the message actually contains a newline (multi-line `-m` mangles across shells — pipe it via `-F -` instead; single-line `-m` passes); --amend, -C/-c, --fixup/--squash, -F <path>, and an in-progress merge/rebase are exempt",
       "default": true
     },
     "block_convention_gate_enabled": {
@@ -83,14 +83,14 @@
     "workflow_resilience_check_enabled": {
       "type": "boolean",
       "title": "workflow-resilience-check guard",
-      "description": "Advise on un-throttled Workflow fan-out (never blocks)",
-      "default": true
+      "description": "Advise on un-throttled Workflow fan-out (never blocks). Default off since 0.20.0: a behavioral-class prose injector, config-disabled per the instruction-economy evidence gate (#2021) — set true to opt back in",
+      "default": false
     },
     "flag_commit_pr_skill_bypass_enabled": {
       "type": "boolean",
       "title": "flag-commit-pr-skill-bypass guard",
-      "description": "Advise when direct git commit / gh pr create bypasses the source-control skills (never blocks)",
-      "default": true
+      "description": "Advise when a direct gh pr create bypasses the source-control pull-request skill (never blocks). Default off since 0.20.0: a behavioral-class prose injector, config-disabled per the instruction-economy evidence gate (#2021) — set true to opt back in",
+      "default": false
     },
     "cli_flag_verify_bins": {
       "type": "string",
@@ -113,7 +113,7 @@
     "block_noncanonical_commit_allow": {
       "type": "string",
       "title": "block-noncanonical-commit allow-list",
-      "description": "Comma-separated form tokens to allow (currently: message-flag, which permits a bare `-m`)",
+      "description": "Comma-separated form tokens to allow (currently: message-flag, which permits `-m` even when the message contains a newline)",
       "default": ""
     },
     "block_no_verify_hook_manager_prefixes": {
