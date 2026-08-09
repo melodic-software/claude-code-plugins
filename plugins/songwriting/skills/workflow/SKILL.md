@@ -12,7 +12,8 @@ Every craft output in this plugin runs the applicable section of
 [response-filter](../../context/pat-pattison/research/response-filter.md) before emission — the gate
 that activates the discipline. When this skill coaches or produces material directly, run **§4
 Coaching posture** (and the output-type section for anything emitted). NAME each box's pass / fail /
-skip-with-reason; correct before emission. Skips are valid; silent skips are not.
+skip-with-reason (aloud or in reasoning); correct before emission. Skips are valid; silent skips
+are not.
 
 ## Purpose
 

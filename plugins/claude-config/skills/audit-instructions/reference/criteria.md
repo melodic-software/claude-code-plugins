@@ -1,5 +1,5 @@
 ---
-version: 1.20.0
+version: 1.21.0
 last-updated: 2026-08-08
 ---
 
@@ -90,7 +90,7 @@ non-memory surfaces (skill bodies, agent definitions, hook instruction text, out
 memory-layer surfaces (CLAUDE.md, CLAUDE.local.md, `.claude/rules/`, `~/.claude/rules/`) their
 findings route to the `claude-memory` plugin's `audit` skill when it is installed, and fall back
 to the official include/exclude guidance (I1–I5 source below) when it is not. Checks I6–I12 and
-I15–I27 apply to all surfaces; I13 and I14 name narrower surface sets in their own rows.
+I15–I28 apply to all surfaces; I13 and I14 name narrower surface sets in their own rows.
 
 ## Sources
 
@@ -283,36 +283,51 @@ so this fires for every target model.
 
 Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surfaces: all.
 
-The base row and rows I8-a, I8-c and I8-d carry their own `Model scope` (single-model guide
-sources; promotion gate unmet). Rows I8-b and I8-e are unscoped — two model guides converge on
-each (see the rows).
+Rows I8-a, I8-c and I8-d carry their own `Model scope` (single-model guide sources; promotion
+gate unmet). The base row and rows I8-b and I8-e are unscoped — a model-agnostic statement or
+convergent model guides meet the gate for each (see the rows); the base row's delegation-throttle
+worked instance keeps a `fable-5` scope of its own.
 
-**Base row** · Model scope: `fable-5`.
+**Base row** · Unscoped — promotion gate MET on 2026-08-08: the model-agnostic best-practices page
+states the claim under its all-current-models framing — "Prefer general instructions over
+prescriptive steps. A prompt like 'think thoroughly' often produces better reasoning than a
+hand-written step-by-step plan. Claude's reasoning frequently exceeds what a human would
+prescribe." (Previously scoped `fable-5` on that guide's statement alone.) **The worked instance
+below keeps a `fable-5` scope of its own** — its basis is Fable-specific and the Opus guides run
+the other way.
 
 - **Detect:** prior-model workarounds and over-prescriptive step lists — instructions enumerating
   behaviors a current model handles from a brief instruction, or scaffolding that pins an approach.
-  **One named worked instance, offered for recognition rather than as a separate rule: a delegation
-  throttle** — a cap on concurrent workers, a one-at-a-time rule, or an instruction to block until
-  each subagent returns before dispatching the next — where the surface's own ground for it is that
-  subagent handling is unreliable. Current guidance runs the other way, asking for readier
-  dispatch and asynchronous orchestrator-to-worker communication, so a throttle resting on that
-  premise is the generic case with a name on it. **A cap carrying its own non-model rationale is
+  **One named worked instance, offered for recognition rather than as a separate rule, and fired
+  only on a `fable-5` resolved target: a delegation throttle** — a cap on concurrent workers, a
+  one-at-a-time rule, or an instruction to block until each subagent returns before dispatching the
+  next — where the surface's own ground for it is that subagent handling is unreliable. The Fable 5
+  guide runs the other way, asking for readier dispatch and asynchronous orchestrator-to-worker
+  communication, so a throttle resting on that premise is the generic case with a name on it. On
+  `opus-5` and `opus-4-8` targets this instance is inert, not merely unattested: those guides
+  recommend delegation caps and note fewer spawns by default, so a throttle there is the
+  recommended shape rather than a workaround. **A cap carrying its own non-model rationale is
   not this instance** — reviewability of returns, rate limits, cost, or shared mutable state each
   justify a bound on their own terms, and that justification is the surface's to make, not this
   row's to override.
 - **Remediate:** propose removal or a briefer instruction; verify via the delete-and-watch loop
   that default performance holds or improves.
 - **Bounded by:** the **Stopping condition** below, which is enabled by default.
-- **Source:** Fable 5 guide — "Skills developed for prior models are often too prescriptive for
-  Claude Fable 5 and can degrade output quality." The worked instance's basis is the same guide,
-  "Parallel subagents" — "Claude Fable 5 dispatches parallel subagents more readily than prior
-  models. Use subagents frequently … and prefer asynchronous communication between orchestrator and
-  subagents over blocking until each subagent returns."
-- **The general principle, and why it is cited separately.** Both sentences above sit in sections
-  about *migrating* older material, and a reader taking them as the whole basis sweeps for what
-  looks like leftover prior-model scaffolding — walking straight past freshly authored
-  over-enumeration, which is the same defect with no legacy provenance to recognize it by. The
-  principle is stated on its own in "Strong instruction following": "Instruction-following is
+- **Source:** prompting best practices, "Leverage thinking & interleaved thinking capabilities" —
+  the prefer-general-instructions statement quoted above (the gate-meeting, model-agnostic one).
+  Convergent model guide: Fable 5 — "Skills developed for prior models are often too prescriptive
+  for Claude Fable 5 and can degrade output quality." The worked instance's basis is the same
+  guide, "Parallel subagents" — "Claude Fable 5 dispatches parallel subagents more readily than
+  prior models. Use subagents frequently … and prefer asynchronous communication between
+  orchestrator and subagents over blocking until each subagent returns"; its Opus counter-basis is
+  the Opus 5 guide's "Controlling subagent spawning" ("set deterministic caps … keep spawn counts
+  low") and the Opus 4.8 guide's "Controlling subagent spawning" ("tends to spawn fewer subagents
+  by default").
+- **The general principle, and why it is cited separately.** The migration-framed sentences above
+  point a reader at what looks like leftover prior-model scaffolding — walking straight past
+  freshly authored over-enumeration, which is the same defect with no legacy provenance to
+  recognize it by. The principle is also stated on its own in the Fable 5 guide's "Strong
+  instruction following": "Instruction-following is
   improved enough that you can steer most behaviors with a brief instruction rather than enumerating
   each behavior by name," and that guide's own worked case is a *newly written* brevity
   instruction replacing a list of patterns, not a migration. **Age is not an element of this row.**
@@ -1223,7 +1238,11 @@ not a `Model scope` annotation**, for the reason I17 states.
   where `high` was the no-op default and then carried to a model whose default sits above it, it
   silently becomes a step-down nobody measured — this row's subject exactly. A resolved target
   always exists, because the skill body aborts rather than run against an unresolved one, so this
-  fence never has to guess which side of it a surface falls on.
+  fence never has to guess which side of it a surface falls on. **The exemption speaks to
+  calibration staleness only, never to level adequacy:** a model guide may recommend running above
+  the default for named lanes — the Opus 4.8 guide recommends `xhigh` for coding and agentic use —
+  and whether a `high` pin under-serves such a lane is that surface's sizing decision, outside this
+  row's subject.
 - **Must NOT flag: a per-task or single-turn effort choice** — "reach for `xhigh` on hard problems",
   `ultrathink`, `ultracode` — which selects a level for one piece of work rather than pinning one.
   This row is about durable pins.
@@ -1554,6 +1573,42 @@ gate is unmet).
   effort page's Opus 5 section, both fetched that day. **Recheck trigger:** either page restating
   the property model-agnostically or a second model guide stating it (gate met → unscope), or
   either statement disappearing from its page.
+
+### I28: Over-aggressive trigger emphasis and blanket tool defaults
+
+Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surfaces: all. Unscoped —
+the claim sits on the model-agnostic best-practices page, its Migration considerations restate it
+generation-wide ("Claude 4.6 models are more proactive and may overtrigger on instructions that
+were needed for previous models"), and no later model guide reverses it; the Sonnet 5 and Opus 4.8
+literalism sections ("interprets prompts literally and explicitly") corroborate the mechanism.
+
+- **Detect — two arms of one defect, prompting written against undertriggering that no longer
+  exists:**
+  1. **Forced-compliance emphasis** on tool, skill, or behavior triggering — `CRITICAL:`,
+     `You MUST use`, `IMPORTANT:`, all-caps imperative runs — where the emphasis exists to make a
+     trigger fire rather than to mark a genuine gate.
+  2. **Blanket tool defaults** — "Default to using [tool]", "If in doubt, use [tool]" — where a
+     targeted condition was the intent.
+- **Must NOT flag: emphasis guarding a high-consequence area** — a safety gate, a destructive or
+  irreversible action, a security or permission boundary, an external contract — the same
+  carve-out set the Stopping condition applies; a loud marker on the step where being wrong is
+  expensive is design, not scar tissue. **Must NOT flag: a stated hard precondition** — an
+  ordering an API genuinely requires ("resolve the ID first; the call fails without it") is a
+  fact, however emphatically set. **Must NOT flag: a document *about* the pattern**, on the same
+  audience test I8-b applies — this row is the canonical instance.
+- **Remediate:** arm 1 — normal conditional phrasing: "Use this tool when …". Arm 2 — replace the
+  blanket default with the condition it was standing in for: "Use [tool] when it would enhance
+  your understanding of the problem." Verify via the delete-and-watch loop; watch for
+  overtriggering receding, not just continued triggering.
+- **Source:** prompting best practices, "Tool usage" — prompts "designed to reduce undertriggering
+  on tools or skills … may now overtrigger. The fix is to dial back any aggressive language. Where
+  you might have said 'CRITICAL: You MUST use this tool when…', you can use more normal prompting
+  like 'Use this tool when…'"; "Overthinking and excessive thoroughness" — "Replace blanket
+  defaults with more targeted instructions … Instructions like 'If in doubt, use [tool]' will
+  cause overtriggering"; "Migration considerations" — "Tune anti-laziness prompting".
+- **Verified 2026-08-08** against that page, fetched as raw markdown. **Recheck trigger:** those
+  three sections changing, or any model guide stating that a current model undertriggers and needs
+  emphasis restored — that would re-open the scoping question.
 
 ---
 

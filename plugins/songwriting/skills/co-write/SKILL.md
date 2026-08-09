@@ -11,7 +11,8 @@ disable-model-invocation: false
 Before emitting titles, line/section option dumps, or co-write feedback, run **§5 Title + hook**
 and **§2 Line-writing** of [response-filter](../../context/pat-pattison/research/response-filter.md)
 (add **§4 Coaching posture** when facilitating a live session). NAME each box's pass / fail /
-skip-with-reason; correct before emission. Skips are valid; silent skips are not.
+skip-with-reason (aloud or in reasoning); correct before emission. Skips are valid; silent skips
+are not.
 
 ## Purpose
 

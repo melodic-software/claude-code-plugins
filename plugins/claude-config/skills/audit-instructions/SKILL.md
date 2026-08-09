@@ -19,7 +19,7 @@ locally-owned instruction surfaces, cites each finding to current official promp
 it by how confident the evidence can be, and packages proposed removals or rewrites as a human-gated
 diff — so instruction surfaces shrink as models get better instead of only ever growing.
 
-The check catalog — the checks I1–I27, their evidence tier, authority tag, severity, per-surface
+The check catalog — the checks I1–I28, their evidence tier, authority tag, severity, per-surface
 applicability, and the `OPINION`-tier enablement policy — lives in
 [reference/criteria.md](reference/criteria.md); the deterministic pre-scan is
 `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/instruction-scan.sh`.
@@ -46,7 +46,7 @@ concerns its siblings already cover — route rather than re-answer:
   against doctrine; unhobble measures the *model*.
 
 On **memory-layer surfaces** (CLAUDE.md, CLAUDE.local.md, `.claude/rules/`, `~/.claude/rules/`),
-this skill runs only the model-era checks I6–I27. It never runs or reports the hygiene checks
+this skill runs only the model-era checks I6–I28. It never runs or reports the hygiene checks
 I1–I5 (line-necessity, length, placement, inferable content, rule-to-hook) on these surfaces —
 that instruction-memory hygiene layer belongs to the `claude-memory` plugin. When that plugin is
 installed, route memory-layer hygiene to its `audit` skill; when it is not installed, emit a single
@@ -272,8 +272,10 @@ assumptions, whose phrasings are too varied for a pattern that would earn its fa
 `I8-e` forced interim-status cadence is likewise unseeded, but on a narrower ground — its skeleton is
 patternable, and it waits only on an attested instance to calibrate the interval forms against), I23
 (self-estimated context-budget phrasing — the budget clause alone, never the stop/summarize/hand-off
-verb it licenses, which routinely sits in a different sentence), and I27 (effort-for-brevity: an
-effort-lowering directive paired with a brevity token on one line); `--count` prints the row count.
+verb it licenses, which routinely sits in a different sentence), I25 (retired sampling parameters),
+I27 (effort-for-brevity: an effort-lowering directive paired with a brevity token on one line), and
+the I28 families (`I28-a` forced-compliance emphasis, case-sensitive; `I28-b` blanket tool
+defaults); `--count` prints the row count.
 Advisory — a grep cannot judge whether a rationale is genuinely present, whether a restraint clause
 is a reporting gate, whether a budget mention is a directive or the counter-steer against one, or
 which model a row targets, so the lane refines every candidate against the catalog's fences and the
