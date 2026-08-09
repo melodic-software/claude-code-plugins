@@ -40,17 +40,20 @@ A missing or mismatched token is a **hard failure: the parent discards the run**
 
 **Post-dispatch acceptance gate — parent-side, before the payload is believed.** `status: complete` is the agent's claim about its own run, and a claim is not evidence. Grade the run **off disk**, against the memory-slice path from the parent's own pre-dispatch envelope — **carry that path across the dispatch, because it is this gate's input** — and never a path read out of the payload, because the failure this gate exists to catch is a payload that comes back carrying no pointer at all. In order:
 
-**Pre-dispatch, one command:** `touch <the memory-slice path>/.explore-dispatch`. That is the gate's freshness baseline, and without it a slice that already holds an earlier run's artifact set passes every on-disk check even when this dispatch wrote nothing at all.
+**Pre-dispatch, one command:** `mkdir -p <the memory-slice path> && touch <that slice>/.explore-dispatch`. That is the gate's freshness baseline, and without it a slice that already holds an earlier run's artifact set passes every on-disk check even when this dispatch wrote nothing at all. The `mkdir -p` is not decoration: on a first-time scope the slice does not exist yet, a bare `touch` fails there, and the dispatch either stops before it starts or reaches a gate with no baseline to grade against. The memory root's self-ignoring `.gitignore` guard remains the agent's obligation, per its own contract.
 
 1. **The payload is well-formed** — `preload_token` matches the sentinel verbatim, and an `artifact:` pointer is present. Missing either is a **failed dispatch** whatever the `status` field says; a missing token is a discard, per the rule above.
 2. **The artifact set is actually on disk, and this run put it there:**
 
    ```bash
-   bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-explore-artifact.sh" <the retained memory-slice path> \
+   bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-dispatch-artifact.sh" <the retained memory-slice path> \
+     --index-name EXPLORE.md \
      --newer-than <that slice>/.explore-dispatch --expect-index <the payload's artifact: value>
    ```
 
-   Cite the **exit status** — 0 usable, 1 no usable artifact set, 2 ungradeable — not a reading of the directory, because the context most motivated to call the dispatch finished is the one that would be doing the reading. It fails closed. Only the slice path is required, and the bare form is still a real gate; every optional check reports `unchecked` in the output line rather than passing quietly, so a skipped one never reads as a passed one. Append `--expect-sidecars <n>` when the payload reported a `sidecars:` count, and drop any flag whose value the payload did not supply — the malformed payload this gate exists to catch has no such fields, and substituting `0` or a guessed path asks the gate a question the run never answered.
+   `--index-name` is required, not defaulted — the same gate grades `/discovery:research` runs, the two artifact families differ only in that name, and a gate that fails closed everywhere else must not guess which family it is looking at.
+
+   Cite the **exit status** — 0 usable, 1 no usable artifact set, 2 ungradeable — not a reading of the directory, because the context most motivated to call the dispatch finished is the one that would be doing the reading. It fails closed. Only the slice path and `--index-name` are required, and that bare form is still a real gate; every optional check reports `unchecked` in the output line rather than passing quietly, so a skipped one never reads as a passed one. Append `--expect-sidecars <n>` when the payload reported a `sidecars:` count, and drop any flag whose value the payload did not supply — the malformed payload this gate exists to catch has no such fields, and substituting `0` or a guessed path asks the gate a question the run never answered.
 
    **The `index=` path in that output is authoritative** for everything downstream — the verifier's target and the handoff pointer both come from it, not from `artifact:`. `pointer=mismatch` means the payload named a file this gate never graded, which is a defect in the payload rather than a naming preference to reconcile.
 
