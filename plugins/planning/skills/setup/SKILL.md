@@ -1,5 +1,4 @@
 ---
-name: setup
 description: "Verify and configure the planning plugin for this repository across its two concerns. check inspects read-only the topic-docs seam (.claude/topic-docs.yaml effective values, committed-tier conflict) and the standards index presence; apply resolves where topic documents land (persisting .claude/topic-docs.yaml) and bootstraps the standards index (docs/standards/ and, on relocation, .claude/standards.yaml). Use when: 'set up planning', 'is planning configured', 'configure the planning plugin', 'planning setup', 'where do planning artifacts land', 'set up standards', 'bootstrap the standards index', or a planning skill reports missing or thin config. Re-runnable — safe to invoke again to reconfigure or migrate."
 argument-hint: "check | apply"
 user-invocable: true

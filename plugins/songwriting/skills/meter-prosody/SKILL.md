@@ -1,5 +1,4 @@
 ---
-name: meter-prosody
 description: "Scan lines and make structure serve meaning with Pat Pattison's methods — meter (scansion, Paradigms I/II/III, Pentad, Goldilocks, the 'into' rule, In Memoriam quatrain, pitch-stress), prosody (motion-emotion, greedy spots, tone-of-voice, three phrasing types), section stability (stable/unstable scan), and lyric-melody alignment. Use when: 'scan this line', 'can this be common meter', 'is this verse stable or unstable', 'my words don't fit the music', 'greedy spot in line 2', 'set lyrics to this tune', 'does my song feel right'. For song sections/form use /songwriting:song-form; for rhyme use /songwriting:rhyme."
 argument-hint: "[action] [args] (e.g., /songwriting:meter-prosody meter \"...\", /songwriting:meter-prosody stability chorus) — full actions in body"
 user-invocable: true

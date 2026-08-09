@@ -1,5 +1,4 @@
 ---
-name: audit-comment-residue
 description: "Classify code comments for four residue shapes — history narration (\"used to… now…\"), plan/session references (\"Task 2 replaces the old…\", \"in this PR\"), conversational antecedents (\"per your request\", \"as you asked\"), and ticket/PR/branch back-references a future reader will never see — emitting Tier 1 (remove) and Tier 2 (review) findings with treatment guidance; read-only, no edits applied. Use when: 'comment residue', 'audit code comments', 'find stale/narrative comments', 'strip conversational comments', or before committing agent-written code — not for removing ALL comments, restating-the-code redundancy (that is /code-tidying:tidy's Beck tidyings), or markdown noise (use /audit-noise)."
 argument-hint: "[audit] [target]"
 user-invocable: true

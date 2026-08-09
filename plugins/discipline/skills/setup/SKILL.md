@@ -1,5 +1,4 @@
 ---
-name: setup
 description: "Validate the discipline plugin's configuration — the posture-batch overlay and do-your-research-deep's verification depth — and explain how to change it through Claude Code's plugin configuration prompt. Use when: 'set up discipline', 'configure discipline', 'discipline setup', 'is discipline configured', 'set up re-anchor', 'configure re-anchor', 're-anchor setup', 'is re-anchor configured', 'what's in my posture batch', 'what's my deep-research depth', or you want to adjust which correctors the batch runs or how deeply the research fan-out verifies. Actions: check (read-only verification, default and only action — this plugin's entire configuration is native userConfig, so there is nothing an apply could write)."
 argument-hint: "check"
 user-invocable: true

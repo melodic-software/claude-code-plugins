@@ -18,7 +18,8 @@ phrase, which quietly degrades a skill's auto-invocation. Check 3 compares the t
 
 `check` runs `check-skill.sh` — twenty-two checks, reported as `FAIL:` (blocking) or `WARN:` (advisory):
 
-- Frontmatter parses; `name` + `description` present.
+- Frontmatter parses; `description` present; a declared `name` is kebab-case and matches the skill
+  directory (in a plugin skill it also WARNs as redundant — the field defaults to the directory).
 - `description` + `when_to_use` within the 1536-char **per-skill** listing-entry cap (overflow
   truncates that entry) — a different, narrower limit from the shared budget below.
 - Trigger-keyword preservation vs `HEAD` (skipped for a new, uncommitted skill).

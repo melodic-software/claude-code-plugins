@@ -1,5 +1,4 @@
 ---
-name: setup
 description: "Validate the bug-report output configuration and explain how to change it through Claude Code's plugin configuration prompt. Use when: 'set up bug-report', 'configure bug-report', 'bug-report setup', 'where do bug reports land', or you want --file reports committed alongside code. Actions: check (read-only verification, default and only action — this plugin's entire configuration is native userConfig, so there is nothing an apply could write)."
 argument-hint: "check"
 user-invocable: true

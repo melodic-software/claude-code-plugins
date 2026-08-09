@@ -1,5 +1,4 @@
 ---
-name: draft-goal-condition
 description: "Routes the repetition-lever choice across /goal, /loop, routines and /schedule, a dynamic workflow, a Stop hook, and a one-shot prompt, then crafts a paste-ready /goal completion condition when /goal is the fit — the autonomous-goal / keep-working-toward-a-goal field Claude Code evaluates after every turn. Reads the current official docs live for the condition shape and character limit (never hardcodes either), drafts a transcript-demonstrable condition, and proves it fits the limit with a deterministic character counter instead of model guesswork, including a branch for goals no metric can measure. Use when: 'which loop should I use', '/goal or /loop', 'should this be a routine', 'should this be a workflow', 'pick the right autonomy lever', 'what kind of loop is this', 'craft a /goal', 'write a goal condition', 'set up an autonomous goal', 'make Claude keep working until X', 'my goal is not measurable', 'my /goal is too long / over the limit', 'turn this into a completion condition'."
 argument-hint: "[intent]"
 user-invocable: true

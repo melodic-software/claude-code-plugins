@@ -1,5 +1,4 @@
 ---
-name: write
 description: "Write and place tests across all ecosystems — TDD cadence (Red→Green→Refactor in vertical slices), test naming, test-type selection, project placement, and fixture patterns. Use for 'write tests', 'test this', 'where should this test go', or when code was just written without tests; for diagnosing failures use /testing:diagnose, for coverage-gap analysis /testing:plan, for running tests /toolchain:check."
 argument-hint: "[task] (e.g., /testing:write, /testing:write the new handler, /testing:write organize)"
 user-invocable: true

@@ -1,5 +1,4 @@
 ---
-name: debug
 description: "Debug and diagnose broken behavior via a disciplined six-phase loop: build feedback loop → reproduce → hypothesise → instrument → fix + regression test → cleanup. Use when: \"diagnose this\", \"debug this\", \"why is X broken\", \"X is throwing\", \"something is wrong with\", \"investigate this bug\", \"performance regression\", \"this is slow\", \"intermittent failure\", broken behavior in UI / logs / production / screenshot, flaky test traced to root cause — any OBSERVED FAILURE without a pre-existing reproduction. Phase 1 builds the loop; no phase proceeds without a fast, deterministic signal. Skip when: the symptom is already a failing test with no reproduction gap — cycle it directly. Outputs: reproduction loop, root-cause hypothesis, regression test or documented seam gap, cleaned fix, post-mortem finding."
 argument-hint: "[bug description or observation] (e.g., /debugging:debug checkout times out for orders over $1k)"
 user-invocable: true

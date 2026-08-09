@@ -1,5 +1,4 @@
 ---
-name: prd
 description: "Produce a Product Requirements Document that locks product intent — problem, users, success metrics — before any engineering plan, with tiers (one-pager / consumer-feature / b2b-internal), a synthesize path, and a review mode. Use for 'write a PRD', 'spec out a feature', 'product brief', or any user-facing business-driven change needing written alignment; skip for refactors, infra, bug fixes, and engineering-internal work (route to /interview or /planning:plan)."
 argument-hint: "[tier] [task description] (e.g., /planning:prd, /planning:prd one-pager add gig calendar, /planning:prd review)"
 user-invocable: true

@@ -1,5 +1,4 @@
 ---
-name: research-deep
 description: "Dispatch deep external research to the heaviest isolated execution tier available — a workflow engine, an isolated subagent, or inline as last resort — keeping the main conversation clean while the full research discipline runs. Itself runs in main context, the only place both the Workflow tool (absent from every non-fork subagent) and a dependable Agent spawn are guaranteed. Use when: 'deep research', 'research these N topics', 'broad multi-source research', 'compare these tools thoroughly', 'migration research', 'exhaustive research on X'; for a single small lookup use the research skill directly, which already dispatches its own subagent."
 argument-hint: "[topic] (e.g., /discovery:research-deep <library> <version> best practices, /discovery:research-deep <framework> <feature> migration guide)"
 user-invocable: true
