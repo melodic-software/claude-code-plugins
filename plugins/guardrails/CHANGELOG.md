@@ -71,6 +71,7 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 - **Three stale hook headers said "Triggered on Bash tool calls" while wired `Bash|PowerShell`:**
   `block-hook-bypass.sh`, `block-noncanonical-commit.sh`, and `flag-commit-pr-skill-bypass.sh` now
   say Bash and PowerShell (cosmetic; the wiring itself was already correct).
+
 ## [0.19.4]
 
 ### Fixed
