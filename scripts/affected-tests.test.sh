@@ -85,15 +85,18 @@ mk_repo() {
   printf '%s' "$dir"
 }
 
-# run_sel <repo> <args...> -> stdout on fd1, exit status in RC
+# run_sel <repo> <args...> -> selection in OUT, exit status in RC.
+# Both come back through globals rather than stdout: wrapping this in a command
+# substitution would run it in a subshell, and RC would silently keep whatever
+# the PREVIOUS case left behind — an assertion that reads as passing while
+# checking nothing.
 RC=0
+OUT=""
 run_sel() {
   local repo="$1"
   shift
-  local out
-  out="$(cd "$repo" && bash scripts/affected-tests.sh "$@" 2>/dev/null)"
+  OUT="$(cd "$repo" && bash scripts/affected-tests.sh "$@" 2>/dev/null)"
   RC=$?
-  printf '%s' "$out"
 }
 
 has_line() {
@@ -102,7 +105,8 @@ has_line() {
 
 # --- co-located mapping ----------------------------------------------------
 repo="$(mk_repo)"
-out="$(run_sel "$repo" plugins/alpha/hooks/alpha-hook.sh)"
+run_sel "$repo" plugins/alpha/hooks/alpha-hook.sh
+out="$OUT"
 if [[ "$RC" -eq 0 ]] &&
   has_line "$out" plugins/alpha/hooks/alpha-hook.test.sh &&
   ! has_line "$out" plugins/beta/hooks/beta-hook.test.sh; then
@@ -112,7 +116,8 @@ else
 fi
 
 # --- a changed suite selects itself ----------------------------------------
-out="$(run_sel "$repo" plugins/beta/hooks/beta-hook.test.sh)"
+run_sel "$repo" plugins/beta/hooks/beta-hook.test.sh
+out="$OUT"
 if [[ "$RC" -eq 0 ]] && has_line "$out" plugins/beta/hooks/beta-hook.test.sh; then
   ok "a changed *.test.sh selects itself"
 else
@@ -120,7 +125,8 @@ else
 fi
 
 # --- shared-lib fan-out, derived from the sync manifest --------------------
-out="$(run_sel "$repo" lib/widget.sh)"
+run_sel "$repo" lib/widget.sh
+out="$OUT"
 if [[ "$RC" -eq 0 ]] &&
   has_line "$out" lib/widget.test.sh &&
   has_line "$out" plugins/alpha/hooks/alpha-hook.test.sh &&
@@ -140,7 +146,8 @@ mk_widget_consumer "$repo/plugins/gamma/hooks/gamma-hook.sh"
 suite_body gamma-hook >"$repo/plugins/gamma/hooks/gamma-hook.test.sh"
 git -C "$repo" add plugins/gamma >/dev/null
 git -C "$repo" commit -qm gamma >/dev/null
-out="$(run_sel "$repo" lib/widget.sh)"
+run_sel "$repo" lib/widget.sh
+out="$OUT"
 if [[ "$RC" -eq 0 ]] && has_line "$out" plugins/gamma/hooks/gamma-hook.test.sh; then
   ok "a newly carrying plugin is picked up with no selector or manifest edit"
 else
@@ -206,7 +213,8 @@ fi
 # --- explicit paths vs the default diff ------------------------------------
 base="$(git -C "$repo" rev-parse HEAD)"
 printf '# edited\n' >>"$repo/plugins/beta/hooks/beta-hook.sh"
-out="$(run_sel "$repo" --base "$base")"
+run_sel "$repo" --base "$base"
+out="$OUT"
 if [[ "$RC" -eq 0 ]] &&
   has_line "$out" plugins/beta/hooks/beta-hook.test.sh &&
   ! has_line "$out" plugins/alpha/hooks/alpha-hook.test.sh; then
@@ -219,11 +227,43 @@ fi
 # developer, so the diff mode must see it too.
 mk_widget_consumer "$repo/plugins/alpha/hooks/alpha-extra.sh"
 suite_body alpha-extra >"$repo/plugins/alpha/hooks/alpha-extra.test.sh"
-out="$(run_sel "$repo" --base "$base")"
+run_sel "$repo" --base "$base"
+out="$OUT"
 if [[ "$RC" -eq 0 ]] && has_line "$out" plugins/alpha/hooks/alpha-extra.test.sh; then
   ok "diff mode includes untracked files"
 else
   fail "untracked file missed by diff mode (rc=$RC): $out"
+fi
+
+# --- a broken diff is fatal, never an empty selection ----------------------
+# The producer used to run inside a process substitution, so its fatal exit
+# killed only the subshell: mapfile succeeded with nothing and the run reported
+# "nothing to select" and exit 0. A validation caller would read that as clean.
+out="$(cd "$repo" && bash scripts/affected-tests.sh --base definitely-not-a-ref 2>&1)"
+RC=$?
+if [[ "$RC" -eq 2 ]] && ! printf '%s' "$out" | grep -q 'nothing to select'; then
+  ok "an unresolvable base ref exits 2 instead of reporting an empty selection"
+else
+  fail "broken diff should be fatal (rc=$RC): $out"
+fi
+
+# --- an absolute path inside the repo is normalized, not silently missed ---
+abs="$repo/plugins/beta/hooks/beta-hook.sh"
+run_sel "$repo" "$abs"
+out="$OUT"
+if [[ "$RC" -eq 0 ]] && has_line "$out" plugins/beta/hooks/beta-hook.test.sh; then
+  ok "an absolute path under the repo root resolves to the same selection"
+else
+  fail "absolute path not normalized (rc=$RC): $out"
+fi
+
+# --- an absolute path from outside the repo is refused, not swallowed ------
+out="$(cd "$repo" && bash scripts/affected-tests.sh /elsewhere/lib/widget.sh 2>&1)"
+RC=$?
+if [[ "$RC" -eq 2 ]] && printf '%s' "$out" | grep -q 'absolute'; then
+  ok "an absolute path outside the repo is refused out loud"
+else
+  fail "foreign absolute path should exit 2 (rc=$RC): $out"
 fi
 
 # --- --run executes the selected suites, sequentially ----------------------

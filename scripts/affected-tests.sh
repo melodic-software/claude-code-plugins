@@ -408,8 +408,20 @@ changed_from_diff() {
   # suites covering the work in front of them, including uncommitted edits, and
   # not the suites for whatever else landed on the base branch meanwhile.
   mb="$(git merge-base "$base" HEAD 2>/dev/null)" || mb="$base"
-  git diff --name-only "$mb" --
-  git ls-files --others --exclude-standard
+  # Every failure here is fatal, never an empty list. An empty change set is
+  # indistinguishable from "the diff blew up" downstream, and downstream reports
+  # it as "nothing to select, exit 0" — the fail-open this whole tool exists to
+  # refuse. This function must therefore run in the CURRENT shell (see the call
+  # site): from inside a process substitution these exits would kill only the
+  # subshell and `mapfile` would happily succeed with nothing.
+  if ! git diff --name-only "$mb" --; then
+    echo "error: 'git diff --name-only $mb' failed; refusing to report an empty change set." >&2
+    exit 2
+  fi
+  if ! git ls-files --others --exclude-standard; then
+    echo "error: 'git ls-files --others' failed; refusing to report an empty change set." >&2
+    exit 2
+  fi
 }
 
 # --print-fanout exists so the DERIVATION itself is inspectable and testable:
@@ -429,12 +441,27 @@ fi
 declare -a changed=()
 if [[ ${#explicit_paths[@]} -gt 0 ]]; then
   for p in "${explicit_paths[@]}"; do
-    # Accept an absolute or ./-prefixed path; the rules are repo-relative.
     p="${p#./}"
+    # Every rule is repo-relative, and so is every sync-manifest key. An
+    # absolute path that stayed absolute would miss those keys and then fall
+    # through to a broad no-suite pattern — reporting success with no suites,
+    # which is the fail-open direction. Normalize what can be normalized and
+    # refuse the rest out loud.
+    case "$p" in
+    "$PWD"/*) p="${p#"$PWD"/}" ;;
+    /* | [A-Za-z]:[/\\]*)
+      echo "error: '$p' is absolute and does not sit under this repository as spelled." >&2
+      echo "       Pass repository-relative paths (Git Bash spells this checkout '$PWD')." >&2
+      exit 2
+      ;;
+    *) ;;
+    esac
     changed+=("$p")
   done
 else
-  mapfile -t changed < <(changed_from_diff | sort -u)
+  # Run the producer in the CURRENT shell so its fatal exits are the script's.
+  changed_from_diff >"$WORK_DIR/changed.raw"
+  mapfile -t changed < <(sort -u "$WORK_DIR/changed.raw")
 fi
 
 if [[ ${#changed[@]} -eq 0 ]]; then
