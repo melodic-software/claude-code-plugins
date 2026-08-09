@@ -15,8 +15,8 @@ approvals at `<StateBase>/state/approvals.json`. Configuration here is machine-l
 a workstation's check tuning does not belong in any repository. Idempotent: re-running reads the
 existing files and offers updates rather than overwriting blind.
 
-Action routing: no argument or `check` runs the check; `apply` runs the check first, then
-remediation. When `apply` is given complete write arguments (`disable=`, `deprecate=`, `demote=`,
+Action routing: no argument or `check` runs the check; `apply` runs the check first, then applies
+the requested changes. When `apply` is given complete write arguments (`disable=`, `deprecate=`, `demote=`,
 `approve=`) it applies them non-interactively; with no arguments in an interactive session it runs
 the full interview below. Custom-check registration is inherently interactive (it authors a script)
 and always interviews.
@@ -55,7 +55,7 @@ data, and this skill neither relocates nor removes files.
 The shipped catalog (`${CLAUDE_PLUGIN_ROOT}/skills/audit/catalog/checks.jsonc`) is the single
 source of truth for what checks exist and their defaults. **Read it first**, then read the existing
 overlay, approvals, and `<StateBase>/TODO.md` when present. Report a PASS/FAIL/INFO table with one
-remediation line per FAIL; modify nothing. The plugin ships a working zero-config default (the whole
+suggested-action line per FAIL; modify nothing. The plugin ships a working zero-config default (the whole
 shipped catalog, no remediations approved), so an absent overlay or absent approvals file is **INFO**
 (default in effect), never FAIL.
 
@@ -63,19 +63,24 @@ shipped catalog, no remediations approved), so an absent overlay or absent appro
    found. FAIL and stop here when the token did not expand (see above) — the remaining probes do not
    run.
 2. **Catalog overlay** (`<StateBase>/catalog/checks.local.jsonc`) — INFO when absent (the shipped
-   catalog applies unchanged). When present: validate each entry against the overlay schema
-   (`${CLAUDE_PLUGIN_ROOT}/skills/audit/references/shared/catalog-overlay.md`) and confirm every
+   catalog applies unchanged). When present, validate against
+   `${CLAUDE_PLUGIN_ROOT}/skills/audit/catalog/schemas/checks.schema.json`: a registered custom check
+   is a full `#/$defs/CheckEntry` and must satisfy it outright, while a partial override of a shipped
+   check carries `id` plus only the fields it changes — check those field names and value types
+   against `CheckEntry` without applying its `required` list (merge behavior:
+   `${CLAUDE_PLUGIN_ROOT}/skills/audit/references/shared/catalog-overlay.md`). Confirm every
    entry targets a real check — a shipped check id, or a custom check whose `script` path resolves
    under `<StateBase>`. FAIL a malformed entry, an entry targeting an unknown check id, or a custom
    entry whose `script` file is missing; report which checks the overlay patches (disabled,
    deprecated, demoted) and any custom checks it registers.
 3. **Remediation approvals** (`<StateBase>/state/approvals.json`) — INFO when absent (no remediation
    is approved — the safe default; a bare audit mutates nothing). When present: validate against
-   `${CLAUDE_PLUGIN_ROOT}/skills/audit/references/shared/approvals.md` and confirm each approval names a real remediation
+   `${CLAUDE_PLUGIN_ROOT}/skills/audit/catalog/schemas/approvals.schema.json` (shape and examples in
+   `${CLAUDE_PLUGIN_ROOT}/skills/audit/references/shared/approvals.md`) and confirm each approval names a real remediation
    (`restart-stopped-service`, `clear-temp-files`). FAIL a malformed file or an approval for an
    unknown remediation; otherwise report which remediations are approved.
 4. **Pending proposals** (`<StateBase>/TODO.md`) — INFO: count proposals (deprecation, cadence
-   demotion, new check) awaiting a decision from a prior audit; the remediation line is to run
+   demotion, new check) awaiting a decision from a prior audit; the suggested-action line is to run
    `apply` to walk them.
 5. **Report directory** — INFO: the effective location — the `report_dir` plugin option when set,
    else `$env:USERPROFILE\Documents\MachineHealth`.

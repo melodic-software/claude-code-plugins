@@ -1,5 +1,50 @@
 # Changelog — session-flow plugin
 
+## [0.21.1]
+
+### Changed
+
+- **`retro`: mode selection no longer turns on a context-percentage the model cannot measure.**
+  `SKILL.md` and `context/quick.md` both routed to `quick` when the context window was ">75% used" —
+  a figure a session can only fabricate, which the sibling `handoff` skill already disclaims by name
+  ("never by a fixed token count"). Both now key off observable signals: a long or quality-degraded
+  session, or a compaction that has occurred.
+
+- **`running-retro`: the detached observer's analysis prompt is XML-sectioned.** `observer.py`'s
+  `_analysis_prompt` ran roughly a thousand words of tools, trust boundary, method, inputs, and task
+  together as undelimited prose, and it is executed by the cheap default model (`claude-haiku-4-5`)
+  with no follow-up turn to recover from a misread. The five parts are now wrapped in `<tools>`,
+  `<trust_boundary>`, `<method>`, `<inputs>`, and `<task>`, with two section leads lightly
+  reworded to fit the tags; every compute-don't-assert rule, dependency check, and the mandatory
+  redaction pass carry over verbatim.
+
+- **`workflow`: the depth expectation in `context/philosophy.md` reads in normal case.** "Default to
+  HIGH confidence, HIGH accuracy, HIGH attention to detail" plus a second sentence repeating it
+  collapses to one sentence stating the same expectation.
+
+## [0.21.0]
+
+### Changed
+
+- **`handoff` no longer fires on a self-estimated context budget.** Its `description` listed
+  "context is heavy" among the triggers, and the body's "When to invoke" repeated it as "Mid-task,
+  context heavy (check `/context` output or user report)" — telling the model to judge its own
+  window and volunteer a handoff on that judgement. A description is resident in context by default
+  (<https://code.claude.com/docs/en/skills>, verified 2026-08-08), so that trigger was live in every
+  session with the plugin installed, and it is the shape the `claude-config` instruction-audit
+  catalog's check I23 detects.
+
+  Three signals now license the skill, and a self-estimated budget is not among them: **the user's
+  own report**, **an instrument that measures the window** (`context-guard`'s zone report is one),
+  and **visible decay in the responses themselves** — drift, repetition, looping. The third is
+  explicitly the model's to read, because decay shows up in the output and never in a budget number.
+  Nothing about the save-point engine, the arguments, the STOP gate, or the emitted artifacts
+  changes, and the skill stays model-invocable: only the budget clause is gone.
+
+  The "Fork beats compaction" section keeps its window-position threshold and gains a one-line
+  anchor saying what it always meant — it picks between two continuation mechanisms and never
+  licenses the continuation itself.
+
 ## [0.20.0]
 
 ### Changed

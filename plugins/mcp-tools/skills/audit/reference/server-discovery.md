@@ -33,10 +33,12 @@ those paths share for the per-language spelling, rather than reading the tool fi
 - **dotnet:** the `ServerInstructions` property on `McpServerOptions`, set where server options are
   configured at startup
 
-All three carry the protocol's `InitializeResult.instructions`. A server whose construction site
-declares no `instructions` has nothing to size, and C4's per-server clause is not a finding against it;
-record it as not applicable rather than as a pass. When no construction site is reachable in the
-scanned scope, record it as undetermined — not as absent. Either way the outcome lands in the
+All three set the protocol's server `instructions` field, which the protocol delivers via
+`InitializeResult` on `initialize` (protocol revision 2025-11-25 and earlier) and via `DiscoverResult`
+on `server/discover` (2026-07-28 and later). A server whose construction site declares no
+`instructions` has nothing to size, and C4's per-server clause is not a finding against it; record it
+as `n/a` rather than as a pass. When no construction site is reachable in the scanned scope, record it
+as `undetermined` — not as absent. Either way the outcome lands in the
 server-level row of the Phase 3 report — see the result vocabulary in
 [SKILL.md](../SKILL.md).
 

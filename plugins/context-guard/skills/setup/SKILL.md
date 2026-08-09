@@ -222,8 +222,11 @@ zone bands, zones.json shape) are owned by
    `<escaped renderer>` is that same unwrapped renderer, POSIX-escaped for single-quote
    embedding: replace every `'` in it with `'\''` before substituting (then JSON-escape the whole
    `command` string as usual). Show the final, fully escaped line — never hand the operator a
-   template with raw quotes left to fix. Verify your printed edit round-trips: mentally unquote it
-   back and confirm it reproduces the renderer byte-for-byte.
+   template with raw quotes left to fix. Verify your printed edit round-trips: run
+   `printf '%s\n' '<escaped renderer>'` and confirm the output matches the renderer
+   byte-for-byte. The single-quoted argument reproduces exactly the quoting context the emitted
+   `sh -c '<escaped renderer>'` uses; a double-quoted wrapper would instead let the outer shell
+   expand any `$(...)` or backticks in the operator's own renderer before the check ever ran.
 
    **Syntax inside a quoted argument does not count, and bare quoting is never itself a trigger.**
    The quotes make it one ordinary ARGV word that reaches the renderer intact through the plain

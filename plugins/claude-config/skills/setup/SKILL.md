@@ -23,7 +23,8 @@ Both are non-interactive — never prompt when the action is given.
 
 The bundled scripts are the single source of truth for what they require. **Read them first** — probe
 what they actually do, don't recite this file — then run each probe via Bash and report a PASS/FAIL/INFO
-table with one remediation line per FAIL. Do not modify anything. The runtime scripts and their tools:
+table with one remediation line per FAIL — read-only; leave every file untouched. The runtime scripts
+and their tools:
 
 - `${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/check-plugin-drift.sh` — jq **and** curl
 - `${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/check-structure.sh` and `fix-plugin-drift.sh` — jq
@@ -54,15 +55,16 @@ table with one remediation line per FAIL. Do not modify anything. The runtime sc
 
 `audit-pass` reads a tracked suppression record layered per the marketplace's config-cascade
 convention. Read the operative shape from
-`${CLAUDE_PLUGIN_ROOT}/skills/audit-pass/reference/run-contract.md` rather than inferring it — that
+`${CLAUDE_PLUGIN_ROOT}/skills/audit-pass/reference/suppression.md` rather than inferring it — that
 reference ships inside this plugin, so it resolves in an installed cache where a path out to the
 marketplace's own docs does not. The cross-consumer key contract is the marketplace's published
 **finding-suppression** convention, which is not a runtime dependency of this plugin. All layers
 absent is a valid state (no suppressions), so report INFO, never FAIL, when none exists.
 
 Anchor at the repo root (`${CLAUDE_PROJECT_DIR}`, else `git rev-parse --show-toplevel`) — never a
-CWD-relative read — then report one row per layer. The same tracked/ignored question has opposite
-correct answers per layer, so verify each on its own terms:
+CWD-relative read, which resolves a different (or missing) file depending on the subdirectory or
+nested worktree the skill was invoked from — then report one row per layer. The same
+tracked/ignored question has opposite correct answers per layer, so verify each on its own terms:
 
 - **user-global** `~/.claude/audit-pass.md` — outside the worktree; no git command applies. INFO only.
 - **team** `.claude/audit-pass.md` — must be tracked. Untracked while present is a hard STOP:
