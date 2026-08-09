@@ -404,7 +404,7 @@ resolve_data_dir() {
 # a SHA from an unrelated history — usually an "invalid revision" error, at best
 # a silently wrong answer.
 #
-# Two properties the key must have, both learned the hard way:
+# Three properties the key must have, all learned the hard way:
 #   * Injective. A character-folding scheme (e.g. `tr -c 'A-Za-z0-9_-' '-'`)
 #     collapses `/repos/foo-bar` and `/repos/foo/bar` onto one key, which is the
 #     very collision this component exists to prevent. `git hash-object` over
@@ -414,6 +414,20 @@ resolve_data_dir() {
 #     git for the toplevel. Both sides therefore key on `git rev-parse
 #     --show-toplevel` — git reports the physical, symlink-resolved working
 #     tree — so the probe always looks where the launcher wrote.
+#   * Digested IN the target repository. `git hash-object` uses the object
+#     format of whatever repository it resolves, so an UNSCOPED call keys on
+#     the CALLER's format — and the launcher manages any repo `--repo` names,
+#     from a cwd that is often somewhere else entirely. Against a SHA-256
+#     checkout that produced a 40-hex SHA-1 key while the probe, which runs
+#     inside that checkout, computed the 64-hex SHA-256 one: the marker landed
+#     in a directory the probe never reads, silently disabling staleness
+#     detection. `-C` puts both sides on the target's format.
+#     The `-C` anchor is $REPO, not the hashed $top: resolve_repo guarantees
+#     $REPO is an existing directory, while $top is a string git handed back
+#     (or the $REPO fallback). Both sit in the same repository, so they share
+#     an object format — but anchoring on a path that may not exist would fail
+#     the digest into the "unkeyed" fallback below, collapsing every such repo
+#     onto ONE key and undoing the injectivity this component exists for.
 # Falls back to $REPO only when the directory is not a git repo at all, where
 # the probe could not run anyway. Computed once per run.
 REPO_MARKER_KEY=""
@@ -422,7 +436,7 @@ repo_marker_key() {
     local top
     top="$(git -C "$REPO" rev-parse --show-toplevel 2>/dev/null)" || top=""
     [[ -n "$top" ]] || top="$REPO"
-    REPO_MARKER_KEY="$(printf '%s' "$top" | git hash-object --stdin 2>/dev/null)"
+    REPO_MARKER_KEY="$(printf '%s' "$top" | git -C "$REPO" hash-object --stdin 2>/dev/null)"
     [[ -n "$REPO_MARKER_KEY" ]] || REPO_MARKER_KEY="unkeyed"
   fi
   printf '%s' "$REPO_MARKER_KEY"
@@ -565,22 +579,39 @@ lane_prompt_path() {
 # lane's gate request in its settings object, arm the gate through autonomy's
 # own helper, and inject the arm id into the lane's --settings.
 
-# Does this lane's settings object request the gate? Any pluginConfigs key for
-# the autonomy plugin (bare or marketplace-qualified) with
-# options.lane_stop_gate_enabled true (boolean or "true").
+# ONE definition of "a pluginConfigs entry that requested the gate": an autonomy
+# key (bare or marketplace-qualified) whose OWN options.lane_stop_gate_enabled
+# is true (boolean or "true"). Interpolated into every query below — a jq filter
+# cannot ride in as a --arg — so detection, option extraction, and arm-id
+# injection can never disagree about which entry asked. Settings may carry
+# several autonomy installs, and an entry that did NOT ask must be left alone in
+# all three: not read for options, and not handed an arm id. The gate never
+# treats this channel as a trusted verdict in either direction, so the arm id is
+# not overriding that entry's own `false` — the defect is narrower and still
+# real: the launcher marks an install the lane never asked to arm, so the
+# settings it hands to `claude` misdescribe what was requested and the record
+# stops being a faithful account of which install the operator opted in.
+GATE_ENTRY_REQUESTED='(.key == "autonomy" or (.key | startswith("autonomy@")))
+       and (.value.options.lane_stop_gate_enabled | . == true or . == "true")'
+
 lane_requests_stop_gate() {
-  jq -e '[ (.pluginConfigs // {}) | to_entries[]
-           | select(.key == "autonomy" or (.key | startswith("autonomy@")))
-           | .value.options.lane_stop_gate_enabled
-           | . == true or . == "true" ] | any' >/dev/null 2>&1 <<<"$1"
+  jq -e "[ (.pluginConfigs // {}) | to_entries[]
+           | select($GATE_ENTRY_REQUESTED) ] | length > 0" >/dev/null 2>&1 <<<"$1"
 }
 
-# String-valued gate option from the lane's settings (last autonomy entry wins);
-# empty when absent or non-string.
+# String-valued gate option from the lane's REQUESTING entries (last wins),
+# prefixed `v:` so an EXPLICITLY EMPTY value survives the trip through bash.
+# Empty is a meaningful verdict here, not an absence: a lane that sets
+# lane_stop_gate_marker to "" is disabling the marker channel for this session,
+# and an arm record carrying no marker key at all resolves the opposite way —
+# the gate falls through to the user-level marker, where a leftover global
+# marker file can authorize a stop the lane never signaled. Prints nothing at
+# all when no requesting entry carries the option as a string.
 gate_option_from_settings() {
-  jq -r --arg k "$2" '[ (.pluginConfigs // {}) | to_entries[]
-      | select(.key == "autonomy" or (.key | startswith("autonomy@")))
-      | .value.options[$k] | select(type == "string") ] | last // empty' <<<"$1"
+  jq -r --arg k "$2" "
+    [ (.pluginConfigs // {}) | to_entries[]
+      | select($GATE_ENTRY_REQUESTED)
+      | .value.options[\$k] | select(type == \"string\") | \"v:\" + . ] | last // empty" <<<"$1"
 }
 
 # Candidate arm helpers, one path per line. The override wins outright; default
@@ -634,9 +665,15 @@ arm_stop_gate() {
   arm_id="$(generate_arm_id)"
   sentinel="$(gate_option_from_settings "$settings" lane_stop_gate_sentinel)"
   marker="$(gate_option_from_settings "$settings" lane_stop_gate_marker)"
+  # The two options forward on DIFFERENT conditions, because the gate reads an
+  # empty value differently for each. An empty marker disables the marker
+  # channel, so `v:`-prefixed-and-empty is a verdict that must reach the record;
+  # an empty sentinel is not a configured value at all — lane-stop-gate.sh
+  # substitutes the default token for it — so recording one would buy nothing
+  # while suppressing the record's fall-through to the user-level sentinel.
   local -a args=(--id "$arm_id" --cwd "$REPO")
-  [[ -n "$sentinel" ]] && args+=(--sentinel "$sentinel")
-  [[ -n "$marker" ]] && args+=(--marker "$marker")
+  [[ "$sentinel" == v:?* ]] && args+=(--sentinel "${sentinel#v:}")
+  [[ "$marker" == v:* ]] && args+=(--marker "${marker#v:}")
   while IFS= read -r script; do
     [[ -n "$script" ]] || continue
     found=1
@@ -652,9 +689,9 @@ arm_stop_gate() {
     return 1
   fi
   jq -c --arg id "$arm_id" \
-    '.pluginConfigs |= with_entries(
-       if .key == "autonomy" or (.key | startswith("autonomy@"))
-       then .value.options.lane_stop_gate_arm_id = $id else . end)' <<<"$settings"
+    ".pluginConfigs |= with_entries(
+       if $GATE_ENTRY_REQUESTED
+       then .value.options.lane_stop_gate_arm_id = \$id else . end)" <<<"$settings"
 }
 
 # --- Command runner -----------------------------------------------------------

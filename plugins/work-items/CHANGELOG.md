@@ -3,6 +3,81 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.34.3]
+
+### Fixed
+
+- **`work-loop`'s post-snapshot intake report reads open items, not the autonomous frontier.**
+  0.34.2 gave that report a mechanism — diff a fresh reading against the retained ids — but named
+  `list-frontier --autonomous` as the reading, which cannot see the case the report exists for.
+  Step 2's sweep hardening routes a bot-authored advisory issue to the human-gated role by default,
+  and `list-frontier --autonomous` excludes exactly that role (tracker `CONTRACT.md`,
+  `list-frontier`; `reference/label-taxonomy.md`), so the bot-filed mid-cycle intake the stop report
+  promises to name is filtered out of the reading meant to find it and the report names nothing —
+  the "reported, never chased" invariant failing silently one layer below where 0.34.2 fixed it.
+  The report now repeats step 1's open-items reading, the superset the frontier is derived from,
+  which sees the routed advisory item and the ordinary one alike. The lane-infrastructure exclusion
+  is extended to that reading in the same breath: a telemetry issue is deliberately never among the
+  retained ids, so a re-read that did not re-apply the exclusion would diff it in as post-snapshot
+  intake and misreport it as unworked on every run.
+
+## [0.34.2]
+
+### Fixed
+
+- **`work-loop` evaluates its drain exit against the cycle-start snapshot's retained ids instead of
+  a live frontier reading.** The exit condition said it evaluated against the snapshot, then
+  implemented its first criterion as a live `list-frontier --autonomous` emptiness read. An item
+  that joined the frontier *after* the snapshot — a bot filing agent-ready intake, an operator
+  flipping a role label, a ratification landing mid-cycle — landed in that read and could hold a
+  drain open indefinitely, the exact failure the skill's own step 1 and its "Do not chase intake"
+  gotcha already promised the snapshot semantics prevented. That criterion is now removed rather
+  than rescoped: the frontier is derived by filtering `state == open`, so every snapshot frontier
+  candidate is already a snapshot open item and the remaining snapshot-scoped test covers it — an
+  item the snapshot held as untriaged intake and this cycle's sweep promoted still holds the drain
+  open and is still worked, this cycle or a later one. A second frontier limb could only ever block,
+  never catch anything the remaining test misses, and absence from a later frontier read is not
+  resolution: an item another session claims, or one that becomes blocked, leaves the frontier
+  unresolved. Step 1 now retains every captured id and the exit tests their union — the snapshot is
+  nowhere specified as a single read, so testing the open ids alone would drop an item created
+  between two of them — and both stop paths name the post-snapshot intake left unworked, which is
+  what keeps "reported, never chased" true once there is no next cycle to sweep it. That naming now
+  carries its mechanism: diff a fresh frontier reading against the retained ids *after* the exit is
+  decided. It is reporting-only and cannot change the verdict it follows, and stating it is what
+  stops the requirement degrading to nothing in the hands of an agent given no procedure for it.
+
+- **`setup` proves the checkout is a GitHub repository before auto-binding the `github` provider.**
+  The unattended first bind required only that `gh` was installed and `gh auth status` succeeded —
+  both account facts, neither of which says this repository is hosted on GitHub. A local-only or
+  non-GitHub checkout with an authenticated `gh` was silently bound to `github`, and every
+  repo-scoped seam verb then failed, because the adapter derives its `owner/repo` scope from the
+  checkout with `gh repo view --json owner,name`. That call now *replaces* `gh auth status` as the
+  unattended bind's precondition rather than joining it: it is the adapter's own derivation, and it
+  subsumes authentication because it fails unauthenticated even against a public repository — so
+  succeeding proves `gh` is authenticated for the host in play. `gh auth status` tests every account
+  on every known host and exits 1 if any has an issue (`gh auth status --help`) — a machine-wide
+  fact that both admits the wrong checkout and refuses a good one. The resolved `owner/repo` is
+  reported with the other defaults taken, and a probe that does not resolve stops with the existing
+  named-blocker report rather than persisting an unusable binding. The interactive provider choice
+  makes the same swap, and `check`'s binding
+  probe makes the same call instead of PASSing a shape-valid `github` binding no repository backs.
+  That probe runs unconditionally rather than behind an auth precheck, and verdicts on *why* the
+  call failed, never on failure alone: only a checkout with no remote that any GitHub host owns is
+  FAIL. An uninstalled `gh`, a 401/403, a not-found, a rate limit, a network failure, or any message
+  the partition does not recognize is INFO — those are availability and credential facts, not
+  verdicts on a binding, and a correctly bound repo must not fail `check`, and so stop `apply`,
+  because the provider was briefly unreachable or because `gh` grew a message this list predates.
+
+- **`track start` verifies the fully qualified remote-tracking ref when resolving the base branch.**
+  The guard checked `git rev-parse --verify "origin/<name>^{commit}"`, an abbreviated ref git
+  resolves through `refs/`, `refs/tags/` and `refs/heads/` *before* `refs/remotes/`. A local tag
+  literally named `origin/<name>` therefore satisfied the check, the corrective fetch was skipped,
+  and the emitted `git checkout -b` branched the user's work off that unrelated tag instead of the
+  remote default. Both the check and the emitted start-point now use `refs/remotes/origin/<name>`,
+  which only the intended remote-tracking ref can satisfy and which sets the new branch's upstream
+  exactly as the abbreviation did. The default-branch name is normalized once, so the offline
+  `refs/remotes/origin/HEAD` fallback and the charset guard both operate on the branch name alone.
+
 ## [0.34.1]
 
 ### Added

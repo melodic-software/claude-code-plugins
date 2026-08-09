@@ -1,6 +1,6 @@
 ---
-version: 1.21.0
-last-updated: 2026-08-08
+version: 1.21.1
+last-updated: 2026-08-09
 ---
 
 # Instruction-Audit Criteria
@@ -12,9 +12,12 @@ cited URL, not restated here).
 
 **Recheck triggers** — treat these as staleness signals and re-verify the catalog against live
 docs when any fires: a new frontier model release; **a change to any page listed under Sources
-below**. Every check cites one of those pages, so the trigger set is the source set — naming a
-subset would leave the harness-behavior rows depending on pages nothing watches. One staleness event
-fires the whole catalog, not the check that noticed it. Model-specific pages — the per-model
+below**. Every check that cites a source cites one of those pages, so the trigger set is the source
+set — naming a subset would leave the harness-behavior rows depending on pages nothing watches. A
+row whose Source line reads `none` for a categorical absence — no official page states the rule —
+has nothing of its own to go stale; a sourceless row that instead calibrates against page content
+(the Stopping condition's carve-out phrasing) is staled by the pages it calibrates against, which
+the catalog-wide trigger already covers. One staleness event fires the whole catalog, not the check that noticed it. Model-specific pages — the per-model
 prompting guides under Sources — are superseded on each model generation.
 
 **Per-row verification stamps.** A row that restates a volatile upstream *literal* — a level name, a
@@ -25,10 +28,13 @@ parts, not the path, are the requirement). A row that restates nothing and only 
 carries no stamp, because a pointer cannot go stale.
 
 A per-row stamp **supplements** the catalog-wide trigger above; it never replaces or narrows it.
-The catalog trigger still fires every row on any Sources change — that is why a row's own trigger
-names only the events the Sources set would *miss*, such as a value set changing while its page
-keeps the same URL. **Where the two disagree, the catalog trigger wins**, because it is the wider
-one and a staleness signal is not something to resolve by picking the narrower authority.
+The catalog trigger already fires every row on any Sources change, so a per-row trigger adds no
+coverage the Sources set lacks — a value change on a Sources page *is* a change to that page. What
+it adds is **specificity about what to re-read**: it names the literal that row restates and the
+event that would move it, so a re-verification pass goes straight to that value instead of
+re-reading the page to find what mattered. **Where the two disagree, the catalog trigger wins**,
+because it is the wider one and a staleness signal is not something to resolve by picking the
+narrower authority.
 
 The requirement **binds on touch**, per the convention above: rows predating this rule keep their
 citations as they are and adopt the four parts the next time they change. A missing stamp on an

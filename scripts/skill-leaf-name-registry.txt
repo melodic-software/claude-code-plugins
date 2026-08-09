@@ -83,6 +83,13 @@ workflow session-flow,songwriting
 # contract; the namespace supplies the object.
 update firecrawl,playbooks
 
+# Kept on merit. ai-briefing:generate produces the briefing artifact;
+# wizard:generate authors an interactive setup-wizard script a human runs.
+# Unrelated artifacts; the namespace supplies the object in both, and wizard's
+# name was locked by a naming tournament against grammar-clean alternatives
+# (the noun namespace carries the artifact class, the leaf stays the verb).
+generate ai-briefing,wizard
+
 # Fixed verb meaning: produces an artifact. bug-report writes a report, testing
 # writes tests.
 write bug-report,testing

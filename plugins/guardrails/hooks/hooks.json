@@ -44,12 +44,7 @@
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/flag-commit-pr-skill-bypass.sh",
             "timeout": 60,
             "statusMessage": "Checking commit/PR skill usage..."
-          }
-        ]
-      },
-      {
-        "matcher": "Bash|PowerShell",
-        "hooks": [
+          },
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/block-noncanonical-commit.sh",

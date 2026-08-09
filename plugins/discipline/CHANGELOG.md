@@ -5,6 +5,25 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.11.0]
+
+### Added
+
+- **`wait-what` — a one-shot, user-invoked-only communication repair** (a declared
+  further species beside `sweep-all`, not a corrector). Type `/discipline:wait-what`
+  when the model's last message did not land: it re-pitches — backs up as far as
+  needed, adds the context the reader was missing, talks in ASD-STE100 Simplified
+  Technical English (short sentences, one meaning per word, technical terms exact),
+  and uses the project's ubiquitous language, read from the nearest domain glossary
+  or context map per the consuming project's own convention (degrading silently when
+  none exists). `disable-model-invocation: true` is load-bearing — only the human
+  can detect that a message did not land — and the skill carries no
+  `discipline-batch` tier, so a sweep never fires it. The body is deliberately
+  small: a skill that fights unclear output fails by growing. Ported from
+  mattpocock/skills v1.2 `wait-what` (see `docs/upstream/mattpocock-skills.md` for
+  provenance, the naming-exception record, and the on-demand-beats-passive evidence
+  behind the shape).
+
 ## [0.10.2]
 
 ### Changed

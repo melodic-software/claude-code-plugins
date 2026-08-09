@@ -3,6 +3,21 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.49.2]
+
+### Fixed
+
+- **`pr-linkage-mcp-gate` yields to a consumer repo's own tracked equivalent.** A repo that wires
+  its own `pr-linkage-mcp-gate` in `.claude/settings.json` (the marketplace repo does, so the
+  policy survives sessions with no plugin install, and that copy is deliberately kill-switch-free)
+  previously got BOTH gates firing exit-2 on every MCP PR create/update. The plugin copy now
+  defers (telemetry outcome `deferred`, exit 0) when the consumer's settings wire a PreToolUse
+  command naming `pr-linkage-mcp-gate`. The plugin side yields because the settings file states
+  the wiring authoritatively, while the repo-local script has no sound "plugin active" signal
+  (plugin source present never implies plugin enabled — #2021 line 4 investigation). Named,
+  accepted cost: a no-op script of the same name suppresses the gate — this is a policy gate,
+  not a security guard, and the required CI check remains the authority.
+
 ## [0.49.1]
 
 ### Added

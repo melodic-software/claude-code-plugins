@@ -1,26 +1,41 @@
 #!/usr/bin/env bash
-# Deterministic acceptance gate for a dispatched /discovery:explore run.
+# Deterministic acceptance gate for a dispatched /discovery:explore or
+# /discovery:research run.
 #
-# The explorer agent's return payload is a CLAIM about a run; this gate reads
+# The dispatched agent's return payload is a CLAIM about a run; this gate reads
 # the run's actual output off disk instead. It takes the memory-slice path the
 # PARENT resolved before dispatching — never a path read out of the payload —
 # because the failure it exists to catch is a payload that arrives malformed,
 # carrying no artifact pointer at all. A check that sources its own input from
 # the suspect payload cannot see that failure.
 #
+# One gate serves both skills because they share one on-disk shape: an index
+# plus section-keyed sidecars beside it, the same one-level sub-slice rule, and
+# the same two placement rules (`skills/research/context/artifact-shape.md`).
+# The part that differs between them is the sidecar YAML header — tiers and
+# publishing pools for research, `verified: read | grep | inferred` for
+# exploration — and this gate never reads a header. `--index-name` is therefore
+# the whole difference, and it is REQUIRED rather than defaulted: a gate that
+# fails closed everywhere else must not silently grade the wrong artifact
+# family because a caller omitted a flag.
+#
 # Usage:
-#   bash check-explore-artifact.sh <memory-slice-path> \
+#   bash check-dispatch-artifact.sh <memory-slice-path> \
+#     --index-name <EXPLORE.md|RESEARCH.md> \
 #     [--newer-than <pre-dispatch baseline file>] \
 #     [--expect-index <the payload's artifact: value>] \
 #     [--expect-sidecars <the payload's sidecars: count>]
-#   bash check-explore-artifact.sh --help
+#   bash check-dispatch-artifact.sh --help
 #
 # What it checks, in order:
-#   1. Exactly one EXPLORE.md exists — at the slice root, or one level below it
-#      in a sub-slice (the sanctioned collision path). Two is ambiguous: the
-#      gate cannot tell which run this dispatch produced.
+#   1. Exactly one <index-name> exists — at the slice root, or one level below
+#      it in a sub-slice (the sanctioned collision path). Two is ambiguous: the
+#      gate cannot tell which run this dispatch produced. For research that
+#      ambiguity is also a REACHABLE END STATE — a parent fanning out over N
+#      topics synthesizes a slice-root index from the sub-slice ones — so grade
+#      each fan-out run against its own assigned sub-slice, before synthesis.
 #   2. That index is non-empty.
-#   3. It names at least one `EXPLORE-<section>.md` sidecar, and every sidecar
+#   3. It names at least one `<PREFIX>-<section>.md` sidecar, and every sidecar
 #      it names exists beside it and is non-empty. A mid-stream stub passes a
 #      bare non-empty test; it does not pass this one.
 #   4. With --newer-than, the index is strictly newer than a file the parent
@@ -47,8 +62,16 @@
 #          (status=unusable). The parent discards the run; it does not proceed.
 # Exit 2 = the gate cannot grade — the slice path is missing, is not a
 #          directory, holds more than one candidate index, or names a baseline
-#          file that does not exist — plus usage errors. FAIL CLOSED: a slice
-#          this gate cannot read is never reported as usable.
+#          file that does not exist — plus usage errors, including a missing or
+#          malformed `--index-name`. FAIL CLOSED: a slice this gate cannot read
+#          is never reported as usable.
+#
+# What it deliberately does NOT check: the coverage ledger a bounded-corpus
+# research run writes. `research-checklist.md` has its own gate
+# (`check-coverage-complete.sh`), which grades the marks in its table rather
+# than the presence of a file, and the research skill composes the two. Folding
+# a ledger flag in here would put one caller's file into the shape-agnostic
+# half of the pair.
 #
 # Output (stdout, greppable):
 #   `index=<path> sidecars=<n> missing=<m> freshness=<newer|stale|unchecked>
@@ -65,6 +88,7 @@ usage() {
 }
 
 slice=""
+index_name=""
 expect_sidecars=""
 newer_than=""
 expect_index=""
@@ -91,6 +115,22 @@ while [[ $# -gt 0 ]]; do
   --help | -h)
     usage
     exit 0
+    ;;
+  --index-name)
+    if [[ $# -lt 2 ]]; then
+      echo "error: --index-name requires an index filename (EXPLORE.md or RESEARCH.md)" >&2
+      exit 2
+    fi
+    # The name is not just echoed — its stem becomes the sidecar-matching
+    # pattern below, so it is constrained to characters that carry no meaning in
+    # an ERE. A name with a `.` or a `*` in its stem would silently widen that
+    # pattern and start counting files the run never wrote as sidecars.
+    if [[ ! "$2" =~ ^[A-Za-z0-9_-]+\.md$ ]]; then
+      echo "error: --index-name must be <NAME>.md with NAME in [A-Za-z0-9_-], got: $2" >&2
+      exit 2
+    fi
+    index_name="$2"
+    shift 2
     ;;
   --newer-than)
     if [[ $# -lt 2 ]]; then
@@ -140,7 +180,18 @@ if [[ -z "$slice" ]]; then
   exit 2
 fi
 
-# A trailing slash would turn `$slice/EXPLORE.md` into a double-slashed path in
+# No default. The two artifact families this gate serves differ only in this
+# name, so guessing one would grade a research slice against EXPLORE.md, find
+# nothing, and report `unusable` for a run that in fact succeeded — or, worse,
+# find an unrelated EXPLORE.md a prior exploration left in the same slice and
+# report a research dispatch that wrote nothing as usable.
+if [[ -z "$index_name" ]]; then
+  echo "error: --index-name is required (EXPLORE.md or RESEARCH.md)" >&2
+  exit 2
+fi
+sidecar_prefix="${index_name%.md}"
+
+# A trailing slash would turn `$slice/$index_name` into a double-slashed path in
 # every message this gate prints, and the printed path is what the parent acts
 # on. Strip it, while leaving a bare `/` intact.
 while [[ "$slice" == */ && "$slice" != "/" ]]; do
@@ -179,15 +230,15 @@ verdict() {
 #
 # Each candidate is existence-tested rather than left to the glob. `nullglob`
 # drops a PATTERN that matches nothing; it does nothing to a literal path with
-# no wildcard in it, so `"$slice"/EXPLORE.md` would survive into the array as a
+# no wildcard in it, so `"$slice/$index_name"` would survive into the array as a
 # path to a file that is not there — and a slice holding only a sub-slice index
 # would then read as ambiguous.
 candidates=()
-if [[ -f "$slice/EXPLORE.md" ]]; then
-  candidates+=("$slice/EXPLORE.md")
+if [[ -f "$slice/$index_name" ]]; then
+  candidates+=("$slice/$index_name")
 fi
 shopt -s nullglob
-for candidate in "$slice"/*/EXPLORE.md; do
+for candidate in "$slice"/*/"$index_name"; do
   if [[ -f "$candidate" ]]; then
     candidates+=("$candidate")
   fi
@@ -195,7 +246,7 @@ done
 shopt -u nullglob
 
 if [[ ${#candidates[@]} -eq 0 ]]; then
-  echo "unusable: no EXPLORE.md in $slice or in a sub-slice one level below it" >&2
+  echo "unusable: no $index_name in $slice or in a sub-slice one level below it" >&2
   verdict "<none>" 0 0 unusable
   exit 1
 fi
@@ -206,6 +257,12 @@ if [[ ${#candidates[@]} -gt 1 ]]; then
   # a prior run's artifact gets accepted as evidence that a failed run
   # succeeded. The parent assigns sub-slices, so it can disambiguate and re-run
   # this gate against the specific one.
+  #
+  # On the research side this is also what a COMPLETED fan-out looks like from
+  # the slice root: the parent synthesizes a slice-root index from N sub-slice
+  # ones, so root-plus-sub-slices is a sanctioned end state there rather than a
+  # defect. It is still not a gradeable input — the fix is the same, grade each
+  # run against the sub-slice it was assigned, and do it before synthesis.
   echo "error: ${#candidates[@]} candidate indexes under $slice — cannot tell which run wrote which:" >&2
   printf '  %s\n' "${candidates[@]}" >&2
   exit 2
@@ -222,11 +279,14 @@ fi
 
 # Sidecar references are harvested by filename pattern rather than by parsing
 # the index's section -> file table. The table's markdown shape is free to
-# change; the sidecar filename contract (`EXPLORE-<section>.md`, a sibling of
+# change; the sidecar filename contract (`<PREFIX>-<section>.md`, a sibling of
 # the index) is the part the artifact-shape spoke pins down, so keying on it
 # keeps this gate from breaking on a formatting edit. The angle-bracketed
 # placeholder itself does not match, so an index that only ever wrote
-# `EXPLORE-<section>.md` reads as naming no sidecar — which it does not.
+# `<PREFIX>-<section>.md` reads as naming no sidecar — which it does not.
+#
+# The prefix is interpolated into an ERE, which is safe because `--index-name`
+# already refused every character that would mean anything in one.
 #
 # Read with a while loop rather than `mapfile`, which is bash 4+ only; this
 # gate has to run wherever a consuming project's shell does.
@@ -234,11 +294,15 @@ referenced=()
 while IFS= read -r name; do
   [[ -n "$name" ]] || continue
   referenced+=("$name")
-done < <(grep -oE 'EXPLORE-[A-Za-z0-9._-]+\.md' "$index" | sort -u)
+done < <(grep -oE "${sidecar_prefix}-[A-Za-z0-9._-]+\.md" "$index" | sort -u)
 
 if [[ ${#referenced[@]} -eq 0 ]]; then
-  echo "unusable: index names no EXPLORE-<section>.md sidecar: $index" >&2
-  echo "index=$index sidecars=0 missing=0 status=unusable"
+  echo "unusable: index names no ${sidecar_prefix}-<section>.md sidecar: $index" >&2
+  # Through `verdict`, not a hand-rolled printf: this branch used to emit a
+  # short line missing the `freshness=` and `pointer=` fields the header
+  # documents, so a parent grepping the verdict line for them found nothing on
+  # exactly one of the failure paths.
+  verdict "$index" 0 0 unusable
   exit 1
 fi
 

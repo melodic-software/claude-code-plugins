@@ -3,6 +3,59 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.2]
+
+A source-fidelity pass over `meter.md` against *Writing Better Lyrics* (2009)
+Chapters 14-17, read in full including the chapters' page-scan figures, plus
+one binding fix in `meter-prosody`. Paraphrase only; no chapter prose, example
+writes, or student work reaches this public repository.
+
+### Fixed
+
+- **`meter-prosody`'s mandatory pre-flight ran the wrong filter.** It routed to
+  `response-filter` §6 Form, whose boxes decide song shape — chorus versus
+  refrain, whether a bridge is needed — while the skill's own emission boundary
+  forbids it from making that call. The skill was required to check boxes it is
+  not allowed to act on, and nothing gated the output it actually emits. It now
+  routes to §3 Critique, the filter for findings delivered on a draft.
+- **Chapter 16's nine couplet / common-meter models were transcribed wrong.** The
+  exercise listed eight of the nine, dropped `abaa` entirely, corrupted two
+  rhyme schemes (`ababaccc` for `aaabcccb`, `abacccc` for `ababcccc`), stripped
+  every stress count, and labelled the whole set four-stress when five of the
+  nine set a three-stress line against four-stress neighbours. The models now
+  carry both dimensions in their own table.
+- **The Structural Pentad was defined two incompatible ways in one file.** One
+  section listed the Five Compositional Elements (number of lines, length of
+  lines, rhythm, rhyme scheme, rhyme type) under the Pentad's name, while the
+  file's two other definitions — and `five-compositional-elements.md` — name
+  balance, pace, flow, closure, and type of closure. Corrected, with the
+  distinction between the two frameworks stated where the confusion occurred.
+  The same section's claim that `stable-unstable-meta.md` applies the Pentad
+  across domains was also wrong: that file carries per-domain stability
+  criteria of its own.
+- **The eight-line couplet escape omitted its line lengths.** Its fourth and
+  eighth lines are shorter — three stresses — not merely unrhymed and answered;
+  an unrhymed line of matched length does not open the same IOU.
+
+### Added
+
+- **`response-filter` §3 gains two boxes.** Line length must be claimed in
+  stressed syllables, with no stress map meaning no length claim; and every
+  position the structure marks must be named along with the content sitting
+  there, so a spotlight over filler reads as a finding rather than a flourish.
+- **The extension-inside-line-four move lights two positions, not one** — the
+  third stressed syllable, where the expected rhyme failed to arrive, and the
+  fourth, which protrudes past the promised end. Its insertion is also two
+  syllables, one unstressed and one stressed.
+- **Closure defeats rhyme independently of distance.** A rhyme whose partner
+  sits two lines away can still read as unrhymed once an intervening unit has
+  closed and the ear has stopped listening back across the seam.
+- **Composite destabilizing.** Several destabilizers can fire in one section at
+  once and compound — odd line count, odd rhyme scheme, a first-use short line,
+  and a section outrunning the bar count the song had established. Bar-count
+  overrun is a device in its own right and the one most easily missed on the
+  page.
+
 ## [0.7.1]
 
 ### Fixed
