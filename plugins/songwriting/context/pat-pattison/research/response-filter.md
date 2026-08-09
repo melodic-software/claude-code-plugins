@@ -39,6 +39,7 @@ The filter sections are organized by WHAT the AI is about to output:
 | Rhyme list (the writer asked for rhymes) | §1 Rhyme suggestion filter |
 | Line rewrite / new line / variation | §2 Line-writing filter |
 | Critique / diagnosis of an existing lyric | §3 Critique filter |
+| Scansion verdict, stability call, phrasing judgement | §3 Critique filter |
 | Coaching / step-by-step guidance | §4 Coaching posture filter |
 | Title generation / hook placement | §5 Title + hook filter |
 | Form / song-shape recommendation | §6 Form filter |
@@ -216,13 +217,14 @@ the risk live.
 ## §3 Critique filter
 
 **Triggers:** writer asks for "review", "diagnose", "what's wrong with this",
-"honest feedback", "Pat would say what", or AI is about to deliver findings
-on a draft.
+"honest feedback", "Pat would say what", "scan this line", "is this section
+stable", or AI is about to deliver findings on a draft — including a
+scansion verdict, a stability call, or a phrasing judgement.
 
 **Reference:** [demo-review.md](demo-review.md),
 [audit-checklist.md](audit-checklist.md),
 [five-compositional-elements.md](five-compositional-elements.md),
-[stable-unstable-meta.md](stable-unstable-meta.md).
+[stable-unstable-meta.md](stable-unstable-meta.md), [meter.md](meter.md).
 
 **Pre-flight checklist:**
 
@@ -233,6 +235,16 @@ on a draft.
       diagnosis (note: writer reads; AI flags this as a step)
 - [ ] **Five Compositional Elements counted** per section (lines, line
       lengths, rhyme scheme, rhyme types, rhythm)
+- [ ] **Line length counted in STRESSES** — every "longer", "shorter",
+      "matched", or "balanced" claim is a count of stressed syllables. A
+      raw-syllable count answers a different question and invents symmetry
+      that is not there. No stress map marked = no length claim made
+- [ ] **Spotlight carries its content** — for each position the structure
+      marks (a shortened or lengthened line, a rhyme landing where none was
+      predicted, a delayed payoff, a section outrunning the established bar
+      count), NAME the content sitting there. A marked position holding
+      filler is a finding, not a flourish; a spotlight turned on to be cute
+      is a fail (*Writing Better Lyrics* (2009), Chapters 14-15)
 - [ ] **Stable/unstable scan** across lyric (and melody if known)
 - [ ] **Hot-spot audit** — where does the title sit? line 1 of each section?
       last line?
