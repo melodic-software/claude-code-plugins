@@ -63,7 +63,6 @@ mechanical completion of the byte-qualification vertical slice. Findings 1 and 5
   denied, **or otherwise unusable** — including a denial discovered only by calling it — so a state
   neither named case anticipates still routes to the inline question.
 
-
 - **The `python3` alias probe could not be reached on a machine whose only alternate interpreter
   cannot run it.** `setup` step 1(b) classifies the `python3` resolution with a bundled inspect-only
   probe launched through some other interpreter, and routed to the PowerShell equivalent only when no
