@@ -151,28 +151,30 @@ rhymes belong inside a section.
 
 ## Worksheet layout
 
-A practical lyric worksheet can use this structure:
+Chapter 4's own worksheet is ten numbered core words, each heading a single
+undifferentiated column of rhymes:
 
 ```text
 Title / working idea:
 Angle:
 Objective correlative:
 
-Core words:
-1.
-2.
-3.
-...
-
-For each core word:
-- perfect:
-- family:
-- additive/subtractive:
-- assonance:
-- consonance:
-- image/idea notes:
-- keep / maybe / reject:
+1. <core word>     2. <core word>     3. <core word>
+   <rhyme>            <rhyme>            <rhyme>
+   <rhyme>            <rhyme>            <rhyme>
+   ...                ...                ...
 ```
+
+**Do not sort the column by rhyme type.** Perfect, family, additive,
+subtractive, assonance, and consonance candidates sit side by side, and the
+mixing is the point: the eye scans one field and compares candidates on what
+they *mean* for this lyric. Splitting the column into labelled per-type rows
+turns one choice into five sub-choices and invites filling each row to a quota
+— which is the opposite of generating a surplus in order to reject most of it.
+
+Rhyme type is a placement decision, not a generation one. It matters when
+choosing which candidate lands in which position, which is
+[rhyme strategy](rhyme-strategy.md)'s job, after the column exists.
 
 Keep the page flexible. Add, remove, and swap core words as the lyric clarifies.
 
@@ -187,7 +189,7 @@ Exercise 9 - Focus and worksheet seed:
 - Save strong idea-words on a separate list.
 - Expand those words with a thesaurus or concept map.
 - Trim to ten or twelve core words with useful stressed vowels.
-- Build rhyme columns for each core word.
+- Build one mixed rhyme column under each core word.
 
 ## Skill workflow
 
@@ -199,6 +201,7 @@ When applying this file:
 4. Select an objective correlative.
 5. Build a core idea-word list.
 6. Trim the list for vowels, stress, and relevance.
-7. Expand rhyme options across perfect and imperfect types.
+7. Expand rhyme options across perfect and imperfect types into one mixed
+   column per core word, unsorted.
 8. Mark each word as keep, maybe, or reject.
 9. Draft only after the worksheet contains enough options to say no.

@@ -3,6 +3,25 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.4]
+
+A source-fidelity pass over `object-writing.md` (Chapter 2), `worksheets.md`
+(Chapter 4), and `cliche.md` (Chapter 5) against *Writing Better Lyrics* (2009),
+all three read in full with their figures. Paraphrase only; no chapter prose,
+example writes, or student work reaches this public repository.
+
+### Fixed
+
+- **The worksheet layout sorted rhymes into per-type buckets; Chapter 4's does
+  not.** The file gave every core word five labelled rows — perfect, family,
+  additive/subtractive, assonance, consonance. The chapter's own worksheet is
+  ten numbered core words, each heading ONE undifferentiated column with every
+  rhyme type mixed together. The mixing is the point: a single field is scanned
+  and compared on meaning, where five labelled rows turn one choice into five
+  sub-choices and invite filling each to a quota — the opposite of generating a
+  surplus in order to reject most of it. Rhyme type is a placement decision,
+  which is `rhyme-strategy.md`'s job, after the column exists.
+
 ## [0.7.3]
 
 A source-fidelity pass over `prosody.md` against *Writing Better Lyrics* (2009)
