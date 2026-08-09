@@ -118,6 +118,24 @@ emit_tel() {
   hook::emit_telemetry "pr-linkage-mcp-gate" "PreToolUse" "$1" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
 }
 
+# Defer-guard: when the consuming repo tracks its OWN equivalent gate in
+# .claude/settings.json (a PreToolUse hook whose command names
+# pr-linkage-mcp-gate — the marketplace repo does exactly this so its policy
+# survives sessions with no plugin install), both copies would fire and exit 2
+# on every MCP PR call, and the repo-local copy is deliberately
+# kill-switch-free. The plugin side is the right place to yield: the repo's
+# settings.json states the wiring authoritatively, whereas the repo-local
+# script has no sound signal for "plugin enabled" (plugin SOURCE present never
+# implies plugin ACTIVE). A repo could suppress this gate with a no-op script
+# of the same name — acceptable: this is a policy gate, not a security guard,
+# and the required CI check remains the authority.
+if [[ -f "$REPO_ROOT/.claude/settings.json" ]] &&
+  jq -e '[.hooks.PreToolUse[]?.hooks[]?.command // empty] | any(contains("pr-linkage-mcp-gate"))' \
+    "$REPO_ROOT/.claude/settings.json" >/dev/null 2>&1; then
+  emit_tel "deferred"
+  exit 0
+fi
+
 # --- Body validation ----------------------------------------------------------
 # The validator core is shared with the Bash-surface sibling
 # pr-body-linkage-gate.sh; the annotated functions live in

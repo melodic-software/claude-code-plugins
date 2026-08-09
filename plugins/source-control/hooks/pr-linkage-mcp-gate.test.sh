@@ -99,6 +99,20 @@ run 0 "repo without the gate file never blocks" "$NOGATE" "$(payload "$NOGATE" $
 run 0 "unrelated tool passes" "$GATED" "$(payload "$GATED" mcp__github__get_me $OWNER $REPO "$NO_RELATED")"
 run 0 "empty stdin allows" "$GATED" ""
 
+# Defer-guard: a consumer repo tracking its OWN equivalent gate in
+# .claude/settings.json makes the plugin copy yield (deferred, exit 0) so the
+# two never double-fire; unrelated settings wiring does not defer.
+mkdir -p "$GATED/.claude"
+cat >"$GATED/.claude/settings.json" <<'JSON'
+{"hooks":{"PreToolUse":[{"matcher":"^mcp__github__(create|update)_pull_request$","hooks":[{"type":"command","command":"\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/pr-linkage-mcp-gate.sh"}]}]}}
+JSON
+run 0 "consumer's own tracked gate defers the plugin copy" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$NO_RELATED")"
+cat >"$GATED/.claude/settings.json" <<'JSON'
+{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/other-gate.sh"}]}]}}
+JSON
+run 2 "unrelated settings hooks do not defer" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$NO_RELATED")"
+rm -rf "$GATED/.claude"
+
 # Kill switch: disabled via the userConfig mirror allows a bad body through.
 rc=0
 CLAUDE_PLUGIN_OPTION_PR_LINKAGE_MCP_GATE_ENABLED=false \
