@@ -128,8 +128,10 @@ printf '#!/usr/bin/env bash\ncat > "%s"\n' "$CAPTURE" >"$SINK"
 chmod +x "$SINK"
 HOOK_TELEMETRY_SINK="$SINK" CLAUDE_PROJECT_DIR="$GATED" \
   bash "$HOOK" <<<"$(payload "$GATED" $CREATE $OWNER $REPO "$NO_RELATED")" >/dev/null 2>&1 || true
-# The sink is fire-and-forget (backgrounded); give it a beat to land.
-for _ in 1 2 3 4 5 6 7 8 9 10; do [[ -s "$CAPTURE" ]] && break; sleep 0.3; done
+# The sink is fire-and-forget (backgrounded); poll in 20ms steps like the
+# established wait_for_sink helper (markdown-format.test.sh) — a coarse sleep
+# races variable process-spawn latency, notably on Windows Git Bash.
+for _ in $(seq 1 150); do [[ -s "$CAPTURE" ]] && break; sleep 0.02; done
 if [[ -s "$CAPTURE" ]] &&
   jq -e '.status == "skipped" and .data.outcome == "deferred"' "$CAPTURE" >/dev/null 2>&1; then
   PASS=$((PASS + 1))
