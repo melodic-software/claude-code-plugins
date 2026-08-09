@@ -7,7 +7,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Changed
 
-- **`babysit-loop`: listing description tightened (1,468 → 989 chars)** — trimmed the explanatory
+- **`babysit-loop`: listing description tightened (1,468 → 1,197 chars)** — trimmed the explanatory
   prose from the frontmatter `description` toward the shared skill-listing budget
   (claude-code-plugins#2022, option 2). Every single-quoted trigger phrase is preserved verbatim
   (skill-quality check 3); the merge-authority invariants (fail-closed human-only default,
