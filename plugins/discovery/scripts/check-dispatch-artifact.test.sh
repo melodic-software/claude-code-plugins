@@ -54,17 +54,25 @@ run_raw() {
 # case that had no exit-code twin over the same fixture — and at least one did
 # not. `$?` is captured on the line immediately after the substitution; anything
 # in between overwrites it.
+#
+# The two halves are reported INDEPENDENTLY rather than as a short-circuiting
+# chain: when both drift at once, an `elif` would hide the exit-status failure
+# behind the substring one and cost a second run to discover it.
 stdout_raw() {
   local expected="$1" needle="$2" label="$3"
   shift 3
-  local out actual
+  local out actual ok=1
   out="$(bash "$SUT" "$@" 2>/dev/null)"
   actual=$?
   if [[ "$out" != *"$needle"* ]]; then
     fail "$label — stdout lacked '$needle': $out"
-  elif [[ "$actual" -ne "$expected" ]]; then
-    fail "$label — stdout matched but exit was $actual, expected $expected"
-  else
+    ok=0
+  fi
+  if [[ "$actual" -ne "$expected" ]]; then
+    fail "$label — exit was $actual, expected $expected"
+    ok=0
+  fi
+  if [[ "$ok" -eq 1 ]]; then
     pass "$label"
   fi
 }

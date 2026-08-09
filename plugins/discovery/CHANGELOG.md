@@ -27,10 +27,11 @@
   baseline covers an N-topic fan-out.** The pre-dispatch step reads singular while a fan-out parent
   assigns N sub-slices; both readings were already correct, because the gate compares each sub-slice
   index's mtime against the file it is handed and a baseline touched now is newer than anything an
-  earlier run left under the slice. One clause, verbatim in both files so the copies cannot drift, now
-  says so — `research-deep` is where a reader actually performing the fan-out is standing, and its
-  existing rule there covers per-sub-slice *grading* but said nothing about the baseline. No procedure
-  changed, and no parity gap opens on the explore side, which has no fan-out.
+  earlier run left under the slice. One clause now says so in both files — identical from the em-dash
+  onward, with only the lead-in differing, because each file's surrounding sentence already frames the
+  fan-out differently. `research-deep` is where a reader actually performing the fan-out is standing,
+  and its existing rule there covers per-sub-slice *grading* but said nothing about the baseline. No
+  procedure changed, and no parity gap opens on the explore side, which has no fan-out.
 - **The `[0.12.0]` entry below is internally consistent about the pre-dispatch command.** It described
   the baseline as a bare `touch`, then its own `### Fixed` section introduced the `mkdir -p` as
   load-bearing. The description now carries both halves. No other history was touched.
