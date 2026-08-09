@@ -8,7 +8,7 @@ All notable changes to the `claude-memory` plugin are documented here. Format fo
 ### Fixed
 
 - **A single heavy pseudo-frontmatter line silently blanked the `audit` skill's M1 index-size byte
-  count** (claude-memory 0.5.7 → 0.6.0, criteria 1.5.2 → 1.5.3). `memory-dir-stats.sh` bounded its
+  count** (claude-memory 0.5.9 → 0.6.0, criteria 1.5.2 → 1.5.3). `memory-dir-stats.sh` bounded its
   frontmatter block by grammar and by line count but never by weight, and markdown prose opening
   `Note:` or `Important:` is a well-formed `key:` mapping entry. A `MEMORY.md` opening with a `---`
   thematic break, carrying one long paragraph, and reaching any later `---` had that paragraph
