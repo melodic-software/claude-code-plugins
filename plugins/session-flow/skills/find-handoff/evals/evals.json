@@ -97,16 +97,16 @@
       "id": 8,
       "name": "excludes-background-launch-save-points",
       "prompt": "Find my lost handoff. Earlier today I also ran /session-flow:continue-in-background on a different task.",
-      "expected_output": "The skill recognizes that continue-in-background writes an indistinguishable type: handoff save-point with the same engine and then launches the continuation itself. It screens glob candidates by locating each file's producer transcript via session_id and checking for the background-launch signature (claude --bg --name \"continue-…\"). A save-point whose launch succeeded is excluded from the default winner — its work is already running (claude agents lists it) — and the skill keeps looking for the older manual handoff, surfacing provenance at the confirm gate when launch evidence is ambiguous.",
+      "expected_output": "The skill recognizes that continue-in-background writes an indistinguishable type: handoff save-point with the same engine and then launches the continuation itself. It screens glob candidates by locating each file's producer transcript via session_id and checking for the background-launch signature (claude --bg --name \"continue-…\"). Before excluding, it rechecks the continuation's CURRENT state with `claude agents --json --all` — never the bare --json, which lists active sessions only — and resolves four ways: live and completed both exclude the candidate from the default winner (work running vs work already finished), while a non-completion terminal state or absence even from --all keeps it. The skill keeps looking for the older manual handoff, surfacing provenance at the confirm gate when launch evidence is ambiguous.",
       "files": [],
       "expectations": [
         "The skill screens candidates for the background-launch signature in the producer transcript before surfacing them — glob candidates before short-circuiting, and transcript-discovered file candidates via the same transcript the directive was found in",
         "It correlates the matched launch with the exact candidate file via the launch prompt's exact Read directive path, never excluding session-wide — a same-session manual handoff remains a valid candidate",
         "It treats --name continue-<topic> slug-only evidence as ambiguous unless it uniquely resolves to one candidate, since same-topic files all match the slug",
         "It applies the same screening to prompt-only candidates, bound by content: only the rails block whose exact prompt the successful claude --bg launch delivered is excluded — a later launch of a different prompt never disqualifies an earlier manual block in the same transcript",
-        "A save-point whose correlated background launch succeeded is not presented as the lost handoff; the operator is pointed at claude agents and the search continues",
+        "A save-point whose correlated background launch succeeded and whose continuation is still live is not presented as the lost handoff; the operator is pointed at claude agents and the search continues",
         "It treats a launch as successful only with transcript evidence the agent actually appeared — a zero-exit claude --bg alone is unverified and keeps the candidate as ambiguous",
-        "Before excluding, it rechecks the current claude agents state: a continuation that has since exited or failed keeps the candidate as the restart artifact, since transcript evidence proves only launch-time persistence",
+        "Before excluding, it rechecks the current agent state with `claude agents --json --all` and does not treat absence from the bare active list as failure: only a terminal state that does not report completion keeps the candidate as the restart artifact, and absence even from --all is reported as UNKNOWN rather than as a failed background attempt",
         "When launch evidence is ambiguous, unverified, or shows failure, the candidate is kept with its provenance surfaced at the confirm gate"
       ]
     },
@@ -165,6 +165,21 @@
         "The skill does not treat an unusable cwd as a dead end: the candidate is surfaced UNRESOLVED and the operator is asked which checkout to look in",
         "The current repo and any `Handoff origin:` repository remain in the widening set — narrowing the cwd rule never removes the roots that are already verified",
         "The widening stays read-only and bounded; no machine-wide filesystem sweep is performed under any branch"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "completed-continuation-is-not-a-failed-one",
+      "prompt": "Find my lost handoff. Yesterday I sent a task to a background agent and it finished the work; today I also lost an older handoff prompt I never copied.",
+      "expected_output": "The recent save-point belongs to the finished background continuation. Rechecking with `claude agents --json --all` shows that session in a terminal state reporting completion — not absent-and-therefore-failed, which is what the bare `claude agents --json` would suggest, since it lists active sessions only. The skill excludes that save-point from the default winner, says the continuation FINISHED and points at its output rather than a rerun, and keeps searching — recovering the older manual handoff the operator actually lost. Had the session been absent even from --all, the outcome would be reported as UNKNOWN (the --all history is bounded) and the candidate kept, never labelled a failed background attempt.",
+      "files": [],
+      "expectations": [
+        "It reads the continuation's current state with `claude agents --json --all`, not the bare `--json`, because the bare form lists active sessions only and excludes completed background sessions",
+        "It does NOT report the completed continuation's save-point as a failed background attempt",
+        "The completed continuation's save-point is excluded from the default winner, with the operator pointed at that session's finished output instead of a rerun",
+        "Excluding the completed candidate does not end the search — the skill keeps going and surfaces the older manual handoff",
+        "A session absent even from `--all` is reported as an UNKNOWN outcome and the candidate is kept, rather than asserted to have failed",
+        "A terminal state that does not report completion still keeps the save-point as the restart artifact, preserving the reason the recheck exists"
       ]
     }
   ]

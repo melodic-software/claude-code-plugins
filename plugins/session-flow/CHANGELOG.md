@@ -1,5 +1,31 @@
 # Changelog — session-flow plugin
 
+## [0.21.4]
+
+### Fixed
+
+- **`find-handoff`: a background continuation that COMPLETED is no longer read as one that failed.**
+  The background-delivery screening rechecked the continuation's current state before excluding a
+  save-point, but keyed that recheck on `claude agents` presence and collapsed every absence into
+  "keep the candidate, noting the failed background attempt". `claude agents --json` lists ACTIVE
+  sessions only — a completed background session is excluded by the CLI and surfaces only under
+  `--all`, carrying a `state` (observed: `done`, `stopped`) where a live one carries a `status`
+  (observed: `idle`, `busy`); verified this session against `claude agents --help` ("`--all` — With
+  --json: also include completed background sessions") and a live `--json --all` sample, and it is
+  the same contract `claude-ops`' `lane-launcher.sh` (`load_sessions`) already relies on. So a
+  finished continuation looked identical to a dead one: the ladder surfaced its save-point as a lost
+  handoff labelled a failed attempt, inviting the operator to redo completed work and letting a
+  recent completed continuation bury the older manual handoff they were actually looking for. The
+  recheck now reads `claude agents --json --all` and resolves four ways instead of two — live
+  (exclude, work running), terminal-and-completed (exclude, work FINISHED, point at that session's
+  output), terminal-and-not-completed (keep, the restart artifact the recheck exists for), and
+  absent even from `--all` (UNKNOWN, keep, never called a failure, since the `--all` history is
+  bounded) — keyed on the launched `sessionId` where the transcript recorded one, with the
+  `continue-<topic>` slug remaining an ambiguous key that routes to UNKNOWN. Stated once at the
+  step-1 screening site and governing every screening site, with the prompt-only site and the
+  Gotchas bullet aligned to it; `evals.json` case 8's stale expectation corrected and a case added
+  for the completed-continuation branch. (claude-code-plugins#1033 review thread.)
+
 ## [0.21.3]
 
 ### Changed
