@@ -38,7 +38,10 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 
   - a single-line `-m` passes; a `-m`/`--message` value carrying an actual newline blocks, in every
     spelling the argv scan sees — separated (`-m <msg>`), attached (`-m"<msg>"`), `--message=<msg>`,
-    and a short-option cluster ending in `m` (`-am <msg>`);
+    every accepted unique abbreviation of `--message` (`--m` through `--messag`, separated or
+    `=`-attached — git's parse-options accepts any unique long-option prefix and `--message` is
+    git commit's only `m`-initial long option; verified on git 2.55), and a short-option cluster
+    ending in `m` (`-am <msg>`);
   - bare `git commit` / `git commit -a` (no message source; the old block) now pass — no `-m`, no
     mangling hazard;
   - repeated single-line `-m` flags pass: git itself joins them as paragraphs, no shell newline is

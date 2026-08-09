@@ -46,6 +46,24 @@ run "git commit -am single-line (allowed)" "git commit -am 'feat: x'" 0
 run "git commit -m<attached> multi-line (blocked)" "git commit -m'feat: x${NL}body'" 2
 run "git commit --message=<attached> multi-line (blocked)" \
   "git commit --message='feat: x${NL}body'" 2
+run "git commit --message <separated> multi-line (blocked)" \
+  "git commit --message 'feat: x${NL}body'" 2
+run "git commit --message <separated> single-line (allowed)" \
+  "git commit --message 'feat: x'" 0
+# git's parse-options accepts any UNIQUE prefix of a long option, and --message
+# is git commit's only m-initial long option, so --m..--messag all parse as
+# --message (verified on git 2.55) — the abbreviated spellings must hit the
+# same gate in both the =-attached and the separated form.
+run "git commit --mess=<abbreviated attached> multi-line (blocked)" \
+  "git commit --mess='feat: x${NL}body'" 2
+run "git commit --mess=<abbreviated attached> single-line (allowed)" \
+  "git commit --mess='feat: x'" 0
+run "git commit --mess <abbreviated separated> multi-line (blocked)" \
+  "git commit --mess 'feat: x${NL}body'" 2
+run "git commit --mess <abbreviated separated> single-line (allowed)" \
+  "git commit --mess 'feat: x'" 0
+run "git commit --m=<shortest abbreviation> multi-line (blocked)" \
+  "git commit --m='feat: x${NL}body'" 2
 run "git commit -m multi-line with --trailer (still blocked — trailer is not the mechanic)" \
   "git commit -m 'feat: x${NL}body' --trailer 'Co-Authored-By: X <x@y.z>'" 2
 run "repeated single-line -m (allowed — git itself joins the paragraphs)" \

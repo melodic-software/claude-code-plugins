@@ -781,12 +781,18 @@ check_segment() {
     -C* | -c*)
       exempt=1
       ;;
-    -m | --message)
+    -m | --m | --me | --mes | --mess | --messa | --messag | --message)
+      # git's parse-options accepts any UNIQUE prefix of a long option, and
+      # --message is git commit's only long option starting with "m", so every
+      # prefix --m..--messag is accepted as --message. Verified empirically on
+      # git 2.55: `git commit --dry-run --mess=x` (and each shorter prefix)
+      # parses, while a non-option like --mainline errors — so an abbreviated
+      # spelling must hit this gate exactly as the full one does.
       [[ "$next" == *$'\n'* || "$next" == "$PS_HERESTRING_PLACEHOLDER" ]] && msg_newline=1
       ((k++))
       ;;
-    --message=*)
-      word="${word#--message=}"
+    --m=* | --me=* | --mes=* | --mess=* | --messa=* | --messag=* | --message=*)
+      word="${word#*=}"
       [[ "$word" == *$'\n'* || "$word" == "$PS_HERESTRING_PLACEHOLDER" ]] && msg_newline=1
       ;;
     -m*)
