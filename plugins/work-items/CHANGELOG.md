@@ -11,7 +11,7 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   detection records.** The fail-open bullet named reactive-only but gave the lane no
   `stop-events.jsonl` behavior; both skills now carry the reader contract's read cadence (read on
   mode entry and before each new work claim, recency baseline = lane start advanced by each resume
-  attempt). Mirrors rate-limit-guard 0.4.3's reader-contract addition.
+  attempt). Mirrors rate-limit-guard 0.4.4's reader-contract addition.
 
 ## [0.34.0]
 

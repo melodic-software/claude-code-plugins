@@ -3,7 +3,7 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.4.3]
+## [0.4.4]
 
 ### Added
 
@@ -14,6 +14,33 @@ All notable changes to the `rate-limit-guard` plugin are documented here. Format
   and advances with each resume attempt (per-consumer, in-memory, never persisted) — records newer
   than it are live signal, older ones are history that never justifies a new pause on its own. The
   two inlined floors in `prompts/loops/loop-lane-prompts.md` are updated in the same change.
+
+## [0.4.3]
+
+### Fixed
+
+- **The shim no longer runs an uninstalled plugin's tee (#1849).** `claude plugin uninstall` does
+  not delete the version directory: the plugins reference documents that updating or uninstalling
+  marks the previous version directory orphaned and removes it automatically 14 days later, so the
+  files — `scripts/statusline-tee.sh` included — stay on disk for that whole window. `resolve_tee()`
+  matched on the glob and mtime alone, so a removed plugin kept teeing and kept writing snapshots
+  with no signal to the operator. A candidate whose version directory carries the orphan marker is
+  now skipped, so uninstalling stops the tee at the next statusline refresh. The marking is
+  documented; the marker's on-disk spelling was measured (Claude Code 2.1.220, against a relocated
+  `CLAUDE_CONFIG_DIR`) and the shim's header records both, along with the fallback: should upstream
+  rename or drop the marker, resolution degrades to exactly what it does today — a stale tee, never
+  a broken statusline. The undocumented `installed_plugins.json` the header previously rejected
+  stays rejected. Port of the context-guard fix from #1787 / PR #1844; the two shims remain
+  deliberately unregistered as a byte-identical cluster (plugin name and header prose differ).
+
+  **Existing installs need one `apply`.** The statusline runs the durable copy at
+  `~/.claude/rate-limit-guard/bin/statusline-shim.sh`, which a plugin update never overwrites, so
+  an operator who ran `apply` before this release keeps running the old shim — and keeps selecting
+  orphaned tees — until they re-run it. `setup check` previously reported any installed-vs-shipped
+  difference as INFO on the premise that an older revision "still resolves the newest tee"; that
+  premise is what this fix falsifies, so a copy below revision 3 is now a FAIL with the migration
+  stated in the finding. Uninstalling first is the trap worth naming: the setup skill goes with the
+  plugin while the stale shim stays behind, leaving no in-product path to the remediation.
 
 ## [0.4.2]
 
