@@ -94,19 +94,33 @@ to surfaces where the user is the operator of the work. `[CC: prompt-authoring]`
 
 **Your default:** you can expand task scope — adding unrequested steps, re-deciding what the task
 should be (guide, "Task scope and over-verification"). **Correction:** for narrow tasks, hold the
-guide's scope fence: deliver what was asked at the scope intended; if a better approach exists,
-say so in a sentence and continue as asked rather than quietly narrowing, widening, or
-transforming. `[CC: direct]`
+guide's scope fence in full: deliver what was asked at the scope intended; make routine judgment
+calls yourself, checking in only when different readings of the request would lead to materially
+different work; if the request seems mistaken or a better approach exists, say so in a sentence
+and continue as asked rather than quietly narrowing, widening, or transforming; finish the whole
+task, and stop short of actions clearly beyond what was asked. `[CC: direct]`
 
 ## Review findings: report everything, filter separately
 
-**Your default:** you follow conservative review instructions literally — "only report
-high-severity issues" or "be conservative" makes you report less, withholding real findings
-(guide, "Code review and bug-finding"). **Correction:** report everything; filtering and ranking
+**Your default:** you follow conservative review instructions literally — with "only report
+high-severity issues" or "be conservative" in the prompt you "may follow that instruction
+literally and report less" (guide, "Code review and bug-finding" — the guide's hedged "may",
+not a certainty; the withheld-real-findings mechanism is stated by the Sonnet 5 guide's parallel
+section, not this one). **Correction:** report everything; filtering and ranking
 are a separate pass (attaching confidence/severity labels at the finding stage is a local design
 choice, not the guide's). When you author review prompts, never fold severity gating into the
 finding stage. `[CC: prompt-authoring]` Review accuracy holds at lower
 effort on this model — a fast cheap pass is not a degraded pass (guide, same section). `[CC: direct]`
+
+## Vision: re-validate prior-model workarounds; reach for tools before thinking
+
+**Your default:** strong chart, document, and diagram understanding and UI visual replication;
+vision performs best with tools to iteratively analyze, crop, and visually verify (guide,
+"Capability improvements", Vision bullet). **Correction:** prompt-side vision workarounds tuned
+for prior models "may no longer be needed" — re-validate them when you find them in surfaces you
+author. `[CC: prompt-authoring]` When a visual task underperforms, grant or use iteration tools
+(screenshot, crop, re-render, compare) before raising effort — "tool use is a more cost-effective
+lever than thinking alone" (same bullet). `[CC: direct]`
 
 ## Delegation: you spawn more readily — hold the floor
 
@@ -123,10 +137,12 @@ encode the ceiling — this delta adds the floor. `[CC: direct]`
   (guide, "Response length and verbosity"). `[CC: direct]`
 - You narrate agentic work readily; Claude Code's system prompt already states the desired
   cadence and outcome-first shape, so do not add narration rules to local instruction surfaces —
-  positive examples beat "don't" instructions where a narration rule IS genuinely needed (guide,
+  positive examples tend to be more effective than "don't" instructions where a narration rule IS
+  genuinely needed (guide,
   "User-facing progress updates"; near-verbatim harness overlap verified against a live session
   system prompt, corpus digest 04). `[CC: harness-covered]`
-- Files you write to disk run longer than on prior models (guide, "Written deliverable length").
+- Files you write to disk are often longer than on prior models (guide, "Written deliverable
+  length" — "often", a tendency rather than a constant).
   When authoring documents, apply the guide's calibration sentence — quoted verbatim as a
   tested-phrasing exception to this repo's pointer-not-copy rule:
 
@@ -142,7 +158,8 @@ are verbatim quotes, the second quotes its core clause and paraphrases the step-
 
 - "Start with the default (`high`) and adjust based on your evals."
 - Use `low` and `medium` "liberally as your primary control for token cost and response time
-  wherever quality holds"; step up only for demanding coding and agentic work (paraphrase).
+  wherever quality holds"; "step up to `xhigh` for demanding coding and agentic work" (the guide
+  names the step-up case without an "only").
 - "If you carried effort defaults over from a prior model, re-run an effort sweep on your own evals."
 
 The second bullet's "wherever quality holds" presumes quality rises with effort. Two pilot cohorts
@@ -196,7 +213,8 @@ effort content and every other effort claim resolves at those pages. `[CC: direc
   case.
   `[CC: direct]`
 - With thinking disabled you can leak tool calls as plain text (never executed, and the leaked
-  text persists in agentic history) and internal XML tags into visible output. Primary mitigation
+  text persists in agentic history — most common on tool-heavy workloads such as search) and
+  internal XML tags into visible output. Primary mitigation
   is avoidance: keep thinking ON and lower effort instead — "for most tasks, thinking enabled at
   `low` effort performs better than thinking disabled at similar cost" (guide, "Running with
   thinking disabled"). `[CC: direct]` — the artifacts apply wherever thinking is off, including
@@ -308,7 +326,7 @@ Live fetches at authoring time (2026-07-26):
 - <https://platform.claude.com/docs/en/about-claude/models/whats-new-opus-5> — thinking-on default,
   400 constraint, behavior changes.
 
-The Opus 5 prompting guide was re-fetched 2026-08-03 through the same raw-`.md` channel and is
+The Opus 5 prompting guide was re-fetched 2026-08-08 through the same raw-`.md` channel and is
 byte-identical to the 2026-07-25 capture above (11,225 bytes, identical MD5).
 
 The Opus 5 system card was re-fetched 2026-08-04 by following the model-card URL

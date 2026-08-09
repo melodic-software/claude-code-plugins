@@ -154,9 +154,12 @@ run "echo x 1>/dev/null (allowed)" "echo x 1>/dev/null" 0
 # Other fds must NOT be swept in by the widened operator.
 run "cat 2>err.log (allowed)" "cat 2>err.log" 0
 run "cat 21>err.log (allowed)" "cat 21>err.log" 0
-# An fd DUPLICATION or close has no file operand and is not a write. The `&`
-# never survives normalization — `>&` becomes a sentinel — so the target class
-# must exclude the SENTINEL, not just `&`, or a dup reads as a file named "\x012".
+# An fd DUPLICATION or close has no file operand and is not a write. A literal `&`
+# reaches the scan (normalize_segments restores its sentinel before storing the
+# segments), so the `&` exclusion in the target class is what leaves the target
+# empty and the emptiness skip in cat_redirect_bypass is what passes it. The
+# sentinel is excluded from that class too, so these stay allowed even if the
+# restore regresses — which it silently had on bash >= 5.2.
 run "cat 1>&2 fd dup (allowed)" "cat 1>&2" 0
 run "cat 1>&- fd close (allowed)" "cat 1>&-" 0
 run "cat >&2 bare fd dup (allowed)" "cat >&2" 0
@@ -176,6 +179,18 @@ run "echo + 2>&1 (allowed)" "echo hi; ls foo 2>&1 | cat" 0
 run "echo stdout to /dev/null (allowed)" "echo noise >/dev/null" 0
 run "echo + find 2>/dev/null pipe (allowed)" \
   "echo scan; find . -name x 2>/dev/null | head" 0
+# A producer writing to a DUPLICATED fd is not a file write. These were live
+# false positives on bash >= 5.2 until normalize_segments stopped restoring its
+# `>&` sentinel to itself (see the `\&` note there): the surviving `\x01` matched
+# _echo_file_out's target class, and the producer lane has no emptiness skip, so
+# an empty effective target fell straight through to a block.
+run "echo x >&2 to stderr (allowed)" "echo x >&2" 0
+run "printf x >&2 to stderr (allowed)" "printf x >&2" 0
+run "echo x 1>&2 explicit fd dup (allowed)" "echo x 1>&2" 0
+run "echo x >&- close stdout (allowed)" "echo x >&-" 0
+# …but a dup followed by a REAL file redirect still blocks: bash applies
+# redirections left to right, so the file is the effective stdout target.
+run "echo x >&2 then > file still blocked" "echo x >&2 > real.txt" 2
 # Real writes still blocked, including alongside a stderr suppressor (no hole).
 run "echo append > file still blocked" "echo line >> real.txt" 2
 run "echo > file with 2>/dev/null still blocked" \

@@ -1,5 +1,76 @@
 # Changelog — discovery plugin
 
+## [0.11.2]
+
+### Changed
+
+- **`research-deep`: the multi-topic fan-out now has a ceiling.** N came straight from the user's own
+  topic count with a stated floor (N ≥ 2 dispatches parallel agents) and nothing above it, so a
+  twenty-topic ask dispatched twenty agents. N is now capped at roughly a dozen, past which the ask
+  gets narrowed with the user before dispatching — the same wave cap the `discipline` plugin already
+  uses, rather than a new threshold invented here.
+
+## [0.11.1]
+
+### Fixed
+
+- **The plan-mode filter claim bundled two tools under one unconditional rule, and only one of them
+  is unconditional.** `skills/explore/SKILL.md` and `agents/explorer.md` both stated that
+  "`EnterPlanMode` and `ExitPlanMode` are filtered out of every non-fork subagent". Verified
+  2026-08-08 against the official subagent docs, which list the first filter's removals as
+  "`EnterPlanMode`" with no qualifier and "`ExitPlanMode`, unless the subagent's `permissionMode` is
+  `plan`". `ExitPlanMode` carries a carve-out; `EnterPlanMode` does not.
+  - The correction is not an appended qualifier. Attaching the carve-out to the joined sentence
+    would have spread it to `EnterPlanMode`, replacing a claim that is too strong with one that is
+    too weak — and too weak in the direction that matters, since it would imply a dispatched run
+    could enter plan mode. The two tools are now stated separately.
+  - **The surrounding conclusion survives, and now rests on the `tools` allowlist rather than on
+    the filter alone.** Both sites conclude that a dispatched run's read-only boundary is the
+    agent's own instruction, not harness enforcement. Deriving that from `permissionMode` would
+    not hold: the same page states subagents "inherit the permission context from the main
+    conversation", naming only `bypassPermissions`, `acceptEdits`, and `auto` in its precedence
+    rules, so a definition's silence on `permissionMode` does not by itself settle which mode the
+    subagent runs in. `agents/explorer.md` instead declares `tools: "Read, Grep, Glob, Bash,
+    Write, Skill, Agent"` — an allowlist naming neither plan-mode tool — so it holds neither
+    however the filters and inheritance resolve. That is a property of the definition in the
+    repository, checkable without reasoning about permission-mode precedence at all.
+
+## [0.11.0]
+
+### Changed
+
+- **Both dispatch envelopes now carry the reason the work is being done**, not only what to do. A
+  section-by-section audit against Anthropic's Fable 5 prompting guide found that every
+  dispatch-brief contract in this marketplace specified outcome, output shape, sources, and
+  boundaries — and none carried intent. That guide singles out long-running agents drawing on
+  multiple workstreams as where the omission costs most, and a dispatched worker is that case at its
+  sharpest: it has no conversation to infer intent from.
+  - Both halves of each contract move together, which is the part that makes it bind. The parent
+    side states the field in the envelope (`skills/explore/SKILL.md`, `skills/research/SKILL.md`,
+    and the envelope table in `skills/research/context/dispatch.md`), and the worker side adds it to
+    the list it refuses to guess (`agents/explorer.md`, `agents/researcher.md`). Adding it to the
+    parent alone would leave a worker that accepts a reason-less prompt without noticing, which is
+    the silent failure the field exists to stop.
+  - The justification travels with the field in every one of those places: a missing topic or scope
+    is silence the agent can report, while a missing reason is invisible — the agent works the topic
+    as written, returns something well-formed, and neither side learns it answered the wrong
+    question. Intent is what decides which of several defensible readings is the one wanted.
+  - **The enforcement sentence names the reason too.** Listing a field under "refuse to guess" and
+    then omitting it from the `status: truncated` rule directly below leaves the field advisory: the
+    agent reads the obligation and nothing makes a missing reason stop the run. Both agents now halt
+    on an absent or ambiguous reason exactly as they do for an absent scope, topic, or slice path.
+
+## [0.10.1]
+
+### Added
+
+- **`explore`: sidecar bodies get a length calibration.** Every surrounding surface was already
+  calibrated (one-line index abstracts, one-line YAML findings, a sentence-capped agent return),
+  but the sidecar bodies — where the bulk of the disk-written artifact lands — carried no length
+  guidance, and the outcome gate is a floor (no placeholders), not a ceiling. SKILL.md now
+  carries the calibration: match body length to what the section needs; cover the substance
+  without filler sections, redundant summaries, or boilerplate.
+
 ## [0.10.0]
 
 ### Added

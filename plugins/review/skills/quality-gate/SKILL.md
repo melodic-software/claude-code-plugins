@@ -67,8 +67,8 @@ Follow the selected context file. Two hard rules:
 
 ### Findings
 
-| # | Severity | Category | Finding | File:Line | Action |
-|---|----------|----------|---------|-----------|--------|
+| # | Severity | Confidence | Category | Finding | File:Line | Action |
+|---|----------|------------|----------|---------|-----------|--------|
 
 ### Strengths
 

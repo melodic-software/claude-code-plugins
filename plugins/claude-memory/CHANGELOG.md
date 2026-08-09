@@ -3,6 +3,23 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.8]
+
+### Fixed
+
+- **The `audit` workflow told the model to be mechanical on every check, contradicting the skill's
+  own determinism contract.** "Be mechanical, not interpretive" sat unscoped at the end of the
+  generic per-check loop, but only C1/M1/M2/RD1 are the deterministic spine; C2-C9, R1-R4, and
+  M3-M4 are a judgment tier that requires reading and interpreting content by design. The
+  instruction is now scoped to the spine, and the judgment tier is told to apply its fixed criteria
+  consistently rather than to skip the judgment.
+
+### Changed
+
+- **`stateless`' disable workflow says why the scope gate exists** — applying the wrong scope
+  silently changes memory behavior for the wrong audience (machine-wide vs. this repo) — instead of
+  stating the stop as a bare prohibition.
+
 ## [0.5.7]
 
 ### Fixed

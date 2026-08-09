@@ -3,6 +3,24 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.4]
+
+### Added
+
+- **`/testing:diagnose`'s fix step now constrains the direction of the fix, not just its size.** The
+  loop's Step 3 bullets bounded scope but never said which side of the red signal to change, leaving
+  "edit the assertion until it passes" as the shortest path to green. The step now leads with fixing
+  the production code, and requires a deliberate, stated correction when the test itself is the thing
+  that is wrong.
+- **The e2e prerequisite hard-fail says why workarounds are barred** — a substitute path yields
+  unverified pass/fail results, which defeats the point of live verification. Added at both the
+  `SKILL.md` and `context/e2e.md` statements of the rule.
+
+### Changed
+
+- **The prerequisite headings drop their `MANDATORY` tag** in `/testing:run-e2e`; the STOP-and-report
+  behavior described immediately beneath each already makes the requirement unambiguous.
+
 ## [0.3.3]
 
 ### Changed

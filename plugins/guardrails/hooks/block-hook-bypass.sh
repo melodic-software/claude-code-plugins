@@ -265,12 +265,19 @@ COMMAND_LC="${COMMAND,,}"
 # reach either branch: `cat 2>err` matches neither `cat[[:space:]]*>` nor
 # `cat[[:space:]]+1>`.
 _cat_redir='(^|[[:space:];|&()]+)cat([[:space:]]*>|[[:space:]]+1>)'
-# Runs on a NORMALIZED segment, where normalize_segments has already replaced
-# `>&` / `<&` / `&>` with a `\x01` sentinel (and escapes with `\x02`) so an fd
-# dup is not split as a control operator. Excluding both sentinels from the
-# target class is what keeps `cat 1>&2` and `cat 1>&-` out: the raw `&` never
-# reaches here, so a bare `[^&]` class would accept `\x012` as a filename and
-# read a dup as a write.
+# Runs on a NORMALIZED segment. normalize_segments sentinels `>&` / `<&` / `&>`
+# as `\x01` (and escaped separators as `\x02`) so an fd dup is not split as a
+# control operator, then restores them before storing NORMALIZED_SEGMENTS — the
+# text both call sites read. A segment therefore reaches this scan with a literal
+# `&`, and the `&` in the target class is what keeps `cat 1>&2` and `cat 1>&-`
+# out: a dup leaves NO file target, and cat_redirect_bypass skips a segment whose
+# target came back empty.
+# Both SENTINELS are excluded as well, and that is not redundant. The restore was
+# silently version-dependent until it was fixed: on bash >= 5.2 an unquoted `&` in
+# a substitution replacement means "the text just matched", so the sentinel was
+# restored to itself and survived into the segment (see the `\&` note in
+# normalize_segments). Excluding both bytes means a dup is rejected whichever one
+# arrives, so a regression in the restore cannot silently turn one into a write.
 # One stdout redirect and its target word. `[^0-9&]` before the operator keeps
 # other-fd (`2>`, `21>`) and combined (`&>`) redirects out, while the optional
 # `1` admits the EXPLICIT stdout spelling — `1>file` is stdout exactly as `>file`
@@ -436,7 +443,13 @@ normalize_segments() {
   # separator (quoted spans are already stripped), so a segment holds at most one
   # simple command and the redirect in it is that command's own.
   normalized="${normalized//[$seps]/$'\n'}"
-  normalized="${normalized//"$soh"/&}"
+  # `\&`, not a bare `&`: since bash 5.2 an UNQUOTED `&` in a substitution
+  # REPLACEMENT expands to the text the pattern just matched (the sed rule), so
+  # `${normalized//"$soh"/&}` restored the sentinel to itself — a silent no-op on
+  # every bash >= 5.2, while still restoring correctly on older ones. That left
+  # the surviving `\x01` for the per-segment scans to trip over, which is why
+  # _redir_scan's target class excludes the sentinel as well as `&`.
+  normalized="${normalized//"$soh"/\&}"
   normalized="${normalized//"$esc"/ }"
   NORMALIZED_SEGMENTS="$normalized"
 }

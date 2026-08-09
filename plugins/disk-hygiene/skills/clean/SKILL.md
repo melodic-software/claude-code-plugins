@@ -72,20 +72,32 @@ unless bounded with `--max-depth` or confirmed with `--confirmed-large-scan`.
 
 ## Confirmation gate
 
-Every question this skill asks passes this gate — including the no-target prompt above, the
-large-scan confirmation in §1, the removal approval in §5, and the unsupported-platform handoff
-in §6.
+Every question this skill asks passes this gate — the no-target prompt above, the large-scan
+confirmation in §1, the removal approval in §5, and the unsupported-platform handoff in §6. One
+surface rule and one floor cover all four. What a valid answer must *name* is per question, because
+a target prompt has no tier or path list to name and cannot be held to a bar built for one.
 
 **Question surface.** Prefer `AskUserQuestion`: its answer is the user's own and cannot be
-fabricated. It is not always in the pool — permission mode `dontAsk` denies it unconditionally, and
-a bare-name `permissions.deny` rule or a `disallowed-tools` entry removes it — so when it is absent,
-ask the same question inline as a numbered choice and wait for the reply. The surface varies; the bar
-below does not.
+fabricated. It is not always usable, in two distinct ways — a bare-name `permissions.deny` rule or a
+`disallowed-tools` entry removes it from context entirely, while permission mode `dontAsk` denies it
+even when an allow rule names it, leaving it visible and every call failing. Fall back to the same
+question asked inline as a numbered choice whenever the tool is absent, denied, **or otherwise
+unusable** — including a denial discovered only by calling it; a denied call is an unanswered
+question, never an answer. Then wait for the reply.
 
-**The bar.** Take the user's own affirmative answer, given in this interactive session, naming
-exactly the tier and path list just shown. A prior general request, `--execute`, "clean everything",
-approval of another tier, or silence is not confirmation — never supply or infer the answer
-yourself. On rejection, stop.
+**The floor — every question.** Take the user's own answer, given in this interactive session. Never
+supply, infer, or fabricate it: a prior general request, `--execute`, "clean everything", approval of
+another tier, or silence is not an answer. On rejection, stop.
+
+**What the answer must name — per question.** Where a row requires the answer to name something the
+skill itself produced — the resolved target, the tier, the path list — show it in the question; a bar
+naming what the question never presented cannot be met.
+
+| Question | Accept only an answer naming |
+|---|---|
+| Target selection (no target given) | one directory, which must then clear every rejection in "Arguments and boundaries" |
+| Scan scope (`--confirmed-large-scan`, §1) | that target and a deliberate unbounded full walk of it |
+| Removal approval (§5) and manual handoff (§6) | exactly the one tier and the exact path list just shown |
 
 ## 1. Create a read-only snapshot
 
@@ -116,8 +128,9 @@ this gate) and carries neither `--max-depth` nor `--confirmed-large-scan` return
 unbounded traversal, so a forgotten bound never becomes an accidental whole-volume scan. `--max-depth`
 is the preferred bounded response.
 Reserve `--confirmed-large-scan` for a deliberate full walk the human has confirmed — pass the
-[confirmation gate](#confirmation-gate) first, exactly as the apply lane requires before an
-expensive step; a general "clean my home directory" is not that confirmation. Every
+[confirmation gate](#confirmation-gate)'s scan-scope row first, the same standing before an
+expensive step that the apply lane demands before a destructive one; a general "clean my home
+directory" is not that confirmation. Every
 directory whose descendants were not walked — cut off by `--max-depth`, a protected root, or a VCS
 boundary — is recorded in `truncated_paths`; report them as coverage gaps, never as clean, and
 never plan them for removal (the preview blocks them as `truncated-not-inventoried` and skips the
@@ -249,10 +262,12 @@ token.
 Preview reports `execution-platform-unsupported` as a per-candidate blocker on these platforms, so
 the engine never deletes there. The default outcome is the report. The manual lane is gated by
 `--execute` exactly as the engine lane is — without it, no deletion lane may be offered on any
-platform. If — and only if — `--execute` was requested and the human reviews the report and
-approves an exact path list in this interactive session (the same [confirmation gate](#confirmation-gate)
-exact-tier-and-list bar as the engine lane; a general "clean it up" is still not approval), removal is a manual
-handoff, not an engine plan:
+platform. If — and only if — `--execute` was requested and the human reviews the report and approves
+an exact path list drawn from one tier in this interactive session (the §3 report spans every tier, so
+narrow it to a single tier and show that tier's paths before asking — the
+[confirmation gate](#confirmation-gate)'s removal row is the same exact-tier-and-list bar the engine
+lane clears; a general "clean it up" is still not approval), removal is a manual handoff, not an
+engine plan:
 
 1. Write the approved exact paths to `<run-dir>/handoff-paths.json` as
    `{"version": 1, "paths": ["relative/exact.tmp"]}` (snapshot-relative, exact, non-overlapping,

@@ -39,6 +39,11 @@ longer matches the source is a defect, not a style choice.
   <https://www.anthropic.com/engineering/multi-agent-research-system>
 - Scale effort to complexity: "Simple fact-finding requires just 1 agent with 3–10 tool calls …
   complex research might use more than 10 subagents." *(paraphrase)* — same URL
+- The REASON field: "Claude Fable 5 tends to perform better when it understands the intent behind a
+  request: context lets it connect the task to relevant information rather than inferring intent on
+  its own. Provide context about why you're asking, especially for long-running agents drawing on
+  multiple workstreams." —
+  <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5>
 
 ## Imperative 3 — FRESH-CONTEXT VERIFY
 
