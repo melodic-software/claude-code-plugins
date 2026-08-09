@@ -175,9 +175,9 @@ run "#964 shell-alias re-invocation, canonical -F - twin (allowed)" \
 # dual-spelling chain exiting 0 proves the walk stayed inside the hook's
 # HOOK_ALIAS_WORK_MAX re-expansion cap, because a collapse regression overruns
 # that cap and exits 2 naming the ceiling — which the divergent case below
-# asserts directly. The hook states the same principle at
-# block-noncanonical-commit.sh:489 — "The ceiling counts ANALYSES rather than
-# seconds, because a wall clock is host- and command-length-dependent."
+# asserts directly. The hook states the same principle where it sets that cap —
+# "The ceiling counts ANALYSES rather than seconds, because a wall clock is
+# host- and command-length-dependent."
 #
 # A wall-clock ceiling here contradicted that and flaked on a loaded host: the
 # divergent-spelling case (the slowest of these, because exhausting the budget is
