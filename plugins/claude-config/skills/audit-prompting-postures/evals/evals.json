@@ -17,7 +17,7 @@
       "id": 2,
       "name": "routes-present-and-wrong-text-out",
       "prompt": "/claude-config:audit-prompting-postures my skill says 'CRITICAL: You MUST use this tool' — should that change?",
-      "expected_output": "Recognizes that judging existing instruction text (over-aggressive emphasis is audit-instructions' I24) is out of this skill's scope and routes to claude-config:audit-instructions, rather than proposing a rewrite itself. This skill owns only absent-and-needed posture guidance.",
+      "expected_output": "Recognizes that judging existing instruction text (over-aggressive emphasis is audit-instructions' I28) is out of this skill's scope and routes to claude-config:audit-instructions, rather than proposing a rewrite itself. This skill owns only absent-and-needed posture guidance.",
       "files": [],
       "expectations": [
         "Routes present-and-wrong instruction text to claude-config:audit-instructions",

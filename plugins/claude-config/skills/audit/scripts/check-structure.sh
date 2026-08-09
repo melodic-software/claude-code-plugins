@@ -52,18 +52,24 @@ MCP="$PROJECT_ROOT/.mcp.json"
 # the official settings doc (verified 2026-08-08); the legacy Windows
 # C:\ProgramData location is unsupported since v2.1.75 and deliberately not
 # probed. Windows resolution goes through $PROGRAMFILES so a relocated
-# Program Files directory still resolves.
-case "$OSTYPE" in
-darwin*)
-  MANAGED="/Library/Application Support/ClaudeCode/managed-settings.json"
-  ;;
-msys* | cygwin*)
-  MANAGED="${PROGRAMFILES:-C:\\Program Files}\\ClaudeCode\\managed-settings.json"
-  ;;
-*)
-  MANAGED="/etc/claude-code/managed-settings.json"
-  ;;
-esac
+# Program Files directory still resolves. SETTINGS_AUDIT_MANAGED_PATH is the
+# test seam — the real locations are absolute system paths a fixture dir
+# cannot reach.
+if [[ -n "${SETTINGS_AUDIT_MANAGED_PATH:-}" ]]; then
+  MANAGED="$SETTINGS_AUDIT_MANAGED_PATH"
+else
+  case "$OSTYPE" in
+  darwin*)
+    MANAGED="/Library/Application Support/ClaudeCode/managed-settings.json"
+    ;;
+  msys* | cygwin*)
+    MANAGED="${PROGRAMFILES:-C:\\Program Files}\\ClaudeCode\\managed-settings.json"
+    ;;
+  *)
+    MANAGED="/etc/claude-code/managed-settings.json"
+    ;;
+  esac
+fi
 MANAGED_DROPIN="${MANAGED%managed-settings.json}managed-settings.d"
 
 emit_file_facts() {
