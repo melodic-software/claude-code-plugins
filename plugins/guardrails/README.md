@@ -70,6 +70,16 @@ out of scope until such a signal exists.
   **These are friction guards against accidental/casual bypass, not a
   sandbox.** (A command longer than 16 KB is not parsed and is blocked
   fail-closed.)
+- **A NUL byte in the payload blocks, whatever the command says.**
+  `block-no-verify` and `block-dangerous-git` refuse any payload whose read
+  fields carry a NUL, before they look at the command at all — including one
+  that leaves no command text behind. The reason is that the text a guard can
+  read is not dependably the text that would run: two behaviours were measured
+  and they disagree — bash **discards** a NUL while parsing a command it reads,
+  and Node's `child_process` **refuses** a NUL-bearing string outright — and
+  which of them, if either, a hook payload reaches has not been traced. Refusing
+  is the one verdict correct under all of them, and needs no such trace. A NUL is
+  treated as malformed input rather than as an exotic-but-valid command.
 - **`block-hook-bypass` string-matching floor.** Detection strips quoted literal
   spans before matching the executable token, so quoted prose or a commit
   message merely mentioning `cat >` / `python3 -c open(...)` is not flagged. The

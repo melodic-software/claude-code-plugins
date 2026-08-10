@@ -312,4 +312,43 @@ assert_contains "PS msg: iex of a literal gets the same actionable advice" \
   "$(pwsh_stderr "iex 'git commit --no-verify'")" \
   "Drop the iex/'&'/'.'"
 
+# --- A NUL in the payload must not void the guard (#2122) --------------------
+# hook::jq_fields separates its fields with a NUL. A JSON NUL escape inside the
+# command used to split that value in two, fail the helper's cardinality check
+# and return non-zero — which this hook spells `|| exit 0`, a PreToolUse ALLOW
+# with no diagnostic. Asserted at the HOOK boundary, not in the helper, because
+# the boundary is where the bypass was observable.
+#
+# The rule is one line with no exceptions: a NUL in any field the hook reads
+# BLOCKS, whatever the surrounding text says. That includes a leading NUL, which
+# leaves no command text at all, and a NUL in a command with nothing dangerous in
+# it. The guard refuses rather than matching because the text it can read is not
+# dependably the text that would run, and which executor behaviour applies has
+# not been traced.
+#
+# A NUL cannot live in a shell variable, so the payload is assembled inside jq:
+# `[0] | implode` is the one-character NUL string, which jq re-emits as a NUL
+# escape on the wire — the form the harness would deliver.
+run_nul() {
+  local label="$1" head="$2" tail="$3" expected="$4" rc
+  bash "$HOOK" <<<"$(jq -n --arg h "$head" --arg t "$tail" \
+    '{tool_name:"Bash",tool_input:{command:($h + ([0] | implode) + $t)}}')" >/dev/null 2>&1
+  rc=$?
+  assert_exit "$label" "$expected" "$rc"
+}
+run_nul "NUL after --no-verify (blocked)" "git push --no-verify" "" 2
+run_nul "NUL splitting the flag itself (blocked)" "git push --no-veri" "fy" 2
+run_nul "NUL then junk (blocked)" "git push --no-verify" "x" 2
+run_nul "leading NUL truncates to no command (blocked)" "" "git push --no-verify" 2
+run_nul "NUL in an otherwise harmless command (blocked)" "echo hi" "; echo bye" 2
+
+# The block has to say what is wrong and what to do about it, not just refuse.
+nul_stderr() {
+  bash "$HOOK" <<<"$(jq -n --arg h "$1" --arg t "$2" \
+    '{tool_name:"Bash",tool_input:{command:($h + ([0] | implode) + $t)}}')" 2>&1 >/dev/null
+}
+assert_contains "NUL msg: names the byte" "$(nul_stderr 'git push --no-verify' 'x')" "NUL byte"
+assert_contains "NUL msg: gives the fix" "$(nul_stderr 'git push --no-verify' 'x')" \
+  "reissue the tool call without the embedded NUL"
+
 report

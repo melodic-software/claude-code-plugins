@@ -3,6 +3,19 @@
 All notable changes to the `go-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.1]
+
+### Fixed
+
+- **Shared `hook-utils.sh`: a NUL byte in a payload value no longer makes `hook::jq_fields`
+  fail (#2122).** The helper separates its fields with a NUL, so a JSON NUL escape inside a value
+  split that value in two and failed the helper's own cardinality check — returning non-zero,
+  which its callers spell `|| exit 0`. jq now truncates each value at its first NUL, so the
+  separator cannot occur inside a value and no parseable payload can make the helper fail; the NUL
+  itself is reported in a new `HOOK_JQ_FIELDS_NUL` global, set on every call, so a caller that owns a
+  block/allow verdict can fail closed on its own terms. No hook in this plugin calls the helper.
+  Synced from `lib/hook-utils.sh`.
+
 ## [0.3.0]
 
 ### Removed

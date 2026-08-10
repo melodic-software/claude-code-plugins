@@ -90,11 +90,32 @@ hook::require_jq "PreToolUse" "guardrails-block-dangerous-git" "$INPUT"
 
 # Both payload fields in ONE jq process (hook::jq_fields), not two. A jq spawn is
 # ~140 ms of fork() emulation on Windows Git Bash and this guard runs on every
-# Bash/PowerShell call. Failure semantics are unchanged: a missing jq or an
-# unparsable payload yields rc 1 here, which exits 0 exactly as the empty-COMMAND
-# skip below did — hook::require_jq above has already made the degraded state
-# visible once per session.
+# Bash/PowerShell call. rc 1 here means jq is absent, or jq could not parse the
+# payload at all — it exits 0 exactly as the empty-COMMAND skip below did, and
+# hook::require_jq above has already made a missing jq visible once per session.
+# That remaining allow-on-unparsable path is unchanged by #2122 and is NOT what
+# the NUL check below covers.
 hook::jq_fields "$INPUT" '.tool_input.command' '.tool_name' || exit 0
+
+# A NUL byte in EITHER field read above is fail-CLOSED, and is decided BEFORE
+# the empty-COMMAND skip below: the helper truncates a value at its first NUL,
+# so a leading one leaves an empty command that would otherwise be waved through
+# as "no command" (#2122).
+#
+# Blocking rather than matching, because the value a guard can read is not
+# reliably the thing that would run. Two behaviours were measured and they
+# disagree — bash DISCARDS a NUL while parsing a command it reads, and Node's
+# child_process REFUSES a NUL-bearing string outright — and which of them, if
+# either, a hook payload reaches has not been traced. Blocking is the one verdict
+# correct under all of them, so it needs no such trace. A NUL here is malformed
+# input, not an exotic-but-valid command.
+if ((HOOK_JQ_FIELDS_NUL)); then
+  echo "BLOCKED: the payload carries a NUL byte, which a command cannot reliably carry." >&2
+  echo "What a guard can read is not dependably what would run, so this is refused rather than matched." >&2
+  echo "Fix: reissue the tool call without the embedded NUL." >&2
+  exit 2
+fi
+
 COMMAND="${HOOK_JQ_FIELDS[0]}"
 [[ -n "$COMMAND" ]] || exit 0
 TOOL_NAME="${HOOK_JQ_FIELDS[1]:-Bash}"

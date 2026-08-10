@@ -2131,6 +2131,103 @@ else
   fail "jq_fields non-string handling: got '${HOOK_JQ_FIELDS[0]-}' / '${HOOK_JQ_FIELDS[1]-}'"
 fi
 
+# --- jq_fields: a NUL in a value must not split the frame (#2122) -------------
+# The separator was drawn from the same byte space as the values it separates,
+# so a JSON NUL escape inside a value split that value in two, failed the
+# cardinality check, and returned 1 — which every guardrail caller spells
+# `|| exit 0`, i.e. ALLOW. jq now truncates each value at its first NUL, so the
+# separator cannot occur inside one and the record count no longer depends on
+# what a parseable payload holds. Truncation is a conservative reading, not a
+# claim about how a NUL would execute; the NUL itself is reported in
+# HOOK_JQ_FIELDS_NUL, because only the caller can own the verdict.
+#
+# A NUL cannot live in a shell variable, so the payload is built inside jq:
+# `[0] | implode` is the one-character NUL string (jq re-emits it as a NUL
+# escape on the wire), and `[92] | implode` is a backslash — which keeps both
+# a raw NUL and an escape out of this file's own source.
+jf_bs=$(jq -rn '[92] | implode')
+jf_nul=$(jq -n '{
+  tool_name: "Bash",
+  tool_input: { command: ("git push --no-veri" + ([0] | implode) + "fy") },
+  session_id: ("s" + ([0] | implode) + "1"),
+  only_nul: ([0] | implode),
+  runs: ("p" + ([0] | implode) + ([0] | implode) + "q"),
+  literal: (([92] | implode) + "u0000")
+}')
+
+if hook::jq_fields "$jf_nul" \
+  '.tool_input.command' '.tool_name' '.session_id' '.only_nul' '.runs' '.literal' '.absent'; then
+  if [[ "${#HOOK_JQ_FIELDS[@]}" -eq 7 &&
+    "${HOOK_JQ_FIELDS[0]}" == "git push --no-veri" &&
+    "${HOOK_JQ_FIELDS[1]}" == "Bash" &&
+    "${HOOK_JQ_FIELDS[2]}" == "s" &&
+    -z "${HOOK_JQ_FIELDS[3]}" &&
+    "${HOOK_JQ_FIELDS[4]}" == "p" &&
+    "${HOOK_JQ_FIELDS[5]}" == "${jf_bs}u0000" &&
+    -z "${HOOK_JQ_FIELDS[6]}" ]]; then
+    ok "jq_fields: a NUL-bearing value keeps every slot and truncates at the NUL"
+  else
+    fail "jq_fields NUL framing: got (${#HOOK_JQ_FIELDS[@]}) '${HOOK_JQ_FIELDS[0]-}' / '${HOOK_JQ_FIELDS[1]-}' / '${HOOK_JQ_FIELDS[2]-}' / '${HOOK_JQ_FIELDS[3]-}' / '${HOOK_JQ_FIELDS[4]-}' / '${HOOK_JQ_FIELDS[5]-}' / '${HOOK_JQ_FIELDS[6]-}'"
+  fi
+else
+  fail "jq_fields returned $? on a payload whose value carried a NUL"
+fi
+
+# The point of the fix is what the CALLER sees. A NUL used to make the helper
+# return non-zero, which every guardrail turns into an allow; now it returns
+# success and reports the NUL, so the caller can fail CLOSED on its own terms.
+if hook::jq_fields "$jf_nul" '.tool_input.command'; then
+  if [[ "$HOOK_JQ_FIELDS_NUL" == 1 ]]; then
+    ok "jq_fields: a NUL is reported to the caller instead of returning its fail-open code"
+  else
+    fail "jq_fields HOOK_JQ_FIELDS_NUL: expected 1 on a NUL-bearing payload, got '$HOOK_JQ_FIELDS_NUL'"
+  fi
+else
+  fail "jq_fields returned $? on a NUL-bearing payload — callers spell that ALLOW"
+fi
+
+# A NUL only the LAST filter carries must still raise the flag — the report is
+# over every requested value, not just the first.
+if hook::jq_fields "$jf_nul" '.tool_name' '.only_nul' && [[ "$HOOK_JQ_FIELDS_NUL" == 1 ]]; then
+  ok "jq_fields: a NUL in any requested field raises the flag"
+else
+  fail "jq_fields flag on a trailing NUL field: got '$HOOK_JQ_FIELDS_NUL'"
+fi
+
+# A LEADING NUL truncates the value to nothing. The value is then indistinguish-
+# able from an absent field, so the flag is the only thing separating "no
+# command was sent" from "a command was sent and could not be read faithfully".
+jf_lead=$(jq -n '{tool_input: {command: (([0] | implode) + "git push --force")}}')
+if hook::jq_fields "$jf_lead" '.tool_input.command' &&
+  [[ -z "${HOOK_JQ_FIELDS[0]}" && "$HOOK_JQ_FIELDS_NUL" == 1 ]]; then
+  ok "jq_fields: a leading NUL empties the value and still raises the flag"
+else
+  fail "jq_fields leading NUL: got '${HOOK_JQ_FIELDS[0]-}' flag '$HOOK_JQ_FIELDS_NUL'"
+fi
+
+# Set on EVERY call, not only when a NUL is present: a caller that never resets
+# it must not inherit a stale 1 from an earlier invocation. Both assertions run
+# the NUL payload FIRST on purpose — a single call cannot observe a stale value
+# however it is written.
+hook::jq_fields "$jf_nul" '.tool_input.command'
+if hook::jq_fields "$jf_input" '.tool_name' && [[ "$HOOK_JQ_FIELDS_NUL" == 0 ]]; then
+  ok "jq_fields: a clean payload clears the flag rather than leaving it stale"
+else
+  fail "jq_fields stale flag: expected 0 after a clean payload, got '$HOOK_JQ_FIELDS_NUL'"
+fi
+
+# The early returns — no filters, and a host without jq — fire before any NUL
+# could be observed, so the flag has to be cleared in the same unconditional
+# block that resets the array rather than on detection. In a guard a stale 1
+# would block a clean payload on the strength of an earlier one.
+hook::jq_fields "$jf_nul" '.tool_input.command'
+hook::jq_fields "$jf_nul" || true
+if [[ "$HOOK_JQ_FIELDS_NUL" == 0 ]]; then
+  ok "jq_fields: an early return clears the flag instead of leaking the previous call's"
+else
+  fail "jq_fields early-return flag: expected 0, got '$HOOK_JQ_FIELDS_NUL'"
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]

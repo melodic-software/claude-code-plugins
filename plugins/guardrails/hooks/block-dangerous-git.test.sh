@@ -669,4 +669,34 @@ run_pwsh "PS: call-op, single-quoted literal git (blocked by name)" \
 run_pwsh "PS: call-op, quoted literal path whose basename is git (blocked by name)" \
   '& "C:\Git\cmd\git.exe" reset --hard' 2
 
+# --- A NUL in the payload must not void the guard (#2122) --------------------
+# hook::jq_fields separates its fields with a NUL. A JSON NUL escape inside the
+# command used to split that value in two, fail the helper's cardinality check
+# and return non-zero — which this hook spells `|| exit 0`, a PreToolUse ALLOW
+# with no diagnostic. Asserted at the HOOK boundary, not in the helper, because
+# the boundary is where the bypass was observable.
+#
+# The rule is one line with no exceptions: a NUL in any field the hook reads
+# BLOCKS, whatever the surrounding text says. That includes a leading NUL, which
+# leaves no command text at all, and a NUL in a command with nothing dangerous in
+# it. The guard refuses rather than matching because the text it can read is not
+# dependably the text that would run, and which executor behaviour applies has
+# not been traced.
+#
+# A NUL cannot live in a shell variable, so the payload is assembled inside jq:
+# `[0] | implode` is the one-character NUL string, which jq re-emits as a NUL
+# escape on the wire — the form the harness would deliver.
+run_nul() {
+  local label="$1" head="$2" tail="$3" expected="$4" rc
+  (cd "$REPO_SHA1" && bash "$HOOK" <<<"$(jq -n --arg h "$head" --arg t "$tail" \
+    '{tool_name:"Bash",tool_input:{command:($h + ([0] | implode) + $t)}}')" >/dev/null 2>&1)
+  rc=$?
+  assert_exit "$label" "$expected" "$rc"
+}
+run_nul "NUL after --hard (blocked)" "git reset --hard" "" 2
+run_nul "NUL splitting the flag itself (blocked)" "git reset --ha" "rd" 2
+run_nul "NUL then junk (blocked)" "git reset --hard" "x" 2
+run_nul "leading NUL truncates to no command (blocked)" "" "git reset --hard" 2
+run_nul "NUL in an otherwise harmless command (blocked)" "git status" "; echo bye" 2
+
 report

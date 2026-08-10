@@ -3,6 +3,31 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.1]
+
+### Fixed
+
+- **`block-no-verify` and `block-dangerous-git` allowed any command carrying a NUL byte (#2122).**
+  Both guards read their payload through `hook::jq_fields`, which separates its fields with a NUL,
+  so a JSON NUL escape inside the command split that value in two and failed the helper's
+  cardinality check. The helper returned non-zero, and both hooks spell that `|| exit 0` — a
+  PreToolUse ALLOW, emitted with no diagnostic of any kind. Measured at the hook boundary on the
+  shipped hooks: every NUL-bearing form of `git push --no-verify` and `git reset --hard` — trailing,
+  splitting the flag, leading, or followed by junk — exited 0 where the clean forms exited 2.
+- **Both guards now fail CLOSED on a NUL byte in any field they read.** jq truncates each value at
+  its first NUL, so the separator cannot occur inside a value and the record count no longer depends
+  on what a parseable payload holds. The NUL itself is reported in the new `HOOK_JQ_FIELDS_NUL`
+  global, and both guards block on it — ahead of their empty-command skip, so a leading NUL leaving
+  no command text cannot pass as "no command". They refuse rather than match because the text a
+  guard can read is not dependably the text that would run: bash **discards** a NUL while parsing a
+  command it reads, Node's `child_process` **refuses** a NUL-bearing string outright, and which of
+  them (if either) a hook payload reaches has not been traced. Refusing is correct under all of
+  them and needs no such trace. Synced from `lib/hook-utils.sh`.
+- **A non-zero return from `hook::jq_fields` still means the guards allow, and that is unchanged.**
+  It no longer fires on NUL content, but jq being absent, a malformed payload, a wrongly typed
+  field, two concatenated JSON documents, or an empty buffer all still reach it — and every caller
+  spells it `|| exit 0`. That path is out of scope here and is documented rather than claimed away.
+
 ## [0.23.0]
 
 **Note on the version bump.** MINOR rather than patch, on the same test 0.22.1 applied: does the
