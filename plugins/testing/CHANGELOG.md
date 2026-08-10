@@ -17,6 +17,11 @@ All notable changes to the `testing` plugin are documented here. Format follows
   weakened:** suggest `/verify`, never delegate to it. A delegated call is refused at the tool layer,
   so the suggest-don't-delegate rule now holds across either invocability state rather than resting
   on a version cutoff.
+- **The note becomes a conforming upstream-drift record.** Touching a restatement of an
+  upstream-owned specific binds the required parts on touch (`docs/conventions/upstream-drift/README.md`
+  §Adopters), so the claim now carries a verification date, the client versions checked, and an
+  observable recheck trigger — a Claude Code release whose changelog names `/verify` or bundled-skill
+  invocability — rather than a bare link.
 
 ## [0.5.0]
 

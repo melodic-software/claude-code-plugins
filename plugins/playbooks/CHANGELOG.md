@@ -17,7 +17,14 @@ only after that version increases.
   point is unchanged (provided is not automatic; check plan, version, and invocation expectations
   before depending on these surfaces) and the correction sharpens it: version alone is no longer
   sufficient to predict invocability. The stamp now names the client versions checked alongside the
-  pages.
+  pages, and the claim gains the observable recheck trigger the record was missing — a Claude Code
+  release whose changelog names `/verify`, `/code-review`, or bundled-skill invocability, or a Code
+  Review release note changing its plan or preview status. Touching a restatement of an
+  upstream-owned specific binds those parts (`docs/conventions/upstream-drift/README.md` §Adopters).
+- **A self-contradiction removed from the same sentence.** The line had read "run **only** when you
+  invoke them **by default**" — `only` asserts an absolute and `by default` an overridable one,
+  which is precisely the distinction this entry exists to draw. It now reads "are user-invoked by
+  default", matching the two sibling sites.
 
 ## [0.8.0]
 

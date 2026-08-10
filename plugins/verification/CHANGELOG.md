@@ -17,6 +17,12 @@ All notable changes to the `verification` plugin are documented here. Format fol
   **refused at the tool layer**, not merely discouraged, so suggest-don't-delegate holds across
   either invocability state rather than on the version cutoff alone. The stamp moves from
   2026-08-02 to 2026-08-10 and now names the client versions checked, not only the doc page.
+- **An observable recheck trigger joins the stamp.** `docs/conventions/upstream-drift/README.md`
+  §Adopters binds the required record parts *on touch* for a surface restating an upstream-owned
+  specific, and 0.3.6's record carried a date and basis but no trigger — so nothing obliged the next
+  recheck, which is why a v2.1.225 behavior change sat unnoticed until now. The claim now fires on a
+  Claude Code release whose changelog names `/run`, `/verify`, `/run-skill-generator`, or
+  bundled-skill invocability.
 - **Eval 9 (`live-app-delegates-to-bundled-with-fallback`) moved with the wording**, in both its
   `expected_output` and its expectation string. 0.3.6 hit the same hazard from the other direction —
   the eval had encoded the removed delegation as a pass condition — and leaving either field on the
