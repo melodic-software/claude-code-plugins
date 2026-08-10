@@ -8,7 +8,7 @@ Copy into `<memory_dir>/<topic-slug>/plan-checklist.md` (default `.work/`; the t
 - [ ] Step 2: Formulate the plan — phases with verifiable Sanity Checks per phase; estimate scope; identify parallelism
 - [ ] Step 3: Plan stress-test (MANDATORY — never skip) — dispatch a fresh-context plan-reviewer sub-agent per context/plan-reviewer.md
 - [ ] Step 3b: Assess blast radius (LOW / MEDIUM / HIGH / CRITICAL) — gates whether Step 4 runs
-- [ ] Step 4: Formal stress-test + research-iterate (CONDITIONAL on Step 3b ≥ MEDIUM) — invoke `/devils-advocate` and targeted research on contested claims
+- [ ] Step 4: Formal stress-test + research-iterate (CONDITIONAL on Step 3b ≥ MEDIUM) — invoke `/planning:devils-advocate` and targeted research on contested claims
 - [ ] Step 4.5: Execution-shape analysis (default ON for multi-phase plans) — emit scope-fencing tables + per-phase routing table
 - [ ] Step 4.6: Tag unilateral decisions — flag any choice made without explicit user approval; interview below-bar decisions
 - [ ] Step 4.7: Outcome gate — binary checks read off the PLAN artifact (sanity-check count, phase tags, scope mapping, decisions table, blast-radius line)

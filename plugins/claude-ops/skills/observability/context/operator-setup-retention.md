@@ -78,7 +78,7 @@ lines the jq surgery lengthens the Collector stop from seconds to ~1–2 minutes
 no independent recovery restart, so the prune owns the complete stop → trim → start cycle. Also
 holds the sentinel through the restart attempt and releases it last; an unreadable service state
 is an error, never treated as `Stopped`, so the hot store stays untouched and cleanup attempts the
-restart. It is wired into `/observability clean` (one entry covering the JSONL layers + this OTEL store;
+restart. It is wired into `/claude-ops:observability clean` (one entry covering the JSONL layers + this OTEL store;
 the JSONL layers keep their own 30-day `--keep-days` window).
 
 ### Windows — per-user Scheduled Task (no admin)

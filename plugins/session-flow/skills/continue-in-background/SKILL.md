@@ -107,7 +107,7 @@ then:
    uncommitted changes in this checkout would NOT carry into the launched agent's edits. Any
    such changes → do NOT launch: report why and fall back to the standard `/clear`-then-paste
    instruction (same checkout, dirty state intact), noting the user can commit or stash and
-   re-run `/continue-in-background`. Exception: launch anyway when the current session already
+   re-run `/session-flow:continue-in-background`. Exception: launch anyway when the current session already
    runs inside a linked git worktree — isolation is skipped there per the same page.
 2. Launch from the consuming project's root, passing the rails prompt verbatim as one argument.
    First write the prompt — exactly as emitted between the rails — to a temporary file with the

@@ -22,7 +22,7 @@ and never restates them.
 
 - **Fires** when the user asks to see something visually: "visualize this",
   "diagram this", "chart this", "render this as …", "show me …", or a bare
-  `/visualize`.
+  `/visualization:visualize`.
 - **Not chart craft.** Making a specific chart read well — palette, marks, axes,
   legend, dark-mode contrast — is a chart-craft/dataviz capability's job. This
   skill decides *that a chart is the right form* and routes the craft out.

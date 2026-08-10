@@ -1,4 +1,4 @@
-# `/observability` privacy filter
+# `/claude-ops:observability` privacy filter
 
 Defense-in-depth redaction at output time. Write-time enforcement (in `hook::record_event`) is primary; read-time filter here catches drift if a hook ever logs raw command/prompt content.
 
@@ -55,7 +55,7 @@ Apply just before final stdout / file write — never to the raw JSONL input.
 
 ## Trust boundary
 
-Source files (`hook-events.jsonl`) are gitignored. They never leave the repo unless the user explicitly shares the `/observability` report or copies the JSONL elsewhere. The privacy filter assumes the report MAY be shared (e.g., pasted into chat, attached to issue) and prevents the worst leaks.
+Source files (`hook-events.jsonl`) are gitignored. They never leave the repo unless the user explicitly shares the `/claude-ops:observability` report or copies the JSONL elsewhere. The privacy filter assumes the report MAY be shared (e.g., pasted into chat, attached to issue) and prevents the worst leaks.
 
 Does NOT defend against:
 

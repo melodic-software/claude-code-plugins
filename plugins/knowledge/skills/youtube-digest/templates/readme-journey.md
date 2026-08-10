@@ -32,5 +32,5 @@ updated: YYYY-MM-DDTHH:MM:SSZ
 
 ## Status
 
-**Next action:** {one concrete step — often `/interview` from `recommendations/interview.md`}  
+**Next action:** {one concrete step — often `/planning:interview` from `recommendations/interview.md`}  
 **Blockers:** none

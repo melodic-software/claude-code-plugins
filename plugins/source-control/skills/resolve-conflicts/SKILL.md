@@ -30,7 +30,7 @@ worktree-isolated agent refuses a git-bearing compound command; do not fold them
 
 ## Purpose
 
-Owns HOW conflicts get resolved once an integration — merge, rebase, or cherry-pick — stops on unmerged paths. Which integration to run (merge vs rebase, when to sync with the default branch) is the caller's decision: `/pull-request`'s branch-freshness steps, the project's convention, or the user. This skill picks up at the moment git says `CONFLICT` and ends when the operation is concluded with every gate green.
+Owns HOW conflicts get resolved once an integration — merge, rebase, or cherry-pick — stops on unmerged paths. Which integration to run (merge vs rebase, when to sync with the default branch) is the caller's decision: `/source-control:pull-request`'s branch-freshness steps, the project's convention, or the user. This skill picks up at the moment git says `CONFLICT` and ends when the operation is concluded with every gate green.
 
 **The two non-negotiable disciplines:**
 
@@ -79,7 +79,7 @@ Owns HOW conflicts get resolved once an integration — merge, rebase, or cherry
 
 5. **Verify and conclude.**
    - Present the resolution table: every path from step 1's inventory, one line each — resolution taken (composed / kept-ours-with-evidence / kept-theirs-with-evidence) and why.
-   - Confirm gates are green, stage the resolved paths (surgically, per `/commit`'s staging discipline — never `git add -A`), and conclude with the operation's own continuation: `git merge --continue`, `git rebase --continue` (repeating steps 1–5 at each subsequent stop until the rebase completes), `git cherry-pick --continue`, or `git revert --continue`. The concluding commit message is machine-prepared by git, which is why this concludes via `--continue` rather than composing `/commit`.
+   - Confirm gates are green, stage the resolved paths (surgically, per `/source-control:commit`'s staging discipline — never `git add -A`), and conclude with the operation's own continuation: `git merge --continue`, `git rebase --continue` (repeating steps 1–5 at each subsequent stop until the rebase completes), `git cherry-pick --continue`, or `git revert --continue`. The concluding commit message is machine-prepared by git, which is why this concludes via `--continue` rather than composing `/source-control:commit`.
 
 ## Never abort — and what to do instead
 
@@ -91,8 +91,8 @@ Everything runs on plain `git`. Adjacent capabilities are optional: `gh` enriche
 
 ## What this skill does NOT do
 
-- **Does not choose merge vs rebase** — that call belongs to the caller (`/pull-request` branch-freshness, project convention, or the user); this skill resolves whatever operation is already in progress.
-- **Does not push or touch the PR lifecycle** — `/pull-request` owns that.
-- **Does not make ordinary commits** — `/commit` owns the commit mechanic; this skill only continues an in-flight operation.
+- **Does not choose merge vs rebase** — that call belongs to the caller (`/source-control:pull-request` branch-freshness, project convention, or the user); this skill resolves whatever operation is already in progress.
+- **Does not push or touch the PR lifecycle** — `/source-control:pull-request` owns that.
+- **Does not make ordinary commits** — `/source-control:commit` owns the commit mechanic; this skill only continues an in-flight operation.
 - **Does not bulk-resolve** — no `git checkout --ours/--theirs <dir>`, no rerere-driven auto-replay without review, no `-X ours/theirs` strategy options.
 - **Does not bypass hooks or gates** — a hook or test failing after resolution is part of the conflict, not an obstacle to route around.

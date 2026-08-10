@@ -2,14 +2,14 @@
 
 Cheap pre-extraction gate. Refuse-fast on candidates that wouldn't survive `plan`/`execute` anyway. Surfaces the refusal verdict from a single grep + citation check, without spawning a subagent.
 
-Private surface — external consumers invoke `/extract-ssot verify <cluster>`, never cite this file directly (contract: `/audit-encapsulation`).
+Private surface — external consumers invoke `/docs-hygiene:extract-ssot verify <cluster>`, never cite this file directly (contract: `/docs-hygiene:audit-encapsulation`).
 
 ## When to invoke
 
 | Use case | Invoke |
 |----------|--------|
-| `/extract-ssot identify` produced a ranked candidate list and you want to filter before planning | YES |
-| User typed `/extract-ssot verify <cluster>` directly | YES |
+| `/docs-hygiene:extract-ssot identify` produced a ranked candidate list and you want to filter before planning | YES |
+| User typed `/docs-hygiene:extract-ssot verify <cluster>` directly | YES |
 | Pre-batch filter inside the `batch` action | YES — automatic |
 | You already have HIGH confidence the cluster passes the 6+5 gate | OPTIONAL — `plan` will re-verify Tier 0 |
 | Cluster has < 3 instances (Rule of Three obvious fail) | NO — refuse via `identify` instead |
@@ -19,10 +19,10 @@ Private surface — external consumers invoke `/extract-ssot verify <cluster>`, 
 ## Inputs
 
 ```text
-/extract-ssot verify <cluster-name>
+/docs-hygiene:extract-ssot verify <cluster-name>
 ```
 
-`<cluster-name>` matches a candidate from a recent `/extract-ssot identify` output OR is a free-form descriptor of the cluster the user wants to gate.
+`<cluster-name>` matches a candidate from a recent `/docs-hygiene:extract-ssot identify` output OR is a free-form descriptor of the cluster the user wants to gate.
 
 ## Output schema
 
@@ -42,7 +42,7 @@ Status values:
 
 | Status | Meaning |
 |--------|---------|
-| `PROCEED` | All 6 gates pass; safe to invoke `/extract-ssot plan <cluster>` |
+| `PROCEED` | All 6 gates pass; safe to invoke `/docs-hygiene:extract-ssot plan <cluster>` |
 | `REFUSE-rule-of-three-fails` | < 3 verbatim instances after discriminating-phrase grep (Gate 1) |
 | `REFUSE-already-cites-canonical` | All call sites already cite an existing canonical SSOT (Gate 2) |
 | `REFUSE-primary-source-citation-gate` | Sites cite a vendor/RFC/spec URL directly; internal SSOT can't improve (Gate 3) |
@@ -205,11 +205,11 @@ ROI verdict: LOW (size + drift indicate inline is cheaper)
 
 If ANY gate REFUSES, stop and emit. Don't run remaining gates — output the first refusal reason. (Avoids overspecified output that obscures the actual blocker.)
 
-If ALL gates pass, emit `PROCEED` with summary evidence. User runs `/extract-ssot plan <cluster>` next.
+If ALL gates pass, emit `PROCEED` with summary evidence. User runs `/docs-hygiene:extract-ssot plan <cluster>` next.
 
 ## Side observations
 
-When a gate REFUSES with high confidence, the cluster may still warrant action — just not the action `/extract-ssot` provides. Emit ONE side observation per refusal:
+When a gate REFUSES with high confidence, the cluster may still warrant action — just not the action `/docs-hygiene:extract-ssot` provides. Emit ONE side observation per refusal:
 
 | Refusal | Side observation form |
 |---------|----------------------|
@@ -217,13 +217,13 @@ When a gate REFUSES with high confidence, the cluster may still warrant action �
 | `REFUSE-primary-source-citation-gate` | `Side note: <n> sites cite <primary URL>; internal SSOT redundant. Verify URL still resolves.` |
 | `REFUSE-source-of-truth-bifurcation` | `Side note: bifurcated SSOT — document the two audiences in the rule file so the split reads as intentional.` |
 | `REFUSE-low-roi` | `Side note: inline + cite primary if needed; surface to user only if drift starts.` |
-| `REFUSE-off-by-one-different-concern` | `Side note: <n> distinct concerns; consider /extract-ssot identify with a narrower discriminating phrase per concern.` |
+| `REFUSE-off-by-one-different-concern` | `Side note: <n> distinct concerns; consider /docs-hygiene:extract-ssot identify with a narrower discriminating phrase per concern.` |
 
 Hard limit ≤2 side notes per response. If multiple gates fire, batch the rest into the working-notes entry.
 
 ## Audit trail (optional)
 
-When `verify` runs as part of `/extract-ssot batch`, it MUST append a verify audit entry to the batch working notes so the batch summary can aggregate verdicts. When run standalone, an audit entry is OPTIONAL but recommended for non-trivial clusters.
+When `verify` runs as part of `/docs-hygiene:extract-ssot batch`, it MUST append a verify audit entry to the batch working notes so the batch summary can aggregate verdicts. When run standalone, an audit entry is OPTIONAL but recommended for non-trivial clusters.
 
 Entry format:
 
@@ -258,8 +258,8 @@ verdict: <status>
 - `context/lessons.md` — the empirical batch-derived patterns the gates encode
 - `context/anti-patterns.md` — pattern #11 (source-of-truth bifurcation), #12 (primary-source citation gate), #13 (Shape C dedup-by-deletion, positive)
 - SKILL.md "Evidence discipline" — Tier 0 evidence requirements per gate
-- `/extract-ssot identify` — produces the ranked candidate list; `verify` filters that list
-- `/extract-ssot plan` — runs after `verify` returns PROCEED
+- `/docs-hygiene:extract-ssot identify` — produces the ranked candidate list; `verify` filters that list
+- `/docs-hygiene:extract-ssot plan` — runs after `verify` returns PROCEED
 
 ## Recheck triggers
 

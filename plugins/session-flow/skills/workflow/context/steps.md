@@ -53,7 +53,7 @@ Structured execution with incremental validation and commit checkpoints.
 - Commit after green — small, frequent commits are save points
 - If implementation diverges from the approved plan or hits unexpected complexity, stop and
   re-plan rather than pushing through a broken approach
-- At phase boundaries on long work, write a save-point (`/handoff`) so a fresh session can resume
+- At phase boundaries on long work, write a save-point (`/session-flow:handoff`) so a fresh session can resume
 
 ## 5. Test
 
@@ -86,7 +86,7 @@ Prove the change achieved its intent, with evidence.
 ## 8. Retrospective
 
 Session analysis, learning codification, trend tracking — the self-improvement loop. Invoke the
-sibling `retro` skill (`/retro`, or `/retro quick` under context pressure).
+sibling `retro` skill (`/session-flow:retro`, or `/session-flow:retro quick` under context pressure).
 
 ## PR lifecycle (after step 7)
 

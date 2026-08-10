@@ -39,10 +39,10 @@ different concern. This skill is form-driven (render content as a visual), not
 comprehension-driven.
 
 ```shell
-/visualize                          # infer the target, auto-decide form and medium
-/visualize this as a sequence       # honor a named form
-/visualize file                     # render richer forms as a local HTML file, never published
-/visualize artifact                 # prefer a published Artifact when that surface is available
+/visualization:visualize                          # infer the target, auto-decide form and medium
+/visualization:visualize this as a sequence       # honor a named form
+/visualization:visualize file                     # render richer forms as a local HTML file, never published
+/visualization:visualize artifact                 # prefer a published Artifact when that surface is available
 ```
 
 ## Surfaces and availability

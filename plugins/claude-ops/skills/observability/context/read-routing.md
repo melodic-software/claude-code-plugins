@@ -3,7 +3,7 @@
 Operator setup (install, env, retention): [operator-setup.md](operator-setup.md). Pipeline:
 [otel-pipeline.md](otel-pipeline.md). Queries: [otel-queries.md](otel-queries.md).
 
-Batch reports and JSONL jq: this skill's scope actions. Product bugs: `/known-issues`.
+Batch reports and JSONL jq: this skill's scope actions. Product bugs: `/claude-ops:known-issues`.
 
 **CC** = Claude Code CLI (not .NET app OTEL). Full naming table: [operator-setup.md](operator-setup.md)
 "Naming".
@@ -63,7 +63,7 @@ Hooks ──▶ hook-events.jsonl
 |---|---|---|
 | OTEL structure (logs + traces) | `CC_OTEL_RETENTION_DAYS` | 7 days |
 | OTEL API bodies (logs only) | `CC_OTEL_BODY_RETENTION_DAYS` | 2 days |
-| JSONL hook events | `/observability clean --keep-days N` | 30 days |
+| JSONL hook events | `/claude-ops:observability clean --keep-days N` | 30 days |
 | Aspire RAM | none | restart to reclaim |
 
 Full prune mechanics: [operator-setup-retention.md](operator-setup-retention.md) "Pruning the store (retention) — two tiers".
@@ -77,11 +77,11 @@ Full prune mechanics: [operator-setup-retention.md](operator-setup-retention.md)
 | `Read` whole `cc-*.json` files | DuckDB with `LIMIT` |
 | Use SDK-path traces for full span tree | Direct CLI (#53954 — streaming may be `llm_request`-only) |
 
-## Distinction from `/known-issues`
+## Distinction from `/claude-ops:known-issues`
 
 | Surface | Scope |
 |---|---|
-| **`/observability`** | **Your** telemetry — hooks, OTEL store, collector, dashboard, ccusage, trends |
-| **`/known-issues`** | **Anthropic product** bugs — GitHub issue registry, health checks, workarounds |
+| **`/claude-ops:observability`** | **Your** telemetry — hooks, OTEL store, collector, dashboard, ccusage, trends |
+| **`/claude-ops:known-issues`** | **Anthropic product** bugs — GitHub issue registry, health checks, workarounds |
 
-CC behaving unexpectedly → `/known-issues search <feature>`. Reading what CC emitted → this file.
+CC behaving unexpectedly → `/claude-ops:known-issues search <feature>`. Reading what CC emitted → this file.

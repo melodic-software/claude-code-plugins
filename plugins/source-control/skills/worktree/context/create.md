@@ -1,6 +1,6 @@
 # Worktree `create` — pre-flight, naming, base-ref, setup verification
 
-Full detail for the `/worktree create [name]` action. SKILL.md carries the headline plus the shared-helper safety invariant; this file carries the pre-flight guards, name validation, base-ref selection, the explain-before-create block, the directory-rename caveats, and the post-create setup checks.
+Full detail for the `/source-control:worktree create [name]` action. SKILL.md carries the headline plus the shared-helper safety invariant; this file carries the pre-flight guards, name validation, base-ref selection, the explain-before-create block, the directory-rename caveats, and the post-create setup checks.
 
 `create` does **not** call `EnterWorktree(name:)` (which lands in the in-repo `.claude/worktrees/`, where a read matching a path-scoped rule's glob also loads the parent checkout's copy of that rule — see SKILL.md's nesting-invariant paragraph for the measurement and the current upstream issue state). It routes through the shared helper `${CLAUDE_PLUGIN_ROOT}/scripts/worktree-create.sh`, which places the worktree at an **external root** (`<root>/<owner>-<repo>-<slug>`), copies `.worktreeinclude` files, and prints the path; the skill then calls `EnterWorktree(path:)` on that path.
 
@@ -8,7 +8,7 @@ Create a new worktree with guided naming and setup verification.
 
 ## Pre-flight checks
 
-1. **Already in a worktree?** Check whether CWD is a linked worktree: `git rev-parse --git-dir` differs from `git rev-parse --git-common-dir` (covers every layout — `.worktrees/`, `.claude/worktrees/`, bare-clone hub). If yes → "Already in a worktree (`<current-branch>`). Use `ExitWorktree` to leave this one first, then `/worktree create` again."
+1. **Already in a worktree?** Check whether CWD is a linked worktree: `git rev-parse --git-dir` differs from `git rev-parse --git-common-dir` (covers every layout — `.worktrees/`, `.claude/worktrees/`, bare-clone hub). If yes → "Already in a worktree (`<current-branch>`). Use `ExitWorktree` to leave this one first, then `/source-control:worktree create` again."
 
 2. **Mid-session transition?** If the session previously used `ExitWorktree` (CWD is now the main repo root, not a worktree), this is a worktree transition — fully supported. Session context persists across the transition. Proceed normally.
 

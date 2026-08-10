@@ -1,4 +1,4 @@
-# Research recipes (the `/suno research` action)
+# Research recipes (the `/songwriting:suno research` action)
 
 The `research` action does **on-the-fly external lookups** to fill gaps static skill content can't cover: artist sonic profiles, current trends, genre nuances for niche styles, BPM/key for specific reference songs, recording / production technique deep-dives.
 
