@@ -218,9 +218,21 @@ fi
 # stub on PATH, and for a real binary standing in a directory that is no
 # repository — all cases where hook::repo_root still returns the hint. Probing
 # the capability directly is the only form that covers them.
+# The probe clears the git discovery/selection environment for the same reason
+# in_git_working_tree and file_is_gitignored do: an inherited GIT_DIR or
+# GIT_WORK_TREE from whatever launched the session would let some OTHER
+# repository answer the question, and here a spurious success is the harmful
+# direction — it withholds the CLAUDE_PROJECT_DIR fallback and leaves the walk
+# terminating at the file's own directory, which is the bug this block exists
+# to fix. Cleared in a subshell so the surrounding process keeps its own
+# environment.
 REPO_ROOT="$(hook::repo_root "$(dirname "$FILE")")"
 if [[ -n "${CLAUDE_PROJECT_DIR:-}" && "$REPO_ROOT" == "$(dirname "$FILE")" ]] &&
-  ! git -C "$(dirname "$FILE")" rev-parse --show-toplevel >/dev/null 2>&1; then
+  ! (
+    unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_CEILING_DIRECTORIES \
+      GIT_DISCOVERY_ACROSS_FILESYSTEM
+    git -C "$(dirname "$FILE")" rev-parse --show-toplevel
+  ) >/dev/null 2>&1; then
   REPO_ROOT="$CLAUDE_PROJECT_DIR"
 fi
 
