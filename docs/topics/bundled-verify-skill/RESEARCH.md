@@ -19,10 +19,13 @@ obvious one (ship `verifier-*` skills from the `testing` plugin and expect `/ver
 | Source | What | When |
 |---|---|---|
 | `~/.local/share/claude/versions/2.1.226` (installed binary) | `verify` SKILL.md, `examples/cli.md`, `examples/server.md`, the `Iu({...})` registration call, the PR-prep suggestion generator | extracted 2026-08-10 |
+| `~/.local/share/claude/versions/{2.1.223,2.1.224,2.1.225}` | differential check on the registration call and the invocability mechanism (§3) | extracted 2026-08-10 |
 | [code.claude.com/docs/en/skills](https://code.claude.com/docs/en/skills) — "Bundled skills", "Run and verify your app", "Where skills live" | version floors, invocability, precedence | fetched 2026-08-10 |
 
-Binary strings are a **point-in-time observation of one build**, not a contract. Version floors
-below come from the docs; mechanism details come from 2.1.226 and can change without a doc change.
+Binary strings are a **point-in-time observation of specific builds**, not a contract. Version
+floors below come from the docs; mechanism details come from the four builds named above and can
+change without a doc change. `/verify`'s SKILL.md body and the `verifier-*` probe are byte-stable
+across all four; only the registration call moved (§3).
 
 **Reproduce the extraction:**
 
@@ -33,6 +36,12 @@ grep -abo 'var _hh=' "$BIN"                # SKILL.md template literal (id is bu
 grep -abo -E 'var (mhh|ghh)=' "$BIN"       # examples/cli.md, examples/server.md
 grep -abo 'name:"verify"' "$BIN"           # the registration call
 ```
+
+For the §3 differential, count markers across every build in `~/.local/share/claude/versions/`:
+`skills/verify/SKILL.md` (the replacement seam), `verifier-\*` (the probe), and
+`tengu_pr_prep_suggestion_rendered` (the pre-commit nudge). Where `name:"verify"` does not match,
+the name is minified to an identifier — locate `name: verify` (the frontmatter, always a literal)
+and read forward to the registration call.
 
 The identifiers (`_hh`, `mhh`, `ghh`, `Wie`, `I0r`) are minifier output and **will differ every
 build** — re-derive them from the string content, never reuse them. A decoded copy of all three
@@ -95,7 +104,7 @@ what it refuses to accept as evidence.
   does."* That suggestion is gated on the **same flag** as model invocation (§3), and it only
   includes a skill if a skill by that name is registered.
 
-## 3. Invocability — flag, not just version
+## 3. Invocability — user-only by default, with a new runtime opt-in
 
 Registration in 2.1.226:
 
@@ -113,17 +122,35 @@ Iu({
 Compare `/run` (no `disableModelInvocation` at all) and `/run-skill-generator`
 (`disableModelInvocation: !0`).
 
-**Finding:** `/verify`'s model-invocability is a **runtime feature flag** (`tengu_opal_circuit`),
-not a version cutoff. The docs describe the *observable default* — "others, including `/verify` and
+**The mechanism changed mid-series.** Differential check across four installed builds:
+
+| Build | `verify` registration | `tengu_opal_circuit` present | PR-prep suggestion present |
+|---|---|---|---|
+| 2.1.223 | `disableModelInvocation: !0` (hard) | no | no |
+| 2.1.224 | same | no | no |
+| 2.1.225 | — | **yes** | yes |
+| 2.1.226 | `disableModelInvocation: () => !flag(...)` | yes | yes |
+
+So the trajectory is: model-invocable before v2.1.215 → **hard** user-only through at least 2.1.224
+→ from 2.1.225 user-only **unless** a runtime flag re-enables model invocation. The same flag gates
+the pre-commit suggestion, which does not exist at all in 2.1.223/224 — they ship together as one
+feature.
+
+**Finding:** the docs' statement is the accurate default ("others, including `/verify` and
 `/code-review`, run only when you invoke them [...] Before v2.1.215, Claude could also run `/verify`
-and `/code-review` on its own" — but the mechanism means **two users on the same version can
-differ**. In this session on 2.1.226 the flag is off: `verify` is absent from the model-visible
+and `/code-review` on its own"). What the binary adds is that from 2.1.225 the restriction is no
+longer purely version-keyed: **two users on the same version can differ** depending on flag
+rollout. In this session on 2.1.226 the flag is off — `verify` is absent from the model-visible
 skill list while `run`, `code-review`, and `security-review` are present.
+
+The flag name is an internal identifier observed in two builds. Treat "a runtime gate exists" as
+the durable fact and the name as disposable.
 
 Consequence for us: **never write a plugin that delegates to `/verify` via the Skill tool.**
 Suggesting the user run it is the only path that holds across the whole availability window. Our
-`testing:run-e2e` and `verification:confirm` already say exactly this — that guidance is correct and
-this research strengthens its rationale (flag, not just version). See [Follow-ups](#follow-ups).
+`testing:run-e2e` and `verification:confirm` already say exactly this — that guidance is correct,
+and the mid-series change is a reason to keep it rather than tighten it. See
+[Follow-ups](#follow-ups).
 
 Also relevant to any dependency on `/verify` existing at all: `disableBundledSkills` turns off every
 bundled skill except `/doctor`, and `skillOverrides` can set a bundled skill to `"off"`. Neither
@@ -283,6 +310,15 @@ a prompt.
 `/<plugin>:<name>`. A `testing:verifier-playwright` skill will **not** appear in `ls .claude/skills/`
 and will **not** be found by this probe.
 
+**Discovery and invocation are separate, though.** The body's instruction on a match is *"invoke it
+with the Skill tool"* — and if the marketplace is installed, `/testing:verifier-playwright` is
+perfectly invocable that way. What is missing is only the *discovery* step. So a plugin's verifier
+becomes reachable from bundled `/verify` the moment **something inside `.claude/skills/` names it**
+— a generated `verifier-*` shim, or one line in the consumer's project verify skill. That is the
+bridge, and it is why Open Question 3 exists.
+
+The probe text is byte-identical across 2.1.223–2.1.226, so this convention is stable, not in flux.
+
 ### 5.3 `/run-skill-generator` — the recorder
 
 Writes `<unit>/.claude/skills/run-<unit-name>/` with a bundled `template.md` plus six worked
@@ -301,7 +337,7 @@ gracefully.
 | Shape | Mechanically possible? | Verdict |
 |---|---|---|
 | **A. Wrap it** — a plugin skill named `verify` that shadows or replaces the bundled one | **No.** Plugin skills are namespaced `plugin:name` and "cannot conflict with other levels". `/melodic:verify` would coexist; bare `/verify` stays bundled | Rules out the naive wrap |
-| **B. Feed it** — ship `verifier-*` skills from the `testing` plugin and let `/verify` find them | **No.** §5.2 — the probe is `ls .claude/skills/`, which plugin skills are not in | Rules out the obvious integration |
+| **B. Feed it** — ship `verifier-*` skills from the `testing` plugin and let `/verify` find them | **Not on its own.** §5.2 — the probe is `ls .claude/skills/`, which plugin skills are not in. Invocation via the Skill tool works fine; only discovery fails | Rules out the *passive* integration. Works only if something in `.claude/skills/` names the plugin skill — which collapses B into C |
 | **C. Generate for it** — a plugin skill that *writes* `.claude/skills/verify/SKILL.md` (and/or `verifier-*`) into the **consuming** repo | **Yes.** This is the only seam that works, and it is the seam Anthropic itself uses (`/run-skill-generator`, and `/verify`'s own persist step) | The live option |
 | **D. Borrow the craft** — port the discipline (surface table, probe taxonomy, verdict rules, "What FAIL looks like" examples) into `testing:run-e2e` / `verification:confirm`, no dependency on `/verify` at all | Yes, trivially | The zero-risk option, independent of A–C |
 
@@ -346,9 +382,14 @@ Ranked by what our skills currently lack:
    symptom → likely cause (`unknown flag: --json` → not wired up *or a stale build*; all 200s → you
    never triggered the changed path). Our `context/` spokes explain what to do; almost none explain
    how to read a bad result.
-2. **BLOCKED as a first-class verdict, distinct from FAIL.** "Not a verdict on the change." Our
-   `confirm` has `CONFIRMED` / `NEEDS WORK` only — an unreachable surface currently has to be
-   mislabeled.
+2. **BLOCKED as a first-class verdict, distinct from FAIL.** "Not a verdict on the change." We have
+   the *concept* but not the vocabulary, and it is inconsistent across two of our own skills:
+   `run-e2e`'s prerequisite hard-fail already emits a "structured verification-environment gap
+   report", which is BLOCKED under another name, while `confirm` has only `CONFIRMED` / `NEEDS
+   WORK` and has to fold an unreachable surface into one of those. One shared verdict word would
+   align them. `/verify` also pairs BLOCKED with a rule worth copying: *"Never report an approach
+   blocked or impossible until you've enumerated the skills along the touched subtree"* — the
+   unlock is usually a skill you didn't look for.
 3. **The mandatory adversarial probe (🔍).** A verdict with no probe is explicitly called an
    incomplete job. Our evidence contracts require assertions but never require an off-happy-path
    step.
@@ -391,12 +432,13 @@ Not changed in this pass — flagged for the decision step:
 
 - `plugins/testing/skills/run-e2e/SKILL.md:60` and
   `plugins/verification/skills/confirm/SKILL.md:111` both state the invocability restriction as
-  "user-invoked only from v2.1.215". Observed mechanism in 2.1.226 is a **runtime flag**
-  (`tengu_opal_circuit`), which means the restriction is not strictly version-keyed and can vary
-  per user on one version. **The operational guidance those files give — suggest, never delegate —
-  is unaffected and correct.** Only the stated rationale is narrower than reality. If touched,
-  phrase it as the docs do (observable default) plus "and can be gated at runtime", rather than
-  asserting the flag name, which is an internal identifier that may be renamed.
+  "user-invoked only from v2.1.215". That was exactly right for 2.1.215–2.1.224 (hard
+  `disableModelInvocation`), and from 2.1.225 it becomes the *default* rather than an absolute —
+  a runtime gate can re-enable model invocation (§3). **The operational guidance those files give —
+  suggest, never delegate — is unaffected and correct**, and the mid-series change argues for
+  leaving it alone. If either file is reopened for another reason, "user-invoked only from
+  v2.1.215" could become "user-invoked by default from v2.1.215". Do not name the flag in a skill
+  body — it is an internal identifier that may be renamed.
 - `plugins/verification/skills/confirm/SKILL.md:111` says `/run`'s "sibling `/verify` covers the
   same ground". Accurate, but `/verify` is materially stricter than `/run` (refuses tests as
   evidence, mandates a probe, has a 4-value verdict). Worth a sharper sentence if the file is
