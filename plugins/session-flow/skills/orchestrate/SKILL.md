@@ -155,9 +155,8 @@ configurable default of three (v2.1.219), all inside seven weeks
 written: the per-session spawn total was **removed** in v2.1.220–v2.1.224
 ([2026-w32](https://code.claude.com/docs/en/whats-new/2026-w32), verified 2026-08-10), so what
 remains is depth and concurrent-worker count, each separately capped and separately overridable
-(`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`, `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`) — a third cap moved
-out from under this list after it was written, which is the reason to read the current values rather
-than assume them. Read them, and
+(`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`, `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`). Read the current
+values rather than assuming them, and
 design the tree so it degrades to a shallower one instead of failing. One shape constraint that is
 not a tunable: a fork inherits its parent's conversation but cannot spawn a further fork, so a fork
 is a leaf, never an intermediate tier.
