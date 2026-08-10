@@ -1,5 +1,4 @@
 ---
-name: curate-language
 description: "Actively maintain a consuming project's ubiquitous-language glossary as domain understanding changes: resolve ambiguous or overloaded terms, choose canonical language, record rejected synonyms, sharpen what-it-IS definitions, and route terms to an already-known bounded context. Use when: 'update the domain glossary', 'define this domain term', 'standardize this vocabulary', 'these names conflict', domain modeling resolves vocabulary, or planning resolves domain language worth preserving. Not for passive glossary lookup, general dictionary definitions, or bounded-context discovery."
 argument-hint: "[term, ambiguity, or resolved vocabulary]"
 user-invocable: true

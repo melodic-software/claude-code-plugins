@@ -217,8 +217,9 @@ They answer different questions and are not interchangeable:
 
 `ready` is the plugin's **merge-policy** verdict, not a readout of GitHub's mergeability alone.
 `babysit_merge.py` appends its own policy blockers after the GitHub-derived ones: a
-dependency-manager author is held in every tier without `--allow-dependency`, a non-self author's
-PR on an unprotected base is held without `--allow-unprotected`, and an enabled autopilot merge
+dependency-manager author is held in every tier without `--allow-dependency`, a PR on an
+unprotected base is held without `--allow-unprotected` (a self author is exempt only when that base
+is the repository's default branch), and an enabled autopilot merge
 tier adds that tier's own criteria. So `ready: false` can mean "GitHub would merge this; the plugin
 will not." Read the `blockers` list to tell the two apart, and never restate a plugin policy hold
 as a GitHub restriction — that mislabel is the same terminology ambiguity this section exists to
@@ -461,8 +462,11 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
   <merge-method>`, and rejects `--allow-unpinned-head` outright — there is no unpinned merge. The
   expected-head pin semantics live in `SKILL.md`; do not re-derive them here.
 - The merge CLI refuses a dependency-manager-authored PR absent `--allow-dependency`, and refuses
-  to merge on an unprotected repository — zero required reviews AND zero required status contexts
-  — when the PR author is not one of `<self-logins>`, absent `--allow-unprotected`. Both
+  to merge on an unprotected base — zero required reviews AND zero required status contexts
+  — when the PR author is not one of `<self-logins>`, or when a `<self-logins>` author's base is not
+  the repository's default branch, absent `--allow-unprotected`. The self exemption covers the
+  solo-owner repository whose default branch carries no rules; it does not cover a merge onto
+  another branch, where the default branch's required checks never ran. Both
   overrides are human decisions, never passed autonomously. The held dependency-manager set is the
   built-in dependabot/renovate bots plus, when `babysit_extra_dependency_manager_logins` is
   configured (non-empty, not a literal unexpanded token), the logins appended via

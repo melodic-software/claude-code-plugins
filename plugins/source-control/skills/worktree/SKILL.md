@@ -1,5 +1,4 @@
 ---
-name: worktree
 description: "Manage git worktree lifecycle for parallel-session isolation: create (guided naming via EnterWorktree), status (PR + staleness inventory), cleanup (file-lock-aware removal), audit (infrastructure health). Use when: 'create worktree', 'worktree status', 'clean up worktrees', 'orphaned worktrees', or proactively when on main before writing code — not for PR lifecycle (use /pull-request)."
 user-invocable: true
 disable-model-invocation: false

@@ -1,5 +1,4 @@
 ---
-name: youtube-digest
 description: "Watch YouTube videos, extract transcripts, harvest links, research claims, and synthesize repo-applicability recommendations. Use when: 'youtube', '/youtube-digest', 'watch this YouTube video', 'transcript for YouTube', user shares a youtube.com or youtu.be URL for a single public video (not a course platform). Actions: watch <url> (full pipeline), watch (dequeue epic queue), watch <n> (queue row), queue <url> (batch enqueue), transcript <url> (captions only), resume <video-slug>. Not for auth-walled course platforms — use /knowledge:course-digest."
 argument-hint: "watch <url> [--target <repo>] | watch [--target <repo>] | watch <n> [--target <repo>] | queue <url> | queue list | transcript <url> | resume <video-slug>"
 user-invocable: true

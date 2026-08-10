@@ -1,5 +1,4 @@
 ---
-name: object-writing
 description: "Generate raw sensory material with Pat Pattison's methods — object writing (sense-bound, timed dives, the pivot chain, the seven-channel sense inventory, Rusty's-collar/Kami-kazi), an agent that performs the write itself, cliche taxonomy + redemption, and point of view (camera distance, pronoun consistency). Use when: 'object writing', 'you do the object writing', 'make this less abstract', 'show don't tell', '90-second writing prompt', 'this line sounds cliched', 'who is speaking in this lyric'. For metaphor use /songwriting:metaphor; for rhyme use /songwriting:rhyme; for daily curriculum use /songwriting:practice."
 argument-hint: "[action] [args] (e.g., /songwriting:object-writing, /songwriting:object-writing generate rain) — full actions in body"
 user-invocable: true

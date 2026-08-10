@@ -1,5 +1,4 @@
 ---
-name: setup
 description: "Verify the eol-normalizer hook's runtime prerequisites and configuration for this repository. Use when: 'set up eol-normalizer', 'configure eol-normalizer', 'is eol-normalizer working', line endings silently aren't normalizing, or the hook reported a missing prerequisite. Actions: check (read-only verification, default) | apply (resolve what check found). Re-runnable and safe."
 argument-hint: "check | apply"
 user-invocable: true

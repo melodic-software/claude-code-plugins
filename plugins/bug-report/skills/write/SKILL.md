@@ -1,5 +1,4 @@
 ---
-name: write
 description: "Produce a structured 5-field bug report (title, steps to reproduce, expected vs actual, severity with justification, suggested fix location) from an informal description. Read-only — never modifies code, never opens PRs, never files issues by default. Use when: 'there is a bug in <X>', 'report a bug', 'file a bug', 'bug-report this', '<symbol> gives wrong output when <condition>', 'I am seeing <error> in <file>', 'expected X got Y', 'write this up as a bug'. Skip when: deep investigation is needed, a fix is already in progress, or the request is a feature request (missing capability) rather than a defect. Emits Markdown to stdout by default; with --file, persists a report file and can hand off to a work-item tracker for filing."
 argument-hint: "[--file] [--quick|--full] [--no-survey] <bug description>"
 user-invocable: true

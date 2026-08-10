@@ -1397,8 +1397,8 @@ None known.
 '
 out="$(run fe-delegated 2>&1)"
 rc=$?
-if [[ $rc -eq 0 ]] && ! grep -q 'same-context judgment language with no' <<<"$out" \
-  && ! grep -q 'stale fresh-eyes-exempt' <<<"$out"; then
+if [[ $rc -eq 0 ]] && ! grep -q 'same-context judgment language with no' <<<"$out" &&
+  ! grep -q 'stale fresh-eyes-exempt' <<<"$out"; then
   pass "fresh-context delegation prose passes both spellings (check 21)"
 else
   fail "delegation prose should satisfy check 21 (rc=$rc): $out"
@@ -1421,8 +1421,8 @@ None known.
 '
 out="$(run fe-exempt-valid 2>&1)"
 rc=$?
-if [[ $rc -eq 0 ]] && ! grep -q 'same-context judgment language with no' <<<"$out" \
-  && ! grep -q 'stale fresh-eyes-exempt' <<<"$out"; then
+if [[ $rc -eq 0 ]] && ! grep -q 'same-context judgment language with no' <<<"$out" &&
+  ! grep -q 'stale fresh-eyes-exempt' <<<"$out"; then
   pass "valid exemption directive near judgment language passes (check 21)"
 else
   fail "valid exemption directive should satisfy check 21 (rc=$rc): $out"
@@ -1919,8 +1919,8 @@ None known.
 '
 out="$(run fe-list-fence 2>&1)"
 rc=$?
-if [[ $rc -ne 0 ]] && grep -q 'malformed fresh-eyes-exempt directive (SKILL.md:14)' <<<"$out" \
-   && ! grep -q 'malformed fresh-eyes-exempt directive (SKILL.md:9)' <<<"$out"; then
+if [[ $rc -ne 0 ]] && grep -q 'malformed fresh-eyes-exempt directive (SKILL.md:14)' <<<"$out" &&
+  ! grep -q 'malformed fresh-eyes-exempt directive (SKILL.md:9)' <<<"$out"; then
   pass "list-opened fence suppresses its body then releases (check 21)"
 else
   fail "list fence body should be suppressed and the line-14 directive FAIL (rc=$rc): $out"
@@ -2224,6 +2224,65 @@ if [[ $rc -eq 0 ]] && grep -q 'summary 100/100 codepoints' <<<"$out"; then
   pass "a 100-codepoint summary with a multi-byte em-dash passes (codepoints, not bytes)"
 else
   fail "multi-byte 100-codepoint summary should pass (rc=$rc): $out"
+fi
+
+# 33. An omitted `name` passes: the field is optional and defaults to the
+#     directory name, which is already what the checker resolves the skill by.
+make_skill nameless-skill '---
+description: "Declares no name. Use when: '"'"'checking the optional name field'"'"'."
+---
+
+## Purpose
+
+Fixture that declares no frontmatter name.
+
+## Gotchas
+
+None known.
+'
+out="$(run nameless-skill 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q "missing 'name:'" <<<"$out"; then
+  pass "an omitted frontmatter name does not fail the gate"
+else
+  fail "omitted name should pass (rc=$rc): $out"
+fi
+
+# 34. In a PLUGIN skill a matching name is redundant but not inert — it registers
+#     the bare alias the picker echoes in parentheses — so it WARNs without
+#     failing. The plugin layout is what distinguishes it from case 15 above.
+PLUGIN_SKILLS="$TMP/plugins/demo/skills"
+mkdir -p "$PLUGIN_SKILLS/aliased-skill" "$TMP/plugins/demo/.claude-plugin"
+printf '{"name":"demo","version":"0.1.0"}\n' >"$TMP/plugins/demo/.claude-plugin/plugin.json"
+printf '%s' '---
+name: aliased-skill
+description: "Repeats its directory. Use when: '"'"'checking the plugin redundancy warning'"'"'."
+---
+
+## Purpose
+
+Fixture whose plugin skill repeats its directory name.
+
+## Gotchas
+
+None known.
+' >"$PLUGIN_SKILLS/aliased-skill/SKILL.md"
+out="$( (cd "$TMP" &&
+  CHECK_SKILL_SKILLS_ROOT="$PLUGIN_SKILLS" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
+    bash "$SUT" aliased-skill) 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'repeats the plugin skill' <<<"$out"; then
+  pass "a plugin skill repeating its directory name warns without failing"
+else
+  fail "redundant plugin name should warn, not fail (rc=$rc): $out"
+fi
+
+# 35. Outside a plugin, `name` is the display label and repeating the directory
+#     is unremarkable — the warning must not fire there (false-positive guard).
+if ! grep -q 'repeats the plugin skill' <<<"$(run quoted-name 2>&1)"; then
+  pass "a non-plugin skill repeating its directory name does not warn"
+else
+  fail "redundancy warning should be plugin-scoped"
 fi
 
 if [[ $fails -ne 0 ]]; then

@@ -1,5 +1,4 @@
 ---
-name: attend-queue
 description: "Attend the human-in-the-loop queue for loop-lane operation: ONE attention view merging worker-escalated items (human-gated role label + machine-marked escalation comment) with untriaged raw intake, then drive each row to resolution — answer escalated questions via interview, write answers back as issue comments, ratify first-drain C3 admissions, and flip unblocked items to the autonomous-eligible role label. Use when: 'attend the queue', 'attend queue', 'answer escalations', 'work the escalation queue', 'what needs my attention across the lanes', 'HITL queue', 'ratify admissions', 'clear the human queue'. Attended lane of the loop-lane three-session topology — judgment only; never executes work items, never merges. Composes /work-items:triage (attention view + machinery) and /planning:interview. Sibling skills: /work-items:work-loop (autonomous drain), /work-items:triage (raw intake), /work-items:track (backlog CRUD)."
 argument-hint: "(no arguments — polls escalations and untriaged intake for the bound repository)"
 user-invocable: true

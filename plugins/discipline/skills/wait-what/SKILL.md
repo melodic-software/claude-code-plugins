@@ -1,5 +1,4 @@
 ---
-name: wait-what
 description: "Stop — that last message did not land. Re-pitch it: back up as far as needed, add the context that was missing, write in ASD-STE100 Simplified Technical English, and use the project's own ubiquitous language. Type /discipline:wait-what the moment you notice you are skimming; only you know when you stopped following."
 user-invocable: true
 disable-model-invocation: true
