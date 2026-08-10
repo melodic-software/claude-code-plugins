@@ -26,10 +26,12 @@ ideas arrive.
 **The method is not Pat's, and the Appendix is emphatic about that.** It is
 Stan Webb's — Pat's first professional co-writer, who taught it to him at the
 start of a Nashville session, and whom the Appendix thanks by name. Pat's
-contribution is carrying it into Berklee's classrooms and adding one rule of
-his own (§ Stay inside the song). Attribute it to Stan Webb when coaching from
-this material; a writer told "Pat's rule" is being told something the source
-takes visible care to credit elsewhere.
+contribution is carrying it into Berklee's classrooms and adding rules 3 and 4
+below — stay inside the song, and no technical talk. In the Appendix those two
+arrive as a single piece of advice about not talking craft in the room; the
+four-rule opener splits it in two. Attribute the method to Stan Webb when
+coaching from this material; a writer told "Pat's rule" is being told something
+the source takes visible care to credit elsewhere.
 
 Two details of the original telling that carry the rule's logic:
 
