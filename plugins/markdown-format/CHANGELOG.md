@@ -3,6 +3,36 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.4]
+
+### Fixed
+
+- **Two no-git cases 0.11.1 left open: a file below the root with no `CLAUDE_PROJECT_DIR`, and the
+  opt-in pre-check.** 0.11.1 resolved the root from `CLAUDE_PROJECT_DIR` when the git probe could not
+  answer. That covers an anchored session, but not the configuration the fix is about: the
+  working-tree membership scope is gated on `CLAUDE_PROJECT_DIR` being **unset**, and the no-git
+  regression fixture runs unset — so a root read off that variable cannot serve it, and a nested
+  `.md` on a git-less host with no harness anchor was still skipped silently. The opt-in
+  **pre-check**, which runs before `jq` exists, still resolved its root the old way as well: with
+  `git` and `jq` both absent, a nested file made it read a repository that had opted in as one that
+  never did, swallowing the `jq` notice it was owed.
+
+  The root is now resolved from the filesystem when git cannot answer, by the walk git's own
+  discovery performs: upward from the edited file for a `.git` entry, accepted as a directory for an
+  ordinary clone or as a **file** for a linked worktree or submodule
+  ([gitrepository-layout](https://git-scm.com/docs/gitrepository-layout)). git's answer is returned
+  untouched whenever git produced one, so a host that has git is unaffected. `CLAUDE_PROJECT_DIR`
+  remains below that as the last resort, for a project that is no working tree at all — an unpacked
+  archive, a vendored copy — and only ever as the walk's terminator, never to widen scope, so the
+  fail-closed reasoning in `markdownlint_config_discoverable` is unchanged. When nothing resolves,
+  the previous hint stands, which keeps 0.11.1's out-of-tree bound true.
+
+  This also retires the `"$REPO_ROOT" == "$(dirname "$FILE")"` guard, which was true only for a file
+  at the repository root: it spawned a second `git rev-parse` there wherever the payload's path
+  spelling matched git's own, and was false for every nested file, which is why 0.11.1's test file
+  records that the guard's inertness could not be made behaviourally observable. There is no longer
+  an untestable branch to observe.
+
 ## [0.11.3]
 
 ### Fixed
@@ -66,23 +96,13 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
   That is the ordinary docs layout, so the case the membership gate was meant to restore stayed
   broken for most files in it.
 
-  The root is now resolved without git when git cannot answer, by the walk git's own discovery
-  performs: upward from the edited file for a `.git` entry, accepted as a directory for an ordinary
-  clone or as a **file** for a linked worktree or submodule
-  ([gitrepository-layout](https://git-scm.com/docs/gitrepository-layout)). git's answer is returned
-  untouched whenever git produced one, so a host that has git is unaffected and no second probe is
-  spawned to establish that. `CLAUDE_PROJECT_DIR` remains as a last resort, for a project that is no
-  working tree at all — an unpacked archive, a vendored copy — and only ever as the walk's
-  terminator, never to widen scope: discovery still starts at the file, so the fail-closed reasoning
-  in `markdownlint_config_discoverable` is unchanged. When nothing resolves, the previous hint
-  stands, which is what keeps the out-of-tree bound above true.
-
-  Resolving from the filesystem rather than from a harness variable is what makes the fix cover the
-  case this release is about. The membership scope is gated on `CLAUDE_PROJECT_DIR` being **unset**,
-  and the no-git regression fixture runs unset, so a root taken from that variable cannot serve the
-  configuration the gate exists for. The same resolution now also backs the opt-in **pre-check** that
-  runs before `jq` exists: with both `git` and `jq` absent, a nested file made that pre-check read an
-  opted-in repository as one that never opted in, swallowing the `jq` notice it was owed.
+  `CLAUDE_PROJECT_DIR` answers the same question without git, so it is now preferred as the walk's
+  terminator when the git probe cannot resolve a working-tree top. It is used ONLY as the
+  terminator, never to widen scope — discovery still starts at the file and still stops at a root —
+  so the fail-closed reasoning in `markdownlint_config_discoverable` is unchanged. The capability is
+  probed by running `git rev-parse --show-toplevel` rather than by testing `command -v git`, which
+  answers yes for a shell function, a PATH stub, or a real binary standing in a directory that is no
+  repository — every case where the fallback still applies.
 
 ## [0.11.0]
 
