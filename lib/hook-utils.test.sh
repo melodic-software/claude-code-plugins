@@ -2158,11 +2158,13 @@ fi
 # The separator was drawn from the same byte space as the values it separates,
 # so a JSON NUL escape inside a value split that value in two, failed the
 # cardinality check, and returned 1 — which every guardrail caller spells
-# `|| exit 0`, i.e. ALLOW. jq now truncates each value at its first NUL, so the
+# `|| exit 0`, i.e. ALLOW. jq now STRIPS every NUL out of each value, so the
 # separator cannot occur inside one and the record count no longer depends on
-# what a parseable payload holds. Truncation is a conservative reading, not a
-# claim about how a NUL would execute; the NUL itself is reported in
-# HOOK_JQ_FIELDS_NUL, because only the caller can own the verdict.
+# what a parseable payload holds. Stripping is not a claim about how a NUL would
+# execute — it SPLICES the bytes either side into a token the payload never
+# carried contiguously — which is exactly why the NUL itself is reported in
+# HOOK_JQ_FIELDS_NUL: only the caller can own the verdict, and the two guards
+# refuse on the flag rather than match the spliced value.
 #
 # A NUL cannot live in a shell variable, so the payload is built inside jq:
 # `[0] | implode` is the one-character NUL string (jq re-emits it as a NUL
@@ -2181,14 +2183,14 @@ jf_nul=$(jq -n '{
 if hook::jq_fields "$jf_nul" \
   '.tool_input.command' '.tool_name' '.session_id' '.only_nul' '.runs' '.literal' '.absent'; then
   if [[ "${#HOOK_JQ_FIELDS[@]}" -eq 7 &&
-    "${HOOK_JQ_FIELDS[0]}" == "git push --no-veri" &&
+    "${HOOK_JQ_FIELDS[0]}" == "git push --no-verify" &&
     "${HOOK_JQ_FIELDS[1]}" == "Bash" &&
-    "${HOOK_JQ_FIELDS[2]}" == "s" &&
+    "${HOOK_JQ_FIELDS[2]}" == "s1" &&
     -z "${HOOK_JQ_FIELDS[3]}" &&
-    "${HOOK_JQ_FIELDS[4]}" == "p" &&
+    "${HOOK_JQ_FIELDS[4]}" == "pq" &&
     "${HOOK_JQ_FIELDS[5]}" == "${jf_bs}u0000" &&
     -z "${HOOK_JQ_FIELDS[6]}" ]]; then
-    ok "jq_fields: a NUL-bearing value keeps every slot and truncates at the NUL"
+    ok "jq_fields: a NUL-bearing value keeps every slot and is stripped, not split"
   else
     fail "jq_fields NUL framing: got (${#HOOK_JQ_FIELDS[@]}) '${HOOK_JQ_FIELDS[0]-}' / '${HOOK_JQ_FIELDS[1]-}' / '${HOOK_JQ_FIELDS[2]-}' / '${HOOK_JQ_FIELDS[3]-}' / '${HOOK_JQ_FIELDS[4]-}' / '${HOOK_JQ_FIELDS[5]-}' / '${HOOK_JQ_FIELDS[6]-}'"
   fi
@@ -2217,15 +2219,37 @@ else
   fail "jq_fields flag on a trailing NUL field: got '$HOOK_JQ_FIELDS_NUL'"
 fi
 
-# A LEADING NUL truncates the value to nothing. The value is then indistinguish-
-# able from an absent field, so the flag is the only thing separating "no
-# command was sent" from "a command was sent and could not be read faithfully".
+# A leading NUL KEEPS its text under stripping — it is the splice, not an empty
+# value, that a command guard has to survive. `--no-verify<NUL>x` arrives as the
+# single token `--no-verifyx`, which no matcher recognizes, so a caller reading
+# only the value would allow it. The flag is the only thing that separates it
+# from a clean payload, which is why the two guards refuse on the flag instead of
+# matching the value.
 jf_lead=$(jq -n '{tool_input: {command: (([0] | implode) + "git push --force")}}')
 if hook::jq_fields "$jf_lead" '.tool_input.command' &&
-  [[ -z "${HOOK_JQ_FIELDS[0]}" && "$HOOK_JQ_FIELDS_NUL" == 1 ]]; then
-  ok "jq_fields: a leading NUL empties the value and still raises the flag"
+  [[ "${HOOK_JQ_FIELDS[0]}" == "git push --force" && "$HOOK_JQ_FIELDS_NUL" == 1 ]]; then
+  ok "jq_fields: a leading NUL keeps the value's text and still raises the flag"
 else
   fail "jq_fields leading NUL: got '${HOOK_JQ_FIELDS[0]-}' flag '$HOOK_JQ_FIELDS_NUL'"
+fi
+
+jf_splice=$(jq -n '{tool_input: {command: ("git commit --no-verify" + ([0] | implode) + "x")}}')
+if hook::jq_fields "$jf_splice" '.tool_input.command' &&
+  [[ "${HOOK_JQ_FIELDS[0]}" == "git commit --no-verifyx" && "$HOOK_JQ_FIELDS_NUL" == 1 ]]; then
+  ok "jq_fields: stripping splices a token the payload never carried, and flags it"
+else
+  fail "jq_fields splice: got '${HOOK_JQ_FIELDS[0]-}' flag '$HOOK_JQ_FIELDS_NUL'"
+fi
+
+# A value that is NOTHING BUT NUL bytes strips to empty, and is then
+# indistinguishable from an absent field. That case — not a leading NUL — is why
+# both guards consult the flag AHEAD of their empty-command skip.
+jf_allnul=$(jq -n '{tool_input: {command: (([0] | implode) + ([0] | implode))}}')
+if hook::jq_fields "$jf_allnul" '.tool_input.command' &&
+  [[ -z "${HOOK_JQ_FIELDS[0]}" && "$HOOK_JQ_FIELDS_NUL" == 1 ]]; then
+  ok "jq_fields: an all-NUL value strips to empty and still raises the flag"
+else
+  fail "jq_fields all-NUL: got '${HOOK_JQ_FIELDS[0]-}' flag '$HOOK_JQ_FIELDS_NUL'"
 fi
 
 # Set on EVERY call, not only when a NUL is present: a caller that never resets

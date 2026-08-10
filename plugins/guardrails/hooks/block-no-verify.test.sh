@@ -320,11 +320,13 @@ assert_contains "PS msg: iex of a literal gets the same actionable advice" \
 # the boundary is where the bypass was observable.
 #
 # The rule is one line with no exceptions: a NUL in any field the hook reads
-# BLOCKS, whatever the surrounding text says. That includes a leading NUL, which
-# leaves no command text at all, and a NUL in a command with nothing dangerous in
-# it. The guard refuses rather than matching because the text it can read is not
-# dependably the text that would run, and which executor behaviour applies has
-# not been traced.
+# BLOCKS, whatever the surrounding text says. That includes a command whose text
+# is entirely NUL bytes, which strips to nothing and would otherwise be waved
+# through by the empty-command skip, and a NUL in a command with nothing
+# dangerous in it. The guard refuses rather than matching because the text it can
+# read is not dependably the text that would run — stripping SPLICES the bytes
+# either side of the NUL into a token the payload never carried contiguously —
+# and which executor behaviour applies has not been traced.
 #
 # A NUL cannot live in a shell variable, so the payload is assembled inside jq:
 # `[0] | implode` is the one-character NUL string, which jq re-emits as a NUL
@@ -339,7 +341,8 @@ run_nul() {
 run_nul "NUL after --no-verify (blocked)" "git push --no-verify" "" 2
 run_nul "NUL splitting the flag itself (blocked)" "git push --no-veri" "fy" 2
 run_nul "NUL then junk (blocked)" "git push --no-verify" "x" 2
-run_nul "leading NUL truncates to no command (blocked)" "" "git push --no-verify" 2
+run_nul "leading NUL, text preserved (blocked)" "" "git push --no-verify" 2
+run_nul "all-NUL command strips to empty (blocked)" "" "" 2
 run_nul "NUL in an otherwise harmless command (blocked)" "echo hi" "; echo bye" 2
 
 # The block has to say what is wrong and what to do about it, not just refuse.
