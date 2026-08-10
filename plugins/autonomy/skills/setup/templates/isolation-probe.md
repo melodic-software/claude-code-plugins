@@ -73,11 +73,26 @@ over DNS, and outer-reachability is what makes the inner failure mean something.
 # peer certificate fingerprint as outer_peer_fingerprint
 <fetch-command> <well-known-external-host> ; test $? -eq 0 || fail "cannot reach <well-known-external-host> from the outer context — an unreachable target cannot evidence a boundary"
 <peer-fingerprint-command> <well-known-external-host>
-# probe (inside the boundary), per target: no origin peer may answer
-<fetch-command> <well-known-external-host> ; test $? -ne 0 || fail "egress reached <well-known-external-host> — boundary is not L2"
+# probe (inside the boundary), per target: no origin peer may answer. The client MUST be run in
+# fail-on-HTTP-error mode — without it a policy block page is a successful transfer and exits 0.
+<fetch-command> --fail-on-http-error <well-known-external-host> ; test $? -ne 0 || fail "egress reached <well-known-external-host> — boundary is not L2"
 # where a handshake DID complete, the peer must not be the origin
 test "<inner_peer_fingerprint>" != "<outer_peer_fingerprint>" || fail "the origin's own peer identity answered inside the boundary — this is reached egress, not interception"
 ```
+
+**Two capture requirements, both learned from a boundary that defeated the naive form.**
+
+`<peer-fingerprint-command>` MUST be proxy-aware — it has to obtain the certificate through whatever
+path the boundary routes traffic over. A direct-TLS tool cannot traverse an HTTP `CONNECT` proxy and
+reports NO peer at all, identically for a sealed boundary and a wide-open one, so an unaware capture
+silently records "no peer" and proves nothing. Use the fetch client's own certificate output, since
+it is the component that already speaks the boundary's egress path.
+
+Certificate VALIDITY must not be substituted for the comparison. On a measured boundary the
+interception layer presented a certificate carrying the CORRECT hostname, signed by a CA the boundary
+trusted: hostname matching passed and verification returned success, so a verification-based test
+graded a fully sealed boundary as reached egress. Only the peer's IDENTITY — its fingerprint, differing
+from the outer context's — distinguished the two.
 
 Record HOW each target was denied as `transport_outcome`, one entry per target:
 `dns-unresolved` · `connect-failed` · `tls-failed` · `peer-substituted`. There is deliberately no
