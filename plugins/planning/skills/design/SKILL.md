@@ -194,9 +194,9 @@ The in-session shortcut to the design→plan gate. Delegate to `/planning:design
 
 | Skill | Relationship |
 |-------|-------------|
-| `/planning:interview` | **Before.** `/planning:interview` locks the brief (scope + constraints). `/design` explores the solution space within those constraints |
+| `/planning:interview` | **Before.** `/planning:interview` locks the brief (scope + constraints). `/planning:design` explores the solution space within those constraints |
 | `/domain-driven-design:curate-language` | **During.** Owns active project-glossary updates whenever design resolves domain language; it does not own type or boundary design |
-| `/discovery:explore` (if installed) | **Before.** Exploration maps existing code. `/design` creates what SHOULD exist |
-| `/discovery:research` (if installed) | **Before + parallel.** Research gathers external facts. `/design` synthesizes them. Deferred research items can run in parallel |
+| `/discovery:explore` (if installed) | **Before.** Exploration maps existing code. `/planning:design` creates what SHOULD exist |
+| `/discovery:research` (if installed) | **Before + parallel.** Research gathers external facts. `/planning:design` synthesizes them. Deferred research items can run in parallel |
 | `/planning:design-handoff` | **The gate.** Owns the design→plan gate criteria and the plan-ready summary; this skill's `handoff` action delegates to it |
-| `/planning:plan` | **After the handoff gate.** `/design` produces WHAT. `/planning:plan` produces HOW (implementation plan with phases). When design artifacts exist, `/planning:plan` consumes them instead of re-deriving design inline |
+| `/planning:plan` | **After the handoff gate.** `/planning:design` produces WHAT. `/planning:plan` produces HOW (implementation plan with phases). When design artifacts exist, `/planning:plan` consumes them instead of re-deriving design inline |

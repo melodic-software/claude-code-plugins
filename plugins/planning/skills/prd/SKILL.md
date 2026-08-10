@@ -27,7 +27,7 @@ This is the **product-intent** stage. **Upstream of exploration**, **upstream of
 
 - `/planning:prd` — answers *what should we build, for whom, and why*. Outcome-focused. Required for new user-facing features, business-driven changes, cross-team initiatives
 - `/planning:interview` — answers *what is the engineering contract for this task*. Constraint and acceptance-criteria focused. Required whenever intent is fuzzy or underspecified, regardless of source
-- Complementary, not redundant. A product feature usually wants both: `/planning:prd` (product intent) → `/planning:interview` (engineering contract) → exploration → research → `/design` → `/planning:plan`. Engineering-internal work skips `/planning:prd` entirely
+- Complementary, not redundant. A product feature usually wants both: `/planning:prd` (product intent) → `/planning:interview` (engineering contract) → exploration → research → `/planning:design` → `/planning:plan`. Engineering-internal work skips `/planning:prd` entirely
 
 The PRD is **never an implementation plan**. Boundaries: problem, users, success — yes. Architecture, files, tests, code shapes — no. That is `/planning:plan`'s job. If the user pulls toward implementation mid-PRD, anchor back to *what for whom* and let `/planning:plan` pick up after.
 
@@ -141,7 +141,7 @@ Stop asking once every required section has either a resolved answer or an expli
 
 ### Step 5 — Persist the PRD
 
-Derive `<topic-slug>` from the task description or current branch name (kebab-case, ≤40 chars) — the same slug `/planning:interview`, `/design`, and `/planning:plan` will use for this topic. Write to `<contract_dir>/<topic-slug>/PRD.md` (default `docs/topics/`) — the topic's contract slice, committed on the task branch as it locks; under `contract_tier: local` it joins the memory slice instead. Roots, tier, and precedence resolve per the topic-docs binding [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md). PRD.md lives alongside `PLAN.md` (the plan skill's output) and the topic's design artifacts.
+Derive `<topic-slug>` from the task description or current branch name (kebab-case, ≤40 chars) — the same slug `/planning:interview`, `/planning:design`, and `/planning:plan` will use for this topic. Write to `<contract_dir>/<topic-slug>/PRD.md` (default `docs/topics/`) — the topic's contract slice, committed on the task branch as it locks; under `contract_tier: local` it joins the memory slice instead. Roots, tier, and precedence resolve per the topic-docs binding [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md). PRD.md lives alongside `PLAN.md` (the plan skill's output) and the topic's design artifacts.
 
 Frontmatter:
 
@@ -217,7 +217,7 @@ Complementary to `/planning:devils-advocate` — review checks structure and con
 | Pre-task: any fuzzy task — including post-PRD constraint discovery | `/planning:interview` | Produces the Brief in `PLAN.md` (reads PRD if present) |
 | Need codebase grounding | `/discovery:explore` (if installed) | Reads PRD + PLAN as scope |
 | Need external evidence | `/discovery:research` (if installed) | Reads PRD + PLAN as scope |
-| Need design exploration (types, contracts, topology) | `/design` | Reads PRD + PLAN; produces design artifacts that `/planning:plan` consumes |
+| Need design exploration (types, contracts, topology) | `/planning:design` | Reads PRD + PLAN; produces design artifacts that `/planning:plan` consumes |
 | Plan the implementation | `/planning:plan` | Reads PRD + PLAN + explore + research findings |
 | Stress-test the plan | `/planning:devils-advocate` | Adversarial pass on `/planning:plan` output (not the PRD) |
 

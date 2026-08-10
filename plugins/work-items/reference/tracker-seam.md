@@ -152,9 +152,9 @@ memory root's self-ignore guard (a `.gitignore` containing `*`, created and anno
 
 ## Integration points
 
-### With `/workflow`
+### With `/session-flow:workflow`
 
-The project's development workflow — a `/workflow` skill, a CLAUDE.md workflow section, or team
+The project's development workflow — a `/session-flow:workflow` skill, a CLAUDE.md workflow section, or team
 convention — applies to every item worked via `/work-items:work`; the `work` skill chains its full
 step sequence.
 

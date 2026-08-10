@@ -34,7 +34,7 @@ time until the fog burns off and a real destination (Brief / PRD / PLAN) can be 
 
 **Plan, don't do.** A map holds *decisions*, not build work. Each decision item, once
 resolved, either sharpens the map or graduates to the destination. The moment the destination
-is coherent, the map closes and the normal pipeline (`/planning:interview → /design → /planning:plan →
+is coherent, the map closes and the normal pipeline (`/planning:interview → /planning:design → /planning:plan →
 /implementation:implement`) takes over. The map persists as native tracker primitives, each decision routes
 to a first-party skill, and execution artifacts live in `<memory_dir>/<slug>/` (default
 `.work/`) — the topic-docs convention's memory tier, slug spec and all (see
