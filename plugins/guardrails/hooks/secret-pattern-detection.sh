@@ -153,9 +153,27 @@ emit_tel() {
 VIOLATIONS=""
 LABELS=()
 
+# Feeds $CONTENT through PROCESS SUBSTITUTION, never `<<<"$CONTENT"`. Bash
+# delivers a here-string through a pipe and appends a newline, so a payload of
+# 65536-65663 bytes puts the write 1-128 bytes past the 65536-byte pipe capacity
+# and bash blocks FOREVER (at >=129 bytes over it spills to a temp file and
+# works again). This guard blocks, so a hang means the harness cancels it at the
+# hook timeout and the secret verdict is lost entirely. The deadlock is a
+# property of `<<<` alone, NOT of the reader: measured at 65600 bytes, this very
+# `grep -nE` (no `-q`, drains its input) hung on a here-string just as `grep -q`
+# did, so the here-string had to go here regardless.
+#
+# Which replacement is required DOES depend on the reader, per the two-shapes
+# rule at the gate in lib/path-detection/hardcoded-path-patterns.sh. This reader
+# drains and its pipeline status is discarded (only $lines is read), so a plain
+# `printf … | grep` would also have been correct here — process substitution is
+# used for uniformity with the `-q` gates in this plugin, where a pipe WOULD
+# invert the verdict under `pipefail`, so the scan sites all read as one idiom.
+# `printf '%s'` matches the no-trailing-newline shape the rest of this hook
+# already uses for $INPUT.
 check_pattern() {
   local label="$1" pattern="$2" lines
-  lines=$(grep -nE -- "$pattern" <<<"$CONTENT" 2>/dev/null | head -3 | cut -d: -f1 | tr '\n' ',' | sed 's/,$//')
+  lines=$(grep -nE -- "$pattern" < <(printf '%s' "$CONTENT") 2>/dev/null | head -3 | cut -d: -f1 | tr '\n' ',' | sed 's/,$//')
   if [[ -n "$lines" ]]; then
     VIOLATIONS="${VIOLATIONS}${label} (line ${lines})\n"
     LABELS+=("$label")
@@ -200,11 +218,17 @@ SECRET_PATTERNS=(
 # MSYS2 + Defender that is ~60 spawns costing 10-25s. grep -qE over all patterns
 # is logically equivalent to "any pattern matched" — if it finds nothing, no
 # individual pattern can match, so skipping itemization is sound.
+#
+# Process substitution, not `<<<` (deadlocks at 65536-65663 bytes) and not
+# `printf | grep -q` (`grep -q` early-exits, SIGPIPEs printf, and under the
+# `set -uo pipefail` at the top of this file the pipeline reports 141 — which
+# this `if !` would read as "no secret" and exit 0 clean, a fail-open on the
+# very payload that matched). See check_pattern above.
 grep_e_args=()
 for pattern in "${SECRET_PATTERNS[@]}"; do
   grep_e_args+=(-e "$pattern")
 done
-if ! grep -qE "${grep_e_args[@]}" <<<"$CONTENT" 2>/dev/null; then
+if ! grep -qE "${grep_e_args[@]}" < <(printf '%s' "$CONTENT") 2>/dev/null; then
   emit_tel "ok" '[]'
   exit 0
 fi

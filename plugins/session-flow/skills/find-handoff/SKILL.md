@@ -124,14 +124,52 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
    be invisible and verifies the agent actually appeared, so exclusion requires transcript
    evidence of that verification (the agent listed/confirmed); this definition governs every
    screening site in this skill. Matched launch references this candidate and verifiably
-   succeeded → **recheck the CURRENT `claude agents` state before excluding** — transcript
-   evidence proves only launch-time persistence, and an agent that has since exited or failed
-   leaves this save-point as the artifact needed to restart the work. Continuation still live →
-   the save-point is not the lost handoff: exclude it from the default winner, say so, and keep
-   looking for the older manual handoff. Continuation absent or failed now → keep the candidate,
-   noting the failed background attempt. Launch references a different file, failed, or is
-   unverified/ambiguous → keep the candidate (surfacing the provenance at the confirm gate when
-   ambiguous). The current-state recheck applies to every screening site, prompt-only included. **v1 scope: current repo only.** The cross-repo *filesystem* sweep (deriving
+   succeeded → **recheck the CURRENT agent state before excluding** — transcript evidence proves
+   only launch-time persistence, and a continuation that has since died leaves this save-point as
+   the artifact needed to restart the work.
+
+   **Read that state with `claude agents --json --all`, never the bare `--json`.** The bare form
+   lists ACTIVE sessions only — a background session that has reached a terminal state is excluded
+   by the CLI and surfaces only under `--all`, where it carries a `state` (observed: `done`, which
+   reports completion, and `stopped`, which does not) in place of the active `status` (observed:
+   `idle`, `busy`). That is `claude agents --help` ("`--all` — With --json: also include completed
+   background sessions") and the same
+   verified contract this repo already relies on in `claude-ops`'
+   `skills/lanes/scripts/lane-launcher.sh` (`load_sessions`). **So absence from the bare list is
+   NOT evidence of failure: a continuation that finished the work successfully looks exactly like
+   one that died.** Resolve four ways, and never collapse them:
+   - **Live** — present with an active `status`. The work is in progress, so the save-point is not
+     the lost handoff: exclude it from the default winner, say so, point the operator at
+     `claude agents`, and keep looking for the older manual handoff.
+   - **Terminal and completed** — present under `--all` with a `state` reporting completion.
+     **Also exclude it from the default winner**, and say the continuation FINISHED rather than
+     failed. This branch is why the recheck cannot key on presence alone: presenting a completed
+     continuation's save-point as the lost handoff invites the operator to redo work already done,
+     and it can bury the older manual handoff they were actually looking for. Point them at that
+     session's output, not at a rerun.
+   - **Terminal and not completed** — present under `--all` with a `state` that does not report
+     completion (an interrupted or stopped one). **Keep** the candidate as the restart artifact and
+     name the state observed. This is the case the recheck exists for.
+   - **Absent even from `--all`** — **UNKNOWN, never "failed."** The `--all` history is bounded, so
+     a long-finished session can age out of it, and a lookup that cannot see a session cannot say
+     why. Keep the candidate, and report that the continuation's outcome could not be determined
+     instead of asserting a failed background attempt.
+
+   Read the `state` value as reported and say which branch it took — the values above are observed,
+   not a closed set, so an unfamiliar one is reported rather than forced into a branch. **Key the
+   lookup on the launched session's `sessionId`/`id` — the `claude agents --json` field, NOT the
+   `session_id` this file uses elsewhere for transcript frontmatter — when the launch-verification
+   listing recorded one in the transcript.** With no recorded ID the recheck is UNKNOWN and the
+   candidate is kept, and that holds even when the `--name "continue-<topic>"` slug matches exactly
+   one entry: `--all`'s history is bounded, so the candidate's own session may have aged out while a
+   newer same-topic continuation remains, and a unique match is then a DIFFERENT session wearing the
+   same name. Uniqueness at snapshot time is not identity across time. The slug is the same
+   ambiguous key here as at launch time, and no match count makes it unambiguous. Launch references
+   a different file, failed at launch, or is unverified/ambiguous → keep the candidate (surfacing
+   the provenance at the confirm gate when ambiguous). **This four-way resolution governs every
+   screening site in this skill, prompt-only included.**
+
+   **v1 scope: current repo only.** The cross-repo *filesystem* sweep (deriving
    other repo roots from transcript `cwd` fields) is deferred — step 2's transcript scan already
    recovers handoffs written in other repos, since transcripts are indexed by session, not repo.
 
@@ -234,8 +272,12 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
      a temp file (visible in the same transcript as the Write preceding the launch) — a launch
      excludes only the block whose content it delivered; a later launch of a *different* prompt
      never disqualifies an earlier manual block in the same transcript. A delivered block is not a
-     lost handoff (its work is already running — `claude agents` lists it); exclude it and keep
-     scanning.
+     lost handoff; exclude it and keep scanning. **Resolve the continuation's current state through
+     step 1's four-way rule before excluding** (`claude agents --json --all`, keyed on the
+     launched `sessionId` where the transcript recorded one): live and completed both exclude —
+     the first because the work is running, the second because it is already done — while a
+     non-completion terminal state, or absence even from `--all`, keeps the block. Absent from the
+     bare active list is never on its own a failed continuation.
    - **Capture the below-rail `/loop` re-arm entries — every mode, every discovery path, every
      loop.** Once a candidate qualifies on the signals above, also take the re-arm instructions the
      producer emits below the bottom rail. **Read the `Re-arm <i> of <n> — <L> lines:` headers and
@@ -432,11 +474,16 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
   the `continue-<topic>` slug alone (topic-only: same-topic files all match; ambiguous unless it
   uniquely resolves). "Successful" always means verified-visible — transcript evidence the agent
   appeared, never exit-0 alone, since the producer itself warns a zero-exit launch can be
-  invisible; unverified → ambiguous, keep the candidate. Exclusion also requires the continuation
-  to be live in the CURRENT `claude agents` state — historical visibility is launch-time only,
-  and a since-exited or failed agent leaves the save-point as the restart artifact. Exclude only
-  the correlated, verifiably successful, still-live launch's file and point the operator at
-  `claude agents` instead.
+  invisible; unverified → ambiguous, keep the candidate. Exclusion also turns on the
+  continuation's CURRENT state, because historical visibility is launch-time only — and that state
+  must be read with **`claude agents --json --all`**. The bare `--json` lists active sessions only,
+  so a continuation that COMPLETED SUCCESSFULLY is absent from it and indistinguishable there from
+  one that died; treating that absence as failure surfaces a finished continuation's save-point as
+  a lost handoff, which invites redoing done work and can bury the older manual handoff. Apply
+  step 1's four-way resolution: live → exclude (running); terminal and completed → exclude, saying
+  it FINISHED and pointing at that session's output; terminal and not completed → keep, as the
+  restart artifact; absent even from `--all` → UNKNOWN (the history is bounded), keep, and do not
+  call it a failure.
   Prompt-only continuations screen the same way, bound by content: a rails block whose exact
   prompt a verifiably successful `claude --bg` launch delivered (the producer writes it to a temp
   file in the same transcript first) was delivered, not lost — a later launch of a different
