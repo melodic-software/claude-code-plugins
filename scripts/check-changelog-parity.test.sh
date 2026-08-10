@@ -77,6 +77,132 @@ stale_count="$(printf '%s\n' "$out" | grep -c 'STALE BASELINE')"
 if [[ $rc -ne 0 && "$stale_count" == "1" ]]; then ok "stale baseline entry fails --check (reported exactly once)"; else fail "stale baseline: rc=$rc count=$stale_count out='$out'"; fi
 rm -rf "$repo"
 
+# ------------------- --check reverse parity (#2131) ----------------------
+# The direction no other mode covers: a `## [x.y.z]` heading the manifest never
+# reached. --check-bump fires only on a CHANGED manifest version and
+# --check-order is satisfied by a correctly ordered list, so a release note
+# written ahead of its bump reached main unseen.
+
+# newest heading EQUALS the manifest version -> passes
+repo="$(mk_repo)"
+mk_plugin "$repo" alpha 1.0.0 yes
+printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+if (cd "$repo" && bash scripts/check-changelog-parity.sh --check >/dev/null 2>&1); then ok "newest heading equal to the manifest version passes --check"; else fail "equal newest heading wrongly failed"; fi
+rm -rf "$repo"
+
+# manifest ABOVE the newest heading -> passes: a bump with no consumer-visible
+# change need not write a release note. Locks the check to one direction.
+repo="$(mk_repo)"
+mk_plugin "$repo" alpha 1.1.0 yes
+printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+if (cd "$repo" && bash scripts/check-changelog-parity.sh --check >/dev/null 2>&1); then ok "manifest above the newest heading passes --check (a bump need not write a note)"; else fail "manifest-ahead wrongly failed"; fi
+rm -rf "$repo"
+
+# SYNTHETIC AHEAD-OF-MANIFEST: the docs-hygiene shape — a `## [0.9.7]` entry
+# above a 0.9.6 manifest -> fails, naming both versions.
+repo="$(mk_repo)"
+mk_plugin "$repo" alpha 0.9.6 yes
+printf '# Changelog\n\n## [0.9.7]\n\n## [0.9.6]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check 2>&1)"
+rc=$?
+if [[ $rc -ne 0 && "$out" == *"CHANGELOG AHEAD OF MANIFEST"*"alpha"* && "$out" == *"0.9.7"* && "$out" == *"0.9.6"* ]]; then ok "a heading above the manifest version fails --check (synthetic #2131 shape caught)"; else fail "ahead-of-manifest not caught: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
+# NUMERIC, NOT LEXICAL: 0.9.0 sorts above 0.10.0 as a string. A manifest at
+# 0.10.0 with a 0.9.0 heading must pass, not red-line.
+repo="$(mk_repo)"
+mk_plugin "$repo" alpha 0.10.0 yes
+printf '# Changelog\n\n## [0.9.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+if (cd "$repo" && bash scripts/check-changelog-parity.sh --check >/dev/null 2>&1); then ok "reverse parity compares numerically, not lexically (0.10.0 manifest, 0.9.0 heading)"; else fail "lexical comparison leaked into --check"; fi
+rm -rf "$repo"
+
+# UNBRACKETED heading form: the shared extractor reads `## 1.1.0 — date` too, so
+# dropping the brackets cannot smuggle a heading past the reverse check.
+repo="$(mk_repo)"
+mk_plugin "$repo" alpha 1.0.0 yes
+printf '# Changelog\n\n## 1.1.0 — 2026-08-10\n' >"$repo/plugins/alpha/CHANGELOG.md"
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check 2>&1)"
+rc=$?
+if [[ $rc -ne 0 && "$out" == *"CHANGELOG AHEAD OF MANIFEST"*"alpha"* ]]; then ok "an unbracketed heading above the manifest is still caught"; else fail "unbracketed ahead-heading missed: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
+# A changelog with no version heading at all has nothing to compare -> passes.
+repo="$(mk_repo)"
+mk_plugin "$repo" alpha 1.0.0 yes
+printf '# Changelog\n\nNo releases yet.\n' >"$repo/plugins/alpha/CHANGELOG.md"
+if (cd "$repo" && bash scripts/check-changelog-parity.sh --check >/dev/null 2>&1); then ok "a changelog with no version heading passes --check"; else fail "heading-less changelog wrongly failed"; fi
+rm -rf "$repo"
+
+# NON-SEMVER MANIFEST VERSION: must refuse loudly (exit 2) rather than feed
+# garbage to the arithmetic sort key, same as --check-bump.
+repo="$(mk_repo)"
+mk_plugin "$repo" alpha 1.two.0 yes
+printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check 2>&1)"
+rc=$?
+if [[ $rc -eq 2 && "$out" == *"non-SemVer"*"1.two.0"* ]]; then ok "--check refuses a non-SemVer manifest version loudly (exit 2)"; else fail "--check did not refuse malformed version: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
+# ...and refuses it EVEN WITH NO HEADING to compare against: an uncomparable
+# manifest version is a defect in its own right, so the guard must not hide
+# behind the presence of a release note.
+repo="$(mk_repo)"
+mk_plugin "$repo" alpha 1.two.0 yes
+printf '# Changelog\n\nNo releases yet.\n' >"$repo/plugins/alpha/CHANGELOG.md"
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check 2>&1)"
+rc=$?
+if [[ $rc -eq 2 && "$out" == *"non-SemVer"*"1.two.0"* ]]; then ok "--check refuses a non-SemVer manifest version with a heading-less changelog too"; else fail "malformed version rode through behind a missing heading: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
+# SEMVER BUILD METADATA above the manifest -> caught. Manifests and --check-bump
+# both accept `1.0.1+build.1`, so a heading extractor that dropped the tail would
+# leave exactly that class unchecked — a gate that silently checks nothing.
+repo="$(mk_repo)"
+mk_plugin "$repo" alpha 1.0.0 yes
+printf '# Changelog\n\n## [1.0.1+build.1]\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check 2>&1)"
+rc=$?
+if [[ $rc -ne 0 && "$out" == *"CHANGELOG AHEAD OF MANIFEST"*"1.0.1+build.1"* ]]; then ok "a build-metadata heading above the manifest is caught"; else fail "build-metadata heading slipped past the reverse check: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
+# ...and the matching manifest passes: the tail is stripped before comparing, so
+# an equal-core pair is not a false failure.
+repo="$(mk_repo)"
+mk_plugin "$repo" alpha 1.0.1+build.1 yes
+printf '# Changelog\n\n## [1.0.1+build.1]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+if (cd "$repo" && bash scripts/check-changelog-parity.sh --check >/dev/null 2>&1); then ok "a build-metadata heading equal to the manifest passes --check"; else fail "equal build-metadata pair wrongly failed"; fi
+rm -rf "$repo"
+
+# FENCED EXAMPLE: a column-zero heading with a high version inside a ``` block is
+# not rendered markdown, so it must not be read as the newest release. Without
+# fence tracking this is a false FAIL in a required gate with no baseline escape.
+repo="$(mk_repo)"
+mk_plugin "$repo" alpha 1.0.0 yes
+# shellcheck disable=SC2016  # single quotes are deliberate: the backtick fence and \n are literal changelog bytes
+printf '# Changelog\n\nHeadings look like this:\n\n```\n## [9.9.9]\n```\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]]; then ok "a fenced example heading is not read as the newest release"; else fail "fenced example wrongly red-lined --check: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
+# HTML-COMMENT EXAMPLE: same, inside a multi-line <!-- --> block.
+repo="$(mk_repo)"
+mk_plugin "$repo" alpha 1.0.0 yes
+printf '# Changelog\n\n<!--\n## [9.9.9]\n-->\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]]; then ok "a heading inside an HTML comment is not read as the newest release"; else fail "commented heading wrongly red-lined --check: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
+# ...and the same suppression applies to --check-order, which reads changelogs
+# through the same tracker: a fenced out-of-order example must not be misordered.
+repo="$(mk_repo)"
+mk_plugin "$repo" alpha 1.0.0 yes
+# shellcheck disable=SC2016  # single quotes are deliberate: the backtick fence and \n are literal changelog bytes
+printf '# Changelog\n\n## [2.0.0]\n\n```\n## [0.1.0]\n```\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+if (cd "$repo" && bash scripts/check-changelog-parity.sh --check-order >/dev/null 2>&1); then ok "a fenced example heading is invisible to --check-order too"; else fail "fenced example wrongly red-lined --check-order"; fi
+rm -rf "$repo"
+
 # ============================ --check-bump (diff) =========================
 
 # version changed AND changelog has the new version's entry -> passes
@@ -89,6 +215,47 @@ printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude
 printf '# Changelog\n\n## [1.1.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
 git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm bump
 if (cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" >/dev/null 2>&1); then ok "bump + '## [x.y.z]' entry passes --check-bump"; else fail "bump+entry wrongly failed"; fi
+rm -rf "$repo"
+
+# LARGE CHANGELOG (SIGPIPE regression, #2130): the new entry sits near the top
+# of a changelog far larger than the pipe buffer — the shape every mature
+# changelog has. A has_heading reader that exits on first match kills
+# rendered_lines mid-write with SIGPIPE, and pipefail turns the FOUND heading
+# into a false UNDOCUMENTED BUMP. The small fixtures above fit in one buffer
+# and cannot catch this; the padding here (~260 KB) exceeds the pipe CAPACITY,
+# so against an early-exiting reader the writer blocks mid-write and the
+# SIGPIPE is deterministic, not a winnable race — but only under gawk (the CI
+# runner's awk): mawk survives the closed pipe and passes regardless, so on a
+# machine where `awk` resolves to mawk this guard would silently prove
+# nothing. The run below therefore FORCES gawk via a PATH shim, and skips
+# loudly when gawk is absent rather than reporting a pass that exercised
+# nothing. The fix itself is engine-independent — the reader consumes to EOF,
+# so no writer can ever take SIGPIPE under any awk.
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 1.0.0 yes
+printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+base="$(git -C "$repo" rev-parse HEAD)"
+printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
+{
+  printf '# Changelog\n\n## [1.1.0]\n\n'
+  for ((i = 0; i < 4000; i++)); do
+    printf '%s\n' '- a release note line padding the file well past any pipe or stdio buffer'
+  done
+  printf '\n## [1.0.0]\n'
+} >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm bump
+if command -v gawk >/dev/null 2>&1; then
+  mkdir -p "$repo/bin"
+  printf '#!/bin/sh\nexec gawk "$@"\n' >"$repo/bin/awk"
+  chmod +x "$repo/bin/awk"
+  out="$(cd "$repo" && PATH="$repo/bin:$PATH" bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
+  rc=$?
+  if [[ $rc -eq 0 ]]; then ok "large changelog with the new entry near the top passes under gawk (no SIGPIPE misread under pipefail)"; else fail "large-changelog bump wrongly failed under gawk: rc=$rc out='$out'"; fi
+else
+  echo "SKIP: SIGPIPE regression fixture requires gawk; under mawk an early-exiting reader survives the closed pipe, so without gawk this case cannot distinguish fixed from unfixed." >&2
+fi
 rm -rf "$repo"
 
 # SYNTHETIC MALFORMED ENTRY: version present but as an UNBRACKETED heading

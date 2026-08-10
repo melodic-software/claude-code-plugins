@@ -71,6 +71,25 @@ Even phrase counts feel balanced. Odd phrase counts feel unbalanced.
 Balanced sections tend to stop motion. Unbalanced sections create motion because
 the listener expects a balancing phrase that has not arrived.
 
+**Parity is the default, not the verdict.** Pattison overrides it in both
+directions with his own examples, so count parity first and then check two
+things before calling a section balanced:
+
+- **Nesting can rescue an odd count.** The first verse of "Fathers and Sons"
+  runs five phrases and still *seems* balanced, because two of its short
+  phrases add up to one long one — the two-level counting above doing real
+  work. Pattison notes the verse is close to limerick form, and that once
+  lyrics are set to music the musical rhythms dominate and the limerick feeling
+  is shaded.
+- **Closure behavior can unbalance an even count.** The verse of "Southern
+  Comfort" runs eight phrases — even — and is still unbalanced, because its
+  last phrase refuses the three-stress close and the rhyme resolution the
+  earlier phrases set up. See [song-forms-examples](song-forms-examples.md).
+
+An agent that applies parity mechanically misdiagnoses both of Pattison's own
+cases. Count, then ask whether the short phrases group and whether the last
+phrase actually closes.
+
 Use that deliberately:
 
 - Balance to land an idea.
@@ -110,18 +129,32 @@ Phrase A intensified
 The same effect can happen with three different phrases if they share a clear
 shape. The listener still wants a balancing position.
 
+**Two unbalanced sections can balance each other.** Pattison's stated use for
+motion is connecting one unbalanced section to another equally unbalanced one —
+his worked case pairs three phrases with three more. The pressure that an odd
+section builds does not have to be discharged by an even section; it can be
+answered by a matching odd section, which balances at the pair level while both
+halves stay in motion internally.
+
 ## Contrast sections
 
 Balance can change across verses. A first verse can be fully balanced so it
 settles; a second verse can add one extra phrase so it pushes into the chorus.
 
 Worked example: Pattison points to Kevin Cronin's "Can't Fight This Feeling."
-The first verse balances. The second verse adds a phrase near the end, tipping
-the structure forward and making the chorus feel like the needed landing point.
+The first verse balances at four phrases. The second verse adds a fifth near the
+end, tipping the structure forward and making the chorus feel like the needed
+landing point.
+
+**The reversal test.** Pattison's own check on this example: swap the two
+verses and the motion stops. If reversing a pair of verses does not change how
+hard the section pushes, the imbalance is not doing the work you think it is.
+Order the pair so the unbalanced one sits second.
 
 This also works inside a repeated verse form: an extra final phrase can surprise
 the ear, spotlight the normal balanced position, and then spotlight the added
-line even more strongly.
+line even more strongly. In "The Great Pretender" the balanced verse runs four
+phrases and the contrasting one runs five.
 
 ## Phrase length controls speed
 
@@ -217,7 +250,12 @@ For any draft section:
 3. Count short phrase units.
 4. Count larger phrase groups.
 5. Mark which position currently spotlights the strongest idea.
-6. Label phrase lengths as constant, accelerating, or decelerating.
+6. Label phrase lengths as constant, accelerating, or decelerating — and use
+   **more than one label when the section needs it.** These are not mutually
+   exclusive. Pattison's "Slow Healing Heart" case speeds up, returns to its
+   earlier pace, then slows relative to the original phrase length, and he is
+   explicit that you have to fill in more than one blank. A single label on a
+   section that changes speed twice hides the thing worth seeing.
 7. Decide whether the section should stop, lean forward, speed up, or slow down.
 
 ## Revision moves
@@ -327,14 +365,18 @@ this line walk forward" lands faster than "make this line back-heavy".
 
 ## Three-use balance taxonomy (*Essential Guide to Lyric Form and Structure* (1991), Chapter 1)
 
-Pat's *Essential Guide to Lyric Form and Structure* (1991), Chapter 1 lists three deliberate uses for balanced and unbalanced
-phrase counts. The concept is present elsewhere in the skill but the
-named three-use taxonomy is *Essential Guide to Lyric Form and Structure* (1991)'s distinctive framing:
+Pat's *Essential Guide to Lyric Form and Structure* (1991), Chapter 1 names
+**at least three** deliberate uses for balanced and unbalanced phrase counts —
+his phrasing is "at least three purposes," so treat the list as open rather
+than as a closed taxonomy. The concept is present elsewhere in the skill; the
+named grouping is 1991's distinctive framing:
 
-1. **Spotlight** — use balance/unbalance to draw attention to a specific
-   line or section. The balance shift IS the spotlight. A section that
-   was balanced suddenly becoming unbalanced makes the listener notice
-   the change.
+1. **Spotlight** — this one is about *position*, not about change. When a
+   section has an even number of phrases, the last phrase is the balancing
+   position: the place where the lyric structure stops moving. Stopping is what
+   shines the spotlight, so whatever lands there gets the attention. Decide
+   which idea matters most, then put it in that slot. (The *shift* from
+   balanced to unbalanced is use 3, not use 1 — do not merge them.)
 2. **Push sections forward** — use unbalance to refuse closure. An odd
    phrase count leaves the listener wanting more; that want IS the
    forward push. Balance closes; imbalance opens.
@@ -343,10 +385,11 @@ named three-use taxonomy is *Essential Guide to Lyric Form and Structure* (1991)
    distinct. A balanced verse + unbalanced bridge contrasts on the
    balance axis itself, independent of content.
 
-Pat uses "The Great Pretender" (*Essential Guide to Lyric Form and Structure* (1991), Chapter 1) as an example where adding
-one extra phrase to a section spotlights TWO lines more powerfully than
-the extra phrase alone — the spotlight effect is multiplicative, not
-additive.
+Pat uses "The Great Pretender" (*Essential Guide to Lyric Form and Structure*
+(1991), Chapter 1) as an example where the surprise of an extra phrase
+spotlights **both** the normal balancing position and the added line — with the
+last phrase getting the most of it. Two lines lit, not one, and they are not
+lit equally.
 
 The three uses are not exclusive. A single balance choice can do all
 three at once (spotlight a specific line, push the section forward, and

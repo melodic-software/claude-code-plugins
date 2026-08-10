@@ -1,12 +1,18 @@
 # Form
 
 Pat Pattison - *Songwriting: Essential Guide to Lyric Form and Structure*
-(1991), Chapter 5. Pat Pattison - *Writing Better Lyrics* (2009),
+(1991), Chapters 5-6. Pat Pattison - *Writing Better Lyrics* (2009),
 Chapter 20-21.
 
 ## Image inventory
 
-- *Essential Guide to Lyric Form and Structure* (1991), Chapter 5: no linked images.
+- *Essential Guide to Lyric Form and Structure* (1991), Chapter 5: **32 linked
+  images** (`image_rsrc31Z`-`image_rsrc32Y`), and they carry the chapter's
+  scansion and rhyme-scheme analysis the way Chapter 6's do. The prose stops at
+  dangling colons ("The first phrases play off against the rhythms, grouping
+  this way:"). **Chapter 5 has NOT been read in full** — only its bridge and
+  Song System span. Treat every claim sourced to it here as unverified until it
+  is, and read the figures when doing so.
 - *Writing Better Lyrics* (2009), Chapter 20: `image_rsrcAUG.jpg` shows a verse/chorus rhyme-column
   comparison for "Southern Comfort"; both sections lean on similar `x/a`
   alternation before the bridge arrives.
@@ -203,12 +209,21 @@ leans toward the meter the verse has already established at length. Where a
 chorus is meant to contrast with a common-meter verse, check what its
 balancing phrases are doing, not only whether the numbers differ.
 
-On how many verse phrases that is: Chapter 20 reads the verse as two complete
-common-meter systems varied by an extra stress in its last phrase, while
-[song-forms-examples](song-forms-examples.md) reads the 1991 treatment of the
-same song as seven phrases with the closing eighth deceptively withheld. Those
-are two readings of one verse in two books, not a contradiction to resolve —
-cite whichever book is in hand and do not merge the counts.
+On how many verse phrases that is: **the two books agree at eight, and the
+apparent standoff was our error, not Pat's.** *Writing Better Lyrics* (2009),
+Chapter 20 reads the verse as two complete common-meter systems — eight lines —
+varied by an extra stress in its last phrase. *Essential Guide to Lyric Form
+and Structure* (1991), Chapter 6, read with its figures, sets the same verse out
+as eight phrases rhyming `x a x a x a b b` and calls the last phrase a
+Deceptive Closure.
+
+Same structure, two vocabularies: what 2009 describes as an extra stress in the
+final phrase, 1991 describes as that phrase refusing the three-stress
+common-meter close the first seven have set up. Nothing is withheld in phrase
+*count* — the eighth phrase arrives and deceives. An earlier revision of
+[song-forms-examples](song-forms-examples.md) read it as seven phrases with the
+eighth withheld; that reading is corrected, and there is no longer a reason to
+keep the counts apart.
 
 Useful revision moves:
 
@@ -515,14 +530,22 @@ larger form roles and song systems.
 
 ## Bridge — three functions
 
-*Essential Guide to Lyric Form and Structure* (1991), Chapter 5 names three jobs a bridge can do. Diagnose which the song
-needs before drafting.
+*Essential Guide to Lyric Form and Structure* (1991), **Chapter 6** names three
+jobs a bridge can do. Diagnose which the song needs before drafting. (Chapter 5
+gives a separate five-point account of what a bridge *is* — see
+[bridge](bridge.md); do not merge the two lists.)
 
 | Function | Effect | When |
 |---|---|---|
 | 1. Break monotony | Disrupt the verse-chorus repetition | The form has run V/Ch twice and risks fatigue |
-| 2. Create a different-size song system | Insert a non-matching unit between matching units | The song's symmetry needs interruption |
+| 2. Create a different-size song system | Change the size of the final SYSTEM, not the bridge's own phrase count — shorter in verse/chorus, longer in verse/refrain and AABA | The song has run same-size systems and their symmetry needs interruption |
 | 3. Provide a new perspective | Shift POV, tense, or speaker | The chorus has stated; the bridge reframes |
+
+Function 2's direction depends on what the bridge groups with: in verse/chorus a
+short bridge shrinks the last system so the final chorus arrives early, while in
+verse/refrain and AABA the bridge plus the final verse make a system *longer*
+than the verse-only ones before it. Pat's word is **different**, not shorter.
+See [bridge](bridge.md).
 
 A bridge that serves only one function may still work. A bridge that
 serves none should be cut — verse-chorus alone is enough.
@@ -531,7 +554,7 @@ The bridge MUST differ from verses where it counts. The first line
 matters most: a bridge that opens like a verse signals "another verse"
 instead of "something new."
 
-> "A bridge isn't a verse." — Pat (*Essential Guide to Lyric Form and Structure* (1991), Chapter 5)
+> "A bridge isn't a verse." — Pat (*Writing Better Lyrics* (2009), Chapter 23)
 
 ## Four building levers — the candy bar discipline
 

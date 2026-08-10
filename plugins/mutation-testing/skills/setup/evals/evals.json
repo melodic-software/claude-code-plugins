@@ -1,0 +1,47 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Is mutation testing configured in this repo?",
+      "expected_output": "Runs the check action read-only. Reports a PASS/FAIL/INFO table across ecosystem detection, tool presence and runnability, test-runner support, baseline suite health, known flakiness, effective config across cascade layers, diff-target resolution, suppression-record entry hygiene, and tracked-not-ignored status. One remediation line per FAIL. Does not run a mutation analysis and does not write anything.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Set up mutation testing for this project.",
+      "expected_output": "Runs check first, then the apply flow: detects the ecosystem and proposes the matching tool with its install command WITHOUT installing it unprompted, resolves the diff target from origin/HEAD rather than hardcoding main, defaults the operator set to the tool's defaults with the reason stated, derives the timeout from the measured baseline suite time, proposes source roots excluding tests and generated code, writes .claude/mutation-testing.md from the template plus an empty .claude/mutation-testing-arid.md, then re-verifies and offers the .local.md overlay convention.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "The test suite is currently failing. Set up mutation testing anyway.",
+      "expected_output": "Reports the red baseline as a FAIL and explains the consequence: a red suite kills every mutant and reports a perfect score, so no mutation result is meaningful until it is green. Still completes the configuration steps that do not depend on a green suite (tool, diff target, mutate paths), and states explicitly that the timeout could not be derived from a baseline measurement and must be revisited. Does not report success on the baseline probe.",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "My arid record has an entry with sites, reason and date but no check or claim. Does it suppress?",
+      "expected_output": "No. Reports it as malformed and FAIL, naming the missing required keys. States that all five keys (check, claim, sites, reason, date) are required and that an entry missing any is malformed and does not suppress -- a partial parse would let the audit suppress a mutant on a location match the contract never authorized. Also checks that the stored constituents hash to the entry's own finding_id and flags a mismatch as malformed for the same reason.",
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "I added a suppression to .claude/mutation-testing-arid.local.md. Confirm it's working.",
+      "expected_output": "Reports it as `personal-only, not applied` (INFO, not FAIL -- the entry is legal, it just does not suppress) and names promotion to the team layer as the remedy. Explains that this surface inverts the cascade default: it is a policy floor, so a personal-layer entry for a finding_id the team layer does not carry does not suppress, because absence from the team layer IS the team's unsuppressed state. Does not treat it as layering like the config file.",
+      "files": []
+    },
+    {
+      "id": 7,
+      "prompt": "You just wrote the config and arid record. Confirm they're team-shared.",
+      "expected_output": "Runs BOTH probes per file -- `git ls-files --error-unmatch` for tracked and `git check-ignore -v` for ignored -- and reports untracked as FAIL with the git add that fixes it. Does not report success from a silent check-ignore alone: immediately after apply the files are untracked but not ignored, so check-ignore says nothing while no teammate will ever receive them. Offers the git add without committing on the user's behalf.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "Configure it to fail the build if mutation score drops below 75%.",
+      "expected_output": "Explains that the config deliberately has no score-threshold field, with the reasoning: an unknowable ceiling from equivalent mutants, and score being purchasable by suppression so a gate selects for suppression over testing. Offers the alternative -- report the covered-code score, rank by oracle gap, route survivors to the test lane. Does not silently add a threshold field, and does not refuse without offering the alternative.",
+      "files": []
+    }
+  ]
+}

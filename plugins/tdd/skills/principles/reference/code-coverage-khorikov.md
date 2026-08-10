@@ -125,6 +125,20 @@ Khorikov's hospital analogy: A patient's high temperature indicates a fever. But
 
 There's no automated way to measure test suite quality. You must evaluate each test individually. A successful suite has three properties:
 
+> **Editorial note — one partial exception, outside Khorikov's text.** The claim above is about
+> *quality* as this chapter defines it, and it stands. But one property of a test suite — whether its
+> assertions can actually *detect a fault*, as opposed to merely executing the code — is measurable
+> automatically, by **mutation testing**: introduce a small deliberate fault, re-run the tests, and
+> see whether anything goes red. A file at 95% coverage whose tests kill 40% of mutants is exercised
+> but not checked, and no coverage metric can tell you that. The measurement is genuinely partial:
+> it says nothing about the other properties this chapter names, its ceiling is unknowable because
+> equivalent mutants cannot all be removed, and targeting the number reproduces exactly the perverse
+> incentive described above. For the operators, the metric family, and why not to gate on it, invoke
+> `/mutation-testing:principles` when the `mutation-testing` plugin is installed; without it, the
+> one-line version is that the metric to read is the *covered-code* mutation score (PIT calls it
+> test strength, Infection calls it Covered Code MSI), because the plain score mixes weak tests with
+> absent tests, and that it belongs beside coverage as an indicator rather than as a target.
+
 ### 1. Integrated into the Development Cycle
 
 "The only point in having automated tests is if you constantly use them." Run on every code change, even the smallest.
