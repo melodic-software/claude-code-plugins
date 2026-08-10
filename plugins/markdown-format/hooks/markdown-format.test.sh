@@ -574,10 +574,11 @@ fi
 # planted at BOTH candidate roots names the root the hook actually computed.
 #
 # Two mechanics this depends on, both of which silently defeat it if missed:
-# the PATH copy of markdownlint-cli2 wins over the repo-local one, so the
-# directories carrying it must be stripped (jq and git must stay reachable);
-# and the shim must write a MARKER FILE, because the hook captures stdout and
-# stderr into a variable, so anything it prints is swallowed.
+# the PATH copy of markdownlint-cli2 wins over the repo-local one, so it has to
+# be hidden from `command -v` (see the next paragraph for how, and for why NOT
+# by editing PATH); and the shim must write a MARKER FILE, because the hook
+# captures stdout and stderr into a variable, so anything it prints is
+# swallowed.
 #
 # The assertion is positive — the marker must read INNER. A wrongly-firing
 # override yields OUTER or no marker at all, and both fail it. Measured against
