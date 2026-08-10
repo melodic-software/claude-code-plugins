@@ -690,6 +690,14 @@ check_segment() {
         reparse="${exp#!}"
         for a in "${w[@]:sub_idx+1}"; do reparse+=" $(printf '%q' "$a")"; done
         HOOK_ALIAS_SEEN=()
+        # `:2` skips the base's own `-C <dir>` pair, which
+        # collect_git_locating_opts ALWAYS leads with. effective_dir supplies
+        # that same value from its HOOK_EFFECTIVE_BASE default, so passing it
+        # again would apply the base twice. The offset therefore encodes an
+        # invariant of collect_git_locating_opts, not of this call: if that
+        # function ever grows a second leading synthetic pair, or stops leading
+        # with the base, this line breaks silently and the wrapper dirs are
+        # read starting one pair too late.
         HOOK_EFFECTIVE_BASE="$(effective_dir ${git_locating_opts[@]+"${git_locating_opts[@]:2}"})"
         alias_reexpand_admit shell "$reparse" &&
           hook::bash_parse_segments "$reparse" check_segment
