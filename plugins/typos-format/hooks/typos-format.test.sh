@@ -411,7 +411,7 @@ fi
 # exists to make trustworthy.
 printf 'this has wnat here\n' >"$STUB_REPO/reflow.txt" # spellchecker:disable-line
 BEFORE_RF="$(cat "$STUB_REPO/reflow.txt")"
-TELRF="$(mktemp)"
+TELRF="$(mktemp -p "$WORK")"
 SINKRF="$(make_sink "cat >\"$TELRF\"")"
 OUT_RF=$(run_stub "$STUB_REPO/reflow.txt" STUB_REFLOW=1 HOOK_TELEMETRY_SINK="$SINKRF")
 if [[ "$(cat "$STUB_REPO/reflow.txt")" == "$BEFORE_RF" ]]; then
@@ -444,6 +444,7 @@ if wait_for_sink "$TELRF" 50; then
 else
   fail "stub/reflow: telemetry sink never populated — the assertion below it never ran"
 fi
+rm -f "$TELRF"
 
 # --- One spelling, two correction decisions ----------------------------------
 # typos can flag the same spelling with different correction sets in one file —
@@ -684,10 +685,24 @@ for _i in $(seq 1 "$DEEP_N"); do
 done
 OUT_DR=$(run_stub "$STUB_REPO/deep-residual.txt")
 CTX_DR=$(printf '%s' "$OUT_DR" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
-if printf '%s' "$CTX_DR" | grep -q "$DEEP_N finding(s)\|residual typos findings"; then
-  ok "stub/deep-residual: $DEEP_N residuals under ONE key are still reported"
+# The count is asserted against the overflow line, which carries the real
+# number. Grepping for the words "residual typos findings" cannot fail on it:
+# an all-residual run prints that phrase whether it carried 5000 findings or
+# one, and the `$COUNT finding(s)` form appears only ALONGSIDE applied rewrites,
+# which this fixture has none of. Telemetry is not usable here either — at this
+# size the envelope exceeds the sink cap and is dropped, which is inside
+# contract (see the scale case above, #1595), so a sink-based count would be
+# asserting on something the hook is permitted not to send.
+DR_MAX_REPORT="$(sed -n 's/^MAX_REPORT=\([0-9][0-9]*\).*/\1/p' "$HOOK" | head -1)"
+if [[ -z "$DR_MAX_REPORT" ]]; then
+  fail "stub/deep-residual: could not read MAX_REPORT from the hook — the overflow count cannot be derived"
+  DR_MAX_REPORT=10
+fi
+DR_OVERFLOW="... and $((DEEP_N - DR_MAX_REPORT)) more."
+if printf '%s' "$CTX_DR" | grep -qF "$DR_OVERFLOW"; then
+  ok "stub/deep-residual: the disclosure accounts for all $DEEP_N residuals under ONE key"
 else
-  fail "stub/deep-residual: residual report missing at depth $DEEP_N: $CTX_DR"
+  fail "stub/deep-residual: expected '$DR_OVERFLOW' at depth $DEEP_N; got: $(printf '%s' "$CTX_DR" | tail -c 200)"
 fi
 if printf '%s' "$CTX_DR" | grep -q 'REWROTE'; then
   fail "stub/deep-residual: claimed rewrites where nothing was applied: $CTX_DR"
