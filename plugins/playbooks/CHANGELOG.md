@@ -4,6 +4,18 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.8.2]
+
+### Changed
+
+- **`/playbooks:boris` gained typed trigger phrases.** Its `Use when` clause named topics
+  ("optimizing Claude Code setup, workflows, CLAUDE.md, skills, hooks, or parallel sessions") rather
+  than anything a user types, so the skill-quality gate found no trackable trigger.
+  `'how does Boris use Claude Code'`, `'Claude Code workflow tips'`, `'optimize my CLAUDE.md'`,
+  `'improve my Claude Code setup'`, `'parallel Claude sessions'` and `'hook ideas'` now front the
+  clause; the topic list is retained behind them. The vendored upstream baseline under
+  `skills/boris/vendor/` is untouched — this is the refactored hub's own frontmatter.
+
 ## [0.8.1]
 
 ### Changed

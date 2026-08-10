@@ -3,6 +3,18 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.2]
+
+### Changed
+
+- **Every `testing` skill's `description` now uses `Use when:` rather than `use for`.** `diagnose`,
+  `plan`, `run-e2e` and `write` each carried their routing phrases behind a lowercase `use for`,
+  which the skill-quality gate does not recognize as trigger phrasing. Each list gains 2–3 typed
+  phrases (`'this test is failing'`, `'where are the coverage gaps'`,
+  `'does the app actually work'`, `'add test coverage'`, among others); every phrase already present
+  is preserved verbatim. `plan`'s `'test plan' / 'what needs testing'` slash-pair becomes a plain
+  comma list, which the gate's extractor already read as two separate phrases.
+
 ## [0.5.1]
 
 ### Changed

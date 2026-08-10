@@ -3,6 +3,14 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.18.2]
+
+### Changed
+
+- **`/review:fanout`'s `description` now uses `Use when:`.** Its five routing phrases sat behind a
+  lowercase `use for`, which the skill-quality gate does not recognize as trigger phrasing. All five
+  are preserved verbatim and `'review this from all sides'` joins them.
+
 ## [0.18.1]
 
 ### Changed

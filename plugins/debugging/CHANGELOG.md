@@ -3,6 +3,18 @@
 All notable changes to the `debugging` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.1]
+
+### Changed
+
+- **`/debugging:debug`'s trigger phrases are now single-quoted.** They were written with escaped
+  double quotes inside the double-quoted YAML scalar, and the skill-quality gate's trigger-drop
+  protection tracks only `'single-quoted'` phrases — so all nine (`'diagnose this'`, `'debug this'`,
+  `'why is X broken'`, `'X is throwing'`, `'something is wrong with'`, `'investigate this bug'`,
+  `'performance regression'`, `'this is slow'`, `'intermittent failure'`) were invisible to it and a
+  future rewrite could have dropped any of them unnoticed. The wording is unchanged; only the
+  quoting is.
+
 ## [0.6.0]
 
 ### Removed

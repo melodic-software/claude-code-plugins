@@ -1,5 +1,5 @@
 ---
-description: "Turn a decision the user cannot answer — because another person holds the knowledge — into a Markdown questionnaire handed off async. Interviews the user only about the send (who it goes to, what they need back), never about the subject the recipient holds, then writes a discovery questionnaire aimed at the gap. Use for 'make a questionnaire for X', 'I need to ask my DBA/the client/legal about this', 'turn this into a doc someone else fills in', or when an interview branch defers to a person-arbiter; skip when the user can answer themselves (run /planning:interview) or when the answer is agent-lookupable."
+description: "Turn a decision the user cannot answer — because another person holds the knowledge — into a Markdown questionnaire handed off async. Interviews the user only about the send (who it goes to, what they need back), never about the subject the recipient holds, then writes a discovery questionnaire aimed at the gap. Use when: 'make a questionnaire for X', 'I need to ask my DBA/the client/legal about this', 'turn this into a doc someone else fills in', or when an interview branch defers to a person-arbiter; skip when the user can answer themselves (run /planning:interview) or when the answer is agent-lookupable."
 argument-hint: "[topic]"
 user-invocable: true
 disable-model-invocation: true
