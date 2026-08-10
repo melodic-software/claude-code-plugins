@@ -41,8 +41,9 @@
 #      listing still routes it; lost phrases and coincidental overlap FAIL)
 #   4. SKILL.md < 500 lines (hard cap)
 #   5. Backtick-cited skill-internal supporting files resolve (a path that misses
-#      here but resolves under a SIBLING skill is reported as a cross-skill
-#      citation naming the `${CLAUDE_PLUGIN_ROOT}/skills/<sibling>/…` form)
+#      here but resolves under a SIBLING skill also names that sibling and the
+#      `${CLAUDE_PLUGIN_ROOT}/skills/<sibling>/…` cross-skill form, without
+#      dropping the hand-verify caveat — the hit may be a name collision)
 #   6. markdownlint clean (markdownlint-cli2; WARN-skip if npx absent)
 #   7. scripts/*.test.sh pass where present
 #   8. vendor/ byte-identical vs HEAD, unless paired with an upstream-version
@@ -199,6 +200,15 @@ if [[ ! -f "$SKILL_MD" ]]; then
   exit 1
 fi
 
+# Is this skill bundled in a PLUGIN, or a loose skill under some skills root?
+# A plugin manifest two levels up (<plugin>/skills/<skill>/) is the marker.
+# Several checks branch on it — check 1 (a declared `name` also registers a bare
+# alias there) and check 5 (a cross-skill citation anchors at
+# ${CLAUDE_PLUGIN_ROOT}, which is undefined outside a plugin) — so the layout
+# convention is asserted in ONE place rather than restated per call site.
+IS_PLUGIN_SKILL=0
+[[ -f "$SKILL_DIR/../../.claude-plugin/plugin.json" ]] && IS_PLUGIN_SKILL=1
+
 # --- Check 1: frontmatter parses; description present; declared name matches --
 
 FRONTMATTER="$(skill_frontmatter::extract <"$SKILL_MD")"
@@ -231,7 +241,7 @@ else
     err "frontmatter name '$CUR_NAME' is not kebab-case ([a-z0-9] and hyphens, per the Agent Skills spec)"
   elif [[ -n "$CUR_NAME" && "$CUR_NAME" != "$SKILL_NAME" ]]; then
     err "frontmatter name '$CUR_NAME' does not match skill directory '$SKILL_NAME'"
-  elif [[ -n "$CUR_NAME" && -f "$SKILL_DIR/../../.claude-plugin/plugin.json" ]]; then
+  elif [[ -n "$CUR_NAME" && "$IS_PLUGIN_SKILL" == 1 ]]; then
     # In a PLUGIN skill a matching `name` is not inert: a declared name also
     # answers to the bare `/<name>` unless another command owns that token
     # (https://code.claude.com/docs/en/skills#how-a-skill-gets-its-command-name),
@@ -366,14 +376,21 @@ while IFS= read -r ref; do
   if [[ ! -e "$SKILL_DIR/$ref" ]]; then
     ref_line="$(grep -nF "$ref" "$SKILL_MD" 2>/dev/null | head -1 | cut -d: -f1)"
     # A path that misses here but DOES resolve under a SIBLING skill of the same
-    # skills root is a cross-skill citation written in the skill-internal form —
-    # not a missing file. Every bare path in this check resolves against the
-    # CITING skill's dir, so the bare form is genuinely wrong and still FAILs;
-    # what changes is the message. The default wording sends the author looking
-    # for the file under their own skill, where it will never be — naming the
-    # host sibling and the anchored form that works is the difference between a
-    # dead end and a one-line fix. Glob order is sorted, so a path present under
-    # more than one sibling names the first deterministically.
+    # skills root is most often a cross-skill citation written in the
+    # skill-internal form — not a missing file. Every bare path in this check
+    # resolves against the CITING skill's dir, so the bare form is wrong either
+    # way and still FAILs; what changes is the message. The default wording
+    # sends the author looking for the file under their own skill, where it will
+    # never be — naming the host sibling and the anchored form that works is the
+    # difference between a dead end and a one-line fix.
+    #
+    # The sibling hit is EVIDENCE, not proof: this check deliberately extracts
+    # prose and inline-code refs, so a generic path (`scripts/run.sh`) can
+    # collide with an unrelated same-named sibling file. The wording therefore
+    # stays conditional and keeps the hand-verify instruction the default
+    # message carries — a coincidental name match and an illustrative example
+    # are both still live readings. Glob order is sorted, so a path present
+    # under more than one sibling names the first deterministically.
     REF_HOST=""
     for other_md in "$SKILLS_ROOT"/*/SKILL.md; do
       [[ -f "$other_md" ]] || continue
@@ -386,14 +403,18 @@ while IFS= read -r ref; do
     done
     if [[ -z "$REF_HOST" ]]; then
       err "broken skill-internal ref: $ref (no such file under the skill dir; cited at SKILL.md:${ref_line:-?} — hand-verify the line before fixing, may be an illustrative example)"
-    elif [[ -f "$SKILL_DIR/../../.claude-plugin/plugin.json" ]]; then
-      # Plugin-shaped skills root (same detection as check 1): bundled plugin
-      # assets are anchored at the plugin root, so that is the form to name.
-      err "cross-skill ref written in skill-internal form: $ref (cited at SKILL.md:${ref_line:-?}) — the file is not under this skill, it is under sibling skill '$REF_HOST'; a bare path always resolves against the CITING skill's dir. Anchor the citation at the plugin root: \${CLAUDE_PLUGIN_ROOT}/skills/$REF_HOST/$ref"
     else
-      # Not a plugin: \${CLAUDE_PLUGIN_ROOT} is undefined here, so name the
-      # layout-free sibling-relative form instead of inventing a skills-root var.
-      err "cross-skill ref written in skill-internal form: $ref (cited at SKILL.md:${ref_line:-?}) — the file is not under this skill, it is under sibling skill '$REF_HOST'; a bare path always resolves against the CITING skill's dir. Cite the sibling explicitly: ../$REF_HOST/$ref"
+      # Plugin-shaped root: bundled plugin assets are anchored at the plugin
+      # root, so that is the form to name. Outside a plugin
+      # ${CLAUDE_PLUGIN_ROOT} is undefined, so name the layout-free
+      # sibling-relative form rather than advertise a variable that resolves to
+      # nothing.
+      if [[ "$IS_PLUGIN_SKILL" == 1 ]]; then
+        ref_fix="\${CLAUDE_PLUGIN_ROOT}/skills/$REF_HOST/$ref"
+      else
+        ref_fix="../$REF_HOST/$ref"
+      fi
+      err "broken skill-internal ref: $ref (no such file under the skill dir; cited at SKILL.md:${ref_line:-?} — hand-verify the line before fixing, may be an illustrative example). A file with that path DOES exist under sibling skill '$REF_HOST': if that is the file meant, this is a cross-skill citation, and a bare path always resolves against the CITING skill's dir — write it as $ref_fix. If the names merely collide, the ref is unrelated to that sibling."
     fi
   fi
 done < <(

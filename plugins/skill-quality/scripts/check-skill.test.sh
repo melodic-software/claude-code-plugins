@@ -2286,11 +2286,12 @@ else
 fi
 
 # 36a. Check 5: a bare path that misses under the citing skill but resolves under
-#      a SIBLING skill is a cross-skill citation, not a missing file. It still
-#      FAILs (the bare form really does resolve against the citing skill), but in
-#      a plugin-shaped skills root the message must name the host sibling and the
-#      `${CLAUDE_PLUGIN_ROOT}` form — the default wording sends the author hunting
-#      under their own skill, where the file will never be.
+#      a SIBLING skill is most likely a cross-skill citation, not a missing file.
+#      It still FAILs (the bare form really does resolve against the citing
+#      skill), but in a plugin-shaped skills root the message must name the host
+#      sibling and the `${CLAUDE_PLUGIN_ROOT}` form — the default wording alone
+#      sends the author hunting under their own skill, where the file will never
+#      be. The hand-verify caveat stays: the hit is evidence, not proof.
 mkdir -p "$PLUGIN_SKILLS/xref-host/context" "$PLUGIN_SKILLS/xref-citer"
 printf 'Sibling-owned supporting file.\n' >"$PLUGIN_SKILLS/xref-host/context/suppression.md"
 printf '%s' '---
@@ -2322,11 +2323,11 @@ out="$( (cd "$TMP" &&
     bash "$SUT" xref-citer) 2>&1)"
 rc=$?
 if [[ $rc -eq 1 ]] &&
-  grep -q "cross-skill ref written in skill-internal form: context/suppression.md" <<<"$out" &&
+  grep -q 'broken skill-internal ref: context/suppression.md' <<<"$out" &&
   grep -q "sibling skill 'xref-host'" <<<"$out" &&
   grep -qF '${CLAUDE_PLUGIN_ROOT}/skills/xref-host/context/suppression.md' <<<"$out" &&
-  ! grep -q 'broken skill-internal ref' <<<"$out"; then
-  pass "a sibling-hosted ref fails as a cross-skill citation naming the plugin-root form"
+  grep -q 'hand-verify the line' <<<"$out"; then
+  pass "a sibling-hosted ref names the sibling and the plugin-root form"
 else
   fail "sibling-hosted ref should name the sibling and the plugin-root form (rc=$rc): $out"
 fi
@@ -2365,7 +2366,7 @@ rc=$?
 if [[ $rc -eq 1 ]] &&
   grep -q "sibling skill 'plain-host'" <<<"$out" &&
   grep -q '\.\./plain-host/reference/scaling\.md' <<<"$out" &&
-  ! grep -q 'Anchor the citation at the plugin root' <<<"$out"; then
+  ! grep -q 'skills/plain-host/reference/scaling\.md' <<<"$out"; then
   pass "outside a plugin the sibling message names the relative form, not the plugin root"
 else
   fail "non-plugin sibling message should name ../plain-host/... (rc=$rc): $out"
@@ -2389,7 +2390,7 @@ out="$(run orphan-citer 2>&1)"
 rc=$?
 if [[ $rc -eq 1 ]] &&
   grep -q 'broken skill-internal ref: context/nowhere-at-all.md' <<<"$out" &&
-  ! grep -q 'cross-skill ref' <<<"$out"; then
+  ! grep -q 'sibling skill' <<<"$out"; then
   pass "a ref no sibling hosts keeps the plain broken-internal-ref message"
 else
   fail "unhosted ref should keep the broken-internal-ref message (rc=$rc): $out"

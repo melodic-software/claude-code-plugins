@@ -12,12 +12,14 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
   a skill citing a sibling skill's supporting file failed with "no such file under the skill dir"
   while the file plainly existed one directory over. The message sent the author looking for the
   file where it could never be. When the unresolved path does resolve under a sibling skill of the
-  same skills root, the finding now names that sibling and the citation form that works —
+  same skills root, the finding now also names that sibling and the citation form that works —
   `${CLAUDE_PLUGIN_ROOT}/skills/<sibling>/<path>` in a plugin-shaped root, `../<sibling>/<path>`
   outside one, where that variable is undefined. Still a FAIL: the bare form really does resolve
-  against the citing skill, so it is wrong regardless of where the file lives. A path no sibling
-  hosts keeps the original hand-verify wording. Extraction is unchanged — prose and inline-code
-  refs are still in scope, deliberately.
+  against the citing skill, so it is wrong regardless of where the file lives. The sibling hit is
+  evidence, not proof — this check deliberately extracts prose and inline-code refs, so a generic
+  path can collide with an unrelated same-named sibling file — so the original hand-verify wording
+  is kept and the suggestion is phrased conditionally. A path no sibling hosts is unchanged.
+  Extraction is unchanged too: prose and inline-code refs are still in scope, deliberately.
 
 ## [0.15.0]
 
