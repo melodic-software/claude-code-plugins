@@ -134,6 +134,22 @@ Adoption gate, applied per mechanism: adopt a native mechanism when it
 Never custom-build what a fitting native mechanism already covers; retire the custom channel when a
 native one matures into fitness.
 
+### Recorded gate runs
+
+Platform surfaces the gate has been run against, recorded in the
+[upstream-drift](conventions/upstream-drift/README.md) four-part shape — claim, basis, as-of date,
+trigger. Defer and decline are results, not omissions; the trigger, never the date, is what obliges
+re-deriving a row.
+
+| Surface | Verdict | Basis and reason | Recheck trigger | Verified |
+|---|---|---|---|---|
+| [Run agents in parallel](https://code.claude.com/docs/en/agents) | Adopt, as a citation | The upstream comparison of every way Claude Code runs multiple agents — subagents, agent view, agent teams, dynamic workflows. Adopted as the [dispatch ladder](#dispatch-ladder)'s canonical index and cited there, never restated, so the menu an author chooses from cannot go stale inside this file. | The page adds or drops a parallelism surface. | 2026-08-10 |
+| [Feature availability](https://code.claude.com/docs/en/feature-availability) | Adopt, as a citation | Per-feature availability by platform, provider, and plan — the canonical input to the [cross-platform contract](#cross-platform-contract), cited there. Copying it is barred by [evidence and validation](#evidence-and-validation): a provider matrix is exactly the volatile table that rule names. | A plugin proposes narrowing its platform support — re-fetch the matrix then, never trust a restatement. | 2026-08-10 |
+| [Agent teams](https://code.claude.com/docs/en/agent-teams) | Defer | Fails gate 2 and stops there: "Agent teams are experimental and disabled by default", gated behind `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`, with limitations the page states outright — "No nested teams: teammates cannot spawn their own teammates", and `/resume` and `/rewind` do not restore in-process teammates. Defer rather than decline: the gap question stays open while the surface is opt-in and churning, and no plugin may depend on a team meanwhile. | The page drops the experimental warning or the `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` requirement. | 2026-08-10 |
+| [Cross-session messaging](https://code.claude.com/docs/en/cross-session-messaging) | Decline | Fails gate 1: the channel is for "independent sessions that you start and steer yourself", not for a skill dispatching a worker. It could not be a portable rung either — "Claude Code doesn't offer cross-session messaging on native Windows", and it is absent on Amazon Bedrock, Claude Platform on AWS, Google Cloud's Agent Platform, and Microsoft Foundry. | Either premise moves: the page stops scoping the channel to sessions you steer yourself, or its Availability section stops excluding native Windows or any of those four providers. | 2026-08-10 |
+| [Sessions](https://code.claude.com/docs/en/sessions) | Decline | Fails gate 1. Resume restores "the full history, including tool calls and results" — the authoring story the [inline-template conventions](#inline-template-conventions) exist to withhold, so it is the opposite of a fresh-eyes rung rather than a missing one. A human session-management surface with no plugin-authoring seam. | `sessions` grows a plugin-facing seam: a manifest field, a tool, or skill frontmatter. | 2026-08-10 |
+| [Checkpointing](https://code.claude.com/docs/en/checkpointing) | Decline | Nothing to adopt, and the reason is the outcome: `/rewind` cannot be a mutating skill's undo story, because "Checkpointing does not track files modified by bash commands" and, for any subagent other than a foreground forked skill, "rewinding doesn't restore the edits. Use git to revert them." The restored carve-out is narrow — a `context: fork` skill running in the foreground — so a skill that mutates through a shell script or a background worker states a git-based rollback and never leans on `/rewind`. | The limitations section drops either the bash-command or the subagent exclusion. | 2026-08-10 |
+
 ## Component stances
 
 > **Staleness disclaimer.** The platform changes constantly. Every row carries the date its facts
@@ -461,6 +477,12 @@ platform boundary. Consequently:
 
 Optional platform integrations must degrade visibly and preserve the portable core result.
 
+[Feature availability](https://code.claude.com/docs/en/feature-availability) is this contract's
+canonical input: fetch it when a platform, provider, or plan question decides something, and restate
+none of it here (verified 2026-08-10, [recorded gate runs](#recorded-gate-runs)). A capability the
+platform itself does not ship on a supported OS is the platform's gap, never the "narrower, inherent
+platform boundary" a plugin may declare — the plugin still owes a portable path.
+
 ## Evidence and validation
 
 Research precedes design. For Claude Code behavior, fetch the current official documentation in the
@@ -616,6 +638,12 @@ but only when the named-agent bar below is met, and the site always states the g
 (presence-gate-plus-fallback, [seam phrasing](conventions/seam-phrasing/README.md)). The top rung, for
 high-stakes verdicts where correlated model blind spots are the risk, is a **cross-vendor advisor**
 when one is installed — same presence-gate shape, same generic fallback.
+
+Those rungs are one choice among the platform's parallelism surfaces;
+[run agents in parallel](https://code.claude.com/docs/en/agents) is the canonical upstream comparison
+of all of them (verified 2026-08-10). Why the fleet takes the subagent rung today rather than agent
+teams or cross-session messaging is recorded once in the [gate runs](#recorded-gate-runs) — re-derive
+from that table's triggers instead of re-arguing it at a checkpoint site.
 
 ### Inline-template conventions
 
