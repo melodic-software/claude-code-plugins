@@ -64,8 +64,9 @@ Run for any line under consideration for locking.
 **Stress & meter (*Essential Guide to Lyric Form and Structure* (1991), Chapter 3, *Songwriting Without Boundaries* (2011), Challenge 4)**
 
 - [ ] every stressed syllable lands on a strong beat
-- [ ] no greedy spots — no stressed syllable forced into a position the pattern leaves unstressed
-- [ ] the strong positions carry the line's *important* words, not filler — a line can scan correctly and still be too cold
+- [ ] no stressed syllable forced into a position the pattern or the bar leaves weak — this is "greed" in the 1991 sense
+- [ ] no unstressed syllable riding a strong beat — the reverse alignment error, equally a distortion of natural speech
+- [ ] the strong positions carry the line's *important* words, not filler — a line can pass both checks above and still be too cold
 - [ ] "into" handled per the ínto rule (*Songwriting Without Boundaries* (2011), Challenge 4) — not intó
 - [ ] compound words primary-stressed on first syllable
 - [ ] grey-area stress flagged, not silently resolved

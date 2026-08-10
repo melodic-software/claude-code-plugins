@@ -998,9 +998,16 @@ Check the stress map first, then ask separately what is standing on each strong
 position.
 
 Use the Goldilocks frame when running pattern-match audits per line. Note the
-scope on the vocabulary: in this chapter **greed is one-directional** — it is
-the too-hot failure only. Pat names the too-cold failure separately and never
-calls it greed.
+scope on the vocabulary: **when matching a lyric to a model lyric, greed is
+one-directional** — it is the too-hot failure only, and Pat names the too-cold
+failure separately without ever calling it greed.
+
+That scope does not travel to melody setting. When the lyric is being matched
+to a *melody* rather than to another lyric, a mismatch in either direction is a
+greedy spot — a stressed syllable on a weak beat, or an unstressed syllable
+riding a strong one — because either one fights the bar. See
+[prosody](prosody.md) "greedy spots" for that frame. Too cold is a third thing
+again, and no stress check of any kind will catch it.
 
 ## Pitch-based stress model (*Songwriting Without Boundaries* (2011), Challenge 4)
 

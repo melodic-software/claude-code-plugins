@@ -415,16 +415,25 @@ an unstressed syllable forced onto a strong beat. The mismatch steals
 emphasis from where the music wants it, distorts the natural shape of the
 words, and breaks the listener's parse of the meaning.
 
-**Scope note on the term.** That two-directional definition comes from the web
-sources above and has not been checked against them. The term originates in
-*Essential Guide to Lyric Form and Structure* (1991) Chapter 3, where it is
-narrower and **one-directional**: greed is putting stressed syllables into
-unstressed positions — the "too hot" failure only. The opposite error is named
-separately there and is not a stress problem at all: a line whose stresses land
-correctly but whose important positions are filled with semantically empty
-words. See [meter](meter.md) "Goldilocks pattern matching." Keep the two apart
-when coaching, because they take different fixes — the first is repaired by
-rescanning, the second only by changing which words carry the weight.
+**Scope note — the term covers different ground in two frames.** Keep them
+apart, because the same word means something narrower in one of them.
+
+- **Lyric against a melody** — the frame this section is in. A mismatch in
+  *either* direction is a greedy spot, because either one distorts the natural
+  shape of the words against the bar. That two-directional definition comes
+  from the web sources above and has not been checked against them, but it is
+  the definition the rest of this plugin's melody-alignment material uses.
+- **Lyric against a model lyric** — matching verse two to verse one. Here the
+  term originates in *Essential Guide to Lyric Form and Structure* (1991)
+  Chapter 3, and it is **one-directional**: greed is putting stressed syllables
+  into unstressed positions, the "too hot" failure only. Chapter 3's opposite
+  error is not the reverse alignment mismatch and is not a stress problem at
+  all — it is "too cold," a line whose stresses land correctly but whose
+  important positions carry semantically empty words. See [meter](meter.md)
+  "Goldilocks pattern matching."
+
+The three failures take three different fixes: rescan, re-set against the bar,
+or change which words carry the weight. Name which one you found.
 
 Causes:
 

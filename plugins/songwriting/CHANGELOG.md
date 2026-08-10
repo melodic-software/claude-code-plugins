@@ -53,17 +53,22 @@ answers reach this public repository.
   fixed a different defect in this same section and the overreach survived.
   Readers wanting melody- or harmony-specific stability criteria are now pointed
   at `stable-unstable-meta.md`, which genuinely carries them.
-- **Three files defined "greedy spot" three different ways.** The term
-  originates in this chapter and is **one-directional**: greed is putting
-  stressed syllables into unstressed positions — the too-hot failure only. Pat
-  names the opposite error separately and never calls it greed. `meter.md` said
-  greedy spots are "usually too-hot or too-cold failures"; `audit-checklist.md`
-  checked for both directions under a heading citing this chapter; and
-  `skills/meter-prosody/SKILL.md` gave a third definition attributable to no
-  source at all, "too many syllables for the melodic slot." All three corrected.
-  `prosody.md`'s two-directional definition is **scoped rather than rewritten** —
-  it is sourced to patpattison.com, which remains unaudited — with a note that
-  the 1991 sense is narrower and that the two failures take different fixes.
+- **"Greedy spot" was defined inconsistently across five files, and its scope
+  turns on a frame nothing stated.** Matching a lyric to a *model lyric*, greed
+  is **one-directional** — stressed syllables in unstressed positions, the
+  too-hot failure only; Pat names the opposite error separately as "too cold"
+  and never calls it greed. Matching a lyric to a *melody*, **either** direction
+  is a greedy spot, since a stressed syllable on a weak beat and an unstressed
+  syllable riding a strong one both fight the bar. Three distinct failures,
+  three distinct fixes — and too cold is caught by no stress check at all.
+  `meter.md`, `prosody.md`, `audit-checklist.md`, `lyric-melodic-roadmaps.md`,
+  and `skills/meter-prosody/SKILL.md` now each name their frame.
+  `skills/meter-prosody/SKILL.md` had also carried a definition attributable to
+  no source, "too many syllables for the melodic slot."
+- **`lyric-melodic-roadmaps.md` contradicted itself on the same term.** Its
+  definition covered only stressed-on-weak while its own worked example
+  diagnoses an unstressed syllable riding a strong beat as a greedy spot. The
+  definition now covers both directions. Pre-existing; surfaced by review.
 - **Two categorical claims had been softened into hedges.** Three-syllable words
   with middle primary stress have **no** secondary stress, not "may be no"; words
   of four or more syllables **always** carry secondary stress, not "normally."

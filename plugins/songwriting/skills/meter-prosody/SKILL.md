@@ -45,10 +45,15 @@ No action → route on context (a pasted line → `meter`; a "does this feel rig
   not scansion for its own sake.
 - Stability is a tool, not a verdict: name whether a section reads stable or unstable and whether
   that serves the section's job; the writer chooses.
-- Greedy spots (a stressed syllable forced into a position the pattern leaves unstressed) route
-  through `align-melody` + `prosody`. Greed is the "too hot" direction only — a line whose stresses
-  land correctly but whose strong positions carry filler is "too cold," a separate failure with a
-  separate fix. Name which one you found; do not report both as greed.
+- Stress-alignment failures route through `align-melody` + `prosody`. Name the frame, because the
+  scope differs:
+  - **Lyric against a model lyric** (matching verse 2 to verse 1): "greed" is one-directional —
+    a stressed syllable forced into a position the model leaves unstressed. The reverse case is
+    "too cold": stresses land correctly but the strong positions carry filler. Different failures,
+    different fixes; do not report the second as greed.
+  - **Lyric against a melody**: a mismatch in *either* direction is a greedy spot — a stressed
+    syllable on a weak beat, or an unstressed syllable riding a strong one. Both distort the
+    natural shape of the language.
 
 ## Persistence and template overrides
 
