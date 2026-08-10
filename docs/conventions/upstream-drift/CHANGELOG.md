@@ -4,6 +4,18 @@ Notable changes to the upstream-drift contract (SemVer). Changing a required par
 name, or an enforceability verdict is a major bump; additive guidance is a minor bump; docs-only
 clarification is a patch.
 
+## 1.1.0 — 2026-08-10
+
+Adopters registry gains a row for
+[`PLUGIN-PHILOSOPHY` recorded gate runs](../../PLUGIN-PHILOSOPHY.md#recorded-gate-runs)
+([#2175](https://github.com/melodic-software/claude-code-plugins/issues/2175)). No required part,
+canonical name, or enforceability verdict changed.
+
+- The new table is the registry's first entry of the **recorded-decision** kind that also carries a
+  per-row trigger: each row states the observable event for its own verdict, rather than the
+  divergence-at-fetch trigger the component-stances and `OFFICIAL-DOCS` rows share. The row says so,
+  so a reader does not carry the wrong firing rule across from the sibling table.
+
 ## 1.0.0 — 2026-07-26
 
 Initial published contract
