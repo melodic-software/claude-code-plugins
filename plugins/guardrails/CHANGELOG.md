@@ -3,6 +3,29 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.2]
+
+### Fixed
+
+- **A NUL byte in a `Write`/`Edit`/`NotebookEdit` content field no longer disables the content
+  guards.** Regression introduced by the `hook::jq_fields` conversion in 0.22.1: the helper
+  delimits its batched fields with NUL, and JSON may legitimately encode a NUL inside a string, so
+  jq emitted the raw byte, the field count came back wrong, and `secret-pattern-detection`,
+  `hardcoded-path-check`, `skill-reference-verify`, `stale-path-verify` and `cli-flag-verify` all
+  took their `|| exit 0` skip — a credential or machine path placed after the NUL passed unblocked.
+  Reproduced against `origin/main` (exit 2, blocked) versus 0.22.1 (exit 0, allowed). `hook::jq_fields`
+  now strips NUL inside the jq filter, so the delimiter cannot collide with content and everything
+  after the NUL is still scanned, matching the pre-conversion command substitution byte for byte.
+  Regression cases added to `lib/hook-utils.test.sh`, `secret-pattern-detection.test.sh` and
+  `hardcoded-path-check.test.sh`. Synced from `lib/hook-utils.sh`.
+
+### Changed
+
+- `skill-reference-verify` and `stale-path-verify` say plainly that keeping `replace_all`'s
+  `// false | tostring` inside the jq filter is for parity with the pre-conversion output, not
+  because a branch depends on it — every consumer tests `== "true"`, which `""` and `"false"` fail
+  alike. Comment only; behavior unchanged.
+
 ## [0.22.1]
 
 ### Changed

@@ -60,6 +60,19 @@ RC=$?
 assert_exit "windows home → exit 2" 2 "$RC"
 assert_contains "windows → message" "$OUT" "Windows user path"
 
+# A content string may legitimately encode a NUL, and the payload fields are read
+# NUL-separated. hook::jq_fields strips NUL jq-side so the delimiter cannot
+# collide with content; without that the field count came back wrong, this hook's
+# `|| exit 0` skipped the scan entirely, and a machine path placed AFTER the NUL
+# passed unblocked. Built with jq (`[0] | implode`) so no literal escape sequence
+# for the byte appears in this file's source.
+NUL_PAYLOAD=$(MSYS_NO_PATHCONV=1 jq -nc --arg fp "$FIXTURE" --arg p "$LINUX_HOME" \
+  '{tool_name:"Write",tool_input:{file_path:$fp,content:("harmless first line" + ([0] | implode) + "cd " + $p + " && ls")}}')
+OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$NUL_PAYLOAD" 2>&1)
+RC=$?
+assert_exit "machine path AFTER a NUL byte in content → exit 2" 2 "$RC"
+assert_contains "path after NUL → message" "$OUT" "Linux user path"
+
 # Cross-OS leak: a Linux path inside a .ps1 still fires (only Windows is suppressed).
 OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(write_json "$PS1_FIXTURE" "Set-Location ${LINUX_HOME}")" 2>&1)
 RC=$?

@@ -1874,6 +1874,29 @@ else
   ok "jq_fields: a call with no filters returns non-zero"
 fi
 
+# A JSON string may legitimately encode a NUL, and a Write/Edit content field
+# does reach this helper. The NUL delimiter is only safe because every value is
+# NUL-stripped jq-side FIRST: without that strip jq emitted the raw byte, the
+# read split one value into two, the cardinality check failed, and every
+# caller's `|| exit 0` skipped its guard outright — a fail-open the per-field
+# command substitution this helper replaced never had, because `$( )` dropped
+# the NUL and kept the rest of the value. The value after the NUL must survive.
+# The payload is built with jq (`[0] | implode`) so no literal escape sequence
+# for the byte lives in this file's source.
+jf_nul_input=$(jq -nc '{tool_name:"Write",tool_input:{content:("before" + ([0] | implode) + "after")}}')
+jf_nul_input="${jf_nul_input//$'\r'/}"
+if hook::jq_fields "$jf_nul_input" '.tool_name' '.tool_input.content'; then
+  if [[ "${#HOOK_JQ_FIELDS[@]}" -eq 2 &&
+    "${HOOK_JQ_FIELDS[0]}" == "Write" &&
+    "${HOOK_JQ_FIELDS[1]}" == "beforeafter" ]]; then
+    ok "jq_fields: a NUL inside a value is stripped, never read as the delimiter"
+  else
+    fail "jq_fields NUL-bearing value: got (${#HOOK_JQ_FIELDS[@]}) '${HOOK_JQ_FIELDS[0]-}' / '${HOOK_JQ_FIELDS[1]-}'"
+  fi
+else
+  fail "jq_fields returned $? on a NUL-bearing value — the caller's || exit 0 would skip its guard"
+fi
+
 # Non-string JSON values are stringified rather than dropped, so a numeric or
 # null field cannot desynchronize the indexes either.
 if hook::jq_fields '{"a":5,"b":null}' '.a' '.b' &&

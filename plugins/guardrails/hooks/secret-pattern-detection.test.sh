@@ -74,6 +74,18 @@ assert_exit "Edit new_string → exit 2" 2 "$RC"
 OUT=$(bash "$HOOK" <<<"$(notebook_json "$FIXTURE" "secret = '$AWS_TOKEN'")" 2>&1); RC=$?
 assert_exit "NotebookEdit new_source → exit 2" 2 "$RC"
 
+# A content string may legitimately encode a NUL, and the payload fields are read
+# NUL-separated. hook::jq_fields strips NUL jq-side so the delimiter cannot
+# collide with content; without that the field count came back wrong, this hook's
+# `|| exit 0` skipped detection entirely, and a credential placed AFTER the NUL
+# passed unblocked. Built with jq (`[0] | implode`) so no literal escape sequence
+# for the byte appears in this file's source.
+NUL_PAYLOAD=$(MSYS_NO_PATHCONV=1 jq -nc --arg fp "$FIXTURE" --arg tok "$AWS_TOKEN" \
+  '{tool_name:"Write",tool_input:{file_path:$fp,content:("harmless first line" + ([0] | implode) + "config = " + $tok)}}')
+OUT=$(bash "$HOOK" <<<"$NUL_PAYLOAD" 2>&1); RC=$?
+assert_exit "secret AFTER a NUL byte in content → exit 2" 2 "$RC"
+assert_contains "secret after NUL → message" "$OUT" "AWS Access Key"
+
 # In-project secret still blocks when CLAUDE_PROJECT_DIR is set (file under root).
 OUT=$(CLAUDE_PROJECT_DIR="/repo" bash "$HOOK" <<<"$(write_json "/repo/src/config.env" "config = '$AWS_TOKEN'")" 2>&1); RC=$?
 assert_exit "in-project secret with PROJECT_DIR set → exit 2" 2 "$RC"
