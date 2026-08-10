@@ -113,7 +113,7 @@ effect, and this record's do not.
    reasons unrelated to fix or retirement.
 
    The staleness the convention protects is therefore reached incrementally: an entry is judged when
-   its own surface is next touched, which is also when someone is looking at that code.
+   its own node is next examined, which is also when someone is looking at that code.
    - **SAME, UNCHANGED** — every site's anchor matches and `(check, claim)` match. Applies silently.
    - **SAME, CHANGED** — pairwise findings only. Mutation findings are single-site, so this
      disposition is unreachable here; a single-site anchor change is the row below.
@@ -121,7 +121,8 @@ effect, and this record's do not.
      old entry goes **stale**, never silently dropped; the new survivor is reported unsuppressed.
      This is the common case after a refactor, and reporting it is the point: the edit may have *been*
      the fix.
-   - **CLOSED** — the finding is absent although its surface **was** examined. Account for it as
+   - **CLOSED** — the finding is absent although **its own anchored node was examined** — this run
+     generated a mutant there and no survivor matched the entry. Account for it as
      exactly one of: matched to an applied fix; **retired with its check**, when its operator is
      absent from this run's configured set (name the operator and the transition); or reported as an
      **UNEXPLAINED DISAPPEARANCE**, which fails this skill's own self-check. An entry keyed to a

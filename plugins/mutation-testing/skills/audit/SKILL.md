@@ -177,7 +177,8 @@ Baseline: <green, N ms>   Mutants: <n> generated, <n> suppressed<, n dropped by 
 each malformed entry, naming which required key is missing or that its constituents do not
 hash to its key; each stale entry whose finding is gone or whose operator was retired>
 
-Not examined this run: <n> entries whose surfaces fell outside the scope above.
+Not examined this run: <n> entries whose anchored nodes fell outside the scope above
+(counted at node granularity — an entry in a file this run touched elsewhere still counts here).
 
 ### Proposed suppressions
 <complete entries for arid survivors — all five keys with the id derived from them — for the
