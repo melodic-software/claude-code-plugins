@@ -24,6 +24,13 @@ merged work-package PRs (#333, #343, #356, #372, #377, #600, #676).
   class. Its assertions covered egress and credentials; nothing covered the workspace mount,
   which is a deliberate hole through the process boundary the levels describe.
 
+- **A zero exit is accepted where, and only where, the peer was substituted.** Peer identity is the
+  verdict and the exit code is evidence, so requiring a non-zero exit unconditionally would leave one
+  sealed boundary unprovable: an interception layer whose block page carries a SUCCESSFUL HTTP status
+  exits `0`. That target's `transport_outcome` must be `peer-substituted` and its two fingerprints
+  must differ; everywhere else a non-zero exit is still required, so the exception cannot excuse a
+  target that simply succeeded.
+
 - **Egress denial is proven by peer identity, not by a failed connection.** Two observed
   behaviors defeated the old test: a raw `connect()` SUCCEEDS where an interception layer accepts
   the SYN and then drops the session, and a policy block page is a valid HTTP response that a

@@ -73,12 +73,19 @@ over DNS, and outer-reachability is what makes the inner failure mean something.
 # peer certificate fingerprint as outer_peer_fingerprint
 <fetch-command> <well-known-external-host> ; test $? -eq 0 || fail "cannot reach <well-known-external-host> from the outer context — an unreachable target cannot evidence a boundary"
 <peer-fingerprint-command> <well-known-external-host>
-# probe (inside the boundary), per target: no origin peer may answer. The client MUST be run in
-# fail-on-HTTP-error mode — without it a policy block page is a successful transfer and exits 0.
-<fetch-command> --fail-on-http-error <well-known-external-host> ; test $? -ne 0 || fail "egress reached <well-known-external-host> — boundary is not L2"
-# where a handshake DID complete, the peer must not be the origin
+# probe (inside the boundary), per target. Run the client in fail-on-HTTP-error mode so a policy
+# block page is not counted as a successful transfer — but do NOT stop on a zero exit, because a
+# block page carrying a SUCCESSFUL status also exits 0 and that boundary is sealed. The exit is
+# evidence; the peer identity is the verdict.
+<fetch-command> --fail-on-http-error <well-known-external-host> ; record exit as exit_code
+<peer-fingerprint-command> <well-known-external-host>   # record as inner_peer_fingerprint, or "none"
+# the verdict, evaluated for every target regardless of exit code
 test "<inner_peer_fingerprint>" != "<outer_peer_fingerprint>" || fail "the origin's own peer identity answered inside the boundary — this is reached egress, not interception"
 ```
+
+A zero exit is therefore accepted ONLY where that target's `transport_outcome` is `peer-substituted`
+and its two fingerprints differ. Everywhere else a non-zero exit is still required, so the exception
+cannot be claimed to excuse a target that simply succeeded.
 
 **Two capture requirements, both learned from a boundary that defeated the naive form.**
 

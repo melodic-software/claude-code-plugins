@@ -1247,10 +1247,21 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, subs
   if (egressCodes.length !== egressHosts.length) {
     return `transcript ${path} records assertions.egress_denied.exit_code ${JSON.stringify(rawEgressCodes)} for ${egressHosts.length} probed host entr${egressHosts.length === 1 ? "y" : "ies"} — one recorded exit code per probed host is required, comma-separated and positionally paired with host: a single code cannot prove denial toward every listed target`;
   }
+  // Peer IDENTITY, not exit status, is what proves egress denial. An
+  // interception layer whose block page carries a SUCCESSFUL HTTP status makes
+  // the fetch exit 0 on a fully sealed boundary, so an unconditional non-zero
+  // requirement would leave that boundary unprovable — the recipe would abort
+  // before the comparison that decides the question. The exception is narrow
+  // and buys nothing on its own: a zero exit is tolerated only where the entry
+  // claims "peer-substituted", and that same entry must then survive the
+  // fingerprint comparison below, which is the actual evidence.
+  const rawTransportForExit = transcript.assertions.egress_denied.transport_outcome;
+  const transportForExit =
+    typeof rawTransportForExit === "string" ? rawTransportForExit.split(",").map((entry) => entry.trim()) : [];
   for (const [index, code] of egressCodes.entries()) {
-    if (!nonzeroExit(code)) {
-      return `transcript ${path} records assertions.egress_denied.exit_code entry ${JSON.stringify(code)} for host ${JSON.stringify(egressHosts[index])} — a proven egress-denial requires a non-zero integer exit code string for every probed host`;
-    }
+    if (nonzeroExit(code)) continue;
+    if (transportForExit[index] === "peer-substituted") continue;
+    return `transcript ${path} records assertions.egress_denied.exit_code entry ${JSON.stringify(code)} for host ${JSON.stringify(egressHosts[index])} — a proven egress-denial requires a non-zero integer exit code string for every probed host, unless that host's transport_outcome is "peer-substituted" and its recorded peer fingerprints differ, which proves an interceptor answered rather than the origin`;
   }
   for (const host of egressHosts) {
     // The transcript must record the BARE probed hostname or IP: URI and
@@ -1405,6 +1416,13 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, subs
   if (egressHosts.length < 2) {
     return `transcript ${path} records ${egressHosts.length} probed egress target — a single probed target cannot establish default-deny egress, since a policy may allow other destinations while denying this one; probe at least two distinct external targets under different operators`;
   }
+  // Counting entries is not counting targets. The same host listed twice
+  // measures exactly one policy decision while presenting as two, which is
+  // precisely the evidence this leg exists to refuse.
+  const distinctEgressHosts = new Set(egressHosts.map((host) => host.toLowerCase().replace(/\.$/, "")));
+  if (distinctEgressHosts.size < 2) {
+    return `transcript ${path} records ${egressHosts.length} egress entries naming only ${distinctEgressHosts.size} distinct target — repeating one host measures a single policy decision while presenting as several; probe at least two distinct external targets under different operators`;
+  }
   const rawEgressTransport = egress.transport_outcome;
   const egressTransport =
     typeof rawEgressTransport === "string" ? rawEgressTransport.split(",").map((entry) => entry.trim()) : [];
@@ -1435,6 +1453,11 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, subs
       if (outerFingerprints[index] === innerFingerprints[index]) {
         return `transcript ${path} records assertions.egress_denied.inner_peer_fingerprint entry ${JSON.stringify(innerFingerprints[index])} for host ${JSON.stringify(egressHosts[index])} matching the outer-context fingerprint — an identical peer identity means the ORIGIN answered inside the boundary, which is reached egress, not interception`;
       }
+    } else if (innerFingerprints[index] !== "none") {
+      // A recorded in-boundary peer contradicts an outcome asserting that no
+      // handshake completed. Left unchecked, the pair says the origin answered
+      // while the token claims nothing did — reached egress certified as denied.
+      return `transcript ${path} records assertions.egress_denied.inner_peer_fingerprint entry ${JSON.stringify(innerFingerprints[index])} for host ${JSON.stringify(egressHosts[index])} whose transport_outcome is ${JSON.stringify(outcome)} — an outcome other than "peer-substituted" asserts that no peer completed a handshake, so its fingerprint must be the literal "none"; a recorded peer contradicts the outcome beside it`;
     }
   }
   const rawAddressFamilies = transcript.assertions.egress_denied.address_families;
@@ -1481,6 +1504,28 @@ function verifyWorkspaceContainment(transcript, path) {
   if (canaries.length < WORKSPACE_CANARY_MINIMUM || canaries.some((entry) => entry.length === 0)) {
     return `transcript ${path} records assertions.workspace_host_write_contained.canaries ${JSON.stringify(workspace.canaries)} — at least ${WORKSPACE_CANARY_MINIMUM} non-empty canary paths are required (an ordinary file, a dotfile, and a VCS-control-plane path), because a single literal path proves nothing about hidden-file handling, case folding, or the control plane that executes host code`;
   }
+  // Counting paths is not covering shapes. Three copies of one ordinary file
+  // satisfies a count while leaving the control plane — the whole reason this
+  // assertion exists — entirely unprobed.
+  if (new Set(canaries.map((entry) => entry.toLowerCase())).size !== canaries.length) {
+    return `transcript ${path} records assertions.workspace_host_write_contained.canaries ${JSON.stringify(workspace.canaries)} — the canary paths must be DISTINCT (compared case-insensitively, since a case-folding host filesystem would otherwise let one landed write hide behind a differently-spelled name); repeating a path probes one location while presenting as several`;
+  }
+  if (canaries.some((entry) => entry.startsWith("/") || entry.split(/[\\/]/).includes(".."))) {
+    return `transcript ${path} records assertions.workspace_host_write_contained.canaries ${JSON.stringify(workspace.canaries)} — every canary must be a workspace-relative path with no parent traversal; an absolute or escaping path proves containment somewhere other than the workspace mount under test`;
+  }
+  const isVcsControlPlane = (entry) => entry.split(/[\\/]/)[0] === ".git";
+  const isDotfile = (entry) => {
+    const base = entry.split(/[\\/]/).pop() ?? "";
+    return base.startsWith(".") && !isVcsControlPlane(entry);
+  };
+  const missingShapes = [
+    isVcsControlPlane(canaries.find(isVcsControlPlane) ?? "") ? null : "a VCS-control-plane path (a `.git/`-relative entry)",
+    canaries.some(isDotfile) ? null : "a dotfile",
+    canaries.some((entry) => !isVcsControlPlane(entry) && !isDotfile(entry)) ? null : "an ordinary file",
+  ].filter(Boolean);
+  if (missingShapes.length > 0) {
+    return `transcript ${path} records assertions.workspace_host_write_contained.canaries ${JSON.stringify(workspace.canaries)} — missing ${missingShapes.join(" and ")}; the three shapes are the assertion, not a suggestion: a set that omits the control-plane path leaves the documented host-execution route unprobed, and one that omits the dotfile says nothing about hidden-file handling`;
+  }
   for (const [field, requirement] of [
     ["host_pre_absent", "the outer context must prove every canary ABSENT before the probe, or its later absence proves nothing"],
     ["host_post_absent", "every canary must still be absent on the host after teardown — a visible canary is a write that escaped the boundary"],
@@ -1503,6 +1548,14 @@ function verifyWorkspaceContainment(transcript, path) {
   // clone-mode substrates wrongly, since they legitimately accept the write.
   if (innerCodes.length !== canaries.length) {
     return `transcript ${path} records assertions.workspace_host_write_contained.inner_exit_code ${JSON.stringify(workspace.inner_exit_code)} for ${canaries.length} canary entries — one recorded inner exit code per canary is required (recorded as evidence, never asserted on: a clone-mode mount legitimately ACCEPTS the write and discards it)`;
+  }
+  // The VALUE is never asserted on, but its PRESENCE is: host absence proves
+  // containment only if a write was actually attempted. An empty entry records
+  // no attempt, so a probe that never ran would otherwise read as a clean pass.
+  for (const [index, code] of innerCodes.entries()) {
+    if (!/^(0|[1-9][0-9]*)$/.test(code)) {
+      return `transcript ${path} records assertions.workspace_host_write_contained.inner_exit_code entry ${JSON.stringify(code)} for canary ${JSON.stringify(canaries[index])} — every entry must be a recorded integer exit code (any value; zero is legitimate on a copy-on-read mount), because host absence evidences containment only where a write was actually attempted`;
+    }
   }
   if (!isNonEmptyString(workspace.git_config_digest_pre) || !isNonEmptyString(workspace.git_config_digest_post)) {
     return `transcript ${path} records assertions.workspace_host_write_contained.git_config_digest_pre ${JSON.stringify(workspace.git_config_digest_pre)} and git_config_digest_post ${JSON.stringify(workspace.git_config_digest_post)} — both are required (the literal "absent" where the workspace carries no .git/config), because the VCS control plane is the documented host-execution path and needs its own before/after evidence`;

@@ -783,6 +783,53 @@
         "client_ready"
       ],
       "credential_roots": "/home/runner"
+    },
+    "probe-evidence-egress-duplicate-host.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "distinct target"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "probe-evidence-egress-fingerprint-on-nonpeer.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "must be the literal \"none\""
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "probe-evidence-workspace-canary-duplicate.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "must be DISTINCT"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "probe-evidence-workspace-canary-shapes.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "missing a VCS-control-plane path"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "probe-evidence-workspace-canary-traversal.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "no parent traversal"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "probe-evidence-workspace-inner-code-empty.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "recorded integer exit code"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "probe-evidence-egress-zero-exit-peer-substituted.json": {
+      "exit": 0,
+      "findings_substrings": [],
+      "credential_roots": "/home/runner"
     }
   },
   "quarantined": {},
@@ -804,11 +851,14 @@
     "ci-pool-a-l2-drive-root.json",
     "ci-pool-a-l2-dummy-prefix.json",
     "ci-pool-a-l2-egress-client-not-ready.json",
+    "ci-pool-a-l2-egress-duplicate-host.json",
+    "ci-pool-a-l2-egress-fingerprint-on-nonpeer.json",
     "ci-pool-a-l2-egress-no-transport.json",
     "ci-pool-a-l2-egress-peer-match.json",
     "ci-pool-a-l2-egress-single-target.json",
     "ci-pool-a-l2-egress-transport-count.json",
     "ci-pool-a-l2-egress-transport-token.json",
+    "ci-pool-a-l2-egress-zero-exit-peer-substituted.json",
     "ci-pool-a-l2-encoded-loopback.json",
     "ci-pool-a-l2-expanded-loopback.json",
     "ci-pool-a-l2-expansion-ephemeral.json",
@@ -847,8 +897,12 @@
     "ci-pool-a-l2-unc-credpath.json",
     "ci-pool-a-l2-uri-host.json",
     "ci-pool-a-l2-workspace-canary-count.json",
+    "ci-pool-a-l2-workspace-canary-duplicate.json",
+    "ci-pool-a-l2-workspace-canary-shapes.json",
+    "ci-pool-a-l2-workspace-canary-traversal.json",
     "ci-pool-a-l2-workspace-canary-visible.json",
     "ci-pool-a-l2-workspace-git-digest-changed.json",
+    "ci-pool-a-l2-workspace-inner-code-empty.json",
     "ci-pool-a-l2-workspace-missing.json",
     "ci-pool-a-l2-workspace-no-teardown.json",
     "ci-pool-a-l2-workspace-not-applicable.json",
