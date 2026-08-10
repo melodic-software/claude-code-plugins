@@ -428,7 +428,7 @@ rm -rf "$OUTOFTREE"
 # gitignore scope further down already documents for the same input.
 #
 # Absence is simulated in-process rather than by rebuilding PATH: on Git Bash —
-# the platform this hook most needs to keep working on — every coreutil is an
+# the platform this hook most needs to keep working on — every coreutils binary is an
 # MSYS binary that will not start once copied away from its DLL directory, so a
 # sanitized bin directory is not portable here. The BASH_ENV shim is the same
 # technique the markdownlint-cli2 PATH-hiding case below uses, and it is exact
@@ -511,6 +511,48 @@ fi
 
 # The scope must still fire when git CAN answer — that half is the out-of-tree
 # case above, which runs with git present and asserts the skip.
+#
+# But the REPO_ROOT override is a different branch from that scope, and its
+# ordinary case — `CLAUDE_PROJECT_DIR` set AND git present, i.e. nearly every
+# real Markdown edit — was exercised by nothing: every other case in this file
+# either runs `-u CLAUDE_PROJECT_DIR` or runs under the git-absence shim. The
+# two cases below cover it from both sides, because "it still lints" alone
+# cannot tell a correctly-inert override from one that fired and happened not
+# to change the outcome.
+GITON_NESTED="$REPO/docs/fixtureGitOnNested.md"
+printf '# Git On Nested\n\n* star item\n' >"$GITON_NESTED"
+OUT_GITON="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$GITON_NESTED" |
+  env CLAUDE_PROJECT_DIR="$REPO" \
+    CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+RC_GITON=$?
+if [[ $RC_GITON -eq 0 ]] && grep -q '^- star item$' "$GITON_NESTED"; then
+  ok "git present + CLAUDE_PROJECT_DIR set: a nested .md still lints"
+else
+  fail "git present + CLAUDE_PROJECT_DIR set: nested .md skipped (rc=$RC_GITON out=$OUT_GITON)"
+fi
+
+# The negative half, and the one that actually pins the override to its guard:
+# with git present, REPO_ROOT is the git toplevel, so discovery must STOP there
+# and never reach a config sitting above the repository. Pointing
+# CLAUDE_PROJECT_DIR at that outer directory makes a wrongly-firing override
+# observable — it would widen the walk past the repo root and lint this file.
+OUTER="$WORK/outer-config-root"
+mkdir -p "$OUTER"
+printf '{}\n' >"$OUTER/.markdownlint.jsonc"
+INNER_REPO="$OUTER/inner"
+mkdir -p "$INNER_REPO/docs"
+git -C "$INNER_REPO" init -q 2>/dev/null || git init -q "$INNER_REPO"
+OUTER_FIXTURE="$INNER_REPO/docs/fixtureOuterConfig.md"
+printf '# Outer\n\n* star item\n' >"$OUTER_FIXTURE"
+OUT_OUTER="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$OUTER_FIXTURE" |
+  env CLAUDE_PROJECT_DIR="$OUTER" \
+    CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+RC_OUTER=$?
+if [[ $RC_OUTER -eq 0 ]] && grep -q '^\* star item$' "$OUTER_FIXTURE"; then
+  ok "git present: the override stays inert — discovery stops at the git root, not CLAUDE_PROJECT_DIR"
+else
+  fail "git present: the override fired and widened discovery above the repository root (rc=$RC_OUTER out=$OUT_OUTER)"
+fi
 
 # --- Repository-local markdownlint: use contained npm/Git Bash shim ---------
 # Hide the PATH copy, then provide the extensionless POSIX shim npm installs
@@ -1787,7 +1829,7 @@ fi
 # is about — every CR here sits at end-of-line. Verified by revert-probe: with
 # the fix removed, the decoded-value form still passed while the raw-escape form
 # fails. Testing the bytes the hook actually emits is the only honest check.
-crlf_escaped() { case "$1" in *'\r'*) return 0 ;; *) return 1 ;; esac; }
+crlf_escaped() { case "$1" in *'\r'*) return 0 ;; *) return 1 ;; esac }
 
 FCR="$REPO/crlf.md"
 printf '# CRLF\n\nbody\n' >"$FCR"
