@@ -3,9 +3,25 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.51.4]
+## [0.51.5]
 
 ### Fixed
+
+- **`skills/pull-request/reference/readiness.md` no longer documents a `check-runs` query that
+  silently truncates.** Gate 1's codex-verification command called
+  `repos/{owner}/{repo}/commits/<sha>/check-runs` with no pagination. The endpoint returns 30 per
+  page by default and reports nothing when it truncates, so on any PR carrying more than 30 check
+  runs the command answers "is check X present?" with a silent *no* for every check that landed on
+  a page the caller never fetched — indistinguishable from a check that never attached. Observed on
+  this repo: three separate heads returned `total_count=33, returned=30`, dropping
+  `do-not-merge / do-not-merge` — a required status context — every time, and a reader concluded
+  the context never attaches. It attached and was green on all three. The command now uses
+  `--paginate` with `per_page=100`, matching the form
+  `skills/pull-request/scripts/fetch-annotations.sh` already used. Pagination alone only moves the
+  cliff to 100, so the gate also documents a completeness assertion — `total_count` against the
+  flattened count across every page — and names the trap that makes the naive assertion wrong:
+  `--jq` runs per page, so `.check_runs | length` reports one page at a time and must be slurped
+  before comparing.
 
 - **`exec-bit-check.sh` no longer skips a copy destination whose source was never executable
   (#2118).** `R*` and `C*` shared one `src_mode == "100755"` gate, so a copy off a `100644` shebang

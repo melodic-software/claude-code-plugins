@@ -64,10 +64,20 @@ gh pr checks <pr_number> --json name,state,bucket
 **Gotcha — `codex-review` may show duplicate entries (`SUCCESS` check-run + stuck `PENDING` commit-status).** `gh pr checks` aggregates BOTH workflow check-runs AND external commit-statuses. `codex-review.yml` workflow posts a real check-run that resolves cleanly; the external Codex bot ALSO posts a redundant commit status that may never finalize (sits at `PENDING` indefinitely). When you see two `codex-review` rows — one `pass|SUCCESS` with a `link`, one `pending|PENDING` with no link — treat check-run as authoritative. Verify via:
 
 ```bash
-gh api repos/{owner}/{repo}/commits/<sha>/check-runs --jq '.check_runs[] | select(.name | test("codex"; "i")) | "\(.status) \(.conclusion)"'
+gh api --paginate "repos/{owner}/{repo}/commits/<sha>/check-runs?per_page=100" \
+  --jq '.check_runs[] | select(.name | test("codex"; "i")) | "\(.status) \(.conclusion)"'
 ```
 
 If `completed success`, the stuck commit-status is the redundant external bot — classify as non-blocking, document, and proceed. `mergeStateStatus=UNSTABLE` will reflect the stuck status but does NOT block merge when the repo's required checks are green.
+
+**Never query `check-runs` without pagination, and always assert completeness.** The endpoint returns 30 per page by default and reports no error when it truncates, so the bare form answers "is check X present?" with a silent *no* for any check that landed on a page you never fetched — a false negative that reads exactly like a check that never attached. `--paginate` with `per_page=100` fixes today's page size; the assertion below is what keeps it fixed when a PR outgrows 100. Note that `--jq` runs **per page**, so a naive `.check_runs | length` prints one line per page, each reporting only its own page — slurp the page stream before comparing:
+
+```bash
+gh api --paginate "repos/{owner}/{repo}/commits/<sha>/check-runs?per_page=100" \
+  | jq -s -r '"total_count=\(.[0].total_count) returned=\([.[].check_runs[]] | length)"'
+```
+
+The two numbers must be equal. When they are not, every conclusion drawn from that response is unsound — re-fetch before reasoning.
 
 ### Gate 2: All failures evaluated
 

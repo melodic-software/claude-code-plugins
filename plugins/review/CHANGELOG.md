@@ -3,9 +3,18 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.18.0]
+## [0.18.1]
 
-### Removed
+### Fixed
+
+- **`agents/ci-log-auditor.md`'s annotation-gap cross-reference no longer truncates.** Finding 6
+  fetched `repos/<owner>/<repo>/commits/<sha>/check-runs` unpaginated. The endpoint caps at 30 per
+  page by default and signals nothing when it truncates, so the auditor compared the `##[error]`
+  count against an under-counted check-run list — manufacturing a mismatch, or hiding a real one,
+  with no visible symptom. Both that fetch and the per-check-run `/annotations` fetch now use
+  `--paginate` with `per_page=100`, and the agent is told to assert `total_count` against the
+  flattened per-page count before drawing any conclusion, including the reason the naive assertion
+  is wrong (`--jq` runs per page, so the count must be slurped across pages first).
 
 - **The bare `/<skill>` alias for this plugin's skills.** Their `SKILL.md` files no longer
   declare a frontmatter `name`. The field is optional and defaults to the directory name, so
