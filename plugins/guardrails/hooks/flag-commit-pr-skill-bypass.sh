@@ -226,7 +226,8 @@ strip_literals() {
     fi
     line=$(printf '%s' "$line" | sed "s/'[^']*'//g" | sed -E 's/"([^"\\]|\\.)*"//g')
     result+="${line}"$'\n'
-  done <<<"$cmd"
+  done < <(printf '%s
+' "$cmd") # not <<<: a >=64KiB here-string deadlocks (see hardcoded-path-patterns.sh)
   printf '%s' "${result%$'\n'}"
 }
 

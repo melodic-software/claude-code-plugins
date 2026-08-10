@@ -175,4 +175,92 @@ else
   bad "redaction: no envelope written"
 fi
 
+# ===================== PAYLOAD-SIZE BOUNDARY (regression) ====================
+# Guards the here-string deadlock. Bash delivers `<<<` through a pipe it fills
+# ITSELF before the reader is exec'd, and it appends a newline — so a payload of
+# 65536-65663 bytes puts the write 1-128 bytes past the 65536-byte pipe capacity
+# and bash blocks FOREVER. At >=129 bytes over, bash spills to a temp file, so
+# the window is closed on BOTH sides: 65535 and 65664 always worked and only the
+# band between them hung. That shape is why no ordinary size ever caught it.
+#
+# Measured against the pre-fix hook on Git Bash: a 65536-byte payload carrying a
+# live-shape AWS access-key id returned NO verdict at a 200s bound, where the
+# same token in a small payload exits 2 immediately. The hook is registered at
+# `timeout: 60`, so in production the harness cancels the guard and the secret
+# verdict is lost outright. Sibling fix for the same class in hook-utils.sh's
+# JSON path: #1587.
+#
+# The payload is PIPED here, never `bash "$HOOK" <<<"$json"` — a here-string
+# would hang THIS FILE at exactly these sizes and read as the bug under test.
+
+# Content of EXACTLY $1 bytes, ending in " $2" when $2 is given. jq reads the
+# content on STDIN (`-Rs`): a 65KB `--arg` blows the Win32 32767-byte argv limit
+# and jq would never run. The separating space matters for the sibling
+# hardcoded-path suite, whose patterns require a left boundary; keeping one
+# builder shape across both suites keeps them comparable.
+size_filler() { head -c "$1" /dev/zero | tr '\0' b; }
+sized_write_json() {
+  local n="$1" tail="${2:-}"
+  [[ -n "$tail" ]] && tail=" $tail"
+  printf '%s%s' "$(size_filler $((n - ${#tail})))" "$tail" |
+    MSYS_NO_PATHCONV=1 jq -Rs --arg fp "$FIXTURE" \
+      '{tool_name:"Write",tool_input:{file_path:$fp,content:.}}'
+}
+
+# Bound every case so a regression FAILS LOUDLY instead of hanging CI. 150s is
+# generous on purpose: the legitimate large-payload itemization measured 41-67s
+# on Git Bash under Defender, while a deadlock never returns at any bound — so
+# 150 separates the two without making the case flaky on a slow host.
+run_bounded() {
+  local rc=0
+  printf '%s' "$1" | timeout 150 bash "$HOOK" >/dev/null 2>&1 || rc=$?
+  printf '%s' "$rc"
+}
+
+# Asserts the EXACT code, and names 124 as its own failure. A "non-zero means
+# blocked" assertion would have ACCEPTED the hang and would not have caught this
+# defect — the whole point is that no verdict is not a blocking verdict.
+assert_bounded_exit() {
+  if [[ "$3" == "124" ]]; then
+    bad "$1: HUNG (exit 124 at the 150s bound) — here-string deadlock regression"
+  elif [[ "$3" == "$2" ]]; then
+    ok "$1 (exit $3)"
+  else
+    bad "$1: expected exit $2, got $3"
+  fi
+}
+
+# Clean payloads across the window and both shoulders — exercises the combined
+# fast-reject gate, which is the site that scans EVERY write.
+for SZ in 65535 65536 65600 65663 65664; do
+  assert_bounded_exit "boundary: clean ${SZ}-byte payload → exit 0" \
+    0 "$(run_bounded "$(sized_write_json "$SZ")")"
+done
+
+# The security case: a REAL detectable secret sitting inside the hang window
+# must still BLOCK. Pre-fix this exact payload produced no verdict at all.
+# Two sizes: the exact pipe capacity, and mid-window. These also reach the
+# per-pattern itemization (the second patched call site), which a clean payload
+# never touches because the fast-reject returns first.
+for SZ in 65536 65600; do
+  assert_bounded_exit "boundary: AWS key in ${SZ}-byte payload → exit 2" \
+    2 "$(run_bounded "$(sized_write_json "$SZ" "$AWS_TOKEN")")"
+done
+
+# Process substitution must not leak writer noise onto stderr. `grep -q`
+# early-exits and SIGPIPEs the `printf` feeding it; stderr is this hook's
+# user-facing channel, so a stray "write error: Broken pipe" would corrupt the
+# blocked message.
+BOUND_ERR=$(printf '%s' "$(sized_write_json 65600 "$AWS_TOKEN")" | timeout 150 bash "$HOOK" 2>&1 >/dev/null)
+assert_contains "boundary: in-window block still reports the label" "$BOUND_ERR" "AWS Access Key"
+assert_absent "boundary: no SIGPIPE noise on stderr" "$BOUND_ERR" "Broken pipe"
+
+# Empty content. `<<<""` delivered ONE EMPTY LINE; `printf '%s' ""` delivers
+# zero bytes. No pattern matches an empty line either way and the hook's own
+# `[[ -n "$CONTENT" ]]` guard exits first — pinned so the substitution cannot
+# quietly become a behavior change.
+RC=0
+printf '%s' "$(sized_write_json 0)" | timeout 30 bash "$HOOK" >/dev/null 2>&1 || RC=$?
+assert_exit "boundary: empty content → exit 0" 0 "$RC"
+
 report

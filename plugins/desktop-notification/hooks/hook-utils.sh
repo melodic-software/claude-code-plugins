@@ -406,12 +406,25 @@ hook::json_complete() {
   # the pre-filter can never turn a whole payload into a wrong verdict.
   [[ "${1: -4}" == *"}"* ]] || return 1
   command -v jq >/dev/null 2>&1 || return 1
-  # `printf | jq`, never `jq <<< "$1"`. A here-string is delivered through a pipe
-  # that bash fills itself, so a payload at or above the pipe capacity (65536
-  # bytes on this platform — exactly one read chunk) blocks the shell forever
-  # before jq is ever exec'd. Reproduced: a 65536-byte buffer hung here
-  # indefinitely while 65000 returned immediately. A separate writer process
-  # cannot deadlock that way.
+  # NEVER feed a whole payload through `<<<`. Bash delivers a here-string by
+  # filling a pipe itself, before the reader is exec'd, and it appends a newline
+  # — so a payload of 65536-65663 bytes puts the write 1-128 bytes past the
+  # 65536-byte pipe capacity and the shell blocks FOREVER. The window is bounded
+  # on BOTH sides: at >=129 bytes over, bash spills to a temp file and works
+  # again, which is why 65535 and 65664 both return promptly and only the band
+  # between them hangs. Measured on this platform, and the reason a 65536-byte
+  # buffer hung here indefinitely while 65000 returned immediately.
+  #
+  # Two safe shapes, chosen by whether the reader drains its input:
+  #   reader drains (jq, `grep` without -q)  -> `printf … | reader`
+  #   reader may exit early (`grep -q`)      -> `reader < <(printf …)`
+  # The second is required because an early-exiting reader SIGPIPEs the writer,
+  # and inside a pipeline `pipefail` then reports the writer's 141 as the
+  # pipeline's status — which an `if ! reader …` guard reads as "no match" and
+  # inverts into a fail-open. Process substitution keeps the writer out of the
+  # pipeline, so its SIGPIPE cannot be mistaken for the reader's verdict.
+  # Applied at the guardrails scan gates; see
+  # plugins/guardrails/lib/path-detection/hardcoded-path-patterns.sh.
   printf '%s' "$1" | jq -e . >/dev/null 2>&1
 }
 

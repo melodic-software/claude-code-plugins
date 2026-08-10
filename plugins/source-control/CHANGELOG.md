@@ -3,6 +3,22 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.49.4]
+
+### Fixed
+
+- **The PR-body linkage gate and validator deadlocked on a maximum-length PR body.** Both walked the
+  body with `while … done <<<"$body"`. Bash delivers a here-string by filling a pipe ITSELF, before
+  the reader is exec'd, and appends a newline, so a body of 65536-65663 bytes puts the write 1-128
+  bytes past the 65536-byte pipe capacity and blocks forever. GitHub caps a PR body at exactly
+  65536 characters, which lands INSIDE that window — so the worst case is not exotic, it is the
+  documented maximum. `pr-body-linkage-gate` is a blocking PreToolUse gate, so a hang means the
+  harness cancels it at its timeout and the linkage contract goes unenforced. Both now read through
+  `< <(printf '%s
+' "$body")`, which is byte-identical to the here-string it replaces and so cannot
+  drop a final line. Same class as #1587 (`hook-utils.sh`) and the guardrails scan gates fixed
+  alongside this.
+
 ## [0.49.3]
 
 ### Fixed

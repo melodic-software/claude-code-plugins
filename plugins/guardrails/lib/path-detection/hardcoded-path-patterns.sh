@@ -70,17 +70,34 @@ hpp::scan_text() {
   # costs a wasted full scan). The gate stays case-sensitive for the OS-path
   # alternation (matching the detailed patterns' literal "Users") and
   # case-insensitive for the root segment (matching the detailed `grep -Fi`).
-  # Uses a here-string, NOT `printf | grep -q`: a pipe + `grep -q` early-exit
-  # would SIGPIPE printf, and under `pipefail` the pipeline would report printf's
-  # failure and invert the result.
-  if ! grep -qE 'Users|/home/|repos|Repos|projects|Projects|dev|Dev' <<<"$content" 2>/dev/null; then
+  # Feeds the payload through PROCESS SUBSTITUTION — not `<<<`, and not
+  # `printf | grep -q`. Both alternatives are broken on whole-payload content:
+  #   `<<<"$content"` deadlocks. Bash delivers a here-string through a pipe and
+  #     appends a newline, so a content length of 65536-65663 puts the write
+  #     1-128 bytes past the 65536-byte pipe capacity and bash blocks forever
+  #     (at >=129 bytes over it spills to a temp file and works again). A
+  #     blocking guard that never answers loses its verdict outright — the
+  #     harness cancels it at the hook timeout.
+  #   `printf … | grep -q` INVERTS. `grep -q` exits at the first match and
+  #     SIGPIPEs printf; under `pipefail` the pipeline reports printf's 141, and
+  #     `if ! …` reads a non-zero status as "no match" and early-returns clean —
+  #     a fail-open on exactly the content that matched.
+  # `grep -q … < <(printf …)` keeps the early exit, keeps the writer OUT of the
+  # pipeline (so `pipefail` never sees its SIGPIPE), and never blocks. Same rule
+  # as lib/hook-utils.sh's `printf | jq`: never feed a whole payload through
+  # `<<<`; use a pipe when the reader drains its input (jq), and process
+  # substitution when the reader may exit early (`grep -q`).
+  # `printf '%s'` (no trailing newline) also matches the detailed blocks below,
+  # so the gate and the scan see byte-identical input.
+  if ! grep -qE 'Users|/home/|repos|Repos|projects|Projects|dev|Dev' < <(printf '%s' "$content") 2>/dev/null; then
     local gate_root=""
     if [[ -n "$project_root" ]]; then
       gate_root="${project_root//\\//}"
       gate_root="${gate_root%/}"
       gate_root="${gate_root##*/}"
     fi
-    if [[ -z "$gate_root" ]] || ! grep -qFi "$gate_root" <<<"$content" 2>/dev/null; then
+    # Process substitution for the same two reasons as the gate above.
+    if [[ -z "$gate_root" ]] || ! grep -qFi "$gate_root" < <(printf '%s' "$content") 2>/dev/null; then
       return 0
     fi
   fi

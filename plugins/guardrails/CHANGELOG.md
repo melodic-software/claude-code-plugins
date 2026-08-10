@@ -3,6 +3,60 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.1]
+
+### Fixed
+
+- **`secret-pattern-detection` and `hardcoded-path-check` — both BLOCKING PreToolUse guards —
+  produced NO VERDICT AT ALL for a payload of 65536-65663 bytes.** Not slow: deadlocked. Bash
+  delivers a here-string by filling a pipe ITSELF, before the reader is exec'd, and it appends a
+  newline — so a payload in that band puts the write 1-128 bytes past the 65536-byte pipe capacity
+  and blocks forever (at >=129 bytes over, bash spills to a temp file and it works again, which is
+  why 65535 and 65664 always passed and only the band between them hung). Measured on Git Bash
+  against the pre-fix hooks: a 65536-byte Write carrying a live-shape AWS access-key id returned
+  nothing at a 200-second bound, where the same token in a small payload exits 2 immediately. Both
+  hooks are registered at `timeout: 60`, so the harness cancels the guard and the verdict is lost —
+  a fail-open reachable by any agent that controls the size of what it writes. Every whole-payload
+  `<<<` in the plugin now feeds its reader through process substitution instead: the two pre-filter
+  gates in `lib/path-detection/hardcoded-path-patterns.sh`, the fast-reject and per-pattern
+  itemization in `secret-pattern-detection.sh`, and the telemetry-label grep in
+  `hardcoded-path-check.sh` — the last of which is payload-sized too, because `$VIOLATIONS` embeds
+  each MATCHED LINE verbatim and the lib's `head -3` bounds the line count, not the byte count, so
+  one 65KB minified line carrying a hardcoded path deadlocked on the blocked path after the stderr
+  message but before `exit 2`. Same class as #1587, which fixed `hook-utils.sh`'s JSON path and
+  stopped there.
+
+  `printf … | grep -q` is NOT the alternative, and the comment that previously justified the
+  here-string was half right about why: `grep -q` exits at the first match and SIGPIPEs `printf`, so
+  under the `set -uo pipefail` these hooks run with, the pipeline reports printf's 141 — and
+  `if ! grep -q …` reads any non-zero status as "no match" and early-returns clean, inverting a
+  real detection into a fail-open. Process substitution keeps the writer OUT of the pipeline, so
+  `pipefail` can never see its SIGPIPE, while preserving the early exit the gate exists for.
+  Verified empirically at every boundary size under `set -o pipefail`, in both the match and
+  no-match directions. The rule is now stated once and identically in `hook-utils.sh` and the
+  pattern lib, which previously contradicted each other inside the same plugin.
+
+- **The same deadlock in six command-scanning guards.** `block-convention-violation`,
+  `block-hook-bypass`, `flag-commit-pr-skill-bypass`, and the shared PowerShell command lib fed the
+  whole Bash/PowerShell command — or segments derived from it — through `while … done <<<"$cmd"`,
+  which deadlocks identically at 65536-65663 bytes. `workflow-resilience-check` did the same with an
+  inline Workflow `script:`. All now use `< <(printf '%s
+' …)`, which is byte-identical to the
+  here-string it replaces (`<<<` appends a newline unconditionally) and so cannot drop a final line.
+
+### Changed
+
+- Boundary regression cases at 65535 / 65536 / 65600 / 65663 / 65664 bytes in both
+  `secret-pattern-detection.test.sh` and `hardcoded-path-check.test.sh`, including payloads where a
+  real detectable secret / hardcoded path sits INSIDE the hang window and must still exit 2. Neither
+  suite previously had a single payload-size case. Every case is bounded by `timeout` and asserts
+  the EXACT expected code, with 124 reported as its own loud failure — a "non-zero means blocked"
+  assertion would have accepted the hang and would not have caught this defect. The payload is piped,
+  never fed to the hook with `<<<`, which would hang the test itself at exactly these sizes.
+
+- README hook table: the six guards registered under the `Bash|PowerShell` matcher were all listed
+  as `PreToolUse · Bash`; no row named PowerShell at all.
+
 ## [0.21.0]
 
 ### Fixed

@@ -191,7 +191,8 @@ sole_heredoc_body() {
       delim="${delim%\"}"
       in_hd=1
     fi
-  done <<<"$text"
+  done < <(printf '%s
+' "$text") # not <<<: a >=64KiB here-string deadlocks (see hardcoded-path-patterns.sh)
   # Still inside the body at end of text: the delimiter never appeared.
   ((count == 1 && in_hd == 0)) || return 1
   printf '%s' "$out"
