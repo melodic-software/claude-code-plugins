@@ -14,13 +14,21 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   execs → 1 each), `hardcoded-path-check`, `secret-pattern-detection`, `skill-reference-verify`,
   `stale-path-verify` (3 → 1 each), `block-hook-bypass`, `flag-commit-pr-skill-bypass`,
   `cli-flag-verify`, `workflow-resilience-check` (2 → 1 each). Measured on Windows Git Bash with the
-  arms interleaved in one loop (medians of paired deltas, every sample recorded in the PR): the
-  isolated parse block recovers a median **991-1033 ms** per invocation for a 3-field hook and
-  **274 ms** for a 2-field hook under this host's concurrent-agent load, and **394 ms / 192 ms** at
-  the least-contended floor observed across 100 iterations. No behavior change: every hook's contract
-  suite passes unchanged, the `// "Bash"` tool-name default moves to the bash-side expansion (the
-  `block-dangerous-git` pattern), and a jq failure still exits 0 through the same empty-field guard
-  it always did.
+  arms interleaved in one loop and compared as paired deltas — every sample is recorded in the PR.
+  Conservative headline, the least-favourable quartile (p75) of the paired deltas: **-404 ms** per
+  invocation for a 3-field hook and **-194 ms** for a 2-field hook, which agrees independently with
+  the least-contended floor across 100 iterations (-394 ms / -192 ms). Medians run higher because
+  this host was running several agents concurrently (-1033 / -991 ms for 3 fields, -274 ms for
+  2 fields; -687 ms end-to-end across a whole `block-noncanonical-commit` invocation). Direction is
+  not in doubt: the converted arm was faster in 87-95% of paired iterations. No behavior change:
+  every hook's contract suite passes unchanged, the `// "Bash"` tool-name default moves to the
+  bash-side expansion (the `block-dangerous-git` pattern), and a jq failure still exits 0 through the
+  same empty-field guard it always did.
+- `hardcoded-path-check` and `secret-pattern-detection` now serialize the per-tool content field in
+  the same call as the tool name, i.e. BEFORE the file-path exclusions and the `git check-ignore`
+  skip that used to precede it. Deliberate: the payload is already buffered in memory, so the
+  marginal cost on a skipped write is one copy out of jq, traded against one fewer process on every
+  path — and process creation, not jq's parse, is what costs on this host.
 - `skill-reference-verify` and `stale-path-verify` keep `replace_all`'s `// false | tostring` INSIDE
   the jq filter. `hook::jq_fields` wraps each filter in `// ""`, and jq's `//` treats the boolean
   `false` as empty — a bare `.tool_input.replace_all` would come back `""` instead of `"false"`.
