@@ -130,9 +130,10 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
 
    **Read that state with `claude agents --json --all`, never the bare `--json`.** The bare form
    lists ACTIVE sessions only — a background session that has reached a terminal state is excluded
-   by the CLI and surfaces only under `--all`, where it carries a `state` (observed: `done`,
-   `stopped`) in place of the active `status` (observed: `idle`, `busy`). That is `claude agents
-   --help` ("`--all` — With --json: also include completed background sessions") and the same
+   by the CLI and surfaces only under `--all`, where it carries a `state` (observed: `done`, which
+   reports completion, and `stopped`, which does not) in place of the active `status` (observed:
+   `idle`, `busy`). That is `claude agents --help` ("`--all` — With --json: also include completed
+   background sessions") and the same
    verified contract this repo already relies on in `claude-ops`'
    `skills/lanes/scripts/lane-launcher.sh` (`load_sessions`). **So absence from the bare list is
    NOT evidence of failure: a continuation that finished the work successfully looks exactly like
@@ -156,8 +157,10 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
 
    Read the `state` value as reported and say which branch it took — the values above are observed,
    not a closed set, so an unfamiliar one is reported rather than forced into a branch. **Key the
-   lookup on the launched session's `sessionId`/`id` when the launch-verification listing recorded
-   one in the transcript;** the `--name "continue-<topic>"` slug is the same ambiguous key here as
+   lookup on the launched session's `sessionId`/`id` — the `claude agents --json` field, NOT the
+   `session_id` this file uses elsewhere for transcript frontmatter — when the launch-verification
+   listing recorded one in the transcript;** the `--name "continue-<topic>"` slug is the same
+   ambiguous key here as
    at launch time, so when only the slug is available and it does not uniquely resolve to one
    session, the recheck is UNKNOWN and the candidate is kept. Launch references a different file,
    failed at launch, or is unverified/ambiguous → keep the candidate (surfacing the provenance at
