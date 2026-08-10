@@ -338,8 +338,11 @@ TRACKED_BUILT=0
 moved_hint() {
   local base="${1##*/}" matches=()
   if ((TRACKED_BUILT == 0)); then
-    TRACKED_BUILT=1
-    TRACKED_FILES=$(git -C "$REPO_ROOT" ls-files 2>/dev/null | tr -d '\r')
+    local out
+    if out=$(git -C "$REPO_ROOT" ls-files 2>/dev/null); then
+      TRACKED_FILES=${out//$'\r'/}
+      TRACKED_BUILT=1
+    fi
   fi
   [[ -n "$TRACKED_FILES" ]] || return 1
   mapfile -t matches < <(printf '%s\n' "$TRACKED_FILES" | awk -F/ -v b="$base" '$NF == b')
