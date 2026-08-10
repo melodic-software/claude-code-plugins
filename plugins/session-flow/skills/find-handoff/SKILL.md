@@ -159,12 +159,14 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
    not a closed set, so an unfamiliar one is reported rather than forced into a branch. **Key the
    lookup on the launched session's `sessionId`/`id` — the `claude agents --json` field, NOT the
    `session_id` this file uses elsewhere for transcript frontmatter — when the launch-verification
-   listing recorded one in the transcript;** the `--name "continue-<topic>"` slug is the same
-   ambiguous key here as
-   at launch time, so when only the slug is available and it does not uniquely resolve to one
-   session, the recheck is UNKNOWN and the candidate is kept. Launch references a different file,
-   failed at launch, or is unverified/ambiguous → keep the candidate (surfacing the provenance at
-   the confirm gate when ambiguous). **This four-way current-state resolution governs every
+   listing recorded one in the transcript.** With no recorded ID the recheck is UNKNOWN and the
+   candidate is kept, and that holds even when the `--name "continue-<topic>"` slug matches exactly
+   one entry: `--all`'s history is bounded, so the candidate's own session may have aged out while a
+   newer same-topic continuation remains, and a unique match is then a DIFFERENT session wearing the
+   same name. Uniqueness at snapshot time is not identity across time. The slug is the same
+   ambiguous key here as at launch time, and no match count makes it unambiguous. Launch references
+   a different file, failed at launch, or is unverified/ambiguous → keep the candidate (surfacing
+   the provenance at the confirm gate when ambiguous). **This four-way resolution governs every
    screening site in this skill, prompt-only included.**
 
    **v1 scope: current repo only.** The cross-repo *filesystem* sweep (deriving
