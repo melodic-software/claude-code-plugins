@@ -860,4 +860,18 @@ run_nul "leading NUL, text preserved (blocked)" "" "git reset --hard" 2
 run_nul "all-NUL command strips to empty (blocked)" "" "" 2
 run_nul "NUL in an otherwise harmless command (blocked)" "git status" "; echo bye" 2
 
+# The block has to say what is wrong and what to do about it, not just refuse.
+#
+# Asserted HERE as well as in block-no-verify.test.sh, and the duplication is the
+# point: both guards emit the same three lines by design, so a message edited in
+# one and not the other is exactly the drift neither file would otherwise catch.
+# Exit-code-only coverage cannot see it — the verdict is identical either way.
+nul_stderr() {
+  bash "$HOOK" <<<"$(jq -n --arg h "$1" --arg t "$2" \
+    '{tool_name:"Bash",tool_input:{command:($h + ([0] | implode) + $t)}}')" 2>&1 >/dev/null
+}
+assert_contains "NUL msg: names the byte" "$(nul_stderr 'git reset --hard' 'x')" "NUL byte"
+assert_contains "NUL msg: gives the fix" "$(nul_stderr 'git reset --hard' 'x')" \
+  "reissue the tool call without the embedded NUL"
+
 report
