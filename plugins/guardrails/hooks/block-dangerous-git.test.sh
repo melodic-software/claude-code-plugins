@@ -874,4 +874,13 @@ assert_contains "NUL msg: names the byte" "$(nul_stderr 'git reset --hard' 'x')"
 assert_contains "NUL msg: gives the fix" "$(nul_stderr 'git reset --hard' 'x')" \
   "reissue the tool call without the embedded NUL"
 
+# The all-NUL command reaches the flag BEFORE the empty-COMMAND skip — its block
+# must carry the NUL reason, and an empty command with no NUL must still take
+# that skip. The pair is what pins the ordering; either row alone is equally
+# consistent with a guard that refuses every empty command or blocks for some
+# other reason.
+assert_contains "NUL msg: all-NUL command refused by the flag, not skipped" \
+  "$(nul_stderr '' '')" "NUL byte"
+run "empty command, no NUL (allowed)" "" 0
+
 report
