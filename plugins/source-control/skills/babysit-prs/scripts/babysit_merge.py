@@ -234,15 +234,20 @@ def repository_default_branch(repo: str) -> str | None:
 def branch_rules(repo: str, branch: str) -> dict[str, object]:
     """Summarize the effective merge-governing rules for the base branch.
 
-    `requiredContexts` is the UNION of every rule's contexts, deduped and
-    sorted. Rulesets compose: `/rules/branches/{branch}` returns one
-    `required_status_checks` rule per ruleset governing the branch, so the
-    single-rule assumption that held under classic branch protection does not
-    hold here -- keeping only one rule's list drops every other ruleset's
-    required contexts from both `effectiveRules` and the unmet-required
-    blocker. Two rulesets may legitimately require the same context, hence the
-    dedupe; the sort makes the reported set stable across runs regardless of
-    the order the API returns rulesets in.
+    Rulesets COMPOSE: `/rules/branches/{branch}` returns one rule of a given
+    type PER RULESET governing the branch, so the single-rule assumption that
+    held under classic branch protection does not hold here. Every repeatable
+    rule is therefore folded across all rules rather than assigned from one:
+
+    * `requiredContexts` is the union, deduped and sorted -- keeping a single
+      rule's list drops every other ruleset's contexts from both
+      `effectiveRules` and the unmet-required blocker. Two rulesets may
+      legitimately require the same context, hence the dedupe; the sort makes
+      the reported set stable regardless of the order rulesets are returned in.
+    * `requiredApprovingReviews` takes the max and `requireThreadResolution`
+      the OR. That is the fail-closed direction whatever GitHub's own
+      composition rule turns out to be: max/OR can only ever over-report, which
+      holds a PR for a human, where last-wins can under-report and release one.
     """
     summary: dict[str, object] = {
         "requiredContexts": [],
@@ -259,6 +264,8 @@ def branch_rules(repo: str, branch: str) -> dict[str, object]:
         summary["error"] = f"could not read branch rules: {exc}"
         return summary
     required_contexts: set[str] = set()
+    required_reviews = 0
+    require_thread_resolution = False
     for rule in cast(list[Any], rules) if isinstance(rules, list) else []:
         if not isinstance(rule, dict):
             continue
@@ -278,11 +285,16 @@ def branch_rules(repo: str, branch: str) -> dict[str, object]:
                 if isinstance(c, dict) and cast(dict[str, Any], c).get("context")
             )
         elif rtype == "pull_request":
-            summary["requiredApprovingReviews"] = params.get(
-                "required_approving_review_count", 0
+            # An uninterpretable-but-present count reads as one review, never
+            # as zero: reading it as zero would be the one fail-OPEN step in a
+            # fold whose whole argument is that it can only ever over-report.
+            count = params.get("required_approving_review_count", 0)
+            required_reviews = max(
+                required_reviews,
+                count if isinstance(count, int) else (1 if count else 0),
             )
-            summary["requireThreadResolution"] = params.get(
-                "required_review_thread_resolution", False
+            require_thread_resolution = require_thread_resolution or bool(
+                params.get("required_review_thread_resolution", False)
             )
         elif rtype == "required_signatures":
             summary["requireSignatures"] = True
@@ -291,6 +303,8 @@ def branch_rules(repo: str, branch: str) -> dict[str, object]:
         elif rtype == "merge_queue":
             summary["mergeQueueRequired"] = True
     summary["requiredContexts"] = sorted(required_contexts)
+    summary["requiredApprovingReviews"] = required_reviews
+    summary["requireThreadResolution"] = require_thread_resolution
     return summary
 
 

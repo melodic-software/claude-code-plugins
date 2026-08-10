@@ -1,12 +1,13 @@
 """Ruleset composition in `babysit_merge.branch_rules`.
 
-`repos/{repo}/rules/branches/{branch}` returns one `required_status_checks`
-rule PER RULESET governing the branch, not one rule overall -- the shape
-classic branch protection never produced. These tests pin the union: every
-ruleset's contexts survive, a context required by two rulesets is reported
-once, and a rule carrying an empty context list cannot erase the contexts an
-earlier rule established (which would flip `baseUnprotected` and silently drop
-the unprotected-base hold on a non-self-authored PR).
+`repos/{repo}/rules/branches/{branch}` returns one rule of a given type PER
+RULESET governing the branch, not one rule overall -- the shape classic branch
+protection never produced. These tests pin the fold: every ruleset's contexts
+survive, a context required by two rulesets is reported once, and a rule
+carrying an empty context list cannot erase the contexts an earlier rule
+established (which would flip `baseUnprotected` and silently drop the
+unprotected-base hold on a non-self-authored PR). `pull_request` rules compose
+the same way, folded max/OR so the summary can only ever over-report.
 
 Network is stubbed by monkeypatching `babysit_merge`'s gh seams; no real gh
 process is spawned.
@@ -113,8 +114,46 @@ class BranchRulesUnionsEveryRulesetsContexts(unittest.TestCase):
         self.assertEqual(summary["requiredContexts"], [])
 
 
+class PullRequestRulesFoldFailClosed(unittest.TestCase):
+    """`pull_request` composes too; max/OR can only ever hold more, never less."""
+
+    def _branch_rules(self, rules: list[dict[str, Any]]) -> dict[str, object]:
+        with mock.patch.object(merge, "gh_json", return_value=rules):
+            return merge.branch_rules("owner/repo", "main")
+
+    def test_the_strictest_approval_count_wins(self) -> None:
+        summary = self._branch_rules(
+            _rules(
+                {
+                    "type": "pull_request",
+                    "parameters": {"required_approving_review_count": 2},
+                },
+                NO_REQUIRED_REVIEWS,
+            )
+        )
+        self.assertEqual(summary["requiredApprovingReviews"], 2)
+
+    def test_thread_resolution_required_by_any_ruleset_survives(self) -> None:
+        summary = self._branch_rules(
+            _rules(
+                {
+                    "type": "pull_request",
+                    "parameters": {"required_review_thread_resolution": True},
+                },
+                NO_REQUIRED_REVIEWS,
+            )
+        )
+        self.assertTrue(summary["requireThreadResolution"])
+
+
 class AnEmptyLaterRuleCannotUnprotectTheBase(unittest.TestCase):
-    """The union keeps `baseUnprotected` honest, and with it the merge hold."""
+    """The union keeps `baseUnprotected` honest, and with it the merge hold.
+
+    Only the first case regresses. `test_no_context_anywhere_...` passes against
+    the unfixed code too, by design: it is the over-correction guard, pinning
+    that a genuinely context-less base still reports unprotected. Do not count
+    it among the regression tests.
+    """
 
     def _evaluate(self, rules: list[dict[str, Any]]) -> dict[str, Any]:
         def gh_json(args: list[str]) -> Any:
