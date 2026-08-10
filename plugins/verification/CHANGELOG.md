@@ -3,6 +3,21 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.2]
+
+### Changed
+
+- **`/verification:measure`'s `description` is now a trigger spec rather than a summary.** A skill
+  `description` is the text Claude matches to decide whether to load the skill, and this one opened
+  with what the skill *is* and buried its routing phrases behind `use for`, so the skill
+  under-fired: the skill-quality gate flagged it as carrying no `Use when:` trigger phrasing
+  (claude-code-plugins#2174). The phrases now sit behind `Use when:` in the marketplace's house
+  shape, and six phrases a user would actually type — `'did that actually speed it up'`,
+  `'how much faster is it'`, `'measure this'`, `'capture a baseline'`,
+  `'benchmark before and after'`, `'did complexity go down'` — join the three that were already
+  there. Every phrase the previous description carried is preserved verbatim, so the gate's
+  trigger-keyword-preservation check sees a superset, not a rewrite.
+
 ## [0.5.1]
 
 ### Changed
