@@ -34,11 +34,14 @@ repository.
   text verified, both books read **eight**; they differ only in vocabulary
   (extra stress in the final phrase vs. deceptive closure). The instruction to
   keep the counts apart is removed.
-- **`song-forms.md` claimed 1991 Chapter 6 has no linked images. It has 37, and
-  they carry the argument.** The chapter's entire scansion and rhyme-column
-  analysis lives in figures; the text layer trails off at dangling colons. That
-  bad inventory line is how the seven-phrase error survived. The entry now
-  states the count and warns that a text-only audit will miscount phrases.
+- **Two image inventories claimed their 1991 chapter has no linked images.
+  Chapter 6 has 37 and Chapter 5 has 32, and in both the figures carry the
+  argument.** The scansion and rhyme-column analysis lives in the figures while
+  the text layer trails off at dangling colons. `song-forms.md`'s false entry is
+  how the seven-phrase error survived a previous pass; `form.md` carried the
+  same falsehood for Chapter 5. Both now state the real count. `form.md`'s entry
+  also records that Chapter 5 has *not* been read in full, so claims sourced to
+  it are not mistaken for verified.
 - **The three bridge functions were cited to Chapter 5; they are Chapter 6's.**
   Book 1 carries two different bridge lists and the plugin had merged their
   labels. `bridge.md` now cites Chapter 6 for the three purposes, and records

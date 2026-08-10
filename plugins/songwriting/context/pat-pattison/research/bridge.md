@@ -32,7 +32,8 @@ A bridge must serve **at least one**, often all three:
    - *Verse/refrain or AABA.* Every system was one verse long. The bridge does
      not shorten anything — it creates a system that starts at the bridge and
      ends when the last verse closes, which is **longer** than the ones before
-     it. What arrives early is the final verse, not the system's end.
+     it. Chapter 6 claims only the size change here, not an early arrival; the
+     "early" language belongs to the verse/chorus case above.
 
    Diagnose by asking what the bridge is grouped with, not by assuming the last
    system shrinks

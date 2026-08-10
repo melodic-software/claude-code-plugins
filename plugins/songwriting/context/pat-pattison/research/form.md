@@ -1,12 +1,18 @@
 # Form
 
 Pat Pattison - *Songwriting: Essential Guide to Lyric Form and Structure*
-(1991), Chapter 5. Pat Pattison - *Writing Better Lyrics* (2009),
+(1991), Chapters 5-6. Pat Pattison - *Writing Better Lyrics* (2009),
 Chapter 20-21.
 
 ## Image inventory
 
-- *Essential Guide to Lyric Form and Structure* (1991), Chapter 5: no linked images.
+- *Essential Guide to Lyric Form and Structure* (1991), Chapter 5: **32 linked
+  images** (`image_rsrc31Z`-`image_rsrc32Y`), and they carry the chapter's
+  scansion and rhyme-scheme analysis the way Chapter 6's do. The prose stops at
+  dangling colons ("The first phrases play off against the rhythms, grouping
+  this way:"). **Chapter 5 has NOT been read in full** — only its bridge and
+  Song System span. Treat every claim sourced to it here as unverified until it
+  is, and read the figures when doing so.
 - *Writing Better Lyrics* (2009), Chapter 20: `image_rsrcAUG.jpg` shows a verse/chorus rhyme-column
   comparison for "Southern Comfort"; both sections lean on similar `x/a`
   alternation before the bridge arrives.

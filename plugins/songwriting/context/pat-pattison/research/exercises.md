@@ -67,10 +67,10 @@ Routes to: [phrasing](phrasing.md), [verse development](verse-development.md).
 
 ### Ex 5 — Label the pace effect
 
-Take four sections you did not write — from your own back catalogue, a
-hymnal, a poetry anthology, anything with line breaks. For each, mark
-whether the phrase lengths keep the pace **constant**, **accelerate**, or
-**decelerate**.
+Take four sections you are not currently working on — old drafts of your
+own, a hymnal, a poetry anthology, anything with line breaks. For each,
+mark whether the phrase lengths keep the pace **constant**, **accelerate**,
+or **decelerate**.
 
 **More than one blank is allowed.** Some sections are simply constant, or
 simply accelerate — record that. But a section can also speed up in one
