@@ -78,10 +78,10 @@ esac
 # `.tool_input.replace_all` would come back "" instead of "false". That is kept
 # for parity with the pre-conversion output, not because a branch depends on it
 # — every consumer below tests `== "true"`, which "" and "false" fail alike.
-# Failure
-# semantics are unchanged: a missing jq or an unparsable payload yields rc 1 here,
-# which exits 0 exactly as the unmatched-TOOL case did — hook::require_jq above
-# has already made the degraded state visible once per session.
+# Failure semantics are unchanged: a missing jq or an unparsable payload yields
+# rc 1 here, which exits 0 exactly as the unmatched-TOOL case did —
+# hook::require_jq above has already made the degraded state visible once per
+# session.
 hook::jq_fields "$INPUT" '.tool_name' '.tool_input.new_string' \
   '.tool_input.content' '.tool_input.replace_all // false | tostring' || exit 0
 TOOL="${HOOK_JQ_FIELDS[0]}"
