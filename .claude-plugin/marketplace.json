@@ -513,6 +513,20 @@
         "pitest",
         "skill"
       ]
+    },
+    {
+      "name": "computer-use",
+      "source": "./plugins/computer-use",
+      "category": "claude-code",
+      "tags": [
+        "computer-use",
+        "desktop-automation",
+        "screen-control",
+        "gui",
+        "screenshot",
+        "accessibility",
+        "skill"
+      ]
     }
   ],
   "renames": {
