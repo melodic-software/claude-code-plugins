@@ -72,7 +72,7 @@ Run for any line under consideration for locking.
 - [ ] grey-area stress flagged, not silently resolved
 - [ ] sing-check passed (read aloud / sing against melody if known)
 
-**Rhyme stability (Books 1 Chapter 4, 2 Chapter 4, 4 Chapters 4-6)**
+**Rhyme stability (*Essential Guide to Lyric Form and Structure* (1991), Chapter 4; *Writing Better Lyrics* (2009), Chapter 4; *Essential Guide to Rhyming* (2014), Chapters 4-6)**
 
 - [ ] if line ends in a rhyme position: identity check — pre-vowel consonants DIFFER
 - [ ] stability tier chosen by emotional intent, not convenience (perfect / family / additive / assonance / consonance)
@@ -142,7 +142,7 @@ After the per-line pass, zoom out.
 
 ## Pre-lock-title checklist
 
-**Sound (Books 1 Chapter 4, 4 Chapter 3-4)**
+**Sound (*Essential Guide to Lyric Form and Structure* (1991), Chapter 4; *Essential Guide to Rhyming* (2014), Chapters 3-4)**
 
 - [ ] stressed vowel identified
 - [ ] family rhymes plausible (run `datamuse.sh family <title>` per `ai-tools.md`)

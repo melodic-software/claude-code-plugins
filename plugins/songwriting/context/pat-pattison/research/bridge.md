@@ -45,7 +45,8 @@ A bridge must serve **at least one**, often all three:
 Diagnose a draft bridge: which of these three does it do? If none, it isn't
 bridging — it's restating. Rewrite or remove.
 
-**Do not confuse this list with Chapter 5's.** Book 1 carries two bridge lists
+**Do not confuse this list with Chapter 5's.** *Essential Guide to Lyric Form
+and Structure* (1991) carries two bridge lists
 and they answer different questions. Chapter 6's three purposes above are what
 *adding* a bridge accomplishes for a form. Chapter 5 gives a separate
 **five-point characterization of what a bridge is**: it is a developmental

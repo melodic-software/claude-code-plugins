@@ -8,8 +8,12 @@ Chapter 1-7 and *Pat Pattison's Songwriting: Essential Guide to Rhyming*
 
 Use this file when a user wants a craft drill rather than a coaching
 conversation. Each entry is a self-contained exercise the writer can
-do alone, paraphrased to preserve the craft pedagogy without
-reproducing the book.
+do alone, given in Pat's own instruction wording with his numbering,
+his word lists and rhyme schemes, and the answer keys the book prints.
+
+Earlier revisions summarized the exercises instead — which meant none of
+them were actually Pat's, the item counts were invented, and Exercises 32
+and 33 had been dropped entirely.
 
 ## How to use
 
