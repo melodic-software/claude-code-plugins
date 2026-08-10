@@ -72,7 +72,7 @@ If the heading itself contains characters that confuse grep (parens, em-dashes, 
 
 ## Rename discipline
 
-Headings in an SSOT file are stable contracts. After ANY heading edit in an SSOT, run `/rename-references` immediately — it sweeps all 10 syntactic forms including:
+Headings in an SSOT file are stable contracts. After ANY heading edit in an SSOT, run `/docs-hygiene:rename-references` immediately — it sweeps all 10 syntactic forms including:
 
 | Form | Example | Pure-token grep catches? |
 |------|---------|--------------------------|
@@ -87,7 +87,7 @@ Headings in an SSOT file are stable contracts. After ANY heading edit in an SSOT
 | Heading definition | `## Y` (the SSOT itself) | YES |
 | Anchor URL | `X.md#y` | YES if exact-case |
 
-`/rename-references` runs all 10. Pure-token grep alone misses 6+ forms.
+`/docs-hygiene:rename-references` runs all 10. Pure-token grep alone misses 6+ forms.
 
 ## Worked examples
 
@@ -133,6 +133,6 @@ The chain prose form hides the citation in narrative; pure-token grep can find t
 
 - `decision-framework.md` — 6-test extraction gate + 5-test keep-inline gate + output-type criteria
 - `anti-patterns.md` #1 (citation rot), #4 (loss of locality), #5 (reference resolution failure) — failure modes this contract guards against
-- `/audit-encapsulation` — citation form for skill internals (cite the `/skill-name` invocation, not an internal file path)
-- `/rename-references` — owns the full 10-pattern sweep specification
+- `/docs-hygiene:audit-encapsulation` — citation form for skill internals (cite the `/skill-name` invocation, not an internal file path)
+- `/docs-hygiene:rename-references` — owns the full 10-pattern sweep specification
 - Numbered references — write the full `docs/<family>/<number>-<slug>.md` path, not a bare number shorthand like "ADR-NNNN" (number-only shorthand collides)

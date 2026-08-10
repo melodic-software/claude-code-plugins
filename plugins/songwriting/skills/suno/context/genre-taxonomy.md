@@ -3,7 +3,7 @@
      within genre tables; padding them with empty pipes would obscure the prose. -->
 # Genre taxonomy
 
-Static reference catalog of ~220 genres organized by 12-family tree. Used by the `/suno genre` action when no template matches, and as a vibe-to-genre lookup for the `prompt` and `style` actions. Cross-link: when a family has an existing template under `templates/<name>.md`, prefer it for the prompt skeleton — this file supplies the descriptor vocabulary.
+Static reference catalog of ~220 genres organized by 12-family tree. Used by the `/songwriting:suno genre` action when no template matches, and as a vibe-to-genre lookup for the `prompt` and `style` actions. Cross-link: when a family has an existing template under `templates/<name>.md`, prefer it for the prompt skeleton — this file supplies the descriptor vocabulary.
 
 **Format conventions**
 
@@ -15,8 +15,8 @@ Static reference catalog of ~220 genres organized by 12-family tree. Used by the
 
 **How to use this catalog with the skill**
 
-- `/suno genre <name>` — if a template exists, load it; otherwise return the row from this file as a synthesized starter.
-- `/suno prompt <intent>` — when a vibe is given, scan the Vibe-to-genre map at the bottom, pick 1-2 candidates, then pull the row to fill the 6-layer formula.
+- `/songwriting:suno genre <name>` — if a template exists, load it; otherwise return the row from this file as a synthesized starter.
+- `/songwriting:suno prompt <intent>` — when a vibe is given, scan the Vibe-to-genre map at the bottom, pick 1-2 candidates, then pull the row to fill the 6-layer formula.
 - Combine families to build a fusion (see Fusion patterns at the bottom).
 
 ---

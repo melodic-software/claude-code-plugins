@@ -50,7 +50,7 @@ Append `docs` to any mode to include `.md` files in the sweep. By default, `.md`
 - After a large refactoring — docs may reference old file paths, class names, or API shapes
 - After renaming or reorganizing modules — docs may have stale cross-references
 
-**Examples:** `/batch-simplify branch docs`, `/batch-simplify 72h docs`
+**Examples:** `/code-tidying:batch-simplify branch docs`, `/code-tidying:batch-simplify 72h docs`
 
 **Detection:** if `$ARGUMENTS` contains the word `docs` (case-insensitive), set the docs flag and strip it before parsing the mode. The remaining argument determines time-window vs branch mode.
 

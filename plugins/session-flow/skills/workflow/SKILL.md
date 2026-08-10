@@ -79,7 +79,7 @@ Parse the first argument to determine mode:
 ```text
 0. Contract   (optional — lock goal, constraints, acceptance criteria before building)
 1. Explore  → 2. Research → 3. Plan (+ stress-test) → 4. Implement
-5. Test     → 6. Review   → 7. Verify outcome       → 8. Retrospective (/retro)
+5. Test     → 6. Review   → 7. Verify outcome       → 8. Retrospective (/session-flow:retro)
 PR lifecycle: prep → create → monitor CI → merge (runs after step 7)
 ```
 

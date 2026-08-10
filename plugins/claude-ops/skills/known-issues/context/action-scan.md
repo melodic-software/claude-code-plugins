@@ -1,6 +1,6 @@
 # Action: `scan`
 
-**Usage:** `/known-issues scan` (report-only) · `/known-issues scan --add` (also register)
+**Usage:** `/claude-ops:known-issues scan` (report-only) · `/claude-ops:known-issues scan --add` (also register)
 
 Grep the entire repo for GitHub issue references (pattern: `#NNNNN` with
 `github.com/anthropics` or `github.com/microsoft/mcp` context) and report the ones not in

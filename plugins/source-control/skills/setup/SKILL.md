@@ -45,7 +45,7 @@ does not carry a prior call's variables.
 Read all three layers, then report **one effective-configuration table** — a row per key, its
 resolved value, and which layer supplied it — followed by a per-layer presence line. Never present a
 single layer's value as the effective convention; a reader who cannot see which layer won cannot
-tell why `/commit` behaves as it does.
+tell why `/source-control:commit` behaves as it does.
 
 ```text
 key                        value                       won by
@@ -79,10 +79,10 @@ Per-layer verdicts:
 
 **FAIL** when the *effective* `subject_pattern` is not machine-checkable — it must be either the
 literal keyword `Conventional Commits` or an anchored regex (`^…`-style); a plain-language
-description cannot be evaluated by `/commit` or `/pull-request`. Name the layer that supplied the
+description cannot be evaluated by `/source-control:commit` or `/source-control:pull-request`. Name the layer that supplied the
 offending value.
 
-With **all three layers absent**: INFO — no declared convention; `/commit` and `/pull-request` infer
+With **all three layers absent**: INFO — no declared convention; `/source-control:commit` and `/source-control:pull-request` infer
 from the repo's own `CLAUDE.md`/rules/commit-msg hook, then fall back to the bundled Conventional
 Commits default. The remediation is `apply` to persist a convention.
 

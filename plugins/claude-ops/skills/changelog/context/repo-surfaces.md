@@ -1,6 +1,6 @@
 # Repo surfaces for CC changelog integration
 
-Surface categories to check when a CC changelog item lands. Referenced by `/changelog` (Phase 1 explore). The concrete file set varies per consumer repo — enumerate what exists (`ls`, `Glob`) before grepping; skip categories the repo doesn't have.
+Surface categories to check when a CC changelog item lands. Referenced by `/claude-ops:changelog` (Phase 1 explore). The concrete file set varies per consumer repo — enumerate what exists (`ls`, `Glob`) before grepping; skip categories the repo doesn't have.
 
 ## Surface categories
 

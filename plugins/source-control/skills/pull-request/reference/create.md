@@ -2,7 +2,7 @@
 
 ## 2.1 Pre-flight
 
-1. **Prep completed?** Prep produces no state file — its outputs (verified findings + clean verify-gate results) live in conversation context. If neither has been run this session, suggest `/pull-request prep` first; in `full` mode this phase is preceded by prep automatically. Skip the review prompt for docs-only PRs (Phase 1.1 skips review/simplify).
+1. **Prep completed?** Prep produces no state file — its outputs (verified findings + clean verify-gate results) live in conversation context. If neither has been run this session, suggest `/source-control:pull-request prep` first; in `full` mode this phase is preceded by prep automatically. Skip the review prompt for docs-only PRs (Phase 1.1 skips review/simplify).
 2. **Changes exist?** `git status --porcelain` must show changes or commits ahead of remote.
 3. **Not on the default branch?** If on it, suggest a branch/worktree.
 4. **Branch naming?** If the branch name doesn't fit the project's convention (common default: `<type>/<kebab-description>`; Claude Code's auto-created worktree branches may be named `worktree-*`), rename before push: `git branch -m <old> <type>/<description>`. Derive `<type>` from commit content (feat/fix/chore/etc.) and `<description>` from the commit subject. If no commits exist yet (empty branch), prompt the user for a branch name — auto-derivation has no input without commits. Present the rename for awareness, not approval.
@@ -123,9 +123,9 @@ Before staging, run `git status --porcelain` and classify every modified/untrack
 
 ### 2.3.2 Stage and commit PR changes
 
-Stage specific files (never `git add -A`). Then invoke `/commit` (this plugin's sibling skill) for the commit step — it handles message drafting, the Conventional Commits regex pre-check, the `Co-Authored-By` trailer, and the canonical bash heredoc form. **Wait for user approval on the proposed commit message inside `/commit`.** Do NOT bypass `/commit` by invoking `git commit` directly from this phase — the canonical bash mechanic + trailer + sanity-check are encapsulated there.
+Stage specific files (never `git add -A`). Then invoke `/source-control:commit` (this plugin's sibling skill) for the commit step — it handles message drafting, the Conventional Commits regex pre-check, the `Co-Authored-By` trailer, and the canonical bash heredoc form. **Wait for user approval on the proposed commit message inside `/source-control:commit`.** Do NOT bypass `/source-control:commit` by invoking `git commit` directly from this phase — the canonical bash mechanic + trailer + sanity-check are encapsulated there.
 
-**When NOT to delegate:** if `/commit` is unavailable (e.g. skill discovery broken), inline the same heredoc form (`git commit -F - --cleanup=verbatim <<'EOF' ... EOF`) and proceed — but note the fallback to the user.
+**When NOT to delegate:** if `/source-control:commit` is unavailable (e.g. skill discovery broken), inline the same heredoc form (`git commit -F - --cleanup=verbatim <<'EOF' ... EOF`) and proceed — but note the fallback to the user.
 
 ## 2.4 Push, create PR, and persist PR number
 
@@ -259,7 +259,7 @@ fi
 
 # Resolve the PR-body attribution line from the `pr_body_attribution` key across
 # the three source-control.md layers (../../../reference/config-resolution.md), the
-# same seam `/commit`'s `trailer_policy` uses for the commit trailer. Absent → the
+# same seam `/source-control:commit`'s `trailer_policy` uses for the commit trailer. Absent → the
 # default line (current behavior — existing consumers are unaffected); a value of
 # `none` → omit the line; any other value → that literal line. Resolve the effective
 # value at the model level and bake it in as literal text below; do NOT reference it
@@ -506,7 +506,7 @@ Record the expected set for comparison in Phase 3.
 
 ## 2.6 Report and stop
 
-Report the PR URL, captured `<pr_number>`, and recorded list of expected CI workflows. End Phase 2 there. Monitor (Phase 3), if needed, is invoked explicitly via `/pull-request monitor` or `/pull-request full`.
+Report the PR URL, captured `<pr_number>`, and recorded list of expected CI workflows. End Phase 2 there. Monitor (Phase 3), if needed, is invoked explicitly via `/source-control:pull-request monitor` or `/source-control:pull-request full`.
 
 ## 2.7 `create --pushed` — PR-only entry for an orchestrated flow
 
@@ -551,4 +551,4 @@ BRANCH=$(git -C "$WT" branch --show-current)
 
 - **§2.5 / §2.6:** unchanged — record expected workflows, report the PR URL + number, and stop.
 
-This mode is create-only: it never merges, and (like standalone `create`) it hands monitoring off to `/pull-request monitor` / `/pull-request full` or, in the orchestrated lane, back to the calling orchestrator.
+This mode is create-only: it never merges, and (like standalone `create`) it hands monitoring off to `/source-control:pull-request monitor` / `/source-control:pull-request full` or, in the orchestrated lane, back to the calling orchestrator.

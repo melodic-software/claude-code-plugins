@@ -21,15 +21,24 @@ staged mode is `100644`.
   rename/copy detection off and as `R<score> <old> <new>` or `C<score> <src> <dst>` with it on —
   rename detection is on by default (`diff.renames`) and copy detection turns on with
   `diff.renames=copies`, so keying on `A` alone would make the check fail open on the consumer's
-  diff configuration. A rename or copy destination is a candidate **only when its source was
-  `100755`**: that is what makes it a *dropped* bit rather than a tracked file's own deliberate
-  `100644` riding along through a move. Dropping the bit is what a `core.filemode=false` platform
-  produces on `mv`/`cp` plus `git add`; a sourced library or template with a shebang and no exec
-  bit is not a defect and is never touched. The `100644`-plus-shebang filter then does the rest, so
-  a destination that carried its source's `100755` through is dropped too. This is why the scan
-  reads `git diff --cached --raw` rather than `--name-status`: only the raw record carries the
-  source mode. A pathspec that matches only the source side breaks the pairing back into `D`/`M`,
-  so a scoped run can never reach a destination the caller did not name.
+  diff configuration. **A rename and a copy are not symmetric here**, so the two are judged
+  differently:
+  - A **rename** destination is the same tracked file at a new path, so it is a candidate **only
+    when its source was `100755`**: that is what makes it a *dropped* bit rather than a tracked
+    file's own deliberate `100644` riding along through a move. Dropping the bit is what a
+    `core.filemode=false` platform produces on `mv` plus `git add`; a sourced library or template
+    with a shebang and no exec bit is not a defect and is never touched.
+  - A **copy** destination is a path that did **not** previously exist, so it is newly added no
+    matter what the source's mode was — squarely inside the newly-added-only scope. It is a
+    candidate unconditionally, exactly as an `A` is. Gating it on the source mode is what made the
+    answer depend on `diff.renames` after all: the same staged content reported as `A` with copy
+    detection off and went unreported as `C` with it on.
+
+  The `100644`-plus-shebang filter then does the rest on either arm, so a destination that carried
+  its source's `100755` through is dropped too. The rename arm is why the scan reads
+  `git diff --cached --raw` rather than `--name-status`: only the raw record carries the source
+  mode. A pathspec that matches only the source side breaks the pairing back into `D`/`M`, so a
+  scoped run can never reach a destination the caller did not name.
 - **Symlinks skipped first.** A symlink stages as mode `120000`. Git tracks the link's own mode,
   not its target's, so exec-bit semantics do not apply; `git update-index --chmod=+x` fails outright
   on a `120000` entry, and following the link to `chmod` its target could reach a file outside the
