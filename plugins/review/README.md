@@ -62,7 +62,14 @@ Invoke via `@review:<agent>` or let Claude delegate.
   the official marketplace, and `codex` from the OpenAI Codex marketplace — add adversarial breadth
   when installed; every path works without them. Claude Code's bundled `/code-review` command and
   the managed Code Review GitHub App service are two further surfaces, distinct from the
-  `code-review` marketplace plugin despite the shared name — see the Boundary sections of
+  `code-review` marketplace plugin despite the shared name. **`/review` is one of them, not this
+  plugin**: per [code-review](https://code.claude.com/docs/en/code-review#review-a-diff-locally)
+  (fetched 2026-08-10), "`/review` is an alias of `/code-review`; before v2.1.223, it was a separate
+  command that ran a single-pass, read-only review of a GitHub pull request." A bare `/review` is
+  that bundled reviewer, so name this plugin's skills by their namespaced commands
+  (`/review:quality-gate`, `/review:fanout`) rather than abbreviating to the plugin name — the
+  0.18.0 removal of the bare `/<skill>` alias already made the namespaced form the only one this
+  plugin registers. See the Boundary sections of
   [`skills/quality-gate/context/pr.md`](skills/quality-gate/context/pr.md) and
   [`skills/fanout/SKILL.md`](skills/fanout/SKILL.md) for how each skill relates to all three.
 - **Self-contained.** The severity baseline and all mode guidance ship inside the plugin

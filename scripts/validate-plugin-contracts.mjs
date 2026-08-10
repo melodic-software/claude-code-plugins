@@ -267,6 +267,32 @@ for (const path of pluginFiles) {
   }
 }
 
+// An `archive` catalog entry installs a plugin from a zip fetched over HTTPS
+// (Claude Code v2.1.224+). The platform's floor is transport-level only — HTTPS,
+// no loopback/link-local/cloud-metadata hosts, same rules on every redirect hop —
+// and the `sha256` digest that pins the bytes is documented as optional. Unpinned,
+// the same URL can serve different content on every install with nothing to detect
+// it, which is the mutable-remote-artifact surface the plugin-acceptance security
+// review (docs/MIGRATION-PLAYBOOK.md, criterion 6) denies by default. The pin is
+// required here so review never has to catch it by eye.
+const marketplacePath = join(root, ".claude-plugin", "marketplace.json");
+if (existsSync(marketplacePath)) {
+  const catalog = JSON.parse(read(marketplacePath));
+  for (const entry of [catalog.plugins ?? []].flat()) {
+    if (!entry || typeof entry !== "object") continue;
+    const source = entry.source;
+    // Documented entry shape: "source": { "source": "archive", "url": ..., "sha256"? : ... }.
+    if (typeof source !== "object" || source === null || source.source !== "archive") continue;
+    // The digest is 64 hex characters, uppercase or lowercase.
+    if (!/^[0-9a-fA-F]{64}$/.test(String(source.sha256 ?? ""))) {
+      fail(
+        marketplacePath,
+        `archive entry "${entry.name ?? "(unnamed)"}" must pin its download with a 64-hex sha256`,
+      );
+    }
+  }
+}
+
 if (failures.length > 0) {
   console.error("Plugin contract validation failed:");
   for (const failure of failures) console.error(`- ${failure}`);

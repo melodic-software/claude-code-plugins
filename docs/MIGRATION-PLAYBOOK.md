@@ -710,6 +710,28 @@ plugins-reference, and hooks pages 2026-07-17; re-verify per the `CLAUDE.md` fre
    third-party SaaS is a trust delegation — record accept/deny with rationale. Note the platform already blocks
    plugin-shipped **agents** from declaring `hooks` / `mcpServers` / `permissionMode` "for security reasons" —
    don't design around that.
+   - **An `archive` marketplace entry MUST carry its `sha256` pin.** A catalog entry may set
+     `"source": "archive"` with a `url` and an **optional** `sha256`, installing the plugin from a zip
+     downloaded over HTTPS with no git or npm on the consumer's machine
+     ([plugin-marketplaces](https://code.claude.com/docs/en/plugin-marketplaces#zip-archives), fetched
+     2026-08-10; requires Claude Code v2.1.224 or later, and on v2.1.120–v2.1.223 the install fails while
+     on older versions "a marketplace containing an `archive` entry fails to load entirely"). The
+     platform's own floor is **transport-level only**: `url` is "Required. HTTPS URL of the zip archive.
+     Claude Code rejects `http://` URLs, along with loopback, link-local, and cloud-metadata hosts. Every
+     redirect hop must satisfy the same rules". Content identity is not in that floor — the `sha256` field
+     is documented as "Optional", so an unpinned entry lets the same URL serve different bytes on every
+     install with nothing to detect it. That is a mutable-remote-artifact surface, which criterion 6
+     denies by default, so **this review requires the pin**: an `archive` entry without `sha256` is a
+     deny, whether this repository publishes it or accepts a plugin that depends on it. With the pin,
+     "Claude Code verifies every download against it and refuses the install on a mismatch". Two
+     follow-ons to record when accepting one: the digest doubles as the plugin's version when neither
+     `plugin.json` nor the entry declares one, so a repinned archive still needs its `version` bumped or
+     "users keep the cached copy"; and organization distribution through claude.ai admin settings does
+     not accept this source at all — "Plugin sources of type `github`, `url`, and `git-subdir` are
+     supported. `npm` and `archive` sources are not." Enforced by `scripts/validate-plugin-contracts.mjs`
+     over `.claude-plugin/marketplace.json`. This marketplace publishes every plugin as a relative path
+     (`"source": "./plugins/<name>"`), so no entry uses `archive` today; the rule governs the first that
+     does.
 7. **Main-thread and PATH surfaces.** A plugin `settings.json` `agent` entry takes over the
    consumer's main thread — prohibited by default per the component stance table in
    [PLUGIN-PHILOSOPHY.md](PLUGIN-PHILOSOPHY.md); an exception requires the documented justification

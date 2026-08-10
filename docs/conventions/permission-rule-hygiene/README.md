@@ -25,6 +25,47 @@ When a grant is dropped the failure is silent: it parses, looks correct, and doe
 the session enters auto mode, so the action falls through to the classifier and can be denied even when
 the operator intended to pre-approve it. A convention plus an enforceable check is the durable fix.
 
+## Auto mode is the default from 2026-08-14, not a state you opt into
+
+Read every "under auto mode" clause below as the **default** condition on the plans this repository's
+operators use, not as a conditional one. Per
+[permission-modes](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode)
+(fetched 2026-08-10):
+
+> Starting August 14, 2026, auto mode becomes the default permission mode for new sessions on Pro,
+> Max, and Team plans. You can switch modes at any time. A default you set yourself stays in place
+> unless you accept the one-time switch prompt, and a default your organization manages is unchanged.
+
+Two consequences for this convention, and one non-consequence:
+
+- **A dropped rule is the expected outcome now, not the edge case.** Before the switch, an
+  interpreter-wildcard grant worked until someone entered auto mode, so the anti-patterns below were
+  latent — correct-looking rules that failed on a mode change nobody made on most days. After it, a
+  session that **takes** the new default starts with the broad grant already suspended, so the
+  silent-failure mode described above is that session's *first* run, not a later one. Which sessions
+  take it is exactly what the quote above delimits: one whose operator set no personal default, or
+  who accepted the one-time switch prompt. A self-set `defaultMode` that the operator kept, and an
+  organization-managed default, both stay as they were — those sessions keep the pre-switch behavior
+  and the anti-patterns stay latent in them. So the population that starts in auto mode grows from
+  "whoever opted in" to "the default path plus whoever opted in", which is enough to make writing for
+  the auto-mode case the only safe authoring posture; it is not a claim that every session on those
+  plans is in auto mode.
+- **"Run it outside auto mode" is a downgrade, not a remedy.** The escape stays true — the mode is
+  switchable at any time — but it now asks an operator to leave the default rather than to decline an
+  opt-in. It is the fallback for the one case with no better answer (an `Agent` allow rule, which has
+  no bare-command-on-PATH analog to re-scope to), never the first-resort fix. Re-scoping to the
+  [correct pattern](#the-correct-pattern) is.
+- **Nothing about *which* rules get dropped changes**, and neither does the self-grant block: the same
+  page still records that Claude Code "ignore[s] `auto` from those files so a repository cannot grant
+  itself auto mode". A repository still cannot hand itself the mode; it now more often arrives anyway.
+
+The switch is **plan-scoped**. The same page states separately that on Amazon Bedrock, Google Cloud's
+Agent Platform, Microsoft Foundry, and signed-in Claude apps gateway sessions, auto mode appears in
+the `Shift+Tab` cycle by default but "sessions still start in your `defaultMode`, which is Manual
+unless you change it" — so a provider-routed session is not covered by the August 14 default and the
+anti-patterns below stay latent there. Write rules for the auto-mode case regardless: a rule that is
+correct under auto mode is correct under Manual too, and the reverse does not hold.
+
 ## Anti-pattern 1 — interpreter-wildcard / blanket allow rules (dropped in auto mode)
 
 On entering [auto mode](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode),
