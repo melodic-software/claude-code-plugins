@@ -73,6 +73,11 @@ stale.
    (this surface inverts the cascade default), and is reported `personal-only, not applied`; and
    matching is by derived `finding_id`, never by bare file:line. Under `--no-suppress` nothing is
    dropped and every entry that would have applied is marked as such.
+
+   Entries are dispositioned **only when their surface is inside this run's scope**. An entry outside
+   it is *not-examined* — left untouched and counted, never resolved. This run examines a slice by
+   design, so treating an out-of-scope entry as a disappearance would fail the skill's own self-check
+   on nearly every run.
 4. **Select the covering tests once, and cache the selection.** Test selection is fixed overhead per
    *target*, not per *mutant*; re-deriving it for each mutant is the difference between a run that
    finishes and one that does not.
@@ -139,7 +144,7 @@ was run, what was identical, and under which inputs. A verdict that cannot cite 
 ## Phase 5 — Report
 
 Per file, ranked by **oracle gap**, not by score. The gap is defined once, in the `principles`
-skill's [`metrics.md`](../principles/reference/metrics.md), and this skill does not restate it:
+skill's [`${CLAUDE_PLUGIN_ROOT}/skills/principles/reference/metrics.md`](../principles/reference/metrics.md), and this skill does not restate it:
 
 ```text
 oracle gap = mutation score − code coverage
@@ -169,6 +174,8 @@ Baseline: <green, N ms>   Mutants: <n> generated, <n> suppressed<, n dropped by 
 <each `personal-only, not applied` entry, naming promotion to the team layer as the remedy;
 each malformed entry, naming which required key is missing or that its constituents do not
 hash to its key; each stale entry whose finding is gone or whose operator was retired>
+
+Not examined this run: <n> entries whose surfaces fell outside the scope above.
 
 ### Proposed suppressions
 <complete entries for arid survivors — all five keys with the id derived from them — for the

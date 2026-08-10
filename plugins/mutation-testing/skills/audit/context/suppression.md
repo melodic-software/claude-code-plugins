@@ -17,7 +17,7 @@ suppress** — it is reported as malformed, never silently partially parsed.
 | Key | For a mutation finding |
 |---|---|
 | `check` | The operator that produced the mutant, qualified by this plugin: `mutation-testing/operator/SBR`, `.../ROR`, `.../AOR`, `.../LCR`, `.../UOI`. Never the tool's own internal mutator name — those differ per ecosystem and the record must survive a tool swap. |
-| `claim` | The canonical claim id plus bound parameters, **never free prose**: `arid(kind=<node-kind>)` — e.g. `arid(kind=log-call)`, `arid(kind=trivial-accessor)`, `arid(kind=debug-string)`. The node-kind vocabulary is closed; a survivor that fits none of it is not arid and must not be suppressed. |
+| `claim` | The canonical claim id plus bound parameters, **never free prose**: `arid(kind=<node-kind>)`. The `<node-kind>` vocabulary is enumerated in full in the `principles` skill's [`scaling-and-suppression.md`](../../principles/reference/scaling-and-suppression.md) ("The node-kind vocabulary") — that table is the whole list, and a survivor fitting none of it **is not arid** and must not be suppressed. Validation is membership in that table, not "looks like an identifier". |
 | `sites` | One `{surface, anchor/v1}` for an ordinary mutation finding. `surface` is the repo-relative source path. Anchor derivation below. |
 | `reason` | Why killing this mutant would not improve the suite. Non-empty, and a sentence a reviewer a year from now can judge — not "arid" restated. |
 | `date` | ISO-8601, when it was accepted. |
@@ -89,7 +89,24 @@ effect, and this record's do not.
    contributing layer, **and every entry that did not suppress** — each `personal-only, not applied`
    entry and each malformed one, with what makes it malformed. Suppression is visible, never silent,
    and so is a suppression the operator wrote that the contract declined to enact.
-3. **Resolve every entry to one of four dispositions**, reporting all but the first:
+3. **Resolve every IN-SCOPE entry to one of four dispositions**, reporting all but the first.
+
+   **Scope first, and this qualification is load-bearing.** The convention's obligation is written
+   for a consumer that examines its whole corpus each run. This skill is diff-scoped by design, and
+   narrows further by dropping uncovered lines — so on any ordinary run most entries sit outside what
+   was examined. An entry is **in scope** when its `sites[].surface` was examined by this run; every
+   other entry is **not-examined**, left untouched, and reported under a separate count. It is never
+   run through the dispositions below.
+
+   Without that qualification the contract inverts: an out-of-scope entry is "absent from this run"
+   for a reason none of CLOSED's accounted outcomes covers — not fixed, not retired, not missing —
+   so it would land on UNEXPLAINED DISAPPEARANCE and fail this skill's own self-check on essentially
+   every run. A self-check that fails routinely is a self-check nobody reads. `--full` does not close
+   the gap either, because the coverage-based drop still removes lines from its mutant set for
+   reasons unrelated to fix or retirement.
+
+   The staleness the convention protects is therefore reached incrementally: an entry is judged when
+   its own surface is next touched, which is also when someone is looking at that code.
    - **SAME, UNCHANGED** — every site's anchor matches and `(check, claim)` match. Applies silently.
    - **SAME, CHANGED** — pairwise findings only. Mutation findings are single-site, so this
      disposition is unreachable here; a single-site anchor change is the row below.
@@ -97,12 +114,13 @@ effect, and this record's do not.
      old entry goes **stale**, never silently dropped; the new survivor is reported unsuppressed.
      This is the common case after a refactor, and reporting it is the point: the edit may have *been*
      the fix.
-   - **CLOSED** — the finding is absent from this run. Account for it as exactly one of: matched to an
-     applied fix; **retired with its check**, when its operator is absent from this run's configured
-     set (name the operator and the transition); or reported as an **UNEXPLAINED DISAPPEARANCE**,
-     which fails this skill's own self-check. An entry keyed to a retired operator goes stale rather
-     than being deleted, so an operator returning under its old name cannot silently re-apply a
-     decision nobody has seen since.
+   - **CLOSED** — the finding is absent although its surface **was** examined. Account for it as
+     exactly one of: matched to an applied fix; **retired with its check**, when its operator is
+     absent from this run's configured set (name the operator and the transition); or reported as an
+     **UNEXPLAINED DISAPPEARANCE**, which fails this skill's own self-check. An entry keyed to a
+     retired operator goes stale rather than being deleted, so an operator returning under its old
+     name cannot silently re-apply a decision nobody has seen since. An entry whose surface was
+     **not** examined never reaches this row — it is not-examined, per the scope rule above.
 4. **Refuse a suppression written into a path the audit excludes** — a vendored tree, a synced copy,
    a worktree — and name the canonical source instead.
 5. **Never edit a user-scope file.** A `~/.claude/**` finding is routed as a recommendation; that

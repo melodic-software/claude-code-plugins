@@ -52,6 +52,34 @@ exactly:
 So a block containing one meaningful statement is not arid, however much logging surrounds it. This
 is what stops suppression from swallowing real code.
 
+#### The node-kind vocabulary
+
+"Arid" is not a judgement call spelled freely. A suppression's `claim` binds one of these kinds, and
+this list is the whole vocabulary — a survivor fitting none of them **is not arid** and must not be
+suppressed. Naming the kind is what makes a suppression reviewable: a reader can disagree with
+`kind=log-call` in a way they cannot disagree with "seemed unimportant."
+
+| `kind` | The node it names |
+|---|---|
+| `log-call` | A logging or telemetry emission. Killing the mutant would assert on log output no consumer depends on. |
+| `metric-emission` | A counter, timer, or gauge update, for the same reason. |
+| `trivial-accessor` | A getter or setter whose body is a bare field read or write, with no logic. |
+| `passthrough-delegate` | A body that forwards to another callable and transforms nothing — no argument reshaping, no result handling. |
+| `debug-repr` | A `toString`/`__repr__`/`Display`-class rendering used for diagnostics only, not parsed by anything. |
+| `defensive-guard` | An assertion or precondition that restates a guarantee the type system or an enclosing invariant already enforces. |
+| `generated-region` | Machine-generated code the project does not hand-edit. Prefer excluding the path outright; use this only where generated and authored code share a file. |
+
+The list is **closed at any point in time and extended only deliberately** — by a change to this
+file, argued like any other. That is the property `setup check` validates against, and it is why
+"free prose" is a failure rather than a stylistic note: an open vocabulary would make every
+suppression self-justifying, which is exactly the failure mode a written `reason` exists to prevent.
+
+Two exclusions worth stating, because both are tempting:
+
+- **"Hard to test" is not a kind.** That is a productive mutant with an inconvenient fix.
+- **"Equivalent" is not a kind.** An equivalent mutant is not suppressed at all — see the disposition
+  table below.
+
 ### 4. Surface it as a review prompt, not a report
 
 The mutant appears where the code is being read — as a review comment on the changed line — with a

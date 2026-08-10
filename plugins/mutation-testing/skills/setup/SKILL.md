@@ -36,7 +36,7 @@ entry for an id the team layer does not carry does not suppress at all** — it 
 `personal-only, not applied`. A personal layer is a draft surface here. Treating it as "layered the
 same way" would let one developer silently hide a finding the team never accepted. The full
 contract, including id derivation and the four dispositions, is owned by the audit skill's
-[`context/suppression.md`](../audit/context/suppression.md).
+[`${CLAUDE_PLUGIN_ROOT}/skills/audit/context/suppression.md`](../audit/context/suppression.md).
 
 ## `check` (read-only)
 
@@ -69,7 +69,7 @@ run a mutation analysis — that is `/mutation-testing:audit`.
 8. **Suppression record** — report presence and entry count of `.claude/mutation-testing-arid.md`
    across layers. Absent is a valid state (no suppressions) → INFO. Present → validate **every**
    entry against the full contract in
-   [`context/suppression.md`](../audit/context/suppression.md), not a subset of it:
+   [`${CLAUDE_PLUGIN_ROOT}/skills/audit/context/suppression.md`](../audit/context/suppression.md), not a subset of it:
    - **All five required keys present** — `check`, `claim`, `sites` (each with `surface` and an
      `anchor/v<N>`), `reason`, `date`. Missing any one → FAIL, naming the entry and the key. A
      partial parse is not offered: an entry with `sites`, `reason`, and `date` but no `check` or
@@ -78,8 +78,13 @@ run a mutation analysis — that is `/mutation-testing:audit`.
    - **Constituents hash to the key** — re-derive `finding_id` from `(check, claim, sites)` and
      compare. A mismatch → FAIL. This is the case a hand-edited constituent beside a stale key
      produces, and it silently stops suppressing if unchecked.
-   - **`claim` is a bound canonical id, not prose** — `arid(kind=<node-kind>)` from the closed
-     vocabulary. Free prose → FAIL.
+   - **`claim` is a bound canonical id, not prose** — `arid(kind=<node-kind>)` where `<node-kind>` is
+     a **member of the enumerated table** in
+     `${CLAUDE_PLUGIN_ROOT}/skills/principles/reference/scaling-and-suppression.md`
+     ("The node-kind vocabulary"). Validate by membership in
+     that table, not by shape: a single-word kind that is not in it is indistinguishable from prose
+     that happens to be one word, and passing it would make every suppression self-justifying. Free
+     prose, or a kind outside the table → FAIL, listing the accepted kinds.
    - **Personal-only entries** — any id present in a `.local.md` layer but absent from the team layer
      is reported `personal-only, not applied`, with promotion to the team layer named as the remedy.
      This is INFO, not FAIL: the entry is legal, it simply does not suppress.
