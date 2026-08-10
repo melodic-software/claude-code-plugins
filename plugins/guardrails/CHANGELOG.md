@@ -46,6 +46,12 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   what remains is any SHELL relocation the static parser does not evaluate (`cd … && git push`, a
   subshell, `pushd`), and the comment now says so plainly. A documented gap that reads narrower
   than it is, is how this one survived review.
+- A second residual is now documented rather than left implicit: git EXPORTS an explicit
+  `--git-dir` / `--work-tree` into a `!` shell-alias body, so the body inherits a repository the
+  composed directory does not name and its lease is judged against the base. Reproduced against
+  BOTH `origin/main` and this change — pre-existing, of the same family, and closing it means
+  replaying inherited globals rather than a directory, which is a larger mechanism than the base
+  chain adopted here.
 
 ## [0.23.1]
 

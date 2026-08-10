@@ -667,12 +667,31 @@ fi
 # --- PowerShell tool coverage ------------------------------------------------
 # The guard is matched on Bash|PowerShell. PowerShell-simple dangerous ops are
 # caught; push-shaped PowerShell the guard cannot parse fails closed.
+# Same payload-cwd discipline as run_in: a PowerShell payload carries `cwd` too,
+# and the lease case below is width-judged, so leaving it out would measure
+# CLAUDE_PROJECT_DIR — whatever repository the ambient session happens to be in.
+pwsh_command_json_cwd() {
+  MSYS_NO_PATHCONV=1 jq -n --arg c "$1" --arg d "$2" \
+    '{tool_name:"PowerShell",tool_input:{command:$c},cwd:$d}'
+}
 run_pwsh() {
+  local label="$1" command="$2" expected="$3" rc
+  (cd "$REPO_SHA1" && bash "$HOOK" <<<"$(pwsh_command_json_cwd "$command" "$REPO_SHA1")" >/dev/null 2>&1)
+  rc=$?
+  assert_exit "$label" "$expected" "$rc"
+}
+# The tool name moved to the third jq field when `.cwd` was added. A payload
+# MISSING cwd must still read it from the right slot, or a PowerShell command
+# would silently be classified as Bash and the PowerShell-specific fail-closed
+# sinks would never fire.
+run_pwsh_nocwd() {
   local label="$1" command="$2" expected="$3" rc
   (cd "$REPO_SHA1" && bash "$HOOK" <<<"$(pwsh_command_json "$command")" >/dev/null 2>&1)
   rc=$?
   assert_exit "$label" "$expected" "$rc"
 }
+run_pwsh_nocwd "PS: git --% reset --hard with NO cwd in the payload (tool name still reads as PowerShell, fail-closed block)" \
+  "git --% reset --hard" 2
 run_pwsh "PS: git push --force (blocked)" "git push --force" 2
 run_pwsh "PS: git reset --hard (blocked)" "git reset --hard" 2
 run_pwsh "PS: git push --force-with-lease (no expected value, blocked)" "git push --force-with-lease" 2

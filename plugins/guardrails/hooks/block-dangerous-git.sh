@@ -373,6 +373,17 @@ collect_git_locating_opts() {
 # identity: the only question asked downstream is which repository's hash format
 # applies, and every directory inside one repository answers that identically, so
 # the composed spelling is sufficient and costs no subprocess.
+#
+# Known gap, pre-existing and NOT closed here: only `-C` is composed. git also
+# EXPORTS an explicit `--git-dir` / `--work-tree` into a `!` body's environment
+# (verified on git 2.54.0: `git --git-dir=<sha256>/.git -c alias.y='!git
+# rev-parse --show-object-format' y` prints sha256 from a SHA-1 directory, and
+# the body sees GIT_DIR set), so a body inherits a repository this directory does
+# not name and its lease is judged against the base instead. Reproduced against
+# BOTH origin/main and this change — it is a residual of the same family as
+# #2124, not something introduced by reading the payload cwd, and closing it
+# means replaying the inherited globals rather than a directory, which is a
+# larger mechanism than the base chain adopted here.
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 effective_dir() {
   local base="${HOOK_EFFECTIVE_BASE:-${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}}" i n=$# arg
