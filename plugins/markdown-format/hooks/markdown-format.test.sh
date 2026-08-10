@@ -584,6 +584,14 @@ for _case in nested root; do
   case "$_case" in
   nested) _link="$REPO/docs/escapeNoGitNested.md" ;;
   root) _link="$REPO/escapeNoGitRoot.md" ;;
+  # Unreachable from the loop above, and present because CI runs ShellCheck with
+  # no severity floor, so SC2249 (info) fails the lane. Exiting rather than
+  # falling through: a silently unhandled case here would report a PASS for a
+  # symlink case that never ran.
+  *)
+    echo "unhandled escape case: $_case" >&2
+    exit 1
+    ;;
   esac
   _ext="$NOGIT_OUTSIDE/external-$_case.md"
   printf '# External\n\n* star item\n' >"$_ext"
