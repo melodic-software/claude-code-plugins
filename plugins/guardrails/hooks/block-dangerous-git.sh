@@ -501,13 +501,24 @@ is_exclude_pathspec() {
 # stalls stops guarding. Every recursion is admitted through this one gate, which
 # applies two bounds:
 #
-# MEMO — a verdict is a pure function of (analysis state, argv); every other input
-# is invocation-constant (the payload's command, the repository's config and object
-# format). A block is a process-wide `exit 2`, so a state reached a SECOND time
+# MEMO — a verdict is a pure function of (analysis state, EFFECTIVE BASE, argv);
+# every other input is invocation-constant (the payload's command, the repository's
+# config). A block is a process-wide `exit 2`, so a state reached a SECOND time
 # while this process still runs provably did not block the first time and cannot
 # decide differently now. Skipping the repeat is exact rather than a coverage
 # trade, and it is what collapses the common blowup — both spellings of a hop
 # expanding to the same thing — to one path per hop.
+#
+# The base is in that tuple and not merely alongside it. The object format was
+# once invocation-constant, which is why an earlier wording listed it as such —
+# it is not, now that the width is measured from the payload cwd and a `!` shell
+# alias relocates the base mid-parse. One reparse STRING reached under two bases
+# is TWO analyses: `git -C <sha1> -c alias.y='!git push
+# --force-with-lease=main:<40-hex> …' y; git -C <sha256> -c alias.y='<same>' y`
+# allows the first (a real object id there), and a key blind to the base would
+# then skip the second and let a movable ref name through. Keying on the base is
+# what keeps the skip exact, and it is the same reason block-noncanonical-commit
+# keys on it.
 #
 # BUDGET — memoization alone cannot bound a chain whose two spellings DIFFER: the
 # splice carries each path's own trailing text forward, so every argv is distinct
@@ -536,7 +547,13 @@ HOOK_ALIAS_WORK_MAX=128
 alias_reexpand_admit() {
   local kind="$1" key q w
   shift
-  key="$kind"$'\n'"${#HOOK_ALIAS_SEEN[@]}"$'\n'
+  # The effective base belongs in the key: one reparse STRING reached in two
+  # different repositories is two different analyses, and collapsing them would
+  # skip the second — which is a bypass whenever the two repositories disagree on
+  # hash width. Keyed here rather than at the call sites so EVERY recursion is
+  # covered, including the git-alias splice, whose argv is equally base-dependent.
+  printf -v q '%q' "${HOOK_EFFECTIVE_BASE-}"
+  key="$kind"$'\n'"$q"$'\n'"${#HOOK_ALIAS_SEEN[@]}"$'\n'
   for w in ${HOOK_ALIAS_SEEN[@]+"${HOOK_ALIAS_SEEN[@]}"}; do
     printf -v q '%q' "$w"
     key+="$q"$'\n'

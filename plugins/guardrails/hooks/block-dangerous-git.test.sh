@@ -163,6 +163,19 @@ run_split "$REPO_SHA1" "$REPO_SHA256" "payload cwd is the SHA-1 repo, 64-hex exp
 # the same misprobe one recursion level down.
 run_split "$REPO_SHA1" "$REPO_SHA1" "git -C <sha256-repo> -c alias.y='!git push --force-with-lease=main:<40-hex>' y (the body runs in the SHA-256 repo, blocked)" "git -C $REPO_SHA256 -c alias.y='!git push --force-with-lease=main:$SHA1_OID origin main' y" 2
 run_split "$REPO_SHA256" "$REPO_SHA256" "git -C <sha1-repo> -c alias.y='!git push --force-with-lease=main:<40-hex>' y (the body runs in the SHA-1 repo, allowed)" "git -C $REPO_SHA1 -c alias.y='!git push --force-with-lease=main:$SHA1_OID origin main' y" 0
+# The re-expansion MEMO must key on the effective base. A verdict is now a function
+# of the base, so one alias STRING reached under two bases is two analyses — and a
+# key blind to the base skips the second. Ordered sha1-then-sha256 deliberately:
+# the sha1 hop is legitimately allowed (a 40-hex word IS an object id there) and
+# memoizes, and a base-blind key then lets the identical text through where the
+# same word is a movable ref name. The two single-segment cases below are the
+# controls proving each half is decided correctly on its own, so the two-segment
+# verdict can only come from the cache.
+memo_alias="-c alias.y='!git push --force-with-lease=main:$SHA1_OID origin main' y"
+run_split "$TEST_TMPDIR" "$TEST_TMPDIR" "control: the alias under a SHA-1 -C alone (40-hex is an object id there, allowed)" "git -C $REPO_SHA1 $memo_alias" 0
+run_split "$TEST_TMPDIR" "$TEST_TMPDIR" "control: the same alias under a SHA-256 -C alone (40-hex is a ref name there, blocked)" "git -C $REPO_SHA256 $memo_alias" 2
+run_split "$TEST_TMPDIR" "$TEST_TMPDIR" "the same alias text under a SHA-1 then a SHA-256 -C: the memo must not reuse the first base's verdict (blocked)" "git -C $REPO_SHA1 $memo_alias; git -C $REPO_SHA256 $memo_alias" 2
+
 # The relocation must not LEAK past the reparse: a second segment after the alias
 # one starts from the payload cwd again.
 run_split "$REPO_SHA256" "$REPO_SHA256" "a segment after a relocating '!' alias is measured from the payload cwd again (40-hex is a name there, blocked)" "git -C $REPO_SHA1 -c alias.y='!git status' y; git push --force-with-lease=main:$SHA1_OID origin main" 2

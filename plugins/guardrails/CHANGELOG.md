@@ -22,6 +22,19 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   `block-noncanonical-commit` rather than invented a second time; a `!` shell alias relocates the
   base for its reparse and it is save/restored around each one, since git launches that body in the
   relocated repository.
+- **The alias re-expansion memo keys on the effective base, so a cached verdict cannot be reused
+  across repositories (#2124).** Caught in review of this change, and a defect this change itself
+  introduced: making the lease verdict a function of the base means the base has to be part of any
+  key that memoizes that verdict, and `HOOK_ALIAS_MEMO` keyed only on kind, seen-set and command
+  text. One Bash command invoking the SAME `!` alias text twice — first under a SHA-1 `git -C`,
+  where a 40-hex expectation is a real object id and is correctly allowed, then under a SHA-256
+  `git -C`, where the identical word is a movable ref name — had its second analysis skipped as
+  already seen, and the guard exited 0. Verified against this branch's own pre-fix head rather than
+  `origin/main`, which has no base-dependent verdict to mis-cache: the buggy tree runs the width
+  probe ONCE (`40`) and allows; the fixed tree runs it twice (`40`, then `64`) and blocks. The
+  other cache, `repo_oid_width`, was checked for the same class and is already base-keyed — its key
+  is the replayed option list, which now leads with the base — confirmed empirically, not by
+  inspection. `block-noncanonical-commit` keys its memo on the base for exactly this reason.
 - **`env -S` / `--split-string` no longer hides a whole command from the git guards (#2124).** `-S`
   exists so a shebang line can pass OPTIONS to env (`#!/usr/bin/env -S -i prog`), so the words it
   splits out are env's own arguments. `hook::git_resolve_index` spliced them back into the scan but
