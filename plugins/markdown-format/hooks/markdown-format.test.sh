@@ -527,6 +527,28 @@ else
   fail "git absent + unset: nested .md skipped, nothing anchored the root (rc=$RC_NOGIT_NEST_U out=$OUT_NOGIT_NEST_U)"
 fi
 
+# The last resort, and the only case where CLAUDE_PROJECT_DIR decides the root:
+# a project that is no working tree at all — an unpacked archive, a vendored
+# copy — where the filesystem walk finds no `.git` to stop at. Every other
+# fixture here lives in a real git tree, so nothing else can reach this branch.
+# The fixture is deliberately NOT under $REPO for that reason.
+NOVCS="$WORK/no-vcs-project"
+mkdir -p "$NOVCS/docs"
+cat >"$NOVCS/.markdownlint.json" <<'JSON'
+{ "MD004": { "style": "dash" } }
+JSON
+NOVCS_FIXTURE="$NOVCS/docs/archived.md"
+printf '# Archived\n\n* star item\n' >"$NOVCS_FIXTURE"
+OUT_NOVCS="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$NOVCS_FIXTURE" |
+  env BASH_ENV="$NO_GIT_ENV" CLAUDE_PROJECT_DIR="$NOVCS" \
+    CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+RC_NOVCS=$?
+if [[ $RC_NOVCS -eq 0 ]] && grep -q '^- star item$' "$NOVCS_FIXTURE"; then
+  ok "no working tree anywhere: CLAUDE_PROJECT_DIR is the root of last resort"
+else
+  fail "no working tree: nested .md skipped despite CLAUDE_PROJECT_DIR (rc=$RC_NOVCS out=$OUT_NOVCS)"
+fi
+
 # The scope must still fire when git CAN answer — that half is the out-of-tree
 # case above, which runs with git present and asserts the skip.
 #
