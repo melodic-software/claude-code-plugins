@@ -61,6 +61,23 @@ agents, hooks, MCP, and LSP servers in-process. It does **not** cover monitors �
 `code.claude.com/docs/en/plugins-reference`, "monitors require a session restart". Recommend bare `/reload-plugins` by default; call out the restart requirement
 only when an updated plugin ships a monitor.
 
+**An install can now activate itself — but not the installs this skill issues.** As of Claude Code
+2.1.221, an install started from the in-session `/plugin` interface reports its own activation state:
+per `code.claude.com/docs/en/discover-plugins` (fetched 2026-08-10), the summary says either
+`Plugin is now active.` — "Claude Code activated the plugin as part of the install" — or
+`Run /reload-plugins to activate.`, which happens "because activating it would invalidate the prompt
+cache or because the activation attempt failed". Before 2.1.221, "no install took effect in the
+current session until you ran `/reload-plugins` or restarted".
+
+This does **not** relax the reload guidance below, because `sync` installs through the shell command,
+not the interface: "The `claude plugin install` shell command doesn't run in a session, so Claude Code
+loads the plugins it installs the next time you start Claude Code, or when you run `/reload-plugins`
+in a session that's already open." So a `sync` report still ends with reload guidance for everything
+it installed. The activation line matters only for reading a user's own `/plugin` install summary —
+when they say a plugin is already active, believe the summary rather than telling them to reload
+again; and when the summary named the prompt-cache case, that is the same condition `--force` exists
+for below.
+
 `--force` is real (Claude Code ≥ 2.1.163), but scoped to one specific case: a plugin that provides an
 MCP server whose tools aren't deferred by tool search invalidates the prompt cache on reload, and
 `/reload-plugins` warns and does **not** apply the reload rather than eating that cost silently;

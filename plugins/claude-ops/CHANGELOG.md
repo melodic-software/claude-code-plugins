@@ -3,6 +3,23 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.4]
+
+### Changed
+
+- **`skills/plugins`: an in-session `/plugin` install can now activate itself, and the reload
+  guidance says why that does not apply here (#2176).** Claude Code 2.1.221 made the install summary
+  report `Plugin is now active.` or `Run /reload-plugins to activate.`, where the second happens
+  "because activating it would invalidate the prompt cache or because the activation attempt failed"
+  (`code.claude.com/docs/en/discover-plugins`, fetched 2026-08-10); before that release "no install
+  took effect in the current session until you ran `/reload-plugins` or restarted". Read naively, that
+  reads like this skill's closing reload guidance is now over-cautious. It is not, and
+  `context/scope-semantics.md` now records the reason rather than leaving a future reader to relax it:
+  `sync` installs with the `claude plugin install` shell command, which "doesn't run in a session, so
+  Claude Code loads the plugins it installs the next time you start Claude Code, or when you run
+  `/reload-plugins` in a session that's already open". The activation line matters only when reading a
+  user's own `/plugin` summary — and its prompt-cache branch is the same condition `--force` exists for.
+
 ## [0.28.3]
 
 ### Fixed

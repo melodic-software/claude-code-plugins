@@ -30,6 +30,21 @@ out of pre-compute in #1619 — the harness composes the block into one shell in
 worktree-isolated agent refuses a git-bearing compound command, which made the worktree skill itself
 uninvocable from inside a worktree; do not fold them back.
 
+That refusal is documented behavior, not a quirk of one release, so the constraint is durable. Per
+[worktrees](https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation) (fetched
+2026-08-10), an isolated session's tool calls are screened by three checks — file edits into the main
+checkout, a command whose **working directory** resolves there, and a **git redirect** into it
+"whether through `git -C`, `--git-dir`, a `GIT_DIR` or `GIT_WORK_TREE` variable, or a `cd` into the
+main checkout before running git". The two that bite a compound command are the last two, and both
+fail closed: "Claude Code also blocks a command it can't verify stays inside the worktree." A block is
+therefore not evidence the command *would* have reached the main checkout — an unverifiable one is
+refused on the same footing, which is exactly what a multi-command shell invocation looks like. The
+same page adds two facts worth holding: the enforcement "covers every subagent Claude spawns from the
+isolated session, and it applies whether the session is interactive or runs in the background", so a
+delegated worker inherits it rather than escaping it; and "For PowerShell commands, Claude Code
+applies only the working-directory check", so PowerShell is narrower coverage, never a sanctioned
+route around the git-redirect check.
+
 ## Purpose
 
 Orchestrate git worktree lifecycle from creation through cleanup. **Front-half** of the development workflow — gets you into a worktree and keeps them healthy. `/source-control:pull-request` is the **back-half** — handles prep, PR creation, monitoring, merge.
