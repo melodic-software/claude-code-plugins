@@ -131,8 +131,29 @@ Stated so they are not re-raised as open:
 
 D1 cannot be locked without it. See RESEARCH §"Shape E in detail" and Open Question 6.
 
-**Where:** any repo with this marketplace installed **and** a diff that has a runtime surface. This
-worktree does not qualify — it is docs-only, and `/verify` would correctly report SKIP.
+**Where — `medley`.** Surveyed 2026-08-10 across `D:/repos/github.com/{melodic-software,kyle-sexton}`
+and `D:/worktrees`. `medley` is the only strong candidate: a real .NET + Aspire application
+(`apps/aspire-host`, `apps/monolith-api`, `apps/identity-server`) — the exact orchestrator shape
+`run-e2e` was designed around — with the marketplace configured in `.claude/settings.json`,
+`playwright@melodic-software` already enabled, and **no `.claude/skills/verify/`**, so the bundled
+skill is intact and the `ls` probe will find nothing. That last point is what makes it a clean test:
+whether `/testing:run-e2e` gets picked up depends entirely on the briefing.
+
+This worktree does not qualify — docs-only, and `/verify` would correctly report SKIP.
+
+**Prerequisite — `testing@melodic-software` is not installed anywhere.** The user-level
+`~/.claude/settings.json` sets `testing`, `verification`, and `toolchain` to **`false`**, and no repo
+on the D drive overrides them. So `/testing:run-e2e` does not currently exist in any session, and the
+briefing above would name a skill that cannot resolve. Enable it before running — project-level in
+`medley/.claude/settings.json` keeps the blast radius to one repo:
+
+```json
+"testing@melodic-software": true
+```
+
+`verification@melodic-software` is optional for this experiment (the briefing names only
+`run-e2e` and `playwright`) but is worth enabling in the same pass if the interview is likely to
+touch `confirm`.
 
 **What to type** (adapt the first clause to the actual change):
 
