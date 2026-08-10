@@ -231,7 +231,11 @@ unchanged and bind every member.
    `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION` variable were removed in
    v2.1.220–v2.1.224, leaving the concurrency and depth limits
    (<https://code.claude.com/docs/en/sub-agents>,
-   <https://code.claude.com/docs/en/whats-new/2026-w32>, verified 2026-08-10).
+   <https://code.claude.com/docs/en/env-vars>,
+   <https://code.claude.com/docs/en/whats-new/2026-w32>; cap removal verified
+   2026-08-10, `CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY` above carried forward from
+   the 2026-07-29 read and NOT re-verified — the env-vars page truncated before
+   that range on re-fetch, so its currency is open, tracked as its own item).
    So even a fully-admitted set —
    every core plus every situational corrector — dispatches in one wave in an
    otherwise-quiet session.
