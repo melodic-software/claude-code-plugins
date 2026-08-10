@@ -9,11 +9,12 @@ Add **two** new skills to the `claude-config` plugin. `audit-permission-state` c
 provenance, plus a decidability-bounded set of lints over that state and over the `autoMode` block;
 `draft-auto-mode-rules` is the authoring lane, drafting an `autoMode` block to stdout for a human to
 paste. Both audit or generate and print; neither enforces and neither writes configuration. Existing
-`claude-config` permission checks get in-place scope widening at the same time — **one of the two the
-Brief promised is still unassigned; see the OPEN block after Phase 9.** No new plugin.
+`claude-config` permission checks get in-place scope widening at the same time — **both are now named:
+`audit-permission-grants` check P1 gains user-global scope, and `claude-config:audit`'s settings scan
+gains the start-directory `settings.local.json` copy.** No new plugin.
 
-_Amended 2026-08-09: one skill → two, on the operator's admission of the authoring lane. `MIGRATION-PLAYBOOK.md`
-§Naming binds a skill name to its kind, so an `audit-*` skill cannot host a `draft` action._
+*Amended 2026-08-09: one skill → two, on the operator's admission of the authoring lane. `MIGRATION-PLAYBOOK.md`
+§Naming binds a skill name to its kind, so an `audit-*` skill cannot host a `draft` action.*
 
 ### Goal
 
@@ -306,18 +307,55 @@ The integration slice. Everything downstream reads what this produces.
   only. This script needs **separate** overrides for the user-home, managed-policy, and
   start-directory roots, so every scope is testable without ever reading or writing the operator's
   real `~/.claude/`. No test may touch the real user home.
-- **Managed-policy paths are enumerated explicitly per OS**, sourced in Phase 0, with OS detection
-  stated at the site. Per §Cross-platform contract, verify on each supported platform **or record an
-  honest manual-verification gap in the shipped skill** — the Brief already concedes per-platform
-  behavior is assumed and not verified, so absent real verification the gap gets written down, not
-  omitted.
+- **Managed-policy reader scope — DECIDED 2026-08-10: portable core plus declared optional platform
+  legs.** Phase 0 correction 1 splits the managed scope into four sub-surfaces with different costs,
+  so the reader is split the same way rather than being all-or-nothing:
+  - **Portable core, always read, on every OS:** the per-OS `managed-settings.json` and its sibling
+    `managed-settings.d/` drop-in directory.
+  - **Declared optional platform integrations:** the Windows registry keys
+    `HKLM\SOFTWARE\Policies\ClaudeCode` and `HKCU\SOFTWARE\Policies\ClaudeCode`, and the macOS
+    `com.anthropic.claudecode` managed-preferences domain. Each is read where it is native and
+    readable; where its tool is missing or the read fails it **warns visibly and skips that leg
+    only**, preserving the portable core result. That is §Prerequisites' *required for an optional
+    feature* class and §Cross-platform contract's *optional platform integrations must degrade
+    visibly* clause — a declared classification, not an unexplained gap.
+  - **Basis for splitting here rather than dropping the registry:** Phase 6's headline output is which
+    managed intents are enforced versus loosenable. A Windows reader that checks only
+    `%PROGRAMFILES%\ClaudeCode\managed-settings.json` does not under-report a registry-deployed
+    policy — it reports *no managed policy deployed* while one is in force. That is a wrong finding on
+    the plugin's primary platform, not a blind spot.
+  - **Elevation is not required.** Measured 2026-08-10 on Windows 11, unelevated:
+    `reg query "HKLM\SOFTWARE\Policies"` returns subkeys and exits 0. Recheck trigger: an unelevated
+    `reg query` of that path starts returning `ERROR: Access is denied` — basis, only a live probe
+    proves the ACL, and the plugin never elevates.
+  - **Verification honesty, per §Cross-platform contract.** The Windows registry leg is verified
+    empirically against a synthetic `HKCU` fixture key (no real policy is deployed on the development
+    machine, so a synthetic key is the only available positive case). The macOS plist domain and the
+    Linux paths **cannot** be verified from the development machine and ship with an honest
+    manual-verification gap recorded in the skill. This applies to the fully-built option too — no
+    option available here ships every leg verified.
+  - **`managed-settings.d/` merge semantics are a decidability caveat, not an assertion.** The reader
+    inventories and reads each drop-in file; any claim about how the drop-ins merge with each other or
+    with the base file carries a named caveat unless a fetched page states the ordering.
+  - Legacy `C:\ProgramData\ClaudeCode\managed-settings.json` is **never probed** — unsupported since
+    v2.1.75, and reading it would report policy not in force (Phase 0 correction 2).
 
 **Sanity Check:**
 
 - Point the fixture seams at a tree carrying **all five** scopes, then assert each named scope appears
-  exactly once: `grep -c '^managed\s'` = 1, `^user` = 1, `^project` = 1, `^local` = 1, and
-  `^startdir-local` = 1. A `≥2` count is not acceptable — it passes on project+local alone and leaves
-  criterion 7's dedicated scope member, and the managed scope, entirely unverified.
+  exactly once: `grep -c '^user'` = 1, `^project` = 1, `^local` = 1, and `^startdir-local` = 1. A `≥2`
+  count is not acceptable — it passes on project+local alone and leaves criterion 7's dedicated scope
+  member entirely unverified.
+- The managed scope is four sub-surfaces, so it gets a **per-surface** assertion instead of one row.
+  Every leg emits a row on every OS — a non-native or unreadable leg emits an explicit
+  `not-applicable` / `skipped` row rather than nothing, so the row count is deterministic per OS and a
+  silently-missing leg is detectable: `grep -c '^managed file'` = 1, `^managed dropin` = 1,
+  `^managed registry` = 1, `^managed plist` = 1. Asserting only an aggregate `^managed` row would pass
+  with three of the four legs never attempted.
+- Optional-leg degradation, per §Prerequisites: run on Windows with a stub `PATH` directory carrying
+  every needed tool **except** `reg`; assert exit 0, a visible warning naming the registry leg, a
+  `^managed registry ... skipped` row, and that the `^managed file` and `^managed dropin` rows are
+  still emitted — the portable core survives the optional leg's absence.
 - jq-absent behavior: create a stub directory containing every needed tool **except** `jq`, run with
   `PATH=<stub>`, assert exit 2 and `ERROR: jq required`. Do **not** use bare `PATH=` — measured, it
   yields `bash: command not found` and exit 127, because the interpreter itself becomes unresolvable,
@@ -472,21 +510,20 @@ nothing about the guarantee it claims to protect.
 
 ### Phase 7: Authoring lane — `claude-config:draft-auto-mode-rules` [TODO]
 
-Brainstorm candidate 7. Drafts an `autoMode` block from an interview plus the repo's observed prompt
-and denial history, prints it to stdout, human pastes. **No write, no persistent state**, so it does
-not trip the Brief's plugin-extraction recheck trigger.
+Brainstorm candidate 7. Drafts an `autoMode` block from an interview plus the Phase 2 merge, prints it
+to stdout, human pastes. **No write, no persistent state**, so it does not trip the Brief's
+plugin-extraction recheck trigger.
 
 This is a **second sibling skill**, not an action on `audit-permission-state`: §Naming binds a skill
 name to its KIND, and an `audit-*` skill hosting a `draft` action would make its own name untrue.
 **Admitted 2026-08-09**, which amends the Brief's TLDR from one new skill to two and adds a second
 listing-budget entry that Phase 8 must state rather than assume.
 
-- **Name the history source.** "The repo's observed prompt and denial history" is not a location. An
-  unnamed read surface in a skill shipped to consumers is unreviewable. Either bind it to a concrete
-  readable input (the debug-channel capture from Phase 3, which already carries per-rule denial data
-  and is already priced and opt-in) or drop the history input and drive the draft from the interview
-  plus the Phase 2 merge alone. **Recommended: drop it** — it removes a read surface, removes a second
-  dependency on the priced oracle, and the merge already carries what the draft needs.
+- **History source — DECIDED 2026-08-10: dropped.** "The repo's observed prompt and denial history"
+  was not a location, and an unnamed read surface in a skill shipped to consumers is unreviewable. The
+  draft is driven by the interview plus the Phase 2 merge alone. This removes a read surface and a
+  second dependency on the priced oracle; binding it to the Phase 3 debug capture was the alternative
+  and was not taken. The skill must not acquire a history input without re-opening this decision.
 
 **Sanity Check:** a skill is a markdown surface, not a process, so nothing is piped from it. Assert
 instead against the deterministic script the skill drives: run it on a fixture and pipe **its** stdout
@@ -531,10 +568,11 @@ Phase 8's sweep, which must include this skill.
 - Version bump: assert `plugins/claude-config/.claude-plugin/plugin.json` `version` differs from its
   value at the branch point, and that its `description` names both new skills.
 
-### Phase 9: `audit-permission-grants` scope widening [TODO]
+### Phase 9: existing-check scope widening and the shared extractions [TODO]
 
-Acceptance criterion 11. **Not independent** — see the execution shape; it shares `plugin.json` with
-Phase 8 and owns the file Phase 3's pattern extraction touches.
+Acceptance criterion 11, the Brief's **second** widening, and the two extractions later phases consume.
+**Not independent** — see the execution shape; it shares `plugin.json` with Phase 8 and owns the file
+Phase 3's pattern extraction touches.
 
 - The criteria file and the detector scan project and local settings only, so a user-global
   interpreter-wildcard rule is invisible to check P1. Add the user-global scope.
@@ -547,30 +585,66 @@ Phase 8 and owns the file Phase 3's pattern extraction touches.
 - **Extract the shared pattern vocabulary here**, side-effect-free, so Phase 3 can source it. The
   current file self-executes and `exit 0`s at load, so it cannot be sourced as it stands.
 
-**Sanity Check:** with the new fixture-home seam pointed at a fake home containing one
-interpreter-wildcard rule, assert exactly one P1 finding naming that file; assert the finding does
-**not** appear when the seam is unset (proving the fixture, not the real home, produced it); assert
-`scripts/permission-rule-check.test.sh` still passes.
+- **The Brief's second widening — DECIDED 2026-08-10: `claude-config:audit`'s settings scan gains the
+  start-directory `settings.local.json` copy.** `check-structure.sh` reads the repository-root copy
+  only. The settings page states the harness still reads a `.claude/settings.local.json` an earlier
+  version left in the starting directory, and that permission rules from **both** files stay in
+  effect — so a rule set nobody audits is live. This is the same criterion-7 surface
+  `audit-permission-state` covers, applied in place to the existing check. It rides Phase 8's single
+  `plugin.json` bump like the P1 widening does.
 
-### The Brief's second scope-widening is unassigned — OPEN
+- **Shared managed-scope enumeration — DECIDED 2026-08-10: extract, do not write a third copy.**
+  Approving Phase 1's managed reader makes this the **third** in-repo component enumerating managed
+  paths, after `claude-config:audit/scripts/check-structure.sh` (per-OS JSON file + `managed-settings.d/`,
+  test seam `SETTINGS_AUDIT_MANAGED_PATH`) and `claude-memory:stateless/scripts/scope-report.sh`
+  (file only; registry flagged, deliberately not read). §Convention registry binds a cross-plugin
+  convention to an owner doc **before** a second adopter, and we are already past two.
+  - Plugin-form isolation forbids a runtime reach-out across plugin roots, so the repo's established
+    mechanism is a byte-identical copy at the same path-within-plugin, plus a dedicated sync/drift
+    check, registered in `scripts/cross-plugin-source-registry.txt`. Follow that mechanism rather than
+    inventing a second one — an unregistered identical cluster is exactly what
+    `check-cross-plugin-source-drift.sh` exists to flag.
+  - Scope the shared source to **path enumeration and OS detection only**. Presentation, redaction
+    posture, and each caller's existing output stay with the caller: `check-structure.sh` deliberately
+    reports managed policy as counts rather than values, and `scope-report.sh` deliberately reports
+    presence only. Migrating either one's *output* is not in this plan.
+  - **Blast radius to state, not discover later:** this edits a second plugin (`claude-memory`), which
+    owes its own version bump and CHANGELOG entry independent of `claude-config`'s.
+
+**Sanity Check:**
+
+- With the new fixture-home seam pointed at a fake home containing one interpreter-wildcard rule,
+  assert exactly one P1 finding naming that file; assert the finding does **not** appear when the seam
+  is unset (proving the fixture, not the real home, produced it); assert
+  `scripts/permission-rule-check.test.sh` still passes.
+- Second widening: with a fixture tree carrying a start-directory `.claude/settings.local.json` that
+  the repository root does not carry, assert `check-structure.sh` emits a row naming that file, and
+  that its existing tests still pass. Assert the row is **absent** on a fixture with no start-directory
+  copy, so the check cannot pass by always emitting it.
+- Extractions: `bash -n` plus a source-and-return test proves the extracted files are side-effect-free
+  (sourcing them runs nothing and exits nothing); `scripts/check-cross-plugin-source-drift.sh --check`
+  exits 0 with the new cluster registered; and deliberately perturbing one copy makes it exit non-zero,
+  proving the drift check actually covers the new cluster rather than silently ignoring it.
+
+### The Brief's second scope-widening — RESOLVED 2026-08-10
 
 The Brief commits twice to widening **two** existing checks (`### Constraints` → Packaging: "plus
-in-place scope widening of two existing checks"; and the TLDR). Only one is named anywhere — P1, in
-criterion 11 and this phase. The second is identified nowhere in the Brief, the criteria, the
-interview register, or the brainstorm.
-
-Do not guess it. The strongest candidate from the research is the `claude-config:audit` skill's
-settings-file scan, because a pre-v2.1.211 `settings.local.json` left in the start directory is still
-read and nothing checks it today — but that is inference, not a recorded decision. Resolve before
-Phase 8 closes; it is a Brief commitment that would otherwise ship unbuilt.
+in-place scope widening of two existing checks"; and the TLDR), and only P1 was ever named. The
+operator resolved it rather than the plan guessing it: the second is **`claude-config:audit`'s
+settings-file scan**, widened to the pre-v2.1.211 start-directory `settings.local.json` copy. It is a
+Phase 9 work item with its own sanity check. The alternative — striking "two" from the Brief and
+shipping one widening — was offered and not taken.
 
 ## Blast radius
 
-**MEDIUM-HIGH.** A new component shipped from a marketplace consumed downstream, plus an in-place
-behavior change to an existing detector (Phase 9) that widens what it flags — consumers will see new
-findings on unchanged repos. Mitigated by: report-only throughout (criterion 9), no consumer writes
-under any flag, and the managed tier read-only by construction. The genuinely irreversible surface is
-the published skill name, which is why naming was derived against §Naming rather than chosen.
+**MEDIUM-HIGH.** A new component shipped from a marketplace consumed downstream, plus in-place
+behavior changes to **two** existing checks (Phase 9) that widen what they flag — consumers will see
+new findings on unchanged repos. Phase 9's shared managed-scope extraction also edits a **second
+plugin** (`claude-memory`), which owes its own version bump and CHANGELOG entry. Mitigated by:
+report-only throughout (criterion 9), no consumer writes under any flag, the managed tier read-only by
+construction, and the extraction scoped to path enumeration so no caller's existing output changes.
+The genuinely irreversible surface is the published skill name, which is why naming was derived
+against §Naming rather than chosen.
 
 ## Stress-test summary
 
@@ -612,7 +686,7 @@ files outside the scratch path. It is unverified, not a finding — carried into
 
 ## Execution shape
 
-Nine phases; not fully sequential.
+Ten phases, 0 through 9.
 
 **Corrected after review: there is no parallel-safe set. This plan is sequential.**
 
@@ -627,7 +701,7 @@ pattern extraction Phase 3 consumes.
 | Order | Phase | Gated by |
 |---|---|---|
 | 1 | 0 | — (fresh-docs mandate; everything downstream cites it) |
-| 2 | 9 | 0. Moved early: it owns the fixture-home seam and the extracted pattern vocabulary Phases 1 and 3 need. |
+| 2 | 9 | 0. Moved early: it owns the fixture-home seam, the extracted pattern vocabulary, and the shared managed-scope enumeration that Phases 1 and 3 consume. |
 | 3 | 1 | 9 (fixture seams) |
 | 4 | 2 | 1 |
 | 5 | 3 | 2, 9 (pattern vocabulary) |
@@ -684,8 +758,9 @@ Remaining genuinely open, carried into implementation:
   writes to consumer *settings*, and a transcript is not a settings file, but the boundary was never
   measured. Measure it in Phase 3 before the oracle ships, and state the result in the flag's cost
   notice — a feature that spawns a session must be honest about everything it leaves behind.
-- **Which second existing check the Brief meant.** See the OPEN block after Phase 9. Needs a decision,
-  not a guess.
+- **Whether `managed-settings.d/` drop-ins have a stated merge order.** Phase 0's fetched pages
+  enumerate the directory but no ordering was recorded. Until a page states it, the reader inventories
+  the drop-ins and any merged-result claim carries a decidability caveat.
 
 ## Handoff to implementation
 
