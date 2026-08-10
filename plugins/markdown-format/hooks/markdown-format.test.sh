@@ -549,6 +549,59 @@ else
   fail "no working tree: nested .md skipped despite CLAUDE_PROJECT_DIR (rc=$RC_NOVCS out=$OUT_NOVCS)"
 fi
 
+# make_symlink <target> <link> → 0 only if a REAL symlink now exists at <link>.
+# Plain `ln -s` under Git Bash's default MSYS settings COPIES the file, which is
+# why the escape cases earlier in this file skip on Windows. nativestrict asks
+# for a real NTFS symlink and succeeds wherever the host allows it (Developer
+# Mode, or the create-symlink privilege), so the escape shapes below are
+# exercised on hosts the bare-`ln -s` probe writes off.
+make_symlink() {
+  MSYS=winsymlinks:nativestrict ln -s "$1" "$2" 2>/dev/null ||
+    ln -s "$1" "$2" 2>/dev/null
+  [[ -L "$2" ]]
+}
+
+# Escaping symlink with git ABSENT. The escape cases earlier run with git
+# present, where in_git_working_tree decides containment on the physical path
+# and skips. Without git that question could not be asked at all, so containment
+# went unchecked — and resolving the root from the filesystem is precisely what
+# makes discovery SUCCEED here, opening the repository's own config for a file
+# whose bytes live outside the tree. Both nestings are covered: nested (reachable
+# only once the root walk exists) and root-level (reachable before it too).
+#
+# ASSERTED ON LINK SURVIVAL, not on the target's bytes, and the difference is
+# the whole discriminating power of these two cases. The stub linter at the top
+# of this file rewrites with `sed -i`, which renames a temp over the path and so
+# REPLACES a symlink with a regular file while leaving the target untouched —
+# verified on this host. Real markdownlint-cli2 is a Node process whose
+# fs.writeFile follows the link and rewrites the target instead. So under this
+# stub an unchanged target proves nothing (it is unchanged either way), while a
+# surviving symlink proves the hook never ran --fix on it at all.
+NOGIT_OUTSIDE="$WORK/outside-nogit"
+mkdir -p "$NOGIT_OUTSIDE"
+
+for _case in nested root; do
+  case "$_case" in
+  nested) _link="$REPO/docs/escapeNoGitNested.md" ;;
+  root) _link="$REPO/escapeNoGitRoot.md" ;;
+  esac
+  _ext="$NOGIT_OUTSIDE/external-$_case.md"
+  printf '# External\n\n* star item\n' >"$_ext"
+  if make_symlink "$_ext" "$_link"; then
+    _ext_before="$(cat "$_ext")"
+    OUT_ESC="$(run_hook_no_git "$_link")"
+    RC_ESC=$?
+    if [[ $RC_ESC -eq 0 && -L "$_link" && "$(cat "$_ext")" == "$_ext_before" ]]; then
+      ok "git absent: a $_case escaping symlink is skipped, not handed to --fix"
+    else
+      fail "git absent: --fix reached a $_case symlink's out-of-tree target (rc=$RC_ESC link-intact=$([[ -L "$_link" ]] && echo yes || echo no) out=$OUT_ESC)"
+    fi
+    rm -f "$_link"
+  else
+    ok "git absent $_case symlink-escape case SKIPPED (host cannot create real symlinks)"
+  fi
+done
+
 # The scope must still fire when git CAN answer — that half is the out-of-tree
 # case above, which runs with git present and asserts the skip.
 #

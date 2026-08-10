@@ -27,6 +27,27 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
   fail-closed reasoning in `markdownlint_config_discoverable` is unchanged. When nothing resolves,
   the previous hint stands, which keeps 0.11.1's out-of-tree bound true.
 
+- **An escaping symlink can no longer hand its out-of-tree target to `--fix` on a git-less host.**
+  Resolving the root from the filesystem makes discovery SUCCEED where it previously failed, and
+  success is what puts a file in front of `--fix` — so for an in-repository symlink whose target
+  lives outside the tree, the repository's own config opened the gate and the linter followed the
+  link and rewrote a file outside the repository. Without git this scope could not ask
+  `in_git_working_tree` anything, so containment went unchecked entirely; a symlink is precisely the
+  shape whose lexical parent (inside the repository) and physical parent (outside it) disagree.
+
+  Containment is now decided from the filesystem when git cannot answer, instead of being skipped.
+  The check runs only where the physical path differs from the lexical one — which for an ordinary
+  file it never does — so a git-less repository lints exactly as before; an undecidable *git* verdict
+  still lints, while an escape the filesystem can prove does not. Both operands are canonicalized
+  through `cd … && pwd -P`, the spelling `markdownlint_config_discoverable` and `CONFIG_ROOT` already
+  compare in: `hook::physical_path` resolves via `realpath`, which leaves `/tmp` as `/tmp` where
+  `pwd -P` resolves it to the underlying directory, so comparing one against the other would be a
+  spelling mismatch rather than a containment answer.
+
+  The root-level form of the same escape was reachable before this release too — there the old
+  resolution already returned the repository root, so discovery already succeeded — and is closed by
+  the same check.
+
   This also retires the `"$REPO_ROOT" == "$(dirname "$FILE")"` guard, which was true only for a file
   at the repository root: it spawned a second `git rev-parse` there wherever the payload's path
   spelling matched git's own, and was false for every nested file, which is why 0.11.1's test file

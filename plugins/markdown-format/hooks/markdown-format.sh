@@ -106,11 +106,14 @@ markdownlint_config_discoverable() {
 # a documented requirement of this hook — README "Requirements" lists Bash, jq
 # and markdownlint-cli2 — so resolving the root must not need one.
 #
-# The fallback is recognized by its own signature: an answer equal to the hint
-# (or to the hint with a trailing /.claude stripped, hook::repo_root's one
-# rewrite of it). git's answer is returned untouched whenever git produced one,
-# so a host that HAS git is unaffected and no second probe is spawned to find
-# that out.
+# The fallback is recognized by its own signature: an answer equal to the hint,
+# or to the hint with a trailing `.claude` stripped. hook::repo_root strips that
+# suffix in BOTH spellings it can arrive in — `/.claude` and the Windows
+# `\.claude` — so both are checked here; testing only the forward-slash form
+# would leave a backslash-spelled hint unrecognized as a fallback and send it
+# back out unresolved. git's answer is returned untouched whenever git produced
+# one, so a host that HAS git is unaffected and no second probe is spawned to
+# find that out.
 #
 # Otherwise the root comes from the walk git's own discovery performs: upward
 # for a `.git` entry, accepted as a directory (ordinary clone) or as a FILE,
@@ -134,7 +137,8 @@ markdownlint_config_discoverable() {
 resolve_repo_root() {
   local hint="$1" root dir parent
   root="$(hook::repo_root "$hint")"
-  if [[ "$root" != "$hint" && "$root" != "${hint%/.claude}" ]]; then
+  if [[ "$root" != "$hint" && "$root" != "${hint%/.claude}" &&
+    "$root" != "${hint%\\.claude}" ]]; then
     printf '%s' "$root"
     return 0
   fi
@@ -214,6 +218,20 @@ in_git_working_tree() {
   ) >/dev/null 2>&1
 }
 
+# Is $1's directory $2, or below it? Both sides go through `cd … && pwd -P`, so
+# a link, a `..`, or a differing spelling on either side cannot make a
+# containment answer disagree with the filesystem. Fails CLOSED — an
+# undecidable containment answer is not a licence to write.
+physically_inside() {
+  local file_dir root
+  file_dir="$(cd "$(dirname "$1")" 2>/dev/null && pwd -P)" || return 1
+  root="$(cd "$2" 2>/dev/null && pwd -P)" || return 1
+  case "$file_dir" in
+  "$root" | "$root"/*) return 0 ;;
+  *) return 1 ;;
+  esac
+}
+
 # markdownlint applies repo-doc rules, so when no CLAUDE_PROJECT_DIR anchors
 # membership (e.g. an autonomous session whose cwd is not a repo), scope to
 # git-working-tree containment instead: a scratch/temp .md outside any working
@@ -246,28 +264,45 @@ in_git_working_tree() {
 # therefore lints, the same direction file_is_gitignored takes below for the
 # same reason.
 #
-# Exposure of that fail-open is bounded by the consumer opt-in gate, not by
-# this scope: without git, hook::repo_root cannot resolve a working-tree top
-# and falls back to the edited file's own directory, so
-# markdownlint_config_discoverable searches that single directory — a scratch
-# `/tmp/comment-body.md` still does not lint unless `/tmp` itself carries a
-# markdownlint config. The noise class this scope exists to stop stays stopped
-# wherever git can actually answer.
+# The fail-open is bounded, but NOT by the opt-in gate alone, and the escaping
+# symlink is exactly where that distinction bites. Without git this scope cannot
+# ask `in_git_working_tree` anything, so containment goes unchecked — and a
+# symlink is the one shape whose lexical parent (inside the repository, where
+# the root config lives) and physical parent (outside it) disagree. Discovery
+# then opens the gate on the repository's own config and `--fix` follows the
+# link and rewrites a file outside the tree.
+#
+# So when git cannot answer, containment is decided from the filesystem instead
+# — the same source resolve_repo_root already uses — rather than skipped. This
+# does NOT re-break the git-less host: the check runs only when the physical
+# path differs from the lexical one, which for an ordinary file it never does,
+# so a git-less repository lints exactly as before. An undecidable GIT verdict
+# still lints; an escape that the filesystem can prove does not.
+#
+# What remains bounded by the opt-in gate is the ordinary out-of-tree file: a
+# scratch `/tmp/comment-body.md` sits under no working tree, so the walk finds
+# no `.git`, discovery searches its own directory alone, and it does not lint
+# unless `/tmp` itself carries a markdownlint config.
+#
+# REPO_ROOT is resolved before the scope rather than after it because the scope
+# now needs it. It depends only on FILE, so moving it earlier changes nothing
+# about its value, and it is computed once for both.
+REPO_ROOT="$(resolve_repo_root "$(dirname "$FILE")")"
+
 if [[ -z "${CLAUDE_PROJECT_DIR:-}" ]]; then
   FILE_PHYSICAL="$(hook::physical_path "$FILE")"
   if [[ -L "$FILE" && "$FILE_PHYSICAL" == "$FILE" ]]; then
     exit 0
   fi
-  if command -v git >/dev/null 2>&1 &&
-    ! in_git_working_tree "$(dirname "$FILE_PHYSICAL")"; then
+  if command -v git >/dev/null 2>&1; then
+    if ! in_git_working_tree "$(dirname "$FILE_PHYSICAL")"; then
+      exit 0
+    fi
+  elif [[ "$FILE_PHYSICAL" != "$FILE" ]] &&
+    ! physically_inside "$FILE_PHYSICAL" "$REPO_ROOT"; then
     exit 0
   fi
 fi
-
-# Resolve repo root early — needed for CWD-anchored config discovery and for
-# computing the schema-required repo-relative path in data.file. Git-optional;
-# see resolve_repo_root above for why and for the resolution order.
-REPO_ROOT="$(resolve_repo_root "$(dirname "$FILE")")"
 
 # Telemetry-payload precursors — TOOL and FILE_REL feed only the envelope's
 # data object, so both are built only when a sink is wired: the unwired
