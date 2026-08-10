@@ -14,9 +14,8 @@ All notable changes to the `source-control` plugin are documented here. Format f
   65536 characters, which lands INSIDE that window — so the worst case is not exotic, it is the
   documented maximum. `pr-body-linkage-gate` is a blocking PreToolUse gate, so a hang means the
   harness cancels it at its timeout and the linkage contract goes unenforced. Both now read through
-  `< <(printf '%s
-' "$body")`, which is byte-identical to the here-string it replaces and so cannot
-  drop a final line. Same class as #1587 (`hook-utils.sh`) and the guardrails scan gates fixed
+  `< <(printf '%s\n' "$body")`, which is byte-identical to the here-string it replaces and so
+  cannot drop a final line. Same class as #1587 (`hook-utils.sh`) and the guardrails scan gates fixed
   alongside this.
 
 ## [0.51.0]

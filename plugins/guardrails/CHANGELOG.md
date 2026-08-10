@@ -46,8 +46,7 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   `block-hook-bypass`, `flag-commit-pr-skill-bypass`, and the shared PowerShell command lib fed the
   whole Bash/PowerShell command — or segments derived from it — through `while … done <<<"$cmd"`,
   which deadlocks identically at 65536-65663 bytes. `workflow-resilience-check` did the same with an
-  inline Workflow `script:`. All now use `< <(printf '%s
-' …)`, which is byte-identical to the
+  inline Workflow `script:`. All now use `< <(printf '%s\n' …)`, which is byte-identical to the
   here-string it replaces (`<<<` appends a newline unconditionally) and so cannot drop a final line.
 
 ### Changed

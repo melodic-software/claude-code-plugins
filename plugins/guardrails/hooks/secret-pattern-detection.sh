@@ -158,10 +158,19 @@ LABELS=()
 # 65536-65663 bytes puts the write 1-128 bytes past the 65536-byte pipe capacity
 # and bash blocks FOREVER (at >=129 bytes over it spills to a temp file and
 # works again). This guard blocks, so a hang means the harness cancels it at the
-# hook timeout and the secret verdict is lost entirely. `printf … | grep` is not
-# the fix either — see the full rule at the gate in
-# lib/path-detection/hardcoded-path-patterns.sh. `printf '%s'` matches the
-# no-trailing-newline shape the rest of this hook already uses for $INPUT.
+# hook timeout and the secret verdict is lost entirely. The deadlock is a
+# property of `<<<` alone, NOT of the reader: measured at 65600 bytes, this very
+# `grep -nE` (no `-q`, drains its input) hung on a here-string just as `grep -q`
+# did, so the here-string had to go here regardless.
+#
+# Which replacement is required DOES depend on the reader, per the two-shapes
+# rule at the gate in lib/path-detection/hardcoded-path-patterns.sh. This reader
+# drains and its pipeline status is discarded (only $lines is read), so a plain
+# `printf … | grep` would also have been correct here — process substitution is
+# used for uniformity with the `-q` gates in this plugin, where a pipe WOULD
+# invert the verdict under `pipefail`, so the scan sites all read as one idiom.
+# `printf '%s'` matches the no-trailing-newline shape the rest of this hook
+# already uses for $INPUT.
 check_pattern() {
   local label="$1" pattern="$2" lines
   lines=$(grep -nE -- "$pattern" < <(printf '%s' "$CONTENT") 2>/dev/null | head -3 | cut -d: -f1 | tr '\n' ',' | sed 's/,$//')

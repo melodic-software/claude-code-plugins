@@ -110,6 +110,7 @@ has_linkage() {
 related_section() {
   local body="$1" line t start=0 lvl i=0 out=""
   local -a lines=()
+  # not <<<: a >=64KiB here-string deadlocks (see hardcoded-path-patterns.sh)
   while IFS= read -r line || [[ -n "$line" ]]; do lines+=("$line"); done < <(printf '%s\n' "$body")
   for ((i = 0; i < ${#lines[@]}; i++)); do
     t="${lines[i]}"
