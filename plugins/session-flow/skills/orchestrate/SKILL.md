@@ -151,10 +151,12 @@ sources — provenance is the field that makes a wrong-target answer detectable 
 **Never author a tree that needs a specific depth.** The platform ceiling is configurable and has
 moved repeatedly — a fixed five layers (v2.1.172), then nesting off by default (v2.1.217), then a
 configurable default of three (v2.1.219), all inside seven weeks
-([changelog](https://code.claude.com/docs/en/changelog)). Depth, per-session spawn count, and
-concurrent-worker count are each separately capped and separately overridable
-(`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`, `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION`,
-`CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`); read the current values rather than assuming them, and
+([changelog](https://code.claude.com/docs/en/changelog)). The ceiling moved again after that list was
+written: the per-session spawn total was **removed** in v2.1.220–v2.1.224
+([2026-w32](https://code.claude.com/docs/en/whats-new/2026-w32), verified 2026-08-10), so what
+remains is depth and concurrent-worker count, each separately capped and separately overridable
+(`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`, `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`) — which is itself
+the point this paragraph makes. Read the current values rather than assuming them, and
 design the tree so it degrades to a shallower one instead of failing. One shape constraint that is
 not a tunable: a fork inherits its parent's conversation but cannot spawn a further fork, so a fork
 is a leaf, never an intermediate tier.

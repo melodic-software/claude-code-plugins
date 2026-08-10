@@ -5,6 +5,19 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.12.1]
+
+### Fixed
+
+- **`sweep-all` no longer counts dispatches against a per-session cap that was removed.** Its
+  budget reasoning had every Agent-tool subagent counting against both
+  `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` (default 20, still current) and
+  `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION` (documented default 200). The second was removed in
+  v2.1.220–v2.1.224 ([2026-w32](https://code.claude.com/docs/en/whats-new/2026-w32), verified
+  2026-08-10) and is gone from the sub-agents page along with its variable. The concurrency limit —
+  the one the paragraph calls "the hard one" — is unchanged, so the dispatch conclusion stands; only
+  the second constraint was fictional.
+
 ## [0.12.0]
 
 ### Removed

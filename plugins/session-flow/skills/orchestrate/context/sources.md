@@ -112,13 +112,23 @@ which way it broke.
   of its own while the depth limit allows it, but any type list inside the parentheses is ignored."
   To stop one spawning while nesting is on, "omit `Agent` from its `tools` list or add it to
   `disallowedTools`."
-- Three separate caps, each with its own variable *(verbatim, verified 2026-07-29 — sub-agents
-  page)*: "this one caps the total spawned over a session, the concurrent subagent limit stops
-  Claude from spawning more while too many are running, and the depth limit caps how deeply
-  subagents nest." Defaults: "at most 200 subagents per session"
-  (`CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION`, v2.1.212+) and "when 20 subagents are running in a
-  session, spawning another with the Agent tool fails with `Concurrent subagent limit reached`"
-  (`CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`, v2.1.217+). "A fork can't spawn further forks."
+- **Two caps now, not three — the per-session total was removed** *(verified 2026-08-10 — sub-agents
+  page)*. What remains is the concurrency limit and the depth limit: "By default, when 20 subagents
+  are running in a session, spawning another with the Agent tool fails with `Concurrent subagent
+  limit reached`, and the error tells Claude not to retry. Spawning succeeds again when the running
+  count drops below the limit" (`CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`, v2.1.217+), plus the depth
+  limit above. "A fork can't spawn further forks."
+  Two riders on the concurrency limit, both new since the 2026-07-29 read: "Sessions with
+  [ultracode](https://code.claude.com/docs/en/model-config#adjust-effort-level) active are exempt:
+  the limit isn't enforced there", and an in-session `/subtask` fork "takes a slot while it runs and
+  is never blocked by the limit."
+  **Superseded:** this entry previously recorded a third cap — "at most 200 subagents per session"
+  via `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION` (v2.1.212+), read 2026-07-29. Week 32 removed it:
+  "The 200-subagent-per-session cap is removed, so long-running sessions no longer refuse new
+  subagents; the concurrency and depth limits still apply"
+  ([2026-w32](https://code.claude.com/docs/en/whats-new/2026-w32), v2.1.220–v2.1.224). The variable
+  and the cap are both gone from the sub-agents page; a long-running orchestration should no longer
+  be planned around a session total.
 - **A permission gate can deny a spawn before depth is ever consulted.** Changelog v2.1.178
   *(verbatim, verified 2026-07-29)*: "Improved auto mode: subagent spawns are now evaluated by the
   classifier before launch, closing a gap where a subagent could request a blocked action without

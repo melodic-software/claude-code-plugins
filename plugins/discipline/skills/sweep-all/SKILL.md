@@ -226,10 +226,13 @@ unchanged and bind every member.
    default 20): past it, "spawning another with the Agent tool fails with
    `Concurrent subagent limit reached`, and the error tells Claude not to
    retry." Every Agent-tool subagent counts against it, forks included, shared
-   with everything else the session is running, and against
-   `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION` (documented default 200)
+   with everything else the session is running. There is no longer a per-session
+   total to count against: the 200-subagent-per-session cap and its
+   `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION` variable were removed in
+   v2.1.220–v2.1.224, leaving the concurrency and depth limits
    (<https://code.claude.com/docs/en/sub-agents>,
-   <https://code.claude.com/docs/en/env-vars>). So even a fully-admitted set —
+   <https://code.claude.com/docs/en/whats-new/2026-w32>, verified 2026-08-10).
+   So even a fully-admitted set —
    every core plus every situational corrector — dispatches in one wave in an
    otherwise-quiet session.
 
