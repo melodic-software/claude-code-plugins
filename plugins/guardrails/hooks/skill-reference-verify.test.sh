@@ -403,6 +403,60 @@ assert_exit "two-character Edit hunk → exit 0" 0 "$RC"
 assert_contains "two-character Edit hunk → containing reference recovered" "$OUT" \
   "UNRESOLVED_SKILL: /alpha:setxx"
 
+# MULTIBYTE CONTENT AROUND THE ANCHOR. reconstruct_partial_edit pins LC_ALL=C so
+# its scans are not charged the multibyte matcher's ~6.5x, which makes every offset
+# it computes a BYTE offset. That is safe only if a slice never splits a character,
+# so multibyte text goes on the line BEFORE the anchor (moving the anchor's
+# absolute offset off a character boundary) and on both sides of it within its own
+# line (moving the span's boundaries off one). The skill name itself stays ASCII
+# because the command grammar is `[a-z0-9-]` — a non-ASCII name is unreportable by
+# design, so putting one here would test the grammar, not the offsets.
+#
+# A byte/character confusion mangles the span, and a mangled span cannot parse as a
+# command — so this case fails by going SILENT, the direction that would otherwise
+# hide.
+UTF8="$REPO/utf8.md"
+printf 'Préambule sur les conventions — rien à voir ici.\nExécutez `/alpha:ghost-cafe` après le déploiement — voilà.\n' \
+  >"$UTF8"
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$UTF8" 'ghost-cafe')" 2>&1)
+RC=$?
+assert_exit "multibyte content around the anchor → exit 0" 0 "$RC"
+assert_contains "a reference reconstructed out of multibyte content is intact" "$OUT" \
+  "UNRESOLVED_SKILL: /alpha:ghost-cafe"
+
+# THE PIN MUST NOT REACH THE CHILD PROCESSES. The case above passes with the pin,
+# without it, and with an EXPORTED pin — both locales are internally consistent, so
+# it cannot tell the three apart. This one can, and it is the reason the pin is
+# written `local +x` rather than `local`.
+#
+# `local LC_ALL=C` inherits the export attribute when the CONSUMER exported LC_ALL,
+# so the pin reaches emit_refs' grep/sed. GNU `[[:space:]]` matches U+00A0 under a
+# UTF-8 locale but not under C, so an exported pin makes the hook silently drop a
+# reference whose argument separator is a non-ASCII space — a detection loss that
+# buys nothing, since the whole cost the pin removes is bash's own matcher and the
+# children measured identical in both locales.
+#
+# The separator is built from escapes, never a literal byte, so an editor or a
+# transfer that normalizes whitespace cannot quietly turn this into an ASCII space
+# and make the case vacuous — which is exactly what happened while it was written.
+NBSP=$(printf '\xc2\xa0')
+if [[ $(printf '%s' "$NBSP" | wc -c) -ne 2 ]]; then
+  bad "non-ASCII separator fixture: U+00A0 is not 2 bytes"
+elif ! locale -a 2>/dev/null | grep -qi '^en_US\.utf-\?8$'; then
+  ok "SKIP non-ASCII separator (host has no en_US.UTF-8 to contrast against C)"
+else
+  NBSPDOC="$REPO/nbsp.md"
+  printf 'Intro line.\nRun `/alpha:ghost-nbsp%sarg` now.\n' "$NBSP" >"$NBSPDOC"
+  # The hunk is a bare SUBSTRING, so the direct scan cannot see the reference and
+  # only reconstruction can report it.
+  OUT=$(LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8 CLAUDE_PROJECT_DIR="$REPO" \
+    bash "$HOOK" <<<"$(edit_json "$NBSPDOC" 'ghost-nbsp')" 2>&1)
+  RC=$?
+  assert_exit "consumer-exported UTF-8 locale → exit 0" 0 "$RC"
+  assert_contains "the pin does not reach the children: non-ASCII-separated reference survives" \
+    "$OUT" "UNRESOLVED_SKILL: /alpha:ghost-nbsp"
+fi
+
 # A short anchor is still subject to the uniqueness gate — it buys no scope.
 SHORT2="$REPO/short2.md"
 printf 'Run `/alpha:setxx` and note the xx convention.\n' >"$SHORT2"
