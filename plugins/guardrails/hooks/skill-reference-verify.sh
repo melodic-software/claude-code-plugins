@@ -81,7 +81,9 @@ esac
 # hook::require_jq above has already made the degraded state visible once per
 # session.
 hook::jq_fields "$INPUT" '.tool_name' '.tool_input.new_string' \
-  '.tool_input.content' '.tool_input.replace_all // false | tostring' || exit 0
+  '.tool_input.content' '.tool_input.replace_all // false | tostring' \
+  '[.tool_response.structuredPatch[]?.lines[]?
+    | select(type == "string" and startswith("+")) | .[1:]] | join("\n")' || exit 0
 TOOL="${HOOK_JQ_FIELDS[0]}"
 # Edit's `replace_all` (documented at
 # https://code.claude.com/docs/en/tools-reference — Edit requires `old_string` to
@@ -89,11 +91,44 @@ TOOL="${HOOK_JQ_FIELDS[0]}"
 # instead). Reconstruction needs it: with `replace_all` the same `new_string`
 # lands in several places on purpose, so several matches are the edit's own
 # footprint rather than an ambiguity. Absent or false on every ordinary Edit.
+#
+# `replace_all` alone cannot say WHICH occurrences this call wrote, and that is
+# the whole of the residual reported in #2129: after `ghost` replaces `setup`
+# everywhere, the `ghost` inside a pre-existing `ghost-old` reads exactly like one
+# the edit produced. Nothing in `tool_input` separates them — but the premise
+# "nothing in the PAYLOAD does" is false. `tool_response` carries the Edit tool's
+# structured output, whose `structuredPatch` marks the lines the call actually
+# wrote with a leading `+`.
+#
+# Both halves of that were confirmed against pages fetched 2026-08-10, not recall:
+# `PostToolUse` input "includes both `tool_input`, the arguments sent to the tool,
+# and `tool_response`, the result it returned"
+# (<https://code.claude.com/docs/en/hooks>, "PostToolUse input"), and that field is
+# "the tool's structured `Output` object" (ibid., the PostToolBatch note
+# contrasting the two shapes). `Output` for Edit is `FileEditOutput`, whose
+# `structuredPatch` is `Array<{oldStart, oldLines, newStart, newLines, lines:
+# string[]}>` (<https://code.claude.com/docs/en/agent-sdk/typescript>, "Edit").
+#
+# NOT verified: a live PostToolUse payload carrying the field was not observed on
+# the authoring machine — no hook-event capture existed to read. The schema is
+# documented and corroborated by real Edit records in Claude Code's own transcript
+# JSONL, but if the field never arrives the filter below simply never engages.
+#
+# Kept as the LINE TEXTS rather than line numbers on purpose. Numbers would be
+# wrong the moment another PostToolUse hook reformats the file between the write
+# and this read — the case the reconstruction fallback below already exists for —
+# and mapping a character offset back to a line number costs a whole-prefix scan
+# per occurrence, which is the quadratic term this hook spent a release removing.
+# Matching the physical line by text is a hash lookup and survives renumbering.
+# Its one imprecision is conservative: an untouched line whose text is identical
+# to an edited one still passes, which keeps a finding rather than dropping one.
+EDIT_WROTE_LINES=""
 REPLACE_ALL=false
 case "$TOOL" in
 Edit)
   SCAN_CONTENT="${HOOK_JQ_FIELDS[1]}"
   REPLACE_ALL="${HOOK_JQ_FIELDS[3]}"
+  EDIT_WROTE_LINES="${HOOK_JQ_FIELDS[4]}"
   ;;
 Write) SCAN_CONTENT="${HOOK_JQ_FIELDS[2]}" ;;
 *) exit 0 ;;
@@ -402,10 +437,22 @@ anchor_offsets() {
 # twenty — where the token filter, needing a token long enough to filter on, simply
 # produced none and gave up.
 #
-# What this does NOT claim: the `replace_all` branch keeps every occurrence,
-# including one that pre-existed the edit and merely happens to read the same —
-# nothing in the payload separates those. Reconstruction is a best effort under an
-# advisory guard, not a proof that every reported line was written by this call.
+#   3. Under `replace_all` ONLY, keep an occurrence just when its physical line is
+#      one `structuredPatch` reports the call as having WRITTEN. Gate 1's
+#      uniqueness rule is what separates an edited occurrence from a coincidental
+#      one everywhere else, and `replace_all` is exactly where that rule is
+#      suspended — so it is the one branch that needs an external witness.
+#
+# What this does NOT claim, still: the witness is per LINE, so two references on
+# one physical line stand or fall together, and an untouched line whose text
+# duplicates an edited one is kept. A multi-line `new_string` is not filtered at
+# all — its anchor extent spans several lines and matches no single patch line, so
+# the filter would drop every finding rather than narrow them; that shape keeps the
+# unfiltered behaviour. Where `structuredPatch` is absent (an older harness, or any
+# payload without `tool_response`) the filter is inert by construction and the
+# branch behaves exactly as it did before. Reconstruction remains a best effort
+# under an advisory guard, not a proof that every reported line was written by this
+# call — but it no longer reports a line the payload itself says was untouched.
 #
 # Cost is ONE read of the file and, normally, ONE scan of it — no subprocess per
 # hunk line and no rescan per hunk line either. The `grep` this replaced spawned two
@@ -471,8 +518,24 @@ reconstruct_partial_edit() {
   # text only, never off the bytes on disk.
   content=${content//$'\r'/}
 
-  local ctx="" nspan=0 anchor alen off hs he head tail cap kib located_whole=0
+  local ctx="" nspan=0 anchor alen off hs he head tail line cap kib located_whole=0
   local -a offs=() anchors=()
+
+  # Gate 3's witness set: the physical lines `structuredPatch` reports this call as
+  # having written, as a hash. Built only where it is consulted — under
+  # `replace_all`, whose suspended uniqueness rule is the reason an external
+  # witness is needed at all. Empty (no `tool_response`, or a patch with no added
+  # lines) leaves the filter inert, which is the pre-existing behaviour.
+  local -A wrote=()
+  local filter_wrote=0 wl
+  if [[ "$REPLACE_ALL" == "true" && -n "$EDIT_WROTE_LINES" ]]; then
+    while IFS= read -r wl; do
+      # Keys carry a literal prefix so a patch line reading `@` or `*` cannot
+      # alias bash's own array subscripts on lookup.
+      wrote["L$wl"]=1
+    done <<<"$EDIT_WROTE_LINES"
+    ((${#wrote[@]})) && filter_wrote=1
+  fi
 
   # The hunk is written to disk CONTIGUOUSLY, so locate it WHOLE first — one scan
   # for the entire edit instead of one per line. The loop below is then driven by a
@@ -526,7 +589,14 @@ reconstruct_partial_edit() {
       tail="${content:off+alen}"
       tail="${tail%%$'\n'*}"
       he=$((hs + alen))
-      collect_overlapping_spans "${content:off-hs:he+${#tail}}" "$hs" "$he"
+      line="${content:off-hs:he+${#tail}}"
+      # Gate 3. A MULTI-LINE anchor's extent is not a single physical line, so it
+      # can match no patch line; filtering it would erase every finding instead of
+      # narrowing them, so that shape is passed through unfiltered.
+      if ((filter_wrote)) && [[ "$anchor" != *$'\n'* && -z "${wrote[L$line]:-}" ]]; then
+        continue
+      fi
+      collect_overlapping_spans "$line" "$hs" "$he"
       ((nspan >= RECONSTRUCT_MAX_SPANS)) && break 2
     done
   done
