@@ -129,12 +129,50 @@ Search order for a plosive target:
 4. Try the remaining plosives.
 5. Sing the results; keep only what sounds natural.
 
-Worked example: `rut`
+Worked example: `rut` (*Essential Guide to Rhyming* (2014), Chapter 4)
 
-- Perfect options are narrow: `cut`, `glut`, `gut`, `hut`, `shut`.
-- Replace final `t` with partner `d`: `blood`, `flood`, `mud`, `thud`.
-- Try unvoiced companions `k` and `p`: `buck`, `duck`, `luck`, `muck`, `stuck`, `truck`, `up`, `hard up`, `makeup`.
-- Try other voiced plosives `b` and `g`: `club`, `hub`, `pub`, `scrub`, `tub`, `bug`, `jug`, `plug`, `shrug`, `snug`, `tug`.
+The vowel is short `u`. Perfect rhyme gives a narrow field:
+
+```text
+rut / cut / glut / gut / hut / shut
+```
+
+`T` is an unvoiced plosive, so partners come first. `T`'s partner is `d`:
+
+```text
+ud:   blood   flood   mud   stud (?)   thud
+```
+
+Pat's note: "These are nice possibilities, especially 'flood' and 'mud'."
+
+Next, `t`'s companions `k` and `p`:
+
+```text
+uk:   buck   duck   luck   muck   stuck   truck
+up:   hard up   up   makeup (?)
+```
+
+"'Makeup' suggests that the relationship is in a rut, we have a fight, etc."
+
+Finally the remaining plosives `b` and `g`, which share only the exploding technique:
+
+```text
+ub:   club   hub   pub   scrub   tub
+ug:   bug   jug   lug   plug   shrug   snug   tug
+```
+
+On the `ub` column Pat says the words "don't sound quite the same. Sing them. 'Ruuuuuut. Scruuuuub.' Not so bad. Good, in fact, if you're looking for a slightly less stable rhyme." The `ug` column he calls "some of the best yet."
+
+Family rhyme delivers roughly five times more choices than perfect rhyme. The shortlist Pat says he would actually consider using:
+
+```text
+rut / shut
+flood   mud
+luck   muck   stuck   truck
+up
+pub   scrub   tub
+shrug   snug   tug
+```
 
 The key coaching move is not to accept everything. The point is to multiply choices, then pick the word that belongs in the line.
 
@@ -169,12 +207,35 @@ Search order for a fricative target:
 
 Example: if the target ends in `sh`, move first through unvoiced companions such as `ch`, `s`, `th`, and `f`, then cross to voiced `zh` and its companions.
 
-Worked example: `safe`
+Worked example: `safe` (*Essential Guide to Rhyming* (2014), Chapter 4)
 
-- Perfect rhyme: `waif`.
-- Unvoiced family options from `th` and `s` include `faith`, `case`, `ace`, `chase`, `disgrace`, `face`, `grace`, `lace`, `race`, `space`, `trace`.
-- Partner `v` opens `behave`, `brave`, `cave`, `grave`, `shave`, `slave`, `wave`.
-- Voiced family options include `blaze`, `craze`, `daze`, `haze`, `maze`, `phrase`, `praise`, plus `age`, `cage`, `page`, `rage`, `stage`.
+`F` is an unvoiced fricative. Perfect rhyme is close to empty — `waif` — which Pat greets with "Ugh!" Companions first:
+
+```text
+ath:  faith                          ("Not much.")
+as:   case   ace   breathing space   chase   commonplace
+      disgrace   embrace   face   grace   lace   race
+      resting place   space   trace (as a noun)
+```
+
+Nothing worthwhile under `ash` or `ach`, so cross the line to `f`'s partner `v`, then that partner's companions:
+
+```text
+av:   behave   brave   cave   grave   shave   slave   wave
+aTH:  bathe                          ("Fat chance.")
+az:   blaze   craze   daze   haze   maze   phrase   paraphrase   praise
+aj:   age   cage   page   rage   stage
+```
+
+Pat's comment on the `az` column: "The nice thing about a cliche word like 'daze' is that it may sound fresh again away from its usual connection to 'haze.' That is another strength of family rhyme. They surprise you. They do not make the usual connections."
+
+A parallel feminine search on `travel` yields:
+
+```text
+bashful   dazzle   wrathful   glass full (mosaic)   satchel   fragile
+```
+
+Some columns offer few results; with others, "results come cascading in." Fricative rhymes usually at least quadruple your choices.
 
 Selection matters:
 
@@ -252,18 +313,30 @@ Choices stack quickly when there are two or more consonants after the vowel.
 
 `L` and `r` do not have useful family substitutes. Family rhyme still helps when `l` or `r` appears with another consonant that can be substituted.
 
-Example: `hurt`
+Example: `hurt` (*Essential Guide to Rhyming* (2014), Chapter 4)
 
-- Perfect options include `alert`, `curt`, `dirt`, `flirt`, `inert`, `skirt`.
-- Many perfect options are transitive verbs, which can limit use.
-- Substitute final `t` with partner `d`: `absurd`, `word`, `stirred`, `blurred`, `deterred`, `preferred`, `purred`, `slurred`.
-- Move to companions: `burp`, `twerp`, `curb`, `suburb`, `iceberg`.
+```text
+perfect:  alert   curt   dirt   flirt   inert   skirt
+urd:      absurd   gallows bird   stirred   word
+          blurred   deterred   preferred   purred   slurred
+urp:      burp   twerp
+urb:      curb   suburb
+urg:      iceberg
+```
 
-Example: `help`
+Many perfect rhymes for `hurt` are transitive verbs, which limits options. Pat flags the payoff of the `d` substitution: "Good news! You can use the past-tense verbs of 'ur.'"
 
-- Perfect options are almost empty.
-- Substitute `p` with `d` and search `eld`: `unparalleled`, `weld`, `compelled`, `propelled`, `quelled`, `rebelled`, `shelled`.
-- Move to companion `t`: `felt`, `heartfelt`, `melt`.
+Example: `help` (*Essential Guide to Rhyming* (2014), Chapter 4)
+
+Perfect rhyme yields `kelp?` — "Oops!"
+
+```text
+eld:  unparalleled   weld
+      compelled   propelled   quelled   rebelled   shelled
+elt:  felt   heartfelt   melt
+```
+
+The same "past-tense verbs of 'el'" bonus applies. Nothing turns up anywhere else.
 
 Even when the expansion is modest, it may rescue a word that has no usable perfect rhyme.
 
@@ -300,6 +373,14 @@ free / release
 
 This is useful because open-vowel rhymes have been heavily used. Adding consonants can bypass obvious cliches while preserving most of the connection.
 
+Pat's counterexample — the definition alone is not enough:
+
+```text
+free / shields
+```
+
+"Though you can still hear the common vowel sound, the relationship is not strong enough to substitute for perfect rhyme. There is too much difference in sound." A technically valid additive rhyme can still be too remote. It depends on how noticeable the consonants are, and maybe on the length of the syllable's note.
+
 Stability depends on how much sound gets added:
 
 - Less added sound means more stability.
@@ -308,7 +389,7 @@ Stability depends on how much sound gets added:
 - Voiced plosives are usually less noticeable than unvoiced plosives.
 - Fricatives last longer, so they add more sound.
 - Nasals add more sound than plosives and fricatives, except that `l` and `r` are even heavier.
-- Multiple consonants add still more weight.
+- Multiple consonants add still more weight: `free / dreams`.
 
 Search order for additive rhyme:
 
@@ -317,35 +398,73 @@ Search order for additive rhyme:
 3. Move from plosives to fricatives to heavier sounds only as needed.
 4. Sing every candidate before keeping it.
 
-Worked example: open-vowel `free`
+Worked example: open-vowel `free` (*Essential Guide to Rhyming* (2014), Chapter 5)
 
-- Add voiced plosive `d`: `bleed`, `greed`, `speed`, `seed`.
-- Add unvoiced plosive `p`: `deep`, `asleep`, `cheap`, `weep`.
-- Add unvoiced plosive `t`: `bittersweet`, `deceit`, `defeat`, `elite`.
-- Add unvoiced plosive `k`: `bleak`, `speak`, `weak`.
-- Add unvoiced fricative `f`: `belief`, `relief`, `thief`.
-- Add unvoiced fricative `s`: `peace`, `police`, `release`.
+Work through voiced plosives, then unvoiced plosives, then unvoiced fricatives:
 
-Worked example: consonant-ending `erase`
+```text
++b   (not much there)
++d   bleed   greed   speed   seed
++p   deep   asleep   cheap   weep
++t   bittersweet   deceit   defeat (noun)   elite
++k   bleak   speak   weak
++f   belief   relief   thief
++s   peace   police   release
+```
+
+> "Never stop listening. If your ear says a sound is wrong, find another rhyme.
+> Trust your ears. (But be sure to sing your rhymes when you check.)"
+
+Worked example: consonant-ending `erase` (*Essential Guide to Rhyming* (2014), Chapter 5)
+
+Additive rhyme also works when the syllables end with the same consonant. You simply add — or insert — another one:
 
 ```text
 erase / paste
-case / erased
-space / traced
 ```
 
-The second version regains transitive verbs by adding `-ed`. It has a cost: passive verbs are weaker than active verbs. But it can make a rhyme-position word usable without forcing an unnatural direct object after the line break.
-
-Additive rhyme works especially well after `l` and `r` because those sounds carry so much weight that a later consonant may feel less prominent:
+Pat then returns to the `safe` fricative search, where `erase` and `trace` had to be skipped as transitive verbs needing a direct object ("erase my heart," "trace your feelings"). Adding `-ed` turns the verb from active to passive and hands them back:
 
 ```text
-scar / heart
-scar / dark
-Jezebel / unparalleled
-help / knelt
+as   case   ace   breathing space   erased   traced
 ```
 
-Those are not all equally stable. They are candidates to sing, not automatic approvals.
+The payoff in the line itself — instead of the clumsy relic
+
+```text
+You say you need some breathing space
+As if my heart you could erase        (Ick)
+```
+
+you get
+
+```text
+You say you need some breathing space
+As if my heart could be erased
+```
+
+There is a price: active verbs are stronger than passive verbs. An added attraction: the unvoiced `s` makes the final `d` turn into an unvoiced `t` sound.
+
+Additive rhyme works especially well after `l` and `r` because those sounds carry so much weight that whatever comes after them will hardly be noticeable:
+
+```text
+scar        Jezebel
+heart       unparalleled
+dark        help
+tarred      knelt
+guard       svelte
+charge      wealth
+hearth
+```
+
+"These work very well, better than many additive rhymes, because l and r carry so much weight." You might even get away with additional consonants:
+
+```text
+star / arms
+war / endorsed
+```
+
+Those are not all equally stable. They are candidates to sing, not automatic approvals. "Again, sing them. Trust your ears."
 
 ## Family Additives
 
@@ -360,7 +479,11 @@ trip / risk
 ache / saint
 ```
 
-The last two are easy to miss in an alphabetical dictionary search because the extra consonant appears before the family consonant. Treat the worksheet as a discovery surface: while searching family options, mark relatives that also add sound.
+The last two are easy to miss in an alphabetical dictionary search because the extra consonant appears before the family consonant.
+
+> "Keep your eyes open for them. They'll drop out of the sky. Stars fall all the time. If you're watching for them, you'll see some." — *Essential Guide to Rhyming* (2014), Chapter 5
+
+The addition can also land inside the word, where it is less noticeable — searching `hush` through the nasals turns up `lunch`, "which seems to work just fine." Treat the worksheet as a discovery surface: while searching family options, mark relatives that also add sound.
 
 ## Subtractive Rhyme
 
@@ -390,7 +513,7 @@ Worked example: `fast`
 - Add `t` to fricative-family options and you may reach `draft`.
 - Simple family options for the reduced `as` include `dash`, `wrath`, `laugh`.
 
-`fast / dash` is useful because it makes a fresh connection while still acting as a plausible perfect-rhyme substitute.
+> "Try them. 'Fast/dash' is a lovely connection. It is not a cliche rhyme, and it is an acceptable perfect rhyme substitute." — *Essential Guide to Rhyming* (2014), Chapter 5
 
 Worked example: long-vowel `treat`
 
@@ -398,9 +521,11 @@ Worked example: long-vowel `treat`
 treat / free
 ```
 
-When a long vowel has only one consonant after it, subtracting down to the open vowel is often enough. Do not over-process it.
+"When you work with long vowels that end in only one consonant, you can always pare down to the open vowel." Do not over-process it: "No need to multiply examples. You understand."
 
-Subtractive rhyme also applies to feminine rhyme. Work from the stressed syllable, as with family rhyme, then test the whole word in song.
+Subtractive rhyme also applies to feminine rhyme — "these techniques work just as easily for feminine rhyme as they do for masculine rhyme," with Pat's aside, "(Try finding one for 'simply.')" Work from the stressed syllable, as with family rhyme, then test the whole word in song.
+
+Pat closes Chapter 5 by summing up what the perfect-rhyme substitutes are for: family rhyme and additive/subtractive rhyme are easy to find, both let you use rhyming positions expressively "in what has become a minefield of cliches," and both create at least most of the stability characteristic of perfect rhyme.
 
 ## Kissin' Cousins - Most Remote Rhyme Types
 
@@ -420,11 +545,13 @@ The coaching tradeoff is simple: less resolution gives more freedom, but it also
 
 ### Assonance Rhyme
 
-Assonance rhyme has:
+Assonance rhyme is simple vowel rhyme — the syllables share only a common vowel sound. More precisely, assonance rhyme has:
 
 - the same stressed vowel sound,
-- unrelated consonants after the vowel,
+- consonants after the vowel that are *not* phonetically related,
 - different sounds before the vowel.
+
+Pat is explicit that assonance rhymes *always* have consonants after the vowels; the consonants simply cannot be phonetically related. That requirement is what separates assonance from additive rhyme when the target is an open vowel.
 
 The vowel still rings in song, but the consonants do not complete the stop. That makes assonance the widest search: once the target vowel is fixed, scan across columns that perfect, family, additive, and subtractive rhyme would normally skip.
 
@@ -435,39 +562,54 @@ Use assonance when:
 - a section should stay open at a rhyme position,
 - the singer's held vowel can carry the connection better than the printed page would.
 
-Worked example: short-vowel `love`
+Pat's headline pair (*Essential Guide to Rhyming* (2014), Chapter 6):
 
 ```text
-love / hunt
-love / toughened
-love / country
+love / hunt        tide / afterlife
 ```
 
-The shared vowel keeps the words in the same sonic neighborhood, but the endings do not settle. This can support hunger, uncertainty, or unresolved desire better than `love / dove`.
+"Sing them. You can hear their connection. The vowel sounds ring out and connect. However, they do not complete their connection; they leave it hanging."
 
 Worked example: long-vowel `tide`
 
+An assonance search on `tide` means looking under all the long `i` columns — the widest possible rhyme search, but a manageable one:
+
 ```text
-tide / life
-tide / climb
-tide / survive
+tide
+life   isle   climb   brine   lifeline   rise   survive   revive
 ```
 
-The long vowel is strong enough to hear in song. The different endings keep the connection suspended rather than closed.
+"The search takes time, but the rewards are usually worth it."
 
-Feminine assonance is stronger because the unstressed syllable after the stressed vowel adds extra shared motion. It can sometimes substitute for full resolution more convincingly than masculine assonance.
+Feminine assonance is stronger than masculine assonance because of the extended resolution of the unstressed syllables — "so solid, in fact, that feminine assonance rhyme is usually a good perfect rhyme substitute."
 
 Worked example: feminine `lonely`
 
+The family rhymes from the nasals are already known, so go through the feminine long `O` section for plosives and fricatives, looking for unstressed syllables ending in `i` (the feminine section's notation for unaccented long `e`), `Ii`, and even `ing`. Pat's own list, with his `(subtractive)` markers intact:
+
 ```text
-lonely / solely
-lonely / smoky
-lonely / slowly
+adobe          disrobing
+approaching    probing
+reproaching    toady
+foreboding     trophy
+solely         snowy (subtractive)
+smokey         blowing (subtractive)
+yogi           pokey
+coldly         boldly
+stogie         holy (subtractive)
+dopey          lowly (subtractive)
+coyote         slowly (subtractive)
+imposing       consoling
+hoping         alimony (subtractive)
+ghostly        voting
+anchovy        nosy (subtractive)
 ```
 
-Some candidates may also be subtractive or near-family cases. Sing them before labeling them.
+"Sing them. Many will be fine as perfect rhyme substitutes. Others will not. The latter will have to stay as assonance rhymes."
 
 Worked example: mosaic with `lonely`
+
+One way to find mosaics is to use masculine transitive verbs plus the pronoun "me":
 
 ```text
 lonely / hold me
@@ -484,7 +626,15 @@ Consonance rhyme has:
 - the same consonant or consonant cluster after the vowel,
 - different sounds before the vowel.
 
-This is more remote than assonance in song because sung vowels are naturally prominent. The final consonant has to be strong enough for the listener to catch it.
+Pat's headline set (*Essential Guide to Rhyming* (2014), Chapter 6, "Consonance Rhyme: From Birth to Death"):
+
+```text
+save / leave      sin / won      word / card
+```
+
+Consonance rhyme creates tension and resolution, "but uses only the final consonants to resolve the tension. That's why it feels so remote — so, um, unstable."
+
+This is more remote than assonance in song because sung vowels are naturally prominent. Consonance turns up often in poetry, where — being read or spoken rather than sung — vowels are not exaggerated and "the vowels and consonants are much more equal partners." In a lyric, "connections between consonant sounds must be very strong to even hear them."
 
 Use consonance when:
 
@@ -493,73 +643,108 @@ Use consonance when:
 - the final consonant is sonically strong enough to carry the connection,
 - a perfect rhyme would make the section feel too closed, neat, or clever.
 
-Most usable consonance options, from stronger to weaker:
+In order, these consonance rhymes are the most likely to be useful, with Pat's own examples for each rank:
 
-1. Feminine consonance, because the unstressed syllable adds extra resolution.
-2. Masculine consonance with `r` or `l`, because the sounds are hard to miss.
-3. Masculine consonance ending in multiple consonants.
-4. Masculine consonance ending in nasals, because nasals are voiced and holdable.
-5. Masculine consonance ending in voiced fricatives.
+1. **Feminine consonance rhymes.** The identity or rhyme of the unstressed syllable gives extra resolution, making feminine consonance stronger than its masculine counterpart.
 
-Worked example: final `v`
+   ```text
+   cramming / teeming      rubber / fibber
+   ```
+
+2. **Masculine consonance containing `r` or `l`.** "Since the sound of these consonants is so strong, they are very hard to miss."
+
+   ```text
+   scare / fear      pull / fall      snarl / curl
+   ```
+
+3. **Masculine consonance ending in multiple consonants.** "There is a lot of common sound to hear."
+
+   ```text
+   ranch / lynch      fast / rest      crypt / slept
+   ```
+
+4. **Masculine consonance ending in nasals.** "Nasals are always voiced, so they are noticeable. Also, they can be held. (That's what you do when you hum.)"
+
+   ```text
+   stun / ran      came / scream      song / ring
+   ```
+
+5. **Masculine consonance ending in voiced fricatives.** "Again, these are voiced and can be held."
+
+   ```text
+   grave / reprieve      rage / badge      cause / whiz
+   ```
+
+Worked example: searching `love` on final `v`
+
+Consonance rhymes are easy to find in the rhyming dictionary — each vowel sound lists its consonant endings alphabetically, so for `love` you look in each vowel section under `v`:
 
 ```text
-love / leave
-love / grave
-love / forgive
+love
+grave   have   leave   thrive   forgive   rove   groove
 ```
 
 The final `v` gives a real connection, but the vowel change makes the rhyme unstable. Use it when the line needs contact without arrival.
 
-Worked example: final `r`
+Song anchor: Paul Simon, "50 Ways to Leave Your Lover"
+
+"Consonance rhyme never works like perfect rhyme. Yet, when it is strong enough, it can work for you." Use it when a rhyme scheme is already committed to in an earlier verse and you want to keep it while relaxing the motion later. Verse 3 of "50 Ways to Leave Your Lover" ends:
 
 ```text
-fear / care
-curl / snarl
-heart / hurt
+pain
+again
+explain
 ```
 
-`R` is heavy enough to hear, so it can hold a consonance rhyme more clearly than a short plosive might.
-
-Worked example: final cluster
-
-```text
-fast / rest
-ranch / lynch
-crypt / slept
-```
-
-Multiple consonants give more common sound, so the listener has more evidence of connection even when the vowels change.
+The consonance rhyme in second position dampens the resolving effect of the consecutive rhymes; the verses stay relaxed "both in attitude and structure." Pat's test: "Try replacing 'again' with a perfect rhyme and see what happens! The prosody evaporates."
 
 ### Partial Rhyme
 
-Partial rhyme matches a masculine syllable against the stressed syllable of a feminine figure and leaves the unstressed syllable unresolved. It is not mainly a substitute for perfect rhyme. It is a way to prevent closure in a spot that would otherwise close.
+"Partial rhyme is really fun. It rhymes a masculine syllable with the accented syllable of a feminine figure, leaving the unaccented syllable unrhymed." (*Essential Guide to Rhyming* (2014), Chapter 6, "Partial Rhyme: From Cradle to Grave")
 
-Use partial rhyme when:
+It is "the first rhyme type you have seen that is used only for its special effects on structure." Use it to prevent closure in otherwise closed structures. To find it, start with a feminine figure, then look in the masculine section to rhyme the stressed syllable — "Forget about the unstressed match!" The feminine figure usually appears first.
 
-- a verse needs to move into a prechorus or final line,
-- a feminine word is the right word but its full figure would over-close,
-- the line needs a sonic bridge without a structural stop.
+Song anchors:
+
+- Ric Ocasek, "Why Can't I Have You" — partial rhyme moves a verse into a prechorus, then repeats the technique at the end of verse 2.
+
+  ```text
+  moving / you        striking / night
+  ```
+
+- Michael Jackson, "Billie Jean" — the same result via what Pat calls a *partial assonance rhyme*.
+
+  ```text
+  lover / one
+  ```
+
+"The partial rhyme makes the sonic connection but leaves the structure free to move forward to the final crucial line."
 
 Worked example: masculine against feminine
 
-```text
-rose / closing
-cream / steamer
-like / hiking
-```
-
-The stressed syllables connect; the leftover unstressed syllable keeps the line moving.
-
-Worked example: expanding a family search
+These are stronger because they use perfect rhyme between the stressed syllables:
 
 ```text
-travel / laugh
-travel / path
-travel / crash
+closing / rose      like / hiking      steamer / cream
 ```
 
-The search reaches beyond full feminine matches like `bashful` or `satchel`. This can rescue a strong feminine idea without forcing the whole word to rhyme.
+Worked example: expanding a family search on `travel`
+
+The Chapter 4 family search on `travel` produced feminine matches only:
+
+```text
+bashful   dazzle   wrathful   glass full   satchel   fragile
+```
+
+Add partial rhyme and the field opens:
+
+```text
+jazz   laugh   path   Khyber Pass   dash   crash
+```
+
+"This really extends your ability to use feminine words, yet make strong connections between ideas."
+
+Pat's summary of the remote types: assonance, consonance, and partial rhyme are useful for two purposes — developing strong content for rhyming positions, and modifying structural effects. "There is no guesswork involved; they will affect structure. They will create instability. Use them to support unstable ideas. Prosody."
 
 ### Coaching Prompts For Remote Rhyme
 
@@ -615,36 +800,33 @@ When coaching family, additive, subtractive, assonance, consonance, and partial 
 
 ## Weak-syllable rhyme
 
-Pat's most-overlooked rhyme type. The rhyme falls on the **unstressed**
-final syllable of a feminine figure, while the stressed syllable does
-not rhyme. The position carries less audible weight than the stressed
-position, but the connection still registers in song.
-
-Form:
-
-- shared unstressed vowel or consonant sound at line ending,
-- different stressed syllable,
-- different sounds before the unstressed syllable.
-
-Example shapes (paraphrased):
+**Named but not developed in this source.** Chapter 6 opens by promising
+four kissin'-cousins types:
 
 ```text
-mountain / certain      (final -in sound shared; stressed syllables differ)
-shadow / window         (final -ow sound shared)
-ringing / falling       (final -ing shared)
+1. assonance rhyme
+2. consonance rhyme
+3. partial rhyme
+4. weak-syllable rhyme
 ```
 
-Use weak-syllable rhyme when:
+The chapter body then treats assonance, consonance, and partial rhyme
+only, and closes by naming just those three ("With assonance rhyme,
+consonance rhyme, and partial rhyme, there is no guesswork involved").
+The book's index lists `weak-syllable rhymes, 59` — the enumeration page
+and nothing else.
 
-- the line wants connection but the stressed-syllable family search
-  has stalled,
-- a feminine figure must connect without closing on its stressed
-  syllable,
-- the singer's natural emphasis already lands on a different
-  syllable than the rhyme position.
+So *Essential Guide to Rhyming* (2014), Chapter 6 supplies no definition,
+no form description, no worked examples, and no stability placement for
+this type. Everything beyond the name would have to come from another
+source.
 
-Stability: less than partial rhyme. Treat as an open structural
-move. Pair with stronger rhyme elsewhere in the scheme.
+Coaching guidance: do not present a weak-syllable definition or example
+pairs as Pat's from this book. If a writer asks about the type, say that
+Pat names it in the Chapter 6 list and that the developed treatment lives
+outside this text. The remaining six tiers — perfect, family,
+additive/subtractive, assonance, consonance, partial — carry the full
+documented scale.
 
 ## Partial rhyme — extended
 
@@ -659,13 +841,18 @@ Form:
 - the feminine word's unstressed final syllable adds material the
   masculine word does not match.
 
-Example shapes (paraphrased):
+Pat's examples, annotated:
 
 ```text
-rose / closing      (rose matches the stressed "clo-"; "-sing" is extra)
-cream / steamer     (cream matches "stea-"; "-mer" is extra)
+closing / rose      (rose matches the stressed "clo-"; "-sing" is extra)
 like / hiking       (like matches "hi-"; "-king" is extra)
+steamer / cream     (cream matches "stea-"; "-mer" is extra)
 ```
+
+Pat notes these three are stronger than his song anchors because the stressed
+syllables connect by perfect rhyme. Where the stressed syllables connect by
+assonance instead, he labels the result a *partial assonance rhyme* —
+"Billie Jean," `lover / one`.
 
 Use partial rhyme when:
 
@@ -726,7 +913,7 @@ The lesson:
   not as the default.
 - Withhold closure when the emotion is incomplete.
 - Use family, additive/subtractive, assonance, consonance, partial,
-  and weak-syllable rhymes as deliberate stability moves.
+  rhymes as deliberate stability moves.
 
 The phrase Pat returns to:
 
@@ -747,10 +934,9 @@ creative options on the course than one who only knows the driver.
 > "Craft prepares you to be creative." — Pat (*Essential Guide to Rhyming* (2014), Chapter 9)
 
 The lesson for rhyme: knowing all six rhyme types (perfect, family,
-additive/subtractive, assonance, consonance, partial, weak-syllable)
-multiplies a writer's options at every rhyme position. Creativity
-without craft tries to wing it from one tool; creativity with craft
-chooses from seven.
+additive/subtractive, assonance, consonance, partial) multiplies a
+writer's options at every rhyme position. Creativity without craft
+tries to wing it from one tool; creativity with craft chooses from six.
 
 The discipline:
 
@@ -817,19 +1003,17 @@ exist in the mouth + ear.
 
 ## Weak-syllable rhyme — source citation
 
-Pat names weak-syllable rhyme explicitly in *Essential Guide to Rhyming*
-(2014), Chapter 6, alongside assonance / consonance / partial rhyme as
-the four "Kissin' Cousins" types. The chapter's opening enumerates these
-four types; weak-syllable is item 4 in that list.
+Pat names weak-syllable rhyme in *Essential Guide to Rhyming* (2014),
+Chapter 6, alongside assonance / consonance / partial rhyme as the four
+"Kissin' Cousins" types. The chapter's opening enumerates these four
+types; weak-syllable is item 4 in that list. Page 59 is the only
+occurrence in the book, and the index confirms it: `weak-syllable
+rhymes, 59`.
 
-The mechanic — unstressed syllable carries additional sonic match beyond
-the stressed rhyme position — is one of the most useful concealed-craft
-moves in the kissin'-cousins family. Pat's Berklee Online + Coursera
-material extends the teaching with additional worked examples.
-
-Use weak-syllable rhyme for deliberate suspension at line endings where
-the stressed-rhyme tier alone would either over-resolve or under-resolve
-the moment.
+That single mention is the whole of the source's coverage. See the
+"Weak-syllable rhyme" section above: definition, form, examples, and
+stability placement are all unsourced from this book and must not be
+attributed to it.
 
 ## Cross-references
 
@@ -838,8 +1022,7 @@ the moment.
 - [rhyme worksheets](rhyme-worksheets.md) — full search algorithm
   applied per slot.
 - [rhyme sonic bonding](rhyme-sonic-bonding.md) — internal-rhyme
-  and sonic-fabric considerations that overlap weak-syllable and
-  partial rhyme.
+  and sonic-fabric considerations that overlap partial rhyme.
 - [rhyme generation](rhyme-generation.md) — internal rhyme-generation
   discipline applying Pat's framework to model vocabulary.
 - [ai-tools](ai-tools.md) — Datamuse supplement for vocabulary breadth

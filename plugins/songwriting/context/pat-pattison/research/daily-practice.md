@@ -80,12 +80,47 @@ Object-writing rules:
 - Stop exactly when the timer ends.
 - Mine after the buzzer.
 
-Useful prompt families:
+Every day of Challenge 1 has the same three-timer shape — 5 minutes, then 10
+minutes, then 90 seconds — and Pat supplies all three seeds. The complete list,
+in Pat's numbering (*Songwriting Without Boundaries* (2011), Challenge 1, Days
+1-14):
 
-- What: mirror, arrow, movie theater, broken cup, rain cloud, bus ticket.
-- Who: waitress, priest, cyclist, exhausted drummer, child in a hallway.
-- When: first snowfall, late evening, graduation, six in the morning.
-- Where: hotel bar, city bus, cliff by the ocean, old church, parking lot.
+| Day | 5 minutes | 10 minutes | 90 seconds |
+| --- | --- | --- | --- |
+| 1 | Sky | Crash | Lily Pad |
+| 2 | Bathroom Mirror | Dentist | Screwdriver |
+| 3 | Umbrella | Hair | Feather |
+| 4 | Curb | Bouquet | Rain Cloud |
+| 5 | Movie Theater | Cigar | Arrow |
+| 6 | Sailor | Waitress Clearing a Table | Priest |
+| 7 | Balloon Man | Homeless Child | Trucker |
+| 8 | Cyclist | Ballerina | Puppy |
+| 9 | Summer Rainstorm | Graduation | Wedding Rehearsal Dinner |
+| 10 | Six in the Morning | First Snowfall | Easter Sunday |
+| 11 | Late Evening | Loved One's Funeral | Crossing the Finish Line |
+| 12 | A Cliff by the Ocean | Park Bench in the City | Hotel Bar |
+| 13 | Suburban Swimming Pool | The Old Fishing Hole | Under an Umbrella |
+| 14 | On the City Bus | Wedding in an Old Church | Canoe on the River |
+
+Days 1-5 are "what" writing (things), 6-8 "who" (characters), 9-11 "when"
+(times and occasions), 12-14 "where" (places). Note that the ten-minute slot
+generally carries the day's most loaded seed — Crash, Dentist, Homeless Child,
+Loved One's Funeral — while the ninety-second slot stays small and physical.
+When generating a substitute seed, keep that weighting.
+
+Pat's own instruction line for every one of these days, worth reading aloud
+before the timer starts:
+
+> Set a timer and respond to the following prompts for exactly the time allotted.
+> Stop IMMEDIATELY when the timer goes off. Do not even finish the word you are
+> on. Use only your seven senses. No judgments, comments, or quotes allowed.
+
+He also prints a seven-word strip to let the eye wander over when the writer
+stalls:
+
+```text
+Sight  Sound  Taste  Touch  Smell  Body  Motion
+```
 
 ## Days 15-28: metaphor
 
@@ -94,22 +129,43 @@ then using each collision as a 90-second object-writing prompt.
 
 > A metaphor is a collision between ideas
 
-| Days | Practice | Coaching aim |
-| --- | --- | --- |
-| 15 | Adjective-noun collisions | Make arbitrary collisions meaningful. |
-| 16 | Find nouns from adjectives | Keep the adjective literally false. |
-| 17 | Find adjectives from nouns | Add friction instead of decoration. |
-| 18 | Noun-verb collisions | Use verbs to energize nouns. |
-| 19 | Find verbs from nouns | Give static nouns surprising action. |
-| 20 | Find nouns from verbs | Find a subject or object for strange action. |
-| 21 | Expressed identity | Test noun-noun pairs in all three forms. |
-| 22 | Reversed expressed identity | Reverse the nouns and compare pressure. |
-| 23 | Find nouns from nouns | Search new identities from a target noun. |
-| 24 | Playing in keys | Borrow terms through linking qualities. |
-| 25 | Playing in keys | Repeat target-to-quality-to-family practice. |
-| 26 | Find linking qualities | List qualities, then ask what else has them. |
-| 27 | Find linking qualities | Apply the search to social or abstract terms. |
-| 28 | Simile | Write three similes plus elaborations. |
+Pat's own day titles and seeds (*Songwriting Without Boundaries* (2011),
+Challenge 2, Days 1-14):
+
+| Day | Pat's day | Title | Seeds Pat supplies |
+| --- | --- | --- | --- |
+| 15 | C2 D1 | Adjective-Noun Collisions | Ten collisions from two five-word lists — see below |
+| 16 | C2 D2 | Finding Nouns From Adjectives | Angry; Boastful; Careful; Dark; Enthusiastic |
+| 17 | C2 D3 | Finding Adjectives From Nouns | Furnace; Midnight; Cottage; Hope; Ghost |
+| 18 | C2 D4 | Noun-Verb Collisions | Moonlight Tumbles; Funeral Exhales; Carburetor Sings; Autumn Remembers; Handkerchief Pleads |
+| 19 | C2 D5 | Finding Verbs From Nouns | Crossbow; Kettle; Waitress; Summer; Graduation |
+| 20 | C2 D6 | Finding Nouns From Verbs | Flush; Indict; Paddle; Operate; Soar |
+| 21 | C2 D7 | Expressed Identity: Noun-Noun Collisions | A wince is a cargo ship; A Frisbee is a zipper; A poem is an evening; Summer is the captain; A restaurant is a wineglass |
+| 22 | C2 D8 | Expressed Identity: Noun-Noun Collisions | The same five reversed: A cargo ship is a wince; A zipper is a Frisbee; An evening is a poem; The captain is summer; A wineglass is a restaurant |
+| 23 | C2 D9 | Expressed Identity: Finding Nouns From Nouns | `Maple tree is ___`; `Traffic is ___`; `Sunrise is ___`; `Cathedral is ___`; `Policeman is ___` |
+| 24 | C2 D10 | Playing in Keys: Using Linking Qualities | Policeman (protects / investigates / arrests) |
+| 25 | C2 D11 | Playing in Keys: Using Linking Qualities | Cathedral (it inspires / being at the pinnacle) |
+| 26 | C2 D12 | Playing in Keys: Finding Linking Qualities | Maple Tree; Traffic |
+| 27 | C2 D13 | Playing in Keys: Finding Linking Qualities | Handshake; Sunrise |
+| 28 | C2 D14 | Simile | Trust; A bad joke; Divorce; A waterfall; Hope |
+
+Three details worth carrying into coaching:
+
+- **Day 3's participle note.** When a writer draws an adjective off a verb —
+  *trembling* cottage — Pat names it: adjectives made by adding *-ing* or *-ed*
+  to a verb are participles, and since verbs are the strongest element in
+  language, using them to build modifiers makes for a more potent one.
+- **Day 7's three forms.** Every noun-noun identity gets tested in all three:
+  `A poem is a zipper` / `The zipper of the poem` / `The poem's zipper`.
+- **Day 14's focus rule.** `Love is a rose` sends the focus to the second term.
+  If you want love in focus, use simile: `Love is like a rose`.
+
+Day 10 also states the two metaphor-finder questions in their canonical form:
+
+```text
+What quality does my object have?
+What else has that quality?
+```
 
 Metaphor-practice rules:
 
@@ -141,31 +197,66 @@ keep producing images, actions, and turns.
 
 Challenge 3 daily arc:
 
-| Days | Practice | Direction |
-| --- | --- | --- |
-| 29-31 | Linking qualities to target ideas | Supplied qualities, one direction. |
-| 32-35 | Working both directions | Supplied qualities, then reverse the lens. |
-| 36-39 | Find linking qualities | Writer finds qualities, one direction. |
-| 40-42 | Find linking qualities both ways | Writer finds qualities, then reverses. |
+| Days | Pat's days | Practice | Direction |
+| --- | --- | --- | --- |
+| 29-31 | C3 D1-3 | Linking Qualities to Target Ideas | Supplied qualities, one direction. |
+| 32-35 | C3 D4-7 | Working Both Directions | Supplied qualities, then reverse the lens. |
+| 36-38 | C3 D8-10 | Finding Linking Qualities: Working One Direction | Writer finds three qualities, one direction. |
+| 39-42 | C3 D11-14 | Finding Linking Qualities: Moving Both Directions | Writer finds two qualities, then reverses. |
 
-Day prompts:
+Day prompts, with the linking qualities Pat actually supplies:
 
-| Day | Prompt | Practice focus |
-| --- | --- | --- |
-| 29 | Snowstorm | Link supplied qualities to target ideas. |
-| 30 | Deep-Sea Diver | Explore target ideas through a source lens. |
-| 31 | Guitar Solo | Notice how shared qualities open families. |
-| 32 | Sleeping Late | Reverse the metaphor after the first write. |
-| 33 | Broken Glass | Test whether the linking quality is essential. |
-| 34 | Falling in Love | Let strong shared qualities turn both ways. |
-| 35 | Cheating Lover | Use danger and damage as metaphor engines. |
-| 36 | Magnifying Glass | Find three linking qualities, one direction. |
-| 37 | Swimming Hole | Find qualities and target ideas, one direction. |
-| 38 | Afternoon Nap | Search qualities before target ideas. |
-| 39 | Traffic Cop | Find qualities, then begin reversing again. |
-| 40 | Wheelchair | Move both directions from writer-found qualities. |
-| 41 | Sailboat | Reverse through motion and grace families. |
-| 42 | Vacation | Reverse through abstract and relational targets. |
+| Day | Pat's day | Prompt | Linking qualities |
+| --- | --- | --- | --- |
+| 29 | C3 D1 | Snowstorm | Cold; Covering the ground; Hot cider by the fireplace; Slippery roads; Low visibility |
+| 30 | C3 D2 | Deep-Sea Diver | Totally immersed; Supported by a lifeline; Surrounded by an unfamiliar landscape |
+| 31 | C3 D3 | Guitar Solo | Building intensity; Going somewhere new; In the spotlight |
+| 32 | C3 D4 | Sleeping Late | Conserving energy; Wasting time |
+| 33 | C3 D5 | Broken Glass | Unable to be repaired; Glittering and dangerous |
+| 34 | C3 D6 | Falling in Love | Swept away; Glittering and dangerous |
+| 35 | C3 D7 | Cheating Lover | Swept away; Dangerous situation |
+| 36 | C3 D8 | Magnifying Glass | Writer supplies three |
+| 37 | C3 D9 | Swimming Hole | Writer supplies three |
+| 38 | C3 D10 | Afternoon Nap | Writer supplies three |
+| 39 | C3 D11 | Traffic Cop | Writer supplies two |
+| 40 | C3 D12 | Wheelchair | Writer supplies two |
+| 41 | C3 D13 | Sailboat | Writer supplies two |
+| 42 | C3 D14 | Vacation | Writer supplies two |
+
+Note the count drops from three qualities to two exactly when reversal arrives on
+Day 11 — the second ten-minute write costs what the third quality used to.
+
+Pat's own worked chains from Day 1, useful as demonstration material because they
+show one source producing five unrelated targets:
+
+```text
+Snowstorm -> Cold                       -> Your sneer
+Snowstorm -> Covering the ground        -> Wildflowers
+Snowstorm -> Hot cider by the fireplace -> Seeking comfort
+Snowstorm -> Slippery roads             -> Argument / Marriage
+Snowstorm -> Low visibility             -> Prejudice / The past
+```
+
+And from Days 2-7, so a coach has a supplied-quality bank on hand:
+
+```text
+Deep-sea diver -> Totally immersed        -> Cyclist / In conversation
+Deep-sea diver -> Supported by a lifeline -> Dying patient / Frontline soldier
+Deep-sea diver -> Unfamiliar landscape    -> Astronaut on the moon / Tourist
+Guitar solo    -> Building intensity      -> River / Lawyer's closing argument
+Guitar solo    -> Going somewhere new     -> First date / Piloting an airplane
+Guitar solo    -> In the spotlight        -> Moth / Escaping convict
+Sleeping late  -> Conserving energy       -> Sitting on a summer porch /
+                                             Taking the bus instead of walking
+Sleeping late  -> Wasting time            -> Surfing the Web /
+                                             A dead-end relationship
+Broken glass   -> Unable to be repaired   -> Broken trust / Mental illness
+Broken glass   -> Glittering and dangerous-> Las Vegas / Beautiful stranger
+Falling in love-> Swept away              -> Hurricane / Flash flood
+Cheating lover -> Swept away              -> Avalanche / Waterfall
+Cheating lover -> Dangerous situation     -> Kids playing with a loaded gun /
+                                             Smoking crack
+```
 
 ## Linking quality workflow
 
@@ -230,22 +321,54 @@ metrical and rhyme structure.
 
 The full sequence:
 
-| Day | Form | Prompt set |
-| --- | --- | --- |
-| 43 | Tetrameter lines, no rhyme | Sunset; Art Museum |
-| 44 | Tetrameter lines, no rhyme | Digging for Gold; Pickup Truck |
-| 45 | Tetrameter couplets | Mountain; Snowstorm |
-| 46 | Tetrameter couplets | Train; Sleeping Late |
-| 47 | Tetrameter couplets | John Brown; Broken Glass |
-| 48 | Tetrameter couplets | Skydiving; Rocking Chair on the Front Porch at Sunset |
-| 49 | Common meter `xaxa` | Whistling; Falling in Love |
-| 50 | Common meter `xaxa` | Ballerina; 18-Wheeler |
-| 51 | Common meter `abab` | Ocean Waves; Magnifying Glass |
-| 52 | Common meter `abab` | Slot Machine; Deep-Sea Diver |
-| 53 | Six-line `aabccb` / `xxaxxa` | War Zone; Wildflowers |
-| 54 | Six-line `abcabc` / `xxaxxa` | Morning Walk; Traffic Cop |
-| 55 | Six-line `abcabc` / `xabxab` | Trash Collector; Mowing the Lawn |
-| 56 | Unstable `abba` / `axxa` | Cloudy Day; Sleeping Late |
+Every day is two prompts: ten minutes on the first, five on the second. Pat's
+standing instruction is to use the whole time whether or not the final section
+gets finished.
+
+| Day | Pat's day | Pat's title | Form | 10 minutes | 5 minutes |
+| --- | --- | --- | --- | --- | --- |
+| 43 | C4 D1 | Tetrameter Lines | Tetrameter, duple feel, no rhyme | Sunset | Art Museum |
+| 44 | C4 D2 | Tetrameter Lines | Tetrameter, duple feel, no rhyme | Digging for Gold | Pickup Truck |
+| 45 | C4 D3 | Tetrameter Couplets | Rhymed pairs | Mountain | Snowstorm |
+| 46 | C4 D4 | Tetrameter Couplets | Rhymed pairs, duple and triple | Train | Sleeping Late |
+| 47 | C4 D5 | Tetrameter Couplets | Rhymed pairs, duple and triple | John Brown | Broken Glass |
+| 48 | C4 D6 | Tetrameter Couplets | Rhymed pairs, duple and triple | Skydiving | Rocking Chair on the Front Porch at Sunset |
+| 49 | C4 D7 | Common Meter | `xaxa` — rhyme only the trimeter lines | Whistling | Falling in Love |
+| 50 | C4 D8 | Common Meter | `xaxa` | Ballerina | 18-Wheeler |
+| 51 | C4 D9 | Common Meter | `abab` — rhyme tetrameter and trimeter | Ocean Waves | Magnifying Glass |
+| 52 | C4 D10 | Common Meter | `abab` | Slot Machine | Deep-Sea Diver |
+| 53 | C4 D11 | Tetrameter and Pentameter | Six-line `aabccb` / `xxaxxa` | War Zone | Wildflowers |
+| 54 | C4 D12 | Common Meter and Pentameter | Six-line `abcabc` / `xxaxxa` | Morning Walk | Traffic Cop |
+| 55 | C4 D13 | Common Meter and Pentameter | Six-line `abcabc` / `xabxab` | Trash Collector | Mowing the Lawn |
+| 56 | C4 D14 | Unstable Structure: abba | `abba` / `axxa` | Cloudy Day | Sleeping Late |
+
+Day 2 defines duple and triple feel with the shortest possible demonstration, and
+it is the one to use with a writer who cannot hear the difference:
+
+```text
+Mary had a little lamb        duple feel
+Mary, she had the littlest lamb   triple feel
+```
+
+Day 7 builds common meter live, adding one line at a time, and the reason it
+works is the imbalance in the middle:
+
+```text
+DUM da da DUM da DUM da da DUM    Give her a chance to sing by herself
+DUM da da DUM da DUM              Give her the room to shine
+DUM da da DUM da DUM da da DUM
+```
+
+You tap your foot four times in line 1 but only three in line 2. The body feels
+that imbalance — matching rhythms, differing lengths — and because you are off
+balance you must keep moving forward. Match line 3 to line 1 and rhyme it, and
+you have created a strong expectation for a fourth line. Line 4 lands and you
+feel the resolution. That is common meter, and like the tetrameter couplet it
+fits perfectly into an eight-bar sequence.
+
+Day 12 names the problem that six-line shapes exist to solve: rhyming `aabccb`
+still produces a stop sign at the couplet. Moving to `abcabc` keeps the section
+in motion across all six lines.
 
 Session rules:
 
@@ -317,8 +440,11 @@ The single most consequential discipline of *Songwriting Without Boundaries* (20
 guidance. The writer stops the moment the buzzer fires, including
 mid-word and mid-letter.
 
-> "Stop immediately when the timer ends." — Pat (*Songwriting Without Boundaries* (2011) challenge
-> openers; paraphrase)
+> "Stop IMMEDIATELY when the timer goes off. Do not even finish the word you are
+> on." — Pat, *Songwriting Without Boundaries* (2011), Challenge 1, Day 1
+
+The capitals are Pat's. The second sentence is the one that does the work: it
+removes the loophole a writer would otherwise take.
 
 The discipline:
 
@@ -335,16 +461,29 @@ thought."
 
 ## Free association vs story mode
 
-*Songwriting Without Boundaries* (2011) names two states the writer can be in during a timed write:
+Pat sets both states out on Challenge 1, Day 1 by comparing three writers who
+took the same seed three different ways:
 
-- **Free association** — the senses drive; the writer follows
-  sensory leaps wherever they go; the seed is a doorway, not a
-  contract.
-- **Story mode** — the writer tells a story or describes an event
-  in chronological order.
+> Object writing is pretty flexible. Susan stayed at an actual car crash. Scarlet
+> crashes pots on the linoleum floor. Both stay focused on one scene, as I did in
+> "Sky," while Cathy takes you floating away on a carpet of free association. The
+> only rule: Stay attached to your senses.
 
-Pat permits story mode when senses pull the writer there. He warns
-against forcing story mode to give the page a shape.
+So the two states are:
+
+- **Free association** — the senses drive; the writer follows sensory leaps
+  wherever they go. Pat's description of Cathy's write is the model: "letting one
+  thing roll into another, frequently leaving the original prompt fading
+  somewhere in the dust."
+- **Staying at one scene** — the writer holds a single location or event and
+  polls it with every sense. Susan's crash and Scarlet's kitchen both do this,
+  and Pat treats them as equally successful.
+
+Note that the flexibility runs the other way too: Scarlet answered the seed
+"Crash" with crashing pots rather than a car, so even a held scene need not be
+the literal prompt. The only rule is the senses. There is one clause Pat states
+as a rule and one he states as an observation — do not promote "stay at one
+scene" into a requirement.
 
 Diagnostic:
 
@@ -370,7 +509,14 @@ Five patterns the timed write should reject:
 5. **Theme statements** — naming the "point" of the write closes
    the page before the page has mined its material.
 
-> "No judgments, comments, or quotes allowed." — Pat (*Songwriting Without Boundaries* (2011) Day 1)
+Items 3 and 4 apply to Challenges 1-3 only. Challenge 4 requires both — its whole
+subject is fitting sense-bound material into stress counts and rhyme schemes — so
+do not carry the prohibition into Days 43-56. The rule Pat states without
+qualification, on every day of Challenge 1, is narrower than the list above: "Use
+only your seven senses. No judgments, comments, or quotes allowed."
+
+> "No judgments, comments, or quotes allowed." — Pat, *Songwriting Without
+> Boundaries* (2011), Challenge 1, Day 1
 
 ## Mining patterns Pat shows in writer samples
 
@@ -392,32 +538,57 @@ feedback. Skip them during the timed write itself.
 
 ## Day 15 — the collision pairs
 
-*Songwriting Without Boundaries* (2011), Challenge 2 opens with five adjective-noun collision pairs.
-The 14-day Challenge then jumbles them across subsequent days to
-test all combinations.
+*Songwriting Without Boundaries* (2011), Challenge 2, Day 1 is the biggest single
+day in the book: ten prompts, each requiring a sentence or short paragraph and
+then a ninety-second piece of object writing. Pat's own accounting — "A total of
+fifteen minutes, not counting the thinking and the sentences. Should be easy,
+eh?"
 
-The five seed pairs (paraphrased shape):
+He prints two five-word lists side by side and tells you to shove the first
+adjective against the first noun. That produces the first five collisions:
 
-| Pair | Adjective | Noun |
-|---|---|---|
-| 1 | Lonely | Moonlight |
-| 2 | Blackened | Funeral |
-| 3 | Fallen | Carburetor |
-| 4 | Smooth | Autumn |
-| 5 | Fevered | Handkerchief |
+| # | Adjective | Noun | Collision |
+| --- | --- | --- | --- |
+| 1 | Lonely | Moonlight | Lonely Moonlight |
+| 2 | Blackened | Funeral | Blackened Funeral |
+| 3 | Fallen | Carburetor | Fallen Carburetor |
+| 4 | Smooth | Autumn | Smooth Autumn |
+| 5 | Fevered | Handkerchief | Fevered Handkerchief |
 
-Days 16-21 recombine the adjectives and nouns into new pairings —
-for example, "Lonely Handkerchief" or "Blackened Autumn". Each new
-combination becomes a fresh collision drill.
+Then, halfway through the same day: "Five down, five to go. The words have been
+mixed up a bit." The noun column is reshuffled against the same adjectives:
 
-The discipline: write a coherence sentence first (one line that
-makes the collision plausible), then run a 90-second sense-bound
-write from the collision.
+| # | Adjective | Noun | Collision |
+| --- | --- | --- | --- |
+| 6 | Lonely | Handkerchief | Lonely Handkerchief |
+| 7 | Blackened | Autumn | Blackened Autumn |
+| 8 | Fallen | Funeral | Fallen Funeral |
+| 9 | Smooth | Moonlight | Smooth Moonlight |
+| 10 | Fevered | Carburetor | Fevered Carburetor |
 
-Pair-jumbling is the day-to-day mechanic — each new pairing forces
-the writer to find a new linking quality. See
-[metaphor](metaphor.md) "Eight named metaphor moves" for the
-recipes that operate on the pairs.
+The reshuffle is contained inside Day 1 — it is not spread across the following
+days. Days 2 onward move to different operations (the writer supplies the missing
+half, then verbs, then noun-noun identity), so treat the jumble as a
+within-session move: run a pairing, then run its scramble, and refuse to reuse
+the first linking quality on the second.
+
+The discipline for each of the ten: sit and think about the collision first and
+try to supply a landscape to make it make sense; write that sentence; then run
+ninety seconds of object writing using the collision as the prompt. Your object
+writing should use the collision as its prompt, but it can go anywhere — "You
+just get there through lonely moonlight's gate."
+
+Two diagnostic notes Pat attaches to this day, both usable as coaching language:
+
+- **Metaphors are always literally false.** On "blackened autumn": the fires
+  blacken things, not the season. "In fact, if the combination could be true,
+  e.g., blackened handkerchief, then it's not a metaphor."
+- **Productive ambiguity.** On a handkerchief write where it is hard to tell
+  whether the writer means a person or a piece of cloth: "I like when that
+  happens ... having at least two meanings, and both work in the context. You'll
+  find that productive ambiguity lies at the heart of metaphor."
+
+See [metaphor](metaphor.md) for the recipes that operate on the pairs.
 
 ## Three-stage leap — source through target
 
@@ -445,16 +616,23 @@ the metaphor is durable.
 Use reversal:
 
 - Only when the linking quality is essential to both ideas.
-- Days 32-42 of the curriculum reverse routinely.
+- Days 32-35 (Challenge 3, Days 4-7) and Days 39-42 (Challenge 3, Days 11-14)
+  reverse routinely. Days 36-38 deliberately do not — they hand the writer the
+  quality search instead, one variable at a time.
 - A reversal that feels forced means the metaphor wanted to stay
   one-directional or convert to simile.
 
 ## Stress-before-sound — why Days 43-44 forbid rhyme
 
-*Songwriting Without Boundaries* (2011), Challenge 4 opens with no-rhyme tetrameter exercises (Days
-43-44). The pedagogical reason: stress placement and rhyme are
-separate skills, and learning to hear stress is harder if rhyme is
-on the page distracting the ear.
+*Songwriting Without Boundaries* (2011), Challenge 4 opens with two days of
+tetrameter and withholds rhyme entirely. Pat's instruction on Challenge 4, Day 1
+is "Use only tetrameter lines, concentrating on a duple feel. No rhymes for now."
+On Day 2 it is "No rhymes till tomorrow." Rhyme arrives on Day 3, when a
+tetrameter couplet is defined as a pair of tetrameter lines that rhyme.
+
+Two days of line-length work before the first rhyme is the sequencing decision.
+Stress placement and rhyme are separate skills, and stress is the harder one to
+hear when rhyme is on the page competing for the ear.
 
 Sequence:
 
@@ -470,9 +648,10 @@ the line until stress lands clean, then add rhyme back.
 
 ## Nashville stressed-vowel title brainstorming
 
-A daily practice generator from patpattison.com seminars. Pat cites
-it as the way working Nashville writers produce title candidates
-quickly.
+A daily practice generator attributed to patpattison.com seminars rather than to
+either book. It is not part of the 56-day curriculum and no wording for it can be
+verified against *Songwriting Without Boundaries* (2011) — treat it as a method,
+not as a quotation, and do not attribute a sentence to Pat when using it.
 
 The drill:
 
@@ -484,30 +663,43 @@ The drill:
 5. Test the title's rhyme surface — the same vowel must also
    support 10+ rhyme candidates.
 
-> "This is how Nashville writers write a song every day." — Pat
-> (paraphrase)
-
 Use the Nashville method as a 10-minute daily warm-up after the
 56-day curriculum. Pair with [hook](hook.md) "title generation"
 for the seven-types catalog.
 
-## Pair-jumbling mechanic (*Songwriting Without Boundaries* (2011) Days 15-16)
+## Withdrawing the scaffolding (*Songwriting Without Boundaries* (2011), Challenge 2, Days 1-3)
 
-A subtle design detail in Challenge 2 Days 15-16 that affects how the
-metaphor-collision drill works:
+The design detail that actually governs the collision drill is not pair-jumbling
+across days — the jumble is contained inside Day 1. It is that Pat hands over one
+more piece of the work each day:
 
-- **Day 15** uses 5 adjectives and 5 nouns paired one way (List 1)
-- **Day 16** uses the SAME 5 adjectives and 5 nouns reshuffled into NEW
-  pairings (List 2)
+- **Day 1** — he supplies both halves. "Yesterday I gave you the combinations and
+  asked you to explore them."
+- **Day 2** — he supplies the adjective; the writer finds the noun. "Today, I'll
+  give you the adjectives, leaving it up to you to find nouns to crunch up
+  against them. Don't grab just anything; take your time and look for provocative,
+  productive collisions."
+- **Day 3** — reversed. "I'll give you the noun, and you try to find a colliding
+  adjective."
 
-The pair-jumbling is deliberate. Each pair forces the writer to find a
-new linking quality. By reusing the same 10 words in new combinations,
-Pat tests whether the writer's linking-quality search is genuine — a
-formulaic answer that worked for Day 15's pair will not work for Day
-16's reshuffled pair.
+Days 4-6 run the same three-step withdrawal again over noun-verb collisions, and
+Days 7-9 again over noun-noun identity. Three ladders, same shape.
 
-Coach use: when assigning Day 15 / 16 drills, do not let the writer use
-the same linking quality across days. Each pair needs its own search.
+The constraint that makes the search real is the literal-falseness test, which
+Pat restates on each of these days:
+
+> Don't pick something that can be literally angry, like people or bees. Those
+> wouldn't be metaphors. They'd just be angry people and angry bees.
+
+And on Day 3's `dark`: dark eyes could be literally true, so it is not a
+metaphor — "they join together rather than colliding." Dark *thoughts*, cliché
+though it is, is a metaphor, because it is literally false.
+
+Coach use: when a writer's collision comes back flat, check first whether it is
+literally true. That is the usual cause, and it is fixable in one substitution.
+Pat's own worked recovery, on Day 3's `ghost`: a ghost can plausibly be lazy, so
+`lazy ghost` is "not quite a collision" — try unhuman qualities like `brittle` or
+`wrinkled` instead.
 
 ## Pat's critique-move vocabulary (*Songwriting Without Boundaries* (2011) — recurring across all four challenges)
 
@@ -528,22 +720,54 @@ for reviewing object writes and lens writes. Treat as named moves:
 Use these phrases verbatim when coaching writer samples. The shorthand
 makes the same critique replicable across sessions.
 
-## Tense-flip and POV-flip as named drills (*Songwriting Without Boundaries* (2011) Challenges 1, 3)
+The last two both come from *Songwriting Without Boundaries* (2011), Challenge 4,
+Day 11, in Pat's commentary on six-line sections, and his own wording is shorter
+than the paraphrases above:
 
-Pat treats tense-flips and POV-flips as explicit drills, not casual
-exercises. Specific instructions:
+> You get so much of the story just from the rhyme positions! The rhyming
+> positions are in the spotlights. Use them.
 
-- **Tense flip** — re-read your sample in past tense, present tense, and
-  future tense (or future-conditional). Compare immediacy, weight,
-  vulnerability. The right tense often surfaces only by trying the
-  wrong ones.
-- **POV flip** — re-read your sample in 1st person, 2nd person, 3rd
-  person. Note which version surprises you. The least expected POV
-  often produces the strongest writing.
-- **Tense-neutral -ing forms** — when a line could work across tenses,
-  use the gerund or present-participle form to defer commitment. Useful
-  for repeatable chorus material that needs to color differently in
-  verse 1 (past) vs verse 3 (future).
+> Form is a road map. It tells you where to go.
+
+The road-map remark lands on a specific observation: one writer used the `cc`
+lines to shift focus to a new set of characters, taking advantage of the change
+in rhyme sound to support the change in perspective, and another introduced a
+command at the same point where the new rhyme sound appears. Rhyme change and
+tone change arriving together is the move being praised.
+
+"Invite family members" is likewise Pat's, from Challenge 3, Day 2: "Notice all
+the members of the diver's family she invites into the key of dying patient."
+
+## Tense-flip and POV-flip as named drills (*Songwriting Without Boundaries* (2011), Challenge 1, Days 8, 9, 13)
+
+Pat plants these three times inside Challenge 1, always as an experiment run on
+finished sample writing rather than as a prompt.
+
+**POV flip — Challenge 1, Day 8.** Two writers took the Cyclist prompt from
+opposite positions, one from inside the biker and one from outside:
+
+> As an experiment, try reversing them: Read Manuel's in third person ("as he
+> takes off …") and read Tasleem's in first person ("Rain slaps against my knees
+> as I race …"). Is there a difference in tone and immediacy?
+
+**Tense flip — Challenge 1, Day 9.** On a past-tense sample: past tense removes
+the reader a bit from the scene, since it happened, after all, in the past. Pat
+reprints it in present tense and calls the difference "pretty big." His rule:
+
+> Present tense is more immediate than past tense or future tense—not that
+> everything you write needs to be immediate. Just remember that tense is a
+> tool—a choice you make. Don't let the fact that it happened in the past make
+> you write it in past tense. Don't let "how it really happened" drive the bus.
+> You're the writer.
+
+**Tense-neutral -ing forms — also Day 9.** Asking two present-tense samples to be
+translated into past tense, Pat notes that both "use a lot of the *ing* form of
+the verb, which is tense-neutral." That is the mechanism behind repeatable
+material that can recolor from verse to verse without being rewritten.
+
+**Both at once — Challenge 1, Day 13.** The compact version of the drill, worth
+using verbatim: "Try Deborah's piece in present tense. Then translate it into
+first person, then second person."
 
 The flips are revision tools, not generation tools. Run them AFTER the
 object-write or lens-write is on the page; do not interrupt the timer to

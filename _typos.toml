@@ -37,6 +37,10 @@ extend-ignore-re = [
 abd = "abd"
 # Business Associate Agreements (HIPAA) — provisioning.
 BAAs = "BAAs"
+# Scansion vocalization of a stressed syllable ("da DUM da DUM") — standard
+# prosody notation in Pat Pattison's craft books, quoted throughout the
+# songwriting plugin. Case-sensitive: only the all-caps stressed form.
+DUM = "DUM"
 # Features on Demand (Windows optional-feature packaging) — provisioning.
 FoD = "FoD"
 # NIC power-management registry value name — provisioning.

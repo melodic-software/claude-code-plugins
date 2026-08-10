@@ -29,27 +29,48 @@ several levels:
 - Opening and closing phrase of each section.
 - Opening and closing idea word inside a phrase.
 
-For a chorus, the hook can appear:
+For a chorus, the hook can appear first, last, or both. Chapter 7's three
+examples:
+
+**Hook first** — Paul and Gene Nelson, "EIGHTEEN WHEELS AND A DOZEN ROSES."
+Note that the last phrase is also an important idea, so both hot spots are
+working:
 
 ```text
-hook first:
-HOOK
-supporting lines
-important closing idea
-
-hook last:
-supporting lines
-HOOK
-
-hook first and last:
-HOOK
-supporting lines
-HOOK
+EIGHTEEN WHEELS AND A DOZEN ROSES
+Ten more miles on his four lane run
+A few more songs from the all night radio
+And he'll spend the rest of his life
+with the one that he loves
 ```
 
-For verse/refrain forms, the hook often appears at the beginning or end of the
-verse as the refrain. Using it both places in every verse can become too much
-unless the structure needs it.
+**Hook last** — Donald Fagen and Walter Becker, "HAITIAN DIVORCE":
+
+```text
+O, No Hesitation
+No tears and no hearts breaking
+No remorse
+O, Congratulations!
+This is your HAITIAN DIVORCE
+```
+
+**Hook first and last** — Jim Rushing, "A SLOW HEALING HEART":
+
+```text
+A SLOW HEALING HEART
+Is dying to mend
+Longing for love
+Lonely again
+When a spirit is broken
+And the memories start
+Nothing moves slower
+Than A SLOW HEALING HEART
+```
+
+The same strategies are available when the verse contains the hook, but in a
+verse/refrain you will usually use it either at the beginning or the end, not
+both — using it both places means using it twice in *every* verse, which in
+most cases would be too much.
 
 ## Hot spots make meaning
 
@@ -98,11 +119,62 @@ enough. Additional repetition should earn its place.
 
 Good repetition types:
 
-- Direct repetition for emphasis.
-- Beginning-and-ending repetition for frame.
-- Verse refrain plus chorus hook when the form can support both.
-- Repetition that completes or balances the structure.
-- Repetition with a turn in meaning.
+- **Direct repetition** — simple but effective:
+
+```text
+TEDDY DOESN'T LIVE HERE ANYMORE
+TEDDY DOESN'T LIVE HERE ANYMORE
+
+They get you crawlin'
+I might'a fallen
+But you were always around
+YOU NEVER LET ME DOWN
+YOU NEVER LET ME DOWN
+```
+
+- **Direct repetition with a turn in meaning** — the second pair means
+  something the first pair did not:
+
+```text
+You were RIGHT FROM THE START
+RIGHT FROM THE START
+You had my number all along
+You were right and I was wrong
+RIGHT FROM THE START
+RIGHT FROM THE START
+```
+
+- **Beginning-and-ending repetition for frame** — Randy Newman, "TICKLE ME":
+
+```text
+Why don't you TICKLE ME
+Gee whiz won't that be fine
+What a great idea,
+What a perfect way to kill some time
+Can't stop to think
+'Cause if we do we'll lose our minds
+Why don't you TICKLE ME
+```
+
+- **Verse refrain plus chorus hook** when the form can support both — John
+  Jarvis and Gary Nicholson, "FATHERS AND SONS," where the verse ends on the
+  title and the chorus ends on it again:
+
+```text
+Now when I look at my own son
+I know what my father went through
+There's only so much you can do
+You're proud when they walk
+Scared when they run
+That's how it always has been between FATHERS AND SONS
+```
+
+- **Repetition that completes or balances the structure** — see below.
+
+Pat's own caution, delivered by demonstration: "Of course, if you repeat
+yourself too much if you repeat yourself too much if you repeat yourself too
+much if you repeat yourself too much if you repeat yourself too much you get
+boring, so be cautious."
 
 Bad repetition is repetition that merely spends attention without structural or
 semantic need.
@@ -267,16 +339,27 @@ arrival satisfying.
 
 ## Exercises to preserve
 
-- Write a balanced chorus with a supplied title first, then rewrite it with the
-  same title last.
-- Write a verse that sets up that chorus, using beginning and ending positions
-  for important ideas.
-- Write a verse ending with a supplied refrain; make the repetition structurally
-  necessary.
-- Write two transitional bridges that target different hook sounds.
-- For supplied hooks, write verses that use the hook rhythm in strategic
-  positions.
-- Write a full song system using all five hook-focus strategies.
+The supplied titles *are* the exercise — keep them.
+
+- **Exercise 39** — Write a balanced chorus using the title
+  "YOU DON'T HAVE THE BEST OF ME YET" at the beginning. Then rewrite it with
+  the same title at the end.
+- **Exercise 40** — Write a verse to set up that chorus. Make sure you use the
+  beginning and end positions for important ideas.
+- **Exercise 41** — Write a verse that ends with the refrain "YOU DON'T HAVE
+  THE BEST OF ME YET." Make a repetition necessary by using two strategies:
+  (1) unbalance the system by making the rhythmic closure at the refrain
+  awkward, like "SEEING SOMEONE ELSE"; (2) unbalance the section by making the
+  refrain an odd-numbered phrase (5th or 7th would be ideal).
+- **Exercise 42** — Write a balanced chorus that begins and ends with the hook
+  "I SLIPPED AND FELL IN LOVE." Then, using "WHY CAN'T I HAVE YOU" as a model,
+  (1) write a transitional bridge leading up to it that TARGETS the vowel sound
+  in "slipped," and (2) write a transitional bridge that targets "fell."
+- **Exercise 43** — For each hook below, write a verse that uses the hook
+  rhythm in a strategic position: "LAST NIGHT'S LOVE"; "MY FIRST LOVE WILL BE
+  MY LAST"; "THE LAST OF THE LONELY HEARTS."
+- **Exercise 44** — Using all five strategies, write a song system for the hook
+  "DON'T GIVE UP."
 
 ## Revision workflow
 

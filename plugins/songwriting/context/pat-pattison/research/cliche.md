@@ -58,11 +58,13 @@ Let me know you understand
 Those four families are the chapter's taxonomy, and the puppy is the test: if a
 line puts the listener to sleep, name which of the four did it.
 
+<!-- Pat's verbatim colloquial examples; elisions are deliberate --><!-- spellchecker:off -->
 Pat's examples of phrases worn smooth: *strong as a bull*, *eats like a horse*,
 *their ship came in* — no longer evoking bulls, horses, or ships at all. And a
 set that has become fully interchangeable, which is the tell: *break my heart*,
 *cut me deep*, *hurt me bad* (as interchangeable as *How ya doin'?* / *What's
 up?* / *How's it goin'?*).
+<!-- spellchecker:on -->
 
 ### Generic vs sense-bound — the chapter's demonstration pair
 

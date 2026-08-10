@@ -42,6 +42,47 @@ layer.
   public domain — with the consonance-rhyme gloss Pat attaches to
   "Ozymandias."
 
+### Restored — across the knowledge base
+
+Twenty-nine research files were swept. Pat's real examples, exercise wording,
+worksheet layouts and printed answer keys replace the summaries that stood in
+for them. Highlights:
+
+- **`exercises.md` no longer advertises that its exercises are paraphrases** —
+  they were, which meant not one numbered exercise in the file was actually
+  Pat's. They are now.
+- **`rhyme-types.md`** — every stability tier now carries Pat's own definition
+  wording and his actual example word-pairs, tier by tier. This is the file the
+  rhyme skill runs on.
+- **`daily-practice.md`** — the 56-day curriculum now lists Pat's real seeds
+  and day titles with his numbering, replacing "(paraphrased shape)" stubs.
+- **`prosody.md`, `meter.md`** — Pat's actual scansion strips, motion/emotion
+  demonstrations, and worked stress examples.
+- **`five-compositional-elements.md`** — Pat's full "Some People's Lives"
+  demonstration, including the counterfactual rewrites and his commentary on
+  why the one-row change matters at song scale.
+- **`worksheets.md`, `rhyme-worksheets.md`** — real worksheet layouts and
+  Pat's numbered step text, quoted.
+- **`song-forms.md`, `song-forms-examples.md`, `form.md`, `hook.md`,
+  `bridge.md`, `phrasing.md`** — worked song analyses with their real sections
+  rather than "mechanism analyses (NOT lyric reproduction)".
+- **`metaphor.md`, `cliche.md`, `object-writing.md`, `repetition.md`,
+  `verse-development.md`, `box-model.md`, `title-game.md`, `idea-to-title.md`,
+  `mosaic-rhyme.md`, `rhyme-sonic-bonding.md`,
+  `rhyme-spotlight-connection.md`, `rhyme-dictionary-practice.md`** — real
+  collision lists, cliche examples, sample writes, and rhyme demonstrations.
+
+Web-sourced passages (Berklee Online, patpattison.com, American Songwriter,
+Coursera) stay paraphrased and stay marked unaudited — those sources are not in
+the corpus and nothing was invented to fill them.
+
+### Changed — tooling
+
+- **`_typos.toml` gains `DUM`** as a case-sensitive identifier. "da DUM da DUM"
+  is standard scansion notation and now appears verbatim in four files; the
+  spell-checker was rewriting it to "DUMB". Added at the canonical root per
+  that file's own policy note rather than as inline suppressions.
+
 ### Fixed
 
 - **`rhyme-fundamentals.md`'s identity test asserted the opposite of the

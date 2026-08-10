@@ -119,7 +119,7 @@ idea sketch before producing rhyme families.
 
 Pat's step 2, verbatim:
 
-> 2. Make a list of words that fit your idea.
+> 2\. Make a list of words that fit your idea.
 >
 > Let the list come from your idea sketch, adding any extra inspiration you have.
 > Put them in the middle of a blank sheet of paper, number them, and enclose them
@@ -187,7 +187,7 @@ test each one as a seed.
 
 Pat's step 3, verbatim:
 
-> 3. Look up the words on the list in your rhyming dictionary.
+> 3\. Look up the words on the list in your rhyming dictionary.
 >
 > Write down only rhyme words that fit with your idea.
 >

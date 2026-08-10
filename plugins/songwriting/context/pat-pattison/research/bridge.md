@@ -61,11 +61,34 @@ more than that. Cite Chapter 6 for the purposes, Chapter 5 for the definition.
 | Song shape | Bridge needed? |
 |---|---|
 | V/Refrain × 3-4 | optional; bridge before final V or as alt-final-verse |
-| V/Ch/V/Ch | not strict; "four times is a lot" risk → bridge or distill |
-| V/Ch/V/Ch/V/Ch | almost always — three identical chorus visits without contrast feels endless |
+| V/V/Ch/V/V/Ch | strong candidate — "four times is a lot" (see below) |
+| V/Ch/V/Ch | not strict; this is already one of the fixes for the form above |
+| V/Ch/V/Ch/V/Ch | almost always — the third system "seems to fall a little flat, not so much for what it says, but because we've seen its structure twice before" |
 | V/Ch/V/Ch/Br/Ch | the canonical pop form |
 | AABA | yes — B section IS the bridge; A returns feel like homecoming |
 | Through-written | usually no — but a contrasting section may earn the label |
+
+### The four-times risk (*Writing Better Lyrics* (2009), Chapter 22)
+
+The "four times is a lot" warning belongs to **v/v/ch/v/v/ch**, not to v/ch/v/ch:
+
+> Simple; v / v / ch / v / v / ch repeats the same melody, chords, phrase
+> lengths, and rhyme schemes four times. Four times is a lot. You risk boring
+> your listeners when you make four trips through the same structure. Your
+> verses, especially the crucial fourth verse, had better be very interesting
+> to risk all that repetition.
+
+Chapter 22 gives three risk-avoidance techniques, only one of which is a bridge:
+
+1. **Dump a verse.** Distill two verses into one on a "best of" principle. The
+   resulting v/v/ch/v/ch "gives the second chorus a boost by seeming to get to
+   it early — a distinct advantage."
+2. **Turn one of the verses into a bridge**, giving v/v/ch/v/ch/br/ch.
+3. **Restructure both verses into a single unit**, so the form stops repeating
+   itself rather than adding a section.
+
+So v/ch/v/ch is not a form carrying the four-times risk — it is what technique
+1 produces. Diagnose the risk by counting trips through the *same* structure.
 
 ## Bridge sourcing — the missing angle
 
