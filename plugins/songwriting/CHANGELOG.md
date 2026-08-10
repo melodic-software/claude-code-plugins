@@ -46,11 +46,19 @@ repository.
   two stop being conflated. Same fix in `song-forms-examples.md` and
   `song-forms.md`.
 - **"Different-size system" had been relocated from the song system to the
-  bridge.** Chapter 6's point is that a bridge shorter than a verse makes the
-  final *song system* shorter than the ones before it, so the next section
-  arrives early. `bridge.md` and `song-forms-examples.md` had it as the bridge
-  using a phrase count or line length not seen elsewhere — which contradicted
-  `form.md`, where the claim was already correct.
+  bridge.** Chapter 6's claim is about the *song system's* size, not the
+  bridge's own phrase count or line length — and Pat's word is **different**,
+  not shorter. The direction depends on the form: in verse/chorus a short
+  bridge makes the last system shorter so the final chorus arrives early, while
+  in verse/refrain and AABA the bridge-plus-final-verse system is *longer* than
+  the verse-only systems before it. Corrected in `bridge.md`, `form.md`, and
+  `templates/bridge-writing-prompt.md`.
+- **All four jointly loaded bridge consumers now agree.**
+  `/songwriting:song-form bridge` loads `bridge.md`, `form.md`,
+  `templates/bridge-writing-prompt.md`, and `song-forms.md` together; the
+  Chapter 5 attribution and the phrase-count reading of function 2 survived in
+  `form.md` and the template, so a single invocation would have supplied
+  contradictory sourcing and diagnostics.
 - **`phrasing.md` stated Chapter 1's spotlight use twice and got it wrong the
   second time.** The early section has it right — the balancing position is the
   last phrase of an *even* section, and stopping is what spotlights. The later

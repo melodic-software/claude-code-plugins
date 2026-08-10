@@ -24,10 +24,18 @@ A bridge must serve **at least one**, often all three:
    the bridge contrasts to reset the ear, and sets up the section after it as
    a contrasting arrival
 2. **Different-size song system** — the different size belongs to the *system*,
-   not to the bridge's own dimensions. Without a bridge every song system is
-   one verse long; a bridge that is shorter than a verse (as most are) makes
-   the final system shorter than the ones before it, so the last chorus or
-   verse arrives "early" and gains interest from the change of pace
+   not to the bridge's own dimensions. Pat's word is **different**, and the
+   direction depends on the form:
+   - *Verse/chorus.* Systems 1 and 2 each run verse → chorus. A bridge that is
+     shorter than a verse (most are) makes system 3 **shorter**, so the final
+     chorus arrives "early" and gains interest from the change of pace.
+   - *Verse/refrain or AABA.* Every system was one verse long. The bridge does
+     not shorten anything — it creates a system that starts at the bridge and
+     ends when the last verse closes, which is **longer** than the ones before
+     it. What arrives early is the final verse, not the system's end.
+
+   Diagnose by asking what the bridge is grouped with, not by assuming the last
+   system shrinks
 3. **New perspective** — bridge says something the verses haven't said.
    Often the "why" — the underlying cause or stakes the song has only
    implied so far. Chapter 6 frames it as letting the established ideas

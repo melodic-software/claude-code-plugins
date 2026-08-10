@@ -36,13 +36,16 @@ Probe the writer:
 
 Surface 2-3 candidate missing angles. Writer picks one.
 
-## Step 3 — Three bridge functions check (*Essential Guide to Lyric Form and Structure* (1991), Chapter 5)
+## Step 3 — Three bridge functions check (*Essential Guide to Lyric Form and Structure* (1991), Chapter 6)
 
 ```
 A bridge must do AT LEAST ONE of:
 
 1. **Break monotony** — contrasts established structure to reset the ear
-2. **Different-size system** — phrase count / line length not seen elsewhere
+2. **Different-size song system** — the SYSTEM changes size, not the bridge's
+   own phrase count. Verse/chorus: the last system gets shorter, so the final
+   chorus arrives early. Verse/refrain or AABA: bridge + last verse make a
+   LONGER system than the verse-only ones before it. Different, not shorter.
 3. **New perspective** — says something the verses haven't said
 
 Your bridge will serve function: <which ones>
@@ -112,7 +115,7 @@ to 2 axes.
 Run per-line and per-section audit (per `audit-checklist.md`). Key bridge
 items:
 
-- Bridge serves at least one *Essential Guide to Lyric Form and Structure* (1991), Chapter 5 function?
+- Bridge serves at least one *Essential Guide to Lyric Form and Structure* (1991), Chapter 6 function?
 - Contrasts on 2-3 axes (not all 8)?
 - Bridge → next section feels like arrival?
 - Sing-check passed?

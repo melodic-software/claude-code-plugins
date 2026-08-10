@@ -166,7 +166,7 @@ After the per-line pass, zoom out.
 - [ ] central section chosen (chorus or refrain — *Essential Guide to Lyric Form and Structure* (1991), Chapter 5)
 - [ ] title position decided
 - [ ] repetition strategy: chorus repaints? refrain stays exact?
-- [ ] bridge present? — bridge fulfills at least one of the three *Essential Guide to Lyric Form and Structure* (1991), Chapter 5 functions (break monotony / different-size system / new perspective)
+- [ ] bridge present? — bridge fulfills at least one of the three *Essential Guide to Lyric Form and Structure* (1991), Chapter 6 functions (break monotony / different-size song system / new perspective)
 - [ ] "four times is a lot" check (*Writing Better Lyrics* (2009), Chapter 22) — V/V/Ch/V/V/Ch risk
 - [ ] verse-job division clear (You-I-We? Past-Present-Future? per box-model.md)
 

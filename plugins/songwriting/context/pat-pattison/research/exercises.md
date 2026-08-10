@@ -72,10 +72,12 @@ hymnal, a poetry anthology, anything with line breaks. For each, mark
 whether the phrase lengths keep the pace **constant**, **accelerate**, or
 **decelerate**.
 
-**Fill in more than one blank when the section earns it.** At least one
-section in any honest sample will speed up somewhere and slow down
-somewhere else. Mark where each change happens, not just that it does.
-A section that changes speed twice and gets one label has been misread.
+**More than one blank is allowed.** Some sections are simply constant, or
+simply accelerate — record that. But a section can also speed up in one
+place and slow down in another, and Pattison's own sample includes one that
+does. Where that happens, mark every change and where it falls; do not force
+a single label onto a section that changes speed twice, and do not invent a
+change that is not there to make the answer more interesting.
 
 Routes to: [phrasing](phrasing.md) "acceleration", "deceleration".
 

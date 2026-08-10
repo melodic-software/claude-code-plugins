@@ -524,14 +524,20 @@ larger form roles and song systems.
 
 ## Bridge — three functions
 
-*Essential Guide to Lyric Form and Structure* (1991), Chapter 5 names three jobs a bridge can do. Diagnose which the song
-needs before drafting.
+*Essential Guide to Lyric Form and Structure* (1991), **Chapter 6** names three
+jobs a bridge can do. Diagnose which the song needs before drafting. (Chapter 5
+gives a separate five-point account of what a bridge *is* — see
+[bridge](bridge.md); do not merge the two lists.)
 
 | Function | Effect | When |
 |---|---|---|
 | 1. Break monotony | Disrupt the verse-chorus repetition | The form has run V/Ch twice and risks fatigue |
 | 2. Create a different-size song system | Insert a non-matching unit between matching units | The song's symmetry needs interruption |
 | 3. Provide a new perspective | Shift POV, tense, or speaker | The chorus has stated; the bridge reframes |
+
+Function 2 is about the **system's** size, not the bridge's own phrase count,
+and "different" does not always mean "shorter" — in verse/chorus the final
+system shrinks, in verse/refrain and AABA it grows. See [bridge](bridge.md).
 
 A bridge that serves only one function may still work. A bridge that
 serves none should be cut — verse-chorus alone is enough.
@@ -540,7 +546,7 @@ The bridge MUST differ from verses where it counts. The first line
 matters most: a bridge that opens like a verse signals "another verse"
 instead of "something new."
 
-> "A bridge isn't a verse." — Pat (*Essential Guide to Lyric Form and Structure* (1991), Chapter 5)
+> "A bridge isn't a verse." — Pat (*Writing Better Lyrics* (2009), Chapter 23)
 
 ## Four building levers — the candy bar discipline
 
