@@ -6,7 +6,13 @@ Chapter 22-23.
 
 ## Image inventory
 
-- *Essential Guide to Lyric Form and Structure* (1991), Chapter 6: no linked images.
+- *Essential Guide to Lyric Form and Structure* (1991), Chapter 6: **37 linked
+  images**, and they are load-bearing. Chapter 6's entire scansion and
+  rhyme-column argument lives in figures, not in the text layer — the prose
+  runs "…the seventh phrase only continues the pattern:" and then stops. Any
+  audit of this chapter that reads only extracted text will miscount phrases;
+  that is exactly how the "Southern Comfort" seven-phrase error entered this
+  file. Read the figures.
 - *Writing Better Lyrics* (2009), Chapter 22: no linked images.
 - *Writing Better Lyrics* (2009), Chapter 23: no linked images.
 
@@ -27,7 +33,7 @@ base; contrast creates tension; return resolves it.
 helps the lyric arrive with power; it is impotent when repetition, delay, or
 wrong-sized sections make the message sag.
 
-> Four times is a lot.
+> "Four times is a lot." — Pat (*Writing Better Lyrics* (2009), Chapter 22)
 
 The risky case is:
 
@@ -255,7 +261,9 @@ then feeling the arrival back at it.
 
 ## Verse / Chorus
 
-Simple verse/chorus form works like Common Meter at the section level:
+Simple verse/chorus form works like Common Meter — also called the **Ballad
+Stanza** — at the section level. Chapter 6 states the two mappings as a pair:
+AABA runs on the limerick's principle, verse/chorus runs on Common Meter's.
 
 ```text
 1. statement                    A  Verse
@@ -530,9 +538,17 @@ without development.
 
 ## "Four times is a lot" — V/V/Ch/V/V/Ch risk
 
-*Essential Guide to Lyric Form and Structure* (1991), Chapter 6 and *Writing Better Lyrics* (2009), Chapter 22 share a named warning: V/V/Ch/V/V/Ch form
-asks the listener to absorb four verses. Four-times verse exposure
+*Writing Better Lyrics* (2009), Chapter 22 names this warning: V/V/Ch/V/V/Ch
+form asks the listener to absorb four verses. Four-times verse exposure
 risks boredom even with strong verses.
+
+**The warning is 2009's alone.** *Essential Guide to Lyric Form and Structure*
+(1991), Chapter 6 — now read in full with its figures — does not carry it.
+Chapter 6 never discusses V/V/Ch/V/V/Ch, never counts verses, and never names
+four. Its related-but-different claim is about *pattern-size monotony*: running
+the same structural pattern too long "gets boring fast," and the remedy Pat
+reaches for is a bridge. He makes that point twice — once for AABA, once for
+verse/chorus. Do not cite 1991 for a verse-count threshold.
 
 Three named repair strategies:
 
@@ -602,11 +618,13 @@ form's mechanics on real songs. See [song-forms-examples](song-forms-examples.md
 for paraphrased mechanism analyses (NOT lyric reproduction) of:
 
 - **"This Bottle and Me"** — verse/refrain with Common Meter ×2, xaxaxbxb,
-  fragmentation at line 4; bridge variant demonstrates all three *Essential Guide to Lyric Form and Structure* (1991), Chapter 5
-  bridge functions point-by-point
-- **"Southern Comfort"** — verse/chorus with deceptive closure on the
-  verse's seventh phrase; chorus delivers withheld three-stress resolution
-  - title rhyme payoff
+  fragmentation after line 4; bridge variant demonstrates all three *Essential
+  Guide to Lyric Form and Structure* (1991), Chapter 6 bridge purposes
+  point-by-point
+- **"Southern Comfort"** — verse/chorus whose eight-phrase verse (`x a x a x a
+  b b`) sets up Common Meter and then refuses to close on it; the deceptive
+  closure lands on the verse's **eighth** phrase, and the chorus delivers the
+  withheld three-stress resolution plus the title rhyme payoff
 - **"Teddy Doesn't Live Here Anymore"** — verse/trans-bridge/chorus
   three-system analysis; the slingshot effect (long phrase before hook);
   unstressed-syllable trick implying a fifth stress; hook delivers 5-stress

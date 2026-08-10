@@ -140,7 +140,7 @@ After running per-line on the section's lines, zoom out:
 - [ ] Central section chosen (chorus or refrain)?
 - [ ] Title position decided?
 - [ ] Repetition strategy: chorus repaints? refrain exact?
-- [ ] Bridge present? — fulfills at least one *Essential Guide to Lyric Form and Structure* (1991), Chapter 5 function?
+- [ ] Bridge present? — fulfills at least one *Essential Guide to Lyric Form and Structure* (1991), Chapter 6 function?
 - [ ] "Four times is a lot" risk checked (*Writing Better Lyrics* (2009), Chapter 22)?
 - [ ] Verse-job division clear (box model)?
 ```

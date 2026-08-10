@@ -379,8 +379,8 @@ AABA", "do I need a bridge", or AI is about to recommend a song form.
 - [ ] **Bridge necessity tested** — does the song need to break monotony,
       add a different-size system, or introduce a new perspective? If
       none → no bridge
-- [ ] **"Four-times-a-lot" check** — V/V/Ch/V/V/Ch has the chorus four
-      times; risk of fatigue (*Writing Better Lyrics* (2009), Chapter 22)
+- [ ] **"Four-times-a-lot" check** — V/V/Ch/V/V/Ch runs the VERSE four
+      times (the chorus twice); risk of fatigue (*Writing Better Lyrics* (2009), Chapter 22)
 - [ ] **Transitional bridge (pre-chorus)** — only if a climb to chorus
       needs explicit lift; not by default
 - [ ] **Form fits melody** if a melody exists — see §2 phrasing checklist

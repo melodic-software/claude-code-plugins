@@ -1,4 +1,4 @@
-# Exercises — *Essential Guide to Lyric Form and Structure* (1991) (1991) and *Essential Guide to Rhyming* (2014) (2014)
+# Exercises — *Essential Guide to Lyric Form and Structure* (1991) and *Essential Guide to Rhyming* (2014)
 
 Pat Pattison — preserves the numbered exercise series from
 *Songwriting: Essential Guide to Lyric Form and Structure* (1991)
@@ -25,7 +25,10 @@ reproducing the book.
 The exercises are not assessments. They are repetitions. The
 specific answers do not matter; the writing habit does.
 
-## *Essential Guide to Lyric Form and Structure* (1991) — Phrasing exercises
+## *Essential Guide to Lyric Form and Structure* (1991) — Phrasing exercises (Chapters 1-2)
+
+Exercises 1-4 come from Chapter 1 (phrase count and balance); exercises 5-7
+come from Chapter 2 (phrase length and speed).
 
 ### Ex 1 — Phrase division
 
@@ -61,6 +64,46 @@ balanced version (stop before chorus). Sing both. Which feels
 right for the song?
 
 Routes to: [phrasing](phrasing.md), [verse development](verse-development.md).
+
+### Ex 5 — Label the pace effect
+
+Take four sections you are not currently working on — old drafts of your
+own, a hymnal, a poetry anthology, anything with line breaks. For each,
+mark whether the phrase lengths keep the pace **constant**, **accelerate**,
+or **decelerate**.
+
+**More than one blank is allowed.** Some sections are simply constant, or
+simply accelerate — record that. But a section can also speed up in one
+place and slow down in another, and Pattison's own sample includes one that
+does. Where that happens, mark every change and where it falls; do not force
+a single label onto a section that changes speed twice, and do not invent a
+change that is not there to make the answer more interesting.
+
+Routes to: [phrasing](phrasing.md) "acceleration", "deceleration".
+
+### Ex 6 — Complete a section two ways
+
+Write two opening phrases of your own, then finish the section twice:
+once so it **accelerates**, once so it **decelerates**. Change only
+phrase length to do it — not imagery, not rhyme.
+
+Then check the count: if dropping the final phrase would leave the
+section unbalanced, note it. Speed and balance are separate axes and a
+section can be fast and unbalanced at the same time.
+
+Routes to: [phrasing](phrasing.md) "phrase length controls speed".
+
+### Ex 7 — Contrast a whole section
+
+Write a complete section. Then continue it with a **second section built
+from shorter phrases**, choosing ideas that suit a faster pace. Then go
+back and write a **slower section with longer phrases** instead.
+
+Aim for prosody both times: the ideas should behave the way the phrase
+lengths behave. Balanced or unbalanced, whichever fits. Sing both.
+
+Routes to: [phrasing](phrasing.md) "contrasting sections by length",
+[prosody](prosody.md).
 
 ## *Essential Guide to Lyric Form and Structure* (1991) — Meter exercises (Chapter 3)
 
