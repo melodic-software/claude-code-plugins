@@ -3,6 +3,55 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.1]
+
+### Fixed
+
+- **A NUL byte in a `Write`/`Edit`/`NotebookEdit` content field no longer disables the content
+  guards.** Regression introduced by the `hook::jq_fields` conversion in 0.22.1: the helper
+  delimits its batched fields with NUL, and JSON may legitimately encode a NUL inside a string, so
+  jq emitted the raw byte, the field count came back wrong, and `secret-pattern-detection`,
+  `hardcoded-path-check`, `skill-reference-verify`, `stale-path-verify` and `cli-flag-verify` all
+  took their `|| exit 0` skip — a credential or machine path placed after the NUL passed unblocked.
+  Reproduced against `origin/main` (exit 2, blocked) versus 0.22.1 (exit 0, allowed). `hook::jq_fields`
+  now strips NUL inside the jq filter, so the delimiter cannot collide with content and everything
+  after the NUL is still scanned, matching the pre-conversion command substitution byte for byte.
+  Regression cases added to `lib/hook-utils.test.sh`, `secret-pattern-detection.test.sh` and
+  `hardcoded-path-check.test.sh`. Synced from `lib/hook-utils.sh`.
+
+### Changed
+
+- `skill-reference-verify` and `stale-path-verify` say plainly that keeping `replace_all`'s
+  `// false | tostring` inside the jq filter is for parity with the pre-conversion output, not
+  because a branch depends on it — every consumer tests `== "true"`, which `""` and `"false"` fail
+  alike. Comment only; behavior unchanged.
+
+- **Every remaining hook now parses its payload in ONE `jq` process (`hook::jq_fields`), not two or
+  three.** #2007 introduced the helper and converted `block-dangerous-git` and `block-no-verify`; the
+  other ten hooks still ran a separate `printf … | jq … | tr -d '\r'` pipeline per field over the
+  same stdin envelope. Converted: `block-noncanonical-commit`, `block-convention-violation` (3 jq
+  execs → 1 each), `hardcoded-path-check`, `secret-pattern-detection`, `skill-reference-verify`,
+  `stale-path-verify` (3 → 1 each), `block-hook-bypass`, `flag-commit-pr-skill-bypass`,
+  `cli-flag-verify`, `workflow-resilience-check` (2 → 1 each). Measured on Windows Git Bash with the
+  arms interleaved in one loop and compared as paired deltas — every sample is recorded in the PR.
+  Conservative headline, the least-favourable quartile (p75) of the paired deltas: **-404 ms** per
+  invocation for a 3-field hook and **-194 ms** for a 2-field hook, which agrees independently with
+  the least-contended floor across 100 iterations (-394 ms / -192 ms). Medians run higher because
+  this host was running several agents concurrently (-1033 / -991 ms for 3 fields, -274 ms for
+  2 fields; -687 ms end-to-end across a whole `block-noncanonical-commit` invocation). Direction is
+  not in doubt: the converted arm was faster in 87-95% of paired iterations. No behavior change:
+  every hook's contract suite passes unchanged, the `// "Bash"` tool-name default moves to the
+  bash-side expansion (the `block-dangerous-git` pattern), and a jq failure still exits 0 through the
+  same empty-field guard it always did.
+- `hardcoded-path-check` and `secret-pattern-detection` now serialize the per-tool content field in
+  the same call as the tool name, i.e. BEFORE the file-path exclusions and the `git check-ignore`
+  skip that used to precede it. Deliberate: the payload is already buffered in memory, so the
+  marginal cost on a skipped write is one copy out of jq, traded against one fewer process on every
+  path — and process creation, not jq's parse, is what costs on this host.
+- `skill-reference-verify` and `stale-path-verify` keep `replace_all`'s `// false | tostring` INSIDE
+  the jq filter. `hook::jq_fields` wraps each filter in `// ""`, and jq's `//` treats the boolean
+  `false` as empty — a bare `.tool_input.replace_all` would come back `""` instead of `"false"`.
+
 ## [0.23.0]
 
 **Note on the version bump.** MINOR rather than patch, on the same test 0.22.1 applied: does the

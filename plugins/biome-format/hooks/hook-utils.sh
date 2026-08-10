@@ -627,14 +627,24 @@ hook::jq_field() {
 # never be mistaken for a complete one. Values are CR-stripped, as in
 # hook::jq_field.
 #
-# Fields are NUL-separated on the wire: the values carry arbitrary text
-# (a Bash command spans newlines routinely) and NUL is the one byte a shell
-# string cannot hold, so it is the only separator that cannot occur inside a
-# value. A JSON input that encodes a literal \u0000 INSIDE a string value is the
-# residual — jq would emit it raw and split that value in two; hook payloads do
-# not carry one, and a command substitution would have discarded it anyway.
-# Read through a process substitution rather than $( ) for the same reason:
-# command substitution strips NUL bytes.
+# Fields are NUL-separated on the wire, and every value has its own NUL bytes
+# REMOVED jq-side first, so the delimiter provably cannot occur inside a
+# value: the values carry arbitrary text (a Bash command spans newlines
+# routinely), and once NUL is out of the value alphabet no payload can put it
+# back. Without that strip, a JSON input encoding a literal \u0000 INSIDE a
+# string value — which a Write/Edit/NotebookEdit content field legitimately
+# may — made jq emit the raw byte, split that value in two, and fail the
+# cardinality check below, turning a caller's `|| exit 0` into a silent skip
+# of the entire guard.
+#
+# Dropping the NUL rather than encoding around it is not the lesser option,
+# it is the only representable one: a bash variable cannot hold a NUL byte,
+# so no framing scheme (length prefix, base64, …) could deliver one into
+# HOOK_JQ_FIELDS. It is also exactly what the per-field command substitution
+# this helper replaced did — $( ) discards NUL bytes and keeps the rest of
+# the value, so content AFTER a NUL is still returned and still scanned.
+# Read through a process substitution rather than $( ) because the delimiter
+# itself must survive the read; command substitution would strip it too.
 #
 #   hook::jq_fields "$INPUT" '.tool_input.command' '.tool_name' || exit 0
 #   COMMAND="${HOOK_JQ_FIELDS[0]}" TOOL_NAME="${HOOK_JQ_FIELDS[1]}"
@@ -648,7 +658,9 @@ hook::jq_fields() {
   local prog="" filter
   for filter in "$@"; do
     [[ -n "$prog" ]] && prog+=","
-    prog+="((${filter}) // \"\" | tostring)"
+    # split/join (1-arity, a plain string split — NOT gsub, which would put a
+    # NUL inside an Oniguruma pattern) removes every NUL from the value.
+    prog+="((${filter}) // \"\" | tostring | split(\"\\u0000\") | join(\"\"))"
   done
   # `-j` concatenates outputs verbatim, so emitting the NUL as its own output
   # after each value yields exactly value NUL value NUL … with nothing added.

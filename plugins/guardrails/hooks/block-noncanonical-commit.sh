@@ -113,10 +113,18 @@ INPUT=$(hook::buffer_stdin) || {
 # (additionalContext), once per session — see docs/conventions/hook-observability/.
 hook::require_jq "PreToolUse" "guardrails-block-noncanonical-commit" "$INPUT"
 
-COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null | tr -d '\r')
+# All three payload fields in ONE jq process (hook::jq_fields), not three. A jq
+# spawn is fork() emulation on Windows Git Bash and this guard runs on every
+# Bash/PowerShell call. Failure semantics are unchanged: a missing jq or an
+# unparsable payload yields rc 1 here, which exits 0 exactly as the empty-COMMAND
+# skip below did — hook::require_jq above has already made the degraded state
+# visible once per session. The `// "Bash"` default moves to the bash-side
+# expansion, matching block-dangerous-git.
+hook::jq_fields "$INPUT" '.tool_input.command' '.cwd' '.tool_name' || exit 0
+COMMAND="${HOOK_JQ_FIELDS[0]}"
 [[ -n "$COMMAND" ]] || exit 0
-HOOK_CWD=$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null | tr -d '\r')
-TOOL_NAME=$(printf '%s' "$INPUT" | jq -r '.tool_name // "Bash"' 2>/dev/null | tr -d '\r')
+HOOK_CWD="${HOOK_JQ_FIELDS[1]}"
+TOOL_NAME="${HOOK_JQ_FIELDS[2]:-Bash}"
 
 SUBJECT=$(hook::extract_bash_subject "$TOOL_NAME" "$COMMAND")
 

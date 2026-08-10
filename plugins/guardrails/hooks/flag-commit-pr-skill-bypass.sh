@@ -85,9 +85,17 @@ INPUT=$(hook::buffer_stdin) || exit 0
 # (additionalContext), once per session — see docs/conventions/hook-observability/.
 hook::require_jq "PreToolUse" "guardrails-flag-commit-pr-skill-bypass" "$INPUT"
 
-COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null | tr -d '\r')
+# Both payload fields in ONE jq process (hook::jq_fields), not two. A jq spawn is
+# fork() emulation on Windows Git Bash and this hook runs on every Bash/PowerShell
+# call. Failure semantics are unchanged: a missing jq or an unparsable payload
+# yields rc 1 here, which exits 0 exactly as the empty-COMMAND skip below did —
+# hook::require_jq above has already made the degraded state visible once per
+# session. The `// "Bash"` default moves to the bash-side expansion, matching
+# block-dangerous-git.
+hook::jq_fields "$INPUT" '.tool_input.command' '.tool_name' || exit 0
+COMMAND="${HOOK_JQ_FIELDS[0]}"
 [[ -n "$COMMAND" ]] || exit 0
-TOOL_NAME=$(printf '%s' "$INPUT" | jq -r '.tool_name // "Bash"' 2>/dev/null | tr -d '\r')
+TOOL_NAME="${HOOK_JQ_FIELDS[1]:-Bash}"
 # On the PowerShell tool, neutralize here-strings first so a `gh pr create`
 # mention inside message text is inert and a real invocation after a here-string
 # is still seen. Advisory-only: never blocks, so best-effort is proportionate.

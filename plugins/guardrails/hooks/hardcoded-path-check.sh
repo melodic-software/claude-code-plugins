@@ -56,14 +56,26 @@ INPUT=$(hook::buffer_stdin) || {
 # (additionalContext), once per session — see docs/conventions/hook-observability/.
 hook::require_jq "PreToolUse" "guardrails-hardcoded-path-check" "$INPUT"
 
-TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null | tr -d '\r')
+# Every payload field this hook can need, in ONE jq process (hook::jq_fields),
+# not three — a jq spawn is fork() emulation on Windows Git Bash and this guard
+# runs on every Write/Edit/NotebookEdit. All three per-tool content fields are
+# fetched together because selecting between them would cost a second process;
+# jq reads the same envelope either way, and the tool-specific choice happens
+# below in the shell. Failure semantics are unchanged: a missing jq or an
+# unparsable payload yields rc 1 here, which exits 0 exactly as the empty-TOOL
+# case did — hook::require_jq above has already made the degraded state visible
+# once per session.
+hook::jq_fields "$INPUT" \
+  '.tool_name' '.tool_input.file_path' \
+  '.tool_input.content' '.tool_input.new_string' '.tool_input.new_source' || exit 0
+TOOL="${HOOK_JQ_FIELDS[0]}"
 
 case "$TOOL" in
 Write | Edit | NotebookEdit) ;;
 *) exit 0 ;;
 esac
 
-FILE=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // empty' 2>/dev/null | tr -d '\r')
+FILE="${HOOK_JQ_FIELDS[1]}"
 [[ -n "$FILE" ]] || exit 0
 
 # Normalize path separators for cross-platform case matching.
@@ -122,9 +134,9 @@ fi
 # Extract content to check — Write has .content, Edit has .new_string,
 # NotebookEdit has .new_source.
 case "$TOOL" in
-Write) CONTENT=$(printf '%s' "$INPUT" | jq -r '.tool_input.content // empty' 2>/dev/null | tr -d '\r') ;;
-Edit) CONTENT=$(printf '%s' "$INPUT" | jq -r '.tool_input.new_string // empty' 2>/dev/null | tr -d '\r') ;;
-NotebookEdit) CONTENT=$(printf '%s' "$INPUT" | jq -r '.tool_input.new_source // empty' 2>/dev/null | tr -d '\r') ;;
+Write) CONTENT="${HOOK_JQ_FIELDS[2]}" ;;
+Edit) CONTENT="${HOOK_JQ_FIELDS[3]}" ;;
+NotebookEdit) CONTENT="${HOOK_JQ_FIELDS[4]}" ;;
 *) exit 0 ;; # unreachable — $TOOL filtered to Write|Edit|NotebookEdit above
 esac
 [[ -n "${CONTENT:-}" ]] || exit 0

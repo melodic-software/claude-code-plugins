@@ -3,6 +3,22 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.1]
+
+### Fixed
+
+- **Shared `hook-utils.sh`: a NUL byte inside a payload value no longer makes `hook::jq_fields`
+  come back empty (#2120).** The helper delimits its batched fields with NUL, and a JSON string may
+  legitimately encode one — a `Write`/`Edit`/`NotebookEdit` content field can. jq emitted the raw
+  byte, the read split that value in two, the cardinality check saw one value too many, and the
+  helper returned non-zero — which every caller treats as "skip", so the hook exited without doing
+  its work. Each value is now NUL-stripped INSIDE the jq filter, so the delimiter provably cannot
+  occur in a value. Stripping is not a lesser alternative to an encoding scheme, it is the only
+  representable behavior: a bash variable cannot hold a NUL byte, and the per-field command
+  substitution this helper replaced dropped the byte and kept the rest of the value — so content
+  AFTER a NUL is returned and scanned exactly as it was before the batching. Synced from
+  `lib/hook-utils.sh`.
+
 ## [0.5.0]
 
 ### Removed
