@@ -1,5 +1,4 @@
 ---
-name: audit-automation-gaps
 description: "Audit a repo's Claude Code automation landscape (hooks, MCP servers, skills, subagents, scheduled tasks) against the enforcement hierarchy, producing PASS/REJECT/CONDITIONAL verdicts backed by evidence — the default verdict is REJECT because most gaps are already covered by compiler/analyzer/build-time checks. Use when: 'audit automations', 'what automations should we add', 'are we missing any hooks', 'hook gap analysis', 'should I add an MCP server for X'; pass --implement to apply approved items, or filter by category (hooks|mcp|skills|subagents|scheduled)."
 argument-hint: "[--recommend-only] [--implement] [category] — category: hooks|mcp|skills|subagents|scheduled|all (default: all)"
 user-invocable: true

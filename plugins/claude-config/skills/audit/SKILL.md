@@ -1,5 +1,4 @@
 ---
-name: audit
 description: "Audit Claude Code configuration files — settings.json, settings.local.json, .mcp.json, hooks, plugins, permissions, environment variables — for correctness, security, and drift against current official docs. Use when: 'audit settings', 'check config', 'check for config drift', after a Claude Code update, or when permissions, hooks, plugins, or MCP servers may be misconfigured; pass --fix to apply auto-correctable findings with confirmation."
 argument-hint: "[--fix] [scope] — scope: permissions|mcp|hooks|plugins|issues|all (default: all)"
 user-invocable: true

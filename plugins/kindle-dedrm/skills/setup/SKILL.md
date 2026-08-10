@@ -1,5 +1,4 @@
 ---
-name: setup
 description: "Verify and provision the Kindle for PC 2.8.0 + Calibre DeDRM workflow (Windows only, personal-use, books you own). check probes prerequisites and current state read-only (Calibre, Python, pwsh, admin, Kindle version, firewall/ICACLS lock, downloads, plugins) via the plugin's own status script; apply runs the first-time provisioning walkthrough — the gated artifact download, install, firewall block, ICACLS lock, Calibre plugins, and keyfinder. Use when: 'set up Kindle DRM removal', 'is my DeDRM setup ready', 'provision kindle-dedrm', 'download DeDRM tools', 'check DeDRM prerequisites'. Re-runnable and safe."
 argument-hint: "check | apply [download]"
 user-invocable: true

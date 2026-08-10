@@ -1,5 +1,4 @@
 ---
-name: firecrawl
 description: "Scrape, search, crawl, map, parse, or interact with web pages via the firecrawl-cli binary, writing results to disk instead of streaming them into context — actions: scrape, search, crawl, map, parse, interact, agent, monitor. Use when: WebFetch returns 403/429 (Cloudflare, PerimeterX, anti-bot block), a page requires JS rendering or clicks/form fills, you need web search with scraped results, bulk URL discovery and crawling, a local file (PDF/DOCX/XLSX) needs text extraction to markdown, or a natural-language web research task — skip for plain unprotected pages (WebFetch suffices) or when you want synthesis rather than primary source."
 argument-hint: "<command> [args] — commands: scrape, search, crawl, map, parse, interact, agent, monitor, search-feedback, credit-usage"
 user-invocable: true

@@ -1,5 +1,4 @@
 ---
-name: clarify
 description: "Faithfully clarify a dense, decision-heavy message so you can act on it — chunk it into one-decision-at-a-time, define the session's own jargon, and surface exactly what you must decide, with operative terms quoted verbatim and no loss of precision. Decision-dense content gets an HTML decision table with numbered rows. Use when: 'make this clear', 'clarify this', 'help me digest this', 'break this down', 'I can't parse this', 'what am I actually deciding here', 'this is a wall of text'. Empty argument targets the previous assistant response. This changes STRUCTURE, not altitude — a lossy plain-language / ELI5 drop is education:explain (if installed) instead. Sibling to adhd:shape, a standing session-wide posture; this is a one-shot reshape of one artifact."
 argument-hint: "[artifact to clarify] (empty = the previous assistant response)"
 user-invocable: true

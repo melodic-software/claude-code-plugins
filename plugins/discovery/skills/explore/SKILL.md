@@ -1,5 +1,4 @@
 ---
-name: explore
 description: "Explore the local codebase before making changes — read code, trace dependencies, scan git history, discover tests, and audit build and tool configuration, persisting an EXPLORE.md index plus sidecars. Dispatches a fresh-context subagent by default so the file reads stay out of the main conversation, with a documented inline escape hatch. Use when: 'explore the codebase', 'what exists for X' investigation, 'how does this work', 'where is X implemented', 'trace the dependencies', 'what tests cover this', or as step 1 before any code change."
 argument-hint: "[scope] (e.g., /discovery:explore payments module dependencies, /discovery:explore tests, /discovery:explore git, /discovery:explore config)"
 user-invocable: true
