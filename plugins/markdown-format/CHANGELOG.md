@@ -66,13 +66,23 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
   That is the ordinary docs layout, so the case the membership gate was meant to restore stayed
   broken for most files in it.
 
-  `CLAUDE_PROJECT_DIR` answers the same question without git, so it is now preferred as the walk's
-  terminator when the git probe cannot resolve a working-tree top. It is used ONLY as the
-  terminator, never to widen scope — discovery still starts at the file and still stops at a root —
-  so the fail-closed reasoning in `markdownlint_config_discoverable` is unchanged. The capability is
-  probed by running `git rev-parse --show-toplevel` rather than by testing `command -v git`, which
-  answers yes for a shell function, a PATH stub, or a real binary standing in a directory that is no
-  repository — every case where the fallback still applies.
+  The root is now resolved without git when git cannot answer, by the walk git's own discovery
+  performs: upward from the edited file for a `.git` entry, accepted as a directory for an ordinary
+  clone or as a **file** for a linked worktree or submodule
+  ([gitrepository-layout](https://git-scm.com/docs/gitrepository-layout)). git's answer is returned
+  untouched whenever git produced one, so a host that has git is unaffected and no second probe is
+  spawned to establish that. `CLAUDE_PROJECT_DIR` remains as a last resort, for a project that is no
+  working tree at all — an unpacked archive, a vendored copy — and only ever as the walk's
+  terminator, never to widen scope: discovery still starts at the file, so the fail-closed reasoning
+  in `markdownlint_config_discoverable` is unchanged. When nothing resolves, the previous hint
+  stands, which is what keeps the out-of-tree bound above true.
+
+  Resolving from the filesystem rather than from a harness variable is what makes the fix cover the
+  case this release is about. The membership scope is gated on `CLAUDE_PROJECT_DIR` being **unset**,
+  and the no-git regression fixture runs unset, so a root taken from that variable cannot serve the
+  configuration the gate exists for. The same resolution now also backs the opt-in **pre-check** that
+  runs before `jq` exists: with both `git` and `jq` absent, a nested file made that pre-check read an
+  opted-in repository as one that never opted in, swallowing the `jq` notice it was owed.
 
 ## [0.11.0]
 
