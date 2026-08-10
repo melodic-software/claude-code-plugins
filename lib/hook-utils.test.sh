@@ -1805,13 +1805,29 @@ rm -f "$bs_payload_file" "$bs_rc_file" "$bs_out_file"
 # What each mutation does to that log: deleting the block leaves it EMPTY, since
 # the trailing probe at hook-utils.sh:586 is an inline `printf | jq` and not this
 # function, so the case fails. Moving the check later — an `idle_slices >= 3`
-# guard, say — logs a non-zero idle count, so that fails too. Only failed
-# verdicts are logged besides, so a partial buffer probed on the way in cannot
-# manufacture the pass line.
+# guard, say — logs a non-zero idle count, so that fails too. Only SUCCESSFUL
+# verdicts are logged, the partial buffers probed on the way in returning
+# non-zero and writing nothing, which is what makes the last line the call that
+# actually completed rather than merely the most recent one.
 #
 # If the FIFO handshake were ever unavailable, the producer's EOF would end the
 # read before any slice expired and the log would come back empty — this case
 # then fails LOUDLY rather than quietly asserting nothing.
+#
+# FRAGMENTED delivery is the one shape that does not reach the empty-slice check:
+# if the payload lands in pieces, an intermediate read times out holding bytes
+# and the WITH-BYTES check at hook-utils.sh:540 sees the completion first. That
+# is reported as unexercised rather than passed as covered — and it is retried
+# first, since it is a delivery accident and not a property of the code. Nor can
+# it mask the regression, which is the reason exhausting the retries is not a
+# failure: under a fragmented delivery the mutant behaves IDENTICALLY, because
+# the check it deletes is only ever reached when the payload completes on an rc-0
+# read. Measured 2026-08-09 by splitting the payload in half across a gap longer
+# than one slice — baseline and the block-deleted mutant produced the same two
+# probe entries (a FAILED verdict on the 32768-byte partial, then a successful
+# one at 65536 with 32768 bytes still in `chunk`) and both returned at the same
+# point. There is nothing to catch on that path, so failing there would be a
+# false fail on a helper that is behaving correctly.
 bs_probe_file="$(mktemp)"
 bs_payload_file="$(mktemp)"
 bs_rc_file="$(mktemp)"
@@ -1826,28 +1842,42 @@ bs_probe_override='hook::json_complete() {
   fi
   return "$verdict"
 }'
-{
-  cat "$bs_payload_file"
-  bs_hold_open
-} | {
-  CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=1.2 bash -c '
-    source "$1"
-    eval "$2"
-    hook::buffer_stdin >"$3" 2>/dev/null
-    printf "%s" "$?" >"$4"
-  ' _ "$HOOK_DIR/hook-utils.sh" "$bs_probe_override" "$bs_out_file" "$bs_rc_file"
-  bs_release
+bs_probe_run() { # sets bs_rc, bs_len, bs_probe_last from one whole-payload run
+  : >"$bs_probe_file"
+  {
+    cat "$bs_payload_file"
+    bs_hold_open
+  } | {
+    CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=1.2 bash -c '
+      source "$1"
+      eval "$2"
+      hook::buffer_stdin >"$3" 2>/dev/null
+      printf "%s" "$?" >"$4"
+    ' _ "$HOOK_DIR/hook-utils.sh" "$bs_probe_override" "$bs_out_file" "$bs_rc_file"
+    bs_release
+  }
+  bs_rc=$(cat "$bs_rc_file")
+  bs_len=$(wc -c <"$bs_out_file")
+  bs_probe_last=$(tail -n 1 "$bs_probe_file")
 }
-bs_rc=$(cat "$bs_rc_file")
-bs_len=$(wc -c <"$bs_out_file")
-bs_probe_last=$(tail -n 1 "$bs_probe_file")
+# Three tries, because a fragmented delivery is an accident of scheduling and not
+# a property of the code — one retry usually lands the whole payload in a single
+# read. Never observed to need one here (five local runs and CI all reached the
+# empty-slice check first try); the retry exists so that reporting the case
+# unexercised takes a host that cannot reach the path at all, not a single
+# unlucky sample.
+for bs_attempt in 1 2 3; do
+  bs_probe_run
+  [[ "$bs_probe_last" == "idle=0 chunklen=0" ]] && break
+done
 if [[ "$bs_rc" == "0" ]] && ((bs_len == 65536)) && [[ "$bs_probe_last" == "idle=0 chunklen=0" ]]; then
-  ok "buffer_stdin: the empty-slice completeness check fires on the FIRST idle slice for a chunk-boundary payload ($bs_probe_last)"
+  ok "buffer_stdin: the empty-slice completeness check fires on the FIRST idle slice for a chunk-boundary payload ($bs_probe_last, attempt $bs_attempt)"
 elif [[ "$bs_rc" == "0" ]] && ((bs_len == 65536)) && [[ "$bs_probe_last" == idle=0\ chunklen=* ]]; then
-  # Not a regression and not coverage: the payload arrived split across slices
-  # this run, so the with-bytes check caught it first and the empty-slice path
-  # was never reached. Reported as unexercised rather than passed as covered.
-  ok "buffer_stdin: chunk-boundary payload arrived fragmented ($bs_probe_last), so the empty-slice check was not exercised this run — correctness holds, engagement unasserted"
+  # Not a regression, and not coverage either: every attempt arrived fragmented,
+  # so the with-bytes check caught completion first and the empty-slice path was
+  # never reached — by the helper, not merely by this assertion, which is why
+  # this is not a failure (see above). Reported as unexercised, never as covered.
+  ok "buffer_stdin: chunk-boundary payload arrived fragmented on all 3 attempts ($bs_probe_last), so the empty-slice check was not exercised this run — correctness holds, engagement unasserted"
 else
   fail "buffer_stdin chunk-boundary engagement: rc=$bs_rc len=$bs_len probe='$(tr '\n' ';' <"$bs_probe_file")' (expected rc 0, 65536 bytes, and a completeness verdict at idle=0 chunklen=0)"
 fi
