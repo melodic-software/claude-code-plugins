@@ -3,6 +3,16 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.1]
+
+### Changed
+
+- **`/repo-hygiene:clean`'s trigger phrases are now single-quoted.** The `Use when:` list was a bare
+  comma-separated run of words (`clean, disk space, remove caches, ...`), which the skill-quality
+  gate's trigger-drop protection cannot track, and several entries were bare nouns rather than
+  phrasings. All fourteen are now quoted, with the noun-shaped ones rewritten as things a user says
+  — `'free up disk space'`, `'clear build artifacts'`, `'clean up my stashes'`.
+
 ## [0.9.0]
 
 ### Removed

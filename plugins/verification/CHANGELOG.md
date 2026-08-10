@@ -15,8 +15,14 @@ All notable changes to the `verification` plugin are documented here. Format fol
   shape, and six phrases a user would actually type — `'did that actually speed it up'`,
   `'how much faster is it'`, `'measure this'`, `'capture a baseline'`,
   `'benchmark before and after'`, `'did complexity go down'` — join the three that were already
-  there. Every phrase the previous description carried is preserved verbatim, so the gate's
+  there. Every phrase the previous description carried is preserved verbatim — including
+  `'cannot quantify'`, which is prose the gate's extractor nonetheless tracks as a trigger — so the
   trigger-keyword-preservation check sees a superset, not a rewrite.
+- **`/verification:confirm`'s `description` now uses `Use when:` too.** It had the same shape: three
+  good routing phrases (`'verify changes'`, `'prove this works'`, `'did we build the right thing'`)
+  behind a lowercase `use for` the gate does not recognize as trigger phrasing. All three are
+  preserved verbatim and `'is this done'`, `'check my work'` and `'did the fix actually work'` join
+  them.
 
 ## [0.5.1]
 

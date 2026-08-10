@@ -3,6 +3,18 @@
 All notable changes to the `context7` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.1]
+
+### Changed
+
+- **`/context7:lookup`'s `description` now leads with typed trigger phrases.** It previously stated
+  the routing condition only as prose ("whenever a question names a library, framework, SDK, CLI
+  tool, or cloud service"), which reads as a summary rather than a trigger spec, and the phrases a
+  user actually types were absent. `Use when:` now fronts `'look up the docs for X'`,
+  `'what's the API for X'`, `'how do I configure X'`, `'latest docs for X'`,
+  `'check context7 for X'` and `'how do I migrate to X v2'`, with the names-a-library condition
+  folded in behind them instead of stated twice.
+
 ## [0.5.0]
 
 ### Removed

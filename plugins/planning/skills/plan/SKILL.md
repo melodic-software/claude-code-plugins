@@ -1,5 +1,5 @@
 ---
-description: "Produce structured implementation plans with goal, approach, test strategy, blast-radius assessment, parallelism analysis, and a user approval gate before any code is written — persisting PLAN.md for fresh-session handoff. Use for 'plan this', 'architect this', 'how should we implement', 'implementation plan', proactively before executing without a formalized plan, or 'review this plan' to audit an existing plan's completeness."
+description: "Produce structured implementation plans with goal, approach, test strategy, blast-radius assessment, parallelism analysis, and a user approval gate before any code is written — persisting PLAN.md for fresh-session handoff. Use when: 'plan this', 'architect this', 'how should we implement', 'implementation plan', 'write a plan for this', 'what's the approach here', 'review this plan' (audits an existing plan's completeness), or proactively before executing without a formalized plan."
 argument-hint: "[task description, 'review', or 'close-out'] (e.g., /planning:plan add caching to query handlers, /planning:plan review, /planning:plan close-out)"
 user-invocable: true
 disable-model-invocation: false
