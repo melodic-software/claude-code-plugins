@@ -73,26 +73,25 @@ Idea keeps moving through all four lines
 ```
 
 Worked contrast from *Essential Guide to Lyric Form and Structure* (1991),
-Chapter 4 (structure only; Pat's example lyrics are not reproduced):
-
-Pat sets the same four-line situation twice. The first setting pairs lines 1-2
-on one sound and lines 3-4 on another (`aabb`); the second alternates them
-(`abab`). Nothing else changes — same subject, same line lengths.
+Chapter 4. Pat wrote both of these himself as a) and b):
 
 ```text
-aabb -> line 1 |
-        line 2 | first thought, closed by the couplet
-        line 3 |
-        line 4 | second thought, closed by the couplet
+a)  Love her or leave her to me      a
+    Keep her or let her go free      a
+    Don't go two-timing her          b
+    'less you're resignin' her       b
 
-abab -> line 1 ... rhyme opens
-        line 2 ... second sound opens
-        line 3 ... first sound returns, still unresolved
-        line 4 ... both resolve together
+b)  Some girls like their flirtin'   a
+    They're always on the roam       b
+    Blind to who they're hurtin'     a
+    Their eyes are never home        b
 ```
 
 The first naturally divides into two parts. The second stays in motion because
 the first rhyme waits across intervening material before resolving.
+
+Exercise 27 in the chapter is to reverse them — through-write a) and fragment
+b) — keeping as much of the same meaning as possible.
 
 ## Through-write when the idea should flow
 
@@ -128,14 +127,27 @@ the rhyme keeps applying the brakes.
 The rhyme scheme should behave like the emotional or dramatic action.
 
 For a leisurely verse, spread rhymes apart. For a chorus that bursts forward,
-move to consecutive rhymes. Pattison's "Ready or Not" example uses a more
-leisurely verse pattern and a fast consecutive chorus pattern so the rhyme pace
-matches the content's change in energy.
+move to consecutive rhymes. Pat's "Ready or Not":
 
 ```text
-verse:  spread rhymes -> room, thought, pressure building
-chorus: d d d d       -> immediate launch, compact hook energy
+VERSE    If I went into analysis                      a
+         And took myself apart                        b
+         And laid me out for both of us to see        c
+         You'd go into paralysis                      a
+         Right there in my arms                       b
+         Finding out you're not a bit like me         c
+
+CHORUS   READY OR NOT                                 d
+         We've got what we've got                     d
+         Let's give it a shot                         d
+         READY OR NOT                                 d
 ```
+
+The verse rhymes are spread apart — their leisurely pace works with the idea,
+especially for the first three phrases. As the rhymes start to connect the last
+three phrases back to the first three, the pressure pushes the section forward.
+The chorus rhymes are consecutive, one after another, as fast as rhymes can go:
+ideal for the "out-of-the-starting-blocks" idea of the chorus.
 
 Prosody can also operate inside one section. If the idea becomes more active or
 pressurized, accelerate the rhyme scheme near the place where the lyric becomes
@@ -143,15 +155,28 @@ more active.
 
 ## Accelerate strategically
 
-Acceleration comes from bringing rhymes closer together.
+Acceleration comes from bringing rhymes closer together. Pat's example — the
+consecutive rhymes in lines 3, 4 and 5 accelerate the section and build
+pressure, working in sync with the idea:
 
 ```text
-a
-b
-c
-c
-c
-b
+I saw her once and that was it        a
+I felt my knees go weak               b
+I tossed and turned all night in bed  c
+Knew she had me in her web            c
+Tried to make her leave my head       c
+Couldn't fall asleep                  b
+```
+
+The same scheme, this time with feminine rhymes to heighten the comedy:
+
+```text
+You can't play ping pong with my heart  a
+When I'm without a paddle               b
+It's 40-love, you've got the ball       c
+The odds are astronomical               c
+The situation's comical                 c
+You've really got me rattled            b
 ```
 
 In *Essential Guide to Lyric Form and Structure* (1991), Chapter 4's examples,
@@ -249,17 +274,23 @@ effect: the c cluster accelerates the middle; final b closes the frame
 Repeated song sections often force the reverse process. Verse 1 establishes a
 scheme; verse 2 must find content that fits it.
 
-*Essential Guide to Lyric Form and Structure* (1991), Chapter 4 drills this with
-an `ABACCB` scheme: the writer sketches a plot whose action fits the scheme's
-motion, then finds rhyme words for it. Pat's own worked answer is his to print —
-here is an equivalent built the same way:
+*Essential Guide to Lyric Form and Structure* (1991), Chapter 4, Exercise 28
+drills this: think up a plot whose action fits the movement of the rhyme
+scheme, then come up with rhyme words for the plot. Pat's own worked example:
 
 ```text
-scheme: ABACCB
-plot: a late shift ends, the drive home turns toward someone
-      else's street, and the narrator keeps driving past
-words: light / alone / night / turn / burn / home
+RHYME SCHEME: ABACCB
+
+PLOT SKETCH:
+My lover and I are dancing, enjoying our closeness.
+My spouse enters the lounge and spots me. We have been
+discovered!
+
+Rhyme words: dance/embrace/romance/eyes/surprise/disgrace
 ```
+
+The exercise then hands the writer three more schemes to do the same with:
+`AABBCC`, `XAXABB`, and `AABCCC`.
 
 The `cc` pair in positions 4-5 is where the plot's pressure spikes; the delayed
 `b` in position 6 is where it resolves.

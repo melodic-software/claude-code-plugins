@@ -396,31 +396,126 @@ Two conditions make closure deceptive:
 - The system raises a specific expectation.
 - The actual resolving sound already exists in the structure.
 
+Even when the system is lengthened by an acceleration, the expectation survives
+— after `fool / slow / school / nitwit / sit ...` you still expect `low`. That
+leaves two possible deceptions, and both are deceptive:
+
 ```text
-unexpected closure, closed then extra attention:
-blood   a
-flood   a
-crash   b
-bash    b
-mash    b
+fool    a        fool    a
+slow    b        slow    b
+school  a        school  a
+nitwit  c        nitwit  c
+sit     c        sit     c
+rule    a        spit    c
 ```
 
+Contrast these, which are NOT deceptive — they are simply OPEN, because in the
+place you expect the closure they use a sound the system has not used yet:
+
+```text
+fool    a        fool    a
+slow    b        school  a
+school  a        sow     b
+rise    c        slip    c
+```
+
+A resolution is UNEXPECTED in either of two cases.
+
+**Case 1 — expectations were already satisfied, then the last sound repeats:**
+
+```text
+blood  a        blood  a
+flood  a        crash  b
+crash  b        flood  a
+bash   b        bash   b
+mash   b        mash   b
+```
+
+**Case 2 — the system sets up no clear expectation before the resolution:**
+
+```text
+fool      a
+slow      b
+rise      c
+surprise  c
+```
+
+This closure comes out of nowhere; it is a real surprise. Pat notes Shakespeare
+is fond of it for getting out of an unrhymed blank-verse passage — the closing
+couplet of Emilia's speech in *Othello* IV.iii lands exactly this way. Put
+important or surprising ideas where the structure surprises and the ideas work
+with the structure to create prosody.
+
 Ambiguity is useful. Patterns like `aaa` or `ababa` can look backward as
-identity/repetition or forward as an open odd-count system. Decide by the lyric
-function, not the letters alone.
+identity/repetition or forward as an open odd-count system. Pat's own
+illustration of the difference:
+
+```text
+You're breaking me in two     a
+Why can't I have you?         a
+Why can't I have you?         a
+```
+
+Here we are clearly looking backward — a clear case of Identity, so the system
+really has only two phrases, and it is closed. But:
+
+```text
+You're breaking me in two     a
+Why can't you be true?        a
+Why can't I have you?         a
+```
+
+now the odd number of phrases comes into play and you notice the need for
+another phrase. Repetition of rhymes `aaa` plays against balance and leaves the
+closure ambiguous. Both `aaa` and the longer `ababa` seem more OPEN than CLOSED,
+and both are good ways to leave a listener in a little cloud of mystery. Decide
+by the lyric function, not the letters alone.
 
 ## Exercises to preserve
 
-Chapter 4's exercises are part of the method:
+Chapter 4 runs Exercises 18-28. Full wording and content live in
+[exercises](exercises.md); the three labeling drills print their answer keys on
+the page, and those keys are the fastest way to check a reading of the theory:
 
-- Generate perfect rhymes for partial syllables before worrying about meaning.
-- Classify masculine/feminine rhymes by stressed-syllable position.
-- Notate schemes with `a`, `b`, `x`, and identity markers.
-- Balance, accelerate, or decelerate lists by adding/subtracting words.
-- Label schemes through-written/fragmented and open/closed; then write lines
-  whose phrase lengths and rhythms follow that rhyme behavior.
-- Write deceptive and unexpected closures deliberately, placing important ideas
-  in the surprise positions.
+**Ex 23 — mark each `T` for through-written or `F` for fragmented:**
+
+<!-- spellchecker:off -->
+```text
+ 1. abab   2. aabb   3. aaab   4. abba   5. aaa
+ 6. aaba   7. abbaa  8. abaa   9. abaab  10. ababa
+
+answers: 1. T; 2. F; 3. F; 4. T; 5. F; 6. F; 7. F; 8. T; 9. F; 10. F
+```
+
+**Ex 24 — mark each `C` for closed or `O` for open:**
+
+```text
+ 1. ababa  2. aabbb  3. aaabb  4. abcab  5. abcac
+ 6. abba   7. abbaa  8. abbabb 9. abccb  10. aab
+
+answers: 1. C; 2. C; 3. O; 4. O; 5. C; 6. O; 7. either; 8. C; 9. C; 10. O
+```
+
+**Ex 25 — mark each `E` expected, `U` unexpected, or `D` deceptive:**
+
+```text
+ 1. ababb  2. abaa   3. aabba  4. aaba   5. abaaa
+ 6. abacca 7. abaccb 8. abaab  9. aaa    10. abcaaa
+
+answers: 1. U; 2. D; 3. U; 4. D; 5. D; 6. U & D; 7. E; 8. D; 9. U & D; 10. D
+```
+<!-- spellchecker:on -->
+
+Note Ex 24 #6: `abba` is marked **open**, which is the second independent
+confirmation that it is not a balanced pattern.
+
+The remaining exercises: generate perfect rhymes for nonsense syllables before
+worrying about meaning (18); mark masculine vs feminine (19); notate schemes
+with `a`, `b`, `x` and `I` for identity (20); balance lists by adding or
+subtracting words (21); accelerate then decelerate the same lists (22); write a
+deceptive closure using Paradigm Three for its rhythm, then an unexpected one
+(26); reverse the flow of Pat's two worked sections (27); and work from rhyme
+scheme to plot (28).
 
 ## Revision moves
 
@@ -511,7 +606,42 @@ This stance contradicts the default "pick a scheme and commit" coaching.
 Pat's framing: pick a scheme that matches the emotional shape, even if the
 scheme is itself ambiguous.
 
-### Two structural-ambiguity examples (no lyric text reproduced)
+### Two structural-ambiguity examples
+
+Both poems Pat teaches from here are public domain. The couplet-flow passage he
+quotes from Marvell:
+
+```text
+Had we but world enough and time
+This coyness, lady, were no crime ...
+An hundred years should go to praise
+Thine eyes, and on thy forehead gaze;
+Two hundred to adore each breast,
+And thirty thousand to the rest; ...
+But at my back I always hear
+Time's winged chariot hurrying near ...
+```
+
+Marvell's lines are 8-syllable, 4-stress (tetrameter) couplets. Each rhymed
+couplet works as a little unit of thought, almost like a paragraph — equal line
+lengths create balanced couplets, but it is rhyme that applies the brakes.
+
+The contrasting through-written passage, the last six lines of "Ozymandias":
+
+```text
+... And on the pedestal these words appear:     a
+"My name is Ozymandias, king of kings:          b
+Look on my works, ye Mighty, and despair!"      a  (imperfect rhyme)
+Nothing beside remains. Round the decay         c
+Of that colossal wreck, boundless and bare      a
+The lone and level sands stretch far away.      c
+```
+
+"Kings" rhymes with "things" three lines earlier; "appear" is an imperfect
+rhyme — technically a Consonance Rhyme — with "despair" and "bare." Had line
+four used either "things" or "bare," the six-line system would have FRAGMENTED
+and gained an internal point of closure. Instead a new sound at line four keeps
+it moving, so the system is THROUGH-WRITTEN.
 
 - **Marvell, "To His Coy Mistress" — couplet flow** (*Essential Guide to Lyric Form and Structure* (1991), Chapter 4). Marvell
   uses couplet rhyme (`aabb`) to fragment forward motion: each couplet

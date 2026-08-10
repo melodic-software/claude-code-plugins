@@ -36,14 +36,81 @@ touches, feels inside the body, and feels through balance or motion.
 
 Chapter 2 turns object writing into a placement rule: a lyric can tell the listener
 what matters after it has first shown an image strong enough to color the
-statement.
+statement. Pat opens the chapter by asking what object writing is *for*:
 
-> Show before you tell.
+> Once you become adept in your object writing, with bushels of sense-bound
+> images glittering on the kitchen table, what do you do with them?
 
-Pattison frames the image as "Rusty's collar": the concrete thing the writer
-holds up before explaining. A strong image placed early drips color downward
-over the lines that follow. If the image arrives late, the opening statements
-remain abstract and under-colored.
+The rule has a name, and the name comes from the kindergarten story Pat tells to
+get to it. He asked to bring his new puppy Rusty in for Show-and-Tell, was told
+to bring the collar instead, and left the collar on the kitchen table:
+
+> "Can I do Show-and-Tell anyway?"
+>
+> "No, no," she said gently, shaking her finger (they always shake their
+> fingers). "You can't tell unless you show first."
+>
+> YOU CAN'T TELL UNLESS YOU SHOW FIRST.
+>
+> To this day, I call that the "Sister Mary Elizabeth Rule of Song-writing."
+> Show before you tell. Showing makes the telling more powerful because your
+> senses and your mind are both engaged.
+>
+> — *Writing Better Lyrics* (2009), Chapter 2
+
+> The Sister Mary Elizabeth Rule of Songwriting: Show before you tell.
+
+Use the full name when coaching. "Show before you tell" is the rule; "the Sister
+Mary Elizabeth Rule of Songwriting" is what Pat calls it, and "Rusty's collar" is
+what he calls the image itself — the concrete thing the writer holds up before
+explaining.
+
+Pat's demonstration. First, the version that forgot the collar:
+
+```text
+All the things we used to do
+Those dreamy teenage nights
+Nothing matters like it did
+Back when you were mine
+```
+
+Then: "Try showing Rusty's collar first:"
+
+```text
+Hot rod hearts and high school rings
+Those dreamy teenage nights
+Nothing matters like it did
+Back when you were mine
+```
+
+The mechanism is not "color" in the abstract. It is a bag of dye:
+
+> Think of Rusty's collar this way: "Hot rod hearts and high school rings" is a
+> bag of dye. Hang the dye on top of the section and let it drip its colors
+> downward onto the other lines, giving them more interest and depth.
+
+Placement is load-bearing, and Pat proves it by moving the collar down one line:
+
+```text
+Nothing matters like it did
+Those dreamy teenage nights
+Hot rod hearts and high school rings
+Back when you were mine
+```
+
+> We still get colors, but the law of gravity says that they'll only drip
+> downward, leaving us starting with:
+>
+> Nothing matters like it did
+> Those dreamy teenage nights
+>
+> This has less color than when we followed the Sister Mary Elizabeth Rule of
+> Songwriting. Colors drip down, not up. Show first, and watch everything else
+> gain impact.
+
+A strong image placed early drips color downward over the lines that follow. If
+the image arrives late, the opening statements remain abstract and
+under-colored.
 
 Use this diagnosis on bland drafts:
 
@@ -92,17 +159,64 @@ the collar is protected. The rhyme should serve the image, not erase it.
 
 ## The seven senses
 
-Object writing uses seven sensory channels:
+Pat names the channels twice, in two different vocabularies. *Writing Better
+Lyrics* (2009), Chapter 1, Exercise 1:
 
-| Sense | Craft use |
-| --- | --- |
-| Sight | Color, shape, light, distance, motion, visual contrast. |
-| Hearing | Texture, volume, rhythm, silence, muffling, resonance. |
-| Smell | Atmosphere, memory triggers, environment, intimacy. |
-| Taste | Appetite, disgust, sweetness, bitterness, temperature. |
-| Touch | Surface, pressure, temperature, weight, pain, texture. |
-| Organic | Inner body awareness: pulse, breath, stomach, muscles, fatigue. |
-| Kinesthetic | Balance, speed, direction, body position, spatial relation. |
+> Use all seven senses: sight, hearing, smell, taste, touch, organic, and
+> kinesthetic.
+
+*Songwriting Without Boundaries* (2011) prints a shorter list, and prints it
+again at the head of every single day of every challenge as the line the writer
+lets their eye wander to when they do not know where to go next:
+
+```text
+Sight Sound Taste Touch Smell Body Motion
+```
+
+Both name the same seven channels. Use whichever vocabulary the user brought.
+
+Pat does not gloss the five ordinary senses — he sharpens them with questions:
+
+> Although you understand your five senses, you could probably stand a few
+> exercises to sharpen them, especially the four you don't normally use when you
+> write. If I asked you to describe the room you're in, your answer would be
+> primarily, if not completely, visual. Try spending a little time alone with
+> each sense. What's there? How does the kitchen table smell? How would the rug
+> feel if you rubbed your bare back on it? How big does the room sound? (What if
+> it were twice as big? Half as big?) How would the table taste if you licked
+> it? No, it's not silly. Remember this, it is important: The more senses you
+> incorporate into your writing, the better it breathes and dances.
+>
+> — *Writing Better Lyrics* (2009), Chapter 1
+
+*Songwriting Without Boundaries* (2011), Challenge 1 adds a subdivision of sight
+that the 2009 text does not have:
+
+> Even if it is only visual, remember that visual has at least three
+> aspects — color, shape, and texture. Try isolating each and noticing, for
+> example, only shapes. Look for similar shapes. Then look for texture "rhymes."
+> How many colors does the tree really have?
+
+The two extra channels get real definitions. These are Pat's, near-identical in
+both books:
+
+> **Organic sense** is your awareness of inner bodily functions, for example,
+> heartbeat, pulse, muscle tension, stomachaches, cramps, and breathing.
+> Athletes are most keenly focused on this sense, but you use it constantly,
+> especially in responsive situations. I've been sitting here writing too long.
+> I need a backrub.
+>
+> **Kinesthetic sense** is, roughly, your sense of relation to the world around
+> you. When you get seasick or drunk, the world around you blurs — like blurred
+> vision. When the train you're on is standing still and the one next to it
+> moves, your kinesthetic sense goes crazy. Children spin, roll down hills, or
+> ride on tilt-a-whirls to stimulate this sense. Dancers and divers develop it
+> most fully — they look onto a stage or down to the water and see spatial
+> possibilities for their bodies. It makes me dizzy just thinking about it.
+>
+> — *Writing Better Lyrics* (2009), Chapter 1; *Songwriting Without Boundaries*
+> (2011), Challenge 1, which labels them "Organic sense (body)" and "Kinesthetic
+> sense (motion)"
 
 Organic and kinesthetic details are often the fastest way to move a lyric from
 general description into embodiment. Use them when the draft explains emotion
@@ -110,12 +224,69 @@ from the outside instead of letting the listener feel it.
 
 ### Sense inventory — the acceptance test on a finished write
 
-Chapter 1 does not stop at naming the channels. It takes a completed write and
-breaks it into seven headed lists, each one quoting the write's own phrases
-back. That inventory is the check: a channel with nothing under it was not
-covered, whatever the writer believes.
+Chapter 1 does not stop at naming the channels. It takes a completed
+write — Pat's own, "Back Porch," written to Exercise 1 — and breaks it into seven
+headed lists, each one quoting the write's own phrases back. That inventory is
+the check: a channel with nothing under it was not covered, whatever the writer
+believes.
 
-Run it on every completed write, whoever produced it:
+Pat's write, in full:
+
+> **Back Porch**
+>
+> I must have been four. Memories from that time are a rare species — lobbing in
+> like huge bumblebees on transparent wings, buzzing old Remington shavers torn
+> free from those thick and brittle wires tangled in webs under our porch where I
+> loved to crawl and hide; black snaking wires disappearing up through floors and
+> humming into wall and socket. I still hear them.
+>
+> I hid under the back porch, smell of damp summer earth cool under my hands,
+> ducking, scrunching my shoulders tight to avoid the rusty nails waiting
+> patiently above for my back or skull to forget them. The tingling along my back
+> and neck kept reminding me, don't stand up.
+>
+> Under the back porch, a place tinged with danger and smelling of earth, the air
+> tastes faintly of mold and hollyhocks twining around the trellises that I see
+> only the bottoms of, speckled gold by the shafts of sun slipping through high
+> elm branches in the backyard, weaving shadows like Grandma's lace dresser
+> doilies. When I squint, I can blur the sunlight into a bridge of green-gold.
+> Crouching there fetal and content, I could feel Mom above me, could hear her
+> high heels tap-tapping.
+>
+> — Pat Pattison, *Writing Better Lyrics* (2009), Chapter 1
+
+And Pat's inventory of it, verbatim, under his own heading "Look at the sense
+information in 'Back Porch'":
+
+> **Sight:** huge bumblebees on transparent wings; thick and brittle wires
+> tangled in webs; black snaking wires disappearing up through floors; rusty
+> nails; hollyhocks twining around the trellises I see only the bottoms of;
+> speckled gold by shafts of sun; high elm branches in the backyard; weaving
+> shadows like Grandma's lace dresser doilies; when I squint, I can blur the
+> sunlight into a bridge of green-gold
+>
+> **Hearing:** buzzing old Remington shavers; humming into wall and socket; I
+> still hear them; could hear her high heels tap-tapping
+>
+> **Smell:** smell of damp summer earth; smelling of earth
+>
+> **Taste:** the air tastes faintly of mold and hollyhocks
+>
+> **Touch:** thick and brittle wires; damp summer earth cool under my hands;
+> tingling along my back and neck
+>
+> **Organic:** crawl; crouching; ducking; scrunching shoulders tight; stand up
+> quick; tingling along my back and neck; when I squint; crouching there fetal
+> and content
+>
+> **Kinesthetic:** lobbing in; tingling along my back and neck kept reminding me;
+> avoid rusty nails waiting patiently above for my back or skull to forget them;
+> don't stand up; I could feel Mom above me
+
+Note the shape of the real thing: smell gets two entries and taste gets one,
+while sight gets nine. The inventory is not a quota — it is a record.
+
+Run the same inventory on every completed write, whoever produced it:
 
 ```text
 Sight:         <phrases from the write, verbatim>
@@ -127,11 +298,13 @@ Organic:       <phrases>
 Kinesthetic:   <phrases>
 ```
 
-Rules that make it an acceptance test rather than a formality:
+Rules this skill adds to make it an acceptance test rather than a formality
+(Chapter 1 demonstrates the inventory; it does not state these as rules):
 
 - Quote the write's own words. A summary ("I covered smell") is not evidence.
 - A phrase may appear under more than one channel — Chapter 1's own inventory
-  does exactly this, because one image can carry two senses at once.
+  does exactly this. "tingling along my back and neck" is filed under touch,
+  organic, *and* kinesthetic, because one image can carry three senses at once.
 - A thin or empty channel is **reported, never padded**. Sight and hearing fill
   themselves; smell, taste, organic, and kinesthetic are the channels that go
   missing, and a write honestly short on one is more useful than a write with a
@@ -161,34 +334,80 @@ process.
 
 "Follow sensory associations wherever they lead" is the instruction. The pivot
 chain is the mechanism, and without it a write becomes a static description of
-one scene instead of a dive.
+one scene instead of a dive. Pat names the mechanism directly:
 
-Each image hands off to the next **through a sense**, not through topic, logic,
-or narrative — and the channel it lands in is a different one from the channel
-it left. Chapter 1 demonstrates it as an unbroken run: a physical sensation in
-one setting suggests a texture, the texture suggests a taste, the taste
-relocates the writer somewhere else entirely, the new place produces a sound,
-the sound produces a body reaction, and so on — each link a sense, not an idea.
-The write ends somewhere the seed could never have predicted.
+> Try bouncing off of each sense-image to wherever else it might take you, using
+> each new sense-image as a sort of pivot to the next, a kind of sensual free
+> association. Always with your senses, all seven of them. All within ten
+> minutes.
+>
+> — *Writing Better Lyrics* (2009), Chapter 1
 
-Worked example of the shape (the chain, not Pat's):
+*Songwriting Without Boundaries* (2011), Challenge 1 gives the same idea its
+other name: "Think of object writing as sense-bound free association."
+
+Pat's own worked chain, printed in both books in nearly identical words:
+
+> Let your hot morning shower with its rolling steam take you to thick clouds
+> hanging overhead, to the taste of rain, to stomping through a puddle,
+> splashing water up so it sprays like fireworks, to the boom in your chest and
+> the smell of gunpowder and the taste of cotton candy.
+>
+> — *Writing Better Lyrics* (2009), Chapter 1; *Songwriting Without Boundaries*
+> (2011), Challenge 1
+
+Read as a chain of handoffs, each one carried by a sense and each one landing in
+a channel different from the one it left:
 
 ```text
-seed: laundromat
-  dryer heat on the forearms          [touch]
-  → the smell of scorched lint        [smell]
-  → burnt-toast mornings              [taste]
-  → the toaster's spring-loaded bang  [hearing]
-  → flinch at the shoulders           [organic]
-  → the floor tilting on a boat deck  [kinesthetic]
+seed: hot morning shower
+  rolling steam                       [sight]
+  → thick clouds hanging overhead     [sight, relocated]
+  → the taste of rain                 [taste]
+  → stomping through a puddle         [kinesthetic]
+  → sprays like fireworks             [sight]
+  → the boom in your chest            [organic]
+  → the smell of gunpowder            [smell]
+  → the taste of cotton candy         [taste]
 ```
 
-Six pivots, six channels, and the write left the laundromat by link three. That
-is working. A write that is still describing the laundromat at ten minutes has
-been staying loyal to the seed.
+The write left the bathroom by link two and ended at a fairground. That is
+working. A write still describing the shower at ten minutes has been staying
+loyal to the seed.
+
+Pat's second documented demonstration is Cathy Brettell's ten-minute write on
+"Elevator," and he points at the exact pivot that carried it:
+
+> Breath sucks back into my throat — stomach ball jellies to my toes like an
+> anchor hoisted over a ship — dull brass dragging thick fingers of midnight,
+> current's chain unspools — like roller skates gliding freely — wind sassing back
+> against stubborn waves, black fallen angels bow and thrash in the
+> darkness — thunder twists between sweaty muscled clouds — silver daggers spear
+> the sky horizon, lashing down at the warm sleeping distant halls — sandy upper
+> lip catching foam of a root beer float — eyes widen — thirst deepens, a throat of
+> parched earth guzzles a torpedo stream of charcoal water — stars mirror in the
+> salty crystals — reeds bristle against oncoming Northern winds — smooth moonlit
+> feathers hug against one bony leg for support — a white beam sweeps the coastal
+> blanket — lighthouse calling a lone love — darkness capes around her tall slender
+> body — urchins clinging, bottle bristles against her feet — sunrise begins to
+> touch her — threads of melon flesh across cradled lids — shades of light lift the
+> dreamy nightmare up — rolling it back into heaven's closet — soft crystal knob
+> pulls shut … (time!)
+>
+> — Cathy Brettell, object: Elevator, time limit: 10 minutes, in *Songwriting
+> Without Boundaries* (2011), Challenge 1
+
+> As you can see from "Elevator," "Breath sucks back into my throat — stomach ball
+> jellies to my toes like an anchor hoisted over ship" took Cathy from an
+> elevator ride to an ocean storm, no permission asked.
+>
+> — Pat Pattison, same
+
+Note the ending: "(time!)" and then "soft crystal knob pulls shut" cut off. That
+is the buzzer, printed.
 
 Diagnostic when a write reads flat: number the images and name the sense
-carrying each handoff. Handoffs carried by topic ("and also in the laundromat
+carrying each handoff. Handoffs carried by topic ("and also in the elevator
 there was…") are the failure. Handoffs where the sense channel changes are the
 mechanism running.
 

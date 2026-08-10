@@ -5,22 +5,45 @@ All notable changes to the `songwriting` plugin are documented here. Format foll
 
 ## [0.8.5]
 
-A source-fidelity pass over *Essential Guide to Lyric Form and Structure*
-(1991) Chapter 4 (Rhyme), read in full with **all 40 of its figures** at 3x
-upscale, against `rhyme-fundamentals.md` and `rhyme-strategy.md` — the two
-files that name that chapter as their primary source. Two of the findings
-below came only from the figures: the balance-paradigm set and the printed
-exercise answer keys, neither of which exists in the text layer. Paraphrase
-only.
+**A reversal of standing policy, plus a source-fidelity pass.**
+
+Every previous release of this plugin was built under a "paraphrase only —
+never reproduce Pat's text" rule that had been propagating through eight
+handoffs. **That rule is revoked.** The repo owner owns all four books and this
+reference is for their own use, and the paraphrasing was actively destroying
+the value of the craft guidance: an exercise summarized is not an exercise, and
+a worked example described is not an example. Pat's actual text, actual
+examples, actual exercise wording and actual printed answer keys are being
+restored across the whole knowledge base.
+
+This release covers *Essential Guide to Lyric Form and Structure* (1991)
+Chapter 4 (Rhyme), read in full with **all 40 of its figures** at 3x upscale,
+plus the first wave of the verbatim restoration across the other research
+files. Two findings below came only from the figures: the balance-paradigm set
+and the printed exercise answer keys, neither of which exists in the text
+layer.
+
+### Restored — Chapter 4
+
+- **Pat's two worked `aabb` / `abab` sections are back in `rhyme-strategy.md`
+  in full**, as he wrote them, with the Exercise 27 instruction to reverse
+  them. Likewise his worked `ABACCB` plot sketch and rhyme words from Exercise
+  28, his "Ready or Not" verse and chorus, and both `abcccb` acceleration
+  examples including the feminine-rhyme comedy version.
+- **The closure sections now show Pat's actual word-schemes** rather than bare
+  letters: both deceptive continuations, both non-deceptive open contrasts,
+  both unexpected-closure cases, and the paired `aaa` illustration that
+  distinguishes looking-backward identity from a genuinely open odd-count
+  system.
+- **The three labeling drills now carry their printed answer keys** (Ex 23, 24,
+  25), transcribed from the page scans. Ex 24 #6 independently confirms `abba`
+  is open.
+- **The Marvell and Shelley passages are quoted** rather than described — both
+  public domain — with the consonance-rhyme gloss Pat attaches to
+  "Ozymandias."
 
 ### Fixed
 
-- **Eight lines of Pat's own example lyrics were reproduced verbatim in
-  `rhyme-strategy.md`,** in a public repository — the `aabb`/`abab` worked
-  contrast. Pat states in the chapter that he wrote both. Replaced with a
-  structural diagram that makes the same teaching point without the text. A
-  second instance, the chapter's worked `ABACCB` exercise answer, was replaced
-  with an equivalent built the same way.
 - **`rhyme-fundamentals.md`'s identity test asserted the opposite of the
   rule it was stating.** It said identity "matches conditions 1 and 2 and
   **also** matches 3" where condition 3 is *"different consonant sound before

@@ -27,6 +27,73 @@ This is the central distinction: universal does not mean generic. Sense-bound
 details let listeners fill the song with their own memories. Generic language
 keeps them at a distance.
 
+Pat's own statement of the job:
+
+> Your job as a writer isn't to point to a generic territory where images could
+> be, but instead to go there, get one, and show it to your listeners. Clichés
+> don't pump gasoline anymore.
+
+## The sleeping puppy
+
+Chapter 5 opens on a PBS documentary about a narcoleptic puppy who keeps
+toppling over mid-romp. The narrator blames the disorder; Pat blames the radio
+playing in the background. The puppy drops at these lines:
+
+```text
+You gotta take a chance
+If you want a true romance
+```
+
+and then again at:
+
+```text
+Take my hand
+Let me know you understand
+```
+
+> I may not be *The New England Journal of Medicine*, but I know why the puppy
+> is falling asleep: clichés. Cliché phrases. Cliché rhymes. Cliché images.
+> Cliché metaphors.
+
+Those four families are the chapter's taxonomy, and the puppy is the test: if a
+line puts the listener to sleep, name which of the four did it.
+
+Pat's examples of phrases worn smooth: *strong as a bull*, *eats like a horse*,
+*their ship came in* — no longer evoking bulls, horses, or ships at all. And a
+set that has become fully interchangeable, which is the tell: *break my heart*,
+*cut me deep*, *hurt me bad* (as interchangeable as *How ya doin'?* / *What's
+up?* / *How's it goin'?*).
+
+### Generic vs sense-bound — the chapter's demonstration pair
+
+Pat sets the same sentiment twice. First, generic:
+
+```text
+Noise and confusion, there's no peace
+In the hustle and bustle of city streets
+It's time to get away from it all
+Deep inside I hear nature's call
+```
+
+Then William Butler Yeats:
+
+```text
+I will arise and go now, for always night and day
+I hear lake water lapping with low sounds by the shore;
+While I stand on the roadway, or the pavements gray,
+I hear it in the deep heart's core.
+```
+
+> Both express roughly the same sentiment, but the first, cliché and generic as
+> it is, can only point to territories of meaning. Yeats takes you there.
+
+Pat's other frame for the same failure: clichés are prefabricated, string-able
+the way a guitarist strings favorite licks into a solo (two Claptons + one
+Hendrix + three Pages + one Stevie Ray). Learning from other people's licks is
+fine; the next step is finding your own way of saying it.
+
+> Clichés are other people's licks. They don't come from your emotions.
+
 ## Four cliche families
 
 Diagnose cliches by family:
@@ -55,6 +122,32 @@ Diagnosis questions:
 - Does it explain emotion before showing Rusty's collar?
 - Does it arrive because the writer is trying to fill meter or rhyme?
 
+Pat's own list runs to roughly a hundred entries. A representative slice, in his
+grouping:
+
+```text
+(way down) deep inside      touch my (very) soul       take my hand
+heart-to-heart              eye to eye                 hand-in-hand
+side by side                face-to-face               by my side
+we've just begun            hurts so bad               walk out (that) door
+can't stand the pain        feel the pain              give me half a chance
+gotta take a chance         such a long time           night and day
+all night long              the test of time           rest of my life
+someone like you            no one can take your place lonely nights
+say you'll be mine          how it used to be          made up my mind
+calling out your name       it's gonna be all right    get down on my knees
+more than friends           set me free                heaven above
+done you wrong              break these chains         kiss your lips
+falling apart               can't live without you     taken for granted
+lost without you            break my heart             safe and warm
+give you my heart           broken heart               can't go on
+want you / need you / love you                         keep holding on
+end of the line             now or never               pay the price
+never let you (me) go       hold me tight              worth fighting for
+nothing to lose             see the light              forget my foolish pride
+oh baby                     drive me crazy             going insane
+```
+
 Rewrite pattern:
 
 1. Underline the cliche phrase.
@@ -71,6 +164,36 @@ Cliche rhymes are predictable pairings. They often appear because perfect rhyme
 is the only tool being used. Predictability can drain the second line before it
 is sung.
 
+Pat's list of the offenders:
+
+```text
+hand / understand / command          eyes / realize / sighs / lies
+walk / talk                          fire / desire / higher
+kiss / miss                          burn / yearn / learn
+dance / chance / romance             forever / together / never
+friend / end                         ache / break
+cry / die / try / lie / good-bye / deny
+tears / fears                        best / rest / test
+door / before / more                 love / above / dove
+heart / start / apart / part         hide / inside / denied
+wrong / strong / song / long         touch / much
+word / heard                         begun / done
+arms / charms / harm / warm          blues / lose
+true / blue / through                lover / discover / cover
+pain / rain / same                   light / night / sight / tight
+stronger / longer                    fight / right
+take it / make it / fake it / shake it
+maybe / baby                         change / rearrange
+knees / please
+```
+
+Pat's diagnosis of why the list looks like that, and the cure it implies:
+
+> Most cliché rhymes are perfect rhymes, a good reason to stretch into other
+> rhyme types — family rhyme, additive and subtractive rhyme, and even assonance
+> rhyme. These imperfect rhyme types are guaranteed fresh, and most listeners
+> won't notice the difference.
+
 Use [worksheets](worksheets.md) to build options, then use
 [rhyme types](rhyme-types.md) to widen the field:
 
@@ -85,10 +208,31 @@ phrase, keep the idea and change the rhyme type.
 
 ## Cliche images
 
-Cliche images are familiar objects that no longer show a specific life. The
-Chapter 5 image inventory includes common body, romance, night, door, light, chain,
-flower, phone, and dance-floor territory. These territories are not banned, but
-they require personal detail to become active again.
+Cliche images are familiar objects that no longer show a specific life. Pat:
+"These have been aired out so much they are mere whiffs of their former selves."
+
+The inventory is a page figure (`image_rsrcATY.jpg`), read directly. Its full
+contents:
+
+```text
+lips            eyes            smile             hands
+face            hair            silky hair        voice
+soft (smooth) skin              warmth of arms    kiss            moon
+sky             light           sun going down    stars
+shadow          bed             lying in bed      night
+crying          knock           door              tears
+key             door            wall              lock
+chains          flowers         rose              cuts like a knife
+glass of wine   fireplace       telephone         perfume
+feel the beat   sweat           flashing lights   dance floor
+```
+
+These territories are not banned, but they require personal detail to become
+active again. Pat's cure is a set of questions aimed straight at the writer's
+own memory:
+
+> What did your lover say? Where were you? What kind of car? What was the
+> texture of the upholstery in the backseat?
 
 Ask:
 
@@ -103,9 +247,29 @@ If the user wants to use a common image, require a precise context.
 
 ## Cliche metaphors
 
-Some metaphor worlds are heavily worn: weather for anger, fire for passion,
-darkness for sadness or ignorance, seasons for life stages, prison for love,
-walls for self-protection, and the broken heart family.
+Pat's inventory of worn metaphor worlds, with the vocabulary each drags along:
+
+```text
+Storm for anger, including thunder, lightning, dark clouds, flashing, wind,
+  hurricane, tornado
+Darkness for ignorance, sadness, and loneliness, including night, blind, shadows
+Fire for love or passion, including burn, spark, heat, flame, too hot, consumed,
+  burned, ashes
+Rain for tears
+Seasons for stages of life or relationships
+Prison, Prisoner used especially for love, includes chains, etc.
+Cold for emotional indifference, including ice, freeze, frozen
+Light for knowledge or happiness, including shine, sun, touch the sky,
+  blinded by love, etc.
+Walls for protection from harm, especially from love
+Broken heart too numerous to mention
+Drown in love
+```
+
+Note the structure of the list: each entry is a *vehicle for a tenor* (storm for
+anger), not just a banned word. The whole family of associated words comes
+pre-worn with it. Pat's pointer for repair is back to Chapter 3, "Making
+Metaphors" — "There's no reason to keep sleepwalking in these yellow fogs."
 
 Do not ban these automatically. Ask whether the draft adds a fresh collision or
 specific sensory angle. If it does not, rebuild the metaphor from:
@@ -122,6 +286,55 @@ A cliche can work when the lyric creates a setup that restores or twists its
 original meaning. The phrase must gain a second life from context. Without that
 setup, treat it as a draft placeholder and replace it.
 
+Pat's two worked cases.
+
+**Sammy Fain and Irving Kahal, "I'll be seeing you."** As a cliche the phrase is
+just a substitute for *so long* or *good-bye*. Their setup makes it new:
+
+```text
+I'll be seeing you
+In all the old familiar places …
+I'll be looking at the moon
+But I'll be seeing you
+```
+
+> This passage implies good-bye, but only as an overtone of the primary meaning.
+> The result is a combination: After we say good-bye, I'll see you everywhere.
+
+That is the mechanism to copy: the cliche's usual meaning survives as an
+*overtone* underneath a literal primary meaning the song has built.
+
+**David Wilcox, "Top of the Roller Coaster."** He slants *it's all downhill from
+here* to his advantage, and picks up *over the hill* and *tiptop* on the way:
+
+```text
+Say good-bye to your twenties
+Tomorrow is the big Three-O
+For your birthday present
+I've got a place where we can go
+It's a lesson in motion
+We'll ride the wildest ride
+We're going to climb to the top of the roller coaster
+And look down the other side
+
+Let me ride in the front car
+You ride right behind
+And I'll click my snapshot camera
+At exactly the right time
+I'll shoot back over my shoulder
+Catch the fear no one can hide
+When we tip the top of the roller coaster
+And look down the other side
+Over the hill
+So when the prints come back
+We can look at that unmistakable birthday fear
+Like your younger days are over now
+And it's all downhill from here
+```
+
+The literal roller coaster earns the figurative phrase. Pat's warning attached to
+both cases: "Without a terrific setup, duck whenever you see a cliché."
+
 Use this test:
 
 - Does the lyric make the familiar phrase mean something newly specific?
@@ -136,12 +349,44 @@ If the answer is no, cut or rewrite.
 Cliches are allowed in early drafts as markers. They can tell the writer what a
 line is trying to do. They become a problem when mistaken for finished writing.
 
+> Though clichés are great in a first or second draft as place markers for
+> something better, don't ever mistake them for the real thing.
+
+Chapter 5 demonstrates the upgrade on one verse. The cliche draft — Pat notes it
+does say something, "just nothing startling":
+
+```text
+She sits alone all day long
+The hours pass her by
+Every minute like the last
+A prisoner of time
+```
+
+> It doesn't yank you by the hair into her room. No humming fluorescent lights.
+> No faded lace curtains. You get to nap securely at a distance, untouched,
+> uninvolved.
+
+And the real thing — the opening of Beth Nielsen Chapman's "Child Again," the
+lyric Chapter 7 then analyzes in full:
+
+```text
+She's wheeled into the hallway
+Till the sun moves down the floor
+Little squares of daylight
+Like a hundred times before
+```
+
+Same situation, same section length. The difference is that the second one is
+sense-bound: a wheelchair, a moving sun, squares of daylight on a floor. Note
+what it does *not* do — it never names loneliness, helplessness, or time. The
+first draft names all three and shows none.
+
 When coaching, do not shame the placeholder. Translate it:
 
 ```text
-Placeholder: I can't live without you.
-Job: dependency, fear, separation, physical panic.
-Search: organic sense, daily objects, absent-person routines, room details.
+Placeholder: A prisoner of time.
+Job: helplessness, routine, days that are all the same.
+Search: what is she in, who moves her, what does the room do as hours pass.
 Rewrite source: object writing and worksheet words.
 ```
 
@@ -149,8 +394,11 @@ Rewrite source: object writing and worksheet words.
 
 Exercise 10 - Cliche inventory and parody draft:
 
-- Make a long personal list of cliche phrases, rhymes, images, and metaphors.
-- Write a verse/chorus/verse/chorus draft using only those cliches.
+- Make a long personal list of cliche phrases, rhymes, images, and metaphors —
+  Pat's instruction is "at least as long as my list above," and he adds "(It
+  won't be difficult.)"
+- String yours and Pat's together into a verse/chorus/verse/chorus lyric,
+  "making sure nothing original sneaks in."
 - Notice how easily it fills space while saying little.
 - Return to a real draft and mark any similar placeholders.
 - Rewrite each one through sensory detail, fresh rhyme, or new metaphor.

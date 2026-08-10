@@ -22,9 +22,38 @@ Make the rhyme search before drafting lines. A worksheet puts the writer in
 known terrain, so phrase-end positions can be chosen for meaning rather than
 panic-filled availability.
 
-The analogy is practical: if you want good friends, look where compatible
-people are likely to be. If you want useful rhymes, look from inside the song's
-idea before you write yourself into a corner.
+Chapter 3 opens with the friend-finding analogy in Pat's own words:
+
+> If you're lonely and you want to make friends, you should go places where
+> you're likely to find people you have things in common with. Maybe go to a
+> concert. Even a library. If you look around for a while in the right kind of
+> place, something may click.
+>
+> When you start writing your lyric before you think about rhymes, it's like
+> looking for friends in places where you don't fit in. You might meet someone
+> with things in common, but you could improve the odds by looking in places
+> you like.
+>
+> — *Essential Guide to Rhyming* (2014), Chapter 3
+
+The whole method is three steps:
+
+> The trick is to look for rhymes before you start to write. It is not as hard
+> as it sounds.
+>
+> 1. Focus your lyric idea as clearly as you can.
+> 2. Make a list of words that fit your idea.
+> 3. Look up those words in your rhyming dictionary, and make lists of
+>    rhyme words that fit your idea.
+>
+> — *Essential Guide to Rhyming* (2014), Chapter 3
+
+The chapter's running example is the couplet Pat returns to in Chapter 7:
+
+```text
+I'm sick of all this risky business
+I want to play it safe
+```
 
 ## What a worksheet is for
 
@@ -46,11 +75,29 @@ worksheet is usually better.
 
 ## Step 1: focus the idea
 
-Start by asking what the lyric says and what it could say. The answer can be a
-rough prose sketch. It does not need rhyme, meter, line breaks, or beautiful
-language yet.
+Pat's step 1, verbatim:
 
-Useful focus questions:
+> 1. Focus your lyric idea as clearly as you can.
+>
+> What does your lyric say? What could it say? Is it a lyric about the dangers
+> of dating good-looking men/women? The risk I take being with you? Why? Is
+> "you" a flirt?
+>
+> — *Essential Guide to Rhyming* (2014), Chapter 3
+
+And Pat's own idea sketch for "Risky Business," verbatim:
+
+> Here is a possible idea sketch:
+>
+> I thought being with you would be exciting. You are so popular and always the
+> center of attention. I worked hard to get your attention. But now, we spend
+> time together in a whirlpool of social activity. Mostly, I just feel left out.
+> Worse, I'm afraid you don't find me exciting. Every time you say hello to
+> someone else, I think, "Uh-oh. This is it." I can't stand living this way.
+>
+> — *Essential Guide to Rhyming* (2014), Chapter 3
+
+Useful focus questions (expanded from Pat's four for skill use):
 
 - Who is speaking?
 - Who is being addressed?
@@ -61,25 +108,53 @@ Useful focus questions:
 - What is the emotional turn of the section?
 - What could the title mean beyond its first obvious meaning?
 
-The example chapter starts from a simple contrast between risky attraction and
-the desire for safety, then expands it into a relational situation: attraction
-to a socially magnetic person creates insecurity and exclusion.
+The sketch starts from a simple contrast between risky attraction and the desire
+for safety, then expands it into a relational situation: attraction to a socially
+magnetic person creates insecurity and exclusion.
 
 Skill behavior: if the user's idea is vague, ask for or generate a one-paragraph
 idea sketch before producing rhyme families.
 
 ## Step 2: make a central word list
 
-Pull words from the idea sketch. Add title words, emotional state words,
-actions, relationship terms, images, and pressure words. Put them in a numbered
-central list that can be referenced while searching.
+Pat's step 2, verbatim:
 
-The source worksheet uses mostly masculine search targets and deliberately
-chooses words with different vowel sounds. That widens the map. If all seed
-words share the same vowel family, the worksheet collapses into one narrow
-sound area.
+> 2. Make a list of words that fit your idea.
+>
+> Let the list come from your idea sketch, adding any extra inspiration you have.
+> Put them in the middle of a blank sheet of paper, number them, and enclose them
+> in a box for easy reference later on.
+>
+> — *Essential Guide to Rhyming* (2014), Chapter 3
 
-Seed-word categories:
+The boxed list, exactly as printed (it sits in a ruled box in the middle of the
+worksheet page so the writer can see every seed at once):
+
+```text
+ 1. scared
+ 2. afraid
+ 3. flirt
+ 4. attention
+ 5. left out
+ 6. risk
+ 7. chance
+ 8. dull
+ 9. leave
+10. ignored
+11. gone
+```
+
+And the selection rule, verbatim:
+
+> Find mostly masculine words. Pick words with different vowel sounds. Your goal
+> is to make a list of words to look up in your rhyming dictionary. This is not a
+> final list. As you look in the rhyming dictionary, look actively. Don't be
+> afraid to switch, add, or take words out. You can even adjust your basic
+> approach as you go.
+>
+> — *Essential Guide to Rhyming* (2014), Chapter 3
+
+Seed-word categories (skill expansion of Pat's rule):
 
 - Title words.
 - Emotional words.
@@ -94,9 +169,8 @@ Do not treat the seed list as final. It is only a list of words to test.
 
 ## Include title words
 
-Exercise 3.2 makes the title part of the worksheet habit. If a title contains
-several important words, put each important word into the central list before
-adding other material.
+Exercise 3.2 makes the title part of the worksheet habit. Pat's instruction:
+"Make it a habit to include each important word from the title in your list."
 
 Why:
 
@@ -111,8 +185,13 @@ test each one as a seed.
 
 ## Step 3: search actively
 
-Look up each seed word, but write down only rhyme candidates that fit the lyric
-idea. This is the difference between a worksheet and a raw dictionary copy.
+Pat's step 3, verbatim:
+
+> 3. Look up the words on the list in your rhyming dictionary.
+>
+> Write down only rhyme words that fit with your idea.
+>
+> — *Essential Guide to Rhyming* (2014), Chapter 3
 
 Active search means:
 
@@ -153,7 +232,8 @@ Keep:
 
 One important move in the chapter is changing a seed word to a nearby form
 because the new form generates more useful rhymes. This is not cheating. It is
-craft.
+craft. Pat does it on the page: seed 1 enters the box as `scared` and leaves the
+search as `scare`.
 
 Examples of acceptable changes:
 
@@ -180,14 +260,19 @@ Drop or protect a seed when:
 - Its sound family forces the section toward comedy.
 - It tempts the writer toward awkward grammar.
 
+Pat's own case: `risk` produces almost nothing ("disc… (oops!)"), and he leaves
+`safe` and `business` off the Chapter 3 list entirely because they "don't yield
+many rhymes" — then puts them back on the worksheet in Chapter 7, once family
+and imperfect rhyme are available.
+
 The word can still appear inside a line, in a title, or in an unrhymed position.
 Do not confuse importance with end-rhyme suitability.
 
 ## Charted territory
 
-The point of the preliminary work is to make drafting less blind. The worksheet
-does take time, but it also saves time because the writer is not solving rhyme,
-idea, grammar, and line shape simultaneously at every phrase ending.
+The point of the preliminary work is to make drafting less blind, in Pat's
+words: "The purpose of all this preliminary work is to put you in charted
+territory when you start writing."
 
 Skill coaching frame:
 
@@ -200,18 +285,98 @@ The second route is slower at first and faster in revision.
 
 ## Exercise 3.1: matching rhymes and ideas
 
-Exercise pattern to preserve:
+Exercise wording, verbatim:
 
-- Start with a focused idea sketch.
-- Build a seed list from the sketch.
-- Use a rhyming dictionary for each seed.
-- Copy only candidates that fit the idea.
-- Leave room around each seed for candidate groups.
+> EXERCISE 3.1. Matching Rhymes and Ideas
+>
+> Look up the words on the list on page 20 in your rhyming dictionary, and make
+> a list of rhyme words that fit the idea, using the sheet below.
+>
+> — *Essential Guide to Rhyming* (2014), Chapter 3
 
-The source example uses fear, attention, exclusion, risk, chance, dullness,
-leaving, being ignored, and disappearance as seed areas. It then shows a mixed
-result: some candidates are useful, some are identities, some are cliches, and
-some are rejected because they are grammatically or tonally poor.
+### Pattison's completed Chapter 3 worksheet
+
+"Here is my result:" — Pat's own filled-in sheet, verbatim, three columns across
+the page with the boxed seed list sitting in the middle. Marks in parentheses are
+his.
+
+<!-- book worksheet word lists trip the spell-checker --><!-- spellchecker:off -->
+
+```text
+1. scare            5. left out             8. dull
+   affair              doubt                   lull
+   unaware             gadabout                miracle
+   care                knockout (Identity)     numskull
+   fair                look out (Identity)     spectacle
+   glare               scout
+   prayer
+   unfair
+
+2. afraid                                   9. leave
+   charade                                     believe
+   fade                                        deceive
+   grade                                       grieve
+   masquerade                                  ho-heave
+   parade                                      sleeve
+   promenade
+
+3. flirt                                    10. ignored
+   alert                                        adored
+   dessert                                      bored
+   dirt                                         deplored
+   hurt                                         explored
+   inert            6. risk                     floored
+   introvert           disc…                    gored
+   shirt               (oops!)                  restored
+   skirt                                        scored
+   unhurt                                       outscored
+                                                sword
+
+4. attention        7. chance               11. gone
+   apprehension        advance                  chiffon
+   convention          circumstance             con
+   detention (Identity)   dance (Cliché?)       ex-con
+   intention (Identity)   lance                 echelon
+   invention           petulance                hangers-on
+   misapprehension     radiance                 paragon
+   pretention (Identity)                        put upon
+   suspension                                   dying swan
+   tension (Identity)
+```
+
+<!-- spellchecker:on -->
+
+### Pattison's comments on his own search
+
+Verbatim, numbered as printed:
+
+> There is plenty of raw material now. A few comments on my search:
+>
+> 1. I left out transitive verbs, including "desert," since I know they are
+>    awkward in the rhyming position.
+> 2. I left out the clichés "romance" and "trance." Did you?
+> 3. I changed "scared" to "scare" because it had better rhymes. "Scare" is
+>    usually a transitive verb, though it could be used as a noun. It might not
+>    be much use itself, but I like the rhyme list it generates.
+> 4. The only chance "risk" has is to "slip a disc." I can't think of a good use
+>    for "compact disc."
+> 5. "Ignored" didn't appear under "ORD," where I thought it should. But at the
+>    end of the column, I saw "adored, etc." which referred me to OR. The
+>    reference means to look at the OR column and add D whenever you can. The
+>    Wood book uses this shorthand to avoid unnecessary duplication. So, I went
+>    to the OR column and added D. I like the list.
+> 6. I left "safe" and "business" out of the list. If I had been starting from
+>    scratch, I would have tried them, but then eliminated them because they
+>    don't yield many rhymes.
+> 7. The purpose of all this preliminary work is to put you in charted territory
+>    when you start writing.
+>
+> — *Essential Guide to Rhyming* (2014), Chapter 3
+
+Those seven comments are the filtering rules in action: transitive-verb rejection
+(1), cliche rejection (2), seed substitution (3), honest reporting of a dead seed
+(4), dictionary cross-reference discipline (5), dropping low-yield seeds (6), and
+the reason for the whole procedure (7).
 
 For skill use, the output should show both candidates and labels:
 
@@ -233,13 +398,70 @@ worksheet is no longer just a perfect-rhyme prewrite. It becomes a full search
 across the stability scale in [rhyme types](rhyme-types.md), still filtered by
 the song's idea.
 
+The chapter opens, verbatim:
+
+> Now it's time to go back to worksheets. This time, we'll launch a full rhyme
+> search. Our goal is to find better words than we did with perfect rhyme. Look
+> again:
+>
+> I'm sick of all this risky business
+> I want to play it safe
+>
+> For starters, "business" and "safe" can go on the worksheet. Now, you can find
+> rhymes for them.
+>
+> — *Essential Guide to Rhyming* (2014), Chapter 7
+
 The chapter's goal is not "more rhymes" in the abstract. It is better phrase-end
 choices than perfect rhyme alone can provide.
 
-> Rhymes are suggestive.
+> Rhymes are suggestive. As you look through them, they create associations that
+> can lead you in directions you might not have seen otherwise. A good reason to
+> use worksheets.
+>
+> — *Essential Guide to Rhyming* (2014), Chapter 7
 
 Use this chapter when the user has a lyric idea, a seed list, or a draft whose
 line endings feel trapped by obvious perfect rhymes.
+
+### The two seeds Chapter 3 rejected
+
+The family-rhyme table sits on the page directly above this list, because the
+list is built with it. Verbatim:
+
+<!-- book worksheet word lists trip the spell-checker --><!-- spellchecker:off -->
+
+```text
+            Plosives          Fricatives              Nasals
+Voiced:     b   d   g       v   TH   z   zh   j      m   n   ng
+Unvoiced:   p   t   k       f   th   s   sh   ch
+
+safe                 business
+   faith                collisions
+   chase                decisions
+   race                 visions
+   space                forgiveness
+   brave                frigid
+   grave                religious
+   slave                gifted
+   cage                 shiftless
+   stage                swiftless
+   castaway             kisses
+   ricochet             ambitious
+   runaway              delicious
+   haste                suspicious
+   braced               submissive
+                        riches
+                        finish
+                        whiz
+                        stiff
+```
+
+<!-- spellchecker:on -->
+
+Pat's verdict: "Better. There are some real possibilities here." Two words that
+were not worth a seed slot under perfect rhyme become productive once family,
+additive, assonance, and consonance rhyme are on the table.
 
 ## Expand the worksheet after learning rhyme types
 
@@ -285,9 +507,183 @@ make a better seed list before hunting rhymes.
 
 ## Search all rhyme relationships, then identify how they work
 
-Chapter 7 asks the writer to figure out what kinds of rhymes the list contains and how
-they were found. That makes the worksheet diagnostic. The writer should learn
-which sound move created each candidate, not just copy the word.
+Pat's framing instruction for the big list, verbatim:
+
+> Here is a complete rhyme search for each of the words on the worksheet. Figure
+> out what kind of rhymes they are and how I found them. They are all related to
+> the general idea of "RISKY BUSINESS." The list will have to be trimmed down
+> later.
+>
+> — *Essential Guide to Rhyming* (2014), Chapter 7
+
+That makes the worksheet diagnostic. The writer should learn which sound move
+created each candidate, not just copy the word.
+
+### The complete Chapter 7 search
+
+Printed as two headed columns, `Perfect Rhymes` on the left and
+`Imperfect Rhymes` on the right, with the imperfect side running into a second
+sub-column when it overflows. Marks in parentheses are Pat's.
+
+<!-- book worksheet word lists trip the spell-checker --><!-- spellchecker:off -->
+
+```text
+Perfect Rhymes          Imperfect Rhymes
+
+1. scare                1. scare
+   affair                  compare        stairs
+   unaware                 ensnare        unfair
+   care                    repair
+   dare                    snared
+   despair                 unprepared
+   fair                    scarce
+   glare
+   prayer
+
+2. afraid               2. afraid
+   charade                 bait           wait
+   fade                    date           vague
+   grade                   fate           break
+   masquerade              gate           awake
+   parade                  hate           earthquake
+   promenade               late           heartache
+                           suffocate      rattlesnake
+
+3. flirt                3. flirt
+   alert                   absurd         stir
+   dessert                 hummingbird    thirst
+   dirt                    word           burst
+   hurt                    handiwork      worst
+   inert                   jerk           voyeur
+   introvert               smirk          church
+   shirt                   work           urge
+   skirt                   curb           verge
+   unhurt                  disturb        preserved
+                           superb         nerve
+                           iceberg        reserved
+                           blur           swerve
+                           purr           amours
+                           slurs
+
+4. attention            4. attention
+   apprehension            exemption      complexion
+   convention              redemption     connection
+   detention               aggression     direction
+   intention               confession     infection
+   invention               discretion     objection
+   misapprehension         impression     weapon
+   pretention              obsession      perception
+   suspension              oppression     clandestine
+   tension                 possession     beckon
+                           procession     protection
+                           resurrection   affection
+                           mend on, etc.
+                           stretchin', etc.
+
+5. left out             5. left out
+   doubt                   aloud          renowned
+   gadabout                cloud          bound
+   knockout (id.)          crowd          found
+   lookout (id.)           allowed        announced
+   scout                   plowed         denounced
+                           vowed          trounced
+                           wowed          aroused
+                           couch          blouse
+                           grouch         soused
+                           drowned        crowned
+
+6. risk                 6. risk
+   disc                    fist           cliff
+   (oops!)                 kissed         stiff
+                           mist           tiff
+                           resist         quick
+                           tryst          kicks
+                           wisp           lick(s)
+                           abyss          sick
+                           avarice        trick
+                           bliss          transfixed
+                           dismissed      ditch
+                           wished         itch
+                           dish           pitch
+                           drift          switch
+                           gift           bridge
+                           hints          crypt
+                           shift          chips
+                           swift          apocalypse
+
+7. chance               7. chance
+   advance                 avalanche      scram
+   circumstance            pants          tramp
+   dance (cliché?)         slants         class
+   lance                   ban(s)         pass
+   petulance               fans           brash
+   radiance                plans          flash
+                           tan            splash
+                           band           trash
+                           command(s)     mask
+                           hand(s)        fast
+                           jam            last
+
+8. dull                 8. dull
+   lull                    annulled       diabolical
+   miracle                 gulf           natural
+   numskull                bulge          physical
+   spectacle               sulk           ritual
+                           convulsed      braille
+                           cult           fail
+                           insult         stale
+                           occult         pale
+                           result         drill
+                           chemical       brawl
+                           logical        small
+                           casual         stall
+                           conjugal       fool
+                                          school
+
+9. leave                9. leave
+   believe                 breathe        peace
+   deceive                 seethe         police (Identity)
+   grieve                  appeased       beach
+   ho-heave                please         c.o.d.
+                           diseased       debris
+                           freeze         guarantee(s)
+                           squeeze(d)     knees
+                           tease(d)       degrees
+                           prestige       refugee(s)
+                           relief         amenities
+                           grief          apologies
+                           thief          dignity
+                           teeth          fantasies
+                           caprice        hostilities
+
+10. ignored             10. ignored
+    adored                  court          encore
+    bored                   support        sore
+    deplored                resort         score
+    explored                short          roar
+    floored                 born           troubadour
+    gored                   torn           porch
+    restored                warned         morgue
+    scored                  forlorn        chord
+    outscored               scorned        torch
+    sword                   deformed       divorce
+                            storm          poor
+                            warm(ed)       cured
+                            reward         endure
+                            corps          self-assured
+
+11. gone                11. gone
+    chiffon                 dawn
+    con                     drawn
+    ex-con                  beyond
+    echelon                 blonde
+    hangers-on              song
+    paragon                 wrong
+    put upon                response
+    dying swan
+```
+
+<!-- spellchecker:on -->
 
 Use the [rhyme types](rhyme-types.md) scale as the lookup reference, but keep the
 worksheet focused on application:
@@ -302,6 +698,13 @@ worksheet focused on application:
 - Partial: use a weaker sonic link when the structure needs movement, surprise,
   or less finality.
 
+Reading the list against the scale answers Pat's "figure out how I found them"
+challenge. `scare / snared` is additive. `flirt / absurd` is family (`t` to its
+partner `d`). `flirt / church` is consonance. `chance / mask` keeps `s` and
+subtracts. `leave / police` is marked `(Identity)` because the `-lease` sound
+repeats too much of the target. `attention / mend on, etc.` and
+`attention / stretchin', etc.` are mosaics.
+
 Skill behavior: label imperfect candidates by likely relationship where useful,
 but do not overburden the user with a taxonomy lecture. The practical question
 is, "What new usable line ending did this sound move open?"
@@ -309,8 +712,9 @@ is, "What new usable line ending did this sound move open?"
 ## Keep the idea as the filter
 
 The complete Chapter 7 search lists many candidates, but Pattison frames them as
-related to the general "Risky Business" idea and says they will need trimming.
-That is the governing rule: a wider rhyme field still has to serve the song.
+related to the general "RISKY BUSINESS" idea and says the list "will have to be
+trimmed down later." That is the governing rule: a wider rhyme field still has to
+serve the song.
 
 Useful Chapter 7-style filters:
 
@@ -326,12 +730,15 @@ Examples from the chapter's practice material:
 
 - A seed can produce both perfect and imperfect options, and both should be
   judged by idea-fit.
-- `left out` produces identity warnings in the perfect-rhyme column; mark them
-  instead of treating them as ordinary rhymes.
-- `chance` carries a cliche warning around an obvious perfect rhyme; do not let
-  dictionary availability override listener expectation.
-- `leave` includes an identity warning in the imperfect column; near sound does
+- `left out` carries `knockout (id.)` and `lookout (id.)` in the perfect-rhyme
+  column; mark them instead of treating them as ordinary rhymes.
+- `chance` carries `dance (cliché?)` in the perfect column; do not let dictionary
+  availability override listener expectation.
+- `leave` carries `police (Identity)` in the imperfect column; near sound does
   not automatically mean usable craft.
+- `risk` carries `disc` followed by `(oops!)` — Pat's own note that a seed can
+  simply fail on the perfect-rhyme side and still be worth keeping for what the
+  imperfect side produces.
 
 Skill behavior: when presenting a worksheet, include a `watch` or `reject`
 category. This teaches the user why some technically valid rhymes should not be
@@ -359,26 +766,64 @@ drafting.
 
 ## Exercise 7.1: choose favorite perfect and imperfect rhymes
 
-Exercise pattern to preserve:
+Exercise wording, verbatim:
 
-- Start from the Chapter 7 keyword list.
-- For each keyword, review both perfect and imperfect rhyme columns.
-- Pick ten favorite rhymes for each keyword.
-- Prefer favorites that fit the idea, not merely favorites that sound clever.
-- Keep the selected words near the seed so they are easy to draft from.
+> EXERCISE 7.1. Perfect and Imperfect Rhyme Practice
+>
+> From the columns of perfect and imperfect rhymes above, choose your ten
+> favorite rhymes for each of the keywords and write them down below.
+>
+> — *Essential Guide to Rhyming* (2014), Chapter 7
 
-Chapter 7 keyword set:
+Chapter 7 keyword set (the Chapter 3 eleven, plus the two seeds Chapter 3 had
+dropped):
 
 ```text
-scare, afraid, flirt, attention, left out, risk, chance, dull, leave, ignored,
-gone, safe, business
+1. scare      6. risk     9. leave
+2. afraid                10. ignored
+3. flirt                 11. gone
+4. attention  7. chance  12. safe
+5. left out   8. dull    13. business
 ```
+
+Note the drift between the two printings: the ruled seed box in Chapter 3 and the
+blank sheet in Exercise 7.2 both say `scared`, while the search results and the
+Exercise 7.1 grid say `scare`. That is comment 3 in Chapter 3 taking effect — the
+seed changed mid-search and the printed sheets were never re-synced.
 
 Skill behavior: when a user asks to continue from a worksheet, ask them to pick
 or approve a short favorite set before drafting. If they do not want to choose,
 choose a balanced set: some stable, some surprising, all idea-fit.
 
 ## Exercise 7.2: rewrite from the expanded worksheet
+
+Exercise wording, verbatim:
+
+> EXERCISE 7.2. "Risky Business" Practice
+>
+> Rewrite your lyric "Risky Business" using some of your new ideas and rhyme
+> words.
+>
+> — *Essential Guide to Rhyming* (2014), Chapter 7
+
+The exercise then reprints the numbered seed list as a blank worksheet, thirteen
+slots deep:
+
+```text
+ 1. scared
+ 2. afraid
+ 3. flirt
+ 4. attention
+ 5. left out
+ 6. risk
+ 7. chance
+ 8. dull
+ 9. leave
+10. ignored
+11. gone
+12. safe
+13. business
+```
 
 Exercise pattern to preserve:
 
@@ -413,18 +858,20 @@ When applying Chapter 7 directly for a user:
 7. Suggest two or three lyric directions opened by the candidate set.
 8. Only then draft or rewrite the section.
 
-Compact output example:
+Compact output example, using Pat's own `safe` and `business` results:
 
 ```text
 seed: safe
-perfect: faith, chase, space
-imperfect: brave, grave, cage, stage, haste
+perfect: faith, chase, race, space
+imperfect: brave, grave, slave, cage, stage, castaway, ricochet, runaway,
+           haste, braced
 watch: over-familiar safety/risk pairs
 idea paths: caution, escape, public performance, locked-in fear
 
 seed: business
 perfect: none strong enough for default closure
-imperfect: decisions, visions, forgiveness, suspicious, ambitious
+imperfect: collisions, decisions, visions, forgiveness, religious, gifted,
+           shiftless, kisses, ambitious, delicious, suspicious, submissive
 watch: comic corporate tone unless wanted
 idea paths: bad choices, imagined betrayal, forgiveness after risk
 ```
@@ -434,25 +881,49 @@ usable skill output should be a trimmed, labeled working map.
 
 ## Exercise 3.2: worksheet from a title
 
-Exercise pattern to preserve:
+Exercise wording, verbatim:
 
-- Take a short title.
-- Put each important title word into the seed list.
-- Add seven or more idea words from the sketch.
-- Search each seed for idea-fitting rhyme candidates.
+> EXERCISE 3.2. Worksheet "Last Night's Love"
+>
+> Make up a worksheet on "last night's love." Start with an idea sketch. Make it
+> a habit to include each important word from the title in your list.
+>
+> — *Essential Guide to Rhyming* (2014), Chapter 3
+
+The printed sheet seeds the first three slots from the title and leaves seven
+open:
+
+```text
+Idea sketch:
+
+ 1. last
+ 2. night
+ 3. love
+ 4.
+ 5.
+ 6.
+ 7.
+ 8.
+ 9.
+10.
+```
 
 This exercise makes the title a generator instead of a fixed burden. If a title
 word has weak rhyme potential, the worksheet reveals that early.
 
 ## Exercise 3.3: write sections from the worksheet
 
-Exercise pattern to preserve:
+Exercise wording, verbatim:
 
-- Use the worksheet to write two song sections, such as a verse and chorus.
-- Use an original title or the chapter's risk/safety title idea.
-- If using the provided title idea, do not put it in a rhyming position.
+> EXERCISE 3.3. Song Sections
+>
+> Using your worksheet (or mine), write two sections (maybe a verse and a
+> chorus). You can come up with your own title, or use "risky business." (If you
+> use my title, be sure not to put it in a rhyming position.)
+>
+> — *Essential Guide to Rhyming* (2014), Chapter 3
 
-The last instruction matters: some titles are better as internal statements,
+The parenthetical matters: some titles are better as internal statements,
 section openings, or refrain material. A title does not automatically belong at
 line end.
 
@@ -462,10 +933,39 @@ draft, not become decoration under it.
 
 ## English is rhyme-poor
 
-Pattison closes the chapter by explaining why worksheets matter especially in
-English. English does not use word endings systematically the way many Romance
-languages do. Fewer shared endings means fewer obvious rhyme options, and many
-of the available ones are overused.
+Pattison closes Chapter 3 by explaining why worksheets matter especially in
+English. Verbatim:
+
+> Making a worksheet is a great way to keep from boxing yourself into a corner.
+> It takes time, but it also saves time. More importantly, it raises quality and
+> guarantees that your rhyming position will communicate ideas effectively.
+>
+> But even when you're armed with a good rhyming dictionary and have mastered
+> making a worksheet, the sad fact is that English is a "rhyme-poor" language.
+> Why? English does not use the endings of words in any systematic way. In other
+> languages, like Italian, French, and Spanish, the ends of words are used for
+> grammatical purposes. They tell you:
+>
+> 1. whether a word is a noun, verb, adjective, etc.
+> 2. if the word is singular or plural
+> 3. how the word is being used—object of a preposition, direct object,
+>    subject, etc.
+> 4. how to categorize words according to gender.
+>
+> English does none of these things except in two minor cases: the "ing" ending
+> for gerunds and participles, and the "ly" ending for many adverbs.
+>
+> When languages use endings in a systematic way, they limit the ways words can
+> end, increasing rhyme possibilities. Since English does not limit the number
+> of ways its words can end, there are fewer rhymes available. This makes it
+> harder to use your spotlights effectively.
+>
+> Worksheets are very important. Because of the overuse of many English rhymes
+> (clichés), the options in English are severely limited. Fortunately, there are
+> even more ways to improve your chances of finding effective rhymes in English.
+> Let's turn to them.
+>
+> — *Essential Guide to Rhyming* (2014), Chapter 3
 
 Consequences:
 

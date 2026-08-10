@@ -8,11 +8,17 @@ Chapter 20-21.
 
 - *Essential Guide to Lyric Form and Structure* (1991), Chapter 5: **32 linked
   images** (`image_rsrc31Z`-`image_rsrc32Y`), and they carry the chapter's
-  scansion and rhyme-scheme analysis the way Chapter 6's do. The prose stops at
-  dangling colons ("The first phrases play off against the rhythms, grouping
-  this way:"). **Chapter 5 has NOT been read in full** — only its bridge and
-  Song System span. Treat every claim sourced to it here as unverified until it
-  is, and read the figures when doing so.
+  scansion, rhyme-scheme analysis, structural-pentad descriptions, and several
+  whole worked lyrics the way Chapter 6's do. **Chapter 5 has now been read in
+  full with every figure**, and the verbatim material below is transcribed from
+  it. Figures that are lyrics in their own right: `image_rsrc322` ("Slow Healing
+  Heart" verse/chorus Song System), `image_rsrc32B`/`32C` (Steely Dan's "Haitian
+  Divorce," all three Song Systems), `image_rsrc32F`/`32G` (The Cars' "Why Can't
+  I Have You," Song Systems 1 and 2), `image_rsrc32P`/`32R` (the "Oh Henry"
+  candy-bar Song System), `image_rsrc328` ("These Are the Days" bridge).
+  Figures that are the structural-pentad checkboxes for the candy-bar variants:
+  `image_rsrc32H`, `32J`, `32K`, `32M`, `32N`. Figure `image_rsrc32E` is the
+  complete alternative-name list for the Transitional Bridge.
 - *Writing Better Lyrics* (2009), Chapter 20: `image_rsrcAUG.jpg` shows a verse/chorus rhyme-column
   comparison for "Southern Comfort"; both sections lean on similar `x/a`
   alternation before the bridge arrives.
@@ -24,7 +30,14 @@ Form is the large-scale control of moving and stopping. Syllables become words,
 words become phrases, phrases become sections, and sections become song
 systems that move through time.
 
-> "A lyric is like a piece of music"
+> Lyrics are made up of pieces: syllables gather into words, words form phrases
+> and phrases stack up into sections, sections group into "song systems," which
+> finally work together to create the lyric. A lyric is like a piece of music,
+> it moves forward one syllable at a time, through time. It is not like a
+> painting, which you can experience all at once. Lyric structure is your guide
+> on this forward journey. The easiest way to understand the journey is to keep
+> two simple ideas in mind: MOVING and STOPPING. You can look at the job of each
+> lyric section in terms of one or the other.
 
 The practical question is whether each section is moving toward the central
 idea, departing from it, or stopping on it.
@@ -33,10 +46,34 @@ idea, departing from it, or stopping on it.
 
 Every section has a job:
 
-- Central section: contains the central idea and acts as the structural
-  centerpiece.
-- Developmental section: leads up to, develops, contrasts with, or departs from
-  the central idea.
+> Until now I have asked you to build only lyric sections. In this chapter you
+> will link sections together to form larger groups. Start by thinking of each
+> lyric section as either a CENTRAL SECTION or a DEVELOPMENTAL SECTION.
+> Everything within the lyric moves toward or departs from a CENTRAL SECTION.
+> Like ancient Rome, all roads lead to a CENTRAL SECTION and every other place
+> is just a stop along the way.
+
+> The CENTRAL SECTION should contain the CENTRAL IDEA, or main point, of the
+> lyric. The CENTRAL SECTION is the structural centerpiece of the lyric. The
+> CENTRAL IDEA is the main message of the lyric. Put them together.
+
+> DEVELOPMENTAL SECTIONS contain DEVELOPMENTAL IDEAS: ideas that lead up to or
+> develop the CENTRAL IDEA. They should move forward until they get to a CENTRAL
+> SECTION.
+
+The named jobs, from *Essential Guide to Lyric Form and Structure* (1991),
+Chapter 5:
+
+```text
+VERSE
+CHORUS
+BRIDGE
+REFRAIN
+HOOK
+```
+
+> A lyric does not have to have all these elements to work properly. A clock
+> doesn't have to have an alarm to keep time.
 
 Basic motion:
 
@@ -66,23 +103,37 @@ Form starts when those section-level moves are placed in sequence.
 section needs to do. Writers usually start with function, then build form to
 support it.
 
-Two directions matter:
+Pat gets there through Artie's '69 VW microbus pulling up next to a
+cream-and-baby-blue Maserati, and has Artie and Herbie state the two readings:
 
-- From function to form: decide what the section needs to say or do, then pick
-  phrase lengths, rhythms, and rhymes that make that job audible.
-- From form to function: when two sections use the same design, the listener
-  expects them to do similar work; when a section has a different job, its form
-  should change.
+> When you look at an individual car, you can figure out what it's built to do
+> (function) by its design (form). Conversely, when you build a car, you figure
+> out its design by what you want it to do. If you want a racecar, build it
+> heavy, wide, and lower in front than in back so the wind will press it to the
+> track. If you want an economy car, build it light and shape it to cut wind
+> resistance. **You already know this as the principle of prosody.**
+
+> When you look at two cars, you see whether they're different or the same. When
+> they're the same design, they should have the same function. When they have
+> different designs, they should have different functions. **This is the
+> principle of contrast.**
+
+> It doesn't matter whether we're talking about cars, rhyme schemes,
+> architecture, or lyrics.
+
+> As a writer, you'll usually look from a car designer's perspective — from
+> function to form. You know what you want to say, so you have to design form to
+> support your ideas.
+
+So Pattison names both readings rather than leaving them implicit: applied to a
+single section, form-follows-function *is* the principle of
+[prosody](prosody.md); applied to two sections compared against each other, it
+*is* the principle of contrast. Same rule, one object or two.
 
 That second direction is the structural basis for section contrast. Verse forms
 can match each other because verses usually share the same developmental job.
 A chorus should normally change design because it comments, summarizes, or
 arrives.
-
-Pattison names both readings rather than leaving them implicit: applied to a
-single section, form-follows-function *is* the principle of
-[prosody](prosody.md); applied to two sections compared against each other, it
-*is* the principle of contrast. Same rule, one object or two.
 
 ## Rhyme as accelerator
 
@@ -93,10 +144,87 @@ close rhymes      -> faster structural motion
 spread-out rhymes -> slower structural motion
 ```
 
-The "Ping-Pong" example uses short phrases, internal rhymes, and tight
-consecutive rhymes to make the section feel active. If those same thoughts are
-rewritten as long phrases with little rhyme, the meaning may still describe
-speed, but the structure no longer performs it.
+*Writing Better Lyrics* (2009), Chapter 20 builds the example in four stages.
+Built for speed:
+
+```text
+You can't play Ping-Pong with my heart      a
+You dominate the table                      b
+My nerves are shot, you've won the set      c
+Your curves have got me in a sweat          c
+My vision's blurred, can't see the net      c
+I'm feeling most unstable                   b
+```
+
+> Built for speed. The consecutive rhymes, "set/sweat/net," slam the ideas home.
+> The internal rhymes, "nerves/curves/blurred" and "shot/got," put us in
+> overdrive. The acceleration creates prosody, the mutual support of structure
+> and meaning — form follows function.
+
+> You can think of rhyme as a car's accelerator: The closer the pedal is to the
+> floor, the faster the car moves. The closer the rhymes are to each other, the
+> faster the structure moves. The farther away the pedal is from the floor, the
+> slower the car moves.
+
+Tone down the rhyme action:
+
+```text
+You can't play Ping-Pong with my heart      a
+You dominate the table                      b
+My nerves are shot, I've come apart         a
+You wink and smile, still feeling playful   b
+Weak and numb, I miss the mark              a
+Feeling most unstable                       b
+```
+
+> Out pops the rear parachute. Prosody evaporates, or at least diminishes, when
+> the rhymes are spread out into a regular pattern. But the short phrases in
+> lines three, four, and five still press on the accelerator.
+
+Lengthen the shorter phrases and let off the gas even more:
+
+```text
+You can't play Ping-Pong with my heart              a
+You dominate the table                              b
+My nerves are shot, I've really come apart          a
+You wink and smile, still feeling pretty playful    b
+Weak and numb, I really miss the mark               a
+Feeling most unstable                               b
+```
+
+Then ease off on the rhymes too, pushing them further apart:
+
+```text
+You can't play Ping-Pong with my heart              x
+You dominate the table                              b
+My nerves are shot, at last you've won the point    x
+Your slams have put me in an awful sweat            x
+My vision's weak, can't even see the ball           x
+I'm feeling most unstable                           b
+```
+
+> Now the structure acts more like a slow-moving '68 VW microbus, while the
+> meaning still dreams of checkered flags on the Grand Prix Circuit. Bad
+> combination.
+
+**EXERCISE 44:** We might as well destroy prosody completely while we're at it.
+This time, you do it. Rewrite the example below so lines three and five contain
+one long phrase each, instead of two shorter ones. Be careful not to rhyme.
+
+```text
+You can't play Ping-Pong with my heart      x
+You dominate the table                      b
+…                                           x
+Your slams have put me in an awful sweat    x
+…                                           x
+I'm feeling most unstable                   b
+```
+
+> Compare your result to the original and you will see what an important role
+> structure can play in support of meaning. If you're careful how you build your
+> form, you can make it work for you. Tend to the prosody of form and function,
+> and your structure will become a powerful and expressive ally rather than an
+> obstacle standing between you and what you really meant to say.
 
 Use this as a diagnostic: when a lyric claims urgency, excitement, panic, or
 argument, check whether phrase length and rhyme spacing actually accelerate.
@@ -105,21 +233,63 @@ the section linger.
 
 ## Verse
 
-The verse is the basic worker section. Its jobs are to introduce ideas, set up
-the central idea, develop or continue ideas, establish structural standards,
-and close down enough to be recognized as a complete section.
+> The Verse is the basic worker of the lyric. Its jobs are
+>
+> 1. To introduce ideas
+> 2. To set up the CENTRAL IDEA
+> 3. To develop or continue ideas
+> 4. To set structural standards for the lyric,
+>
+> thus, 5. Verses should close down.
 
 Verses establish the point of comparison:
 
+> Verses establish BALANCE, PACE, FLOW, CLOSURE, AND CLOSURE TYPE for the lyric,
+> setting a point of comparison for other structures in the lyric. Verses
+> establish your expectations for the lyric, much like a juggler who establishes
+> a pattern so he can surprise you with variations. Here is an example of a
+> verse.
+
 ```text
-Verse 1: balance / pace / flow / closure / closure type
-Verse 2: repetition or variation against that standard
-Next section: contrast against that standard
+The carousel spun smooth as glass
+Those childhood summer nights
+I spent my time for rings of brass
+Beneath the sparkling lights
 ```
 
-Worked example: Pattison's carousel example uses a common-meter `abab` verse.
-When a later section keeps `abab` but lengthens the phrases, the listener hears
-contrast because the verse has already defined the baseline.
+> The common meter and a b a b rhyme scheme come through clearly. The section
+> closes down just as you expect it to. Now you are set up: you have a point of
+> reference for recognizing either repetition or contrast.
+
+```text
+The rings came easy to my hand
+My parents stood and smiled
+They fell to me at my command
+A golden summer's child
+```
+
+> With the first Verse as a reference point, it is easy to recognize this as
+> repetition — as another Verse. It is just as easy to hear the contrast in this
+> section:
+
+```text
+One by one we reach for the chances
+One by one we move down the line
+Day by year in smooth revolving dances
+One by one we sail away out of time
+```
+
+> Although the new section maintains the a b a b rhyme scheme, its phrases are
+> longer.
+
+Figure `image_rsrc31Z` scans those four phrases, and Pat draws the conclusion
+directly from the comparison:
+
+> This section has longer phrases. Longer than what? Longer than the verses. It
+> will require a different musical treatment than the verses. It also seems to
+> sum up or comment on the verse information. The verses set up, then serve this
+> new section. It is the CENTRAL SECTION, and contains the CENTRAL IDEA, in this
+> case, life's passage through time.
 
 Revision test: if the verse does not clearly establish a pattern, later
 sections cannot sound like repetition, contrast, departure, or return.

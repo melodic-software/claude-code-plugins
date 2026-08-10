@@ -190,127 +190,386 @@ Routes to: [meter](meter.md) "deceptive vs unexpected closure".
 
 ### Ex 18 — Three perfect rhymes per syllable
 
-For each of five seed syllables (pick five short open vowels or
-short consonant endings), find three perfect rhymes. Then mark
-which are masculine and which are feminine.
+**EXERCISE 18: THINK UP THREE PERFECT RHYMES FOR EACH OF THE
+FOLLOWING SYLLABLES. YOUR RHYMES DO NOT HAVE TO BE WORDS.**
+
+<!-- spellchecker:off -->
+
+```text
+1. lant  ________  ________  ________
+2. ints  ________  ________  ________
+3. rutch ________  ________  ________
+4. mose  ________  ________  ________
+5. kate  ________  ________  ________
+```
+
+<!-- spellchecker:on -->
 
 Routes to: [rhyme fundamentals](rhyme-fundamentals.md).
 
 ### Ex 19 — Masculine and feminine identification
 
-Pick 10 existing rhyme pairs (from any lyric source). Mark each as
-masculine or feminine. Verify by listening for whether the stressed
-syllable is the last syllable of the word.
+**EXERCISE 19: PUT AN "M" AFTER THE MASCULINE RHYMES AND AN "F"
+AFTER THE FEMININE RHYMES.**
+
+```text
+1. enjoy/destroy            6. hexagon/Rubicon
+2. oblique/unique           7. libretto/falsetto
+3. artichoke/baroque        8. deny/pacify
+4. penetration/salvation    9. Jezebel/repel
+5. triple/cripple          10. appreciate/relate
+```
 
 Routes to: [rhyme fundamentals](rhyme-fundamentals.md).
 
 ### Ex 20 — Rhyme scheme notation with identity
 
-Take seven existing four-line stanzas. Notate the rhyme scheme using
-letters (a, b, c) for distinct rhymes. Use `I` for identities (words
-that sound the same because they share initial consonants — not a
-real rhyme).
+**EXERCISE 20: NOTATE THE RHYME SCHEME OF EACH OF THE FOLLOWING
+LISTS. USE LETTERS (INCLUDING "X" FOR UNRHYMED WORDS) AFTER EACH
+WORD. USE "I" TO NOTATE IDENTITIES.**
+
+Pat works number 1 as the model:
+
+<!-- spellchecker:off -->
+
+```text
+1. notation    a        2. heart       3. strong      4. unleash
+   motivation  a           report         hear           force
+   increase    b           sing           along          McLeash
+   police      b           start          throng         horse
+   relation    a           retort         wrong          Norse
+                           fling
+                           ring
+
+5. understand  6. start   7. lass        8. fool
+   allowed        return     follow         rule
+   reprimand      ease       sorrow         sunny
+   slow           burn       borrow         rate
+   grow                      glass          state
+   crowd                     hollow         honey
+```
+
+<!-- spellchecker:on -->
 
 Routes to: [rhyme fundamentals](rhyme-fundamentals.md).
 
 ### Ex 21 — Balance lists by rhyme
 
-Take five short verse drafts. Identify which lines rhyme. Adjust by
-adding or subtracting rhyming words so the section feels balanced
-in sound repetition and order repetition (the two forces).
+**EXERCISE 21: BALANCE THE FOLLOWING LISTS BY ADDING OR SUBTRACTING
+WORDS. TRY TO FIND RHYMES THAT MAKE SENSE WITH THE WORDS ALREADY
+THERE.**
+
+```text
+1. niece      2. decide    3. fulfill     4. revive
+   stumble       ride         returning      connive
+   fleece        course       unlock         trick
+   crumble                    will           alive
+   peace                      burning
+
+5. showing    6. confirm
+   date          squirm
+   gate          term
+   mate          last
+   glowing
+```
 
 Routes to: [rhyme strategy](rhyme-strategy.md) "sound vs order".
 
 ### Ex 22 — Accelerate or decelerate by rhyme spacing
 
-Take three verse drafts. Write two versions of each: one with rhymes
-close together (acceleration), one with rhymes spaced out
-(deceleration). Sing both. Notice the pace change.
+**EXERCISE 22: ACCELERATE THE FOLLOWING LISTS BY ADDING OR
+SUBTRACTING WORDS. TRY TO FIND RHYMES THAT MAKE SENSE WITH THE WORDS
+ALREADY THERE. THEN, START OVER AND DECELERATE THEM.**
+
+The same three lists are worked twice — once ACCELERATE, once
+DECELERATE:
+
+```text
+1. niece      2. decide    3. fulfill
+   stumble       ride         returning
+   fleece        course       unlock
+```
+
+Pat's note on number two: once you have consecutive rhymes, the pedal
+is to the metal. You cannot accelerate. The only way to go faster then
+is to shorten phrase lengths.
 
 Routes to: [rhyme strategy](rhyme-strategy.md) "accelerator metaphor".
 
 ### Ex 23 — Through-written vs fragmented
 
-Take six four-line sections. Mark each as through-written (the
-rhyme keeps the section moving across the pair) or fragmented (the
-rhyme closes the section into halves). Rewrite each to flip its flow.
+**EXERCISE 23: PUT A "T" FOR "THROUGH-WRITTEN" OR "F" FOR FRAGMENTED
+IN EACH BLANK. THEN, SUBSTITUTE WORDS FOR LETTERS IN EACH EXAMPLE.
+CHOOSE TWO OF YOUR RESULTS, ONE THROUGH-WRITTEN AND ONE FRAGMENTED,
+AND WRITE COMPLETE PHRASES. GROUP YOUR IDEAS ACCORDING TO THE FLOW OF
+THE RHYME SCHEME.**
+
+```text
+ 1. ____ a b a b:      1. THROUGH-WRITTEN:
+ 2. ____ a a b b:
+ 3. ____ a a a b:
+ 4. ____ a b b a:
+ 5. ____ a a a:
+ 6. ____ a a b a:      2. FRAGMENTED:
+ 7. ____ a b b a a:
+ 8. ____ a b a a:
+ 9. ____ a b a a b:
+10. ____ a b a b a:
+```
+
+Answer key printed at the foot of the page (inverted): 1. T; 2. F;
+3. F; 4. T; 5. F; 6. F; 7. T; 8. T; 9. F; 10. F
 
 Routes to: [rhyme strategy](rhyme-strategy.md).
 
-### Ex 24 — Closure type and phrase length
+### Ex 24 — Closed or open
 
-Take two existing sections. Mark each as closed or open. Rewrite
-each so the rhyme structure matches the phrase lengths — that is,
-the closure timing matches the phrase ending.
+**EXERCISE 24: PUT C FOR CLOSED OR O FOR OPEN IN EACH BLANK. THEN,
+SUBSTITUTE WORDS FOR LETTERS.**
+
+```text
+ 1. ____ a b a b a
+ 2. ____ a a b b b
+ 3. ____ a a a b b
+ 4. ____ a b c a b
+ 5. ____ a b c a c
+ 6. ____ a b b a
+ 7. ____ a b b a a
+ 8. ____ a b b a b b
+ 9. ____ a b c c b
+10. ____ a a b
+```
+
+**NOW, CHOOSE TWO OF YOUR ANSWERS, ONE OPEN AND ONE CLOSED, AND WRITE
+SECTIONS FOR THEM. MAKE THE LENGTHS AND RHYTHMS OF PHRASES FOLLOW THE
+RHYME SCHEME: WHERE RHYME SOUNDS MATCH, MAKE YOUR PHRASES AND RHYTHMS
+MATCH. WHEN RHYME SOUNDS CHANGE, USE DIFFERENT PHRASE LENGTHS AND
+RHYTHMS.** (1. CLOSED: 2. OPEN:)
+
+Answer key printed at the foot of the page (inverted): 1. C; 2. C;
+3. O; 4. O; 5. C; 6. O; 7. either; 8. C; 9. C; 10. O
 
 Routes to: [rhyme strategy](rhyme-strategy.md).
 
 ### Ex 25 — Closure type identification
 
-Take eight existing sections. Mark each section's closure as
-expected, deceptive, or unexpected. Discuss with a writing partner
-or alone — disagreement usually means the section is doing two
-things at once.
+**EXERCISE 25: PUT E FOR EXPECTED, U FOR UNEXPECTED, OR D FOR
+DECEPTIVE IN EACH OF THE BLANKS PROVIDED. THEN, SUBSTITUTE WORDS FOR
+THE LETTERS IN EACH RHYME SCHEME.**
+
+```text
+ 1. ____ a b a b b
+ 2. ____ a b a a
+ 3. ____ a a b b a
+ 4. ____ a a b a
+ 5. ____ a b a a a
+ 6. ____ a b a c c a
+ 7. ____ a b a c c b
+ 8. ____ a b a a b
+ 9. ____ a a a
+10. ____ a b c a a a
+```
+
+Answer key printed at the foot of the page (inverted): 1. U; 2. D;
+3. U; 4. D; 5. D & U; 6. D; 7. E; 8. D & U; 9. U; 10. D
 
 Routes to: [rhyme strategy](rhyme-strategy.md) "closure types".
 
 ### Ex 26 — Deceptive then unexpected closure
 
-Write one section with deceptive closure in Paradigm Three rhythm
-(4/3/4/4 stresses). Then write one section with unexpected closure
-in any rhythm. Sing both.
+**EXERCISE 26: WRITE A LYRIC SECTION WITH A DECEPTIVE RHYME CLOSURE
+USING PARADIGM THREE FROM CHAPTER 3 FOR ITS RHYTHM. THEN WRITE A
+LYRIC SECTION WITH AN UNEXPECTED RHYME CLOSURE. EITHER ADD AN EXTRA
+PHRASE AFTER IT IS CLOSED, OR RHYME IT FOR THE FIRST TIME AT THE
+END.**
+
+```text
+DECEPTIVE:
+
+UNEXPECTED:
+```
 
 Routes to: [meter](meter.md) and [rhyme strategy](rhyme-strategy.md).
 
 ### Ex 27 — Flow rewrite
 
-Take two existing sections — one through-written, one fragmented.
-Rewrite each for the opposite flow. Same idea, different rhyme
-structure.
+**EXERCISE 27: KEEPING AS MUCH OF THE SAME MEANING AS POSSIBLE,
+REWRITE A) AND B) TO GET THE OPPOSITE EFFECTS: THROUGH-WRITE A) AND
+FRAGMENT B). (YOU MAY WANT TO LENGTHEN OR SHORTEN SOME OF THE
+PHRASES.)**
+
+The two sections being rewritten:
+
+```text
+a)  Love her or leave her to me      a
+    Keep her or let her go free      a
+    Don't go two-timing her          b
+    'less you're resignin' her       b
+
+b)  Some girls like their flirtin'    a
+    They're always on the roam        b
+    Blind to who they're hurtin'      a
+    Their eyes are never home         b
+```
+
+```text
+REWRITE OF A): (LOVE HER OR LEAVE HER TO ME)
+
+REWRITE OF B): (SOME GIRLS LIKE THEIR FLIRTIN')
+```
 
 Routes to: [rhyme strategy](rhyme-strategy.md).
 
 ### Ex 28 — Rhyme scheme to plot
 
-Pick three rhyme schemes (e.g., abab, aabb, abcb). For each, plot
-three different idea movements that the scheme could support
-(e.g., contrast, accumulation, suspension). Write a one-paragraph
-sketch per plot.
+**EXERCISE 28: TRY WORKING FROM RHYME SCHEME TO IDEAS. FOR EACH OF
+THE RHYME SCHEMES BELOW, THINK UP A PLOT WHOSE ACTION FITS THE
+MOVEMENT OF THE RHYME SCHEME THEN, COME UP WITH RHYME WORDS FOR YOUR
+PLOT. HERE IS AN EXAMPLE:**
+
+```text
+RHYME SCHEME: ABACCB
+
+PLOT SKETCH:
+My lover and I are dancing, enjoying our closeness.
+My spouse enters the lounge and spots me. We have been
+discovered!
+
+Rhyme words: dance/embrace/romance/eyes/surprise/disgrace
+```
+
+Your turn:
+
+```text
+1. RHYME SCHEME: AABBCC
+   PLOT SKETCH:
+   RHYME WORDS:
+
+2. RHYME SCHEME: XAXABB
+   PLOT SKETCH:
+   RHYME WORDS:
+
+3. RHYME SCHEME: AABCCC
+   PLOT SKETCH:
+   RHYME WORDS:
+```
 
 Routes to: [rhyme strategy](rhyme-strategy.md) "three strategies".
 
 ## *Essential Guide to Lyric Form and Structure* (1991) — Form exercises (Chapter 5)
 
-### Ex 29 — The candy bar — rewrite a verse four ways
+All five Chapter 5 exercises work the same "candy bar" section. Pat
+uses one verse again and again to show that it is structure, not
+content, that makes a section what it is.
 
-Pick one existing verse. Rewrite it four ways:
+```text
+Love me like a candy bar
+Sugar, try my flavor
+Let me be your chocolate star
+Layer after layer
+```
 
-1. By varying phrase count (add or remove a phrase).
-2. By varying phrase length (compress some, extend others).
-3. By varying rhythm (switch stress pattern).
-4. By varying rhyme (change scheme or rhyme types).
+Version #1A, which Ex 29 works from, adds an unrhymed phrase:
 
-Each rewrite is a different version of the same idea. Compare. Which
-version belongs in the verse position? Which would work as a bridge?
+```text
+Love me like a candy bar
+Sugar, try my flavor
+Let me be your chocolate star
+Smooth and rich and sweet
+Layer after layer
+```
+
+### Ex 29 — Rewrite the candy bar as a bridge
+
+**EXERCISE 29: REWRITE THE "CANDY BAR" SECTION ABOVE AS A BRIDGE SO
+IT WILL CONTRAST WITH THE SONG SYSTEM IT FOLLOWS. YOU MIGHT START BY
+SHORTENING THE FIRST PHRASE TO MAKE IT SOUND DIFFERENT RIGHT AWAY.**
+(Rewrite:)
+
+**NOW, REWRITE THE VERSE INSTEAD TO MAKE #1A WORK AS A BRIDGE AS IT
+STANDS.** (Rewrite of "Melt me down...":)
 
 Routes to: [form](form.md) "four building levers" and
 [section building](section-building.md).
 
-### Ex 30 — Verse leading to chorus
+### Ex 30 — Verse leading to the candy bar chorus
 
-Write a verse that sets up a specific chorus's first line. The verse
-must transition cleanly into the chorus by both rhythm and rhyme.
+**EXERCISE 30: WRITE A VERSE TO LEAD UP TO THE CHORUS VERSION OF #2
+JUST ABOVE. MAKE IT CONTRAST IN PHRASE LENGTH AND RHYME SCHEME.**
+
+```text
+VERSE:
+
+CHORUS: LOVE ME LIKE A CANDY BAR
+        Sugar, try my flavor
+        Let me be your chocolate star
+        LOVE ME LIKE A CANDY BAR
+```
 
 Routes to: [form](form.md), [song forms](song-forms.md).
 
-### Ex 31 — Bridge by phrase rhythm
+### Ex 31 — Two versions juggling phrase rhythms
 
-Take a chorus. Write two different bridges. Each bridge should
-juggle phrase rhythm differently from the chorus — that is, the
-bridge's rhythmic identity should contrast the chorus's.
+**EXERCISE 31: WRITE TWO OTHER VERSIONS OF THE "CANDY BAR" SECTION,
+JUGGLING PHRASE RHYTHMS. MAKE SURE THAT BOTH CLOSE. WHAT EFFECTS DO
+YOUR VERSIONS HAVE? WHAT COULD THEY BE USED FOR?**
+
+```text
+Version 1.
+EFFECT:
+USES:
+
+Version 2.
+EFFECT:
+USES:
+```
 
 Routes to: [form](form.md) "three bridge functions",
 [song forms](song-forms.md).
+
+### Ex 32 — Two versions juggling rhyme schemes
+
+**EXERCISE 32: WRITE TWO OTHER VERSIONS OF THE "CANDY BAR" SECTION,
+JUGGLING YOUR RHYME SCHEMES. MAKE SURE THAT BOTH CLOSE. WHAT EFFECTS
+DO YOUR VERSIONS HAVE? WHAT COULD THEY BE USED FOR?**
+
+```text
+Version 1.
+EFFECT:
+USES:
+
+Version 2.
+EFFECT:
+USES:
+```
+
+Routes to: [form](form.md), [rhyme strategy](rhyme-strategy.md),
+[section building](section-building.md).
+
+### Ex 33 — Two more transitional bridges
+
+Pat's model for a candy-bar Transitional Bridge — unbalanced, pushing
+forward, but still feeling like a section:
+
+```text
+Love me like a candy bar
+Milky Way and Mars
+```
+
+**EXERCISE 33: WRITE TWO MORE TRANSITIONAL BRIDGES, USING THE "CANDY
+BAR" SECTION. JUGGLE WHATEVER YOU LIKE, BUT MAKE SURE THAT BOTH CAN
+BE IDENTIFIED AS SECTIONS. WHAT EFFECTS DO YOUR VERSIONS HAVE?**
+
+```text
+Version 1.
+EFFECT:
+
+Version 2.
+EFFECT:
+```
+
+Routes to: [song forms](song-forms.md) "transitional bridge",
+[section building](section-building.md).
 
 ## *Essential Guide to Lyric Form and Structure* (1991) — Song forms exercises (Chapter 6)
 

@@ -44,6 +44,13 @@ The repeated section is color-resistant when:
 - it answers the question too early,
 - it cannot be sung unchanged after a new verse angle.
 
+Pat's image for the failure:
+
+> It's frustrating when a refrain or chorus proves to be color resistant — the
+> words in the refrain or chorus won't work with the next verse without changing
+> the words somehow because they're protected from receiving the next verse's
+> color by coats and coats of verbal polyurethane.
+
 When the repeat resists recoloring, strip it.
 
 ## Stripping tense
@@ -51,11 +58,32 @@ When the repeat resists recoloring, strip it.
 Verbs determine tense. To make a refrain or chorus tense-neutral, use one of
 three strategies:
 
-| Strategy | Example shape | Effect |
+Chapter 9's worked refrain is *He lost the human race* — a good line, double
+meaning and all, which then refuses to sit under a future-tense verse (*He'll
+tilt his head one final night*). The three strategies applied to it:
+
+| Strategy | Chapter 9's version | Effect |
 | --- | --- | --- |
-| `-ing` form | falling | Accepts past, present, or future context. |
-| Infinitive | to fall | Points toward action without committing to time. |
-| No verb | a fall | Turns the repeat into a commentary or image. |
+| `-ing` form | Losing the human race | Accepts past, present, or future context. |
+| Infinitive | To lose the human race | Points toward action without committing to time. |
+| No verb | A loss in the human race | Turns the repeat into a commentary or image. |
+
+Pat's rules for each: with `-ing`, omit any helping verbs (*losing*, not *is
+losing* / *was losing* / *will be losing*), and don't confuse the verb form with
+a participle (*a losing strategy*) or a gerund (*losing builds character*). With
+the infinitive, omit the main verb — *to lose*, not *I hate to lose*.
+
+The verse it has to survive, in all three tenses:
+
+```text
+Exploding from the starting blocks
+Again he set / sets / he'll set the pace
+Though he was crowned by laurel wreaths
+As thousands cheered he came to grief
+Losing the human race
+```
+
+> Always try all three options. Use whichever feels best.
 
 Try all three before deciding. The goal is not grammar cleverness; the goal is
 to let each verse establish its own time while the repeated line remains
@@ -67,7 +95,8 @@ Pronouns determine point of view. A repeated line with `I`, `you`, `he`, `she`,
 `we`, or `they` may block a later verse from changing perspective. Remove the
 pronoun when the repeated material needs to accept multiple points of view.
 
-Often the same rewrite can strip both tense and POV:
+Often the same rewrite can strip both tense and POV. Chapter 9's Exercise 13
+refrain, with the three answers Pat supplies:
 
 ```text
 I fell too hard
@@ -76,7 +105,50 @@ to fall too hard
 too hard a fall
 ```
 
-Each neutral version lets the verse supply who fell and when.
+Each neutral version lets the verse supply who fell and when. *Losing the human
+race* does the same double duty — no verb tense, no pronoun — and the chapter
+proves it by running the identical refrain under five different verse POVs:
+
+```text
+Again I set the pace     … As thousands cheer I'll come to grief
+Again we set the pace    … As thousands cheer we'll come to grief
+Again you set the pace   … As thousands cheer you'll come to grief
+Again she sets the pace  … As thousands cheer she'll come to grief
+Again they set the pace  … As thousands cheer they'll come to grief
+
+                         Losing the human race
+```
+
+**Watch the third-person `-s`.** Pat's note on when you can skip verb
+neutralization entirely:
+
+> If you don't use *he*, *she*, or *it* in your lyric, none of your verbs will
+> add an *s*, so your verbs will all already be POV neutral. You won't need to
+> neutralize the verbs — you just need to drop the pronouns.
+
+Which is why *And lose the human race* works under I / we / you / they. But it
+is tense-locked, not POV-locked, and breaks the moment a verse goes past:
+
+```text
+Though they were crowned by laurel wreaths
+As thousands cheered they came to grief
+And lose the human race        <- wrong; needs "Losing the human race"
+```
+
+Diagnose which coat you are stripping. Dropping pronouns fixes POV; only
+changing the verb form fixes tense.
+
+**The real-world case.** Paul Simon's refrain in "Still Crazy After All These
+Years" has no pronouns and no verb, so verse one alone supports three readings:
+
+```text
+I am still crazy after all these years
+She was still crazy after all these years
+We were still crazy after all these years
+```
+
+> All three work fine. The result is a productive ambiguity that adds to the
+> spell of the lyric.
 
 ## Verses show, chorus tells
 
@@ -88,28 +160,61 @@ Use this carefully. It does not mean choruses should become generic. It means
 verses usually carry specific situation, image, and action, while the chorus or
 refrain can make a broader statement that the verses keep recoloring.
 
-The chapter attaches an instruction to the rule in the same breath: keep the
-verses specific and interesting. The rule constrains the CHORUS's grammar, not
-its imagination — the chapter's own demonstration chorus is built from concrete
-images (a fall from grace, a dot in space) while committing to no tense and no
-pronoun. **Neutral means grammatically neutral, not vague.**
+The chapter attaches an instruction to the rule in the same breath: "Keep your
+verses specific and interesting."
+
+The rule constrains the CHORUS's grammar, not its imagination. Pat first offers
+a deliberately dumb prototype to isolate the grammar —
+
+```text
+Losing the human race
+Losing the human race
+Yeah, yeah, yeah
+Losing the human race
+```
+
+— then makes it artistic without committing to anything:
+
+```text
+Losing the human race
+Falling from heaven's grace
+No way to stop it
+Only a dot in space
+Losing the human race
+```
+
+> None of the lines commit to tense or POV. They either use -ing (lines one,
+> two, and five), the infinitive (line three), or omit the verb altogether
+> (line four).
+
+Concrete images throughout, zero grammatical commitment. **Neutral means
+grammatically neutral, not vague.** Pat's instruction: "Make it as specific and
+artistic as you want to, just don't commit to a tense or a POV."
 
 If the chorus tells too specifically, it may block the verses. If it tells too
 generically, it may become cliche. Strip tense and POV without stripping image,
 sound, or emotional pressure.
 
 **A chorus is many people singing together.** Chapter 6 draws a working
-consequence from that definition rather than leaving it as etymology: change the
-words each time and no one else can sing it on the second pass — one person
-singing alone is a soloist, not a chorus. Change a refrain's words each time and
-it is not a refrain, just additional material. This is why the fix for a
-stagnant chorus is always to develop the verses, never to rewrite the chorus
-first.
+consequence from that definition rather than leaving it as etymology:
+
+> The definition of a chorus is "many people singing together." If you change the
+> words each time, you'll be the only one able to sing it the second and third
+> time. One person singing alone is called a soloist, not a chorus. If you change
+> the words to a refrain each time, it isn't a refrain, just additional material.
+
+This is why the fix for a stagnant chorus is always to develop the verses, never
+to rewrite the chorus first.
 
 Changing the repeat IS available as a last resort when a refrain proves
-color-resistant and cannot be neutralized — the chapter changes one to fit a
-tense before showing the better repair — but it costs the singalong, so
-neutralize first.
+color-resistant and cannot be neutralized. Chapter 9 does exactly that before
+showing the better repair — *He lost the human race* becomes *He'll lose the
+human race* to survive a future-tense verse:
+
+> Though this isn't the kiss of death, it would be preferable to avoid changing
+> the refrain if you can. Then everyone can sing along each time.
+
+It costs the singalong, so neutralize first.
 
 ## Productive ambiguity
 
@@ -148,6 +253,35 @@ Box 3: final / heaviest angle + repeated element
 The later boxes should contain the earlier boxes' weight plus new information.
 The final box should feel heaviest.
 
+Chapter 6 sketches the boxes in prose before any lyric exists, working from the
+title idea *I'd just like to know*:
+
+```text
+Box 1  "Hi, it's nice to see you. You're looking good, and you're looking
+       really happy. Are you? I hope you don't mind my asking.
+       I'd just like to know."
+       -> 'Sup     I'd just like to know
+
+Box 2  "When you left, did you already know you were moving in with him?
+       When I was out of town, did he come over to your place? Did you hide
+       that picture of us you kept on your dresser? I suppose it doesn't
+       matter now, but I'd just like to know."
+       -> D'ja cheat?     I'd just like to know
+
+Box 3  "For me, a relationship is all about honesty. I want to be able to say
+       everything to you, and for you to say everything to me. I don't want
+       any secrets, no matter what. You could have told me about him. I
+       wouldn't have tried to stop you. I'd just like to know."
+```
+
+Box 2 "combines the first box, the meeting, with some history." Box 3
+"combines or resolves all the information, and delivers the point of the song."
+The same five words carry a greeting, then an accusation, then a plea.
+
+> Now, it's simply a matter of actually writing the song, but writing it knowing
+> where you're going. You have an outline, a scaffold to hang your song on. You
+> can bang around inside each box without being afraid of getting lost.
+
 Ask:
 
 - What does box 1 teach the listener?
@@ -160,26 +294,80 @@ Ask:
 Box 3 is usually the song's **why** — why the speaker is saying any of this —
 which is what makes it the heaviest rather than merely the last.
 
-**A box is not always one section.** Chapter 6 analyzes a lyric whose boxes are
-each two verses plus a chorus. Count boxes by idea movement, not by section
-count: two verses that share one angle are one box, and diagnosing them as two
-hides the stagnation.
+**A box is not always one section.** Chapter 6 analyzes "Between Fathers and
+Sons" (John Jarvis and Gary Nicholson), whose boxes are each *two* verses plus a
+chorus — verses one and two plus chorus one are box 1; verses three and four
+plus chorus two are box 2. Count boxes by idea movement, not by section count:
+two verses that share one angle are one box, and diagnosing them as two hides
+the stagnation.
+
+The lyric holds two perspectives — a son looking at his father, and the son as
+father — but spends both inside box 1 (*My father had so much to tell me* …,
+then *Now when I look at my own son*). So box 2 has nowhere new to go. Pat on
+verse four:
+
+> Oops. I know I've been here before. It's verse two with *I* changed to *you*.
+> No need to try to universalize verse four with *you*. The idea was already
+> universal. The second chorus is a goner.
+
+> The power of this lovely chorus is diminished rather than enlarged the second
+> time around, and we leave the song less interested than we were in the middle.
+> Both boxes are the same size.
+
+His repair splits the two perspectives across the two boxes. Box 1 keeps only
+the son looking at his father, and its second verse becomes (in prose):
+
+```text
+I kept him at arm's length.
+I didn't want him interfering with my life.
+He kept trying, but I wouldn't let him.
+That's how it always has been between fathers and sons
+```
+
+That frees box 2 to "look from the other side of the river" — *Now when I look
+at my own son* moves down into it, and the father's perspective colors chorus
+two. Same chorus text both times; two different colors.
+
+> Here is a simple principle for division of labor: Put separate ideas in
+> separate boxes.
 
 ### Test one chorus line at a time
 
 The chapter's sharpest box-weight test works on a single line rather than the
-whole chorus: take one line and write what it means after each verse. In its
-worked example, an image that merely observes in box 1 becomes a witness in box
-2 and a prophet in box 3 — the same words, three sizes.
+whole chorus: take one line and write what it means after each verse. Pat runs
+it on *the hot July moon saw everything*, from "Strawberry Wine" (Matraca Berg
+and Gary Harrison):
+
+```text
+Box 1: The hot July moon saw us down by the river having our first experience.
+
+Box 2: The hot July moon knew that our love, like so many before
+       ("well-beaten path"), wouldn't last.
+
+Box 3: The hot July moon knew that, over time, we'd become unable to experience
+       the innocence and power of first love — accumulated experiences would
+       create too much awareness — "the fields have grown over now."
+```
+
+> The moon grows from an observer to a prophet and predictor of the future. It
+> becomes a bigger and bigger moon, needing bigger and bigger boxes.
 
 Run it on the line carrying the most weight. If that line means the same thing
 after every verse, the boxes are not growing whatever the summaries suggest.
 
+Pat's reading of why the title itself carries the song: "Who drinks strawberry
+wine? Kids. Strawberry wine has both the taste of soda pop (childhood) and the
+danger of alcohol (adulthood). Besides which, it's cheap. It's the perfect
+vehicle for a song about coming of age."
+
 **Every chorus line carries this obligation.** The chapter states it as a
-drafting constraint, not just a diagnostic: when writing a chorus, each line
-must be *able* to gain weight. A line too specific or too closed to mean more
-later is a line that will flatten the repeat no matter how well the verses
-develop.
+drafting constraint, not just a diagnostic:
+
+> When you write a chorus, each line you include has the same responsibility: to
+> be able to gain weight.
+
+A line too specific or too closed to mean more later is a line that will flatten
+the repeat no matter how well the verses develop.
 
 ## Stagnant repetition
 
@@ -204,11 +392,68 @@ is explicit that stagnant boxes are the same size at best, and more likely lose
 weight, because boredom amplifies across repeats. A second chorus that merely
 repeats does not land neutrally; it lands weaker than the first.
 
-**Polished language cannot fix it.** The chapter demonstrates the failure in
-deliberately bland prose summaries, then fixes it while leaving the language
-just as bland — because development is what changed. Strong imagery on stagnant
-boxes only decorates the problem. This is the diagnostic order: check whether
-the verse summaries move before touching a single word of the lines.
+**Polished language cannot fix it.** Chapter 6's demonstration is a sheriff
+song, written as bare prose summaries on purpose. Stagnant:
+
+```text
+Verse 1. The sheriff is the toughest man in town.
+Verse 2. He is very strong and has a fast gun.
+Verse 3. Everyone in town knows the sheriff is tough. They are afraid of him.
+```
+
+> The ideas don't move much. These verses say pretty much the same thing in
+> different words. Obviously, you'd probably have written it in more interesting
+> language, using sense-bound images and metaphors, but no matter how you
+> polished the language, it would only disguise the fact that something
+> important is missing: development.
+
+Developed — and note the language is still bland:
+
+```text
+Verse 1. The sheriff is the toughest man in town.
+Verse 2. He is obsessed with a beautiful woman.
+Verse 3. She is married to the weakest man in town.
+```
+
+> The language is still bland and imageless. Yet now we want to know what
+> happens next. We had no such curiosity about the first sequence.
+
+Now attach a refrain and the effect on the repeat becomes visible. Stagnant
+version:
+
+```text
+Box 1  The sheriff is the toughest man in town.
+       Beware, beware. All hands beware.
+Box 2  He is very strong and has a fast gun.
+       Beware, beware. All hands beware.
+Box 3  Everyone in town knows the sheriff is tough. They are afraid of him.
+       Beware, beware. All hands beware.
+```
+
+Developed version — same refrain, unchanged:
+
+```text
+Box 1  The sheriff is the toughest man in town.
+       Beware, beware. All hands beware.
+Box 2  He is obsessed with a beautiful woman.
+       Beware, beware. All hands beware.
+Box 3  She is married to the weakest man in town.
+       Beware, beware. All hands beware.
+```
+
+> When a refrain (or chorus) attaches to verses that mean the same thing, the
+> result is boredom. When it attaches to verses that develop the idea, it gains
+> weight and impact. It dances.
+
+Strong imagery on stagnant boxes only decorates the problem. This is the
+diagnostic order: check whether the verse summaries move before touching a
+single word of the lines. Pat's own summary of the remedy: "you fix a stagnant
+chorus or refrain by doing the same thing you do if you have only verses — you
+develop the idea."
+
+> Don't waste your verses. Don't let them sit idle waiting for the hook to come
+> around and rescue them. Too often, there won't be anyone around to witness the
+> rescue.
 
 The one-sentence summary test is the fastest form of this. If the verse
 summaries are interchangeable, the song has a development problem no rewrite of
@@ -239,19 +484,30 @@ Where did I get here from?
 The verse first written may belong in the middle or end. Try moving boxes
 around before assuming the song must continue forward from the first draft.
 
-Chapter 6's framing: just because you wrote a verse first does not make it the
-first verse — give yourself two chances at every stuck point.
+Chapter 6's framing, twice stated:
 
-**The stronger move is upstream of the stuck point.** The chapter names thinking
-in boxes from the moment an idea arrives as by far the best remedy for
-second-verse hell. Reordering is the rescue; planning the boxes is the
-prevention. When a writer arrives with an idea and no verses yet, sketch the box
+> Just because you wrote a verse first doesn't mean it's your first verse. Give
+> yourself two chances. Don't just ask "Where do I go next?" Try asking "What
+> happened before this?"
+
+> Instead of asking "Where do I go now?" it may help to ask "Where did I get
+> here from?" Get used to juggling and trying new things.
+
+**The stronger move is upstream of the stuck point.**
+
+> Thinking about boxes from the outset, the minute an idea comes, is by far the
+> best remedy for "second-verse hell" (songwriters' term for "Where do I go
+> next?").
+
+Reordering is the rescue; planning the boxes is the prevention. When a writer arrives with an idea and no verses yet, sketch the box
 summaries before drafting — that is the intervention, and it is unavailable once
 the verses exist.
 
-Six questions are the chapter's named tool for filling a box that will not
-open: who, what, where, when, why, how — with `when` and `where` singled out as
-the most productive.
+Six questions are the chapter's named tool for filling a box that will not open:
+
+> And don't be afraid to call your six best friends — who, what, where, when,
+> why, and how — to ask them for specific suggestions. They're always helpful,
+> especially *when* and *where*.
 
 ## Chorus and refrain weight
 
@@ -286,19 +542,61 @@ Use this when:
 - the final chorus becomes stronger because the weak middle chorus is gone.
 
 This is a formal risk, but Chapter 6 treats it as a valid toolbox move — and
-records it as a real-world one: a well-known recording drops its second chorus
-and goes straight to the bridge, an unusual move in commercial music, after the
-writers found the conventional layout made the song feel too long. "Too long" is
-the audible symptom of a sagging box.
+records it as a real-world one. The lyric is "Unanswered Prayers" (Pat Alger,
+Garth Brooks, and Larry B. Bastian). Verses one and two set up the situation (a
+man runs into his old high school flame at a hometown football game while his
+wife is standing there), and the chorus lands:
 
-The chapter names a second gain beyond removing the sag: keeping the bridge
-gives the music room to breathe when verse lines are long and the tempo is slow.
-The cut buys contrast and interest at once.
+```text
+Sometimes I thank God for unanswered prayers
+Remember when you're talkin' to the man upstairs
+That just because he doesn't answer doesn't mean he don't care
+Some of God's greatest gifts are unanswered prayers
+```
 
-**Diagnose the sag before cutting.** The alternative repair is to give the weak
-verse the missing information — in that same example, reintroducing a character
-the listener had forgotten lets a two-verse layout work with both choruses
-landing, no cut required. Cutting a chorus and developing the verse are two
+Verse three (*She wasn't quite the angel that I remembered in my dreams* …)
+elaborates rather than develops. Pat's verdict:
+
+> Is there anything gained? Not much. The boxes are roughly the same size. …
+> In short, the second chorus is destined to die an ignominious death right
+> there in front of everybody.
+
+The bridge then reintroduces the wife (*And as she walked away I looked at my
+wife / And then and there I thanked the good Lord for the gifts in my life*) and
+the third chorus works again — "I had forgotten about the wife. … The wife
+becomes God's greatest gift. A lovely payoff."
+
+The recorded solution cuts the sagging middle chorus and goes straight from
+verse three into the bridge. Pat quotes co-writer Pat Alger on why: the
+conventional verse / verse / chorus / verse / chorus / bridge / chorus layout
+made the song "feel too long." Pat's gloss — "Another way of saying the song
+sagged, and listeners would lose interest." "Too long" is the audible symptom of
+a sagging box.
+
+> They left out the second chorus and went immediately to the bridge — an
+> unusual formal move, especially in commercial music. But it works; both
+> choruses shine, and we stay interested in the song all the way through.
+
+The chapter names a second gain beyond removing the sag:
+
+> Keeping the bridge gives the music a chance to breathe, since the verse lines
+> are long and the tempo is slow. Creating a contrasting section helps the
+> overall flow of the song. The formal risk pays off, creating interest and
+> contrast at the same time. Put this move in your toolbox.
+
+**Diagnose the sag before cutting.** Pat's alternative repair for the same song
+is to develop verse three instead — reintroduce the wife there and skip the
+bridge entirely:
+
+```text
+She wasn't quite the angel that I remembered in my dreams
+And I could tell that time had changed me in her eyes too it seemed
+As she turned and walked away I looked at my wife
+And recognized the gift I'd been given in my life
+```
+
+That yields "a simple three verse, two chorus layout with both choruses doing
+their work" — no cut required. Cutting a chorus and developing the verse are two
 answers to one diagnosis; run the box-weight test first and decide which the
 song needs.
 
@@ -308,7 +606,29 @@ Repetition also works at the line level. Look for smaller pieces inside a line
 that can be isolated and repeated to create a new question, command, emphasis,
 or emotional turn.
 
+> Think of it as hunting for hidden treasures. Learn to start looking at
+> sentences not just for meaning, but for little pieces of meaning that can be
+> isolated and repeated, giving additional information or emphasis.
+
 The key is that the repeated fragment must add meaning, not merely echo sound.
+Pat allows sound as one reason to repeat something — "Maybe the words just feel
+good in your mouth," his example being *Peaceful, easy feeling* — but the
+productive kind is the kind that gains:
+
+> The words we repeat stay interesting when we say them again. They gain
+> something more when we repeat them, even gain something more *because* we
+> repeat them.
+
+His three examples of productive repetition at section scale:
+
+- **"Strawberry Wine"** — the second chorus outweighs the first because verse two
+  adds a fleeting summer romance to verse one's picture of love on the riverbank.
+- **"Still Crazy After All These Years"** — the second refrain adds cynicism and
+  denial to verse one's encounter with an old lover. "We learn more about what
+  kind of crazy he is, and how deep it runs."
+- **Suzanne Vega's "Luka" and Joni Mitchell's "Roses Blue"** — both end by
+  repeating the *first verse*. "We know Luka's plight, though we didn't
+  understand it the first time."
 
 ## Hidden questions
 
@@ -317,7 +637,7 @@ Interrogative lines can hide smaller questions:
 ```text
 Who do you love? Do you love?
 Where did you go? Did you go?
-How will I know? Will I know?
+When will I know? Will I know?
 ```
 
 The repeated fragment changes the energy. The first question asks for an
@@ -332,19 +652,27 @@ Use this with:
 
 ## Hidden commands
 
-Declarative second-person lines can hide commands:
+Declarative second-person lines can hide commands. Pat's demonstration, stripped
+one layer at a time:
 
 ```text
-You tell me the truth.
-Tell me the truth.
-Truth.
+You tell me that you want me.
+Tell me that you want me.
+Want me.
+```
+
+And his second:
+
+```text
+You give me everything I need.
+Give me everything I need.
 ```
 
 A question can also hide a command:
 
 ```text
-Will you stay?
-Stay.
+Will you love me?
+Love me.
 ```
 
 This works best in first or second person with present-tense or infinitive
@@ -368,13 +696,27 @@ When reviewing a draft:
 
 Exercise 11 - Three refrains, increasing weight:
 
-- Write three verses.
-- End each verse with the same refrain line.
-- Give each verse/refrain system a distinct job.
-- Move from one image-world or story stage to a heavier one.
-- Use research, object writing, and metaphor to make the repeated refrain gain
-  weight.
-- Make the third box the heaviest.
+- Write three verses, each ending with the line **`ashes, ashes, all fall down`**
+  (a refrain, because it is part of the verse rather than a separate section) —
+  a three-system song, verse / refrain / verse / refrain / verse / refrain.
+- Pat supplies the first two boxes and leaves the third open:
+
+```text
+Box 1  As a child, he sang in a circle with his playmates.
+Box 2  He volunteered to serve his country in the Great War. In the trenches,
+       he suffered from shell shock and battle fatigue.
+Box 3  ?
+```
+
+- His research prompt: look for World War I and trench-life images and words that
+  work for both childhood and the war. Then object-write from your own sense
+  pool.
+- His metaphor prompt: see each found idea as a metaphor for other parts of the
+  lyric. *Falling down* goes well beyond the childhood game — childhood dreams
+  can fall, so can innocence, and so can bombs, rockets, and soldiers.
+- His hint for box 3: "He certainly could tumble like a child whenever a door
+  slams."
+- Give each verse/refrain system a distinct job. Make the third box the heaviest.
 
 Exercise 13 - Neutralize repetition:
 
@@ -408,18 +750,44 @@ exclusive job — no two verses share the same angle.
 
 ### You-I-We formula
 
-Each verse takes a different relational POV:
+Pat's setup is a verse summary with nowhere to go — "It's difficult to see where
+to go next. It feels like everything's been covered":
+
+```text
+You are really wonderful
+And I've been looking for someone just like you
+We should be together
+
+Love Love Love
+Love Love Love
+```
+
+The three perspectives are already sitting inside it, stacked in one box. Split
+them out and the boxes gain weight:
 
 - **You** — verse focuses on the other person; their action, presence, absence
 - **I** — verse focuses on the speaker; the speaker's response, state
 - **We** — verse focuses on the shared frame; what we are, were, could be
 
 Any reordering: I → You → We, We → I → You, You → I → We. The formula is
-the distribution, not the order.
+the distribution, not the order. See [box-model](box-model.md) for Pat's own
+(deliberately absurd) three-box illustration.
 
 ### Past-Present-Future formula
 
-Each verse takes a different tense:
+Same move, different axis. Pat's starting summary:
+
+```text
+We were so good together
+But now everything's falling apart
+What's going to happen to us?
+
+Love Love Love
+Love Love Love
+```
+
+> This idea contains three tenses: past, present, and future. Try separating
+> them into separate boxes.
 
 - **Past** — what happened (the seed event)
 - **Present** — what is now (current state)
@@ -427,6 +795,10 @@ Each verse takes a different tense:
 
 Reverse-chronology orderings are strong plays — Future → Present → Past
 makes the listener reconstruct backwards.
+
+Note the diagnostic hiding in both cases: the stuck verse *already contained*
+all three boxes. The formula did not invent material; it unpacked material the
+writer had crammed into box 1.
 
 ### Combining the formulas
 
@@ -437,15 +809,22 @@ song's full emotional arc.
 ### Formulas are tools, and they cut both ways
 
 Chapter 6 attaches its own warning to both formulas, in the same paragraph that
-introduces them: sometimes one is exactly what a song needs, and other times a
-formula takes the freshness out of the writing. Be aware of the techniques;
-beware of letting them become a habit.
+introduces them:
+
+> Sometimes one or the other will be just what you need; other times, like any
+> formula, they could take the freshness out of your writing. Be aware of these
+> techniques, just beware of letting them become a habit in your writing.
 
 Two consequences for how these get applied:
 
-- **Do not reach for a formula first.** The chapter's own preferred case is an
-  idea that carries the DNA of its own development, or a plot that does the
-  development work — the formulas are the repair when an idea does not.
+- **Do not reach for a formula first.** Pat: "It's better when you find an idea
+  that contains the DNA of its own development, or when plot does the
+  development work." His example of the latter is Gillian Welch's "One More
+  Dollar," where each verse (leaving home for orchard work, then no work and a
+  losing night at the dice table, then begging on the street) "moves the story
+  forward, making chances of getting home more and more remote." The refrain
+  *One more dollar and I'm going home* is unchanged and means something worse
+  each time. No formula needed — the plot did it.
 - **Name the formula as a candidate, not a prescription.** Proposing You-I-We
   because the boxes are stagnant is the tool working. Proposing it because a
   song has three verses is the habit the chapter warns against.
@@ -490,10 +869,24 @@ and across the subjunctive modals `can` / `could` / `should` / `would`:
 | Who would you love? | Would you love? |
 
 The deletion creates a fragment the listener hears as both repetition AND new
-content. Chapter 6's worked instance is a declarative that hides a question:
-a line ending in "can you win" becomes the question `Can you win?` simply by
-isolating and repeating that fragment, turning a statement of the terms into
-the character's uncertainty about whether the terms can be met.
+content. Chapter 6's real-world instance is Joni Mitchell's "Roses Blue," where
+a declarative hides a question:
+
+```text
+In sorrow she can lure you where she wants you
+Inside your own self-pity there you swim
+In sinking down to drown her voice still haunts you
+And only with your laughter can you win
+Can you win? Can you win?
+```
+
+> By simply isolating and repeating a portion of the line, *can you win*, she
+> moves from a declarative sentence into a question, creating new energy and
+> adding a new idea — in this case, the character's uncertainty whether winning
+> (laughter) is possible.
+
+Nothing was added. The statement of the terms became a doubt about whether the
+terms can be met.
 
 ### Hidden commands — subject deletion
 
@@ -502,15 +895,26 @@ the subject:
 
 | Original (declarative) | Hidden command (subject deleted) | Effect |
 |---|---|---|
-| You tell me. | Tell me. | Imperative emerges |
-| You want me. | Want me. | Imperative + emotional appeal |
-| You hold me. | Hold me. | Imperative + intimacy |
+| You tell me that you want me. | Tell me that you want me. | Imperative emerges |
+| Tell me that you want me. | Want me. | Second pass; strips to the appeal |
+| You give me everything I need. | Give me everything I need. | Imperative emerges |
+
+> Just delete the subject, isolating the verb, and presto, you have yourself a
+> command.
 
 Note: **third-person cannot generate commands** because English third-
-person verbs take an -s ("he/she tells"). Deleting the subject there yields
-only simple repetition — `She tells me` reduces to `Tells me`, which is a
-fragment, not an imperative. The technique needs the bare verb base, which
-first and second person supply and third person does not.
+person verbs take an -s. Pat's counterexample, run through the same two passes:
+
+```text
+She tells me that she wants me.
+Tells me that she wants me.
+Wants me.
+```
+
+> You create only simple repetition — no command is isolated.
+
+The technique needs the bare verb base, which first and second person supply and
+third person does not.
 
 A second-person question hides a command the same way: `Will you love me?`
 reduces to `Love me.`

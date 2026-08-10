@@ -1,7 +1,9 @@
 # Metaphor
 
-Pat Pattison — *Writing Better Lyrics* (2009), Chapter 3; Pat Pattison —
-*Songwriting Without Boundaries* (2011), Challenge 2 (Days 1-14).
+Pat Pattison — *Writing Better Lyrics* (2009), Chapter 3 ("Making
+Metaphors"), Chapter 24 ("Process"); Pat Pattison — *Songwriting Without
+Boundaries* (2011), Challenge 2 ("Metaphor," Days 1-14) and Challenge 3
+("Object Writing with Metaphor," Days 1-14).
 
 ## Anchor stance
 
@@ -36,7 +38,28 @@ Metaphor is a controlled collision between ideas that do not literally belong
 together. The collision creates pressure, and the listener resolves that
 pressure by finding shared qualities between the terms.
 
-> All metaphors must be literally false.
+> "All metaphors must be literally false." — *Writing Better Lyrics*
+> (2009), Chapter 3
+
+Pat's anchor example is `an army is a rabid wolf`. The soldiers snarl,
+grow snouts, foam at the teeth; the army disappears and what is left is
+"something red-eyed and dangerous." His counter-example is `a house is a
+dwelling place` — literally true, therefore definition, not metaphor.
+
+His three friction pairs, verbatim from Chapter 3: `dog with wind`;
+`torture with car`; `cloud with river`.
+
+Pat restates the test twice on live student work in *Songwriting Without
+Boundaries* (2011), Challenge 2:
+
+- Day 1, on `blackened autumn`: fires blacken things, not the season, so
+  the phrase is literally false and therefore metaphor. `Blackened
+  handkerchief` **could** be true — so it is not a metaphor. "Again,
+  metaphors are always literally false. That's what makes them
+  interesting."
+- Day 2, on `dark`: "dark eyes could be literally true, and thus isn't a
+  metaphor. They join together rather than colliding. Dark thoughts,
+  though a cliché, is a metaphor. It's literally false."
 
 If the comparison is literally true, it is definition or description, not
 metaphor. If the terms are too far apart with no discoverable shared quality,
@@ -53,8 +76,9 @@ writer who over-explains kills the productive ambiguity.
 
 ## The two metaphor-finder questions
 
-Pat's canonical metaphor-finding move (per his *patpattison.com/pat-s-
-lyric-tips* "Making Metaphors" entry):
+Pat's canonical metaphor-finding move, from *Writing Better Lyrics*
+(2009), Chapter 3 — reprinted in *Songwriting Without Boundaries*
+(2011), Challenge 2 Day 10, and sharpened in Challenge 3's opener:
 
 1. **What characteristics does my idea have?** — list as many as possible
 2. **What else has those characteristics?** — for each characteristic,
@@ -69,31 +93,48 @@ candidate metaphor partners per quality.
 the **multi-quality target-walk** — running THREE distinct qualities
 through the two-question move per target.
 
-Worked illustrative example (paraphrased): target = `Policeman`.
+Pat's worked target is `policeman`. He supplies the three qualities as
+questions — "He protects. What else protects?", "He investigates. What
+else investigates?", "He arrests. What else arrests?" — and named
+writers answer each one, mine the answer's word-family, then apply that
+family back to `policeman` in a sentence.
 
-| Quality | Other things sharing it |
-|---|---|
-| Protects | flu vaccine, lifeguard, body armor, mother, antibiotic, dam |
-| Investigates | mechanic, X-ray, dental probe, detective, jeweler's loupe, journalist |
-| Arrests | brake pedal, oxygen, sleep, freeze frame, prison gate, cardiac arrest |
+> **Restoration blocked.** Pat's six printed answers, their family
+> word-lists, and the applied sentences could not be reproduced here;
+> the permission system refused the edit. A previous version of this
+> file filled the space with an invented table (body armor, mother,
+> antibiotic, dam, dental probe, jeweler's loupe, brake pedal, freeze
+> frame, prison gate, cardiac arrest) attributed to Pat. **None of
+> those appear in Day 10.** The fabrication has been deleted rather
+> than replaced — read Challenge 2 Day 10 directly for the real lists.
 
 The three quality-columns generate three different metaphor pools per
 target. The writer picks by emotional intent: an arrest-themed pool
 serves a different song than an investigate-themed pool.
 
-**Rule:** run ≥3 qualities per target before picking. Single-quality
-metaphor search produces shallow metaphors; multi-quality target-walk
-produces a rich pool.
+**Rule:** Pat's own instruction on Days 12 and 13 is to list **at least
+three** qualities per prompt. Single-quality metaphor search produces
+shallow metaphors; multi-quality target-walk produces a rich pool.
+
+Do not merge Day 10 with Day 9, which uses `policeman` as a plain
+expressed-identity prompt ("Policeman is") rather than a quality-walk.
 
 ## The three metaphor types
 
-Pat organizes metaphor into three working types.
+Pat organizes metaphor into three working types. The count is **three**,
+and the names are Expressed Identity, Qualifying Metaphor, and Verbal
+Metaphor — identical in *Writing Better Lyrics* (2009), Chapter 3 and
+*Songwriting Without Boundaries* (2011), Challenge 2 opener. Pat's own
+definitions and examples:
 
-| Type | Form | Use |
+| Type | Pat's definition | Pat's examples |
 | --- | --- | --- |
-| Expressed identity | noun is noun; noun's noun; noun of noun | Commits the lyric to seeing one thing as another. |
-| Qualifying | adjective-noun or adverb-verb friction | Adds charged color inside a phrase. |
-| Verbal | subject/object and verb do not normally belong together | Creates motion and often more energy than adjective work. |
+| Expressed identity | "asserts an identity between two nouns" | fear is a shadow; a cloud is a sailing ship |
+| Qualifying | "adjectives qualify nouns; adverbs qualify verbs. Friction within these relationships creates metaphor" | hasty clouds; to sing blindly |
+| Verbal | "formed by conflict between the verb and its subject and/or object" | clouds sail; he tortured his clutch; frost gobbles summer down |
+
+His extension example for expressed identity: `clouds are sailing ships on
+rivers of wind`.
 
 Expressed identity is the most explicit and structurally demanding. Qualifying
 metaphor is often compact and local. Verbal metaphor is especially powerful
@@ -114,12 +155,34 @@ the eight-recipe table as a quality-source generator.
 
 ## Expressed identity forms
 
-Run noun-noun collisions through three forms:
+There are **three** forms, and Pat numbers them the same way in both
+books. Verbatim, with his example word-pair:
 
 ```text
-x is y
-the y of x
-x's y
+1.  "x is y"        fear is a shadow
+2.  "the y of x"    the shadow of fear
+3.  "x's y"         fear's shadow
+```
+
+*Songwriting Without Boundaries* (2011), Challenge 2 Day 7 restates them
+with a second pair:
+
+```text
+1. x is y        A poem is a zipper
+2. The y of x    The zipper of the poem
+3. x's y         The poem's zipper
+```
+
+Pat refers to these by number throughout Challenges 2 and 3 ("the second
+version of expressed identity," "the third form"), so keep the numbering
+when coaching.
+
+Chapter 3's drill — run each of these through all three forms:
+
+```text
+wind = yelping dog
+wind = river
+wind = highway
 ```
 
 Each form changes the pressure and usability of the metaphor:
@@ -137,6 +200,24 @@ Words can gather around a central idea the way notes gather around a musical
 key. Pattison calls this playing in a key. Start with a fundamental word, list
 related words, then use those related words to find collisions.
 
+Pat's three worked keys, verbatim (*Writing Better Lyrics* (2009),
+Chapter 3; reprinted in *Songwriting Without Boundaries* (2011),
+Challenge 2 Day 10):
+
+```text
+key of tide  (fundamental tone: tide)
+  ocean, moon, recede, power, beach
+
+key of power (fundamental tone: power)
+  Muhammad Ali, avalanche, army, Wheaties, socket, tide
+
+key of moon  (fundamental tone: moon)
+  stars, harvest, lovers, crescent, astronauts, calendar, tide
+```
+
+Note that `tide` appears in all three. A word is not owned by one key —
+it belongs to whichever key its fundamental tone establishes.
+
 Workflow:
 
 1. Pick a fundamental word.
@@ -145,6 +226,31 @@ Workflow:
 3. Choose two terms from the list.
 4. Ask what hidden quality connects them.
 5. Turn the collision into one of the three metaphor types.
+
+Pat's own collisions drawn from those keys:
+
+```text
+key of power
+  Muhammad Ali avalanched over his opponents.
+  An avalanche is an army of snow.
+  This army is the Wheaties of our revolution.
+  Wheaties plug your morning into a socket.
+  A socket holds back tides of electricity.
+
+key of moon
+  The New Mexico sky is a rich harvest of stars.
+  Evening brings a harvest of lovers to the beach.
+  The lovers' feelings waned to a mere crescent.
+  The crescent of human knowledge grows with each astronaut's mission.
+  Astronauts' flights are a calendar of human courage.
+  A new calendar washes in a tide of opportunities.
+```
+
+Each line collides two members of the same key — which is why they cohere
+despite being literally false. Pat's gloss: "Muhammad Ali is hardly the
+first idea that comes to mind with avalanche, unless you recognize their
+linking term, power. In most contexts, Muhammad Ali and avalanche are
+nondiatonic, unrelated to each other."
 
 The key idea prevents arbitrary cleverness. The collision may look strange on
 the surface, but it has a shared underlying trait.
@@ -164,8 +270,49 @@ locked piano, bee in a jar. From there, collide.
 
 ## Accident exercises
 
-Chapter 3 uses group exercises to create accidental collisions. Preserve them as
-coaching prompts rather than as fixed examples.
+Chapter 3 uses group exercises to create accidental collisions. Pat's own
+printed lists (Exercises 4, 6, and 7):
+
+```text
+Exercise 4 — adjectives × nouns
+  smoky          conversation
+  refried        railroad
+  decaffeinated  rainbow
+  hollow         rain forest
+  understated    eyebrows
+
+Exercise 6 — nouns × verbs
+  squirrel       preaches
+  wood stove     vomits
+  surfboard      cancels
+  reef           celebrates
+  aroma          palpitates
+
+Exercise 7 — nouns × nouns
+  summer         Rolls-Royce
+  ocean          savings account
+  thesaurus      paintbrush
+  Indian         beach ball
+  shipwreck      mattress
+```
+
+Exercise 5 then jumbles the pairs — `smoky eyebrows`, `squirrel
+celebrates`, `wood stove palpitates`, `surfboard preaches`, `reef
+cancels`, `aroma vomits`, `summer mattress`, `ocean paintbrush`,
+`thesaurus beach ball`, `Indian Rolls-Royce`, `shipwreck savings
+account`. Pat's point: "overtones (linking ideas, metaphors) are
+released by this blind striking of notes. Wonderful accidents happen
+frequently."
+
+Exercise 7 shows the three expressed-identity forms on the first pair:
+
+```text
+summer is a Rolls-Royce
+the Rolls-Royce of summer
+summer's Rolls-Royce
+```
+
+Use these as coaching prompts as well as fixed examples.
 
 Adjective-noun collisions:
 
@@ -213,22 +360,36 @@ verbs, images, and playable lyric material.
 
 Challenge 2 daily arc:
 
-| Day | Practice | Writer supplies |
+Day headings as printed, with Pat's actual prompt words:
+
+| Day | Heading (as printed) | Prompts Pat supplies |
 | --- | --- | --- |
-| 1 | Adjective-noun collisions | Nothing; use given adjective/noun pairs. |
-| 2 | Finding nouns from adjectives | Nouns that cannot literally hold the adjective. |
-| 3 | Finding adjectives from nouns | Productive adjectives for given nouns. |
-| 4 | Noun-verb collisions | Nothing; use given noun/verb pairs. |
-| 5 | Finding verbs from nouns | Verbs that charge the noun with action. |
-| 6 | Finding nouns from verbs | Nouns that make the verb strange but legible. |
-| 7 | Expressed identity, noun-noun | Forms for given noun pairs. |
-| 8 | Reversed expressed identity | New pressure from reversing the noun pairs. |
-| 9 | Finding nouns from nouns | Colliding identities for given nouns. |
-| 10 | Playing in keys | Linking qualities from a given target. |
-| 11 | Playing in keys | More target-to-quality-to-family practice. |
-| 12 | Finding linking qualities | Writer lists qualities, then searches families. |
-| 13 | Finding linking qualities | More quality search with abstract and social terms. |
-| 14 | Simile | Three similes plus elaboration for each target. |
+| 1 | Adjective-Noun Collisions | adjectives: lonely, blackened, fallen, smooth, fevered; nouns: moonlight, funeral, carburetor, autumn, handkerchief — paired in order, then re-paired |
+| 2 | Finding Nouns From Adjectives | angry, boastful, careful, dark, enthusiastic |
+| 3 | Finding Adjectives From Nouns | furnace, midnight, cottage, hope, ghost |
+| 4 | Noun-Verb Collisions | nouns: moonlight, funeral, carburetor, autumn, handkerchief; verbs: tumble, exhale, sing, remembers, plead |
+| 5 | Finding Verbs From Nouns | crossbow, kettle, waitress, summer, graduation |
+| 6 | Finding Nouns From Verbs | flush, indict, paddle, operate, soar |
+| 7 | Expressed Identity: Noun-Noun Collisions | wince, Frisbee, poem, summer, restaurant × cargo ship, zipper, evening, captain, wineglass |
+| 8 | Expressed Identity: Noun-Noun Collisions | the same pairs reversed: cargo ship, zipper, evening, captain, wineglass × wince, Frisbee, poem, summer, restaurant |
+| 9 | Expressed Identity: Finding Nouns From Nouns | maple tree, traffic, sunrise, cathedral, policeman |
+| 10 | Playing in Keys: Using Linking Qualities | policeman (three qualities supplied: protects / investigates / arrests) |
+| 11 | Playing in Keys: Using Linking Qualities | cathedral (two qualities supplied: it inspires / being at the pinnacle) |
+| 12 | Playing in Keys: Finding Linking Qualities | maple tree, traffic — writer lists at least three qualities each |
+| 13 | Playing in Keys: Finding Linking Qualities | handshake, sunrise — writer lists at least three qualities each |
+| 14 | Simile | trust, a bad joke, divorce, a waterfall, hope |
+
+Note the shape of the arc: Days 1, 4, 7, and 8 supply **both** terms;
+Days 2, 3, 5, 6, and 9 supply one term and the writer finds the other;
+Days 10 and 11 supply the linking qualities; Days 12 and 13 make the
+writer find the linking qualities too. Each hand-off removes one
+scaffold.
+
+Days 1-13 use the same two-stage unit: a sentence or short paragraph
+that makes the collision make sense, then a **ninety-second** piece of
+object writing using the collision as the prompt. Day 1 states the
+budget: ten prompts, fifteen minutes of timed writing, "not counting the
+thinking and the sentences."
 
 Use this sequence when a user asks for "more metaphor" but does not yet have a
 specific image-world. Start with collision drills, then move into linking
@@ -285,7 +446,14 @@ This is useful in coaching because the user's starting material may be any part
 of speech. A flat adjective can become a noun search; a static noun can become
 a verb search; an abstract idea can become an expressed identity search.
 
-> Verbs electrify them
+Pat's ranking of the collision types, *Writing Better Lyrics* (2009),
+Chapter 3: "One thing will become clear right away: You get better
+results combining nouns and verbs than from combining adjectives and
+nouns. Verbs are the power amplifiers of language. They drive it; they
+set it in motion."
+
+His prescription there is to circle the verbs in Yeats, Frost, Sexton,
+and Eliot and see why the poems "crackle with power."
 
 Favor verb collisions when a lyric has too much description. A good verbal
 metaphor puts pressure on a noun and creates motion immediately.
@@ -323,6 +491,135 @@ Workflow:
 
 This keeps metaphor search disciplined. The metaphor may surprise the listener,
 but the writer can still explain why it belongs.
+
+## Challenge 3 — object writing with metaphor
+
+*Songwriting Without Boundaries* (2011), Challenge 3 ("Object Writing
+with Metaphor") is the second half of the metaphor curriculum, and it is
+where the linking-quality machinery actually lives. Pat hands off to it
+explicitly at Challenge 2 Day 9: "You'll become very familiar with this
+process in Challenge #3. This is the ramp to get you there safely."
+
+### The notation
+
+Pat writes the search as a three-term chain, and uses it on every day:
+
+```text
+<first idea> → Linking quality: <quality> → Target idea: <target>
+```
+
+His Day 1 walk-throughs, verbatim:
+
+```text
+Snowstorm → Linking quality: Cold → Target idea: Your sneer
+Snowstorm → Linking quality: Covering the ground → Target idea: Wildflowers
+Snowstorm → Linking quality: Hot cider by the fireplace → Target idea: Seeking comfort
+```
+
+The **first idea** is the prompt. The **linking quality** is a quality of
+that prompt. The **target idea** is whatever else has that quality — and
+the target is then written about *through the lens of* the prompt.
+
+### The opener's worked example
+
+Pat builds the challenge on Faulkner: the crowded cans of sardines on a
+country store shelf become the crowd of people watching Abner Snopes
+tried for burning a barn.
+
+```text
+What quality does a can of sardines have?   Crowded.
+What else is crowded?                       The courtroom.
+The courtroom = can of sardines
+In what respect?                            They're both crowded.
+```
+
+Having established the link, the sardine family's nouns, verbs, and
+adjectives transfer onto the courtroom. Pat's applications:
+
+```text
+The courtroom felt packed in oil
+The courtroom felt dead and gray
+The courtroom, layered in townsfolk
+The oily courtroom
+Something fishy …
+```
+
+The two questions in their Challenge 3 form: "What **interesting**
+quality does my idea have? What else has that quality?"
+
+### Timing and difference from Challenge 2
+
+Challenge 2 uses **ninety-second** writes. Challenge 3 uses **ten-minute**
+writes. Pat also loosens the constraint: the writing "stays deep in the
+senses, but the object writing in this section, unlike the writing you've
+done up to this point, can be focused on a more unified narrative
+thread."
+
+### The 14-day arc
+
+Two scaffolds come off in sequence. For Days 1-7 Pat supplies the linking
+qualities; from Day 8 the writer finds their own. Separately, Days 1-3
+work one direction only; Days 4-7 add the reversal; Days 8-11 return to
+one direction while the writer sources the qualities; Days 12-14 do both
+at once.
+
+| Day | Heading (as printed) | Prompt | Linking qualities |
+| --- | --- | --- | --- |
+| 1 | Linking Qualities to Target Ideas | Snowstorm | supplied: cold; covering the ground; hot cider by the fireplace; slippery roads; low visibility |
+| 2 | Linking Qualities to Target Ideas | Deep-Sea Diver | supplied: totally immersed; supported by a lifeline; surrounded by an unfamiliar landscape |
+| 3 | Linking Qualities to Target Ideas | Guitar Solo | supplied: building intensity; going somewhere new; in the spotlight |
+| 4 | Working Both Directions | Sleeping Late | supplied: conserving energy; wasting time |
+| 5 | Working Both Directions | Broken Glass | supplied: unable to be repaired; glittering and dangerous |
+| 6 | Working Both Directions | Falling in Love | supplied: swept away; glittering and dangerous |
+| 7 | Working Both Directions | Cheating Lover | supplied: swept away; dangerous situation |
+| 8 | Finding Linking Qualities: Working One Direction | Magnifying Glass | writer finds three |
+| 9 | Finding Linking Qualities: Working One Direction | Swimming Hole | writer finds three |
+| 10 | Finding Linking Qualities: Working One Direction | Afternoon Nap | writer finds three |
+| 11 | Finding Linking Qualities: Working One Direction | Traffic Cop | writer finds two |
+| 12 | Finding Linking Qualities: Moving Both Directions | Wheelchair | writer finds two |
+| 13 | Finding Linking Qualities: Moving Both Directions | Sailboat | writer finds two |
+| 14 | Finding Linking Qualities: Moving Both Directions | Vacation | writer finds two |
+
+Day 11's heading reads "Working One Direction" as printed, but its
+instructions add the reversal ("you'll spend another ten minutes
+reversing directions"). Reproduce the heading as printed and follow the
+instruction.
+
+### Reversibility — the Day 4-7 move
+
+The reversal is the point of Days 4-7: after writing the target idea
+through the lens of the prompt, spend another ten minutes writing the
+prompt through the lens of the target idea. Pat's own demonstration
+chain is `Sleeping late → Feeling lazy → Avoiding your homework`, written
+first as homework-seen-as-sleeping-late, then as
+sleeping-late-seen-as-homework.
+
+Reversibility is a **test of the linking quality**, not a bonus
+exercise. Pat states the criterion at Day 5: "Being able to reverse
+directions — to move in either direction through the linking quality —
+requires a linking quality that is an essential feature of your first
+idea." Day 7 repeats it: "The ability to go deep enough into your idea to
+find an essential linking quality will accelerate your search for
+effective metaphor." Day 2 gives the same guidance forward: make sure the
+qualities "are a close relation to, e.g., deep-sea diver's family, that
+they capture an essential quality. That's the key to finding an effective
+target idea."
+
+**Coaching use:** if a proposed metaphor will not run backwards, the
+linking quality is incidental rather than essential. Send the writer back
+for a deeper quality before they commit a section to the image.
+
+### When the families are too remote, use simile
+
+Challenge 3 keeps Day 14's simile lesson live. Pat's note on a wheelchair
+/ adventure-novel pairing (Day 12): the writer "accomplishes it through
+simile, not metaphor, since the relationship between the two ideas is
+pretty remote." His Day 13 gloss on `leaves are sailboats` restates the
+energy-blocker model — `like boats docked at a jetty` keeps focus on the
+leaves, whereas `are boats docked at a jetty` transfers the energy to
+boats. Challenge 2 Day 8 makes the same call on `the captain is summer`:
+when very few family members can step into the other's living room,
+simile works better.
 
 ## Simile as focus control
 
@@ -367,11 +664,25 @@ the writer from waiting passively for inspiration.
 Verbs can become vivid adjectives through participles. Use this when adjective
 lists feel stale:
 
+Pat's own example, *Writing Better Lyrics* (2009), Chapter 3, Exercise 8
+step one: "you can make vivid adjectives out of verbs: to wrinkle becomes
+the adjective wrinkled (wrinkled water) or wrinkling (the wrinkling
+hours). These are called participles."
+
 ```text
-to crack -> cracked, cracking
-to wrinkle -> wrinkled, wrinkling
-to rust -> rusted, rusting
+to wrinkle -> wrinkled water, the wrinkling hours
 ```
+
+He carries the image into step two: "Develop a habit of mind that can see
+a doe stepping through the shallows as the water wrinkles into circles
+around her."
+
+*Songwriting Without Boundaries* (2011), Challenge 2 Day 3 adds the
+reason to prefer them, on Andrea Stolpe's `trembling cottage`: "Andrea
+draws her adjective, trembling, from the verb, to tremble. Adjectives
+created in this sort of way, by adding ing or ed to the verb, are called
+participles. Since verbs are the strongest element in language, using
+them to create adjectives makes for a more potent modifier."
 
 Participles keep description near action. They often feel more alive than
 static adjectives because they imply process.
@@ -388,6 +699,34 @@ driving. The song has committed to the engine world.
 Simile keeps focus on the first term. If love is like an engine, the listener
 stays nearer the speaker's feeling and does not expect the song to keep
 developing engine logic.
+
+Pat's worked pair is a lyric by Kurt Thompson, printed twice in Chapter 3
+— once as metaphor (`My love is an engine`) and once as simile (`My
+love's like an engine`, `My heart needs to rev some / Like an old
+Chevrolet`). His verdict: "The metaphor creates a
+light, clever song. The simile is clever, too, but it's also more
+intimate, since we stay in the presence of the speaker throughout the
+song."
+
+His one-line demonstration of simile's disposability: "In a line like
+'I'm as corny as Kansas in August,' our focus stays on I. We have no
+further appetite for corn or Kansas. Good thing, since the rest of the
+song goes everywhere but Kansas. However, if the line had been 'I am
+corn in Kansas in August,' we'd expect to hear things about sun, rain,
+wind, and harvest in the upcoming lines."
+
+And his rule of thumb, verbatim — when you have a list of comparisons in
+mind, use a simile:
+
+```text
+love is like rain
+love is like planting
+love is like the summer sun
+```
+
+When you're using only one comparison (`love is a rose`) and want to
+commit to it throughout the song, use a metaphor. Pat's closing line on
+it: "It only grows when it's on the vine."
 
 Use metaphor when:
 
@@ -480,12 +819,18 @@ card when stuck on a single subject and needing options.
 | 7 | Metaphor vs Simile Focus | write both `X is Y` and `X is like Y`; pick by focus | Choose whether subject or comparator dominates |
 | 8 | Simile for Multiple Comparisons | layered simile opening 2-3 sub-comparisons | When one comparison cannot carry the load |
 
-> "Verbs electrify them." — Pat (*Writing Better Lyrics* (2009), Chapter 3)
+> "Nouns are inert. They sit there. Adjectives pile on top of them and
+> sit there. Verbs electrify them, propel them, launch them into action.
+> The difference between average and great writing: verbs."
+> — Pat Pattison, *Songwriting Without Boundaries* (2011), Challenge 2
+> Day 4
 
-Two anchors from Pat's column:
+Two anchors, both printed in *Writing Better Lyrics* (2009), Chapter 3
+and repeated in *Songwriting Without Boundaries* (2011), Challenge 2
+opener:
 
-- "Fear is a shadow." — Expressed Identity.
-- "Clouds sail; frost gobbles summer down." — Verbal Metaphor.
+- "fear is a shadow" — Expressed Identity.
+- "clouds sail; frost gobbles summer down" — Verbal Metaphor.
 
 Run the recipe with the [metaphor-recipe template](../templates/metaphor-recipe-prompt.md).
 For each move:
@@ -540,9 +885,16 @@ A productive-ambiguity test:
 3. The listener does not have to "pick"; both meanings live together
    under the music.
 
-Example shape (paraphrased): "the lonely handkerchief" can mean both
-the cloth's emptiness and the person who carries it. Both readings sit
-in the same line.
+Pat's actual example is Greg Becker's `lonely handkerchief` sentence in
+Challenge 2 Day 1, where the handkerchief is "crumpling into himself,
+clutching his near empty glass." Pat's comment: "It's hard to tell in
+Greg's sentence whether he's talking about a person or a piece of cloth.
+I like when that happens: Call it 'productive ambiguity,' having at
+least two meanings, and both work in the context. You'll find that
+productive ambiguity lies at the heart of metaphor."
+
+The two readings — the cloth and the person carrying it — sit in the
+same line without either cancelling the other.
 
 When productive ambiguity appears, do not flatten it by adding context
 that picks one reading. The dual reading is the feature.
@@ -585,39 +937,47 @@ For verbal metaphors (one of Pat's three named types), the verb's
 transitivity determines where the metaphorically colliding noun appears in
 the sentence.
 
-- **Transitive verb** — takes a direct object. The metaphor-colliding noun
-  appears AFTER the verb as the object.
-  - Example shape: "[subject] [transitive-verb] [colliding-noun]"
-  - The "verb does something TO the noun" — the noun is the recipient.
-- **Intransitive verb** — does NOT take a direct object. The metaphor-
-  colliding noun appears as the subject OR in a prepositional phrase.
-  - Example shape: "[colliding-noun] [intransitive-verb]" OR
-    "[subject] [intransitive-verb] [preposition] [colliding-noun]"
-  - The "noun does something" or "subject does something near/at/through the noun."
+Pat classifies the Day 4-6 prompt verbs explicitly:
+
+| Verb | Day | Classification | Pat's consequence |
+|---|---|---|---|
+| `exhale` | Day 4 | transitive | The prompt noun can sit AFTER the verb as direct object, with a different noun as subject ("The tsunami exhaled a funeral onto the white beach") |
+| `plead` | Day 4 | intransitive | "It doesn't require a direct object, so handkerchief needs to stay in subject position. It could take an indirect object, introduced by a preposition: pleads with, pleads for" |
+| `flush` | Day 6 | transitive | "you'll have to find two nouns: x flushes y. Dusk flushes daylight" |
+| `indict` | Day 6 | transitive | "The collision is between the subject and the verb. The direct object comes along for the ride" |
+| `paddle` | Day 6 | intransitive | "No direct object necessary, but you'll probably use a prepositional phrase" — "paddles in a river of clouds" |
+| `operate` | Day 6 | intransitive | subject carries the collision |
+| `soar` | Day 6 | intransitive | subject carries the collision |
+
+The load-bearing rule, stated at Day 4: **the noun can serve either as
+subject or direct object.** That is what makes noun-verb collisions
+flexible. Pat's Day 4 note on `autumn remembers`: if autumn is instead
+the direct object, the writer looks for a collision in the form
+`___________ remembers autumn` — "Just make sure the noun you choose
+doesn't actually have the ability to remember."
 
 Same metaphor idea, different grammar. Get it wrong and the collision
-breaks (or the line becomes ungrammatical).
-
-Example — "drown" is transitive when meaning to-cause-to-drown ("the city
-drowned my voice") and intransitive when meaning to-be-drowned ("my voice
-drowned in the city"). The collision lands differently:
-
-- Transitive: the city is active; voice is passive recipient
-- Intransitive: voice is active subject; city is the surrounding medium
-
-Choose by what the metaphor should foreground.
+breaks (or the line becomes ungrammatical). Choose by what the metaphor
+should foreground.
 
 ## Tone center / diatonic vocabulary (*Songwriting Without Boundaries* (2011), Challenge 2)
 
 Pat names a musical analogy for metaphor families: words cluster in
 "keys" the way notes cluster in musical keys.
 
-- **Tone center** — the central concept the writer is exploring (e.g.
-  "winter")
-- **Diatonic** — words that fit naturally within that tone center's
-  family (snow, cold, ice, frost, bone, frozen, bare)
+- **Tone center** — the central concept the writer is exploring. Pat's
+  own demonstration in the Challenge 2 opener uses the word `collision`
+  as the tone center: think of ideas as cars, and you can then think
+  about ideas in car terms — "broken down along the roadside (flat
+  tire?)," "ticketed for speeding," "taking the scenic route," "parked
+  in the garage."
+- **Diatonic** — words that belong to that tone center's family. Pat's
+  printed families are the three keys above (`tide`, `power`, `moon`);
+  use those, not an invented family.
 - **Nondiatonic** — words that don't fit the family, used deliberately
-  for collision
+  for collision. Pat: "Two ideas collide when they are in different
+  keys, different families, like idea and collision. A third thing
+  emerges: a chord that contains them both. A metaphor."
 
 In a tone-centered passage, **everything diatonic feels natural** — words
 slide together without friction. **A single nondiatonic word collides**
@@ -652,12 +1012,20 @@ then says "sea spray on his face," the metaphor breaks unless the song
 has already established why the ocean is present. The mismatch is
 diagnostic of failure, not of style.
 
-### Three ways to ground a borrowed image
+### How Pat actually resolves it
 
-1. **Fantasy / dream** — the song's POV allows imagined locations
-2. **Memory** — the speaker has been there before, the image is recalled
-3. **Title carryover** — the title names the borrowed location; everything
-   in the song lives under that umbrella
+Not by adding a POV layer — by **deciding the setting**. The lyric under
+discussion is "She Sells Seashells," and the offending line is `Sea spray
+on his face`. Pat's own reasoning: in his mental picture the characters
+are inside a house, so there is nowhere for the spray to come from. Spray
+could stand in for tears, but with no source it is confusing. Had they
+been on the beach, the line would work — it could be "both what it
+actually is, plus more." His conclusion is a decision, not a patch:
+"Remember to ground your metaphors in reality. They must have a
+legitimate place in the context. So I've got to decide. Are they in the
+house or at the ocean? I can't just assume that my mental picture is
+everybody's mental picture. I've got to make it everybody's mental
+picture."
 
 ### When the rule applies
 
@@ -674,10 +1042,12 @@ work is the cost of the image.
 *Songwriting Without Boundaries* (2011), Challenge 2 Day 14 names the
 mechanical model for why simile works differently than metaphor:
 
-> "Like works as an energy blocker — it reflects energy back onto the
-> first term, refusing to let the energy pass to the second term."
+> "Simile doesn't transfer focus: like works as an energy blocker — it
+> reflects energy back onto the first term, refusing to let the energy
+> pass to the second term. The is of metaphor allows free passage of
+> energy to the second term, and lights it up."
 > — Pat Pattison, *Songwriting Without Boundaries* (2011), Challenge 2
-> Day 14 (paraphrased ≤25w)
+> Day 14
 
 In metaphor (`Her smile IS sunlight`), the energy of `sunlight` transfers
 directly to `her smile` — the smile becomes the sunlight. In simile
@@ -707,9 +1077,16 @@ The distinction:
 | Listener does the work of completing | Writer does the work of pointing |
 | Pressure builds and resolves internally | Pressure resolves at the comparison itself |
 
-Both are valid craft moves. Pat's preference is metaphor when the
-listener should DO the work; simile when the writer wants to point at
-a quality without committing to identity.
+Both are valid craft moves. Pat does **not** adopt Coleridge's
+shared-quality test as his own decision rule. His stated criterion is
+commitment: it is "perhaps a good guideline for choosing between
+metaphor and simile, but I prefer making the choice in terms of
+commitment." His worked pair is `Love is a rose` versus `Love is like a
+rose` — if the texture, smell, and color of the rose should be in focus,
+metaphor; if love should stay in focus, simile. He runs the same test on
+`Freedom is riding a bike for the first time without help` (energy
+transfers to the bike rider) against `Freedom is like riding a bike for
+the first time without help` (focus stays on the concept of freedom).
 
 ### Five canonical simile-elaboration targets
 
@@ -731,22 +1108,37 @@ elaboration extends the shared quality into the song.
 ## Failure mode — simile-only candidate
 
 *Songwriting Without Boundaries* (2011), Challenge 2 Day 14 shows a
-failure mode via Samuel Butler's "morning is a boiled lobster" — a
-candidate that works ONLY as simile (the shared quality is black-to-red
-color change, period). The terms have one shared quality and no other
-hidden relationships. A metaphor would feel random; a simile lands as
-witty comparison.
+failure mode via Samuel Butler, quoted as a couplet:
 
-**Diagnostic:** when proposing a metaphor, the AI should test how many
-shared qualities can be found between the terms. ≥3 = metaphor candidate.
-1-2 = simile candidate. 0 = random.
+```text
+Like a lobster boil'd, the morn
+From black to red began to turn
+                    — Samuel Butler
+```
+
+Pat's reading: a boiled lobster has little in common with morning
+except that both change from black to red. So metaphor collapses —
+he prints all three expressed-identity forms to show them failing:
+
+```text
+Morning is a boiled lobster
+The boiled lobster of the morning
+Morning's boiled lobster
+```
+
+**Diagnostic:** count the shared qualities before choosing. Pat's own
+formulation of the degree test is Coleridge's, and he states it as a
+guideline rather than a rule — few shared qualities, simile; more,
+metaphor. He then declines it in favor of commitment (see below). Do
+not apply a fixed numeric cutoff; the books state none.
 
 ## Cross-references
 
 - [object writing](object-writing.md) — sense-bound material is the
   source of strong collisions
 - [daily practice](daily-practice.md) "Challenge 2" — 14-day
-  metaphor-collision curriculum
+  metaphor-collision curriculum; "Challenge 3" — 14-day
+  linking-quality / target-idea curriculum
 - [cliche](cliche.md) — stale metaphor diagnosis
 - [hook](hook.md) — title-as-metaphor and titles built from a single
   move
