@@ -40,7 +40,9 @@
 #      sibling did not carry at the base ref — WARNs, since the marketplace
 #      listing still routes it; lost phrases and coincidental overlap FAIL)
 #   4. SKILL.md < 500 lines (hard cap)
-#   5. Backtick-cited skill-internal supporting files resolve
+#   5. Backtick-cited skill-internal supporting files resolve (a path that misses
+#      here but resolves under a SIBLING skill is reported as a cross-skill
+#      citation naming the `${CLAUDE_PLUGIN_ROOT}/skills/<sibling>/…` form)
 #   6. markdownlint clean (markdownlint-cli2; WARN-skip if npx absent)
 #   7. scripts/*.test.sh pass where present
 #   8. vendor/ byte-identical vs HEAD, unless paired with an upstream-version
@@ -363,7 +365,36 @@ while IFS= read -r ref; do
   fi
   if [[ ! -e "$SKILL_DIR/$ref" ]]; then
     ref_line="$(grep -nF "$ref" "$SKILL_MD" 2>/dev/null | head -1 | cut -d: -f1)"
-    err "broken skill-internal ref: $ref (no such file under the skill dir; cited at SKILL.md:${ref_line:-?} — hand-verify the line before fixing, may be an illustrative example)"
+    # A path that misses here but DOES resolve under a SIBLING skill of the same
+    # skills root is a cross-skill citation written in the skill-internal form —
+    # not a missing file. Every bare path in this check resolves against the
+    # CITING skill's dir, so the bare form is genuinely wrong and still FAILs;
+    # what changes is the message. The default wording sends the author looking
+    # for the file under their own skill, where it will never be — naming the
+    # host sibling and the anchored form that works is the difference between a
+    # dead end and a one-line fix. Glob order is sorted, so a path present under
+    # more than one sibling names the first deterministically.
+    REF_HOST=""
+    for other_md in "$SKILLS_ROOT"/*/SKILL.md; do
+      [[ -f "$other_md" ]] || continue
+      [[ "$other_md" == "$SKILL_MD" ]] && continue
+      if [[ -e "${other_md%/SKILL.md}/$ref" ]]; then
+        REF_HOST="${other_md%/SKILL.md}"
+        REF_HOST="${REF_HOST##*/}"
+        break
+      fi
+    done
+    if [[ -z "$REF_HOST" ]]; then
+      err "broken skill-internal ref: $ref (no such file under the skill dir; cited at SKILL.md:${ref_line:-?} — hand-verify the line before fixing, may be an illustrative example)"
+    elif [[ -f "$SKILL_DIR/../../.claude-plugin/plugin.json" ]]; then
+      # Plugin-shaped skills root (same detection as check 1): bundled plugin
+      # assets are anchored at the plugin root, so that is the form to name.
+      err "cross-skill ref written in skill-internal form: $ref (cited at SKILL.md:${ref_line:-?}) — the file is not under this skill, it is under sibling skill '$REF_HOST'; a bare path always resolves against the CITING skill's dir. Anchor the citation at the plugin root: \${CLAUDE_PLUGIN_ROOT}/skills/$REF_HOST/$ref"
+    else
+      # Not a plugin: \${CLAUDE_PLUGIN_ROOT} is undefined here, so name the
+      # layout-free sibling-relative form instead of inventing a skills-root var.
+      err "cross-skill ref written in skill-internal form: $ref (cited at SKILL.md:${ref_line:-?}) — the file is not under this skill, it is under sibling skill '$REF_HOST'; a bare path always resolves against the CITING skill's dir. Cite the sibling explicitly: ../$REF_HOST/$ref"
+    fi
   fi
 done < <(
   {

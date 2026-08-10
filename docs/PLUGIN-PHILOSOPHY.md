@@ -261,6 +261,14 @@ For project configuration, use neutral repository-relative paths anchored at
 when the contract requires containment, and document precedence. Do not add an environment variable
 merely to create a second configuration channel.
 
+Apply the same anchoring rule to bundled assets: one skill citing another skill's supporting file
+writes the full `${CLAUDE_PLUGIN_ROOT}/skills/<other-skill>/<path>` form, optionally paired with a
+relative markdown link target for browsing on GitHub — for example
+``[`${CLAUDE_PLUGIN_ROOT}/skills/audit/context/suppression.md`](../audit/context/suppression.md)``.
+A bare `context/…`-style path is reserved for a skill's OWN supporting files; it resolves against
+the citing skill's directory, so a cross-skill citation written that way points at a file that is
+not there.
+
 ## Setup is explicit and repeatable
 
 A plugin requires a `setup` skill iff it has (a) a consumer-project configuration surface, (b) an
