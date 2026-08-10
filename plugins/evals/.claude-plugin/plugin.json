@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "evals",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "LLM evaluation methodology and eval-suite design, distilled from Anthropic's official evaluation guidance — a knowledge router over success criteria, eval design, and grading methods (/evals:methodology), plus an action skill that interviews for measurable success criteria and scaffolds a graded eval suite for an LLM app or a Claude Code skill (/evals:design). Guidance and scaffolding only: no command executes model-graded evals.",
   "author": {
     "name": "Melodic Software",
