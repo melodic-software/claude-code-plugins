@@ -16,7 +16,9 @@ Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
   v2.1.220–v2.1.224 ([2026-w32](https://code.claude.com/docs/en/whats-new/2026-w32), verified
   2026-08-10) and is gone from the sub-agents page along with its variable. The concurrency limit —
   the one the paragraph calls "the hard one" — is unchanged, so the dispatch conclusion stands; only
-  the second constraint was fictional.
+  the second constraint has since been removed. It was accurate when written (documented default
+  200, v2.1.212+) and went stale under the platform, which is the failure mode a dated verification
+  stamp exists to make findable.
 
 ## [0.12.0]
 
