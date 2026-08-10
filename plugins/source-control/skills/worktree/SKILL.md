@@ -32,7 +32,7 @@ uninvocable from inside a worktree; do not fold them back.
 
 ## Purpose
 
-Orchestrate git worktree lifecycle from creation through cleanup. **Front-half** of the development workflow — gets you into a worktree and keeps them healthy. `/pull-request` is the **back-half** — handles prep, PR creation, monitoring, merge.
+Orchestrate git worktree lifecycle from creation through cleanup. **Front-half** of the development workflow — gets you into a worktree and keeps them healthy. `/source-control:pull-request` is the **back-half** — handles prep, PR creation, monitoring, merge.
 
 **Why this exists:** worktrees are the isolation mechanism for parallel code changes — multiple Claude Code sessions on different tasks without stepping on each other. In repos where branch protection blocks direct commits to main, every feature, fix, or refactor starts with a worktree or branch; this skill makes that seamless.
 
@@ -72,11 +72,11 @@ Detect current state and guide user to the right action.
 
 4. **Branch-based guidance**:
 
-   - **On the default branch** → "You're on `<default-branch>`. Create a branch (`git checkout -b <type>/<description>`) or use `/worktree create` if you need parallel session isolation."
-   - **In a worktree** → Show current worktree info: branch name, last commit, associated PR (via `gh pr list --head <branch> --json number,title,state`). If a PR exists, suggest the next `/pull-request` phase.
+   - **On the default branch** → "You're on `<default-branch>`. Create a branch (`git checkout -b <type>/<description>`) or use `/source-control:worktree create` if you need parallel session isolation."
+   - **In a worktree** → Show current worktree info: branch name, last commit, associated PR (via `gh pr list --head <branch> --json number,title,state`). If a PR exists, suggest the next `/source-control:pull-request` phase.
    - **On a feature branch (not worktree)** → Show branch info and any associated PR.
 
-5. **Check for stale/prunable worktrees**: Run a `git worktree list --porcelain` scan. If any worktrees are prunable or branches have merged PRs → suggest `/worktree cleanup`.
+5. **Check for stale/prunable worktrees**: Run a `git worktree list --porcelain` scan. If any worktrees are prunable or branches have merged PRs → suggest `/source-control:worktree cleanup`.
 
 6. **Otherwise** → Show brief status summary (worktree count, any needing attention).
 
@@ -126,8 +126,8 @@ Periodic health check for worktree infrastructure — suitable as a recurring wo
 
 ## What this skill does NOT do
 
-- **Does not push, create, merge, or close PRs** — `/pull-request` owns the back-half (prep, create, monitor, merge).
-- **Does not commit or stage code** — staging and committing stay user-controlled; `/commit` owns the commit mechanic.
+- **Does not push, create, merge, or close PRs** — `/source-control:pull-request` owns the back-half (prep, create, monitor, merge).
+- **Does not commit or stage code** — staging and committing stay user-controlled; `/source-control:commit` owns the commit mechanic.
 - **Does not run CI, build, test, or lint** — use your project's build/test/lint tooling or skills.
 - **Does not manage remote branches** — GitHub's `delete_branch_on_merge` handles remote cleanup on merge (when enabled); local `git branch -D` is emitted for the user, never run inline.
 - **Does not enforce branch naming** — the consuming project's hooks and CI are the gates. This skill only surfaces the project's convention (read it from the project's `CLAUDE.md` / rules; default suggestion: `<type>/<kebab-description>` with a Conventional Commits type prefix).
@@ -138,10 +138,10 @@ This skill complements other workflow components — it does not duplicate their
 
 | Component | Relationship |
 |-----------|-------------|
-| `/pull-request merge` (Phase 4) | Handles post-merge cleanup as part of PR lifecycle. `/worktree cleanup` is the standalone version for ad-hoc or batch cleanup |
-| `/pull-request create` (Phase 2.1) | Detects default-branch checkout and suggests `/worktree create` |
+| `/source-control:pull-request merge` (Phase 4) | Handles post-merge cleanup as part of PR lifecycle. `/source-control:worktree cleanup` is the standalone version for ad-hoc or batch cleanup |
+| `/source-control:pull-request create` (Phase 2.1) | Detects default-branch checkout and suggests `/source-control:worktree create` |
 | Project session-start hooks (if any) | May warn on main or auto-configure fresh worktrees; this skill verifies setup ran per context/create.md's post-create checks |
-| Recurring maintenance tracker items | Can invoke `/worktree audit` periodically |
+| Recurring maintenance tracker items | Can invoke `/source-control:worktree audit` periodically |
 
 ## Graceful Degradation
 

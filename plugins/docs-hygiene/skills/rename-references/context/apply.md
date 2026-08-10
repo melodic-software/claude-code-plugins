@@ -8,8 +8,8 @@ Preview mode is the same workflow with the Edit phase replaced by "report planne
 
 | Form | Behavior |
 |---|---|
-| `/rename-references <old> to <new>` | Apply mode — full pipeline through Edit + re-sweep |
-| `/rename-references preview <old> to <new>` | Preview mode — same pipeline, planned edits reported instead of applied |
+| `/docs-hygiene:rename-references <old> to <new>` | Apply mode — full pipeline through Edit + re-sweep |
+| `/docs-hygiene:rename-references preview <old> to <new>` | Preview mode — same pipeline, planned edits reported instead of applied |
 
 The natural-language parser per `SKILL.md` accepts `to`/`→`/`->`/`into` separators. Multi-word old/new is fine. Path renames (`a/old.md` to `a/new.md`) trigger extra path-form patterns.
 
@@ -198,7 +198,7 @@ The active plan/work-notes document records the rename — both `<old>` and `<ne
 
 ### Idempotency under partial completion
 
-If Edit phase is interrupted (user cancels mid-flow, tool error), partial edits remain in the working tree. Re-invoke `/rename-references <old> to <new>` to resume — the survey will find only remaining matches, and re-applying succeeds because each Edit is targeted.
+If Edit phase is interrupted (user cancels mid-flow, tool error), partial edits remain in the working tree. Re-invoke `/docs-hygiene:rename-references <old> to <new>` to resume — the survey will find only remaining matches, and re-applying succeeds because each Edit is targeted.
 
 ### Concurrent session conflicts
 

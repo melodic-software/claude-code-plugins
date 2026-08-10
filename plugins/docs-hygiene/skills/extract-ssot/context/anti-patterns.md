@@ -8,16 +8,16 @@ Patterns are framed for markdown extraction (the dominant case) but apply to cod
 
 **Pattern.** Heading rename in the extracted file silently breaks all references. Pure-token grep on the OLD heading text returns matches in caller files; nobody updates them; the agent reads the caller's stale citation and either follows a dead link or hallucinates plausible content matching the old heading name.
 
-**Symptom.** Caller text reads `per X.md "Old Heading"`; X.md no longer has an H3 with that exact text. A `/rename-references` sweep would have caught it.
+**Symptom.** Caller text reads `per X.md "Old Heading"`; X.md no longer has an H3 with that exact text. A `/docs-hygiene:rename-references` sweep would have caught it.
 
 **Code/config analog.** Function/constant/anchor rename in the SSOT module breaks every `import`, `using`, or `$ref` that pinned the old name. Same failure shape; the mitigation is the same sweep + IDE rename refactor.
 
 **Mitigation.**
 
 1. Cite by EXACT heading text (markdown), exact identifier (code), exact anchor (config) — never by line number or section number
-2. After ANY heading/identifier/anchor edit in an SSOT, run `/rename-references` immediately — it sweeps all 10 syntactic forms, not just pure-token grep
+2. After ANY heading/identifier/anchor edit in an SSOT, run `/docs-hygiene:rename-references` immediately — it sweeps all 10 syntactic forms, not just pure-token grep
 3. The SSOT file should include a `## Recheck triggers` section — a rename row triggers the sweep
-4. For code: prefer language-aware refactor (IDE / Roslyn / ts-morph) over text grep; combine with `/rename-references` for non-source references (docs, configs)
+4. For code: prefer language-aware refactor (IDE / Roslyn / ts-morph) over text grep; combine with `/docs-hygiene:rename-references` for non-source references (docs, configs)
 
 ## 2. Over-indirection
 
@@ -142,9 +142,9 @@ Patterns are framed for markdown extraction (the dominant case) but apply to cod
 **Mitigation.**
 
 1. The `execute` action converts external skill-internals refs back to `/X` invocations as part of the work, NOT preserved
-2. `scripts/*.sh` is the documented public-API exception — those CAN be cited externally (see `/audit-encapsulation`)
+2. `scripts/*.sh` is the documented public-API exception — those CAN be cited externally (see `/docs-hygiene:audit-encapsulation`)
 3. If the caller's use case has no public action covering it, surface as a side observation (NOT fix-in-passing) — the skill needs an action added before the caller can route through the public API
-4. Detection grep + remediation paths: `/audit-encapsulation`
+4. Detection grep + remediation paths: `/docs-hygiene:audit-encapsulation`
 
 ## 11. Source-of-truth bifurcation (REFUSE trigger)
 
@@ -196,7 +196,7 @@ Patterns are framed for markdown extraction (the dominant case) but apply to cod
 
 1. The `verify` action Gate 2 (pre-existing canonical citation) is the entry point — if it returns `REFUSE-already-cites-canonical` AND the consumer ALSO has a redundant paraphrase nearby, that's the Shape C signal
 2. Run a deletion-only sweep: for each consumer, identify the redundant TL;DR tail; delete; preserve load-bearing directives + per-consumer intentional deltas
-3. No new file. No `/rename-references` sweep (no identifier change). Pure dead-text removal
+3. No new file. No `/docs-hygiene:rename-references` sweep (no identifier change). Pure dead-text removal
 4. **Verbatim source.** `lessons.md` Lesson 9. Canonical example shape: a dozen automation prompts each carried a redundant one-line descriptor tail restating a shared doc that was already canonical with the full content; deleting the tails was correct
 
 **When NOT to apply.**
@@ -209,9 +209,9 @@ Patterns are framed for markdown extraction (the dominant case) but apply to cod
 
 - `decision-framework.md` — when to extract (avoiding patterns 6-9 up front); "Pre-extraction Tier 0 checklist" formalizes #11/#12/#13
 - `citation-form.md` — anti-patterns 1, 4, 5 mitigation contract for markdown call sites; for code/config see SKILL.md "Output type"
-- `/audit-encapsulation` — anti-pattern 10 detection + remediation matrix (separate skill)
+- `/docs-hygiene:audit-encapsulation` — anti-pattern 10 detection + remediation matrix (separate skill)
 - `execution-checklist.md` — per-phase sanity checks that catch each anti-pattern
 - `lessons.md` — empirical batch-derived patterns; #11 ↔ Lesson 8, #12 ↔ Lesson 6, #13 ↔ Lesson 9
 - `actions/verify.md` — refuse-fast gates implementing anti-patterns #11 (Gate 4), #12 (Gate 3), #13 (Gate 2 entry-point); Gates 1/5/6 implement Lessons 1/3+4/5 (informational, not refuse-anti-patterns)
 - SKILL.md "Evidence discipline" — verify-before-acting for citation resolution (#5); Tier 0 evidence requirement for the #11/#12/#13 detection greps
-- `/rename-references` — the 10-pattern sweep that catches #1, #4, #5
+- `/docs-hygiene:rename-references` — the 10-pattern sweep that catches #1, #4, #5

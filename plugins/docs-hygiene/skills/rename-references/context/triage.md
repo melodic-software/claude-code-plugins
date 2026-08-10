@@ -136,7 +136,7 @@ Auto-exclude archived/completed work notes and frozen records of past work (fini
 
 Claude Code auto-memory entries at `~/.claude/projects/*/memory/*.md` and `MEMORY.md` indices describe past renames as part of the user's institutional knowledge. They are intentionally append-only historical record.
 
-Auto-exclude all memory paths from sweeps. If user explicitly wants to rename within memory (rare), they must opt in: `/rename-references <old> to <new> --include-memory`.
+Auto-exclude all memory paths from sweeps. If user explicitly wants to rename within memory (rare), they must opt in: `/docs-hygiene:rename-references <old> to <new> --include-memory`.
 
 ## Reporting bucket counts
 

@@ -24,7 +24,7 @@ Default to high confidence and accuracy; verify specifics and edge cases before 
 ## Task tracking
 
 For non-trivial work (3+ stages), create tasks at the START, update status as you go. Tasks make
-progress visible; for state that must survive `/clear`, use the durable checklist or a `/handoff`
+progress visible; for state that must survive `/clear`, use the durable checklist or a `/session-flow:handoff`
 save-point — in-memory tasks do not persist.
 
 ## Current information is non-negotiable

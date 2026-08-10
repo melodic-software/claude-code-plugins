@@ -8,14 +8,14 @@ Per `../SKILL.md` "Auto-detect default", argument resolution at invocation:
 
 | Invocation | Target set | Action |
 |---|---|---|
-| `/compress` (empty arg) AND uncommitted `.md` exist | files from `git status --porcelain` matching `*.md` | default action over each, batch |
-| `/compress` (empty arg) AND clean tree | (none) | friendly no-op exit 0 ("No uncommitted .md files. Pass file/dir target.") |
-| `/compress <file.md>` | single file | default action, single-file |
-| `/compress <dir>` | every `.md` under `<dir>` (recursive); filenames sorted lexically for determinism | default action, batch |
-| `/compress audit` (empty rest) AND uncommitted `.md` exist | files from `git status --porcelain` matching `*.md` | audit action over each |
-| `/compress audit` (empty rest) AND clean tree | (none) | friendly no-op exit 0 |
-| `/compress audit <file.md>` | single file | audit action |
-| `/compress audit <dir>` | every `.md` under `<dir>`; lexical sort | audit action, batch |
+| `/docs-hygiene:compress` (empty arg) AND uncommitted `.md` exist | files from `git status --porcelain` matching `*.md` | default action over each, batch |
+| `/docs-hygiene:compress` (empty arg) AND clean tree | (none) | friendly no-op exit 0 ("No uncommitted .md files. Pass file/dir target.") |
+| `/docs-hygiene:compress <file.md>` | single file | default action, single-file |
+| `/docs-hygiene:compress <dir>` | every `.md` under `<dir>` (recursive); filenames sorted lexically for determinism | default action, batch |
+| `/docs-hygiene:compress audit` (empty rest) AND uncommitted `.md` exist | files from `git status --porcelain` matching `*.md` | audit action over each |
+| `/docs-hygiene:compress audit` (empty rest) AND clean tree | (none) | friendly no-op exit 0 |
+| `/docs-hygiene:compress audit <file.md>` | single file | audit action |
+| `/docs-hygiene:compress audit <dir>` | every `.md` under `<dir>`; lexical sort | audit action, batch |
 
 Flags `--force` and `--keep-snapshot` apply per `../SKILL.md` "Action router". Position-independent within the arg list.
 

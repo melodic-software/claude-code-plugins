@@ -61,7 +61,7 @@ rules; the classifier's shapes and tiers above are the skill's built-in baseline
 
 - **Read-only.** No `Edit`, no `Write`, no mutating `Bash` ops. The author owns every deletion.
 - **Tier semantics.** Tier 1 = residue to remove; Tier 2 = review needed (a ticket reference may be a legitimate `TODO`).
-- **Code files only.** Markdown is `/audit-noise`'s territory and is skipped; a `.md` target yields no findings here.
+- **Code files only.** Markdown is `/docs-hygiene:audit-noise`'s territory and is skipped; a `.md` target yields no findings here.
 - **Comment-scoped detection.** Only the comment portion of a line is classified — residue-shaped words in code (identifiers, string literals) are not flagged.
 - **`TODO(#issue)` is sanctioned.** A `TODO` / `FIXME` marker tracking real work is never flagged as ticket residue.
 - **Opt-out markers respected.** `comment-residue-ignore` on a line (or the line before it) skips it.
@@ -93,7 +93,7 @@ Total: <N> file(s) audited, <T1> Tier 1, <T2> Tier 2 findings.
 
 - **Not "delete all comments."** It targets residue, not comments that carry a non-obvious why or an interface/design-intent contract — those stay.
 - **Not `/code-tidying:tidy`.** `tidy` APPLIES structural tidyings (including Beck's "Delete Redundant Comment" for comments that restate the code); `audit-comment-residue` is a read-only CLASSIFIER for the out-of-context residue class. Different concern, different mode.
-- **Not `/audit-noise`.** `/audit-noise` owns markdown noise; this owns code-comment residue. Neither touches the other's surface.
+- **Not `/docs-hygiene:audit-noise`.** `/docs-hygiene:audit-noise` owns markdown noise; this owns code-comment residue. Neither touches the other's surface.
 - **Not an Edit operation.** Read-only: it surfaces findings; the author applies deletions.
 
 ## Sources

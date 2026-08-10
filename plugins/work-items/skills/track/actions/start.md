@@ -42,7 +42,7 @@ Claim a work item through the seam (assignee + lease record).
 
 1. **Confirm:** "Claimed **`<id>`**: {title}. Ready to work — follow the project's development workflow."
 
-1. **Suggest branch name.** Signal the closing-keyword link upstream so `/pull-request create` can auto-inject `Closes #N` from the branch parse. The agent NEVER runs `git checkout` itself; it emits the command for the user.
+1. **Suggest branch name.** Signal the closing-keyword link upstream so `/source-control:pull-request create` can auto-inject `Closes #N` from the branch parse. The agent NEVER runs `git checkout` itself; it emits the command for the user.
 
    **Derive the branch `<type>` vocabulary** (the commit-layer prefix — `feat`/`fix`/`chore`/…) from the item's **issue type**. Prefer the native GitHub Issue Type when present: `Bug` → `fix`, `Feature` → `feat`, `Task` → `chore`. Fall back to a `type:` label (personal / non-org repos, or a not-yet-migrated org item): the coarse long-form labels map like the native types — `type: bug` → `fix`, `type: feature` → `feat`, `type: task` → `chore`; a legacy commit-style label maps by Conventional Commits priority — `feat > fix > refactor > docs > chore > test > build > perf`, first match wins, strip the `type:` prefix. Default to `chore` when neither is present.
 
@@ -94,12 +94,12 @@ Claim a work item through the seam (assignee + lease record).
 
    - **`CURRENT_N` == claimed `<N>`** → acknowledge: "Already on `<current-branch>` — branch matches claimed #N. No rename needed." Skip prompt. Done.
    - **`CURRENT_N` is a different number** → multi-claim 3-option (below).
-   - **`CURRENT_N` empty** (no number on current branch) → present bare suggestion: "Suggest branch `<type>/<N>-<slug>`. Switch? (yes / no — orphan-PR path)". On `yes`, emit `git checkout -b <type>/<N>-<slug> <base-ref>` for the user. On `no`, continue on current branch — `/pull-request create` falls through to its interactive Closes-keyword prompt.
+   - **`CURRENT_N` empty** (no number on current branch) → present bare suggestion: "Suggest branch `<type>/<N>-<slug>`. Switch? (yes / no — orphan-PR path)". On `yes`, emit `git checkout -b <type>/<N>-<slug> <base-ref>` for the user. On `no`, continue on current branch — `/source-control:pull-request create` falls through to its interactive Closes-keyword prompt.
 
    **Multi-claim 3-option** — when on `<other-type>/<OTHER>-<other-slug>` and just claimed #N (different item):
 
    1. **Switch to `<type>/<N>-<slug>`** — WARN: uncommitted work on the current branch must be committed or stashed first; the agent never runs `git stash` on a shared branch without confirming. Emit `git checkout -b <type>/<N>-<slug> <base-ref>` for the user.
-   1. **Stay on current branch and cover both in one PR** — `/pull-request create` will inject `Closes #<OTHER>` + `Closes #<N>` at PR-time via its multi-issue prompt.
+   1. **Stay on current branch and cover both in one PR** — `/source-control:pull-request create` will inject `Closes #<OTHER>` + `Closes #<N>` at PR-time via its multi-issue prompt.
    1. **Skip** — decide later; continue on current branch without rename.
 
 ## Notes

@@ -21,7 +21,7 @@ Arguments: `$ARGUMENTS`
 
 Design exploration answers WHAT before `/planning:plan` answers HOW. Without it, implementation plans are built on unexamined assumptions — the wrong types, wrong boundaries, wrong package topology: the shape **underspecification** takes once the task contract is set but the design is not. This skill structures the exploratory work so that every `/planning:plan` plan starts from a design the user has validated through iterative discussion.
 
-This is the step between research and planning: exploration maps existing code, research gathers external facts, this skill synthesizes both into a concrete design, and `/planning:plan` plans implementation of that design. Upstream: when the PROBLEM itself is still rough — no chosen approach to design — diverge first via `/brainstorm` (cheapest→most-ambitious candidates, user reacts), then design the direction that resonated.
+This is the step between research and planning: exploration maps existing code, research gathers external facts, this skill synthesizes both into a concrete design, and `/planning:plan` plans implementation of that design. Upstream: when the PROBLEM itself is still rough — no chosen approach to design — diverge first via `/planning:brainstorm` (cheapest→most-ambitious candidates, user reacts), then design the direction that resonated.
 
 The depth of design exploration scales to the work:
 
@@ -67,7 +67,7 @@ Parse `$ARGUMENTS` for scope and action:
 
 Design exploration is iterative, not strictly sequential. Phases may interleave. Track which phases have produced artifacts and which have outstanding questions.
 
-All artifacts live in `<contract_dir>/<topic-slug>/design/` (default `docs/topics/`) — the topic's contract slice, committed on the task branch (under `contract_tier: local` it joins the memory slice): the gate files (`design-threads.md`, `design-resolution.md`) and the working design exploration docs travel together, because `/planning:plan`'s gate and any fresh worktree or clone must see them. Roots, tier, and precedence resolve per the topic-docs binding [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md). Derive `<topic-slug>` from the task or branch name (kebab-case, ≤40 chars; shared with `/interview` and `/planning:plan`). Skip artifact creation for read-only actions (`status`).
+All artifacts live in `<contract_dir>/<topic-slug>/design/` (default `docs/topics/`) — the topic's contract slice, committed on the task branch (under `contract_tier: local` it joins the memory slice): the gate files (`design-threads.md`, `design-resolution.md`) and the working design exploration docs travel together, because `/planning:plan`'s gate and any fresh worktree or clone must see them. Roots, tier, and precedence resolve per the topic-docs binding [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md). Derive `<topic-slug>` from the task or branch name (kebab-case, ≤40 chars; shared with `/planning:interview` and `/planning:plan`). Skip artifact creation for read-only actions (`status`).
 
 ### Phase 1: Problem Space Decomposition
 
@@ -187,16 +187,16 @@ The in-session shortcut to the design→plan gate. Delegate to `/planning:design
 - **External research** — that's the research capability (this skill synthesizes research results into design decisions)
 - **UI/UX design** — use dedicated frontend design and UI/UX tooling
 - **Domain event workshops** — a dedicated EventStorming-style capability covers that methodology; this skill covers broader design and may suggest it within module design
-- **Product intent** — that's `/prd` (problem, users, success metrics)
-- **Intent contract** — that's `/interview` (goal, constraints, acceptance criteria)
+- **Product intent** — that's `/planning:prd` (problem, users, success metrics)
+- **Intent contract** — that's `/planning:interview` (goal, constraints, acceptance criteria)
 
 ## Relationship to other skills
 
 | Skill | Relationship |
 |-------|-------------|
-| `/interview` | **Before.** `/interview` locks the brief (scope + constraints). `/design` explores the solution space within those constraints |
+| `/planning:interview` | **Before.** `/planning:interview` locks the brief (scope + constraints). `/design` explores the solution space within those constraints |
 | `/domain-driven-design:curate-language` | **During.** Owns active project-glossary updates whenever design resolves domain language; it does not own type or boundary design |
 | `/discovery:explore` (if installed) | **Before.** Exploration maps existing code. `/design` creates what SHOULD exist |
 | `/discovery:research` (if installed) | **Before + parallel.** Research gathers external facts. `/design` synthesizes them. Deferred research items can run in parallel |
-| `/design-handoff` | **The gate.** Owns the design→plan gate criteria and the plan-ready summary; this skill's `handoff` action delegates to it |
+| `/planning:design-handoff` | **The gate.** Owns the design→plan gate criteria and the plan-ready summary; this skill's `handoff` action delegates to it |
 | `/planning:plan` | **After the handoff gate.** `/design` produces WHAT. `/planning:plan` produces HOW (implementation plan with phases). When design artifacts exist, `/planning:plan` consumes them instead of re-deriving design inline |

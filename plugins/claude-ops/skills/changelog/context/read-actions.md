@@ -12,19 +12,19 @@ older than that window will not be in the response no matter which channel is us
 with a range- or anchor-scoped request, or `curl` the `.md` and slice locally. Never report a
 version "absent from the changelog" on a truncated fetch.
 
-**With version arg** (`/changelog fetch v2.1.152`):
+**With version arg** (`/claude-ops:changelog fetch v2.1.152`):
 
 1. WebFetch `https://code.claude.com/docs/en/changelog.md`
 2. Extract section matching version
 3. Display formatted
 
-**Without version arg** (`/changelog fetch`):
+**Without version arg** (`/claude-ops:changelog fetch`):
 
 1. WebFetch changelog URL
 2. Extract most recent version section
 3. Display formatted
 
-**Multiple versions** (`/changelog fetch v2.1.150..v2.1.152`):
+**Multiple versions** (`/claude-ops:changelog fetch v2.1.150..v2.1.152`):
 
 1. Fetch and display all versions in range
 

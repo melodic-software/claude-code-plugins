@@ -3,7 +3,7 @@
 Copy this checklist into the topic's memory-tier slice as `<memory_dir>/<slug>/workflow-checklist.md`
 (default `.work/`; resolved per the workflow skill's "Consumer conventions"). Tick each box as the corresponding
 stage produces its output. The ticked artifact is the durable proof-of-stage for `/clear` resume
-and `/retro` analysis.
+and `/session-flow:retro` analysis.
 
 ## Stages
 
@@ -17,7 +17,7 @@ and `/retro` analysis.
 - [ ] 5. Test — affected suite green; new behavior covered
 - [ ] 6. Review — diff reviewed against repo conventions; blocking findings resolved
 - [ ] 7. Verify — outcome matches intent, with evidence (measurements where improvement is claimed)
-- [ ] 8. Retrospective — `/retro` run; learnings codified
+- [ ] 8. Retrospective — `/session-flow:retro` run; learnings codified
 
 ## PR lifecycle (after step 7)
 
@@ -39,4 +39,4 @@ stages 1, 2, 3, 6, or 7 for code changes.
    AND produced its artifact.
 3. At `/clear` or session end, the ticked state is durable — the next session reads the file to
    resume.
-4. `/retro` analyzes ticks + skips for codification opportunities.
+4. `/session-flow:retro` analyzes ticks + skips for codification opportunities.

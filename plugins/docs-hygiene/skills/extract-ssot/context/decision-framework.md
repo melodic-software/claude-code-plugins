@@ -33,7 +33,7 @@ Any ONE failure here = keep inline. Don't extract just because you can.
 
 After the 6-test gate passes a-priori, run these 6 empirical checks BEFORE writing any SSOT file. Each maps to a `context/lessons.md` lesson + an `actions/verify.md` gate. They're additive to the 6+5 framework above — the framework is "is this extractable in principle?", this checklist is "should we actually extract right now, given how the codebase already cites things?".
 
-Run via `/extract-ssot verify <cluster>` for a one-shot result, or apply manually for fast informal checks.
+Run via `/docs-hygiene:extract-ssot verify <cluster>` for a one-shot result, or apply manually for fast informal checks.
 
 | # | Check | Lesson | Verify gate | Refuse signal |
 |---|-------|--------|-------------|---------------|
@@ -60,11 +60,11 @@ The `unwind` action implements this. Trigger signal: the SSOT has 5+ callers pas
 
 ## Output type: rule file vs skill
 
-Once the 6-test gate passes, choose the SSOT shape. **First check whether an existing file already owns the concept** (top row) — if so, consolidate into it rather than creating anything. The first four rows are the markdown branch this skill ships a citation contract for; the bottom three rows are escape-hatch cases the skill flags during `identify` but defers to language-idiomatic tooling (compiler / linter / IDE refactor / schema-validate are the rename safety net there, not this skill's `/rename-references` sweep).
+Once the 6-test gate passes, choose the SSOT shape. **First check whether an existing file already owns the concept** (top row) — if so, consolidate into it rather than creating anything. The first four rows are the markdown branch this skill ships a citation contract for; the bottom three rows are escape-hatch cases the skill flags during `identify` but defers to language-idiomatic tooling (compiler / linter / IDE refactor / schema-validate are the rename safety net there, not this skill's `/docs-hygiene:rename-references` sweep).
 
 | Shape | Target | Trigger signals |
 |-------|--------|-----------------|
-| **Consolidate into existing SSOT home** (markdown) | The existing rule / skill body / doc that already owns the concept — extend it only where a consumer carries nuance the home lacks; create no new file | An existing canonical already documents the concept AND consumers recap it inline instead of citing. Positive output-type form of what `verify` Gate 2 (`REFUSE-already-cites-canonical` fires only when ALL sites already cite) and anti-pattern Shape C (dedup-by-deletion) describe remedially; `identify` flags it as `edit-existing-rule` / `trim-to-citation`. Migration = add citations + delete the recaps; the `/rename-references` sweep is a no-op unless a heading changes |
+| **Consolidate into existing SSOT home** (markdown) | The existing rule / skill body / doc that already owns the concept — extend it only where a consumer carries nuance the home lacks; create no new file | An existing canonical already documents the concept AND consumers recap it inline instead of citing. Positive output-type form of what `verify` Gate 2 (`REFUSE-already-cites-canonical` fires only when ALL sites already cite) and anti-pattern Shape C (dedup-by-deletion) describe remedially; `identify` flags it as `edit-existing-rule` / `trim-to-citation`. Migration = add citations + delete the recaps; the `/docs-hygiene:rename-references` sweep is a no-op unless a heading changes |
 | **Rule file** (markdown) | Wherever the consuming repository's own conventions place shared rules — default `.claude/rules/<topic>.md` (always-loaded) OR a path-scoped rule file | Vocabulary, IF-THEN rules, hard constraints, ≤500 lines, consumers cite by H3 heading and don't need procedural orchestration |
 | **New skill** (markdown + workflow) | `.claude/skills/<name>/SKILL.md`, authored via the consumer's skill-authoring workflow (e.g. the skill-creator plugin) | Workflow with 3+ discrete actions, has its own anti-patterns/evals, consumers invoke `/<name>` to run the workflow rather than read content |
 | **Extend existing skill** | New action on an existing action-router skill | The workflow maps cleanly onto an existing skill's concern — same domain, same triggers, same output surface — rather than warranting a new top-level skill |

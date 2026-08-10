@@ -1,6 +1,6 @@
 # Worktree `cleanup` — full 5-step procedure
 
-Full detail for the `/worktree cleanup [--dry-run]` action. SKILL.md carries the headline plus the safety invariants; this file carries the complete step-by-step (prune → identify → present → execute → verify), including the Windows file-lock handling and the user-emitted branch deletion.
+Full detail for the `/source-control:worktree cleanup [--dry-run]` action. SKILL.md carries the headline plus the safety invariants; this file carries the complete step-by-step (prune → identify → present → execute → verify), including the Windows file-lock handling and the user-emitted branch deletion.
 
 Remove stale worktrees, orphaned metadata, and branches from merged PRs.
 
@@ -56,7 +56,7 @@ Collect the stranded-work record in the same pass, per `status.md`'s data-collec
 - **Build servers** holding compiled output — e.g. `dotnet build-server shutdown` (.NET / VBCSCompiler + MSBuild), Gradle `--stop`, or your stack's equivalent. They hold bin/output DLLs open.
 - **Long-lived daemons / MCP servers** started inside the worktree — identify processes whose executable path or command line is under the candidate directory, and stop ONLY those (never processes belonging to other live worktrees).
 
-Skipping 4a is the usual reason a previous `/worktree cleanup` left husks behind — Step 5 then reports them honestly rather than hiding the failure.
+Skipping 4a is the usual reason a previous `/source-control:worktree cleanup` left husks behind — Step 5 then reports them honestly rather than hiding the failure.
 
 ### Step 4b: Remove the worktree
 
@@ -90,7 +90,7 @@ Offer the non-destructive resolution first — `git -C <path> push -u origin HEA
 **2. Carried-ignored-file guard:** `git worktree remove`
 succeeds on a worktree whose only edits are gitignored files — `status --porcelain` does not show
 them, so plain removal silently discards them. When the repo root has a `.worktreeinclude`, run
-the same per-pattern comparison as `/pull-request create`'s pre-flight — expand each pattern from
+the same per-pattern comparison as `/source-control:pull-request create`'s pre-flight — expand each pattern from
 the worktree toplevel (skip unmatched globs) AND from `MAIN_ROOT` — before removing. Differing or
 new carried file → offer the copy-to-main sync; main-side file ABSENT in the worktree → offer
 removing main's copy only on explicit confirmation of a deliberate deletion (default keep — the
@@ -138,4 +138,4 @@ Report honestly — never count a husk as removed:
 - **Fully removed** — directory gone AND metadata pruned.
 - **Unregistered, husk remains** — `git worktree list` is clean but the directory is still on disk (a lock survived Step 4a). Surface the path; the user removes it after closing the holding process.
 
-Report: "Removed N worktrees (M fully deleted, K husks remaining — paths above). Run `/worktree status` to verify."
+Report: "Removed N worktrees (M fully deleted, K husks remaining — paths above). Run `/source-control:worktree status` to verify."

@@ -158,21 +158,21 @@ The project's development workflow — a `/workflow` skill, a CLAUDE.md workflow
 convention — applies to every item worked via `/work-items:work`; the `work` skill chains its full
 step sequence.
 
-### With `/retro`
+### With `/session-flow:retro`
 
 The retrospective skill's Phase 3 surfaces "Issue candidates" — deferred research, discovered gaps,
 recurring recheck updates. Approved items use `/work-items:track add`. Mid-session learnings can be
-captured with `/retro codify`.
+captured with `/session-flow:retro codify`.
 
-### With `/pull-request`
+### With `/source-control:pull-request`
 
 Branch name `<type>/<N>-<short-slug>` (proposed by `/work-items:track start` / `/work-items:work`)
-carries the item number forward. `/pull-request create` parses the branch name and injects the
+carries the item number forward. `/source-control:pull-request create` parses the branch name and injects the
 closing keyword into the PR body; the pre-create gate verifies the keyword (or an opt-out marker) is
-present before creating the PR. Closing-keyword shape and PR body shape are owned by `/pull-request`.
+present before creating the PR. Closing-keyword shape and PR body shape are owned by `/source-control:pull-request`.
 
 `/work-items:track done --pr <N>` is the belt-and-suspenders path for manual PR flows where
-`/pull-request create` was not used: it verifies keyword presence on the unmerged PR body or falls
+`/source-control:pull-request create` was not used: it verifies keyword presence on the unmerged PR body or falls
 back to closing the item when the PR has already merged (mechanics: the GitHub adapter README "PR
 closing-keyword mechanics").
 
@@ -185,7 +185,7 @@ agent sessions.
 
 ### End-of-session check
 
-At end of session, alongside `/retro`, check `/work-items:track due` to see if any recurring items
+At end of session, alongside `/session-flow:retro`, check `/work-items:track due` to see if any recurring items
 need attention.
 
 ## Gotchas
