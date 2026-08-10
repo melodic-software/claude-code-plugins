@@ -190,6 +190,24 @@ block_title() {
 
 # Same repo-dir/sequencer helpers as block-noncanonical-commit — an in-progress
 # sequencer commit carries a prepared message and is never content-gated.
+#
+# CALLERS MUST PASS GIT'S OWN GLOBALS ONLY — the slice from the resolved git token
+# (`gi`) up to the subcommand, preceded by any wrapper chdir replayed as leading
+# `-C` words. The full reasoning for that contract, and for why the wrapper replay
+# is a separate input rather than something this walk could find for itself, is in
+# `block-noncanonical-commit.sh`'s docblock on its own `effective_dir`; the sibling
+# mechanic guard `block-dangerous-git.sh` binds `collect_git_locating_opts` to the
+# same boundary. In short: a 0-based scan reads `-C` words that are not git's, and
+# a slice that starts at `gi` cannot see a relocation a wrapper really performed,
+# so the caller must supply both halves.
+#
+# This guard was the last caller still scanning the WHOLE argv, which invented
+# chdirs that were not there — the opposite failure from the sibling's. `env -u -C
+# git <alias> …` moves nothing (GNU env's `-u` consumes `-C` as the variable name),
+# yet the every-word scan composed `<cwd>/git` and read that directory's aliases;
+# the guard then never learned the real subcommand and the convention went
+# unenforced. A post-subcommand `-C` is `--reuse-message`, not a directory, and the
+# distinction is purely positional.
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 effective_dir() {
   local base="${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}" i n=$# arg
@@ -279,6 +297,18 @@ check_segment() {
   w=("${HOOK_GIT_RESOLVED_WORDS[@]}")
   nseg=${#w[@]}
 
+  # A wrapper's chdir happens before git starts, so it composes ahead of git's
+  # own globals — spelled as leading `-C` words so the one path-composition rule
+  # in effective_dir covers both. hook::git_resolve_index is the only parser that
+  # can tell a real `env -C <dir>` from the `-C` in `env -u -C git`, which moves
+  # nothing; the slice below deliberately cannot see either, so this replays what
+  # the resolver found.
+  local -a wrapper_cd=()
+  local wdir
+  for wdir in ${HOOK_GIT_RESOLVED_WRAPPER_DIRS[@]+"${HOOK_GIT_RESOLVED_WRAPPER_DIRS[@]}"}; do
+    wrapper_cd+=(-C "$wdir")
+  done
+
   hook::git_resolve_subcommand "$gi" "${w[@]}" || return 0
   sub=$HOOK_GIT_SUB
   sub_idx=$HOOK_GIT_SUB_IDX
@@ -315,7 +345,8 @@ check_segment() {
     fi
     if ((inline_alias_handled == 0)) && [[ "$sub" != "commit" ]]; then
       local pexp
-      pexp=$(git -C "$(effective_dir "${w[@]}")" config --get "alias.$sub" 2>/dev/null)
+      pexp=$(git -C "$(effective_dir ${wrapper_cd[@]+"${wrapper_cd[@]}"} "${w[@]:gi:sub_idx-gi}")" \
+        config --get "alias.$sub" 2>/dev/null)
       if [[ -n "$pexp" ]]; then
         if [[ "$pexp" == '!'* ]]; then
           local preparse pa
@@ -357,7 +388,8 @@ check_segment() {
 
   ((stdin_form)) || return 0
   ((exempt)) && return 0
-  sequencer_in_progress "$(effective_dir "${w[@]}")" && return 0
+  sequencer_in_progress \
+    "$(effective_dir ${wrapper_cd[@]+"${wrapper_cd[@]}"} "${w[@]:gi:sub_idx-gi}")" && return 0
 
   local subj=""
   if [[ "$TOOL_NAME" == "PowerShell" ]]; then

@@ -124,6 +124,66 @@ run "configured alias commit: violating subject blocked" "$r" \
 run "configured alias commit: conforming subject allowed" "$r" \
   $'git qc -F - --cleanup=verbatim <<\'EOF\'\nABC-5: fine\nEOF' 0
 
+# --- effective_dir is git's own slice, plus the wrapper's replayed chdir -------
+# The alias lookup is the reachable consumer: it has no stdin-form gate and no
+# exemption gate, and it fails OPEN — reading the wrong repository's config
+# misses the expansion, so the guard never learns the subcommand is `commit`.
+#
+# `git commit -C HEAD` is deliberately NOT the control here. `-C` sets exempt=1
+# and the hook returns before effective_dir is ever called, so that invocation
+# answers "allowed" on both the old and the new code and would read as already
+# fixed. The positional case is probed through the alias lookup instead.
+
+# A real git repo nested at <parent>/<name>, with a team convention of its own.
+subrepo() {
+  local d="$1/$2"
+  mkdir -p "$d"
+  git -C "$d" init -q -b main
+  mkdir -p "$d/.claude"
+  printf '%s\n' "$TICKET" >"$d/.claude/source-control.md"
+  printf '%s' "$d"
+}
+
+# GNU env's `-u NAME` consumes the next word, so in `env -u -C git …` the `-C` is
+# the variable to unset and git never moves. Scanning every word composed
+# <cwd>/git and read that directory's aliases instead of the real repository's.
+r="$(newrepo "$TICKET")"
+git -C "$r" config alias.qc commit
+run "env -u -C git <alias>: alias resolves in the TRUE repo (blocked)" "$r" \
+  $'env -u -C git qc -F - --cleanup=verbatim <<\'EOF\'\njunk subject\nEOF' 2
+run "env -u -C git <alias>: conforming subject still allowed" "$r" \
+  $'env -u -C git qc -F - --cleanup=verbatim <<\'EOF\'\nABC-5: fine\nEOF' 0
+
+# The mirror, flipping the other way: the alias exists ONLY in a real repository
+# at <cwd>/git. Composing that directory blocked on an alias git would never
+# expand; reading the true repository is correctly silent.
+r="$(newrepo "$TICKET")"
+d="$(subrepo "$r" git)"
+git -C "$d" config alias.qc commit
+run "env -u -C git <alias>: decoy repo at <cwd>/git is not read" "$r" \
+  $'env -u -C git qc -F - --cleanup=verbatim <<\'EOF\'\njunk subject\nEOF' 0
+
+# A `-C` AFTER the subcommand is an argument, not a chdir. The alias ends in `--`
+# so the trailing `-C dec` git appends to the expansion cannot re-trigger the
+# reuse-message exemption in the recursed frame — without that, the case answers
+# "allowed" on both trees for a reason unrelated to effective_dir.
+r="$(newrepo "$TICKET")"
+d="$(subrepo "$r" dec)"
+git -C "$d" config alias.qs 'commit -F - --cleanup=verbatim --'
+run "post-subcommand -C is not a chdir (decoy repo not read)" "$r" \
+  $'git qs -C dec <<\'EOF\'\njunk subject\nEOF' 0
+
+# A genuine wrapper chdir IS a relocation, and the slice cannot see it — so it is
+# replayed from HOOK_GIT_RESOLVED_WRAPPER_DIRS, matching what #2100 established
+# for block-dangerous-git. The alias lives only in the moved-to repository.
+r="$(newrepo "$TICKET")"
+d="$(subrepo "$r" inner)"
+git -C "$d" config alias.qc commit
+run "env -C <dir> git <alias>: wrapper chdir is replayed (blocked)" "$r" \
+  $'env -C inner git qc -F - --cleanup=verbatim <<\'EOF\'\njunk subject\nEOF' 2
+run "env -C <dir> git <alias>: conforming subject still allowed" "$r" \
+  $'env -C inner git qc -F - --cleanup=verbatim <<\'EOF\'\nABC-5: fine\nEOF' 0
+
 # --- kill switch ---------------------------------------------------------------
 r="$(newrepo "$TICKET")"
 json=$(jq -n --arg c "$BAD_COMMIT" --arg d "$r" \
