@@ -82,7 +82,7 @@ esac
 # session.
 hook::jq_fields "$INPUT" '.tool_name' '.tool_input.new_string' \
   '.tool_input.content' '.tool_input.replace_all // false | tostring' \
-  '[.tool_response.structuredPatch[]?.lines[]?
+  '[(.tool_response | objects | .structuredPatch)[]?.lines[]?
     | select(type == "string" and startswith("+")) | .[1:]] | join("\n")' || exit 0
 TOOL="${HOOK_JQ_FIELDS[0]}"
 # Edit's `replace_all` (documented at
@@ -109,10 +109,19 @@ TOOL="${HOOK_JQ_FIELDS[0]}"
 # `structuredPatch` is `Array<{oldStart, oldLines, newStart, newLines, lines:
 # string[]}>` (<https://code.claude.com/docs/en/agent-sdk/typescript>, "Edit").
 #
-# NOT verified: a live PostToolUse payload carrying the field was not observed on
-# the authoring machine — no hook-event capture existed to read. The schema is
-# documented and corroborated by real Edit records in Claude Code's own transcript
-# JSONL, but if the field never arrives the filter below simply never engages.
+# OBSERVED, not merely documented: an independent reviewer captured a live
+# PostToolUse payload (a temp settings.json dumping stdin, driven by a headless
+# claude 2.1.225 session) and `tool_response` arrived as an OBJECT carrying
+# `filePath newString oldString originalFile replaceAll structuredPatch
+# userModified`. An object, not the serialized string `PostToolBatch` passes — the
+# distinction the hooks reference draws, and the one shape that would have broken
+# the filter below. `structuredPatch` was complete rather than truncated at 42
+# replacement sites in a 300-line file.
+#
+# The read is SHAPE-TOLERANT anyway (`objects` in the jq filter): a non-object
+# `tool_response` yields an empty witness and leaves the filter inert, instead of
+# erroring hook::jq_fields into its `|| exit 0` and silencing the whole guard —
+# a risk the pre-gate code did not carry, because it never touched the field.
 #
 # Kept as the LINE TEXTS rather than line numbers on purpose. Numbers would be
 # wrong the moment another PostToolUse hook reformats the file between the write
@@ -443,16 +452,27 @@ anchor_offsets() {
 #      one everywhere else, and `replace_all` is exactly where that rule is
 #      suspended — so it is the one branch that needs an external witness.
 #
-# What this does NOT claim, still: the witness is per LINE, so two references on
+# Gate 3 may only ever REMOVE an occurrence when it can positively identify at
+# least one the call wrote. Comparison is whitespace-normalized, and if the
+# witness recognizes no occurrence at all it abstains and the unfiltered set
+# stands. Both exist for the same reason: an earlier-ordered PostToolUse hook can
+# reformat the file between the write and this read — the case the per-line
+# fallback above was built for — and a witness compared to rewritten text would
+# otherwise turn this gate from a filter into a silent mute, dropping a genuinely
+# written reference. Normalization covers the whitespace reflow formatters
+# actually do; the abstain covers everything else.
+#
+# What this does NOT claim, still. The witness is per LINE, so two references on
 # one physical line stand or fall together, and an untouched line whose text
-# duplicates an edited one is kept. A multi-line `new_string` is not filtered at
-# all — its anchor extent spans several lines and matches no single patch line, so
-# the filter would drop every finding rather than narrow them; that shape keeps the
-# unfiltered behaviour. Where `structuredPatch` is absent (an older harness, or any
-# payload without `tool_response`) the filter is inert by construction and the
-# branch behaves exactly as it did before. Reconstruction remains a best effort
-# under an advisory guard, not a proof that every reported line was written by this
-# call — but it no longer reports a line the payload itself says was untouched.
+# duplicates an edited one verbatim is kept — nothing separates two identical
+# lines. A multi-line `new_string` is not filtered at all: its anchor extent spans
+# several lines and matches no single patch line. Where `structuredPatch` is absent
+# (an older harness, or any payload without `tool_response`) the filter is inert by
+# construction. Every one of those degrades to the pre-gate behaviour, which is
+# over-reporting — the direction this guard already accepts — never under-reporting.
+# Reconstruction remains a best effort under an advisory guard, not a proof that
+# every reported line was written by this call; it simply no longer reports a line
+# the payload itself says was untouched.
 #
 # Cost is ONE read of the file and, normally, ONE scan of it — no subprocess per
 # hunk line and no rescan per hunk line either. The `grep` this replaced spawned two
@@ -460,6 +480,48 @@ anchor_offsets() {
 # the per-line rescan, which is anchors TIMES file size and still spent the timeout
 # on a thousand-line hunk. Locating the hunk whole is what removes the factor; the
 # scanning budget bounds the fallback that cannot.
+# The physical line an anchor occurrence sits in: back to the newline before it,
+# forward to the newline after. A reference the edit landed inside is only whole
+# when read from the line, not from the anchor alone — which is why the line is
+# read at all, and why only the part of it the anchor reaches may be kept.
+#
+# Reads the caller's $content, $alen; sets the caller's $line, $hs, $he. Written
+# as a function because Gate 3 needs the line one pass before the span walk does,
+# and computing it twice from two copies of this arithmetic is how the two drift.
+# Call as: anchor_line <offset> -> $line $hs $he
+# shellcheck disable=SC2154  # content/alen/line/hs/he are the caller's frame, per the call contract
+anchor_line() {
+  local off="$1" head tail
+  head="${content:0:off}"
+  head="${head##*$'\n'}"
+  hs=${#head}
+  tail="${content:off+alen}"
+  tail="${tail%%$'\n'*}"
+  he=$((hs + alen))
+  line="${content:off-hs:he+${#tail}}"
+}
+
+# Whitespace-normalized form of <text>, for comparing a line on disk against the
+# line `structuredPatch` recorded at edit time. Tabs become spaces, runs collapse,
+# ends are trimmed.
+#
+# Comparing raw text made Gate 3 undo the reformatting tolerance the fallback
+# above exists to provide: a downstream PostToolUse hook that reflows whitespace
+# leaves the anchor locatable (a literal substring search does not care what
+# surrounds it) while changing the physical line, so a genuinely written reference
+# was dropped. Whitespace is what formatters move; normalizing it keeps the
+# witness usable without weakening what it discriminates, since a DIFFERENT
+# reference's line differs by far more than spacing.
+#
+# No subshell: this runs once per occurrence, and `$(…)` here would fork per line.
+# Call as: norm_ws <text> -> $NORM_WS
+norm_ws() {
+  local s="${1//$'\t'/ }"
+  while [[ "$s" == *"  "* ]]; do s="${s//  / }"; done
+  s="${s#"${s%%[![:space:]]*}"}"
+  NORM_WS="${s%"${s##*[![:space:]]}"}"
+}
+
 reconstruct_partial_edit() {
   [[ "$TOOL" == "Edit" && -f "$FILE" ]] || return 0
   # Pin the locale this function's own scanning runs in, so its matcher semantics
@@ -518,8 +580,8 @@ reconstruct_partial_edit() {
   # text only, never off the bytes on disk.
   content=${content//$'\r'/}
 
-  local ctx="" nspan=0 anchor alen off hs he head tail line cap kib located_whole=0
-  local -a offs=() anchors=()
+  local ctx="" nspan=0 anchor alen off hs he line cap kib located_whole=0
+  local -a offs=() anchors=() keep=()
 
   # Gate 3's witness set: the physical lines `structuredPatch` reports this call as
   # having written, as a hash. Built only where it is consulted — under
@@ -527,12 +589,14 @@ reconstruct_partial_edit() {
   # witness is needed at all. Empty (no `tool_response`, or a patch with no added
   # lines) leaves the filter inert, which is the pre-existing behaviour.
   local -A wrote=()
-  local filter_wrote=0 wl
+  local filter_wrote=0 wl NORM_WS
   if [[ "$REPLACE_ALL" == "true" && -n "$EDIT_WROTE_LINES" ]]; then
     while IFS= read -r wl; do
-      # Keys carry a literal prefix so a patch line reading `@` or `*` cannot
-      # alias bash's own array subscripts on lookup.
-      wrote["L$wl"]=1
+      # Keys are whitespace-normalized, matching how the on-disk line is compared,
+      # and carry a literal prefix so a patch line reading `@` or `*` cannot alias
+      # bash's own array subscripts on lookup.
+      norm_ws "$wl"
+      wrote["L$NORM_WS"]=1
     done <<<"$EDIT_WROTE_LINES"
     ((${#wrote[@]})) && filter_wrote=1
   fi
@@ -577,25 +641,31 @@ reconstruct_partial_edit() {
     # guard that is the right side of the trade — it is degraded far worse by being
     # wrong when it speaks than by staying quiet.
     [[ "$REPLACE_ALL" == "true" ]] || ((${#offs[@]} == 1)) || continue
-    for off in "${offs[@]}"; do
-      # The physical line the anchor sits in: back to the newline before it,
-      # forward to the newline after. A reference the edit landed inside is only
-      # whole when read from the line, not from the anchor alone — which is why
-      # the line is read at all, and why only the part of it the anchor reaches
-      # may be kept.
-      head="${content:0:off}"
-      head="${head##*$'\n'}"
-      hs=${#head}
-      tail="${content:off+alen}"
-      tail="${tail%%$'\n'*}"
-      he=$((hs + alen))
-      line="${content:off-hs:he+${#tail}}"
-      # Gate 3. A MULTI-LINE anchor's extent is not a single physical line, so it
-      # can match no patch line; filtering it would erase every finding instead of
-      # narrowing them, so that shape is passed through unfiltered.
-      if ((filter_wrote)) && [[ "$anchor" != *$'\n'* && -z "${wrote[L$line]:-}" ]]; then
-        continue
-      fi
+
+    # Gate 3, applied BEFORE the span walk so it can abstain as a whole.
+    #
+    # A MULTI-LINE anchor's extent is not a single physical line and can match no
+    # patch line, so that shape is never filtered.
+    keep=("${offs[@]}")
+    if ((filter_wrote)) && [[ "$anchor" != *$'\n'* ]]; then
+      keep=()
+      for off in "${offs[@]}"; do
+        anchor_line "$off"
+        norm_ws "$line"
+        [[ -n "${wrote[L$NORM_WS]:-}" ]] && keep+=("$off")
+      done
+      # ABSTAIN. If the witness recognized NOTHING, it is stale rather than
+      # discriminating — a downstream PostToolUse hook rewrote the lines between
+      # the write and this read, which is the very case the fallback above exists
+      # for. Letting a stale witness exclude every occurrence would turn this gate
+      # into a silent mute. Falling back to the unfiltered set is exactly the
+      # behaviour that shipped before this gate, so the gate can only ever remove
+      # occurrences when it can positively identify at least one the call wrote.
+      ((${#keep[@]})) || keep=("${offs[@]}")
+    fi
+
+    for off in "${keep[@]}"; do
+      anchor_line "$off"
       collect_overlapping_spans "$line" "$hs" "$he"
       ((nspan >= RECONSTRUCT_MAX_SPANS)) && break 2
     done

@@ -399,6 +399,34 @@ assert_contains "replace_all + patch → first genuinely written ref survives" "
 assert_contains "replace_all + patch → second genuinely written ref survives" "$OUT" \
   "UNRESOLVED_SKILL: /alpha:ghost-two"
 
+# Review finding on #2153: Gate 3 must not undo the reformatting tolerance the
+# per-line fallback exists to provide. An earlier-ordered PostToolUse hook that
+# reflows whitespace leaves the anchor locatable — a literal substring search does
+# not care what surrounds it — while changing the physical line, so comparing raw
+# text dropped a genuinely written reference. The target below carries the extra
+# internal spacing a formatter would leave; the patch keeps the original spacing.
+REFLOW="$REPO/replall-reflow.md"
+printf 'Run  `/alpha:ghost`  now.\nLegacy `/alpha:ghost-old` stays.\n' >"$REFLOW"
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(patch_one "$REFLOW")" 2>&1)
+assert_contains "reflowed line → the written reference still surfaces" \
+  "$OUT" 'UNRESOLVED_SKILL: /alpha:ghost (no such skill'
+# ...and the suppression is not simply switched off by the reflow: the untouched
+# reference on an unreformatted line is still excluded in the same run.
+assert_absent "reflowed line → the untouched reference is still suppressed" \
+  "$OUT" "/alpha:ghost-old"
+
+# The abstain rule. When the witness recognizes NO occurrence — a formatter that
+# rewrote more than spacing — Gate 3 must fall back to the unfiltered set rather
+# than mute the advisory entirely. Both references come back, which is exactly the
+# pre-gate behaviour and the direction this guard accepts.
+STALE="$REPO/replall-stale.md"
+printf -- '- Run `/alpha:ghost` now (moved).\nLegacy `/alpha:ghost-old` stays.\n' >"$STALE"
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(patch_one "$STALE")" 2>&1)
+assert_contains "stale witness → written reference still reported" \
+  "$OUT" 'UNRESOLVED_SKILL: /alpha:ghost (no such skill'
+assert_contains "stale witness → gate abstains rather than muting" \
+  "$OUT" "UNRESOLVED_SKILL: /alpha:ghost-old"
+
 # A hunk that already carries a full command is scanned directly.
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$PARTIAL2" 'Run `/alpha:ghost-three` now.')" 2>&1)
 assert_contains "full-command hunk → scanned directly" "$OUT" \

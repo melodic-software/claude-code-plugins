@@ -33,13 +33,31 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   imprecision runs in the safe direction: an untouched line whose text duplicates an edited one is
   kept, and two references sharing one physical line stand or fall together.
 
+  Gate 3 may only ever REMOVE an occurrence when it can positively identify at least one the call
+  wrote. Found in review: comparing the on-disk line to the patch's line verbatim undid the
+  reformatting tolerance the per-line fallback exists to provide. An earlier-ordered PostToolUse hook
+  that reflows whitespace leaves the anchor locatable — a literal substring search does not care what
+  surrounds it — while changing the physical line, so a genuinely written reference was silently
+  dropped. Two corrections: comparison is whitespace-normalized, covering the reflow formatters
+  actually perform; and if the witness recognizes no occurrence at all it **abstains**, leaving the
+  unfiltered set, because a witness matching nothing is stale rather than discriminating. Without the
+  abstain, a formatter that rewrote more than spacing turned this gate from a filter into a silent
+  mute. Both residuals now run in the same direction: over-reporting, never under-reporting.
+
   Deliberately inert outside its one case. A multi-line `new_string` is not filtered — its anchor
   extent spans several lines, matches no single patch line, and filtering would erase every finding
   rather than narrow them. A payload with no `tool_response`, and every non-`replace_all` Edit,
-  behaves exactly as before. **Schema confirmed against docs fetched today and corroborated by real
-  Edit records in Claude Code's own transcript JSONL; a live PostToolUse payload carrying
-  `structuredPatch` was NOT directly observed, since no hook-event capture existed on the authoring
-  machine to read. If the field never arrives, the filter never engages and nothing regresses.**
+  behaves exactly as before. Field supply is **observed, not merely documented**: an independent
+  reviewer captured a live PostToolUse payload on `claude 2.1.225`, in which `tool_response` arrives
+  as an object carrying `structuredPatch` (complete, not truncated, at 42 replacement sites in a
+  300-line file). The read is shape-tolerant regardless — a non-object `tool_response` yields an
+  empty witness and leaves the filter inert, rather than erroring the payload parse and silencing the
+  whole guard.
+
+  Scope worth stating plainly, since it is broader than "fixes one false positive": under
+  `replace_all`, a genuine reference sitting on a line the patch reports as CONTEXT is no longer
+  reported. That is the gate working as designed — a context line is one the call did not write — but
+  it does narrow what this guard says about a `replace_all` edit.
 
 ## [0.25.1]
 
