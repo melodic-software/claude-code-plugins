@@ -77,6 +77,72 @@ stale_count="$(printf '%s\n' "$out" | grep -c 'STALE BASELINE')"
 if [[ $rc -ne 0 && "$stale_count" == "1" ]]; then ok "stale baseline entry fails --check (reported exactly once)"; else fail "stale baseline: rc=$rc count=$stale_count out='$out'"; fi
 rm -rf "$repo"
 
+# ------------------- --check reverse parity (#2131) ----------------------
+# The direction no other mode covers: a `## [x.y.z]` heading the manifest never
+# reached. --check-bump fires only on a CHANGED manifest version and
+# --check-order is satisfied by a correctly ordered list, so a release note
+# written ahead of its bump reached main unseen.
+
+# newest heading EQUALS the manifest version -> passes
+repo="$(mk_repo)"
+mk_plugin "$repo" alpha 1.0.0 yes
+printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+if (cd "$repo" && bash scripts/check-changelog-parity.sh --check >/dev/null 2>&1); then ok "newest heading equal to the manifest version passes --check"; else fail "equal newest heading wrongly failed"; fi
+rm -rf "$repo"
+
+# manifest ABOVE the newest heading -> passes: a bump with no consumer-visible
+# change need not write a release note. Locks the check to one direction.
+repo="$(mk_repo)"
+mk_plugin "$repo" alpha 1.1.0 yes
+printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+if (cd "$repo" && bash scripts/check-changelog-parity.sh --check >/dev/null 2>&1); then ok "manifest above the newest heading passes --check (a bump need not write a note)"; else fail "manifest-ahead wrongly failed"; fi
+rm -rf "$repo"
+
+# SYNTHETIC AHEAD-OF-MANIFEST: the docs-hygiene shape — a `## [0.9.7]` entry
+# above a 0.9.6 manifest -> fails, naming both versions.
+repo="$(mk_repo)"
+mk_plugin "$repo" alpha 0.9.6 yes
+printf '# Changelog\n\n## [0.9.7]\n\n## [0.9.6]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check 2>&1)"
+rc=$?
+if [[ $rc -ne 0 && "$out" == *"CHANGELOG AHEAD OF MANIFEST"*"alpha"* && "$out" == *"0.9.7"* && "$out" == *"0.9.6"* ]]; then ok "a heading above the manifest version fails --check (synthetic #2131 shape caught)"; else fail "ahead-of-manifest not caught: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
+# NUMERIC, NOT LEXICAL: 0.9.0 sorts above 0.10.0 as a string. A manifest at
+# 0.10.0 with a 0.9.0 heading must pass, not red-line.
+repo="$(mk_repo)"
+mk_plugin "$repo" alpha 0.10.0 yes
+printf '# Changelog\n\n## [0.9.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+if (cd "$repo" && bash scripts/check-changelog-parity.sh --check >/dev/null 2>&1); then ok "reverse parity compares numerically, not lexically (0.10.0 manifest, 0.9.0 heading)"; else fail "lexical comparison leaked into --check"; fi
+rm -rf "$repo"
+
+# UNBRACKETED heading form: the shared extractor reads `## 1.1.0 — date` too, so
+# dropping the brackets cannot smuggle a heading past the reverse check.
+repo="$(mk_repo)"
+mk_plugin "$repo" alpha 1.0.0 yes
+printf '# Changelog\n\n## 1.1.0 — 2026-08-10\n' >"$repo/plugins/alpha/CHANGELOG.md"
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check 2>&1)"
+rc=$?
+if [[ $rc -ne 0 && "$out" == *"CHANGELOG AHEAD OF MANIFEST"*"alpha"* ]]; then ok "an unbracketed heading above the manifest is still caught"; else fail "unbracketed ahead-heading missed: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
+# A changelog with no version heading at all has nothing to compare -> passes.
+repo="$(mk_repo)"
+mk_plugin "$repo" alpha 1.0.0 yes
+printf '# Changelog\n\nNo releases yet.\n' >"$repo/plugins/alpha/CHANGELOG.md"
+if (cd "$repo" && bash scripts/check-changelog-parity.sh --check >/dev/null 2>&1); then ok "a changelog with no version heading passes --check"; else fail "heading-less changelog wrongly failed"; fi
+rm -rf "$repo"
+
+# NON-SEMVER MANIFEST VERSION: must refuse loudly (exit 2) rather than feed
+# garbage to the arithmetic sort key, same as --check-bump.
+repo="$(mk_repo)"
+mk_plugin "$repo" alpha 1.two.0 yes
+printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check 2>&1)"
+rc=$?
+if [[ $rc -eq 2 && "$out" == *"non-SemVer"*"1.two.0"* ]]; then ok "--check refuses a non-SemVer manifest version loudly (exit 2)"; else fail "--check did not refuse malformed version: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
 # ============================ --check-bump (diff) =========================
 
 # version changed AND changelog has the new version's entry -> passes

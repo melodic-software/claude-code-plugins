@@ -3,7 +3,11 @@
 #
 #   scripts/check-changelog-parity.sh --check             fail if a versioned
 #                                                         plugin has no sibling
-#                                                         CHANGELOG.md
+#                                                         CHANGELOG.md, or that
+#                                                         CHANGELOG's newest
+#                                                         version heading is
+#                                                         ABOVE the manifest
+#                                                         `version`
 #   scripts/check-changelog-parity.sh --check-bump <ref>  fail if a plugin's
 #                                                         manifest version
 #                                                         changed vs <ref> but
@@ -20,7 +24,16 @@
 #   * --check is the static repo-wide invariant: a plugins/<name>/.claude-plugin/
 #     plugin.json carrying a `version` must ship a plugins/<name>/CHANGELOG.md.
 #     It catches a plugin that has bumped versions but never kept a changelog at
-#     all (autonomy shipped 5 minor bumps with none).
+#     all (autonomy shipped 5 minor bumps with none). It also owns the REVERSE
+#     direction of the parity pair: the changelog's newest version heading must
+#     not exceed the manifest `version`. Nothing else covers that direction —
+#     --check-bump fires only when the manifest version CHANGED, and
+#     --check-order is satisfied by a correctly ordered heading list — so a
+#     release note written ahead of its bump reaches main unseen, which is how
+#     docs-hygiene shipped a `## [0.9.7]` the manifest went 0.9.6 -> 0.10.0
+#     straight past (claude-code-plugins#2131). A manifest ABOVE the newest
+#     heading stays legal: a bump with no consumer-visible change need not write
+#     a release note.
 #   * --check-bump is the go-forward PR discipline: a version change must ADD a
 #     `## [<version>]` entry for the new version — present in the plugin's
 #     CHANGELOG.md at head AND absent from it at <ref>. Two failure classes the
@@ -98,9 +111,10 @@ version_of() { jq -r '.version // empty' "$1" 2>/dev/null; }
 # at them at all.
 # A fixed-width key so a lexical comparison orders versions NUMERICALLY. Five
 # digits per field is far beyond any version this repo will reach. --check-order
-# feeds digits-only versions (its regex admits nothing else); --check-bump feeds
-# manifest SemVer, so a `+build`/`-prerelease` suffix is stripped before the
-# split to keep every field numeric. Stripping build metadata is SemVer-exact
+# and --check's heading extraction feed digits-only versions (the shared regex
+# admits nothing else); --check and --check-bump feed manifest SemVer, so a
+# `+build`/`-prerelease` suffix is stripped before the split to keep every field
+# numeric. Stripping build metadata is SemVer-exact
 # (it carries no precedence); pre-release ORDERING is deliberately not modeled —
 # no manifest in this repo uses it — so an equal-core pre-release keys equal to
 # its release.
@@ -111,6 +125,19 @@ version_sort_key() {
   printf '%05d.%05d.%05d' "$((10#${1:-0}))" "$((10#${2:-0}))" "$((10#${3:-0}))"
 }
 
+# The version headings a changelog declares, in file order. Every heading form
+# this repo actually uses: `## [1.2.3]` (plugins, Keep a Changelog),
+# `## 1.2.3 — date` (conventions), and the two-component `## 1.2` several
+# convention changelogs use. Requiring a patch component would make the gates
+# built on this silently check NOTHING in those files — worse than not covering
+# them, because the pass would be indistinguishable. Shared by --check-order and
+# --check so the two directions of the parity pair cannot read a changelog
+# differently.
+changelog_versions() {
+  grep -oE '^##[[:space:]]+\[?[0-9]+\.[0-9]+(\.[0-9]+)?\]?([[:space:]]|$)' "$1" |
+    grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?'
+}
+
 if [[ "$mode" == "--check-order" ]]; then
   changelogs=(plugins/*/CHANGELOG.md docs/conventions/*/CHANGELOG.md)
   misordered=0
@@ -119,13 +146,7 @@ if [[ "$mode" == "--check-order" ]]; then
   for changelog in "${changelogs[@]}"; do
     [[ -f "$changelog" ]] || continue
     checked=$((checked + 1))
-    # Every heading form this repo actually uses: `## [1.2.3]` (plugins, Keep a
-    # Changelog), `## 1.2.3 — date` (conventions), and the two-component
-    # `## 1.2` several convention changelogs use. Requiring a patch component
-    # would make this gate silently check NOTHING in those files — worse than
-    # not covering them, because the pass would be indistinguishable.
-    mapfile -t versions < <(grep -oE '^##[[:space:]]+\[?[0-9]+\.[0-9]+(\.[0-9]+)?\]?([[:space:]]|$)' "$changelog" |
-      grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?')
+    mapfile -t versions < <(changelog_versions "$changelog")
     ((${#versions[@]} > 1)) || continue
 
     dupes="$(printf '%s\n' "${versions[@]}" | sort | uniq -d)"
@@ -163,16 +184,35 @@ fi
 if [[ "$mode" == "--check" ]]; then
   declare -A saw_debt
   missing=0
+  ahead=0
   for manifest in "${manifests[@]}"; do
     plugin_dir="${manifest%/.claude-plugin/plugin.json}"
     name="${plugin_dir##*/}"
-    [[ -n "$(version_of "$manifest")" ]] || continue
+    version="$(version_of "$manifest")"
+    [[ -n "$version" ]] || continue
     if [[ -f "$plugin_dir/CHANGELOG.md" ]]; then
       if [[ -n "${grandfathered[$name]:-}" ]]; then
         echo "STALE BASELINE: '$name' in $BASELINE now has a CHANGELOG.md — remove it." >&2
         missing=$((missing + 1))
         # Mark handled so the second stale-scan loop does not re-report it.
         saw_debt["$name"]=1
+      fi
+      # Reverse parity: the newest heading must not outrun the manifest. Only the
+      # NEWEST is compared — an older heading naming a version the manifest never
+      # took is invisible from the tree alone, but it can only get there by first
+      # being the newest, which this catches in the change set that writes it.
+      mapfile -t headings < <(changelog_versions "$plugin_dir/CHANGELOG.md")
+      newest="${headings[0]:-}"
+      if [[ -n "$newest" ]]; then
+        if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([+-].*)?$ ]]; then
+          echo "check-changelog-parity: $name carries a non-SemVer manifest version '$version'; refusing to pass without a comparable version." >&2
+          exit 2
+        fi
+        if [[ "$(version_sort_key "$newest")" > "$(version_sort_key "$version")" ]]; then
+          echo "CHANGELOG AHEAD OF MANIFEST: $plugin_dir/CHANGELOG.md documents $newest but $manifest carries $version." >&2
+          echo "  Bump the manifest to $newest, or fold that entry into the version that actually ships." >&2
+          ahead=$((ahead + 1))
+        fi
       fi
       continue
     fi
@@ -191,10 +231,11 @@ if [[ "$mode" == "--check" ]]; then
       missing=$((missing + 1))
     fi
   done
-  if ((missing > 0)); then
+  if ((missing > 0 || ahead > 0)); then
+    ((ahead > 0)) && echo "A changelog entry must not name a version the manifest has not reached; the manifest may sit above the newest heading, never below it." >&2
     exit 1
   fi
-  echo "Every versioned plugin has a CHANGELOG.md (or a stale-guarded baseline entry)."
+  echo "Every versioned plugin has a CHANGELOG.md (or a stale-guarded baseline entry), and none documents a version above its manifest."
   exit 0
 fi
 
@@ -240,7 +281,7 @@ declare -A bumped_candidate
 # candidate) and fork_version equals head_version (so it reads as not-bumped).
 # When HEAD has that shape, use the branch's own tip.
 head_commit=HEAD
-if git rev-parse -q --verify 'HEAD^2' >/dev/null 2>&1    && git merge-base --is-ancestor 'HEAD^1' "$base" 2>/dev/null; then
+if git rev-parse -q --verify 'HEAD^2' >/dev/null 2>&1 && git merge-base --is-ancestor 'HEAD^1' "$base" 2>/dev/null; then
   head_commit='HEAD^2'
 fi
 if ! merge_base="$(git merge-base "$base" "$head_commit")"; then

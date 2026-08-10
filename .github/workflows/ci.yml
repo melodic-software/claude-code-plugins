@@ -483,9 +483,10 @@ jobs:
       - name: Check for orphaned eval fixtures
         run: scripts/check-orphaned-fixtures.sh --check
 
-  # CHANGELOG parity: a versioned plugin must keep a CHANGELOG.md (static
-  # --check), and a PR that changes a plugin's manifest version must update that
-  # plugin's CHANGELOG.md in the same diff (--check-bump, PR-only). Existing
+  # CHANGELOG parity: a versioned plugin must keep a CHANGELOG.md whose newest
+  # version heading does not outrun the manifest (static --check), and a PR that
+  # changes a plugin's manifest version must update that plugin's CHANGELOG.md in
+  # the same diff (--check-bump, PR-only). Existing
   # "versioned but changelog-less" debt is grandfathered by name in
   # scripts/changelog-parity-baseline.txt with a stale guard; the bump gate is
   # never relaxed by the baseline. The self-test runs unconditionally so a broken
@@ -502,7 +503,7 @@ jobs:
           fetch-depth: 0
       - name: Test the changelog-parity gate
         run: bash scripts/check-changelog-parity.test.sh
-      - name: Verify every versioned plugin keeps a CHANGELOG.md
+      - name: Verify every versioned plugin keeps a CHANGELOG.md at or below its manifest version
         run: scripts/check-changelog-parity.sh --check
       - name: Verify a version bump updates the plugin's CHANGELOG.md
         if: github.event_name == 'pull_request'
