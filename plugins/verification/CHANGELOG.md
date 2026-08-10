@@ -3,6 +3,25 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.1]
+
+### Changed
+
+- **The bundled `/verify` invocability claim is now scoped as a default, and its stamp refreshed to
+  2026-08-10.** 0.3.6 recorded that v2.1.215 made `/verify` user-invoked only, and that was exact for
+  2.1.215–2.1.224: the shipped client carried a hard model-invocation block. A recheck against the
+  bundled-skills reference and the shipped 2.1.223–2.1.226 clients found that from **2.1.225** the
+  block became a runtime gate able to re-enable model invocation, so the restriction is the
+  *default* rather than an absolute and two clients on one version can differ. The delegation
+  prohibition 0.3.6 introduced is unaffected and now rests on firmer ground: a delegated call is
+  **refused at the tool layer**, not merely discouraged, so suggest-don't-delegate holds across
+  either invocability state rather than on the version cutoff alone. The stamp moves from
+  2026-08-02 to 2026-08-10 and now names the client versions checked, not only the doc page.
+- **Eval 9 (`live-app-delegates-to-bundled-with-fallback`) moved with the wording**, in both its
+  `expected_output` and its expectation string. 0.3.6 hit the same hazard from the other direction —
+  the eval had encoded the removed delegation as a pass condition — and leaving either field on the
+  old "user-invoked only" phrasing would have graded the corrected skill as failing.
+
 ## [0.5.0]
 
 ### Added

@@ -4,6 +4,21 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.8.1]
+
+### Changed
+
+- **`fable-5`'s "provided never means automatic" note: invocability scoped as a default, stamp
+  refreshed to 2026-08-10.** The note read "Since v2.1.215 `/verify` and `/code-review` run only when
+  you invoke them", stamped 2026-08-03. A recheck against the bundled-skills reference and the
+  shipped 2.1.223–2.1.226 clients found that exact for 2.1.215–2.1.224 but superseded from
+  **2.1.225**, where a runtime gate can re-enable model invocation — making the restriction the
+  default rather than a fixed version cutoff, so two clients on one version can differ. The note's
+  point is unchanged (provided is not automatic; check plan, version, and invocation expectations
+  before depending on these surfaces) and the correction sharpens it: version alone is no longer
+  sufficient to predict invocability. The stamp now names the client versions checked alongside the
+  pages.
+
 ## [0.8.0]
 
 ### Fixed
