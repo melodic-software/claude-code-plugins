@@ -65,7 +65,24 @@ esac
 
 # Diff-scope: verify only the content THIS tool call wrote, never re-read the
 # whole file from disk.
-TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null | tr -d '\r')
+#
+# Every payload field this hook can need, in ONE jq process (hook::jq_fields),
+# not three — a jq spawn is fork() emulation on Windows Git Bash. Both per-tool
+# content fields and replace_all are fetched together because selecting between
+# them would cost another process; jq reads the same envelope either way, and the
+# tool-specific choice happens below in the shell. `replace_all` keeps its
+# `// false | tostring` INSIDE the filter: hook::jq_fields wraps each filter in
+# `// ""`, and jq's `//` treats the boolean false as empty, so a bare
+# `.tool_input.replace_all` would come back "" instead of "false". That is kept
+# for parity with the pre-conversion output, not because a branch depends on it
+# — every consumer below tests `== "true"`, which "" and "false" fail alike.
+# Failure semantics are unchanged: a missing jq or an unparsable payload yields
+# rc 1 here, which exits 0 exactly as the unmatched-TOOL case did —
+# hook::require_jq above has already made the degraded state visible once per
+# session.
+hook::jq_fields "$INPUT" '.tool_name' '.tool_input.new_string' \
+  '.tool_input.content' '.tool_input.replace_all // false | tostring' || exit 0
+TOOL="${HOOK_JQ_FIELDS[0]}"
 # Edit's `replace_all` (documented at
 # https://code.claude.com/docs/en/tools-reference — Edit requires `old_string` to
 # occur exactly once, and `replace_all: true` is how Claude edits every occurrence
@@ -75,10 +92,10 @@ TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null | tr -d '\
 REPLACE_ALL=false
 case "$TOOL" in
 Edit)
-  SCAN_CONTENT=$(printf '%s' "$INPUT" | jq -r '.tool_input.new_string // empty' 2>/dev/null | tr -d '\r')
-  REPLACE_ALL=$(printf '%s' "$INPUT" | jq -r '(.tool_input.replace_all // false) | tostring' 2>/dev/null | tr -d '\r')
+  SCAN_CONTENT="${HOOK_JQ_FIELDS[1]}"
+  REPLACE_ALL="${HOOK_JQ_FIELDS[3]}"
   ;;
-Write) SCAN_CONTENT=$(printf '%s' "$INPUT" | jq -r '.tool_input.content // empty' 2>/dev/null | tr -d '\r') ;;
+Write) SCAN_CONTENT="${HOOK_JQ_FIELDS[2]}" ;;
 *) exit 0 ;;
 esac
 [[ -n "$SCAN_CONTENT" ]] || exit 0

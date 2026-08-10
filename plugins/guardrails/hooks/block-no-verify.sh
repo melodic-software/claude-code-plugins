@@ -83,9 +83,11 @@ hook::require_jq "PreToolUse" "guardrails-block-no-verify" "$INPUT"
 hook::jq_fields "$INPUT" '.tool_input.command' '.tool_name' || exit 0
 
 # A NUL byte in EITHER field read above is fail-CLOSED, and is decided BEFORE
-# the empty-COMMAND skip below: the helper truncates a value at its first NUL,
-# so a leading one leaves an empty command that would otherwise be waved through
-# as "no command" (#2122).
+# the empty-COMMAND skip below: the helper strips every NUL out of a value, so a
+# command consisting only of NUL bytes arrives EMPTY and would otherwise be waved
+# through by that skip as "no command" (#2122). Verified, not assumed — a lone
+# NUL yields an empty value with the flag set, while a leading NUL followed by
+# text keeps the text.
 #
 # Blocking rather than matching, because the value a guard can read is not
 # reliably the thing that would run. Two behaviours were measured and they

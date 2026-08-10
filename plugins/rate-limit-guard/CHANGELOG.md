@@ -3,18 +3,37 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.2]
+
+### Fixed
+
+- **Shared `hook-utils.sh`: `hook::jq_fields` now REPORTS a NUL byte in a payload value
+  (#2122).** 0.5.1 stopped a NUL from failing the helper's cardinality check, by stripping every
+  NUL out of each value. That keeps the helper working, but stripping also silently rewrites the
+  value — `--no-verify<NUL>x` arrives as `--no-verifyx` — so a caller that owns a block/allow
+  verdict cannot tell a clean payload from one that carried a NUL, and matches against a token the
+  payload never held contiguously. The fact is now reported in a new `HOOK_JQ_FIELDS_NUL` global,
+  set on EVERY call including every failure path, so such a caller can fail closed on its own terms.
+  It is computed from the values as the payload carried them, BEFORE the strip; strip first and the
+  flag would read "0" on every payload. Values themselves are unchanged — still stripped, so a
+  scanning caller still sees everything after the NUL. This plugin's own hooks do not consult the
+  new global, so their behaviour is unchanged. Synced from `lib/hook-utils.sh`.
+
 ## [0.5.1]
 
 ### Fixed
 
-- **Shared `hook-utils.sh`: a NUL byte in a payload value no longer makes `hook::jq_fields`
-  fail (#2122).** The helper separates its fields with a NUL, so a JSON NUL escape inside a value
-  split that value in two and failed the helper's own cardinality check — returning non-zero,
-  which its callers spell `|| exit 0`. jq now truncates each value at its first NUL, so the
-  separator cannot occur inside a value and no parseable payload can make the helper fail; the NUL
-  itself is reported in a new `HOOK_JQ_FIELDS_NUL` global, set on every call, so a caller that owns a
-  block/allow verdict can fail closed on its own terms. No hook in this plugin calls the helper.
-  Synced from `lib/hook-utils.sh`.
+- **Shared `hook-utils.sh`: a NUL byte inside a payload value no longer makes `hook::jq_fields`
+  come back empty (#2120).** The helper delimits its batched fields with NUL, and a JSON string may
+  legitimately encode one — a `Write`/`Edit`/`NotebookEdit` content field can. jq emitted the raw
+  byte, the read split that value in two, the cardinality check saw one value too many, and the
+  helper returned non-zero — which every caller treats as "skip", so the hook exited without doing
+  its work. Each value is now NUL-stripped INSIDE the jq filter, so the delimiter provably cannot
+  occur in a value. Stripping is not a lesser alternative to an encoding scheme, it is the only
+  representable behavior: a bash variable cannot hold a NUL byte, and the per-field command
+  substitution this helper replaced dropped the byte and kept the rest of the value — so content
+  AFTER a NUL is returned and scanned exactly as it was before the batching. Synced from
+  `lib/hook-utils.sh`.
 
 ## [0.5.0]
 

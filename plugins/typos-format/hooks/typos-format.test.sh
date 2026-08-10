@@ -411,7 +411,8 @@ fi
 # exists to make trustworthy.
 printf 'this has wnat here\n' >"$STUB_REPO/reflow.txt" # spellchecker:disable-line
 BEFORE_RF="$(cat "$STUB_REPO/reflow.txt")"
-SINKRF="$WORK/tel-reflow.jsonl"
+TELRF="$(mktemp "$WORK/tel-reflow.XXXXXX")"
+SINKRF="$(make_sink "cat >\"$TELRF\"")"
 OUT_RF=$(run_stub "$STUB_REPO/reflow.txt" STUB_REFLOW=1 HOOK_TELEMETRY_SINK="$SINKRF")
 if [[ "$(cat "$STUB_REPO/reflow.txt")" == "$BEFORE_RF" ]]; then
   ok "stub/reflow: file unchanged (the ambiguous finding was never fixable)"
@@ -434,13 +435,16 @@ if [[ -z "$(printf '%s' "$OUT_RF" | jq -r '.systemMessage // empty' 2>/dev/null)
 else
   fail "stub/reflow: claimed a mutation that never happened: $(printf '%s' "$OUT_RF" | jq -r '.systemMessage')"
 fi
-if [[ -s "$SINKRF" ]]; then
-  if [[ "$(jq -s '.[-1].data.applied | length' "$SINKRF" 2>/dev/null)" == "0" ]]; then
+if wait_for_sink "$TELRF" 50; then
+  if [[ "$(jq -s '.[-1].data.applied | length' "$TELRF" 2>/dev/null)" == "0" ]]; then
     ok "stub/reflow: telemetry records zero applied rewrites"
   else
-    fail "stub/reflow: telemetry claims rewrites: $(jq -s -c '.[-1].data.applied' "$SINKRF")"
+    fail "stub/reflow: telemetry claims rewrites: $(jq -s -c '.[-1].data.applied' "$TELRF")"
   fi
+else
+  fail "stub/reflow: telemetry sink never populated — the assertion below it never ran"
 fi
+rm -f "$TELRF"
 
 # --- One spelling, two correction decisions ----------------------------------
 # typos can flag the same spelling with different correction sets in one file —
@@ -658,6 +662,52 @@ if [[ "$RES_ELAPSED" -lt 10 ]]; then
   ok "stub/scale-residual: completed in ${RES_ELAPSED}s, inside the handler's 15s timeout"
 else
   fail "stub/scale-residual: took ${RES_ELAPSED}s — quadratic membership regression?"
+fi
+
+# --- Per-KEY residual depth, which the case above cannot reach ----------------
+# `scale-residual` spreads its findings over two distinct tokens, so each key's
+# residual list is SCALE_N long. The attribution step's cost is quadratic in the
+# depth of ONE key, not in the total, so at that depth it ran in ~0.6s and the
+# guard above could never fire — a quadratic reintroduction measured 31s at
+# 10,000 repeats of a single token while this case stayed green.
+#
+# Depth, not total, is therefore what this fixture varies: one token repeated
+# DEEP_N times, all residual. No wall-clock assertion — the stub's own per-line
+# bash loop runs twice and dominates elapsed time at this size, so a timing
+# assertion here would measure the harness and flake under load. The linear
+# property is pinned by the benchmark recorded against the filter in
+# typos-format.sh; this case pins that attribution stays CORRECT at a depth no
+# other fixture reaches, and that the run completes at all.
+DEEP_N=5000
+: >"$STUB_REPO/deep-residual.txt"
+for _i in $(seq 1 "$DEEP_N"); do
+  printf 'line %s has wnat here\n' "$_i" >>"$STUB_REPO/deep-residual.txt" # spellchecker:disable-line
+done
+OUT_DR=$(run_stub "$STUB_REPO/deep-residual.txt")
+CTX_DR=$(printf '%s' "$OUT_DR" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+# The count is asserted against the overflow line, which carries the real
+# number. Grepping for the words "residual typos findings" cannot fail on it:
+# an all-residual run prints that phrase whether it carried 5000 findings or
+# one, and the `$COUNT finding(s)` form appears only ALONGSIDE applied rewrites,
+# which this fixture has none of. Telemetry is not usable here either — at this
+# size the envelope exceeds the sink cap and is dropped, which is inside
+# contract (see the scale case above, #1595), so a sink-based count would be
+# asserting on something the hook is permitted not to send.
+DR_MAX_REPORT="$(sed -n 's/^MAX_REPORT=\([0-9][0-9]*\).*/\1/p' "$HOOK" | head -1)"
+if [[ -z "$DR_MAX_REPORT" ]]; then
+  fail "stub/deep-residual: could not read MAX_REPORT from the hook — the overflow count cannot be derived"
+  DR_MAX_REPORT=10
+fi
+DR_OVERFLOW="... and $((DEEP_N - DR_MAX_REPORT)) more."
+if printf '%s' "$CTX_DR" | grep -qF "$DR_OVERFLOW"; then
+  ok "stub/deep-residual: the disclosure accounts for all $DEEP_N residuals under ONE key"
+else
+  fail "stub/deep-residual: expected '$DR_OVERFLOW' at depth $DEEP_N; got: $(printf '%s' "$CTX_DR" | tail -c 200)"
+fi
+if printf '%s' "$CTX_DR" | grep -q 'REWROTE'; then
+  fail "stub/deep-residual: claimed rewrites where nothing was applied: $CTX_DR"
+else
+  ok "stub/deep-residual: nothing is claimed as rewritten at depth $DEEP_N"
 fi
 
 # --- The disclosure must respect the channel's character cap -----------------

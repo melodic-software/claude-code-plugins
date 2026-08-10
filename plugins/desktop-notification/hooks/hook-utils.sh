@@ -638,42 +638,55 @@ hook::jq_field() {
 # never inherit a stale "1" from an earlier invocation by forgetting to reset it.
 # A caller that owns a block/allow verdict MUST consult it and fail CLOSED.
 #
-# Fields are NUL-separated on the wire, and jq TRUNCATES each value at its first
-# NUL before emitting it, so the separator provably cannot occur inside a value
+# Fields are NUL-separated on the wire, and every value has its own NUL bytes
+# REMOVED jq-side first, so the delimiter provably cannot occur inside a value
 # and the record count no longer depends on what a PARSEABLE payload holds. jq
-# used to emit the NUL raw, the value split in two, the cardinality check below
+# used to emit the raw byte, the value split in two, the cardinality check below
 # failed, and the callers' `|| exit 0` turned a PreToolUse BLOCK into a silent
 # ALLOW (#2122).
 #
-# Truncation is NOT a claim about how a NUL executes, and must not be read as
-# one. Two behaviours were measured and they disagree: bash DISCARDS a NUL while
-# parsing a command it reads (stdin or a script file), so `echo ha<NUL>rd` prints
-# `hard`; Node's child_process REFUSES a NUL-bearing string outright, on argv, on
-# `shell: true`, and on exec alike. Which of those — if either — a hook payload
-# would ever reach is UNTRACED. No value semantics chosen here can claim fidelity
-# to the executor, in either direction, and none is claimed.
+# The FLAG is computed from the values as the payload carried them, BEFORE the
+# strip — the ordering is load-bearing and is the one thing a textual merge of
+# this function will get wrong. Strip first and `index(0)` looks at a value that
+# no longer holds a NUL, so the flag reads "0" on every payload and the guards
+# that consult it never fire: a fail-open with no diagnostic, which is the exact
+# defect #2122 filed. Anyone editing the jq program must keep the flag ahead of
+# the strip.
+#
+# Removing the NUL is NOT a claim about how a NUL executes, and must not be read
+# as one. Two behaviours were measured and they disagree: bash DISCARDS a NUL
+# while parsing a command it reads (stdin or a script file), so `echo ha<NUL>rd`
+# prints `hard`; Node's child_process REFUSES a NUL-bearing string outright, on
+# argv, on `shell: true`, and on exec alike. Which of those — if either — a hook
+# payload would ever reach is UNTRACED. No value semantics chosen here can claim
+# fidelity to the executor, in either direction, and none is claimed.
 #
 # That is exactly why the verdict is fail-CLOSED on the flag rather than a match
 # against the value: blocking is correct under deletion, under truncation, and
 # under refusal alike, so it does not depend on anyone having traced the path —
 # and it cannot be invalidated by tracing it later. The flag is the load-bearing
-# part; the value semantics below are not.
+# part; the value semantics are not.
 #
-# Truncation over deletion is then chosen on grounds that appeal to no shell at
-# all: it never fabricates a token the payload did not carry contiguously, and
-# when a caller forgets the flag it is the CONTENT class that degrades rather
-# than the command class — a matcher sees a prefix rather than a joined token
-# that matches nothing. That choice is immaterial for this library's own two
-# callers, which refuse on the flag before reading a value.
+# Deletion over truncation is chosen on grounds that appeal to no shell at all,
+# and it is the disposition #2120 already shipped: a truncating helper hides
+# everything after the first NUL from the ten scanning callers #2120 converted,
+# none of which consults the flag, so truncation would make a credential past a
+# NUL invisible to secret-pattern-detection and hardcoded-path-check. Deletion
+# keeps those callers seeing the whole value. The trade runs the other way for a
+# COMMAND caller that forgets the flag — `--no-verify<NUL>x` joins to
+# `--no-verifyx` and matches nothing — which is precisely why the two guards
+# refuse on the flag before reading a value at all, rather than relying on the
+# disposition to keep them safe.
 #
-# The library cannot impose that verdict itself — the plugins sourcing it include
+# split/join (1-arity, a plain string split — NOT gsub, which would put a NUL
+# inside an Oniguruma pattern) for the strip, and explode/index for the flag, so
+# that no regex pattern and no string literal in the jq PROGRAM text carries a
+# NUL byte: a construct whose behaviour varied across jq builds would fail EVERY
+# payload, which is strictly worse than the payload-dependent bug being fixed.
+#
+# The library cannot impose the verdict itself — the plugins sourcing it include
 # formatters, for which exiting 2 would be wrong — so policy stays with the
 # caller and the library only reports the fact.
-#
-# `explode | .[0:(index(0) // length)] | implode`, not a gsub or a split, so
-# that no regex pattern and no string literal in the jq PROGRAM text carries a
-# NUL byte: a construct whose behaviour varies across jq builds would fail EVERY
-# payload, which is strictly worse than the payload-dependent bug being fixed.
 #
 # Read through a process substitution rather than $( ): command substitution
 # strips NUL bytes, which would eat the separators themselves.
@@ -692,18 +705,23 @@ hook::jq_fields() {
   local prog="" filter
   for filter in "$@"; do
     [[ -n "$prog" ]] && prog+=","
+    # Raw here: the NUL must still be in the value when the flag is computed
+    # below. The strip happens after, on the whole array.
     prog+="((${filter}) // \"\" | tostring)"
   done
   # The NUL flag rides in front of the values as one more record, so reporting
   # it costs no second jq process — the whole point of this helper. It is
-  # computed from the UNTRUNCATED values, then each value is truncated at its
-  # first NUL. `-j` concatenates outputs verbatim, so emitting the separator as
-  # its own output yields exactly value NUL value NUL … with nothing added.
-  # `A | (X, Y)` feeds the SAME array to both branches, so the flag and the
-  # values are computed from one input with no jq variable in the program text.
+  # computed FIRST, from the values exactly as the payload carried them; only
+  # then is each value stripped. `-j` concatenates outputs verbatim, so emitting
+  # the separator as its own output yields exactly value NUL value NUL … with
+  # nothing added. `A | (X, Y)` feeds the SAME array to both branches, so the
+  # flag and the values come from one input with no jq variable in the program
+  # text. Moving the split/join up into the loop above — which is what a textual
+  # merge of this function produces — would silently zero the flag on every
+  # payload.
   prog="[$prog]"
   prog+=' | ((if (map(explode | index(0) != null) | any) then "1" else "0" end),'
-  prog+=' (.[] | explode | .[0:(index(0) // length)] | implode))'
+  prog+=' (.[] | split("\u0000") | join("")))'
   prog+=" | (., \"\\u0000\")"
   local -a values=()
   local v clean

@@ -554,28 +554,81 @@ else
   fail "git present, dir is no repo: the override did not fire — config above was never reached (rc=$RC_FIRES out=$OUT_FIRES)"
 fi
 
-# NO NEGATIVE TWIN, deliberately — three instruments were tried and none can
-# fail, so shipping one would be a test that proves nothing while looking like
-# coverage. Recorded here rather than omitted silently, because the reason is a
-# fact about the CODE, not only about the fixtures:
+# The NEGATIVE twin — the override must stay INERT when git CAN resolve a
+# toplevel. Three obvious instruments cannot express it, and the fourth can;
+# the failures are recorded because each one looks workable until tried:
 #
-#   1. Lint output cannot see it. Force the override to fire on a file at the
-#      root of a real repository (replace the probe with `false`) and the file
-#      is STILL not rewritten — markdownlint-cli2 performs its own config
-#      discovery and does not cross the repository boundary, so widening the
-#      hook's gate changes no observable byte.
-#   2. Telemetry's `data.file` is derived from REPO_ROOT and looked promising,
-#      but the forced-override run emits an EMPTY value rather than the
-#      relative-to-outer path a wrongly-widened root would produce. Empty is
-#      also what a sink that never populated looks like, so the assertion could
-#      not tell a real regression from a flaky sink.
-#   3. Exit status is 0 either way; the gate's only effect is whether the lint
-#      runs, and (1) shows the lint's own result is unchanged.
+#   1. Lint output cannot see it. Force the override to fire on a file at a real
+#      repository root (replace the probe with `false`) and the file is STILL
+#      not rewritten — markdownlint-cli2 does its own config discovery and does
+#      not cross the repository boundary, so widening the hook's gate changes no
+#      observable byte.
+#   2. Telemetry's `data.file` is derived from REPO_ROOT, but the forced-override
+#      run emits an EMPTY value rather than a relative-to-outer path — and empty
+#      is also what a sink that never populated looks like.
+#   3. Exit status is 0 either way.
 #
-# So the override's INERTNESS in that configuration is not behaviourally
-# observable, and the positive case above is what pins the branch. A future
-# change that makes REPO_ROOT observable — exporting it, or emitting it in the
-# envelope — would make the negative writable; until then it cannot be.
+# The fourth works because it reads REPO_ROOT DIRECTLY rather than inferring it
+# from an effect: the hook resolves a repo-local linter at
+# "$REPO_ROOT/node_modules/.bin/markdownlint-cli2", so a distinguishable shim
+# planted at BOTH candidate roots names the root the hook actually computed.
+#
+# Two mechanics this depends on, both of which silently defeat it if missed:
+# the PATH copy of markdownlint-cli2 wins over the repo-local one, so it has to
+# be hidden from `command -v` (see the next paragraph for how, and for why NOT
+# by editing PATH); and the shim must write a MARKER FILE, because the hook
+# captures stdout and stderr into a variable, so anything it prints is
+# swallowed.
+#
+# The assertion is positive — the marker must read INNER. A wrongly-firing
+# override yields OUTER or no marker at all, and both fail it. Measured against
+# a hook whose probe was forced to `false`: correct reads INNER, forced reads no
+# marker. Discriminating in the direction that matters.
+# `PATH` is left ALONE. An earlier draft stripped every directory containing a
+# `markdownlint-cli2`, which also removes whatever else lives beside it — `git`,
+# which `hook::repo_root` needs, or the coreutils `resolve_repo_markdownlint`
+# calls. On such a layout the hook's git probe would fail as command-not-found,
+# the override would fire, the marker would read OUTER, and this case would fail
+# while the production behaviour was correct. The suite already has the right
+# technique for this (`NO_MDLINT_ENV` further down): a `BASH_ENV` `command()`
+# override that hides the binary from `command -v` without touching `PATH`. A
+# self-contained one is used here rather than that shared shim, because that one
+# also stubs `npx`, and a miss should surface as "no shim ran" rather than be
+# absorbed by an npx marker.
+NEG_ENV="$WORK/override-inert.bashenv"
+cat >"$NEG_ENV" <<'NEGEOF'
+command() {
+  if [[ "${1:-}" == "-v" && "${2:-}" == "markdownlint-cli2" ]]; then
+    return 1
+  fi
+  builtin command "$@"
+}
+NEGEOF
+NEG_OUTER="$WORK/override-inert"
+mkdir -p "$NEG_OUTER/inner"
+printf '{ "config": { "MD004": { "style": "dash" } } }\n' >"$NEG_OUTER/.markdownlint-cli2.jsonc"
+printf '{ "config": { "MD004": { "style": "dash" } } }\n' >"$NEG_OUTER/inner/.markdownlint-cli2.jsonc"
+git init -q "$NEG_OUTER/inner" 2>/dev/null
+NEG_MARK="$WORK/override-inert.marker"
+for _md_root_spec in "$NEG_OUTER:OUTER" "$NEG_OUTER/inner:INNER"; do
+  _md_root="${_md_root_spec%:*}"
+  _md_label="${_md_root_spec##*:}"
+  mkdir -p "$_md_root/node_modules/.bin"
+  printf '#!/usr/bin/env bash\nprintf "%%s" "%s" > "%s"\nexit 0\n' \
+    "$_md_label" "$NEG_MARK" >"$_md_root/node_modules/.bin/markdownlint-cli2"
+  chmod +x "$_md_root/node_modules/.bin/markdownlint-cli2"
+done
+rm -f "$NEG_MARK"
+printf '# Override Inert\n\n* star item\n' >"$NEG_OUTER/inner/f.md"
+(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$NEG_OUTER/inner/f.md" |
+  env BASH_ENV="$NEG_ENV" CLAUDE_PROJECT_DIR="$NEG_OUTER" \
+    CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK") >/dev/null 2>&1
+NEG_SAW="$(cat "$NEG_MARK" 2>/dev/null || echo '<no shim ran>')"
+if [[ "$NEG_SAW" == "INNER" ]]; then
+  ok "git present: the override stays inert — the hook resolved REPO_ROOT to the git toplevel"
+else
+  fail "git present: REPO_ROOT was not the git toplevel — shim that ran reported '$NEG_SAW' (want INNER)"
+fi
 
 # --- Repository-local markdownlint: use contained npm/Git Bash shim ---------
 # Hide the PATH copy, then provide the extensionless POSIX shim npm installs
