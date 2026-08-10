@@ -26,11 +26,20 @@ release — even though the locale pin itself is a fix and the rest of the entry
 
   The `+x` is load-bearing rather than incidental. A plain `local LC_ALL=C` inherits the export
   attribute whenever the consumer exported `LC_ALL`, which pushes the pin into the `grep`/`sed`
-  children; GNU `[[:space:]]` matches U+00A0 and U+3000 under a UTF-8 locale but not under C, so
-  an exported pin silently drops a reference whose argument separator is a non-ASCII space. That
-  costs detection and buys nothing: the entire ~6.5x is bash's own matcher, and `grep -oE` over
-  the same 64 KiB measured 0.139 s under BOTH locales. Un-exported, the children keep running in
-  the caller's locale exactly as before.
+  children; `[[:space:]]` admits some non-ASCII spaces under a UTF-8 locale but never under C, so
+  an exported pin silently drops a reference whose argument separator is one of them. That costs
+  detection and buys nothing: the entire ~6.5x is bash's own matcher, and `grep -oE` over the same
+  64 KiB measured 0.139 s under BOTH locales. Un-exported, the children keep running in the
+  caller's locale exactly as before — verified identical on Git Bash (Cygwin 3.6.9, bash 5.3) and
+  on Linux (glibc 2.39, bash 5.2), which is what rules out a platform-specific `+x` semantic.
+
+  WHICH non-ASCII spaces qualify is the host C library's table and is not portable: glibc dropped
+  U+00A0 and U+202F from `space` in 2.26, while Cygwin/MSYS still classifies them; U+3000 and
+  U+2028 are admitted by both. The regression case therefore DISCOVERS a separator the host
+  actually classifies differently between the two locales instead of hardcoding one — an earlier
+  revision hardcoded U+00A0, which passed on Windows and failed on Linux CI because it asserted a
+  libc's classification rather than this hook's behavior. If no candidate discriminates, the case
+  reports a loud, reasoned skip naming the platform rather than passing quietly.
 
 ### Changed
 

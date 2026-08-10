@@ -411,14 +411,22 @@ reconstruct_partial_edit() {
   # `+x` is load-bearing, not decoration. The whole ~6.5x is bash's OWN `%%`
   # walk; the child processes are locale-insensitive here (`grep -oE` on the same
   # 64 KiB measured 0.139 s under BOTH locales), so exporting the pin would buy
-  # nothing and cost real behavior: GNU `[[:space:]]` is ASCII-only under C but
-  # matches U+00A0 / U+3000 / U+2028 under a UTF-8 locale, so an exported pin
-  # would make emit_refs below drop a reference whose argument separator is a
-  # non-ASCII space, and would make the blank-line filter keep an anchor line it
-  # used to discard. Un-exported, children run in the caller's locale exactly as
-  # before, and nothing they emit changes. Nothing needs them pinned either: no
-  # offset ever crosses a process boundary — the fallback's grep yields anchor
-  # STRINGS and emit_refs consumes a context STRING.
+  # nothing and cost real behavior: `[[:space:]]` is ASCII-only under C but admits
+  # some non-ASCII spaces under a UTF-8 locale, so an exported pin would make
+  # emit_refs below drop a reference whose argument separator is one of them, and
+  # would make the blank-line filter keep an anchor line it used to discard.
+  # Un-exported, children run in the caller's locale exactly as before, and nothing
+  # they emit changes. Nothing needs them pinned either: no offset ever crosses a
+  # process boundary — the fallback's grep yields anchor STRINGS and emit_refs
+  # consumes a context STRING.
+  #
+  # WHICH separators those are is the host C library's table, not this hook's, and
+  # it is not portable: glibc dropped U+00A0 and U+202F from `space` in 2.26, while
+  # Cygwin/MSYS still classifies them; U+3000 and U+2028 are admitted by both.
+  # Measured, after a first revision of the regression case hardcoded U+00A0 and so
+  # passed on Windows and failed on Linux CI. The case now DISCOVERS a separator
+  # this host actually classifies differently, so it asserts this hook's behavior
+  # rather than a libc's table.
   #
   # Scope and lifetime were verified rather than assumed: assigning LC_ALL re-runs
   # setlocale even for a `local` (and even with `+x`), and bash restores the

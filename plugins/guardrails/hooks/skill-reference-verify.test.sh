@@ -434,38 +434,67 @@ assert_contains "a reference reconstructed out of multibyte content is intact" "
 # written `local +x` rather than `local`.
 #
 # `local LC_ALL=C` inherits the export attribute when the CONSUMER exported LC_ALL,
-# so the pin reaches emit_refs' grep/sed. GNU `[[:space:]]` matches U+00A0 under a
-# UTF-8 locale but not under C, so an exported pin makes the hook silently drop a
-# reference whose argument separator is a non-ASCII space — a detection loss that
-# buys nothing, since the whole cost the pin removes is bash's own matcher and the
-# children measured identical in both locales.
+# so the pin reaches emit_refs' grep/sed. Those tools classify some non-ASCII spaces
+# as `[[:space:]]` under a UTF-8 locale but never under C, so an exported pin makes
+# the hook silently drop a reference whose argument separator is one of them — a
+# detection loss that buys nothing, since the whole cost the pin removes is bash's
+# own matcher and the children measured identical in both locales.
 #
-# The separator is built from escapes, never a literal byte, so an editor or a
-# transfer that normalizes whitespace cannot quietly turn this into an ASCII space
-# and make the case vacuous — which is exactly what happened while it was written.
-NBSP=$(printf '\xc2\xa0')
-if [[ $(printf '%s' "$NBSP" | wc -c) -ne 2 ]]; then
-  bad "non-ASCII separator fixture: U+00A0 is not 2 bytes"
-elif ! locale -a 2>/dev/null | grep -qi '^en_US\.utf-\?8$'; then
+# WHICH separator has that property is a property of the host's C library, not of
+# this hook, and it is NOT portable. glibc removed U+00A0 and U+202F from `space`
+# in 2.26 (a no-break space is deliberately not a separator); Cygwin/MSYS still
+# classifies them. An earlier revision of this case hardcoded U+00A0 and so passed
+# on Windows and failed on Linux CI — asserting a libc's classification table as if
+# it were this hook's behavior.
+#
+# So the separator is DISCOVERED rather than assumed: take the first candidate this
+# host actually classifies differently between the two locales, probed through the
+# very sed stage the assertion depends on. That cannot go vacuous (a candidate that
+# does not discriminate is never selected) and cannot go platform-brittle (no
+# codepoint is baked in). Every candidate is escape-built, never a literal byte, so
+# an editor or transfer that normalizes whitespace cannot quietly turn it into an
+# ASCII space — which is exactly what happened while this case was first written.
+SEP_SED='s|^(/[a-z][a-z0-9-]*:[a-z][a-z0-9-]*)([[:space:]].*)?$|\1|p'
+SEP='' SEP_NAME=''
+# shellcheck disable=SC2059  # the candidate IS the format string: its \nnn octal
+# escapes are the point, and passing them as %s data would emit the backslashes
+# literally instead of the UTF-8 bytes this case needs.
+for _cand in 'U+3000 IDEOGRAPHIC SPACE:\343\200\200' \
+  'U+2000 EN QUAD:\342\200\200' \
+  'U+2028 LINE SEPARATOR:\342\200\250' \
+  'U+205F MEDIUM MATHEMATICAL SPACE:\342\201\237' \
+  'U+00A0 NO-BREAK SPACE:\302\240'; do
+  _probe=$(printf "/alpha:ghost-x${_cand#*:}arg")
+  _u=$(printf '%s' "$_probe" | LC_ALL=en_US.UTF-8 sed -nE "$SEP_SED")
+  _c=$(printf '%s' "$_probe" | LC_ALL=C sed -nE "$SEP_SED")
+  if [[ -n "$_u" && -z "$_c" ]]; then
+    # shellcheck disable=SC2059  # same reason as above
+    SEP=$(printf "${_cand#*:}")
+    SEP_NAME=${_cand%%:*}
+    break
+  fi
+done
+if [[ -z "$SEP" ]]; then
   # This is the ONLY case that separates `local +x LC_ALL=C` from a plain `local
   # LC_ALL=C` — every other case in this file passes identically under both. So a
   # skip here silently retires the single guard this fix exists to add, and a green
-  # run would say nothing about it. CI's Ubuntu runners carry en_US.UTF-8, so this
-  # branch is expected to be DEAD there: a skip appearing in a CI log is itself the
-  # finding, not a shrug. It stays a skip rather than a failure only so a developer
-  # on a minimal host is not blocked by a locale they cannot generate.
-  ok "SKIP non-ASCII separator — NO LOCALE CONTRAST AVAILABLE, the +x guard did NOT run (host lacks en_US.UTF-8)"
+  # run would say nothing about it. Both platforms this was developed on select
+  # U+3000, so this branch is expected to be DEAD in CI: a skip appearing in a log
+  # is itself the finding, not a shrug. It stays a skip rather than a failure only
+  # so a host with no UTF-8 locale, or a libc that classifies no non-ASCII space as
+  # `[[:space:]]`, does not block a developer over something this hook does not own.
+  ok "SKIP locale-contrast guard — NO SEPARATOR DISCRIMINATES on this host, the +x guard did NOT run ($(uname -s), no candidate classified as [[:space:]] under en_US.UTF-8 but not C)"
 else
-  NBSPDOC="$REPO/nbsp.md"
-  printf 'Intro line.\nRun `/alpha:ghost-nbsp%sarg` now.\n' "$NBSP" >"$NBSPDOC"
+  SEPDOC="$REPO/sepspace.md"
+  printf 'Intro line.\nRun `/alpha:ghost-sep%sarg` now.\n' "$SEP" >"$SEPDOC"
   # The hunk is a bare SUBSTRING, so the direct scan cannot see the reference and
   # only reconstruction can report it.
   OUT=$(LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8 CLAUDE_PROJECT_DIR="$REPO" \
-    bash "$HOOK" <<<"$(edit_json "$NBSPDOC" 'ghost-nbsp')" 2>&1)
+    bash "$HOOK" <<<"$(edit_json "$SEPDOC" 'ghost-sep')" 2>&1)
   RC=$?
   assert_exit "consumer-exported UTF-8 locale → exit 0" 0 "$RC"
-  assert_contains "the pin does not reach the children: non-ASCII-separated reference survives" \
-    "$OUT" "UNRESOLVED_SKILL: /alpha:ghost-nbsp"
+  assert_contains "the pin does not reach the children: reference separated by $SEP_NAME survives" \
+    "$OUT" "UNRESOLVED_SKILL: /alpha:ghost-sep"
 fi
 
 # A short anchor is still subject to the uniqueness gate — it buys no scope.
