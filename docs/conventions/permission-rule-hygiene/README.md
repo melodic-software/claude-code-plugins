@@ -41,8 +41,15 @@ Two consequences for this convention, and one non-consequence:
 - **A dropped rule is the expected outcome now, not the edge case.** Before the switch, an
   interpreter-wildcard grant worked until someone entered auto mode, so the anti-patterns below were
   latent — correct-looking rules that failed on a mode change nobody made on most days. After it, a
-  new session on those plans starts with the broad grant already suspended, so the silent-failure
-  mode described above is the *first* run, not a later one.
+  session that **takes** the new default starts with the broad grant already suspended, so the
+  silent-failure mode described above is that session's *first* run, not a later one. Which sessions
+  take it is exactly what the quote above delimits: one whose operator set no personal default, or
+  who accepted the one-time switch prompt. A self-set `defaultMode` that the operator kept, and an
+  organization-managed default, both stay as they were — those sessions keep the pre-switch behavior
+  and the anti-patterns stay latent in them. So the population that starts in auto mode grows from
+  "whoever opted in" to "the default path plus whoever opted in", which is enough to make writing for
+  the auto-mode case the only safe authoring posture; it is not a claim that every session on those
+  plans is in auto mode.
 - **"Run it outside auto mode" is a downgrade, not a remedy.** The escape stays true — the mode is
   switchable at any time — but it now asks an operator to leave the default rather than to decline an
   opt-in. It is the fallback for the one case with no better answer (an `Agent` allow rule, which has
