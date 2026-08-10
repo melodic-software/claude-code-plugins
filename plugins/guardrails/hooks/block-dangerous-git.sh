@@ -103,7 +103,32 @@ hook::require_jq "PreToolUse" "guardrails-block-dangerous-git" "$INPUT"
 # cleared a 40-hex lease that is a movable REF NAME where the push actually runs.
 # block-noncanonical-commit has read this field since it shipped; this guard did
 # not, and the same chain is adopted here rather than a second mechanism.
+#
+# That remaining allow-on-unparsable path is unchanged by #2122 and is NOT what
+# the NUL check below covers.
 hook::jq_fields "$INPUT" '.tool_input.command' '.cwd' '.tool_name' || exit 0
+
+# A NUL byte in ANY field read above is fail-CLOSED, and is decided BEFORE
+# the empty-COMMAND skip below: the helper strips every NUL out of a value, so a
+# command consisting only of NUL bytes arrives EMPTY and would otherwise be waved
+# through by that skip as "no command" (#2122). Verified, not assumed — a lone
+# NUL yields an empty value with the flag set, while a leading NUL followed by
+# text keeps the text.
+#
+# Blocking rather than matching, because the value a guard can read is not
+# reliably the thing that would run. Two behaviours were measured and they
+# disagree — bash DISCARDS a NUL while parsing a command it reads, and Node's
+# child_process REFUSES a NUL-bearing string outright — and which of them, if
+# either, a hook payload reaches has not been traced. Blocking is the one verdict
+# correct under all of them, so it needs no such trace. A NUL here is malformed
+# input, not an exotic-but-valid command.
+if ((HOOK_JQ_FIELDS_NUL)); then
+  echo "BLOCKED: the payload carries a NUL byte, which a command cannot reliably carry." >&2
+  echo "What a guard can read is not dependably what would run, so this is refused rather than matched." >&2
+  echo "Fix: reissue the tool call without the embedded NUL." >&2
+  exit 2
+fi
+
 COMMAND="${HOOK_JQ_FIELDS[0]}"
 [[ -n "$COMMAND" ]] || exit 0
 HOOK_CWD="${HOOK_JQ_FIELDS[1]}"
