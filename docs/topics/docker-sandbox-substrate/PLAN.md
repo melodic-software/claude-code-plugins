@@ -157,9 +157,16 @@ Three additional legs close gaps a single-target exit-code test leaves open:
 - **Client readiness.** A boundary with no working TLS client would otherwise "pass" trivially — a
   missing tool is indistinguishable from a denied network. The same client must first succeed against
   an in-boundary endpoint; a client that cannot be shown to run yields UNPROVEN, never a pass.
-- **Multiple targets, one unguessable.** One denied destination does not establish default-deny: a
-  policy can allow specific hosts while denying the probed one. At least two targets are required, one
-  of them a randomized name no allowlist could have anticipated.
+- **Multiple targets under different operators.** One denied destination does not establish
+  default-deny: a policy can allow specific hosts while denying the probed one. At least two DISTINCT
+  external targets are required, each independently proven reachable from the outer context.
+
+  *Scope change, 2026-08-10, found at implementation.* ~~one of them a randomized name no allowlist
+  could have anticipated~~ — a randomized name cannot satisfy the recipe's existing outer-reachability
+  invariant (`outer_exit_code` must be `"0"`, because a target that fails everywhere "fails" inside too
+  and proves nothing). Unguessability and outer-reachability are mutually exclusive over DNS, and
+  outer-reachability is the older, load-bearing rule. Distinct operators is the nearest property that
+  survives it.
 - **Address family recorded, never inferred.** IPv4 and IPv6 are probed and recorded separately; an
   absent family is `not-applicable`, never counted as denied.
 
@@ -204,7 +211,49 @@ recorded as a deferred item with its own trigger rather than implied by the asse
 Phase order is dependency-driven: the vocabulary leaf (Phase 2) must exist before any surface can
 cite it, and Phase 1 is independent of every other phase.
 
-#### Phase 1: Probe hardening — data-flow egress + workspace host-write containment [TODO]
+#### Phase 1: Probe hardening — data-flow egress + workspace host-write containment [DONE]
+
+**Merge gate satisfied 2026-08-10.** Evidence: `.work/docker-sandbox-substrate/probe-evidence-hardened-recipe.md`.
+All three assertions failed inside a live boundary; 446/446 fixture checks pass; 0 pre-existing pinned
+reasons changed.
+
+**What the live run changed.** It was not a formality — it found two recipe defects and one stale
+environment claim that no amount of review would have caught:
+
+- **The peer-identity design is empirically vindicated, not merely reasoned.** The measured boundary
+  presented a certificate with the CORRECT hostname signed by a CA it trusted, so
+  `ssl_verify_result=0` — certificate verification returned SUCCESS on a fully sealed boundary. Only
+  the differing fingerprint distinguished interception from reached egress. This substrate is a live
+  instance of the TLS-inspection case, not a hypothetical one.
+- **A direct-TLS fingerprint tool cannot traverse an HTTP `CONNECT` proxy** and reports no peer at
+  all, identically for a sealed and an open boundary. The recipe now requires a proxy-aware capture.
+- **The probe shape now shows fail-on-HTTP-error explicitly.** The first attempt at the live run
+  reproduced the original false negative exactly — a block page is a successful transfer.
+- **Handoff correction:** `policy ls` does not display the global network policy, so the posture reads
+  as absent. `policy check network <host>` is the confirmation route.
+
+**PR review outcome (#2150).** Two reviewers — one cross-vendor, one same-vendor — independently
+converged on the SAME five findings, which is what marked them real rather than stylistic. All five
+were confirmed and fixed; 474 checks pass, 0 pre-existing pinned reasons changed.
+
+- **One was a stale-justification failure worth carrying forward as a lesson.** The plan recorded that
+  the non-zero-exit invariant "stands unchanged — no relaxation", justified by the claim that
+  certificate verification achieved the same discrimination while keeping the exit requirement.
+  Certificate verification was then REPLACED by peer-identity comparison, which destroyed that
+  justification, but the exit requirement survived unexamined — leaving a sealed boundary whose block
+  page carries a successful HTTP status unprovable. A zero exit is now accepted only where the entry's
+  outcome is `peer-substituted` and its fingerprints differ. **When a decision's premise is replaced,
+  re-derive every rule that premise was carrying.**
+- **The other four shared one shape: counting entries where coverage was meant.** Two egress entries
+  counted as two targets (`example.com,example.com` passed); three canary strings counted as three
+  shapes (`same,same,same` passed); fingerprints went unchecked on outcomes that assert no peer;
+  `",,"` counted as three recorded exit codes. **Phase 3 inherits this directly** — a role list, a
+  relational constraint, and a predicate set are all count-shaped surfaces, and the same defect is
+  available in each unless the checks assert distinctness and coverage rather than length.
+- **Pushed back on one half-suggestion rather than complying:** the checker has no trustworthy way to
+  verify two hosts belong to different operators, since every signal it could read comes from the same
+  transcript an executing agent authored. The recipe states the requirement; the checker enforces the
+  verifiable part; the gap is recorded rather than implied.
 
 Review: security
 
@@ -264,9 +313,21 @@ Criterion 3. Delivers the Q20 resolution above.
 - `node scripts/check-security-binding.fixtures.test.mjs` exits 0 with every pre-existing case's
   `findings_substrings` unchanged (diff the manifest: only ADDED keys, no MODIFIED `findings_substrings`
   on pre-existing cases).
-- `grep -c "workspace_host_write_contained" plugins/autonomy/skills/setup/templates/isolation-probe.md` ≥ 3.
-- `grep -rn "must fail to CONNECT\|SAME two assertions\|Two checks\|both assertions" plugins/autonomy/skills/setup/`
-  returns empty.
+- The template documents the assertion in both places that matter, asserted precisely rather than by
+  token count: `grep -c "Workspace host-write containment probe shape" templates/isolation-probe.md`
+  returns 1, and `grep -c "workspace_host_write_contained" templates/isolation-probe.md` returns ≥ 1
+  (the transcript capture shape).
+
+  *Correction, 2026-08-10, found at implementation.* The original `≥ 3` literal-token count was
+  arbitrary and failed against a template that documents the assertion correctly in prose. Padding the
+  document to satisfy the count would have been the wrong repair.
+- `grep -rn "SAME two assertions\|Two checks\|both assertions\|two assertions" plugins/autonomy/skills/setup/`
+  returns empty — every hardcoded assertion COUNT moved with the assertion set.
+
+  *Correction, 2026-08-10, found at implementation.* ~~`must fail to CONNECT`~~ was wrongly included
+  in this zero-match list. That phrase belongs to the CREDENTIAL assertion's metadata-endpoint clause,
+  where connection-level failure is still the correct requirement; only the EGRESS assertion changed.
+  Deleting it would have damaged sound contract text to satisfy a bad check.
 - `grep -rn "sbx\|Docker Sandboxes\|Multipass\|Hyper-V" plugins/autonomy/` returns empty.
 - A re-probe transcript exists under `.work/docker-sandbox-substrate/` recording the new
   `transport_outcome` and `workspace_host_write_contained` blocks from a live run.
