@@ -69,6 +69,13 @@ answers reach this public repository.
   definition covered only stressed-on-weak while its own worked example
   diagnoses an unstressed syllable riding a strong beat as a greedy spot. The
   definition now covers both directions. Pre-existing; surfaced by review.
+- **The skill handler still called "too cold" the reverse of greed.** After the
+  frame split above, `skills/meter-prosody/SKILL.md` introduced too-cold as "the
+  reverse case," reasserting the single-axis reading this release exists to
+  remove — in the one file that drives behavior rather than documents it. Too
+  cold is **orthogonal**, not a mirror image: the stresses land correctly and no
+  stress check of any kind finds it. Now stated as an explicit negative, since
+  merely softening the connective leaves the scan-for-it instinct in place.
 - **Two categorical claims had been softened into hedges.** Three-syllable words
   with middle primary stress have **no** secondary stress, not "may be no"; words
   of four or more syllables **always** carry secondary stress, not "normally."
