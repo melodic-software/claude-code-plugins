@@ -2,13 +2,13 @@
 
 Read this when batch-compressing N markdown files via parallel subagents. Codifies the multi-phase split that keeps the mandatory semantic-diff in a SEPARATE fresh-context auditor. Before Claude Code v2.1.172 a subagent could not spawn the verifier at all (no nested Agent tool); as of v2.1.172 a foreground subagent can, but nested spawning is version-dependent and a fresh-context verifier beats self-critique regardless — so the auditor phase stays a main-session dispatch.
 
-**Why this exists:** `/compress` "Hard rules" mandate semantic-diff dispatch. A subagent that invokes `/compress` must NOT run that dispatch as a self-audit in its own context — self-audit by the same model that produced the edits drifts toward EXPANSION ("preserve clarity" re-adds words just removed). Empirically observed: 4/4 reverse-direction edits in a compression wave (see ## History). Fix: move the semantic-diff into a separate fresh-context subagent dispatched by the main session.
+**Why this exists:** `/docs-hygiene:compress` "Hard rules" mandate semantic-diff dispatch. A subagent that invokes `/docs-hygiene:compress` must NOT run that dispatch as a self-audit in its own context — self-audit by the same model that produced the edits drifts toward EXPANSION ("preserve clarity" re-adds words just removed). Empirically observed: 4/4 reverse-direction edits in a compression wave (see ## History). Fix: move the semantic-diff into a separate fresh-context subagent dispatched by the main session.
 
 ## Architecture (three phases per wave)
 
 ### Phase A — compressor subagents (parallel, 3-5 per wave)
 
-Each subagent compresses exactly ONE file via the Edit tool. **NO `/compress` slash invocation, NO self-audit, NO re-review.** Returns a diff stat. Latitude follows this skill's flavor-vs-content taxonomy (`context/flavor-vs-content-matrix.md`) — full mechanical drops plus prose-quality moves (passive → active, nominalization collapse).
+Each subagent compresses exactly ONE file via the Edit tool. **NO `/docs-hygiene:compress` slash invocation, NO self-audit, NO re-review.** Returns a diff stat. Latitude follows this skill's flavor-vs-content taxonomy (`context/flavor-vs-content-matrix.md`) — full mechanical drops plus prose-quality moves (passive → active, nominalization collapse).
 
 Canonical Phase A prompt template (compose verbatim, substitute `<ABSOLUTE-PATH>`):
 
@@ -39,7 +39,7 @@ If nothing safely droppable after one read-through: <basename>: no-op (reason)
 
 ### Phase B — auditor subagents (parallel, one per Phase-A modified file)
 
-Main session dispatches via the Agent tool. Each subagent applies `/compress`'s semantic-diff prompt template against ONE file's diff. The main session has the Agent tool; this dispatch succeeds.
+Main session dispatches via the Agent tool. Each subagent applies `/docs-hygiene:compress`'s semantic-diff prompt template against ONE file's diff. The main session has the Agent tool; this dispatch succeeds.
 
 Main session preparation per subagent:
 
@@ -65,7 +65,7 @@ Per FINDING block returned in Phase B:
 ## Orchestration rules
 
 - **Phase A scope fence** — each compressor subagent's prompt names exactly ONE allowed file; any other file, git operation, or path is forbidden (the template above encodes this)
-- **Phase A does NOT invoke `/compress`** as a slash command from subagents — self-audit in the compressor context caused reverse-direction edits (see ## History)
+- **Phase A does NOT invoke `/docs-hygiene:compress`** as a slash command from subagents — self-audit in the compressor context caused reverse-direction edits (see ## History)
 - **Refuse-fast threshold** — 5 consecutive Phase A or Phase B ERROR returns aborts the batch
 - **Phase B returns are unverified synthesis** — the main session reverts per finding rather than verifying each by hand; a forbidden citation token invalidates the whole dispatch
 

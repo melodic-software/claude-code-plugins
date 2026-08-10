@@ -18,7 +18,7 @@ is still the single-session pattern — spec-first is opt-in.
 
 Each stage writes its output to the repo's work-artifact location (the consuming repo's documented
 convention, or the topic's memory-tier slice `<memory_dir>/<slug>/` (default `.work/`) — see the workflow skill's "Consumer
-conventions"); `/handoff` save-points land in the handoff skill's own home (`.work/handoffs/` by
+conventions"); `/session-flow:handoff` save-points land in the handoff skill's own home (`.work/handoffs/` by
 default). The next stage reads only that artifact.
 
 | Stage | Writes | Next stage reads |
@@ -27,7 +27,7 @@ default). The next stage reads only that artifact.
 | 1 Explore | exploration findings file | context for research |
 | 2 Research | research findings file (cited sources) | evidence for plan |
 | 3 Plan | plan file (phases + verification criteria), user-approved | roadmap for implement |
-| any | `/handoff` save-point | mid-task snapshot for the fresh session |
+| any | `/session-flow:handoff` save-point | mid-task snapshot for the fresh session |
 
 ## Execution pattern
 
@@ -36,8 +36,8 @@ contract   → writes the brief                → /clear
 explore    → writes findings                 → /clear
 research   → writes cited evidence           → /clear
 plan       → writes the approved plan        → /clear
-implement  → ships code, commits per phase   → (optional /handoff if context bloats)
-test → review → verify → /retro              ← the back half often runs in one session
+implement  → ships code, commits per phase   → (optional /session-flow:handoff if context bloats)
+test → review → verify → /session-flow:retro              ← the back half often runs in one session
 ```
 
 `/clear` between every stage is the maximum-reduction pattern. In practice, collapse adjacent
@@ -53,7 +53,7 @@ each stage's context is tight and purpose-built, and compaction is rarely reache
 
 ## /handoff: the escape hatch
 
-Mid-stage, if context grows heavy or quality degrades, invoke `/handoff` to snapshot the current
+Mid-stage, if context grows heavy or quality degrades, invoke `/session-flow:handoff` to snapshot the current
 state and `/clear` — that skill owns which sections a save-point carries. Multiple
 save-points accumulate; timestamps keep them ordered.
 

@@ -15,7 +15,7 @@ Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 
 ## Purpose
 
-`/research-deep` is the **dispatcher** for deep external research — a depth/execution variant of the sibling `/research` skill. Same research contract (3-phase discipline, source-tier ratio, recency gate, mandatory falsification, cited `RESEARCH.md` artifact); heavier execution that keeps the main session's context clean. It selects ONE execution tier from tool availability + task heaviness, then surfaces the same summary contract regardless of tier.
+`/discovery:research-deep` is the **dispatcher** for deep external research — a depth/execution variant of the sibling `/discovery:research` skill. Same research contract (3-phase discipline, source-tier ratio, recency gate, mandatory falsification, cited `RESEARCH.md` artifact); heavier execution that keeps the main session's context clean. It selects ONE execution tier from tool availability + task heaviness, then surfaces the same summary contract regardless of tier.
 
 This skill runs **inline (main context)** — it dispatches; the chosen tier provides the context isolation. It must run in main context because that is the only place both of its requirements hold — the `Workflow` tool, absent from every non-fork subagent, and a dependable `Agent` spawn, which no subagent is guaranteed to hold: see the *Dispatching this skill itself* gotcha.
 
@@ -35,11 +35,11 @@ For a single-topic ask, detection is **engine-biased**: prefer the heaviest avai
 |---|---|---|
 | 1 — workflow engine (preferred) | The Workflow tool is available AND a deep-research workflow exists (a built-in deep-research workflow, or one the consuming project ships) AND the task is heavy/broad (or unknown scope) | Dispatch that workflow with the topic |
 | 2 — isolated subagent | No workflow path AND the task is heavy | Dispatch the purpose-built `discovery:researcher` agent with a resolved envelope |
-| 3 — inline | Task clearly small/targeted (single fact, one obvious source, narrow lookup) | Run `/research` inline in this session |
+| 3 — inline | Task clearly small/targeted (single fact, one obvious source, narrow lookup) | Run `/discovery:research` inline in this session |
 
 - **Heavy/broad** = multi-source, multi-vendor, comparison/migration, unfamiliar domain, or research that would flood main context with 9+ external queries.
-- **Clearly small** = a single verifiable fact from one obvious source. Even here the full `/research` discipline applies — task size never reduces depth.
-- **Multi-topic parallel agents** = each topic agent still runs the FULL `/research` discipline (3 phases, source tiers, falsification) — the split changes orchestration, never depth.
+- **Clearly small** = a single verifiable fact from one obvious source. Even here the full `/discovery:research` discipline applies — task size never reduces depth.
+- **Multi-topic parallel agents** = each topic agent still runs the FULL `/discovery:research` discipline (3 phases, source tiers, falsification) — the split changes orchestration, never depth.
 
 ### The dispatch envelope — every `discovery:researcher` spawn carries it
 
@@ -58,7 +58,7 @@ Agent({
 })
 ```
 
-**Envelope fields only.** The agent arrives with `/research` preloaded and with its effort and turn budget already calibrated to that discipline, so the mandatory disciplines, the citation rule, the outcome gate — including the split that hands its verifier-owned rows to a fresh-context verifier rather than letting the producer grade them — and the shape of its return payload are all its own standing contract. Restating them in the prompt copies a contract that lives in the parent skill and drifts from it the moment that skill changes. One bound to know when filling `Budget`: the researcher's `maxTurns: 40` is fixed in its definition, so the budget field can narrow depth within that ceiling but never widen past it — a task that genuinely needs more belongs to Tier 1's workflow engine. Field-by-field rationale for five of the six envelope fields: [`${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md`](${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md); `Memory root` is specified by the researcher's own contract ([`${CLAUDE_PLUGIN_ROOT}/agents/researcher.md`](${CLAUDE_PLUGIN_ROOT}/agents/researcher.md)), which names why it must arrive resolved rather than derived.
+**Envelope fields only.** The agent arrives with `/discovery:research` preloaded and with its effort and turn budget already calibrated to that discipline, so the mandatory disciplines, the citation rule, the outcome gate — including the split that hands its verifier-owned rows to a fresh-context verifier rather than letting the producer grade them — and the shape of its return payload are all its own standing contract. Restating them in the prompt copies a contract that lives in the parent skill and drifts from it the moment that skill changes. One bound to know when filling `Budget`: the researcher's `maxTurns: 40` is fixed in its definition, so the budget field can narrow depth within that ceiling but never widen past it — a task that genuinely needs more belongs to Tier 1's workflow engine. Field-by-field rationale for five of the six envelope fields: [`${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md`](${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md); `Memory root` is specified by the researcher's own contract ([`${CLAUDE_PLUGIN_ROOT}/agents/researcher.md`](${CLAUDE_PLUGIN_ROOT}/agents/researcher.md)), which names why it must arrive resolved rather than derived.
 
 ### Tier 1 — workflow engine (preferred)
 
@@ -70,15 +70,15 @@ If no workflow engine resolves, fall through to Tier 2.
 
 Dispatch ONE `discovery:researcher` with the envelope above. With a single worker the slice field is the topic's own `<memory_dir>/<slug>/` — a sub-slice is needed here only when that root already holds an unrelated `RESEARCH.md`, per the parent skill's one-writer-per-slice rule.
 
-`discovery:researcher` rather than a `general-purpose` spawn carrying a hand-written description of the discipline: it is the plugin's purpose-built worker for exactly this run, arriving with `/research` already loaded and with its effort and turn budget calibrated to that discipline, so the run is disciplined and correctly provisioned at turn zero rather than to whatever depth a prompt managed to reproduce. Its tool list also covers what the work needs, which a read-only Explore agent's does not: Phase 3 reaches direct-fetch and MCP tools, and the artifact gets written.
+`discovery:researcher` rather than a `general-purpose` spawn carrying a hand-written description of the discipline: it is the plugin's purpose-built worker for exactly this run, arriving with `/discovery:research` already loaded and with its effort and turn budget calibrated to that discipline, so the run is disciplined and correctly provisioned at turn zero rather than to whatever depth a prompt managed to reproduce. Its tool list also covers what the work needs, which a read-only Explore agent's does not: Phase 3 reaches direct-fetch and MCP tools, and the artifact gets written.
 
 ### Tier 3 — inline (clearly small task)
 
-Run `/research` inline in this session — no dispatched *research* tier, no workflow. The full `/research` discipline still applies, including its own rule that an inline run hands the verifier-owned rows to a fresh context rather than self-grading them. That fresh context is a subagent; what Tier 3 declines to dispatch is the research, not the verification, and the boundary below arrives here through the parent skill rather than being restated.
+Run `/discovery:research` inline in this session — no dispatched *research* tier, no workflow. The full `/discovery:research` discipline still applies, including its own rule that an inline run hands the verifier-owned rows to a fresh context rather than self-grading them. That fresh context is a subagent; what Tier 3 declines to dispatch is the research, not the verification, and the boundary below arrives here through the parent skill rather than being restated.
 
 ### The post-dispatch boundary — every dispatching tier owns it
 
-**A dispatched run is not finished when it returns.** No producing context — engine, isolated subagent, or topic worker — can complete the `/research` outcome gate's verifier-owned rows (independent corroboration, HIGH confidence) or its parent-owned row (project fit). The first two are assigned to a fresh context precisely because a producer may not grade its own choices; the third needs the consuming project's conventions, which only this session holds. Nor can the producer be relied on to dispatch that verifier itself — whether a non-fork subagent holds `Agent` depends on the harness's current nesting allowance (`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`), a default that has moved three times and is not worth designing against.
+**A dispatched run is not finished when it returns.** No producing context — engine, isolated subagent, or topic worker — can complete the `/discovery:research` outcome gate's verifier-owned rows (independent corroboration, HIGH confidence) or its parent-owned row (project fit). The first two are assigned to a fresh context precisely because a producer may not grade its own choices; the third needs the consuming project's conventions, which only this session holds. Nor can the producer be relied on to dispatch that verifier itself — whether a non-fork subagent holds `Agent` depends on the harness's current nesting allowance (`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`), a default that has moved three times and is not worth designing against.
 
 So for **every** dispatched run — one per topic on the N-topic path, once on Tier 1 and Tier 2 — this session dispatches the sibling verifier against the artifact on disk, applies project fit, and writes both results back into that artifact's index **before** surfacing anything. Surfacing a producer's summary and artifact path directly presents claims as gate-passed when the rows that matter were never graded by anyone. A single-topic ask earns no weaker boundary than a multi-topic one, and an engine earns no weaker boundary than a subagent.
 
@@ -86,9 +86,9 @@ So for **every** dispatched run — one per topic on the N-topic path, once on T
 
 Parent-side handling of a `discovery:researcher` return specifically — the gate's steps, the payload checks, and the four obligations stated in full — is the parent skill's contract rather than a second copy here: [`${CLAUDE_PLUGIN_ROOT}/skills/research/SKILL.md`](${CLAUDE_PLUGIN_ROOT}/skills/research/SKILL.md) for the gate's steps, and [`${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md`](${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md) for the rationale and the recovery ladder.
 
-## Relationship to `/research` (parent skill)
+## Relationship to `/discovery:research` (parent skill)
 
-This variant tracks `/research`'s conventions — same discipline file, same artifact contract, same outcome gate. There is no separate copy here; update the parent and this dispatcher follows.
+This variant tracks `/discovery:research`'s conventions — same discipline file, same artifact contract, same outcome gate. There is no separate copy here; update the parent and this dispatcher follows.
 
 ## Gotchas
 
@@ -99,9 +99,9 @@ This variant tracks `/research`'s conventions — same discipline file, same art
   non-fork subagent, and **every** tier needs the `Agent` tool — the N-topic fan-out to spawn topic
   workers, and all four paths to close the post-dispatch boundary — whose availability inside a
   subagent depends on a nesting default that has moved three times, and which, inside a fork, cannot
-  spawn a further fork at all. A dispatched `/research-deep` therefore risks silently losing Tier 1,
+  spawn a further fork at all. A dispatched `/discovery:research-deep` therefore risks silently losing Tier 1,
   the N-topic fan-out, and the verification boundary that makes any tier's artifact trustworthy. The
-  sibling `/research` is the one that dispatches.
+  sibling `/discovery:research` is the one that dispatches.
 - **Treating a worker's return as the finished thing.** A `discovery:researcher` return is a pointer
   plus a payload, and grading that payload is parent-side work this session owes before anything is
   surfaced — the checks and the obligations are specified in the parent skill's dispatch contract.
@@ -117,5 +117,5 @@ This variant tracks `/research`'s conventions — same discipline file, same art
 
 ## See also
 
-- `/research` — the canonical 3-phase workflow (Tiers 2 + 3 run it; a Tier-1 engine supersets it)
+- `/discovery:research` — the canonical 3-phase workflow (Tiers 2 + 3 run it; a Tier-1 engine supersets it)
 - `${CLAUDE_PLUGIN_ROOT}/skills/research/context/discipline.md` — the shared discipline file

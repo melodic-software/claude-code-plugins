@@ -1,6 +1,6 @@
 # Pattern Library — Syntactic Forms
 
-The load-bearing component of `/rename-references`. Each pattern catches references that pure-token grep misses. Empirically derived from a real skill-rename incident where 11 stale references survived 3 sweep passes; each pass found a new form.
+The load-bearing component of `/docs-hygiene:rename-references`. Each pattern catches references that pure-token grep misses. Empirically derived from a real skill-rename incident where 11 stale references survived 3 sweep passes; each pass found a new form.
 
 ## How to read this file
 

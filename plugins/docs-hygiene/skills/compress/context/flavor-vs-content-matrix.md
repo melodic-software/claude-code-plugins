@@ -1,6 +1,6 @@
 # Flavor vs content matrix
 
-Canonical FLAVOR / CONTENT taxonomy for the `/compress` semantic-diff pass, plus per-content-type variants tuning expected yield and revert-pass focus.
+Canonical FLAVOR / CONTENT taxonomy for the `/docs-hygiene:compress` semantic-diff pass, plus per-content-type variants tuning expected yield and revert-pass focus.
 
 ## Canonical taxonomy
 
@@ -46,7 +46,7 @@ The (a)–(j) Content list defines the universal preservation contract. Per-cont
 
 ## Audit-action expected-yield mapping
 
-`/compress audit <target>` classifies SKIP / COMPRESS / UNCERTAIN per `context/target-types.md` "Author-time-signal heuristic". The "Expected yield" column above feeds that heuristic's output:
+`/docs-hygiene:compress audit <target>` classifies SKIP / COMPRESS / UNCERTAIN per `context/target-types.md` "Author-time-signal heuristic". The "Expected yield" column above feeds that heuristic's output:
 
 - Expected yield < 3% (always-loaded instruction files) → audit emits **SKIP** with empirical-baseline citation
 - Expected yield 3-7% (drifted skill bodies) → audit emits **UNCERTAIN**; user gates via `--force` or skip

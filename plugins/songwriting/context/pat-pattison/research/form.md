@@ -73,6 +73,11 @@ can match each other because verses usually share the same developmental job.
 A chorus should normally change design because it comments, summarizes, or
 arrives.
 
+Pattison names both readings rather than leaving them implicit: applied to a
+single section, form-follows-function *is* the principle of
+[prosody](prosody.md); applied to two sections compared against each other, it
+*is* the principle of contrast. Same rule, one object or two.
+
 ## Rhyme as accelerator
 
 Rhyme spacing changes perceived speed:
@@ -190,6 +195,21 @@ If the chorus opening does not change at least one major variable, revise the
 opening before polishing later lines. The first contrast teaches the listener
 that the song has moved into a new job.
 
+Sameness can hide from a quick count. In the "Southern Comfort" chorus most
+phrases carry three stresses and the opening carries "3+", which reads as
+contrast on the page — but three stresses is common meter's balancing length
+and "3+" is an ordinary variant of its four-stress line, so the section still
+leans toward the meter the verse has already established at length. Where a
+chorus is meant to contrast with a common-meter verse, check what its
+balancing phrases are doing, not only whether the numbers differ.
+
+On how many verse phrases that is: Chapter 20 reads the verse as two complete
+common-meter systems varied by an extra stress in its last phrase, while
+[song-forms-examples](song-forms-examples.md) reads the 1991 treatment of the
+same song as seven phrases with the closing eighth deceptively withheld. Those
+are two readings of one verse in two books, not a contradiction to resolve —
+cite whichever book is in hand and do not merge the counts.
+
 Useful revision moves:
 
 - Shorten the chorus opening if the verse is long and narrative.
@@ -222,6 +242,14 @@ effect: balanced total, built-in acceleration
 
 This is form-level juggling: the chorus comments on the long, loose verse
 material by becoming more compact, balanced, and focused.
+
+The musical setting is what completes the prosody, and the stress arithmetic
+alone misses it. The song gives both groups the same four bars — but three
+phrases now have to fit the space two phrases had, and the final phrase gets
+only one bar. The lyric says years go fast; the setting compresses the last
+phrase into the smallest space in the section. When checking a chorus like
+this, ask how much musical time each group occupies, not just how many
+stresses it contains.
 
 ## Phrase-count balance
 

@@ -1,7 +1,7 @@
 # Action: `search`
 
-**Usage:** `/known-issues search <feature-name> [--repo <repo>] [--status] [--all]`
-**Also:** `/known-issues <feature-name>` (search is the default when args look like a feature name)
+**Usage:** `/claude-ops:known-issues search <feature-name> [--repo <repo>] [--status] [--all]`
+**Also:** `/claude-ops:known-issues <feature-name>` (search is the default when args look like a feature name)
 
 ## Flags
 

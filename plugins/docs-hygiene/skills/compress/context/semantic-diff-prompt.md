@@ -1,6 +1,6 @@
 # Semantic-diff subagent dispatch template
 
-Agent tool prompt body + return-format contract for the default action. Loaded by `/compress` when dispatching the comparison pass; private implementation surface — do NOT cite this file from outside the skill (external consumers invoke `/compress`).
+Agent tool prompt body + return-format contract for the default action. Loaded by `/docs-hygiene:compress` when dispatching the comparison pass; private implementation surface — do NOT cite this file from outside the skill (external consumers invoke `/docs-hygiene:compress`).
 
 ## Dispatch shape
 

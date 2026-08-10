@@ -3,6 +3,100 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.0]
+
+### Fixed
+
+- **`block-dangerous-git` no longer clears an unsafe `--force-with-lease` by measuring the wrong
+  repository (#2124).** The lease check accepts a `=<refname>:<expect>` whose `<expect>` is a
+  full-width object id, because git cannot resolve one to something newer at push time. The width
+  is the local repository's, and the guard probed the HOOK PROCESS's directory to learn it. Claude
+  Code launches hooks from the session root and runs the Bash tool wherever the session stands, so
+  the two differ routinely — and a payload `cwd` in a SHA-256 repository with the hook process in a
+  SHA-1 one read a 40-hex lease as an immutable object id while git resolves it as a movable REF
+  NAME where the push actually runs. That is precisely the hole `--force-with-lease` exists to
+  close, and it needed no wrapper and no `cd`: a plain `git push` was enough. The payload's `.cwd`
+  is now read and replayed as a LEADING `-C` ahead of any wrapper chdir, so it composes under git's
+  own rules exactly as the wrapper replay already did. The base-resolution chain is
+  `HOOK_EFFECTIVE_BASE` → `HOOK_CWD` → `CLAUDE_PROJECT_DIR` → `.`, adopted verbatim from
+  `block-noncanonical-commit` rather than invented a second time; a `!` shell alias relocates the
+  base for its reparse and it is save/restored around each one, since git launches that body in the
+  relocated repository.
+- **The alias re-expansion memo keys on the effective base, so a cached verdict cannot be reused
+  across repositories (#2124).** Caught in review of this change, and a defect this change itself
+  introduced: making the lease verdict a function of the base means the base has to be part of any
+  key that memoizes that verdict, and `HOOK_ALIAS_MEMO` keyed only on kind, seen-set and command
+  text. One Bash command invoking the SAME `!` alias text twice — first under a SHA-1 `git -C`,
+  where a 40-hex expectation is a real object id and is correctly allowed, then under a SHA-256
+  `git -C`, where the identical word is a movable ref name — had its second analysis skipped as
+  already seen, and the guard exited 0. Verified against this branch's own pre-fix head rather than
+  `origin/main`, which has no base-dependent verdict to cache wrongly: the buggy tree runs the width
+  probe ONCE (`40`) and allows; the fixed tree runs it twice (`40`, then `64`) and blocks. The
+  other cache, `repo_oid_width`, was checked for the same class and is already base-keyed — its key
+  is the replayed option list, which now leads with the base — confirmed empirically, not by
+  inspection. `block-noncanonical-commit` keys its memo on the base for exactly this reason.
+
+  The collision was unconditional rather than occasional: the `!` branch empties `HOOK_ALIAS_SEEN`
+  *before* the key is built, so the old key reduced to kind + a constant + the reparse text, and two
+  reparses of identical alias text collided at any depth, through `;` and `&&` alike. It could only
+  ever be a bypass, never a false block — a memo hit skips analysis, skipping can only turn DENY
+  into ALLOW, and the guard exits at the first blocking segment so nothing follows a DENY.
+
+  **Cost, measured.** Keying on the base means the memo dedups less, so analyses now scale with the
+  number of DISTINCT bases in one command instead of collapsing to one. Counted from the `bash -x`
+  trace, distinct bases → analyses (width probes): old 1→1 (2), 4→1 (2), 16→1 (2), 32→1 (2); new
+  1→1 (2), 4→4 (8), 16→16 (32), 32→32 (64). Linear, and that collapse to 1 was the defect, not an
+  optimization worth keeping. `HOOK_ALIAS_WORK_MAX` (128) still bounds it and exhausting it fails
+  CLOSED, so the weakened dedup costs work, never safety. A fixture pins 16 distinct bases as
+  allowed-and-bounded, and the same walk with a SHA-256 base appended as still blocked.
+
+  Two things the reviewer flagged as reasoned-not-run are now run. The memo does not survive a hook
+  invocation — it is a shell variable in a process that exits, and the sha1-then-sha256 pair split
+  across two separate invocations gives 0 then 2. The git-alias branch shares the memo under a
+  different tag and is covered by construction, since the base is keyed inside
+  `alias_reexpand_admit` rather than at the call sites; no live case is constructible there, because
+  a git alias splices words into the same argv and cannot relocate the base.
+- **`env -S` / `--split-string` no longer hides a whole command from the git guards (#2124).** `-S`
+  exists so a shebang line can pass OPTIONS to env (`#!/usr/bin/env -S -i prog`), so the words it
+  splits out are env's own arguments. `hook::git_resolve_index` spliced them back into the scan but
+  resumed at the COMMAND dispatcher, which read a leading option in the split string as the command
+  NAME and gave up — `env -S '-C <sha256-repo> git push --force-with-lease=main:<40-hex>'` and even
+  a bare `env -S '-v git push --force'` resolved to no git at all, so the guard never examined
+  them. Parsing now resumes inside env's own option loop, which also keeps env's single chdir slot
+  last-wins across the splice (`env -C a -S '-C b git …'` reports `b`, as GNU env behaves). This is
+  the LARGER of the two holes and it was not lease-specific: an independent adversary confirmed
+  `block-no-verify` allowed `git commit --no-verify` and `block-dangerous-git` allowed
+  `git reset --hard` behind the same `env -S` form. `hook::git_resolve_index` is the shared resolver,
+  so the hole was shared — `hook-utils.sh` lives in 17 places (`lib/` plus 16 plugin copies) and
+  every one of them was stale. Synced from `lib/hook-utils.sh`, so all 17 carry the fix.
+
+### Changed
+
+- **A RELATIVE `--git-dir` / `--work-tree` / `--namespace` / `-C` in a guarded command now resolves
+  against the directory the TOOL CALL runs in, not the hook process's.** This falls out of the
+  leading-`-C` base above and is the correct origin — a relative path written in a tool call means
+  relative to where that call runs — but it is a behaviour change and is called out here so it is
+  not read as a regression. An ABSOLUTE one is unaffected.
+- `repo_oid_width`'s known-gap docblock is restated at its real width. It described the residual as
+  needing "a SHA-256 repository, a lease pinned to a full-width hex word that is also a ref name
+  there, and a compound `cd` into it" — three conjuncts, when at the time the payload cwd was not
+  read at all and neither the wrapper nor the `cd` was required. Reading `.cwd` closes that route;
+  what remains is any SHELL relocation the static parser does not evaluate (`cd … && git push`, a
+  subshell, `pushd`), and the comment now says so plainly. A documented gap that reads narrower
+  than it is, is how this one survived review.
+- The known-gap docblock also now records that the gap's PRIMARY symptom is a false BLOCK, not a
+  bypass: with a shell `cd` the probe measures a base that is often not a repository, answers width
+  0, and fails closed — so `cd <repo> && git push --force-with-lease=main:<literal full-width sha>
+  origin main`, the exact form the block message prescribes, is denied from a non-repository session
+  root. Fail-closed is right for an unresolvable base; the note exists so the next person to narrow
+  the gap treats the false block as the symptom to measure.
+- A second residual is now documented rather than left implicit: git EXPORTS an explicit
+  `--git-dir` / `--work-tree` into a `!` shell-alias body, so the body inherits a repository the
+  composed directory does not name and its lease is judged against the base. Reproduced against
+  BOTH `origin/main` and this change — pre-existing, of the same family, and closing it means
+  replaying inherited globals rather than a directory, which is a larger mechanism than the base
+  chain adopted here.
+
 ## [0.23.1]
 
 ### Fixed

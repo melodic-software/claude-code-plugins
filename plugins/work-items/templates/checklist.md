@@ -7,7 +7,7 @@ Copy into `<memory_dir>/<slug>/work-items-checklist.md` (default `.work/`). Per-
 - [ ] Session-start reclaim — `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh reclaim "<id>"` over assigned items (idempotent)
 - [ ] Claim — `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh claim "<id>"` (exit 7 = lost race, pick next)
 - [ ] Branch — `git checkout -b <type>/<N>-<short-slug> <base-ref>`, `<base-ref>` resolved by `/work-items:track start`'s branch step (remote HEAD first, local cache offline); no start-point when it resolves to nothing
-- [ ] Run `/workflow` chain — its checklist lands as its own memory-tier ledger (`<memory_dir>/<slug>/workflow-checklist.md`, per `/workflow`'s topic-docs binding); plan progress is marked in the topic's contract-tier `PLAN.md` (`<contract_dir>/<slug>/PLAN.md` on the task branch)
+- [ ] Run `/session-flow:workflow` chain — its checklist lands as its own memory-tier ledger (`<memory_dir>/<slug>/workflow-checklist.md`, per `/session-flow:workflow`'s topic-docs binding); plan progress is marked in the topic's contract-tier `PLAN.md` (`<contract_dir>/<slug>/PLAN.md` on the task branch)
 - [ ] Close — `/work-items:track done <N>` after PR merges (or via PR body `Closes #N` auto-close)
 
 ## Action: add
@@ -47,4 +47,4 @@ Copy into `<memory_dir>/<slug>/work-items-checklist.md` (default `.work/`). Per-
 
 ## How to use
 
-Same shape as the `/workflow` checklist template ("How to use"). Copy only the per-action section relevant to your invocation.
+Same shape as the `/session-flow:workflow` checklist template ("How to use"). Copy only the per-action section relevant to your invocation.

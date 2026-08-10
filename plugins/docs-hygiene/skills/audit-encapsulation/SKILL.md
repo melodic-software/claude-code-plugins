@@ -14,7 +14,7 @@ Skills have a public API and a private body — the contract is `context/public-
 
 Without enforcement, private bodies leak. A rule file cites a path inside `<skill>/<some-subdir>/` because the content is convenient. The skill author refactors that subdir and the citation breaks silently — nothing fails the build, nothing greps red. The skill cannot evolve without coordinating with every leaker.
 
-This skill provides the detection + classification + remediation discipline that closes that gap. Distinct concern from `/extract-ssot` (which detects content duplication via Rule of Three). Encapsulation violations are **single-violation matters** — Rule of Three does not gate them.
+This skill provides the detection + classification + remediation discipline that closes that gap. Distinct concern from `/docs-hygiene:extract-ssot` (which detects content duplication via Rule of Three). Encapsulation violations are **single-violation matters** — Rule of Three does not gate them.
 
 ## Public surface matrix
 
@@ -58,7 +58,7 @@ The script scans the consumer repo it runs in: every `.claude/` child directory 
 Or invoke the skill (the agent applies the filter taxonomy below):
 
 ```text
-/audit-encapsulation detect
+/docs-hygiene:audit-encapsulation detect
 ```
 
 ## Filter taxonomy — legal hits
@@ -84,11 +84,11 @@ Hits that survive ALL filters = illegal. Report.
 
 Use when: the caller needs data the private file contains, and the data is genuinely shared vocabulary or constraint.
 
-1. Apply `/extract-ssot verify` (the 6-gate refuse-fast check) to the private file's content
+1. Apply `/docs-hygiene:extract-ssot verify` (the 6-gate refuse-fast check) to the private file's content
 2. If it passes: extract the content into a shared rule or convention doc outside the skill (e.g. `.claude/rules/<topic>.md`, or extend an existing one)
 3. Migrate the violator AND the original skill body to cite the new doc by heading
 4. Delete or shrink the private file
-5. Run `/rename-references` to sweep all syntactic forms
+5. Run `/docs-hygiene:rename-references` to sweep all syntactic forms
 
 ### Path B — Route via `/skill-name` invocation (caller wants the behavior)
 
@@ -104,7 +104,7 @@ Use when: the caller wants the skill's behavior, not the data. A reference into 
 
 ## Refactor pass discipline
 
-When invoked from another skill's execute pass (e.g. `/extract-ssot execute`):
+When invoked from another skill's execute pass (e.g. `/docs-hygiene:extract-ssot execute`):
 
 | Step | Action |
 |------|--------|
@@ -113,7 +113,7 @@ When invoked from another skill's execute pass (e.g. `/extract-ssot execute`):
 | 3 | For each violation, choose Path A (promote) or Path B (route via `/name`) |
 | 4 | DO NOT preserve a violation because "it works today" — broken-window pattern |
 | 5 | If Path B is needed but the action is missing, file a tracking work item and STOP — don't ship a partial fix |
-| 6 | Run a `/rename-references` sweep after edits |
+| 6 | Run a `/docs-hygiene:rename-references` sweep after edits |
 
 A surfaced violation is never silently ignored: fix it, capture it as a side note to the user, or file a tracking work item.
 
@@ -140,7 +140,7 @@ A surfaced violation is never silently ignored: fix it, capture it as a side not
 - Missing public action (Path B blocked): c
 
 ## Recommended next step
-`/audit-encapsulation fix <file>:<line>` for one-by-one OR `/audit-encapsulation file-issues` for batch work-item filing
+`/docs-hygiene:audit-encapsulation fix <file>:<line>` for one-by-one OR `/docs-hygiene:audit-encapsulation file-issues` for batch work-item filing
 ```
 
 ## Anti-patterns guarded
@@ -158,11 +158,11 @@ A surfaced violation is never silently ignored: fix it, capture it as a side not
 | Post-detection | Each raw hit classified per filter taxonomy OR illegal | Diff against filter table |
 | Pre-fix | Path A vs Path B chosen with explicit data-vs-behavior reasoning | Session notes or plan artifact |
 | Post-fix | Detection grep re-run; violation count decreased | Bash output |
-| Post-fix | `/rename-references` sweep ran | Tool output |
+| Post-fix | `/docs-hygiene:rename-references` sweep ran | Tool output |
 
 ## What this skill does NOT do
 
-- Detect content duplication / Rule of Three clusters → `/extract-ssot`
+- Detect content duplication / Rule of Three clusters → `/docs-hygiene:extract-ssot`
 - Enforce code-side public/private (TypeScript `export`, .NET `internal`, Python `_prefix`) → language-level tooling (compiler, lint)
 - Refactor skill bodies that ARE legitimately self-contained (no external violations) → general refactoring, out of scope
 - File work items without classification — Path A vs Path B must be picked first
@@ -171,10 +171,10 @@ A surfaced violation is never silently ignored: fix it, capture it as a side not
 ## Cross-references
 
 - `context/public-surface-contract.md` — canonical definition of what's public vs private, both carve-outs, the violation-shape table, and the CI / git-hook consumption techniques
-- `/extract-ssot verify` — 6-gate refuse-fast check for Path A "promote out" decisions
-- `/extract-ssot execute` — writes the SSOT and sweeps citations after a Path A migration
-- `/extract-ssot` — duplication-skill counterpart; an encapsulation violation is one of its failure modes (cross-cite)
-- `/rename-references` — load-bearing multi-pattern sweep after any heading change
+- `/docs-hygiene:extract-ssot verify` — 6-gate refuse-fast check for Path A "promote out" decisions
+- `/docs-hygiene:extract-ssot execute` — writes the SSOT and sweeps citations after a Path A migration
+- `/docs-hygiene:extract-ssot` — duplication-skill counterpart; an encapsulation violation is one of its failure modes (cross-cite)
+- `/docs-hygiene:rename-references` — load-bearing multi-pattern sweep after any heading change
 
 ## Recheck triggers
 

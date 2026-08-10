@@ -53,12 +53,12 @@ different delivery.
   durable handoff; `prompt` forces prompt-only. Omitted → auto-detect (engine doc, "Choosing the
   path").
 - **Topic** — short kebab slug for the filename. When the first token is not a method keyword it IS
-  the topic (`/handoff phase-3`); with a method present it is the second token. Omitted → inferred
+  the topic (`/session-flow:handoff phase-3`); with a method present it is the second token. Omitted → inferred
   from context.
 
 ## Hard rule — handoff ALWAYS terminates current execution
 
-**The whole point of `/handoff` is `/clear` + fresh-session resume.** The skill produces the
+**The whole point of `/session-flow:handoff` is `/clear` + fresh-session resume.** The skill produces the
 save-point, THEN STOPS. It does NOT keep executing the underlying task in the current session; that
 defeats the purpose. STOP is the default and near-universal outcome — NEVER unlocked by the user
 having listed multiple steps, nor by the remaining work being "small".
@@ -74,11 +74,11 @@ having listed multiple steps, nor by the remaining work being "small".
 
 **NOT authorization to continue (these all STOP):**
 
-- A multi-step pipeline naming `/handoff` (e.g. "handoff, then verify, then PR") → the listed steps
-  run in the FRESH session AFTER `/clear`. Naming `/handoff` names a `/clear` boundary, not a waiver
-- "do all of it" → authorizes executing the phases across the session chain, but each `/handoff`
+- A multi-step pipeline naming `/session-flow:handoff` (e.g. "handoff, then verify, then PR") → the listed steps
+  run in the FRESH session AFTER `/clear`. Naming `/session-flow:handoff` names a `/clear` boundary, not a waiver
+- "do all of it" → authorizes executing the phases across the session chain, but each `/session-flow:handoff`
   between them still enforces its `/clear` boundary (that is WHY the handoffs get written)
-- A standalone user-invoked `/handoff` → always STOP, regardless of surrounding instructions
+- A standalone user-invoked `/session-flow:handoff` → always STOP, regardless of surrounding instructions
 
 The only exception: the user's prior turn used explicit stay-in-session language about handoffs
 specifically (e.g. "don't `/clear` between phases, keep going").

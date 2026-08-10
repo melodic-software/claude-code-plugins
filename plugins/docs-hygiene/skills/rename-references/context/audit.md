@@ -11,9 +11,9 @@ Audit mode runs the full pattern library + triage classifier against the codebas
 
 | Form | Behavior |
 |---|---|
-| `/rename-references audit` (no args) | Smart default detection per `../SKILL.md` "Smart default" — pick rename pair from conversation/git/staged |
-| `/rename-references audit <old>` | Single-token reverse mode — find references, ask user what `<new>` would be |
-| `/rename-references audit <old> to <new>` | Explicit pair — sweep for `<old>` references and report what would change to `<new>` |
+| `/docs-hygiene:rename-references audit` (no args) | Smart default detection per `../SKILL.md` "Smart default" — pick rename pair from conversation/git/staged |
+| `/docs-hygiene:rename-references audit <old>` | Single-token reverse mode — find references, ask user what `<new>` would be |
+| `/docs-hygiene:rename-references audit <old> to <new>` | Explicit pair — sweep for `<old>` references and report what would change to `<new>` |
 
 ## Workflow (Phases 1–3 only)
 
@@ -192,7 +192,7 @@ Pattern-form breakdown:
 - Bare-token occurrences outside container position (container-rename mode; NOT proposed): <count>
 - Forms 4–12 demoted to Ambiguous by the container-mode allowlist: <count>
 
-Next: invoke `/rename-references <old> to <new>` to apply, or `/rename-references preview <old> to <new>` to dry-run.
+Next: invoke `/docs-hygiene:rename-references <old> to <new>` to apply, or `/docs-hygiene:rename-references preview <old> to <new>` to dry-run.
 ```
 
 If `<new>` is undetermined (single-token reverse mode), omit the `→ <new>` and the "Next" line — instead suggest the user pick a target via `AskUserQuestion`.
@@ -200,7 +200,7 @@ If `<new>` is undetermined (single-token reverse mode), omit the `→ <new>` and
 ## Output discipline
 
 - Audit reports facts, not actions. NEVER call Edit/Write in audit mode
-- If user implicitly authorizes edits ("yes apply") during audit, switch to apply mode (`/rename-references <old> to <new>`) — never silently start editing from within audit
+- If user implicitly authorizes edits ("yes apply") during audit, switch to apply mode (`/docs-hygiene:rename-references <old> to <new>`) — never silently start editing from within audit
 - Audit is cheap to re-run; encourage iteration
 
 ## Special cases
@@ -212,7 +212,7 @@ If `<new>` is undetermined (single-token reverse mode), omit the `→ <new>` and
   excludes. **Expected, not unusual, under container-rename mode** — there the bare-token residue
   is excluded from the buckets entirely and reported as an aggregate, so an empty Ambiguous
   bucket is the designed outcome rather than a signal to re-run
-- **Audit invoked while another `/rename-references` apply is in progress** — abort. In-flight edits and rename-documenting plan docs would be misclassified mid-apply
+- **Audit invoked while another `/docs-hygiene:rename-references` apply is in progress** — abort. In-flight edits and rename-documenting plan docs would be misclassified mid-apply
 
 ## Hand-off
 
@@ -221,6 +221,6 @@ After audit completes, suggest the next action based on counts:
 | Result | Suggestion |
 |---|---|
 | 0 matches | "No stragglers found. Safe to proceed." If post-rename context, suggest running the consuming repository's verification workflow |
-| Only Certain bucket non-zero | Suggest `/rename-references <old> to <new>` — auto-apply will likely succeed cleanly |
-| Chain-context or Ambiguous non-zero | Suggest `/rename-references preview <old> to <new>` first — user reviews planned edits before committing |
+| Only Certain bucket non-zero | Suggest `/docs-hygiene:rename-references <old> to <new>` — auto-apply will likely succeed cleanly |
+| Chain-context or Ambiguous non-zero | Suggest `/docs-hygiene:rename-references preview <old> to <new>` first — user reviews planned edits before committing |
 | NEW form discovered (no pattern matched but user reports a stale ref) | Phase 6 evolution — extend `context/patterns.md`, re-audit |

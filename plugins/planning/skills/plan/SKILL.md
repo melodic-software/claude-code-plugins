@@ -25,7 +25,7 @@ Plans fail when they skip rationale, ignore blast radius, or rush past approval 
 
 This is **not** Claude Code's built-in plan mode (`shift+tab`). That is a *permission mode* — read-only exploration. This skill is a *planning discipline* — the intellectual work of designing an approach, assessing risks, and getting approval. The two complement each other: use plan mode for safe exploration during planning, and this skill for the structured process around it.
 
-This skill takes the outputs of the earlier stages — exploration (local understanding), research (external evidence), `/design` (types, contracts, module boundaries, package topology) — and produces a plan the user approves before execution begins.
+This skill takes the outputs of the earlier stages — exploration (local understanding), research (external evidence), `/planning:design` (types, contracts, module boundaries, package topology) — and produces a plan the user approves before execution begins.
 
 **Philosophy**: a 2-minute plan prevents a 20-minute rework cycle. The depth of planning should match the blast radius — a one-file fix gets a brief plan; a cross-cutting architecture change gets a full plan with stress-testing and research-iterate loops.
 
@@ -57,23 +57,23 @@ Before the prerequisite checklist runs, apply a pre-planning discipline checklis
 Before planning, verify the knowledge base is ready:
 
 - **Is the effort coherent enough to plan?** — If the work is too big to hold at once AND still too foggy to phrase as sharp decisions (missing questions you can't yet state, not just unanswered ones), `/planning:plan` is premature — a plan needs a coherent target. Guide the user to `/planning:wayfind` first (it charts the fog as a decision map and works it down until a destination coheres); recommend, never auto-switch. Skip when the effort is already scoped and the open items are answerable questions
-- **Is product intent clear?** — For product-driven feature work (new user-facing surface, business-driven change, cross-team initiative), check that the topic's contract slice holds `PRD.md` (`<contract_dir>/<topic-slug>/PRD.md`, default `docs/topics/`; the memory slice under `contract_tier: local`) OR that problem/users/success-metrics are already crisp in conversation. If fuzzy, suggest running `/prd` first. Skip this check for engineering-internal work (refactors, infra, hooks, conventions, bug fixes) — `/prd` does not apply
+- **Is product intent clear?** — For product-driven feature work (new user-facing surface, business-driven change, cross-team initiative), check that the topic's contract slice holds `PRD.md` (`<contract_dir>/<topic-slug>/PRD.md`, default `docs/topics/`; the memory slice under `contract_tier: local`) OR that problem/users/success-metrics are already crisp in conversation. If fuzzy, suggest running `/planning:prd` first. Skip this check for engineering-internal work (refactors, infra, hooks, conventions, bug fixes) — `/planning:prd` does not apply
 - **Has exploration been done?** — Check if the conversation contains exploration findings for the relevant area. If not, suggest running the exploration capability first (`/discovery:explore` if installed). Don't plan in the dark
 - **Has research been done?** — Check if external research has been completed for technical claims the plan will rely on. If not, suggest running the research capability first (`/discovery:research` if installed). Plans built on assumptions instead of evidence lead to rework
-- **Has `/design` been done? (blocking gate)** — Classify design significance before planning:
+- **Has `/planning:design` been done? (blocking gate)** — Classify design significance before planning:
 
 | Tier | Signals | Requirement |
 |------|---------|-------------|
-| **A — design-significant** | New types/contracts, new module or library, package topology change, cross-module integration, data model change, multi-tenant posture | **Blocking:** full or light `/design` + its handoff gate (`design-threads.md` all RESOLVED / directional / TAGGED-DEFERRED) |
+| **A — design-significant** | New types/contracts, new module or library, package topology change, cross-module integration, data model change, multi-tenant posture | **Blocking:** full or light `/planning:design` + its handoff gate (`design-threads.md` all RESOLVED / directional / TAGGED-DEFERRED) |
 | **B — light design** | 2–5 files, one new type, localized contract tweak | **Blocking:** minimal `type-inventory.md` OR `design/design-resolution.md` documenting early-exit with type sketch |
 | **C — no design** | Single-file bugfix, config/doc/markdown, rename, hook text, pure test addition | **Blocking:** `design/design-resolution.md` with `outcome: early-exit` + reason (gate always evaluated) |
 
-Check the topic's contract slice `<contract_dir>/<topic-slug>/design/` (default `docs/topics/`; the memory slice under `contract_tier: local`) for design artifacts OR `design-resolution.md` at that path. If Tier A/B requirements are unmet, **stop** — offer `/design` or document the early-exit artifact. The user may override via `AskUserQuestion` only when they explicitly accept skipping design exploration. `/planning:plan` consumes design artifacts — do not re-derive design inline when design-significant.
+Check the topic's contract slice `<contract_dir>/<topic-slug>/design/` (default `docs/topics/`; the memory slice under `contract_tier: local`) for design artifacts OR `design-resolution.md` at that path. If Tier A/B requirements are unmet, **stop** — offer `/planning:design` or document the early-exit artifact. The user may override via `AskUserQuestion` only when they explicitly accept skipping design exploration. `/planning:plan` consumes design artifacts — do not re-derive design inline when design-significant.
 
 - **Is the scope clear?** — If the task is ambiguous, ask clarifying questions before planning. A plan for "improve performance" is useless; a plan for "add a cache to the GetOrderById query handler" is actionable. Ask every question whose prerequisites are settled as one numbered round, each with a recommendation — a question that depends on another still open waits for the round after its prerequisite resolves; render the round via `AskUserQuestion` only when the plugin's `use_ask_user_question` user config (`${user_config.use_ask_user_question}`) is on and the round is ≤4 independent questions — inline prose otherwise
 - **Open Decisions surfaced BEFORE plan body** — scan the resume prompt + conversation context + Brief for unresolved decisions (scope cuts, technique choices, ordering, exclusions) that the downstream plan body would otherwise lock inline. Surface every decision whose prerequisites are settled as a numbered "Open Decisions" block with research-backed recommendations + trade-offs per decision — a decision whose option set depends on another still open waits for the round after its prerequisite resolves; render the block via `AskUserQuestion` only when the plugin's `use_ask_user_question` user config (`${user_config.use_ask_user_question}`) is on and it holds ≤4 independent decisions — single-prompt inline prose otherwise. Resolving once up front is cheaper than iterating during Step 5 approval
 
-If prerequisites are missing, state what's needed and offer to run the prerequisite skill. Don't silently skip this step. Note that the `/prd` check is **additive**, not blocking — proceed if the user has product intent locked elsewhere or if the work is engineering-internal.
+If prerequisites are missing, state what's needed and offer to run the prerequisite skill. Don't silently skip this step. Note that the `/planning:prd` check is **additive**, not blocking — proceed if the user has product intent locked elsewhere or if the work is engineering-internal.
 
 ### Step 2: Formulate the Plan
 
@@ -138,13 +138,13 @@ Trivial single-file plans (3–5 bullets, no new types): the reviewer brief may 
 
 ### Step 3b: Assess Blast Radius
 
-Every plan gets a blast-radius check. Read the criteria in [context/stress-test-triggers.md](context/stress-test-triggers.md) and assess whether this plan warrants a full formal stress-test via `/devils-advocate`.
+Every plan gets a blast-radius check. Read the criteria in [context/stress-test-triggers.md](context/stress-test-triggers.md) and assess whether this plan warrants a full formal stress-test via `/planning:devils-advocate`.
 
 Present the assessment:
 
 ```
 Blast radius: [LOW / MEDIUM / HIGH / CRITICAL]
-Stress-test needed: [Yes — invoking /devils-advocate / No — plan-reviewer sub-agent + research validation is sufficient]
+Stress-test needed: [Yes — invoking /planning:devils-advocate / No — plan-reviewer sub-agent + research validation is sufficient]
 Reason: <1-2 sentences>
 ```
 
@@ -155,9 +155,9 @@ If MEDIUM or higher, or any trigger matches: proceed to Step 4 (Formal Stress-Te
 
 This step runs only when the blast-radius assessment triggers it. Note: Step 3 (plan stress-test sub-agent) already ran — this is the deeper, formal version.
 
-1. **Dispatch `/devils-advocate` to a fresh-context sub-agent** — hand it the plan (plus the Brief and any design artifacts), not your rationale for it. The producing main thread MUST NOT run the stress-test inline, for the same reason Step 3 dispatches: the context that wrote the plan carries the assumptions that produced its blind spots and converges on approval rather than detection. The stress-test skill runs its own multi-round process (assumption identification, evidence check, failure scenarios, operational gotchas) in that clean context; the main thread then verifies its findings against the actual code/files before acting on them — sub-agent findings are synthesis, not ground truth
+1. **Dispatch `/planning:devils-advocate` to a fresh-context sub-agent** — hand it the plan (plus the Brief and any design artifacts), not your rationale for it. The producing main thread MUST NOT run the stress-test inline, for the same reason Step 3 dispatches: the context that wrote the plan carries the assumptions that produced its blind spots and converges on approval rather than detection. The stress-test skill runs its own multi-round process (assumption identification, evidence check, failure scenarios, operational gotchas) in that clean context; the main thread then verifies its findings against the actual code/files before acting on them — sub-agent findings are synthesis, not ground truth
 
-2. **Evaluate findings** — if `/devils-advocate` produces CRITICAL or HIGH findings:
+2. **Evaluate findings** — if `/planning:devils-advocate` produces CRITICAL or HIGH findings:
    - Run targeted research to resolve the specific issues surfaced (`/discovery:research` if installed, or the strongest research capability available)
    - Update the plan based on new evidence
    - Re-assess: does the updated plan survive scrutiny?
@@ -236,7 +236,7 @@ Before handing off to implementation, verify the branch name matches the approve
 
 Derive the conventional type from plan content: new capability → `feat/`, bug fix → `fix/`, restructuring → `refactor/`, tooling/maintenance → `chore/`, docs-only → `docs/`, tests-only → `test/`, build config → `build/`, performance → `perf/`.
 
-**After approval:** the plan feeds into implementation. Suggest the consuming environment's implementation workflow (an `/implement`-style skill if it ships one, otherwise structured inline execution reading PLAN.md). If implementation diverges from the plan, chain back to `/planning:plan review` to re-plan rather than pushing through a broken approach.
+**After approval:** the plan feeds into implementation. Suggest the consuming environment's implementation workflow (an `/implementation:implement`-style skill if it ships one, otherwise structured inline execution reading PLAN.md). If implementation diverges from the plan, chain back to `/planning:plan review` to re-plan rather than pushing through a broken approach.
 
 ## Plan Mode Integration
 
@@ -260,17 +260,17 @@ When invoked with `review`:
 4. Assess whether the blast radius was properly evaluated
 5. Present findings: what's strong, what's missing, what needs revision
 
-This is complementary to `/devils-advocate` — review checks completeness and convention alignment; stress-test checks assumptions and failure modes.
+This is complementary to `/planning:devils-advocate` — review checks completeness and convention alignment; stress-test checks assumptions and failure modes.
 
 ## Final step: persist the approved plan for handoff
 
-After the user approves the plan in Step 5, update the draft `<contract_dir>/<topic-slug>/PLAN.md` (default `docs/topics/`; persisted at Step 4.7) with any approval-round changes — derive `<topic-slug>` from the task or branch name (kebab-case, ≤40 chars; shared with `/prd`, `/interview`, `/design`); roots, tier, and precedence resolve per the topic-docs binding [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md). PLAN.md is a contract document: under `contract_tier: branch` (the default), commit it on the task branch as it locks, so worktrees, clones, and reviewers see it, and let each implementation phase's plan updates ride the same commit as that phase's source changes; under `contract_tier: local` it lives in the self-ignored memory slice and is never staged — the PR-description paste is its only publication surface. It is the **living source of truth** for the stage — a fresh cleared session must be able to execute the plan reading only this file (plus the exploration/research artifacts in the topic's memory slice `<memory_dir>/<topic-slug>/`, default `.work/`).
+After the user approves the plan in Step 5, update the draft `<contract_dir>/<topic-slug>/PLAN.md` (default `docs/topics/`; persisted at Step 4.7) with any approval-round changes — derive `<topic-slug>` from the task or branch name (kebab-case, ≤40 chars; shared with `/planning:prd`, `/planning:interview`, `/planning:design`); roots, tier, and precedence resolve per the topic-docs binding [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md). PLAN.md is a contract document: under `contract_tier: branch` (the default), commit it on the task branch as it locks, so worktrees, clones, and reviewers see it, and let each implementation phase's plan updates ride the same commit as that phase's source changes; under `contract_tier: local` it lives in the self-ignored memory slice and is never staged — the PR-description paste is its only publication surface. It is the **living source of truth** for the stage — a fresh cleared session must be able to execute the plan reading only this file (plus the exploration/research artifacts in the topic's memory slice `<memory_dir>/<topic-slug>/`, default `.work/`).
 
 **PLAN.md anatomy.** PLAN holds Brief + Plan; per-phase status lives in the phase tags (`[TODO]` / `[DOING]` / `[DONE]`):
 
 ```markdown
 ## Brief
-<from /interview if applicable — task restatement, scope boundaries, success criteria>
+<from /planning:interview if applicable — task restatement, scope boundaries, success criteria>
 
 ## Plan
 
@@ -326,7 +326,7 @@ Lifecycle detail and the redaction bar for committed evidence: [`${CLAUDE_PLUGIN
 
 ## What This Skill Does NOT Do
 
-- **Does not replace `/devils-advocate`** — that skill does adversarial stress-testing. This skill orchestrates when to invoke it based on blast radius
+- **Does not replace `/planning:devils-advocate`** — that skill does adversarial stress-testing. This skill orchestrates when to invoke it based on blast radius
 - **Does not replace research** — research gathers external evidence. This skill uses research findings as input and may trigger additional research in Step 4 (research-iterate loop)
 - **Does not replace built-in plan mode** — plan mode is a permission mode. This skill is a planning discipline. They complement each other
 - **Does not write code** — it produces a plan. Execution is a separate stage

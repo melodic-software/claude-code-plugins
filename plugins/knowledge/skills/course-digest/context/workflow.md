@@ -313,19 +313,19 @@ lessons. Do NOT parallelize DOM interactions, browser contexts, lesson navigatio
 
 **Before integrating any action item from `repo-candidates.md` into the repository:**
 
-1. **Run `/explore`** on relevant codebase area — verify current state matches what the
+1. **Run `/discovery:explore`** on relevant codebase area — verify current state matches what the
    action item assumes. Codebase may have changed since course was digested
-2. **Run `/research`** on specific library/framework/pattern — verify recommendation is
+2. **Run `/discovery:research`** on specific library/framework/pattern — verify recommendation is
    current. Course content has a recorded-at date but no guarantee of currency:
    - NuGet/npm package versions may have changed (pre-release → stable, or breaking changes)
    - Framework APIs may have evolved
    - Best practices may have shifted
-3. **Flag stale recommendations** in `action-items.md` with `⚠ STALE` marker if `/research`
+3. **Flag stale recommendations** in `action-items.md` with `⚠ STALE` marker if `/discovery:research`
    reveals recommendation is outdated
 
 **Example:** MCP course references `ModelContextProtocol` NuGet packages that were pre-release
 at recording time. Before using recommended patterns, verify current stable version via
-`/research` or `mcp__nuget__get_latest_package_version`.
+`/discovery:research` or `mcp__nuget__get_latest_package_version`.
 
 **Rule:** Course content is a starting point for research, not a final answer. Every action item
-gets `/explore` + `/research` verification AT TIME OF INTEGRATION, not at digest time.
+gets `/discovery:explore` + `/discovery:research` verification AT TIME OF INTEGRATION, not at digest time.

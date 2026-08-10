@@ -1,6 +1,6 @@
 # Stress-Test Trigger Criteria
 
-When to invoke `/devils-advocate` on a plan. The goal is to catch plans that carry enough risk to warrant systematic adversarial review — without stress-testing every trivial change.
+When to invoke `/planning:devils-advocate` on a plan. The goal is to catch plans that carry enough risk to warrant systematic adversarial review — without stress-testing every trivial change.
 
 ## Always stress-test when ANY of these match
 

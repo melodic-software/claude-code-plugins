@@ -85,7 +85,7 @@ Worktree reuse (new branch from latest default branch in the same directory) is 
 
 ## 4.4 Run a session retrospective (optional)
 
-If your environment provides a retrospective skill (e.g. a `/retro` command), invoke it **after the worktree transition (worktree reuse) or after merge (non-worktree)**. With worktree reuse, `CLAUDE_PROJECT_DIR` stays valid because the worktree directory persists — skills remain fully discoverable. If no such capability exists, skip this step.
+If your environment provides a retrospective skill (e.g. a `/session-flow:retro` command), invoke it **after the worktree transition (worktree reuse) or after merge (non-worktree)**. With worktree reuse, `CLAUDE_PROJECT_DIR` stays valid because the worktree directory persists — skills remain fully discoverable. If no such capability exists, skip this step.
 
 If the user declines or says "skip", proceed to step 4.5. In `full` mode, run automatically without pausing.
 

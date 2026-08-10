@@ -65,11 +65,11 @@ section reports "no telemetry issue found" and the rest of the brief still rende
 - `/source-control:babysit-prs` — the **authoritative** PR merge gate and readiness
   classification. The merge-ready list here is a fast gh-native glance, not a
   substitute for that skill's per-PR gate.
-- `/observability` — reads locally captured telemetry (OTEL store, hook-event JSONL,
+- `/claude-ops:observability` — reads locally captured telemetry (OTEL store, hook-event JSONL,
   ccusage). This skill instead reads GitHub-side queue and PR state.
 
 ## What this skill does NOT do
 
 - **Does not mutate anything** — no label, comment, merge, or close writes.
 - **Does not classify PR merge-readiness authoritatively** — use `/source-control:babysit-prs`.
-- **Does not read local telemetry stores** — use `/observability`.
+- **Does not read local telemetry stores** — use `/claude-ops:observability`.

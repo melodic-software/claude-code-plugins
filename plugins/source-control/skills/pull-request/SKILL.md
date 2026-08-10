@@ -38,9 +38,9 @@ This skill is self-contained: it runs on `git`, `gh`, `jq`, and its bundled scri
 
 Consumer conventions come from the consuming project's own `CLAUDE.md`, `AGENTS.md`, and rules — notably: PR body template, branch naming, merge style (this skill defaults to squash), review-reply identity (some projects post bot-identity replies via a wrapper; default is plain `gh`), and any extra pre-PR gates. Read them before creating or merging.
 
-**PR title format** resolves via the same ladder `/commit` uses for the commit subject (see its SKILL.md), checked in order: the `pr_title_pattern` resolved across all three layers of the `source-control.md` convention config per [../../reference/config-resolution.md](../../reference/config-resolution.md) → the consuming project's own `CLAUDE.md`/`AGENTS.md`/rules → Conventional Commits (11-type vocabulary — `build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test`; confirmed via the spec, the Angular convention, commitlint's `@commitlint/config-conventional`, and `amannn/action-semantic-pull-request`'s default `types` — `security` is not a member of any of these) as the default. See [reference/create.md](reference/create.md) §2.4.1 for where the title is derived. When no layer resolves a `pr_title_pattern` and nothing is inferable, point the user at `/source-control:setup`.
+**PR title format** resolves via the same ladder `/source-control:commit` uses for the commit subject (see its SKILL.md), checked in order: the `pr_title_pattern` resolved across all three layers of the `source-control.md` convention config per [../../reference/config-resolution.md](../../reference/config-resolution.md) → the consuming project's own `CLAUDE.md`/`AGENTS.md`/rules → Conventional Commits (11-type vocabulary — `build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test`; confirmed via the spec, the Angular convention, commitlint's `@commitlint/config-conventional`, and `amannn/action-semantic-pull-request`'s default `types` — `security` is not a member of any of these) as the default. See [reference/create.md](reference/create.md) §2.4.1 for where the title is derived. When no layer resolves a `pr_title_pattern` and nothing is inferable, point the user at `/source-control:setup`.
 
-**PR-body attribution** (the `🤖 Generated with [Claude Code]…` line) resolves from the `pr_body_attribution` key across the same three `source-control.md` layers ([../../reference/config-resolution.md](../../reference/config-resolution.md)) — absent → the default line, `none` → omitted, any other value → that line. It is the PR-body analogue of `/commit`'s `trailer_policy` and gated separately; see [reference/create.md](reference/create.md) §2.4.1 for the assembly.
+**PR-body attribution** (the `🤖 Generated with [Claude Code]…` line) resolves from the `pr_body_attribution` key across the same three `source-control.md` layers ([../../reference/config-resolution.md](../../reference/config-resolution.md)) — absent → the default line, `none` → omitted, any other value → that line. It is the PR-body analogue of `/source-control:commit`'s `trailer_policy` and gated separately; see [reference/create.md](reference/create.md) §2.4.1 for the assembly.
 
 **Branch-to-issue grammar** — the effective `branch_issue_pattern` is `${user_config.branch_issue_pattern}` (this line is the substituted surface; when it still shows the literal `${user_config.branch_issue_pattern}` token the key is unset). When it holds a real ERE — a POSIX ERE whose LAST capture group is the numeric GitHub issue number, e.g. `^[^/]+/([0-9]+)-` — [reference/create.md](reference/create.md) §2.4.0 fills its `<branch-issue-pattern>` slot with that value; unset uses the built-in `<type>/<N>-<slug>` (and `routine-issue-<N>`) convention.
 
@@ -146,7 +146,7 @@ When entering Phase 3 (`monitor`, `comments`, or `full` reaching monitor), compl
 - [ ] **Step 0 — Checkout the PR source branch (DEFAULT):** monitoring a PR means working ON its head branch — exploration, research, and any fix must run against the PR's actual code, not whatever branch you happen to be on. Check it out with `gh pr checkout <N>` (fork-safe — a fork's head branch is not fetchable from `origin` by name, and a bare `git checkout <headRefName>` can select a stale same-named local branch). This is the default, not an exception.
   - **Pre-check `git worktree list`:** if the branch is already checked out in another worktree, work there (or process read-only — no fix — if you can't). If you're already on the PR branch, no-op.
   - **Dirty tree with unrelated WIP** (staged/unstaged/untracked from other work): do NOT switch — surface the WIP to the user and proceed read-only. Never `git stash` another session's WIP.
-  - **Interactive session** (human present): changing branches re-points the working tree, so confirm the target branch with the user FIRST — UNLESS the invoking message already named the checkout (invoking `/pull-request monitor <N>` against a specific PR is intent, but the target-branch confirmation gate still governs the mechanical switch).
+  - **Interactive session** (human present): changing branches re-points the working tree, so confirm the target branch with the user FIRST — UNLESS the invoking message already named the checkout (invoking `/source-control:pull-request monitor <N>` against a specific PR is intent, but the target-branch confirmation gate still governs the mechanical switch).
   - **Autonomous session** (e.g. `CLAUDE_CODE_REMOTE=true`): check out without prompting.
   - **`/source-control:babysit-prs`** runs its own per-PR checkout — this Step 0 is the single-PR `monitor` equivalent; don't double-checkout when the sibling loop skill applies this checklist.
 - [ ] **Step 1 — Cloud check:** if `CLAUDE_CODE_REMOTE=true`, use §3.0.0 `gh` polling. Skip remaining steps
@@ -189,7 +189,7 @@ When a channel event, Monitor notification, or poll iteration fires, complete AL
 
 ---
 
-## Full lifecycle (`/pull-request full`)
+## Full lifecycle (`/source-control:pull-request full`)
 
 Run Phase 1 → Phase 2 → Phase 3 → Phase 4 as a continuous flow. Phase transitions are automatic — don't pause between phases except at **decision gates** where the outcome could vary, plus one interactive-only checkpoint at the create→monitor boundary.
 
@@ -233,7 +233,7 @@ In a non-interactive context (cloud session, CI action), minimize gates to merge
 
 ---
 
-## Fetch CI logs (`/pull-request fetch-logs <pr|run> [--raw|--job <job-id>]`)
+## Fetch CI logs (`/source-control:pull-request fetch-logs <pr|run> [--raw|--job <job-id>]`)
 
 Public action for retrieving failed-CI evidence. Tiered fetch chain — cheapest signal first; escalate only when the lower tier is insufficient. The skill body chooses which internal helper to invoke based on flags; consumers describe WHAT they want and the skill picks HOW.
 
