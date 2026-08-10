@@ -583,43 +583,50 @@ fi
 # override yields OUTER or no marker at all, and both fail it. Measured against
 # a hook whose probe was forced to `false`: correct reads INNER, forced reads no
 # marker. Discriminating in the direction that matters.
-MD_SHIM_PATH=""
-IFS=: read -ra _md_parts <<<"$PATH"
-for _md_p in "${_md_parts[@]}"; do
-  [[ -e "$_md_p/markdownlint-cli2" || -e "$_md_p/markdownlint-cli2.cmd" ]] && continue
-  MD_SHIM_PATH="${MD_SHIM_PATH:+$MD_SHIM_PATH:}$_md_p"
-done
-if [[ -z "$MD_SHIM_PATH" ]] || ! PATH="$MD_SHIM_PATH" command -v jq >/dev/null 2>&1; then
-  # This suite has no skip helper, and a silent omission is what
-  # scripts/check-silent-skips.sh exists to catch — so an unusable environment
-  # is reported as a visible ok rather than passed over.
-  ok "override-inert case SKIPPED (no PATH without markdownlint-cli2 that still carries jq)"
-else
-  NEG_OUTER="$WORK/override-inert"
-  mkdir -p "$NEG_OUTER/inner"
-  printf '{ "config": { "MD004": { "style": "dash" } } }\n' >"$NEG_OUTER/.markdownlint-cli2.jsonc"
-  printf '{ "config": { "MD004": { "style": "dash" } } }\n' >"$NEG_OUTER/inner/.markdownlint-cli2.jsonc"
-  git init -q "$NEG_OUTER/inner" 2>/dev/null
-  NEG_MARK="$WORK/override-inert.marker"
-  for _md_root_spec in "$NEG_OUTER:OUTER" "$NEG_OUTER/inner:INNER"; do
-    _md_root="${_md_root_spec%:*}"
-    _md_label="${_md_root_spec##*:}"
-    mkdir -p "$_md_root/node_modules/.bin"
-    printf '#!/usr/bin/env bash\nprintf "%%s" "%s" > "%s"\nexit 0\n' \
-      "$_md_label" "$NEG_MARK" >"$_md_root/node_modules/.bin/markdownlint-cli2"
-    chmod +x "$_md_root/node_modules/.bin/markdownlint-cli2"
-  done
-  rm -f "$NEG_MARK"
-  printf '# Override Inert\n\n* star item\n' >"$NEG_OUTER/inner/f.md"
-  (cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$NEG_OUTER/inner/f.md" |
-    PATH="$MD_SHIM_PATH" env CLAUDE_PROJECT_DIR="$NEG_OUTER" \
-      CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK") >/dev/null 2>&1
-  NEG_SAW="$(cat "$NEG_MARK" 2>/dev/null || echo '<no shim ran>')"
-  if [[ "$NEG_SAW" == "INNER" ]]; then
-    ok "git present: the override stays inert — the hook resolved REPO_ROOT to the git toplevel"
-  else
-    fail "git present: REPO_ROOT was not the git toplevel — shim that ran reported '$NEG_SAW' (want INNER)"
+# `PATH` is left ALONE. An earlier draft stripped every directory containing a
+# `markdownlint-cli2`, which also removes whatever else lives beside it — `git`,
+# which `hook::repo_root` needs, or the coreutils `resolve_repo_markdownlint`
+# calls. On such a layout the hook's git probe would fail as command-not-found,
+# the override would fire, the marker would read OUTER, and this case would fail
+# while the production behaviour was correct. The suite already has the right
+# technique for this (`NO_MDLINT_ENV` further down): a `BASH_ENV` `command()`
+# override that hides the binary from `command -v` without touching `PATH`. A
+# self-contained one is used here rather than that shared shim, because that one
+# also stubs `npx`, and a miss should surface as "no shim ran" rather than be
+# absorbed by an npx marker.
+NEG_ENV="$WORK/override-inert.bashenv"
+cat >"$NEG_ENV" <<'NEGEOF'
+command() {
+  if [[ "${1:-}" == "-v" && "${2:-}" == "markdownlint-cli2" ]]; then
+    return 1
   fi
+  builtin command "$@"
+}
+NEGEOF
+NEG_OUTER="$WORK/override-inert"
+mkdir -p "$NEG_OUTER/inner"
+printf '{ "config": { "MD004": { "style": "dash" } } }\n' >"$NEG_OUTER/.markdownlint-cli2.jsonc"
+printf '{ "config": { "MD004": { "style": "dash" } } }\n' >"$NEG_OUTER/inner/.markdownlint-cli2.jsonc"
+git init -q "$NEG_OUTER/inner" 2>/dev/null
+NEG_MARK="$WORK/override-inert.marker"
+for _md_root_spec in "$NEG_OUTER:OUTER" "$NEG_OUTER/inner:INNER"; do
+  _md_root="${_md_root_spec%:*}"
+  _md_label="${_md_root_spec##*:}"
+  mkdir -p "$_md_root/node_modules/.bin"
+  printf '#!/usr/bin/env bash\nprintf "%%s" "%s" > "%s"\nexit 0\n' \
+    "$_md_label" "$NEG_MARK" >"$_md_root/node_modules/.bin/markdownlint-cli2"
+  chmod +x "$_md_root/node_modules/.bin/markdownlint-cli2"
+done
+rm -f "$NEG_MARK"
+printf '# Override Inert\n\n* star item\n' >"$NEG_OUTER/inner/f.md"
+(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$NEG_OUTER/inner/f.md" |
+  env BASH_ENV="$NEG_ENV" CLAUDE_PROJECT_DIR="$NEG_OUTER" \
+    CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK") >/dev/null 2>&1
+NEG_SAW="$(cat "$NEG_MARK" 2>/dev/null || echo '<no shim ran>')"
+if [[ "$NEG_SAW" == "INNER" ]]; then
+  ok "git present: the override stays inert — the hook resolved REPO_ROOT to the git toplevel"
+else
+  fail "git present: REPO_ROOT was not the git toplevel — shim that ran reported '$NEG_SAW' (want INNER)"
 fi
 
 # --- Repository-local markdownlint: use contained npm/Git Bash shim ---------
