@@ -3,6 +3,53 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.0]
+
+**Note on the version bump.** MINOR rather than patch, on the same test 0.22.1 applied: does the
+change alter what the guard reports on? It does, in one direction. `RECONSTRUCT_MAX_CHARS` is now
+read as BYTES rather than characters (see the docblock at `skill-reference-verify.sh`), so a large
+multibyte file that previously fit under the character cap can now exceed the byte cap and skip
+reconstruction. That is a narrowing a consumer can observe, so it does not belong in a patch
+release — even though the locale pin itself is a fix and the rest of the entry is a relabel.
+
+### Fixed
+
+- **`skill-reference-verify`'s partial-edit reconstruction ran in the consumer's ambient locale,
+  so its matcher semantics and its cost were whatever the invoking shell happened to be set to.**
+  Every search the reconstruction performs is LITERAL, but bash's `%%` pattern strip DECODES
+  rather than compares under a multibyte locale, so the same scan is charged roughly 6.5x for a
+  decode it never uses. Measured on a lightly-loaded Windows/Git Bash host (bash 5.3, 32 logical
+  cores at ~18%), one no-match scan costs 0.054 s at 32 KiB / 0.221 s at 64 KiB / 0.880 s at 128 KiB
+  under `LC_ALL=C`, against 0.395 s / 1.447 s / 5.786 s under `en_US.UTF-8`. The function now pins
+  `local +x LC_ALL=C` for its own scanning, which makes both its cost and its matcher independent
+  of the caller. No wall-clock bound is claimed from those figures — the ratio is the finding.
+
+  The `+x` is load-bearing rather than incidental. A plain `local LC_ALL=C` inherits the export
+  attribute whenever the consumer exported `LC_ALL`, which pushes the pin into the `grep`/`sed`
+  children; `[[:space:]]` admits some non-ASCII spaces under a UTF-8 locale but never under C, so
+  an exported pin silently drops a reference whose argument separator is one of them. That costs
+  detection and buys nothing: the entire ~6.5x is bash's own matcher, and `grep -oE` over the same
+  64 KiB measured 0.139 s under BOTH locales. Un-exported, the children keep running in the
+  caller's locale exactly as before — verified identical on Git Bash (Cygwin 3.6.9, bash 5.3) and
+  on Linux (glibc 2.39, bash 5.2), which is what rules out a platform-specific `+x` semantic.
+
+  WHICH non-ASCII spaces qualify is the host C library's table and is not portable: glibc dropped
+  U+00A0 and U+202F from `space` in 2.26, while Cygwin/MSYS still classifies them; U+3000 and
+  U+2028 are admitted by both. The regression case therefore DISCOVERS a separator the host
+  actually classifies differently between the two locales instead of hardcoding one — an earlier
+  revision hardcoded U+00A0, which passed on Windows and failed on Linux CI because it asserted a
+  libc's classification rather than this hook's behavior. If no candidate discriminates, the case
+  reports a loud, reasoned skip naming the platform rather than passing quietly.
+
+### Changed
+
+- **The reconstruction cost curve in `skill-reference-verify` is now labelled with the locale it
+  was measured in.** The published figures (0.07 s at 32 KiB … 3.94 s at 256 KiB) match the
+  C-locale column, but the hook did not then run in the C locale, so the table described a locale
+  the code never used. The pin above makes C the actual locale, so the figures are re-labelled
+  rather than re-measured; a re-check on a second host of the same shape read 0.054 s / 0.221 s /
+  0.880 s / 3.410 s at 32 / 64 / 128 / 256 KiB.
+
 ## [0.22.1]
 
 ### Fixed

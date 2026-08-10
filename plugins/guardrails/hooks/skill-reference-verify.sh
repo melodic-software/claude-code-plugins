@@ -227,11 +227,21 @@ emit_refs() {
 # of it is wrong by orders of magnitude at the sizes that matter.
 #
 # One anchor_offsets scan, measured on the slowest host available (Windows/Git
-# Bash, quiescent, best of three): 0.07 s at 32 KiB, 0.24 s at 64 KiB, 0.53 s at
-# 96 KiB, 1.07 s at 128 KiB, 2.18 s at 192 KiB, 3.94 s at 256 KiB. That is
-# ~0.065 s x (KiB/32)^2 — bash's `%%` pattern strip walks the string it searches
-# rather than indexing it, so the scan is quadratic in FILE size no matter how
-# short the anchor is. Extrapolated: ~67 s at 1 MiB, ~18 minutes at 4 MiB.
+# Bash, quiescent, best of three) IN THE C LOCALE: 0.07 s at 32 KiB, 0.24 s at
+# 64 KiB, 0.53 s at 96 KiB, 1.07 s at 128 KiB, 2.18 s at 192 KiB, 3.94 s at
+# 256 KiB. That is ~0.065 s x (KiB/32)^2 — bash's `%%` pattern strip walks the
+# string it searches rather than indexing it, so the scan is quadratic in FILE
+# size no matter how short the anchor is. Extrapolated: ~67 s at 1 MiB, ~18
+# minutes at 4 MiB.
+#
+# The locale label is not a footnote: this curve was originally recorded without
+# one, and under a UTF-8 locale the same scans cost ~6.5x more, which made the
+# table describe a locale the hook did not then run in. reconstruct_partial_edit
+# now pins LC_ALL=C for its own scanning, so C IS the locale these figures
+# describe. Re-checked rather than re-measured, on a second host of the same shape
+# (lightly loaded, not quiescent — ~18% CPU across 32 cores): 0.054 s at 32 KiB,
+# 0.221 s at 64 KiB, 0.880 s at 128 KiB, 3.410 s at 256 KiB — the same curve
+# within host-to-host spread.
 #
 # Those figures are the FLOOR, not the cost: they time an anchor that matches near
 # the end, so one strip walks the file and the second is free. A no-match strip
@@ -388,6 +398,50 @@ anchor_offsets() {
 # scanning budget bounds the fallback that cannot.
 reconstruct_partial_edit() {
   [[ "$TOOL" == "Edit" && -f "$FILE" ]] || return 0
+  # Pin the locale this function's own scanning runs in, so its matcher semantics
+  # and its cost are the consumer's ambient locale's business no longer. Every
+  # search below is LITERAL, so a multibyte locale buys this function nothing and
+  # charges it ~6.5x: one no-match scan, measured on a lightly-loaded Windows/Git
+  # Bash host (bash 5.3, 32 logical cores at ~18%), costs 0.054 s at 32 KiB / 0.221 s
+  # at 64 KiB / 0.880 s at 128 KiB under C, against 0.395 s / 1.447 s / 5.786 s
+  # under en_US.UTF-8. That ratio is the reason for the pin; no wall-clock BOUND
+  # is claimed from it, and the caps above are calibrated end to end against the
+  # hook rather than off that table, so this is not a correction to them.
+  #
+  # `+x` is load-bearing, not decoration. The whole ~6.5x is bash's OWN `%%`
+  # walk; the child processes are locale-insensitive here (`grep -oE` on the same
+  # 64 KiB measured 0.139 s under BOTH locales), so exporting the pin would buy
+  # nothing and cost real behavior: `[[:space:]]` is ASCII-only under C but admits
+  # some non-ASCII spaces under a UTF-8 locale, so an exported pin would make
+  # emit_refs below drop a reference whose argument separator is one of them, and
+  # would make the blank-line filter keep an anchor line it used to discard.
+  # Un-exported, children run in the caller's locale exactly as before, and nothing
+  # they emit changes. Nothing needs them pinned either: no offset ever crosses a
+  # process boundary — the fallback's grep yields anchor STRINGS and emit_refs
+  # consumes a context STRING.
+  #
+  # WHICH separators those are is the host C library's table, not this hook's, and
+  # it is not portable: glibc dropped U+00A0 and U+202F from `space` in 2.26, while
+  # Cygwin/MSYS still classifies them; U+3000 and U+2028 are admitted by both.
+  # Measured, after a first revision of the regression case hardcoded U+00A0 and so
+  # passed on Windows and failed on Linux CI. The case now DISCOVERS a separator
+  # this host actually classifies differently, so it asserts this hook's behavior
+  # rather than a libc's table.
+  #
+  # Scope and lifetime were verified rather than assumed: assigning LC_ALL re-runs
+  # setlocale even for a `local` (and even with `+x`), and bash restores the
+  # previous value AND its export attribute on return, including when the consumer
+  # exported LC_ALL itself.
+  #
+  # Safe because every offset this function computes is also consumed by it: the
+  # unit is bytes here and characters outside, and the two never meet. Slices are
+  # taken only at a literal match or at a newline, and no UTF-8 multibyte sequence
+  # contains an ASCII byte, so a byte slice never splits a character.
+  # RECONSTRUCT_MAX_CHARS is therefore read as bytes, the stricter of the two
+  # readings, so it cannot raise the ceiling it exists to set, and the fallback's
+  # KiB estimate stops understating a multibyte file and over-granting its anchor
+  # cap. Both shifts are toward less work, never more.
+  local +x LC_ALL=C
   local content
   content=$(<"$FILE") || return 0
   # Gate on the size BEFORE touching the string: every step past this point is a

@@ -403,6 +403,105 @@ assert_exit "two-character Edit hunk → exit 0" 0 "$RC"
 assert_contains "two-character Edit hunk → containing reference recovered" "$OUT" \
   "UNRESOLVED_SKILL: /alpha:setxx"
 
+# MULTIBYTE CONTENT AROUND THE ANCHOR. reconstruct_partial_edit pins LC_ALL=C so
+# its scans are not charged the multibyte matcher's ~6.5x, which makes every offset
+# it computes a BYTE offset. That is safe only if a slice never splits a character,
+# so multibyte text goes on the line BEFORE the anchor (moving the anchor's
+# absolute offset off a character boundary) and on both sides of it within its own
+# line (moving the span's boundaries off one). The skill name itself stays ASCII
+# because the command grammar is `[a-z0-9-]` — a non-ASCII name is unreportable by
+# design, so putting one here would test the grammar, not the offsets.
+#
+# A byte/character confusion mangles the span, and a mangled span cannot parse as a
+# command — so this case fails by going SILENT, the direction that would otherwise
+# hide.
+UTF8="$REPO/utf8.md"
+# The prose is French only to get multibyte bytes cheaply; the words carry no
+# meaning for the assertion. One French preposition was swapped out because the
+# spell-check lane reads it as a truncated English word — a throwaway fixture is
+# not worth a global dictionary entry. Keep any replacement wording clear of it.
+printf 'Préambule des conventions — rien à voir ici.\nExécutez `/alpha:ghost-cafe` après le déploiement — voilà.\n' \
+  >"$UTF8"
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$UTF8" 'ghost-cafe')" 2>&1)
+RC=$?
+assert_exit "multibyte content around the anchor → exit 0" 0 "$RC"
+assert_contains "a reference reconstructed out of multibyte content is intact" "$OUT" \
+  "UNRESOLVED_SKILL: /alpha:ghost-cafe"
+
+# THE PIN MUST NOT REACH THE CHILD PROCESSES. The case above passes with the pin,
+# without it, and with an EXPORTED pin — both locales are internally consistent, so
+# it cannot tell the three apart. This one can, and it is the reason the pin is
+# written `local +x` rather than `local`.
+#
+# `local LC_ALL=C` inherits the export attribute when the CONSUMER exported LC_ALL,
+# so the pin reaches emit_refs' grep/sed. Those tools classify some non-ASCII spaces
+# as `[[:space:]]` under a UTF-8 locale but never under C, so an exported pin makes
+# the hook silently drop a reference whose argument separator is one of them — a
+# detection loss that buys nothing, since the whole cost the pin removes is bash's
+# own matcher and the children measured identical in both locales.
+#
+# WHICH separator has that property is a property of the host's C library, not of
+# this hook, and it is NOT portable. glibc removed U+00A0 and U+202F from `space`
+# in 2.26 (a no-break space is deliberately not a separator); Cygwin/MSYS still
+# classifies them. An earlier revision of this case hardcoded U+00A0 and so passed
+# on Windows and failed on Linux CI — asserting a libc's classification table as if
+# it were this hook's behavior.
+#
+# So the separator is DISCOVERED rather than assumed: take the first candidate this
+# host actually classifies differently between the two locales, probed through the
+# very sed stage the assertion depends on. That cannot go vacuous (a candidate that
+# does not discriminate is never selected) and cannot go platform-brittle (no
+# codepoint is baked in). Every candidate is escape-built, never a literal byte, so
+# an editor or transfer that normalizes whitespace cannot quietly turn it into an
+# ASCII space — which is exactly what happened while this case was first written.
+# MIRRORS skill-reference-verify.sh:220 — emit_refs' reference-extraction sed,
+# byte for byte. Nothing enforces that, so if you change the grammar there, change
+# it here too. A drift cannot pass silently: the end-to-end assertion below still
+# runs the REAL hook, so a separator discovered against a stale copy would fail
+# `assert_contains` rather than quietly select the wrong codepoint.
+SEP_SED='s|^(/[a-z][a-z0-9-]*:[a-z][a-z0-9-]*)([[:space:]].*)?$|\1|p'
+SEP='' SEP_NAME=''
+# shellcheck disable=SC2059  # the candidate IS the format string: its \nnn octal
+# escapes are the point, and passing them as %s data would emit the backslashes
+# literally instead of the UTF-8 bytes this case needs.
+for _cand in 'U+3000 IDEOGRAPHIC SPACE:\343\200\200' \
+  'U+2000 EN QUAD:\342\200\200' \
+  'U+2028 LINE SEPARATOR:\342\200\250' \
+  'U+205F MEDIUM MATHEMATICAL SPACE:\342\201\237' \
+  'U+00A0 NO-BREAK SPACE:\302\240'; do
+  _probe=$(printf "/alpha:ghost-x${_cand#*:}arg")
+  _u=$(printf '%s' "$_probe" | LC_ALL=en_US.UTF-8 sed -nE "$SEP_SED")
+  _c=$(printf '%s' "$_probe" | LC_ALL=C sed -nE "$SEP_SED")
+  if [[ -n "$_u" && -z "$_c" ]]; then
+    # shellcheck disable=SC2059  # same reason as above
+    SEP=$(printf "${_cand#*:}")
+    SEP_NAME=${_cand%%:*}
+    break
+  fi
+done
+if [[ -z "$SEP" ]]; then
+  # This is the ONLY case that separates `local +x LC_ALL=C` from a plain `local
+  # LC_ALL=C` — every other case in this file passes identically under both. So a
+  # skip here silently retires the single guard this fix exists to add, and a green
+  # run would say nothing about it. Both platforms this was developed on select
+  # U+3000, so this branch is expected to be DEAD in CI: a skip appearing in a log
+  # is itself the finding, not a shrug. It stays a skip rather than a failure only
+  # so a host with no UTF-8 locale, or a libc that classifies no non-ASCII space as
+  # `[[:space:]]`, does not block a developer over something this hook does not own.
+  ok "SKIP locale-contrast guard — NO SEPARATOR DISCRIMINATES on this host, the +x guard did NOT run ($(uname -s), no candidate classified as [[:space:]] under en_US.UTF-8 but not C)"
+else
+  SEPDOC="$REPO/sepspace.md"
+  printf 'Intro line.\nRun `/alpha:ghost-sep%sarg` now.\n' "$SEP" >"$SEPDOC"
+  # The hunk is a bare SUBSTRING, so the direct scan cannot see the reference and
+  # only reconstruction can report it.
+  OUT=$(LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8 CLAUDE_PROJECT_DIR="$REPO" \
+    bash "$HOOK" <<<"$(edit_json "$SEPDOC" 'ghost-sep')" 2>&1)
+  RC=$?
+  assert_exit "consumer-exported UTF-8 locale → exit 0" 0 "$RC"
+  assert_contains "the pin does not reach the children: reference separated by $SEP_NAME survives" \
+    "$OUT" "UNRESOLVED_SKILL: /alpha:ghost-sep"
+fi
+
 # A short anchor is still subject to the uniqueness gate — it buys no scope.
 SHORT2="$REPO/short2.md"
 printf 'Run `/alpha:setxx` and note the xx convention.\n' >"$SHORT2"
