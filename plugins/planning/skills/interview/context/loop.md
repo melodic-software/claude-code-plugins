@@ -61,7 +61,7 @@ Run rounds until the stop condition is met. Each round:
 
 ### Where a round may fire
 
-An `/planning:interview` reached from inside another workflow's phase must not meter its questions out mid-phase: a gate that fires once the phase is already underway blocks a running lane on a human who is not watching, and the measured cost is a session spending most of its wall time idle. Emit the whole open set at the **phase boundary** — the point where the caller hands control over — and treat a mid-phase blocking question as the exception, allowed when proceeding without it would produce work that has to be thrown away, and stated in one line when it happens ("asking now because the next step writes the schema").
+A `/planning:interview` reached from inside another workflow's phase must not meter its questions out mid-phase: a gate that fires once the phase is already underway blocks a running lane on a human who is not watching, and the measured cost is a session spending most of its wall time idle. Emit the whole open set at the **phase boundary** — the point where the caller hands control over — and treat a mid-phase blocking question as the exception, allowed when proceeding without it would produce work that has to be thrown away, and stated in one line when it happens ("asking now because the next step writes the schema").
 
 A consumer batching questions on its own side does not make this unnecessary: the reported failure had the caller listing the phase's open question up front and the interview serialized it anyway. When a question surfaces mid-phase and does not meet the exception, register it `open` and carry it to the next round boundary rather than stopping the lane for it.
 

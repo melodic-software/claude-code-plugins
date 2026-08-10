@@ -193,7 +193,7 @@ When invoked with `review`:
 
 1. Locate the topic's `PRD.md` (use slug derivation above)
 2. Evaluate against the seven required sections — flag any missing or fuzzy
-3. Evaluate against skip-conditions — should this PRD even exist? If engineering-internal, recommend supersession with an `/planning:interview` brief
+3. Evaluate against skip-conditions — should this PRD even exist? If engineering-internal, recommend supersession with a `/planning:interview` brief
 4. Check goals are *outcomes*, not implementations (the most common failure mode)
 5. Check success metrics have a *measurement window* and *threshold*, not vague language
 6. Present findings: what's strong, what's missing, what to revise

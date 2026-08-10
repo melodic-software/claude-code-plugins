@@ -83,7 +83,7 @@ Proceed only on an unambiguous yes. Anything else — abort and change nothing. 
 consent from the original request; the gate is a separate, explicit step.
 
 **A bundled or earlier multi-option answer does NOT satisfy this gate.** Consent that rode
-along in an upstream flow — an `/planning:interview` round where "purge" was one bullet of a bundled
+along in an upstream flow — a `/planning:interview` round where "purge" was one bullet of a bundled
 answer, a numbered menu selection (`"1"`) whose option happened to include the purge, or a
 "go stateless and purge" given before the manifest existed — is materially weaker than this
 gate's bar. The gate must restate the concrete, now-known scope (file count, directories)
