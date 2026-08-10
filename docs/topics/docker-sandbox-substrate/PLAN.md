@@ -135,45 +135,76 @@ instead of inferring them.
 Both halves resolve as a **rewording plus one additive assertion**, not a loosening of any existing
 check.
 
-**Egress — test data flow, not `connect()`.** The probe becomes a *certificate-verified* TLS fetch of
-`<well-known-external-host>`. Certificate verification is what converts the two observed false
-negatives into true negatives: an interception layer that accepts the SYN and drops the session
-cannot complete the handshake, and a policy block page cannot present a certificate valid for the
-probed host. The existing non-zero-exit invariant therefore stands unchanged — no relaxation — and
-the transcript additionally records HOW denial occurred, in the per-target comma-separated form
-`credentials_absent` already uses:
+**Egress — test data flow, not `connect()`.** The probe becomes a TLS fetch whose passing condition is
+that **the inner peer is not the origin, or no origin bytes were read**. Certificate verification alone
+was the first draft and is NOT sufficient: an org that installs a TLS-inspection CA inside the boundary
+makes the interceptor's certificate verify cleanly, which would grade a fully-intercepted boundary as
+egress-capable in one direction and a legitimately-denied one as passing in the other. The
+discriminator is therefore a **peer-certificate comparison against the outer context**, which needs no
+trusted-CA assumption at all:
 
+- The outer probe records the peer certificate fingerprint of each reachable target.
+- The inner probe records its own. Denial is proven when the handshake fails, or when the inner
+  fingerprint DIFFERS from the outer one (an interceptor, not the origin), with zero origin bytes read.
 - `egress_denied.transport_outcome` ∈ `dns-unresolved` | `connect-failed` | `tls-failed` |
-  `policy-intercepted`, one entry per probed host, positionally paired with `host`.
-- A completed, host-authenticated TLS session that read origin application data is the FAIL
-  condition; it has no passing token, so it cannot be recorded as a pass.
+  `peer-substituted` | `not-applicable`, one entry per probed host, positionally paired with `host`,
+  in the comma-separated form `credentials_absent` already uses.
+- A completed handshake whose peer fingerprint MATCHES the outer one and from which application data
+  was read is the FAIL condition. It has no passing token, so it cannot be recorded as a pass.
 
-**Workspace — containment proven from the OUTER side.** A third assertion, `workspace_contained`,
-asserting that **no write performed inside the boundary becomes visible at the host workspace path**.
-Verifying from outside is what makes one rule cover both substrate shapes: a read-only mount fails
-the inner write, a clone-mode mount accepts it invisibly, and both are contained. The inner exit code
-is therefore deliberately NOT constrained — only host state is.
+Three additional legs close gaps a single-target exit-code test leaves open:
+
+- **Client readiness.** A boundary with no working TLS client would otherwise "pass" trivially — a
+  missing tool is indistinguishable from a denied network. The same client must first succeed against
+  an in-boundary endpoint; a client that cannot be shown to run yields UNPROVEN, never a pass.
+- **Multiple targets, one unguessable.** One denied destination does not establish default-deny: a
+  policy can allow specific hosts while denying the probed one. At least two targets are required, one
+  of them a randomized name no allowlist could have anticipated.
+- **Address family recorded, never inferred.** IPv4 and IPv6 are probed and recorded separately; an
+  absent family is `not-applicable`, never counted as denied.
+
+**Workspace — host-write containment, proven from the OUTER side.** A third assertion named
+`workspace_host_write_contained` — the longer name is deliberate, because the short form would
+overclaim. It asserts that **no write performed inside the boundary becomes visible at the host
+workspace path**, which is Q6's write-back scope, and it does NOT cover read exposure (see the named
+limitation below). Verifying from outside is what makes one rule cover both substrate shapes: a
+read-only mount fails the inner write, a clone-mode mount accepts it invisibly, and both are
+contained. The inner exit code is deliberately NOT constrained — only host state is.
 
 Legs, in order:
 
-1. Outer, pre: the marker path is absent at the host workspace root; record the exit as
-   `host_pre_absent: "0"`. Record `git_config_digest_pre` (the literal `absent` where the workspace
-   has no `.git/config`).
-2. Inner: write the marker into the workspace mount, and append to `.git/config`. Record
-   `inner_exit_code` for the record only.
-3. Outer, post: the marker is still absent (`host_post_absent: "0"`) and
-   `git_config_digest_post` equals `git_config_digest_pre`.
+1. Outer, pre: snapshot the host workspace. Record `git_config_digest_pre` (the literal `absent`
+   where the workspace has no `.git/config`) and confirm every canary path is absent.
+2. Inner: write a **randomized canary** at each of a small fixed set of shapes — a plain file, a
+   dotfile, and a `.git/`-relative path — and append to `.git/config`. Randomized names defeat a
+   substrate that special-cases a known probe path; the shape set covers case-folding and
+   hidden-file handling that a single literal path would miss. Record `inner_exit_code` for the
+   record only.
+3. **Tear the boundary down, then** re-check. An immediate post-check can miss delayed propagation
+   on a caching or asynchronously-flushed mount, so the post-check runs after teardown, with paths
+   canonicalized on both sides before comparison.
+4. Outer, post: every canary still absent (`host_post_absent: "0"`) and `git_config_digest_post`
+   equals `git_config_digest_pre`.
 
 `.git/config` is named explicitly because it is a command key ring — `core.fsmonitor` executes host
-code on `git status` — so a workspace assertion that only checked ordinary files would miss the
-documented escalation path.
+code on `git status` — so an assertion that only checked ordinary files would miss the documented
+escalation path.
+
+**Where the host workspace path is not observable from the outer context** (a hosted ephemeral
+executor whose storage the operator cannot inspect), the assertion records `not-applicable` and the
+level is UNPROVEN for that surface. It never silently passes.
+
+**Named limitation, carried into the leaf, not hidden.** This assertion does not measure READ
+exposure, and clone mode leaves reads fully open — so exfiltration of workspace contents is
+unaffected by a passing result. Q6 scoped the assertion to write-back; widening it to reads is
+recorded as a deferred item with its own trigger rather than implied by the assertion's name.
 
 ### Approach
 
 Phase order is dependency-driven: the vocabulary leaf (Phase 2) must exist before any surface can
 cite it, and Phase 1 is independent of every other phase.
 
-#### Phase 1: Probe hardening — data-flow egress + workspace containment [TODO]
+#### Phase 1: Probe hardening — data-flow egress + workspace host-write containment [TODO]
 
 Review: security
 
@@ -185,35 +216,60 @@ Criterion 3. Delivers the Q20 resolution above.
       path. Known consumers at plan time: `scripts/check-security-binding.mjs`,
       `scripts/check-security-binding.fixtures.test.mjs`, the fixtures manifest, and
       `skills/setup/SKILL.md`'s guardrail slice.
-- [ ] `templates/isolation-probe.md` — reword the egress assertion to the certificate-verified TLS
-      form; add the `workspace_contained` assertion, its outer-first probe shape, and its per-substrate
-      wrapping note; extend the transcript capture shape with both new blocks.
+- [ ] **Hardcoded assertion COUNTS must move with the assertion set** — verified present at
+      `templates/isolation-probe.md:6` ("the SAME two assertions"), `:13` ("Two checks"), `:103`
+      ("both assertions"), and `schemas/guardrails-security-binding.schema.json:178` ("capture shape
+      with both assertions"). Leaving any of them stale makes the contract self-contradicting.
+- [ ] `templates/isolation-probe.md` — reword the egress assertion to the peer-comparison form and add
+      its readiness, multi-target, and address-family legs; add the
+      `workspace_host_write_contained` assertion with its outer-first, post-teardown probe shape and
+      per-substrate wrapping note; extend the transcript capture shape with both new blocks.
 - [ ] `reference/guardrails/isolation-ladder.md` — the `L2` level text names default-deny egress and
-      credential protection; add workspace containment as the third property a boundary must
-      demonstrate. Classes only, no instance names.
+      credential protection; add host-write containment as the third property a boundary must
+      demonstrate, and state the read-exposure limitation in the same breath. Classes only, no
+      instance names.
 - [ ] `scripts/check-security-binding.mjs` — extend `verifyProbeTranscript`: validate
       `egress_denied.transport_outcome` (closed token set, one entry per host, positionally paired)
-      and the `workspace_contained` block. **The `workspace_contained` check runs LAST in the
-      function** — the ~50 negative transcripts have `findings_substrings` pinned to their own
-      rejection reason, and an earlier-running new check would rewrite all of them.
+      and the `workspace_host_write_contained` block. **Both new checks run LAST in the function** —
+      `verifyProbeTranscript` returns the FIRST problem it finds, and all 58 `probe-evidence-*`
+      fixture cases pin a `findings_substrings` naming their own specific rejection reason (verified:
+      `records assertions.egress_denied.host "192.88.99.1"` and the like). A new check running
+      earlier would return the new reason instead and rewrite every one of them.
 - [ ] Transcripts referenced by PASSING fixtures gain both new blocks — exactly 6 JSON files:
       `ci-pool-a-l2.json`, `ci-pool-a-l2-as112-v6.json`, `ci-pool-a-l2-multi-host.json`,
       `ci-pool-a-l2-id-rsa.json`, `ci-pool-a-l3.json`, `ci-pool-a-l3-hosted.json`
       (`ci-pool-a-l1-2026-07-01.txt` is an `L1` reference and is not verified).
-- [ ] New NEGATIVE transcripts + manifest cases: missing `workspace_contained`; marker visible on the
-      host post-write; `git_config_digest` changed; missing `transport_outcome`; count mismatch
-      against `host`; a `data-flowed` egress outcome.
+- [ ] New NEGATIVE transcripts + manifest cases: missing `workspace_host_write_contained`; a canary
+      visible on the host post-teardown; `git_config_digest` changed; missing `transport_outcome`;
+      count mismatch against `host`; a matching peer fingerprint with data read; a single-target
+      egress probe; an unproven TLS client.
 - [ ] `skills/setup/SKILL.md` — the guardrail slice's probe narration gains the third assertion.
+- [ ] **Staged activation — this raises the `L2` bar for surfaces already bound.** Every deployed `L2`
+      binding was probed under the two-assertion recipe, so its transcript has no third block; the new
+      check makes those levels UNPROVEN, and the ladder's fail-closed rule then BLOCKS autonomous
+      dispatch on that surface. `L3` inherits it. That is the correct security outcome and it is a
+      breaking migration for every existing adopter, so it ships staged, never silently:
+      (a) the release notes and `CHANGELOG` state the bar raise and what re-probing costs;
+      (b) the checker's UNPROVEN finding text names the third assertion as the cause and points at the
+      updated recipe, so an operator reads a remedy rather than a bare rejection;
+      (c) the plugin `version` bump is MINOR at minimum, and the CHANGELOG entry is written as a
+      migration note. In-repo fixtures are NOT the migration — they are only the test of it.
+- [ ] **Merge gate — re-probe on a real substrate.** The reworded egress assertion has never been run;
+      the existing evidence was captured under the OLD recipe. The stopped `probe-l3` sandbox is still
+      on this machine, so re-probing is cheap. At least one real substrate must be re-probed under the
+      hardened recipe before this phase merges, and the transcript committed as updated evidence.
 
 **Sanity Check:**
 
 - `node scripts/check-security-binding.fixtures.test.mjs` exits 0 with every pre-existing case's
   `findings_substrings` unchanged (diff the manifest: only ADDED keys, no MODIFIED `findings_substrings`
   on pre-existing cases).
-- `grep -c "workspace_contained" plugins/autonomy/skills/setup/templates/isolation-probe.md` ≥ 3.
-- `grep -n "must fail to CONNECT" plugins/autonomy/skills/setup/templates/isolation-probe.md`
+- `grep -c "workspace_host_write_contained" plugins/autonomy/skills/setup/templates/isolation-probe.md` ≥ 3.
+- `grep -rn "must fail to CONNECT\|SAME two assertions\|Two checks\|both assertions" plugins/autonomy/skills/setup/`
   returns empty.
 - `grep -rn "sbx\|Docker Sandboxes\|Multipass\|Hyper-V" plugins/autonomy/` returns empty.
+- A re-probe transcript exists under `.work/docker-sandbox-substrate/` recording the new
+  `transport_outcome` and `workspace_host_write_contained` blocks from a live run.
 
 #### Phase 2: Verification-topology contract leaf + matrix column [TODO]
 
@@ -229,8 +285,12 @@ Criterion 4, and the vocabulary Phases 3–5 cite. Documentation only — no sch
       **predicates** `min_context_tokens` · `requires_modality` · `requires_feature`;
       **budget** cost ceilings; **pin** `pinned_model_id`, append-only, reproducibility of a recorded
       measurement only.
-      Records `frontier`, `flagship`, and `daily driver` as REJECTED with their sourced reasons, in the
-      same shape the ladder records its rejected trigger-source axis.
+      **The leaf contains no capability label at all** — not even as a rejected example. Criterion 4
+      says "no capability label anywhere in it", and a rejected-vocabulary section would still put the
+      words in the normative artifact. The leaf states only that capability labels are rejected as
+      policy vocabulary, because they name a different thing at each vendor and do not survive a model
+      release; the sourced per-label rationale lives in the PR body and issue #2110, which is where a
+      future reader tempted to reintroduce one will find it.
       States the two fixed invariants: **independent aggregation, never deliberation**, and
       **unanimous checker agreement for anything auto-proceeding**.
 - [ ] `reference/guardrails.md` — add the **Verification topology** column to the matrix, its
@@ -239,8 +299,8 @@ Criterion 4, and the vocabulary Phases 3–5 cite. Documentation only — no sch
 
 **Sanity Check:**
 
-- `grep -rn "frontier\|flagship\|daily driver" plugins/autonomy/reference/` matches ONLY inside the
-  leaf's rejected-vocabulary section.
+- `grep -rniE "frontier|flagship|daily driver" plugins/autonomy/reference/` returns EMPTY — criterion
+  4's "anywhere in it" is a zero-match assertion, not a scoped one.
 - `plugins/autonomy/reference/guardrails.md` matrix header row contains `Verification topology`, and
   the glance-layer table contains a row pointing at `guardrails/verification-topology.md`.
 - Every plugin-internal link in the new leaf resolves (`skill-reference-verify` hook passes).
@@ -254,16 +314,23 @@ Criterion 5, binding half.
 - [ ] **Pre-flight consumer check** (FIRST work item): `Grep` for `verification_blocking`,
       `merge_policy`, and `schema_version` parse sites across the plugin and repo scripts.
 - [ ] `schemas/guardrails-security-binding.schema.json` — add `verification_topology` as an
-      OPTIONAL top-level key: per class, `min_checkers` (integer ≥ 1) and `cross_vendor_required`
-      (boolean). Optional-with-contract-defaults follows the `escalation_severity` precedent, so
-      `schema_version` stays `"1.0"` and all 113 existing fixtures continue to validate. Absent
-      binding is NOT a hole: the leaf's shipped floors apply, exactly as `escalation_severity` falls
-      back to contract defaults.
+      OPTIONAL top-level key. **Criterion 4 says the policy is expressed as roles + relations +
+      MACHINE-CHECKABLE predicates; a predicate that never reaches the schema is not machine-checkable,
+      so all three axes are modeled here, not only the count.** Per class: `min_checkers` (integer ≥ 1),
+      `cross_vendor_required` (boolean), and a role list whose entries carry the relational constraints
+      (`distinct_model_from`, `distinct_vendor_from`) and the predicates (`min_context_tokens`,
+      `requires_modality`, `requires_feature`). Optional-with-contract-defaults follows the
+      `escalation_severity` precedent, so `schema_version` stays `"1.0"` and all 113 existing fixtures
+      continue to validate. Absent binding is NOT a hole: the leaf's shipped floors apply, exactly as
+      `escalation_severity` falls back to contract defaults.
 - [ ] `scripts/check-security-binding.mjs` — floors are FLOORS: tightening legal, weakening below the
       shipped default invalid, no `override_justification` escape (the same rule
-      `verification_blocking` already carries).
+      `verification_blocking` already carries). A relational constraint naming a role absent from its
+      own class's role list is invalid — that check is what makes the predicate machine-checkable
+      rather than decorative.
 - [ ] New fixtures: a valid tightened binding; a weakened `min_checkers`; a `cross_vendor_required`
-      dropped below its floor; a non-class key.
+      dropped below its floor; a non-class key; a `distinct_vendor_from` pointing at an undeclared
+      role; an unknown predicate token.
 
 **Sanity Check:**
 
@@ -271,6 +338,11 @@ Criterion 5, binding half.
   returns 1 (the version did NOT move).
 - `node scripts/check-security-binding.fixtures.test.mjs` exits 0; the 22 pre-existing exit-0 cases
   still exit 0 unmodified.
+- Every axis named in the leaf appears as a schema key: for each of `min_checkers`,
+  `cross_vendor_required`, `distinct_model_from`, `distinct_vendor_from`, `min_context_tokens`,
+  `requires_modality`, `requires_feature`, `grep -c` in the schema returns ≥ 1.
+- The undeclared-role fixture exits 1 with its pinned finding — proof the relational constraint is
+  enforced, not merely declared.
 
 #### Phase 4: Plugin `userConfig` — lens selection and the advisory visual lane [TODO]
 
@@ -293,10 +365,19 @@ Criterion 5 (`userConfig` half) and criterion 6.
       never lower it.
 - [ ] `skills/setup/SKILL.md` + `CHANGELOG.md` + `version` bump.
 
+**Honest limit.** Criterion 6 says the lane "cannot block". With no runner built, there is no runtime
+in which to demonstrate that, and building one is barred by the Brief's own trigger-gate constraint.
+So the criterion is met by **structural impossibility rather than a runtime test**: the lane is given
+no blocking knob in `userConfig` and no `VerificationKnob` cell in the schema, so there is nothing an
+org could flip. The runtime ordering assertion — deterministic pass plus visual fail still advances —
+is recorded as a deferred item bound to the runner's build trigger, not claimed here.
+
 **Sanity Check:**
 
-- `grep -n "advisory" plugins/autonomy/reference/guardrails/verification-topology.md` shows the visual
-  lane with NO `blocking` token anywhere in its section.
+- The visual lane's section in `reference/guardrails/verification-topology.md` contains no
+  `blocking` token: `grep -c blocking` over that section returns 0.
+- `grep -c "visual" plugins/autonomy/skills/setup/schemas/guardrails-security-binding.schema.json`
+  returns 0 — the lane has no binding-side knob at all, which is what makes it unpromotable.
 - `node -e "JSON.parse(require('fs').readFileSync('plugins/autonomy/.claude-plugin/plugin.json'))"`
   exits 0 and every new `userConfig` entry has a `default`.
 - The commit message cites the fetched docs URL.
@@ -307,22 +388,39 @@ Review: security
 
 Criterion 7.
 
-- [ ] Confirm — do not assume — that implementer/checker disagreement IS the existing
-      `verification-divergence` escalation event class ("a verification outcome diverges from the
-      expected or claimed result"). If it is, bind to it and invent no token; if it is not, the new
-      class binds additively as an OPTIONAL `escalation_routes` key, following the `runner-*`
-      precedent.
-- [ ] `reference/guardrails.md` — merge-policy column keeps human merge; record that any
-      auto-proceeding path additionally requires unanimous checker agreement.
+**Routing question — RESOLVED, not deferred.** Verified this session: `verification-divergence` is
+already a REQUIRED key in `escalation_routes`, and `guardrails.md` defines it as "a verification
+outcome diverges from the expected or claimed result" — which is exactly implementer/checker
+disagreement. Phase 5 binds to it and invents no token. The new machinery is the **unanimity
+predicate**, not the event class.
+
+- [ ] `reference/guardrails.md` — merge-policy column keeps human merge; record that **every automatic
+      transition**, not merely a merge, requires unanimous checker agreement. Scoping it to merge alone
+      would leave an auto-advancing pipeline stage ungoverned, which is the hole criterion 7 exists to
+      close.
 - [ ] `reference/guardrails/work-classes.md` — the unanimity requirement joins the promotion
       discipline: a promoted `C2`/`C3` auto-merge cell still does not auto-proceed on checker dissent.
+      Promotion does not survive dissent; it is a ceiling, and dissent lowers the effective state the
+      same way contrary evidence already does.
 - [ ] `scripts/check-security-binding.mjs` + fixtures — a binding whose `merge_policy` is `auto` for a
       class whose `verification_topology` floor cannot express unanimity is invalid.
+
+**Honest limit.** Criterion 7's "unanimous agreement to auto-proceed" is a RUNTIME aggregation rule,
+and the runner that would aggregate is design-only and trigger-gated — `runner.md` states "no build
+begins until a T4 build trigger fires". This phase therefore delivers what is checkable without a
+runtime: the contract obligation, the promotion-discipline consequence, and a binding-validity check
+that a class cannot be configured to auto-proceed without a floor capable of expressing unanimity.
+The per-run verdict-aggregation gate (unanimous pass, single dissent, checker timeout, duplicate
+checker identity) is specified as a runner-seam obligation and lands with the runner build. The plan
+does not claim enforcement it cannot demonstrate.
 
 **Sanity Check:**
 
 - `grep -n "unanimous" plugins/autonomy/reference/guardrails.md plugins/autonomy/reference/guardrails/work-classes.md`
-  returns a match in both.
+  returns a match in both — a documentation assertion, and labeled as such.
+- The BEHAVIOR assertion: a new fixture binding `merge_policy.C3 = "auto"` with a
+  `verification_topology` floor that cannot express unanimity exits 1 with its pinned finding, and the
+  otherwise-identical binding with a conforming floor exits 0.
 - `node scripts/check-security-binding.fixtures.test.mjs` exits 0 with the new dissent fixtures.
 
 #### Phase 6: Close-out [TODO]
@@ -360,8 +458,10 @@ contains the PLAN block, a closing keyword, and a non-empty `## Related` section
 | Bump `schema_version` to `2.0` for the new keys | Invalidates every adopting org's binding, which fail-closes their autonomous dispatch until re-authored. The schema's own `runner-*` and `escalation_severity` keys establish optional-additive as the house pattern |
 | Make the third assertion optional-when-absent | A binding could keep certifying `L2` on two-assertion evidence — the silent degrade the ladder explicitly forbids. It rides the existing UNPROVEN path instead: the binding stays valid, the level stops counting toward eligibility |
 | Assert workspace containment by requiring the inner write to FAIL | Grades clone-mode substrates wrongly — they legitimately accept the write and discard it. Verifying host state from the outer side covers both shapes with one rule |
-| Relax `exit_code` to allow `0` with a `policy-intercepted` outcome | Loosens a currently-strict invariant on evidence an executing agent could doctor. Certificate verification achieves the same discrimination while keeping non-zero required |
-| A new escalation mechanism for checker disagreement | `verification-divergence` already exists, is already required in `escalation_routes`, and already means this. Phase 5 confirms before binding |
+| Certificate verification alone as the egress discriminator (this plan's own first draft) | An org that installs a TLS-inspection CA inside the boundary makes the interceptor verify cleanly, so the check grades an intercepted boundary as egress-capable. Replaced by a peer-fingerprint comparison against the outer context, which assumes no trusted CA |
+| An origin-signed nonce challenge verified against an embedded public key | Strictly stronger, but no well-known public endpoint will sign a caller-supplied nonce, so it cannot be substrate-agnostic or vendor-neutral — it would require shipping and operating an endpoint, which this repository has no business doing |
+| A new escalation mechanism for checker disagreement | `verification-divergence` already exists, is already required in `escalation_routes`, and its definition already means this — verified this session, so Phase 5 binds rather than deferring |
+| Prohibiting automatic merge outright to satisfy criterion 7 | Overshoots the criterion, which permits auto-proceeding on unanimity, and would revoke the shipped `C2`/`C3` promotion path the guardrail matrix already grants. Unanimity is scoped to every automatic transition instead |
 | Model the visual lane as a `security-review.md` layer with `blocking` defaulted off | A defaulted-off knob is promotable; measured 70% judge precision with a consistent over-crediting direction means it must never become a gate. No knob is the stronger form |
 
 ### Test Strategy
@@ -379,34 +479,164 @@ Test-first throughout — the fixture harness is already the red-green loop for 
   vendor-name greps in the phase Sanity Check; no unit test applies.
 - **Phase 4:** JSON parse plus a `default`-presence assertion on every new `userConfig` key; the
   fresh-docs citation is verified by reading the commit message.
-- **Not covered by any test:** whether the reworded egress assertion actually discriminates on a real
-  substrate. The existing probe evidence is the only empirical datum, and it is version-bound. Re-running
-  the probe against the hardened recipe is the honest verification and is called out as a risk below.
+- **Phase 5:** the documentation greps are labeled as documentation assertions; the behavior assertion
+  is the paired fixture (auto-merge with a unanimity-incapable floor exits 1; the conforming twin
+  exits 0).
+- **Covered only by a live re-probe, not by the fixture harness:** whether the reworded egress and
+  workspace assertions actually discriminate on a real substrate. Fixtures test the CHECKER, never the
+  RECIPE. This is why the live re-probe is a Phase 1 merge gate rather than a suggestion.
+- **Not covered at all, and stated rather than hidden:** runtime behavior for criteria 6 and 7. No
+  runner exists to exercise them, and building one is barred by the Brief's trigger-gate constraint.
 
 ### Risks and Mitigations
 
 | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|
-| The new transcript check runs before existing checks and rewrites ~50 pinned `findings_substrings` | High | Med | Ordering is a stated implementation constraint; the "no pre-existing substring changed" assertion catches it mechanically |
-| Certificate verification is defeated where an org installs the interceptor's CA inside the boundary | Med | High | That configuration is itself a finding; the leaf states it explicitly rather than leaving it implicit |
-| Shipped floor VALUES are unevidenced | High | Med | OPEN DECISION below — not decided by this plan |
-| The hardened recipe is never re-run against a real substrate, so the rewording is untested in practice | Med | Med | Re-probe is cheap (`probe-l3` still exists, stopped); recommended before Phase 1 merges |
-| Pipeline evidence is pre-consensus and several findings are single-study | High | Med | `/planning:devils-advocate` at Step 4; the leaf records the evidence basis so a later result can demote a choice rather than silently contradicting it |
+| **Phase 1 blocks autonomous dispatch for every existing adopter.** Their `L2` transcripts predate the third assertion, so the levels go UNPROVEN and the ladder's fail-closed rule blocks the surface. `L3` inherits it | **Certain** | **High** | This is the intended security outcome of a bar raise, but it is breaking. Staged activation is a Phase 1 work item: remedy-bearing finding text, a migration CHANGELOG note, and a MINOR-at-minimum version bump. In-repo fixtures are the test of the migration, never the migration itself |
+| The new transcript checks run before existing checks and rewrite 58 pinned `findings_substrings` | High | Med | Last-position ordering is a stated implementation constraint; the "no pre-existing substring changed" assertion catches it mechanically |
+| A TLS-inspection CA trusted inside the boundary makes an interceptor's certificate verify cleanly | Med | High | Why the assertion is a peer-fingerprint COMPARISON against the outer context rather than plain certificate verification — it needs no trusted-CA assumption. First-draft cert-verification-only was rejected for exactly this |
+| A boundary with no working TLS client "passes" trivially — a missing tool looks like a denied network | Med | High | The client-readiness leg: the same client must succeed against an in-boundary endpoint first, or the level is UNPROVEN |
+| One denied target certifies default-deny while policy quietly allows others | Med | High | Two targets minimum, one a randomized name no allowlist anticipated. Note the adjacent kit-widening question is Q21 and stays USER-RESERVED — this leg strengthens the probe without deciding it |
+| **The assertion does not cover READ exposure, and clone mode leaves reads fully open** | Certain | Med | Named limitation carried in the assertion's own name (`workspace_host_write_contained`) and stated in the leaf. Widening to reads is a deferred item with a trigger, not an implied guarantee |
+| A caching or async mount propagates the inner write after the post-check | Med | High | Post-check runs after boundary teardown, with both sides canonicalized |
+| Shipped floor VALUES are unevidenced | High | Med | OPEN DECISION 1 below — BLOCKS Phase 3, not the plan's approval |
+| The hardened recipe is never re-run against a real substrate | Med | High | Promoted from advisory to a Phase 1 MERGE GATE — the stopped `probe-l3` sandbox is still on this machine |
+| Criteria 6 and 7 are runtime claims with no runtime to test them in | Certain | Med | Both are met by structural impossibility plus contract obligation, and each phase states the limit explicitly. The runtime assertions are recorded as runner-seam obligations bound to the build trigger — not claimed as delivered |
+| Pipeline evidence is pre-consensus and several findings are single-study | High | Med | The leaf records each choice's evidence basis, so a later contrary result demotes that choice explicitly rather than silently contradicting a rule with no stated warrant |
 | Scope creep from Q21 into Phase 1 | Med | Med | Q21 is USER-RESERVED; no phase depends on it. If a phase starts to, that is drift and stops |
 
 ### OPEN DECISIONS — not resolved by this plan
 
-1. **Shipped per-class floor values** (`min_checkers`, `cross_vendor_required`). The interview fixed
-   the SHAPE, never the numbers, and no evidence in the lanes sets them. RECOMMENDED starting floors:
-   `C1` 1/no · `C2` 1/no · `C3` 2/no · `C4` 3/yes · `C5` 3/yes — floors, so an org may only tighten.
-2. **PR granularity.** RECOMMENDED: Phase 1 ships as its own PR (self-contained, security-bearing,
-   independently revertable); Phases 2–5 ship as a second PR carrying the whole topology change
-   coherently. Alternative: one PR per phase, five review round-trips.
+1. **Shipped per-class floor values** (`min_checkers`, `cross_vendor_required`). **BLOCKS Phase 3**,
+   not this plan's approval. The interview fixed the SHAPE, never the numbers, and no research lane
+   sets them — so choosing them here would be a sizing guess dressed as evidence. RECOMMENDED starting
+   floors: `C1` 1/no · `C2` 1/no · `C3` 2/no · `C4` 3/yes · `C5` 3/yes. They are FLOORS, so an org may
+   only tighten, and the cross-vendor requirement lands on exactly the two classes whose cost the
+   evidence justifies.
+2. **PR granularity.** RECOMMENDED: Phase 1 ships as its own PR — it is self-contained,
+   security-bearing, independently revertable, and it carries a breaking migration that deserves its
+   own release note. Phases 2–5 ship as a second PR carrying the topology change coherently.
+   Alternative: one PR per phase, five review round-trips.
+
+### Deferred, with triggers — recorded so they are not silently implied
+
+- **Workspace READ-exposure assertion.** Trigger: any adopter binds a substrate whose workspace mount
+  is readable and whose threat model includes workspace exfiltration. Q6 scoped this round to
+  write-back; the assertion's name says so.
+- **Runtime verdict-aggregation gate** (unanimous pass, single dissent, checker timeout, duplicate
+  checker identity). Trigger: the runner's T4 build trigger fires. Specified as a runner-seam
+  obligation in Phase 5; not deliverable before a runtime exists.
+- **Runtime advisory-ordering assertion** (deterministic pass plus visual fail still advances). Same
+  trigger.
+
+These are distinct from Q21/Q22/Q23, which are USER-RESERVED and belong to the human, not to a
+trigger.
 
 ### Blast radius
 
 **HIGH.** The change touches an agent-unwritable security surface, a fail-closed checker with 113
 gated fixture cases, the isolation ladder's definition of `L2`, and a plugin manifest consumers
 install. Triggers matched: security-sensitive surface; contract migration with downstream consumers;
-fail-closed policy semantics.
+fail-closed policy semantics. Phase 1 additionally halts autonomous dispatch for every existing
+adopter until they re-probe, which is a breaking migration on a security floor.
+
+### Stress-test summary
+
+Two independent passes were attempted; one channel worked.
+
+- **Fresh-context sub-agent review (Step 3): FAILED TO DELIVER.** Three separate spawns each returned
+  an idle notification with no report. The subagent return channel is broken in this session. Recorded
+  rather than papered over, because Step 3 is mandatory and a silent skip would be the failure mode
+  the step exists to prevent.
+- **Cross-vendor review (Codex): DELIVERED.** This is the route the skill names as PREFERRED over the
+  same-vendor sub-agent, so the fallback failing did not cost independence. Its findings drove the
+  revisions above: the TLS-inspection defeat of certificate verification, the client-readiness and
+  multi-target gaps, the async-propagation and canary-shape gaps in the workspace assertion, the
+  unaccounted `L2` migration, the documentation-only predicates, the capability labels leaking into
+  the normative leaf, and Phase 5 testing expressibility rather than behavior.
+- **Findings verified before applying, not taken on trust.** Confirmed against the files: the
+  hardcoded assertion counts at `isolation-probe.md:6,13,103` and `schema:178`; criterion 4's literal
+  "anywhere in it"; `runner.md`'s "no build begins" (which is what makes criteria 6–7 runtime-untestable).
+  Confirmed harmless: `human-gated-only-no-l2.json` binds only `L1` and has an empty
+  `findings_substrings`, so the bar raise does not flip it.
+- **Findings REJECTED with reasons:** prohibiting automatic merge outright (overshoots criterion 7 and
+  revokes a shipped promotion path) and the origin-signed-nonce challenge (cannot be vendor-neutral
+  without operating an endpoint). Both are recorded in Alternatives Considered.
+
+### Execution shape
+
+Phase 1 is file-disjoint from Phase 2 and depends on nothing; every other phase is gated.
+
+| Phase | Files | Overlaps with |
+|---|---|---|
+| 1 | probe template, isolation-ladder, checker, manifest, fixtures, transcripts, SKILL, CHANGELOG | 3, 5 (checker, manifest, fixtures) · 4 (SKILL, CHANGELOG) |
+| 2 | guardrails.md, verification-topology.md (new) | 3, 4 (leaf) · 5 (guardrails.md) |
+| 3 | schema, checker, manifest, fixtures, leaf | 1, 5 · 2, 4 |
+| 4 | plugin.json, SKILL, leaf, CHANGELOG | 1 · 2, 3 |
+| 5 | guardrails.md, work-classes.md, checker, fixtures | 1, 3 · 2 |
+
+Dependency graph: Phase 2 defines the vocabulary Phases 3–5 cite, so 2 gates all three. Phase 3's
+schema is what Phase 5's binding-validity check reads, so 3 gates 5. **Phase 1 is independent of every
+other phase.**
+
+**Recommended shape: sequential, 2 → 3 → 4 → 5, with Phase 1 free to run concurrently.** Phase 1 and
+Phase 2 are genuinely file-disjoint, and under the recommended PR granularity they land in separate
+PRs anyway — so concurrency there is free rather than orchestrated. Within the 2–5 chain the file
+overlap on the checker and the topology leaf is heavy enough that parallelism would cost more in
+conflict handling than it saves.
+
+| Phase | Surface | Basis |
+|---|---|---|
+| 1 | main-session | Security-bearing contract change with a breaking migration; judgment-heavy throughout |
+| 2 | main-session | Normative contract prose; the vocabulary every later phase cites |
+| 3 | main-session | Schema plus checker semantics on the agent-unwritable surface |
+| 4 | main-session | Gated on a live docs fetch and a manifest contract change |
+| 5 | main-session | Promotion-discipline semantics; the highest-consequence cell in the matrix |
+| 6 | main-session | Close-out, prune, PR body, issue comment |
+
+No phase routes to a sub-agent worker. Two reasons, both real: every phase is judgment-heavy contract
+work rather than mechanical volume, and the sub-agent return channel demonstrably failed three times
+in this session. If a later session finds the channel healthy, Phase 1's fixture authoring is the one
+slice that would delegate cleanly.
+
+### Decisions made (gate-passed)
+
+| Decision | What it changes in the plan | Basis (evidence) |
+|---|---|---|
+| `[EXEC-SHAPE]` Peer-fingerprint comparison, not certificate verification, as the egress discriminator | The Q20 egress resolution and the `transport_outcome` token set | Certificate verification is defeated by a TLS-inspection CA trusted inside the boundary; a comparison against the outer context's fingerprint assumes no trusted CA at all |
+| `[EXEC-SHAPE]` The workspace assertion is named `workspace_host_write_contained` | The assertion name, the leaf text, and the deferred read-exposure item | Q6 scoped this round to write-back, and clone mode leaves reads fully open — the short name would have implied coverage the assertion does not provide |
+| `[EXEC-SHAPE]` Post-check runs after boundary teardown, with randomized canaries across three path shapes | Phase 1's probe shape | A caching or asynchronously-flushed mount can propagate after an immediate check; a single literal path misses case-folding and hidden-file handling |
+| `[EXEC-SHAPE]` Optional-additive schema keys; `schema_version` stays `"1.0"` | Phase 3's schema change and the 113-fixture regression floor | `escalation_severity` and the `runner-*` keys are the house precedent, described in the schema as preserving existing bindings. Verified: `const "1.0"` |
+| `[EXEC-SHAPE]` New transcript checks run LAST in `verifyProbeTranscript` | Phase 1's implementation constraint and its Sanity Check | The function returns the first problem found, and all 58 `probe-evidence-*` cases pin their own rejection reason |
+| `[EXEC-SHAPE]` The normative leaf contains no capability label at all, not even a rejected one | Phase 2's leaf content and its zero-match Sanity Check | Criterion 4's literal text is "no capability label ... anywhere in it"; the sourced rationale moves to the PR body and #2110 |
+| `[FALLBACK — confirm or override]` Staged activation rather than an immediate hard cutover for the `L2` bar raise | A new Phase 1 work item and the top Risks row | The Brief did not anticipate that raising `L2` blocks dispatch for existing adopters. Fail-closed is correct; shipping it without a migration note is not |
+| `[FALLBACK — confirm or override]` Criteria 6 and 7 are met by structural impossibility plus contract obligation, with the runtime assertions deferred to the runner build | The honest-limit notes in Phases 4 and 5, and two deferred items | `runner.md`: "no build begins until a T4 build trigger fires", and the Brief locks that constraint. The alternative would be claiming enforcement that cannot be demonstrated |
+| `[EXEC-SHAPE]` Live re-probe promoted from advisory to a Phase 1 merge gate | Phase 1's merge gate and the Test Strategy | Fixtures test the checker, never the recipe; the reworded assertions have never been run against a real boundary |
+| `[EXEC-SHAPE]` The Tier A design gate is satisfied by the interview register rather than re-running `/planning:design` | `design/design-resolution.md` exists instead of a design pack | Rounds 3–5 resolved every design thread and the register gated clean; each thread is mapped to its resolving question in that file |
+
+### Open questions
+
+- OPEN DECISION 1 (floor values) must resolve before Phase 3 starts. Nothing else is blocked.
+- Q21, Q22, Q23 remain USER-RESERVED. No phase depends on any of them, and Phase 1's multi-target
+  egress leg deliberately strengthens the probe without deciding Q21.
+
+### Handoff to implementation
+
+#### User-approval gates
+
+- Both `[FALLBACK]` rows above, before the phase that implements them.
+- OPEN DECISION 1, before Phase 3.
+- Phase 1's merge gate: the live re-probe transcript is reviewed before the phase merges, because it
+  is the only evidence the reworded recipe works.
+
+#### Execution shape
+
+Sequential 2 → 3 → 4 → 5, Phase 1 concurrent and independent, all main-session. No scope-fencing
+tables — no phase is delegated.
+
+#### Mechanical work
+
+Commit boundaries follow phases. Stage explicit paths, never `git add -A`. The contract slice
+`docs/topics/docker-sandbox-substrate/` is pruned in the final commit before merge, and the PR body
+carries the closing keyword plus a non-empty `## Related` section or CI fails on the linkage check.
 
