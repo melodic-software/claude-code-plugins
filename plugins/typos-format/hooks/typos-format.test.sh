@@ -885,13 +885,20 @@ rm -f "$TELA"
 #   breadth  2000->8000       4.11x                       -               17.0x*
 #
 # Each shape sees exactly one of the two regressions, which is why both are
-# here. The current implementation is mildly SUPERLINEAR in depth (4.86 -> 5.56
-# -> 6.94 as N grows: the per-key `+= [line]` accumulator appears to copy), so
-# CF_SMALL_N/CF_BIG_N are pinned rather than "as large as affordable", and the
-# gate sits at 10x — 1.80x above the worst current reading at this size and
-# 1.76x below the best regressed one.
+# here.
 # * the 2000->8000 breadth/membership arm was extrapolated from its 1000->4000
 #   measurement rather than run to completion; it costs ~7 minutes per rep.
+#
+# WHY N IS SMALL, AND PINNED. The current implementation is itself SUPERLINEAR
+# in depth — 4.86x -> 5.56x -> 6.94x as N grows on this host, because the
+# per-key `+= [line]` accumulator appears to copy — so the margin SHRINKS as N
+# rises. The first CI run at 2000->8000 read 7.28x on Linux against a 10x gate:
+# green, but only 1.37x of headroom, which is the shape of an assertion that
+# eventually goes red on a busy runner and sends someone hunting a regression
+# that is not there. That is the disease this whole change is treating, so N
+# came DOWN rather than the gate going up. At 1000->4000 the same host reads
+# 4.86x against a re-introduced quadratic's 16.22x. Raising N to "as large as
+# affordable" is exactly wrong here.
 #
 # WHAT THIS GATE STILL DOES NOT CATCH, recorded here so a green run is not read
 # as more coverage than it is (both findings from an adversarial review of the
@@ -900,7 +907,7 @@ rm -f "$TELA"
 #   * A 4x step against a 10x gate separates quadratic (~16x) from linear (~4x)
 #     and nothing finer. A genuine O(n^1.5) regression lands near 8x and passes.
 #     Narrowing the gate is not free — the current implementation itself reads
-#     up to 6.09x here under load — so the honest bound is "quadratic", not
+#     up to 6.09x under load — so the honest bound is "quadratic", not
 #     "superlinear".
 #   * `depth` and `breadth` are the two PURE EXTREMES of a (distinct keys x
 #     repeats per key) space: one key by N repeats, and N keys by one repeat. A
@@ -920,10 +927,10 @@ rm -f "$TELA"
 #     `sort_by`) is therefore not gated here. Closing it needs a third shape
 #     with a large non-empty `$a`, and no quadratic is documented there today,
 #     so it is recorded rather than guessed at.
-CF_SMALL_N=2000
-CF_BIG_N=8000
+CF_SMALL_N=1000
+CF_BIG_N=4000
 CF_STEP=$((CF_BIG_N / CF_SMALL_N))
-CF_REPS=5
+CF_REPS=7
 CF_GATE_X100=1000 # 10.00x — see the table above
 
 # spellchecker:off
