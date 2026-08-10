@@ -484,8 +484,12 @@ the page, and those keys are the fastest way to check a reading of the theory:
  1. abab   2. aabb   3. aaab   4. abba   5. aaa
  6. aaba   7. abbaa  8. abaa   9. abaab  10. ababa
 
-answers: 1. T; 2. F; 3. F; 4. T; 5. F; 6. F; 7. F; 8. T; 9. F; 10. F
+answers: 1. T; 2. F; 3. F; 4. T; 5. F; 6. F; 7. T; 8. T; 9. F; 10. F
 ```
+
+Item 7 (`abbaa`) is **T**, and the chapter says why: consecutive rhymes do not
+fragment when they follow something that creates a stronger effect — here, an
+odd number of phrases.
 
 **Ex 24 — mark each `C` for closed or `O` for open:**
 
@@ -502,7 +506,7 @@ answers: 1. C; 2. C; 3. O; 4. O; 5. C; 6. O; 7. either; 8. C; 9. C; 10. O
  1. ababb  2. abaa   3. aabba  4. aaba   5. abaaa
  6. abacca 7. abaccb 8. abaab  9. aaa    10. abcaaa
 
-answers: 1. U; 2. D; 3. U; 4. D; 5. D; 6. U & D; 7. E; 8. D; 9. U & D; 10. D
+answers: 1. U; 2. D; 3. U; 4. D; 5. D & U; 6. D; 7. E; 8. D & U; 9. U; 10. D
 ```
 <!-- spellchecker:on -->
 

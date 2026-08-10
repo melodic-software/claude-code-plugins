@@ -804,22 +804,25 @@ the structural job rather than the position alone.
 Use transitional bridges when a verse-chorus boundary feels abrupt;
 the transitional bridge softens the seam while building tension.
 
-## Transitional bridge — complete alternative-name list (*Essential Guide to Lyric Form and Structure* (1991), Chapter 5 + *Writing Better Lyrics* (2009), Chapter 13)
+## Transitional bridge — alternative-name list (*Essential Guide to Lyric Form and Structure* (1991), Chapter 5)
 
-The transitional bridge has many names depending on tradition, genre, and
-era. Pat lists all of them so writers recognize the concept under any name:
+**transitional bridge** is Pat's own term — it names the job rather than the
+position. He then prints the names other writers use for the same section, so
+the concept is recognizable under any of them. The chapter's list is exactly
+these six:
 
-- **transitional bridge** — Pat's preferred term (names the job, not the
-  position)
-- **pre-chorus** — modern pop / industry term
-- **lift** — folk / country
-- **ramp** — pop / production-side term
-- **climb** — same as lift
-- **channel** — pop
-- **runway** — pop
-- **prime** — older industry term
-- **vest** — *Essential Guide to Lyric Form and Structure* (1991), Chapter 5 alternative
-- **verse extension** — *Essential Guide to Lyric Form and Structure* (1991), Chapter 5 alternative
+```text
+Pre-Chorus        Vest              Ramp
+Climb or Lift     Verse Extension   Prime
+```
+
+Note "Climb or Lift" is one entry in the source, not two. Earlier revisions of
+this file listed ten names — adding "channel" and "runway", splitting climb
+from lift, and attaching genre and era attributions ("modern pop / industry
+term", "folk / country", "older industry term") that the chapter does not
+make. None of that is in the book. The heading also carried a *Writing Better
+Lyrics* (2009), Chapter 13 citation; that chapter is "Dialogue and Point of
+View" and has nothing to do with this section.
 
 All names describe the same structural job: a short, unbalanced section
 enclosed inside a song system, between verse and chorus, that does NOT

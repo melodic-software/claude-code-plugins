@@ -37,7 +37,25 @@ layer.
   system.
 - **The three labeling drills now carry their printed answer keys** (Ex 23, 24,
   25), transcribed from the page scans. Ex 24 #6 independently confirms `abba`
-  is open.
+  is open. The keys are printed rotated 180° at the foot of each scan; reading
+  them in place gets them wrong, so they were re-read from cropped, rotated,
+  4x-upscaled strips. Ex 23 #7 is `T` — consecutive rhymes do not fragment when
+  they follow an odd phrase count, which the chapter states outright.
+- **Three fabrications, not just omissions.** `rhyme-types.md`'s weak-syllable
+  examples (`mountain/certain`, `shadow/window`, `ringing/falling`) were
+  invented — the chapter names weak-syllable rhyme but never defines it.
+  `form.md`'s transitional-bridge list carried ten names where the chapter
+  prints six, adding "channel" and "runway", splitting "Climb or Lift", and
+  attaching genre and era attributions the book does not make; its heading also
+  cited *Writing Better Lyrics* (2009) Chapter 13, which is "Dialogue and Point
+  of View". `exercises.md` invented its item counts. The paraphrase rule did not
+  only omit — it produced authoritative-looking inventions.
+- **`bridge.md` attached the "four times is a lot" warning to `V/Ch/V/Ch`.**
+  *Writing Better Lyrics* (2009) Chapter 22 attaches it to `v/v/ch/v/v/ch` —
+  four verses, four trips. `song-forms.md` was right all along. Long-standing
+  known defect, now closed with the verbatim passage.
+- **`exercises.md` was missing Ex 32 and 33**, jumping 31 → 34. Both are in
+  Chapter 5. Restored; the 1991 numbering now runs 1-44 unbroken.
 - **The Marvell and Shelley passages are quoted** rather than described — both
   public domain — with the consonance-rhyme gloss Pat attaches to
   "Ozymandias."
