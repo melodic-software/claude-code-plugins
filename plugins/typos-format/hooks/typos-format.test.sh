@@ -1225,6 +1225,12 @@ fi
 #     separator fault that emptied the SCAN stream would also report 0/N while
 #     timing nothing. The extraction smoke assertion covers parse and separator
 #     handling on the same extracted filter, which is what closes that hole.
+#   * Both shapes are ALL-RESIDUAL, which is what makes the reach assertion
+#     sharp — and it means the applied array `$a` is empty in both. A quadratic
+#     on the APPLIED side (the `add` fold over per-group results, or the final
+#     `sort_by`) is therefore not gated here. Closing it needs a third shape
+#     with a large non-empty `$a`, and no quadratic is documented there today,
+#     so it is recorded rather than guessed at.
 CF_SMALL_N=2000
 CF_BIG_N=8000
 CF_STEP=$((CF_BIG_N / CF_SMALL_N))
@@ -1266,6 +1272,20 @@ AWK
 # the "gate nothing can trip" shape both issues were filed about.
 CF_FILTER="$WORK/classify-filter.jq"
 awk -f "$CF_AWK" "$HOOK" >"$CF_FILTER"
+
+# The extractor takes the FIRST match of the anchor, and this file's own house
+# style narrates superseded implementations in comment blocks verbatim. A stale
+# copy of the classification invocation sitting above the live one would be
+# extracted instead — and it would still pass the smoke assertion below, because
+# a superseded-but-correct implementation classifies three findings identically.
+# The gate would then measure dead text while the live block drifted. So the
+# anchor must be UNIQUE, and that is asserted rather than assumed.
+CF_ANCHORS=$(grep -c -- 'jq -R -s -c --argjson max' "$HOOK")
+if [[ "$CF_ANCHORS" == "1" ]]; then
+  ok "classify/extract: the classification anchor occurs exactly once in $(basename "$HOOK") — extraction cannot latch onto a superseded copy"
+else
+  fail "classify/extract: the classification anchor occurs $CF_ANCHORS times in $(basename "$HOOK"); the extractor takes the FIRST, which is no longer guaranteed to be the block that runs — re-anchor the extractor or drop the duplicate"
+fi
 
 # spellchecker:off
 CF_SMOKE=$(printf '%s\n%s\n@@typos-format-split@@\n%s\n' \
