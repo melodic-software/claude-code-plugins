@@ -1,5 +1,4 @@
 ---
-name: setup
 description: "Verify and configure the code-tidying plugin for this repository. check inspects the tracked .claude/tidy-lanes/<lane>.md project lanes read-only (presence, required sections, unreplaced placeholders, tracked-not-ignored); apply interviews the repo, infers which lane patterns fit, and scaffolds project lane files from the bundled templates. Use when: 'set up code-tidying', 'is code-tidying configured', 'configure tidy lanes', 'code-tidying setup', 'scaffold a tidy lane', or the tidy skill reports no project lanes. Re-runnable — safe to invoke again to add or retune lanes."
 argument-hint: "check | apply [<lane>]"
 user-invocable: true

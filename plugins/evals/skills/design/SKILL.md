@@ -1,5 +1,4 @@
 ---
-name: design
 description: "Design an evaluation suite for an LLM-based application or a Claude Code skill: interview for measurable success criteria, pick a grading method per criterion, and scaffold a criteria doc plus eval cases into the consumer repo. Use when: 'design evals', 'create an eval suite', 'scaffold evals', 'write evals for my skill', 'define success criteria for this app', 'set up LLM testing', 'build a test set for my prompt' — not for eval-design theory questions (use /evals:methodology), not for statically validating an existing evals.json (use /skill-quality:check validate-evals when installed), and it does not execute evals."
 argument-hint: "[target: app | skill <name> | <path>]"
 user-invocable: true

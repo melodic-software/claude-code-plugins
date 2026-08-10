@@ -1,5 +1,4 @@
 ---
-name: handoff
 description: "Write a mid-session save-point for /clear-and-resume — a durable handoff file (default) or a copy-paste resume prompt when follow-ups are small. Use when: 'handoff', 'save state', 'checkpoint this', 'pause', 'come back later', the user reports the session is heavy, a context-measuring mechanism says to fork, or your own responses are visibly drifting, repeating, or looping. Never on your own estimate of the remaining window — a budget reading is not a decay signal. For delegating the continuation to a background agent, use the sibling continue-in-background skill."
 argument-hint: "[file|prompt] [topic] (e.g., /handoff, /handoff prompt, /handoff file phase-3)"
 user-invocable: true

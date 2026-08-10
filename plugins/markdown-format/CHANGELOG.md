@@ -3,7 +3,7 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.10.2]
+## [0.11.1]
 
 ### Fixed
 
@@ -27,6 +27,32 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
   by this scope: without git, `hook::repo_root` falls back to the edited file's own directory, so
   config discovery searches that single directory — a scratch `/tmp/comment-body.md` still does not
   lint unless `/tmp` itself carries a markdownlint config.
+
+- **A nested `.md` now reaches the repository's markdownlint config when `git` is absent.** Gating
+  the membership skip was not sufficient on its own: config discovery walks UP from the edited file
+  and stops at `hook::repo_root`, which without git returns the hint it was given — the file's own
+  directory. Root and start were therefore the same directory, the walk terminated immediately, and
+  a repository whose markdownlint config sits at its root stopped linting everything below the root.
+  That is the ordinary docs layout, so the case the membership gate was meant to restore stayed
+  broken for most files in it.
+
+  `CLAUDE_PROJECT_DIR` answers the same question without git, so it is now preferred as the walk's
+  terminator when the git probe cannot resolve a working-tree top. It is used ONLY as the
+  terminator, never to widen scope — discovery still starts at the file and still stops at a root —
+  so the fail-closed reasoning in `markdownlint_config_discoverable` is unchanged. The capability is
+  probed by running `git rev-parse --show-toplevel` rather than by testing `command -v git`, which
+  answers yes for a shell function, a PATH stub, or a real binary standing in a directory that is no
+  repository — every case where the fallback still applies.
+
+## [0.11.0]
+
+### Removed
+
+- **The bare `/<skill>` alias for this plugin's skills.** Their `SKILL.md` files no longer
+  declare a frontmatter `name`. The field is optional and defaults to the directory name, so
+  declaring it only restated the path while registering a second, unnamespaced command — which
+  the slash-command picker then echoed back as `/plugin:skill (skill)`. Invoke a skill by its
+  namespaced command; the command itself is unchanged.
 
 ## [0.10.1]
 

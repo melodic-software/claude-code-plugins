@@ -1,5 +1,4 @@
 ---
-name: setup
 description: "Verify the plugin-quality plugin's prerequisites on this machine — gh presence and the ACTING account, the context-guard snapshot seam, config layers and the effective sink with per-layer provenance — and optionally write the tracked .claude/plugin-quality.md config. Use when: 'set up plugin-quality', 'which sink will audits use', 'is the audit context-gate live', before a first audit in a repo, or after changing config layers. Actions: check (read-only), apply (writes ONLY the tracked config file, on explicit request)."
 argument-hint: "check | apply [sink=<gh-issues|markdown-dir|local-fallback>] [markdown_dir=<path>]"
 user-invocable: true

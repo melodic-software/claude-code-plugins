@@ -79,22 +79,37 @@ and orphans users arriving from the upstream repo).
 Every exception is an entry on this list, decided per name — a name class is never
 blanket-sanctioned.
 
-The frontmatter `name` always matches the skill directory name, in the character set the Agent
-Skills specification allows. Never degrade a name to dodge a built-in command: plugin skills are
-namespaced and cannot collide with other levels. When a name matches a built-in, the bare token
-still belongs to the built-in; the namespaced form is the plugin skill's only command.
+A plugin skill declares no frontmatter `name`. The field is optional and defaults to the directory
+name ([frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference), fetched
+2026-08-09), and the directory here is already the name the skill is documented and invoked by, so
+declaring it restates the path in the character set the Agent Skills specification allows. The one
+effect a declaration still buys is the bare alias: in a plugin skill a declared `name` also registers
+the bare `/<name>` alongside the namespaced command, unless another command already owns that token
+([how a skill gets its command name](https://code.claude.com/docs/en/skills#how-a-skill-gets-its-command-name)).
+Declare it only to take that alias deliberately, and only with the value the directory already
+carries. A `name` that *differs* from its directory is out of bounds here even though the harness
+honors it: it would relocate the last command segment away from the directory that
+`scripts/check-skill-leaf-names.sh` derives every leaf from, desynchronizing the cross-plugin
+collision registry from the commands that actually resolve — which is why `skill-quality`'s check 1
+fails a divergent `name` and only warns on a redundant one.
+Never degrade a name to dodge a built-in command: plugin skills are namespaced and cannot collide
+with other levels. When a name matches a built-in, the bare token still belongs to the built-in; the
+namespaced form is the plugin skill's only command.
 
-That guarantee is about **resolution**, and it does not extend to **display**. The slash-command
-picker lists a skill by its short name and registers the namespaced form as a hidden alias — so
-`/planning:` still filters to that plugin's skills, but `planning:plan` is not what the row is
-labelled. Origin travels in the description instead: a plugin skill renders as
-`(<plugin-name>) <description>`, a personal skill as `<description> (user)`, a project skill as
-`(project)` or `(project, gitignored)` depending on whether it came from shared or local settings,
-and a built-in, bundled, or MCP entry carries no marker at all. So sibling short names
-across different plugins are unambiguous to *invoke* and identical to *read* — a shared leaf name
-costs legibility in the description column, never correctness. Weigh it there; never rename to buy
-display uniqueness, and keep the description's first clause carrying the distinguishing object,
-since that column is what a reader actually scans.
+Resolution settled, **display** follows from it. The docs pin the history — before v2.1.216 a
+declared `name` replaced the whole command, so the menu showed the bare form and the namespaced one
+did not autocomplete; that is gone. The rest is observed in the client rather than documented
+(2.1.225): the picker labels a row with the command it resolves — `/planning:plan`, prefix and all —
+and appends a bare alias in parentheses only when what you typed prefix-matches that alias, so a
+skill declaring no `name` never renders the stuttering `/plugin:skill (skill)`. Re-observe before
+relying on the parenthetical; the labelling itself follows from resolution and is the stable part.
+Origin is spelled out again in the description: a plugin skill
+renders as `(<plugin-name>) <description>`, a personal skill as `<description> (user)`, a project
+skill as `(project)` or `(project, gitignored)` depending on whether it came from shared or local
+settings, and a built-in, bundled, or MCP entry carries no marker at all. So a leaf name shared
+across plugins is unambiguous to *invoke* and to *read* — its prefix distinguishes it in both
+columns. Never rename to buy display uniqueness; spend the effort on the description's first clause
+carrying the distinguishing object, since that column is what a reader actually scans.
 
 ## Native-first
 

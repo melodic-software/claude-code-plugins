@@ -1,5 +1,4 @@
 ---
-name: resolve-conflicts
 description: "Resolve an in-progress merge/rebase/cherry-pick conflict by recovering both sides' intent from history before touching any hunk, composing both changes wherever possible, then sweeping for semantic conflicts the markers don't show. Use when: 'resolve conflicts', 'merge conflict', 'rebase stopped', 'CONFLICT (content)', git status shows unmerged paths — not for choosing merge vs rebase or PR lifecycle (use /pull-request), and not for ordinary commits (use /commit)."
 argument-hint: "[paths] (optional — start with specific conflicted paths; default is every unmerged path)"
 user-invocable: true

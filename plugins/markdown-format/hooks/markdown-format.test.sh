@@ -489,6 +489,26 @@ else
   fail "control failed: the git-absence shim disabled the hook independently of the membership scope (rc=$RC_NOGIT_CTL out=$OUT_NOGIT_CTL)"
 fi
 
+# The control above sits BESIDE the root markdownlint config, which hides a
+# second, independent git dependency: config discovery walks UP from the file
+# and stops at hook::repo_root, and without git that root is the file's own
+# directory. A file one directory down therefore never reaches the root config
+# and is skipped — the ordinary docs layout, and the case the membership fix is
+# otherwise meant to restore. Nesting the fixture is the whole assertion; a
+# root-level twin passes either way and proves nothing about it.
+mkdir -p "$REPO/docs"
+NOGIT_NESTED="$REPO/docs/fixtureNoGitNested.md"
+printf '# No Git Nested\n\n* star item\n' >"$NOGIT_NESTED"
+OUT_NOGIT_NEST="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$NOGIT_NESTED" |
+  env BASH_ENV="$NO_GIT_ENV" CLAUDE_PROJECT_DIR="$REPO" \
+    CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+RC_NOGIT_NEST=$?
+if [[ $RC_NOGIT_NEST -eq 0 ]] && grep -q '^- star item$' "$NOGIT_NESTED"; then
+  ok "git absent: a NESTED .md still reaches the root markdownlint config"
+else
+  fail "git absent: nested .md skipped — config discovery never left its own directory (rc=$RC_NOGIT_NEST out=$OUT_NOGIT_NEST)"
+fi
+
 # The scope must still fire when git CAN answer — that half is the out-of-tree
 # case above, which runs with git present and asserts the skip.
 

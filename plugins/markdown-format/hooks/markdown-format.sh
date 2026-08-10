@@ -201,7 +201,28 @@ fi
 
 # Resolve repo root early — needed for CWD-anchored config discovery and for
 # computing the schema-required repo-relative path in data.file.
+#
+# Without git, hook::repo_root has no working-tree top to return and falls back
+# to the HINT — the edited file's own directory. That silently narrows config
+# discovery's upward walk to a single directory, so a repository whose
+# markdownlint config sits at its root stops linting every file below the root:
+# the ordinary docs layout, and the case the membership-scope fix above is
+# otherwise supposed to restore. `CLAUDE_PROJECT_DIR` is the harness's own
+# answer to the same question and needs no git, so prefer it when the git probe
+# came back empty-handed. It is used ONLY as the walk's terminator, never to
+# widen scope: discovery still starts at the file and still stops at a root, so
+# the fail-closed reasoning in markdownlint_config_discoverable is unchanged.
+#
+# The test is whether git ACTUALLY resolves a toplevel here, not whether a
+# `git` word exists: `command -v git` answers yes for a shell function, for a
+# stub on PATH, and for a real binary standing in a directory that is no
+# repository — all cases where hook::repo_root still returns the hint. Probing
+# the capability directly is the only form that covers them.
 REPO_ROOT="$(hook::repo_root "$(dirname "$FILE")")"
+if [[ -n "${CLAUDE_PROJECT_DIR:-}" && "$REPO_ROOT" == "$(dirname "$FILE")" ]] &&
+  ! git -C "$(dirname "$FILE")" rev-parse --show-toplevel >/dev/null 2>&1; then
+  REPO_ROOT="$CLAUDE_PROJECT_DIR"
+fi
 
 # Telemetry-payload precursors — TOOL and FILE_REL feed only the envelope's
 # data object, so both are built only when a sink is wired: the unwired

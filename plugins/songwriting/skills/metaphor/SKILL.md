@@ -1,5 +1,4 @@
 ---
-name: metaphor
 description: "Generate and diagnose metaphor with Pat Pattison's methods — the three types (expressed identity, qualifying, verbal), the three expressed-identity forms, collision drills (noun×verb, noun×noun, adjective×noun), playing in keys (fundamental → diatonic family → collisions), the two metaphor-finder questions, participles, transitive vs intransitive, simile as focus control, and grounded-metaphor diagnosis. Use when: 'I need a metaphor for X', 'generate metaphor options', 'metaphor or simile here', 'this metaphor feels dead', 'my song has no metaphor', 'sustain this image across the song', 'collide these words', 'what else has these characteristics'. For sensory raw material use /songwriting:object-writing; for cliche repair use /songwriting:object-writing cliche."
 argument-hint: "[action] [args] (e.g., /songwriting:metaphor collide rain, /songwriting:metaphor keys tide, /songwriting:metaphor simile) — full actions in body"
 user-invocable: true

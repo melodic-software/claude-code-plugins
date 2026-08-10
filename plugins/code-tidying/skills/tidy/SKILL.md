@@ -1,5 +1,4 @@
 ---
-name: tidy
 description: "Proactively hunt a rotated lane of the codebase for safe structural improvements (Beck's 15 tidyings + a Fowler subset + prose tidyings), apply scope-budgeted edits, and ship one tight structure-only PR per invocation. Use when: 'tidy', 'tidy up', 'boy scout', 'polish', 'small refactors', 'improve gradually', 'clean up in passing', 'tidying day', 'tidy lane', 'run tidy'. Actions: [<lane>] targeted lane run; [dry-run [<lane>]] plan-only, no edits; [help] print the lane catalog. Skip when: /simplify refines the current diff; batch-simplify processes a diff window; issue-tracker work drains already-filed items — tidy proactively hunts unfiled drift across a glob-scoped lane."
 argument-hint: "[<lane> | dry-run [<lane>] | self-update | help]"
 disable-model-invocation: false
