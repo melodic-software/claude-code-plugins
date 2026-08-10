@@ -1,6 +1,6 @@
 # PRD templates — three tiers
 
-All three tiers cover the same seven required sections. Tier governs verbosity, not section presence. Loaded on demand by `/prd` once tier is chosen.
+All three tiers cover the same seven required sections. Tier governs verbosity, not section presence. Loaded on demand by `/planning:prd` once tier is chosen.
 
 **Prototype snippet exception:** if a logic prototype (e.g. `/prototype:pressure-test`, if installed) produced a snippet that encodes a design decision more precisely than prose (state machine, reducer, schema, type shape), inline the decision-rich parts in the Open questions section and note it came from a prototype. The PRD defers implementation details to `/planning:plan`, but prototype-validated design constraints are product-level — they belong here.
 
@@ -249,7 +249,7 @@ Same structure as above, applied to a B2B internal feature. Tier-3 differences f
 
 ## Tier selection cheat sheet
 
-If `/prd` is invoked without an explicit tier, use this to drive the tier prompt (card only under the `use_ask_user_question` opt-in; numbered prose otherwise):
+If `/planning:prd` is invoked without an explicit tier, use this to drive the tier prompt (card only under the `use_ask_user_question` opt-in; numbered prose otherwise):
 
 | Question | Tier 1 (one-pager) | Tier 2 (consumer-feature) | Tier 3 (B2B-internal) |
 |----------|--------------------|---------------------------|------------------------|

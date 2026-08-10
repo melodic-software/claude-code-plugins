@@ -1,6 +1,6 @@
 # Interview gotchas
 
-Failure patterns from real sessions. Loaded on demand from `/interview` SKILL.md.
+Failure patterns from real sessions. Loaded on demand from `/planning:interview` SKILL.md.
 
 ## Q&A surface
 

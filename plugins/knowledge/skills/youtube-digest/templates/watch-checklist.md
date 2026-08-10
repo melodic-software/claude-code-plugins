@@ -100,7 +100,7 @@ Tick only after verification evidence. Criteria SSOT: `quality-gates.md` (the `/
 - [ ] **8.4** `recommendations/interview.md` with POC/full-slice menu
 - [ ] **8.0** `recommendations/README.md` hub links menu, takeaways, questions, interview
 - [ ] **8.5** `README.md` per `templates/readme-journey.md`
-- [ ] **8.6** No auto-implement — Verify: no code changes without `/interview`
+- [ ] **8.6** No auto-implement — Verify: no code changes without `/planning:interview`
 - [ ] **8.7** `mark-phase <slice-dir> synthesis` only after 8.1–8.5
 
 ## Phase 9 — Outcome verification (mandatory before complete)

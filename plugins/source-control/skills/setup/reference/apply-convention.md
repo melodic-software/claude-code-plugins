@@ -36,7 +36,7 @@ user explicitly clears may be removed.
 are functions of `subject_pattern`, so preserving them across a `subject_pattern` change produces a
 config that contradicts itself. Replacing a Conventional-Commits pattern with a custom regex drops
 `type_list` entirely — a custom pattern has no type vocabulary, and a stale
-`build, chore, ci, …` list beside `^[A-Z]+-\d+: .+` would have `/commit` pre-check against a
+`build, chore, ci, …` list beside `^[A-Z]+-\d+: .+` would have `/source-control:commit` pre-check against a
 vocabulary the pattern does not use. Moving the other way re-adds the bundled 11-type list.
 `pr_title_pattern` follows the same rule unless the user set it to a value independent of
 `subject_pattern`, which is carried through like any other independent key.
@@ -121,7 +121,7 @@ With no argument in an interactive session, run the interview:
    signal for and the user doesn't state.
    - **`subject_pattern` must always end up machine-checkable**: either the literal keyword
      `Conventional Commits`, or a single anchored regex (`^…$`-style, anchored at the start at
-     minimum) that `/commit` and `/pull-request` can evaluate directly. If the user describes their
+     minimum) that `/source-control:commit` and `/source-control:pull-request` can evaluate directly. If the user describes their
      convention in prose, translate it into an anchored regex yourself and confirm the translation
      before persisting — never write the prose. If a convention genuinely cannot be expressed as one
      regex, express the alternatives as alternation inside one anchored regex
@@ -136,15 +136,15 @@ With no argument in an interactive session, run the interview:
      effective `subject_pattern`; any other casing or punctuation is read as a pattern in its own
      right and pre-checked as a regex.
    - **`trailer_policy`** (optional) — whether commits should carry a `Co-Authored-By:` (or other)
-     attribution trailer, and its exact template. Recommend keeping `/commit`'s default unless the
+     attribution trailer, and its exact template. Recommend keeping `/source-control:commit`'s default unless the
      user states otherwise. Omit this section entirely if the repo has no trailer convention.
-   - **`pr_body_attribution`** (optional) — the attribution line `/pull-request create` appends to the
+   - **`pr_body_attribution`** (optional) — the attribution line `/source-control:pull-request create` appends to the
      PR body, the PR-body analogue of `trailer_policy` and gated separately (a consumer setting
      `trailer_policy: none` still keeps the PR-body line unless this is also set). Recommend keeping the
      default `🤖 Generated with [Claude Code]…` line unless the user wants a custom line or `none` to
      omit it. Omit this section entirely to keep the default.
    - **`pr_body_required_sections`** (optional) — the required `## <heading>` section scaffold
-     `/pull-request create` drafts and pre-checks before opening a PR (one bullet per heading; see
+     `/source-control:pull-request create` drafts and pre-checks before opening a PR (one bullet per heading; see
      [config-resolution.md](../../../reference/config-resolution.md) and
      [`docs/conventions/pr-body-convention/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pr-body-convention/README.md)).
      **RECOMMENDED: keep the plugin's own portable default** (`Summary`, `Test plan`) — this interview
@@ -322,7 +322,7 @@ With no argument in an interactive session, run the interview:
 
 7. **Report the new effective merge**, not just what was written. A `layer=user` write can be
    overridden by an existing team file, and a `layer=team` write can be overridden by an existing
-   local overlay — a user who is told only "wrote `subject_pattern`" and then sees `/commit` use a
+   local overlay — a user who is told only "wrote `subject_pattern`" and then sees `/source-control:commit` use a
    different pattern has been misled by the success message.
 
    For a `team` write, the report also states plainly what the file is and is not: a drafting aid

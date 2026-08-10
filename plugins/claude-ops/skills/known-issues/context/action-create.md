@@ -1,6 +1,6 @@
 # Action: `create`
 
-**Usage:** `/known-issues create <type> "<title>" [--repo <repo>]`
+**Usage:** `/claude-ops:known-issues create <type> "<title>" [--repo <repo>]`
 
 Draft and file GitHub issue on `anthropics/claude-code` (or specified repo) using official template format. Supports bug reports and feature requests.
 

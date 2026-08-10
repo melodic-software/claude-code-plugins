@@ -1,6 +1,6 @@
 # Action: `status`
 
-**Usage:** `/known-issues` (no args) or `/known-issues status`
+**Usage:** `/claude-ops:known-issues` (no args) or `/claude-ops:known-issues status`
 
 Quick health snapshot for proactive auto-invocation. Combines registry stats with a lightweight quality check.
 
@@ -43,7 +43,7 @@ Report overall status only (Operational / Degraded / Outage). Skip Marginlab for
 - **status.claude.com**: Operational / Degraded / Outage
 
 ### Recommendations
-- Run `/known-issues check-all` to refresh stale issues
-- Run `/known-issues quality` for full quality analysis
-- Run `/known-issues search <feature>` before building on a CC mechanism
+- Run `/claude-ops:known-issues check-all` to refresh stale issues
+- Run `/claude-ops:known-issues quality` for full quality analysis
+- Run `/claude-ops:known-issues search <feature>` before building on a CC mechanism
 ```

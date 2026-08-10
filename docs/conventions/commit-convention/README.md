@@ -12,7 +12,7 @@ plugin". A guardrails hook cites **this** doc, never `plugins/source-control/ref
 The convention lives in the consumer's tracked `.claude/source-control.md` (H2-per-key markdown),
 resolved across three layers by the model per
 [`source-control/reference/config-resolution.md`](../../../plugins/source-control/reference/config-resolution.md).
-That document owns **drafting** resolution — how `/source-control:commit` and `/pull-request`
+That document owns **drafting** resolution — how `/source-control:commit` and `/source-control:pull-request`
 compose a compliant subject/title. This seam owns the **enforcement** resolution — how a
 zero-dependency hook decides whether an *already-formed* subject/title is allowed.
 

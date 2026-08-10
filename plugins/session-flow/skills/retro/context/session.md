@@ -13,7 +13,7 @@ after a PR merges.
 When handoff save-points exist (the sibling `handoff` skill's directory — the resolved
 `<memory_dir>/handoffs/` (default `.work/handoffs/`), or the consuming repo's documented
 location), the retro analyzes EVERY chained session across
-`/handoff` + `/clear` cycles, not just the current one. The parser walks the chain itself via
+`/session-flow:handoff` + `/clear` cycles, not just the current one. The parser walks the chain itself via
 `--chain-from` (newest handoff file → its `previous_handoff` pointer → repeat; breaks cleanly at
 the first entry lacking `session_id`).
 
@@ -158,7 +158,7 @@ code changes were made, note "N/A" and skip.
 
 ### 2E. Efficiency assessment
 
-- Compaction count — were compactions avoidable (earlier `/handoff`, tighter reads)?
+- Compaction count — were compactions avoidable (earlier `/session-flow:handoff`, tighter reads)?
 - Parallel tool-call opportunities missed; redundant file reads
 - Subagent usage — appropriate delegation?
 - Longest/slowest turns — what caused them?

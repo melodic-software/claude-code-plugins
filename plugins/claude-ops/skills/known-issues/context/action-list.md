@@ -1,6 +1,6 @@
 # Action: `list`
 
-**Usage:** `/known-issues list [--category <cat>] [--status <status>]`
+**Usage:** `/claude-ops:known-issues list [--category <cat>] [--status <status>]`
 
 Show all tracked issues from registry, grouped by status and category.
 

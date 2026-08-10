@@ -1,6 +1,6 @@
 # Tracker mechanics — the `gh` commands
 
-`/wayfind` operates the map through the GitHub Issues backend directly, the same idiom as the
+`/planning:wayfind` operates the map through the GitHub Issues backend directly, the same idiom as the
 sibling `/work-items` skill (backend-agnostic "work items" language, plain `gh`). All commands
 run against the current repository. Where the consuming project routes tracker **writes**
 through a bot identity or wrapper, follow that project's own rules — with one exception: the
@@ -19,7 +19,7 @@ or every item whose blocker ever closed is stranded off the frontier forever.
 
 ## Bootstrap labels (first use in a repo)
 
-`/wayfind` uses its own taxonomy — `work-map`, `wayfind: research|interview|design|prototype|task`
+`/planning:wayfind` uses its own taxonomy — `work-map`, `wayfind: research|interview|design|prototype|task`
 (axis labels follow the colon-space grammar so label-as-code owners with a `prefix: value` convention
 can declare them verbatim), `needs-human`. At chart-mode entry, **verify** the taxonomy is present because an unknown `--label`
 fails `gh issue create`. Read the consuming repository's instructions and configuration for label
