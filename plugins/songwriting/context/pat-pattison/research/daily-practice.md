@@ -353,11 +353,13 @@ Mary, she had the littlest lamb   triple feel
 Day 7 builds common meter live, adding one line at a time, and the reason it
 works is the imbalance in the middle:
 
+<!-- Pat's scansion vocalization; not a misspelling --><!-- spellchecker:off -->
 ```text
 DUM da da DUM da DUM da da DUM    Give her a chance to sing by herself
 DUM da da DUM da DUM              Give her the room to shine
 DUM da da DUM da DUM da da DUM
 ```
+<!-- spellchecker:on -->
 
 You tap your foot four times in line 1 but only three in line 2. The body feels
 that imbalance — matching rhythms, differing lengths — and because you are off

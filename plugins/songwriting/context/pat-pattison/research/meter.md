@@ -360,12 +360,14 @@ matters less than repetition.
 
 Pat builds it from the smallest cell up, and his figures name the small one out
 loud:
+<!-- Pat's scansion vocalization; not a misspelling --><!-- spellchecker:off -->
 
 ```text
 small cell:        / u                 (DUM da)
 repeated figure:   / u / u / u / u     (DUM da DUM da DUM da DUM da)
 larger cell:       / u u /
 repeated figure:   / u u / / u u / / u u / / u u /
+<!-- spellchecker:on -->
 ```
 
 > The size of the pattern is not important. What is important is that the
@@ -549,12 +551,14 @@ are landmarks along it. The end of bar two rests, bars three and four tack into
 the wind, bars five and six return to familiar territory, and bars seven and
 eight match three and four to arrive. Marked in strong and weak notes:
 
+<!-- Pat's scansion vocalization; not a misspelling --><!-- spellchecker:off -->
 ```text
 DUM da DUM da DUM da DUM     4 stresses
 DUM da DUM da DUM            3 stresses
 DUM da DUM da DUM da DUM     4 stresses
 DUM da DUM da DUM            3 stresses
 ```
+<!-- spellchecker:on -->
 
 > The continuous voyage is organized according to a very simple principle:
 > longer / shorter / longer / shorter.
@@ -1200,6 +1204,7 @@ As with deceptive closure, use the surprise position for important content.
 
 ## Common-meter exercises
 
+<!-- Pat's scansion vocalization; not a misspelling --><!-- spellchecker:off -->
 - Grocery-list meter (Exercise 16, *Writing Better Lyrics*, Chapter 14): "Try
   doing this with your grocery list. Try one in duples — da DUM da DUM — and one
   in triples — da da DUM da da DUM." Keep the 4/3/4/3 stress relation audible
@@ -1208,6 +1213,7 @@ As with deceptive closure, use the surprise position for important content.
   Times are tough and rent is due / And I've got songs to write") and working up
   the nerve to ask for a date ("I wanna call, I wanna call / I know I'll sound
   too scared / My self-esteem is plunging fast / O do I do I dare?").
+<!-- spellchecker:on -->
 - Spotlight ladder: write one four-line common-meter stanza, then revise it
   through these versions: shortened fourth line, lengthened fourth line,
   fourth line rhyming with one/three, one added four-stress line, several added

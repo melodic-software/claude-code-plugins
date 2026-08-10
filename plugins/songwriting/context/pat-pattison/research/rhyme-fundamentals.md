@@ -88,10 +88,9 @@ identity:  place / replace / misplace
 
 Pat's cheerleader analogy (*Essential Guide to Lyric Form and Structure*
 (1991), Chapter 4 and again in *Essential Guide to Rhyming* (2014),
-Chapter 1, paraphrased ≤25w): a crowd chanting one syllable over and over
-is not hearing rhymes — it is hearing one word repeated. Nobody in the
-stadium notices that the syllables sound alike. Identity is repetition,
-period.
+Chapter 1, paraphrased ≤25w): a crowd chanting one syllable hears only
+repetition. Nobody in the stadium notices the syllables sound alike.
+Identity is repetition, period.
 
 Identity can be useful when deliberate repetition is the effect, but do
 not mistake it for rhyme. If the syllables start the same way, the ear
@@ -327,12 +326,11 @@ Consecutive rhymes often fragment a system, but context matters. Consecutive
 rhymes that arrive after a stronger structural pressure can act as delay rather
 than a new fragment.
 
-Worked example: Pattison contrasts Marvell's rhymed couplets with the final
-six lines of Shelley's "Ozymandias." Couplets stop in little thought units. The
-six-line Shelley passage keeps moving because a new sound where closure could
-have happened prevents internal fragmentation. Had the fourth line reached back
-to either sound already in play, the passage would have fragmented; a fresh
-sound there is what keeps it through-written to the end.
+Worked example: Pattison contrasts Marvell's rhymed couplets, which stop in
+little thought units, with the final six lines of Shelley's "Ozymandias," which
+keep moving. **Both passages are quoted in full under
+[Two structural-ambiguity examples](#two-structural-ambiguity-examples)** —
+read them there rather than duplicating the analysis here.
 
 Worth recording for the rhyme-type files: the chapter names one of those
 Shelley end-sounds an imperfect rhyme and glosses it **"a Consonance Rhyme."**
@@ -647,12 +645,12 @@ four used either "things" or "bare," the six-line system would have FRAGMENTED
 and gained an internal point of closure. Instead a new sound at line four keeps
 it moving, so the system is THROUGH-WRITTEN.
 
-- **Marvell, "To His Coy Mistress" — couplet flow** (*Essential Guide to Lyric Form and Structure* (1991), Chapter 4). Marvell
-  uses couplet rhyme (`aabb`) to fragment forward motion: each couplet
-  closes a unit, then the next couplet starts a new one. The flow is
-  controlled by rhyme — the couplet creates a stop between idea-units
-  even when the syntax could run on. Use this when a writer wants
-  rhyme-controlled fragmentation rather than enjambed flow.
+The two examples the chapter builds on:
+
+- **Marvell, "To His Coy Mistress" — couplet flow**, quoted above. Use it when
+  a writer wants rhyme-controlled fragmentation rather than enjambed flow: the
+  couplet stops between idea-units even when the syntax could run on. Shelley,
+  also above, is the contrast case — the same device withheld.
 - **Shakespeare, *Othello* Act IV — unexpected closure** (*Essential Guide to Lyric Form and Structure* (1991), Chapter 4).
   Shakespeare's blank verse establishes an expectation of no rhyme.
   When a closing couplet arrives without prior rhyme buildup, the

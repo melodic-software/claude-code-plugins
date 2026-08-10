@@ -228,12 +228,14 @@ Was blind, but now I see               b   3   B
 ```
 
 > It's a stable common meter; the first and third lines both have the same line
+<!-- Pat's scansion vocalization; not a misspelling --><!-- spellchecker:off -->
 > length, as do the second and fourth lines.
 >
 > The rhyme scheme is abab, the same configuration as the line lengths (a
 > four-stress line followed by a three-stress line, then another four-stress
 > line followed by a three-stress line). The rhythms move along in a regular
 > duple pattern (da DUM).
+<!-- spellchecker:on -->
 
 If rhyme structure and line-length structure do not align clearly, omit the
 capital-letter shorthand and mark the separate features directly — Pat's rule
@@ -359,6 +361,7 @@ constant and names it:
 
 Pat scans the "Can't Be Really Gone" verse as a duple pattern and prints the
 rhythm strip on its own:
+<!-- Pat's scansion vocalization; not a misspelling --><!-- spellchecker:off -->
 
 ```text
 Da DUM da DUM da DUM da DUM
@@ -367,6 +370,7 @@ Da DUM da DUM da DUM da DUM
 Da DUM da DUM DUM da
 Da da DUM da DUM da DUM
 ```
+<!-- spellchecker:on -->
 
 > This is a mostly very regular lyric rhythm, with just a two variations,
 > neither of which have much effect.

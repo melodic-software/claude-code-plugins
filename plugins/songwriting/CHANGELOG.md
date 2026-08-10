@@ -96,10 +96,14 @@ the corpus and nothing was invented to fill them.
 
 ### Changed — tooling
 
-- **`_typos.toml` gains `DUM`** as a case-sensitive identifier. "da DUM da DUM"
-  is standard scansion notation and now appears verbatim in four files; the
-  spell-checker was rewriting it to "DUMB". Added at the canonical root per
-  that file's own policy note rather than as inline suppressions.
+- **Scansion strips are wrapped in the spell-checker's block directive.** Pat's
+  stressed-syllable vocalization is flagged as a misspelling of "DUMB", and it
+  now appears verbatim in `meter.md`, `prosody.md` and `daily-practice.md`. An
+  earlier revision of this branch added the exception to `_typos.toml`
+  directly; that file is synchronized from `melodic-software/standards` and a
+  local edit to it is silently dropped on the next sync, so the exception is
+  applied with the inline `spellchecker:off` / `spellchecker:on` convention
+  that config itself blesses. A permanent fix belongs upstream.
 
 ### Fixed
 
@@ -140,6 +144,22 @@ the corpus and nothing was invented to fill them.
   genuinely ambiguous in a file citing three books — 2014 also has a Chapter 4,
   which `rhyme-types.md` uses. Qualified with title and year per
   `book-references.md`.
+- **Seven remaining bare "Book N" citations retired**, in `audit-checklist.md`
+  (2), `bridge.md`, `rhyme-generation.md` (2), and
+  `templates/audit-checklist-prompt.md` (2) — constructions like "Books 1
+  Chapter 4, 2 Chapter 4, 4 Chapters 4-6" that `book-references.md` prints as
+  the counterexample. The plugin now has no bare "Book N" reference outside
+  that file. Regression test:
+  `grep -rn "Books\? [1-4]\b" context/ skills/ agents/ | grep -v book-references`
+- **`exercises.md`'s header claimed its exercises were paraphrases** while
+  carrying the restored verbatim ones — a stale notice that contradicted the
+  file's own contents.
+- **The Marvell / Shelley worked example appeared three times in
+  `rhyme-fundamentals.md`** — a paraphrase in the flow section, the restored
+  verbatim quotes, and a bullet restating Marvell a third time under a heading
+  promising two examples. The verbatim quotation was prepended rather than
+  substituted for what it replaced. Consolidated to one quotation with the
+  other two positions now referencing it.
 
 ### Added
 
