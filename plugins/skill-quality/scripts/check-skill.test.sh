@@ -2285,6 +2285,117 @@ else
   fail "redundancy warning should be plugin-scoped"
 fi
 
+# 36a. Check 5: a bare path that misses under the citing skill but resolves under
+#      a SIBLING skill is most likely a cross-skill citation, not a missing file.
+#      It still FAILs (the bare form really does resolve against the citing
+#      skill), but in a plugin-shaped skills root the message must name the host
+#      sibling and the `${CLAUDE_PLUGIN_ROOT}` form — the default wording alone
+#      sends the author hunting under their own skill, where the file will never
+#      be. The hand-verify caveat stays: the hit is evidence, not proof.
+mkdir -p "$PLUGIN_SKILLS/xref-host/context" "$PLUGIN_SKILLS/xref-citer"
+printf 'Sibling-owned supporting file.\n' >"$PLUGIN_SKILLS/xref-host/context/suppression.md"
+printf '%s' '---
+description: "Hosts a supporting file. Use when: '"'"'checking cross-skill citations'"'"'."
+---
+
+## Purpose
+
+Fixture sibling that owns context/suppression.md.
+
+## Gotchas
+
+None known.
+' >"$PLUGIN_SKILLS/xref-host/SKILL.md"
+printf '%s' '---
+description: "Cites a sibling file. Use when: '"'"'checking cross-skill citations'"'"'."
+---
+
+## Purpose
+
+Cites the sibling-owned `context/suppression.md` in the skill-internal form.
+
+## Gotchas
+
+None known.
+' >"$PLUGIN_SKILLS/xref-citer/SKILL.md"
+out="$( (cd "$TMP" &&
+  CHECK_SKILL_SKILLS_ROOT="$PLUGIN_SKILLS" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
+    bash "$SUT" xref-citer) 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] &&
+  grep -q 'broken skill-internal ref: context/suppression.md' <<<"$out" &&
+  grep -q "sibling skill 'xref-host'" <<<"$out" &&
+  grep -qF '${CLAUDE_PLUGIN_ROOT}/skills/xref-host/context/suppression.md' <<<"$out" &&
+  grep -q 'hand-verify the line' <<<"$out"; then
+  pass "a sibling-hosted ref names the sibling and the plugin-root form"
+else
+  fail "sibling-hosted ref should name the sibling and the plugin-root form (rc=$rc): $out"
+fi
+
+# 36b. Same detection outside a plugin: `${CLAUDE_PLUGIN_ROOT}` is undefined
+#      there, so the message must name the layout-free sibling-relative form
+#      instead of advertising a variable the consumer does not have.
+mkdir -p "$SKILLS/plain-host/reference"
+printf 'Sibling-owned supporting file.\n' >"$SKILLS/plain-host/reference/scaling.md"
+make_skill plain-host '---
+description: "Hosts a supporting file. Use when: '"'"'checking non-plugin cross-skill citations'"'"'."
+---
+
+## Purpose
+
+Fixture sibling that owns reference/scaling.md.
+
+## Gotchas
+
+None known.
+'
+make_skill plain-citer '---
+description: "Cites a sibling file. Use when: '"'"'checking non-plugin cross-skill citations'"'"'."
+---
+
+## Purpose
+
+Cites the sibling-owned `reference/scaling.md` in the skill-internal form.
+
+## Gotchas
+
+None known.
+'
+out="$(run plain-citer 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] &&
+  grep -q "sibling skill 'plain-host'" <<<"$out" &&
+  grep -q '\.\./plain-host/reference/scaling\.md' <<<"$out" &&
+  ! grep -q 'skills/plain-host/reference/scaling\.md' <<<"$out"; then
+  pass "outside a plugin the sibling message names the relative form, not the plugin root"
+else
+  fail "non-plugin sibling message should name ../plain-host/... (rc=$rc): $out"
+fi
+
+# 36c. False-positive guard: a ref no sibling hosts is still a plain broken
+#      internal ref, with the original hand-verify wording intact.
+make_skill orphan-citer '---
+description: "Cites a file nobody owns. Use when: '"'"'checking the broken-ref message'"'"'."
+---
+
+## Purpose
+
+Cites `context/nowhere-at-all.md`, which no skill in this root owns.
+
+## Gotchas
+
+None known.
+'
+out="$(run orphan-citer 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] &&
+  grep -q 'broken skill-internal ref: context/nowhere-at-all.md' <<<"$out" &&
+  ! grep -q 'sibling skill' <<<"$out"; then
+  pass "a ref no sibling hosts keeps the plain broken-internal-ref message"
+else
+  fail "unhosted ref should keep the broken-internal-ref message (rc=$rc): $out"
+fi
+
 if [[ $fails -ne 0 ]]; then
   printf '%d assertion(s) failed\n' "$fails" >&2
   exit 1

@@ -24,7 +24,10 @@ phrase, which quietly degrades a skill's auto-invocation. Check 3 compares the t
   truncates that entry) — a different, narrower limit from the shared budget below.
 - Trigger-keyword preservation vs `HEAD` (skipped for a new, uncommitted skill).
 - `SKILL.md` under 500 lines (hard) / 200 lines (soft, advisory).
-- Backtick- and link-cited skill-internal supporting files resolve.
+- Backtick- and link-cited skill-internal supporting files resolve — when a path that misses instead
+  resolves under a sibling skill, the finding names that sibling and the
+  `${CLAUDE_PLUGIN_ROOT}/skills/<sibling>/...` cross-skill form, while keeping the hand-verify
+  caveat (the sibling hit is evidence, not proof: paths can collide).
 - `markdownlint-cli2` clean (advisory-skips when `npx` is absent).
 - `scripts/*.test.sh` pass where present.
 - Vendored `vendor/` byte-identical vs `HEAD`; stale-tracking metadata keys preserved; sync age.
