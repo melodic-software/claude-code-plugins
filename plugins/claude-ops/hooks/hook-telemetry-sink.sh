@@ -54,20 +54,31 @@ STATUS="${FIELDS[6]}"
 # Translate the envelope status to the record shape the skill reads. Known
 # values pass through (ok → success); an unrecognized value is treated as a
 # catch-all error, never a hard fail (forward-compat rule).
+#
+# exit_code is derived from the SAME status in the same pass: the skill's
+# error/failed-then-fixed analysis keys on exit_code != 0. A clean/no-op run is 0;
+# error and blocked are non-clean (2).
 case "$STATUS" in
-ok) STATUS_OUT=success ;;
-error) STATUS_OUT=error ;;
-skipped) STATUS_OUT=skipped ;;
-blocked) STATUS_OUT=blocked ;;
-*) STATUS_OUT=error ;;
-esac
-
-# Derive exit_code: the skill's error/failed-then-fixed analysis keys on
-# exit_code != 0. A clean/no-op run is 0; error and blocked are non-clean (2).
-case "$STATUS" in
-error | blocked) EXIT_CODE=2 ;;
-ok | skipped) EXIT_CODE=0 ;;
-*) EXIT_CODE=2 ;;
+ok)
+  STATUS_OUT=success
+  EXIT_CODE=0
+  ;;
+skipped)
+  STATUS_OUT=skipped
+  EXIT_CODE=0
+  ;;
+error)
+  STATUS_OUT=error
+  EXIT_CODE=2
+  ;;
+blocked)
+  STATUS_OUT=blocked
+  EXIT_CODE=2
+  ;;
+*)
+  STATUS_OUT=error
+  EXIT_CODE=2
+  ;;
 esac
 
 project_dir=$(hook::repo_root "${CLAUDE_PROJECT_DIR:-.}")

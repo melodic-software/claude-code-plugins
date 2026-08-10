@@ -379,7 +379,7 @@ emit_tel() {
       [[ -n "$chainstr" ]] && disp="$bin $chainstr $flag" || disp="$bin $flag"
       raw+="$disp"$'\n'
     done
-    findings_json=$(printf '%s' "$raw" | jq -R . | jq -s . 2>/dev/null) || findings_json="[]"
+    findings_json=$(printf '%s' "$raw" | jq -Rn '[inputs]' 2>/dev/null) || findings_json="[]"
   fi
   local data
   data=$(jq -n --arg file "$file_rel" --argjson findings "$findings_json" \

@@ -60,30 +60,65 @@ function ConvertTo-AppendixMarkdown {
     return ($sections -join "`n`n")
 }
 
+function Get-AppendixInventory {
+    <#
+    .SYNOPSIS
+    Items stored under one detail key, or an empty array when the key is absent.
+    #>
+    param(
+        [Parameter(Mandatory)] $Detail,
+        [Parameter(Mandatory)] [string] $Key
+    )
+    if ($Detail.PSObject.Properties[$Key]) { return @($Detail.$Key) }
+    return @()
+}
+
+function Format-AppendixDetail {
+    <#
+    .SYNOPSIS
+    The one collapsed <details> + markdown-table shape every inventory renders.
+
+    .DESCRIPTION
+    Column headers and the row strings are the only thing the per-check
+    renderers below actually differ in; the block scaffolding (details/summary,
+    header row, alignment divider, blank-line spacing) is identical for all of
+    them and lives here so a table that renders in one appendix section renders
+    the same way in every other.
+    #>
+    param(
+        [Parameter(Mandatory)] [string] $Summary,
+        [Parameter(Mandatory)] [string[]] $Column,
+        [Parameter(Mandatory)] [AllowEmptyCollection()] [string[]] $Row
+    )
+    $divider = '|' + (($Column | ForEach-Object { '---' }) -join '|') + '|'
+    return @"
+<details>
+<summary>$Summary</summary>
+
+| $($Column -join ' | ') |
+$divider
+$($Row -join "`n")
+
+</details>
+"@
+}
+
 function Get-WingetUpgradeAppendix {
     param([Parameter(Mandatory)] $Detail)
-    $items = if ($Detail.PSObject.Properties['upgrades']) { @($Detail.upgrades) } else { @() }
+    $items = @(Get-AppendixInventory -Detail $Detail -Key 'upgrades')
     if ($items.Count -eq 0) { return $null }
 
     $rows = foreach ($u in $items) {
         "| $($u.name) | ``$($u.id)`` | $($u.current_version) | $($u.available_version) |"
     }
 
-    @"
-<details>
-<summary>winget upgrades ($($items.Count))</summary>
-
-| Name | Id | Installed | Available |
-|---|---|---|---|
-$($rows -join "`n")
-
-</details>
-"@
+    return Format-AppendixDetail -Summary "winget upgrades ($($items.Count))" `
+        -Column @('Name', 'Id', 'Installed', 'Available') -Row @($rows)
 }
 
 function Get-DriverAppendix {
     param([Parameter(Mandatory)] $Detail)
-    $items = if ($Detail.PSObject.Properties['oldest_drivers']) { @($Detail.oldest_drivers) } else { @() }
+    $items = @(Get-AppendixInventory -Detail $Detail -Key 'oldest_drivers')
     if ($items.Count -eq 0) { return $null }
 
     $rows = foreach ($d in $items) {
@@ -93,59 +128,31 @@ function Get-DriverAppendix {
 
     $totalCount = $Detail.PSObject.Properties['total_drivers'] ? $Detail.total_drivers : $items.Count
 
-    @"
-<details>
-<summary>oldest drivers ($($items.Count) of $totalCount)</summary>
-
-| Device | Manufacturer | Version | Date |
-|---|---|---|---|
-$($rows -join "`n")
-
-</details>
-"@
+    return Format-AppendixDetail -Summary "oldest drivers ($($items.Count) of $totalCount)" `
+        -Column @('Device', 'Manufacturer', 'Version', 'Date') -Row @($rows)
 }
 
 function Get-ServicesAppendix {
     param([Parameter(Mandatory)] $Detail)
     $sections = [System.Collections.Generic.List[string]]::new()
 
-    if ($Detail.PSObject.Properties['stopped_auto_services']) {
-        $items = @($Detail.stopped_auto_services)
-        if ($items.Count -gt 0) {
-            $rows = foreach ($s in $items) {
-                $delayed = $s.delayed_auto_start ? 'delayed' : 'auto'
-                "| ``$($s.name)`` | $($s.display_name) | $delayed |"
-            }
-            $sections.Add(@"
-<details>
-<summary>stopped automatic services ($($items.Count))</summary>
-
-| Name | Display | StartType |
-|---|---|---|
-$($rows -join "`n")
-
-</details>
-"@)
+    $stopped = @(Get-AppendixInventory -Detail $Detail -Key 'stopped_auto_services')
+    if ($stopped.Count -gt 0) {
+        $rows = foreach ($s in $stopped) {
+            $delayed = $s.delayed_auto_start ? 'delayed' : 'auto'
+            "| ``$($s.name)`` | $($s.display_name) | $delayed |"
         }
+        $sections.Add((Format-AppendixDetail -Summary "stopped automatic services ($($stopped.Count))" `
+                    -Column @('Name', 'Display', 'StartType') -Row @($rows)))
     }
 
-    if ($Detail.PSObject.Properties['startup_inventory']) {
-        $items = @($Detail.startup_inventory)
-        if ($items.Count -gt 0) {
-            $rows = foreach ($s in $items) {
-                "| $($s.Name) | $($s.User) | $($s.Location) |"
-            }
-            $sections.Add(@"
-<details>
-<summary>startup items ($($items.Count))</summary>
-
-| Name | User | Location |
-|---|---|---|
-$($rows -join "`n")
-
-</details>
-"@)
+    $startup = @(Get-AppendixInventory -Detail $Detail -Key 'startup_inventory')
+    if ($startup.Count -gt 0) {
+        $rows = foreach ($s in $startup) {
+            "| $($s.Name) | $($s.User) | $($s.Location) |"
         }
+        $sections.Add((Format-AppendixDetail -Summary "startup items ($($startup.Count))" `
+                    -Column @('Name', 'User', 'Location') -Row @($rows)))
     }
 
     if ($sections.Count -eq 0) { return $null }
@@ -154,7 +161,7 @@ $($rows -join "`n")
 
 function Get-EventLogAppendix {
     param([Parameter(Mandatory)] $Detail)
-    $items = if ($Detail.PSObject.Properties['top_sources']) { @($Detail.top_sources) } else { @() }
+    $items = @(Get-AppendixInventory -Detail $Detail -Key 'top_sources')
     if ($items.Count -eq 0) { return $null }
 
     $rows = foreach ($e in $items) {
@@ -163,21 +170,13 @@ function Get-EventLogAppendix {
         "| ``$($e.provider_and_id)`` | $($e.count) | $first | $last |"
     }
 
-    @"
-<details>
-<summary>event-log top sources ($($items.Count))</summary>
-
-| Provider/Id | Count | First seen | Last seen |
-|---|---|---|---|
-$($rows -join "`n")
-
-</details>
-"@
+    return Format-AppendixDetail -Summary "event-log top sources ($($items.Count))" `
+        -Column @('Provider/Id', 'Count', 'First seen', 'Last seen') -Row @($rows)
 }
 
 function Get-HotfixAppendix {
     param([Parameter(Mandatory)] $Detail)
-    $items = if ($Detail.PSObject.Properties['recent_hotfixes']) { @($Detail.recent_hotfixes) } else { @() }
+    $items = @(Get-AppendixInventory -Detail $Detail -Key 'recent_hotfixes')
     if ($items.Count -eq 0) { return $null }
 
     $rows = foreach ($h in $items) {
@@ -186,14 +185,6 @@ function Get-HotfixAppendix {
         "| $($h.hotfix_id) | $desc | $date |"
     }
 
-    @"
-<details>
-<summary>recent hotfixes ($($items.Count))</summary>
-
-| KB | Description | Installed |
-|---|---|---|
-$($rows -join "`n")
-
-</details>
-"@
+    return Format-AppendixDetail -Summary "recent hotfixes ($($items.Count))" `
+        -Column @('KB', 'Description', 'Installed') -Row @($rows)
 }

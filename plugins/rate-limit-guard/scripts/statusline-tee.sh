@@ -163,23 +163,31 @@ tee_snapshot() {
   # without POSIX modes, e.g. Windows ACL volumes under Git Bash).
   chmod 700 "$dir" 2>/dev/null || true
 
-  local ts payload
+  local ts payload has_windows out
   ts=$(date -u '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null) || return 0
-  payload=$(printf '%s' "$INPUT" | jq -c --arg ts "$ts" '
-    {captured_at: $ts}
-    + (to_entries
-       | map(select(.key == "rate_limits" or .key == "session_id"
-                    or .key == "session_name" or (.key | test("account"; "i"))))
-       | from_entries)
-  ' 2>/dev/null) || return 0
-  [[ -n "$payload" ]] || return 0
-
+  # ONE jq pass for the snapshot body AND the window-bearing verdict — this
+  # runs on every statusline refresh, so a second spawn here is a second spawn
+  # per refresh. Both lines are single-line by construction (`jq -c` escapes
+  # any newline inside a string; the verdict is `true`/`false`), so the split
+  # below is exact.
+  #
   # Window-bearing is a structural property — jq's has(), never a substring
   # test: a forwarded value that merely contains the string "rate_limits"
   # (e.g. "session_name":"rate_limits") must not count as window-bearing and
-  # overwrite a snapshot holding real windows.
-  local has_windows=false
-  jq -e 'has("rate_limits")' >/dev/null 2>&1 <<<"$payload" && has_windows=true
+  # overwrite a snapshot holding real windows. It is asked of the BUILT payload,
+  # exactly as the separate call it replaces was.
+  out=$(printf '%s' "$INPUT" | jq -rc --arg ts "$ts" '
+    ({captured_at: $ts}
+     + (to_entries
+        | map(select(.key == "rate_limits" or .key == "session_id"
+                     or .key == "session_name" or (.key | test("account"; "i"))))
+        | from_entries)) as $p
+    | $p, ($p | has("rate_limits"))
+  ' 2>/dev/null) || return 0
+  payload=${out%%$'\n'*}
+  has_windows=false
+  [[ "${out##*$'\n'}" == true ]] && has_windows=true
+  [[ -n "$payload" ]] || return 0
 
   # Sweep before any early return: a machine where only windowless sessions
   # remain active would otherwise skip below on every refresh and never

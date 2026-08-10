@@ -66,22 +66,25 @@ function Invoke-TrendAnalysis {
         # against it reads the recovered difference as growth and upgrades a WARN to
         # CRIT on nothing. checks_ran is already the repo's authority for "this check
         # produced a usable result"; Get-CheckLastRun reads it the same way.
-        $priorMetricValues = [System.Collections.Generic.List[object]]::new()
-        foreach ($h in $HistoryTail) {
-            if (-not $relevantKey) { continue }
-            if (-not $h.PSObject.Properties['checks_ran']) { continue }
-            if (@($h.checks_ran) -notcontains $r.id) { continue }
-            if ($h.PSObject.Properties['top_metrics']) {
-                $fullKey = "$($r.id).$relevantKey"
+        #
+        # Only the most recent qualifying value is ever compared against, so the
+        # walk overwrites rather than accumulating: the tail is in file order
+        # (oldest -> newest), so the last assignment is the newest baseline. An
+        # earlier version collected every value into a list and read [-1]; the
+        # list was never used for anything else. Reading [0] would compare today
+        # against the STALEST entry, which is the bug the ordering note guards.
+        $lastMetric = $null
+        if ($relevantKey) {
+            $fullKey = "$($r.id).$relevantKey"
+            foreach ($h in $HistoryTail) {
+                if (-not $h.PSObject.Properties['checks_ran']) { continue }
+                if (@($h.checks_ran) -notcontains $r.id) { continue }
+                if (-not $h.PSObject.Properties['top_metrics']) { continue }
                 if ($h.top_metrics.PSObject.Properties[$fullKey]) {
-                    $priorMetricValues.Add($h.top_metrics.$fullKey)
+                    $lastMetric = $h.top_metrics.$fullKey
                 }
             }
         }
-
-        # The most recent prior run is the LAST element, not [0]. With >=2
-        # entries using [0] would compare today against stale data.
-        $lastMetric = $priorMetricValues.Count -gt 0 ? $priorMetricValues[-1] : $null
 
         # last_run is the run in which this check actually ran (per-check, from
         # checks_ran) -- NOT "the most recent run overall", which diverges once

@@ -31,12 +31,17 @@ hook::check_enabled "EOL_NORMALIZER"
 # advisory exit 0, failing every edit.
 start=${EPOCHREALTIME:-}
 
-# Telemetry needs the high-res start stamp. When EPOCHREALTIME is unavailable
-# (Bash < 5.0) the stamp is empty and telemetry is skipped, so the hook still
-# normalizes on older bash rather than aborting.
+# Emit this run's telemetry envelope: $1 status, $2 action taken.
+# Two guards: the high-res start stamp (EPOCHREALTIME is Bash 5.0+; on older
+# bash it is empty and telemetry is skipped, so the hook still normalizes
+# rather than aborting) and the sink opt-in. The data payload costs a jq
+# subprocess, so it is built here after both guards — never on the unwired
+# path. This hook's matcher is every file write, so that is the hottest path in
+# the fleet.
 emit_tel() {
   [[ -n "$start" ]] || return 0
-  hook::emit_telemetry "$@"
+  hook::telemetry_enabled || return 0
+  hook::emit_telemetry "eol-normalizer" "PostToolUse" "$1" "$start" "$(build_data_json "$2")" "$REPO_ROOT"
 }
 
 # The bundled EOL library (normalize_eol_file).
@@ -51,28 +56,36 @@ INPUT=$(hook::buffer_stdin) || exit 0
 hook::require_jq PostToolUse eol-normalizer "$INPUT"
 
 FILE=$(printf '%s' "$INPUT" | hook::read_file_path) || exit 0
-TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
 
 # Resolve the repo root that anchors `git check-attr` (CWD-independent — the hook
 # process CWD is not guaranteed to be the repo root). File-anchored so it is
 # correct for clones, linked worktrees, and bare-hub clones.
 REPO_ROOT="$(hook::repo_root "$(dirname "$FILE")")"
 
-# Repo-relative path for the telemetry data.file. On Windows Git Bash,
-# git rev-parse --show-toplevel returns a drive-letter path while FILE may be in
-# POSIX mount form; normalize both through cygpath -lm (long, forward-slash mixed
-# form) when available so the prefix strip compares the same representation. On
-# Linux/macOS cygpath is absent and both paths are already POSIX. Falls back to
-# raw FILE on any normalization error.
+# TOOL and FILE_REL feed the telemetry data object and nothing else, so both are
+# resolved only when a sink is wired: the unwired default path spawns zero
+# telemetry-only subprocesses (the tool_name jq parse, and 2× cygpath on
+# Windows).
+#
+# FILE_REL is the repo-relative path for the telemetry data.file. On Windows Git
+# Bash, git rev-parse --show-toplevel returns a drive-letter path while FILE may
+# be in POSIX mount form; normalize both through cygpath -lm (long,
+# forward-slash mixed form) when available so the prefix strip compares the same
+# representation. On Linux/macOS cygpath is absent and both paths are already
+# POSIX. Falls back to raw FILE on any normalization error.
+TOOL=""
 FILE_REL="$FILE"
-if command -v cygpath >/dev/null 2>&1; then
-  _file_lm=$(cygpath -lm "$FILE" 2>/dev/null)
-  _root_lm=$(cygpath -lm "$REPO_ROOT" 2>/dev/null)
-  if [[ -n "$_file_lm" && -n "$_root_lm" ]]; then
-    FILE_REL="${_file_lm#"$_root_lm"/}"
+if hook::telemetry_enabled; then
+  TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
+  if command -v cygpath >/dev/null 2>&1; then
+    _file_lm=$(cygpath -lm "$FILE" 2>/dev/null)
+    _root_lm=$(cygpath -lm "$REPO_ROOT" 2>/dev/null)
+    if [[ -n "$_file_lm" && -n "$_root_lm" ]]; then
+      FILE_REL="${_file_lm#"$_root_lm"/}"
+    fi
+  else
+    FILE_REL="${FILE#"$REPO_ROOT"/}"
   fi
-else
-  FILE_REL="${FILE#"$REPO_ROOT"/}"
 fi
 
 # Build the telemetry data object. jq is authoritative; the fallback is a fixed
@@ -98,6 +111,5 @@ lf | crlf) status="ok" ;;
 *) status="skipped" ;;
 esac
 
-data_json=$(build_data_json "$ACTION")
-emit_tel "eol-normalizer" "PostToolUse" "$status" "$start" "$data_json" "$REPO_ROOT"
+emit_tel "$status" "$ACTION"
 exit 0

@@ -18,6 +18,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+from collections.abc import Iterable
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -303,19 +304,32 @@ def has_protected_path_component(path: Path, exact_names: set[str]) -> bool:
     )
 
 
+def _windows_env_roots() -> list[Path]:
+    """The OS-install roots the environment names, absolute, skipping the unset.
+
+    Shared by system_roots() and os_drive_markers(): the two disagree about the
+    per-volume metadata names, never about which environment variables point at
+    the OS install, so naming them once keeps that half from drifting.
+    """
+    return [
+        Path(value).absolute()
+        for value in (
+            os.environ.get("SystemRoot"),
+            os.environ.get("ProgramFiles"),
+            os.environ.get("ProgramFiles(x86)"),
+            os.environ.get("ProgramData"),
+        )
+        if value
+    ]
+
+
 def system_roots(
     platform_key: str | None = None, windows_roots: list[Path] | None = None
 ) -> list[Path]:
     roots: list[Path] = []
     current_platform = platform_key or os_key()
     if current_platform == "windows":
-        candidates = [
-            os.environ.get("SystemRoot"),
-            os.environ.get("ProgramFiles"),
-            os.environ.get("ProgramFiles(x86)"),
-            os.environ.get("ProgramData"),
-        ]
-        roots.extend(Path(value).absolute() for value in candidates if value)
+        roots.extend(_windows_env_roots())
         drive_roots = windows_roots if windows_roots is not None else windows_drive_roots()
         for drive_root in drive_roots:
             roots.extend(drive_root / name for name in WINDOWS_VOLUME_SYSTEM_NAMES)
@@ -362,13 +376,7 @@ def os_drive_markers(
     if current_platform != "windows":
         return system_roots(current_platform)
     markers: list[Path] = []
-    env_roots = (
-        os.environ.get("SystemRoot"),
-        os.environ.get("ProgramFiles"),
-        os.environ.get("ProgramFiles(x86)"),
-        os.environ.get("ProgramData"),
-    )
-    markers.extend(Path(value).absolute() for value in env_roots if value)
+    markers.extend(_windows_env_roots())
     drive_roots = windows_roots if windows_roots is not None else windows_drive_roots()
     for drive_root in drive_roots:
         markers.extend(drive_root / name for name in WINDOWS_OS_DRIVE_MARKERS)
@@ -1114,6 +1122,53 @@ def entry_map(snapshot: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return result
 
 
+def subtree_names(relative: str, names: Iterable[str]) -> set[str]:
+    """The snapshot paths that ARE ``relative`` or sit beneath it.
+
+    One containment rule for every lane that asks "what did the scan record for
+    this candidate" — the preview's and handoff-verify's expected-path sets and
+    the apply lane's removal list — so the three cannot disagree about a
+    candidate's extent. Prefix matching is on the "/"-terminated name, so a
+    sibling like ``cache-old`` is never read as a child of ``cache``.
+    """
+    return {
+        name for name in names if name == relative or name.startswith(relative + "/")
+    }
+
+
+def overlaps_truncated(relative: str, truncated_paths: set[str]) -> bool:
+    """Whether ``relative`` is, contains, or lives under a truncated scan path.
+
+    Either direction disqualifies: a truncated ancestor means this path's own
+    subtree was never inventoried, and a truncated descendant means part of it
+    was not. Shared by preview and handoff-verify, which must agree on which
+    candidates the snapshot cannot speak for.
+    """
+    return any(
+        name == relative
+        or name.startswith(relative + "/")
+        or relative.startswith(name + "/")
+        for name in truncated_paths
+    )
+
+
+def snapshot_protection_globs(snapshot: dict[str, Any]) -> list[str]:
+    """Consumer protection globs a snapshot's policy recorded, strings only.
+
+    Read from the snapshot rather than from live policy on purpose: an approved
+    snapshot must stay previewable under the protections it was scanned with.
+    Non-string members are dropped here so the three validation lanes cannot
+    differ on how they tolerate a hand-edited policy block.
+    """
+    return [
+        pattern
+        for pattern in snapshot.get("policy", {}).get(
+            "additional_protected_path_globs", []
+        )
+        if isinstance(pattern, str)
+    ]
+
+
 def validate_plan(
     plan: dict[str, Any], entries: dict[str, dict[str, Any]]
 ) -> list[dict[str, Any]]:
@@ -1268,8 +1323,7 @@ def same_identity(path: Path, entry: dict[str, Any]) -> bool:
 def same_stat_identity(info: os.stat_result, entry: dict[str, Any]) -> bool:
     kind = (
         "link"
-        if stat.S_ISLNK(info.st_mode)
-        or bool(getattr(info, "st_file_attributes", 0) & FILE_ATTRIBUTE_REPARSE_POINT)
+        if is_linkish_stat(info)
         else "directory"
         if stat.S_ISDIR(info.st_mode)
         else "file"
@@ -1595,6 +1649,7 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
     exact_names = baseline_exact_names | set(
         snapshot.get("policy", {}).get("protected_exact_names", [])
     )
+    globs = snapshot_protection_globs(snapshot)
     results = []
     blocked = False
     for candidate in candidates:
@@ -1604,18 +1659,9 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
         blockers.extend(execution_blockers())
         if candidate["owner"] != "unmanaged":
             blockers.append("native-managed-report-only")
-        if any(
-            name == relative
-            or name.startswith(relative + "/")
-            or relative.startswith(name + "/")
-            for name in truncated_paths
-        ):
+        if overlaps_truncated(relative, truncated_paths):
             blockers.append("truncated-not-inventoried")
-        expected_paths = {
-            name
-            for name in entries
-            if name == relative or name.startswith(relative + "/")
-        }
+        expected_paths = subtree_names(relative, entries)
         if "truncated-not-inventoried" in blockers:
             # A truncated candidate is already hard-blocked from planning above;
             # walking its live subtree here would be the same unbounded
@@ -1640,13 +1686,7 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
                 blockers.append("changed-since-scan")
             blockers.extend(hard_protection(current, target, exact_names, known_mounts))
             relative_current = current.relative_to(target).as_posix()
-            if any(
-                glob_matches(relative_current, pattern)
-                for pattern in snapshot.get("policy", {}).get(
-                    "additional_protected_path_globs", []
-                )
-                if isinstance(pattern, str)
-            ):
+            if any(glob_matches(relative_current, pattern) for pattern in globs):
                 blockers.append("consumer-protected-path")
         if "truncated-not-inventoried" in blockers:
             # Same rationale as the current_descendants short-circuit above: a
@@ -1722,13 +1762,7 @@ def handoff_verify(snapshot: dict[str, Any], approved: list[str]) -> dict[str, A
         for value in snapshot.get("truncated_paths", [])
         if isinstance(value, str)
     }
-    globs = [
-        pattern
-        for pattern in snapshot.get("policy", {}).get(
-            "additional_protected_path_globs", []
-        )
-        if isinstance(pattern, str)
-    ]
+    globs = snapshot_protection_globs(snapshot)
     verdicts: list[dict[str, Any]] = []
     for relative in approved:
         path = target.joinpath(*PurePosixPath(relative).parts)
@@ -1760,17 +1794,8 @@ def handoff_verify(snapshot: dict[str, Any], approved: list[str]) -> dict[str, A
             )
             continue
         contested.update(hard_protection(path, target, exact_names, known_mounts))
-        truncated = any(
-            name == relative
-            or name.startswith(relative + "/")
-            or relative.startswith(name + "/")
-            for name in truncated_paths
-        )
-        expected_paths = {
-            name
-            for name in entries
-            if name == relative or name.startswith(relative + "/")
-        }
+        truncated = overlaps_truncated(relative, truncated_paths)
+        expected_paths = subtree_names(relative, entries)
         if truncated:
             # A truncated path has no captured descendant set, so no live walk
             # can prove anything about it — never clear (same rationale as the
@@ -1813,9 +1838,7 @@ def handoff_verify(snapshot: dict[str, Any], approved: list[str]) -> dict[str, A
                 hard_protection(current, target, exact_names, known_mounts)
             )
             relative_current = current.relative_to(target).as_posix()
-            if any(
-                glob_matches(relative_current, pattern) for pattern in globs
-            ):
+            if any(glob_matches(relative_current, pattern) for pattern in globs):
                 contested.add("consumer-protected-path")
         if not truncated:
             # A hung git (TimeoutExpired) must degrade to this one path's
@@ -1871,11 +1894,8 @@ def handoff_verify(snapshot: dict[str, Any], approved: list[str]) -> dict[str, A
 
 
 def removal_entries(relative: str, entries: dict[str, dict[str, Any]]) -> list[str]:
-    selected = [
-        name for name in entries if name == relative or name.startswith(relative + "/")
-    ]
     return sorted(
-        selected,
+        subtree_names(relative, entries),
         key=lambda value: (len(PurePosixPath(value).parts), value),
         reverse=True,
     )
@@ -2015,6 +2035,7 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
     if mount_error:
         os.close(target_fd)
         raise HygieneError(mount_error)
+    globs = snapshot_protection_globs(snapshot)
     for candidate in candidates:
         candidate_path = target.joinpath(*PurePosixPath(candidate["path"]).parts)
         candidate_blockers = hard_protection(
@@ -2061,13 +2082,7 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
                 baseline_protected_names(),
                 fresh_mounts,
             )
-            if any(
-                glob_matches(relative, pattern)
-                for pattern in snapshot.get("policy", {}).get(
-                    "additional_protected_path_globs", []
-                )
-                if isinstance(pattern, str)
-            ):
+            if any(glob_matches(relative, pattern) for pattern in globs):
                 fresh_protections.append("consumer-protected-path")
             fresh_vcs = tracked_blocker(path, target)
             if fresh_vcs:

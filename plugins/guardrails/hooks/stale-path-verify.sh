@@ -329,10 +329,20 @@ build_deleted_set() {
 # too weak to trigger on — `README.md` and `SKILL.md` match hundreds of paths —
 # but once history has established the path was removed, a UNIQUE surviving
 # basename is very likely where it went.
+#
+# The tracked-file list is read at most once per run and reused for every
+# finding: it is identical for all of them, and re-listing a large repo per
+# finding is the one place this guard's rare path re-does whole-repo I/O.
+TRACKED_FILES=""
+TRACKED_BUILT=0
 moved_hint() {
   local base="${1##*/}" matches=()
-  mapfile -t matches < <(git -C "$REPO_ROOT" ls-files 2>/dev/null | tr -d '\r' |
-    awk -F/ -v b="$base" '$NF == b')
+  if ((TRACKED_BUILT == 0)); then
+    TRACKED_BUILT=1
+    TRACKED_FILES=$(git -C "$REPO_ROOT" ls-files 2>/dev/null | tr -d '\r')
+  fi
+  [[ -n "$TRACKED_FILES" ]] || return 1
+  mapfile -t matches < <(printf '%s\n' "$TRACKED_FILES" | awk -F/ -v b="$base" '$NF == b')
   ((${#matches[@]} == 1)) && printf '%s' "${matches[0]}"
 }
 
@@ -422,7 +432,7 @@ emit_tel() {
   if ((${#MISSING[@]} > 0)); then
     local m raw_list=""
     for m in "${MISSING[@]}"; do raw_list+="$m"$'\n'; done
-    findings_json=$(printf '%s' "$raw_list" | jq -R . | jq -s . 2>/dev/null) || findings_json="[]"
+    findings_json=$(printf '%s' "$raw_list" | jq -Rn '[inputs]' 2>/dev/null) || findings_json="[]"
   fi
   local data
   data=$(jq -n --arg file "$file_rel" --argjson findings "$findings_json" \

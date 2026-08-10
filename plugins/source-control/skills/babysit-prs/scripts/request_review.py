@@ -381,11 +381,12 @@ def run_locked(
         repo, number, expected_head_sha, config, allowed_owners, review_trigger
     )
 
-    history = json_object(review_trigger.get("request_history"))
-    attempts = json_object(review_trigger.get("request_attempt_history"))
+    # `request_history` / `attempt_history` above are the ledger-merged maps
+    # already written back onto `review_trigger`, so re-reading them off it here
+    # would only re-copy the same entries.
     known_comment_ids = {
         str(entry.get("comment_id"))
-        for entry in (*history.values(), *attempts.values())
+        for entry in (*request_history.values(), *attempt_history.values())
         if is_json_object(entry) and entry.get("comment_id") is not None
     }
     if review_trigger.get("request_comment_id") is not None:

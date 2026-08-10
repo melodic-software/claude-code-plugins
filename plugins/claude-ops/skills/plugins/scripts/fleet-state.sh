@@ -256,20 +256,28 @@ if [[ -n "$PROJECT_ROOT" ]]; then
     local_map=$(jq -c '.enabledPlugins // {}' "$PROJECT_ROOT/.claude/settings.local.json")
 fi
 
+# The three scope maps feed three jq programs below. Route each one through the
+# filesystem ONCE and reuse the path: jq_slurp_tmpfile is a mktemp + write per
+# call, and re-deriving the same three payloads for every program paid that nine
+# times for three distinct values.
+user_map_f="$(jq_slurp_tmpfile "$user_map")"
+project_map_f="$(jq_slurp_tmpfile "$project_map")"
+local_map_f="$(jq_slurp_tmpfile "$local_map")"
+
 # Union of every id ever mentioned in any scope (raw, unmerged) — used to
 # distinguish "never mentioned anywhere" (missing_from_enabled) from
 # "explicitly false somewhere" (deliberate opt-out, never flipped by sync).
 known_ids=$(jq -cn \
-  --slurpfile u "$(jq_slurp_tmpfile "$user_map")" \
-  --slurpfile p "$(jq_slurp_tmpfile "$project_map")" \
-  --slurpfile l "$(jq_slurp_tmpfile "$local_map")" \
+  --slurpfile u "$user_map_f" \
+  --slurpfile p "$project_map_f" \
+  --slurpfile l "$local_map_f" \
   '($u[0] + $p[0] + $l[0]) | keys')
 
 # Effective value per id: local > project > user.
 effective_map=$(jq -cn \
-  --slurpfile u "$(jq_slurp_tmpfile "$user_map")" \
-  --slurpfile p "$(jq_slurp_tmpfile "$project_map")" \
-  --slurpfile l "$(jq_slurp_tmpfile "$local_map")" \
+  --slurpfile u "$user_map_f" \
+  --slurpfile p "$project_map_f" \
+  --slurpfile l "$local_map_f" \
   '$u[0] + $p[0] + $l[0]')
 
 # ids explicitly set to false in ANY scope — a deliberate opt-out, even for a
@@ -277,10 +285,14 @@ effective_map=$(jq -cn \
 # this" in project settings before anyone runs install). "Missing" (needing
 # an install prompt) excludes these; sync never installs over an opt-out.
 explicit_false_ids=$(jq -cn \
-  --slurpfile u "$(jq_slurp_tmpfile "$user_map")" \
-  --slurpfile p "$(jq_slurp_tmpfile "$project_map")" \
-  --slurpfile l "$(jq_slurp_tmpfile "$local_map")" \
+  --slurpfile u "$user_map_f" \
+  --slurpfile p "$project_map_f" \
+  --slurpfile l "$local_map_f" \
   '[($u[0], $p[0], $l[0]) | to_entries[] | select(.value == false) | .key] | unique')
+
+# Marketplace-invariant, so it is routed once here rather than twice per
+# marketplace inside emit_marketplace (which an --all sweep runs per entry).
+explicit_false_ids_f="$(jq_slurp_tmpfile "$explicit_false_ids")"
 
 # --- Normalized current-project root, for the `currentProject` install flag
 current_project_norm=""
@@ -357,11 +369,16 @@ emit_marketplace() {
   auto_update=$(jq -r '.autoUpdate // false' <<<"$mp_entry")
   last_updated=$(jq -r '.lastUpdated // ""' <<<"$mp_entry")
   install_location=$(jq -r '.installLocation // ""' <<<"$mp_entry")
+  # `auto_update` is jq's own `true`/`false` text; normalize it to a JSON literal
+  # once here rather than re-running the same `$([[ … ]] && echo …)` subshell at
+  # each of the four --argjson call sites below.
+  local auto_update_json=false
+  [[ "$auto_update" == "true" ]] && auto_update_json=true
 
   if [[ -n "${FLEET_STATE_CATALOG_DIR:-}" ]]; then
     local fixture="$FLEET_STATE_CATALOG_DIR/$name.json"
     if [[ ! -f "$fixture" ]]; then
-      jq -cn --arg n "$name" --argjson au "$([[ "$auto_update" == "true" ]] && echo true || echo false)" --arg lu "$last_updated" \
+      jq -cn --arg n "$name" --argjson au "$auto_update_json" --arg lu "$last_updated" \
         '{marketplace: {name: $n, autoUpdate: $au, lastUpdated: $lu, error: "no catalog fixture"}}'
       return 1
     fi
@@ -369,7 +386,7 @@ emit_marketplace() {
   else
     catalog_json="$install_location/.claude-plugin/marketplace.json"
     if [[ ! -f "$catalog_json" ]]; then
-      jq -cn --arg n "$name" --argjson au "$([[ "$auto_update" == "true" ]] && echo true || echo false)" --arg lu "$last_updated" \
+      jq -cn --arg n "$name" --argjson au "$auto_update_json" --arg lu "$last_updated" \
         '{marketplace: {name: $n, autoUpdate: $au, lastUpdated: $lu, error: "marketplace.json not found at installLocation"}}'
       return 1
     fi
@@ -381,15 +398,18 @@ emit_marketplace() {
   # the branches above — report it inline and return 1 so one corrupt clone
   # doesn't abort an --all sweep of every other marketplace.
   if ! jq empty "$catalog_json" 2>/dev/null; then
-    jq -cn --arg n "$name" --argjson au "$([[ "$auto_update" == "true" ]] && echo true || echo false)" --arg lu "$last_updated" \
+    jq -cn --arg n "$name" --argjson au "$auto_update_json" --arg lu "$last_updated" \
       '{marketplace: {name: $n, autoUpdate: $au, lastUpdated: $lu, error: "marketplace.json is not valid JSON"}}'
     return 1
   fi
   local catalog
   catalog=$(jq -c '[.plugins[]?.name // empty] | unique' "$catalog_json")
 
-  local catalog_ids
+  local catalog_ids catalog_ids_f
   catalog_ids=$(jq -c --arg mp "$name" '[.[] | . + "@" + $mp]' <<<"$catalog")
+  # Routed once: both the all-scope and the user-scope completeness programs
+  # below read the same catalog id list.
+  catalog_ids_f="$(jq_slurp_tmpfile "$catalog_ids")"
 
   # Ids the marketplace entry ships with defaultEnabled:false — a publisher's
   # deliberate opt-in-required default (takes precedence over the plugin's own
@@ -430,9 +450,9 @@ emit_marketplace() {
   # scope, even one never installed at all.
   local missing_from_install
   missing_from_install=$(jq -cn \
-    --slurpfile catalog "$(jq_slurp_tmpfile "$catalog_ids")" \
+    --slurpfile catalog "$catalog_ids_f" \
     --slurpfile installed "$(jq_slurp_tmpfile "$installed_ids")" \
-    --slurpfile falseIds "$(jq_slurp_tmpfile "$explicit_false_ids")" \
+    --slurpfile falseIds "$explicit_false_ids_f" \
     '($catalog[0] - $installed[0]) - $falseIds[0]')
 
   # User-scope completeness, distinct from all-scope missing_from_install: a
@@ -445,13 +465,15 @@ emit_marketplace() {
 
   local missing_from_user_install
   missing_from_user_install=$(jq -cn \
-    --slurpfile catalog "$(jq_slurp_tmpfile "$catalog_ids")" \
+    --slurpfile catalog "$catalog_ids_f" \
     --slurpfile userInstalled "$(jq_slurp_tmpfile "$user_installed_ids")" \
-    --slurpfile falseIds "$(jq_slurp_tmpfile "$explicit_false_ids")" \
+    --slurpfile falseIds "$explicit_false_ids_f" \
     '($catalog[0] - $userInstalled[0]) - $falseIds[0]')
 
-  local known_at_mp
+  local known_at_mp known_at_mp_f
   known_at_mp=$(jq -c --arg suffix "@$name" '[.[] | select(endswith($suffix))]' <<<"$known_ids")
+  # Routed once: both the missing_from_enabled and enabled_at_mp programs read it.
+  known_at_mp_f="$(jq_slurp_tmpfile "$known_at_mp")"
 
   # missing_from_enabled can only be computed for ids whose enabledPlugins
   # this invocation can actually read: user scope (global) and the current
@@ -467,13 +489,13 @@ emit_marketplace() {
   local missing_from_enabled
   missing_from_enabled=$(jq -cn \
     --slurpfile verifiable_ids "$(jq_slurp_tmpfile "$verifiable_ids")" \
-    --slurpfile known "$(jq_slurp_tmpfile "$known_at_mp")" \
+    --slurpfile known "$known_at_mp_f" \
     --slurpfile defaultDisabled "$(jq_slurp_tmpfile "$default_disabled_ids")" \
     '($verifiable_ids[0] - $known[0]) - $defaultDisabled[0]')
 
   local enabled_at_mp
   enabled_at_mp=$(jq -cn \
-    --slurpfile known "$(jq_slurp_tmpfile "$known_at_mp")" \
+    --slurpfile known "$known_at_mp_f" \
     --slurpfile eff "$(jq_slurp_tmpfile "$effective_map")" \
     'reduce $known[0][] as $id ({}; . + {($id): $eff[0][$id]})')
 
@@ -494,7 +516,7 @@ emit_marketplace() {
 
   jq -cn \
     --arg name "$name" \
-    --argjson autoUpdate "$([[ "$auto_update" == "true" ]] && echo true || echo false)" \
+    --argjson autoUpdate "$auto_update_json" \
     --arg lastUpdated "$last_updated" \
     --slurpfile catalog "$(jq_slurp_tmpfile "$catalog")" \
     --slurpfile installed "$(jq_slurp_tmpfile "$installed")" \

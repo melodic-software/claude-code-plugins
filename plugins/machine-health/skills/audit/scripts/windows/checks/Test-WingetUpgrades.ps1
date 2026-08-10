@@ -145,11 +145,9 @@ try {
         if ($kevMatches.Count -gt 0) {
             $severity = 'CRIT'
             $summary = "$($kevMatches.Count) upgrade(s) match CISA KEV."
-        } elseif ($upgrades.Count -gt 10) {
-            $severity = 'WARN'
-            $summary = "$($upgrades.Count) apps behind on winget upgrades."
         } elseif ($upgrades.Count -gt 0) {
-            $severity = 'INFO'
+            # >10 behind is the WARN threshold; anything behind at all is INFO.
+            $severity = $upgrades.Count -gt 10 ? 'WARN' : 'INFO'
             $summary = "$($upgrades.Count) apps behind on winget upgrades."
         }
 

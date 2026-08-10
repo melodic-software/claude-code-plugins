@@ -66,14 +66,22 @@ function loadFramesFromDir(framesDir) {
 
 /**
  * @param {string} contactSheetsDir
- * @param {import('../watching/models.js').SelectedFrame[][]} batches
- * @returns {import('@melodic/video-digestion/frames/models.js').ContactSheet[]}
+ * @returns {string[]} sorted `sheet_NNN.jpg` names already on disk
  */
-function loadExistingContactSheets(contactSheetsDir, batches) {
-  const sheetFiles = fs
+function listExistingSheetFiles(contactSheetsDir) {
+  return fs
     .readdirSync(contactSheetsDir)
     .filter((name) => /^sheet_\d+\.jpg$/i.test(name))
     .sort();
+}
+
+/**
+ * @param {string} contactSheetsDir
+ * @param {string[]} sheetFiles
+ * @param {import('../watching/models.js').SelectedFrame[][]} batches
+ * @returns {import('@melodic/video-digestion/frames/models.js').ContactSheet[]}
+ */
+function loadExistingContactSheets(contactSheetsDir, sheetFiles, batches) {
   return sheetFiles.map((file, index) => {
     const batch = batches[index] ?? [];
     return {
@@ -158,9 +166,7 @@ export async function recoverWatchBootstrapCli(argv) {
     densificationWindowCount: windows.length,
   });
 
-  const sheetFiles = fs
-    .readdirSync(contactSheetsDir)
-    .filter((name) => /^sheet_\d+\.jpg$/i.test(name));
+  const sheetFiles = listExistingSheetFiles(contactSheetsDir);
   const expectedSheetCount = sheetFiles.length;
   const expectedFrameCount = expectedSheetCount * 16;
 
@@ -181,7 +187,7 @@ export async function recoverWatchBootstrapCli(argv) {
   }
 
   const batches = batchFramesForContactSheets(selection.selected, 16);
-  const contactSheets = loadExistingContactSheets(contactSheetsDir, batches);
+  const contactSheets = loadExistingContactSheets(contactSheetsDir, sheetFiles, batches);
 
   const highVolume = summarizeFrameSelection(selection.selected, {
     targetMinFrames: coveragePlan.targetMinFrames,

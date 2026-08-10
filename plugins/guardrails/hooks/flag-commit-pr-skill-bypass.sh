@@ -126,7 +126,7 @@ emit_tel() {
   hook::telemetry_enabled || return 0
   local forms_json="[]"
   if ((${#FORMS[@]} > 0)); then
-    forms_json=$(printf '%s\n' "${FORMS[@]}" | jq -R . | jq -s . 2>/dev/null) || forms_json="[]"
+    forms_json=$(printf '%s\n' "${FORMS[@]}" | jq -Rn '[inputs]' 2>/dev/null) || forms_json="[]"
   fi
   local data
   data=$(jq -n --arg tool "$TOOL_NAME" --arg subject "$SUBJECT" --argjson forms "$forms_json" \
@@ -224,7 +224,9 @@ strip_literals() {
       line="${line%%<<*}${line#*"${BASH_REMATCH[0]}"}"
       in_heredoc=1
     fi
-    line=$(printf '%s' "$line" | sed "s/'[^']*'//g" | sed -E 's/"([^"\\]|\\.)*"//g')
+    # One `sed` per line, not two: the expressions apply in order, so the
+    # double-quote strip still sees the single-quote-stripped line.
+    line=$(printf '%s' "$line" | sed -E -e "s/'[^']*'//g" -e 's/"([^"\\]|\\.)*"//g')
     result+="${line}"$'\n'
   done < <(printf '%s\n' "$cmd") # not <<<: a >=64KiB here-string deadlocks (see hardcoded-path-patterns.sh)
   printf '%s' "${result%$'\n'}"

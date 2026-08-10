@@ -19,7 +19,7 @@
 import { fail, ok, timed } from "@melodic/video-digestion/shared/result";
 import { writeStdout } from "@melodic/video-digestion/shared/terminal";
 
-import { promptManualLogin } from "../lib/auth/manual-login.js";
+import { loginOrPromptManual } from "../lib/auth/manual-login.js";
 import { login as teachableLogin } from "../lib/auth/teachable-sso.js";
 import {
   extractFrames as extractHotmartFrames,
@@ -174,16 +174,17 @@ async function scrapeCodeSnippets(page, codeDisplaySelector) {
   );
 }
 
-async function scrapeDownloadLinks(page, fileSelector) {
+/** Collect every `a[href]` under an attachment selector as `{ label, href }`. */
+async function scrapeAttachmentLinks(page, attachmentSelector) {
   return page.evaluate((selector) => {
-    const downloads = [];
+    const links = [];
     for (const el of document.querySelectorAll(selector)) {
       for (const link of el.querySelectorAll("a[href]")) {
-        downloads.push({ label: link.textContent?.trim(), href: link.href });
+        links.push({ label: link.textContent?.trim(), href: link.href });
       }
     }
-    return downloads;
-  }, fileSelector);
+    return links;
+  }, attachmentSelector);
 }
 
 async function scrapeTextAttachments(page, textSelector) {
@@ -205,18 +206,6 @@ async function scrapeTextAttachments(page, textSelector) {
   }, textSelector);
 }
 
-async function scrapePdfLinks(page, pdfSelector) {
-  return page.evaluate((selector) => {
-    const pdfLinks = [];
-    for (const el of document.querySelectorAll(selector)) {
-      for (const link of el.querySelectorAll("a[href]")) {
-        pdfLinks.push({ label: link.textContent?.trim(), href: link.href });
-      }
-    }
-    return pdfLinks;
-  }, pdfSelector);
-}
-
 export async function extractResources(page, platformCfg) {
   return timed("extract-resources", null, async () => {
     const selectors = {
@@ -226,9 +215,9 @@ export async function extractResources(page, platformCfg) {
 
     const [codeSnippets, downloads, textData, pdfLinks] = await Promise.all([
       scrapeCodeSnippets(page, selectors.codeDisplay),
-      scrapeDownloadLinks(page, selectors.file),
+      scrapeAttachmentLinks(page, selectors.file),
       scrapeTextAttachments(page, selectors.text),
-      scrapePdfLinks(page, selectors.pdfEmbed),
+      scrapeAttachmentLinks(page, selectors.pdfEmbed),
     ]);
 
     return {
@@ -307,18 +296,14 @@ export async function authenticate({ context, page, course, storageStatePath, pl
     return;
   }
 
-  const email = process.env[`${envPrefix}_EMAIL`];
-  const password = process.env[`${envPrefix}_PASSWORD`];
-  const loginUrl = platformCfg.loginUrl;
-
-  if (email && password && loginUrl) {
-    writeStdout("  Logging in automatically...");
-    await teachableLogin(page, email, password, loginUrl);
-    await context.storageState({ path: storageStatePath });
-    writeStdout("  Logged in and saved auth state.\n");
-  } else {
-    await promptManualLogin(context, storageStatePath, envPrefix);
-  }
+  await loginOrPromptManual({
+    context,
+    page,
+    storageStatePath,
+    envPrefix,
+    loginUrl: platformCfg.loginUrl,
+    login: teachableLogin,
+  });
 }
 
 /**

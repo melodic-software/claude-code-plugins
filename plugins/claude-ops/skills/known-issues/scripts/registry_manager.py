@@ -155,6 +155,29 @@ def find_by_query(
     return [i for i in issues if query_lower in _searchable_text(i)]
 
 
+def _is_stale(
+    issue: dict[str, Any],
+    today: date,
+    days: int,
+    *,
+    missing_is_stale: bool,
+) -> bool:
+    """Has this issue gone unchecked for `days` or more?
+
+    An unparsable `last_checked` always counts as stale — the check date cannot
+    be trusted. A MISSING one is the callers' one disagreement, so it stays a
+    parameter: `list --stale` reports it (nothing proves it was ever checked)
+    while `stats` does not count it.
+    """
+    checked = issue.get("last_checked")
+    if not checked:
+        return missing_is_stale
+    try:
+        return (today - date.fromisoformat(checked)).days >= days
+    except (ValueError, TypeError):
+        return True
+
+
 # ── Validation helpers ──────────────────────────────────────────
 
 
@@ -276,19 +299,11 @@ def action_list(
         filtered = [i for i in filtered if feat in (i.get("feature", "")).lower()]
     if stale_days is not None:
         today = date.today()
-        stale: list[dict[str, Any]] = []
-        for i in filtered:
-            checked = i.get("last_checked")
-            if checked:
-                try:
-                    checked_date = date.fromisoformat(checked)
-                    if (today - checked_date).days >= stale_days:
-                        stale.append(i)
-                except (ValueError, TypeError):
-                    stale.append(i)
-            else:
-                stale.append(i)
-        filtered = stale
+        filtered = [
+            i
+            for i in filtered
+            if _is_stale(i, today, stale_days, missing_is_stale=True)
+        ]
 
     msg = f"Found {len(filtered)} issues"
     return _ok(
@@ -480,18 +495,10 @@ def action_stats(
     """Summary dashboard."""
     by_category: Counter[str] = Counter(i.get("category", "unknown") for i in issues)
     by_status: Counter[str] = Counter(i.get("status", "unknown") for i in issues)
-    stale_count = 0
     today = date.today()
-
-    for issue in issues:
-        checked = issue.get("last_checked")
-        if checked:
-            try:
-                checked_date = date.fromisoformat(checked)
-                if (today - checked_date).days >= 7:
-                    stale_count += 1
-            except (ValueError, TypeError):
-                stale_count += 1
+    stale_count = sum(
+        1 for i in issues if _is_stale(i, today, 7, missing_is_stale=False)
+    )
 
     blocking = [
         {

@@ -248,7 +248,7 @@ if [[ -n "$VIOLATIONS" ]]; then
     printf 'in secret-pattern-detection.sh. Never commit real secrets — use\n'
     printf 'environment variables, settings.local.json, or a secret manager.\n'
   } >&2
-  labels_json=$(printf '%s\n' "${LABELS[@]}" | jq -R . | jq -s . 2>/dev/null) || labels_json='[]'
+  labels_json=$(printf '%s\n' "${LABELS[@]}" | jq -Rn '[inputs]' 2>/dev/null) || labels_json='[]'
   emit_tel "blocked" "$labels_json"
   exit 2
 fi

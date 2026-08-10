@@ -29,6 +29,14 @@ function fail(path, message) {
 
 const pluginRoot = join(root, "plugins");
 const pluginFiles = filesUnder(pluginRoot);
+
+// Every plugin file under `directory`, taken from the single plugins/ walk
+// above rather than walking the subtree again — same set, same order, one
+// traversal instead of one per checked subtree.
+function filesIn(directory) {
+  return pluginFiles.filter((path) => path.startsWith(directory + sep));
+}
+
 const setupSkills = pluginFiles.filter((path) =>
   /[\\/]skills[\\/]setup[\\/]SKILL\.md$/.test(path),
 );
@@ -99,7 +107,7 @@ for (const plugin of ["discovery", "planning", "implementation"]) {
   if (existsSync(manifest) && /"notes_dir"\s*:/.test(read(manifest))) {
     fail(manifest, "shared project artifact locations cannot use personal userConfig");
   }
-  for (const path of filesUnder(join(pluginRoot, plugin, "skills"))) {
+  for (const path of filesIn(join(pluginRoot, plugin, "skills"))) {
     if (path.endsWith(".md") && /\$\{user_config\.notes_dir\}/.test(read(path))) {
       fail(path, "lifecycle skills must use the shared repository artifact protocol");
     }
@@ -132,12 +140,14 @@ for (const legacyPath of [
   join(aiBriefingRoot, "skills", "generate", "scripts"),
   join(aiBriefingRoot, "skills", "generate", "seed"),
 ]) {
+  // filesUnder, not filesIn: this probes paths that must NOT exist, so it has
+  // to look at the filesystem rather than at a walk that already excluded them.
   if (filesUnder(legacyPath).length > 0) {
     fail(legacyPath, "legacy automated-X collectors must not be shipped");
   }
 }
 
-const aiBriefingFiles = filesUnder(aiBriefingRoot);
+const aiBriefingFiles = filesIn(aiBriefingRoot);
 const automatedXTokens =
   /--refresh-following|--grok-preload|following-list\.json|chrome-extract|per-profile-runner|grok-capture|mcp__claude-in-chrome/i;
 for (const path of aiBriefingFiles.filter((path) => /\.(?:js|json|md|sh)$/.test(path))) {
@@ -179,7 +189,7 @@ const aiBriefingBuildRoot = join(
   "output",
   "build",
 );
-for (const path of filesUnder(aiBriefingBuildRoot).filter((path) => path.endsWith(".js"))) {
+for (const path of filesIn(aiBriefingBuildRoot).filter((path) => path.endsWith(".js"))) {
   if (/fonts\.googleapis|fonts\.gstatic|cdn\.jsdelivr\.net|simple-icons@latest|networkidle/i.test(read(path))) {
     fail(path, "deterministic local rendering must not depend on remote assets or networkidle");
   }
@@ -221,7 +231,7 @@ if (existsSync(autonomyRoot)) {
   const fleetTokens = /melodic-software|ci-workflows|github-iac/i;
   const vendorTokens = /github|gitlab|bitbucket|slack|anthropic|claude|openai|copilot|cursor|devin/i;
   const autonomyReference = join(autonomyRoot, "reference") + sep;
-  for (const path of filesUnder(autonomyRoot)) {
+  for (const path of filesIn(autonomyRoot)) {
     let content = read(path);
     if (path.endsWith(`${sep}.claude-plugin${sep}plugin.json`)) {
       // Only the author block is exempt — description/keywords/etc. stay gated.

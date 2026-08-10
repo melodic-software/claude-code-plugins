@@ -99,6 +99,22 @@ wit_item_exists() {
   [[ -f "$(wit_item_file "$1")" ]]
 }
 
+# wit_item_numbers — every item number in the store, ascending. One spelling of the
+# whole-store walk for the verbs that enumerate it (list-items, list-sub-items), so
+# the file-name filter and the numeric ordering cannot drift between them. Basename
+# splitting is pure-bash: this runs once per stored file, and a `basename` fork per
+# item is the dominant cost of a large-store list on Windows/MSYS.
+wit_item_numbers() {
+  local f base
+  shopt -s nullglob
+  for f in "$WIT_STORAGE_DIR"/*.md; do
+    base="${f##*/}"
+    base="${base%.md}"
+    [[ "$base" =~ ^[0-9]+$ ]] || continue
+    printf '%s\n' "$base"
+  done | sort -n
+}
+
 # wit_next_number — max existing item file number + 1 (single-writer store).
 wit_next_number() {
   local max=0 f base n

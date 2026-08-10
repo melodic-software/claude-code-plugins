@@ -25,8 +25,15 @@ START=${EPOCHREALTIME:-}
 
 INPUT=$(hook::buffer_stdin) || exit 0
 
-TOOL=$(hook::jq_field "$INPUT" '.tool_name') || exit 0
-CMD=$(hook::jq_field "$INPUT" '.tool_input.command' || true)
+# Both payload fields in ONE jq process (hook::jq_fields), not two. A jq spawn is
+# ~140 ms of fork() emulation on Windows Git Bash. Failure semantics are
+# unchanged: a missing jq or an unparsable payload yields rc 1 here, which exits 0
+# exactly as the absent-tool_name skip did, and an absent `.tool_input.command`
+# still arrives as the empty string the subject helper already tolerates.
+hook::jq_fields "$INPUT" '.tool_name' '.tool_input.command' || exit 0
+TOOL="${HOOK_JQ_FIELDS[0]}"
+[[ -n "$TOOL" ]] || exit 0
+CMD="${HOOK_JQ_FIELDS[1]}"
 SUBJECT=$(hook::extract_bash_subject "$TOOL" "$CMD")
 
 DATA=$(jq -nc --arg subject "$SUBJECT" --arg tool "$TOOL" '{subject: $subject, tool: $tool}')
