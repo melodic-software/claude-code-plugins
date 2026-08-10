@@ -131,8 +131,8 @@ Stated so they are not re-raised as open:
 
 D1 cannot be locked without it. See RESEARCH §"Shape E in detail" and Open Question 6.
 
-**Where — `medley`.** Surveyed 2026-08-10 across `D:/repos/github.com/{melodic-software,kyle-sexton}`
-and `D:/worktrees`. `medley` is the only strong candidate: a real .NET + Aspire application
+**Where — `medley`.** Surveyed 2026-08-10 across the operator's local checkout roots for both GitHub
+orgs plus the shared worktree root. `medley` is the only strong candidate: a real .NET + Aspire application
 (`apps/aspire-host`, `apps/monolith-api`, `apps/identity-server`) — the exact orchestrator shape
 `run-e2e` was designed around — with the marketplace configured in `.claude/settings.json`,
 `playwright@melodic-software` already enabled, and **no `.claude/skills/verify/`**, so the bundled
@@ -143,7 +143,8 @@ This worktree does not qualify — docs-only, and `/verify` would correctly repo
 
 **Prerequisite — `testing@melodic-software` is not installed anywhere.** The user-level
 `~/.claude/settings.json` sets `testing`, `verification`, and `toolchain` to **`false`**, and no repo
-on the D drive overrides them. So `/testing:run-e2e` does not currently exist in any session, and the
+in the operator's local checkouts overrides them. So `/testing:run-e2e` does not currently exist in
+any session, and the
 briefing above would name a skill that cannot resolve. Enable it before running — project-level in
 `medley/.claude/settings.json` keeps the blast radius to one repo:
 

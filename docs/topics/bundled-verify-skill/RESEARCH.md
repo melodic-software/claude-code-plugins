@@ -390,10 +390,11 @@ cannot build. Our skill would:
 2. Detect the diff's surface.
 3. Emit one ready-to-run line for the user to press, e.g.
 
-   > `/verify` the auth-callback change on this branch. This repo has `/testing:run-e2e` (orchestrator
-   > + Playwright, evidence contract, recording config at `.claude/testing/e2e.md`) and
-   > `/playwright:playwright` — use them as your handle rather than cold-starting. They are plugin
-   > skills, so they will not appear in `ls .claude/skills/`.
+   > `/verify` the auth-callback change on this branch. This repo has
+   > `/testing:run-e2e` — orchestrator and Playwright, with an evidence contract and recording
+   > config at `.claude/testing/e2e.md` — and `/playwright:playwright`. Use them as your handle
+   > rather than cold-starting. They are plugin skills, so they will not appear in
+   > `ls .claude/skills/`.
 
 4. Consume the resulting report.
 
