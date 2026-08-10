@@ -53,7 +53,7 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
   spelling matched git's own, and was false for every nested file, which is why 0.11.1's test file
   records that the guard's inertness could not be made behaviourally observable. There is no longer
   an untestable branch to observe.
-||||||| 38bb041d
+
 ## [0.11.4]
 
 ### Fixed
