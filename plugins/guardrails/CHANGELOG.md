@@ -3,6 +3,8 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.2]
+
 ### Fixed
 
 - **`block-convention-violation` read the wrong repository's git config, so a commit whose
@@ -30,6 +32,24 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   is `commit` is now content-gated where it was waved through, and one whose alias exists only in
   an unrelated directory the scan used to compose is no longer blocked on an expansion git would
   never perform.
+
+
+- **A `!` shell alias lost the directory its invocation resolved to, so a prepared merge commit was
+  blocked instead of exempted.** Found in review of the above. A `!` alias body re-parses as a NEW
+  top-level command, and that fresh argv carries neither the wrapper that moved git nor git's own
+  globals — so `env -C <dir> git <alias>` resolved the alias in `<dir>` and then evaluated the alias
+  body's sequencer probe against the payload cwd. With a merge in progress in `<dir>`, the commit
+  git was about to make carries a prepared message and the guard documents an exemption for exactly
+  that; it was gated instead. `effective_dir` now falls back to `HOOK_EFFECTIVE_BASE`, which the
+  caller sets to the resolved directory around each `!` reparse and restores after — the mechanism
+  `block-noncanonical-commit.sh` already uses. Pre-existing, not introduced by the scoping fix above;
+  the fix simply made the path reachable enough to demonstrate.
+
+  What this composes is the caller's directory, where the sibling asks git for the alias's real
+  launch directory (git starts a `!` body at the work tree's top level). For this guard's two
+  consumers the two agree — `config --get` and `rev-parse --absolute-git-dir` answer identically from
+  anywhere inside one repository. They diverge only when a separate repository is nested below the
+  composed path, which is deliberately not modelled here.
 
 ## [0.25.1]
 

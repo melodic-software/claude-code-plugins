@@ -184,6 +184,36 @@ run "env -C <dir> git <alias>: wrapper chdir is replayed (blocked)" "$r" \
 run "env -C <dir> git <alias>: conforming subject still allowed" "$r" \
   $'env -C inner git qc -F - --cleanup=verbatim <<\'EOF\'\nABC-5: fine\nEOF' 0
 
+# --- a `!` shell alias must inherit the directory its invocation resolved to ---
+# Review finding on #2152. A `!` alias body re-parses as a NEW top-level command,
+# so its argv carries neither the wrapper that moved git nor git's own globals.
+# The wrapper's chdir was therefore dropped on the way in, and the alias body's
+# sequencer probe ran against the payload cwd: a prepared merge subject in the
+# moved-to repository was BLOCKED where the guard documents an exemption.
+#
+# Every case here pairs with one that must answer differently, because "exempt"
+# and "no sequencer" are indistinguishable if only the exempting case is asserted.
+r="$(newrepo "$TICKET")"
+d="$(subrepo "$r" inner)"
+git -C "$d" config alias.qc '!git commit -F - --cleanup=verbatim'
+git -C "$d" commit -q --allow-empty -F - --cleanup=verbatim <<'EOF'
+ABC-1: seed
+EOF
+touch "$(git -C "$d" rev-parse --absolute-git-dir)/MERGE_HEAD"
+run "! alias through a wrapper chdir sees the moved-to sequencer" "$r" \
+  $'env -C inner git qc -F - --cleanup=verbatim <<\'EOF\'\njunk subject\nEOF' 0
+
+# The discriminator: same command, same wrapper, same `!` alias — no MERGE_HEAD.
+# Without this, the case above passes for any reason that makes `!` aliases
+# unreachable, which is exactly how a dead fixture reads as a green one.
+r2="$(newrepo "$TICKET")"
+d2="$(subrepo "$r2" inner)"
+git -C "$d2" config alias.qc '!git commit -F - --cleanup=verbatim'
+run "! alias through a wrapper chdir, no sequencer: still gated" "$r2" \
+  $'env -C inner git qc -F - --cleanup=verbatim <<\'EOF\'\njunk subject\nEOF' 2
+run "! alias through a wrapper chdir, conforming subject allowed" "$r2" \
+  $'env -C inner git qc -F - --cleanup=verbatim <<\'EOF\'\nABC-5: fine\nEOF' 0
+
 # --- kill switch ---------------------------------------------------------------
 r="$(newrepo "$TICKET")"
 json=$(jq -n --arg c "$BAD_COMMIT" --arg d "$r" \

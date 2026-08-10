@@ -208,9 +208,26 @@ block_title() {
 # the guard then never learned the real subcommand and the convention went
 # unenforced. A post-subcommand `-C` is `--reuse-message`, not a directory, and the
 # distinction is purely positional.
+#
+# The base is HOOK_EFFECTIVE_BASE, not the payload cwd directly, because a `!`
+# shell alias's body re-parses as a NEW top-level command whose argv no longer
+# carries the wrapper that moved git. Without the fallback, `env -C <dir> git
+# <alias>` resolved the alias in <dir> and then evaluated the alias body's
+# sequencer probe against the payload cwd — so a prepared merge subject in <dir>
+# was BLOCKED where the docblock below promises an exemption. The caller
+# save/sets/restores it around each reparse.
+#
+# What this composes is the caller's directory, where the sibling
+# `block-noncanonical-commit.sh` asks git for the alias's real LAUNCH directory
+# (its `alias_launch_dir`, since git starts a `!` body at the work tree's top
+# level). For this guard's two consumers the two agree: both `config --get` and
+# `rev-parse --absolute-git-dir` answer identically from any directory inside one
+# repository. They diverge only when a SEPARATE repository is nested below the
+# composed path, which is the narrower case the sibling's extra probe exists for
+# and which is deliberately not modelled here.
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 effective_dir() {
-  local base="${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}" i n=$# arg
+  local base="${HOOK_EFFECTIVE_BASE:-${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}}" i n=$# arg
   local -a a=("$@")
   for ((i = 0; i < n; i++)); do
     arg="${a[i]}"
@@ -313,6 +330,12 @@ check_segment() {
   sub=$HOOK_GIT_SUB
   sub_idx=$HOOK_GIT_SUB_IDX
 
+  # The directory this segment's git actually runs in. Computed ONCE: it is the
+  # same answer for the alias lookup and the sequencer probe, and each call is a
+  # subshell this hook pays on every git command it sees.
+  local seg_dir
+  seg_dir="$(effective_dir ${wrapper_cd[@]+"${wrapper_cd[@]}"} "${w[@]:gi:sub_idx-gi}")"
+
   # Alias-expanded commits must be content-gated too (`git -c alias.c=commit c
   # -F - <<EOF` and persisted `git qc` aliases create commits) — mirror the
   # sibling mechanic guard's expansion: re-check every inline spelling, then
@@ -333,7 +356,13 @@ check_segment() {
         if [[ "$exp" == '!'* ]]; then
           reparse="${exp#!}"
           for a in "${w[@]:sub_idx+1}"; do reparse+=" $(printf '%q' "$a")"; done
+          # The body is a fresh top-level parse, so it carries no wrapper and no
+          # git globals. Hand it the directory this invocation resolved to, or
+          # the reparse silently restarts from the payload cwd.
+          local saved_base="${HOOK_EFFECTIVE_BASE:-}"
+          HOOK_EFFECTIVE_BASE="$seg_dir"
           hook::bash_parse_segments "$reparse" check_segment
+          HOOK_EFFECTIVE_BASE="$saved_base"
         else
           hook::env_s_split "$exp"
           expw=(${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"})
@@ -345,14 +374,17 @@ check_segment() {
     fi
     if ((inline_alias_handled == 0)) && [[ "$sub" != "commit" ]]; then
       local pexp
-      pexp=$(git -C "$(effective_dir ${wrapper_cd[@]+"${wrapper_cd[@]}"} "${w[@]:gi:sub_idx-gi}")" \
-        config --get "alias.$sub" 2>/dev/null)
+      pexp=$(git -C "$seg_dir" config --get "alias.$sub" 2>/dev/null)
       if [[ -n "$pexp" ]]; then
         if [[ "$pexp" == '!'* ]]; then
           local preparse pa
           preparse="${pexp#!}"
           for pa in "${w[@]:sub_idx+1}"; do preparse+=" $(printf '%q' "$pa")"; done
+          # Same reason as the inline `!` branch above.
+          local psaved_base="${HOOK_EFFECTIVE_BASE:-}"
+          HOOK_EFFECTIVE_BASE="$seg_dir"
           hook::bash_parse_segments "$preparse" check_segment
+          HOOK_EFFECTIVE_BASE="$psaved_base"
         else
           local -a pexpw=()
           hook::env_s_split "$pexp"
@@ -388,8 +420,7 @@ check_segment() {
 
   ((stdin_form)) || return 0
   ((exempt)) && return 0
-  sequencer_in_progress \
-    "$(effective_dir ${wrapper_cd[@]+"${wrapper_cd[@]}"} "${w[@]:gi:sub_idx-gi}")" && return 0
+  sequencer_in_progress "$seg_dir" && return 0
 
   local subj=""
   if [[ "$TOOL_NAME" == "PowerShell" ]]; then
