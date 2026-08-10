@@ -593,13 +593,24 @@ fi
 
 # --- Case group 21b: the two diff.renames configurations AGREE ----------------
 #
-# The property the whole candidate-set design exists to hold (#1590, #2098,
-# #2118): whether a file is caught is a function of the STAGED CONTENT, not of
-# the consumer's `diff.renames` setting. ONE fixture repo, run twice with
-# nothing changing between the runs but that single config key -- `false`
-# reports the destination as `A`, `copies` reports it as `C`, and both must
-# return the same answer. Against a copy arm gated on the source mode the two
-# disagree, which is the defect #2118 reports.
+# For the COPY arm (#1590, #2098, #2118): whether a copy destination is caught
+# is a function of the STAGED CONTENT, not of the consumer's `diff.renames`
+# setting. ONE fixture repo, run twice with nothing changing between the runs
+# but that single config key -- `false` reports the destination as `A`, `copies`
+# reports it as `C`, and both must return the same answer. Against a copy arm
+# gated on the source mode the two disagree, which is the defect #2118 reports.
+#
+# SCOPE -- this is asserted of the copy arm ONLY, and the rename arm
+# deliberately does NOT have the property. A rename off a `100644` shebang
+# source reads as `D`+`A` under `diff.renames=false` and IS reported, and as
+# `R100` under the default `diff.renames=true` and is NOT, so the same staged
+# content gets two answers there. That is not an oversight and the gate is not
+# presumed to be a bug: `repo19` pins a real false positive it prevents -- a
+# deliberately non-executable sourced library must not be flipped to `100755`
+# by being moved. Whether that trade is right on the DEFAULT config, and which
+# of the available policies to adopt, is the open decision tracked in #2141;
+# this case does not prejudge it and must not be widened to the rename arm
+# without going through that issue.
 #
 # `extra.sh` is an unrelated newly-added shebang file sorting AFTER `copy.sh`,
 # so its record follows the copy pair in the NUL stream. Asserting the EXACT
@@ -664,6 +675,38 @@ assert_contains "the spaced fixture really is a rename off a 100755 source" \
   "$(cd "$repo20" && git diff --cached --raw | head -n 1)" ":100755 100644"
 assert_eq "a rename destination is reported when BOTH paths contain spaces" \
   "new name.sh" "$(bash "$HELPER" --repo-dir "$repo20" --list 2>/dev/null)"
+
+# repo20 covers spaced paths on the RENAME arm only. The COPY arm reads the same
+# three fields through its own `read` calls, so it needs its own spaced case --
+# and the copy arm is now the one that admits unconditionally, so a field it
+# mis-reads becomes a WRONG path reported rather than a path silently dropped.
+# `core.quotepath` is set true (the git default) so the C-quoted-path form is
+# the one actually exercised; `--raw -z` is documented to defeat that quoting,
+# and this is what pins it.
+repo23="$(mkrepo)"
+(
+  cd "$repo23" || exit 1
+  git config core.filemode false
+  git config diff.renames copies
+  git config core.quotepath true
+  {
+    printf '#!/usr/bin/env bash\n'
+    for _ in $(seq 1 30); do printf 'echo line\n'; done
+  } >"tpl lib.sh"
+  git add "tpl lib.sh"
+  git commit -qm "seed the spaced non-executable copy source"
+  printf 'echo appended\n' >>"tpl lib.sh"
+  cp "tpl lib.sh" "tpl copy.sh"
+  git add "tpl lib.sh" "tpl copy.sh"
+) >/dev/null 2>&1
+
+spaced_copy_status="$(cd "$repo23" && git diff --cached --name-status | grep -c '^C' | tr -d ' \r')"
+if [[ "$spaced_copy_status" == "1" ]]; then
+  assert_eq "a copy destination is reported when BOTH paths contain spaces" \
+    "tpl copy.sh" "$(bash "$HELPER" --repo-dir "$repo23" --list 2>/dev/null)"
+else
+  skip_case "this git did not pair the spaced fixture as a copy"
+fi
 
 printf '\n%d case(s), %d failure(s)\n' "$CASE_NUM" "$FAILED"
 [[ $FAILED -eq 0 ]] || exit 1

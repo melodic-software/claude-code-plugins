@@ -8,8 +8,13 @@
 # rule, executable, so a composing session runs a command instead of remembering
 # a paragraph.
 #
-# WHAT IT REPORTS: every path staged as a NEW file (`A`) whose staged blob begins
-# with a `#!` shebang while its staged mode is 100644 (non-executable).
+# WHAT IT REPORTS: every path this change stages at a NEW index ENTRY whose
+# staged blob begins with a `#!` shebang while its staged mode is 100644
+# (non-executable). A new entry is NOT the same as the raw status letter `A`:
+# rename and copy detection rewrite those very entries, so a copy destination
+# (`C`) counts too, as does a rename destination (`R`) whose source was 100755
+# and therefore dropped the bit. See the candidate-set comment further down for
+# why `R` and `C` are judged differently.
 #
 # Deliberate scope limits, each matching the skill's documented reasoning:
 #   - Newly-added paths only. An already-tracked file that was already
@@ -82,8 +87,10 @@ Options:
   -- <path>...       Limit to these pathspecs (default for --list/--probe: whole staged set).
   -h, --help         This help.
 
-Reports staged NEW files (status A) whose staged blob starts with '#!' but whose
-staged mode is 100644. Symlinks and already-executable entries are skipped.
+Reports paths staged at a NEW index entry whose staged blob starts with '#!' but
+whose staged mode is 100644. A new entry is not just status 'A': a copy
+destination counts, as does a rename destination whose source was 100755.
+Symlinks and already-executable entries are skipped.
 EOF
 }
 
