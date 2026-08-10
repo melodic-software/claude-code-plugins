@@ -4,6 +4,9 @@ Pat Pattison - *Writing Better Lyrics* (2009), Appendix; extended via
 patpattison.com "Co-Writing" article for explicit four-rule No-Free-Zone
 session opener and seminar copy on technical-talk discipline.
 
+**The No-Free-Zone method originates with Stan Webb**, not with Pat — see
+§ Core idea. Credit it accordingly.
+
 ## Image inventory
 
 - *Writing Better Lyrics* (2009) Appendix: no linked images.
@@ -16,9 +19,29 @@ until both writers hear something worth keeping.
 
 > Silence is a request for more, more, more.
 
-Pattison frames the ideal co-writing room as a no-free zone: no idea is argued
-down in the moment. If a collaborator likes something, they say yes. If they do
-not like it, they stay silent and let more ideas arrive.
+The no-free zone: no idea is argued down in the moment. If a collaborator likes
+something, they say yes. If they do not like it, they stay silent and let more
+ideas arrive.
+
+**The method is not Pat's, and the Appendix is emphatic about that.** It is
+Stan Webb's — Pat's first professional co-writer, who taught it to him at the
+start of a Nashville session, and whom the Appendix thanks by name. Pat's
+contribution is carrying it into Berklee's classrooms and adding one rule of
+his own (§ Stay inside the song). Attribute it to Stan Webb when coaching from
+this material; a writer told "Pat's rule" is being told something the source
+takes visible care to credit elsewhere.
+
+Two details of the original telling that carry the rule's logic:
+
+- **The dumbest idea is load-bearing, not merely tolerated.** The chain runs
+  dumb idea → less dumb idea → decent idea → great idea, and the Appendix
+  reports that its own session's best part came out of its dumbest idea. The
+  claim is causal: censor the first link and the last one never arrives.
+- **The closed door is literal before it is a metaphor.** Webb opened the
+  session by physically shutting the door and saying that nobody outside needs
+  to know how dumb either writer sounds. What it buys is named precisely:
+  nobody has to defend anything, so the only ideas that survive are the ones
+  both writers actively love — no arguments and no compromise.
 
 ## Closed-door safety
 
@@ -110,7 +133,9 @@ to lecture about it.
 - If the room freezes, restate that silence means "keep throwing ideas."
 - If someone starts defending a line, return to generation and ask for more
   options.
-- If the session becomes a craft lecture, ask what the character says next.
+- If the session becomes a craft lecture, ask what the character says next —
+  and read it as someone protecting a line they do not trust, not as a
+  discipline problem.
 - If compromise appears, keep generating until both writers can say yes.
 - If writing alone, park critique until the draft has enough material to revise.
 
@@ -142,7 +167,17 @@ someone slips.
    room they let writers defend lines with vocabulary instead of
    making lines better.
 
-> "Write crap. Lots of it. All the time. The more the better." — Pat
+Rules 3 and 4 are Pat's addition to Stan Webb's original two (say everything;
+silence means more, `yes` advances). The Appendix gives the reason they are
+needed, and it is diagnostic rather than stylistic: technical talk is usually
+**fear wearing academic robes** — a writer dressing up an idea they suspect is
+weak. Naming the effect does not improve the line. The Appendix's own phrasing
+is that a dumb idea is still dumb with professorial robes on. When a room
+starts explaining craft, treat it as a signal that someone is protecting a line
+they do not trust, not as a discipline lapse to be scolded.
+
+> "Don't be afraid to write crap — it makes the best fertilizer." — Pat
+> (*Writing Better Lyrics* (2009), Appendix)
 
 The rules are not soft suggestions. The room actually says them out
 loud at the start of the session. See
@@ -222,14 +257,25 @@ generative-self and critic-self:
   bad ideas without being shut down by critic-self
 - **Rule 2** (silence = more) — when critic-self is silent on an idea,
   generative-self keeps going
-- **Rule 3** (stay inside) — critic-self does not get to talk about
-  technique mid-write; it stays inside the song and the character
+- **Rule 3** (stay inside the song and the characters) — critic-self
+  stays with the character and the scene rather than rising to
+  commentary about the draft
 - **Rule 4** (no technical talk) — critic-self does not derail into
   craft analysis during drafting; that's a separate revision pass
 
-Pat: most writer's block is the inner critic refusing to honor Rule 1 or
+Most writer's block is the inner critic refusing to honor Rule 1 or
 Rule 4. The discipline is the same in co-write or solo — separate
 generation from revision; do not let critique kill the generative phase.
+
+**This section and § Solo applications above disagree, and § Solo applications
+is the stricter reading.** That section calls rules 2 and 3 co-write-only and
+maps just rules 1 and 4 onto solo work; this one maps all four. The Appendix
+supports the looser reading — it says outright that the discipline helps every
+time Pat writes, not only when co-writing, and names the inner critic as his
+most frequent co-writer. Treat all four as applicable solo, with the caveat
+that rule 2's spoken `yes` has no literal solo equivalent beyond keeping the
+line. What the Appendix does not do is rank them, so neither should coaching
+built on it.
 
 ## Cross-references
 

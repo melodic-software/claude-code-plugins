@@ -1,12 +1,15 @@
 # Co-Write Session Opener
 
-Use this prompt at the start of a co-writing session. Emits Pat
-Pattison's No-Free-Zone rules as a printable opener, plus the four
-session-protocol rules. Print it, post it, or read it aloud at the
-top of the session.
+Use this prompt at the start of a co-writing session. Emits the
+No-Free-Zone rules as a printable opener, plus the session protocol.
+Print it, post it, or read it aloud at the top of the session.
+
+The No-Free-Zone method is **Stan Webb's**, taught to Pat Pattison in his first
+professional co-write and carried by Pat into Berklee's classrooms; rules 3 and
+4 below are Pat's addition. See [co-writing](../research/co-writing.md).
 
 ```text
-=== Co-Write Session Opener — Pat Pattison's No-Free-Zone ===
+=== Co-Write Session Opener — the No-Free-Zone (Stan Webb, via Pat Pattison) ===
 
 Date: <date>
 Co-writers: <names>
@@ -15,13 +18,19 @@ Session goal: <draft a verse | finish chorus | block out form | etc.>
 
 Four rules — say these aloud at the open:
 
-1. No "no."
-   Say everything that comes to your head. No matter how dumb. Silence
-   in the room means "keep going." A spoken "yes" advances the line.
-   Defensiveness kills the song.
+1. Say everything that comes to your head, no matter how dumb.
+   The chain runs dumb idea -> less dumb idea -> decent idea -> great
+   idea. Censor the first link and the last one never arrives. Your
+   dumbest idea of the day may be the one the song is built on.
 
-2. Write crap. Lots of it. All the time. The more the better.
-   The good ideas hide inside the bad ones. We dig them out later.
+2. Nobody says "no." Silence means keep going; say "yes" out loud.
+   If you don't like an idea, stay quiet — silence is a request for
+   more, not a verdict. If you like one, say so. Nobody defends
+   anything, so the only ideas that survive are the ones we both
+   love: no arguments, no compromise.
+
+   Write crap. Lots of it. The more of it you write, the better your
+   chances of growing something wonderful.
 
 3. Stay inside the song and inside the characters.
    No meta-talk in the room. No "what are we doing", "is this any
@@ -31,7 +40,11 @@ Four rules — say these aloud at the open:
 4. No technical talk while drafting.
    No "that rhyme is family", "that's a deceptive closure", "that's
    tetrameter". Technical talk is for the revision pass, after the
-   draft exists.
+   draft exists. Naming the effect is usually fear in academic robes —
+   a dumb idea is still dumb with professorial robes on.
+
+Close the door. Nobody outside needs to know how dumb either of us sounds
+in here.
 
 Session structure:
 
@@ -92,8 +105,11 @@ Notes:
 - The opener is read aloud at session start by either writer.
 - Print or text the rules to both writers ahead of time.
 - The protocol is one suggested shape; adapt to the room.
-- The protocol is co-write only; it is not a solo-writing
-  discipline.
+- The session *protocol* (stages A-G) is co-write only. The four
+  *rules* are not: the Appendix says the discipline helps every time
+  Pat writes, and names the inner critic as his most frequent
+  co-writer. See [co-writing](../research/co-writing.md)
+  "Inner critic operating under No-Free Zone".
 
 See [co-writing](../research/co-writing.md) for the longer treatment
 and [workflows](../research/workflows.md) "Scenario 5".
