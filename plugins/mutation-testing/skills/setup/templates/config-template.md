@@ -21,9 +21,12 @@ tool: <tool-id>
 # its tooling differently (npm script, dotnet tool, gradle task, make target).
 command: <exact command, e.g. "npx stryker run">
 
-# The git ref the diff is taken against. Resolve this from the repository's own
-# default branch -- never hardcode main or master.
-diff-target: <ref, e.g. "origin/main">
+# The git ref the diff is taken against. Resolve it from the repository's own
+# default branch -- `git symbolic-ref --short refs/remotes/origin/HEAD` -- and
+# write the resolved value here. Never hardcode a branch name: this template is
+# forge- and ecosystem-agnostic, and a repo whose trunk is not the one you assumed
+# would silently scope every run to nothing.
+diff-target: <resolved from origin/HEAD>
 
 # Source roots to mutate. Exclude generated code, vendored directories, and test
 # code -- mutating tests measures nothing.
