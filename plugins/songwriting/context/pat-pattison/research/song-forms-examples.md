@@ -34,15 +34,18 @@ that carries the title.
 - Forward motion: lines 1-4 build expectation; the refrain payoff lands at
   the structural close, not at a chorus boundary
 
-**Bridge variant (same song, Chapter 5 demonstration):**
-Pat adds a bridge to demonstrate all three *Essential Guide to Lyric Form and Structure* (1991), Chapter 5 bridge functions
-point-by-point on a real song:
+**Bridge variant (same song, Chapter 6 demonstration):**
+Pat adds a bridge to demonstrate all three *Essential Guide to Lyric Form and
+Structure* (1991), Chapter 6 bridge purposes point-by-point on a real song:
 
-1. **Break monotony** — bridge contrasts the established verse structure
-2. **Different-size system** — bridge uses a phrase count or line length
-   not seen in the verses
-3. **New perspective** — bridge says something the verses haven't said,
-   not a restatement
+1. **Break monotony** — bridge contrasts the established verse structure, and
+   sets up the last verse as a contrasting section
+2. **Different-size song system** — with only verses, every song system is one
+   verse long. Adding the bridge creates a system that starts at the bridge and
+   ends when the last verse closes, so the lyric stops running same-size units.
+   The claim is about the *system's* size, not the bridge's own phrase count
+3. **New perspective** — the bridge lets the verse ideas "breathe" by moving to
+   a new angle, rather than restating them
 
 This is the book's clearest demonstration of bridge function as a
 multi-purpose tool, not a structural slot.
@@ -58,10 +61,16 @@ across three preceding lines.
 
 **Structural mechanics:**
 
-- Seven phrases of Common Meter in the verse (NOT eight — that's the trick)
-- The expected eighth phrase, which would close the verse with three-stress
-  resolution, is **deceptively withheld**
-- Instead, the verse's last phrase points forward — it does not close
+- **Eight phrases in the verse**, rhyming `x a x a x a b b`. The first six lock
+  the ear into Common Meter; the seventh only continues the pattern
+- Nothing is withheld in phrase *count*. The eighth phrase **arrives** — and
+  refuses both the three-stress Common Meter close and the rhyme resolution
+  the first seven have trained the ear to expect. That refusal is the
+  **Deceptive Closure**
+- Pat scopes it precisely: the last phrase, and the last phrase alone,
+  unbalances the section. Any three-stress phrase in that position would have
+  balanced it
+- So the verse's last phrase points forward — it does not close
 - Chorus delivers the withheld three-stress closure AND the title's rhyme
   payoff
 - Bridge (when present) is derived from a two-stress phrase hint already

@@ -3,6 +3,237 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.4]
+
+A source-fidelity pass over *Essential Guide to Lyric Form and Structure*
+(1991) Chapter 3 (Rhythm), read in full with **all 59 of its figures**, against
+`meter.md` and `prosody.md`. This chapter is the book's densest and it argues
+almost entirely in page scans, so the figures are where nearly every finding
+below came from. Paraphrase only; no chapter prose, example lyrics, or exercise
+answers reach this public repository.
+
+### Fixed
+
+- **`meter.md`'s image inventory said this chapter has "no linked page-scan
+  images." It has 59 references across 56 unique figures.** This is the **third**
+  chapter whose inventory carried that exact falsehood, after Chapter 6 (37
+  figures) and Chapter 5 (32) in 0.8.3. Every scansion, all three Paradigms, the
+  4/4 bar settings, and all four filled-in Structural Pentad worksheets exist
+  only as images. The two corrections immediately below were invisible to a
+  text-only reader and both survived a full prior pass because of that one line.
+- **The scansion worked example marked the wrong number of stresses.** "When I
+  got home the house was dark" was scanned with "got" stressed, giving four
+  stresses. Pat's figure marks "when," "I," and "got" all unstressed: **three
+  stresses**. The code block also contradicted the file's own prose two lines
+  below it, which already described "got" as a grey-area syllable. This is the
+  model scansion the skill hands users, so it was teaching the error.
+- **"Too cold" was defined as a stress failure. It is not a stress failure at
+  all.** `meter.md` had it as "an unstressed syllable where the structure wants
+  stress." Pat's too-cold example preserves the model's stress map exactly; what
+  fails is that the important positions are filled with semantically empty
+  words. The two Goldilocks states test **two independent things** — the stress
+  map, and what stands on each strong position — and "just right" requires both.
+  A rewrite can scan perfectly and still be dead, which is precisely the failure
+  a stress-only audit cannot see. `meter.md` already stated this correctly in its
+  pattern-matching section; the later section contradicted it. **Fifth file found
+  with the correct-early / wrong-late duplication shape**, after `song-forms.md`,
+  `co-writing.md`, and `phrasing.md`.
+- **The emitted Pentad worksheet offered values that are not in Pat's
+  worksheet.** Balance was `balanced | unbalanced` where the source's closed list
+  is **symmetrical | asymmetrical**, and Closure offered a third value,
+  `leans forward`, where the source is **binary: closed | open**. The file's own
+  summary section had both right; the copy-paste block users actually receive had
+  both wrong. Value lists are now stated as closed lists, with a filled-in table
+  for all three Paradigms.
+- **The Pentad's cross-domain claim generalized past its evidence — in a section
+  a previous release had already corrected.** Pat names three surfaces:
+  rhythmic, rhyme, and *musical*. `meter.md` split the third into "melodic
+  structure" and "harmonic structure (chord pattern stability per pentad
+  property)," inventing per-surface criteria that are not in the source. 0.8.2
+  fixed a different defect in this same section and the overreach survived.
+  Readers wanting melody- or harmony-specific stability criteria are now pointed
+  at `stable-unstable-meta.md`, which genuinely carries them.
+- **"Greedy spot" was defined inconsistently across five files, and its scope
+  turns on a frame nothing stated.** Matching a lyric to a *model lyric*, greed
+  is **one-directional** — stressed syllables in unstressed positions, the
+  too-hot failure only; Pat names the opposite error separately as "too cold"
+  and never calls it greed. Matching a lyric to a *melody*, **either** direction
+  is a greedy spot, since a stressed syllable on a weak beat and an unstressed
+  syllable riding a strong one both fight the bar. Three distinct failures,
+  three distinct fixes — and too cold is caught by no stress check at all.
+  `meter.md`, `prosody.md`, `audit-checklist.md`, `lyric-melodic-roadmaps.md`,
+  and `skills/meter-prosody/SKILL.md` now each name their frame.
+  `skills/meter-prosody/SKILL.md` had also carried a definition attributable to
+  no source, "too many syllables for the melodic slot."
+- **`lyric-melodic-roadmaps.md` contradicted itself on the same term.** Its
+  definition covered only stressed-on-weak while its own worked example
+  diagnoses an unstressed syllable riding a strong beat as a greedy spot. The
+  definition now covers both directions. Pre-existing; surfaced by review.
+- **The skill handler still called "too cold" the reverse of greed.** After the
+  frame split above, `skills/meter-prosody/SKILL.md` introduced too-cold as "the
+  reverse case," reasserting the single-axis reading this release exists to
+  remove — in the one file that drives behavior rather than documents it. Too
+  cold is **orthogonal**, not a mirror image: the stresses land correctly and no
+  stress check of any kind finds it. Now stated as an explicit negative, since
+  merely softening the connective leaves the scan-for-it instinct in place.
+- **Two categorical claims had been softened into hedges.** Three-syllable words
+  with middle primary stress have **no** secondary stress, not "may be no"; words
+  of four or more syllables **always** carry secondary stress, not "normally."
+- **`demo-review.md` attributed the Pentad to `five-compositional-elements.md`.**
+  That is the two-lists confusion 0.8.2 fixed in `meter.md`; it survived here.
+  The Pentad (balance, pace, flow, closure, type of closure) lives in `meter.md`;
+  the Elements are a different five-item list naming the levers.
+- **A header note claimed Pat has no notation for unstressed syllables.**
+  `meter.md` stated that "Pat's own source notation uses only `/` and `//`" and
+  that the `u` marker "is not in Pat's text." Pat marks unstressed syllables with
+  a breve throughout, and this chapter's exercises ask for that "slight cup" over
+  the vowel by name. `u` is an ASCII stand-in for it, not an addition.
+
+### Added
+
+- **Phrase length measured in stressed syllables now shows the inversion.** The
+  file said an extra weak syllable "may not change the structural weight," which
+  understates the source: an 8-syllable / 4-stress phrase is **longer** than a
+  9-syllable / 3-stress phrase. Raw syllable count can rank a pair backwards,
+  which is the entire reason this method counts stresses.
+- **The rule for counting secondary stress when scanning.** A secondary stress
+  counts as a stress. Without it the file's own common-meter example miscounts as
+  three stresses instead of four, and the paradigms break on any multi-syllable
+  word.
+- **The rule that unstressed pickups do not change the pattern.** Anacrusis at
+  the head of a line leaves a 4/3/4/3 stanza at 4/3/4/3.
+- **The third deceleration case.** The file covered only triple-to-duple. *Any*
+  reduction in unstressed syllables decelerates, including dropping them entirely
+  so stresses fall adjacent. The single mechanism behind both directions — strong
+  stresses hold their musical positions while the space between them crowds or
+  opens — is now stated once, where the effect is described.
+- **Paradigm 1 stated in triples alongside duples**, which is the cleanest proof
+  that the paradigms are defined by stress count rather than syllable count, and
+  is what the chapter's own exercises drill.
+- **The one-word demonstration inside the common-meter example.** Lengthening
+  line two to four stresses makes the first two lines balanced and stoppable;
+  leaving it at three is what makes the form move. This claim exists only in a
+  figure — the surrounding prose is a dangling reference to it — and it is also
+  the bridge to Paradigm 2.
+- **A note that Paradigm 3 still closes.** Deception is a property of the type
+  row, not the closure row, and it works only because the resolving phrase length
+  is already present in the structure.
+
+### Notes
+
+- **Verified, no change needed:** the conventional-stress examples
+  (`incision`, `turbulent`, `understand`, `relinquish`) all match their figures,
+  and Chapter 3 does own Exercises 8-17 as `meter.md` claimed.
+- **Two open probes were aimed at the wrong chapter.** "Can't Fight This
+  Feeling" does not appear in Chapter 3; it appears in Chapters 1, 5, and 7, and
+  Chapter 1's use is a phrase-count argument, not the stress-pattern claim
+  `section-building.md` makes. "Years" appears in Chapters 2 and 5, not 3, so
+  `form.md`'s composite-balance claim must be checked against Chapter 5. Both
+  left unadjudicated rather than hedged.
+- `meter.md` is now a **third** file carrying duplicated parallel treatments of
+  the same material — two Pentad sections and two Paradigm sets. They were
+  reconciled here rather than folded together, since the duplication itself is
+  scoped as a separate restructuring follow-up alongside `song-forms.md` and
+  `phrasing.md`. That duplication is what allowed the worksheet and the summary
+  to disagree about Pentad values in the first place.
+
+## [0.8.3]
+
+A source-fidelity pass over *Essential Guide to Lyric Form and Structure*
+(1991) Chapters 1, 2, and 6, each read in full with every figure, plus
+Chapter 5's bridge and song-system material. **This opens Book 1** and settles
+the two claims the 0.8.2 pass had to leave standing. Paraphrase only; no
+chapter prose, example lyrics, or exercise answers reach this public
+repository.
+
+### Fixed
+
+- **"Four times is a lot" was credited to 1991 Chapter 6 as a shared warning.
+  It is 2009's alone.** Chapter 6, read in full with its 37 figures, never
+  discusses V/V/Ch/V/V/Ch, never counts verses, and never names four. Its
+  related claim is about pattern-size monotony, not verse-exposure count.
+  `song-forms.md` now scopes the warning to *Writing Better Lyrics* (2009),
+  Chapter 22, states what 1991 actually says instead, and attributes the bare
+  pull-quote that had been sitting uncited near the top of the file.
+- **"Southern Comfort" was read as seven phrases with the eighth withheld. The
+  verse has eight, and the eighth arrives.** The rhyme-column and scansion
+  figures are unambiguous: eight phrases rhyming `x a x a x a b b`. Nothing is
+  withheld in phrase *count* — the eighth phrase lands and refuses the
+  three-stress common-meter close and the rhyme resolution the first seven set
+  up, which is what makes it a Deceptive Closure. Corrected in
+  `song-forms-examples.md` and `song-forms.md`.
+- **The resulting standoff in `form.md` is dissolved, not re-hedged.** 0.8.2
+  recorded 2009 Chapter 20's "two common-meter systems" and the 1991 "seven
+  phrases" reading as two coexisting readings not to be merged. With the 1991
+  text verified, both books read **eight**; they differ only in vocabulary
+  (extra stress in the final phrase vs. deceptive closure). The instruction to
+  keep the counts apart is removed.
+- **Two image inventories claimed their 1991 chapter has no linked images.
+  Chapter 6 has 37 and Chapter 5 has 32, and in both the figures carry the
+  argument.** The scansion and rhyme-column analysis lives in the figures while
+  the text layer trails off at dangling colons. `song-forms.md`'s false entry is
+  how the seven-phrase error survived a previous pass; `form.md` carried the
+  same falsehood for Chapter 5. Both now state the real count. `form.md`'s entry
+  also records that Chapter 5 has *not* been read in full, so claims sourced to
+  it are not mistaken for verified.
+- **The three bridge functions were cited to Chapter 5; they are Chapter 6's.**
+  Book 1 carries two different bridge lists and the plugin had merged their
+  labels. `bridge.md` now cites Chapter 6 for the three purposes, and records
+  Chapter 5's separate five-point characterization of what a bridge *is* so the
+  two stop being conflated. Same fix in `song-forms-examples.md` and
+  `song-forms.md`.
+- **"Different-size system" had been relocated from the song system to the
+  bridge.** Chapter 6's claim is about the *song system's* size, not the
+  bridge's own phrase count or line length — and Pat's word is **different**,
+  not shorter. The direction depends on the form: in verse/chorus a short
+  bridge makes the last system shorter so the final chorus arrives early, while
+  in verse/refrain and AABA the bridge-plus-final-verse system is *longer* than
+  the verse-only systems before it. Corrected in `bridge.md`, `form.md`, and
+  `templates/bridge-writing-prompt.md`.
+- **All four jointly loaded bridge consumers now agree.**
+  `/songwriting:song-form bridge` loads `bridge.md`, `form.md`,
+  `templates/bridge-writing-prompt.md`, and `song-forms.md` together; the
+  Chapter 5 attribution and the phrase-count reading of function 2 survived in
+  `form.md` and the template, so a single invocation would have supplied
+  contradictory sourcing and diagnostics.
+- **`phrasing.md` stated Chapter 1's spotlight use twice and got it wrong the
+  second time.** The early section has it right — the balancing position is the
+  last phrase of an *even* section, and stopping is what spotlights. The later
+  appended block said the balance *shift* is the spotlight, which is Chapter
+  1's third use, not its first. Fourth file found with this
+  correct-early/wrong-late shape.
+- **The even/odd balance rule was stated without either of Pattison's own
+  overrides.** Nesting can rescue an odd count (the five-phrase "Fathers and
+  Sons" verse seems balanced because two short phrases add up to one long one);
+  closure behavior can unbalance an even one ("Southern Comfort" at eight).
+  Applied mechanically, the bare rule misdiagnoses both of his examples.
+- **Acceleration and deceleration were presented as an exclusive choice.** The
+  "Slow Healing Heart" case speeds up, returns to pace, then slows; Pattison is
+  explicit that more than one blank gets filled. The practice method said to
+  pick one label.
+- **"The spotlight effect is multiplicative, not additive" is not Pattison's
+  claim.** He says the surprise phrase spotlights both lines, *especially* the
+  last. The invented framing and the dropped ranking are both corrected.
+- **Chapter 2's exercises were missing entirely.** `exercises.md` claims to
+  preserve the numbered series for Chapters 1-7, but ran 1, 2, 3, 4 and then
+  jumped to 8 — the gap is exactly Chapter 2's three. Added Ex 5 (label the
+  pace effect, filling more than one blank where earned), Ex 6 (complete a
+  section accelerating, then decelerating), and Ex 7 (contrast a whole section
+  by phrase length), generalized in the style of Ex 1-4.
+- Doubled year in two headings (`exercises.md`, `five-compositional-elements.md`)
+  left by a mechanical book-title substitution.
+
+### Added
+
+- `phrasing.md` — two unbalanced sections can balance each other; Pattison's
+  stated use for motion pairs one unbalanced section with another equally
+  unbalanced one, so odd sections need not be discharged by an even one.
+- `phrasing.md` — the reversal test: swap a verse pair and see whether the push
+  survives. If it does not change, the imbalance is not doing the work.
+- `song-forms.md` — Chapter 6 states its two form principles as a pair. AABA
+  runs on the limerick's principle and verse/chorus on Common Meter's, also
+  called the Ballad Stanza; only the first half was recorded.
+
 ## [0.8.2]
 
 A source-fidelity pass over `process.md`, `co-writing.md`, and the co-write

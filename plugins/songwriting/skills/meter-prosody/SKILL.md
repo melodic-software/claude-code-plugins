@@ -45,7 +45,16 @@ No action → route on context (a pasted line → `meter`; a "does this feel rig
   not scansion for its own sake.
 - Stability is a tool, not a verdict: name whether a section reads stable or unstable and whether
   that serves the section's job; the writer chooses.
-- Greedy spots (too many syllables for the melodic slot) route through `align-melody` + `prosody`.
+- Stress-alignment failures route through `align-melody` + `prosody`. Name the frame, because the
+  scope differs:
+  - **Lyric against a model lyric** (matching verse 2 to verse 1): "greed" is one-directional —
+    a stressed syllable forced into a position the model leaves unstressed. The chapter's other
+    failure, "too cold," is **not** a mirror-image stress error and is not a stress error at all:
+    the stresses land correctly and the strong positions carry filler. Do not scan for it; no
+    stress check finds it. Read what stands on each strong position instead.
+  - **Lyric against a melody**: a mismatch in *either* direction is a greedy spot — a stressed
+    syllable on a weak beat, or an unstressed syllable riding a strong one. Both distort the
+    natural shape of the language.
 
 ## Persistence and template overrides
 

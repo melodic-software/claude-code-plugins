@@ -429,10 +429,19 @@ for manifest in "${manifests[@]}"; do
   # — or falsely pre-exists — the release entry, and SemVer metacharacters
   # (1.0.1+build.1) never leak into a regex. A same-line "<!-- ## [x] -->" can
   # never match anyway (the heading is not at column one).
+  #
+  # The reader must consume ALL of its input, never exit on first match: this
+  # script runs under pipefail, and a reader that exits while rendered_lines is
+  # still writing kills the writer with SIGPIPE (exit 141), which pipefail then
+  # reports as the pipeline's failure — a FOUND heading misread as missing. A
+  # real changelog puts the newest heading near the top of a file larger than
+  # one stdio buffer, exactly the shape that loses the race (#2130 failed CI on
+  # a correctly documented bump); the small fixtures in the test suite fit in
+  # one buffer and can never trip it.
   heading="## [${head_version}]"
   has_heading() {
     rendered_lines - | awk -v h="$heading" '
-      index($0, h) == 1 { found = 1; exit }
+      index($0, h) == 1 { found = 1 }
       END { exit !found }
     '
   }
