@@ -1,5 +1,4 @@
 ---
-name: plan
 description: "Analyze code changes and produce a test plan — classify changed files by required test type, identify coverage gaps, and prioritize by regression risk. Use for 'test plan' / 'what needs testing', after /implementation:implement completes, or for PR-prep coverage verification; for writing the tests use /testing:write, for running them /toolchain:check."
 argument-hint: "[range or scope] (e.g., /testing:plan, /testing:plan HEAD~3, /testing:plan the auth module)"
 user-invocable: true

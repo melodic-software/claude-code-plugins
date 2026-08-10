@@ -1,5 +1,4 @@
 ---
-name: devils-advocate
 description: "Stress-test plans and proposals via systematic adversarial review — assumption extraction, evidence check, failure scenarios, operational gotchas — before implementation begins. Use for 'devil's advocate', 'stress test', 'poke holes', 'what could go wrong', new dependencies, infrastructure/CI/build changes, or any architecture decision with cross-module blast radius. An `incumbent` mode turns the same adversarial lens on the status quo — 'is there a better way now', 'should we still use X', 'reconsider the current approach', 'is the incumbent still the right choice' — surveying alternatives before a plan commits to keeping an existing tool or approach. Not for code correctness bugs or pre-PR verification."
 argument-hint: "[incumbent [target]] or [plan text or file path] — an optional leading deep/shallow sets research depth; works from conversation context if no argument given"
 user-invocable: true

@@ -1,5 +1,4 @@
 ---
-name: setup
 description: "Configure the toolchain plugin for this repository. check (read-only): report which ecosystems are configured and each one's resolved build/test/lint command surface, validating the tracked files against the contract schema. apply: interview the user, infer per-ecosystem commands from the repo layout, and write the tracked .claude/ecosystems/<ecosystem>.yaml files that /toolchain:check and /toolchain:lint resolve first. Use when: 'set up toolchain', 'configure build/lint commands', 'toolchain setup', /toolchain:check or /toolchain:lint reports it is falling back to bundled defaults, or a toolchain change needs recording. Actions: check (read-only verification, default) | apply (write the ecosystem command config). Re-runnable and safe."
 argument-hint: "check | apply [<ecosystem>]"
 user-invocable: true

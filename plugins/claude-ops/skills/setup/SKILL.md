@@ -1,5 +1,4 @@
 ---
-name: setup
 description: "Verify claude-ops's personal path configuration for this repository — where the known-issues registry and the skill-usage log resolve — and explain how to change them through Claude Code. Use when: 'set up claude-ops', 'configure claude-ops', 'claude-ops setup', 'where does the known-issues registry live', or 'where is skill usage logged'. Actions: check (read-only verification, default) | apply (route a reconfiguration once you've chosen a destination). Re-runnable and safe."
 argument-hint: "check | apply"
 user-invocable: true

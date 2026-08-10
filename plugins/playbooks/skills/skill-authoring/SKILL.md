@@ -1,5 +1,4 @@
 ---
-name: skill-authoring
 description: "Anthropic's internal skill-authoring playbook — 9 skill categories, gotchas-section pattern, progressive disclosure (SKILL.md hub + spoke files), description-as-trigger discipline, config.json first-run setup, persistent CLAUDE_PLUGIN_DATA storage, CLAUDE_EFFORT effort-aware behavior, helper scripts, on-demand session-scoped hooks, distribution, and composition. Use when: 'create a skill', 'write a skill', 'how to write SKILL.md', 'skill best practices', 'skill authoring', 'skill design', 'skill categories', 'skill types', 'skill structure', 'skill tips'."
 user-invocable: true
 disable-model-invocation: false

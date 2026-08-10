@@ -1,5 +1,4 @@
 ---
-name: reconcile
 description: "Retire finished off-thread work and reconcile this session's task ledger with reality — the prune-and-reconcile counterpart to keep-going's resume. Inventory the off-thread work this session spawned, inspect each item's REAL state, retire the genuinely finished, close the ledger items proven done, and report sibling-session liveness read-only. Auto-settles the provably-finished; GATES any kill of still-running work. Use when: 'reconcile the session', 'retire finished work', 'square up the task ledger', 'is anything still running that should be retired', 'close out finished tasks', 'prune done work', 'reconcile the ledger'. Boundary: 'is it stuck / pick it back up' is /session-flow:keep-going; a read-only 'where do we stand' glance is /session-flow:orient; making git/PR work durable before shutdown is /session-flow:clean-stop."
 user-invocable: true
 disable-model-invocation: false

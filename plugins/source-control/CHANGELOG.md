@@ -3,6 +3,91 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.51.0]
+
+### Removed
+
+- **The bare `/<skill>` alias for this plugin's skills.** Their `SKILL.md` files no longer
+  declare a frontmatter `name`. The field is optional and defaults to the directory name, so
+  declaring it only restated the path while registering a second, unnamespaced command — which
+  the slash-command picker then echoed back as `/plugin:skill (skill)`. Invoke a skill by its
+  namespaced command; the command itself is unchanged.
+
+## [0.50.0]
+
+### Changed
+
+- **The self-login exemption from the merge gate's unprotected-base hold is scoped to the
+  repository's default branch.** `babysit_merge.py` held a PR on an unprotected base — zero required
+  reviews AND zero required status contexts — only when its author was not a configured self login.
+  That exemption exists for the solo-owner repository whose default branch carries no rules, where
+  holding every PR would make the gate useless; it silently extended to *any* unprotected base, so a
+  self-authored pull request onto another branch merged under `worker`/`autopilot` with no required
+  check having governed it. The default branch's rules are the only ones such a merge would ever
+  face, and they never ran.
+
+  The hold now also fires for a self author whose base is not the repository's default branch, with
+  `--allow-unprotected` as the same deliberate override. A stacked pull request's upper layer is
+  exactly this shape (self-authored, base = the layer below), but so is any feature-onto-feature
+  merge — the gap did not depend on stacks and is not fixed by detecting them.
+
+  The default branch is read only once an unprotected base has cleared every other blocker, so
+  neither a protected-base run nor an already-held PR issues a request it did not issue before — a
+  fleet loop never pays that call per cycle for a PR it already knows is ineligible. A
+  repository-metadata read failure leaves the prior exemption standing rather than inventing a hold
+  from missing evidence.
+
+## [0.49.3]
+
+### Fixed
+
+- **`exec-bit-check.sh` keys its candidate set on a new index *entry*, not on the letter `A`
+  (#1590).** Rename and copy detection rewrite the very entries the check exists to catch: the same
+  staged file reports as `A <path>` with detection off and as `R<score> <old> <new>` or
+  `C<score> <src> <dst>` with it on. Rename detection is on by default (`diff.renames`), so the
+  script discarded those destinations and a newly added shebang file staged `100644` could be
+  committed non-executable purely as a function of the consumer's diff configuration. A pair
+  destination is now a candidate whenever its **source was `100755`** — the mode pairing that means
+  the bit was *dropped*, as `core.filemode=false` platforms produce on `mv`/`cp` plus `git add`. A
+  deliberately non-executable shebang file (a sourced library, a template) keeps `100644` on both
+  sides of a move and is left alone. The scan reads `git diff --cached --raw` rather than
+  `--name-status` for exactly this reason: only the raw record carries the source mode.
+
+- **`prune_babysit_worktrees.py` restores the gitfile on every path that leaves the directory
+  standing (#1331).** Restoration was keyed on `rmdir` raising, but two other survival paths bypass
+  it: the directory rescan after the unlink can itself raise, and a file appearing between the
+  unlink and the rmdir skips the removal without raising at all. Either way the directory outlived
+  the only record of its owning repository, turning a retryable failure into a permanent
+  `unresolved`. Restoration is now keyed on whether the removal actually happened, and its own
+  `Path.exists()` probe runs inside the guard — that call re-raises an `OSError` outside the
+  ignored not-found family, so a permission denial on the directory being rescued would otherwise
+  escape the `finally` and leave the pointer deleted.
+
+- **The conflict orchestrator revalidates the base *before* the final head check (#1355).**
+  `safety.md` requires the head check immediately before every push, but the base re-fetch — a
+  network round trip — sat between that check and the push, re-opening exactly the window the
+  check closes: a writer resetting the PR branch to an ancestor inside it would make the push a
+  valid fast-forward that silently restores the removed commits. The contract now runs base → head
+  → push in that order, with nothing between the head check and the push.
+
+- **The orchestrator's head checks carry an explicit remote target (#1355).** The orchestrator's
+  cwd is whatever the fleet run started from, never reliably the target repository, so a bare
+  `gh pr view <N>` either failed or read a same-numbered PR from the wrong repository. Both checks
+  now spell `GH_REPO=<owner>/<repo>`, as the worker contract already required for remote-only `gh`
+  calls.
+
+- **The `VALID (defer)` grounding rule states its no-tracker branch (#1633).** Grounding a deferral
+  mandates filing a work-item tracker item before the D5 reply, and the rule named no branch for the
+  consumer that has no tracker to file into — even though the same skill documents a tracker as an
+  optional adjacent capability whose absence must never block a phase. Reaching that branch never
+  actually stalled `full` mode (the degrade clause and a `VALID (fix now)` reclassification both
+  already escaped it); what was missing was the instruction saying so. It is now stated: with no
+  reachable tracker `VALID (defer)` is simply not an available disposition — fix the finding now, or
+  reply saying why the fix does not belong in this change, leave the thread unresolved, and report
+  it for the user to place. Carried on all three surfaces that state the filing mandate: the
+  canonical `review-discipline.md` §3 clause and its `pull-request` `SKILL.md` and `monitor.md`
+  restatements.
+
 ## [0.49.2]
 
 ### Fixed

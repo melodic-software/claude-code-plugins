@@ -3,6 +3,26 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.0]
+
+### Changed
+
+- **Check 1 no longer requires a frontmatter `name`.** The field is optional and defaults to the
+  directory name, which is already what the checker resolves a skill by. A declared name still has
+  to be kebab-case and match its directory — a divergent one silently relocates the invocation.
+- **Check 1 warns when a plugin skill's `name` repeats its directory.** There the field is not
+  inert: it registers the bare `/<name>` alongside the namespaced command, and the picker appends
+  that alias in parentheses to any row whose typed prefix matches it. Advisory, since a consumer may
+  want the bare alias.
+
+### Removed
+
+- **The bare `/<skill>` alias for this plugin's skills.** Their `SKILL.md` files no longer
+  declare a frontmatter `name`. The field is optional and defaults to the directory name, so
+  declaring it only restated the path while registering a second, unnamespaced command — which
+  the slash-command picker then echoed back as `/plugin:skill (skill)`. Invoke a skill by its
+  namespaced command; the command itself is unchanged.
+
 ## [0.14.1]
 
 ### Fixed

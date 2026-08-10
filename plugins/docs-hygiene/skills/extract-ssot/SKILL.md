@@ -1,5 +1,4 @@
 ---
-name: extract-ssot
 description: "Deduplicate repeated markdown content — rule files, skill bodies, ADRs, docs — into a single named source of truth and migrate every call site to cite it by exact heading. Use when the same prose, literal, or concept appears (or is reworded) across 3+ files: 'DRY this prose', 'extract a shared rule', 'single source of truth for X', a value-bump diff touching 3+ files — refuses extraction below the Rule of Three."
 argument-hint: "[identify|verify|plan|execute|batch|unwind] [<cluster-name>]"
 user-invocable: true

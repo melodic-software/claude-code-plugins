@@ -1,5 +1,4 @@
 ---
-name: lookup
 description: "Look up current library documentation, API references, and code examples via Context7 (ctx7 CLI or the Context7 MCP server — same backend) whenever a question names a library, framework, SDK, CLI tool, or cloud service, including API syntax, configuration, setup, and version-migration questions. Actions: lookup <library> <query> (default) | update (CLI upgrade + upstream drift check). For CLI/MCP setup, auth, and Windows gotchas, run /context7:setup."
 argument-hint: "[lookup <library> <query> | update] (default: lookup — e.g., /context7:lookup react \"useEffect cleanup\")"
 user-invocable: true

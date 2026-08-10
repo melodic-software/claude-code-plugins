@@ -1,5 +1,4 @@
 ---
-name: continue-in-background
 description: "Delegate the task to a fresh background agent that continues it NOW — produce a save-point, then launch a detached claude --bg session seeded with the resume prompt. Use when: 'continue in the background', 'continue this in the background', 'keep working in the background', 'delegate to a background agent', or the user is going AFK and explicitly wants the work to keep moving. Launches only on the user's explicit request — never self-elected."
 argument-hint: "[file|prompt] [topic] (e.g., /continue-in-background, /continue-in-background prompt, /continue-in-background file phase-3)"
 user-invocable: true
