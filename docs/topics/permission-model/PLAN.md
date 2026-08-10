@@ -245,7 +245,27 @@ never `git add -A`). An earlier draft of this plan cited line ranges and **every
 wrong within a day** — the file moved under them. Line-number citations into living files are
 forbidden in this plan; grep the section heading instead.
 
-### Phase 0: Discharge the fresh-docs mandate [TODO]
+### Phase 0: Discharge the fresh-docs mandate [DONE]
+
+**Completed 2026-08-10 — output: [`phase0-fresh-docs.md`](phase0-fresh-docs.md).** Eleven facts
+confirmed against pages fetched this session, five corrections to this plan, two open upstream
+discrepancies, and three claims moved to *not stated* that must not ship as fact. The corrections
+change downstream phases; the material ones are folded into the phase bodies below:
+
+- **Phase 1** — managed policy is a plist domain, a Windows **registry hive**, a JSON file, **and** a
+  `managed-settings.d/` drop-in directory, per OS. Not a jq-over-two-paths read. And
+  `.claude/settings.local.json` resolves **through worktrees to the main checkout**, with three stated
+  exceptions.
+- **Phase 4** — `autoMode.classifyAllShell` (v2.1.193+) suspends **every** Bash/PowerShell allow rule
+  when true, which inverts criterion 3's answer. No criterion covers it.
+- **Criterion 2** — the `v2.1.142` gate is **not stated** on any governing page, and neither is the
+  claim that `useAutoModeDuringPlan` is unread from shared project settings.
+- **Criterion 6** — the `Write(path)` item needs re-deriving; the page describes a different mechanic
+  (parameter-form rules on a tool's primary content field are ignored **and emit a startup warning**).
+- **Phase 6** — the no-`allowManagedAutoModeRulesOnly` claim is now confirmed by the governing page and
+  is no longer resting on an unverified research slice.
+
+### Phase 0 (original brief, retained for the record)
 
 `CLAUDE.md` names this non-negotiable and this work is squarely inside its scope: the plan edits a
 plugin manifest and the skills' whole contract surface is documented harness behavior. Every upstream
