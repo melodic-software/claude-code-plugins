@@ -514,7 +514,7 @@ fi
 # bash loop, run twice, dominates the elapsed time, so the number would report
 # the harness rather than the classification and go red under load for reasons
 # that have nothing to do with a regression. The linear property is pinned where
-# it can be measured honestly: the classify/ cases at the end of this file, which
+# it can be measured honestly: the classify/ cases below, which
 # time the classification filter in isolation and differentially.
 PARTIAL_N=2000
 : >"$STUB_REPO/partial-scale.txt"
@@ -586,7 +586,7 @@ fi
 # whole-hook runs these ceilings were timing have been observed at 11s, 62s, 74s
 # and 58s on this host, i.e. the number they reported was the harness and the
 # machine's load, never the classifier. The complexity gate now lives where it
-# can be measured — the classify/ cases at the end of this file.
+# can be measured — the classify/ cases below.
 #
 # One named constant replaces both thresholds, ~4x the worst whole-hook time
 # ever observed here (74s), on the same reasoning as #2080's HANG_GUARD_SECS:
@@ -705,7 +705,7 @@ fi
 # (#2138). Verified rather than assumed: with the depth quadratic re-introduced
 # in a copy of the hook, this fixture's output is BYTE-IDENTICAL to the current
 # implementation's — the two forms differ only in cost. The complexity gate is
-# therefore delegated to classify/depth at the end of this file, which measures
+# therefore delegated to classify/depth below, which measures
 # the same code path with the harness outside the measurement. What this case
 # owns is per-key attribution staying CORRECT at a depth no other fixture
 # reaches, and the run completing at all.
@@ -825,6 +825,237 @@ else
   fail "stub/telemetry: no envelope written"
 fi
 rm -f "$TELA"
+
+# ============================================================================
+# Classification complexity — measured on the FILTER, differentially
+# ============================================================================
+# POSITION IS LOAD-BEARING: this section must stay ABOVE the real-binary suite.
+# That suite's "no typos binary" branch prints a SKIP and `exit`s the script,
+# and the CI runner has no typos binary — so a section placed after it never
+# runs on the only platform that gates merges. It was placed there first and
+# CI's PASS=51 (against 103 locally) is what caught it. This section needs jq
+# and awk only, never a typos binary, so it belongs on this side of the gate.
+# The gate for both documented quadratics in typos-format.sh's classification
+# step (#2133, #2138). Every fixture above is blind to them: with either
+# quadratic re-introduced in a copy of the hook, `scale`, `scale-residual`,
+# `partial-scale` and `deep-residual` all produce BYTE-IDENTICAL output. The two
+# forms differ only in cost, so only a cost measurement can separate them.
+#
+# WHY THIS IS A CLOCK AND NOT A COUNT. The preferred instrument here is a
+# countable, load-invariant proxy — the `29 + 3N` grep spawns that settled the
+# skill-reference-verify finding on a host whose spawn cost swung 33x. It does
+# not exist for this code path, and that was established rather than assumed:
+#
+#   * Both quadratics live INSIDE one jq program. A PATH shim counts the same
+#     single jq spawn against either implementation, so there is no spawn law.
+#   * The regressed forms are C-level `index`/`indices` scans. They execute the
+#     same jq-level instructions as the hashed forms, so an interpreter-level
+#     operation count (jq's own `--debug-trace`) does not grow with them either.
+#   * Child CPU (`bash times`, user+sys) — the other half of the
+#     skill-reference-verify instrument — is unusable on this repository's
+#     Windows Git Bash host. Three probes: `sleep 0.5` reported 403ms of child
+#     CPU, `jq` over a 4.8-million-element array reported 15ms, and repeated
+#     identical runs reported 0ms and 325ms. The counters are not measuring the
+#     work, so nothing can be concluded from them here.
+#
+# So a clock is unavoidable, and it is spent the way #2080 spends one: NEVER as
+# an absolute ceiling, always DIFFERENTIALLY. Two arms of the same shape, CF_STEP
+# apart in size, timed back to back INSIDE a single jq process with jq's own
+# `now`, interleaved, each arm keeping the MINIMUM over CF_REPS. Every noise
+# source the deleted `-lt 10` ceilings were actually measuring is gone:
+#
+#   * the stub's per-line bash loop is not in the measurement at all — the
+#     filter is lifted out of the hook and fed synthetic finding sets directly;
+#   * process spawn, which on this host swung 205-1225ms for the SAME work and
+#     dominated every whole-hook timing, is paid once per row, outside both arms;
+#   * load is one-directional (it can only make an arm SLOWER), so a minimum
+#     over reps converges DOWN toward the true cost, and interleaving means a
+#     spike lands on both arms rather than on one;
+#   * the assertion is a RATIO, so a uniformly slower host cancels out.
+#
+# Measured on this host, min-of-3, current implementation vs each quadratic
+# re-introduced in a copy of the hook (the numbers this gate is sized against):
+#
+#   shape    step         current   attribution-quadratic   membership-quadratic
+#   -------- ------------ --------- ----------------------- --------------------
+#   depth    1000->4000       4.86x                  16.22x                4.39x
+#   depth    2000->8000       5.56x                  17.59x                4.19x
+#   depth    4000->16000      6.94x                  15.99x                4.04x
+#   breadth  1000->4000       4.36x                   3.97x               17.02x
+#   breadth  2000->8000       4.11x                       -               17.0x*
+#
+# Each shape sees exactly one of the two regressions, which is why both are
+# here. The current implementation is mildly SUPERLINEAR in depth (4.86 -> 5.56
+# -> 6.94 as N grows: the per-key `+= [line]` accumulator appears to copy), so
+# CF_SMALL_N/CF_BIG_N are pinned rather than "as large as affordable", and the
+# gate sits at 10x — 1.80x above the worst current reading at this size and
+# 1.76x below the best regressed one.
+# * the 2000->8000 breadth/membership arm was extrapolated from its 1000->4000
+#   measurement rather than run to completion; it costs ~7 minutes per rep.
+#
+# WHAT THIS GATE STILL DOES NOT CATCH, recorded here so a green run is not read
+# as more coverage than it is (both findings from an adversarial review of the
+# gate itself):
+#
+#   * A 4x step against a 10x gate separates quadratic (~16x) from linear (~4x)
+#     and nothing finer. A genuine O(n^1.5) regression lands near 8x and passes.
+#     Narrowing the gate is not free — the current implementation itself reads
+#     up to 6.09x here under load — so the honest bound is "quadratic", not
+#     "superlinear".
+#   * `depth` and `breadth` are the two PURE EXTREMES of a (distinct keys x
+#     repeats per key) space: one key by N repeats, and N keys by one repeat. A
+#     regression that only bites at moderate cardinality in BOTH dimensions
+#     (k ~ m ~ sqrt(N)) is invisible to both, because each quadratic's cost
+#     there is orders of magnitude below its cost at the extreme this fixture
+#     drives it to. No third shape was added because none was found that could
+#     be SHOWN to discriminate, and an undischarged fixture is the defect these
+#     cases exist to end.
+#   * The reach assertion below is necessary, not sufficient: a parse or
+#     separator fault that emptied the SCAN stream would also report 0/N while
+#     timing nothing. The extraction smoke assertion covers parse and separator
+#     handling on the same extracted filter, which is what closes that hole.
+#   * Both shapes are ALL-RESIDUAL, which is what makes the reach assertion
+#     sharp — and it means the applied array `$a` is empty in both. A quadratic
+#     on the APPLIED side (the `add` fold over per-group results, or the final
+#     `sort_by`) is therefore not gated here. Closing it needs a third shape
+#     with a large non-empty `$a`, and no quadratic is documented there today,
+#     so it is recorded rather than guessed at.
+CF_SMALL_N=2000
+CF_BIG_N=8000
+CF_STEP=$((CF_BIG_N / CF_SMALL_N))
+CF_REPS=5
+CF_GATE_X100=1000 # 10.00x — see the table above
+
+# spellchecker:off
+CF_AWK="$WORK/classify-extract.awk"
+cat >"$CF_AWK" <<'AWK'
+/jq -R -s -c --argjson max/ { cap = 1; next }
+cap && /^[[:space:]]*}'/ { sub(/'.*$/, ""); print; exit }
+cap { print }
+AWK
+
+CF_GEN="$WORK/classify-gen.awk"
+cat >"$CF_GEN" <<'AWK'
+# N all-residual findings, emitted twice: the scan stream, the marker, then the
+# residual stream — the exact two-stream document the hook feeds jq.
+# SHAPE=depth   -> ONE token repeated N times (per-KEY depth: the attribution
+#                  partition walks a residual line list N long, N times).
+# SHAPE=breadth -> N DISTINCT tokens (membership breadth: N keys are each looked
+#                  up against a residual set of N).
+# awk, not a bash loop: the generator must not cost more than the thing measured.
+BEGIN {
+  for (pass = 0; pass < 2; pass++) {
+    for (i = 1; i <= N; i++) {
+      tok = (SHAPE == "depth") ? "wnat" : ("wnat" i)
+      printf "{\"type\":\"typo\",\"path\":\"a\",\"line_num\":%d,\"byte_offset\":0,\"typo\":\"%s\",\"corrections\":[\"want\",\"what\"]}\n", i, tok
+    }
+    if (pass == 0) print "@@typos-format-split@@"
+  }
+}
+AWK
+# spellchecker:on
+
+# The filter is lifted out of the hook itself, so the benchmark can never drift
+# from the shipped implementation. Extraction failure is a FAILURE, never a
+# skip: an empty filter would make both arms instant and the ratio vacuous —
+# the "gate nothing can trip" shape both issues were filed about.
+CF_FILTER="$WORK/classify-filter.jq"
+awk -f "$CF_AWK" "$HOOK" >"$CF_FILTER"
+
+# The extractor takes the FIRST match of the anchor, and this file's own house
+# style narrates superseded implementations in comment blocks verbatim. A stale
+# copy of the classification invocation sitting above the live one would be
+# extracted instead — and it would still pass the smoke assertion below, because
+# a superseded-but-correct implementation classifies three findings identically.
+# The gate would then measure dead text while the live block drifted. So the
+# anchor must be UNIQUE, and that is asserted rather than assumed.
+CF_ANCHORS=$(grep -c -- 'jq -R -s -c --argjson max' "$HOOK")
+if [[ "$CF_ANCHORS" == "1" ]]; then
+  ok "classify/extract: the classification anchor occurs exactly once in $(basename "$HOOK") — extraction cannot latch onto a superseded copy"
+else
+  fail "classify/extract: the classification anchor occurs $CF_ANCHORS times in $(basename "$HOOK"); the extractor takes the FIRST, which is no longer guaranteed to be the block that runs — re-anchor the extractor or drop the duplicate"
+fi
+
+# spellchecker:off
+CF_SMOKE=$(printf '%s\n%s\n@@typos-format-split@@\n%s\n' \
+  '{"type":"typo","path":"a","line_num":1,"byte_offset":0,"typo":"teh","corrections":["the"]}' \
+  '{"type":"typo","path":"a","line_num":2,"byte_offset":0,"typo":"wnat","corrections":["want","what"]}' \
+  '{"type":"typo","path":"a","line_num":2,"byte_offset":0,"typo":"wnat","corrections":["want","what"]}' |
+  jq -R -s -c --argjson max 10 -f "$CF_FILTER" 2>/dev/null |
+  jq -r '"\(.appliedCount)/\(.residualCount)/\(.applied[0].typo // "-")"' 2>/dev/null)
+CF_SMOKE_WANT="1/1/teh"
+# spellchecker:on
+if [[ "$CF_SMOKE" == "$CF_SMOKE_WANT" ]]; then
+  ok "classify/extract: the classification program lifted out of $(basename "$HOOK") runs and classifies ($CF_SMOKE)"
+else
+  fail "classify/extract: expected '$CF_SMOKE_WANT' from the extracted filter, got '$CF_SMOKE' — the jq program could not be lifted out of the hook, so nothing below measures the shipped code"
+fi
+
+# One jq process per row times both arms. `.appliedCount + .residualCount`
+# forces the ENTIRE pipeline (group_by, the per-key lookup, the partition and
+# the slice) rather than letting jq stop at a lazily-satisfied field.
+CF_BENCH="$WORK/classify-bench.jq"
+{
+  printf 'def classify: '
+  cat "$CF_FILTER"
+  printf ';\n'
+  cat <<'JQ'
+def timed(f): (now) as $t0 | (f | .appliedCount + .residualCount) as $_ | (now - $t0);
+[range(0; $reps) | {s: timed($small | classify), b: timed($big | classify)}]
+| "\((([.[].s] | min) * 1000000) | floor) \((([.[].b] | min) * 1000000) | floor)"
+JQ
+} >"$CF_BENCH"
+
+# classify_case <shape> <what this shape gates>
+classify_case() {
+  local shape="$1" gates="$2"
+  local small="$WORK/classify-$shape-$CF_SMALL_N.jsonl"
+  local big="$WORK/classify-$shape-$CF_BIG_N.jsonl"
+  local counts out small_us big_us ratio
+  awk -v N="$CF_SMALL_N" -v SHAPE="$shape" -f "$CF_GEN" >"$small"
+  awk -v N="$CF_BIG_N" -v SHAPE="$shape" -f "$CF_GEN" >"$big"
+
+  # Proof the arm reaches the branch it claims, not merely that jq exited.
+  # appliedCount 0 alongside residualCount CF_BIG_N is only producible if the
+  # per-key residual lookup RETURNED every one of that key's lines and the
+  # trailing slice consumed the whole cluster: a lookup that found nothing
+  # leaves the slice at .[0:] and reports all CF_BIG_N findings as APPLIED.
+  counts=$(jq -R -s -c --argjson max 10 -f "$CF_FILTER" <"$big" 2>/dev/null |
+    jq -r '"\(.appliedCount)/\(.residualCount)"' 2>/dev/null)
+  if [[ "$counts" == "0/$CF_BIG_N" ]]; then
+    ok "classify/$shape: the arm reaches the residual path — $CF_BIG_N residual, 0 applied (a lookup that missed would report all $CF_BIG_N as applied)"
+  else
+    fail "classify/$shape: expected '0/$CF_BIG_N' from the extracted filter, got '$counts' — this arm does not exercise $gates, so its timing gates nothing"
+    return
+  fi
+
+  out=$(jq -n -r --argjson max 10 --argjson reps "$CF_REPS" \
+    --rawfile small "$small" --rawfile big "$big" -f "$CF_BENCH" 2>/dev/null)
+  read -r small_us big_us <<<"$out"
+  if ! [[ "$small_us" =~ ^[0-9]+$ && "$big_us" =~ ^[0-9]+$ ]]; then
+    fail "classify/$shape: the benchmark produced no measurement (got '$out')"
+    return
+  fi
+
+  # Admissibility, as a LOWER bound so load can never flake it: a ratio taken
+  # against a base arm at the timer's noise floor measures the timer.
+  if ((small_us >= 2000)); then
+    ok "classify/$shape: base arm is measurable — $((small_us / 1000))ms at N=$CF_SMALL_N (lower bound; load can only raise it)"
+  else
+    fail "classify/$shape: base arm measured ${small_us}us, under the 2ms a ratio needs to mean anything — raise CF_SMALL_N on this host rather than trusting the ratio below"
+    return
+  fi
+
+  ratio=$((big_us * 100 / small_us))
+  if ((ratio < CF_GATE_X100)); then
+    ok "classify/$shape: ${CF_STEP}x the findings costs $((ratio / 100)).$(printf '%02d' $((ratio % 100)))x the time (linear ~${CF_STEP}x, quadratic ~$((CF_STEP * CF_STEP))x, gate $((CF_GATE_X100 / 100))x) — $gates is sub-quadratic"
+  else
+    fail "classify/$shape: ${CF_STEP}x the findings costs $((ratio / 100)).$(printf '%02d' $((ratio % 100)))x the time (${small_us}us -> ${big_us}us), at or over the $((CF_GATE_X100 / 100))x gate — that is the ~$((CF_STEP * CF_STEP))x shape of a quadratic $gates, not the ~${CF_STEP}x of a linear one"
+  fi
+}
+
+classify_case depth "the per-key attribution partition (the sort-over-\`index\` form, 31s at 10,000)"
+classify_case breadth "the residual membership lookup (the \`index\`-over-array form, 15.7s at 10,000)"
 
 # ============================================================================
 # Real-binary suite — wiring, config discovery, exclusion, kill switch
@@ -1143,230 +1374,6 @@ else
   fail "jq-absent (rc=$RC_NOJQ out=$OUT_NOJQ)"
 fi
 
-# ============================================================================
-# Classification complexity — measured on the FILTER, differentially
-# ============================================================================
-# The gate for both documented quadratics in typos-format.sh's classification
-# step (#2133, #2138). Every fixture above is blind to them: with either
-# quadratic re-introduced in a copy of the hook, `scale`, `scale-residual`,
-# `partial-scale` and `deep-residual` all produce BYTE-IDENTICAL output. The two
-# forms differ only in cost, so only a cost measurement can separate them.
-#
-# WHY THIS IS A CLOCK AND NOT A COUNT. The preferred instrument here is a
-# countable, load-invariant proxy — the `29 + 3N` grep spawns that settled the
-# skill-reference-verify finding on a host whose spawn cost swung 33x. It does
-# not exist for this code path, and that was established rather than assumed:
-#
-#   * Both quadratics live INSIDE one jq program. A PATH shim counts the same
-#     single jq spawn against either implementation, so there is no spawn law.
-#   * The regressed forms are C-level `index`/`indices` scans. They execute the
-#     same jq-level instructions as the hashed forms, so an interpreter-level
-#     operation count (jq's own `--debug-trace`) does not grow with them either.
-#   * Child CPU (`bash times`, user+sys) — the other half of the
-#     skill-reference-verify instrument — is unusable on this repository's
-#     Windows Git Bash host. Three probes: `sleep 0.5` reported 403ms of child
-#     CPU, `jq` over a 4.8-million-element array reported 15ms, and repeated
-#     identical runs reported 0ms and 325ms. The counters are not measuring the
-#     work, so nothing can be concluded from them here.
-#
-# So a clock is unavoidable, and it is spent the way #2080 spends one: NEVER as
-# an absolute ceiling, always DIFFERENTIALLY. Two arms of the same shape, CF_STEP
-# apart in size, timed back to back INSIDE a single jq process with jq's own
-# `now`, interleaved, each arm keeping the MINIMUM over CF_REPS. Every noise
-# source the deleted `-lt 10` ceilings were actually measuring is gone:
-#
-#   * the stub's per-line bash loop is not in the measurement at all — the
-#     filter is lifted out of the hook and fed synthetic finding sets directly;
-#   * process spawn, which on this host swung 205-1225ms for the SAME work and
-#     dominated every whole-hook timing, is paid once per row, outside both arms;
-#   * load is one-directional (it can only make an arm SLOWER), so a minimum
-#     over reps converges DOWN toward the true cost, and interleaving means a
-#     spike lands on both arms rather than on one;
-#   * the assertion is a RATIO, so a uniformly slower host cancels out.
-#
-# Measured on this host, min-of-3, current implementation vs each quadratic
-# re-introduced in a copy of the hook (the numbers this gate is sized against):
-#
-#   shape    step         current   attribution-quadratic   membership-quadratic
-#   -------- ------------ --------- ----------------------- --------------------
-#   depth    1000->4000       4.86x                  16.22x                4.39x
-#   depth    2000->8000       5.56x                  17.59x                4.19x
-#   depth    4000->16000      6.94x                  15.99x                4.04x
-#   breadth  1000->4000       4.36x                   3.97x               17.02x
-#   breadth  2000->8000       4.11x                       -               17.0x*
-#
-# Each shape sees exactly one of the two regressions, which is why both are
-# here. The current implementation is mildly SUPERLINEAR in depth (4.86 -> 5.56
-# -> 6.94 as N grows: the per-key `+= [line]` accumulator appears to copy), so
-# CF_SMALL_N/CF_BIG_N are pinned rather than "as large as affordable", and the
-# gate sits at 10x — 1.80x above the worst current reading at this size and
-# 1.76x below the best regressed one.
-# * the 2000->8000 breadth/membership arm was extrapolated from its 1000->4000
-#   measurement rather than run to completion; it costs ~7 minutes per rep.
-#
-# WHAT THIS GATE STILL DOES NOT CATCH, recorded here so a green run is not read
-# as more coverage than it is (both findings from an adversarial review of the
-# gate itself):
-#
-#   * A 4x step against a 10x gate separates quadratic (~16x) from linear (~4x)
-#     and nothing finer. A genuine O(n^1.5) regression lands near 8x and passes.
-#     Narrowing the gate is not free — the current implementation itself reads
-#     up to 6.09x here under load — so the honest bound is "quadratic", not
-#     "superlinear".
-#   * `depth` and `breadth` are the two PURE EXTREMES of a (distinct keys x
-#     repeats per key) space: one key by N repeats, and N keys by one repeat. A
-#     regression that only bites at moderate cardinality in BOTH dimensions
-#     (k ~ m ~ sqrt(N)) is invisible to both, because each quadratic's cost
-#     there is orders of magnitude below its cost at the extreme this fixture
-#     drives it to. No third shape was added because none was found that could
-#     be SHOWN to discriminate, and an undischarged fixture is the defect these
-#     cases exist to end.
-#   * The reach assertion below is necessary, not sufficient: a parse or
-#     separator fault that emptied the SCAN stream would also report 0/N while
-#     timing nothing. The extraction smoke assertion covers parse and separator
-#     handling on the same extracted filter, which is what closes that hole.
-#   * Both shapes are ALL-RESIDUAL, which is what makes the reach assertion
-#     sharp — and it means the applied array `$a` is empty in both. A quadratic
-#     on the APPLIED side (the `add` fold over per-group results, or the final
-#     `sort_by`) is therefore not gated here. Closing it needs a third shape
-#     with a large non-empty `$a`, and no quadratic is documented there today,
-#     so it is recorded rather than guessed at.
-CF_SMALL_N=2000
-CF_BIG_N=8000
-CF_STEP=$((CF_BIG_N / CF_SMALL_N))
-CF_REPS=5
-CF_GATE_X100=1000 # 10.00x — see the table above
-
-# spellchecker:off
-CF_AWK="$WORK/classify-extract.awk"
-cat >"$CF_AWK" <<'AWK'
-/jq -R -s -c --argjson max/ { cap = 1; next }
-cap && /^[[:space:]]*}'/ { sub(/'.*$/, ""); print; exit }
-cap { print }
-AWK
-
-CF_GEN="$WORK/classify-gen.awk"
-cat >"$CF_GEN" <<'AWK'
-# N all-residual findings, emitted twice: the scan stream, the marker, then the
-# residual stream — the exact two-stream document the hook feeds jq.
-# SHAPE=depth   -> ONE token repeated N times (per-KEY depth: the attribution
-#                  partition walks a residual line list N long, N times).
-# SHAPE=breadth -> N DISTINCT tokens (membership breadth: N keys are each looked
-#                  up against a residual set of N).
-# awk, not a bash loop: the generator must not cost more than the thing measured.
-BEGIN {
-  for (pass = 0; pass < 2; pass++) {
-    for (i = 1; i <= N; i++) {
-      tok = (SHAPE == "depth") ? "wnat" : ("wnat" i)
-      printf "{\"type\":\"typo\",\"path\":\"a\",\"line_num\":%d,\"byte_offset\":0,\"typo\":\"%s\",\"corrections\":[\"want\",\"what\"]}\n", i, tok
-    }
-    if (pass == 0) print "@@typos-format-split@@"
-  }
-}
-AWK
-# spellchecker:on
-
-# The filter is lifted out of the hook itself, so the benchmark can never drift
-# from the shipped implementation. Extraction failure is a FAILURE, never a
-# skip: an empty filter would make both arms instant and the ratio vacuous —
-# the "gate nothing can trip" shape both issues were filed about.
-CF_FILTER="$WORK/classify-filter.jq"
-awk -f "$CF_AWK" "$HOOK" >"$CF_FILTER"
-
-# The extractor takes the FIRST match of the anchor, and this file's own house
-# style narrates superseded implementations in comment blocks verbatim. A stale
-# copy of the classification invocation sitting above the live one would be
-# extracted instead — and it would still pass the smoke assertion below, because
-# a superseded-but-correct implementation classifies three findings identically.
-# The gate would then measure dead text while the live block drifted. So the
-# anchor must be UNIQUE, and that is asserted rather than assumed.
-CF_ANCHORS=$(grep -c -- 'jq -R -s -c --argjson max' "$HOOK")
-if [[ "$CF_ANCHORS" == "1" ]]; then
-  ok "classify/extract: the classification anchor occurs exactly once in $(basename "$HOOK") — extraction cannot latch onto a superseded copy"
-else
-  fail "classify/extract: the classification anchor occurs $CF_ANCHORS times in $(basename "$HOOK"); the extractor takes the FIRST, which is no longer guaranteed to be the block that runs — re-anchor the extractor or drop the duplicate"
-fi
-
-# spellchecker:off
-CF_SMOKE=$(printf '%s\n%s\n@@typos-format-split@@\n%s\n' \
-  '{"type":"typo","path":"a","line_num":1,"byte_offset":0,"typo":"teh","corrections":["the"]}' \
-  '{"type":"typo","path":"a","line_num":2,"byte_offset":0,"typo":"wnat","corrections":["want","what"]}' \
-  '{"type":"typo","path":"a","line_num":2,"byte_offset":0,"typo":"wnat","corrections":["want","what"]}' |
-  jq -R -s -c --argjson max 10 -f "$CF_FILTER" 2>/dev/null |
-  jq -r '"\(.appliedCount)/\(.residualCount)/\(.applied[0].typo // "-")"' 2>/dev/null)
-CF_SMOKE_WANT="1/1/teh"
-# spellchecker:on
-if [[ "$CF_SMOKE" == "$CF_SMOKE_WANT" ]]; then
-  ok "classify/extract: the classification program lifted out of $(basename "$HOOK") runs and classifies ($CF_SMOKE)"
-else
-  fail "classify/extract: expected '$CF_SMOKE_WANT' from the extracted filter, got '$CF_SMOKE' — the jq program could not be lifted out of the hook, so nothing below measures the shipped code"
-fi
-
-# One jq process per row times both arms. `.appliedCount + .residualCount`
-# forces the ENTIRE pipeline (group_by, the per-key lookup, the partition and
-# the slice) rather than letting jq stop at a lazily-satisfied field.
-CF_BENCH="$WORK/classify-bench.jq"
-{
-  printf 'def classify: '
-  cat "$CF_FILTER"
-  printf ';\n'
-  cat <<'JQ'
-def timed(f): (now) as $t0 | (f | .appliedCount + .residualCount) as $_ | (now - $t0);
-[range(0; $reps) | {s: timed($small | classify), b: timed($big | classify)}]
-| "\((([.[].s] | min) * 1000000) | floor) \((([.[].b] | min) * 1000000) | floor)"
-JQ
-} >"$CF_BENCH"
-
-# classify_case <shape> <what this shape gates>
-classify_case() {
-  local shape="$1" gates="$2"
-  local small="$WORK/classify-$shape-$CF_SMALL_N.jsonl"
-  local big="$WORK/classify-$shape-$CF_BIG_N.jsonl"
-  local counts out small_us big_us ratio
-  awk -v N="$CF_SMALL_N" -v SHAPE="$shape" -f "$CF_GEN" >"$small"
-  awk -v N="$CF_BIG_N" -v SHAPE="$shape" -f "$CF_GEN" >"$big"
-
-  # Proof the arm reaches the branch it claims, not merely that jq exited.
-  # appliedCount 0 alongside residualCount CF_BIG_N is only producible if the
-  # per-key residual lookup RETURNED every one of that key's lines and the
-  # trailing slice consumed the whole cluster: a lookup that found nothing
-  # leaves the slice at .[0:] and reports all CF_BIG_N findings as APPLIED.
-  counts=$(jq -R -s -c --argjson max 10 -f "$CF_FILTER" <"$big" 2>/dev/null |
-    jq -r '"\(.appliedCount)/\(.residualCount)"' 2>/dev/null)
-  if [[ "$counts" == "0/$CF_BIG_N" ]]; then
-    ok "classify/$shape: the arm reaches the residual path — $CF_BIG_N residual, 0 applied (a lookup that missed would report all $CF_BIG_N as applied)"
-  else
-    fail "classify/$shape: expected '0/$CF_BIG_N' from the extracted filter, got '$counts' — this arm does not exercise $gates, so its timing gates nothing"
-    return
-  fi
-
-  out=$(jq -n -r --argjson max 10 --argjson reps "$CF_REPS" \
-    --rawfile small "$small" --rawfile big "$big" -f "$CF_BENCH" 2>/dev/null)
-  read -r small_us big_us <<<"$out"
-  if ! [[ "$small_us" =~ ^[0-9]+$ && "$big_us" =~ ^[0-9]+$ ]]; then
-    fail "classify/$shape: the benchmark produced no measurement (got '$out')"
-    return
-  fi
-
-  # Admissibility, as a LOWER bound so load can never flake it: a ratio taken
-  # against a base arm at the timer's noise floor measures the timer.
-  if ((small_us >= 2000)); then
-    ok "classify/$shape: base arm is measurable — $((small_us / 1000))ms at N=$CF_SMALL_N (lower bound; load can only raise it)"
-  else
-    fail "classify/$shape: base arm measured ${small_us}us, under the 2ms a ratio needs to mean anything — raise CF_SMALL_N on this host rather than trusting the ratio below"
-    return
-  fi
-
-  ratio=$((big_us * 100 / small_us))
-  if ((ratio < CF_GATE_X100)); then
-    ok "classify/$shape: ${CF_STEP}x the findings costs $((ratio / 100)).$(printf '%02d' $((ratio % 100)))x the time (linear ~${CF_STEP}x, quadratic ~$((CF_STEP * CF_STEP))x, gate $((CF_GATE_X100 / 100))x) — $gates is sub-quadratic"
-  else
-    fail "classify/$shape: ${CF_STEP}x the findings costs $((ratio / 100)).$(printf '%02d' $((ratio % 100)))x the time (${small_us}us -> ${big_us}us), at or over the $((CF_GATE_X100 / 100))x gate — that is the ~$((CF_STEP * CF_STEP))x shape of a quadratic $gates, not the ~${CF_STEP}x of a linear one"
-  fi
-}
-
-classify_case depth "the per-key attribution partition (the sort-over-\`index\` form, 31s at 10,000)"
-classify_case breadth "the residual membership lookup (the \`index\`-over-array form, 15.7s at 10,000)"
 
 echo
 echo "PASS=$PASS FAIL=$FAIL"
