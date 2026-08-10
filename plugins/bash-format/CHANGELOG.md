@@ -3,7 +3,7 @@
 All notable changes to the `bash-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.7.2]
+## [0.7.3]
 
 ### Fixed
 
@@ -18,6 +18,20 @@ All notable changes to the `bash-format` plugin are documented here. Format foll
   flag would read "0" on every payload. Values themselves are unchanged — still stripped, so a
   scanning caller still sees everything after the NUL. This plugin's own hooks do not consult the
   new global, so their behaviour is unchanged. Synced from `lib/hook-utils.sh`.
+
+## [0.7.2]
+
+### Fixed
+
+- **Shared `hook-utils.sh`: `env -S` / `--split-string` no longer hides a whole command from the
+  git guards (#2124).** `-S` exists so a shebang line can pass OPTIONS to env
+  (`#!/usr/bin/env -S -i prog`), so the words it splits out are env's own arguments. The resolver
+  spliced them back into the scan but resumed at the COMMAND dispatcher, which read a leading
+  option in the split string as the command NAME and gave up — `env -S '-C <dir> git push --force'`
+  resolved to no git at all, so every guard built on `hook::git_resolve_index` skipped the command
+  unexamined. Parsing now resumes inside env's own option loop. That also keeps env's single chdir
+  slot last-wins across the splice, so `env -C a -S '-C b git …'` reports `b`, matching GNU env.
+  Synced from `lib/hook-utils.sh`.
 
 ## [0.7.1]
 

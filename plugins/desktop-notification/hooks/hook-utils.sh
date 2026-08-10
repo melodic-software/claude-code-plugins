@@ -1209,10 +1209,28 @@ hook::git_resolve_index() {
           # -S/--split-string re-splits its operand into argv (GNU env), so a
           # quoted 'git commit --no-verify' would otherwise hide from the
           # resolver as one non-git word. Splice the split words back into the
-          # scan and restart at the command position. The splice drops every
-          # word before `i`, this `env` included, so a chdir already recorded for
-          # it is not re-walked and stays recorded — which is right, because env
-          # performs that chdir whether or not -S rewrites the command.
+          # scan and resume. The splice drops every word before `i`, this `env`
+          # included, so a chdir already recorded for it is not re-walked and
+          # stays recorded — which is right, because env performs that chdir
+          # whether or not -S rewrites the command.
+          #
+          # Resume INSIDE env's own option loop (`continue`, not `continue 2`),
+          # because the split words are env's OWN arguments: `-S` exists so a
+          # shebang line can carry env options, and GNU documents exactly that
+          # (`#!/usr/bin/env -S -i some-program`). Restarting at the command
+          # dispatcher instead read a leading option in the split string as the
+          # COMMAND NAME and abandoned the whole segment — `env -S '-C <dir> git
+          # push --force'` resolved to no git at all, so every guard skipped a
+          # real force-push, and `env -S '-C <sha256-repo> git push
+          # --force-with-lease=main:<40-hex>'` skipped a lease against a movable
+          # ref name. Staying in this loop also keeps `env_ci` in scope, so
+          # `env -C a -S '-C b git …'` is last-wins in the one slot GNU env
+          # keeps, exactly as an unspliced `env -C a -C b` already is.
+          #
+          # Termination: each splice consumes the `-S` word and its operand and
+          # substitutes only the operand's own words, so the argv's byte count
+          # strictly decreases — a self-referential `env -S '-S -S'` runs out
+          # rather than looping.
           -S | --split-string)
             local sval=""
             ((i + 1 < n)) && sval="${w[i + 1]}"
@@ -1220,7 +1238,7 @@ hook::git_resolve_index() {
             w=(${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"} "${w[@]:i+2}")
             n=${#w[@]}
             i=0
-            continue 2
+            continue
             ;;
           -S* | --split-string=*)
             local sval="${etok#-S}"
@@ -1229,7 +1247,7 @@ hook::git_resolve_index() {
             w=(${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"} "${w[@]:i+1}")
             n=${#w[@]}
             i=0
-            continue 2
+            continue
             ;;
           -C | --chdir)
             ((i + 1 < n)) && hook::wrapper_chdir_record env_ci "${w[i + 1]}"

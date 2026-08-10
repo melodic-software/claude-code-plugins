@@ -2048,6 +2048,26 @@ resolve_dirs_are "sudo --chdir=DIR reports the chdir" "other" sudo --chdir=other
 resolve_dirs_are "sudo -C fd is not a chdir" "" sudo -C 3 git commit
 # Nested wrappers each contribute, in execution order, for the caller to compose.
 resolve_dirs_are "nested wrappers report both chdirs in order" "a|b" env -C a sudo -D b git commit
+# `-S` exists so a shebang line can pass OPTIONS to env (`#!/usr/bin/env -S -i
+# prog`), so the split words are env's own arguments and parsing must resume
+# inside env's option loop. Resuming at the command dispatcher read a leading
+# option in the split string as the COMMAND NAME and abandoned the segment
+# entirely — the resolver reported no git, and every guard skipped the command.
+resolve_dirs_are "env -S splices a chdir that belongs to env" "other" env -S '-C other git commit'
+resolve_dirs_are "env --split-string= splices a chdir that belongs to env" "other" env --split-string='-C other git commit'
+resolve_dirs_are "env -S with an attached operand splices the chdir" "other" env "-S-C other git commit"
+resolve_dirs_are "env -S with no leading option still resolves git" "" env -S 'git commit'
+# One env, one chdir slot: a -C inside the split string is last-wins against an
+# earlier one outside it, not cumulative.
+resolve_dirs_are "env -C first -S '-C second …' is last-wins in the one slot" "second" env -C first -S '-C second git commit'
+# A valueless clustered option inside the split string must not swallow the chdir.
+resolve_dirs_are "env -S '-v -C DIR git …' keeps the chdir" "other" env -S '-v -C other git commit'
+# Termination: a self-referential -S consumes itself rather than looping.
+if hook::git_resolve_index env -S '-S -S'; then
+  fail "env -S '-S -S' should resolve no git, resolved at $HOOK_GIT_RESOLVED_GI"
+else
+  ok "a self-referential env -S terminates and resolves no git"
+fi
 
 # --- resolve_read_slice: shell fixed-point division ---------------------------
 # The slice is produced by shell arithmetic rather than an awk spawn, and its
