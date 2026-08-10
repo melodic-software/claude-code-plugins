@@ -33,8 +33,14 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   real detection into a fail-open. Process substitution keeps the writer OUT of the pipeline, so
   `pipefail` can never see its SIGPIPE, while preserving the early exit the gate exists for.
   Verified empirically at every boundary size under `set -o pipefail`, in both the match and
-  no-match directions. The rule is now stated once and identically in `hook-utils.sh` and the
-  pattern lib, which previously contradicted each other inside the same plugin.
+  no-match directions. This also resolves a contradiction inside the plugin: the pattern lib told
+  readers to PREFER a here-string over `printf | grep`, while `hook-utils.sh` told them a whole
+  payload must never go through `<<<` because it blocks at the pipe capacity. The lib now states the
+  same rule as `hook-utils.sh` and cites it — a pipe when the reader drains its input (`jq`), process
+  substitution when the reader may exit early (`grep -q`). `hook-utils.sh` itself is left byte-identical
+  to `main`: its guidance was already correct, and the sync gate would require a version bump plus a
+  changelog entry for all fourteen other plugins that carry the shared lib in exchange for a
+  comment-only edit.
 
 - **The same deadlock in six command-scanning guards.** `block-convention-violation`,
   `block-hook-bypass`, `flag-commit-pr-skill-bypass`, and the shared PowerShell command lib fed the
