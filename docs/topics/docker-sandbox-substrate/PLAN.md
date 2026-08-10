@@ -157,9 +157,16 @@ Three additional legs close gaps a single-target exit-code test leaves open:
 - **Client readiness.** A boundary with no working TLS client would otherwise "pass" trivially — a
   missing tool is indistinguishable from a denied network. The same client must first succeed against
   an in-boundary endpoint; a client that cannot be shown to run yields UNPROVEN, never a pass.
-- **Multiple targets, one unguessable.** One denied destination does not establish default-deny: a
-  policy can allow specific hosts while denying the probed one. At least two targets are required, one
-  of them a randomized name no allowlist could have anticipated.
+- **Multiple targets under different operators.** One denied destination does not establish
+  default-deny: a policy can allow specific hosts while denying the probed one. At least two DISTINCT
+  external targets are required, each independently proven reachable from the outer context.
+
+  *Scope change, 2026-08-10, found at implementation.* ~~one of them a randomized name no allowlist
+  could have anticipated~~ — a randomized name cannot satisfy the recipe's existing outer-reachability
+  invariant (`outer_exit_code` must be `"0"`, because a target that fails everywhere "fails" inside too
+  and proves nothing). Unguessability and outer-reachability are mutually exclusive over DNS, and
+  outer-reachability is the older, load-bearing rule. Distinct operators is the nearest property that
+  survives it.
 - **Address family recorded, never inferred.** IPv4 and IPv6 are probed and recorded separately; an
   absent family is `not-applicable`, never counted as denied.
 
@@ -264,9 +271,21 @@ Criterion 3. Delivers the Q20 resolution above.
 - `node scripts/check-security-binding.fixtures.test.mjs` exits 0 with every pre-existing case's
   `findings_substrings` unchanged (diff the manifest: only ADDED keys, no MODIFIED `findings_substrings`
   on pre-existing cases).
-- `grep -c "workspace_host_write_contained" plugins/autonomy/skills/setup/templates/isolation-probe.md` ≥ 3.
-- `grep -rn "must fail to CONNECT\|SAME two assertions\|Two checks\|both assertions" plugins/autonomy/skills/setup/`
-  returns empty.
+- The template documents the assertion in both places that matter, asserted precisely rather than by
+  token count: `grep -c "Workspace host-write containment probe shape" templates/isolation-probe.md`
+  returns 1, and `grep -c "workspace_host_write_contained" templates/isolation-probe.md` returns ≥ 1
+  (the transcript capture shape).
+
+  *Correction, 2026-08-10, found at implementation.* The original `≥ 3` literal-token count was
+  arbitrary and failed against a template that documents the assertion correctly in prose. Padding the
+  document to satisfy the count would have been the wrong repair.
+- `grep -rn "SAME two assertions\|Two checks\|both assertions\|two assertions" plugins/autonomy/skills/setup/`
+  returns empty — every hardcoded assertion COUNT moved with the assertion set.
+
+  *Correction, 2026-08-10, found at implementation.* ~~`must fail to CONNECT`~~ was wrongly included
+  in this zero-match list. That phrase belongs to the CREDENTIAL assertion's metadata-endpoint clause,
+  where connection-level failure is still the correct requirement; only the EGRESS assertion changed.
+  Deleting it would have damaged sound contract text to satisfy a bad check.
 - `grep -rn "sbx\|Docker Sandboxes\|Multipass\|Hyper-V" plugins/autonomy/` returns empty.
 - A re-probe transcript exists under `.work/docker-sandbox-substrate/` recording the new
   `transport_outcome` and `workspace_host_write_contained` blocks from a live run.
