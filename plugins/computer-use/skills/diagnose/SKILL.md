@@ -1,7 +1,7 @@
 ---
 description: "Diagnose unexpected behavior from Claude Code's built-in computer-use MCP server (desktop screen control). Use when: 'computer use', 'control my screen', 'screenshot is blurry', 'why is the screenshot low resolution', 'zoom in on the screen', 'screenshot capture failed', 'empty capture', 'clicks are landing in the wrong place', 'the screensaver killed the session', 'UIPI', 'app is not in the allowed applications', 'escape is not closing this menu', or before driving a native desktop app. Resolves a symptom to a cause instead of retrying: the fixed screenshot pixel budget and when zoom recovers detail, the capture and input failure ladders, and the per-OS quirks that make synthesized input behave unlike a human's. Not for: browser work (use Claude in Chrome), shell work (use Bash), or a service with its own MCP server."
 when_to_use: "a screenshot, click, or keystroke did not do what you expected; sizing up the hazards before driving a native app unattended"
-argument-hint: "[quirks|screenshots] — omit for the symptom guide"
+argument-hint: "[screenshots|failures|quirks] — omit for the symptom guide"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -18,6 +18,17 @@ dedicated MCP over Chrome over screen control. **This skill does not restate any
 It carries only what the surface does *not* tell you and the model cannot derive: the shape of
 the screenshot budget, the failure modes that look like tool bugs but are environment state,
 and the per-OS input quirks that are invisible until they bite.
+
+## Arguments
+
+Parse `$ARGUMENTS`. Each value names one reference spoke; there are exactly three.
+
+| Argument | Loads |
+|---|---|
+| *(none)* | Nothing. Answer from the symptom guide below, and load a spoke only if the symptom needs it. |
+| `screenshots` | [reference/screenshots-and-zoom.md](reference/screenshots-and-zoom.md) — pixel budget, `zoom`, resolution guidance |
+| `failures` | [reference/failure-diagnostics.md](reference/failure-diagnostics.md) — the idle timer, capture and input ladders, probes |
+| `quirks` | The per-OS file for the machine you are on (see below) |
 
 ## Symptom guide (no file load needed)
 

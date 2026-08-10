@@ -56,6 +56,17 @@ numbers**:
 - display-off timeout;
 - sleep timeout.
 
+Probe **runtime state before configuration** — a registry or defaults read says a screensaver is
+configured, not that one is on screen now — and report both.
+
+**Platform coverage is uneven, and the check must say so rather than skip.** The diagnostics
+reference ships verified probe commands for Windows only. On macOS, no verified probe set ships:
+report this step as INFO-unverified, name the three settings the operator must read from System
+Settings themselves (screensaver idle delay, display sleep, require-password-on-wake), and state
+that the hazard is unchanged — synthesized input does not reset the idle timer on any platform.
+Never silently omit the step, and never substitute an unverified command as though it were
+checked.
+
 Grade against the work in front of you rather than an absolute: any timeout **shorter than the
 expected unattended run** is a FAIL, and one comfortably longer is a PASS. A 5-minute
 screensaver is fine for a two-minute task and fatal for a thirty-minute one.

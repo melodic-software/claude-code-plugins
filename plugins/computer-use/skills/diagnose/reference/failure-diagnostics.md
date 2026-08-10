@@ -43,23 +43,48 @@ Walk it in order; stop at the first hit.
 
 ### Windows probes
 
-<!-- portability-scope: Windows-only probe commands; the ladder above is platform-neutral and each platform supplies its own equivalents. -->
+**Configuration is not runtime state, and step 1 needs runtime state.** A registry read tells you
+a screensaver is *configured* and after how long; it does not tell you one is *on the screen right
+now*. Diagnosing a live `0x0` needs the latter, so probe runtime first and treat the registry as
+the follow-up that explains it.
+
+<!-- portability-ok: Windows-only probe commands; the ladder above is platform-neutral and each platform supplies its own equivalents. -->
 
 ```powershell
-# 2. Locked? LogonUI owns the secure desktop.
-Get-Process LogonUI -ErrorAction SilentlyContinue
+# 1a. RUNTIME: is a screensaver on screen right now? (SPI_GETSCREENSAVERRUNNING = 0x0072)
+Add-Type @'
+using System;using System.Runtime.InteropServices;
+public class SS { [DllImport("user32.dll")] public static extern bool SystemParametersInfo(uint a,uint b,ref bool c,uint d); }
+'@
+$running=$false; [void][SS]::SystemParametersInfo(0x0072,0,[ref]$running,0); "screensaver running: $running"
 
-# 1. Screensaver configured and currently running?
+# 1b. CONFIG: why it fired, and when it will fire again
 Get-ItemProperty 'HKCU:\Control Panel\Desktop' |
   Select-Object ScreenSaveActive, ScreenSaveTimeOut, 'SCRNSAVE.EXE', ScreenSaverIsSecure
+
+# 2. Locked? LogonUI owns the secure desktop.
+Get-Process LogonUI -ErrorAction SilentlyContinue
 
 # 3. Display and sleep timeouts (0 = never)
 powercfg /q SCHEME_CURRENT SUB_VIDEO VIDEOIDLE
 powercfg /q SCHEME_CURRENT SUB_SLEEP STANDBYIDLE
 
-# What actually holds a power request (requires an elevated prompt)
+# What actually holds a power request (requires an elevated prompt; exits non-zero otherwise)
 powercfg /requests
 ```
+
+A configured-but-not-running screensaver does **not** explain a current `0x0` — keep walking the
+ladder. It is still worth reporting, because it predicts when the session will die next.
+
+### macOS probes
+
+**None ship, and that is a declared gap rather than an oversight.** No macOS machine was available
+to verify a probe set, and this plugin does not ship platform specifics it has not run.
+
+On macOS, say so explicitly rather than skipping the step silently: report that the equivalent
+settings — screensaver idle delay, display sleep, and whether a lock is required on wake — must be
+read from System Settings by the operator, and that the ladder above still applies unchanged. The
+ladder is platform-neutral; only the probe commands are missing.
 
 **A locked-looking failure that reports "not locked" is the screensaver.** With
 `ScreenSaverIsSecure = 0` the screensaver takes the screen without locking the session, so a
