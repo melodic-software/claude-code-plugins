@@ -699,6 +699,90 @@
       "findings_substrings": [
         "verification_blocking.deterministic.C2: \"advisory\" weakens the shipped floor \"blocking\""
       ]
+    },
+    "probe-evidence-workspace-missing.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "does not record the workspace host-write containment assertion with outcome \"contained\""
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "probe-evidence-workspace-canary-visible.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "host_post_absent entry"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "probe-evidence-workspace-git-digest-changed.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "git_config_digest_post"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "probe-evidence-workspace-no-teardown.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "checked_after_teardown"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "probe-evidence-workspace-not-applicable.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "does not record the workspace host-write containment assertion with outcome \"contained\""
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "probe-evidence-workspace-canary-count.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "canaries"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "probe-evidence-egress-no-transport.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "assertions.egress_denied.transport_outcome"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "probe-evidence-egress-transport-count.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "assertions.egress_denied.transport_outcome"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "probe-evidence-egress-transport-token.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "assertions.egress_denied.transport_outcome entry"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "probe-evidence-egress-peer-match.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "inner_peer_fingerprint"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "probe-evidence-egress-single-target.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "a single probed target cannot establish default-deny egress"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "probe-evidence-egress-client-not-ready.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "client_ready"
+      ],
+      "credential_roots": "/home/runner"
     }
   },
   "quarantined": {},
@@ -719,6 +803,12 @@
     "ci-pool-a-l2-dot-traversal.json",
     "ci-pool-a-l2-drive-root.json",
     "ci-pool-a-l2-dummy-prefix.json",
+    "ci-pool-a-l2-egress-client-not-ready.json",
+    "ci-pool-a-l2-egress-no-transport.json",
+    "ci-pool-a-l2-egress-peer-match.json",
+    "ci-pool-a-l2-egress-single-target.json",
+    "ci-pool-a-l2-egress-transport-count.json",
+    "ci-pool-a-l2-egress-transport-token.json",
     "ci-pool-a-l2-encoded-loopback.json",
     "ci-pool-a-l2-expanded-loopback.json",
     "ci-pool-a-l2-expansion-ephemeral.json",
@@ -756,6 +846,12 @@
     "ci-pool-a-l2-transport-cross-type.json",
     "ci-pool-a-l2-unc-credpath.json",
     "ci-pool-a-l2-uri-host.json",
+    "ci-pool-a-l2-workspace-canary-count.json",
+    "ci-pool-a-l2-workspace-canary-visible.json",
+    "ci-pool-a-l2-workspace-git-digest-changed.json",
+    "ci-pool-a-l2-workspace-missing.json",
+    "ci-pool-a-l2-workspace-no-teardown.json",
+    "ci-pool-a-l2-workspace-not-applicable.json",
     "ci-pool-a-l2-zero-exit.json",
     "ci-pool-a-l2.json",
     "ci-pool-a-l3-container.json",

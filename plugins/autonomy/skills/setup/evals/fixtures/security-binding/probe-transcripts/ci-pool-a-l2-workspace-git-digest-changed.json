@@ -1,0 +1,41 @@
+{
+  "schema_version": "1",
+  "surface": "ci-pool-a",
+  "level": "L2",
+  "substrate": "egress-denied-container-pool",
+  "substrate_class": "container",
+  "probed_at": "2026-07-01T08:00:00Z",
+  "assertions": {
+    "egress_denied": {
+      "host": "example.com,iana.org",
+      "exit_code": "7,7",
+      "outer_exit_code": "0,0",
+      "transport_outcome": "tls-failed,connect-failed",
+      "outer_peer_fingerprint": "none,none",
+      "inner_peer_fingerprint": "none,none",
+      "client_ready": "0",
+      "address_families": "ipv4,ipv6",
+      "outcome": "denied"
+    },
+    "credentials_absent": {
+      "path": "$HOME/.netrc,http://169.254.169.254/metadata/instance",
+      "host_expanded": "/home/runner/.netrc,http://169.254.169.254/metadata/instance",
+      "exit_code": "1,1",
+      "outer_exit_code": "0,0",
+      "transport_outcome": "read-denied,connect-failed",
+      "outcome": "absent-or-denied"
+    },
+    "workspace_host_write_contained": {
+      "workspace_host_path": "<workspace-root>",
+      "canaries": "cnry-8f3a.txt,.cnry-8f3a,.git/cnry-8f3a",
+      "inner_exit_code": "1,1,1",
+      "host_pre_absent": "0,0,0",
+      "host_post_absent": "0,0,0",
+      "git_config_digest_pre": "sha256:1a2b3c4d",
+      "git_config_digest_post": "sha256:deadbeef",
+      "checked_after_teardown": true,
+      "outcome": "contained"
+    }
+  },
+  "outer_context_networked": true
+}
