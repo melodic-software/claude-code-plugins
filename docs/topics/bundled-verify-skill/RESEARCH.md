@@ -8,9 +8,14 @@ files, registered in code (not from disk) with a frontmatter surface of exactly 
 `ls`-probes `.claude/skills/` for `verifier-*` / `run-*` directories, and it writes
 `.claude/skills/verify/SKILL.md` — which, at the repo root, **replaces** the bundled skill
 outright. Plugin skills are namespaced `plugin:name` and live outside `.claude/skills/`, so a
-plugin **cannot** shadow `/verify` and **is not discovered** by its probe. That leaves one viable
-plugin shape (a generator that writes into the consumer's `.claude/skills/`) and rules out the
-obvious one (ship `verifier-*` skills from the `testing` plugin and expect `/verify` to find them).
+plugin **cannot** shadow `/verify` and **is not discovered** by its probe.
+
+The permission is one-directional and that is the design: we **cannot** invoke `/verify` (hard
+tool-layer block, proven), but `/verify` **can** invoke our plugin skills. So the workable shapes
+are the ones that *tell it we exist* — either at run time via its free-text argument (shape E, the
+prompt shim: cheap, writes nothing) or on disk via a generator (shape C: durable, but root-level
+emission destroys the consumer's bundled `/verify`). Ruled out: shadowing it, and expecting its
+`ls` probe to find plugin-shipped `verifier-*` skills.
 
 **Status:** research only. No plugin work started. Feeds a `/planning:interview` decision.
 
@@ -146,11 +151,37 @@ skill list while `run`, `code-review`, and `security-review` are present.
 The flag name is an internal identifier observed in two builds. Treat "a runtime gate exists" as
 the durable fact and the name as disposable.
 
+### The block is enforced, and it is one-directional
+
+Attempted in this session on 2.1.226, `Skill({skill: "verify", args: "..."})` returns:
+
+> Skill verify cannot be used with Skill tool due to disable-model-invocation. Ask the user to run
+> `/verify` themselves — it cannot be invoked via the Skill tool. Do not replicate this skill's
+> workflow by other means — it is reserved for explicit user invocation.
+
+So delegation is **hard-blocked at the tool layer**, not merely discouraged — proof, not inference.
+
+But the permission runs **one way only**, and this is the most useful fact in the whole document:
+
+- **We cannot invoke `/verify`.** Blocked.
+- **`/verify` can invoke our plugin skills.** Its body already says *"invoke it with the Skill tool"*
+  on a verifier match, and none of our skills set `disable-model-invocation`.
+
+We cannot push work into it. Once the user starts it, it can pull ours. Every workable integration
+shape follows from that asymmetry (§6).
+
 Consequence for us: **never write a plugin that delegates to `/verify` via the Skill tool.**
 Suggesting the user run it is the only path that holds across the whole availability window. Our
 `testing:run-e2e` and `verification:confirm` already say exactly this — that guidance is correct,
 and the mid-series change is a reason to keep it rather than tighten it. See
 [Follow-ups](#follow-ups).
+
+**Scope of the "don't replicate" clause.** That sentence is a runtime instruction to an agent that
+just attempted the call — not a policy about what a plugin may contain. `testing:run-e2e` and
+`verification:confirm` are independently-owned capabilities and are untouched by it. The boundary
+to respect when authoring: a skill body must not tell an agent to *do `/verify`'s job because
+`/verify` was refused*. Owning orchestrated e2e verification on our own terms is fine; standing in
+for a refused `/verify` is not.
 
 Also relevant to any dependency on `/verify` existing at all: `disableBundledSkills` turns off every
 bundled skill except `/doctor`, and `skillOverrides` can set a bundled skill to `"off"`. Neither
@@ -312,10 +343,14 @@ and will **not** be found by this probe.
 
 **Discovery and invocation are separate, though.** The body's instruction on a match is *"invoke it
 with the Skill tool"* — and if the marketplace is installed, `/testing:verifier-playwright` is
-perfectly invocable that way. What is missing is only the *discovery* step. So a plugin's verifier
-becomes reachable from bundled `/verify` the moment **something inside `.claude/skills/` names it**
-— a generated `verifier-*` shim, or one line in the consumer's project verify skill. That is the
-bridge, and it is why Open Question 3 exists.
+perfectly invocable that way (§3: the block runs the other direction only). What is missing is
+purely the *discovery* step. So a plugin's verifier becomes reachable from bundled `/verify` the
+moment **anything tells `/verify` it exists** — a generated `verifier-*` shim in `.claude/skills/`,
+a line in the consumer's project verify skill, or simply the user's own `/verify` argument, which
+lands after the whole body and is free text (§6, shape E).
+
+Naming our skills to `/verify` is not fighting the probe — it **supplies what the probe was looking
+for**, for skills the probe structurally cannot see.
 
 The probe text is byte-identical across 2.1.223–2.1.226, so this convention is stable, not in flux.
 
@@ -339,7 +374,53 @@ gracefully.
 | **A. Wrap it** — a plugin skill named `verify` that shadows or replaces the bundled one | **No.** Plugin skills are namespaced `plugin:name` and "cannot conflict with other levels". `/melodic:verify` would coexist; bare `/verify` stays bundled | Rules out the naive wrap |
 | **B. Feed it** — ship `verifier-*` skills from the `testing` plugin and let `/verify` find them | **Not on its own.** §5.2 — the probe is `ls .claude/skills/`, which plugin skills are not in. Invocation via the Skill tool works fine; only discovery fails | Rules out the *passive* integration. Works only if something in `.claude/skills/` names the plugin skill — which collapses B into C |
 | **C. Generate for it** — a plugin skill that *writes* `.claude/skills/verify/SKILL.md` (and/or `verifier-*`) into the **consuming** repo | **Yes.** This is the only seam that works, and it is the seam Anthropic itself uses (`/run-skill-generator`, and `/verify`'s own persist step) | The live option |
-| **D. Borrow the craft** — port the discipline (surface table, probe taxonomy, verdict rules, "What FAIL looks like" examples) into `testing:run-e2e` / `verification:confirm`, no dependency on `/verify` at all | Yes, trivially | The zero-risk option, independent of A–C |
+| **E. Brief it** — our skill composes a ready-to-run `/verify <crafted argument>` naming the installed verifier plugins and the detected surface, and hands it to the **user** to press | **Yes.** Writes nothing, depends on nothing, degrades to today's bare suggestion | The cheapest option, and the only one that works with zero consumer-repo footprint |
+| **D. Borrow the craft** — port the discipline (surface table, probe taxonomy, verdict rules, "What FAIL looks like" examples) into `testing:run-e2e` / `verification:confirm`, no dependency on `/verify` at all | Yes, trivially | The zero-risk option, independent of A–C. Subject to the authoring boundary in §3 |
+
+### Shape E in detail — the prompt shim
+
+`/verify`'s argument is appended **after the entire body** as `## User Request` and is otherwise
+untouched (§2). That makes it the natural place to hand `/verify` the inventory its `ls` probe
+cannot build. Our skill would:
+
+1. Detect which verifier-capable skills are installed (`testing:run-e2e`, `playwright:playwright`,
+   any project `run-*`) and which surfaces they cover.
+2. Detect the diff's surface.
+3. Emit one ready-to-run line for the user to press, e.g.
+
+   > `/verify` the auth-callback change on this branch. This repo has `/testing:run-e2e` (orchestrator
+   > + Playwright, evidence contract, recording config at `.claude/testing/e2e.md`) and
+   > `/playwright:playwright` — use them as your handle rather than cold-starting. They are plugin
+   > skills, so they will not appear in `ls .claude/skills/`.
+
+4. Consume the resulting report.
+
+Properties: writes nothing into the consumer repo, cannot destroy their bundled `/verify`, no
+dependency on flag state, and it degrades to exactly today's behavior (a bare suggestion) when
+`/verify` is absent via `disableBundledSkills` / `skillOverrides`. It is our current
+suggest-don't-delegate guidance upgraded from an empty suggestion to a **loaded** one.
+
+Cost: it needs a human keystroke every time, by design — that is what the §3 block enforces and
+there is no way around it.
+
+**Unverified.** Whether the bundled body actually *acts* on a namespaced plugin-skill name handed to
+it this way cannot be tested from here — running `/verify` requires the user. The mechanism is
+sound (free text, appended last, naming skills the body is already primed to look for and is
+permitted to invoke) but "it will pick up `/testing:run-e2e`" is a hypothesis, not a finding. See
+Open Question 6 — it is the cheapest experiment in this document.
+
+### The C/E discriminator
+
+C and E are **complementary, not alternatives**. The discriminator is the entry point:
+
+| User enters through | What is needed |
+|---|---|
+| Our skill (`/verification:confirm`, `/testing:run-e2e`) | **E alone.** Nothing on disk; the briefing is composed at run time |
+| Bare `/verify`, typed directly — or any later session, or another agent | **C.** Only an on-disk file in `.claude/skills/` can name our verifiers when we are not in the loop |
+
+E costs nothing and is non-destructive. C is durable but re-raises the root-replacement hazard
+below. Doing E first and treating C as an opt-in for repos that want the durable version is the
+sequencing the interview should probably start from.
 
 Shape C has a real hazard that the interview has to price: **writing `.claude/skills/verify/SKILL.md`
 at a consumer's repo root deletes their bundled `/verify`.** Everything in §4 stops applying to that
@@ -406,9 +487,10 @@ Ranked by what our skills currently lack:
 
 ## Open questions for the interview
 
-1. **Shape C or shape D — or both?** A `run-skill-generator`-style plugin skill that authors a
-   consumer's `.claude/skills/verify/SKILL.md`, versus porting the craft into `testing:run-e2e` /
-   `verification:confirm` with no coupling to bundled `/verify` at all.
+1. **Which of C / D / E, in what order?** E (compose a briefed `/verify` line for the user to press)
+   is cheap, non-destructive, and probably first. C (author the consumer's
+   `.claude/skills/verify/SKILL.md`) is the durable version and only matters for entry points we are
+   not in. D (port the craft) is independent of both. These are not exclusive.
 2. **If C: which level?** Repo root (replaces bundled `/verify` — destructive) or package dirs only
    (additive, monorepo-shaped, no destruction). Root emission needs an explicit consent step and a
    generated file that carries the discipline forward.
@@ -425,6 +507,11 @@ Ranked by what our skills currently lack:
    prompt and this is a public repo. The repo does vendor upstream skill text elsewhere
    (`plugins/playbooks/skills/boris/vendor/SKILL.md`), so there is precedent; this is a call for you,
    not a default. The extraction recipe above makes it reproducible without vendoring.
+6. **Run the shape-E experiment before designing anything.** One hand-written invocation is enough:
+   in a repo with the marketplace installed and a real runtime diff, type a `/verify` line that
+   names `/testing:run-e2e` as the evidence-capture protocol, and see whether the bundled skill
+   invokes it or cold-starts anyway. That single observation decides whether E is a product or a
+   nice theory — and it is the one thing in this document that only you can run (§3).
 
 ## Follow-ups
 
