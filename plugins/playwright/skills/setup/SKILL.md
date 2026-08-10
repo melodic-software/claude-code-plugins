@@ -1,5 +1,4 @@
 ---
-name: setup
 description: "Verify the playwright plugin's runtime prerequisites — the playwright-cli binary and a resolvable browser — for this machine. Use when: 'set up playwright', 'configure playwright', 'is playwright working', 'install playwright-cli', a browser flow reports the CLI is missing, or before a first E2E run. Actions: check (read-only verification, default) | apply (resolve what check found; apply install-cli performs the global CLI install). Re-runnable and safe."
 argument-hint: "check | apply [install-cli]"
 user-invocable: true
@@ -31,7 +30,7 @@ modify anything.
    the npm package is `@playwright/cli`). FAIL if absent — remediation is `apply install-cli`
    below. When present, report the version (`playwright-cli --version`).
 2. **Browser availability** — the CLI needs a browser beyond its own install. Per the plugin's
-   own `reference/windows-quirks.md`, local sessions on Windows/macOS/Linux auto-detect system
+   own `skills/playwright/reference/windows-quirks.md`, local sessions on Windows/macOS/Linux auto-detect system
    Chrome, while a sandboxed/cloud session must run `playwright-cli install-browser` and that
    download can be egress-blocked. INFO: state whether a system browser is resolvable on this
    host and, when it is not, surface the `playwright-cli install-browser` step and the

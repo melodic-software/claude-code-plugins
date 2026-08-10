@@ -1,5 +1,4 @@
 ---
-name: morning-brief
 description: "Prints the operator's read-only morning view for the current GitHub repo in one pass — open counts per queue label (needs-triage / ready / needs-decision / needs-human), the gh-native merge-ready PR list, parked decisions with their RECOMMENDED lines, and loop-lane telemetry freshness (last-cycle age + flags). Use when: 'morning brief', 'morning view', 'ops dashboard', 'what needs attention', 'daily standup view', 'operator morning pass', 'queues and merge-ready'. Read-only and gh-based — never mutates issues, PRs, labels, or comments."
 argument-hint: "[--repo owner/name] [--telemetry-issue N] [--stale-hours N] — read-only; omit to view the current repo"
 user-invocable: true

@@ -1,5 +1,4 @@
 ---
-name: rhyme
 description: "Find and stress-test rhymes with Pat Pattison's discipline — identity check, stability-tier walk, vowel triangle, song-world vocabulary, mosaic/multi-word rhyme, cliche scan. Internal generation is primary (8-15 labeled candidates, never a single winner); the Datamuse API supplements for breadth/syllables/semantic field. Use when: 'rhyme this', 'find rhymes for X', 'why does this rhyme feel weak', 'mosaic rhyme', 'rhyme this proper noun', 'rhyme like Eminem', 'syllable count of X', 'rhyme worksheet'. For meter/scansion use /songwriting:meter-prosody; for line-volume dumps use /songwriting:co-write line-brainstorm."
 argument-hint: "[action] [args] (e.g., /songwriting:rhyme, /songwriting:rhyme mosaic \"Texas\", /songwriting:rhyme worksheet) — full actions in body"
 user-invocable: true

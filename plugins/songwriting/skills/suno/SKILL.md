@@ -1,5 +1,4 @@
 ---
-name: suno
 description: "Generate and refine Suno AI music prompts (v5.5) — style prompts, tagged lyrics, genre templates, troubleshooting, tips, features, and genre research via an action router. Use when: 'suno prompt', 'write suno lyrics', 'style prompt for suno', 'BPM prompting', 'vocal tags', 'fix garbled lyrics', 'voice cloning suno', 'suno genre', 'suno studio', or any Suno prompt-craft request."
 argument-hint: "[action] [args] (e.g., /suno prompt, /suno lyrics, /suno genre <name>) — full action list in body; default: menu"
 user-invocable: true
