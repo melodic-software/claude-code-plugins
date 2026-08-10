@@ -32,12 +32,50 @@ git init -q --object-format=sha1 "$REPO_SHA1" ||
 git init -q --object-format=sha256 "$REPO_SHA256" ||
   bad "fixture: could not create the SHA-256 repository (git 2.29+ required)"
 
+# A PreToolUse payload carries `cwd` — the directory the TOOL CALL runs in, which
+# is not the hook process's own. The width probe is measured from it (#2124), so
+# every case has to state it; the shared command_json builder omits the field.
+command_json_cwd() {
+  MSYS_NO_PATHCONV=1 jq -n --arg c "$1" --arg d "$2" \
+    '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}'
+}
+
 # run_in <dir> <label> <command> <expected-exit> [extra-env NAME=VAL ...]
+# The payload cwd and the hook process's directory are BOTH <dir> here — the
+# ordinary case, where they agree. run_split below is the divergent one.
+#
+# Setting the payload cwd is load-bearing even for the agreeing case: without it
+# the guard falls to CLAUDE_PROJECT_DIR, which is exported in any session that
+# runs this suite under Claude Code, and every fixture row would then be measured
+# against the host repository instead of the fixture.
 run_in() {
   local dir="$1" label="$2" command="$3" expected="$4"
   shift 4
   local rc
-  (cd "$dir" && env "$@" bash "$HOOK" <<<"$(command_json "$command")" >/dev/null 2>&1)
+  (cd "$dir" && env "$@" bash "$HOOK" <<<"$(command_json_cwd "$command" "$dir")" >/dev/null 2>&1)
+  rc=$?
+  assert_exit "$label" "$expected" "$rc"
+}
+
+# run_split <payload-cwd> <process-cwd> <label> <command> <expected-exit> [env ...]
+# The two directories DIVERGE, which is the shape #2124 was reported in: the hook
+# process sits at the session root while the tool call runs elsewhere.
+run_split() {
+  local pcwd="$1" proc="$2" label="$3" command="$4" expected="$5"
+  shift 5
+  local rc
+  (cd "$proc" && env "$@" bash "$HOOK" <<<"$(command_json_cwd "$command" "$pcwd")" >/dev/null 2>&1)
+  rc=$?
+  assert_exit "$label" "$expected" "$rc"
+}
+
+# run_nocwd <process-cwd> <label> <command> <expected-exit> [env ...]
+# A payload carrying NO cwd field, for the lower rungs of the base chain.
+run_nocwd() {
+  local proc="$1" label="$2" command="$3" expected="$4"
+  shift 4
+  local rc
+  (cd "$proc" && env "$@" bash "$HOOK" <<<"$(command_json "$command")" >/dev/null 2>&1)
   rc=$?
   assert_exit "$label" "$expected" "$rc"
 }
@@ -102,6 +140,67 @@ run "env -u -C git push --force-with-lease=main:<40-hex> (-C is -u's operand, no
 # before git starts, so a relative `-C` resolves against the wrapper's directory.
 run "env -C <sha256-parent> git -C <basename> push --force-with-lease=main:<64-hex> (composed, allowed)" "env -C $TEST_TMPDIR git -C repo-sha256 push --force-with-lease=main:$SHA256_OID origin main" 0
 run "env -C <sha256-parent> git -C <basename> push --force-with-lease=main:<40-hex> (composed, blocked)" "env -C $TEST_TMPDIR git -C repo-sha256 push --force-with-lease=main:$SHA1_OID origin main" 2
+
+# --- the payload's cwd is the base every probe is measured from (#2124) --------
+# Claude Code launches the hook from the session root and runs the Bash tool
+# wherever the session stands, so the two directories differ routinely. Probing
+# only the hook process's own measured a repository the push never touches: a
+# payload cwd in the SHA-256 fixture with the hook process in the SHA-1 one read
+# a 40-hex lease as an immutable object id while git resolves it as a movable REF
+# NAME where the push actually runs. No wrapper and no `cd` were needed.
+run_split "$REPO_SHA256" "$REPO_SHA1" "payload cwd is the SHA-256 repo while the hook process stands in the SHA-1 one (40-hex is a name where the push runs, blocked)" "git push --force-with-lease=main:$SHA1_OID origin main" 2
+run_split "$REPO_SHA256" "$REPO_SHA256" "control: both directories are the SHA-256 repo (blocked, and the fixture discriminates)" "git push --force-with-lease=main:$SHA1_OID origin main" 2
+# The OPPOSITE direction, so the change is not merely "block more": where the
+# command really runs, a 40-hex word IS an object id, and blocking it would be a
+# false positive bought with the fix.
+run_split "$REPO_SHA1" "$REPO_SHA256" "payload cwd is the SHA-1 repo while the hook process stands in the SHA-256 one (40-hex is a real object id where the push runs, allowed)" "git push --force-with-lease=main:$SHA1_OID origin main" 0
+run_split "$REPO_SHA1" "$REPO_SHA256" "payload cwd is the SHA-1 repo, 64-hex expectation (a name there, blocked)" "git push --force-with-lease=main:$SHA256_OID origin main" 2
+
+# A `!` shell alias runs its body as a fresh command in the RELOCATED repository,
+# and the reparse builds a new segment frame whose own locating options start
+# empty. Without carrying the relocation forward as that reparse's base, the
+# body's push is judged against the payload cwd while git runs it elsewhere —
+# the same misprobe one recursion level down.
+run_split "$REPO_SHA1" "$REPO_SHA1" "git -C <sha256-repo> -c alias.y='!git push --force-with-lease=main:<40-hex>' y (the body runs in the SHA-256 repo, blocked)" "git -C $REPO_SHA256 -c alias.y='!git push --force-with-lease=main:$SHA1_OID origin main' y" 2
+run_split "$REPO_SHA256" "$REPO_SHA256" "git -C <sha1-repo> -c alias.y='!git push --force-with-lease=main:<40-hex>' y (the body runs in the SHA-1 repo, allowed)" "git -C $REPO_SHA1 -c alias.y='!git push --force-with-lease=main:$SHA1_OID origin main' y" 0
+# The relocation must not LEAK past the reparse: a second segment after the alias
+# one starts from the payload cwd again.
+run_split "$REPO_SHA256" "$REPO_SHA256" "a segment after a relocating '!' alias is measured from the payload cwd again (40-hex is a name there, blocked)" "git -C $REPO_SHA1 -c alias.y='!git status' y; git push --force-with-lease=main:$SHA1_OID origin main" 2
+
+# A RELATIVE locating option now resolves against the directory the tool call runs
+# in rather than the hook process's. That is the correct origin, and it is the one
+# behaviour change a reviewer could mistake for a regression.
+run_split "$TEST_TMPDIR" "$TEST_TMPDIR" "relative git -C <basename> with both directories agreeing (unchanged, blocked)" "git -C repo-sha256 push --force-with-lease=main:$SHA1_OID origin main" 2
+run_split "$TEST_TMPDIR" "$REPO_SHA1" "relative git -C <basename> resolves against the payload cwd, not the hook process's (object id there, allowed)" "git -C repo-sha1 push --force-with-lease=main:$SHA1_OID origin main" 0
+run_split "$TEST_TMPDIR" "$REPO_SHA1" "relative --git-dir rebases onto the payload cwd the same way (object id there, allowed)" "git --git-dir=repo-sha1/.git push --force-with-lease=main:$SHA1_OID origin main" 0
+run_split "$TEST_TMPDIR" "$REPO_SHA1" "an ABSOLUTE --git-dir is unaffected by the base (64-hex is a name in the SHA-1 target, blocked)" "git --git-dir=$REPO_SHA1/.git push --force-with-lease=main:$SHA256_OID origin main" 2
+
+# The rest of the chain, mirroring block-noncanonical-commit: payload cwd, then
+# CLAUDE_PROJECT_DIR, then `.`. A real payload always carries cwd, so the lower
+# rungs are reached only by a degraded one.
+run_nocwd "$REPO_SHA256" "no cwd in the payload and no CLAUDE_PROJECT_DIR falls back to the hook process's directory (blocked)" "git push --force-with-lease=main:$SHA1_OID origin main" 2 -u CLAUDE_PROJECT_DIR
+run_nocwd "$REPO_SHA256" "no cwd in the payload prefers CLAUDE_PROJECT_DIR over the hook process's directory (object id there, allowed)" "git push --force-with-lease=main:$SHA1_OID origin main" 0 "CLAUDE_PROJECT_DIR=$REPO_SHA1"
+
+# --- env -S / --split-string carries the wrapper's OWN options -----------------
+# `-S` exists so a shebang line can pass options to env (`#!/usr/bin/env -S -i
+# prog`), so the split words are env's arguments, not just the command. Resuming
+# the scan at the command dispatcher instead read a leading option in the split
+# string as the COMMAND NAME and abandoned the segment: no git was resolved at
+# all, so every form behind it — including a plain --force — went unexamined.
+run "env -S '-C <sha256-repo> git push --force-with-lease=main:<40-hex>' (chdir spliced inside the quoted word, blocked)" "env -S '-C $REPO_SHA256 git push --force-with-lease=main:$SHA1_OID origin main'" 2
+run "env --split-string='-C <sha256-repo> git push --force-with-lease=main:<40-hex>' (long form, blocked)" "env --split-string='-C $REPO_SHA256 git push --force-with-lease=main:$SHA1_OID origin main'" 2
+run "env -S'-C <sha256-repo> git push --force-with-lease=main:<40-hex>' (attached operand, blocked)" "env -S'-C $REPO_SHA256 git push --force-with-lease=main:$SHA1_OID origin main'" 2
+run "env -S '-v git push --force' (a valueless leading option no longer hides the force push, blocked)" "env -S '-v git push --force origin main'" 2
+run "env -S 'git push --force' (no leading option — already blocked, still blocked)" "env -S 'git push --force origin main'" 2
+run "env -S '-C <sha256-repo> git push --force-with-lease=main:<64-hex>' (object id where git runs, allowed)" "env -S '-C $REPO_SHA256 git push --force-with-lease=main:$SHA256_OID origin main'" 0
+# GNU env keeps its chdir operand in ONE slot, so a `-C` inside the split string
+# is last-wins against an earlier one outside it, never cumulative.
+run "env -C <sha1-repo> -S '-C <sha256-repo> git …' (last wins, blocked)" "env -C $REPO_SHA1 -S '-C $REPO_SHA256 git push --force-with-lease=main:$SHA1_OID origin main'" 2
+run_in "$REPO_SHA256" "env -C <sha256-repo> -S '-C <sha1-repo> git …' (last wins the other way, allowed)" "env -C $REPO_SHA256 -S '-C $REPO_SHA1 git push --force-with-lease=main:$SHA1_OID origin main'" 0
+# An inert form is not a bypass and must not be treated as one: GNU coreutils
+# stops option parsing at the first NAME=VALUE operand, so `-C` becomes the
+# command name, git never runs, and there is nothing here to block.
+run "env FOO=1 -C <sha256-repo> git push --force-with-lease=main:<40-hex> (NAME=VALUE ends option parsing; git never runs, allowed)" "env FOO=1 -C $REPO_SHA256 git push --force-with-lease=main:$SHA1_OID origin main" 0
 
 # The width probe is the guard's only subprocess, and a command may carry many
 # lease expectations. Counting real git invocations catches the cache being lost

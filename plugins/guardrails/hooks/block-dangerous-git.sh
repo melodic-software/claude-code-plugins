@@ -88,16 +88,26 @@ INPUT=$(hook::buffer_stdin) || {
 # (additionalContext), once per session — see docs/conventions/hook-observability/.
 hook::require_jq "PreToolUse" "guardrails-block-dangerous-git" "$INPUT"
 
-# Both payload fields in ONE jq process (hook::jq_fields), not two. A jq spawn is
-# ~140 ms of fork() emulation on Windows Git Bash and this guard runs on every
-# Bash/PowerShell call. Failure semantics are unchanged: a missing jq or an
+# All three payload fields in ONE jq process (hook::jq_fields), not three. A jq
+# spawn is ~140 ms of fork() emulation on Windows Git Bash and this guard runs on
+# every Bash/PowerShell call. Failure semantics are unchanged: a missing jq or an
 # unparsable payload yields rc 1 here, which exits 0 exactly as the empty-COMMAND
 # skip below did — hook::require_jq above has already made the degraded state
 # visible once per session.
-hook::jq_fields "$INPUT" '.tool_input.command' '.tool_name' || exit 0
+#
+# `.cwd` is the directory the TOOL CALL runs in, which is not the hook process's
+# own: Claude Code launches hooks from the session root while the Bash tool runs
+# the command wherever the session stands. Reading only the hook process's
+# directory measured the wrong repository's hash format whenever the two differed
+# — a payload cwd in a SHA-256 repository with the hook process in a SHA-1 one
+# cleared a 40-hex lease that is a movable REF NAME where the push actually runs.
+# block-noncanonical-commit has read this field since it shipped; this guard did
+# not, and the same chain is adopted here rather than a second mechanism.
+hook::jq_fields "$INPUT" '.tool_input.command' '.cwd' '.tool_name' || exit 0
 COMMAND="${HOOK_JQ_FIELDS[0]}"
 [[ -n "$COMMAND" ]] || exit 0
-TOOL_NAME="${HOOK_JQ_FIELDS[1]:-Bash}"
+HOOK_CWD="${HOOK_JQ_FIELDS[1]}"
+TOOL_NAME="${HOOK_JQ_FIELDS[2]:-Bash}"
 
 # Above this length the command is not parsed — a pathologically long command is
 # assumed to be obfuscation and blocked FAIL-CLOSED (generous cap; real git
@@ -206,13 +216,19 @@ is_lease_opt() { abbrev_match "force-with-lease" "${1%%=*}" 7; }
 # lease against whatever it points at. Accepting the union would let either
 # shape through in the repository where it is a name.
 #
-# Width of the repository THIS PUSH will run in, which is not always the hook's
-# own directory: git's repository-locating global options (`-C`, `--git-dir`,
-# `--work-tree`, `--namespace`) redirect it, and a `git -C <sha256-repo> push`
-# issued from a SHA-1 directory must be judged by the target's format. Those
-# options are replayed verbatim onto the probe rather than modelled, so git
-# resolves the repository by its own rules — including several `-C` values,
-# which git applies cumulatively.
+# Width of the repository THIS PUSH will run in, which is not the hook process's
+# own directory. Two things move it, and BOTH are replayed onto the probe:
+#
+#   * The payload's `.cwd` — where the tool call runs. The hook process's
+#     directory is the session root, so the two differ routinely, and probing the
+#     hook's own is simply measuring a different repository.
+#   * git's repository-locating global options (`-C`, `--git-dir`, `--work-tree`,
+#     `--namespace`) and any wrapper chdir ahead of them: a `git -C <sha256-repo>
+#     push` issued from a SHA-1 directory must be judged by the target's format.
+#
+# Those options are replayed verbatim onto the probe rather than modelled, so git
+# resolves the repository by its own rules — including several `-C` values, which
+# git applies cumulatively.
 #
 # `-C` takes the value as a SEPARATE word: git rejects an attached `-C<path>`
 # with its usage message (verified, git 2.54.0). The walk therefore mirrors
@@ -223,12 +239,22 @@ is_lease_opt() { abbrev_match "force-with-lease" "${1%%=*}" 7; }
 # cannot resolve (an unexpanded `$VAR` reaches the probe literally and simply
 # fails). That fails closed.
 #
-# Known gap: a compound `cd <elsewhere> && git push …` pushes from a directory
-# no option names, so the probe cannot see it. Resolving the cd target would
-# mean evaluating arbitrary shell word expansion, which this guard deliberately
-# does not do (static matching over the literal command string only). The
-# residual case needs a SHA-256 repository, a lease pinned to a full-width hex
-# word that is also a ref name there, and a compound cd into it.
+# Known gap, stated at its real width: a SHELL relocation the static parser does
+# not evaluate — `cd <elsewhere> && git push …`, `(cd <elsewhere> && git push …)`,
+# `sh -c 'cd <elsewhere> && git push …'`, `pushd` — pushes from a directory no
+# option and no payload field names, so the probe cannot see it. Resolving the cd
+# target would mean evaluating arbitrary shell word expansion, which this guard
+# deliberately does not do (static matching over the literal command string only).
+#
+# The residual needs only that shell relocation into a repository whose hash
+# format differs from the base's, plus a lease pinned to a full-width hex word
+# that is a ref name at the destination. It needs no wrapper. An earlier wording
+# here listed a "compound cd" as one of three conjuncts and read as far narrower
+# than the gap was: at the time the payload cwd was not read at all, so NO cd and
+# NO wrapper were required either — a plain `git push` from a session directory
+# the hook process did not share was already enough (#2124). Reading `.cwd`
+# closed that; the understatement is corrected here so the remaining gap is not
+# re-measured from a description that undersells it.
 #
 # Resolved at most once per option set and only on the rare path that sees a hex
 # expectation — the guard shells out nowhere else. The result is assigned by a
@@ -276,13 +302,32 @@ lease_expect_is_immutable() {
 # compose onto it: it is replayed as LEADING `-C` words, which git applies
 # cumulatively in argv order, and the composition then falls out of git's own
 # rules rather than being modelled here.
+#
+# The payload cwd is replayed the same way and sits AHEAD of the wrapper dirs,
+# reproducing execution order end to end: the tool call starts in `.cwd`, a
+# wrapper chdirs from there, and git's own globals apply last. Measured against
+# real SHA-1/SHA-256 fixtures, a leading base composes exactly like the wrapper
+# replay already shipping — `git -C <base> -C <relative>` rebases onto the base
+# from ANY process directory, and a later absolute `-C` wins outright — so this
+# introduces no new path semantics, only a first term.
+#
+# A `cd` is deliberately NOT used for the base: `cd` would move the hook process
+# and leak across the recursive alias walk, while a leading `-C` is per-probe and
+# composes under git's own rules.
+#
+# Collateral, and intended: a RELATIVE `--git-dir` / `--work-tree` / `--namespace`
+# now rebases onto that base instead of onto the hook process's directory. That is
+# the correct resolution — a relative path in the tool call means relative to
+# where the tool call runs — and it is a behaviour change only in the sense that
+# the previous answer was measured from the wrong origin. An ABSOLUTE one is
+# unaffected.
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 collect_git_locating_opts() {
   local gi="$1" sub_idx="$2"
   shift 2
   local -a w=("$@")
   local j=$((gi + 1)) wdir
-  git_locating_opts=()
+  git_locating_opts=(-C "${HOOK_EFFECTIVE_BASE:-${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}}")
   for wdir in ${HOOK_GIT_RESOLVED_WRAPPER_DIRS[@]+"${HOOK_GIT_RESOLVED_WRAPPER_DIRS[@]}"}; do
     git_locating_opts+=(-C "$wdir")
   done
@@ -302,6 +347,48 @@ collect_git_locating_opts() {
     *) ((j++)) ;;
     esac
   done
+}
+
+# Directory a segment's git actually runs in: the base with every `-C` in an
+# already-collected option set composed onto it, left to right — an absolute
+# value replaces, a relative one joins. Same rule and same shape as
+# block-noncanonical-commit's effective_dir, so the two guards answer alike.
+#
+# Only `!` shell-alias reparsing needs this. git launches a `!` body as a fresh
+# command in the relocated repository, and the reparse builds a NEW segment frame
+# whose own locating options start empty — so without carrying the relocation
+# forward as the reparse's base, the body's `git push` would be probed against the
+# payload cwd while git runs it somewhere else. That is the same misprobe this
+# whole change closes, one recursion level down.
+#
+# TEXTUAL join only, never `realpath`/`cd -P`: block-noncanonical-commit records
+# that resolving symlinks is a bypass in both directions (lexical `x/..` is wrong
+# under a POSIX symlink; physical resolution is wrong on Win32, where git itself
+# is lexical). Handing the composed spelling to `git -C` lets git apply its own
+# path semantics.
+#
+# It deliberately does NOT reproduce that guard's `alias_launch_dir` — the fork
+# that asks git for `--show-toplevel`. That function exists to canonicalize a
+# directory into a repository IDENTITY for a cycle key. Nothing here needs an
+# identity: the only question asked downstream is which repository's hash format
+# applies, and every directory inside one repository answers that identically, so
+# the composed spelling is sufficient and costs no subprocess.
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+effective_dir() {
+  local base="${HOOK_EFFECTIVE_BASE:-${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}}" i n=$# arg
+  local -a a=("$@")
+  for ((i = 0; i < n; i++)); do
+    arg="${a[i]}"
+    if [[ "$arg" == "-C" ]] && ((i + 1 < n)); then
+      if [[ "${a[i + 1]}" == /* || "${a[i + 1]}" =~ ^[A-Za-z]:[\/] ]]; then
+        base="${a[i + 1]}"
+      else
+        base="$base/${a[i + 1]}"
+      fi
+      ((i++))
+    fi
+  done
+  printf '%s' "$base"
 }
 
 # Has an earlier lease spelling in this same command already claimed <refname>?
@@ -491,7 +578,7 @@ check_segment() {
   # and finite distinct alias keys guarantee termination. Terminating is not the
   # same as tractable — the walk branches per hop, and alias_reexpand_admit is what
   # keeps its cost proportional to the chain's length.
-  local exp reparse a alias_rc s seen_hit=0
+  local exp reparse a alias_rc s seen_hit=0 saved_base=""
   local -a expw=() saved_seen=() nextw=()
   hook::git_alias_expansion "$sub"
   alias_rc=$?
@@ -525,6 +612,7 @@ check_segment() {
     # the recursion so sibling segments and unwound hops start clean.
     # shellcheck disable=SC2154  # HOOK_GIT_ALIAS_EXPS is set by hook::git_alias_expansion
     saved_seen=(${HOOK_ALIAS_SEEN[@]+"${HOOK_ALIAS_SEEN[@]}"})
+    saved_base="${HOOK_EFFECTIVE_BASE-}"
     HOOK_ALIAS_SEEN+=("$sub")
     for exp in ${HOOK_GIT_ALIAS_EXPS[@]+"${HOOK_GIT_ALIAS_EXPS[@]}"}; do
       [[ -n "$exp" ]] || continue
@@ -539,11 +627,19 @@ check_segment() {
         # not stopped. Termination stays text-bounded — this guard resolves
         # only inline aliases, and every definition reachable from the reparse
         # is a strict substring of the parent segment's text.
+        #
+        # That new process also starts in THIS segment's relocated directory, so
+        # the body's own `-C` composes onto it and a body with none inherits it
+        # outright. Carry it as the reparse's base — dropping it probes the
+        # payload cwd while git pushes from the relocated repository, which is
+        # this guard's misprobe one recursion level down.
         reparse="${exp#!}"
         for a in "${w[@]:sub_idx+1}"; do reparse+=" $(printf '%q' "$a")"; done
         HOOK_ALIAS_SEEN=()
+        HOOK_EFFECTIVE_BASE="$(effective_dir ${git_locating_opts[@]+"${git_locating_opts[@]:2}"})"
         alias_reexpand_admit shell "$reparse" &&
           hook::bash_parse_segments "$reparse" check_segment
+        HOOK_EFFECTIVE_BASE="$saved_base"
         HOOK_ALIAS_SEEN=(${saved_seen[@]+"${saved_seen[@]}"} "$sub")
       else
         # Git alias: its expansion is dequoted with shell quoting rules
@@ -558,6 +654,7 @@ check_segment() {
       fi
     done
     HOOK_ALIAS_SEEN=(${saved_seen[@]+"${saved_seen[@]}"})
+    HOOK_EFFECTIVE_BASE="$saved_base"
   fi
 
   case "$sub" in
@@ -1110,6 +1207,14 @@ esac
 # and would reset it) and save/restored around each recursion; a multi-command
 # line runs check_segment once per top-level segment, each starting from empty.
 HOOK_ALIAS_SEEN=()
+
+# Directory the tool call runs in, and therefore the base every width probe is
+# measured from. A `!` shell alias relocates it mid-parse, so it is save/restored
+# around each reparse (see check_segment) rather than read fresh from the payload
+# each time. Same chain as block-noncanonical-commit: the payload cwd, then
+# CLAUDE_PROJECT_DIR, then `.` — the last of which reproduces the pre-#2124
+# behaviour for a payload that carries no cwd at all.
+HOOK_EFFECTIVE_BASE="${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}"
 
 # The alias-traversal bounds (alias_reexpand_admit). Both are invocation-wide and
 # deliberately NOT save/restored: a state analyzed anywhere is analyzed, and the

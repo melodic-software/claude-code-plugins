@@ -3,6 +3,50 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.0]
+
+### Fixed
+
+- **`block-dangerous-git` no longer clears an unsafe `--force-with-lease` by measuring the wrong
+  repository (#2124).** The lease check accepts a `=<refname>:<expect>` whose `<expect>` is a
+  full-width object id, because git cannot resolve one to something newer at push time. The width
+  is the local repository's, and the guard probed the HOOK PROCESS's directory to learn it. Claude
+  Code launches hooks from the session root and runs the Bash tool wherever the session stands, so
+  the two differ routinely — and a payload `cwd` in a SHA-256 repository with the hook process in a
+  SHA-1 one read a 40-hex lease as an immutable object id while git resolves it as a movable REF
+  NAME where the push actually runs. That is precisely the hole `--force-with-lease` exists to
+  close, and it needed no wrapper and no `cd`: a plain `git push` was enough. The payload's `.cwd`
+  is now read and replayed as a LEADING `-C` ahead of any wrapper chdir, so it composes under git's
+  own rules exactly as the wrapper replay already did. The base-resolution chain is
+  `HOOK_EFFECTIVE_BASE` → `HOOK_CWD` → `CLAUDE_PROJECT_DIR` → `.`, adopted verbatim from
+  `block-noncanonical-commit` rather than invented a second time; a `!` shell alias relocates the
+  base for its reparse and it is save/restored around each one, since git launches that body in the
+  relocated repository.
+- **`env -S` / `--split-string` no longer hides a whole command from the git guards (#2124).** `-S`
+  exists so a shebang line can pass OPTIONS to env (`#!/usr/bin/env -S -i prog`), so the words it
+  splits out are env's own arguments. `hook::git_resolve_index` spliced them back into the scan but
+  resumed at the COMMAND dispatcher, which read a leading option in the split string as the command
+  NAME and gave up — `env -S '-C <sha256-repo> git push --force-with-lease=main:<40-hex>'` and even
+  a bare `env -S '-v git push --force'` resolved to no git at all, so the guard never examined
+  them. Parsing now resumes inside env's own option loop, which also keeps env's single chdir slot
+  last-wins across the splice (`env -C a -S '-C b git …'` reports `b`, as GNU env behaves). Synced
+  from `lib/hook-utils.sh`, so every carrying plugin gets it.
+
+### Changed
+
+- **A RELATIVE `--git-dir` / `--work-tree` / `--namespace` / `-C` in a guarded command now resolves
+  against the directory the TOOL CALL runs in, not the hook process's.** This falls out of the
+  leading-`-C` base above and is the correct origin — a relative path written in a tool call means
+  relative to where that call runs — but it is a behaviour change and is called out here so it is
+  not read as a regression. An ABSOLUTE one is unaffected.
+- `repo_oid_width`'s known-gap docblock is restated at its real width. It described the residual as
+  needing "a SHA-256 repository, a lease pinned to a full-width hex word that is also a ref name
+  there, and a compound `cd` into it" — three conjuncts, when at the time the payload cwd was not
+  read at all and neither the wrapper nor the `cd` was required. Reading `.cwd` closes that route;
+  what remains is any SHELL relocation the static parser does not evaluate (`cd … && git push`, a
+  subshell, `pushd`), and the comment now says so plainly. A documented gap that reads narrower
+  than it is, is how this one survived review.
+
 ## [0.23.1]
 
 ### Fixed
