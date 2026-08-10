@@ -3,6 +3,140 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.4]
+
+A source-fidelity pass over *Essential Guide to Lyric Form and Structure*
+(1991) Chapter 3 (Rhythm), read in full with **all 59 of its figures**, against
+`meter.md` and `prosody.md`. This chapter is the book's densest and it argues
+almost entirely in page scans, so the figures are where nearly every finding
+below came from. Paraphrase only; no chapter prose, example lyrics, or exercise
+answers reach this public repository.
+
+### Fixed
+
+- **`meter.md`'s image inventory said this chapter has "no linked page-scan
+  images." It has 59 references across 56 unique figures.** This is the **third**
+  chapter whose inventory carried that exact falsehood, after Chapter 6 (37
+  figures) and Chapter 5 (32) in 0.8.3. Every scansion, all three Paradigms, the
+  4/4 bar settings, and all four filled-in Structural Pentad worksheets exist
+  only as images. The two corrections immediately below were invisible to a
+  text-only reader and both survived a full prior pass because of that one line.
+- **The scansion worked example marked the wrong number of stresses.** "When I
+  got home the house was dark" was scanned with "got" stressed, giving four
+  stresses. Pat's figure marks "when," "I," and "got" all unstressed: **three
+  stresses**. The code block also contradicted the file's own prose two lines
+  below it, which already described "got" as a grey-area syllable. This is the
+  model scansion the skill hands users, so it was teaching the error.
+- **"Too cold" was defined as a stress failure. It is not a stress failure at
+  all.** `meter.md` had it as "an unstressed syllable where the structure wants
+  stress." Pat's too-cold example preserves the model's stress map exactly; what
+  fails is that the important positions are filled with semantically empty
+  words. The two Goldilocks states test **two independent things** — the stress
+  map, and what stands on each strong position — and "just right" requires both.
+  A rewrite can scan perfectly and still be dead, which is precisely the failure
+  a stress-only audit cannot see. `meter.md` already stated this correctly in its
+  pattern-matching section; the later section contradicted it. **Fifth file found
+  with the correct-early / wrong-late duplication shape**, after `song-forms.md`,
+  `co-writing.md`, and `phrasing.md`.
+- **The emitted Pentad worksheet offered values that are not in Pat's
+  worksheet.** Balance was `balanced | unbalanced` where the source's closed list
+  is **symmetrical | asymmetrical**, and Closure offered a third value,
+  `leans forward`, where the source is **binary: closed | open**. The file's own
+  summary section had both right; the copy-paste block users actually receive had
+  both wrong. Value lists are now stated as closed lists, with a filled-in table
+  for all three Paradigms.
+- **The Pentad's cross-domain claim generalized past its evidence — in a section
+  a previous release had already corrected.** Pat names three surfaces:
+  rhythmic, rhyme, and *musical*. `meter.md` split the third into "melodic
+  structure" and "harmonic structure (chord pattern stability per pentad
+  property)," inventing per-surface criteria that are not in the source. 0.8.2
+  fixed a different defect in this same section and the overreach survived.
+  Readers wanting melody- or harmony-specific stability criteria are now pointed
+  at `stable-unstable-meta.md`, which genuinely carries them.
+- **"Greedy spot" was defined inconsistently across five files, and its scope
+  turns on a frame nothing stated.** Matching a lyric to a *model lyric*, greed
+  is **one-directional** — stressed syllables in unstressed positions, the
+  too-hot failure only; Pat names the opposite error separately as "too cold"
+  and never calls it greed. Matching a lyric to a *melody*, **either** direction
+  is a greedy spot, since a stressed syllable on a weak beat and an unstressed
+  syllable riding a strong one both fight the bar. Three distinct failures,
+  three distinct fixes — and too cold is caught by no stress check at all.
+  `meter.md`, `prosody.md`, `audit-checklist.md`, `lyric-melodic-roadmaps.md`,
+  and `skills/meter-prosody/SKILL.md` now each name their frame.
+  `skills/meter-prosody/SKILL.md` had also carried a definition attributable to
+  no source, "too many syllables for the melodic slot."
+- **`lyric-melodic-roadmaps.md` contradicted itself on the same term.** Its
+  definition covered only stressed-on-weak while its own worked example
+  diagnoses an unstressed syllable riding a strong beat as a greedy spot. The
+  definition now covers both directions. Pre-existing; surfaced by review.
+- **The skill handler still called "too cold" the reverse of greed.** After the
+  frame split above, `skills/meter-prosody/SKILL.md` introduced too-cold as "the
+  reverse case," reasserting the single-axis reading this release exists to
+  remove — in the one file that drives behavior rather than documents it. Too
+  cold is **orthogonal**, not a mirror image: the stresses land correctly and no
+  stress check of any kind finds it. Now stated as an explicit negative, since
+  merely softening the connective leaves the scan-for-it instinct in place.
+- **Two categorical claims had been softened into hedges.** Three-syllable words
+  with middle primary stress have **no** secondary stress, not "may be no"; words
+  of four or more syllables **always** carry secondary stress, not "normally."
+- **`demo-review.md` attributed the Pentad to `five-compositional-elements.md`.**
+  That is the two-lists confusion 0.8.2 fixed in `meter.md`; it survived here.
+  The Pentad (balance, pace, flow, closure, type of closure) lives in `meter.md`;
+  the Elements are a different five-item list naming the levers.
+- **A header note claimed Pat has no notation for unstressed syllables.**
+  `meter.md` stated that "Pat's own source notation uses only `/` and `//`" and
+  that the `u` marker "is not in Pat's text." Pat marks unstressed syllables with
+  a breve throughout, and this chapter's exercises ask for that "slight cup" over
+  the vowel by name. `u` is an ASCII stand-in for it, not an addition.
+
+### Added
+
+- **Phrase length measured in stressed syllables now shows the inversion.** The
+  file said an extra weak syllable "may not change the structural weight," which
+  understates the source: an 8-syllable / 4-stress phrase is **longer** than a
+  9-syllable / 3-stress phrase. Raw syllable count can rank a pair backwards,
+  which is the entire reason this method counts stresses.
+- **The rule for counting secondary stress when scanning.** A secondary stress
+  counts as a stress. Without it the file's own common-meter example miscounts as
+  three stresses instead of four, and the paradigms break on any multi-syllable
+  word.
+- **The rule that unstressed pickups do not change the pattern.** Anacrusis at
+  the head of a line leaves a 4/3/4/3 stanza at 4/3/4/3.
+- **The third deceleration case.** The file covered only triple-to-duple. *Any*
+  reduction in unstressed syllables decelerates, including dropping them entirely
+  so stresses fall adjacent. The single mechanism behind both directions — strong
+  stresses hold their musical positions while the space between them crowds or
+  opens — is now stated once, where the effect is described.
+- **Paradigm 1 stated in triples alongside duples**, which is the cleanest proof
+  that the paradigms are defined by stress count rather than syllable count, and
+  is what the chapter's own exercises drill.
+- **The one-word demonstration inside the common-meter example.** Lengthening
+  line two to four stresses makes the first two lines balanced and stoppable;
+  leaving it at three is what makes the form move. This claim exists only in a
+  figure — the surrounding prose is a dangling reference to it — and it is also
+  the bridge to Paradigm 2.
+- **A note that Paradigm 3 still closes.** Deception is a property of the type
+  row, not the closure row, and it works only because the resolving phrase length
+  is already present in the structure.
+
+### Notes
+
+- **Verified, no change needed:** the conventional-stress examples
+  (`incision`, `turbulent`, `understand`, `relinquish`) all match their figures,
+  and Chapter 3 does own Exercises 8-17 as `meter.md` claimed.
+- **Two open probes were aimed at the wrong chapter.** "Can't Fight This
+  Feeling" does not appear in Chapter 3; it appears in Chapters 1, 5, and 7, and
+  Chapter 1's use is a phrase-count argument, not the stress-pattern claim
+  `section-building.md` makes. "Years" appears in Chapters 2 and 5, not 3, so
+  `form.md`'s composite-balance claim must be checked against Chapter 5. Both
+  left unadjudicated rather than hedged.
+- `meter.md` is now a **third** file carrying duplicated parallel treatments of
+  the same material — two Pentad sections and two Paradigm sets. They were
+  reconciled here rather than folded together, since the duplication itself is
+  scoped as a separate restructuring follow-up alongside `song-forms.md` and
+  `phrasing.md`. That duplication is what allowed the worksheet and the summary
+  to disagree about Pentad values in the first place.
+
 ## [0.8.3]
 
 A source-fidelity pass over *Essential Guide to Lyric Form and Structure*

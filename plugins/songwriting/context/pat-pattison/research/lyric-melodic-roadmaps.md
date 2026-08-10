@@ -107,10 +107,14 @@ Risk: overuse becomes a tic.
 
 ## Greedy spots and roadmap mismatch
 
-A greedy spot is a stressed syllable that lands on a weak musical beat,
-stealing emphasis from where the music wants it. Greedy spots are usually
-caused by the same root problem as a roadmap mismatch: lyric stress
-disagrees with melodic stress.
+A greedy spot is a stressed syllable that lands on a weak musical beat, or an
+unstressed syllable riding a strong one. Either direction steals emphasis from
+where the music wants it. Greedy spots are usually caused by the same root
+problem as a roadmap mismatch: lyric stress disagrees with melodic stress.
+
+Both directions belong in this definition: the worked example below diagnoses
+the unstressed-on-strong case, and an earlier revision covered only the
+stressed-on-weak one, leaving the two at odds.
 
 When you find a greedy spot, check whether the surrounding lyric phrase
 has its boundary in the wrong place. Often fixing the roadmap fixes the
