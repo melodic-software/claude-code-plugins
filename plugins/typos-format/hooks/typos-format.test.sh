@@ -1203,6 +1203,28 @@ fi
 # 1.76x below the best regressed one.
 # * the 2000->8000 breadth/membership arm was extrapolated from its 1000->4000
 #   measurement rather than run to completion; it costs ~7 minutes per rep.
+#
+# WHAT THIS GATE STILL DOES NOT CATCH, recorded here so a green run is not read
+# as more coverage than it is (both findings from an adversarial review of the
+# gate itself):
+#
+#   * A 4x step against a 10x gate separates quadratic (~16x) from linear (~4x)
+#     and nothing finer. A genuine O(n^1.5) regression lands near 8x and passes.
+#     Narrowing the gate is not free — the current implementation itself reads
+#     up to 6.09x here under load — so the honest bound is "quadratic", not
+#     "superlinear".
+#   * `depth` and `breadth` are the two PURE EXTREMES of a (distinct keys x
+#     repeats per key) space: one key by N repeats, and N keys by one repeat. A
+#     regression that only bites at moderate cardinality in BOTH dimensions
+#     (k ~ m ~ sqrt(N)) is invisible to both, because each quadratic's cost
+#     there is orders of magnitude below its cost at the extreme this fixture
+#     drives it to. No third shape was added because none was found that could
+#     be SHOWN to discriminate, and an undischarged fixture is the defect these
+#     cases exist to end.
+#   * The reach assertion below is necessary, not sufficient: a parse or
+#     separator fault that emptied the SCAN stream would also report 0/N while
+#     timing nothing. The extraction smoke assertion covers parse and separator
+#     handling on the same extracted filter, which is what closes that hole.
 CF_SMALL_N=2000
 CF_BIG_N=8000
 CF_STEP=$((CF_BIG_N / CF_SMALL_N))
