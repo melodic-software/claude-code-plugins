@@ -229,8 +229,13 @@ environment claim that no amount of review would have caught:
   all, identically for a sealed and an open boundary. The recipe now requires a proxy-aware capture.
 - **The probe shape now shows fail-on-HTTP-error explicitly.** The first attempt at the live run
   reproduced the original false negative exactly — a block page is a successful transfer.
-- **Handoff correction:** `policy ls` does not display the global network policy, so the posture reads
-  as absent. `policy check network <host>` is the confirmation route.
+- **Handoff correction, itself corrected during cleanup.** The global deny-all posture did NOT appear
+  in `policy ls` while two kit-scoped policies were present, which is what made it read as absent — and
+  the first version of this note wrongly concluded that the listing never displays the global policy.
+  Once both sandboxes were removed, the listing showed `default-deny-all` plainly. The mechanism behind
+  the earlier omission is unexplained and is NOT claimed here. What holds either way:
+  **`policy check network <host>` is the authoritative confirmation route**, because it reports the
+  effective decision rather than the listing's view of it.
 
 **PR review outcome (#2150).** Two reviewers — one cross-vendor, one same-vendor — independently
 converged on the SAME five findings, which is what marked them real rather than stylistic. All five
