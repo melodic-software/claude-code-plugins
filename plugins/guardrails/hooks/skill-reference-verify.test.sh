@@ -443,7 +443,14 @@ NBSP=$(printf '\xc2\xa0')
 if [[ $(printf '%s' "$NBSP" | wc -c) -ne 2 ]]; then
   bad "non-ASCII separator fixture: U+00A0 is not 2 bytes"
 elif ! locale -a 2>/dev/null | grep -qi '^en_US\.utf-\?8$'; then
-  ok "SKIP non-ASCII separator (host has no en_US.UTF-8 to contrast against C)"
+  # This is the ONLY case that separates `local +x LC_ALL=C` from a plain `local
+  # LC_ALL=C` — every other case in this file passes identically under both. So a
+  # skip here silently retires the single guard this fix exists to add, and a green
+  # run would say nothing about it. CI's Ubuntu runners carry en_US.UTF-8, so this
+  # branch is expected to be DEAD there: a skip appearing in a CI log is itself the
+  # finding, not a shrug. It stays a skip rather than a failure only so a developer
+  # on a minimal host is not blocked by a locale they cannot generate.
+  ok "SKIP non-ASCII separator — NO LOCALE CONTRAST AVAILABLE, the +x guard did NOT run (host lacks en_US.UTF-8)"
 else
   NBSPDOC="$REPO/nbsp.md"
   printf 'Intro line.\nRun `/alpha:ghost-nbsp%sarg` now.\n' "$NBSP" >"$NBSPDOC"

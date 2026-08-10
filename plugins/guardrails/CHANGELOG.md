@@ -5,6 +5,13 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 
 ## [0.23.0]
 
+**Note on the version bump.** MINOR rather than patch, on the same test 0.22.1 applied: does the
+change alter what the guard reports on? It does, in one direction. `RECONSTRUCT_MAX_CHARS` is now
+read as BYTES rather than characters (see the docblock at `skill-reference-verify.sh`), so a large
+multibyte file that previously fit under the character cap can now exceed the byte cap and skip
+reconstruction. That is a narrowing a consumer can observe, so it does not belong in a patch
+release — even though the locale pin itself is a fix and the rest of the entry is a relabel.
+
 ### Fixed
 
 - **`skill-reference-verify`'s partial-edit reconstruction ran in the consumer's ambient locale,
