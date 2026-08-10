@@ -5,6 +5,28 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.12.2]
+
+### Fixed
+
+- **`skills/sweep-all`: the open `CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY` currency question is closed
+  (#2176).** 0.12.1 landed the v2.1.224 cap removal with an honest in-place marker saying the
+  concurrency variable beside it was carried forward from a 2026-07-29 read, not re-verified, and
+  "tracked as its own item". That item is now closed, so the marker pointed at nothing. The row reads
+  exactly as cited — "Maximum number of read-only tools and subagents that can execute in parallel
+  (default: 10)" — so the claim is current, not drifted. The marker is replaced rather than deleted,
+  because the route matters: `env-vars` truncated before the `MAX` range for a **third** time, so this
+  was read from a same-day verbatim mirror of the docs
+  ([`ericbuess/claude-code-docs` `docs/env-vars.md`](https://github.com/ericbuess/claude-code-docs/blob/main/docs/env-vars.md),
+  synced 2026-08-10), whose freshness is corroborated by its carrying the same v2.1.224 cap removal.
+  That is strong evidence one rung below a primary read, and the citation now says so instead of
+  either overclaiming a primary fetch or leaving a closed question looking open. The replacement
+  carries the [upstream-drift convention](../../docs/conventions/upstream-drift/README.md)'s fourth
+  part, which the marker it replaces did not need and the bare stamp would have dropped: a recheck
+  trigger — a release note naming tool-use concurrency, parallel tool execution, or the variable, or
+  any `env-vars` fetch that reaches the `CLAUDE_CODE_MAX_*` range, which retires the mirror basis for
+  a primary one.
+
 ## [0.12.1]
 
 ### Fixed

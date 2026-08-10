@@ -233,9 +233,17 @@ unchanged and bind every member.
    (<https://code.claude.com/docs/en/sub-agents>,
    <https://code.claude.com/docs/en/env-vars>,
    <https://code.claude.com/docs/en/whats-new/2026-w32>; cap removal verified
-   2026-08-10, `CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY` above carried forward from
-   the 2026-07-29 read and NOT re-verified — the env-vars page truncated before
-   that range on re-fetch, so its currency is open, tracked as its own item).
+   2026-08-10. `CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY` above re-verified
+   2026-08-10 (#2176) and unchanged from the 2026-07-29 read — but NOT from the
+   env-vars page, which truncated before that range on a third re-fetch; the row
+   was read verbatim from a same-day mirror of these docs
+   (<https://github.com/ericbuess/claude-code-docs/blob/main/docs/env-vars.md>,
+   synced 2026-08-10), whose freshness is corroborated by its carrying the
+   v2.1.224 cap removal above. Treat it as one rung below a primary read.
+   Recheck trigger: a Claude Code release note naming tool-use concurrency,
+   parallel tool execution, or this variable — or any env-vars fetch that
+   reaches the `CLAUDE_CODE_MAX_*` range, which retires the mirror basis for a
+   primary one).
    So even a fully-admitted set —
    every core plus every situational corrector — dispatches in one wave in an
    otherwise-quiet session.
