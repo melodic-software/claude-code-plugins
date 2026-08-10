@@ -223,17 +223,22 @@ D1–D7 cycles. Exploration and validation must run on the PR's head branch.
   Answering an inline finding with a detached issue comment orphans the reply from the thread
   the reviewer tracks — a routing error, not a style choice
   - [ ] **verify reply exists — on the surface it was posted to:** inline threaded replies →
-    `gh api repos/{owner}/{repo}/pulls/<pr>/comments --jq '.[] | select(.in_reply_to_id ==
-    <original-id>)'`; issue-level → `gh api repos/{owner}/{repo}/issues/<pr>/comments --jq
-    '.[].body'`. Querying only issues/comments false-fails a correctly posted inline reply
+    `gh api --paginate "repos/{owner}/{repo}/pulls/<pr>/comments?per_page=100" --jq '.[] |
+    select(.in_reply_to_id == <original-id>)'`; issue-level → `gh api --paginate
+    "repos/{owner}/{repo}/issues/<pr>/comments?per_page=100" --jq '.[].body'`. Querying only
+    issues/comments false-fails a correctly posted inline reply; so does dropping `--paginate`,
+    since these endpoints return 30 per page oldest-first and your reply is the newest item
 - [ ] D6 — Fix if VALID (fix now) → edit, `git add <specific-files>` (never `-A` or `.`),
   commit, push
   - [ ] **verify commit pushed:** `gh api "repos/{owner}/{repo}/commits?sha=<branch>&per_page=1"
     --jq '.[0].sha'` — confirm the fix commit SHA on the remote
 - [ ] D7 — Post a follow-up reply citing the fix commit SHA
   - [ ] **verify follow-up reply posted — same surface routing as D5:** inline thread →
-    `pulls/<pr>/comments` filtered by `in_reply_to_id`; issue-level →
-    `gh api repos/{owner}/{repo}/issues/<pr>/comments --jq '.[-1].body'`
+    `pulls/<pr>/comments` filtered by `in_reply_to_id`; issue-level → `gh api --paginate
+    "repos/{owner}/{repo}/issues/<pr>/comments?per_page=100" --jq '.[] |
+    select(.body | contains("<sha>")) | .body'`. Select on the SHA, never `.[-1]` — these
+    endpoints return oldest-first, so on an unpaginated list `.[-1]` is the 30th-oldest comment
+    and the check passes or fails on a comment that is not yours
 - [ ] D7.5 — Resolve review thread — **author- and classification-conditional, inline review
   comments only** (this section is the canonical policy). <!-- contract-restatement-begin: D7.5-thread-eligibility --> **Resolution is a thread-level act
   while dispositions are per-finding, so eligibility is a property of the whole thread:** every

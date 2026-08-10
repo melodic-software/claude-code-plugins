@@ -21,7 +21,28 @@ All notable changes to the `source-control` plugin are documented here. Format f
   cliff to 100, so the gate also documents a completeness assertion — `total_count` against the
   flattened count across every page — and names the trap that makes the naive assertion wrong:
   `--jq` runs per page, so `.check_runs | length` reports one page at a time and must be slurped
-  before comparing.
+  before comparing. The rule is hoisted out of Gate 1 into a `Reading GitHub list APIs` section,
+  because it governs every gate in the file rather than one command.
+- **Every documented PR comment and review read is paginated, and the positional-index reads are
+  gone.** The same 30-per-page default governs `issues/<pr>/comments`, `pulls/<pr>/comments`, and
+  `pulls/<pr>/reviews`, all of which return **oldest-first** — so an unpaginated read drops the
+  newest items, which on a PR being monitored are the only ones that matter. Corrected in
+  `readiness.md` (comment-only actor discovery, bot-actor discovery, the codex-comment count at
+  HEAD, and Gate 4's three reads) and `skills/pull-request/reference/monitor.md` (all three
+  review-surface polls; the reviews poll filters `submitted_at` client-side, which made pagination
+  load-bearing there rather than merely tidy).
+- **`reference/review-discipline.md` and `skills/pull-request/SKILL.md` no longer verify a reply
+  with `.[-1]`.** This shape is worse than truncation: it does not omit, it answers. On an
+  unpaginated oldest-first list `.[-1]` is the **30th-oldest** comment, so D7's "did my follow-up
+  post?" check passes or fails on someone else's comment. Measured on this repo: PR #657 (33
+  comments) returned a comment timestamped 11.5 hours before the actual latest; #502 (31) returned
+  the second-newest. Both call sites now paginate and select on the fix SHA, so the query states
+  what it is asserting and cannot be satisfied by the wrong record. The inline-reply verifications
+  filtered by `in_reply_to_id` are paginated for the same reason.
+
+## [0.51.4]
+
+### Fixed
 
 - **`exec-bit-check.sh` no longer skips a copy destination whose source was never executable
   (#2118).** `R*` and `C*` shared one `src_mode == "100755"` gate, so a copy off a `100644` shebang

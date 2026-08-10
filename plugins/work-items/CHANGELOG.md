@@ -3,6 +3,17 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.1]
+
+### Fixed
+
+- **The GitHub adapter's "list item comments" recipe no longer truncates.** It called
+  `repos/{owner}/{repo}/issues/<N>/comments` unpaginated. The endpoint returns 30 per page
+  oldest-first and reports nothing when it truncates, so on any item past 30 comments the recipe
+  silently omits the newest ones — the end most callers are actually reading for. Live on this
+  repo: the loop-lane telemetry item #502 carries 31 comments and #657 carries 33. Now
+  `--paginate` with `per_page=100`.
+
 ## [0.35.0]
 
 ### Removed
