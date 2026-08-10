@@ -200,25 +200,48 @@ fi
 # with `diff.renames=copies`. Keying on `A` would make the check fail open on the
 # consumer's diff configuration rather than on the staged content.
 #
-# `--raw` rather than `--name-status` because a pair needs BOTH modes to judge:
-# its record is `:<srcmode> <dstmode> <srcsha> <dstsha> <status>`, and the
-# SOURCE mode is what says whether the destination actually dropped the bit.
-# `100755 -> 100644` did; `100644 -> 100644` is a deliberately non-executable
-# tracked file merely being moved, and reporting it would flip a mode nobody
-# changed -- squarely outside this check's newly-added-only scope. A pair whose
-# destination kept `100755` is dropped by the `100644` filter below regardless.
+# `--raw` rather than `--name-status` because a RENAME needs BOTH modes to
+# judge: its record is `:<srcmode> <dstmode> <srcsha> <dstsha> <status>`, and
+# the SOURCE mode is what says whether the destination actually dropped the bit.
+#
+# `R` and `C` are NOT symmetric here and do not share a predicate (#2118):
+#
+#   R -- the destination is the SAME tracked file at a new path. `100755 ->
+#        100644` dropped the bit; `100644 -> 100644` is a deliberately
+#        non-executable tracked file merely being moved, and reporting it would
+#        flip a mode nobody changed -- squarely outside this check's
+#        newly-added-only scope. So the rename arm gates on a `100755` source.
+#
+#   C -- the destination is a path that did NOT previously exist. It is newly
+#        added no matter what the source's mode was, which puts it squarely
+#        INSIDE the newly-added-only scope, so the copy arm gates on nothing and
+#        defers to the `100644`-plus-shebang filter below exactly as `A` does.
+#        Gating the copy arm on the source mode made the answer a function of
+#        the consumer's `diff.renames` setting -- the same staged content
+#        reported as `A` with copy detection off and went unreported as `C` with
+#        it on, which is the precise failure this candidate set exists to remove.
+#
+# A pair whose destination kept `100755` is dropped by the `100644` filter below
+# regardless, on either arm.
 added=()
 while IFS= read -r -d '' info; do
   info="${info#:}"
   src_mode="${info%% *}"
   status="${info##* }"
+  # Every pair arm MUST consume both the source and destination path fields:
+  # a record read short desynchronizes the whole NUL stream behind it.
   case "$status" in
-  R* | C*)
+  R*)
     IFS= read -r -d '' _source || break
     IFS= read -r -d '' path || break
     if [[ "$src_mode" == "100755" ]]; then
       added+=("$path")
     fi
+    ;;
+  C*)
+    IFS= read -r -d '' _source || break
+    IFS= read -r -d '' path || break
+    added+=("$path")
     ;;
   A)
     IFS= read -r -d '' path || break
