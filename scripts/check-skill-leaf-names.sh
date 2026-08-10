@@ -16,14 +16,14 @@
 # forces a plugin skill's name. So a collision is not a correctness bug and this
 # script is not a rename mandate.
 #
-# What it catches is the thing namespacing does NOT cover: the slash-command
-# picker labels a row by the LEAF name and keeps `<plugin>:<skill>` as a hidden
-# alias, so two colliding skills read identically in the listing and are told
-# apart only by the `(<plugin-name>)` prefix the description carries. That cost
-# is invisible from inside any one plugin -- nothing in a single skill's own
-# review surfaces it -- and the grammar's own collision rule
-# (docs/PLUGIN-PHILOSOPHY.md, Naming) governs siblings WITHIN one namespace, not
-# across plugins.
+# What it catches is the thing namespacing does NOT cover: a leaf typed into the
+# picker filters to every plugin carrying it, so the reader disambiguates a
+# family of near-identical rows by prefix and by the `(<plugin-name>)` marker the
+# description carries, and the model faces the same ambiguity when matching
+# descriptions for auto-invocation. That cost is invisible from inside any one
+# plugin -- nothing in a single skill's own review surfaces it -- and the
+# grammar's own collision rule (docs/PLUGIN-PHILOSOPHY.md, Naming) governs
+# siblings WITHIN one namespace, not across plugins.
 #
 # Registering a leaf name in skill-leaf-name-registry.txt records the grounds it
 # was accepted on, together with the owner set those grounds were argued over.
@@ -145,7 +145,7 @@ for leaf in $(printf '%s\n' ${collision_leaves[@]+"${collision_leaves[@]}"} | so
   if [[ -z "${registered[$leaf]+set}" ]]; then
     printf 'FAIL: skill leaf name %s is now carried by %d plugins (%s) and is not registered.\n' \
       "$leaf" "${#owners[@]}" "${actual//,/ }" >&2
-    printf '      These are separately invocable, but the picker labels every row %s.\n' "$leaf" >&2
+    printf '      These are separately invocable, but typing %s filters to all of them.\n' "$leaf" >&2
     printf '      Rename one, or add "%s %s" to %s with the grounds it is accepted on.\n' \
       "$leaf" "$actual" "$registry" >&2
     failed=1

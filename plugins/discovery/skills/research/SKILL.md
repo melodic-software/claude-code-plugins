@@ -1,5 +1,4 @@
 ---
-name: research
 description: "Multi-source external research in chained phases — corpus enumeration, broad, targeted + falsification, preferred sources — with per-claim source tiers, recency checks, a coverage ledger, and a binary outcome gate before presenting. Dispatches a fresh-context subagent by default so the research transcript stays out of the main conversation, with a documented inline escape hatch. Use when: 'research this', 'verify a technical claim', 'evaluate libraries or approaches', 'compare X vs Y', 'is this still current', 'find the authoritative source', 'what do the official docs say', or grounding any decision in current authoritative sources instead of training data."
 argument-hint: "[topic] (e.g., /discovery:research <library> <version> best practices, /discovery:research <framework> hook event schema, /discovery:research <ORM> query optimization)"
 user-invocable: true

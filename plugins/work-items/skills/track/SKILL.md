@@ -1,5 +1,4 @@
 ---
-name: track
 description: "Track development work items through the bound tracker (work-item-tracker seam) — the backlog-CRUD multi-verb skill. Actions: stats, list, add, start, done, due, recheck, search, audit (default: stats dashboard). Use when: 'add a work item', 'add an issue', 'close a work item', 'start a work item', 'claim a work item', 'list work items', 'what work items are open', 'what's due', 'work-item stats', 'work items dashboard', 'search work items', 'check overdue recurring items', 'recheck a recurring item', 'audit work items', 'audit stale claims'. Not for new bug reports — use /bug-report:write first (read-only report), then chain to /work-items:track add via --context if filing is needed. Sibling skills own the other verbs: /work-items:work (auto-select + execute one), /work-items:triage (raw intake), /work-items:decompose (plan → tickets), /work-items:scan-todos (TODO/FIXME sweep)."
 argument-hint: "<action> [args] — actions: stats, list, add, start, done, due, recheck, search, audit (default: stats)"
 user-invocable: true

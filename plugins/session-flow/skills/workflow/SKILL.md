@@ -1,5 +1,4 @@
 ---
-name: workflow
 description: "Navigate a staged development workflow (explore → research → plan → implement → test → review → verify → retro), suggest the next stage, and route the end-of-phase continuation mechanism (continue / clear / handoff / background / clean-stop / compact). Use when: 'workflow', 'what step am I on', 'what comes next', 'pre-pr sequence', 'wrap up', 'how should I continue', 'clear or compact', at session start, at a phase boundary, or whenever the next step is unclear."
 argument-hint: "[mode] (e.g., /workflow, /workflow steps, /workflow pre-pr, /workflow wrap-up, /workflow philosophy, /workflow spec-first, /workflow continue)"
 user-invocable: true

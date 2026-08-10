@@ -1,5 +1,4 @@
 ---
-name: audit-derivability
 description: "Audit whether a documentation file earns its existence — could a fresh agent re-derive its conclusions by exploring the code, config, and structure itself? Read-only classifier: weighs derivability x re-derivation cost x drift risk x fact ownership into a verdict — delete, convert-to-pointer, keep-as-derivation-cache, or keep-owns-facts. Audience-aware: agent-facing surfaces get the full axe; human-facing docs clear a higher deletion bar. Use when: 'is this doc worth keeping', 'audit doc value', 'derivability', 'could an agent figure this out itself', 'should this doc exist', 'this doc just restates the code', 'prune redundant docs', 'does this doc earn its maintenance', or before deleting a doc — not line-level noise (/docs-hygiene:audit-noise), cross-file duplication (/docs-hygiene:extract-ssot), prose flavor (/docs-hygiene:compress), or code-mismatch staleness."
 argument-hint: "[audit] [target] | sweep <dir>"
 user-invocable: true

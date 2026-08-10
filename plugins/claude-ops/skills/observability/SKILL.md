@@ -1,5 +1,4 @@
 ---
-name: observability
 description: "Read and report on locally captured Claude Code telemetry — OTEL DuckDB store, collector, optional Aspire dashboard, hook-event JSONL, ccusage — with cross-session trend reports and store pruning. Use when: 'claude observability', 'OTEL', 'collector', 'token burn rate', 'hook latency', 'cost breakdown', 'how am I doing'; read-only except the explicit clean action."
 user-invocable: true
 disable-model-invocation: false

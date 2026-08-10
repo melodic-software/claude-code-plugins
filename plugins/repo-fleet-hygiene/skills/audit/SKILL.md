@@ -1,5 +1,4 @@
 ---
-name: audit
 description: "Audit Git/GitHub hygiene across a fleet of local repositories: find GitHub-merged local branches, merged/missing/prunable/mislinked worktree registrations, and remotes that resolve to a moved or renamed GitHub repository. Read-only and confidence-tiered; emits exact handoffs to repo-hygiene/source-control but never deletes, prunes, repairs, fetches, checks out, or rewrites. Use when: 'audit repositories', 'repo fleet hygiene', 'stale branches across repos', 'orphaned worktrees across repos', 'moved repos', 'renamed GitHub owner', 'cross-repo git cleanup report'."
 user-invocable: true
 argument-hint: "[--root <dir>]... [--repo <dir>]... [--config <file>] [--canonical <github.com/owner/repo=path>]... [--max-depth <1..12>]"

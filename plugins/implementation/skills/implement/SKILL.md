@@ -1,5 +1,4 @@
 ---
-name: implement
 description: "Execute approved plans, fix bugs, and make code changes inline with incremental validation — TDD by default, build+test after each logical block, commit at green checkpoints, and divergence detection that routes back to planning instead of pushing through a broken approach. Use for 'implement this', 'execute the plan', 'fix this bug', 'refactor', or whenever code is about to be written; modes: feature, fix, refactor, config."
 argument-hint: "[task or mode] (e.g., /implementation:implement, /implementation:implement feature, /implementation:implement fix login-bug, /implementation:implement refactor)"
 user-invocable: true

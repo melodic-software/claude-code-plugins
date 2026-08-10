@@ -3,7 +3,7 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.7.6]
+## [0.8.2]
 
 A source-fidelity pass over `process.md`, `co-writing.md`, and the co-write
 session-opener template against *Writing Better Lyrics* (2009) Chapter 24 and
@@ -63,7 +63,7 @@ reaches this public repository.
   in `image_rsrcAUJ.jpg`, which independently confirms the
   one-undifferentiated-column-per-core-word layout recorded in `worksheets.md`.
 
-## [0.7.5]
+## [0.8.1]
 
 A source-fidelity pass over `song-forms.md` and `form.md` against *Writing
 Better Lyrics* (2009) Chapters 20-23, all four read in full — including
@@ -118,6 +118,16 @@ repository.
 - **`song-forms.md`: the cost Chapter 23 attaches to its first alternative** —
   inserting a bridge before a third verse returns to a full verse before the
   last chorus, so the lyric can still seem long.
+
+## [0.8.0]
+
+### Removed
+
+- **The bare `/<skill>` alias for this plugin's skills.** Their `SKILL.md` files no longer
+  declare a frontmatter `name`. The field is optional and defaults to the directory name, so
+  declaring it only restated the path while registering a second, unnamespaced command — which
+  the slash-command picker then echoed back as `/plugin:skill (skill)`. Invoke a skill by its
+  namespaced command; the command itself is unchanged.
 
 ## [0.7.4]
 

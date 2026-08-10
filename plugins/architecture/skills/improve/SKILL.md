@@ -1,5 +1,4 @@
 ---
-name: improve
 description: "Scan an existing codebase for module-level friction and architecture improvement opportunities — shallow modules, seam leaks, locality gaps — present candidates as an HTML report, interview on the selected candidate with a Design-It-Twice branch that designs the interface several radically different ways in parallel, and hand off the agreed shape for planning. Use when: 'improve architecture', 'find deepening opportunities', 'shallow modules', 'architecture improvement', 'Ousterhout deepening', 'design it twice', 'compare alternative interfaces', 'make code more testable', 'make code more AI-navigable', 'find refactoring opportunities', 'what should we improve', 'architecture scan', 'codebase friction', 'module seams', 'locality'. Skip when: mechanical code-level tidyings, reviewing a diff before merge, enforcing architecture rules on a change, or root-cause debugging a specific failure."
 argument-hint: "[action] (e.g., deepening)"
 user-invocable: true

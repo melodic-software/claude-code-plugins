@@ -1,5 +1,4 @@
 ---
-name: audit-noise
 description: "Classify tracked markdown for five noise shapes — historical citations, ghost refs to ephemeral working-directory paths, \"Why this file exists\" preambles, hard-coupled enumerated consumer lists, and scope/loading meta-commentary — emitting Tier 1 (remove/relocate), Tier 2 (review needed), and Tier 3 (likely legitimate) findings with per-shape treatment guidance; read-only, no edits applied. Use when: 'audit markdown noise', 'declutter', 'check for stale citations', 'find ghost refs', 'classify preamble', 'sweep a rule/skill/convention doc for noise', or before editing any tracked .md — not for prose flavor/compression (use /compress) or structural markdown lint (your repo's markdown linter)."
 argument-hint: "[audit] [target]"
 user-invocable: true

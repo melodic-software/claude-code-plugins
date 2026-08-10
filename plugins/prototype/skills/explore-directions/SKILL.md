@@ -1,5 +1,4 @@
 ---
-name: explore-directions
 description: "Builds throwaway UI variations — several radically different visual layouts on one route, switchable from a floating control bar — to answer 'what should this look like' before committing to a design. Use when: 'mock up a UI', 'try a few designs', 'what should this page look like', 'show me options for this dashboard', 'try a different layout for the settings screen', 'prototype this screen', 'explore design options'. Runs on your real stack by default (real header, real data, real density) or as a self-contained HTML mockup; you flip between variants, pick one (or steal bits from each), and throw the rest away. Not for logic or state questions — use /prototype:pressure-test for those."
 argument-hint: "[scope] (e.g., /prototype:explore-directions settings page)"
 user-invocable: true
