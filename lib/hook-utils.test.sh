@@ -1866,21 +1866,44 @@ bs_probe_run() { # sets bs_rc, bs_len, bs_probe_last from one whole-payload run
 # empty-slice check first try); the retry exists so that reporting the case
 # unexercised takes a host that cannot reach the path at all, not a single
 # unlucky sample.
+#
+# EVERY attempt is classified, not just the last. Retrying a shape that is only
+# ever produced by a REGRESSION would discard the evidence: a moved check yields
+# `idle=<n> chunklen=0` deterministically, and if a later attempt then happened
+# to fragment, a loop that only inspected its final state would report the case
+# unexercised and stay green on a defect it had already seen. So a bad shape
+# fails on the spot, a fragmented one is the only thing that earns a retry, and
+# "fragmented on all 3" is reached only by fragmenting three times.
+bs_engagement=""
 for bs_attempt in 1 2 3; do
   bs_probe_run
-  [[ "$bs_probe_last" == "idle=0 chunklen=0" ]] && break
+  if [[ "$bs_rc" == "0" ]] && ((bs_len == 65536)) && [[ "$bs_probe_last" == "idle=0 chunklen=0" ]]; then
+    bs_engagement=exercised
+    break
+  fi
+  if [[ "$bs_rc" == "0" ]] && ((bs_len == 65536)) && [[ "$bs_probe_last" == idle=0\ chunklen=* ]]; then
+    bs_engagement=fragmented # tells us nothing either way; try again
+    continue
+  fi
+  bs_engagement=bad
+  break
 done
-if [[ "$bs_rc" == "0" ]] && ((bs_len == 65536)) && [[ "$bs_probe_last" == "idle=0 chunklen=0" ]]; then
+case "$bs_engagement" in
+exercised)
   ok "buffer_stdin: the empty-slice completeness check fires on the FIRST idle slice for a chunk-boundary payload ($bs_probe_last, attempt $bs_attempt)"
-elif [[ "$bs_rc" == "0" ]] && ((bs_len == 65536)) && [[ "$bs_probe_last" == idle=0\ chunklen=* ]]; then
-  # Not a regression, and not coverage either: every attempt arrived fragmented,
-  # so the with-bytes check caught completion first and the empty-slice path was
-  # never reached — by the helper, not merely by this assertion, which is why
-  # this is not a failure (see above). Reported as unexercised, never as covered.
-  ok "buffer_stdin: chunk-boundary payload arrived fragmented on all 3 attempts ($bs_probe_last), so the empty-slice check was not exercised this run — correctness holds, engagement unasserted"
-else
-  fail "buffer_stdin chunk-boundary engagement: rc=$bs_rc len=$bs_len probe='$(tr '\n' ';' <"$bs_probe_file")' (expected rc 0, 65536 bytes, and a completeness verdict at idle=0 chunklen=0)"
-fi
+  ;;
+fragmented)
+  # Not a regression, and not coverage either: all three attempts arrived
+  # fragmented, so the with-bytes check caught completion first and the
+  # empty-slice path was never reached — by the helper, not merely by this
+  # assertion, which is why this is not a failure (see above). Reported as
+  # unexercised, never as covered.
+  ok "buffer_stdin: chunk-boundary payload arrived fragmented on all 3 attempts (last: $bs_probe_last), so the empty-slice check was not exercised this run — correctness holds, engagement unasserted"
+  ;;
+*)
+  fail "buffer_stdin chunk-boundary engagement: attempt $bs_attempt gave rc=$bs_rc len=$bs_len probe='$(tr '\n' ';' <"$bs_probe_file")' (expected rc 0, 65536 bytes, and a completeness verdict at idle=0 chunklen=0)"
+  ;;
+esac
 rm -f "$bs_probe_file" "$bs_payload_file" "$bs_rc_file" "$bs_out_file"
 
 if bs_samples 6 bs_time_stall "" "$bs_unsliced"; then
