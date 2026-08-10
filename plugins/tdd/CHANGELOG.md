@@ -3,6 +3,24 @@
 All notable changes to the `tdd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.0]
+
+### Added
+
+- **Mutation testing named as the partial exception to "no automated way to measure test suite
+  quality"** (`code-coverage-khorikov.md`). The chapter's claim is about quality as it defines it and
+  stands; one property — whether assertions can detect a fault rather than merely execute code — is
+  automatically measurable, and a file at high coverage with a low mutation score is exercised but
+  not checked. The note states the measurement's limits in the same breath (unknowable ceiling from
+  equivalent mutants, and targeting the number reproduces the chapter's own perverse incentive).
+- **The false-negative half of test accuracy tied to its measurement** (`four-pillars-khorikov.md`).
+  A surviving mutant is a demonstrated false negative, not an estimate of one; nothing equivalent
+  exists for the false-positive half, so the note is explicit that the measurement is lopsided and
+  that optimizing for it trades away the other three pillars.
+
+Both notes are presence-gated references to `/mutation-testing:principles` with the substantive
+fallback stated inline, per the seam-phrasing convention.
+
 ## [0.3.0]
 
 ### Removed

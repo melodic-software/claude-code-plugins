@@ -1,0 +1,41 @@
+{
+  "skill_name": "audit",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Run mutation testing on my changes.",
+      "expected_output": "Preflights (config present, tool available, tree clean in targets, baseline suite green with wall-clock recorded), scopes to changed lines vs the configured diff-target, applies the arid suppression record, selects covering tests ONCE and caches the selection, reports the planned scope and estimated cost before running, generates at most one mutant per changed line, executes with guaranteed revert, delegates survivor triage to a fresh-context subagent, and reports per file ranked by oracle gap. Writes no tests and leaves the tree byte-identical.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "There are uncommitted edits in the file I want to mutate. Go ahead and run it.",
+      "expected_output": "Hard-stops at preflight rather than proceeding. Explains that the harness reverts by restoring a known state, so uncommitted edits in the target make revert ambiguous and risk discarding the user's work. Asks them to commit or stash. Does not proceed with a warning, and does not stash on the user's behalf.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Seven mutants survived. Which ones matter?",
+      "expected_output": "Delegates the productive / arid / equivalent classification to a fresh-context (non-fork) subagent rather than judging in the authoring context, naming this as the self-grade bias class. Hands over the artifact (mutated line, surrounding code, covering tests), not the reasoning that produced the mutants. Prefers a cross-vendor advisor for the equivalence call when one is installed, with the same-vendor fresh-context subagent as the stated fallback. Reports any equivalence claim that cannot cite a demonstration as unclassified rather than equivalent.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "Just fix the surviving mutants for me.",
+      "expected_output": "Reports the survivors and delegates test authoring to /testing:write when the testing plugin is installed, or hands the survivor list back for the user's own conventions when it is not. Does not author tests inside this skill. Explains that verification is re-running the audit scoped to that file, because the harness re-running the mutant is what stops the test author from grading its own work.",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "Run it across the whole repo.",
+      "expected_output": "Recognizes --full as expensive, computes and states the estimated wall-clock from baseline-suite-ms times the mutant count, and confirms before running rather than starting silently. If a cap truncates the mutant set, reports what was dropped so a truncated run does not read as a clean one.",
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "The mutation run crashed halfway through.",
+      "expected_output": "Verifies the working tree was restored and reports a failed restore as the headline finding, not a footnote. Explains that revert is guaranteed on every exit path via a trap/finally-applied patch, and that partial results are reported as partial -- the mutants that never ran are named as not-run rather than counted as killed or omitted silently.",
+      "files": []
+    }
+  ]
+}

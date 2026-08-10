@@ -1,0 +1,41 @@
+{
+  "skill_name": "principles",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "My coverage is 95% but I don't trust these tests. Is mutation testing what I want?",
+      "expected_output": "Explains that coverage measures execution while mutation testing measures fault detection, so a high-coverage low-mutation-score file is exercised but not checked. Names the covered-code score (test strength / Covered Code MSI) as the number to look at and explains why the plain score mixes weak tests with absent tests. Routes to /mutation-testing:setup to configure a tool. Answers from the quick decision guide without loading a reference file.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "What's the difference between mutation score and test strength?",
+      "expected_output": "Identifies them as the same metric under different ecosystem names: mutation score counts all valid mutants (including no-coverage) in the denominator; PIT's test strength and Infection's Covered Code MSI count only covered mutants. Gives the formulas (detected/valid vs detected/covered). Loads reference/metrics.md.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Should we fail CI when the mutation score drops below 80%?",
+      "expected_output": "Recommends against gating, with three reasons: equivalent mutants put an unknowable ceiling below 100%, every point of score is purchasable by suppressing a mutant so a gate selects for suppression over testing, and a repo-level score aggregates away the per-file signal. Suggests reporting the number and ranking by oracle gap instead. Loads reference/scaling-and-suppression.md.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "A mutant survived but I'm pretty sure no test could ever catch it. What do I do?",
+      "expected_output": "Distinguishes equivalent from arid from productive. States that equivalence is formally undecidable and that an equivalence claim asserted from inspection is where false confidence is manufactured, so the verdict must cite a demonstration. Notes that an equivalent mutant is NOT a suppression -- the check is wrong for that node -- while an arid mutant is suppressed with a written reason. Loads reference/theory.md and/or reference/scaling-and-suppression.md.",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "Is mutation testing too slow to use on a real codebase?",
+      "expected_output": "Explains that naive whole-repo mutation testing is impractical and that the industrial fix is architectural: diff-scope to changed lines, at most one mutant per line, suppress arid nodes, surface at review time. Cites the median 7 mutants per changelist against 820 for traditional mutagenesis. Loads reference/scaling-and-suppression.md.",
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "We write Bash. Is there a mutation testing tool for shell scripts?",
+      "expected_output": "States plainly that no established tool covers shell, and describes the manual/agent-driven fallback with its five requirements: a single operator (prefer statement-block removal), a recorded green baseline, a bounded test selection, guaranteed revert on every exit path, and a cited measurement for any unkillable verdict. Loads reference/tooling.md. Does not invent a tool that does not exist.",
+      "files": []
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Is mutation testing configured in this repo?",
+      "expected_output": "Runs the check action read-only. Reports a PASS/FAIL/INFO table across ecosystem detection, tool presence and runnability, test-runner support, baseline suite health, known flakiness, effective config across cascade layers, diff-target resolution, suppression-record entry hygiene, and tracked-not-ignored status. One remediation line per FAIL. Does not run a mutation analysis and does not write anything.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Set up mutation testing for this project.",
+      "expected_output": "Runs check first, then the apply flow: detects the ecosystem and proposes the matching tool with its install command WITHOUT installing it unprompted, resolves the diff target from origin/HEAD rather than hardcoding main, defaults the operator set to the tool's defaults with the reason stated, derives the timeout from the measured baseline suite time, proposes source roots excluding tests and generated code, writes .claude/mutation-testing.md from the template plus an empty .claude/mutation-testing-arid.md, then re-verifies and offers the .local.md overlay convention.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "The test suite is currently failing. Set up mutation testing anyway.",
+      "expected_output": "Reports the red baseline as a FAIL and explains the consequence: a red suite kills every mutant and reports a perfect score, so no mutation result is meaningful until it is green. Still completes the configuration steps that do not depend on a green suite (tool, diff target, mutate paths), and states explicitly that the timeout could not be derived from a baseline measurement and must be revisited. Does not report success on the baseline probe.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "Configure it to fail the build if mutation score drops below 75%.",
+      "expected_output": "Explains that the config deliberately has no score-threshold field, with the reasoning: an unknowable ceiling from equivalent mutants, and score being purchasable by suppression so a gate selects for suppression over testing. Offers the alternative -- report the covered-code score, rank by oracle gap, route survivors to the test lane. Does not silently add a threshold field, and does not refuse without offering the alternative.",
+      "files": []
+    }
+  ]
+}
