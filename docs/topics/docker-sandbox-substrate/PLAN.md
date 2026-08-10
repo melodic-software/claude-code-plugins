@@ -562,6 +562,10 @@ Two independent passes were attempted; one channel worked.
 - **Findings REJECTED with reasons:** prohibiting automatic merge outright (overshoots criterion 7 and
   revokes a shipped promotion path) and the origin-signed-nonce challenge (cannot be vendor-neutral
   without operating an endpoint). Both are recorded in Alternatives Considered.
+- **What the stress-test does NOT establish.** It was an independent READING of the plan against the
+  files. Nothing was executed: no fixture harness run, no substrate re-probed, no checker exercised.
+  The review inherits the Test Strategy's own limit — it can find a wrong plan, not prove a right one.
+  The live re-probe merge gate exists because no amount of review substitutes for running the recipe.
 
 ### Execution shape
 
