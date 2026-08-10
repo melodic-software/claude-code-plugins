@@ -91,6 +91,14 @@ installs a package, or performs a network request during a hook run.
 Telemetry timing uses `EPOCHREALTIME` (Bash 5.0+); on older Bash the telemetry
 envelope is skipped while formatting still runs.
 
+`git` is **not** required. Without it, formatting and linting still run; three
+things that ask git a question degrade instead of blocking: the gitignore scope
+lints rather than skipping (as above), the working-tree scope that applies when
+`CLAUDE_PROJECT_DIR` is unset stops narrowing anything (config discovery is then
+anchored at the edited file's own directory, so it opens only for a config
+sitting there), and the repeat-report suppression stops deduplicating, so an
+unchanged finding set is reported in full each time.
+
 ### Configuration trust boundary
 
 `markdownlint-cli2` supports executable `.cjs`/`.mjs` configuration and can

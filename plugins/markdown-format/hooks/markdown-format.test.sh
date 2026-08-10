@@ -415,6 +415,168 @@ EOF
 fi
 rm -rf "$OUTOFTREE"
 
+# --- Git-tree scoping: git ABSENT must not read as "out of tree" -------------
+# Regression for the review finding stranded on #1030, the PR that added the
+# membership scope above. `in_git_working_tree` fails identically for the two
+# cases it must distinguish: a file outside every working tree, and a host
+# where git is not installed at all. Reading the second as the first skipped
+# EVERY Markdown edit on such a host — silently, repo-wide, with jq and
+# markdownlint-cli2 present and a config in place, and although git is not a
+# documented prerequisite of this hook (README "Requirements" lists Bash, jq
+# and markdownlint-cli2; the setup skill checks those). The skip is now gated
+# on git being available, so an undecidable verdict lints — the direction the
+# gitignore scope further down already documents for the same input.
+#
+# Absence is simulated in-process rather than by rebuilding PATH: on Git Bash —
+# the platform this hook most needs to keep working on — every coreutils binary is an
+# MSYS binary that will not start once copied away from its DLL directory, so a
+# sanitized bin directory is not portable here. The BASH_ENV shim is the same
+# technique the markdownlint-cli2 PATH-hiding case below uses, and it is exact
+# for this predicate: `command -v git` fails, and a direct `git` call exits 127
+# on stderr, which is what bash does for a command that is not on PATH.
+NO_GIT_ENV="$WORK/no-git.bashenv"
+cat >"$NO_GIT_ENV" <<'EOF'
+command() {
+  if [[ "${1:-}" == "-v" && "${2:-}" == "git" ]]; then
+    return 1
+  fi
+  builtin command "$@"
+}
+git() {
+  printf 'bash: git: command not found\n' >&2
+  return 127
+}
+EOF
+
+run_hook_no_git() {
+  (cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$1" |
+    env -u CLAUDE_PROJECT_DIR BASH_ENV="$NO_GIT_ENV" \
+      CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")
+}
+
+# Asserted on file BYTES, not stdout: without git the finding-digest and
+# telemetry paths go quiet on their own, and this fixture is clean after --fix,
+# so an empty stdout is what BOTH a working run and a skipped run produce.
+NOGIT_FIXTURE="$REPO/fixtureNoGit.md"
+printf '# No Git\n\n* star item\n' >"$NOGIT_FIXTURE"
+OUT_NOGIT="$(run_hook_no_git "$NOGIT_FIXTURE")"
+RC_NOGIT=$?
+if [[ $RC_NOGIT -eq 0 ]]; then
+  ok "git absent: hook exits 0"
+else
+  fail "git absent: hook exit $RC_NOGIT (out=$OUT_NOGIT)"
+fi
+if grep -q '^- star item$' "$NOGIT_FIXTURE"; then
+  ok "git absent + CLAUDE_PROJECT_DIR unset: in-repo .md still linted (--fix applied)"
+else
+  fail "git absent: in-repo .md silently skipped, file unmodified: $(cat "$NOGIT_FIXTURE")"
+fi
+
+# Control for the assertion above: the shim must not be what decides the
+# outcome by itself. The SAME shim with CLAUDE_PROJECT_DIR SET bypasses the
+# membership scope entirely, so linting here proves the remainder of the hook
+# is already git-independent and leaves the scope as the only variable between
+# the two runs.
+NOGIT_CONTROL="$REPO/fixtureNoGitControl.md"
+printf '# No Git Control\n\n* star item\n' >"$NOGIT_CONTROL"
+OUT_NOGIT_CTL="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$NOGIT_CONTROL" |
+  env BASH_ENV="$NO_GIT_ENV" CLAUDE_PROJECT_DIR="$REPO" \
+    CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+RC_NOGIT_CTL=$?
+if [[ $RC_NOGIT_CTL -eq 0 ]] && grep -q '^- star item$' "$NOGIT_CONTROL"; then
+  ok "control: git absent with CLAUDE_PROJECT_DIR set still lints (hook is otherwise git-independent)"
+else
+  fail "control failed: the git-absence shim disabled the hook independently of the membership scope (rc=$RC_NOGIT_CTL out=$OUT_NOGIT_CTL)"
+fi
+
+# The control above sits BESIDE the root markdownlint config, which hides a
+# second, independent git dependency: config discovery walks UP from the file
+# and stops at hook::repo_root, and without git that root is the file's own
+# directory. A file one directory down therefore never reaches the root config
+# and is skipped — the ordinary docs layout, and the case the membership fix is
+# otherwise meant to restore. Nesting the fixture is the whole assertion; a
+# root-level twin passes either way and proves nothing about it.
+mkdir -p "$REPO/docs"
+NOGIT_NESTED="$REPO/docs/fixtureNoGitNested.md"
+printf '# No Git Nested\n\n* star item\n' >"$NOGIT_NESTED"
+OUT_NOGIT_NEST="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$NOGIT_NESTED" |
+  env BASH_ENV="$NO_GIT_ENV" CLAUDE_PROJECT_DIR="$REPO" \
+    CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+RC_NOGIT_NEST=$?
+if [[ $RC_NOGIT_NEST -eq 0 ]] && grep -q '^- star item$' "$NOGIT_NESTED"; then
+  ok "git absent: a NESTED .md still reaches the root markdownlint config"
+else
+  fail "git absent: nested .md skipped — config discovery never left its own directory (rc=$RC_NOGIT_NEST out=$OUT_NOGIT_NEST)"
+fi
+
+# The scope must still fire when git CAN answer — that half is the out-of-tree
+# case above, which runs with git present and asserts the skip.
+#
+# But the REPO_ROOT override is a different branch from that scope, and its
+# ordinary case — `CLAUDE_PROJECT_DIR` set AND git present, i.e. nearly every
+# real Markdown edit — was exercised by nothing: every other case in this file
+# either runs `-u CLAUDE_PROJECT_DIR` or runs under the git-absence shim. The
+# two cases below cover it from both sides, because "it still lints" alone
+# cannot tell a correctly-inert override from one that fired and happened not
+# to change the outcome.
+# Reaching that branch at all takes care, and a first attempt at these cases
+# failed to. The guard is `"$REPO_ROOT" == "$(dirname "$FILE")"`, so a NESTED
+# fixture can never satisfy it when git resolves a toplevel: dirname is
+# `<repo>/docs` while REPO_ROOT is `<repo>`. Both fixtures must therefore sit
+# DIRECTLY at the root of their directory, or the whole `if` short-circuits and
+# the case tests nothing while passing.
+#
+# The outer config also has to FORCE a rewrite. An empty `{}` leaves MD004 on
+# "consistent", which has nothing to flag on a single-item list — so a wrongly
+# widened walk would produce bytes identical to a correctly skipped one, and the
+# negative case could not fail. It pins MD004 to "dash" so a wrong walk is
+# observable as `* star item` becoming `- star item`.
+OUTER="$WORK/outer-config-root"
+mkdir -p "$OUTER"
+printf '{ "config": { "MD004": { "style": "dash" } } }\n' >"$OUTER/.markdownlint-cli2.jsonc"
+
+# POSITIVE — the override must FIRE and be load-bearing. git is present and
+# working, but the file's own directory is NOT a repository, so hook::repo_root
+# falls back to the hint, the guard matches, the probe fails, and
+# CLAUDE_PROJECT_DIR becomes the walk's terminator. Without the override the
+# walk starts and ends in that same directory, finds no config, and skips — so
+# this case discriminates on the override alone.
+NONREPO_ROOTED="$OUTER/plain/fixtureOverrideFires.md"
+mkdir -p "$OUTER/plain"
+printf '# Override Fires\n\n* star item\n' >"$NONREPO_ROOTED"
+OUT_FIRES="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$NONREPO_ROOTED" |
+  env CLAUDE_PROJECT_DIR="$OUTER" \
+    CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+RC_FIRES=$?
+if [[ $RC_FIRES -eq 0 ]] && grep -q '^- star item$' "$NONREPO_ROOTED"; then
+  ok "git present, dir is no repo: the override fires and CLAUDE_PROJECT_DIR terminates the walk"
+else
+  fail "git present, dir is no repo: the override did not fire — config above was never reached (rc=$RC_FIRES out=$OUT_FIRES)"
+fi
+
+# NO NEGATIVE TWIN, deliberately — three instruments were tried and none can
+# fail, so shipping one would be a test that proves nothing while looking like
+# coverage. Recorded here rather than omitted silently, because the reason is a
+# fact about the CODE, not only about the fixtures:
+#
+#   1. Lint output cannot see it. Force the override to fire on a file at the
+#      root of a real repository (replace the probe with `false`) and the file
+#      is STILL not rewritten — markdownlint-cli2 performs its own config
+#      discovery and does not cross the repository boundary, so widening the
+#      hook's gate changes no observable byte.
+#   2. Telemetry's `data.file` is derived from REPO_ROOT and looked promising,
+#      but the forced-override run emits an EMPTY value rather than the
+#      relative-to-outer path a wrongly-widened root would produce. Empty is
+#      also what a sink that never populated looks like, so the assertion could
+#      not tell a real regression from a flaky sink.
+#   3. Exit status is 0 either way; the gate's only effect is whether the lint
+#      runs, and (1) shows the lint's own result is unchanged.
+#
+# So the override's INERTNESS in that configuration is not behaviourally
+# observable, and the positive case above is what pins the branch. A future
+# change that makes REPO_ROOT observable — exporting it, or emitting it in the
+# envelope — would make the negative writable; until then it cannot be.
+
 # --- Repository-local markdownlint: use contained npm/Git Bash shim ---------
 # Hide the PATH copy, then provide the extensionless POSIX shim npm installs
 # beside its Windows .cmd launcher. The hook must execute it directly from the
@@ -1690,7 +1852,7 @@ fi
 # is about — every CR here sits at end-of-line. Verified by revert-probe: with
 # the fix removed, the decoded-value form still passed while the raw-escape form
 # fails. Testing the bytes the hook actually emits is the only honest check.
-crlf_escaped() { case "$1" in *'\r'*) return 0 ;; *) return 1 ;; esac; }
+crlf_escaped() { case "$1" in *'\r'*) return 0 ;; *) return 1 ;; esac }
 
 FCR="$REPO/crlf.md"
 printf '# CRLF\n\nbody\n' >"$FCR"
