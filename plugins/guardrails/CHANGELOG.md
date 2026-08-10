@@ -29,8 +29,12 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   NAME and gave up — `env -S '-C <sha256-repo> git push --force-with-lease=main:<40-hex>'` and even
   a bare `env -S '-v git push --force'` resolved to no git at all, so the guard never examined
   them. Parsing now resumes inside env's own option loop, which also keeps env's single chdir slot
-  last-wins across the splice (`env -C a -S '-C b git …'` reports `b`, as GNU env behaves). Synced
-  from `lib/hook-utils.sh`, so every carrying plugin gets it.
+  last-wins across the splice (`env -C a -S '-C b git …'` reports `b`, as GNU env behaves). This is
+  the LARGER of the two holes and it was not lease-specific: an independent adversary confirmed
+  `block-no-verify` allowed `git commit --no-verify` and `block-dangerous-git` allowed
+  `git reset --hard` behind the same `env -S` form. `hook::git_resolve_index` is the shared resolver,
+  so the hole was shared — `hook-utils.sh` lives in 17 places (`lib/` plus 16 plugin copies) and
+  every one of them was stale. Synced from `lib/hook-utils.sh`, so all 17 carry the fix.
 
 ### Changed
 
@@ -46,6 +50,12 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   what remains is any SHELL relocation the static parser does not evaluate (`cd … && git push`, a
   subshell, `pushd`), and the comment now says so plainly. A documented gap that reads narrower
   than it is, is how this one survived review.
+- The known-gap docblock also now records that the gap's PRIMARY symptom is a false BLOCK, not a
+  bypass: with a shell `cd` the probe measures a base that is often not a repository, answers width
+  0, and fails closed — so `cd <repo> && git push --force-with-lease=main:<literal full-width sha>
+  origin main`, the exact form the block message prescribes, is denied from a non-repository session
+  root. Fail-closed is right for an unresolvable base; the note exists so the next person to narrow
+  the gap treats the false block as the symptom to measure.
 - A second residual is now documented rather than left implicit: git EXPORTS an explicit
   `--git-dir` / `--work-tree` into a `!` shell-alias body, so the body inherits a repository the
   composed directory does not name and its lease is judged against the base. Reproduced against

@@ -248,7 +248,19 @@ is_lease_opt() { abbrev_match "force-with-lease" "${1%%=*}" 7; }
 #
 # The residual needs only that shell relocation into a repository whose hash
 # format differs from the base's, plus a lease pinned to a full-width hex word
-# that is a ref name at the destination. It needs no wrapper. An earlier wording
+# that is a ref name at the destination. It needs no wrapper.
+#
+# And it bites in the OTHER direction far more often than as a bypass: when the
+# base is not a repository at all, the probe answers 0 and the guard fails closed,
+# so `cd <repo> && git push --force-with-lease=main:<literal full-width sha>
+# origin main` — the very form the block messages above prescribe — is DENIED
+# from a session root that is not itself a repository. Fail-closed is the right
+# default for an unresolvable base, but the cost is a guard that can refuse
+# correct usage it just recommended, which is how a guard teaches people to route
+# around it. Anyone narrowing this gap should treat the false block as the
+# primary symptom, not the bypass.
+#
+# An earlier wording
 # here listed a "compound cd" as one of three conjuncts and read as far narrower
 # than the gap was: at the time the payload cwd was not read at all, so NO cd and
 # NO wrapper were required either — a plain `git push` from a session directory
@@ -373,6 +385,14 @@ collect_git_locating_opts() {
 # identity: the only question asked downstream is which repository's hash format
 # applies, and every directory inside one repository answers that identically, so
 # the composed spelling is sufficient and costs no subprocess.
+#
+# Composing ONLY `-C` is deliberate and mirrors git, not an oversight beside
+# collect_git_locating_opts, which also replays `--git-dir` / `--work-tree` /
+# `--namespace`: only `-C` moves a `!` body. Measured — `git -C <other> -c
+# alias.wd='!pwd' wd` prints `<other>`'s top level, while `git --git-dir=<other>
+# -c alias.wd='!pwd' wd` does NOT relocate at all. The two functions answer
+# different questions (which DIRECTORY the body runs in vs which REPOSITORY the
+# probe addresses), so the option sets legitimately differ.
 #
 # Known gap, pre-existing and NOT closed here: only `-C` is composed. git also
 # EXPORTS an explicit `--git-dir` / `--work-tree` into a `!` body's environment
@@ -639,11 +659,17 @@ check_segment() {
         # only inline aliases, and every definition reachable from the reparse
         # is a strict substring of the parent segment's text.
         #
-        # That new process also starts in THIS segment's relocated directory, so
-        # the body's own `-C` composes onto it and a body with none inherits it
-        # outright. Carry it as the reparse's base — dropping it probes the
-        # payload cwd while git pushes from the relocated repository, which is
-        # this guard's misprobe one recursion level down.
+        # That new process runs in the RELOCATED REPOSITORY — precisely, git
+        # chdirs a `!` body to the work tree's TOP LEVEL whenever it can compute
+        # a prefix, so the body's directory is the top level rather than the
+        # composed one (measured: `alias.wd='!pwd'` invoked from `<repo>/sub`
+        # prints `<repo>`). The distinction does not change the answer here and
+        # is stated so the reasoning is not load-bearing on a false premise: an
+        # object format is a property of the REPOSITORY, and the composed
+        # directory and its top level are the same repository, so both probe
+        # identically. Carry the composed directory as the reparse's base —
+        # dropping it probes the payload cwd while git pushes from the relocated
+        # repository, which is this guard's misprobe one recursion level down.
         reparse="${exp#!}"
         for a in "${w[@]:sub_idx+1}"; do reparse+=" $(printf '%q' "$a")"; done
         HOOK_ALIAS_SEEN=()
