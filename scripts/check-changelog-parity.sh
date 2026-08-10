@@ -139,7 +139,15 @@ version_sort_key() {
 # content. Comment markers inside fenced code are content; fence markers inside a
 # comment are suppressed. A line that BEGINS inside a comment is suppressed whole
 # even when the comment closes on it: what follows `-->` can never be a
-# column-one heading anyway. Reads $1, or stdin when $1 is `-`.
+# column-one heading anyway.
+#
+# Reads the file named by $1, or stdin when called with NO argument. It used to
+# document `-` as the stdin form and pass "$1" through unconditionally. That is
+# not portable: a `-` file operand meaning stdin is a convention, not something
+# every awk honours, and when it is taken literally the helper emits nothing and
+# every caller silently concludes the file has no headings. Forwarding "$@"
+# instead lets a zero-argument call reach awk as a zero-operand call, which
+# reads stdin in every awk there is.
 rendered_lines() {
   awk '
     {
@@ -181,7 +189,7 @@ rendered_lines() {
         rem = substr(rem, r + 3)
       }
     }
-  ' "$1"
+  ' "$@"
 }
 
 # The version headings a changelog declares, in file order. Every heading form
@@ -429,10 +437,24 @@ for manifest in "${manifests[@]}"; do
   # — or falsely pre-exists — the release entry, and SemVer metacharacters
   # (1.0.1+build.1) never leak into a regex. A same-line "<!-- ## [x] -->" can
   # never match anyway (the heading is not at column one).
+  #
+  # Two things here are deliberate and must not be "optimized" back:
+  #
+  # 1. rendered_lines is called with NO argument, not `-`. See its comment; a
+  #    literal `-` operand is not portably stdin.
+  # 2. The matcher does NOT `exit` on the first hit. This runs under
+  #    `set -o pipefail` (line 63), so an early exit closes the pipe while
+  #    rendered_lines is still writing, rendered_lines dies of SIGPIPE (141),
+  #    and pipefail makes 141 the status of the whole pipeline — turning a
+  #    FOUND heading into "no entry at head". Whether the writer has already
+  #    finished depends on how much of the changelog fits in the pipe buffer,
+  #    so it passes on short changelogs and on some platforms and fails on
+  #    others, which is exactly how it presented. Reading to EOF costs
+  #    nothing at these sizes and removes the race.
   heading="## [${head_version}]"
   has_heading() {
-    rendered_lines - | awk -v h="$heading" '
-      index($0, h) == 1 { found = 1; exit }
+    rendered_lines | awk -v h="$heading" '
+      index($0, h) == 1 { found = 1 }
       END { exit !found }
     '
   }
