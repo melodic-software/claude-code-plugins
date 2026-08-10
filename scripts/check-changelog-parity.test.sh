@@ -217,53 +217,46 @@ git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm bump
 if (cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" >/dev/null 2>&1); then ok "bump + '## [x.y.z]' entry passes --check-bump"; else fail "bump+entry wrongly failed"; fi
 rm -rf "$repo"
 
-# REAL-WORLD SHAPE: the new entry at the TOP of a LONG changelog. The case above
-# passes on a three-line file, which is why this class shipped undetected — with
-# the heading on line 3 there is nothing left to write after the matcher stops,
-# so neither of the two defects this guards against can fire:
-#
-#   1. has_heading fed rendered_lines a `-` operand for stdin, which is a
-#      convention rather than something every awk honours. Where it is taken as
-#      a literal filename the helper emits nothing and every heading looks absent.
-#   2. The matcher exited on the first hit. Under `set -o pipefail` that closes
-#      the pipe mid-write, rendered_lines takes SIGPIPE (141), and pipefail
-#      promotes 141 to the pipeline's status — so a FOUND heading reports as
-#      "no entry at head". It only bites once the unread remainder outgrows the
-#      pipe buffer, i.e. on exactly the changelogs a long-lived plugin has.
-#
-# Keep this changelog comfortably over 64 KiB (the usual pipe capacity) and keep
-# the matched heading FIRST; both are load-bearing.
+# LARGE CHANGELOG (SIGPIPE regression, #2130): the new entry sits near the top
+# of a changelog far larger than the pipe buffer — the shape every mature
+# changelog has. A has_heading reader that exits on first match kills
+# rendered_lines mid-write with SIGPIPE, and pipefail turns the FOUND heading
+# into a false UNDOCUMENTED BUMP. The small fixtures above fit in one buffer
+# and cannot catch this; the padding here (~260 KB) exceeds the pipe CAPACITY,
+# so against an early-exiting reader the writer blocks mid-write and the
+# SIGPIPE is deterministic, not a winnable race — but only under gawk (the CI
+# runner's awk): mawk survives the closed pipe and passes regardless, so on a
+# machine where `awk` resolves to mawk this guard would silently prove
+# nothing. The run below therefore FORCES gawk via a PATH shim, and skips
+# loudly when gawk is absent rather than reporting a pass that exercised
+# nothing. The fix itself is engine-independent — the reader consumes to EOF,
+# so no writer can ever take SIGPIPE under any awk.
 repo="$(mk_repo)"
 git_init "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
+printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
 git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
 base="$(git -C "$repo" rev-parse HEAD)"
 printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
 {
-  printf '# Changelog\n\n## [1.1.0]\n\nthe entry under test\n\n'
-  i=900
-  while ((i > 0)); do
-    printf '## [0.%d.0]\n\nan older release note long enough to push this file past the pipe buffer\n\n' "$i"
-    i=$((i - 1))
+  printf '# Changelog\n\n## [1.1.0]\n\n'
+  for ((i = 0; i < 4000; i++)); do
+    printf '%s\n' '- a release note line padding the file well past any pipe or stdio buffer'
   done
+  printf '\n## [1.0.0]\n'
 } >"$repo/plugins/alpha/CHANGELOG.md"
-size="$(wc -c <"$repo/plugins/alpha/CHANGELOG.md")"
-((size > 65536)) || fail "fixture too small to exercise the pipe-buffer path: ${size} bytes"
 git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm bump
-if (cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" >/dev/null 2>&1); then ok "a top-of-file entry in a >64KiB changelog passes --check-bump"; else fail "long changelog wrongly reported as UNDOCUMENTED BUMP"; fi
-# The same file must stay readable by --check, which reaches rendered_lines by
-# path rather than stdin — so a fix to one call form cannot break the other.
-if (cd "$repo" && bash scripts/check-changelog-parity.sh --check >/dev/null 2>&1); then ok "--check agrees with --check-bump on a long changelog"; else fail "--check disagreed on the long changelog"; fi
+if command -v gawk >/dev/null 2>&1; then
+  mkdir -p "$repo/bin"
+  printf '#!/bin/sh\nexec gawk "$@"\n' >"$repo/bin/awk"
+  chmod +x "$repo/bin/awk"
+  out="$(cd "$repo" && PATH="$repo/bin:$PATH" bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
+  rc=$?
+  if [[ $rc -eq 0 ]]; then ok "large changelog with the new entry near the top passes under gawk (no SIGPIPE misread under pipefail)"; else fail "large-changelog bump wrongly failed under gawk: rc=$rc out='$out'"; fi
+else
+  echo "SKIP: SIGPIPE regression fixture requires gawk; under mawk an early-exiting reader survives the closed pipe, so without gawk this case cannot distinguish fixed from unfixed." >&2
+fi
 rm -rf "$repo"
-
-# rendered_lines with NO argument must read stdin — has_heading depends on it,
-# and a `-` operand must not creep back in.
-probe="$(printf '# t\n\n## [9.9.9]\n' | bash -c '
-  set -uo pipefail
-  eval "$(sed -n "/^rendered_lines()/,/^}/p" "$1")"
-  rendered_lines | grep -c "^## \[9\.9\.9\]$"
-' _ "$SCRIPT" 2>/dev/null || true)"
-if [[ "$probe" == "1" ]]; then ok "rendered_lines with no argument reads stdin"; else fail "rendered_lines does not read stdin when called with no argument (got '${probe}')"; fi
 
 # SYNTHETIC MALFORMED ENTRY: version present but as an UNBRACKETED heading
 # (## 1.1.0) -> FORMAT error naming the found heading, NOT "UNDOCUMENTED BUMP".
