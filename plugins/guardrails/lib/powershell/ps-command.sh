@@ -140,7 +140,7 @@ ps::blank_herestrings() {
       continue
     fi
     out+="${line}"$'\n'
-  done <<<"$cmd"
+  done < <(printf '%s\n' "$cmd") # not <<<: a >=64KiB here-string deadlocks (see hardcoded-path-patterns.sh)
 
   if ((in_hs)); then
     # Opener with no column-zero closer: ambiguous extent. Blanking to end could
@@ -668,6 +668,6 @@ ps::write_bypass() {
     # Only the SPACED form — an attached digit prefix (`2>err.txt`, `2>&1`) is a
     # stream redirect whose producer is the preceding tool, not a value.
     [[ "$head" =~ ^[0-9]+([.][0-9]+)?$ ]] && return 0
-  done <<<"$norm"
+  done < <(printf '%s\n' "$norm") # not <<<: a >=64KiB here-string deadlocks (see hardcoded-path-patterns.sh)
   return 1
 }
