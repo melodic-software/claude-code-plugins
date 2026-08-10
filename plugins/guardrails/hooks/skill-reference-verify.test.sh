@@ -416,7 +416,11 @@ assert_contains "two-character Edit hunk → containing reference recovered" "$O
 # command — so this case fails by going SILENT, the direction that would otherwise
 # hide.
 UTF8="$REPO/utf8.md"
-printf 'Préambule sur les conventions — rien à voir ici.\nExécutez `/alpha:ghost-cafe` après le déploiement — voilà.\n' \
+# The prose is French only to get multibyte bytes cheaply; the words carry no
+# meaning for the assertion. One French preposition was swapped out because the
+# spell-check lane reads it as a truncated English word — a throwaway fixture is
+# not worth a global dictionary entry. Keep any replacement wording clear of it.
+printf 'Préambule des conventions — rien à voir ici.\nExécutez `/alpha:ghost-cafe` après le déploiement — voilà.\n' \
   >"$UTF8"
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$UTF8" 'ghost-cafe')" 2>&1)
 RC=$?
