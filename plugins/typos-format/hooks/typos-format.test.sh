@@ -411,7 +411,7 @@ fi
 # exists to make trustworthy.
 printf 'this has wnat here\n' >"$STUB_REPO/reflow.txt" # spellchecker:disable-line
 BEFORE_RF="$(cat "$STUB_REPO/reflow.txt")"
-TELRF="$(mktemp -p "$WORK")"
+TELRF="$(mktemp "$WORK/tel-reflow.XXXXXX")"
 SINKRF="$(make_sink "cat >\"$TELRF\"")"
 OUT_RF=$(run_stub "$STUB_REPO/reflow.txt" STUB_REFLOW=1 HOOK_TELEMETRY_SINK="$SINKRF")
 if [[ "$(cat "$STUB_REPO/reflow.txt")" == "$BEFORE_RF" ]]; then
