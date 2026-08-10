@@ -77,14 +77,24 @@ emit_tel() {
 }
 
 # Does the script fan out at all? No fan-out → no burst risk → checked, clean.
-if ! grep -qE 'parallel\(|pipeline\(' <<<"$SCRIPT"; then
+#
+# Both greps below take $SCRIPT through PROCESS SUBSTITUTION, never `<<<`. An
+# inline Workflow `script:` (or a scriptPath file read above) is unbounded
+# agent-authored content, and a here-string of 65536-65663 bytes deadlocks bash
+# outright — see lib/path-detection/hardcoded-path-patterns.sh for the mechanism.
+# This hook is advisory and never blocks, so the cost is not a lost verdict, but
+# a hang still wedges the Workflow call until the harness cancels at the hook
+# timeout. `printf | grep -q` is not the alternative: `grep -q` early-exits and
+# SIGPIPEs printf, and under the `set -uo pipefail` above the pipeline reports
+# 141 — which the `if !` here would read as "no fan-out".
+if ! grep -qE 'parallel\(|pipeline\(' < <(printf '%s' "$SCRIPT"); then
   emit_tel '[]'
   exit 0
 fi
 
 # Already applies a throttle helper or a retry wrapper → author has the
 # resilience primitives; checked, clean.
-if grep -qE 'inWaves|inWavesPipeline|agentRetry' <<<"$SCRIPT"; then
+if grep -qE 'inWaves|inWavesPipeline|agentRetry' < <(printf '%s' "$SCRIPT"); then
   emit_tel '[]'
   exit 0
 fi

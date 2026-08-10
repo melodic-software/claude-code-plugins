@@ -170,19 +170,71 @@ in_git_working_tree() {
 # unchanged is therefore the observable signature of failed canonicalization —
 # checking the outcome rather than probing for a resolver also covers a
 # resolver that exists but fails — and this scope fails closed on it.
+#
+# The membership skip requires git to be ON PATH, because without it
+# `in_git_working_tree` cannot distinguish "outside every working tree" from
+# "the question was never asked": both come back non-zero. Reading
+# command-not-found as a negative membership verdict skipped EVERY Markdown
+# edit on a git-less POSIX host — silently, repo-wide, and although git is not
+# a documented prerequisite of this hook (README "Requirements" lists Bash, jq
+# and markdownlint-cli2; the setup skill checks those). An undecidable verdict
+# therefore lints, the same direction file_is_gitignored takes below for the
+# same reason.
+#
+# Exposure of that fail-open is bounded by the consumer opt-in gate, not by
+# this scope: without git, hook::repo_root cannot resolve a working-tree top
+# and falls back to the edited file's own directory, so
+# markdownlint_config_discoverable searches that single directory — a scratch
+# `/tmp/comment-body.md` still does not lint unless `/tmp` itself carries a
+# markdownlint config. The noise class this scope exists to stop stays stopped
+# wherever git can actually answer.
 if [[ -z "${CLAUDE_PROJECT_DIR:-}" ]]; then
   FILE_PHYSICAL="$(hook::physical_path "$FILE")"
   if [[ -L "$FILE" && "$FILE_PHYSICAL" == "$FILE" ]]; then
     exit 0
   fi
-  if ! in_git_working_tree "$(dirname "$FILE_PHYSICAL")"; then
+  if command -v git >/dev/null 2>&1 &&
+    ! in_git_working_tree "$(dirname "$FILE_PHYSICAL")"; then
     exit 0
   fi
 fi
 
 # Resolve repo root early — needed for CWD-anchored config discovery and for
 # computing the schema-required repo-relative path in data.file.
+#
+# Without git, hook::repo_root has no working-tree top to return and falls back
+# to the HINT — the edited file's own directory. That silently narrows config
+# discovery's upward walk to a single directory, so a repository whose
+# markdownlint config sits at its root stops linting every file below the root:
+# the ordinary docs layout, and the case the membership-scope fix above is
+# otherwise supposed to restore. `CLAUDE_PROJECT_DIR` is the harness's own
+# answer to the same question and needs no git, so prefer it when the git probe
+# came back empty-handed. It is used ONLY as the walk's terminator, never to
+# widen scope: discovery still starts at the file and still stops at a root, so
+# the fail-closed reasoning in markdownlint_config_discoverable is unchanged.
+#
+# The test is whether git ACTUALLY resolves a toplevel here, not whether a
+# `git` word exists: `command -v git` answers yes for a shell function, for a
+# stub on PATH, and for a real binary standing in a directory that is no
+# repository — all cases where hook::repo_root still returns the hint. Probing
+# the capability directly is the only form that covers them.
+# The probe clears the git discovery/selection environment for the same reason
+# in_git_working_tree and file_is_gitignored do: an inherited GIT_DIR or
+# GIT_WORK_TREE from whatever launched the session would let some OTHER
+# repository answer the question, and here a spurious success is the harmful
+# direction — it withholds the CLAUDE_PROJECT_DIR fallback and leaves the walk
+# terminating at the file's own directory, which is the bug this block exists
+# to fix. Cleared in a subshell so the surrounding process keeps its own
+# environment.
 REPO_ROOT="$(hook::repo_root "$(dirname "$FILE")")"
+if [[ -n "${CLAUDE_PROJECT_DIR:-}" && "$REPO_ROOT" == "$(dirname "$FILE")" ]] &&
+  ! (
+    unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_CEILING_DIRECTORIES \
+      GIT_DISCOVERY_ACROSS_FILESYSTEM
+    git -C "$(dirname "$FILE")" rev-parse --show-toplevel
+  ) >/dev/null 2>&1; then
+  REPO_ROOT="$CLAUDE_PROJECT_DIR"
+fi
 
 # Telemetry-payload precursors — TOOL and FILE_REL feed only the envelope's
 # data object, so both are built only when a sink is wired: the unwired

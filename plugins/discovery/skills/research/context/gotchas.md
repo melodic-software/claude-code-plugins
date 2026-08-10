@@ -21,6 +21,14 @@ outcome gate's artifact-grounded criteria, or not at all.
 - **Treating a curated index as exhaustive.** `llms.txt` is a maintainer hand-pick and deliberately
   partial. A miss there is silence, not evidence of absence — for a rung, for a page, or for a corpus
   item.
+- **Treating ONE exhaustive surface as the whole artifact inventory.** The subtler half of the same
+  trap, and the one the curated-vs-exhaustive framing hides: a surface is exhaustive only for the
+  artifact class it indexes and the host it covers. A docs `sitemap.xml` enumerates that host's
+  *pages* and is silent about PDFs it omits, an asset or download host, and a sibling first-party
+  domain — so a model card shipped as a PDF off the docs host survives a clean sitemap scan. One
+  clean surface leaves the rung **unresolved**, not absent; `probed-and-not-existing` needs the
+  sweep across every surface that class plausibly uses, or the publisher's own completeness
+  declaration.
 - **Self-grading the verifier rows.** Criteria 4 and 7 ask the run to judge the quality of its own
   choices. They belong to a fresh context whatever the execution posture: a dispatched run returns
   `verification: pending`, and an inline run hands them off rather than answering them.

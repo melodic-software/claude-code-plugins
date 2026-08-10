@@ -1014,12 +1014,19 @@ else
     "${bs_mkfifo_err:-no FIFO created}" >&2
   # No FIFO on this host: fall back to a fixed hold, which is what this replaced.
   # It has to clear the WORST case any call site can reach, and the worst is the
-  # stall comparison's unsliced arm: a 3.6 s bound plus three sequential forks,
-  # which at the 3.2 s per-fork figure measured above is ~13.2 s. A 12 s constant
-  # would sit UNDER that and reintroduce exactly the truncation this replaced, so
-  # this is sized several times above it. The honest trade, since the comment
-  # here previously claimed there was none: a too-short hold turns a should-pass
-  # into a false fail, and a long one costs wall time on a host that reaches it.
+  # stall comparison's unsliced arm. That arm pays TWO whole bounds, not one:
+  # unsliced, the first 3.6 s read returns WITH the early bytes and only the
+  # second empty one declares the stall (which is the overshoot the sliced form
+  # exists to cap — see Test 18g). So 7.2 s of bounds plus three sequential
+  # forks, which at the 3.2 s per-fork figure measured above is ~16.8 s; a
+  # measured pass of that arm came in at 10593 ms on a box that was not at its
+  # worst. This comment previously counted ONE bound and derived ~13.2 s, which
+  # is under the real worst case; a 12 s constant would have been under it by
+  # more, reintroducing exactly the truncation this replaced. 60 s is ~3.5x the
+  # derived worst case, so it stays adequate on the corrected arithmetic. The
+  # honest trade, since the comment here previously claimed there was none: a
+  # too-short hold turns a should-pass into a false fail, and a long one costs
+  # wall time on a host that reaches it.
   # This path is best-effort — Linux and MSYS both provide mkfifo, so it is not
   # expected to run — and it buys correctness with time rather than the reverse.
   bs_hold_open() { sleep 60; }
@@ -1085,7 +1092,11 @@ fi
 # There is no non-clock proxy to convert this to: both the correct and the
 # reading-on implementations return rc 0 and the identical payload, so latency is
 # the only observable that tells them apart. Everything below is about making a
-# latency comparison that a loaded host cannot invert.
+# latency comparison that a loaded host cannot SYSTEMATICALLY invert. Not one it
+# cannot invert at all: item 3 below is the correction of exactly that claim, and
+# single deltas of -631 ms and -1012 ms have been measured here. What the
+# machinery buys is that inversions stay isolated samples the estimator discards,
+# instead of a standing offset that survives into the verdict.
 #
 # TWO PROPERTIES DO THE WORK, and a third that was claimed here does not.
 #
@@ -1118,34 +1129,84 @@ fi
 #    bad fork exceeds one of them outright and eats most of the other. Since each
 #    arm pays several forks, single-sample comparison is not measurable here at
 #    all — which is why these cases take N interleaved samples per arm and
-#    compare the MEDIAN of the paired deltas. The median is robust to the
-#    occasional multi-second fork; one sample is not.
+#    compare an ORDER-BALANCED median of the paired deltas: a median inside each
+#    order group, averaged across the two groups (bs_paired_estimate). The median
+#    is robust to the occasional multi-second fork, which one sample is not, and
+#    the grouping is what keeps a systematic order bias from riding through it.
 #
 # Timing is taken INSIDE the consumer: bracketing the pipeline would fold the
 # producer and the handshake into the measurement.
 
 # bs_median <n> ... — the middle value. Used instead of a mean because the noise
 # is a heavy tail (one 3.2 s fork in four samples), which a mean would swallow.
+# At an even count this returns the LOWER middle rather than averaging the two;
+# every caller here passes an odd-sized group, and where it does not the choice
+# is conservative rather than pass-favoring.
 bs_median() { printf '%s\n' "$@" | sort -n | awk '{v[NR] = $0} END {print v[int((NR + 1) / 2)]}'; }
 
-# bs_paired_verdict <label> <slack-ms> <a-name> <b-name> <deltas...> — asserts
-# that the MEDIAN of B-minus-A clears <slack-ms>, and prints every delta so a
-# marginal pass is visible in the log rather than hidden behind the summary.
+# bs_paired_estimate <a-first deltas...> -- <b-first deltas...> — prints
+# "<estimate> <a-first median> <b-first median>", the order-balanced estimate of
+# B-minus-A in ms. Returns 1 (printing nothing) if the separator is missing or
+# the two groups are not the same size.
+#
+# Every delta inside ONE group carries the SAME order bias, because every pair in
+# it ran in the same order: +δ where A ran first, since B then paid the
+# second-position penalty, and -δ where B ran first. So a statistic taken
+# symmetrically across the two groups cancels δ exactly, whatever δ is, while the
+# same statistic POOLED over both groups does not — see bs_samples.
+#
+# The median WITHIN each group keeps the outlier rejection a pooled median had:
+# a lone multi-second fork never moves its group's median. The mean ACROSS the
+# two groups is what cancels the bias, and a mean is correct there precisely
+# because its two inputs are equal-sized and oppositely biased. Equal size is the
+# load-bearing precondition, so it is checked rather than assumed — an odd sample
+# count would split 3/2 and cancel only part of the bias.
+bs_paired_estimate() {
+  local -a a_first=() b_first=()
+  local seen_sep=0 arg m_a m_b
+  for arg in "$@"; do
+    if [[ "$arg" == "--" ]]; then
+      seen_sep=1
+      continue
+    fi
+    if ((seen_sep)); then b_first+=("$arg"); else a_first+=("$arg"); fi
+  done
+  ((seen_sep == 1)) || return 1
+  ((${#a_first[@]} > 0)) || return 1
+  ((${#a_first[@]} == ${#b_first[@]})) || return 1
+  m_a=$(bs_median "${a_first[@]}")
+  m_b=$(bs_median "${b_first[@]}")
+  printf '%s %s %s' "$(((m_a + m_b) / 2))" "$m_a" "$m_b"
+}
+
+# bs_paired_verdict <label> <slack-ms> <a-name> <b-name> — asserts that the
+# order-balanced estimate of B-minus-A clears <slack-ms>, reading the two order
+# groups bs_samples just filled. Prints BOTH group medians and every delta, so a
+# marginal pass is visible in the log rather than hidden behind the summary — and
+# so the size of the order bias, which is the gap between the two group medians,
+# is on the record for every run rather than inferred.
 bs_paired_verdict() {
-  local label="$1" slack="$2" a="$3" b="$4" med
-  shift 4
-  med=$(bs_median "$@")
-  if ((med >= slack)); then
-    ok "$label: median $b-minus-$a is ${med} ms (slack ${slack} ms; deltas: $*)"
+  local label="$1" slack="$2" a="$3" b="$4" est m_a m_b out detail
+  if ! out=$(bs_paired_estimate "${bs_deltas_a_first[@]}" -- "${bs_deltas_b_first[@]}"); then
+    fail "$label: order groups are not balanced (${#bs_deltas_a_first[@]} vs ${#bs_deltas_b_first[@]}); the sample count must be even"
+    return
+  fi
+  read -r est m_a m_b <<<"$out"
+  detail="slack ${slack} ms; $a-first median ${m_a}, $b-first median ${m_b};"
+  detail="$detail deltas ${bs_deltas_a_first[*]} | ${bs_deltas_b_first[*]}"
+  if ((est >= slack)); then
+    ok "$label: order-balanced $b-minus-$a is ${est} ms ($detail)"
   else
-    fail "$label: median $b-minus-$a is only ${med} ms, under the ${slack} ms slack (deltas: $*)"
+    fail "$label: order-balanced $b-minus-$a is only ${est} ms, under the ${slack} ms slack ($detail)"
   fi
 }
 
 # bs_samples <n> <fn> <arm-a-arg> <arm-b-arg> — runs <fn> alternately with each
 # argument, INTERLEAVED, so the two arms sample the same load window rather than
-# two different ones. Fills bs_deltas with per-pair B-minus-A, or empties it if
-# any sample came back untimed.
+# two different ones. Fills bs_deltas_a_first and bs_deltas_b_first with the
+# per-pair B-minus-A delta, SPLIT BY THE ORDER THE PAIR RAN IN, or empties both
+# if any sample came back untimed. <n> must be EVEN, so the two groups come out
+# the same size and bs_paired_estimate can cancel the order bias with them.
 #
 # The ORDER within each pair alternates, A-then-B on even pairs and B-then-A on
 # odd ones, while the subtraction stays B-minus-A throughout. Running A first
@@ -1154,13 +1215,26 @@ bs_paired_verdict() {
 # every delta with the same sign, and a MEDIAN removes isolated outliers but not
 # a systematic bias. Left uncorrected on a slow-spawning host, that bias is
 # indistinguishable from the behavior gap being measured, so a regression that
-# made the arms equally fast could still clear the slack. Alternating puts the
-# second-position penalty on A for half the pairs and on B for the other half,
-# so it cancels in the median instead of accumulating in it.
-bs_deltas=()
+# made the arms equally fast could still clear the slack.
+#
+# ALTERNATION ALONE DOES NOT CANCEL IT. This claimed until 2026-08-09 that the
+# second-position penalty lands on A for half the pairs and on B for the other
+# half, "so it cancels in the median" — it does not, which is why the deltas are
+# now kept in two groups and combined by bs_paired_estimate instead of pooled. A
+# median pooled over both orders lands INSIDE whichever group is larger and keeps
+# that group's bias in full: at the odd n=5 this used to take, the 3/2 split put
+# the pooled median at g+δ, and the majority group was the PASS-favoring one.
+# Driving the shipped helpers with a fully regressed mechanism (true gap zero) on
+# a host with a ±500 ms order bias produced deltas of 500 -500 500 -500 500 and a
+# pooled median of 500 ms — a PASS against the 400 ms slack for a mechanism that
+# had stopped working entirely. The mean of those same five numbers is 100 ms.
+# That reproduction is asserted directly against bs_paired_estimate below.
+bs_deltas_a_first=()
+bs_deltas_b_first=()
 bs_samples() {
   local n="$1" fn="$2" arg_a="$3" arg_b="$4" i a b
-  bs_deltas=()
+  bs_deltas_a_first=()
+  bs_deltas_b_first=()
   for ((i = 0; i < n; i++)); do
     if ((i % 2 == 0)); then
       a=$("$fn" "$arg_a")
@@ -1170,12 +1244,43 @@ bs_samples() {
       a=$("$fn" "$arg_a")
     fi
     if [[ -z "$a" || -z "$b" ]]; then
-      bs_deltas=()
+      bs_deltas_a_first=()
+      bs_deltas_b_first=()
       return 1
     fi
-    bs_deltas+=("$((b - a))")
+    # Which array a delta lands in IS its order group — recorded where the order
+    # is decided, rather than re-derived later from a position in one flat list.
+    if ((i % 2 == 0)); then
+      bs_deltas_a_first+=("$((b - a))")
+    else
+      bs_deltas_b_first+=("$((b - a))")
+    fi
   done
 }
+
+# --- Test 18b(i): the paired estimator cancels a systematic order bias --------
+# The acceptance test for the correction above, and the one assertion in this
+# neighborhood that needs no clock at all: feed the SHIPPED estimator synthetic
+# deltas describing a fully regressed mechanism — true gap ZERO — measured on a
+# host with a ±500 ms order bias. It must report ~0 and stay under the 400 ms
+# slack the two timing cases use. The pooled median it replaced reported 500 ms
+# for exactly these numbers, i.e. it passed a mechanism that had stopped working.
+#
+# The second vector is the other half of the property: the same ±500 ms bias laid
+# over a REAL 1000 ms gap must still come back as 1000, so the fix cancels the
+# bias rather than deflating the signal along with it. The third asserts the
+# equal-size precondition is enforced, since partial cancellation would be a
+# silent return to the defect.
+bs_est_zero=$(bs_paired_estimate 500 500 500 -- -500 -500 -500)
+bs_est_real=$(bs_paired_estimate 1500 1500 1500 -- 500 500 500)
+bs_est_unbalanced_rc=0
+bs_paired_estimate 500 500 -- -500 >/dev/null || bs_est_unbalanced_rc=$?
+if [[ "${bs_est_zero%% *}" == "0" ]] && ((${bs_est_zero%% *} < 400)) &&
+  [[ "${bs_est_real%% *}" == "1000" ]] && ((bs_est_unbalanced_rc == 1)); then
+  ok "paired estimator: a ±500 ms order bias cancels (zero gap → ${bs_est_zero%% *} ms, under the 400 ms slack; 1000 ms gap → ${bs_est_real%% *} ms), and unequal groups are rejected"
+else
+  fail "paired estimator: zero-gap '$bs_est_zero' (want 0, under 400), real-gap '$bs_est_real' (want 1000), unequal-group rc=$bs_est_unbalanced_rc (want 1)"
+fi
 
 bs_time_late_eof() { # $1 = shell prelude; prints elapsed ms (empty if untimed)
   local t_file
@@ -1203,9 +1308,9 @@ bs_time_late_eof() { # $1 = shell prelude; prints elapsed ms (empty if untimed)
 # returns 1 regardless. Same spawn, opposite verdict.
 # shellcheck disable=SC2016 # $1 is the overriding function's own positional, not this shell's
 bs_reads_on='hook::json_complete() { printf "%s" "$1" | jq -e . >/dev/null 2>&1; return 1; }'
-if bs_samples 5 bs_time_late_eof "" "$bs_reads_on"; then
+if bs_samples 6 bs_time_late_eof "" "$bs_reads_on"; then
   bs_paired_verdict "buffer_stdin: late-EOF stops at the payload, not the bound" \
-    400 fast slow "${bs_deltas[@]}"
+    400 fast slow
 elif [[ -n "${EPOCHREALTIME:-}" ]]; then
   # On a host that HAS EPOCHREALTIME an empty measurement means the harness
   # broke, which would silently turn this case into a vacuous pass.
@@ -1492,10 +1597,15 @@ rm -f "$bs_rc_file"
 # then goes quiet is not declared stalled until the SECOND window expires —
 # almost twice the configured bound. Reading the bound in slices caps that
 # overshoot at one slice. Asserted by comparison against a variant with the slice
-# count forced to 1 (the unsliced behavior), both timed back to back so runner
-# load cancels out. The override is asserted to actually engage first — a
-# silently ineffective override would make this a vacuous pass, which has already
-# happened twice on this branch.
+# count forced to 1 (the unsliced behavior), sampled as INTERLEAVED PAIRS so the
+# two arms see the same load window. Runner load does NOT cancel — that is what
+# this said until 2026-08-09, and it was wrong twice over: the arms are separate
+# sequential processes that never share a load sample, and the code has not been
+# a single back-to-back pair since the sampling went in. Interleaving only keeps
+# a load spike from landing systematically on one arm; the estimator is what
+# discards it. The override is asserted to actually engage first — a silently
+# ineffective override would make this a vacuous pass, which has already happened
+# twice on this branch.
 #
 # There is no non-clock proxy: both variants end in the same rc 2 stall with the
 # same empty payload, and only WHEN the stall is declared differs, which is the
@@ -1516,13 +1626,14 @@ rm -f "$bs_rc_file"
 #    400 ms slack: measured, the median came in at 532 ms, a 1.33x margin that
 #    would flake. The bound is therefore 3.6 s, where the gap is 2.7 s (0.9 s
 #    slice + 3.6 s against two 3.6 s bounds) and the tax leaves ~1.4 s — 3.6x the
-#    slack, and clear of the median's own sampling error at five pairs. Growing
+#    slack, and clear of the estimator's own sampling error at six pairs. Growing
 #    the bound is the only lever that grows the signal, because the tax does not
 #    scale with it and no tolerance can be set below it.
 #  * ONE sample of each arm decides nothing. The startup-fork swing documented
 #    above the late-EOF case (up to 3.2 s on a single fork) dwarfs even a 1.8 s
-#    gap on a bad sample, so this takes 5 interleaved pairs and compares the
-#    MEDIAN delta. Every delta is printed, so a marginal pass is visible.
+#    gap on a bad sample, so this takes 6 interleaved pairs and compares the
+#    ORDER-BALANCED estimate. Every delta and both group medians are printed, so
+#    a marginal pass — and the order bias itself — is visible per run.
 bs_time_stall() { # $1 = shell prelude; prints elapsed ms (empty if untimed)
   local t_file
   t_file="$(mktemp)"
@@ -1585,12 +1696,13 @@ fi
 #    on an otherwise idle box gave paired deltas of +2938, +1688, +1110, -2245,
 #    -837 ms. The noise EXCEEDS the signal and straddles zero, so no fixed
 #    tolerance discriminates.
-#  * With the median-of-five machinery the other two cases now use, five
-#    interleaved pairs gave +3216, -2886, -4427, +433, -3850 ms: a 7.6 s spread
-#    and a MEDIAN of -2886 ms, i.e. a systematic 2.9 s offset between two arms
-#    that the mechanism says should match. That offset is unexplained. Setting a
-#    tolerance on a number whose cause is unknown is how this case kept failing,
-#    so it is not being retuned again.
+#  * With the interleaved-sampling machinery the other two cases use (then a
+#    pooled median of five pairs), five interleaved pairs gave +3216, -2886,
+#    -4427, +433, -3850 ms: a 7.6 s spread and a middle value of -2886 ms, i.e. a
+#    systematic 2.9 s offset between two arms that the mechanism says should
+#    match. That offset is unexplained. Setting a tolerance on a number whose
+#    cause is unknown is how this case kept failing, so it is not being retuned
+#    again.
 #
 # The cause is buffer_stdin's own startup: it spends two command-substitution
 # forks resolving its timeout and slice, and a fork on this platform measured
@@ -1598,17 +1710,30 @@ fi
 # exceeds the whole signal. The other two comparisons survive that because their
 # arms differ by several seconds of real work; this one has no such margin.
 #
-# WHAT IS NO LONGER COVERED, stated plainly: a regression that removed the
-# empty-slice completeness check would make an exactly-chunk-sized payload wait
-# out the whole idle bound instead of one slice. That is a latency regression
-# only — the payload still comes back whole, with rc 0 — and no non-temporal
-# observable distinguishes the two paths (both end with validated/probed JSON and
-# the same output). It would need a host whose fork cost is small next to the
-# bound, which CI's Linux runners are and this one is not.
+# WHAT THE LATENCY HALF COVERED, stated plainly: a regression that removed the
+# empty-slice completeness check makes an exactly-chunk-sized payload wait out
+# the whole idle bound instead of one slice. Nothing about the RETURN VALUE
+# changes — measured 2026-08-09 by deleting that block from hook-utils.sh,
+# baseline rc=0 len=65536 in 2948 ms against mutant rc=0 len=65536 in 5823 ms —
+# so an assertion on rc and content cannot see it. It was never true, though,
+# that NOTHING non-temporal distinguishes the two paths, which is what this said
+# when the comparison was removed: the surviving payload is identical, but
+# WHETHER the completeness verdict is reached inside the read loop is not, and
+# that is observable without a clock.
 #
-# WHAT IS STILL COVERED, below and load-independently: that the fixtures really
-# are exactly chunk-sized, and that a payload landing exactly on the boundary
-# comes back WHOLE and with rc 0 — the correctness half of the same edge.
+# WHAT IS COVERED BELOW, load-independently, in three parts: that the fixtures
+# really are exactly chunk-sized; that a payload landing exactly on the boundary
+# comes back WHOLE and with rc 0; and that the empty-slice check ENGAGES — fires
+# on the FIRST idle slice — which is the part that goes red on the mutation
+# above and the reason the correctness assertion alone does not stand in for the
+# deleted comparison.
+#
+# WHAT REMAINS UNCOVERED, since one gap closing is not all of them: the LATENCY
+# CONSEQUENCE itself. The engagement probe pins the verdict to the first idle
+# slice, so it catches both deleting the check and moving it later, but a
+# regression that spent the bound somewhere else entirely while still calling the
+# check on time would pass it. That would need the wall-clock comparison this
+# host cannot make.
 bs_make_payload() { # $1 = exact payload length in bytes, $2 = destination file
   # `{"p":"` + pad + `"}` — 8 bytes of envelope. Built with pure parameter
   # expansion rather than a `yes | … | head -c` pipeline: the exact length is the
@@ -1658,9 +1783,132 @@ else
 fi
 rm -f "$bs_payload_file" "$bs_rc_file" "$bs_out_file"
 
-if bs_samples 5 bs_time_stall "" "$bs_unsliced"; then
+# The ENGAGEMENT half, which the assertion above cannot reach: the empty-slice
+# completeness check has to FIRE, and fire on the FIRST idle slice. Delete the
+# block at hook-utils.sh:559 and the assertion above stays green while the helper
+# burns the whole bound (2948 ms baseline against 5823 ms mutant, measured), so
+# on its own it converts none of the removed comparison's coverage.
+#
+# The observable that separates them without a clock is WHERE the completeness
+# verdict is reached. hook::json_complete is overridden to record that and then
+# do the real work and return the real verdict — the same rule the two overrides
+# above follow: an override may lie about a VERDICT, never skip the WORK. Here it
+# does not even lie; it only writes a line before returning what jq said.
+#
+# Bash's dynamic scoping puts hook::buffer_stdin's own locals in scope for the
+# override, which is what lets it record WHICH check called it. `chunk` is empty
+# only at the empty-slice check (hook-utils.sh:559) and non-empty at the
+# with-bytes one (:540), and `idle_slices` is how many idle slices had already
+# been spent when the verdict landed. The pass shape is therefore exactly
+# `idle=0 chunklen=0` — complete on the first idle slice, not after the bound.
+#
+# What each mutation does to that log: deleting the block leaves it EMPTY, since
+# the trailing probe at hook-utils.sh:586 is an inline `printf | jq` and not this
+# function, so the case fails. Moving the check later — an `idle_slices >= 3`
+# guard, say — logs a non-zero idle count, so that fails too. Only SUCCESSFUL
+# verdicts are logged, the partial buffers probed on the way in returning
+# non-zero and writing nothing, which is what makes the last line the call that
+# actually completed rather than merely the most recent one.
+#
+# If the FIFO handshake were ever unavailable, the producer's EOF would end the
+# read before any slice expired and the log would come back empty — this case
+# then fails LOUDLY rather than quietly asserting nothing.
+#
+# FRAGMENTED delivery is the one shape that does not reach the empty-slice check:
+# if the payload lands in pieces, an intermediate read times out holding bytes
+# and the WITH-BYTES check at hook-utils.sh:540 sees the completion first. That
+# is reported as unexercised rather than passed as covered — and it is retried
+# first, since it is a delivery accident and not a property of the code. Nor can
+# it mask the regression, which is the reason exhausting the retries is not a
+# failure: under a fragmented delivery the mutant behaves IDENTICALLY, because
+# the check it deletes is only ever reached when the payload completes on an rc-0
+# read. Measured 2026-08-09 by splitting the payload in half across a gap longer
+# than one slice — baseline and the block-deleted mutant produced the same two
+# probe entries (a FAILED verdict on the 32768-byte partial, then a successful
+# one at 65536 with 32768 bytes still in `chunk`) and both returned at the same
+# point. There is nothing to catch on that path, so failing there would be a
+# false fail on a helper that is behaving correctly.
+bs_probe_file="$(mktemp)"
+bs_payload_file="$(mktemp)"
+bs_rc_file="$(mktemp)"
+bs_out_file="$(mktemp)"
+bs_make_payload 65536 "$bs_payload_file"
+# shellcheck disable=SC2016 # $1 is the overriding function's own positional, not this shell's
+bs_probe_override='hook::json_complete() {
+  local verdict=0
+  printf "%s" "$1" | jq -e . >/dev/null 2>&1 || verdict=$?
+  if ((verdict == 0)); then
+    printf "idle=%s chunklen=%s\n" "${idle_slices-?}" "${#chunk}" >>"'"$bs_probe_file"'"
+  fi
+  return "$verdict"
+}'
+bs_probe_run() { # sets bs_rc, bs_len, bs_probe_last from one whole-payload run
+  : >"$bs_probe_file"
+  {
+    cat "$bs_payload_file"
+    bs_hold_open
+  } | {
+    CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=1.2 bash -c '
+      source "$1"
+      eval "$2"
+      hook::buffer_stdin >"$3" 2>/dev/null
+      printf "%s" "$?" >"$4"
+    ' _ "$HOOK_DIR/hook-utils.sh" "$bs_probe_override" "$bs_out_file" "$bs_rc_file"
+    bs_release
+  }
+  bs_rc=$(cat "$bs_rc_file")
+  bs_len=$(wc -c <"$bs_out_file")
+  bs_probe_last=$(tail -n 1 "$bs_probe_file")
+}
+# Three tries, because a fragmented delivery is an accident of scheduling and not
+# a property of the code — one retry usually lands the whole payload in a single
+# read. Never observed to need one here (five local runs and CI all reached the
+# empty-slice check first try); the retry exists so that reporting the case
+# unexercised takes a host that cannot reach the path at all, not a single
+# unlucky sample.
+#
+# EVERY attempt is classified, not just the last. Retrying a shape that is only
+# ever produced by a REGRESSION would discard the evidence: a moved check yields
+# `idle=<n> chunklen=0` deterministically, and if a later attempt then happened
+# to fragment, a loop that only inspected its final state would report the case
+# unexercised and stay green on a defect it had already seen. So a bad shape
+# fails on the spot, a fragmented one is the only thing that earns a retry, and
+# "fragmented on all 3" is reached only by fragmenting three times.
+bs_engagement=""
+for bs_attempt in 1 2 3; do
+  bs_probe_run
+  if [[ "$bs_rc" == "0" ]] && ((bs_len == 65536)) && [[ "$bs_probe_last" == "idle=0 chunklen=0" ]]; then
+    bs_engagement=exercised
+    break
+  fi
+  if [[ "$bs_rc" == "0" ]] && ((bs_len == 65536)) && [[ "$bs_probe_last" == idle=0\ chunklen=* ]]; then
+    bs_engagement=fragmented # tells us nothing either way; try again
+    continue
+  fi
+  bs_engagement=bad
+  break
+done
+case "$bs_engagement" in
+exercised)
+  ok "buffer_stdin: the empty-slice completeness check fires on the FIRST idle slice for a chunk-boundary payload ($bs_probe_last, attempt $bs_attempt)"
+  ;;
+fragmented)
+  # Not a regression, and not coverage either: all three attempts arrived
+  # fragmented, so the with-bytes check caught completion first and the
+  # empty-slice path was never reached — by the helper, not merely by this
+  # assertion, which is why this is not a failure (see above). Reported as
+  # unexercised, never as covered.
+  ok "buffer_stdin: chunk-boundary payload arrived fragmented on all 3 attempts (last: $bs_probe_last), so the empty-slice check was not exercised this run — correctness holds, engagement unasserted"
+  ;;
+*)
+  fail "buffer_stdin chunk-boundary engagement: attempt $bs_attempt gave rc=$bs_rc len=$bs_len probe='$(tr '\n' ';' <"$bs_probe_file")' (expected rc 0, 65536 bytes, and a completeness verdict at idle=0 chunklen=0)"
+  ;;
+esac
+rm -f "$bs_probe_file" "$bs_payload_file" "$bs_rc_file" "$bs_out_file"
+
+if bs_samples 6 bs_time_stall "" "$bs_unsliced"; then
   bs_paired_verdict "buffer_stdin: stall declared near one bound, not two" \
-    400 sliced unsliced "${bs_deltas[@]}"
+    400 sliced unsliced
 elif [[ -n "${EPOCHREALTIME:-}" ]]; then
   fail "stall timing harness produced no measurement"
 else

@@ -228,7 +228,14 @@ if [[ -n "$VIOLATIONS" ]]; then
   } >&2
   # Telemetry labels = the block headers only (e.g. "Linux user path detected"),
   # never the matched lines — those carry the actual machine-specific path.
-  labels_json=$(grep -E 'detected:$' <<<"$VIOLATIONS" 2>/dev/null | sed 's/:$//' | jq -R . | jq -s . 2>/dev/null) || labels_json='[]'
+  # Process substitution, not `<<<`. $VIOLATIONS is NOT small: each block embeds
+  # up to three MATCHED LINES verbatim, and the lib's `head -3` bounds the line
+  # COUNT, not the byte count — one 65KB minified line carrying a hardcoded path
+  # makes $VIOLATIONS payload-sized. A here-string of 65536-65663 bytes deadlocks
+  # (see lib/path-detection/hardcoded-path-patterns.sh), and it would deadlock
+  # HERE, on the blocked path, after the stderr message but before `exit 2` —
+  # turning a detected violation into a hook the harness cancels at its timeout.
+  labels_json=$(grep -E 'detected:$' < <(printf '%s' "$VIOLATIONS") 2>/dev/null | sed 's/:$//' | jq -R . | jq -s . 2>/dev/null) || labels_json='[]'
   emit_tel "blocked" "$labels_json"
   exit 2
 fi

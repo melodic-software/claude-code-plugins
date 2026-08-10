@@ -137,7 +137,7 @@ first_heredoc_subject() {
       delim="${delim%\"}"
       in_hd=1
     fi
-  done <<<"$cmd"
+  done < <(printf '%s\n' "$cmd") # not <<<: a >=64KiB here-string deadlocks (see hardcoded-path-patterns.sh)
   return 0
 }
 
@@ -163,7 +163,7 @@ first_herestring_subject() {
       hs_quote="${line: -1}"
       in_hs=1
     fi
-  done <<<"$cmd"
+  done < <(printf '%s\n' "$cmd") # not <<<: a >=64KiB here-string deadlocks (see hardcoded-path-patterns.sh)
   return 0
 }
 
