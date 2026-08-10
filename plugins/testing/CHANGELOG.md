@@ -3,6 +3,26 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.1]
+
+### Changed
+
+- **The bundled `/verify` invocability note now says "by default", not "only".** A recheck on
+  2026-08-10 against the bundled-skills reference and the shipped 2.1.223–2.1.226 clients found the
+  0.3.x-era wording had drifted: "user-invoked only from v2.1.215" was exact for 2.1.215–2.1.224,
+  where the bundled skill carried a hard model-invocation block, but from **2.1.225** that block
+  became a runtime gate that can re-enable model invocation. The restriction is therefore the
+  *default* rather than an absolute, and two clients on one version can differ — which an unscoped
+  "only" cannot express. **The instruction this note supports is unchanged and was strengthened, not
+  weakened:** suggest `/verify`, never delegate to it. A delegated call is refused at the tool layer,
+  so the suggest-don't-delegate rule now holds across either invocability state rather than resting
+  on a version cutoff.
+- **The note becomes a conforming upstream-drift record.** Touching a restatement of an
+  upstream-owned specific binds the required parts on touch (`docs/conventions/upstream-drift/README.md`
+  §Adopters), so the claim now carries a verification date, the client versions checked, and an
+  observable recheck trigger — a Claude Code release whose changelog names `/verify` or bundled-skill
+  invocability — rather than a bare link.
+
 ## [0.5.0]
 
 ### Removed
