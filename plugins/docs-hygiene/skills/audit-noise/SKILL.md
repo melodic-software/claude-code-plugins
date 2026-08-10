@@ -18,7 +18,7 @@ Noise findings (sample): !`bash "${CLAUDE_SKILL_DIR}/scripts/detect.sh" 2>/dev/n
 
 ## Purpose
 
-Tracked markdown — rules, skill bodies, instruction files (`CLAUDE.md`, `AGENTS.md`), `docs/`, READMEs — accumulates five NOISE shapes distinct from FLAVOR (owned by the sibling `/compress`). Each shape carries a maintenance tax plus a reader-facing tax that compounds across the corpus. This skill is a read-only classifier: it surfaces candidates with treatment guidance; the author hand-applies every edit.
+Tracked markdown — rules, skill bodies, instruction files (`CLAUDE.md`, `AGENTS.md`), `docs/`, READMEs — accumulates five NOISE shapes distinct from FLAVOR (owned by the sibling `/docs-hygiene:compress`). Each shape carries a maintenance tax plus a reader-facing tax that compounds across the corpus. This skill is a read-only classifier: it surfaces candidates with treatment guidance; the author hand-applies every edit.
 
 ## Existence pre-check (before in-page noise)
 
@@ -80,7 +80,7 @@ Single action v1; `relocate` and `generalize` actions are deferred until real de
 - **Opt-out markers respected.** `<!-- markdown-discipline-ignore -->` (covers the next paragraph) and `<!-- markdown-discipline-ignore-line -->` (next line) skip the wrapped content.
 - **Convention-path exemptions apply per matched path, never per line.** An angle-bracket slot variable (`.work/<slug>/…`, `docs/topics/<slug>/…`) is a schema placeholder, not a literal path; the reserved concern-scoped roots (`.work/handoffs/`, `.work/reviews/`) are citable only bare or with a placeholder child — a concrete child under them flags. A convention token on a line never exempts a concrete ghost ref sharing that line; the tracked concern file (`.claude/topic-docs.yaml`) matches no ghost-ref pattern and needs no exemption. Exception: the retired `.claude/notes/` location flags even in placeholder form.
 - **Output deterministic.** Filenames sort lexically; per-file tier rows sort by line number; no timestamps in output.
-- **Default action is the audit action** — `/audit-noise <file>` is identical to `/audit-noise audit <file>`.
+- **Default action is the audit action** — `/docs-hygiene:audit-noise <file>` is identical to `/docs-hygiene:audit-noise audit <file>`.
 
 ## Output schema
 
@@ -114,10 +114,10 @@ Total: <N> file(s) audited, <T1> Tier 1, <T2> Tier 2, <T3> Tier 3 findings.
 
 ## What this skill is NOT
 
-- **Not `/compress`.** The sibling `/compress` owns FLAVOR (filler, hedging, articles, redundant restatement); `/audit-noise` owns NOISE (the five shapes above). Different concerns; both may apply to the same target iteratively.
-- **Not a markdown linter.** Structural GFM conventions belong to the repo's markdown linter (e.g. markdownlint-cli2); `/audit-noise` is semantic noise classification.
+- **Not `/docs-hygiene:compress`.** The sibling `/docs-hygiene:compress` owns FLAVOR (filler, hedging, articles, redundant restatement); `/docs-hygiene:audit-noise` owns NOISE (the five shapes above). Different concerns; both may apply to the same target iteratively.
+- **Not a markdown linter.** Structural GFM conventions belong to the repo's markdown linter (e.g. markdownlint-cli2); `/docs-hygiene:audit-noise` is semantic noise classification.
 - **Not an Edit operation.** Read-only: it surfaces findings; the author applies treatments.
-- **Not a content deduplicator.** When the noise is the same concept repeated across 3+ files, that is the sibling `/extract-ssot`'s territory.
+- **Not a content deduplicator.** When the noise is the same concept repeated across 3+ files, that is the sibling `/docs-hygiene:extract-ssot`'s territory.
 
 ## Sources
 

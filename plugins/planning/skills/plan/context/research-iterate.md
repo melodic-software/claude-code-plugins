@@ -1,19 +1,19 @@
 # Research-Iterate Protocol
 
-When `/devils-advocate` surfaces CRITICAL or HIGH findings that weaken the plan, this protocol guides the feedback loop between planning, stress-testing, and research until the plan achieves HIGH confidence.
+When `/planning:devils-advocate` surfaces CRITICAL or HIGH findings that weaken the plan, this protocol guides the feedback loop between planning, stress-testing, and research until the plan achieves HIGH confidence.
 
 ## The Loop
 
 ```
 Plan (Steps 2-3)
   │
-  ├── /devils-advocate finds CRITICAL/HIGH issues
+  ├── /planning:devils-advocate finds CRITICAL/HIGH issues
   │     │
   │     ├── Targeted research for each issue
   │     │     │
   │     │     └── Update the plan based on new evidence
   │     │           │
-  │     │           └── Re-run /devils-advocate on updated plan
+  │     │           └── Re-run /planning:devils-advocate on updated plan
   │     │                 │
   │     │                 ├── Issues resolved → Proceed to approval (Step 5)
   │     │                 └── New issues → Loop again
@@ -27,7 +27,7 @@ Plan (Steps 2-3)
 
 ### 1. Extract actionable findings
 
-From the `/devils-advocate` output, extract each CRITICAL and HIGH finding. For each:
+From the `/planning:devils-advocate` output, extract each CRITICAL and HIGH finding. For each:
 
 - What assumption failed?
 - What evidence is needed to resolve it?
@@ -52,14 +52,14 @@ Based on research results:
 
 ### 4. Re-assess
 
-Dispatch `/devils-advocate` to a fresh-context sub-agent on the updated plan — never re-run it inline in the producing context, the same fresh-eyes discipline as the first pass (Step 4). Only the changed sections need deep review — unchanged sections carry forward their previous assessment.
+Dispatch `/planning:devils-advocate` to a fresh-context sub-agent on the updated plan — never re-run it inline in the producing context, the same fresh-eyes discipline as the first pass (Step 4). Only the changed sections need deep review — unchanged sections carry forward their previous assessment.
 
 ## Guardrails
 
 - **Maximum 3 iterations** before escalating to the user. If 3 rounds of Plan-Stress-Research can't resolve the issues, the approach may need to change entirely — that's a decision for the user, not the loop
 - **Each iteration must make progress.** If an iteration produces the same findings as the previous one, stop and escalate. The loop is for refinement, not repetition
 - **Track what changed.** Present a brief "Iteration N summary" showing what was found, what was changed, and what remains open. The user should be able to see the plan improving across iterations
-- **Don't gold-plate.** MEDIUM and LOW findings from `/devils-advocate` are informational — they don't require research-iterate loops. Only CRITICAL and HIGH findings trigger the loop
+- **Don't gold-plate.** MEDIUM and LOW findings from `/planning:devils-advocate` are informational — they don't require research-iterate loops. Only CRITICAL and HIGH findings trigger the loop
 
 ## When the loop exits
 

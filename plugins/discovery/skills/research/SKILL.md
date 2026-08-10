@@ -17,7 +17,7 @@ Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 
 External research is mandatory before acting on external facts. Goal: **maximum knowledge, maximum consensus, latest information** from authoritative + official sources. Training data drifts; library APIs change; SEO content farms outrank authoritative sources; AI synthesis tools repackage the same secondary blogs as "multi-source." Cross-tool consensus + primary-source priority + recency verification drive accuracy.
 
-Local counterpart: `/explore` (what IS in the repo). This skill covers what SHOULD BE, per current external sources. For a multi-topic or workflow-driven pass, use `/research-deep`, which layers tiered execution on top of this discipline. **Philosophy**: more tokens + more time = more accuracy + less rework — insufficient research is the #1 source of rework. Deploy a **research team**, not a single lookup, and give every invocation full depth regardless of task size.
+Local counterpart: `/discovery:explore` (what IS in the repo). This skill covers what SHOULD BE, per current external sources. For a multi-topic or workflow-driven pass, use `/discovery:research-deep`, which layers tiered execution on top of this discipline. **Philosophy**: more tokens + more time = more accuracy + less rework — insufficient research is the #1 source of rework. Deploy a **research team**, not a single lookup, and give every invocation full depth regardless of task size.
 
 ## Routing — dispatch by default
 

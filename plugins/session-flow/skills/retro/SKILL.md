@@ -70,7 +70,7 @@ Resolve at runtime — never hardcode machine-specific paths:
 
 | Signal | Mode | Context file |
 |--------|------|-------------|
-| End of session, bare `/retro`, post-merge | **session** | `context/session.md` — full 5-phase analysis |
+| End of session, bare `/session-flow:retro`, post-merge | **session** | `context/session.md` — full 5-phase analysis |
 | "codify", "save learnings", mid-session learning | **codify** | `context/codify.md` — targeted codification only |
 | "trends", "scores", "how am I doing" | **trends** | `context/trends.md` — cross-session score history |
 | "quick retro", short session, limited context | **quick** | `context/quick.md` — abbreviated pass |

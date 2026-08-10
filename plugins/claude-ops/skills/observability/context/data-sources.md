@@ -1,4 +1,4 @@
-# `/observability` data sources — JSONL + ccusage query catalog
+# `/claude-ops:observability` data sources — JSONL + ccusage query catalog
 
 jq pipelines and CLI invocations for **hook-events.jsonl** and **ccusage**. OTEL store
 (DuckDB) and Aspire: [read-routing.md](read-routing.md) + [otel-queries.md](otel-queries.md).

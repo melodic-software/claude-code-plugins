@@ -37,7 +37,7 @@ Every extraction decision must be grounded in **direct evidence captured this se
 | Citation target | Form |
 |-----------------|------|
 | Rule-file H3 heading | `` per `<file>.md` "<exact heading>" `` |
-| New skill | `/<skill-name>` invocation (skill internals NOT cited externally — see `/audit-encapsulation`) |
+| New skill | `/<skill-name>` invocation (skill internals NOT cited externally — see `/docs-hygiene:audit-encapsulation`) |
 
 **Out-of-scope, but flagged during `identify`:**
 
@@ -47,7 +47,7 @@ Every extraction decision must be grounded in **direct evidence captured this se
 
 The 6-test extraction gate (Rule of Three, namable, stable, self-contained, bounded, one level deep) generalizes to all file classes, and `context/decision-framework.md` annotates each test with code/config equivalents. The HOW (citation contract, rename sweep, encapsulation rule) is markdown-specific.
 
-Boundary with single-file refactoring: a rename, inline, or extract confined to one file or one recent diff is ordinary editing, not this skill's job. `/extract-ssot` handles cross-file markdown deduplication where the repeated unit needs a stable name and cross-file citations. When work touches both, normalize the call sites first, then lift the named unit.
+Boundary with single-file refactoring: a rename, inline, or extract confined to one file or one recent diff is ordinary editing, not this skill's job. `/docs-hygiene:extract-ssot` handles cross-file markdown deduplication where the repeated unit needs a stable name and cross-file citations. When work touches both, normalize the call sites first, then lift the named unit.
 
 ## When to use vs not use
 
@@ -70,10 +70,10 @@ Full decision matrix: `context/decision-framework.md` (6+5 checklist with worked
 | Argument | Action | Purpose |
 |----------|--------|---------|
 | *(empty)* | Smart default | Auto-detect: working notes from a prior run hold an active candidate roster → resume the current phase; otherwise → `identify` |
-| `identify [<cluster-name>]` | Find candidates (default = exhaustive subagent survey) | Dispatches a read-only exploration subagent over 30+ duplication heuristics (full body in `actions/identify.md`); ranks by ROI; emits batch-sequencing matrix + recommended `/extract-ssot batch` invocation. Refuses premature (<3 instances). Single-cluster mode (`identify <name>`) skips the subagent for a targeted Tier 0 grep |
+| `identify [<cluster-name>]` | Find candidates (default = exhaustive subagent survey) | Dispatches a read-only exploration subagent over 30+ duplication heuristics (full body in `actions/identify.md`); ranks by ROI; emits batch-sequencing matrix + recommended `/docs-hygiene:extract-ssot batch` invocation. Refuses premature (<3 instances). Single-cluster mode (`identify <name>`) skips the subagent for a targeted Tier 0 grep |
 | `verify <cluster-name>` | Refuse-fast pre-extraction gate | 6-gate cheap check (Tier 0 grep, citation state, primary-source URL gate, bifurcation check, off-by-one heuristic, LOW-ROI threshold). Output: `PROCEED \| REFUSE-{reason} \| WARN`. OPTIONAL — does not gate `plan`/`execute`. See `actions/verify.md` |
 | `plan <cluster-name>` | Architect | Pre-step (Tier 0 grep): does an existing rule/doc already own the concept? If yes → consolidate-into-existing branch (extend the home + de-recap consumers, no new artifact). Else choose creation output type (rule vs skill); draft or extend SSOT body; sketch migration plan |
-| `execute <cluster-name>` | Migrate | Write or extend the SSOT (skip writing when an existing home already documents the concept); rewrite call sites to cite + de-recap inline reproductions; sweep references via `/rename-references` if a heading/identifier changed; verify |
+| `execute <cluster-name>` | Migrate | Write or extend the SSOT (skip writing when an existing home already documents the concept); rewrite call sites to cite + de-recap inline reproductions; sweep references via `/docs-hygiene:rename-references` if a heading/identifier changed; verify |
 | `batch <cluster-list>` | Multi-candidate orchestration | Auto-`verify` filter, file-overlap matrix, sequential-by-default dispatch, lesson injection between subagents. See `actions/batch.md` |
 | `unwind <ssot-name>` | Reverse | Re-introduce duplication per Sandi Metz wrong-abstraction recovery |
 
@@ -111,15 +111,15 @@ For markdown call sites, cite by exact H3 heading text + 1-line inline summary. 
 
 For code call sites, use the language's native import syntax. For config call sites, use the tooling's native include / anchor / `$ref` mechanism.
 
-One level deep — never chain `A.md` → `B.md` → `C.md`. A heading rename triggers a `/rename-references` sweep across all 10 syntactic forms.
+One level deep — never chain `A.md` → `B.md` → `C.md`. A heading rename triggers a `/docs-hygiene:rename-references` sweep across all 10 syntactic forms.
 
 Full contract incl. line-wrap edge case: `context/citation-form.md`.
 
 ## Encapsulation rule
 
-Encapsulation enforcement (detection grep, public/private surface matrix, remediation paths) lives in its own skill — `/audit-encapsulation`. Different concern from duplication: violations are single-instance matters (Rule of Three does not gate them).
+Encapsulation enforcement (detection grep, public/private surface matrix, remediation paths) lives in its own skill — `/docs-hygiene:audit-encapsulation`. Different concern from duplication: violations are single-instance matters (Rule of Three does not gate them).
 
-`/extract-ssot execute` invokes `/audit-encapsulation detect` during the refactor pass to catch any encapsulation violations introduced or exposed by the migration. See `/audit-encapsulation` for the public surface matrix, filter taxonomy, and remediation paths.
+`/docs-hygiene:extract-ssot execute` invokes `/docs-hygiene:audit-encapsulation detect` during the refactor pass to catch any encapsulation violations introduced or exposed by the migration. See `/docs-hygiene:audit-encapsulation` for the public surface matrix, filter taxonomy, and remediation paths.
 
 ## Anti-patterns guarded
 
@@ -147,7 +147,7 @@ Per-phase checklist: `context/execution-checklist.md`.
 | Pre-extraction | Cluster has stable identity that can be named; instances change together | Decision-framework checklist marked in the plan |
 | Pre-extraction | File-class scope identified (markdown / code / config / mixed) | Listed in the plan; citation form chosen per class |
 | Per-callsite | Citation/import in the form native to the call site's file class | Diff review |
-| Post-extraction | All 10 `/rename-references` patterns swept (markdown call sites) | Skill output |
+| Post-extraction | All 10 `/docs-hygiene:rename-references` patterns swept (markdown call sites) | Skill output |
 | Post-extraction | SSOT reads sensibly in isolation (leaky-abstraction self-test) | Manual read |
 | Post-extraction | Lint clean across affected file classes; cross-references and imports resolve | Linter/build output |
 
@@ -170,14 +170,14 @@ Per-phase checklist: `context/execution-checklist.md`.
 - `context/execution-checklist.md` — per-phase checks for the `execute` action
 - `context/lessons.md` — append-only empirical lessons from batch executions; consumed by the `verify` action and `context/decision-framework.md`
 - `actions/identify.md`, `actions/verify.md`, `actions/batch.md` — action bodies (private surface)
-- `/rename-references` — load-bearing 10-pattern sweep after any heading change (owns the syntactic-form set)
-- `/audit-encapsulation` — encapsulation detection + remediation (separate concern)
+- `/docs-hygiene:rename-references` — load-bearing 10-pattern sweep after any heading change (owns the syntactic-form set)
+- `/docs-hygiene:audit-encapsulation` — encapsulation detection + remediation (separate concern)
 
 ## Recheck triggers
 
 | Condition | Action |
 |-----------|--------|
 | External tool/CLI/API documented inside an SSOT rule ships a major version bump | Re-verify the Tier 0 flag/verb set in the affected rule file; cited entries may have moved or renamed |
-| `/rename-references` adds a new syntactic form to its 10-pattern sweep | Update the sweep step in `context/execution-checklist.md` |
-| Anthropic ships a first-class native rule/skill linker (heading-rename auto-sweep) | Demote the `/rename-references` step to advisory; reduce sweep scope |
+| `/docs-hygiene:rename-references` adds a new syntactic form to its 10-pattern sweep | Update the sweep step in `context/execution-checklist.md` |
+| Anthropic ships a first-class native rule/skill linker (heading-rename auto-sweep) | Demote the `/docs-hygiene:rename-references` step to advisory; reduce sweep scope |
 | Practitioner-authored skill failure rate drops below 20% (SkillsBench refresh) | Reduce gate strictness; consider relaxing Rule of Three to Two for low-risk vocabulary |

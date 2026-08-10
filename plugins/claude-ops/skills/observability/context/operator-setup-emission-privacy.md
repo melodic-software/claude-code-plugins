@@ -53,7 +53,7 @@ which can include secrets pasted into prompts. Barriers:
 - **Per-developer-local** — each contributor's store is their own machine only; nothing shared.
 - **NOT secret-scanned** — the `secret-pattern-detection` hook does not scan Collector-written
   files; gitignore + per-dev + retention is the whole barrier.
-- **Retention** — `/observability clean` (or `otel/prune-otel-store.sh` in this skill)
+- **Retention** — `/claude-ops:observability clean` (or `otel/prune-otel-store.sh` in this skill)
   prunes the store to `CC_OTEL_RETENTION_DAYS` (default 7; `api_*_body` records age out at
   `CC_OTEL_BODY_RETENTION_DAYS`, default 2), bounding the full-capture exposure window. The
   cold Parquet tier keeps structure only — no `api_*_body` rows, prompts scrubbed unless

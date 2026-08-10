@@ -64,7 +64,7 @@ A missing or mismatched token is a **hard failure: the parent discards the run**
 
 Exploration is the prerequisite for everything — you cannot change what you do not understand. Goal: **maximum local knowledge** before any action. Skipping exploration leads to wrong assumptions, missed patterns, broken conventions, and rework.
 
-Local counterpart to `/research` (external sources). Together: `/explore` for what IS, `/research` for what SHOULD BE.
+Local counterpart to `/discovery:research` (external sources). Together: `/discovery:explore` for what IS, `/discovery:research` for what SHOULD BE.
 
 **Philosophy**: invest in understanding before acting. Reading 20 files takes seconds; fixing a wrong assumption takes minutes to hours. When in doubt, read more code.
 
@@ -186,7 +186,7 @@ Write the exploration output to `<memory_dir>/<slug>/EXPLORE.md` — a memory-ti
 
 This file is the authoritative stage summary — a fresh session must be able to resume external research or planning reading only this artifact.
 
-**`EXPLORE.md` is always an INDEX**, at every size — not only past an overflow threshold. It carries a task restatement, a one-line abstract per sidecar copied verbatim from that sidecar's header, a section → file + anchor table, and the closing Next-stage-handoff naming what external research (`/research`) or planning needs. The 7-point Output format's content lives in sibling `EXPLORE-<section>.md` sidecars in the same directory, each opening with a machine-readable YAML header so a consumer can grep headers and read exactly one file. Schema and the two load-bearing placement rules — sidecars stay inside `<memory_dir>/<slug>/`, and `EXPLORE.md` stays the entry point: [`${CLAUDE_PLUGIN_ROOT}/skills/research/context/artifact-shape.md`](${CLAUDE_PLUGIN_ROOT}/skills/research/context/artifact-shape.md).
+**`EXPLORE.md` is always an INDEX**, at every size — not only past an overflow threshold. It carries a task restatement, a one-line abstract per sidecar copied verbatim from that sidecar's header, a section → file + anchor table, and the closing Next-stage-handoff naming what external research (`/discovery:research`) or planning needs. The 7-point Output format's content lives in sibling `EXPLORE-<section>.md` sidecars in the same directory, each opening with a machine-readable YAML header so a consumer can grep headers and read exactly one file. Schema and the two load-bearing placement rules — sidecars stay inside `<memory_dir>/<slug>/`, and `EXPLORE.md` stays the entry point: [`${CLAUDE_PLUGIN_ROOT}/skills/research/context/artifact-shape.md`](${CLAUDE_PLUGIN_ROOT}/skills/research/context/artifact-shape.md).
 
 **Sidecar bodies match their length to what the section needs** — cover the substance, but do not pad with filler sections, redundant summaries, or boilerplate; the index's one-line abstracts and the outcome gate's specifics are the floor, not an invitation to narrate.
 
@@ -205,7 +205,7 @@ This file is the authoritative stage summary — a fresh session must be able to
 
 ## What this skill does NOT do
 
-- **Does not research externally** — that's `/research`. This skill reads local code, git, and file system only
+- **Does not research externally** — that's `/discovery:research`. This skill reads local code, git, and file system only
 - **Does not make changes** — it explores. Execution is a separate step
 - **Does not make decisions** — it presents what IS. The planning step decides what SHOULD BE
 - **Does not skip dimensions for "simple" tasks** — a quick bug fix still benefits from reading the surrounding code and checking for tests

@@ -3,6 +3,122 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.2]
+
+A source-fidelity pass over `process.md`, `co-writing.md`, and the co-write
+session-opener template against *Writing Better Lyrics* (2009) Chapter 24 and
+the Appendix, both read in full with Chapter 24's two figures. **This finishes
+Book 2.** Paraphrase only; no chapter prose, example writes, or student work
+reaches this public repository.
+
+### Fixed
+
+- **The No-Free-Zone method was attributed to Pat throughout; it is Stan
+  Webb's.** The Appendix is emphatic — Webb taught it to Pat in his first
+  professional co-write, and the Appendix thanks him by name. Pat carried it
+  into Berklee and added two rules of his own (stay inside the song; no
+  technical talk). `co-writing.md` and the printable opener now credit Webb,
+  and the opener's title line no longer calls the method Pat's.
+- **The session opener collapsed Webb's two distinct rules into one and lost a
+  rule in the process.** "Say everything" and "nobody says no / silence means
+  more" are separate rules doing separate jobs; merging them under a single
+  `No "no."` heading left "write crap" occupying a numbered slot as if it were
+  a third rule rather than the encouragement attached to the first two. The
+  four numbered rules now match `co-writing.md`.
+- **`co-writing.md`'s inner-critic section and its solo-applications section
+  contradicted each other** on which rules apply when writing alone — two of
+  four versus all four. The Appendix supports the looser reading (the
+  discipline helps every time Pat writes; the inner critic is his most frequent
+  co-writer), so the disagreement is now stated explicitly with the Appendix's
+  own evidence rather than left for a reader to trip over.
+
+### Added
+
+- **`co-writing.md`: the causal claim the rule rests on.** The chain is dumb
+  idea → less dumb → decent → great, and the Appendix reports its own session's
+  best part came from its dumbest idea. The file had the mechanism but not the
+  claim that censoring the first link forfeits the last.
+- **`co-writing.md`: what the closed door actually buys** — nobody defends
+  anything, so surviving ideas are the ones both writers love; no arguments and
+  no compromise.
+- **`co-writing.md` + opener: technical talk is fear wearing academic robes.**
+  The Appendix diagnoses it as a writer dressing up a line they suspect is
+  weak, which makes it a signal to read rather than a lapse to scold.
+- **`process.md`: five named rejection criteria from Chapter 24's worksheet
+  walk-through**, including the "seems to mean more than it conveys" clunker
+  test, plus the rule that the rhyming syllable should carry primary and not
+  secondary stress. None of these existed anywhere in the plugin.
+- **`process.md`: pattern lock as a named failure mode.** Chapter 24's bridge
+  came out in the verses' common meter on autopilot; the chapter also catches
+  itself borrowing a specific Paul Simon bridge structure and notes that
+  loving the source does not make the borrow work.
+- **`process.md`: the form option that LOST and why.** Dumping a verse is
+  tested first and rejected on cause — form repairs are subject to scene logic,
+  so a leaner form that breaks cause is not an improvement.
+- **`process.md`: the worksheet is a brainstorming device, not a rhyme-finding
+  device** — stated outright in Chapter 24, with Sondheim cited as a working
+  practitioner.
+- **`process.md`: Chapter 24's worksheet figure is load-bearing.** The prose
+  lists the five column headings and nothing under them; the columns exist only
+  in `image_rsrcAUJ.jpg`, which independently confirms the
+  one-undifferentiated-column-per-core-word layout recorded in `worksheets.md`.
+
+## [0.8.1]
+
+A source-fidelity pass over `song-forms.md` and `form.md` against *Writing
+Better Lyrics* (2009) Chapters 20-23, all four read in full — including
+Chapter 20's figure and all four of Chapter 21's split spine items. Paraphrase
+only; no chapter prose, example writes, or student work reaches this public
+repository.
+
+### Fixed
+
+- **A late-appended block in `song-forms.md` restated the Chapter 22 and 23
+  repair strategies and got four of the six wrong**, each one contradicting the
+  correct statement earlier in the same file. Chapter 22's third repair merges
+  two verses into one larger verse that shifts internally, leaving two verses;
+  the block described giving four verses four different jobs, which preserves
+  the very `v/v/ch/v/v/ch` shape the chapter exists to dismantle. Its second
+  repair kept "same content" when the chapter requires changing both structure
+  and the kind of information, the distinction that separates a bridge from a
+  renamed verse. Chapter 23's second alternative replaces the third verse; the
+  block had verse three still building normally. Its third alternative converts
+  to AABA precisely so all three verse ideas survive as verses; the block said
+  to drop the third verse — the opposite of the condition that selects the
+  form. Each repair now states its resulting form explicitly so the two
+  descriptions cannot drift apart again.
+- **"Four times is a lot." was attributed to the wrong book and labelled a
+  paraphrase.** It is verbatim from *Writing Better Lyrics* (2009), Chapter 22.
+  The claim that *Essential Guide to Lyric Form and Structure* (1991)
+  Chapter 6 shares the warning is left standing but remains unverified — that
+  chapter has not been read.
+- **The chapter title was rendered "Im(potent) Packages"**, parenthesising the
+  wrong half of Pat's pun. It is "(Im)potent Packages".
+
+### Added
+
+- **`form.md`: Pattison's own naming of the two form-follows-function
+  readings.** Applied to one section the rule *is* prosody; applied to two
+  sections compared against each other it *is* contrast. The file had the
+  mechanics of both but had dropped the link to the plugin's own prosody
+  vocabulary.
+- **`form.md`: the musical-bar mechanism behind the "Years" chorus.** The file
+  had the stress arithmetic balancing at six and six, but the prosody lives in
+  the setting — both groups get four bars, so three phrases occupy the space
+  two had, and the final phrase is compressed to a single bar exactly where the
+  lyric says time moves fastest.
+- **`form.md`: a contrast-audit caution drawn from the "Southern Comfort"
+  chorus.** Three-stress phrases and a "3+" opening can look like contrast
+  while still leaning toward the common meter the verse established, because
+  three stresses is that meter's balancing length.
+- **`song-forms.md`: an AABA song's last system is bridge/verse, not a lone
+  verse** (Chapter 23) — the pairing supplies the contrast against the opening
+  A sections, so an unearned-feeling return should be diagnosed across the
+  whole B-to-final-A unit.
+- **`song-forms.md`: the cost Chapter 23 attaches to its first alternative** —
+  inserting a bridge before a third verse returns to a full verse before the
+  last chorus, so the lyric can still seem long.
+
 ## [0.8.0]
 
 ### Removed

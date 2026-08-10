@@ -2,15 +2,15 @@
 
 Multi-candidate orchestration. Computes a file-overlap matrix across candidates, dispatches refuse-fast `verify` to filter, then runs `plan`/`execute` in non-overlapping parallel waves OR strict sequential order (concurrent-write risk → sequential by default). Accumulates lessons in `context/lessons.md` between subagent dispatches.
 
-Loaded by `/extract-ssot batch <cluster-list>`. Private surface — invoke via `/extract-ssot batch`, never cite this file directly (contract: `/audit-encapsulation`).
+Loaded by `/docs-hygiene:extract-ssot batch <cluster-list>`. Private surface — invoke via `/docs-hygiene:extract-ssot batch`, never cite this file directly (contract: `/docs-hygiene:audit-encapsulation`).
 
 ## When to invoke
 
 | Use case | Invoke |
 |----------|--------|
-| `/extract-ssot identify` produced 5+ candidates and you want efficient orchestration | YES |
+| `/docs-hygiene:extract-ssot identify` produced 5+ candidates and you want efficient orchestration | YES |
 | Manual list of candidates to migrate in one pass | YES |
-| Single candidate | NO — use `/extract-ssot plan <name>` directly |
+| Single candidate | NO — use `/docs-hygiene:extract-ssot plan <name>` directly |
 | < 3 candidates | NO — manual sequential dispatch is simpler |
 
 This is NOT the bundled Claude Code `/batch` skill. Bundled `/batch` is polyglot worktree-parallelized refactor per [code.claude.com/docs/en/commands](https://code.claude.com/docs/en/commands); this `batch` action is local SSOT-cluster orchestration.
@@ -18,12 +18,12 @@ This is NOT the bundled Claude Code `/batch` skill. Bundled `/batch` is polyglot
 ## Inputs
 
 ```text
-/extract-ssot batch <candidate-1> [<candidate-2> ... <candidate-N>]
+/docs-hygiene:extract-ssot batch <candidate-1> [<candidate-2> ... <candidate-N>]
 ```
 
 OR resume from working notes if a `batch` phase is mid-flight.
 
-Candidate names match `/extract-ssot identify` output's cluster names.
+Candidate names match `/docs-hygiene:extract-ssot identify` output's cluster names.
 
 ## Steps
 
@@ -217,7 +217,7 @@ Hard limit ≤2 side notes per response:
 | `lessons.md` exceeds 400 lines | Trigger archive-and-trim per `context/lessons.md` "Append guidance for future batches"; preserve the most-recent + greatest-impact lessons inline |
 | The `verify` action ships a new gate (Gate 7+) | Update the Step 2 verify filter to capture new reason codes |
 | Anthropic ships a canonical batch/multi-target action convention for skills | Re-align the Step 6 dispatch policy; expose `--parallel-waves` differently if upstream prescribes |
-| `/extract-ssot batch` consistently produces > 50% refuse-fast filtering | Diagnostic signal that the `/extract-ssot identify` survey heuristic needs tuning; document the tuning in `lessons.md` |
+| `/docs-hygiene:extract-ssot batch` consistently produces > 50% refuse-fast filtering | Diagnostic signal that the `/docs-hygiene:extract-ssot identify` survey heuristic needs tuning; document the tuning in `lessons.md` |
 
 ## Cross-references
 
@@ -226,5 +226,5 @@ Hard limit ≤2 side notes per response:
 - `context/decision-framework.md` "Pre-extraction Tier 0 checklist" — the same gates `verify` runs, documented for human-readable batch review
 - `context/anti-patterns.md` #11 / #12 / #13 — REFUSE patterns the verify filter encodes
 - SKILL.md "Evidence discipline" — subagent return values are synthesis by default; the orchestrator MUST verify novel-lesson claims before the lessons.md append
-- `/extract-ssot identify` — produces the ranked candidate list this batch action consumes
+- `/docs-hygiene:extract-ssot identify` — produces the ranked candidate list this batch action consumes
 - Bundled Claude Code `/batch` skill — distinct concern (worktree-parallelized polyglot refactor); see SKILL.md "What this skill does NOT do"

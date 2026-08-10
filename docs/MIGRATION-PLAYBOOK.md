@@ -516,12 +516,12 @@ not "is the server useful". `enabled`/`disabled` = medley `.claude/settings.json
 | chrome-devtools | stdio | — | STAY | Ad-hoc browser/debug; stateful; no migrating plugin structurally requires it (degraded-but-functional) |
 | context7 | http | `CONTEXT7_API_KEY` | STAY (CLI-first) | context7 plugin ships `ctx7`; HTTP MCP kept repo-level as fallback |
 | github-events | stdio (repo-built) | `GITHUB_EVENTS_SECRET` | STAY | Repo-local broker; stateful `activeFilter`; repo identity via `CLAUDE_PROJECT_DIR` — not repo-agnostic |
-| microsoft-learn | http | — | STAY | `/research` + .NET docs; no plugin structurally requires it; degrades to WebSearch/WebFetch |
+| microsoft-learn | http | — | STAY | `/discovery:research` + .NET docs; no plugin structurally requires it; degrades to WebSearch/WebFetch |
 | nuget | stdio (`dotnet dnx`) | — | STAY | `/packages` + .NET; no dotnet/packages plugin in the locked slugs; .NET-scoped |
 | openai-developer-docs | http | — | STAY | codex/OpenAI research; degraded-but-functional |
-| perplexity | stdio | `PERPLEXITY_API_KEY` | STAY | `/research` + ai-briefing; multi-consumer, degrades gracefully — shipping would auto-spawn for all discovery sessions |
+| perplexity | stdio | `PERPLEXITY_API_KEY` | STAY | `/discovery:research` + ai-briefing; multi-consumer, degrades gracefully — shipping would auto-spawn for all discovery sessions |
 | playwright | stdio | — | STAY (CLI-first, disabled) | playwright plugin ships `@playwright/cli`; MCP disabled in medley in its favor |
-| ref | http | `REF_API_KEY` | STAY | `/research` doc search; degraded-but-functional |
+| ref | http | `REF_API_KEY` | STAY | `/discovery:research` doc search; degraded-but-functional |
 
 **SHIP: 1. STAY: 13. DROP: 0** — only `miro` clears the SHIP bar, and only once reframed as its own
 dedicated plugin (rule 2). The other 13 are CLI-first, degraded-but-functional (their consumer plugin

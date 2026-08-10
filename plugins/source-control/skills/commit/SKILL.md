@@ -306,9 +306,9 @@ convention question, expressible as a `trailer_policy` template.
 ## Unrelated uncommitted changes
 
 If the working tree contains unstaged or untracked files that fall outside this commit's scope,
-classify each before staging per `/pull-request create` (its unrelated-changes classification:
+classify each before staging per `/source-control:pull-request create` (its unrelated-changes classification:
 include / stash / separate-commit / discard). Do not duplicate that classification here; invoke
-`/pull-request create` to surface it to the user.
+`/source-control:pull-request create` to surface it to the user.
 
 ## Staging discipline
 
@@ -323,12 +323,12 @@ order — catch what CI would otherwise catch on the push round-trip.
 ## Composition policy
 
 This skill is the single source of truth for the commit mechanic. Other skills should compose
-`/commit` rather than invoking `git commit` directly — direct calls bypass the pre-check, trailer
+`/source-control:commit` rather than invoking `git commit` directly — direct calls bypass the pre-check, trailer
 logic, and surgical-staging discipline this skill exists to enforce.
 
 **"Compose" means one of exactly two things, and a composing skill must name which:**
 
-- **Re-invoke `/commit`** for the commit. This is the default and the only form that re-renders this
+- **Re-invoke `/source-control:commit`** for the commit. This is the default and the only form that re-renders this
   skill's full content. Prefer it whenever the commit is a discrete step a user could have asked for.
 - **Run the per-commit checklist above yourself**, per commit, as commands. Permitted for a workflow
   skill making many commits in one flow, where re-invocation per commit is disproportionate.
@@ -346,12 +346,12 @@ its finding before anything else is read.
 
 Workflow skills without explicit commit semantics should report status at phase boundaries and let
 the user or the next workflow stage decide commit timing; a skill with commit semantics in its
-documented contract (e.g. `/pull-request create`) composes this one.
+documented contract (e.g. `/source-control:pull-request create`) composes this one.
 
 ## Recorded deviations
 
 - **Model invocation stays enabled** (`disable-model-invocation: false`, declared explicitly rather
-  than left to the default). The fleet archetype for a `/commit`-shaped skill is
+  than left to the default). The fleet archetype for a `/source-control:commit`-shaped skill is
   `disable-model-invocation: true` — user-invoked only. This skill deliberately deviates because its
   composition design requires the model to reach it: a workflow skill that composes the commit
   mechanic cannot do so if the model may not load it. Compensating controls: surgical staging (never
@@ -360,12 +360,12 @@ documented contract (e.g. `/pull-request create`) composes this one.
 
 ## What this skill does NOT do
 
-- **No `git push`** — that's `/pull-request create`.
+- **No `git push`** — that's `/source-control:pull-request create`.
 - **No branch creation** — that's the project's branch-naming / branch-protection mechanisms (or
-  `/worktree create`).
-- **No PR body composition** — that's `/pull-request create`.
-- **No `git merge` / `gh pr merge`** — that's `/pull-request merge`.
-- **No rebase** — that's `/pull-request create`.
+  `/source-control:worktree create`).
+- **No PR body composition** — that's `/source-control:pull-request create`.
+- **No `git merge` / `gh pr merge`** — that's `/source-control:pull-request merge`.
+- **No rebase** — that's `/source-control:pull-request create`.
 - **No `--no-verify` or hook bypass** — if the project's `commit-msg` hook rejects the message,
   surface the error and re-draft; never bypass.
 

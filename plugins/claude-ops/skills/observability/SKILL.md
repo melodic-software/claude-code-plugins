@@ -30,7 +30,7 @@ Progressive disclosure lives in `context/` (read on demand — do not recap inli
 `${CLAUDE_PLUGIN_DATA}/reports/` (when `--write` is passed). Honors
 [context/privacy.md](context/privacy.md).
 
-**Not `/known-issues`** — that skill tracks Anthropic product bugs and GitHub issues.
+**Not `/claude-ops:known-issues`** — that skill tracks Anthropic product bugs and GitHub issues.
 This skill reads **your** captured telemetry and ops signals.
 
 ## Context ladder (read on demand)
@@ -77,7 +77,7 @@ remains the durable record).
 |---|---|---|
 | `clean` | `[--keep-days N]` (default 30) `[--dry-run]` `[--quiet]` | Prune JSONL + OTEL store — see [context/read-routing.md](context/read-routing.md) "Retention" and `scripts/clean.sh` |
 
-Action invocation: `/observability clean [flags]`.
+Action invocation: `/claude-ops:observability clean [flags]`.
 
 **`clean` requires explicit user confirmation** before running when invoked by the model — show
 `--dry-run` output first unless user already passed `--dry-run` or explicitly ordered cleanup.
@@ -128,7 +128,7 @@ Unchanged — [context/data-sources.md](context/data-sources.md), [context/priva
 
 ## Cross-references
 
-- `/known-issues` — CC product bugs (not telemetry reads)
+- `/claude-ops:known-issues` — CC product bugs (not telemetry reads)
 
 ## Gotchas
 
@@ -139,7 +139,7 @@ Unchanged — [context/data-sources.md](context/data-sources.md), [context/priva
 
 ## What this skill does NOT do
 
-- **Does not track GitHub bugs** — use `/known-issues`
+- **Does not track GitHub bugs** — use `/claude-ops:known-issues`
 - **Does not modify code** — read-only
 - **Does not replace built-in `/insights`** or your own retrospective workflow
 - **Does not write to memory** unless user explicitly saves

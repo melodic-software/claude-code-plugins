@@ -26,16 +26,16 @@ Arguments: `$ARGUMENTS`
 ## Purpose
 
 Some efforts are **too big to hold at once AND too foggy to ticket** — you can't yet
-phrase half the questions, let alone answer them. `/interview` needs a coherent task;
+phrase half the questions, let alone answer them. `/planning:interview` needs a coherent task;
 `/planning:plan` needs a coherent plan; both presuppose you already know what you're deciding.
-`/wayfind` sits **upstream of all of them**: it turns a too-big-foggy effort into a shared
+`/planning:wayfind` sits **upstream of all of them**: it turns a too-big-foggy effort into a shared
 **decision map** on the work-item tracker, then works that map's frontier one decision at a
 time until the fog burns off and a real destination (Brief / PRD / PLAN) can be handed onward.
 
 **Plan, don't do.** A map holds *decisions*, not build work. Each decision item, once
 resolved, either sharpens the map or graduates to the destination. The moment the destination
-is coherent, the map closes and the normal pipeline (`/interview → /design → /planning:plan →
-/implement`) takes over. The map persists as native tracker primitives, each decision routes
+is coherent, the map closes and the normal pipeline (`/planning:interview → /planning:design → /planning:plan →
+/implementation:implement`) takes over. The map persists as native tracker primitives, each decision routes
 to a first-party skill, and execution artifacts live in `<memory_dir>/<slug>/` (default
 `.work/`) — the topic-docs convention's memory tier, slug spec and all (see
 [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md))
@@ -146,8 +146,8 @@ an interactive session — do not fabricate a map.
 
 ## Escalation — pull the user back to charting at choke points
 
-`/wayfind`'s description carries the proactive trigger. The sibling skills carry **pull-back
-lines**: when `/interview`, `/planning:plan`, or `/implement` hits a task that is clearly
+`/planning:wayfind`'s description carries the proactive trigger. The sibling skills carry **pull-back
+lines**: when `/planning:interview`, `/planning:plan`, or `/implementation:implement` hits a task that is clearly
 too-big-AND-foggy for their stage, they name `/planning:wayfind` as the better entry —
 **guiding the user, never auto-switching**. Wording lives in each of those skills; this skill
 owns the trigger's meaning (too-big + fog, both, not either alone).

@@ -1,4 +1,4 @@
-# `/observability` output format
+# `/claude-ops:observability` output format
 
 Markdown report. Structured for quick visual scan + machine grep.
 
@@ -142,6 +142,6 @@ Reports are working artifacts — copy one into the consumer project only if it 
 
 ## What this template intentionally omits
 
-- Recommendations / action items — `/observability` surfaces signals, user decides what to act on
+- Recommendations / action items — `/claude-ops:observability` surfaces signals, user decides what to act on
 - Per-session detail — aggregation hides per-session noise; use ccusage MCP directly for session drill-down
 - Cross-repo data — out of scope; observability is project-local

@@ -5,9 +5,9 @@ source: /extract-ssot batch executions
 schema-version: 1
 ---
 
-# Empirical lessons — `/extract-ssot`
+# Empirical lessons — `/docs-hygiene:extract-ssot`
 
-Append-only record of patterns observed during real `/extract-ssot` runs. Distinct from `decision-framework.md` (a-priori 6+5 gate) and `anti-patterns.md` (failure-mode taxonomy with mitigations) — this file captures **empirical observations** from running the skill on real candidates and learning what the survey heuristic over-counts, what categorical-shape signals indicate distinct concerns, and what extraction shapes succeed vs refuse.
+Append-only record of patterns observed during real `/docs-hygiene:extract-ssot` runs. Distinct from `decision-framework.md` (a-priori 6+5 gate) and `anti-patterns.md` (failure-mode taxonomy with mitigations) — this file captures **empirical observations** from running the skill on real candidates and learning what the survey heuristic over-counts, what categorical-shape signals indicate distinct concerns, and what extraction shapes succeed vs refuse.
 
 Lessons 1-11 were seeded from batch runs in the repository where this skill was developed (sources below are genericized). Consuming repositories append their own lessons as batches run.
 
@@ -20,7 +20,7 @@ Each lesson has a stable identifier (`Lesson N`) so anti-patterns + decision-fra
 - `decision-framework.md` "Pre-extraction Tier 0 checklist": lessons surfaced as a-priori discipline AFTER the 6-test gate
 - Manual review: a human surveying a candidate cluster reads these to short-circuit obvious refusals
 
-This file is PRIVATE surface — external consumers don't cite `lessons.md "Lesson N"` directly. They invoke `/extract-ssot verify` or read the codified anti-pattern. Keeps audience boundaries clean.
+This file is PRIVATE surface — external consumers don't cite `lessons.md "Lesson N"` directly. They invoke `/docs-hygiene:extract-ssot verify` or read the codified anti-pattern. Keeps audience boundaries clean.
 
 ## Lesson 1: Discriminating-phrase grep beats keyword density
 
@@ -132,7 +132,7 @@ This file is PRIVATE surface — external consumers don't cite `lessons.md "Less
 
 ## Lesson 10: Identify subagent over-counts ~95% on broad surveys without verbatim-block discrimination
 
-**Observation.** When `/extract-ssot identify` runs in exhaustive mode (read-only subagent over 30+ heuristics), the subagent's roster routinely flags 60+ candidates with a ~95% false-positive rate at Tier 0 verify. Failure modes:
+**Observation.** When `/docs-hygiene:extract-ssot identify` runs in exhaustive mode (read-only subagent over 30+ heuristics), the subagent's roster routinely flags 60+ candidates with a ~95% false-positive rate at Tier 0 verify. Failure modes:
 
 1. **Section-header presence** counted as duplicate (e.g. 18 skills have a `## What this skill does NOT do` header; bodies are unique per skill — template, not duplication)
 2. **Concept mention** counted as block reproduction (a file mentions a verification tier once → flagged as a duplicate of the full tier-ladder definition)
@@ -181,7 +181,7 @@ If only ONE passes, extraction is borderline — run an adversarial-review round
 
 ## Append guidance for future batches
 
-When a future `/extract-ssot batch` execution surfaces a new empirical pattern:
+When a future `/docs-hygiene:extract-ssot batch` execution surfaces a new empirical pattern:
 
 1. **Confirm novelty.** Cross-check the existing lessons. If the new observation is a variant of an existing lesson, expand that lesson's scope rather than adding a new one.
 2. **Confirm Tier 0 evidence.** An empirical lesson requires concrete batch references — date + cluster name + outcome. NOT speculation.

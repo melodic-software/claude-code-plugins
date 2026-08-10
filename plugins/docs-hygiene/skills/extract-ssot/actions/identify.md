@@ -1,17 +1,17 @@
 # `identify` action — exhaustive duplication survey
 
-Default mode dispatches a read-only exploration subagent that runs 30+ duplication heuristics across all markdown surfaces, emits a ranked candidate roster, computes a file-overlap matrix, and returns a batch-sequencing recommendation ready to feed `/extract-ssot batch`.
+Default mode dispatches a read-only exploration subagent that runs 30+ duplication heuristics across all markdown surfaces, emits a ranked candidate roster, computes a file-overlap matrix, and returns a batch-sequencing recommendation ready to feed `/docs-hygiene:extract-ssot batch`.
 
-Private surface — external consumers invoke `/extract-ssot identify`, never cite this file directly (contract: `/audit-encapsulation`).
+Private surface — external consumers invoke `/docs-hygiene:extract-ssot identify`, never cite this file directly (contract: `/docs-hygiene:audit-encapsulation`).
 
 ## Two modes
 
 | Invocation | Mode | Behavior |
 |------------|------|----------|
-| `/extract-ssot identify` | Exhaustive (default) | Read-only subagent deep survey across instruction files, rules, skills, agents, ADRs, docs. Returns a ranked candidate roster + dependency chains + file-overlap matrix + batch wave plan |
-| `/extract-ssot identify <cluster-name>` | Targeted | Tier 0 grep on a named cluster only. Returns instance count + Tier 0 evidence + suggested output type. No subagent dispatch |
+| `/docs-hygiene:extract-ssot identify` | Exhaustive (default) | Read-only subagent deep survey across instruction files, rules, skills, agents, ADRs, docs. Returns a ranked candidate roster + dependency chains + file-overlap matrix + batch wave plan |
+| `/docs-hygiene:extract-ssot identify <cluster-name>` | Targeted | Tier 0 grep on a named cluster only. Returns instance count + Tier 0 evidence + suggested output type. No subagent dispatch |
 
-User signals like "find ANY and ALL", "deep dive", "exhaustive", "full list", or `/extract-ssot identify` with no args = default to exhaustive mode.
+User signals like "find ANY and ALL", "deep dive", "exhaustive", "full list", or `/docs-hygiene:extract-ssot identify` with no args = default to exhaustive mode.
 
 ## When to invoke
 
@@ -25,8 +25,8 @@ User signals like "find ANY and ALL", "deep dive", "exhaustive", "full list", or
 ## Inputs
 
 ```text
-/extract-ssot identify              # exhaustive default
-/extract-ssot identify <cluster>    # targeted
+/docs-hygiene:extract-ssot identify              # exhaustive default
+/docs-hygiene:extract-ssot identify <cluster>    # targeted
 ```
 
 ## Exhaustive mode steps
@@ -38,7 +38,7 @@ User signals like "find ANY and ALL", "deep dive", "exhaustive", "full list", or
 4. Subagent returns ranked candidate table + dependency chains + file-overlap matrix
 5. Main session classifies output: deduplicate against context/lessons.md known-refused patterns
 6. Main session emits batch-sequencing recommendation (waves, sequential vs parallel, hot files)
-7. Main session offers user: dispatch /extract-ssot batch with top-N waves, or pick specific clusters
+7. Main session offers user: dispatch /docs-hygiene:extract-ssot batch with top-N waves, or pick specific clusters
 8. Persist the roster to working notes so the user can resume from durable state
 ```
 
@@ -47,7 +47,7 @@ User signals like "find ANY and ALL", "deep dive", "exhaustive", "full list", or
 The subagent receives a self-contained prompt. Skeleton:
 
 ```text
-Goal: EXHAUSTIVE duplication survey for /extract-ssot. Find ANY and ALL duplication
+Goal: EXHAUSTIVE duplication survey for /docs-hygiene:extract-ssot. Find ANY and ALL duplication
 candidates across markdown in this repo. Apply Tier 0 discipline — see
 "Discrimination rules" below before adding any candidate to the roster.
 
@@ -265,7 +265,7 @@ Main session presents to user:
 <Wave 1 sequential, Wave 2 sequential, ..., Wave N parallel-safe>
 
 ## Recommended next step
-`/extract-ssot batch <Wave-1-cluster-list>`
+`/docs-hygiene:extract-ssot batch <Wave-1-cluster-list>`
 ```
 
 The ranked table + wave plan is then persisted to working notes so the user can reset context and resume from durable state.
@@ -277,7 +277,7 @@ The ranked table + wave plan is then persisted to working notes so the user can 
 2. Capture: instance count, file list, line numbers
 3. Run quick instance-stability check (Rule of Three; do they change together?)
 4. Suggest output type per `context/decision-framework.md`
-5. Return candidate spec ready for `/extract-ssot verify <cluster>`
+5. Return candidate spec ready for `/docs-hygiene:extract-ssot verify <cluster>`
 ```
 
 No subagent dispatch. No batch sequencing. Single-cluster sanity check only.
@@ -285,9 +285,9 @@ No subagent dispatch. No batch sequencing. Single-cluster sanity check only.
 ## Anti-patterns guarded
 
 - **Premature exhaustive mode** — dispatching a survey subagent when the user already has 1-2 clusters in mind wastes a dispatch. Detect via the argument.
-- **Synthesis-only output** — a subagent return is unverified synthesis, not Tier 0 evidence. Each cluster MUST be promoted to Tier 0 (grep this turn) before `/extract-ssot plan` or `execute` runs. The `verify` action enforces this.
+- **Synthesis-only output** — a subagent return is unverified synthesis, not Tier 0 evidence. Each cluster MUST be promoted to Tier 0 (grep this turn) before `/docs-hygiene:extract-ssot plan` or `execute` runs. The `verify` action enforces this.
 - **Skipping the user-review gate** — exhaustive mode can emit a roster of dozens of candidates. NEVER auto-dispatch the whole roster without user confirmation. Default policy: present roster + recommend top wave; user picks scope.
-- **Roster decay** — the survey is point-in-time. If `/extract-ssot batch` partial-completes and the user resumes weeks later, re-run `identify` rather than trusting a stale roster.
+- **Roster decay** — the survey is point-in-time. If `/docs-hygiene:extract-ssot batch` partial-completes and the user resumes weeks later, re-run `identify` rather than trusting a stale roster.
 
 ## Sanity checks
 

@@ -1,6 +1,6 @@
 # Audit Sub-Modes — Blast / Half-Rename / Orphans
 
-`/rename-references audit` supports three sub-modes sharing the survey + triage pipeline from [audit.md](audit.md) but differing in input requirements, algorithm, and output format. Bare `/rename-references audit` (no sub-mode) defaults to **Blast** for backward compatibility.
+`/docs-hygiene:rename-references audit` supports three sub-modes sharing the survey + triage pipeline from [audit.md](audit.md) but differing in input requirements, algorithm, and output format. Bare `/docs-hygiene:rename-references audit` (no sub-mode) defaults to **Blast** for backward compatibility.
 
 | Sub-mode | Charter | Pair required? | Output |
 |---|---|---|---|
@@ -26,15 +26,15 @@ Override flags `--include-historical`, `--include-memory`, `--include-plan-docs`
 
 | Form | Behavior |
 |---|---|
-| `/rename-references audit blast` (no args) | Smart-default detection per `SKILL.md` (conversation / git R-lines / paired D+??) |
-| `/rename-references audit blast <old>` | Single-token reverse mode — sweep without `<new>`; report still useful for pre-rename radius |
-| `/rename-references audit blast <old> to <new>` | Explicit pair |
+| `/docs-hygiene:rename-references audit blast` (no args) | Smart-default detection per `SKILL.md` (conversation / git R-lines / paired D+??) |
+| `/docs-hygiene:rename-references audit blast <old>` | Single-token reverse mode — sweep without `<new>`; report still useful for pre-rename radius |
+| `/docs-hygiene:rename-references audit blast <old> to <new>` | Explicit pair |
 
 **Algorithm:** run the full pattern library from [patterns.md](patterns.md) via the Grep tool for match facts, then apply triage from [triage.md](triage.md). Phases 1–3 (Detect → Survey → Triage) follow [audit.md](audit.md). NO Edit phase. NO file artifact.
 
 **Output format:** identical to audit.md "Phase 4: Report". Counts table + top-5 affected files + pattern-form breakdown. Inline only.
 
-**Defaults / aliasing:** bare `/rename-references audit` (no sub-mode keyword) routes to blast — Blast preserves the original audit behavior verbatim.
+**Defaults / aliasing:** bare `/docs-hygiene:rename-references audit` (no sub-mode keyword) routes to blast — Blast preserves the original audit behavior verbatim.
 
 **Why no file artifact:** Beck (Tidy First, 2024) and Fowler (Refactoring, 2nd ed.) explicitly reject upfront-analysis artifacts in favor of inline IDE Find Usages. Inline is the right primitive; a plan-file artifact is deferred until cross-team review demand surfaces.
 
@@ -42,20 +42,20 @@ Override flags `--include-historical`, `--include-memory`, `--include-plan-docs`
 
 ## Audit Half-Rename
 
-**Purpose:** detect incomplete rename state — files mentioning BOTH old AND new identifier. Common after partial PR work or interrupted `/rename-references` apply runs. di Penta et al. (IEEE TSE 2020): ~80% of code smells (incl. half-renames) persist indefinitely once introduced — early detection prevents calcification.
+**Purpose:** detect incomplete rename state — files mentioning BOTH old AND new identifier. Common after partial PR work or interrupted `/docs-hygiene:rename-references` apply runs. di Penta et al. (IEEE TSE 2020): ~80% of code smells (incl. half-renames) persist indefinitely once introduced — early detection prevents calcification.
 
 **When to invoke:**
 
 - After a partial rename PR was merged but left stragglers
 - Mid-rename pause: "did I miss anything?"
-- Pre-PR safety check post `/rename-references <old> to <new>` apply mode
+- Pre-PR safety check post `/docs-hygiene:rename-references <old> to <new>` apply mode
 
 **Inputs:**
 
 | Form | Behavior |
 |---|---|
-| `/rename-references audit half-rename <old> to <new>` | Required — both names needed for intersection algorithm |
-| `/rename-references audit half-rename` (no pair) | Smart-default per SKILL.md; if zero candidates, error: "audit half-rename requires a rename pair (old → new)" |
+| `/docs-hygiene:rename-references audit half-rename <old> to <new>` | Required — both names needed for intersection algorithm |
+| `/docs-hygiene:rename-references audit half-rename` (no pair) | Smart-default per SKILL.md; if zero candidates, error: "audit half-rename requires a rename pair (old → new)" |
 
 **Algorithm:**
 
@@ -74,7 +74,7 @@ Files containing BOTH (incomplete rename state):
 | skills/foo/SKILL.md                      | 3        | 2        | "...→ <old> →..." (line 12)                 |
 | docs/conventions.md                      | 1        | 4        | "use <new> instead of <old>" (line 45)      |
 
-<N> files in half-rename state. Run /rename-references <old> to <new> to complete.
+<N> files in half-rename state. Run /docs-hygiene:rename-references <old> to <new> to complete.
 ```
 
 **Edge cases:**
@@ -83,7 +83,7 @@ Files containing BOTH (incomplete rename state):
 - **Self-reference (plan docs):** the active plan/work-notes document mentions BOTH names by design (documenting the rename). Auto-excluded by default; `--include-plan-docs` opts in (read-only — apply mode block applies)
 - **Documentation references:** memory files often describe historical renames — both old + new appear by design. Memory paths auto-excluded by default
 
-**No Edits.** Half-rename is an audit — once findings reported, user invokes `/rename-references <old> to <new>` apply mode if they want to fix.
+**No Edits.** Half-rename is an audit — once findings reported, user invokes `/docs-hygiene:rename-references <old> to <new>` apply mode if they want to fix.
 
 ---
 
@@ -93,7 +93,7 @@ Files containing BOTH (incomplete rename state):
 
 **When to invoke:**
 
-- After `/rename-references <old> to <new>` apply phase, double-check no file paths went stale
+- After `/docs-hygiene:rename-references <old> to <new>` apply phase, double-check no file paths went stale
 - After `git mv <old-path> <new-path>`, sweep for `[text](<old-path>)` markdown links and similar
 - Before declaring rename done: orphan check is final safety net beyond apply.md Phase 6 re-sweep
 
@@ -101,8 +101,8 @@ Files containing BOTH (incomplete rename state):
 
 | Form | Behavior |
 |---|---|
-| `/rename-references audit orphans <old> to <new>` | Required pair |
-| `/rename-references audit orphans <old>` (single token) | **REJECTED** with error: "audit orphans requires a rename pair (old → new). Charter is post-rename orphan check, not general dead-ref scan. For a repo-wide dead-reference check, use a codebase-audit workflow or documentation link checker." |
+| `/docs-hygiene:rename-references audit orphans <old> to <new>` | Required pair |
+| `/docs-hygiene:rename-references audit orphans <old>` (single token) | **REJECTED** with error: "audit orphans requires a rename pair (old → new). Charter is post-rename orphan check, not general dead-ref scan. For a repo-wide dead-reference check, use a codebase-audit workflow or documentation link checker." |
 
 **Algorithm:**
 
@@ -130,7 +130,7 @@ Stale-but-functional (refs at old name, file still exists):
 | skills/old/SKILL.md                    | docs/index.md:7            | rename incomplete; old still on disk |
 
 <N> orphans, <M> stale-but-functional.
-Suggest: /rename-references <old> to <new> to apply, OR git rm <old-path> to complete cleanup.
+Suggest: /docs-hygiene:rename-references <old> to <new> to apply, OR git rm <old-path> to complete cleanup.
 ```
 
 **Charter (strict):**
@@ -145,7 +145,7 @@ Suggest: /rename-references <old> to <new> to apply, OR git rm <old-path> to com
 - **Both old and new paths exist:** rename was duplicative (file COPIED not MOVED). Report as stale-but-functional with note "duplicate — old + new both present"
 - **Slash-token in conversation logs:** memory paths auto-excluded by default; `--include-memory` overrides
 
-**No Edits.** Orphans audit reports findings; user fixes via `/rename-references <old> to <new>` apply mode or `git rm`.
+**No Edits.** Orphans audit reports findings; user fixes via `/docs-hygiene:rename-references <old> to <new>` apply mode or `git rm`.
 
 ---
 
@@ -181,7 +181,7 @@ to inspect, then update the plan document by hand if needed.
 
 - Long-form only (no short aliases — clarity beats brevity for safety-critical flags)
 - Position-agnostic: accepted before/after action keyword and before/after rename pair
-- Multiple flags compose: `/rename-references audit blast /old to /new --include-historical --include-memory` is valid
+- Multiple flags compose: `/docs-hygiene:rename-references audit blast /old to /new --include-historical --include-memory` is valid
 - Unknown flags: error with usage hint, never silently ignore
 
 **Cross-references:**
@@ -199,10 +199,10 @@ After any audit sub-mode completes:
 | Result | Suggestion |
 |---|---|
 | Blast: 0 matches | "No stragglers found. Safe to proceed (or rename target absent)." |
-| Blast: matches found | Suggest `/rename-references <old> to <new>` (apply) or `/rename-references preview <old> to <new>` (dry-run) |
+| Blast: matches found | Suggest `/docs-hygiene:rename-references <old> to <new>` (apply) or `/docs-hygiene:rename-references preview <old> to <new>` (dry-run) |
 | Half-rename: 0 files | "No half-rename state — clean." |
-| Half-rename: ≥1 file | Suggest `/rename-references <old> to <new>` to complete |
+| Half-rename: ≥1 file | Suggest `/docs-hygiene:rename-references <old> to <new>` to complete |
 | Orphans: 0 orphans + 0 stale | "No orphans — rename is clean." |
-| Orphans: orphans found | Suggest `/rename-references <old> to <new>` apply OR `git rm <stale-old-path>` per case |
+| Orphans: orphans found | Suggest `/docs-hygiene:rename-references <old> to <new>` apply OR `git rm <stale-old-path>` per case |
 
 Do NOT git add/commit/push automatically — report status; the user decides (the consuming repository's own commit policy governs).

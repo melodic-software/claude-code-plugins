@@ -1,6 +1,6 @@
 # firecrawl commands — full reference
 
-Per-command flag detail for the `/firecrawl` skill. SKILL.md carries the command summary table + Core pattern; this file is the complete construction reference. Run `firecrawl <cmd> --help` for the full flag set when a use case requires something advanced.
+Per-command flag detail for the `/firecrawl:firecrawl` skill. SKILL.md carries the command summary table + Core pattern; this file is the complete construction reference. Run `firecrawl <cmd> --help` for the full flag set when a use case requires something advanced.
 
 ## Contents
 

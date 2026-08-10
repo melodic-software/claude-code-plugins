@@ -220,7 +220,7 @@ After CLI bootstrap, parallelize like `/knowledge:course-digest` Phase 3:
 | Parallel | Link/repo agent | WebFetch previews + `node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs" harvesting/analyze-harvested-repos.js <slice-dir>` when GitHub links exist |
 | Sequential | Research fan-out | external research (standard or deep) per claim cluster → `RESEARCH.md` + `research/findings/` |
 | Sequential | Synthesis agent | `recommendations/menu.md` + `recommendations/takeaways.md` (hub: `recommendations/README.md`) |
-| Sequential | Interview handoff | `recommendations/interview.md` → offer `/interview` for POC/full-slice picks |
+| Sequential | Interview handoff | `recommendations/interview.md` → offer `/planning:interview` for POC/full-slice picks |
 
 Mark each phase in `watch.json` via `node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs" watch/watch-state.js mark-phase <slice-dir> <phase>` after the wave completes (idempotent — re-running an already-marked phase is a no-op). Promote only via vision-gated decisions:
 
@@ -295,10 +295,10 @@ node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs" evals/chec
    - `recommendations/questions.md` — open questions for the user
    - Update `README.md` per `templates/readme-journey.md`
    - **Offer an HTML view** — optionally render a self-contained HTML dashboard of the prioritized recommendations menu (markdown stays the tracked record); follow your project's HTML-vs-markdown convention when one exists.
-   - **No auto-implement** — `/interview` → `/planning:plan` → `/implement`
+   - **No auto-implement** — `/planning:interview` → `/planning:plan` → `/implementation:implement`
    - **Ephemeral, target-bound deliverable** — `recommendations/**` is this skill's own terminal output for the resolved target, not a corpus-wide durable record; it is written fresh per watch and is expected to be superseded by `/knowledge:apply`'s report→diff→PR flow once that skill ships
 
-2. **Interview handoff** — write `recommendations/interview.md` with menu + *"Should we go further?"*; suggest `/interview` for POC/full-slice items.
+2. **Interview handoff** — write `recommendations/interview.md` with menu + *"Should we go further?"*; suggest `/planning:interview` for POC/full-slice items.
 
 3. **Phase markers** — after each skill phase, update `run-state/watch.json` via `node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs" watch/watch-state.js mark-phase <slice-dir> <phase>`.
 
@@ -372,7 +372,7 @@ Per video-digest slice. This is the **single authoritative enumeration** of ever
 | `recommendations/menu.md` | recommendations | yes | DELIVERABLE | agent (prioritized repo-applicability menu) |
 | `recommendations/takeaways.md` | recommendations | yes | DELIVERABLE | agent (safe quick actions) |
 | `recommendations/questions.md` | recommendations | yes | DELIVERABLE | agent (open questions) |
-| `recommendations/interview.md` | recommendations | yes | DELIVERABLE | agent (end-of-watch `/interview` prompt) |
+| `recommendations/interview.md` | recommendations | yes | DELIVERABLE | agent (end-of-watch `/planning:interview` prompt) |
 | `verification/<ISO-basic>Z-watch-outcomes.md` | verification | yes | METADATA | script (`check-watch-outcomes.js --write-report`) |
 | `run-state/watch.json` | run-state | yes | METADATA | script (`watch-state.js`; phase-map + `tempSession`) |
 | `run-state/watch-checklist.md` | run-state | yes | METADATA | script (`init-watch-checklist.js` from template) |
