@@ -538,12 +538,14 @@ gives a separate five-point account of what a bridge *is* — see
 | Function | Effect | When |
 |---|---|---|
 | 1. Break monotony | Disrupt the verse-chorus repetition | The form has run V/Ch twice and risks fatigue |
-| 2. Create a different-size song system | Insert a non-matching unit between matching units | The song's symmetry needs interruption |
+| 2. Create a different-size song system | Change the size of the final SYSTEM, not the bridge's own phrase count — shorter in verse/chorus, longer in verse/refrain and AABA | The song has run same-size systems and their symmetry needs interruption |
 | 3. Provide a new perspective | Shift POV, tense, or speaker | The chorus has stated; the bridge reframes |
 
-Function 2 is about the **system's** size, not the bridge's own phrase count,
-and "different" does not always mean "shorter" — in verse/chorus the final
-system shrinks, in verse/refrain and AABA it grows. See [bridge](bridge.md).
+Function 2's direction depends on what the bridge groups with: in verse/chorus a
+short bridge shrinks the last system so the final chorus arrives early, while in
+verse/refrain and AABA the bridge plus the final verse make a system *longer*
+than the verse-only ones before it. Pat's word is **different**, not shorter.
+See [bridge](bridge.md).
 
 A bridge that serves only one function may still work. A bridge that
 serves none should be cut — verse-chorus alone is enough.
