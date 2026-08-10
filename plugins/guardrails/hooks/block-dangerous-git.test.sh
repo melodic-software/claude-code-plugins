@@ -175,6 +175,33 @@ memo_alias="-c alias.y='!git push --force-with-lease=main:$SHA1_OID origin main'
 run_split "$TEST_TMPDIR" "$TEST_TMPDIR" "control: the alias under a SHA-1 -C alone (40-hex is an object id there, allowed)" "git -C $REPO_SHA1 $memo_alias" 0
 run_split "$TEST_TMPDIR" "$TEST_TMPDIR" "control: the same alias under a SHA-256 -C alone (40-hex is a ref name there, blocked)" "git -C $REPO_SHA256 $memo_alias" 2
 run_split "$TEST_TMPDIR" "$TEST_TMPDIR" "the same alias text under a SHA-1 then a SHA-256 -C: the memo must not reuse the first base's verdict (blocked)" "git -C $REPO_SHA1 $memo_alias; git -C $REPO_SHA256 $memo_alias" 2
+# `&&` as well as `;` — the collision is in the key, not in the operator, and the
+# reparse path is reached identically through both.
+run_split "$TEST_TMPDIR" "$TEST_TMPDIR" "the same alias text across && rather than ; (blocked)" "git -C $REPO_SHA1 $memo_alias && git -C $REPO_SHA256 $memo_alias" 2
+# The sharpest isolation of the KEY as the cause: this differs from the case above
+# only by a space inside the alias body — same repositories, same bases, same
+# danger, different key. It was already blocked before the base joined the key, so
+# it discriminates nothing on its own; it is here to pin that a base-blind key was
+# the whole difference, and to fail loudly if the key ever stops covering the body.
+memo_alias_sp="-c alias.y='!git  push --force-with-lease=main:$SHA1_OID origin main' y"
+run_split "$TEST_TMPDIR" "$TEST_TMPDIR" "control: identical bases but one space added to the alias body (a different key, blocked)" "git -C $REPO_SHA1 $memo_alias; git -C $REPO_SHA256 $memo_alias_sp" 2
+
+# The cost of keying on the base: distinct bases mean distinct keys, so the memo
+# dedups less and a command alternating bases does strictly more re-expansions.
+# This is the case the base-keyed memo perturbs, and it must stay bounded and
+# correct rather than merely bounded. Sixteen distinct bases naming the SAME
+# SHA-1 repository: every one is a fresh key, so this is 16 analyses where the
+# old key spent 1 — well inside HOOK_ALIAS_WORK_MAX (128), which fails closed if
+# it is ever exceeded.
+memo_many=""
+for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16; do
+  mkdir -p "$REPO_SHA1/d$i"
+  memo_many="$memo_many${memo_many:+; }git -C $REPO_SHA1/d$i $memo_alias"
+done
+run_split "$TEST_TMPDIR" "$TEST_TMPDIR" "16 distinct bases in one command, all naming the SHA-1 repo (every hop re-analyzed, still allowed and bounded)" "$memo_many" 0
+# The same walk with a SHA-256 base appended: the weakened dedup must not let the
+# dangerous tail ride in on the sixteen safe keys ahead of it.
+run_split "$TEST_TMPDIR" "$TEST_TMPDIR" "16 SHA-1 bases then a SHA-256 one (the dangerous tail is still analyzed, blocked)" "$memo_many; git -C $REPO_SHA256 $memo_alias" 2
 
 # The relocation must not LEAK past the reparse: a second segment after the alias
 # one starts from the payload cwd again.

@@ -30,11 +30,32 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   where a 40-hex expectation is a real object id and is correctly allowed, then under a SHA-256
   `git -C`, where the identical word is a movable ref name — had its second analysis skipped as
   already seen, and the guard exited 0. Verified against this branch's own pre-fix head rather than
-  `origin/main`, which has no base-dependent verdict to mis-cache: the buggy tree runs the width
+  `origin/main`, which has no base-dependent verdict to cache wrongly: the buggy tree runs the width
   probe ONCE (`40`) and allows; the fixed tree runs it twice (`40`, then `64`) and blocks. The
   other cache, `repo_oid_width`, was checked for the same class and is already base-keyed — its key
   is the replayed option list, which now leads with the base — confirmed empirically, not by
   inspection. `block-noncanonical-commit` keys its memo on the base for exactly this reason.
+
+  The collision was unconditional rather than occasional: the `!` branch empties `HOOK_ALIAS_SEEN`
+  *before* the key is built, so the old key reduced to kind + a constant + the reparse text, and two
+  reparses of identical alias text collided at any depth, through `;` and `&&` alike. It could only
+  ever be a bypass, never a false block — a memo hit skips analysis, skipping can only turn DENY
+  into ALLOW, and the guard exits at the first blocking segment so nothing follows a DENY.
+
+  **Cost, measured.** Keying on the base means the memo dedups less, so analyses now scale with the
+  number of DISTINCT bases in one command instead of collapsing to one. Counted from the `bash -x`
+  trace, distinct bases → analyses (width probes): old 1→1 (2), 4→1 (2), 16→1 (2), 32→1 (2); new
+  1→1 (2), 4→4 (8), 16→16 (32), 32→32 (64). Linear, and that collapse to 1 was the defect, not an
+  optimization worth keeping. `HOOK_ALIAS_WORK_MAX` (128) still bounds it and exhausting it fails
+  CLOSED, so the weakened dedup costs work, never safety. A fixture pins 16 distinct bases as
+  allowed-and-bounded, and the same walk with a SHA-256 base appended as still blocked.
+
+  Two things the reviewer flagged as reasoned-not-run are now run. The memo does not survive a hook
+  invocation — it is a shell variable in a process that exits, and the sha1-then-sha256 pair split
+  across two separate invocations gives 0 then 2. The git-alias branch shares the memo under a
+  different tag and is covered by construction, since the base is keyed inside
+  `alias_reexpand_admit` rather than at the call sites; no live case is constructible there, because
+  a git alias splices words into the same argv and cannot relocate the base.
 - **`env -S` / `--split-string` no longer hides a whole command from the git guards (#2124).** `-S`
   exists so a shebang line can pass OPTIONS to env (`#!/usr/bin/env -S -i prog`), so the words it
   splits out are env's own arguments. `hook::git_resolve_index` spliced them back into the scan but
