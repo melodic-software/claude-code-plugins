@@ -827,4 +827,60 @@ run_pwsh "PS: call-op, single-quoted literal git (blocked by name)" \
 run_pwsh "PS: call-op, quoted literal path whose basename is git (blocked by name)" \
   '& "C:\Git\cmd\git.exe" reset --hard' 2
 
+# --- A NUL in the payload must not void the guard (#2122) --------------------
+# hook::jq_fields separates its fields with a NUL. A JSON NUL escape inside the
+# command used to split that value in two, fail the helper's cardinality check
+# and return non-zero — which this hook spells `|| exit 0`, a PreToolUse ALLOW
+# with no diagnostic. Asserted at the HOOK boundary, not in the helper, because
+# the boundary is where the bypass was observable.
+#
+# The rule is one line with no exceptions: a NUL in any field the hook reads
+# BLOCKS, whatever the surrounding text says. That includes a command whose text
+# is entirely NUL bytes, which strips to nothing and would otherwise be waved
+# through by the empty-command skip, and a NUL in a command with nothing
+# dangerous in it. The guard refuses rather than matching because the text it can
+# read is not dependably the text that would run — stripping SPLICES the bytes
+# either side of the NUL into a token the payload never carried contiguously —
+# and which executor behaviour applies has not been traced.
+#
+# A NUL cannot live in a shell variable, so the payload is assembled inside jq:
+# `[0] | implode` is the one-character NUL string, which jq re-emits as a NUL
+# escape on the wire — the form the harness would deliver.
+run_nul() {
+  local label="$1" head="$2" tail="$3" expected="$4" rc
+  (cd "$REPO_SHA1" && bash "$HOOK" <<<"$(jq -n --arg h "$head" --arg t "$tail" \
+    '{tool_name:"Bash",tool_input:{command:($h + ([0] | implode) + $t)}}')" >/dev/null 2>&1)
+  rc=$?
+  assert_exit "$label" "$expected" "$rc"
+}
+run_nul "NUL after --hard (blocked)" "git reset --hard" "" 2
+run_nul "NUL splitting the flag itself (blocked)" "git reset --ha" "rd" 2
+run_nul "NUL then junk (blocked)" "git reset --hard" "x" 2
+run_nul "leading NUL, text preserved (blocked)" "" "git reset --hard" 2
+run_nul "all-NUL command strips to empty (blocked)" "" "" 2
+run_nul "NUL in an otherwise harmless command (blocked)" "git status" "; echo bye" 2
+
+# The block has to say what is wrong and what to do about it, not just refuse.
+#
+# Asserted HERE as well as in block-no-verify.test.sh, and the duplication is the
+# point: both guards emit the same three lines by design, so a message edited in
+# one and not the other is exactly the drift neither file would otherwise catch.
+# Exit-code-only coverage cannot see it — the verdict is identical either way.
+nul_stderr() {
+  bash "$HOOK" <<<"$(jq -n --arg h "$1" --arg t "$2" \
+    '{tool_name:"Bash",tool_input:{command:($h + ([0] | implode) + $t)}}')" 2>&1 >/dev/null
+}
+assert_contains "NUL msg: names the byte" "$(nul_stderr 'git reset --hard' 'x')" "NUL byte"
+assert_contains "NUL msg: gives the fix" "$(nul_stderr 'git reset --hard' 'x')" \
+  "reissue the tool call without the embedded NUL"
+
+# The all-NUL command reaches the flag BEFORE the empty-COMMAND skip — its block
+# must carry the NUL reason, and an empty command with no NUL must still take
+# that skip. The pair is what pins the ordering; either row alone is equally
+# consistent with a guard that refuses every empty command or blocks for some
+# other reason.
+assert_contains "NUL msg: all-NUL command refused by the flag, not skipped" \
+  "$(nul_stderr '' '')" "NUL byte"
+run "empty command, no NUL (allowed)" "" 0
+
 report

@@ -3,6 +3,44 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.1]
+
+### Fixed
+
+- **`block-no-verify` and `block-dangerous-git` still allowed a NUL-bearing command after
+  0.23.1 (#2122).** 0.23.1 stopped the helper's cardinality failure by stripping every NUL out of
+  each value, which closed the fail-open for the content guards. It did not close the command
+  guards: stripping SPLICES the bytes on either side of the NUL into one token the payload never
+  carried contiguously, and the guards then match against that token. Measured at the hook boundary
+  on the shipped hooks, `origin/main` at `fd075c27` versus this change, identical fixtures whose NUL
+  is a real byte decoded from a JSON `\u0000` escape:
+
+  | payload | main | this change |
+  | --- | --- | --- |
+  | `git commit --no-verify<NUL>x` | **0 allowed** | **2 blocked** |
+  | `git push --force<NUL>x` | **0 allowed** | **2 blocked** |
+  | a lone NUL, and a trailing NUL | **0 allowed** | **2 blocked** |
+  | `git commit --no-veri<NUL>fy` | 2 blocked | 2 blocked |
+  | clean `--no-verify` / clean `--force` / harmless | 2 / 2 / 0 | 2 / 2 / 0 |
+
+  The last two rows are stated rather than counted: the splice happens to reassemble a real
+  `--no-verify` in the fourth row, so `main` already blocks it and it evidences nothing, and no
+  clean command changed verdict in either direction.
+
+- **Both guards now fail CLOSED on a NUL byte in any field they read.** The new
+  `HOOK_JQ_FIELDS_NUL` global reports the byte, and both guards block on it — ahead of their
+  empty-command skip, so a command consisting only of NUL bytes, which strips to nothing, cannot
+  pass as "no command". They refuse rather than match because the text a guard can read is not
+  dependably the text that would run: bash **discards** a NUL while parsing a command it reads,
+  Node's `child_process` **refuses** a NUL-bearing string outright, and which of them (if either) a
+  hook payload reaches has not been traced. Refusing is correct under all of them and needs no such
+  trace. Synced from `lib/hook-utils.sh`.
+
+- **A non-zero return from `hook::jq_fields` still means the guards allow, and that is unchanged.**
+  jq being absent, a malformed payload, a wrongly typed field, two concatenated JSON documents, or
+  an empty buffer all still reach it, and every caller spells it `|| exit 0`. That path is out of
+  scope here and is documented rather than claimed away.
+
 ## [0.24.0]
 
 ### Fixed
