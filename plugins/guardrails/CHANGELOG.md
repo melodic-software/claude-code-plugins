@@ -3,6 +3,8 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.2]
+
 ### Fixed
 
 - **`skill-reference-verify` reported an untouched, pre-existing reference when an Edit carried
@@ -203,6 +205,7 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
     the default `skills/` scan, the marketplace-root exception the hook deliberately does not
     model, `.`/`./` both denoting the plugin root, and the root-`SKILL.md` single-skill
     auto-load condition (plugins reference, "Path behavior rules").
+
 
 ## [0.24.1]
 
