@@ -17,7 +17,9 @@ prompt shim: cheap, writes nothing) or on disk via a generator (shape C: durable
 emission destroys the consumer's bundled `/verify`). Ruled out: shadowing it, and expecting its
 `ls` probe to find plugin-shipped `verifier-*` skills.
 
-**Status:** research only. No plugin work started. Feeds a `/planning:interview` decision.
+**Status:** research only. No plugin work started. Feeds a `/planning:interview` decision — which
+should probably be run jointly with the unconsumed verification-loops blog handoff in `.work/`; see
+[Prior art](#prior-art-in-this-repo--read-before-the-interview).
 
 ### Provenance
 
@@ -442,9 +444,16 @@ Already correct and current:
 - `plugins/verification/skills/confirm/SKILL.md` — Delegation section: same floors, same
   suggest-don't-delegate rule, verified 2026-08-02 against the bundled-skills doc; `confirm`'s eval
   suite asserts it.
+- `plugins/playbooks/skills/fable-5/context/verification.md:51,63` — **a third skill body already
+  carries a `/verify` row**, in a verification-surfaces pointer table with the docs link, plus the
+  "provided never means automatic" paragraph scoping the v2.1.215 restriction and Code Review's plan
+  gating. Pages verified 2026-08-03. This was missed in the first pass of this section.
 - `plugins/verification/CHANGELOG.md` — mentions the `run-skill-generator` sibling.
 - `docs/topics/context-engineering-claude-5/` — `disableBundledSkills` / `skillOverrides` semantics,
   including that `skillOverrides` does not reach plugin skills.
+- `plugins/docs-hygiene/skills/rename-references/` — uses `/verify` → `/verify-changes` as a worked
+  *rename example*, not as a reference to the bundled skill. Noted so a future sweep does not
+  mistake it for one.
 
 Not referenced anywhere in the marketplace:
 
@@ -454,6 +463,42 @@ Not referenced anywhere in the marketplace:
 - **`/run-skill-generator` as a callable step** — named once in a changelog, never in a skill body,
   never offered on a BLOCKED path.
 - The **`tengu_opal_circuit` flag** as the mechanism behind `/verify`'s invocability.
+
+## Prior art in this repo — read before the interview
+
+**This ground has been covered once already, and the result was never consumed.** A full
+docpage-digest slice of the Claude Code team's blog
+[Building verification loops in Claude Code with skills](https://claude.com/blog/building-verification-loops-in-claude-code-with-skills)
+(Delba de Oliveira, 2026-07-22) lives at
+`.work/claude-com-blog-building-verifi-baa0094f/` — 6 digests, 78 claim rows, eight verification
+rounds across two vendors, terminating at arm-B PASS, plus an `interview-handoff.md` with **23 open
+questions and 12 proposed profile amendments, all still PENDING**.
+
+`.work/` is the local memory tier and is not committed, so this is invisible to anyone reading the
+repo — including, until now, this document. It changes the standing of several findings above:
+
+| This doc | Prior slice | Standing |
+|---|---|---|
+| §5.1 — a project skill **replaces** rather than extends the bundled one | **OQ-05-1** reached the same conclusion 2026-08-01, recommending "present shadowing as a documented alternative with its semantics stated (replace, not extend)" | **Independent rediscovery.** Strengthens it; claims no novelty |
+| §6 shape A/B — can we embed into or shadow the bundled skill | Digest 05, source line 203: the article declares **"built-in skills and plugin-managed skills (the kind that get overwritten on update)" off-limits for embedding, with chaining as the alternative** | The vendor's own published answer to the user's question, and it agrees with §6 |
+| §6 shape E — hand it a briefing at invocation time | Not covered. The blog's four placement modes are standalone / embedded / chained / on-PR; a *briefed* standalone invocation is not among them | **New.** The one genuinely unexplored branch |
+| "bare `/verify` resolves without a namespace" | **OQ-04-1** flags the same bare-vs-namespaced question for `/skill-creator` and recommends verifying empirically in a disposable session | Same question, still open, now answered for `verify` by the §3 test |
+
+Two vocabulary points from that slice worth adopting here and in any artifact that follows:
+
+- **"Bundled", not "built-in"** (OQ-05-4). The blog says "built-in `/verify` skill"; the harness docs
+  reserve *built-in* for commands — some of which are explicitly not skills — and call `/verify`
+  *bundled*. This document uses "bundled" throughout for that reason.
+- **"Skill chaining" names three different mechanisms** (OQ-05-2): the blog's sense (one skill's body
+  directing invocation of another at its end), the harness sense (up to six skills chained in one
+  typed user message), and the platform's "combine Skills for one task". Shape E is the *first*
+  sense, driven by a human keystroke — say which one whenever the word appears.
+
+**What this means for sequencing:** the interview on `/verify` packaging should probably not run
+standalone. That handoff is a validation-answer-set artifact built for `/planning:interview`, it
+covers the same subject, and at least four of its open questions (OQ-01-1, OQ-03-2, OQ-05-1,
+OQ-05-2) bear directly on the shapes above. Running our decision without it risks re-deciding
+things already argued, or contradicting recommendations already on record.
 
 ## Craft worth stealing regardless of the packaging decision
 
