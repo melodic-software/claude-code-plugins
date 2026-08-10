@@ -16,6 +16,7 @@ Quality is partly subjective, but some aspects ARE measurable:
 | Cohesion | Methods per class, related functionality | Inspect class responsibility |
 | Duplication | Repeated code blocks | Grep for similar patterns |
 | Test coverage | Test count, assertion count | Your test runner's output, test inventory |
+| Test fault-detection | Covered-code mutation score | Your ecosystem's mutation tool, diff-scoped (see below) |
 | API surface | Public member count | Count `public` declarations |
 
 ## `baseline` phase (at planning time)
@@ -58,6 +59,27 @@ Quality is partly subjective, but some aspects ARE measurable:
    - **MIXED** — some improved, some degraded (document both)
    - **NOT CONFIRMED** — metrics neutral or worse despite the claim
    - Quality changes without measurable impact may still be valid — back them with qualitative examples, not assertions
+
+## Measuring a "better tested" claim
+
+"More tests" and "higher coverage" are both weak proxies for it — a test count rises with
+assertion-free tests, and coverage rises with code the tests execute without checking. The proxy
+that measures the claim directly is the **covered-code mutation score** (PIT names it *test
+strength*, Infection names it *Covered Code MSI*): the share of injected faults the suite detects,
+counting only faults in code the tests actually reach. Report it beside coverage, and report the
+*delta* diff-scoped to the change — a whole-repo score moves too slowly to attribute to one change.
+
+To collect it, invoke `/mutation-testing:audit` when the `mutation-testing` plugin is installed; it
+owns the run and the metric vocabulary. Without that plugin, run your ecosystem's own mutation tool
+(StrykerJS, Stryker.NET, PIT, Infection, mutmut) scoped to the diff with its own since/incremental
+flag, and read the covered-code figure rather than the headline one. When the language has no such
+tool, this proxy is unavailable — say so and fall back to the qualitative test-quality assessment
+below rather than substituting a coverage number for it.
+
+Three caveats belong with the number whenever it is reported: scores are not comparable across
+repositories or operator sets, the ceiling is below 100% by an unknowable margin because equivalent
+mutants cannot all be removed, and a suite with known flaky tests reports a score inflated by an
+unknown amount. Never present it as a pass/fail bar.
 
 ## Common pitfalls
 

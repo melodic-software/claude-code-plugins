@@ -7,14 +7,22 @@ article (motion controllers, tone-of-voice); patpattison.com
 "Language and Songwriting" (greedy spots, ordinary-language preservation);
 American Songwriter "Motion Creates E-Motion" column (4-controller framework).
 
-Audited against *Writing Better Lyrics* (2009) Chapters 18-19 only. The 1991
-Pentad material and every non-book source above are distillations nobody has
-checked against their originals.
+Audited against *Writing Better Lyrics* (2009) Chapters 18-19, and against
+*Essential Guide to Lyric Form and Structure* (1991) Chapter 3 with its figures.
+**Still unaudited:** that book's Chapter 4, and every non-book source listed
+above — the Berklee Online article, patpattison.com, the American Songwriter
+column, and OSONG-525 — which remain distillations nobody has checked against
+their originals. Where this file's wording and the 1991 chapter's wording
+diverge, the divergence is marked in place rather than silently reconciled.
 
 ## Image inventory
 
 - Chapter 18: `image_rsrcAUE.jpg`.
 - Chapter 19: `image_rsrcAUF.jpg`.
+- *Essential Guide to Lyric Form and Structure* (1991), Chapter 3: **59 figure
+  references, 56 unique**, `image_rsrc2YZ.jpg` through `image_rsrc30P.jpg`. The
+  Structural Pentad worksheets this file cites exist only as page scans; see
+  [meter](meter.md) for the inventory note.
 
 ## Core idea
 
@@ -406,6 +414,26 @@ A greedy spot is a stressed syllable that lands on a weak musical beat, or
 an unstressed syllable forced onto a strong beat. The mismatch steals
 emphasis from where the music wants it, distorts the natural shape of the
 words, and breaks the listener's parse of the meaning.
+
+**Scope note — the term covers different ground in two frames.** Keep them
+apart, because the same word means something narrower in one of them.
+
+- **Lyric against a melody** — the frame this section is in. A mismatch in
+  *either* direction is a greedy spot, because either one distorts the natural
+  shape of the words against the bar. That two-directional definition comes
+  from the web sources above and has not been checked against them, but it is
+  the definition the rest of this plugin's melody-alignment material uses.
+- **Lyric against a model lyric** — matching verse two to verse one. Here the
+  term originates in *Essential Guide to Lyric Form and Structure* (1991)
+  Chapter 3, and it is **one-directional**: greed is putting stressed syllables
+  into unstressed positions, the "too hot" failure only. Chapter 3's opposite
+  error is not the reverse alignment mismatch and is not a stress problem at
+  all — it is "too cold," a line whose stresses land correctly but whose
+  important positions carry semantically empty words. See [meter](meter.md)
+  "Goldilocks pattern matching."
+
+The three failures take three different fixes: rescan, re-set against the bar,
+or change which words carry the weight. Name which one you found.
 
 Causes:
 

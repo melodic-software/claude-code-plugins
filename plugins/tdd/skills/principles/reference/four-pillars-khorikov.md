@@ -91,6 +91,19 @@ Test accuracy = Signal (bugs found) / Noise (false alarms raised)
 
 "In the short term, false positives are not as bad as false negatives. But as the project grows, false positives start to have an increasingly large effect on the test suite: as important as false negatives."
 
+> **Editorial note — measuring the false-negative half.** Of the two error types above, the
+> false-negative half has an empirical measurement: **mutation testing** injects a small deliberate
+> fault and observes whether the suite goes red, which is precisely "would this test have caught a
+> bug here." A surviving mutant is a demonstrated false negative — not an estimate of one. Nothing
+> equivalent exists for the false-positive half; resistance to refactoring stays a judgment. So the
+> measurement is deliberately lopsided, and a suite optimized for mutation score alone will trade
+> away the other three pillars — which is the reason it is an indicator here and not a target. For
+> the metric family and its limits, invoke `/mutation-testing:principles` when the
+> `mutation-testing` plugin is installed; without it, the short version is that the number to read
+> is the *covered-code* mutation score, that its ceiling is unknowable because equivalent mutants
+> cannot all be removed, and that a suite with known flaky tests reports a score inflated by an
+> unknown margin.
+
 ## The Test Pyramid (through the Four Pillars lens)
 
 The Test Pyramid represents the optimal trade-off:

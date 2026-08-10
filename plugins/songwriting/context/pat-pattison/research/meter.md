@@ -5,8 +5,9 @@ Pat Pattison - *Writing Better Lyrics* (2009), Chapter 14-17.
 Pat Pattison - *Songwriting Without Boundaries* (2011), Challenge 4.
 
 Notation: `/` = primary stress, `//` = secondary stress, `u` = unstressed.
-Pat's own source notation uses only `/` and `//`; the `u` marker is added here
-as a scansion convenience and is not in Pat's text.
+Pat's own source notation marks unstressed syllables too, with a breve — the
+"slight cup" over the vowel that Chapter 3's exercises ask for by name. `u` is
+this file's ASCII stand-in for that cup, not an addition to Pat's system.
 
 Chapter 3's opening epigraph sets the duple/triple movement the chapter unpacks:
 
@@ -22,8 +23,15 @@ The whole chapter is about hearing that contrast and using it deliberately.
 
 ## Image inventory
 
-- *Songwriting: Essential Guide to Lyric Form and Structure*, Chapter 3: no linked
-  page-scan images.
+- *Songwriting: Essential Guide to Lyric Form and Structure*, Chapter 3: **59
+  figure references, 56 unique**, running `image_rsrc2YZ.jpg` through
+  `image_rsrc30P.jpg` (`image_rsrc30P.jpg` is a closure arrow, used four times).
+  This chapter argues *in* its figures: every scansion, all three Paradigms, the
+  4/4 bar settings, and all four filled-in Structural Pentad worksheets exist
+  only as page scans. Earlier revisions of this file recorded "no linked
+  page-scan images" for this chapter, and that one false line is why the
+  too-cold definition and the "When I got home" scansion below both survived a
+  full pass uncorrected.
 - *Writing Better Lyrics*, Chapter 14: `image_rsrcAU7.jpg`, `image_rsrcAU8.jpg`,
   `image_rsrcAU9.jpg`, `image_rsrcAUA.jpg`, `image_rsrcAUB.jpg`.
 - *Writing Better Lyrics*, Chapter 15: no linked page-scan images.
@@ -65,9 +73,15 @@ relinquish:   u / u
 ```
 
 If primary stress is on the first or last syllable of a three-syllable word, the
-opposite end often carries secondary stress. If primary stress is in the middle,
-there may be no secondary stress. Four-syllable and longer words normally carry
-secondary stress.
+opposite end carries secondary stress — and because that secondary is stronger
+than the middle syllable, it is what gives the word its shape. If primary stress
+is on the middle syllable, there is no secondary stress. Words of four or more
+syllables always carry secondary stress.
+
+**When scanning a phrase for its stress count, treat a secondary stress exactly
+like a primary one.** This is what holds "And everywhere that Mary went" at four
+stresses rather than three, and it is why the paradigms below survive contact
+with multi-syllable words instead of miscounting on them.
 
 ## One-syllable words
 
@@ -96,12 +110,18 @@ Worked example:
 
 ```text
 When I got home the house was dark.
-u    u /   /    u   /     u   /
+u    u u   /    u   /     u   /
 ```
 
-"When," "I," and "got" could change under contrast, but "home," "house," and
-"dark" carry the obvious weight. Save musically strong positions for the
-weight-bearing words.
+Three stresses, not four. "When," "I," and "got" are all grey-area syllables
+that could take stress under contrast — "got" if the lights came up a moment
+later, "I" if someone else had been expected home — but the natural reading
+leaves all three unstressed and gives the weight to "home," "house," and "dark."
+
+That asymmetry is the lesson: what the grey syllables *are* stays arguable, and
+what they are *not* does not. They are not the most important syllables in the
+phrase. Start from the syllables that are unarguable and let the rest settle
+around them. Save musically strong positions for the weight-bearing words.
 
 ## Matching patterns
 
@@ -158,14 +178,47 @@ triple setup:      u u / u u /
 duple change:      u / u /
 ```
 
+Deceleration is not only a triple-to-duple move. *Any* reduction in unstressed
+syllables slows the pace, including dropping them entirely so that stresses fall
+adjacent:
+
+```text
+duple setup:       u / u / u / u /
+adjacent stresses: / / / /
+```
+
+One mechanism explains both directions, and it is worth stating plainly because
+it is what makes the effect predictable: the strong stresses hold the same
+musical positions either way. Adding unstressed syllables crowds the space
+between them, demanding shorter notes that move faster. Removing unstressed
+syllables opens that space up, allowing longer notes or rests between them.
+
 Keep rhythmic pace separate from phrase-length speed: rhythm can slow while a
 section still feels pushed forward by phrase count.
 
 ## Stress count vs syllable count
 
 When deciding whether one phrase is longer than another for rhythmic structure,
-count stressed syllables, not raw syllables. An unstressed pickup or extra weak
-syllable may not change the structural weight.
+count stressed syllables, not raw syllables. This is not a rounding convenience.
+The two measures can rank the same pair of phrases in **opposite** directions:
+
+```text
+u / u / u / u /      8 syllables, 4 stresses   <- the LONGER phrase
+u u / u u / u u /    9 syllables, 3 stresses   <- the SHORTER phrase
+```
+
+The four-stress line has one syllable *fewer* and is still the longer phrase;
+set to music, it is the one that extends further. A raw-syllable count ranks
+these backwards — which is the whole reason the stressed-syllable count is the
+measurement this method uses.
+
+Two corollaries follow, and both matter when matching a paradigm:
+
+- **An unstressed pickup does not change the pattern.** The weak syllables
+  opening lines two, three, and four of a common-meter stanza are anacrusis; the
+  stanza is still 4/3/4/3.
+- **A secondary stress counts as a stress**, per
+  [conventional stress](#conventional-stress) above.
 
 If stressed syllables keep the same note length, extra stresses usually extend
 the number of bars. If the stresses are squeezed into the same number of bars,
@@ -176,7 +229,7 @@ the same longer phrase can sound accelerated instead.
 Common Meter alternates four-stress and three-stress phrases:
 
 ```text
-Phrase 1: / u / u / u /   -> motion
+Phrase 1: / u / u / u /
 Phrase 2: / u / u /       -> motion
 Phrase 3: / u / u / u /   -> motion
 Phrase 4: / u / u /       <- closure
@@ -189,6 +242,15 @@ phrases define an eight-bar unit.
 Worked example: Pattison uses "Mary Had a Little Lamb" to show that stopping
 after two lines feels incomplete, and that line three predicts the three-stress
 line needed for line four.
+
+The sharpest move in that demonstration is a one-word edit. Lengthen line two to
+four stresses — "white as whitest snow" rather than "white as snow" — and the
+first two lines become rhythmically balanced and you *can* stop there. Leave
+line two at three stresses and you cannot. The imbalance between four and three
+is the entire engine of the form, and this is the cheapest way to hear it.
+
+That contrast is also the bridge to Paradigm 2 below, which is simply what a
+four-stress second phrase produces once it is carried across all four lines.
 
 ## Common meter as map
 
@@ -514,14 +576,31 @@ close internally. Phrase three repeats phrase one, making the listener expect a
 return of phrase two's length at phrase four.
 
 ```text
-4 stresses -> motion
+4 stresses
 3 stresses -> motion
 4 stresses -> motion
 3 stresses <- expected closure
 ```
 
+Pat's compact framing for why it moves: Paradigm 1 runs `SAME / DIFFERENT /
+SAME ...`, and the unfinished third term is the point. Paradigm 2 runs `SAME /
+SAME / SAME / SAME`, which finishes itself twice.
+
+**The paradigm is defined by stress count, not syllable count.** Pat states
+Paradigm 1 twice — once in duples and once in triples — and both are the same
+paradigm:
+
+```text
+duples:   / u / u / u /   |  triples:  / u u / u u / u u /
+          / u / u /       |            / u u / u u /
+          / u / u / u /   |            / u u / u u / u u /
+          / u / u /       |            / u u / u u /
+```
+
 Exercise use: write content that carries its idea through to the end, because
-the structure has no earlier point of resolution.
+the structure has no earlier point of resolution. Chapter 3's exercises ask for
+one of the three systems in triples specifically, which is the drill that makes
+the stress-count definition stick.
 
 ## Paradigm 2: fragmented
 
@@ -729,15 +808,23 @@ where the natural language contradicts the intended form.
 *Essential Guide to Lyric Form and Structure* (1991), Chapter 3 introduces a five-property framework Pat uses across all
 four books. Every section is described by:
 
-| # | Property | What it answers |
+| # | Property | Values |
 |---|---|---|
-| 1 | Balance | Even or odd count? Matched or unmatched lengths? |
-| 2 | Pace | Constant, accelerating, decelerating? |
-| 3 | Flow | Through-written or fragmented? |
-| 4 | Closure | Closed, leans forward, stays open? |
-| 5 | Type of closure | Expected, deceptive, or unexpected? |
+| 1 | Balance | symmetrical / asymmetrical |
+| 2 | Pace | constant / accelerated / decelerated |
+| 3 | Flow | through-written / fragmented |
+| 4 | Closure | closed / open |
+| 5 | Type of closure | expected / unexpected / deceptive |
 
-> "The Structural Pentad." — Pat (*Essential Guide to Lyric Form and Structure* (1991), Chapter 3 framing)
+These are the value sets from Pat's own worksheet, and they are closed lists.
+Balance is **symmetrical / asymmetrical** — not "balanced / unbalanced," though
+the prose around the worksheet uses that looser wording. Closure is **binary**:
+closed or open. There is no third "leans forward" value; a structure that leans
+forward is an *open* one, and how it leans is what the Flow and Type-of-closure
+rows are for.
+
+Pat's framing is that these are five normal characteristics of *any* structure,
+not a rhythm-only checklist.
 
 Use the Pentad as a single diagnostic per section. Rhythm, rhyme,
 phrase count, phrase length all contribute to all five. The Pentad
@@ -748,12 +835,26 @@ Diagnostic worksheet:
 ```text
 Section: <verse 1 | chorus | etc.>
 
-1. Balance:        <balanced | unbalanced — why>
-2. Pace:           <constant | accelerating | decelerating>
+1. Balance:        <symmetrical | asymmetrical — why>
+2. Pace:           <constant | accelerated | decelerated>
 3. Flow:           <through-written | fragmented>
-4. Closure:        <closed | leans forward | open>
-5. Closure type:   <expected | deceptive | unexpected>
+4. Closure:        <closed | open>
+5. Closure type:   <expected | unexpected | deceptive>
 ```
+
+Filled in for the three paradigms, that worksheet reads:
+
+| | Paradigm 1 | Paradigm 2 | Paradigm 3 |
+|---|---|---|---|
+| Stresses | 4/3/4/3 | 4/4/4/4 | 4/3/4/4 |
+| Balance | symmetrical | symmetrical | **asymmetrical** |
+| Pace | constant | constant | constant |
+| Flow | through-written | **fragmented** | through-written |
+| Closure | closed | closed | closed |
+| Type | expected | expected | **deceptive** |
+
+All three close. What separates them is where the structure rests on the way
+there, and whether the resting place was the one predicted.
 
 The Pentad pairs with the
 [Five Compositional Elements](five-compositional-elements.md). The
@@ -772,8 +873,9 @@ line 2: X X X         (3 stresses)
 line 3: X X X X       (4 stresses)
 line 4: X X X         (3 stresses)
 
+Balance:   symmetrical
 Flow:      through-written
-Closure:   expected
+Closure:   closed, and the type is expected
 Stability: stable
 ```
 
@@ -792,8 +894,9 @@ line 2: X X X X       (4 stresses)
 line 3: X X X X       (4 stresses)
 line 4: X X X X       (4 stresses)
 
+Balance:   symmetrical
 Flow:      fragmented
-Closure:   expected
+Closure:   closed twice — internally at line two, then again at line four
 Stability: stable but blocky
 ```
 
@@ -813,10 +916,18 @@ line 2: X X X         (3 stresses)
 line 3: X X X X       (4 stresses)
 line 4: X X X X       (4 stresses — deceptive)
 
+Balance:   asymmetrical — this is the price of the deception
 Flow:      through-written
-Closure:   deceptive
+Closure:   closed, and the type is deceptive
 Stability: unstable at the closure point
 ```
+
+Note that Paradigm Three still **closes**. Deception is a property of the
+*type* row, not the closure row: the fourth line resolves the system, it just
+resolves it with a length the listener was not braced for. It can do that only
+because the four-stress phrase is already present in the structure — a resolving
+phrase the section had never used would leave the system open instead of
+deceived.
 
 Use Paradigm Three when the last idea must spotlight or unsettle. The
 expectation of a 3-stress close makes the longer line audible.
@@ -865,15 +976,38 @@ Use in revision:
 Pat's memorable framing for stress pattern matching is a three-state
 diagnostic: too hot, too cold, just right.
 
-- **Too hot** — a stressed syllable in a slot that needs to be unstressed.
-  The line pushes harder than it should at that beat. The ear trips.
-- **Too cold** — an unstressed syllable where the structure wants stress.
-  The line loses energy in a hot spot.
-- **Just right** — content word stress + structural strong-beat aligned.
-  The natural reading and the meter agree.
+The three states test **two independent things**, and reading them as one test
+is the standing error here:
 
-Use the Goldilocks frame when running pattern-match audits per line.
-Greedy spots (per `prosody.md`) are usually too-hot or too-cold failures.
+- **Too hot** — *greed*. A stressed syllable is forced into a slot the model
+  leaves unstressed. This is a scansion failure: the stress map itself is wrong.
+  The greedy syllables get buried or sound hurried when set to the original's
+  music, and they lose their emotion on the way.
+- **Too cold** — a **matching stress map filled with the wrong words**. The
+  scansion is correct; every stress lands where the model put one. The failure
+  is that the important positions are occupied by semantically empty
+  words — connectives, filler, and hedges — where the model had meaning
+  carriers. Nothing trips; the section simply stops being worth listening to.
+- **Just right** — **both** conditions met at once: the stresses match, *and*
+  the most important words sit in the same places as the model's most important
+  words.
+
+Too cold is the state a stress-only audit cannot see, which is exactly why it is
+worth naming. A rewrite can scan perfectly against its model and still be dead.
+Check the stress map first, then ask separately what is standing on each strong
+position.
+
+Use the Goldilocks frame when running pattern-match audits per line. Note the
+scope on the vocabulary: **when matching a lyric to a model lyric, greed is
+one-directional** — it is the too-hot failure only, and Pat names the too-cold
+failure separately without ever calling it greed.
+
+That scope does not travel to melody setting. When the lyric is being matched
+to a *melody* rather than to another lyric, a mismatch in either direction is a
+greedy spot — a stressed syllable on a weak beat, or an unstressed syllable
+riding a strong one — because either one fights the bar. See
+[prosody](prosody.md) "greedy spots" for that frame. Too cold is a third thing
+again, and no stress check of any kind will catch it.
 
 ## Pitch-based stress model (*Songwriting Without Boundaries* (2011), Challenge 4)
 
@@ -953,14 +1087,24 @@ allows mixed lengths.
 
 ## Pentad cross-domain applicability (*Essential Guide to Lyric Form and Structure* (1991), Chapter 3)
 
-Pat's Structural Pentad (balance / pace / flow / closure / type of closure)
-applies not only to rhyme structure. It also applies to:
+Pat's Structural Pentad (balance / pace / flow / closure / type of closure) is
+introduced as five normal characteristics of **any** structure. He names three
+surfaces:
 
-- **Rhythmic structure** — same pentad properties measured against the
-  song's rhythmic motifs
-- **Melodic structure** — same properties measured against melodic phrases
-  (when melody is known)
-- **Harmonic structure** — chord pattern stability per pentad property
+- **Rhythmic structure** — the pentad properties measured against the song's
+  stress patterns. This is the surface Chapter 3 develops them on.
+- **Rhyme structure** — the same properties measured against the rhyme scheme.
+- **Musical structure** — named, but not broken down or worked through.
+
+Pat's word for the third surface is *musical*, and it stops there. Earlier
+revisions of this file split it into "melodic structure" and "harmonic
+structure (chord pattern stability per pentad property)"; that split is not in
+the source, and the per-surface criteria it implied were never Pat's. If a
+melody- or harmony-specific stability read is what is wanted, the file that
+actually carries per-domain criteria is
+[stable / unstable](stable-unstable-meta.md), whose five motion controllers
+include melody, harmony, melodic rhythm, and harmonic rhythm as separate rows
+with their own stable/unstable tests.
 
 The pentad is one analysis frame applied across multiple structural
 surfaces. Do not confuse it with the

@@ -3,6 +3,23 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.0]
+
+### Added
+
+- **Covered-code mutation score as the proxy for a "better tested" claim** (`measure/context/metrics.md`).
+  The quality-metrics table previously offered only test count and assertion count for test
+  coverage — both of which rise with assertion-free tests. The new row and section name the metric
+  that measures fault detection directly, instruct reporting it as a diff-scoped delta rather than a
+  whole-repo figure, and carry the three caveats that must travel with the number: scores are not
+  comparable across repositories or operator sets, the ceiling is below 100% by an unknowable margin
+  because equivalent mutants cannot all be removed, and known flaky tests inflate it by an unknown
+  amount. Explicitly not a pass/fail bar.
+- Presence-gated reference to `/mutation-testing:audit` per the seam-phrasing convention, with the
+  fallback stated inline (run the ecosystem's own tool diff-scoped and read the covered-code figure)
+  and the no-tool case handled by saying the proxy is unavailable rather than substituting a
+  coverage number for it.
+
 ## [0.4.0]
 
 ### Removed

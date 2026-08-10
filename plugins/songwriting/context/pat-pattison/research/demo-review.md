@@ -183,7 +183,11 @@ becomes the input for the next session's revision.
 ## Cross-references
 
 - `workflows.md` — Scenario 2 (existing song revision), Scenario 6 (diagnose without rewrite)
-- `five-compositional-elements.md` — Pentad diagnostic per section
+- `five-compositional-elements.md` — the five levers per section (number of
+  lines, length of lines, rhythm, rhyme scheme, rhyme type)
+- `meter.md` — the Structural Pentad, which is a different five-item list:
+  balance, pace, flow, closure, type of closure. The Elements name the levers;
+  the Pentad names the effects they produce
 - `stable-unstable-meta.md` — section-level prosody scan
 - `cliche.md` — cliche taxonomy
 - `verse-development.md` — travelogue test, power positions
