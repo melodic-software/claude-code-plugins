@@ -35,13 +35,18 @@ All notable changes to the `mutation-testing` plugin are documented here. Format
   proposed complete and never written unprompted; an equivalent mutant is never suppressed, because
   the convention's record is not for a finding that is simply wrong.
   Two reconciliations the contract needs against a *diff-scoped* consumer, both stated rather than
-  left implied: the disposition obligation applies to entries whose surface this run **examined** —
-  an out-of-scope entry is *not-examined*, left untouched and counted, never resolved, since running
-  it through CLOSED would land it on UNEXPLAINED DISAPPEARANCE and fail the skill's own self-check on
-  nearly every run; and the arid `kind` vocabulary is **enumerated in full** in
-  `principles/reference/scaling-and-suppression.md` rather than illustrated, so `setup check`
-  validates membership in a table instead of shape — an unenumerated vocabulary would make every
-  suppression self-justifying, which is the failure a written `reason` exists to prevent.
+  left implied:
+  - **The disposition obligation applies only to what this run examined.** An entry outside that is
+    *not-examined* — left untouched and counted, never resolved. Running it through CLOSED would land
+    it on UNEXPLAINED DISAPPEARANCE and fail the skill's own self-check on nearly every run, and a
+    self-check that fails routinely is one nobody reads. Scope is tested at the **node**, not the
+    file: mutant generation is line-scoped, so a file carrying a suppressed survivor at one line and
+    an unrelated edit at another is "touched" while that node is never examined. The scope test's
+    granularity has to match generation's.
+  - **The arid `kind` vocabulary is enumerated in full** in
+    `principles/reference/scaling-and-suppression.md` rather than illustrated, so `setup check`
+    validates membership in a table instead of shape. An unenumerated vocabulary would make every
+    suppression self-justifying, which is the failure a written `reason` exists to prevent.
 
 ### Notes on deliberate omissions
 

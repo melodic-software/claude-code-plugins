@@ -94,9 +94,16 @@ effect, and this record's do not.
    **Scope first, and this qualification is load-bearing.** The convention's obligation is written
    for a consumer that examines its whole corpus each run. This skill is diff-scoped by design, and
    narrows further by dropping uncovered lines — so on any ordinary run most entries sit outside what
-   was examined. An entry is **in scope** when its `sites[].surface` was examined by this run; every
-   other entry is **not-examined**, left untouched, and reported under a separate count. It is never
-   run through the dispositions below.
+   was examined. Every other entry is **not-examined**, left untouched, and reported under a separate
+   count. It is never run through the dispositions below.
+
+   **In scope means the entry's own anchored node, not its file.** An entry is in scope when the node
+   its `anchor/v1` identifies is one this run actually generated a mutant for — that is, inside
+   Phase 1's changed-line set *after* the coverage drop. File-level scoping is not sufficient and
+   fails the same way: a file with a suppressed survivor at line 100 and an unrelated edit at line 10
+   has its `sites[].surface` examined, yet no mutant is ever generated at line 100, so there is no
+   observation to classify the entry — and it would fall through to CLOSED on every such run. The
+   granularity of the scope test must match the granularity of mutant generation, which is the line.
 
    Without that qualification the contract inverts: an out-of-scope entry is "absent from this run"
    for a reason none of CLOSED's accounted outcomes covers — not fixed, not retired, not missing —
@@ -119,8 +126,9 @@ effect, and this record's do not.
      absent from this run's configured set (name the operator and the transition); or reported as an
      **UNEXPLAINED DISAPPEARANCE**, which fails this skill's own self-check. An entry keyed to a
      retired operator goes stale rather than being deleted, so an operator returning under its old
-     name cannot silently re-apply a decision nobody has seen since. An entry whose surface was
-     **not** examined never reaches this row — it is not-examined, per the scope rule above.
+     name cannot silently re-apply a decision nobody has seen since. An entry whose anchored node
+     this run did not generate a mutant for never reaches this row — it is not-examined, per the
+     scope rule above.
 4. **Refuse a suppression written into a path the audit excludes** — a vendored tree, a synced copy,
    a worktree — and name the canonical source instead.
 5. **Never edit a user-scope file.** A `~/.claude/**` finding is routed as a recommendation; that

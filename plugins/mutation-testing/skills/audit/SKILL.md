@@ -74,9 +74,11 @@ stale.
    matching is by derived `finding_id`, never by bare file:line. Under `--no-suppress` nothing is
    dropped and every entry that would have applied is marked as such.
 
-   Entries are dispositioned **only when their surface is inside this run's scope**. An entry outside
-   it is *not-examined* — left untouched and counted, never resolved. This run examines a slice by
-   design, so treating an out-of-scope entry as a disappearance would fail the skill's own self-check
+   Entries are dispositioned **only when their anchored node is one this run generated a mutant
+   for** — inside the changed-line set from step 1, after the coverage drop in step 2. Anything else
+   is *not-examined*: left untouched and counted, never resolved. Scope by node, not by file: a file
+   with a suppressed survivor at line 100 and an unrelated edit at line 10 was "touched" but that
+   node was never examined, and treating it as a disappearance would fail the skill's own self-check
    on nearly every run.
 4. **Select the covering tests once, and cache the selection.** Test selection is fixed overhead per
    *target*, not per *mutant*; re-deriving it for each mutant is the difference between a run that
