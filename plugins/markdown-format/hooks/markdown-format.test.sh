@@ -519,40 +519,63 @@ fi
 # two cases below cover it from both sides, because "it still lints" alone
 # cannot tell a correctly-inert override from one that fired and happened not
 # to change the outcome.
-GITON_NESTED="$REPO/docs/fixtureGitOnNested.md"
-printf '# Git On Nested\n\n* star item\n' >"$GITON_NESTED"
-OUT_GITON="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$GITON_NESTED" |
-  env CLAUDE_PROJECT_DIR="$REPO" \
-    CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
-RC_GITON=$?
-if [[ $RC_GITON -eq 0 ]] && grep -q '^- star item$' "$GITON_NESTED"; then
-  ok "git present + CLAUDE_PROJECT_DIR set: a nested .md still lints"
-else
-  fail "git present + CLAUDE_PROJECT_DIR set: nested .md skipped (rc=$RC_GITON out=$OUT_GITON)"
-fi
-
-# The negative half, and the one that actually pins the override to its guard:
-# with git present, REPO_ROOT is the git toplevel, so discovery must STOP there
-# and never reach a config sitting above the repository. Pointing
-# CLAUDE_PROJECT_DIR at that outer directory makes a wrongly-firing override
-# observable — it would widen the walk past the repo root and lint this file.
+# Reaching that branch at all takes care, and a first attempt at these cases
+# failed to. The guard is `"$REPO_ROOT" == "$(dirname "$FILE")"`, so a NESTED
+# fixture can never satisfy it when git resolves a toplevel: dirname is
+# `<repo>/docs` while REPO_ROOT is `<repo>`. Both fixtures must therefore sit
+# DIRECTLY at the root of their directory, or the whole `if` short-circuits and
+# the case tests nothing while passing.
+#
+# The outer config also has to FORCE a rewrite. An empty `{}` leaves MD004 on
+# "consistent", which has nothing to flag on a single-item list — so a wrongly
+# widened walk would produce bytes identical to a correctly skipped one, and the
+# negative case could not fail. It pins MD004 to "dash" so a wrong walk is
+# observable as `* star item` becoming `- star item`.
 OUTER="$WORK/outer-config-root"
 mkdir -p "$OUTER"
-printf '{}\n' >"$OUTER/.markdownlint.jsonc"
-INNER_REPO="$OUTER/inner"
-mkdir -p "$INNER_REPO/docs"
-git -C "$INNER_REPO" init -q 2>/dev/null || git init -q "$INNER_REPO"
-OUTER_FIXTURE="$INNER_REPO/docs/fixtureOuterConfig.md"
-printf '# Outer\n\n* star item\n' >"$OUTER_FIXTURE"
-OUT_OUTER="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$OUTER_FIXTURE" |
+printf '{ "config": { "MD004": { "style": "dash" } } }\n' >"$OUTER/.markdownlint-cli2.jsonc"
+
+# POSITIVE — the override must FIRE and be load-bearing. git is present and
+# working, but the file's own directory is NOT a repository, so hook::repo_root
+# falls back to the hint, the guard matches, the probe fails, and
+# CLAUDE_PROJECT_DIR becomes the walk's terminator. Without the override the
+# walk starts and ends in that same directory, finds no config, and skips — so
+# this case discriminates on the override alone.
+NONREPO_ROOTED="$OUTER/plain/fixtureOverrideFires.md"
+mkdir -p "$OUTER/plain"
+printf '# Override Fires\n\n* star item\n' >"$NONREPO_ROOTED"
+OUT_FIRES="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$NONREPO_ROOTED" |
   env CLAUDE_PROJECT_DIR="$OUTER" \
     CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
-RC_OUTER=$?
-if [[ $RC_OUTER -eq 0 ]] && grep -q '^\* star item$' "$OUTER_FIXTURE"; then
-  ok "git present: the override stays inert — discovery stops at the git root, not CLAUDE_PROJECT_DIR"
+RC_FIRES=$?
+if [[ $RC_FIRES -eq 0 ]] && grep -q '^- star item$' "$NONREPO_ROOTED"; then
+  ok "git present, dir is no repo: the override fires and CLAUDE_PROJECT_DIR terminates the walk"
 else
-  fail "git present: the override fired and widened discovery above the repository root (rc=$RC_OUTER out=$OUT_OUTER)"
+  fail "git present, dir is no repo: the override did not fire — config above was never reached (rc=$RC_FIRES out=$OUT_FIRES)"
 fi
+
+# NO NEGATIVE TWIN, deliberately — three instruments were tried and none can
+# fail, so shipping one would be a test that proves nothing while looking like
+# coverage. Recorded here rather than omitted silently, because the reason is a
+# fact about the CODE, not only about the fixtures:
+#
+#   1. Lint output cannot see it. Force the override to fire on a file at the
+#      root of a real repository (replace the probe with `false`) and the file
+#      is STILL not rewritten — markdownlint-cli2 performs its own config
+#      discovery and does not cross the repository boundary, so widening the
+#      hook's gate changes no observable byte.
+#   2. Telemetry's `data.file` is derived from REPO_ROOT and looked promising,
+#      but the forced-override run emits an EMPTY value rather than the
+#      relative-to-outer path a wrongly-widened root would produce. Empty is
+#      also what a sink that never populated looks like, so the assertion could
+#      not tell a real regression from a flaky sink.
+#   3. Exit status is 0 either way; the gate's only effect is whether the lint
+#      runs, and (1) shows the lint's own result is unchanged.
+#
+# So the override's INERTNESS in that configuration is not behaviourally
+# observable, and the positive case above is what pins the branch. A future
+# change that makes REPO_ROOT observable — exporting it, or emitting it in the
+# envelope — would make the negative writable; until then it cannot be.
 
 # --- Repository-local markdownlint: use contained npm/Git Bash shim ---------
 # Hide the PATH copy, then provide the extensionless POSIX shim npm installs
