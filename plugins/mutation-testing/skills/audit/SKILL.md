@@ -167,6 +167,35 @@ Then stop. Remediation is delegated.
   finding-suppression convention: a written `reason` and a `date` per entry, never a bare id list.
   The user accepts each entry; this skill proposes and never writes suppressions unprompted.
 
+## Gotchas
+
+Failure modes documented from the literature and from measurement, not anticipated in the abstract.
+Each one produces a *plausible* result, which is what makes them worth listing.
+
+- **A red baseline reports a perfect score.** Every mutant is "killed" by a test that was already
+  failing. This is the most dangerous failure mode because the number looks excellent. Phase 0 stops
+  on it; never skip that probe to save a suite run.
+- **Flaky tests inflate the score by an unknown margin.** A flaky failure kills a mutant by accident.
+  There is no correction factor — either fix the flakes or report the score with the caveat attached.
+- **Test selection is fixed overhead per target, not per mutant.** Measured in this repository: for
+  the most-depended-on shared library, selection alone exceeded 120 seconds while the resulting
+  suite set was 64 of 390 suites; a leaf file selected 2. Re-deriving the selection inside the
+  mutant loop is the difference between a run that finishes and one that does not.
+- **A timeout counts as detected, and that is correct** — an infinite loop *is* a detected behavior
+  change. But a score leaning heavily on timeouts is being carried by wall-clock rather than
+  assertions; report the timeout share when it is large.
+- **"No coverage" is not a weak test, it is an absent one.** Keeping it out of the headline number
+  is the entire reason the covered-code score is the one reported.
+- **A partially-completed run must report as partial.** Mutants that never ran are named as not-run —
+  never counted as killed, never silently omitted. The same rule applies to a mutant set truncated
+  by a cap.
+- **Reaching for "equivalent" is the standard way this technique manufactures false confidence.**
+  It is the convenient explanation for any survivor whose test is hard to write. Require the
+  demonstration; report the claim as unclassified when none exists.
+- **A high mutation score is not a correctness argument.** The coupling effect covers faults composed
+  of local errors. It says nothing about a wrong algorithm, a missing requirement, a concurrency
+  interleaving, or an unexpressed security property.
+
 ## What this skill does NOT do
 
 - Write or modify tests, or leave any mutation in the tree.
