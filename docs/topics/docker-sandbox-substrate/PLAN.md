@@ -211,7 +211,26 @@ recorded as a deferred item with its own trigger rather than implied by the asse
 Phase order is dependency-driven: the vocabulary leaf (Phase 2) must exist before any surface can
 cite it, and Phase 1 is independent of every other phase.
 
-#### Phase 1: Probe hardening — data-flow egress + workspace host-write containment [TODO]
+#### Phase 1: Probe hardening — data-flow egress + workspace host-write containment [DONE]
+
+**Merge gate satisfied 2026-08-10.** Evidence: `.work/docker-sandbox-substrate/probe-evidence-hardened-recipe.md`.
+All three assertions failed inside a live boundary; 446/446 fixture checks pass; 0 pre-existing pinned
+reasons changed.
+
+**What the live run changed.** It was not a formality — it found two recipe defects and one stale
+environment claim that no amount of review would have caught:
+
+- **The peer-identity design is empirically vindicated, not merely reasoned.** The measured boundary
+  presented a certificate with the CORRECT hostname signed by a CA it trusted, so
+  `ssl_verify_result=0` — certificate verification returned SUCCESS on a fully sealed boundary. Only
+  the differing fingerprint distinguished interception from reached egress. This substrate is a live
+  instance of the TLS-inspection case, not a hypothetical one.
+- **A direct-TLS fingerprint tool cannot traverse an HTTP `CONNECT` proxy** and reports no peer at
+  all, identically for a sealed and an open boundary. The recipe now requires a proxy-aware capture.
+- **The probe shape now shows fail-on-HTTP-error explicitly.** The first attempt at the live run
+  reproduced the original false negative exactly — a block page is a successful transfer.
+- **Handoff correction:** `policy ls` does not display the global network policy, so the posture reads
+  as absent. `policy check network <host>` is the confirmation route.
 
 Review: security
 
