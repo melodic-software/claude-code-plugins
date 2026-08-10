@@ -91,6 +91,29 @@ organization `soft_deny`, so managed auto-mode rules are not a hard policy bound
 The startup warning in that last item is itself useful: it is a readable signal carrying rule text,
 one of the channels the Brief listed as unexplored.
 
+## Addendum — 2026-08-10, managed-surface detail Phase 9 needed
+
+Same page (<https://code.claude.com/docs/en/settings>), re-fetched while building Phase 9's shared
+managed-scope enumeration. These four facts were not in the original pass and each changes what a
+reader must do:
+
+| Fact | Wording |
+|---|---|
+| Drop-in merge order **is** documented | "Following the systemd convention, `managed-settings.json` is merged first as the base, then all `*.json` files in the drop-in directory are sorted alphabetically and merged on top. Later files override earlier ones for scalar values, arrays are concatenated and de-duplicated, and objects are deep-merged. Hidden files starting with `.` are ignored." |
+| The Windows policy key holds JSON in one **value** | `HKLM\SOFTWARE\Policies\ClaudeCode` "registry key with a `Settings` value (REG_SZ or REG_EXPAND_SZ) containing JSON" — a reader wants that value, not the key's subkeys |
+| `HKCU` is **not** a peer of `HKLM` | `HKCU\SOFTWARE\Policies\ClaudeCode` is "lowest policy priority, only used when no admin-level source exists". Merging both would report policy that is not in force |
+| A managed source exists that no local reader can see | "Server-managed settings: delivered remotely at sign-in from Anthropic's servers via the claude.ai admin console or from a self-hosted Claude apps gateway" |
+
+Consequences carried into the plan:
+
+- Phase 1 can state drop-in merge results as **decided**, not caveated — the ordering is documented.
+  The `$defaults`-style caveat the Brief's decidability bound calls for does not apply here.
+- Phase 1's Windows registry leg reads the `Settings` value and consults `HKCU` **only** when `HKLM`
+  carries nothing.
+- Phase 6's managed-conformance report carries a standing caveat that server-managed settings are a
+  managed source with no local path, so "the deployed managed policy" always means the local
+  surfaces. A report that omits this implies a completeness it cannot have.
+
 ## Version constants cleared for use
 
 `v2.1.75`, `v2.1.193`, `v2.1.198`, `v2.1.200`, `v2.1.203`, `v2.1.207`, `v2.1.208`, `v2.1.211`,

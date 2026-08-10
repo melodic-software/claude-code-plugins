@@ -48,29 +48,32 @@ SETTINGS="$PROJECT_ROOT/.claude/settings.json"
 LOCAL="$PROJECT_ROOT/.claude/settings.local.json"
 MCP="$PROJECT_ROOT/.mcp.json"
 
-# Managed (machine-scope) policy settings — highest-precedence layer. Paths per
-# the official settings doc (verified 2026-08-08); the legacy Windows
-# C:\ProgramData location is unsupported since v2.1.75 and deliberately not
-# probed. Windows resolution goes through $PROGRAMFILES so a relocated
-# Program Files directory still resolves. SETTINGS_AUDIT_MANAGED_PATH is the
-# test seam — the real locations are absolute system paths a fixture dir
-# cannot reach.
-if [[ -n "${SETTINGS_AUDIT_MANAGED_PATH:-}" ]]; then
-  MANAGED="$SETTINGS_AUDIT_MANAGED_PATH"
+# A pre-v2.1.211 Claude Code wrote settings.local.json into the directory the
+# session started in, and the current one "still reads a .claude/settings.local
+# .json that an earlier version left there… permission rules from both files stay
+# in effect". So a leftover copy is live configuration that a repository-root-only
+# scan cannot see. Default the start directory to the project root (and to the
+# fixture root under test) so the row appears only where the two genuinely differ.
+if [[ -n "${SETTINGS_AUDIT_STARTDIR_FIXTURE_DIR:-}" ]]; then
+  START_DIR="$SETTINGS_AUDIT_STARTDIR_FIXTURE_DIR"
+elif [[ -n "${SETTINGS_AUDIT_STRUCTURE_FIXTURE_DIR:-}" ]]; then
+  START_DIR="$PROJECT_ROOT"
 else
-  case "$OSTYPE" in
-  darwin*)
-    MANAGED="/Library/Application Support/ClaudeCode/managed-settings.json"
-    ;;
-  msys* | cygwin*)
-    MANAGED="${PROGRAMFILES:-C:\\Program Files}\\ClaudeCode\\managed-settings.json"
-    ;;
-  *)
-    MANAGED="/etc/claude-code/managed-settings.json"
-    ;;
-  esac
+  START_DIR="$PWD"
 fi
-MANAGED_DROPIN="${MANAGED%managed-settings.json}managed-settings.d"
+STARTDIR_LOCAL="$START_DIR/.claude/settings.local.json"
+
+# Managed (machine-scope) policy settings — highest-precedence layer. The per-OS
+# locations are shared vocabulary (lib/managed-scope.sh), not this script's to
+# restate. Claude Code sets CLAUDE_PLUGIN_ROOT in plugin form; the BASH_SOURCE
+# fallback keeps a direct invocation working. SETTINGS_AUDIT_MANAGED_PATH stays
+# this script's own test seam — the real locations are absolute system paths a
+# fixture dir cannot reach.
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)}"
+# shellcheck source=../../../lib/managed-scope.sh
+source "$PLUGIN_ROOT/lib/managed-scope.sh"
+MANAGED="$(mscope::base_file "${SETTINGS_AUDIT_MANAGED_PATH:-}")"
+MANAGED_DROPIN="$(mscope::dropin_dir "${SETTINGS_AUDIT_MANAGED_PATH:-}")"
 
 emit_file_facts() {
   local label="$1" path="$2" kind="$3"
@@ -162,6 +165,15 @@ emit_file_facts ".claude/settings.json" "$SETTINGS" settings || invalid=1
 printf '\n'
 emit_file_facts ".claude/settings.local.json" "$LOCAL" local || invalid=1
 printf '\n'
+# Only when the start directory is genuinely a different directory AND holds a
+# leftover copy: reporting an absent row for every session started at the repo
+# root would be noise, and reporting the same file twice would be a lie about
+# how many permission-rule sources are live.
+if [[ "$STARTDIR_LOCAL" != "$LOCAL" && -f "$STARTDIR_LOCAL" ]]; then
+  emit_file_facts "$STARTDIR_LOCAL (start-directory copy, pre-v2.1.211)" "$STARTDIR_LOCAL" local || invalid=1
+  printf 'Note: a start-directory settings.local.json left by a pre-v2.1.211 Claude Code. The repository-root copy wins on a shared key, but permission rules from BOTH files stay in effect.\n'
+  printf '\n'
+fi
 emit_file_facts ".mcp.json" "$MCP" mcp || invalid=1
 printf '\n'
 emit_file_facts "managed-settings.json (machine scope)" "$MANAGED" managed || invalid=1
@@ -174,5 +186,13 @@ if [[ -d "$MANAGED_DROPIN" ]]; then
 else
   printf 'Managed drop-in dir: absent\n'
 fi
+# Managed policy also lives outside the filesystem on some platforms. This check
+# reads files only, so it names what it did not read rather than letting an
+# absent JSON file read as "no managed policy deployed".
+while IFS= read -r key; do
+  [[ -n "$key" ]] && printf 'Managed registry key (not read by this check): %s\n' "$key"
+done < <(mscope::registry_keys)
+plist_domain="$(mscope::plist_domain)"
+[[ -n "$plist_domain" ]] && printf 'Managed preferences domain (not read by this check): %s\n' "$plist_domain"
 
 [[ "$invalid" -eq 0 ]]

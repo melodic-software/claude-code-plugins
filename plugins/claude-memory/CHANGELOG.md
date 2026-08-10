@@ -3,6 +3,21 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.1]
+
+### Changed
+
+- **`scope-report.sh` now reports every managed-policy surface, not one JSON file.** Its
+  hand-kept per-OS location list had fallen behind the settings doc: it never named the
+  `managed-settings.d/` drop-in directory, and it folded the Windows registry policy keys into a
+  parenthetical inside the file path. The locations now come from `lib/managed-scope.sh`, a
+  shared library that `claude-config` carries a byte-identical copy of, so a location change
+  lands once instead of per plugin. The report gains a `managed.d` row and one `not read` row per
+  non-file surface (the `HKLM`/`HKCU` policy keys on Windows, the managed-preferences domain on
+  macOS) — a presence report must not let an absent JSON file read as "no managed policy
+  deployed". The Windows base path also now resolves through `%PROGRAMFILES%` rather than assuming
+  the default location.
+
 ## [0.7.0]
 
 ### Removed

@@ -1,5 +1,5 @@
 ---
-description: "Audit Claude Code permission GRANTS for portability and auto-mode durability — scans skill/command/agent frontmatter allowed-tools and settings.json/settings.local.json permissions.allow for interpreter-wildcard rules dropped in auto mode, hardcoded machine/user paths, and inert plugin self-grants. Use when: 'check permission rules', 'why was my allowed-tools grant ignored', 'audit allow rules', 'is this permission portable', after authoring a code-execution grant, or when a guarded helper is denied despite an allow rule. Report-only."
+description: "Audit Claude Code permission GRANTS for portability and auto-mode durability — scans skill/command/agent frontmatter allowed-tools and settings.json/settings.local.json/user-global permissions.allow for interpreter-wildcard rules dropped in auto mode, hardcoded machine/user paths, and inert plugin self-grants. Use when: 'check permission rules', 'why was my allowed-tools grant ignored', 'audit allow rules', 'is this permission portable', after authoring a code-execution grant, or when a guarded helper is denied despite an allow rule. Report-only."
 argument-hint: "[scope] — scope: frontmatter|settings|plugins|all (default: all)"
 user-invocable: true
 disable-model-invocation: false
@@ -35,7 +35,7 @@ owns the instruction layer (CLAUDE.md / rules / auto-memory).
 Parse `$ARGUMENTS` for an optional scope filter:
 
 - `frontmatter` — skill/command/agent `allowed-tools` only
-- `settings` — `.claude/settings.json` + `.claude/settings.local.json` `permissions.allow` only
+- `settings` — project, local, and user-global `permissions.allow` only
 - `plugins` — plugin `settings.json` self-grant (P3) only
 - `all` — everything (default)
 
@@ -52,9 +52,14 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-permission-grants/scripts/permission-ru
 ```
 
 It scans frontmatter `allowed-tools` and settings `permissions.allow` across the consuming repo and
-prints one finding per fragile grant (`<severity> [<check>] <source>: <detail>`). `--count` prints the
-count. It requires `jq`; a missing `jq` exits 2 (report the environment gap rather than a clean bill).
+the user-global settings file (`${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json`), and prints one
+finding per fragile grant (`<severity> [<check>] <source>: <detail>`). `--count` prints the count. It
+requires `jq`; a missing `jq` exits 2 (report the environment gap rather than a clean bill).
 `settings.local.json` is parsed for its `permissions.allow` array only — never echoed wholesale.
+
+A user-global finding is reported the same as any other, but its remediation is the operator's: a
+skill cannot write that file. Expect this scope to carry the most findings on a long-lived machine —
+"Always allow" writes there, and nothing prunes it.
 
 If a scope filter was given, run the full detector and present only the matching checks (P1/P2 map to
 `frontmatter`/`settings` sources; P3 to `plugins`).

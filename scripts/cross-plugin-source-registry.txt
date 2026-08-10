@@ -1,9 +1,13 @@
 # Cross-plugin shared-source-file clusters that are expected to stay
-# byte-identical across every plugin that carries them, and already have a
-# dedicated drift check elsewhere. Read by check-cross-plugin-source-drift.sh
-# --check: an identical cluster not listed here fails as "unregistered" (a
-# new shared-copy pattern needing a decision); a listed cluster whose copies
-# no longer match fails as "drifted".
+# byte-identical across every plugin that carries them. Read by
+# check-cross-plugin-source-drift.sh --check: an identical cluster not listed
+# here fails as "unregistered" (a new shared-copy pattern needing a decision);
+# a listed cluster whose copies no longer match fails as "drifted".
+#
+# Most clusters carry a dedicated sync/drift check of their own, named below.
+# A cluster with no dedicated check is enforced by this script's own --check
+# (already a required CI job) and names its canonical copy instead, so a drift
+# failure says which direction to fix.
 #
 # One path-within-plugin per line, relative to each plugin's own root.
 
@@ -15,3 +19,9 @@ reference/artifact-protocol.md
 
 # Dedicated check: scripts/sync-standards-contract.sh --check (CI: standards-contract-sync)
 reference/standards-contract.md
+
+# No dedicated check — enforced by this script's own --check.
+# Canonical copy: plugins/claude-config/lib/managed-scope.sh (claude-config is
+# where the managed scope is read and audited; claude-memory only reports the
+# locations). Fix a drift by copying that file over the others.
+lib/managed-scope.sh

@@ -334,9 +334,17 @@ The integration slice. Everything downstream reads what this produces.
     Linux paths **cannot** be verified from the development machine and ship with an honest
     manual-verification gap recorded in the skill. This applies to the fully-built option too — no
     option available here ships every leg verified.
-  - **`managed-settings.d/` merge semantics are a decidability caveat, not an assertion.** The reader
-    inventories and reads each drop-in file; any claim about how the drop-ins merge with each other or
-    with the base file carries a named caveat unless a fetched page states the ordering.
+  - **`managed-settings.d/` merge semantics are decided, not caveated.** The settings page states the
+    systemd-convention ordering verbatim (base first, then `*.json` sorted alphabetically on top;
+    scalars overridden, arrays concatenated and de-duplicated, objects deep-merged, dotfiles ignored) —
+    see the Phase 0 addendum. The reader implements that order rather than reporting an inventory.
+  - **The Windows registry leg reads one value, and `HKCU` is a fallback, not a peer.** The policy
+    JSON lives in a `Settings` value (`REG_SZ`/`REG_EXPAND_SZ`) on the key, so the read targets that
+    value; `HKCU` is documented as lowest policy priority, "only used when no admin-level source
+    exists", so consulting it while `HKLM` carries policy would report policy that is not in force.
+  - **Server-managed settings are a managed source with no local path.** Delivered remotely at
+    sign-in, so no local reader can see them. Every managed finding says "the local managed surfaces",
+    never "the managed policy" — the completeness claim is not available.
   - Legacy `C:\ProgramData\ClaudeCode\managed-settings.json` is **never probed** — unsupported since
     v2.1.75, and reading it would report policy not in force (Phase 0 correction 2).
 
@@ -568,7 +576,28 @@ Phase 8's sweep, which must include this skill.
 - Version bump: assert `plugins/claude-config/.claude-plugin/plugin.json` `version` differs from its
   value at the branch point, and that its `description` names both new skills.
 
-### Phase 9: existing-check scope widening and the shared extractions [TODO]
+### Phase 9: existing-check scope widening and the shared extractions [DONE]
+
+**Completed 2026-08-10.** Every sanity check below was run and passed: `permission-rule-check.test.sh`
+57/57 (7 of them new), `check-structure.test.sh` 44/44 (10 new), `scope-report.test.sh` 21/21,
+`managed-scope.test.sh` 16/16, `permission-patterns.test.sh` 12/12,
+`check-cross-plugin-source-drift.sh --check` clean and proven to FAIL on a deliberately perturbed
+copy, `shellcheck -x` clean, `check-shell-portability.sh` clean, `check-changelog-parity.sh --check`
+and `--check-bump origin/main` clean.
+
+Two deliberate divergences from the phase as written, both recorded rather than silent:
+
+- **No bespoke fixture-home environment variable was added.** The phase assumed one had to be
+  invented because "there is no way to point it at a fake user home". There is: the user scope
+  resolves `${CLAUDE_CONFIG_DIR:-$HOME/.claude}` — the same resolver `claude-memory` already uses and
+  cites to the `.claude-directory` doc — so a test points `$HOME` at a fixture home and unsets
+  `CLAUDE_CONFIG_DIR`. Reusing that seam beats a third way of saying the same thing, and it made the
+  relocated-config-root case testable for free.
+- **The shared managed-scope cluster ships without a dedicated sync script.**
+  `check-cross-plugin-source-drift.sh --check` is already a required CI job and fails on a drifted
+  registered cluster, so registration alone enforces the invariant; the registry entry names the
+  canonical copy so a drift failure says which direction to fix. The registry's header, which claimed
+  every listed cluster already had a dedicated check, was corrected rather than left untrue.
 
 Acceptance criterion 11, the Brief's **second** widening, and the two extractions later phases consume.
 **Not independent** — see the execution shape; it shares `plugin.json` with Phase 8 and owns the file
@@ -758,9 +787,12 @@ Remaining genuinely open, carried into implementation:
   writes to consumer *settings*, and a transcript is not a settings file, but the boundary was never
   measured. Measure it in Phase 3 before the oracle ships, and state the result in the flag's cost
   notice — a feature that spawns a session must be honest about everything it leaves behind.
-- **Whether `managed-settings.d/` drop-ins have a stated merge order.** Phase 0's fetched pages
-  enumerate the directory but no ordering was recorded. Until a page states it, the reader inventories
-  the drop-ins and any merged-result claim carries a decidability caveat.
+- **The worktree resolution gap in the two existing detectors.** `permission-rule-check.sh` and
+  `check-structure.sh` both anchor on `git rev-parse --show-toplevel`, which yields the **worktree**
+  root, while the settings page says `.claude/settings.local.json` resolves through worktrees to the
+  **main checkout**. In a worktree they therefore look for the local file where it is not. Phase 1's
+  new reader must resolve the main checkout; retrofitting the two existing detectors is a real but
+  separate behavior change, deliberately not folded into Phase 9's approved scope.
 
 ## Handoff to implementation
 

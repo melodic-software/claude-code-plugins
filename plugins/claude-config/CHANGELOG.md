@@ -3,6 +3,40 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.30.0]
+
+### Changed
+
+- **`audit-permission-grants` check P1 now sees user-global allow rules.** It scanned project and
+  local settings only, so an interpreter-wildcard rule in
+  `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json` was invisible to it — and that is the scope
+  Claude Code's own "Always allow" path writes to, so it is where the broad rules auto mode drops
+  actually accumulate. Expect new findings on a repository whose own configuration did not change.
+  The user scope resolves through `CLAUDE_CONFIG_DIR` before `$HOME`, and a finding names the
+  resolved absolute path rather than `~/.claude/settings.json`, which would name the wrong file
+  whenever the config root has been relocated.
+- **`audit`'s structure check now reports a start-directory `settings.local.json`.** A pre-v2.1.211
+  Claude Code wrote the file to the directory the session started in, and the current one still
+  reads what an earlier version left there: the repository-root copy wins on a shared key, but
+  permission rules from **both** files stay in effect. The row appears only when the start directory
+  genuinely differs from the project root and a copy is there, so the same file is never counted as
+  two rule sources.
+- **`audit`'s structure check names the managed surfaces it does not read.** On Windows the
+  `HKLM`/`HKCU\SOFTWARE\Policies\ClaudeCode` policy keys, on macOS the `com.anthropic.claudecode`
+  managed-preferences domain. A file-only reader that stays silent about them lets an absent
+  `managed-settings.json` read as "no managed policy deployed" while a policy is in force.
+
+### Added
+
+- **`lib/permission-patterns.sh`** — the auto-mode drop vocabulary (blanket, wildcarded-interpreter,
+  package-manager-runner, and script-glob rule shapes, plus the top-level tool-token grammar) as a
+  define-only library. It was inline in the P1 detector, which self-executes and cannot be sourced,
+  so a second consumer had no way to reuse it without copying.
+- **`lib/managed-scope.sh`** — the per-OS managed-policy surface enumeration (base JSON file,
+  `managed-settings.d/` drop-in directory, Windows policy registry keys, macOS preferences domain).
+  `claude-memory` carries a byte-identical copy, registered as a cross-plugin shared-source cluster
+  so the two cannot drift.
+
 ## [0.29.0]
 
 ### Removed
