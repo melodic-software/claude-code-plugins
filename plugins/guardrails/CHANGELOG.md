@@ -57,6 +57,14 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 - README hook table: the six guards registered under the `Bash|PowerShell` matcher were all listed
   as `PreToolUse · Bash`; no row named PowerShell at all.
 
+### Note on the version bump
+
+Patch, deliberately. Payloads in the 65536-65663 band that previously slipped through on a cancelled
+hook are now blocked, but nothing LEGITIMATE becomes refused that these guards did not already intend
+to refuse — the fix restores the documented contract rather than widening it. (The 0.21.0 minor was
+called out for an *acceptance* change that could refuse previously-allowed legitimate work; this is
+not that.)
+
 ## [0.21.0]
 
 ### Fixed

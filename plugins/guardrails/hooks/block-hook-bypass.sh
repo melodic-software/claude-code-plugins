@@ -245,8 +245,7 @@ strip_literals() {
       fi
     done
     result+="${out}"$'\n'
-  done < <(printf '%s
-' "$cmd") # not <<<: a >=64KiB here-string deadlocks (see hardcoded-path-patterns.sh)
+  done < <(printf '%s\n' "$cmd") # not <<<: a >=64KiB here-string deadlocks (see hardcoded-path-patterns.sh)
   printf '%s' "${result%$'\n'}"
 }
 
@@ -495,8 +494,7 @@ cat_redirect_bypass() {
     [[ -n "$LAST_STDOUT_TARGET" ]] || continue
     [[ "$LAST_STDOUT_TARGET" == "/dev/null" ]] && continue
     return 0
-  done < <(printf '%s
-' "$NORMALIZED_SEGMENTS") # not <<<: a >=64KiB here-string deadlocks (see hardcoded-path-patterns.sh)
+  done < <(printf '%s\n' "$NORMALIZED_SEGMENTS") # not <<<: a >=64KiB here-string deadlocks (see hardcoded-path-patterns.sh)
   return 1
 }
 
@@ -565,8 +563,7 @@ producer_redirect_bypass() {
     [[ -n "$LAST_STDOUT_TARGET" ]] || continue
     [[ "$LAST_STDOUT_TARGET" == "/dev/null" ]] && continue
     return 0
-  done < <(printf '%s
-' "$NORMALIZED_SEGMENTS") # not <<<: a >=64KiB here-string deadlocks (see hardcoded-path-patterns.sh)
+  done < <(printf '%s\n' "$NORMALIZED_SEGMENTS") # not <<<: a >=64KiB here-string deadlocks (see hardcoded-path-patterns.sh)
   return 1
 }
 

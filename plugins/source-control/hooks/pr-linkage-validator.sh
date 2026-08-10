@@ -73,8 +73,7 @@ strip_html_comments() {
       fi
     done
     out+="$kept"$'\n'
-  done < <(printf '%s
-' "$body") # not <<<: a >=64KiB here-string deadlocks (see hardcoded-path-patterns.sh)
+  done < <(printf '%s\n' "$body") # not <<<: a >=64KiB here-string deadlocks (see hardcoded-path-patterns.sh)
   printf '%s' "$out"
 }
 
@@ -111,8 +110,7 @@ has_linkage() {
 related_section() {
   local body="$1" line t start=0 lvl i=0 out=""
   local -a lines=()
-  while IFS= read -r line || [[ -n "$line" ]]; do lines+=("$line"); done < <(printf '%s
-' "$body")
+  while IFS= read -r line || [[ -n "$line" ]]; do lines+=("$line"); done < <(printf '%s\n' "$body")
   for ((i = 0; i < ${#lines[@]}; i++)); do
     t="${lines[i]}"
     t="${t#"${t%%[![:space:]]*}"}"
