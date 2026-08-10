@@ -1,5 +1,4 @@
 ---
-name: setup
 description: "Configure the source-control plugin. check (read-only): report the effective commit-subject / PR-title convention merged across its user-global, team, and personal-overlay layers, and the babysit-prs userConfig surface (effective config, branch-protection posture, Windows long paths, lane-script permission reachability). apply: interview the repo and write the convention config to a chosen layer, and walk the sanctioned babysit reconfigure paths. Use when: 'set up source-control', 'configure commit convention', 'source-control setup', 'what commit format does this repo use', 'set my personal commit convention', 'override the team convention locally', 'configure babysit', 'check babysit config', or /commit, /pull-request, or /babysit-prs report missing configuration. Actions: check (read-only verification, default) | apply (write the convention config; document the babysit config paths). Re-runnable and safe."
 argument-hint: "check | apply [layer=user|team|local] [subject_pattern=<anchored-regex | 'Conventional Commits'>]"
 user-invocable: true
@@ -122,9 +121,10 @@ diagnostics:
    the default branch's effective rules (`gh api repos/<owner>/<repo>/rules/branches/<default-branch>`,
    falling back to `gh api repos/<owner>/<repo>/branches/<default-branch>/protection` for classic
    protection). Flag every repo reporting zero required reviews AND zero required status contexts as
-   **unprotected**: the merge gate refuses gate-proven merges there for non-self authors
-   (`--allow-unprotected` is the deliberate override), so an unprotected repo in an autopilot fleet
-   deserves a protection rule, not an override.
+   **unprotected**: the merge gate refuses gate-proven merges there for non-self authors, and for a
+   self author whenever the base is not the default branch (`--allow-unprotected` is the deliberate
+   override), so an unprotected repo in an autopilot fleet deserves a protection rule, not an
+   override.
 3. **Windows long-path support for the worktree root.** On Windows, worktrees under the (possibly
    deep) worktree root can exceed 260 characters. Probe `git config --get core.longpaths` and the OS
    policy (registry value `LongPathsEnabled` under

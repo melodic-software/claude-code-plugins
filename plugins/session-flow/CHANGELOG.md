@@ -1,6 +1,6 @@
 # Changelog — session-flow plugin
 
-## [0.21.4]
+## [0.22.1]
 
 ### Fixed
 
@@ -25,6 +25,16 @@
   step-1 screening site and governing every screening site, with the prompt-only site and the
   Gotchas bullet aligned to it; `evals.json` case 8's stale expectation corrected and a case added
   for the completed-continuation branch. (claude-code-plugins#1033 review thread.)
+
+## [0.22.0]
+
+### Removed
+
+- **The bare `/<skill>` alias for this plugin's skills.** Their `SKILL.md` files no longer
+  declare a frontmatter `name`. The field is optional and defaults to the directory name, so
+  declaring it only restated the path while registering a second, unnamespaced command — which
+  the slash-command picker then echoed back as `/plugin:skill (skill)`. Invoke a skill by its
+  namespaced command; the command itself is unchanged.
 
 ## [0.21.3]
 

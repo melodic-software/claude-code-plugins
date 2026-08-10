@@ -30,7 +30,8 @@
 # check-listing-budget.sh for that aggregate report (always advisory).
 #
 # Checks:
-#   1. Frontmatter parses; name matches dir; description present
+#   1. Frontmatter parses; description present; a declared name matches the dir
+#      (and, in a plugin skill, WARNs as redundant)
 #   2. description + when_to_use <= 1536 chars (per-skill listing-entry cap;
 #      counts the literal " - " joiner the harness inserts when when_to_use is
 #      populated)
@@ -105,8 +106,8 @@ source "$SCRIPT_DIR/skill-frontmatter.sh"
 # Base ref for the git-backed diff checks (3, 8, 9) — see the header. Default
 # HEAD (uncommitted-rewrite case); an explicit ref enables a post-commit audit.
 BASE_REF="${CHECK_SKILL_BASE_REF:-HEAD}"
-if [[ "$BASE_REF" != "HEAD" ]] \
-  && ! git -C "$REPO_ROOT" rev-parse --verify --quiet "$BASE_REF^{commit}" >/dev/null 2>&1; then
+if [[ "$BASE_REF" != "HEAD" ]] &&
+  ! git -C "$REPO_ROOT" rev-parse --verify --quiet "$BASE_REF^{commit}" >/dev/null 2>&1; then
   printf 'Error: CHECK_SKILL_BASE_REF=%s is not a valid commit\n' "$BASE_REF" >&2
   exit 2
 fi
@@ -196,19 +197,20 @@ if [[ ! -f "$SKILL_MD" ]]; then
   exit 1
 fi
 
-# --- Check 1: frontmatter parses; name matches dir; description present ----
+# --- Check 1: frontmatter parses; description present; declared name matches --
 
 FRONTMATTER="$(skill_frontmatter::extract <"$SKILL_MD")"
 if [[ -z "$FRONTMATTER" ]]; then
   err "no YAML frontmatter block found (expected content between two '---' fences)"
 else
-  grep -qE '^name:[[:space:]]*[^[:space:]]' <<<"$FRONTMATTER" || err "frontmatter missing 'name:'"
   grep -qE '^description:[[:space:]]*[^[:space:]]' <<<"$FRONTMATTER" || err "frontmatter missing 'description:'"
 
-  # The directory name is what Claude Code namespaces the skill by, so a
-  # divergent frontmatter name silently relocates the invocation the doctrine
-  # says the skill has — and the picker labels rows by the resolved leaf name,
-  # so the drift never surfaces in the listing either.
+  # `name` is optional and defaults to the directory name
+  # (https://code.claude.com/docs/en/skills#frontmatter-reference), so the
+  # checker resolves a skill by its directory either way. A DIVERGENT name is
+  # the defect this branch exists for: it silently relocates the invocation the
+  # doctrine says the skill has. A matching one is merely redundant — and in a
+  # plugin skill, not inert (see the warning below).
   RAW_NAME="$(skill_frontmatter::field name <<<"$FRONTMATTER")"
   # A trailing `# comment` is legal on a YAML scalar and is not part of the
   # value. Skill names are kebab-case per the Agent Skills spec, so a '#' can
@@ -227,6 +229,16 @@ else
     err "frontmatter name '$CUR_NAME' is not kebab-case ([a-z0-9] and hyphens, per the Agent Skills spec)"
   elif [[ -n "$CUR_NAME" && "$CUR_NAME" != "$SKILL_NAME" ]]; then
     err "frontmatter name '$CUR_NAME' does not match skill directory '$SKILL_NAME'"
+  elif [[ -n "$CUR_NAME" && -f "$SKILL_DIR/../../.claude-plugin/plugin.json" ]]; then
+    # In a PLUGIN skill a matching `name` is not inert: a declared name also
+    # answers to the bare `/<name>` unless another command owns that token
+    # (https://code.claude.com/docs/en/skills#how-a-skill-gets-its-command-name),
+    # and the picker appends that alias in parentheses to any row whose typed
+    # prefix matches it — `/plugin:deploy (deploy)` (observed in 2.1.225).
+    # Omitting the field leaves the namespaced command identical and drops both.
+    # Advisory, not a defect: the bare alias is a legitimate thing to want, and
+    # declaring a matching name is the only way to register it.
+    warn "frontmatter name '$CUR_NAME' repeats the plugin skill's directory — omit it unless the bare /$CUR_NAME alias is wanted"
   fi
 fi
 
@@ -356,8 +368,8 @@ while IFS= read -r ref; do
 done < <(
   {
     grep -oE "\`($INTERNAL_DIRS)/[A-Za-z0-9._/-]+\`" "$SKILL_MD" 2>/dev/null | tr -d '`'
-    grep -oE "\]\(($INTERNAL_DIRS)/[A-Za-z0-9._/#-]+\)" "$SKILL_MD" 2>/dev/null \
-      | sed -E 's/^\]\(//; s/\)$//; s/#.*$//'
+    grep -oE "\]\(($INTERNAL_DIRS)/[A-Za-z0-9._/#-]+\)" "$SKILL_MD" 2>/dev/null |
+      sed -E 's/^\]\(//; s/\)$//; s/#.*$//'
   } | sort -u
 )
 
@@ -434,8 +446,8 @@ if git -C "$REPO_ROOT" cat-file -e "$BASE_REF:$SKILL_REL/SKILL.md" 2>/dev/null; 
   BASE_FM="$(git -C "$REPO_ROOT" show "$BASE_REF:$SKILL_REL/SKILL.md" 2>/dev/null | skill_frontmatter::extract)"
   for key in upstream-version synced upstream-sha; do
     if grep -qE "^[[:space:]]*$key:" <<<"$BASE_FM"; then
-      grep -qE "^[[:space:]]*$key:" <<<"$FRONTMATTER" \
-        || err "metadata key '$key' present at $BASE_REF but dropped (stale-tracking metadata for a vendored skill)"
+      grep -qE "^[[:space:]]*$key:" <<<"$FRONTMATTER" ||
+        err "metadata key '$key' present at $BASE_REF but dropped (stale-tracking metadata for a vendored skill)"
     fi
   done
 fi
@@ -448,10 +460,10 @@ fi
 
 # --- Check 11: Gotchas surface present --------------------------------------
 
-if ! grep -qEi '^##+[[:space:]]+(gotchas|quirks)' "$SKILL_MD" \
-  && [[ ! -f "$SKILL_DIR/context/gotchas.md" ]] \
-  && [[ ! -f "$SKILL_DIR/reference/gotchas.md" ]] \
-  && [[ ! -f "$SKILL_DIR/references/gotchas.md" ]]; then
+if ! grep -qEi '^##+[[:space:]]+(gotchas|quirks)' "$SKILL_MD" &&
+  [[ ! -f "$SKILL_DIR/context/gotchas.md" ]] &&
+  [[ ! -f "$SKILL_DIR/reference/gotchas.md" ]] &&
+  [[ ! -f "$SKILL_DIR/references/gotchas.md" ]]; then
   warn "no Gotchas surface (inline '## Gotchas' or context/gotchas.md) — confirm the skill has no observed failure history"
 fi
 
@@ -482,8 +494,8 @@ fi
 
 for spoke_dir in context reference references templates lanes actions; do
   [[ -d "$SKILL_DIR/$spoke_dir" ]] || continue
-  grep -q "$spoke_dir/" "$SKILL_MD" \
-    || warn "orphan spoke: $spoke_dir/ exists but SKILL.md never references it (progressive-disclosure routing gap)"
+  grep -q "$spoke_dir/" "$SKILL_MD" ||
+    warn "orphan spoke: $spoke_dir/ exists but SKILL.md never references it (progressive-disclosure routing gap)"
 done
 
 # --- Check 16: metadata.category (informational) ------------------------------
@@ -533,18 +545,18 @@ fi
 # mutation at load time.
 precompute_readonly_line() {
   local line="$1"
-  line="${line#"${line%%[![:space:]]*}"}"   # ltrim
-  line="${line#\$ }"                          # strip a leading `$ ` prompt
+  line="${line#"${line%%[![:space:]]*}"}" # ltrim
+  line="${line#\$ }"                      # strip a leading `$ ` prompt
 
   # Shell metacharacters that can introduce a second command or a write. `<(`
   # and `>(` process substitution are caught by the `<`/`>` tests.
   case "$line" in
-    *'>'* | *'<'* | *';'* | *'&'*) return 1 ;;
-    *) ;;
+  *'>'* | *'<'* | *';'* | *'&'*) return 1 ;;
+  *) ;;
   esac
   # shellcheck disable=SC2016  # single quotes are deliberate: '$(' is a literal glob, not a shell expansion
-  case "$line" in *'$('*) return 1 ;; *) ;; esac   # $(...) command substitution
-  case "$line" in *'`'*) return 1 ;; *) ;; esac     # backtick command substitution
+  case "$line" in *'$('*) return 1 ;; *) ;; esac # $(...) command substitution
+  case "$line" in *'`'*) return 1 ;; *) ;; esac  # backtick command substitution
   # `|| echo <fallback>` is the one sanctioned continuation. Remove those, then
   # any residual pipe disqualifies the line — a bare `| sink`, or a `||`
   # continuation into a non-echo command such as `|| bash x`.
@@ -564,26 +576,26 @@ precompute_readonly_line() {
 
   local cmd="${line%%[[:space:]]*}"
   case "$cmd" in
-    ls | pwd | cat | find | date | uname | whoami | hostname | wc | head | tail | echo | printf | id | stat | du | df | basename | dirname | realpath | readlink | groups | tree | sw_vers) return 0 ;;
-    git)
-      local sub="${line#git}"
-      sub="${sub#"${sub%%[![:space:]]*}"}"
-      sub="${sub%%[[:space:]]*}"
-      case "$sub" in
-        status | log | diff | show | rev-parse | rev-list | describe | ls-files | ls-tree | symbolic-ref | shortlog | blame | cat-file | for-each-ref | name-rev | whatchanged) return 0 ;;
-        *) return 1 ;;
-      esac
-      ;;
-    gh)
-      # gh nests the read verb after the object (gh pr diff, gh run view). Allow
-      # only a known read verb, and never when a write verb is also present.
-      case " $line " in
-        *" create "* | *" edit "* | *" delete "* | *" merge "* | *" close "* | *" comment "*) return 1 ;;
-        *" view "* | *" diff "* | *" list "* | *" status "* | *" checks "*) return 0 ;;
-        *) return 1 ;;
-      esac
-      ;;
+  ls | pwd | cat | find | date | uname | whoami | hostname | wc | head | tail | echo | printf | id | stat | du | df | basename | dirname | realpath | readlink | groups | tree | sw_vers) return 0 ;;
+  git)
+    local sub="${line#git}"
+    sub="${sub#"${sub%%[![:space:]]*}"}"
+    sub="${sub%%[[:space:]]*}"
+    case "$sub" in
+    status | log | diff | show | rev-parse | rev-list | describe | ls-files | ls-tree | symbolic-ref | shortlog | blame | cat-file | for-each-ref | name-rev | whatchanged) return 0 ;;
     *) return 1 ;;
+    esac
+    ;;
+  gh)
+    # gh nests the read verb after the object (gh pr diff, gh run view). Allow
+    # only a known read verb, and never when a write verb is also present.
+    case " $line " in
+    *" create "* | *" edit "* | *" delete "* | *" merge "* | *" close "* | *" comment "*) return 1 ;;
+    *" view "* | *" diff "* | *" list "* | *" status "* | *" checks "*) return 0 ;;
+    *) return 1 ;;
+    esac
+    ;;
+  *) return 1 ;;
   esac
 }
 
@@ -622,8 +634,8 @@ if ((PRECOMPUTE_INJECTS == 0)); then
         block_ok=1
         block_has_cmd=0
         case "$info_first" in
-          bash | sh | shell | zsh | console | shell-session | shellsession | sh-session) is_shell=1 ;;
-          *) is_shell=0 ;;
+        bash | sh | shell | zsh | console | shell-session | shellsession | sh-session) is_shell=1 ;;
+        *) is_shell=0 ;;
         esac
       elif ((n >= fence_len)) && [[ -z "$info" ]]; then
         if ((is_shell == 1 && block_ok == 1 && block_has_cmd == 1)); then
@@ -657,7 +669,7 @@ fi
 # recognized only at line start or after whitespace (per the injection docs), so
 # a mid-token `!`` such as an inline `#!` code span in prose is not an injection.
 INJECTIONS=()
-inj_in_fence=0     # inside any fenced code block
+inj_in_fence=0 # inside any fenced code block
 inj_fence_len=0
 inj_is_injection=0 # the current fence opened as a ```! injection block
 # shellcheck disable=SC2016  # single quotes deliberate: backticks and $ are literal regex, not shell expansion
@@ -786,32 +798,32 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
     fe_kind="${fe_line%% *}"
     fe_ln="${fe_line#* }"
     case "$fe_kind" in
-      DIRECTIVE_MALFORMED)
-        err "malformed fresh-eyes-exempt directive ($fe_rel:$fe_ln) — expected '<!-- fresh-eyes-exempt: <class> -- <reason> -->' with class deterministic-gate|external-input|deferred (spec: skill-quality plugin, skills/check/reference/fresh-eyes-declarations.md)"
-        ;;
-      DIRECTIVE_NOREASON)
-        err "fresh-eyes-exempt directive missing its '-- <reason>' ($fe_rel:$fe_ln) — justification is recorded at the suppression site (spec: skill-quality plugin, skills/check/reference/fresh-eyes-declarations.md)"
-        ;;
-      HIT_BOTH)
-        note "fresh-eyes: judgment language at $fe_rel:$fe_ln carries BOTH delegation wording and an exemption directive — contradictory declaration, hand-verify"
-        ;;
-      HIT_WORDING)
-        note "fresh-eyes: judgment language at $fe_rel:$fe_ln — fresh-context delegation declared nearby"
-        ;;
-      HIT_DIRECTIVE)
-        note "fresh-eyes: judgment language at $fe_rel:$fe_ln — exemption directive declared nearby"
-        ;;
-      HIT_NONE)
-        warn "same-context judgment language with no fresh-context delegation or exemption directive within $FRESH_EYES_PROXIMITY_LINES lines ($fe_rel:$fe_ln) — declaration may live in a referenced spoke — hand-verify (spec: skill-quality plugin, skills/check/reference/fresh-eyes-declarations.md)"
-        ;;
-      DIRECTIVE_STALE)
-        warn "stale fresh-eyes-exempt directive ($fe_rel:$fe_ln) — no judgment-language hit within $FRESH_EYES_PROXIMITY_LINES lines; the heuristic list, not the directive, may be the gap — verify before removing"
-        ;;
-      *)
-        # Scanner and dispatcher ship together; an unknown record is a bug here,
-        # never the audited skill's fault — fail loud, not silent.
-        err "check 21 internal error: unknown scan record '$fe_kind' ($fe_rel)"
-        ;;
+    DIRECTIVE_MALFORMED)
+      err "malformed fresh-eyes-exempt directive ($fe_rel:$fe_ln) — expected '<!-- fresh-eyes-exempt: <class> -- <reason> -->' with class deterministic-gate|external-input|deferred (spec: skill-quality plugin, skills/check/reference/fresh-eyes-declarations.md)"
+      ;;
+    DIRECTIVE_NOREASON)
+      err "fresh-eyes-exempt directive missing its '-- <reason>' ($fe_rel:$fe_ln) — justification is recorded at the suppression site (spec: skill-quality plugin, skills/check/reference/fresh-eyes-declarations.md)"
+      ;;
+    HIT_BOTH)
+      note "fresh-eyes: judgment language at $fe_rel:$fe_ln carries BOTH delegation wording and an exemption directive — contradictory declaration, hand-verify"
+      ;;
+    HIT_WORDING)
+      note "fresh-eyes: judgment language at $fe_rel:$fe_ln — fresh-context delegation declared nearby"
+      ;;
+    HIT_DIRECTIVE)
+      note "fresh-eyes: judgment language at $fe_rel:$fe_ln — exemption directive declared nearby"
+      ;;
+    HIT_NONE)
+      warn "same-context judgment language with no fresh-context delegation or exemption directive within $FRESH_EYES_PROXIMITY_LINES lines ($fe_rel:$fe_ln) — declaration may live in a referenced spoke — hand-verify (spec: skill-quality plugin, skills/check/reference/fresh-eyes-declarations.md)"
+      ;;
+    DIRECTIVE_STALE)
+      warn "stale fresh-eyes-exempt directive ($fe_rel:$fe_ln) — no judgment-language hit within $FRESH_EYES_PROXIMITY_LINES lines; the heuristic list, not the directive, may be the gap — verify before removing"
+      ;;
+    *)
+      # Scanner and dispatcher ship together; an unknown record is a bug here,
+      # never the audited skill's fault — fail loud, not silent.
+      err "check 21 internal error: unknown scan record '$fe_kind' ($fe_rel)"
+      ;;
     esac
   done < <(awk -v P="$FRESH_EYES_PROXIMITY_LINES" -v JR="$FRESH_EYES_JUDGE_RE" '
     # Start of file counts as a paragraph break, so an indented block opening on
@@ -1101,7 +1113,10 @@ if [[ -n "$CUR_SUMMARY" ]]; then
   if command -v iconv >/dev/null 2>&1; then
     SUMMARY_CP_LEN=$(($(printf '%s' "$CUR_SUMMARY" | iconv -f UTF-8 -t UTF-32BE | wc -c) / 4))
   else
-    SUMMARY_CP_LEN="$(LC_ALL=C.UTF-8; printf '%s' "${#CUR_SUMMARY}")"
+    SUMMARY_CP_LEN="$(
+      LC_ALL=C.UTF-8
+      printf '%s' "${#CUR_SUMMARY}"
+    )"
   fi
   if ((SUMMARY_CP_LEN > SUMMARY_CP_CAP)); then
     err "metadata.summary is $SUMMARY_CP_LEN codepoints (cap $SUMMARY_CP_CAP — the cheat sheet row it generates must stay scannable)"

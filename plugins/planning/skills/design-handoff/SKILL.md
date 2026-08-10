@@ -1,5 +1,4 @@
 ---
-name: design-handoff
 description: "Gate and package a finished design for /planning:plan: binary check that every thread in design-threads.md is RESOLVED, directional, or TAGGED-DEFERRED, then emit the plan-ready summary and resume prompt. Use when: 'design handoff', 'hand off the design', 'is the design ready', 'plan-ready summary', 'design gate', /planning:design discussion rounds stop surfacing gaps, or entering /planning:plan from a completed design session. FAILs on any thread that is unresolved AND untagged — names it and routes back to /planning:design. Skip when: still exploring the design space — use /planning:design; mid-session save-point to clear and resume later — use a session-handoff capability."
 argument-hint: "(no args — reads the design-threads artifact in the topic's contract slice)"
 user-invocable: true

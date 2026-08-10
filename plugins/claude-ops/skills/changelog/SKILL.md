@@ -1,5 +1,4 @@
 ---
-name: changelog
 description: "Ingest Claude Code changelog entries and integrate them into the current repo — fetch (read-only display), diff (impact analysis, no edits), status (applied versions), and apply (full integrate pipeline, explicit user intent only). Use when: 'new cc version', 'what changed in claude code', 'apply changelog', a new CC release is mentioned, or the user pastes changelog text."
 argument-hint: "<action> [version|text] — actions: fetch (default on passive mention), diff, status, apply (explicit only)"
 user-invocable: true

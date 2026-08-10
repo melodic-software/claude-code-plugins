@@ -1,5 +1,4 @@
 ---
-name: find-handoff
 description: "Recover a lost handoff after `/clear` — find the save-point file or resume prompt when the resume prompt was written but never copied and the fresh session has zero context. Read-only detection ladder: known-location glob of `<memory_dir>/handoffs/`, then a bounded, recency-ranked scan of transcripts (excluding the current session's own file) for the handoff directive and dashed-rail markers, then a confirm-before-resume gate. Use when: 'find my handoff', 'recover the handoff', 'I lost the resume prompt', 'forgot to copy the resume prompt', 'I cleared without saving the prompt', 'where's my handoff', 'recover after /clear', 'get back the handoff'. Surfaces only the resume prompt + handoff metadata, never raw transcript content; hands to `/session-flow:keep-going` when the recovered session ended mid-work rather than at a clean save-point."
 user-invocable: true
 disable-model-invocation: false
@@ -131,9 +130,10 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
 
    **Read that state with `claude agents --json --all`, never the bare `--json`.** The bare form
    lists ACTIVE sessions only — a background session that has reached a terminal state is excluded
-   by the CLI and surfaces only under `--all`, where it carries a `state` (observed: `done`,
-   `stopped`) in place of the active `status` (observed: `idle`, `busy`). That is `claude agents
-   --help` ("`--all` — With --json: also include completed background sessions") and the same
+   by the CLI and surfaces only under `--all`, where it carries a `state` (observed: `done`, which
+   reports completion, and `stopped`, which does not) in place of the active `status` (observed:
+   `idle`, `busy`). That is `claude agents --help` ("`--all` — With --json: also include completed
+   background sessions") and the same
    verified contract this repo already relies on in `claude-ops`'
    `skills/lanes/scripts/lane-launcher.sh` (`load_sessions`). **So absence from the bare list is
    NOT evidence of failure: a continuation that finished the work successfully looks exactly like
@@ -156,18 +156,17 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
      instead of asserting a failed background attempt.
 
    Read the `state` value as reported and say which branch it took — the values above are observed,
-   not a closed set, so an unfamiliar one is reported rather than forced into a branch. **Only an
-   exact `sessionId`/`id` match identifies a session for this recheck. Slug-only evidence is always
-   UNKNOWN, uniqueness notwithstanding, and the candidate is kept.** A currently-unique
-   `--name "continue-<topic>"` match is not proof of identity, because it is a snapshot-time check
-   against a bounded history: the session that produced this candidate can age out of `--all` — the
-   same boundedness the UNKNOWN branch above rests on — while a newer, unrelated launch reusing the
-   slug is still listed. The slug then resolves uniquely to the wrong session, and its live or
-   completed state gets borrowed for the older candidate. That is the misattribution this rung
-   exists to prevent, reached from the other direction, so uniqueness cannot be what licenses the
-   lookup. Launch references a different file,
-   failed at launch, or is unverified/ambiguous → keep the candidate (surfacing the provenance at
-   the confirm gate when ambiguous). **This four-way current-state resolution governs every
+   not a closed set, so an unfamiliar one is reported rather than forced into a branch. **Key the
+   lookup on the launched session's `sessionId`/`id` — the `claude agents --json` field, NOT the
+   `session_id` this file uses elsewhere for transcript frontmatter — when the launch-verification
+   listing recorded one in the transcript.** With no recorded ID the recheck is UNKNOWN and the
+   candidate is kept, and that holds even when the `--name "continue-<topic>"` slug matches exactly
+   one entry: `--all`'s history is bounded, so the candidate's own session may have aged out while a
+   newer same-topic continuation remains, and a unique match is then a DIFFERENT session wearing the
+   same name. Uniqueness at snapshot time is not identity across time. The slug is the same
+   ambiguous key here as at launch time, and no match count makes it unambiguous. Launch references
+   a different file, failed at launch, or is unverified/ambiguous → keep the candidate (surfacing
+   the provenance at the confirm gate when ambiguous). **This four-way resolution governs every
    screening site in this skill, prompt-only included.**
 
    **v1 scope: current repo only.** The cross-repo *filesystem* sweep (deriving

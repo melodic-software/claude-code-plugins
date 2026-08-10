@@ -1,5 +1,4 @@
 ---
-name: run-e2e
 description: "End-to-end live app verification — check prerequisites, start the app, drive UI/API flows, and capture evidence (screenshots, responses, logs); includes a non-UI smoke-test playbook for libraries, MCP servers, hooks, and scripts. Use for 'e2e', 'smoke test', 'test the app', or when UI/API changes need runtime verification; for comprehensive build+test+lint use /verification:confirm."
 argument-hint: "[scenario] (e.g., /testing:run-e2e, /testing:run-e2e the login flow, /testing:run-e2e non-ui)"
 user-invocable: true
