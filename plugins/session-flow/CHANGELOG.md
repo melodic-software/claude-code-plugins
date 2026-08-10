@@ -1,5 +1,24 @@
 # Changelog — session-flow plugin
 
+## [0.22.2]
+
+### Fixed
+
+- **`orchestrate` no longer records a per-session subagent cap that no longer exists.** The sources
+  file and the SKILL both carried "at most 200 subagents per session"
+  (`CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION`, v2.1.212+), read from the sub-agents page on 2026-07-29.
+  That cap was removed in v2.1.220–v2.1.224 — "The 200-subagent-per-session cap is removed, so
+  long-running sessions no longer refuse new subagents; the concurrency and depth limits still
+  apply" ([2026-w32](https://code.claude.com/docs/en/whats-new/2026-w32)) — and both the cap and its
+  variable are gone from the reference page. A long-running orchestration planned around a session
+  total was budgeting against a ceiling that is not there.
+- The concurrency limit gains two riders recorded on the same re-read (verified 2026-08-10): sessions
+  with `ultracode` active are exempt from it, and an in-session `/subtask` fork takes a slot while it
+  runs but is never blocked by the limit.
+- The superseded claim is kept in `sources.md` as an explicit **Superseded** note rather than
+  deleted, so a reader who remembers the old cap finds out what replaced it instead of finding
+  silence.
+
 ## [0.22.1]
 
 ### Fixed

@@ -5,6 +5,30 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.12.1]
+
+### Fixed
+
+- **`sweep-all` no longer counts dispatches against a per-session cap that was removed.** Its
+  budget reasoning had every Agent-tool subagent counting against both
+  `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` (default 20, still current) and
+  `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION` (documented default 200). The second was removed in
+  v2.1.220–v2.1.224 ([2026-w32](https://code.claude.com/docs/en/whats-new/2026-w32), verified
+  2026-08-10) and is gone from the sub-agents page along with its variable. The concurrency limit —
+  the one the paragraph calls "the hard one" — is unchanged, so the dispatch conclusion stands; only
+  the second constraint has since been removed. It was accurate when written (documented default
+  200, v2.1.212+) and went stale under the platform, which is the failure mode a dated verification
+  stamp exists to make findable.
+- **The `env-vars` citation is restored, and one variable is now marked as unverified.** Re-sourcing
+  the cap removal had swapped that link out, which left the paragraph's *first* claim —
+  `CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY`, documented default 10 — with no source at all. The link is
+  back alongside the new one. That variable itself could **not** be re-verified: two `env-vars`
+  fetches truncated before its alphabetical range, and the sub-agents page names only the concurrency
+  and depth limits. That is not evidence of removal — the same truncated fetch returned ABSENT for
+  `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`, which is quoted verbatim elsewhere — so the claim is marked
+  in place as carried forward from the 2026-07-29 read and not re-verified, with its currency tracked
+  as an open item rather than left looking fresh.
+
 ## [0.12.0]
 
 ### Removed
