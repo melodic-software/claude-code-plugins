@@ -2,6 +2,13 @@
 
 ## [0.10.0]
 
+### Changed
+
+- **`audit-derivability`: listing description tightened (1,161 → 876 chars)** — trimmed the
+  explanatory prose from the frontmatter `description` toward the shared skill-listing budget
+  (claude-code-plugins#2022, option 2). Every single-quoted trigger phrase is preserved verbatim
+  (skill-quality check 3); the four-factor rubric and verdict classes are unchanged in the body.
+
 ### Removed
 
 - **The bare `/<skill>` alias for this plugin's skills.** Their `SKILL.md` files no longer
@@ -9,15 +16,6 @@
   declaring it only restated the path while registering a second, unnamespaced command — which
   the slash-command picker then echoed back as `/plugin:skill (skill)`. Invoke a skill by its
   namespaced command; the command itself is unchanged.
-
-## [0.9.7]
-
-### Changed
-
-- **`audit-derivability`: listing description tightened (1,161 → 876 chars)** — trimmed the
-  explanatory prose from the frontmatter `description` toward the shared skill-listing budget
-  (claude-code-plugins#2022, option 2). Every single-quoted trigger phrase is preserved verbatim
-  (skill-quality check 3); the four-factor rubric and verdict classes are unchanged in the body.
 
 ## [0.9.6]
 

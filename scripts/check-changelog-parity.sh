@@ -3,7 +3,11 @@
 #
 #   scripts/check-changelog-parity.sh --check             fail if a versioned
 #                                                         plugin has no sibling
-#                                                         CHANGELOG.md
+#                                                         CHANGELOG.md, or that
+#                                                         CHANGELOG's newest
+#                                                         version heading is
+#                                                         ABOVE the manifest
+#                                                         `version`
 #   scripts/check-changelog-parity.sh --check-bump <ref>  fail if a plugin's
 #                                                         manifest version
 #                                                         changed vs <ref> but
@@ -20,7 +24,16 @@
 #   * --check is the static repo-wide invariant: a plugins/<name>/.claude-plugin/
 #     plugin.json carrying a `version` must ship a plugins/<name>/CHANGELOG.md.
 #     It catches a plugin that has bumped versions but never kept a changelog at
-#     all (autonomy shipped 5 minor bumps with none).
+#     all (autonomy shipped 5 minor bumps with none). It also owns the REVERSE
+#     direction of the parity pair: the changelog's newest version heading must
+#     not exceed the manifest `version`. Nothing else covers that direction —
+#     --check-bump fires only when the manifest version CHANGED, and
+#     --check-order is satisfied by a correctly ordered heading list — so a
+#     release note written ahead of its bump reaches main unseen, which is how
+#     docs-hygiene shipped a `## [0.9.7]` the manifest went 0.9.6 -> 0.10.0
+#     straight past (claude-code-plugins#2131). A manifest ABOVE the newest
+#     heading stays legal: a bump with no consumer-visible change need not write
+#     a release note.
 #   * --check-bump is the go-forward PR discipline: a version change must ADD a
 #     `## [<version>]` entry for the new version — present in the plugin's
 #     CHANGELOG.md at head AND absent from it at <ref>. Two failure classes the
@@ -96,19 +109,96 @@ version_of() { jq -r '.version // empty' "$1" 2>/dev/null; }
 # Convention changelogs are in scope precisely because that is where it shipped:
 # they are unversioned by any manifest, so --check and --check-bump never look
 # at them at all.
+
 # A fixed-width key so a lexical comparison orders versions NUMERICALLY. Five
-# digits per field is far beyond any version this repo will reach. --check-order
-# feeds digits-only versions (its regex admits nothing else); --check-bump feeds
-# manifest SemVer, so a `+build`/`-prerelease` suffix is stripped before the
-# split to keep every field numeric. Stripping build metadata is SemVer-exact
-# (it carries no precedence); pre-release ORDERING is deliberately not modeled —
-# no manifest in this repo uses it — so an equal-core pre-release keys equal to
-# its release.
+# digits per field is far beyond any version this repo will reach. Every caller —
+# the shared heading extractor and both manifest-version paths — may carry a
+# SemVer `+build`/`-prerelease` tail, which is stripped before the split to keep
+# every field numeric. Stripping build metadata is SemVer-exact (it carries no
+# precedence); pre-release ORDERING is deliberately not modeled — no manifest in
+# this repo uses it — so an equal-core pre-release keys equal to its release.
 version_sort_key() {
   local IFS='.'
   # shellcheck disable=SC2086  # deliberate word-split of the dotted version on IFS
   set -- ${1%%[+-]*}
   printf '%05d.%05d.%05d' "$((10#${1:-0}))" "$((10#${2:-0}))" "$((10#${3:-0}))"
+}
+
+# The lines of a markdown file that RENDER as markdown — everything outside
+# fenced code blocks and multi-line HTML comments. Every mode reads a changelog
+# through this, so a `## [1.2.3]` shown as an EXAMPLE can neither satisfy
+# --check-bump's release-entry requirement nor masquerade as a real heading to
+# --check and --check-order. One tracker, not three, so the modes cannot drift.
+#
+# Fence tracking follows CommonMark: a fence line is a run of >=3 backticks or
+# tildes indented at most three SPACES (four-plus, or a tab, is indented code);
+# an opening backtick fence rejects an info string containing a backtick; a CLOSE
+# requires the same delimiter char, a run at least as long as the opener, and
+# nothing but whitespace after it — so a ~~~ line, a ```not-a-close line, or an
+# indented would-be closer inside a ``` block never prematurely re-opens the
+# content. Comment markers inside fenced code are content; fence markers inside a
+# comment are suppressed. A line that BEGINS inside a comment is suppressed whole
+# even when the comment closes on it: what follows `-->` can never be a
+# column-one heading anyway. Reads $1, or stdin when $1 is `-`.
+rendered_lines() {
+  awk '
+    {
+      if (!infence && inhtml) {
+        p = index($0, "-->")
+        if (p == 0) next
+        inhtml = 0
+        rem = substr($0, p + 3)
+        while ((q = index(rem, "<!--")) > 0) {
+          rem = substr(rem, q + 4)
+          r = index(rem, "-->")
+          if (r == 0) { inhtml = 1; break }
+          rem = substr(rem, r + 3)
+        }
+        next
+      }
+      if (match($0, /^ {0,3}`+/) || match($0, /^ {0,3}~+/)) {
+        seg = substr($0, RSTART, RLENGTH)
+        sub(/^ +/, "", seg)
+        mchar = substr(seg, 1, 1)
+        mlen = length(seg)
+        rest = substr($0, RSTART + RLENGTH)
+        if (mlen >= 3) {
+          if (!infence) {
+            # opening fence; a backtick info string must not contain a backtick
+            if (!(mchar == "`" && rest ~ /`/)) { infence = 1; fchar = mchar; flen = mlen; next }
+          } else if (mchar == fchar && mlen >= flen && rest ~ /^[ \t]*$/) {
+            infence = 0; next
+          }
+        }
+      }
+      if (infence) next
+      print
+      rem = $0
+      while ((q = index(rem, "<!--")) > 0) {
+        rem = substr(rem, q + 4)
+        r = index(rem, "-->")
+        if (r == 0) { inhtml = 1; break }
+        rem = substr(rem, r + 3)
+      }
+    }
+  ' "$1"
+}
+
+# The version headings a changelog declares, in file order. Every heading form
+# this repo actually uses: `## [1.2.3]` (plugins, Keep a Changelog),
+# `## 1.2.3 — date` (conventions), and the two-component `## 1.2` several
+# convention changelogs use. Requiring a patch component would make the gates
+# built on this silently check NOTHING in those files — worse than not covering
+# them, because the pass would be indistinguishable. The optional
+# `+build`/`-prerelease` tail is admitted for the same reason: manifests and
+# --check-bump both accept those forms, so dropping such a heading would leave
+# exactly that class unchecked. version_sort_key strips the tail before
+# comparing. Shared by --check-order and --check so the two directions of the
+# parity pair cannot read a changelog differently.
+changelog_versions() {
+  rendered_lines "$1" |
+    grep -oE '^##[[:space:]]+\[?[0-9]+\.[0-9]+(\.[0-9]+)?([+-][0-9A-Za-z][0-9A-Za-z.-]*)?\]?([[:space:]]|$)' |
+    grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?([+-][0-9A-Za-z][0-9A-Za-z.-]*)?'
 }
 
 if [[ "$mode" == "--check-order" ]]; then
@@ -119,13 +209,7 @@ if [[ "$mode" == "--check-order" ]]; then
   for changelog in "${changelogs[@]}"; do
     [[ -f "$changelog" ]] || continue
     checked=$((checked + 1))
-    # Every heading form this repo actually uses: `## [1.2.3]` (plugins, Keep a
-    # Changelog), `## 1.2.3 — date` (conventions), and the two-component
-    # `## 1.2` several convention changelogs use. Requiring a patch component
-    # would make this gate silently check NOTHING in those files — worse than
-    # not covering them, because the pass would be indistinguishable.
-    mapfile -t versions < <(grep -oE '^##[[:space:]]+\[?[0-9]+\.[0-9]+(\.[0-9]+)?\]?([[:space:]]|$)' "$changelog" |
-      grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?')
+    mapfile -t versions < <(changelog_versions "$changelog")
     ((${#versions[@]} > 1)) || continue
 
     dupes="$(printf '%s\n' "${versions[@]}" | sort | uniq -d)"
@@ -163,16 +247,38 @@ fi
 if [[ "$mode" == "--check" ]]; then
   declare -A saw_debt
   missing=0
+  ahead=0
   for manifest in "${manifests[@]}"; do
     plugin_dir="${manifest%/.claude-plugin/plugin.json}"
     name="${plugin_dir##*/}"
-    [[ -n "$(version_of "$manifest")" ]] || continue
+    version="$(version_of "$manifest")"
+    [[ -n "$version" ]] || continue
     if [[ -f "$plugin_dir/CHANGELOG.md" ]]; then
       if [[ -n "${grandfathered[$name]:-}" ]]; then
         echo "STALE BASELINE: '$name' in $BASELINE now has a CHANGELOG.md — remove it." >&2
         missing=$((missing + 1))
         # Mark handled so the second stale-scan loop does not re-report it.
         saw_debt["$name"]=1
+      fi
+      # Validated for EVERY plugin that keeps a changelog, not only one with a
+      # heading to compare against: an uncomparable manifest version is a defect
+      # in its own right, and --check-bump refuses it unconditionally for every
+      # plugin in its scope. Gating it on an unrelated precondition would let a
+      # malformed version ride through behind a not-yet-written release note.
+      if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([+-].*)?$ ]]; then
+        echo "check-changelog-parity: $name carries a non-SemVer manifest version '$version'; refusing to pass without a comparable version." >&2
+        exit 2
+      fi
+      # Reverse parity: the newest heading must not outrun the manifest. Only the
+      # NEWEST is compared — an older heading naming a version the manifest never
+      # took is invisible from the tree alone, but it can only get there by first
+      # being the newest, which this catches in the change set that writes it.
+      mapfile -t headings < <(changelog_versions "$plugin_dir/CHANGELOG.md")
+      newest="${headings[0]:-}"
+      if [[ -n "$newest" && "$(version_sort_key "$newest")" > "$(version_sort_key "$version")" ]]; then
+        echo "CHANGELOG AHEAD OF MANIFEST: $plugin_dir/CHANGELOG.md documents $newest but $manifest carries $version." >&2
+        echo "  Bump the manifest to $newest, or fold that entry into the version that actually ships." >&2
+        ahead=$((ahead + 1))
       fi
       continue
     fi
@@ -191,10 +297,11 @@ if [[ "$mode" == "--check" ]]; then
       missing=$((missing + 1))
     fi
   done
-  if ((missing > 0)); then
+  if ((missing > 0 || ahead > 0)); then
+    ((ahead > 0)) && echo "A changelog entry must not name a version the manifest has not reached; the manifest may sit above the newest heading, never below it." >&2
     exit 1
   fi
-  echo "Every versioned plugin has a CHANGELOG.md (or a stale-guarded baseline entry)."
+  echo "Every versioned plugin has a CHANGELOG.md (or a stale-guarded baseline entry), and none documents a version above its manifest."
   exit 0
 fi
 
@@ -240,7 +347,7 @@ declare -A bumped_candidate
 # candidate) and fork_version equals head_version (so it reads as not-bumped).
 # When HEAD has that shape, use the branch's own tip.
 head_commit=HEAD
-if git rev-parse -q --verify 'HEAD^2' >/dev/null 2>&1    && git merge-base --is-ancestor 'HEAD^1' "$base" 2>/dev/null; then
+if git rev-parse -q --verify 'HEAD^2' >/dev/null 2>&1 && git merge-base --is-ancestor 'HEAD^1' "$base" 2>/dev/null; then
   head_commit='HEAD^2'
 fi
 if ! merge_base="$(git merge-base "$base" "$head_commit")"; then
@@ -316,65 +423,16 @@ for manifest in "${manifests[@]}"; do
 
   # Require the bumped version's own entry at head, not merely that the file
   # changed: an unrelated edit (whitespace, title, an old release) must not
-  # satisfy the gate. The match is a FIXED-STRING heading anchored to line
-  # start (awk index()==1) and OUTSIDE fenced code, so the version string
-  # appearing in prose, an indented line, or a fenced example never satisfies —
-  # or falsely pre-exists — the release entry, and SemVer metacharacters
-  # (1.0.1+build.1) never leak into a regex. Fence tracking follows CommonMark:
-  # a fence line is a run of >=3 backticks or tildes indented at most three
-  # SPACES (four-plus, or a tab, is indented code); an opening backtick fence
-  # rejects an info string containing a backtick; a CLOSE requires the same
-  # delimiter char, a run at least as long as the opener, and nothing but
-  # whitespace after it — so a ~~~ line, a ```not-a-close line, or an indented
-  # would-be closer inside a ``` block never prematurely re-opens the heading.
-  # HTML raw blocks are tracked alongside fences: a heading inside a multi-line
-  # <!-- --> comment is not rendered Markdown, so it neither satisfies nor
-  # pre-exists the release entry. A same-line "<!-- ## [x] -->" can never match
-  # anyway (the heading is not at column one). Comment markers inside fenced
-  # code are content; fence markers inside a comment are suppressed.
+  # satisfy the gate. The match is a FIXED-STRING heading anchored to line start
+  # (awk index()==1) over rendered_lines only, so the version string appearing in
+  # prose, an indented line, a fenced example, or an HTML comment never satisfies
+  # — or falsely pre-exists — the release entry, and SemVer metacharacters
+  # (1.0.1+build.1) never leak into a regex. A same-line "<!-- ## [x] -->" can
+  # never match anyway (the heading is not at column one).
   heading="## [${head_version}]"
   has_heading() {
-    awk -v h="$heading" '
-      {
-        if (!infence && inhtml) {
-          p = index($0, "-->")
-          if (p == 0) next
-          inhtml = 0
-          rem = substr($0, p + 3)
-          while ((q = index(rem, "<!--")) > 0) {
-            rem = substr(rem, q + 4)
-            r = index(rem, "-->")
-            if (r == 0) { inhtml = 1; break }
-            rem = substr(rem, r + 3)
-          }
-          next
-        }
-        if (match($0, /^ {0,3}`+/) || match($0, /^ {0,3}~+/)) {
-          seg = substr($0, RSTART, RLENGTH)
-          sub(/^ +/, "", seg)
-          mchar = substr(seg, 1, 1)
-          mlen = length(seg)
-          rest = substr($0, RSTART + RLENGTH)
-          if (mlen >= 3) {
-            if (!infence) {
-              # opening fence; a backtick info string must not contain a backtick
-              if (!(mchar == "`" && rest ~ /`/)) { infence = 1; fchar = mchar; flen = mlen; next }
-            } else if (mchar == fchar && mlen >= flen && rest ~ /^[ \t]*$/) {
-              infence = 0; next
-            }
-          }
-        }
-        if (!infence && index($0, h) == 1) { found = 1; exit }
-        if (!infence) {
-          rem = $0
-          while ((q = index(rem, "<!--")) > 0) {
-            rem = substr(rem, q + 4)
-            r = index(rem, "-->")
-            if (r == 0) { inhtml = 1; break }
-            rem = substr(rem, r + 3)
-          }
-        }
-      }
+    rendered_lines - | awk -v h="$heading" '
+      index($0, h) == 1 { found = 1; exit }
       END { exit !found }
     '
   }

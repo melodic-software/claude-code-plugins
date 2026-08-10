@@ -537,12 +537,16 @@ assert_eq "the fixture's destination really is 100644 with a shebang" \
 assert_eq "a rename whose SOURCE was never executable is NOT reported" \
   "" "$(bash "$HELPER" --repo-dir "$repo19" --list 2>/dev/null)"
 
-# The same negative for the COPY branch. `R*` and `C*` share one `src_mode`
-# gate today, so repo19 above would also catch that single gate going away --
-# what this pins is the copy arm independently, against a future split that
-# keeps the gate on the rename arm and drops it on this one. The pairing setup
-# mirrors repo16 (source edited in the same change, similarity lines) because
-# copy detection needs it; unlike repo16 the source is never made executable.
+# The COPY arm is the OPPOSITE of repo19 above, and this case pins that
+# asymmetry (#2118). A rename destination is the same tracked file at a new
+# path, so a `100644` source means nothing dropped a bit. A copy destination is
+# a path that did NOT previously exist -- newly added, squarely inside this
+# check's scope -- so the source's mode says nothing about it and the copy arm
+# gates on nothing. Reported here is the SAME answer the identical staged
+# content gets from the `A` branch with copy detection off; repo22 below pins
+# that the two configurations agree. The pairing setup mirrors repo16 (source
+# edited in the same change, similarity lines) because copy detection needs it;
+# unlike repo16 the source is never made executable.
 repo21="$(mkrepo)"
 (
   cd "$repo21" || exit 1
@@ -561,12 +565,93 @@ repo21="$(mkrepo)"
 
 nonexec_copy_status="$(cd "$repo21" && git diff --cached --name-status | grep -c '^C' | tr -d ' \r')"
 if [[ "$nonexec_copy_status" == "1" ]]; then
+  assert_contains "the fixture really is a copy off a 100644 source" \
+    "$(cd "$repo21" && git diff --cached --raw | grep 'tpl-copy\.sh')" ":100644 100644"
   assert_eq "the copy fixture's destination really is 100644 with a shebang" \
     "100644" "$(staged_mode "$repo21" tpl-copy.sh)"
-  assert_eq "a copy whose SOURCE was never executable is NOT reported" \
-    "" "$(bash "$HELPER" --repo-dir "$repo21" --list 2>/dev/null)"
+  assert_eq "a copy whose SOURCE was never executable IS reported" \
+    "tpl-copy.sh" "$(bash "$HELPER" --repo-dir "$repo21" --list 2>/dev/null)"
+
+  # Dropping the copy arm's source-mode gate changes what --fix MUTATES, not
+  # just what --list prints. Pin the mutation too -- but via `--all`, NOT via
+  # `--fix -- tpl-copy.sh`: a pathspec naming only the destination breaks the
+  # pairing back into `A` (repo17 pins exactly that), so a scoped --fix reaches
+  # the destination through the `A` branch and would pass identically against a
+  # gated copy arm. `--all` keeps the record paired, so this assertion actually
+  # runs through the `C*` arm.
+  bash "$HELPER" --repo-dir "$repo21" --fix --all >/dev/null 2>&1
+  assert_eq "--fix corrects a copy destination off a non-executable source" \
+    "100755" "$(staged_mode "$repo21" tpl-copy.sh)"
+  # Not a defect control -- it answers the same either way. It guards the
+  # OTHER way this arm can be got wrong: an arm that admits `_source` as well
+  # as `path` would flip the deliberately non-executable source too.
+  assert_eq "the copy SOURCE is not itself admitted by the copy arm" \
+    "100644" "$(staged_mode "$repo21" tpl.sh)"
 else
   skip_case "this git did not pair the non-executable fixture as a copy"
+fi
+
+# --- Case group 21b: the two diff.renames configurations AGREE ----------------
+#
+# For the COPY arm (#1590, #2098, #2118): whether a copy destination is caught
+# is a function of the STAGED CONTENT, not of the consumer's `diff.renames`
+# setting. ONE fixture repo, run twice with nothing changing between the runs
+# but that single config key -- `false` reports the destination as `A`, `copies`
+# reports it as `C`, and both must return the same answer. Against a copy arm
+# gated on the source mode the two disagree, which is the defect #2118 reports.
+#
+# SCOPE -- this is asserted of the copy arm ONLY, and the rename arm
+# deliberately does NOT have the property. A rename off a `100644` shebang
+# source reads as `D`+`A` under `diff.renames=false` and IS reported, and as
+# `R100` under the default `diff.renames=true` and is NOT, so the same staged
+# content gets two answers there. That is not an oversight and the gate is not
+# presumed to be a bug: `repo19` pins a real false positive it prevents -- a
+# deliberately non-executable sourced library must not be flipped to `100755`
+# by being moved. Whether that trade is right on the DEFAULT config, and which
+# of the available policies to adopt, is the open decision tracked in #2141;
+# this case does not prejudge it and must not be widened to the rename arm
+# without going through that issue.
+#
+# `extra.sh` is an unrelated newly-added shebang file sorting AFTER `copy.sh`,
+# so its record follows the copy pair in the NUL stream. Asserting the EXACT
+# two-path output pins that the copy arm consumed both of its path fields: an
+# arm that reads short desynchronizes every record behind it and this
+# assertion is what notices.
+repo22="$(mkrepo)"
+(
+  cd "$repo22" || exit 1
+  git config core.filemode false
+  {
+    printf '#!/usr/bin/env bash\n'
+    for _ in $(seq 1 30); do printf 'echo line\n'; done
+  } >lib.sh
+  git add lib.sh
+  git commit -qm "seed the agreement fixture's non-executable source"
+  printf 'echo appended\n' >>lib.sh
+  cp lib.sh copy.sh
+  printf '#!/usr/bin/env bash\necho unrelated\n' >extra.sh
+  git add lib.sh copy.sh extra.sh
+) >/dev/null 2>&1
+
+(cd "$repo22" && git config diff.renames false) >/dev/null 2>&1
+agree_off_status="$(cd "$repo22" && git diff --cached --name-status | grep -c '^A.*copy\.sh' | tr -d ' \r')"
+agree_off="$(bash "$HELPER" --repo-dir "$repo22" --list 2>/dev/null | sort | tr '\n' ' ')"
+
+(cd "$repo22" && git config diff.renames copies) >/dev/null 2>&1
+agree_on_status="$(cd "$repo22" && git diff --cached --name-status | grep -c '^C' | tr -d ' \r')"
+agree_on="$(bash "$HELPER" --repo-dir "$repo22" --list 2>/dev/null | sort | tr '\n' ' ')"
+
+if [[ "$agree_off_status" == "1" ]] && [[ "$agree_on_status" == "1" ]]; then
+  # Both sides are asserted against the EXPECTED set, never merely against each
+  # other: two wrong answers that happen to match must not read as agreement.
+  assert_eq "diff.renames=false reports the destination (as an add)" \
+    "copy.sh extra.sh " "$agree_off"
+  assert_eq "diff.renames=copies reports the same destination (as a copy)" \
+    "copy.sh extra.sh " "$agree_on"
+  assert_eq "the two diff.renames configurations AGREE on identical staged content" \
+    "$agree_off" "$agree_on"
+else
+  skip_case "this git did not produce both an A and a C pairing for the agreement fixture"
 fi
 
 # The pair branch reads THREE fields per record, so a space in either path is
@@ -590,6 +675,46 @@ assert_contains "the spaced fixture really is a rename off a 100755 source" \
   "$(cd "$repo20" && git diff --cached --raw | head -n 1)" ":100755 100644"
 assert_eq "a rename destination is reported when BOTH paths contain spaces" \
   "new name.sh" "$(bash "$HELPER" --repo-dir "$repo20" --list 2>/dev/null)"
+
+# repo20 covers spaced paths on the RENAME arm only. The COPY arm reads the same
+# three fields through its own `read` calls, so it needs its own spaced case --
+# and the copy arm is now the one that admits unconditionally, so a misread
+# field becomes a WRONG path reported rather than a path silently dropped.
+# What this pins is the THREE-FIELD NUL-terminated read on the copy arm when
+# both paths contain spaces -- the shape most likely to desynchronize the
+# stream and shift every record behind it.
+#
+# It does NOT pin C-quoted-path handling, and an earlier version of this comment
+# wrongly claimed it did. `core.quotepath` only quotes bytes >0x80, control
+# characters, backslash and double-quote; `git help config` says outright that
+# "a simple space character is not considered 'unusual'". So a path built from
+# ASCII letters and spaces is never quoted whatever the setting is, and setting
+# it here is a no-op that matches the default. Exercising the quoted form needs
+# a path carrying one of those bytes, which no case in this file has.
+repo23="$(mkrepo)"
+(
+  cd "$repo23" || exit 1
+  git config core.filemode false
+  git config diff.renames copies
+  git config core.quotepath true
+  {
+    printf '#!/usr/bin/env bash\n'
+    for _ in $(seq 1 30); do printf 'echo line\n'; done
+  } >"tpl lib.sh"
+  git add "tpl lib.sh"
+  git commit -qm "seed the spaced non-executable copy source"
+  printf 'echo appended\n' >>"tpl lib.sh"
+  cp "tpl lib.sh" "tpl copy.sh"
+  git add "tpl lib.sh" "tpl copy.sh"
+) >/dev/null 2>&1
+
+spaced_copy_status="$(cd "$repo23" && git diff --cached --name-status | grep -c '^C' | tr -d ' \r')"
+if [[ "$spaced_copy_status" == "1" ]]; then
+  assert_eq "a copy destination is reported when BOTH paths contain spaces" \
+    "tpl copy.sh" "$(bash "$HELPER" --repo-dir "$repo23" --list 2>/dev/null)"
+else
+  skip_case "this git did not pair the spaced fixture as a copy"
+fi
 
 printf '\n%d case(s), %d failure(s)\n' "$CASE_NUM" "$FAILED"
 [[ $FAILED -eq 0 ]] || exit 1

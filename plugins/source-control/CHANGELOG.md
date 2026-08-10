@@ -3,6 +3,24 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.51.4]
+
+### Fixed
+
+- **`exec-bit-check.sh` no longer skips a copy destination whose source was never executable
+  (#2118).** `R*` and `C*` shared one `src_mode == "100755"` gate, so a copy off a `100644` shebang
+  source went unreported — while the *identical staged content* under `diff.renames=false` reports
+  as `A` and IS reported. That config-dependence is the exact failure the candidate set was widened
+  in #1590/#2098 to remove. The two statuses are not symmetric and no longer share a predicate: a
+  rename destination is the same tracked file at a new path, so a `100644` source means nothing
+  dropped a bit and the rename arm keeps its gate; a copy destination is a path that did NOT
+  previously exist, so it is newly added, squarely inside this check's scope, and the copy arm now
+  gates on nothing and defers to the `100644`-plus-shebang filter exactly as `A` does. Consequence
+  worth naming: copying a deliberately non-executable shebang library is now reported under
+  `diff.renames=copies`. That is not a new trade — creating one, or copying one under any other
+  `diff.renames` setting, is already reported through the `A` branch; the change makes the opt-in
+  copy-detection configuration agree with the default rather than adding a class of finding.
+
 ## [0.51.3]
 
 ### Fixed
