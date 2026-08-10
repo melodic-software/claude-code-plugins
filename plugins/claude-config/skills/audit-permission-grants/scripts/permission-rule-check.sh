@@ -240,6 +240,10 @@ else
 fi
 if [[ -n "$USER_CONFIG_ROOT" ]]; then
   scan_settings_allow "$USER_CONFIG_ROOT/settings.json" "$USER_CONFIG_ROOT/settings.json permissions.allow"
+else
+  # An unresolvable user scope is a skipped check, not a clean one. Silence here
+  # would let a report claiming "no fragile grants" rest on a scope never read.
+  echo "NOTE: user-global scope not scanned — neither CLAUDE_CONFIG_DIR nor HOME is set, so ~/.claude could not be resolved." >&2
 fi
 
 # --- Plugin self-grant scan (P3) ---------------------------------------------

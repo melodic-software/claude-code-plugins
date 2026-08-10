@@ -280,6 +280,13 @@ assert_not_contains "ignores \$HOME once CLAUDE_CONFIG_DIR is set" "$OUT" "Bash(
 assert_eq "relocated config root produces exactly one finding" "1" \
   "$(run_with_config_dir "$D8C" "$RELOCATED" "$FAKE_HOME" --count)"
 
+# --- Case 8e: an unresolvable user scope is announced, never silently skipped --
+# With neither CLAUDE_CONFIG_DIR nor HOME set there is no user scope to read. A
+# silent skip would let "No fragile permission grants found." rest on a scope
+# that was never opened.
+err_out=$(env -u CLAUDE_CONFIG_DIR -u HOME PERMISSION_HYGIENE_FIXTURE_DIR="$D8C" bash "$SCRIPT" 2>&1 >/dev/null)
+assert_contains "unresolvable user scope is announced" "$err_out" "user-global scope not scanned"
+
 # --- Case 9: missing jq exits 2 ---------------------------------------------
 real_bash=$(command -v bash)
 empty_path_dir="$TEST_TMPDIR/empty-path"

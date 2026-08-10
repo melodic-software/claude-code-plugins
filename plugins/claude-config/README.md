@@ -59,8 +59,11 @@ Audits permission GRANTS (not file correctness — that is `audit`) for the fail
 make a grant silently do nothing: interpreter-wildcard / blanket rules that Claude Code drops on
 entering auto mode, hardcoded absolute machine/user paths (Bash rules match literally, no expansion),
 and inert plugin self-grants. A deterministic detector scans skill/command/agent frontmatter
-`allowed-tools` and `settings.json` / `settings.local.json` `permissions.allow`, and recommends the
-bare-command-on-PATH pattern. The principle and citations live in the marketplace
+`allowed-tools` and the project, local, and user-global `permissions.allow` arrays, and recommends the
+bare-command-on-PATH pattern. The user-global file
+(`${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json`) is where Claude Code's own "Always allow" path
+writes, so on a long-lived machine expect it to carry most of the findings — and their remediation is
+the operator's, since no skill can write that file. The principle and citations live in the marketplace
 [permission-rule-hygiene convention](../../docs/conventions/permission-rule-hygiene/README.md).
 Report-only.
 

@@ -300,7 +300,9 @@ The integration slice. Everything downstream reads what this produces.
   both stay in effect.
 - Emit one scope record per file: scope, absolute path, present/parsed, and the three rule arrays.
 - Declare `jq` as **required for correctness** with a hard stop at the entry point, matching
-  `permission-rule-check.sh:63-64` (`ERROR: jq required`, exit 2). Declare it in the plugin README.
+  `permission-rule-check.sh`'s own jq gate (`ERROR: jq required`, exit 2). Declare it in the plugin
+  README. (This plan forbids line-number citations into living files; the earlier `:63-64` here was
+  already stale.)
 
 - **Fixture seam is Phase 1 work, not an afterthought.** The sibling exposes only
   `PERMISSION_HYGIENE_FIXTURE_DIR`, which sets `ROOT` and therefore reaches project and local scopes
@@ -583,7 +585,15 @@ Phase 8's sweep, which must include this skill.
 `managed-scope.test.sh` 16/16, `permission-patterns.test.sh` 12/12,
 `check-cross-plugin-source-drift.sh --check` clean and proven to FAIL on a deliberately perturbed
 copy, `shellcheck -x` clean, `check-shell-portability.sh` clean, `check-changelog-parity.sh --check`
-and `--check-bump origin/main` clean.
+and `--check-bump origin/main` clean, and `check-skill.sh audit-permission-grants` PASS against the
+pre-change ref — the only gate covering the frontmatter edit, which the trigger-preservation check
+confirms kept all four base-ref phrases at 552/1536 characters.
+
+No machine consumer gates on the detector's finding count: a repo-wide sweep for
+`permission-rule-check` and `audit-permission-grants` outside the skill's own directory returns
+documentation and lane routing only, no `--count` threshold in a hook, a CI job, or an `audit-pass`
+verdict. The widening therefore adds findings a human reads; it cannot turn a previously-green
+automated check red.
 
 Two deliberate divergences from the phase as written, both recorded rather than silent:
 
@@ -787,6 +797,14 @@ Remaining genuinely open, carried into implementation:
   writes to consumer *settings*, and a transcript is not a settings file, but the boundary was never
   measured. Measure it in Phase 3 before the oracle ships, and state the result in the flag's cost
   notice — a feature that spawns a session must be honest about everything it leaves behind.
+- **P2's machine-path vocabulary overlaps a standards-managed upstream body.**
+  `guardrails/lib/path-detection/machine-path-patterns.sh` is the org-shared materialization of the
+  per-OS machine-path regexes, kept upstream "so a pattern change lands once and reaches every scan
+  driver in lockstep". `permission-rule-check.sh` assembles its own `P2_ERE` independently. The two
+  serve different inputs (permission-rule text with its own `$`/`{`/`~` exemptions vs file content
+  with driver-side boundary prefixes), so this is not an obvious merge — and the upstream body is
+  standards-owned, so any convergence lands there, not here. Deliberately left alone by Phase 9;
+  recorded so it is not lost.
 - **The worktree resolution gap in the two existing detectors.** `permission-rule-check.sh` and
   `check-structure.sh` both anchor on `git rev-parse --show-toplevel`, which yields the **worktree**
   root, while the settings page says `.claude/settings.local.json` resolves through worktrees to the
