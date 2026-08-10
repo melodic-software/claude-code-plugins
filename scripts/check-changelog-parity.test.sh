@@ -143,6 +143,66 @@ rc=$?
 if [[ $rc -eq 2 && "$out" == *"non-SemVer"*"1.two.0"* ]]; then ok "--check refuses a non-SemVer manifest version loudly (exit 2)"; else fail "--check did not refuse malformed version: rc=$rc out='$out'"; fi
 rm -rf "$repo"
 
+# ...and refuses it EVEN WITH NO HEADING to compare against: an uncomparable
+# manifest version is a defect in its own right, so the guard must not hide
+# behind the presence of a release note.
+repo="$(mk_repo)"
+mk_plugin "$repo" alpha 1.two.0 yes
+printf '# Changelog\n\nNo releases yet.\n' >"$repo/plugins/alpha/CHANGELOG.md"
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check 2>&1)"
+rc=$?
+if [[ $rc -eq 2 && "$out" == *"non-SemVer"*"1.two.0"* ]]; then ok "--check refuses a non-SemVer manifest version with a heading-less changelog too"; else fail "malformed version rode through behind a missing heading: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
+# SEMVER BUILD METADATA above the manifest -> caught. Manifests and --check-bump
+# both accept `1.0.1+build.1`, so a heading extractor that dropped the tail would
+# leave exactly that class unchecked — a gate that silently checks nothing.
+repo="$(mk_repo)"
+mk_plugin "$repo" alpha 1.0.0 yes
+printf '# Changelog\n\n## [1.0.1+build.1]\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check 2>&1)"
+rc=$?
+if [[ $rc -ne 0 && "$out" == *"CHANGELOG AHEAD OF MANIFEST"*"1.0.1+build.1"* ]]; then ok "a build-metadata heading above the manifest is caught"; else fail "build-metadata heading slipped past the reverse check: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
+# ...and the matching manifest passes: the tail is stripped before comparing, so
+# an equal-core pair is not a false failure.
+repo="$(mk_repo)"
+mk_plugin "$repo" alpha 1.0.1+build.1 yes
+printf '# Changelog\n\n## [1.0.1+build.1]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+if (cd "$repo" && bash scripts/check-changelog-parity.sh --check >/dev/null 2>&1); then ok "a build-metadata heading equal to the manifest passes --check"; else fail "equal build-metadata pair wrongly failed"; fi
+rm -rf "$repo"
+
+# FENCED EXAMPLE: a column-zero heading with a high version inside a ``` block is
+# not rendered markdown, so it must not be read as the newest release. Without
+# fence tracking this is a false FAIL in a required gate with no baseline escape.
+repo="$(mk_repo)"
+mk_plugin "$repo" alpha 1.0.0 yes
+# shellcheck disable=SC2016  # single quotes are deliberate: the backtick fence and \n are literal changelog bytes
+printf '# Changelog\n\nHeadings look like this:\n\n```\n## [9.9.9]\n```\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]]; then ok "a fenced example heading is not read as the newest release"; else fail "fenced example wrongly red-lined --check: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
+# HTML-COMMENT EXAMPLE: same, inside a multi-line <!-- --> block.
+repo="$(mk_repo)"
+mk_plugin "$repo" alpha 1.0.0 yes
+printf '# Changelog\n\n<!--\n## [9.9.9]\n-->\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]]; then ok "a heading inside an HTML comment is not read as the newest release"; else fail "commented heading wrongly red-lined --check: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
+# ...and the same suppression applies to --check-order, which reads changelogs
+# through the same tracker: a fenced out-of-order example must not be misordered.
+repo="$(mk_repo)"
+mk_plugin "$repo" alpha 1.0.0 yes
+# shellcheck disable=SC2016  # single quotes are deliberate: the backtick fence and \n are literal changelog bytes
+printf '# Changelog\n\n## [2.0.0]\n\n```\n## [0.1.0]\n```\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+if (cd "$repo" && bash scripts/check-changelog-parity.sh --check-order >/dev/null 2>&1); then ok "a fenced example heading is invisible to --check-order too"; else fail "fenced example wrongly red-lined --check-order"; fi
+rm -rf "$repo"
+
 # ============================ --check-bump (diff) =========================
 
 # version changed AND changelog has the new version's entry -> passes
