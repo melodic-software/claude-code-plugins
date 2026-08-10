@@ -213,7 +213,8 @@ balls (not five) are introduced sequentially:
 - Ball 3 (Chapter 3) — rhythm
 - Ball 4 (Chapter 4) — rhyme scheme
 
-The **fifth element (rhyme type)** was added in *Essential Guide to Rhyming* (2014) (2014). *Essential Guide to Lyric Form and Structure* (1991)
+The **fifth element (rhyme type)** was added in *Essential Guide to Rhyming*
+(2014). *Essential Guide to Lyric Form and Structure* (1991)
 intentionally uses only **perfect rhyme and identity** for all 44
 exercises — no family, additive, assonance, or consonance vocabulary.
 

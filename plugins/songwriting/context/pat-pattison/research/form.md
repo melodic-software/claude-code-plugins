@@ -203,12 +203,21 @@ leans toward the meter the verse has already established at length. Where a
 chorus is meant to contrast with a common-meter verse, check what its
 balancing phrases are doing, not only whether the numbers differ.
 
-On how many verse phrases that is: Chapter 20 reads the verse as two complete
-common-meter systems varied by an extra stress in its last phrase, while
-[song-forms-examples](song-forms-examples.md) reads the 1991 treatment of the
-same song as seven phrases with the closing eighth deceptively withheld. Those
-are two readings of one verse in two books, not a contradiction to resolve —
-cite whichever book is in hand and do not merge the counts.
+On how many verse phrases that is: **the two books agree at eight, and the
+apparent standoff was our error, not Pat's.** *Writing Better Lyrics* (2009),
+Chapter 20 reads the verse as two complete common-meter systems — eight lines —
+varied by an extra stress in its last phrase. *Essential Guide to Lyric Form
+and Structure* (1991), Chapter 6, read with its figures, sets the same verse out
+as eight phrases rhyming `x a x a x a b b` and calls the last phrase a
+Deceptive Closure.
+
+Same structure, two vocabularies: what 2009 describes as an extra stress in the
+final phrase, 1991 describes as that phrase refusing the three-stress
+common-meter close the first seven have set up. Nothing is withheld in phrase
+*count* — the eighth phrase arrives and deceives. An earlier revision of
+[song-forms-examples](song-forms-examples.md) read it as seven phrases with the
+eighth withheld; that reading is corrected, and there is no longer a reason to
+keep the counts apart.
 
 Useful revision moves:
 

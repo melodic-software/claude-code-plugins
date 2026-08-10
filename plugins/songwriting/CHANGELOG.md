@@ -3,6 +3,92 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.3]
+
+A source-fidelity pass over *Essential Guide to Lyric Form and Structure*
+(1991) Chapters 1, 2, and 6, each read in full with every figure, plus
+Chapter 5's bridge and song-system material. **This opens Book 1** and settles
+the two claims the 0.8.2 pass had to leave standing. Paraphrase only; no
+chapter prose, example lyrics, or exercise answers reach this public
+repository.
+
+### Fixed
+
+- **"Four times is a lot" was credited to 1991 Chapter 6 as a shared warning.
+  It is 2009's alone.** Chapter 6, read in full with its 37 figures, never
+  discusses V/V/Ch/V/V/Ch, never counts verses, and never names four. Its
+  related claim is about pattern-size monotony, not verse-exposure count.
+  `song-forms.md` now scopes the warning to *Writing Better Lyrics* (2009),
+  Chapter 22, states what 1991 actually says instead, and attributes the bare
+  pull-quote that had been sitting uncited near the top of the file.
+- **"Southern Comfort" was read as seven phrases with the eighth withheld. The
+  verse has eight, and the eighth arrives.** The rhyme-column and scansion
+  figures are unambiguous: eight phrases rhyming `x a x a x a b b`. Nothing is
+  withheld in phrase *count* — the eighth phrase lands and refuses the
+  three-stress common-meter close and the rhyme resolution the first seven set
+  up, which is what makes it a Deceptive Closure. Corrected in
+  `song-forms-examples.md` and `song-forms.md`.
+- **The resulting standoff in `form.md` is dissolved, not re-hedged.** 0.8.2
+  recorded 2009 Chapter 20's "two common-meter systems" and the 1991 "seven
+  phrases" reading as two coexisting readings not to be merged. With the 1991
+  text verified, both books read **eight**; they differ only in vocabulary
+  (extra stress in the final phrase vs. deceptive closure). The instruction to
+  keep the counts apart is removed.
+- **`song-forms.md` claimed 1991 Chapter 6 has no linked images. It has 37, and
+  they carry the argument.** The chapter's entire scansion and rhyme-column
+  analysis lives in figures; the text layer trails off at dangling colons. That
+  bad inventory line is how the seven-phrase error survived. The entry now
+  states the count and warns that a text-only audit will miscount phrases.
+- **The three bridge functions were cited to Chapter 5; they are Chapter 6's.**
+  Book 1 carries two different bridge lists and the plugin had merged their
+  labels. `bridge.md` now cites Chapter 6 for the three purposes, and records
+  Chapter 5's separate five-point characterization of what a bridge *is* so the
+  two stop being conflated. Same fix in `song-forms-examples.md` and
+  `song-forms.md`.
+- **"Different-size system" had been relocated from the song system to the
+  bridge.** Chapter 6's point is that a bridge shorter than a verse makes the
+  final *song system* shorter than the ones before it, so the next section
+  arrives early. `bridge.md` and `song-forms-examples.md` had it as the bridge
+  using a phrase count or line length not seen elsewhere — which contradicted
+  `form.md`, where the claim was already correct.
+- **`phrasing.md` stated Chapter 1's spotlight use twice and got it wrong the
+  second time.** The early section has it right — the balancing position is the
+  last phrase of an *even* section, and stopping is what spotlights. The later
+  appended block said the balance *shift* is the spotlight, which is Chapter
+  1's third use, not its first. Fourth file found with this
+  correct-early/wrong-late shape.
+- **The even/odd balance rule was stated without either of Pattison's own
+  overrides.** Nesting can rescue an odd count (the five-phrase "Fathers and
+  Sons" verse seems balanced because two short phrases add up to one long one);
+  closure behavior can unbalance an even one ("Southern Comfort" at eight).
+  Applied mechanically, the bare rule misdiagnoses both of his examples.
+- **Acceleration and deceleration were presented as an exclusive choice.** The
+  "Slow Healing Heart" case speeds up, returns to pace, then slows; Pattison is
+  explicit that more than one blank gets filled. The practice method said to
+  pick one label.
+- **"The spotlight effect is multiplicative, not additive" is not Pattison's
+  claim.** He says the surprise phrase spotlights both lines, *especially* the
+  last. The invented framing and the dropped ranking are both corrected.
+- **Chapter 2's exercises were missing entirely.** `exercises.md` claims to
+  preserve the numbered series for Chapters 1-7, but ran 1, 2, 3, 4 and then
+  jumped to 8 — the gap is exactly Chapter 2's three. Added Ex 5 (label the
+  pace effect, filling more than one blank where earned), Ex 6 (complete a
+  section accelerating, then decelerating), and Ex 7 (contrast a whole section
+  by phrase length), generalized in the style of Ex 1-4.
+- Doubled year in two headings (`exercises.md`, `five-compositional-elements.md`)
+  left by a mechanical book-title substitution.
+
+### Added
+
+- `phrasing.md` — two unbalanced sections can balance each other; Pattison's
+  stated use for motion pairs one unbalanced section with another equally
+  unbalanced one, so odd sections need not be discharged by an even one.
+- `phrasing.md` — the reversal test: swap a verse pair and see whether the push
+  survives. If it does not change, the imbalance is not doing the work.
+- `song-forms.md` — Chapter 6 states its two form principles as a pair. AABA
+  runs on the limerick's principle and verse/chorus on Common Meter's, also
+  called the Ballad Stanza; only the first half was recorded.
+
 ## [0.8.2]
 
 A source-fidelity pass over `process.md`, `co-writing.md`, and the co-write

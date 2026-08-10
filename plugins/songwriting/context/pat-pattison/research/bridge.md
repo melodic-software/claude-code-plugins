@@ -1,8 +1,8 @@
 # Bridge Writing
 
 Pat Pattison - *Songwriting: Essential Guide to Lyric Form and Structure*
-(1991), Chapter 5; *Writing Better Lyrics* (2009), Chapters 22-23. Bridge as a
-developmental section: most unbalanced, structurally distinct, content-new.
+(1991), Chapters 5-6; *Writing Better Lyrics* (2009), Chapters 22-23. Bridge as
+a developmental section: most unbalanced, structurally distinct, content-new.
 
 ## Core idea
 
@@ -16,20 +16,36 @@ If a writer adds a "bridge" that uses the verse's phrase count, line length,
 rhyme scheme, and content angle, that isn't a bridge — that's another
 verse with different words.
 
-## Three bridge functions (*Essential Guide to Lyric Form and Structure* (1991), Chapter 5)
+## Three bridge functions (*Essential Guide to Lyric Form and Structure* (1991), Chapter 6)
 
 A bridge must serve **at least one**, often all three:
 
 1. **Break monotony** — the song has been in established structure too long;
-   the bridge contrasts to reset the ear
-2. **Different-size system** — bridge uses a phrase count or line length not
-   seen elsewhere; the new size says "we're somewhere new"
+   the bridge contrasts to reset the ear, and sets up the section after it as
+   a contrasting arrival
+2. **Different-size song system** — the different size belongs to the *system*,
+   not to the bridge's own dimensions. Without a bridge every song system is
+   one verse long; a bridge that is shorter than a verse (as most are) makes
+   the final system shorter than the ones before it, so the last chorus or
+   verse arrives "early" and gains interest from the change of pace
 3. **New perspective** — bridge says something the verses haven't said.
    Often the "why" — the underlying cause or stakes the song has only
-   implied so far
+   implied so far. Chapter 6 frames it as letting the established ideas
+   "breathe" by moving to a new angle
 
 Diagnose a draft bridge: which of these three does it do? If none, it isn't
 bridging — it's restating. Rewrite or remove.
+
+**Do not confuse this list with Chapter 5's.** Book 1 carries two bridge lists
+and they answer different questions. Chapter 6's three purposes above are what
+*adding* a bridge accomplishes for a form. Chapter 5 gives a separate
+**five-point characterization of what a bridge is**: it is a developmental
+section; it develops a new perspective or contrasting idea; it unbalances by
+moving away from established structures, creating structural tension; it is
+resolved by the return to established structures; and it is therefore
+frequently the lyric's most unbalanced section. Chapter 5 also notes the
+section is often called a "release" or boredom breaker — and that it is much
+more than that. Cite Chapter 6 for the purposes, Chapter 5 for the definition.
 
 ## When a song needs a bridge
 
