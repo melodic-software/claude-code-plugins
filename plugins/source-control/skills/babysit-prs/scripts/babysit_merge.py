@@ -232,7 +232,18 @@ def repository_default_branch(repo: str) -> str | None:
 
 
 def branch_rules(repo: str, branch: str) -> dict[str, object]:
-    """Summarize the effective merge-governing rules for the base branch."""
+    """Summarize the effective merge-governing rules for the base branch.
+
+    `requiredContexts` is the UNION of every rule's contexts, deduped and
+    sorted. Rulesets compose: `/rules/branches/{branch}` returns one
+    `required_status_checks` rule per ruleset governing the branch, so the
+    single-rule assumption that held under classic branch protection does not
+    hold here -- keeping only one rule's list drops every other ruleset's
+    required contexts from both `effectiveRules` and the unmet-required
+    blocker. Two rulesets may legitimately require the same context, hence the
+    dedupe; the sort makes the reported set stable across runs regardless of
+    the order the API returns rulesets in.
+    """
     summary: dict[str, object] = {
         "requiredContexts": [],
         "requiredApprovingReviews": 0,
@@ -247,6 +258,7 @@ def branch_rules(repo: str, branch: str) -> dict[str, object]:
         # Rules are advisory context; a read failure must never fail the run.
         summary["error"] = f"could not read branch rules: {exc}"
         return summary
+    required_contexts: set[str] = set()
     for rule in cast(list[Any], rules) if isinstance(rules, list) else []:
         if not isinstance(rule, dict):
             continue
@@ -257,11 +269,14 @@ def branch_rules(repo: str, branch: str) -> dict[str, object]:
             cast(dict[str, Any], raw_params) if isinstance(raw_params, dict) else {}
         )
         if rtype == "required_status_checks":
-            summary["requiredContexts"] = [
-                cast(dict[str, Any], c).get("context")
+            # A context-less entry is dropped rather than carried: it names no
+            # check to reconcile, and a None would sort-crash the union and
+            # surface downstream as a literal "None" required context.
+            required_contexts.update(
+                str(cast(dict[str, Any], c)["context"])
                 for c in params.get("required_status_checks", [])
-                if isinstance(c, dict)
-            ]
+                if isinstance(c, dict) and cast(dict[str, Any], c).get("context")
+            )
         elif rtype == "pull_request":
             summary["requiredApprovingReviews"] = params.get(
                 "required_approving_review_count", 0
@@ -275,6 +290,7 @@ def branch_rules(repo: str, branch: str) -> dict[str, object]:
             summary["requireLinearHistory"] = True
         elif rtype == "merge_queue":
             summary["mergeQueueRequired"] = True
+    summary["requiredContexts"] = sorted(required_contexts)
     return summary
 
 
