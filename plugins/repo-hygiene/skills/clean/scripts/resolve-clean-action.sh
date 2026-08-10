@@ -120,9 +120,9 @@ has_reset_intent() {
 # falls through to the normal conflict path.
 sel=""
 for token in "$@"; do
-  case "$(resolve_one "$(printf '%s' "$token" | tr '[:upper:]' '[:lower:]')")" in
+  t="$(resolve_one "$(printf '%s' "$token" | tr '[:upper:]' '[:lower:]')")"
+  case "$t" in
   caches | build | git)
-    t="$(resolve_one "$(printf '%s' "$token" | tr '[:upper:]' '[:lower:]')")"
     if [[ -z "$sel" ]]; then
       sel="$t"
     elif [[ "$sel" != "$t" ]]; then

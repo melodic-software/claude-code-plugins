@@ -179,9 +179,7 @@ def split_owner(repo: str) -> str:
 
 
 def parse_allowed_owners(raw: str | None) -> set[str]:
-    if not raw:
-        return set()
-    return {part.strip().casefold() for part in raw.split(",") if part.strip()}
+    return {owner.casefold() for owner in parse_csv_set(raw)}
 
 
 def unresolved_threads(repo: str, number: int) -> list[dict[str, object]]:
@@ -870,12 +868,11 @@ def evaluate(
 
     # Reconcile each required status-check context against the deduped rollup.
     required_contexts = rules.get("requiredContexts")
+    required_context_list = (
+        cast(list[Any], required_contexts) if isinstance(required_contexts, list) else []
+    )
     required_check_status: list[dict[str, object]] = []
-    for raw_context in (
-        cast(list[Any], required_contexts)
-        if isinstance(required_contexts, list)
-        else []
-    ):
+    for raw_context in required_context_list:
         ctx = str(raw_context)
         match = next(
             (
@@ -896,9 +893,6 @@ def evaluate(
         )
 
     required_reviews = rules.get("requiredApprovingReviews") or 0
-    required_context_list = (
-        required_contexts if isinstance(required_contexts, list) else []
-    )
     base_is_unprotected = not required_reviews and not required_context_list
 
     blockers: list[str] = []

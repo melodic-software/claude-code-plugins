@@ -235,7 +235,7 @@ if [[ -n "$VIOLATIONS" ]]; then
   # (see lib/path-detection/hardcoded-path-patterns.sh), and it would deadlock
   # HERE, on the blocked path, after the stderr message but before `exit 2` —
   # turning a detected violation into a hook the harness cancels at its timeout.
-  labels_json=$(grep -E 'detected:$' < <(printf '%s' "$VIOLATIONS") 2>/dev/null | sed 's/:$//' | jq -R . | jq -s . 2>/dev/null) || labels_json='[]'
+  labels_json=$(grep -E 'detected:$' < <(printf '%s' "$VIOLATIONS") 2>/dev/null | sed 's/:$//' | jq -Rn '[inputs]' 2>/dev/null) || labels_json='[]'
   emit_tel "blocked" "$labels_json"
   exit 2
 fi

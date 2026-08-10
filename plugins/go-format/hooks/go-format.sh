@@ -48,12 +48,15 @@ hook::check_enabled "GO_FORMAT"
 # `set -u` would abort before the advisory exit 0, failing every edit.
 start=${EPOCHREALTIME:-}
 
-# Telemetry needs the high-res start stamp. When EPOCHREALTIME is unavailable
-# (Bash < 5.0) the stamp is empty and telemetry is skipped, so the hook still
-# formats on older bash rather than aborting.
+# Emit this run's telemetry envelope: $1 status, $2 findings JSON array.
+# Two guards: the high-res start stamp (EPOCHREALTIME is Bash 5.0+; on older
+# bash it is empty and telemetry is skipped, so the hook still formats rather
+# than aborting) and the sink opt-in. The data payload costs a jq subprocess,
+# so it is built here after both guards — never on the unwired path.
 emit_tel() {
   [[ -n "$start" ]] || return 0
-  hook::emit_telemetry "$@"
+  hook::telemetry_enabled || return 0
+  hook::emit_telemetry "go-format" "PostToolUse" "$1" "$start" "$(build_data_json "$2")" "$REPO_ROOT"
 }
 
 INPUT=$(hook::buffer_stdin) || exit 0
@@ -77,26 +80,35 @@ case "$FILE" in
 *) exit 0 ;;
 esac
 
-TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
-
 # Resolve repo root early — used to compute the schema-required repo-relative
 # path in data.file.
 REPO_ROOT="$(hook::repo_root "$(dirname "$FILE")")"
-# Repo-relative path: schema requires "relative to the consuming repo root".
-# On Windows Git Bash, git rev-parse --show-toplevel returns a drive-letter path
-# while FILE may be in POSIX mount form. Normalize both through cygpath -lm
-# (long name, forward-slash mixed form) when available so the prefix strip
-# compares the same representation. On Linux/macOS, cygpath is absent and both
-# paths are already POSIX. Falls back to raw FILE on any normalization error.
+
+# TOOL and FILE_REL feed the telemetry data object and nothing else (goimports
+# is invoked with the absolute $FILE), so both are resolved only when a sink is
+# wired: the unwired default path spawns zero telemetry-only subprocesses (the
+# tool_name jq parse, and 2× cygpath on Windows).
+#
+# FILE_REL is the repo-relative path: schema requires "relative to the consuming
+# repo root". On Windows Git Bash, git rev-parse --show-toplevel returns a
+# drive-letter path while FILE may be in POSIX mount form. Normalize both
+# through cygpath -lm (long name, forward-slash mixed form) when available so
+# the prefix strip compares the same representation. On Linux/macOS, cygpath is
+# absent and both paths are already POSIX. Falls back to raw FILE on any
+# normalization error.
+TOOL=""
 FILE_REL="$FILE"
-if command -v cygpath >/dev/null 2>&1; then
-  _file_lm=$(cygpath -lm "$FILE" 2>/dev/null)
-  _root_lm=$(cygpath -lm "$REPO_ROOT" 2>/dev/null)
-  if [[ -n "$_file_lm" && -n "$_root_lm" ]]; then
-    FILE_REL="${_file_lm#"$_root_lm"/}"
+if hook::telemetry_enabled; then
+  TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
+  if command -v cygpath >/dev/null 2>&1; then
+    _file_lm=$(cygpath -lm "$FILE" 2>/dev/null)
+    _root_lm=$(cygpath -lm "$REPO_ROOT" 2>/dev/null)
+    if [[ -n "$_file_lm" && -n "$_root_lm" ]]; then
+      FILE_REL="${_file_lm#"$_root_lm"/}"
+    fi
+  else
+    FILE_REL="${FILE#"$REPO_ROOT"/}"
   fi
-else
-  FILE_REL="${FILE#"$REPO_ROOT"/}"
 fi
 
 # Build the telemetry data object for the current TOOL/FILE_REL. $1 is the
@@ -113,9 +125,7 @@ build_data_json() {
 }
 
 emit_skipped() {
-  local data_json
-  data_json=$(build_data_json '[]')
-  emit_tel "go-format" "PostToolUse" "skipped" "$start" "$data_json" "$REPO_ROOT"
+  emit_tel "skipped" '[]'
   exit 0
 }
 
@@ -232,8 +242,7 @@ RC=$?
 if [[ $RC -eq 0 ]]; then
   # Clean, or fixed silently (formatting/import changes carry no advisory
   # noise — same posture as a successful ruff/typos autofix pass).
-  data_json=$(build_data_json '[]')
-  emit_tel "go-format" "PostToolUse" "ok" "$start" "$data_json" "$REPO_ROOT"
+  emit_tel "ok" '[]'
   exit 0
 fi
 
@@ -255,8 +264,7 @@ if [[ $RC -eq 2 && -n "$STDERR" ]]; then
   if [[ -n "$findings_raw" ]]; then
     FINDINGS_JSON=$(printf '%s' "$findings_raw" | jq -R . | jq -s . 2>/dev/null) || FINDINGS_JSON='[]'
   fi
-  data_json=$(build_data_json "$FINDINGS_JSON")
-  emit_tel "go-format" "PostToolUse" "ok" "$start" "$data_json" "$REPO_ROOT"
+  emit_tel "ok" "$FINDINGS_JSON"
   exit 0
 fi
 
@@ -271,6 +279,5 @@ while IFS= read -r line; do
   hook::ctx_append "  $line"
 done <<<"$STDERR"
 hook::ctx_flush PostToolUse
-data_json=$(build_data_json '[]')
-emit_tel "go-format" "PostToolUse" "skipped" "$start" "$data_json" "$REPO_ROOT"
+emit_tel "skipped" '[]'
 exit 0

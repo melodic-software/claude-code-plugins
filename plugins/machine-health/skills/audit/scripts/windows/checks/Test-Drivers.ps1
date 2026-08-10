@@ -142,13 +142,10 @@ function Invoke-DriversCheck {
         $severity = 'OK'
         if ($ciEvents.Count -gt 0) {
             $severity = 'CRIT'
-        } elseif ($unsignedInStore.Count -gt 0) {
+        } elseif ($unsignedInStore.Count -gt 0 -or $problemDevices.Count -gt 0) {
             $severity = 'WARN'
-        } elseif ($problemDevices.Count -gt 0) {
-            $severity = 'WARN'
-        } elseif ($null -ne $pendingDriverUpdates -and $pendingDriverUpdates.Count -gt 0) {
-            $severity = 'INFO'
-        } elseif ($oldSignedCount -gt 0) {
+        } elseif (($null -ne $pendingDriverUpdates -and $pendingDriverUpdates.Count -gt 0) -or
+            $oldSignedCount -gt 0) {
             $severity = 'INFO'
         }
 

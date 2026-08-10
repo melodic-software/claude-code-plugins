@@ -169,6 +169,18 @@ note() {
   printf 'INFO: %s\n' "$*"
 }
 
+# Sorted-unique trigger phrases in a frontmatter block's LISTING text — the
+# description + when_to_use pair the harness assembles into one listing entry.
+# Reads the frontmatter as a string so every caller (working tree, base ref,
+# sibling skill) derives triggers the same way.
+fm_listing_triggers() {
+  local fm="$1"
+  printf '%s\n%s\n' \
+    "$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field description <<<"$fm")")" \
+    "$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field when_to_use <<<"$fm")")" |
+    skill_frontmatter::extract_triggers
+}
+
 if [[ ! -d "$SKILL_DIR" ]]; then
   # A `plugin:skill` argument is a common miss: the operator wants to gate a
   # marketplace-INSTALLED skill, but this checker resolves a bare skill name
@@ -279,9 +291,7 @@ fi
 
 if git -C "$REPO_ROOT" cat-file -e "$BASE_REF:$SKILL_REL/SKILL.md" 2>/dev/null; then
   BASE_FM_3="$(git -C "$REPO_ROOT" show "$BASE_REF:$SKILL_REL/SKILL.md" 2>/dev/null | skill_frontmatter::extract)"
-  BASE_DESC="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field description <<<"$BASE_FM_3")")"
-  BASE_WTU="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field when_to_use <<<"$BASE_FM_3")")"
-  BASE_TRIG="$(printf '%s\n%s\n' "$BASE_DESC" "$BASE_WTU" | skill_frontmatter::extract_triggers)"
+  BASE_TRIG="$(fm_listing_triggers "$BASE_FM_3")"
   CUR_TRIG="$(printf '%s\n%s\n' "$CUR_DESC" "$CUR_WTU" | skill_frontmatter::extract_triggers)"
   if [[ -n "$BASE_TRIG" ]]; then
     MISSING="$(comm -23 <(printf '%s\n' "$BASE_TRIG") <(printf '%s\n' "$CUR_TRIG"))"
@@ -299,28 +309,30 @@ if git -C "$REPO_ROOT" cat-file -e "$BASE_REF:$SKILL_REL/SKILL.md" 2>/dev/null; 
       # repo root), so sibling base-ref lookups address the right tree entry.
       SKILLS_REL_PARENT=""
       [[ "$SKILL_REL" == */* ]] && SKILLS_REL_PARENT="${SKILL_REL%/*}"
+      # A sibling's working-tree listing text is the same for every missing
+      # phrase, so read and parse each SKILL.md once here rather than once per
+      # phrase (the per-phrase scan below then only walks the cached arrays).
+      # Glob order is preserved, so the first-genuine-host tie-break is unchanged.
+      SIB_NAMES=()
+      SIB_TRIGS=()
+      for other_md in "$SKILLS_ROOT"/*/SKILL.md; do
+        [[ -f "$other_md" ]] || continue
+        [[ "$other_md" == "$SKILL_MD" ]] && continue
+        OTHER_NAME="${other_md%/SKILL.md}"
+        SIB_NAMES+=("${OTHER_NAME##*/}")
+        SIB_TRIGS+=("$(fm_listing_triggers "$(skill_frontmatter::extract <"$other_md")")")
+      done
       LOST=""
       while IFS= read -r phrase; do
         [[ -n "$phrase" ]] || continue
         MOVE_HOST=""
-        for other_md in "$SKILLS_ROOT"/*/SKILL.md; do
-          [[ -f "$other_md" ]] || continue
-          [[ "$other_md" == "$SKILL_MD" ]] && continue
-          OTHER_FM="$(skill_frontmatter::extract <"$other_md")"
-          OTHER_TRIG="$(printf '%s\n%s\n' \
-            "$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field description <<<"$OTHER_FM")")" \
-            "$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field when_to_use <<<"$OTHER_FM")")" |
-            skill_frontmatter::extract_triggers)"
-          printf '%s\n' "$OTHER_TRIG" | grep -qxF -- "$phrase" || continue
-          OTHER_NAME="${other_md%/SKILL.md}"
-          OTHER_NAME="${OTHER_NAME##*/}"
+        for ((sib_i = 0; sib_i < ${#SIB_NAMES[@]}; sib_i++)); do
+          printf '%s\n' "${SIB_TRIGS[$sib_i]}" | grep -qxF -- "$phrase" || continue
+          OTHER_NAME="${SIB_NAMES[$sib_i]}"
           OTHER_REL="${SKILLS_REL_PARENT:+$SKILLS_REL_PARENT/}$OTHER_NAME"
           if git -C "$REPO_ROOT" cat-file -e "$BASE_REF:$OTHER_REL/SKILL.md" 2>/dev/null; then
-            OTHER_BASE_FM="$(git -C "$REPO_ROOT" show "$BASE_REF:$OTHER_REL/SKILL.md" 2>/dev/null | skill_frontmatter::extract)"
-            OTHER_BASE_TRIG="$(printf '%s\n%s\n' \
-              "$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field description <<<"$OTHER_BASE_FM")")" \
-              "$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field when_to_use <<<"$OTHER_BASE_FM")")" |
-              skill_frontmatter::extract_triggers)"
+            OTHER_BASE_TRIG="$(fm_listing_triggers \
+              "$(git -C "$REPO_ROOT" show "$BASE_REF:$OTHER_REL/SKILL.md" 2>/dev/null | skill_frontmatter::extract)")"
             # Sibling already carried the phrase at BASE_REF: coincidental
             # overlap, not a move — keep looking for a genuine host.
             printf '%s\n' "$OTHER_BASE_TRIG" | grep -qxF -- "$phrase" && continue

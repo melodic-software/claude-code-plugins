@@ -120,7 +120,7 @@ fi
 
 HELP_OUTPUT=""
 if $USE_CACHE; then
-  HELP_OUTPUT=$(cat "$CACHE_FILE")
+  HELP_OUTPUT=$(<"$CACHE_FILE")
 else
   # Run `<bin> [<subcmds>...] --help` with timeout 5s. 2>&1 catches binaries
   # that print --help to stderr (e.g. some legacy tools).

@@ -193,32 +193,28 @@ class ClassifyConfig:
 DEFAULT_CLASSIFY_CONFIG = ClassifyConfig()
 
 
-def validated_max_quiet_recheck_seconds(value: float) -> float:
+def _validated_positive_seconds(value: float, flag: str) -> float:
+    """Coerce one seconds-valued override, refusing anything not finite/positive.
+
+    Shared by the per-flag validators below so the two cannot drift; `flag`
+    names the CLI option in the refusal so the message stays specific.
+    """
+    message = f"{flag} must be a finite number greater than zero"
     try:
         seconds = float(value)
     except (TypeError, ValueError) as error:
-        raise ValueError(
-            "--max-quiet-recheck-seconds must be a finite number greater than zero"
-        ) from error
+        raise ValueError(message) from error
     if not math.isfinite(seconds) or seconds <= 0:
-        raise ValueError(
-            "--max-quiet-recheck-seconds must be a finite number greater than zero"
-        )
+        raise ValueError(message)
     return seconds
+
+
+def validated_max_quiet_recheck_seconds(value: float) -> float:
+    return _validated_positive_seconds(value, "--max-quiet-recheck-seconds")
 
 
 def validated_stuck_check_age_seconds(value: float) -> float:
-    try:
-        seconds = float(value)
-    except (TypeError, ValueError) as error:
-        raise ValueError(
-            "--stuck-check-age-seconds must be a finite number greater than zero"
-        ) from error
-    if not math.isfinite(seconds) or seconds <= 0:
-        raise ValueError(
-            "--stuck-check-age-seconds must be a finite number greater than zero"
-        )
-    return seconds
+    return _validated_positive_seconds(value, "--stuck-check-age-seconds")
 
 
 def compute_branch_freshness(pr: dict[str, Any]) -> dict[str, Any]:
@@ -319,6 +315,23 @@ def head_repository_scope(
     }
 
 
+def _ledgered_comment_ids(prior: dict[str, Any]) -> set[str]:
+    """Every review-trigger comment id our own mutation ledger recorded.
+
+    The two same-login arms below ask opposite questions of the same evidence --
+    `detect_foreign_activity` looks for a trigger comment that is NOT in here,
+    `detect_attribution_drift` for one that IS -- so the ledger read is shared:
+    a divergence between the two would silently change which comments each arm
+    considers accounted for.
+    """
+    recorded: set[str] = set()
+    for history_key in ("request_history", "request_attempt_history"):
+        for entry in json_object(prior.get(history_key)).values():
+            if is_json_object(entry) and entry.get("comment_id") is not None:
+                recorded.add(str(entry["comment_id"]))
+    return recorded
+
+
 def detect_foreign_activity(
     pr: dict[str, Any],
     previous: dict[str, Any] | None,
@@ -340,11 +353,7 @@ def detect_foreign_activity(
     if recognizer is None or not self_logins:
         return {"detected": False, "evidence": []}
     prior = json_object((previous or {}).get("review_trigger"))
-    known_comment_ids: set[str] = set()
-    for history_key in ("request_history", "request_attempt_history"):
-        for entry in json_object(prior.get(history_key)).values():
-            if is_json_object(entry) and entry.get("comment_id") is not None:
-                known_comment_ids.add(str(entry["comment_id"]))
+    known_comment_ids = _ledgered_comment_ids(prior)
     evidence: list[dict[str, str]] = []
     for comment in json_array(pr.get("comments")):
         if not is_json_object(comment):
@@ -398,11 +407,7 @@ def detect_attribution_drift(
     if not intended or not self_logins:
         return {"detected": False, "evidence": []}
     prior = json_object((previous or {}).get("review_trigger"))
-    recorded_comment_ids: set[str] = set()
-    for history_key in ("request_history", "request_attempt_history"):
-        for entry in json_object(prior.get(history_key)).values():
-            if is_json_object(entry) and entry.get("comment_id") is not None:
-                recorded_comment_ids.add(str(entry["comment_id"]))
+    recorded_comment_ids = _ledgered_comment_ids(prior)
     if not recorded_comment_ids:
         return {"detected": False, "evidence": []}
     evidence: list[dict[str, str]] = []

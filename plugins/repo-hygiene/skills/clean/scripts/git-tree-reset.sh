@@ -137,11 +137,7 @@ UPSTREAM_REMOTE="${UPSTREAM_REMOTE:-origin}"
 # Resolve the default branch from the tracked remote's HEAD, not a hardcoded
 # origin — a repo whose default branch lives on a non-origin remote (or is not
 # named main) would otherwise slip past the default-branch guard below.
-DEFAULT_BRANCH="$(git symbolic-ref "refs/remotes/${UPSTREAM_REMOTE}/HEAD" 2>/dev/null | sed "s|^refs/remotes/${UPSTREAM_REMOTE}/||" | tr -d '\r')"
-if [[ -z "$DEFAULT_BRANCH" ]] && command -v gh >/dev/null 2>&1; then
-  DEFAULT_BRANCH="$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null | tr -d '\r')"
-fi
-DEFAULT_BRANCH="${DEFAULT_BRANCH:-main}"
+DEFAULT_BRANCH="$(clean_default_branch "$REPO_ROOT" "$UPSTREAM_REMOTE")"
 
 TRACKED_DIRTY="$(git status --porcelain 2>/dev/null | wc -l | tr -d ' ')"
 IGNORED_COUNT="$(git status --ignored --porcelain 2>/dev/null | wc -l | tr -d ' ')"

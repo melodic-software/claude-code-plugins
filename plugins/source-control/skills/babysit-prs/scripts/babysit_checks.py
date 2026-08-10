@@ -28,6 +28,9 @@ CHECK_FAILURE_STATES = {
     "TIMED_OUT",
 }
 CHECK_SUCCESS_STATES = {"NEUTRAL", "SKIPPED", "SUCCESS"}
+# Documentation of GitHub's pending vocabulary rather than a lookup table:
+# `check_category` treats every state that is neither failing nor success as
+# pending, so adding a value here does not change any classification.
 CHECK_PENDING_STATES = {
     "EXPECTED",
     "IN_PROGRESS",
@@ -43,8 +46,8 @@ def check_category(state: str) -> str:
         return "failing"
     if state in CHECK_SUCCESS_STATES:
         return "success"
-    if state in CHECK_PENDING_STATES or not state:
-        return "pending"
+    # Pending, empty, and any state GitHub adds later all land here: an
+    # unrecognized state must never read as success or failure.
     return "pending"
 
 

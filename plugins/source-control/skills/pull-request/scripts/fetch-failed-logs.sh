@@ -329,53 +329,59 @@ fi
 # Errors appear in the top-level consolidated files. Walk all *.txt recursively
 # rather than per-job dirs (the prior fixture-only logic missed real layouts).
 
+# Enumerated ONCE and reused by every walk below (markers, --raw, the three
+# audit sections, the no-marker fallback). Each of those used to re-run `find`,
+# so an --audit pass re-walked the extracted tree five times. NUL-delimited to
+# survive filenames with spaces (real ZIPs have them — e.g. "shell _ Bash").
+TXT_FILES=()
+while IFS= read -r -d '' f; do
+  TXT_FILES+=("$f")
+done < <(find "$EXTRACT_DIR" -type f -name '*.txt' -print0 | sort -z)
+
+# per_file_section <banner> <extractor>... — run <extractor> <file> over every
+# extracted log and print each non-empty result under one shared banner. The
+# three audit sections differ only in their extractor, so the walk and the
+# per-file header live here once. Each extractor owns its own stderr handling.
+per_file_section() {
+  local banner="$1" f rel out
+  shift
+  printf '\n===== %s =====\n' "$banner"
+  for f in ${TXT_FILES[@]+"${TXT_FILES[@]}"}; do
+    rel="${f#"$EXTRACT_DIR"/}"
+    out=$("$@" "$f") || true
+    [[ -n "$out" ]] && printf '\n--- %s ---\n%s\n' "$rel" "$out"
+  done
+  return 0
+}
+
+# shellcheck disable=SC2329  # invoked as a per_file_section extractor
+grep_group_markers() { grep -E '##\[(group|endgroup)\]' "$1" 2>/dev/null; }
+# shellcheck disable=SC2329  # invoked as a per_file_section extractor
+grep_suspicious() { grep -iE "$SUSPICIOUS_RE" "$1" 2>/dev/null; }
+
 if [[ "$RAW" -eq 1 ]]; then
-  # Dump every text file with a header for orientation. NUL-delimited to
-  # survive filenames with spaces (real ZIPs have them — e.g. "shell _ Bash").
-  while IFS= read -r -d '' f; do
+  # Dump every text file with a header for orientation.
+  for f in ${TXT_FILES[@]+"${TXT_FILES[@]}"}; do
     rel="${f#"$EXTRACT_DIR"/}"
     printf '\n===== %s =====\n' "$rel"
     cat "$f"
-  done < <(find "$EXTRACT_DIR" -type f -name '*.txt' -print0 | sort -z)
+  done
 else
-  # Walk every .txt file recursively, grep for markers, group output by file.
+  # Walk every .txt file, grep for markers, group output by file.
   found_any=0
-  while IFS= read -r -d '' f; do
+  for f in ${TXT_FILES[@]+"${TXT_FILES[@]}"}; do
     rel="${f#"$EXTRACT_DIR"/}"
     matches=$(grep -E "$MARKER_RE" "$f" 2>/dev/null || true)
     if [[ -n "$matches" ]]; then
       printf '\n===== %s =====\n%s\n' "$rel" "$matches"
       found_any=1
     fi
-  done < <(find "$EXTRACT_DIR" -type f -name '*.txt' -print0 | sort -z)
+  done
 
   # --- Audit-flag sections (when requested) ---
-  if [[ "$SHOW_GROUPS" -eq 1 ]]; then
-    printf '\n===== groups (step structure) =====\n'
-    while IFS= read -r -d '' f; do
-      rel="${f#"$EXTRACT_DIR"/}"
-      g=$(grep -E '##\[(group|endgroup)\]' "$f" 2>/dev/null || true)
-      [[ -n "$g" ]] && printf '\n--- %s ---\n%s\n' "$rel" "$g"
-    done < <(find "$EXTRACT_DIR" -type f -name '*.txt' -print0 | sort -z)
-  fi
-
-  if [[ "$TIMING" -eq 1 ]]; then
-    printf '\n===== timing (per group, ms) =====\n'
-    while IFS= read -r -d '' f; do
-      rel="${f#"$EXTRACT_DIR"/}"
-      timing=$(emit_group_timing "$f")
-      [[ -n "$timing" ]] && printf '\n--- %s ---\n%s\n' "$rel" "$timing"
-    done < <(find "$EXTRACT_DIR" -type f -name '*.txt' -print0 | sort -z)
-  fi
-
-  if [[ "$SUSPICIOUS" -eq 1 ]]; then
-    printf '\n===== suspicious patterns =====\n'
-    while IFS= read -r -d '' f; do
-      rel="${f#"$EXTRACT_DIR"/}"
-      sus=$(grep -iE "$SUSPICIOUS_RE" "$f" 2>/dev/null || true)
-      [[ -n "$sus" ]] && printf '\n--- %s ---\n%s\n' "$rel" "$sus"
-    done < <(find "$EXTRACT_DIR" -type f -name '*.txt' -print0 | sort -z)
-  fi
+  [[ "$SHOW_GROUPS" -eq 1 ]] && per_file_section "groups (step structure)" grep_group_markers
+  [[ "$TIMING" -eq 1 ]] && per_file_section "timing (per group, ms)" emit_group_timing
+  [[ "$SUSPICIOUS" -eq 1 ]] && per_file_section "suspicious patterns" grep_suspicious
 
   if [[ "$found_any" -eq 0 ]]; then
     # No marker found — surface tail of the largest non-system log file. Use
@@ -383,15 +389,15 @@ else
     # BSD find rejects it).
     largest=""
     largest_size=0
-    while IFS= read -r -d '' f; do
-      [[ "$(basename "$f")" == "system.txt" ]] && continue
+    for f in ${TXT_FILES[@]+"${TXT_FILES[@]}"}; do
+      [[ "${f##*/}" == "system.txt" ]] && continue
       size=$(wc -c <"$f" 2>/dev/null | tr -d ' \r\n')
       [[ -z "$size" ]] && continue
       if [[ "$size" -gt "$largest_size" ]]; then
         largest="$f"
         largest_size="$size"
       fi
-    done < <(find "$EXTRACT_DIR" -type f -name '*.txt' -print0)
+    done
 
     if [[ -n "$largest" ]]; then
       printf 'fetch-failed-logs: no ##[error]/##[warning] markers found. Tail of %s:\n' \

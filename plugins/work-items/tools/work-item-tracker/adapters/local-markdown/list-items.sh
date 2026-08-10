@@ -34,17 +34,9 @@ esac
 wit_need_storage
 limit="$(jq -r '.limits.list_items_max' "$WIT_LOCAL_ADAPTER_DIR/capabilities.json")"
 
-numbers=()
-shopt -s nullglob
-for f in "$WIT_STORAGE_DIR"/*.md; do
-  base="$(basename "$f" .md)"
-  [[ "$base" =~ ^[0-9]+$ ]] || continue
-  numbers+=("$base")
-done
-
 emitted=0
 {
-  for n in $(printf '%s\n' "${numbers[@]+"${numbers[@]}"}" | sort -n); do
+  for n in $(wit_item_numbers); do
     ((emitted < limit)) || break
     item_state="$(wit_fm_field "$(wit_item_file "$n")" state)"
     case "$state" in

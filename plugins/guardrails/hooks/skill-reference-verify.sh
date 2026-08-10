@@ -590,7 +590,7 @@ emit_tel() {
   if ((${#UNRESOLVED[@]} > 0)); then
     local r raw_list=""
     for r in "${UNRESOLVED[@]}"; do raw_list+="$r"$'\n'; done
-    findings_json=$(printf '%s' "$raw_list" | jq -R . | jq -s . 2>/dev/null) || findings_json="[]"
+    findings_json=$(printf '%s' "$raw_list" | jq -Rn '[inputs]' 2>/dev/null) || findings_json="[]"
   fi
   local data
   data=$(jq -n --arg file "$file_rel" --argjson findings "$findings_json" \

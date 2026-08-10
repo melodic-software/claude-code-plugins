@@ -16,6 +16,22 @@ clean_repo_root() {
   printf '%s' "$root"
 }
 
+# clean_default_branch <repo_root> [<remote>] — echo the repository's default
+# branch: the remote's HEAD symref (default remote `origin`; the tree tier passes
+# the remote the current branch actually tracks), else gh's view of it, else the
+# `main` fallback. One spelling for the three git tiers that need it, so a repo
+# whose default branch is neither `main` nor on `origin` cannot be classified one
+# way by the branch/stash audits and another by the tree reset.
+clean_default_branch() {
+  local repo_root="$1" remote="${2:-origin}" branch
+  branch="$(git -C "$repo_root" symbolic-ref "refs/remotes/${remote}/HEAD" 2>/dev/null |
+    sed "s|^refs/remotes/${remote}/||" | tr -d '\r')"
+  if [[ -z "$branch" ]] && command -v gh >/dev/null 2>&1; then
+    branch="$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null | tr -d '\r')"
+  fi
+  printf '%s' "${branch:-main}"
+}
+
 # Normalize a filesystem path to a comparison key: backslashes -> forward
 # slashes, collapse trailing slashes, and lowercase on case-insensitive
 # platforms (Windows via MSYS/Cygwin). This is the exact fix for the multi-repo
@@ -642,6 +658,18 @@ clean_apply_manifest() {
       CLEAN_FAILED_COUNT=$((CLEAN_FAILED_COUNT + 1))
     fi
   done 3<"$manifest"
+}
+
+# clean_apply_and_report ROOT MANIFEST ALLOWED_CLASSES — consume a manifest and
+# print the tier's `Summary:` line; returns 1 when any entry failed (the caller's
+# exit status). Each selective tier reaches this on BOTH of its apply paths
+# (resume-from-a-prebuilt-manifest and build-then-apply), so the summary's shape
+# and the fail-closed exit rule have one home rather than four copies.
+clean_apply_and_report() {
+  clean_apply_manifest "$1" "$2" "$3"
+  printf 'Summary: removed=%s failed=%s bytes=%s\n' \
+    "$CLEAN_REMOVED_COUNT" "$CLEAN_FAILED_COUNT" "$CLEAN_REMOVED_BYTES"
+  [[ "$CLEAN_FAILED_COUNT" -eq 0 ]]
 }
 
 # Return 0 when PATH is safe to (re)write as a manifest: absent, or an existing

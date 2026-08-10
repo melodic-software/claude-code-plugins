@@ -205,7 +205,9 @@ plugin_versions() {
   fi
 
   local want_json='[]'
-  ((${#WANT_PLUGINS[@]})) && want_json="$(printf '%s\n' "${WANT_PLUGINS[@]}" | jq -R . | jq -cs .)"
+  # One jq process, not two: `-Rn` makes `inputs` yield each line as a raw
+  # string, which is what `jq -R . | jq -cs .` spelled with a second spawn.
+  ((${#WANT_PLUGINS[@]})) && want_json="$(printf '%s\n' "${WANT_PLUGINS[@]}" | jq -Rcn '[inputs]')"
 
   local rows
   rows="$(jq -r --argjson want "$want_json" '

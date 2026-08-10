@@ -265,7 +265,7 @@ if [[ "$mode" == "--check" ]]; then
     echo "A baseline entry outliving its slice would silently re-open the exemption for a future slice reusing that slug." >&2
     exit 1
   fi
-  echo "Every $BASELINE entry still names an existing slice under $CONTRACT_DIR/ ($(("${#grandfathered[@]}")) grandfathered)."
+  echo "Every $BASELINE entry still names an existing slice under $CONTRACT_DIR/ (${#grandfathered[@]} grandfathered)."
   exit 0
 fi
 
