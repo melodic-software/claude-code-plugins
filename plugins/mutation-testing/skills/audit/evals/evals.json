@@ -34,7 +34,19 @@
     {
       "id": 6,
       "prompt": "The mutation run crashed halfway through.",
-      "expected_output": "Verifies the working tree was restored and reports a failed restore as the headline finding, not a footnote. Explains that revert is guaranteed on every exit path via a trap/finally-applied patch, and that partial results are reported as partial -- the mutants that never ran are named as not-run rather than counted as killed or omitted silently.",
+      "expected_output": "Compares the after-state against the Phase 0 `git status --porcelain` snapshot rather than asserting a clean tree, so unrelated work in progress does not produce a false restore failure; any difference in a mutated path IS a failed restore and is reported as the headline finding, not a footnote. Explains that revert is guaranteed on every exit path via a trap/finally-applied patch, and that partial results are reported as partial -- mutants that never ran are named as not-run rather than counted as killed or omitted silently.",
+      "files": []
+    },
+    {
+      "id": 7,
+      "prompt": "Which files should I fix first?",
+      "expected_output": "Ranks by oracle gap as defined once in principles/reference/metrics.md -- `mutation score - code coverage` -- ascending, most negative first, because a large negative gap is the exercised-but-not-checked direction. Does not restate or invert the formula. Explains that the top row is where the reader's belief about the suite is most wrong, and that a file at 30% coverage and 30% score has an honest problem already visible in a coverage report while a file at 95% coverage and 45% score is the one lying to them.",
+      "files": []
+    },
+    {
+      "id": 8,
+      "prompt": "Show me what got suppressed this run.",
+      "expected_output": "Emits both suppression sections: every applied entry with its reason, date, and contributing layer, AND every entry that did not apply -- personal-only-not-applied with promotion named as the remedy, malformed with the missing key or constituent/key hash mismatch named, and stale entries whose finding is gone or whose operator was retired. Treats these as contract obligations rather than optional report detail, since a suppression the contract declined to enact matters as much as one that applied.",
       "files": []
     }
   ]

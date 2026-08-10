@@ -24,10 +24,16 @@ All notable changes to the `mutation-testing` plugin are documented here. Format
 - **`/mutation-testing:audit`** — diff-scoped run generating at most one mutant per changed line,
   executing against a test selection cached once per target, with revert guaranteed on every exit
   path. Reports per file ranked by oracle gap.
-- **Arid-node suppression adopts the finding-suppression convention** — `.claude/mutation-testing-arid.md`,
-  layered per the config cascade, every entry carrying a written `reason` and a `date`. Kept as a
-  surface separate from the config so a config diff reads as a policy change and a suppression diff
-  reads as an accepted finding.
+- **Arid-node suppression adopts the finding-suppression convention in full** —
+  `.claude/mutation-testing-arid.md`, kept as a surface separate from the config so a config diff
+  reads as a policy change and a suppression diff reads as an accepted finding.
+  `audit/context/suppression.md` owns this plugin's read of the contract: the five required keys
+  mapped to a mutation finding (`check` as the qualified operator, `claim` as `arid(kind=…)` from a
+  closed vocabulary, `sites`, `reason`, `date`), the `finding_id` and anchor derivations — binding
+  the convention's `heading_path` to the mutated node's enclosing scope path, since source code has
+  no headings — the policy-floor precedence inversion, and the four dispositions. Entries are
+  proposed complete and never written unprompted; an equivalent mutant is never suppressed, because
+  the convention's record is not for a finding that is simply wrong.
 
 ### Notes on deliberate omissions
 
@@ -42,6 +48,14 @@ All notable changes to the `mutation-testing` plugin are documented here. Format
   gate — the tests' pass/fail is the verdict.
 - **An equivalence verdict must cite a demonstration.** Asserted from inspection alone it is
   reported as *unclassified*, not as equivalent.
+- **The oracle gap is defined once**, in `principles/reference/metrics.md`, as
+  `mutation score − code coverage`. A large negative gap is the bad direction, so the audit ranks
+  **ascending**. The audit does not restate the formula — an inverted second definition would silently
+  reverse the ranking of the report's most important column.
+- **Restoration is verified against the preflight snapshot, not against a clean tree.** Phase 0
+  permits unrelated dirty files, so an unconditional clean-tree probe would report a false restore
+  failure on any repo with work in progress — and teach the reader to ignore the one line that must
+  never be ignored.
 - **No review-time surfacing yet.** Surfacing mutants as review comments is the shape with the
   strongest industrial evidence, but that evidence is conditional on a suppression loop already
   existing — an un-suppressed run is roughly 85% noise at Google's reported starting ratio. Deferred

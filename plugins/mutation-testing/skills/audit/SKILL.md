@@ -65,8 +65,14 @@ stale.
    configured `mutate` globs, intersected with any `--paths` or scope argument.
 2. Drop lines with no test coverage, if a coverage report is available — a mutant on an uncovered
    line reports "no coverage", which the coverage report already said more cheaply.
-3. Apply the arid-node suppression record: drop mutants whose location matches an entry, unless
-   `--no-suppress`.
+3. Apply the arid-node suppression record per
+   [`context/suppression.md`](context/suppression.md), which owns this plugin's read of the
+   finding-suppression contract. Three things that are easy to get wrong and are not optional:
+   an entry suppresses only when **all five** required keys are present and its stored constituents
+   hash to its own key; a **personal-layer entry the team layer does not carry does not suppress**
+   (this surface inverts the cascade default), and is reported `personal-only, not applied`; and
+   matching is by derived `finding_id`, never by bare file:line. Under `--no-suppress` nothing is
+   dropped and every entry that would have applied is marked as such.
 4. **Select the covering tests once, and cache the selection.** Test selection is fixed overhead per
    *target*, not per *mutant*; re-deriving it for each mutant is the difference between a run that
    finishes and one that does not.
@@ -95,8 +101,14 @@ mechanical judgments.
 
 Revert must be guaranteed on every exit path — pass, fail, error, or interrupt. Apply the mutation
 as a patch reverted in a trap or `finally`, never as an edit depending on a later step to clean up.
-Before reporting, verify the tree is clean; a run that cannot restore it reports that as its
-headline finding, not as a footnote.
+
+**Verify restoration against the Phase 0 snapshot, not against a clean tree.** Phase 0 rejects a
+dirty *target* but permits unrelated dirty files elsewhere, so an unconditional "tree is clean" probe
+would report a restoration failure on a repo that merely has unrelated work in progress — and, worse,
+would teach the reader to ignore that line. Capture `git status --porcelain` before Phase 3 and
+compare the after-state to it: equality is success, any difference in a mutated path is a failed
+restore. A failed restore is the run's **headline finding**, naming the paths and the recovery
+command — never a footnote, and never something a later phase's output can push off the screen.
 
 ## Phase 4 — Triage (fresh context)
 
@@ -126,9 +138,16 @@ was run, what was identical, and under which inputs. A verdict that cannot cite 
 
 ## Phase 5 — Report
 
-Per file, ranked by **oracle gap** (coverage − covered-code mutation score), not by score. The top
-row is where the reader's belief about the suite is most wrong, which is the only thing this metric
-is good for.
+Per file, ranked by **oracle gap**, not by score. The gap is defined once, in the `principles`
+skill's [`metrics.md`](../principles/reference/metrics.md), and this skill does not restate it:
+
+```text
+oracle gap = mutation score − code coverage
+```
+
+A large **negative** gap is the bad direction — exercised but not checked. So rank **ascending**,
+most negative first. The top row is where the reader's belief about the suite is most wrong, which
+is the only thing this metric is good for.
 
 ```text
 ## Mutation audit — <scope>, vs <diff-target>
@@ -142,12 +161,27 @@ Baseline: <green, N ms>   Mutants: <n> generated, <n> suppressed<, n dropped by 
 | File:line | Operator | Mutation | Disposition | Why |
 |---|---|---|---|---|
 
+### Suppressed
+| finding_id | Site | check / claim | Reason | Date | Layer |
+|---|---|---|---|---|---|
+
+### Suppressions that did NOT apply
+<each `personal-only, not applied` entry, naming promotion to the team layer as the remedy;
+each malformed entry, naming which required key is missing or that its constituents do not
+hash to its key; each stale entry whose finding is gone or whose operator was retired>
+
 ### Proposed suppressions
-<entries for arid survivors, each with a written reason, for the user to accept>
+<complete entries for arid survivors — all five keys with the id derived from them — for the
+user to accept>
 
 ### Unclassified
 <survivors whose equivalence claim could not cite evidence>
 ```
+
+The two suppression sections are obligations of the finding-suppression contract, not report
+garnish: a suppression the operator wrote that the contract **declined to enact** is exactly as
+important to show as one that applied, and provenance per entry is what distinguishes a team floor
+from a personal draft.
 
 Report the covered-code score as the headline and the plain mutation score beside it — the first
 answers "are my tests weak", the second mixes that with "do I have tests at all".
@@ -163,9 +197,13 @@ Then stop. Remediation is delegated.
   the property that makes the loop trustworthy: the agent that wrote the test cannot grade itself
   into a pass, because the harness re-runs the mutant. A test that does not turn the mutant red has
   not closed the gap, however plausible it reads.
-- **Record accepted arid mutants** — append to `.claude/mutation-testing-arid.md` per the
-  finding-suppression convention: a written `reason` and a `date` per entry, never a bare id list.
-  The user accepts each entry; this skill proposes and never writes suppressions unprompted.
+- **Record accepted arid mutants** — append to `.claude/mutation-testing-arid.md` per
+  [`context/suppression.md`](context/suppression.md). A complete entry carries all five required keys
+  (`check`, `claim`, `sites`, `reason`, `date`) with the `finding_id` derived from the constituents,
+  never hand-written. The user accepts each entry; this skill proposes and never writes suppressions
+  unprompted, and writes only the **team** layer — a personal-layer entry would not suppress anything.
+  An **equivalent** mutant is never recorded here; the convention's record is not for a finding that
+  is simply wrong.
 
 ## Gotchas
 

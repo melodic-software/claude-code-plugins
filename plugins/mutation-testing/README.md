@@ -57,12 +57,19 @@ about it — and a coverage report will call that file healthy.
 - `.claude/mutation-testing.md` — tool, invocation command, diff target, mutate globs, operator set,
   timeout, measured baseline suite time, optional mutant cap.
 - `.claude/mutation-testing-arid.md` — the arid-node suppression record, shaped by the marketplace's
-  finding-suppression convention: every entry carries a written `reason` and a `date`, never a bare
-  id list.
+  finding-suppression convention: a mapping keyed by a derived `finding_id`, every entry carrying all
+  five required keys (`check`, `claim`, `sites`, `reason`, `date`) with the id derived from its own
+  constituents. An entry missing any of them is malformed and does not suppress.
 
-Both layer per the marketplace config-cascade convention (user-global → team → `.local.md` overlay).
 They are kept separate deliberately: a config diff reads as a policy change, a suppression diff reads
-as an accepted finding. This plugin declares no `userConfig` options.
+as an accepted finding. **Their layering also differs.** The config layers per the config-cascade
+convention (user-global → team → `.local.md` overlay, later wins). The suppression record sits in the
+cascade's policy-floor precedence-inversion class: on a conflict the **team** layer wins, and a
+personal-layer entry for an id the team layer does not carry **does not suppress at all** — it is
+reported `personal-only, not applied`. A personal layer is a draft surface there, so one developer
+cannot hide a finding the team never accepted.
+
+This plugin declares no `userConfig` options.
 
 ## Sources
 

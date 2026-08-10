@@ -26,9 +26,17 @@ explicitly when an overlay changes the team file's effect, and warn — rather t
 presenting the team file as effective — when a layer cannot be read.
 
 The arid-node suppression record is a **separate** surface, `.claude/mutation-testing-arid.md`,
-layered the same way and shaped by the finding-suppression convention. Keeping it separate from the
-config keeps the config reviewable: a config diff is a policy change, a suppression diff is an
-accepted finding.
+shaped by the finding-suppression convention. Keeping it separate from the config keeps the config
+reviewable: a config diff is a policy change, a suppression diff is an accepted finding.
+
+**Its layering is not the config's, and the difference is the whole point.** The config's later
+layers override; the suppression record sits in the cascade's policy-floor precedence-inversion
+class, so on a conflict for the same `finding_id` the **team** layer wins, and **a personal-layer
+entry for an id the team layer does not carry does not suppress at all** — it is reported
+`personal-only, not applied`. A personal layer is a draft surface here. Treating it as "layered the
+same way" would let one developer silently hide a finding the team never accepted. The full
+contract, including id derivation and the four dispositions, is owned by the audit skill's
+[`context/suppression.md`](../audit/context/suppression.md).
 
 ## `check` (read-only)
 
@@ -59,12 +67,32 @@ run a mutation analysis — that is `/mutation-testing:audit`.
    (`git rev-parse --verify <target>`). Unresolvable → FAIL naming it; a stale default here silently
    scopes a run to nothing or to everything.
 8. **Suppression record** — report presence and entry count of `.claude/mutation-testing-arid.md`
-   across layers. Absent is a valid state (no suppressions) → INFO. Present → confirm every entry
-   carries a `reason` and a `date`, per the finding-suppression convention; entries missing either
-   are FAIL, named.
+   across layers. Absent is a valid state (no suppressions) → INFO. Present → validate **every**
+   entry against the full contract in
+   [`context/suppression.md`](../audit/context/suppression.md), not a subset of it:
+   - **All five required keys present** — `check`, `claim`, `sites` (each with `surface` and an
+     `anchor/v<N>`), `reason`, `date`. Missing any one → FAIL, naming the entry and the key. A
+     partial parse is not offered: an entry with `sites`, `reason`, and `date` but no `check` or
+     `claim` is malformed and must not be reported as usable, because the audit would otherwise
+     suppress a mutant on a location match the contract never authorized.
+   - **Constituents hash to the key** — re-derive `finding_id` from `(check, claim, sites)` and
+     compare. A mismatch → FAIL. This is the case a hand-edited constituent beside a stale key
+     produces, and it silently stops suppressing if unchecked.
+   - **`claim` is a bound canonical id, not prose** — `arid(kind=<node-kind>)` from the closed
+     vocabulary. Free prose → FAIL.
+   - **Personal-only entries** — any id present in a `.local.md` layer but absent from the team layer
+     is reported `personal-only, not applied`, with promotion to the team layer named as the remedy.
+     This is INFO, not FAIL: the entry is legal, it simply does not suppress.
+   - Report the contributing layer for every entry. A malformed layer degrades soft — report it and
+     continue, never fail the whole read.
 9. **Tracked, not ignored** — both the config and the suppression record must be committed to be
-   team-shared: `git check-ignore -v` each; a non-empty result is FAIL with the matching pattern. The
-   `.local.md` overlays are expected to be ignored — INFO, not FAIL.
+   team-shared, and *not ignored* is only half of that. Run **both** probes per file:
+   `git ls-files --error-unmatch <path>` (is it tracked?) and `git check-ignore -v <path>`
+   (is it ignored?). Untracked → FAIL, naming the `git add` that fixes it; ignored → FAIL with the
+   matching pattern. Checking only `check-ignore` is the trap: immediately after `apply` writes them
+   the files are untracked but not ignored, so `check-ignore` is silent and the probe would report
+   success on two files no teammate will ever receive. The `.local.md` overlays are expected to be
+   both untracked and ignored — INFO, not FAIL.
 
 ## `apply` (idempotent)
 
@@ -86,12 +114,19 @@ unambiguous; ask only where the answer is genuinely the user's.
    directories, and test code itself. Mutating tests measures nothing.
 7. **Write the config** following
    [`${CLAUDE_PLUGIN_ROOT}/skills/setup/templates/config-template.md`](templates/config-template.md).
-8. **Create the suppression record empty**, with its header comment, so the first suppression is an
-   edit to a reviewed file rather than the creation of a new one.
-9. **Verify after remediation.** Re-run the `check` probes on what was written, confirm both files
-   are tracked and not ignored, then offer the overlay convention: personal overrides in
-   `.claude/mutation-testing.local.md`, and recommend `.claude/*.local.*` in `.gitignore` if not
-   already covered.
+8. **Create the suppression record empty**, with its header comment and an empty `suppressions:`
+   mapping — a **mapping, never a list**, since a list is taken whole and one personal entry would
+   discard the team's entire accepted set. An empty record makes the first suppression an edit to a
+   reviewed file rather than the creation of a new one.
+9. **Stage both files for commit and say so.** They are team-shared surfaces; leaving them untracked
+   is the failure probe 9 exists to catch, and `apply` is where it is cheapest to fix. Offer the
+   `git add`; never commit on the user's behalf.
+10. **Verify after remediation.** Re-run the `check` probes on what was written — including both
+    halves of probe 9, tracked *and* not-ignored — then offer the overlay convention: personal
+    config overrides in `.claude/mutation-testing.local.md`, and recommend `.claude/*.local.*` in
+    `.gitignore` if not already covered. State plainly that the same overlay pattern does **not**
+    give personal suppressions effect: an arid entry in a `.local.md` is a draft until promoted to
+    the team layer.
 
 Re-running `apply` after everything passes changes nothing and reports "already configured".
 
