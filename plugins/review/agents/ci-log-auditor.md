@@ -53,11 +53,20 @@ Tool warnings that lack `##[warning]`/`##[error]` markers: compiler warnings in 
 
 `##[error]` log markers are not the same as Annotations API entries. Cross-reference `gh api --paginate "repos/<owner>/<repo>/commits/<sha>/check-runs?per_page=100"` (then each check-run's `/annotations`, paginated the same way) against the `##[error]` count from logs; flag mismatches as tooling-integration opportunities.
 
-Pagination is load-bearing here, not hygiene: `check-runs` returns 30 per page by default and signals nothing when it truncates, so an unpaginated fetch under-counts the check runs you compare against and manufactures a mismatch — or hides a real one — with no visible symptom. Assert completeness before drawing any conclusion from the response. `--jq` runs per page, so a naive `.check_runs | length` reports one page at a time; slurp the page stream instead and require the two numbers to match:
+Pagination is load-bearing here, not hygiene: both endpoints return 30 per page by default and signal nothing when they truncate, so an unpaginated fetch under-counts the check runs or annotations you compare against and manufactures a mismatch — or hides a real one — with no visible symptom.
+
+`check-runs` reports a `total_count`, so assert against it before drawing any conclusion. `--jq` runs per page, so a naive `.check_runs | length` reports one page at a time; slurp the page stream instead and require the two numbers to match:
 
 ```bash
 gh api --paginate "repos/<owner>/<repo>/commits/<sha>/check-runs?per_page=100" \
   | jq -s -r '"total_count=\(.[0].total_count) returned=\([.[].check_runs[]] | length)"'
+```
+
+`/annotations` is shaped differently — a bare JSON array with no envelope and no `total_count` — so the assertion above is not available there and `--paginate` is the only guard. Concatenated pages are arrays, so they are combined with `add`, not by reaching through a wrapper:
+
+```bash
+gh api --paginate "repos/<owner>/<repo>/check-runs/<check-run-id>/annotations?per_page=100" \
+  | jq -s -r '"annotations=\(add | length)"'
 ```
 
 ## Output format

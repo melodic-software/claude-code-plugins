@@ -11,10 +11,14 @@ All notable changes to the `review` plugin are documented here. Format follows
   fetched `repos/<owner>/<repo>/commits/<sha>/check-runs` unpaginated. The endpoint caps at 30 per
   page by default and signals nothing when it truncates, so the auditor compared the `##[error]`
   count against an under-counted check-run list — manufacturing a mismatch, or hiding a real one,
-  with no visible symptom. Both that fetch and the per-check-run `/annotations` fetch now use
-  `--paginate` with `per_page=100`, and the agent is told to assert `total_count` against the
-  flattened per-page count before drawing any conclusion, including the reason the naive assertion
-  is wrong (`--jq` runs per page, so the count must be slurped across pages first).
+  with no visible symptom. Both that fetch and the per-check-run `/annotations` fetch now carry
+  `--paginate` with `per_page=100`, each with a runnable form, and the agent is told to assert
+  `total_count` against the flattened per-page count before drawing any conclusion — including the
+  reason the naive assertion is wrong (`--jq` runs per page, so the count must be slurped across
+  pages first). The two endpoints are called out as differently shaped rather than lumped together:
+  `/annotations` returns a bare array with no envelope and no `total_count`, so the completeness
+  assertion is unavailable there and `--paginate` is the only guard, and its pages are combined
+  with `add` rather than through a `.check_runs` wrapper.
 
 ## [0.18.0]
 
