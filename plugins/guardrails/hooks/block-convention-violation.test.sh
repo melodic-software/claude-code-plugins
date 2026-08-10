@@ -184,6 +184,37 @@ run "env -C <dir> git <alias>: wrapper chdir is replayed (blocked)" "$r" \
 run "env -C <dir> git <alias>: conforming subject still allowed" "$r" \
   $'env -C inner git qc -F - --cleanup=verbatim <<\'EOF\'\nABC-5: fine\nEOF' 0
 
+# The `-C <dir>` spelling above answers 2 on BOTH trees — the old every-word scan
+# catches that particular `-C inner` by accident — so it proves the replay is
+# load-bearing only under mutation, not against the unfixed hook. `--chdir=` is
+# the spelling that scan does NOT recognize (it matched the literal word `-C`
+# only), so this one genuinely fails before the fix and passes after. Keep the
+# `-C` case too: it is what catches a DOUBLE application of the replay, which
+# composes `<cwd>/inner/inner` and drops to 0 — and keep its directory RELATIVE,
+# because an absolute wrapper dir makes a double-apply idempotent and the guard
+# silently evaporates.
+run "env --chdir=<dir> git <alias>: attached long form is replayed" "$r" \
+  $'env --chdir=inner git qc -F - --cleanup=verbatim <<\'EOF\'\njunk subject\nEOF' 2
+
+# The OTHER effective_dir consumer: sequencer_in_progress. Every pre-existing
+# `sequencer:` case probes the payload cwd's own repo with no wrapper at all, so
+# nothing reached this call site through a wrapper chdir. `--chdir=` again, so the
+# case discriminates rather than being caught by the old scan.
+r3="$(newrepo "$TICKET")"
+d3="$(subrepo "$r3" inner)"
+git -C "$d3" commit -q --allow-empty -F - --cleanup=verbatim <<'EOF'
+ABC-1: seed
+EOF
+touch "$(git -C "$d3" rev-parse --absolute-git-dir)/MERGE_HEAD"
+run "wrapper chdir reaches the sequencer probe (exempt mid-merge)" "$r3" \
+  $'env --chdir=inner git commit -F - --cleanup=verbatim <<\'EOF\'\njunk subject\nEOF' 0
+# Its discriminator: identical command, no MERGE_HEAD anywhere. Without this the
+# case above passes for any reason that makes the commit unreachable.
+r4="$(newrepo "$TICKET")"
+subrepo "$r4" inner >/dev/null
+run "wrapper chdir, no sequencer: still content-gated" "$r4" \
+  $'env --chdir=inner git commit -F - --cleanup=verbatim <<\'EOF\'\njunk subject\nEOF' 2
+
 # --- a `!` shell alias must inherit the directory its invocation resolved to ---
 # Review finding on #2152. A `!` alias body re-parses as a NEW top-level command,
 # so its argv carries neither the wrapper that moved git nor git's own globals.
