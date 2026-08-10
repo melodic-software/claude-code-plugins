@@ -156,11 +156,16 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
      instead of asserting a failed background attempt.
 
    Read the `state` value as reported and say which branch it took — the values above are observed,
-   not a closed set, so an unfamiliar one is reported rather than forced into a branch. **Key the
-   lookup on the launched session's `sessionId`/`id` when the launch-verification listing recorded
-   one in the transcript;** the `--name "continue-<topic>"` slug is the same ambiguous key here as
-   at launch time, so when only the slug is available and it does not uniquely resolve to one
-   session, the recheck is UNKNOWN and the candidate is kept. Launch references a different file,
+   not a closed set, so an unfamiliar one is reported rather than forced into a branch. **Only an
+   exact `sessionId`/`id` match identifies a session for this recheck. Slug-only evidence is always
+   UNKNOWN, uniqueness notwithstanding, and the candidate is kept.** A currently-unique
+   `--name "continue-<topic>"` match is not proof of identity, because it is a snapshot-time check
+   against a bounded history: the session that produced this candidate can age out of `--all` — the
+   same boundedness the UNKNOWN branch above rests on — while a newer, unrelated launch reusing the
+   slug is still listed. The slug then resolves uniquely to the wrong session, and its live or
+   completed state gets borrowed for the older candidate. That is the misattribution this rung
+   exists to prevent, reached from the other direction, so uniqueness cannot be what licenses the
+   lookup. Launch references a different file,
    failed at launch, or is unverified/ambiguous → keep the candidate (surfacing the provenance at
    the confirm gate when ambiguous). **This four-way current-state resolution governs every
    screening site in this skill, prompt-only included.**

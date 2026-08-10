@@ -181,6 +181,31 @@
         "A session absent even from `--all` is reported as an UNKNOWN outcome and the candidate is kept, rather than asserted to have failed",
         "A terminal state that does not report completion still keeps the save-point as the restart artifact, preserving the reason the recheck exists"
       ]
+    },
+    {
+      "id": 14,
+      "name": "absent-from-all-is-unknown-not-failed",
+      "prompt": "Find my lost handoff. A while back I kicked off a background agent on the auth-refactor and I never saw what came of it — it's not showing up in claude agents at all now, not even with --all.",
+      "expected_output": "The skill screens the glob candidates, locates the save-point's producer transcript, and finds the background-launch signature. Rechecking with `claude agents --json --all` returns nothing for that session. It resolves this as UNKNOWN and says so: the `--all` history is bounded, so a long-finished session can age out of it, and a lookup that cannot see a session cannot say why it ended. The candidate is KEPT, and the outcome is reported as undetermined — never as a failed background attempt, and never as a completed one either. If the only evidence tying the candidate to a session is the `continue-<topic>` slug rather than a recorded `sessionId`/`id`, the recheck is UNKNOWN regardless of whether that slug currently matches exactly one listed session.",
+      "files": [],
+      "expectations": [
+        "Absence from `claude agents --json --all` is reported as UNKNOWN, with the bounded `--all` history given as the reason a lookup cannot distinguish aged-out from never-ran",
+        "The candidate is KEPT rather than excluded, because nothing established that the continuation finished the work",
+        "The outcome is not asserted to be a failure, and is not asserted to be a completion either — an unseen session supports neither claim",
+        "Slug-only evidence resolves to UNKNOWN even when the slug currently matches exactly one session: only an exact `sessionId`/`id` match identifies a session for this recheck, because a newer launch reusing the same `continue-<topic>` slug can be the one still listed after the original aged out"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "terminal-not-completed-is-the-restart-artifact",
+      "prompt": "Find my lost handoff. I sent the migration work to a background agent yesterday and I think it got interrupted partway — claude agents --all still shows it, but it never reported finishing.",
+      "expected_output": "Rechecking with `claude agents --json --all` shows the continuation present in a terminal state that does not report completion. This is the branch the recheck exists for: the skill KEEPS the save-point as the restart artifact, names the observed `state` value rather than forcing it into a familiar label, and hands it to the operator as the place to resume from. It is not excluded from the default winner the way a live or a completed continuation would be, because the work is neither in progress nor done.",
+      "files": [],
+      "expectations": [
+        "A terminal state that does not report completion KEEPS the candidate, as the restart artifact rather than as a discarded save-point",
+        "The observed `state` value is reported as read, not coerced into one of the familiar labels — the branch values are observed, not a closed set",
+        "The candidate is not excluded from the default winner: exclusion is for live and for completed continuations, and this is neither"
+      ]
     }
   ]
 }
