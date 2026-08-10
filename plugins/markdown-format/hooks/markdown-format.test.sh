@@ -610,6 +610,38 @@ for _case in nested root; do
   fi
 done
 
+# CONTROL for the three skips above: the containment check must admit as well as
+# reject. Every git-absent symlink case in this file wants a SKIP, so a
+# `physically_inside` that regressed to always-false — an off-by-one in its
+# `case` prefix match, a stray early `return 1` — would satisfy all of them
+# while silently costing every legitimately in-repo symlinked .md its --fix on a
+# git-less host. Only a symlink whose target resolves INSIDE the repository
+# separates the two.
+#
+# ASSERTED ON THE LINK BEING GONE, and that is the discriminating part. The stub
+# linter rewrites with `sed -i`, which renames a temp over the path it was
+# handed, so a --fix that ran REPLACES the symlink at $NOGIT_INSIDE_LINK with a
+# regular file and leaves the target's bytes alone — the exact inverse of the
+# escape cases above, which assert the link SURVIVES. Checking the target's
+# bytes here would therefore fail against correct code. `! -L` plus the fixed
+# bytes cannot be produced by a skip, which leaves the link intact and unfixed.
+NOGIT_INSIDE_TARGET="$REPO/docs/insideNoGitTarget.md"
+NOGIT_INSIDE_LINK="$REPO/docs/insideNoGitLink.md"
+printf '# Inside\n\n* inside item\n' >"$NOGIT_INSIDE_TARGET"
+if make_symlink "$NOGIT_INSIDE_TARGET" "$NOGIT_INSIDE_LINK"; then
+  OUT_INSIDE="$(run_hook_no_git "$NOGIT_INSIDE_LINK")"
+  RC_INSIDE=$?
+  if [[ $RC_INSIDE -eq 0 && ! -L "$NOGIT_INSIDE_LINK" ]] &&
+    grep -q '^- inside item$' "$NOGIT_INSIDE_LINK"; then
+    ok "git absent: a symlink resolving inside the repo still gets --fix"
+  else
+    fail "git absent: an in-repo symlinked .md was skipped instead of linted (rc=$RC_INSIDE link-intact=$([[ -L "$NOGIT_INSIDE_LINK" ]] && echo yes || echo no) out=$OUT_INSIDE)"
+  fi
+  rm -f "$NOGIT_INSIDE_LINK"
+else
+  ok "git absent in-repo symlink control SKIPPED (host cannot create real symlinks)"
+fi
+
 # The scope must still fire when git CAN answer — that half is the out-of-tree
 # case above, which runs with git present and asserts the skip.
 #
