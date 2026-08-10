@@ -1,0 +1,403 @@
+# Bundled `/verify` — what it is, how it is built, what we can package
+
+## Brief
+
+**TLDR:** Claude Code's bundled `/verify` is a single ~10 KB prompt-only skill plus two example
+files, registered in code (not from disk) with a frontmatter surface of exactly `name` +
+`description`. Its one real extensibility point is a **filesystem convention**, not an API: it
+`ls`-probes `.claude/skills/` for `verifier-*` / `run-*` directories, and it writes
+`.claude/skills/verify/SKILL.md` — which, at the repo root, **replaces** the bundled skill
+outright. Plugin skills are namespaced `plugin:name` and live outside `.claude/skills/`, so a
+plugin **cannot** shadow `/verify` and **is not discovered** by its probe. That leaves one viable
+plugin shape (a generator that writes into the consumer's `.claude/skills/`) and rules out the
+obvious one (ship `verifier-*` skills from the `testing` plugin and expect `/verify` to find them).
+
+**Status:** research only. No plugin work started. Feeds a `/planning:interview` decision.
+
+### Provenance
+
+| Source | What | When |
+|---|---|---|
+| `~/.local/share/claude/versions/2.1.226` (installed binary) | `verify` SKILL.md, `examples/cli.md`, `examples/server.md`, the `Iu({...})` registration call, the PR-prep suggestion generator | extracted 2026-08-10 |
+| [code.claude.com/docs/en/skills](https://code.claude.com/docs/en/skills) — "Bundled skills", "Run and verify your app", "Where skills live" | version floors, invocability, precedence | fetched 2026-08-10 |
+
+Binary strings are a **point-in-time observation of one build**, not a contract. Version floors
+below come from the docs; mechanism details come from 2.1.226 and can change without a doc change.
+
+**Reproduce the extraction:**
+
+```bash
+BIN=~/.local/share/claude/versions/<version>
+grep -abo 'name: verify' "$BIN"            # byte offset of the frontmatter
+grep -abo 'var _hh=' "$BIN"                # SKILL.md template literal (id is build-specific)
+grep -abo -E 'var (mhh|ghh)=' "$BIN"       # examples/cli.md, examples/server.md
+grep -abo 'name:"verify"' "$BIN"           # the registration call
+```
+
+The identifiers (`_hh`, `mhh`, `ghh`, `Wie`, `I0r`) are minifier output and **will differ every
+build** — re-derive them from the string content, never reuse them. A decoded copy of all three
+files for 2.1.226 was produced during this research; it is deliberately **not committed** — see
+[Open question 5](#open-questions-for-the-interview).
+
+## 1. What `/verify` is
+
+One of three bundled skills that make up Claude Code's "run the app" story (docs floor: **v2.1.145**
+for all three):
+
+| Skill | Purpose | Model-invocable in 2.1.226? |
+|---|---|---|
+| `/run` | Launch and drive the app to see a change working | **Yes** — no `disableModelInvocation` |
+| `/verify` | Build + run + drive to confirm a change does what it should | **Flag-gated** — see §3 |
+| `/run-skill-generator` | Record the build/launch recipe as `.claude/skills/run-<name>/` | **No** — `disableModelInvocation: !0` (hard) |
+
+`/verify`'s thesis, stated in its first three lines:
+
+> **Verification is runtime observation.** You build the app, run it, drive it to where the changed
+> code executes, and capture what you see. That capture is your evidence. Nothing else is.
+>
+> **Don't run tests. Don't typecheck.** Running them here proves you can run CI — not that the
+> change works.
+>
+> **Don't import-and-call.** [...] The app never ran. Whatever calls `foo` in the real codebase ends
+> at a CLI, a socket, or a window. Go there.
+
+That negative space is the whole design. It is an anti-`/toolchain:check` — it defines itself by
+what it refuses to accept as evidence.
+
+## 2. How it is used
+
+- Typed: `/verify` or `/verify <free-form text>`.
+- No `argument-hint`, no `$ARGUMENTS`, no mode parsing, no ecosystem filter. The prompt assembly is:
+
+  ```js
+  async getPromptForCommand(e) {
+    const { SKILL_MD: t } = await load();
+    const r = [parseFrontmatter(t).content.trimStart()];
+    if (e) r.push(`## User Request\n\n${e}`);
+    return [{ type: "text", text: r.join("\n\n") }];
+  }
+  ```
+
+  **The user's argument is appended verbatim under a `## User Request` heading and nothing else
+  happens to it.** Whatever you type is natural-language steering interpreted by the skill body —
+  scope ("verify just the auth change"), surface ("drive it through the TUI"), or a claim to check.
+  `/run` and `/run-skill-generator` use the identical assembly; it is the bundled-skill house
+  pattern.
+
+- Scope resolution when no argument is given (from the body): `git log --oneline @{u}..`,
+  `git diff @{u}.. --stat`, `git diff origin/HEAD... --stat`, `git diff HEAD --stat`, `gh pr diff`.
+  Explicitly **the full branch range, not `HEAD~1`**. No repo → "the scope is whatever the user
+  named; ask if they didn't."
+
+- It is nudged, not auto-run. A separate code path emits a pre-commit suggestion naming `/verify`,
+  `/simplify`, and `/code-review medium` by literal name, with hard language: *"your own tests,
+  typecheck, e2e, or any 'equivalent' do not count as a check having run; only invoking the skill
+  does."* That suggestion is gated on the **same flag** as model invocation (§3), and it only
+  includes a skill if a skill by that name is registered.
+
+## 3. Invocability — flag, not just version
+
+Registration in 2.1.226:
+
+```js
+Iu({
+  name: "verify",
+  description: <the frontmatter description, duplicated as a JS string>,
+  userInvocable: true,
+  disableModelInvocation: () => !flagEnabled("tengu_opal_circuit"),
+  files: () => ({ "examples/cli.md": ..., "examples/server.md": ... }),
+  getPromptForCommand,
+})
+```
+
+Compare `/run` (no `disableModelInvocation` at all) and `/run-skill-generator`
+(`disableModelInvocation: !0`).
+
+**Finding:** `/verify`'s model-invocability is a **runtime feature flag** (`tengu_opal_circuit`),
+not a version cutoff. The docs describe the *observable default* — "others, including `/verify` and
+`/code-review`, run only when you invoke them [...] Before v2.1.215, Claude could also run `/verify`
+and `/code-review` on its own" — but the mechanism means **two users on the same version can
+differ**. In this session on 2.1.226 the flag is off: `verify` is absent from the model-visible
+skill list while `run`, `code-review`, and `security-review` are present.
+
+Consequence for us: **never write a plugin that delegates to `/verify` via the Skill tool.**
+Suggesting the user run it is the only path that holds across the whole availability window. Our
+`testing:run-e2e` and `verification:confirm` already say exactly this — that guidance is correct and
+this research strengthens its rationale (flag, not just version). See [Follow-ups](#follow-ups).
+
+Also relevant to any dependency on `/verify` existing at all: `disableBundledSkills` turns off every
+bundled skill except `/doctor`, and `skillOverrides` can set a bundled skill to `"off"`. Neither
+reaches plugin skills.
+
+## 4. How it is constructed
+
+### The asymmetry that matters
+
+| Aspect | Bundled `/verify` | Any plugin skill we can ship |
+|---|---|---|
+| Frontmatter | `name`, `description` — **that is all** | must express everything in frontmatter |
+| Invocability | set in the registration call (`userInvocable`, `disableModelInvocation` as a *function*) | `user-invocable` / `disable-model-invocation` (static booleans) |
+| Supporting files | `files: { "examples/cli.md": <string>, ... }` — materialized from memory | real files on disk next to `SKILL.md` |
+| Prompt assembly | custom JS (`getPromptForCommand`) | fixed: body + substitutions |
+| Bash injection (`` !`cmd` ``) | **not used** | used by most of our skills |
+| Name collision | reserves bare `/verify` | namespaced `/<plugin>:<name>`, cannot collide |
+
+The bundled skill gets a **conditional, computed** invocability that plugin frontmatter has no way
+to express. Everything else about its construction we can match.
+
+### File layout
+
+```
+verify/
+  SKILL.md          ~10 KB, 8 sections
+  examples/cli.md   ~1.7 KB  — worked example: adding a --json flag
+  examples/server.md ~2.2 KB — worked example: adding a Retry-After header on 429
+```
+
+Linked from the body with plain relative markdown links inside a table:
+
+```markdown
+| CLI / TUI      | terminal | type the command, capture the pane — [example](examples/cli.md) |
+| Server / API   | socket   | send the request, capture the response — [example](examples/server.md) |
+```
+
+This is the same progressive-disclosure shape our skills use (`[context/e2e.md](context/e2e.md)`) —
+**hub SKILL.md, spoke files loaded on demand.** Notably the spokes are *worked examples with real
+command output and a "What FAIL looks like" section*, not reference tables. Each example is:
+Pattern → Worked example (Diff / Claim / Inference / Plan / Execute with captured output / Verdict)
+→ What FAIL looks like → edge cases. That "What FAIL looks like" section is the highest-value shape
+here — it pre-loads the failure interpretations so the agent doesn't have to guess whether an empty
+result means "passed" or "never reached the code."
+
+### Body structure (8 sections, in execution order)
+
+1. **Framing** (3 rules, all negative) — runtime observation only; no tests/typecheck; no
+   import-and-call.
+2. **Find the change** — git range commands; "The diff is ground truth. Any description is a claim
+   about it. [...] If they disagree, that's a finding."
+3. **Surface** — a 6-row `Change reaches → Surface → You` table (CLI/TUI, Server/API, GUI, Library,
+   Prompt/agent config, CI workflow). Plus: "Internal function? Not a surface." and "Tests in the
+   diff are the author's evidence, not a surface."
+4. **Get a handle** — the `ls` probe (§5), stale-verifier handling, cold-start timebox (~15 min),
+   and the persist-what-you-learned rule.
+5. **Drive it** — smallest path that executes the changed code; "Read your plan back before running.
+   If every step is build / typecheck / run test file — you've planned a CI rerun."
+6. **Push on it** — adversarial probes keyed to change type (new flag → empty value / passed twice /
+   conflicting flag / typo; new route → wrong method, malformed body, oversized payload;
+   interactive → Ctrl-C mid-op, resize, paste garbage; state → do it twice, stale state, two
+   sessions).
+7. **Capture** — captured output is evidence, memory isn't; isolate shared process state
+   (`tmux -L name`, bind `:0`, `mktemp -d`).
+8. **Report** — a fixed inline template with a 4-value verdict.
+
+### The report contract
+
+```
+## Verification: <one-line what changed>
+**Verdict:** PASS | FAIL | BLOCKED | SKIP
+**Claim:** ...
+**Method:** ...
+### Steps
+1. ✅/❌/⚠️/🔍 <what you did to the running app> → <what you observed>
+**Screenshot / sample:** ...
+### Findings
+```
+
+Verdict semantics: **PASS** (ran it, works at its surface — not "tests pass"), **FAIL** (ran it,
+doesn't), **BLOCKED** (couldn't reach an observable state — *not a verdict on the change*),
+**SKIP** (no runtime surface exists). Two rules worth stealing verbatim:
+
+- *"No partial pass. '3 of 4 passed' is FAIL until 4 passes or is explained away."*
+- *"When in doubt, FAIL. False PASS ships broken code; false FAIL costs one more human look.
+  Ambiguous output is FAIL with the raw capture attached — don't interpret."*
+
+And the emoji taxonomy is load-bearing, not decoration: **🔍 marks a probe**, and *"A Steps list
+that's all ✅ and no 🔍 is a happy-path replay: still PASS, but you stopped at the first half."*
+At least one 🔍 is required.
+
+## 5. Extensibility points
+
+Four, in descending order of leverage.
+
+### 5.1 `.claude/skills/verify/SKILL.md` — replacement (the primary seam)
+
+Docs: *"`/verify` can also record its own recipe. [...] it writes what worked to
+`.claude/skills/verify/SKILL.md` at the repo root, or in the touched package directory in a
+monorepo [...] **At the repo root, the recorded skill replaces the bundled `/verify`.** This
+requires Claude Code v2.1.200 or later."*
+
+Precedence (docs, "Where skills live"): *"A skill at any of these levels also overrides a bundled
+skill with the same name."* Enterprise > personal > project.
+
+The bundled body's own instruction for writing it:
+
+> Got through → **persist what you learned**: create `.claude/skills/verify/SKILL.md` at the level
+> you probed above [...] capturing the build/launch/drive recipe that worked, so the next session
+> skips this cold start. Keep it short: the commands that worked, the flows worth driving, any
+> gotchas. A project verify skill already exists → **edit it only when it steered you wrong**: a
+> documented command failed or turned out wrong, or a needed step it doesn't cover. Routine
+> learnings don't warrant an edit, and never rewrite or reorganize existing content for style.
+
+That edit-discipline is deliberate — the docs say the pre-v2.1.205 "fold in anything a run learned"
+wording *"caused frequent merge conflicts."*
+
+`/verify` is also the **single sanctioned exception** to Claude Code's own memory rule against
+creating project skills. From the memory-types prompt in the same binary:
+
+> Edit existing skill files only; never create one — a new project skill silently shadows a
+> same-named built-in skill. **The single exception is verify**, because how a project verifies
+> changes is project-specific [...] and if that file does not exist, create it.
+
+**Consequence:** at the repo root this seam is all-or-nothing. A project `verify` skill does not
+*extend* the bundled one — it **replaces** it, and everything in §4 (the surface table, the probe
+discipline, the report contract, the "when in doubt, FAIL" rule) is gone unless the replacement
+restates it. In a **nested** package dir it is additive: nested same-named skills both stay
+available under a directory-qualified name (`apps/web:verify`), and from v2.1.203 invoking the
+unqualified name appends the qualified variants with an instruction to also invoke the matching
+one.
+
+### 5.2 The `verifier-*` / `run-*` `ls` probe — convention, not API
+
+From the body:
+
+> **Check `.claude/skills/` first — even if you already know how to build and run.** A matching
+> `verifier-*` skill is the repo's evidence-capture protocol: it wraps the session so a reviewer
+> can replay what you saw (recording, screenshots).
+>
+> ```bash
+> ls .claude/skills/                    # repo root
+> ls <touched-dir>/.claude/skills/      # each dir level the diff names
+> ```
+>
+> - **`verifier-*` matching your surface** → invoke it with the Skill tool and follow its setup.
+> - **`run-*` but no matching verifier** → use its build/launch primitives as your handle.
+> - **Neither** → cold start from README/package.json/Makefile. Timebox ~15 min.
+
+**Verified against the binary:** the token `verifier-` appears in only two places — this SKILL.md
+prose, and unrelated code (an artifact markup validator, a code-review workflow's agent labels).
+**There is no code-level discovery of `verifier-*` skills.** It is a literal shell `ls` written into
+a prompt.
+
+**This is the finding that decides the packaging question.** Plugin skills live at
+`<plugin>/skills/<name>/SKILL.md` under the plugin cache, not `.claude/skills/`, and surface as
+`/<plugin>:<name>`. A `testing:verifier-playwright` skill will **not** appear in `ls .claude/skills/`
+and will **not** be found by this probe.
+
+### 5.3 `/run-skill-generator` — the recorder
+
+Writes `<unit>/.claude/skills/run-<unit-name>/` with a bundled `template.md` plus six worked
+examples (cli, server, tui, electron, library, playwright). Hard `disableModelInvocation` — user
+only, always. `/verify`'s BLOCKED path is instructed to emit *"a filled-in `/run-skill-generator`
+prompt"* rather than just failing. This is the shape a generator-style plugin would imitate.
+
+### 5.4 Kill switches
+
+`disableBundledSkills` (all bundled skills except `/doctor`) and `skillOverrides: {"verify": "off"}`.
+Neither reaches plugin skills. Any plugin that *depends* on `/verify` being present must degrade
+gracefully.
+
+## 6. Can we package it? — three answers, separately
+
+| Shape | Mechanically possible? | Verdict |
+|---|---|---|
+| **A. Wrap it** — a plugin skill named `verify` that shadows or replaces the bundled one | **No.** Plugin skills are namespaced `plugin:name` and "cannot conflict with other levels". `/melodic:verify` would coexist; bare `/verify` stays bundled | Rules out the naive wrap |
+| **B. Feed it** — ship `verifier-*` skills from the `testing` plugin and let `/verify` find them | **No.** §5.2 — the probe is `ls .claude/skills/`, which plugin skills are not in | Rules out the obvious integration |
+| **C. Generate for it** — a plugin skill that *writes* `.claude/skills/verify/SKILL.md` (and/or `verifier-*`) into the **consuming** repo | **Yes.** This is the only seam that works, and it is the seam Anthropic itself uses (`/run-skill-generator`, and `/verify`'s own persist step) | The live option |
+| **D. Borrow the craft** — port the discipline (surface table, probe taxonomy, verdict rules, "What FAIL looks like" examples) into `testing:run-e2e` / `verification:confirm`, no dependency on `/verify` at all | Yes, trivially | The zero-risk option, independent of A–C |
+
+Shape C has a real hazard that the interview has to price: **writing `.claude/skills/verify/SKILL.md`
+at a consumer's repo root deletes their bundled `/verify`.** Everything in §4 stops applying to that
+repo. A generator that emits a thin recipe file silently downgrades verification quality for that
+project. Two mitigations to weigh: emit at the **package** level only (additive, §5.1), or have the
+generated file restate the discipline it is replacing.
+
+Note also that this marketplace's own `docs/PLUGIN-PHILOSOPHY.md` posture on shadowing (per
+`docs/topics/shadowed-skill-renames/PLAN.md`) is that namespacing removed the shadow constraint —
+that reasoning covers plugin-vs-plugin collisions and does **not** extend to the
+project-skill-replaces-bundled case, which is a genuine destructive overwrite.
+
+## 7. What we already reference (and what we don't)
+
+Already correct and current:
+
+- `plugins/testing/skills/run-e2e/SKILL.md` — Handoff: names bundled `/verify`, floors it at
+  `≥2.1.145`, notes user-invoked-only from v2.1.215, and **suggests rather than delegates**.
+- `plugins/verification/skills/confirm/SKILL.md` — Delegation section: same floors, same
+  suggest-don't-delegate rule, verified 2026-08-02 against the bundled-skills doc; `confirm`'s eval
+  suite asserts it.
+- `plugins/verification/CHANGELOG.md` — mentions the `run-skill-generator` sibling.
+- `docs/topics/context-engineering-claude-5/` — `disableBundledSkills` / `skillOverrides` semantics,
+  including that `skillOverrides` does not reach plugin skills.
+
+Not referenced anywhere in the marketplace:
+
+- The **`verifier-*` / `run-*` `ls`-probe convention** — the actual integration surface. Nothing we
+  ship participates in it.
+- **`.claude/skills/verify/SKILL.md` as a replacement seam**, or the v2.1.200 floor for it.
+- **`/run-skill-generator` as a callable step** — named once in a changelog, never in a skill body,
+  never offered on a BLOCKED path.
+- The **`tengu_opal_circuit` flag** as the mechanism behind `/verify`'s invocability.
+
+## Craft worth stealing regardless of the packaging decision
+
+Ranked by what our skills currently lack:
+
+1. **"What FAIL looks like" per worked example.** Both spokes end with a short list mapping observed
+   symptom → likely cause (`unknown flag: --json` → not wired up *or a stale build*; all 200s → you
+   never triggered the changed path). Our `context/` spokes explain what to do; almost none explain
+   how to read a bad result.
+2. **BLOCKED as a first-class verdict, distinct from FAIL.** "Not a verdict on the change." Our
+   `confirm` has `CONFIRMED` / `NEEDS WORK` only — an unreachable surface currently has to be
+   mislabeled.
+3. **The mandatory adversarial probe (🔍).** A verdict with no probe is explicitly called an
+   incomplete job. Our evidence contracts require assertions but never require an off-happy-path
+   step.
+4. **"The verdict is table stakes. Your observations are the signal."** The Findings section
+   deliberately lowers the bar below "is this a bug" to "would I mention this if they were sitting
+   next to me" — and requires a line per probe *even when it held*.
+5. **"Read your plan back before running"** as an inline self-check against having planned a CI
+   rerun.
+6. **Evidence-reachability rule** — "A file path is only evidence if the person reading the report
+   can open it"; use `SendUserFile` when present, otherwise inline the capture. Directly relevant to
+   our e2e evidence contract on remote/cloud sessions.
+7. **Negative-space framing.** Three of the first four paragraphs say what *not* to accept. Our
+   skills lead with process; this leads with disqualifiers.
+
+## Open questions for the interview
+
+1. **Shape C or shape D — or both?** A `run-skill-generator`-style plugin skill that authors a
+   consumer's `.claude/skills/verify/SKILL.md`, versus porting the craft into `testing:run-e2e` /
+   `verification:confirm` with no coupling to bundled `/verify` at all.
+2. **If C: which level?** Repo root (replaces bundled `/verify` — destructive) or package dirs only
+   (additive, monorepo-shaped, no destruction). Root emission needs an explicit consent step and a
+   generated file that carries the discipline forward.
+3. **Do we want to participate in the `verifier-*` convention** by having a plugin skill *write*
+   `.claude/skills/verifier-<surface>/` shims that re-invoke `/testing:run-e2e`? That would make our
+   e2e machinery reachable from bundled `/verify`'s probe — at the cost of generated files in every
+   consumer repo.
+4. **Which plugin owns it?** `testing` (owns run-e2e, the surface-driving machinery),
+   `verification` (owns the verdict/evidence vocabulary), or `claude-config` (owns writing into a
+   consumer's `.claude/`). The generator behavior argues for `claude-config`; the domain argues for
+   `testing`.
+5. **Do we vendor the extracted SKILL.md?** The decoded 2.1.226 text (SKILL.md + both examples,
+   ~16 KB) exists in this session's scratchpad but is **not committed** — it is Anthropic's bundled
+   prompt and this is a public repo. The repo does vendor upstream skill text elsewhere
+   (`plugins/playbooks/skills/boris/vendor/SKILL.md`), so there is precedent; this is a call for you,
+   not a default. The extraction recipe above makes it reproducible without vendoring.
+
+## Follow-ups
+
+Not changed in this pass — flagged for the decision step:
+
+- `plugins/testing/skills/run-e2e/SKILL.md:60` and
+  `plugins/verification/skills/confirm/SKILL.md:111` both state the invocability restriction as
+  "user-invoked only from v2.1.215". Observed mechanism in 2.1.226 is a **runtime flag**
+  (`tengu_opal_circuit`), which means the restriction is not strictly version-keyed and can vary
+  per user on one version. **The operational guidance those files give — suggest, never delegate —
+  is unaffected and correct.** Only the stated rationale is narrower than reality. If touched,
+  phrase it as the docs do (observable default) plus "and can be gated at runtime", rather than
+  asserting the flag name, which is an internal identifier that may be renamed.
+- `plugins/verification/skills/confirm/SKILL.md:111` says `/run`'s "sibling `/verify` covers the
+  same ground". Accurate, but `/verify` is materially stricter than `/run` (refuses tests as
+  evidence, mandates a probe, has a 4-value verdict). Worth a sharper sentence if the file is
+  reopened.
