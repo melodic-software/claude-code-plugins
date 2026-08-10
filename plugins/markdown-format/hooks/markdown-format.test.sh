@@ -509,6 +509,24 @@ else
   fail "git absent: nested .md skipped — config discovery never left its own directory (rc=$RC_NOGIT_NEST out=$OUT_NOGIT_NEST)"
 fi
 
+# The same nesting with CLAUDE_PROJECT_DIR UNSET. That is not an exotic variant:
+# the membership scope this PR exists to fix is itself gated on
+# `[[ -z "${CLAUDE_PROJECT_DIR:-}" ]]`, and the primary no-git fixture above runs
+# unset — so unset is the configuration the fix is ABOUT, and a root resolved
+# from CLAUDE_PROJECT_DIR cannot serve it. Nothing but the filesystem can anchor
+# the root here. The scope above already declines to skip when git cannot
+# answer, so this run reaches config discovery and stands or falls on root
+# resolution alone.
+NOGIT_NESTED_UNSET="$REPO/docs/fixtureNoGitNestedUnanchored.md"
+printf '# No Git Nested Unanchored\n\n* star item\n' >"$NOGIT_NESTED_UNSET"
+OUT_NOGIT_NEST_U="$(run_hook_no_git "$NOGIT_NESTED_UNSET")"
+RC_NOGIT_NEST_U=$?
+if [[ $RC_NOGIT_NEST_U -eq 0 ]] && grep -q '^- star item$' "$NOGIT_NESTED_UNSET"; then
+  ok "git absent + CLAUDE_PROJECT_DIR unset: a NESTED .md still reaches the root config"
+else
+  fail "git absent + unset: nested .md skipped, nothing anchored the root (rc=$RC_NOGIT_NEST_U out=$OUT_NOGIT_NEST_U)"
+fi
+
 # The scope must still fire when git CAN answer — that half is the out-of-tree
 # case above, which runs with git present and asserts the skip.
 #
@@ -806,6 +824,42 @@ if [[ $RC_NO_JQ_NOCFG -eq 0 && -z "$OUT_NO_JQ_NOCFG" ]]; then
   ok "missing jq in a config-less repo -> exit 0, no notice (opt-in decided first)"
 else
   fail "missing jq in a config-less repo emitted output (rc=$RC_NO_JQ_NOCFG out=$OUT_NO_JQ_NOCFG)"
+fi
+
+# --- Missing jq AND missing git, nested file: the notice must still be owed ---
+# The opt-in pre-check resolves its own repo root, on the one path that runs
+# before jq exists. It is the same resolution as the authoritative gate's and it
+# carries the same git dependency, but no other case in this file can see it:
+# every jq-absence case above runs with git present, and every git-absence case
+# runs with jq present. Together the two shims put a nested file on that path,
+# where a root that collapses to the file's own directory reads a repository
+# that DID opt in as one that never did — and then swallows the jq notice it is
+# owed, silently. The config-less pair above pins the other direction, so the
+# assertion cannot pass by the hook simply having stopped warning.
+NO_JQ_NO_GIT_ENV="$WORK/no-jq-no-git.bashenv"
+cat >"$NO_JQ_NO_GIT_ENV" <<'EOF'
+command() {
+  if [[ "${1:-}" == "-v" && ("${2:-}" == "jq" || "${2:-}" == "git") ]]; then
+    return 1
+  fi
+  builtin command "$@"
+}
+git() {
+  printf 'bash: git: command not found\n' >&2
+  return 127
+}
+EOF
+PD_NO_JQ_NOGIT="$(mktemp -d "$WORK/pd.XXXXXX")"
+NOJQ_NESTED="$REPO/docs/fixtureNoJqNoGitNested.md"
+printf '# No Jq No Git Nested\n\n* star item\n' >"$NOJQ_NESTED"
+OUT_NO_JQ_NOGIT="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$NOJQ_NESTED" |
+  env -u CLAUDE_PROJECT_DIR BASH_ENV="$NO_JQ_NO_GIT_ENV" CLAUDE_PLUGIN_DATA="$PD_NO_JQ_NOGIT" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+RC_NO_JQ_NOGIT=$?
+if [[ $RC_NO_JQ_NOGIT -eq 0 ]] &&
+  printf '%s' "$OUT_NO_JQ_NOGIT" | grep -q 'jq not found on PATH'; then
+  ok "missing jq + missing git, nested .md -> the opt-in pre-check still finds the root config and the notice is emitted"
+else
+  fail "missing jq + missing git, nested .md -> notice swallowed, the pre-check read an opted-in repo as opted-out (rc=$RC_NO_JQ_NOGIT out=$OUT_NO_JQ_NOGIT)"
 fi
 
 # --- Repository-config trust gate: risky config blocks lint until approved ---
