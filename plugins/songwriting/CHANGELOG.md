@@ -3,6 +3,91 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.5]
+
+A source-fidelity pass over *Essential Guide to Lyric Form and Structure*
+(1991) Chapter 4 (Rhyme), read in full with **all 40 of its figures** at 3x
+upscale, against `rhyme-fundamentals.md` and `rhyme-strategy.md` — the two
+files that name that chapter as their primary source. Two of the findings
+below came only from the figures: the balance-paradigm set and the printed
+exercise answer keys, neither of which exists in the text layer. Paraphrase
+only.
+
+### Fixed
+
+- **Eight lines of Pat's own example lyrics were reproduced verbatim in
+  `rhyme-strategy.md`,** in a public repository — the `aabb`/`abab` worked
+  contrast. Pat states in the chapter that he wrote both. Replaced with a
+  structural diagram that makes the same teaching point without the text. A
+  second instance, the chapter's worked `ABACCB` exercise answer, was replaced
+  with an equivalent built the same way.
+- **`rhyme-fundamentals.md`'s identity test asserted the opposite of the
+  rule it was stating.** It said identity "matches conditions 1 and 2 and
+  **also** matches 3" where condition 3 is *"different consonant sound before
+  the vowel."* Identity fails condition 3 — that failure is the entire
+  distinction. As written, the test passed every identity as a rhyme. Every
+  other file in the plugin states the check correctly; this was the sole
+  outlier.
+- **`abba` was listed as a balanced pattern.** The chapter uses `abba` as its
+  explicit counterexample — an opening `abb` is *not* balanced by returning to
+  `a`; it is balanced by `abbabb` or `abbacc` — and the chapter's printed
+  exercise key marks `abba` **open**. Since a balanced system is closed by
+  definition, both sources agree it is neither.
+- **`rhyme-strategy.md` contradicted itself about `abba`,** calling it
+  "encloses" in the strategy table while its own Challenge 4 table listed it
+  under floating instability. Resolved toward the source; the strategy table
+  now states it stays open.
+- **The balance-paradigm list was missing half the set.** Pat prints six
+  (`abab`, `xaxa`, `aa`, `aabb`, `abcabc`, `xxaxxa`); the file carried three
+  of them plus the counterexample.
+- **`five-compositional-elements.md` described `abba` as a "wrap"** in a list
+  where every neighbouring entry names a closure state, inviting the same
+  wrong reading. Clarified that the frame returns without closing. The
+  In Memoriam `abba` in `meter.md` is a **different frame** — Tennyson's
+  equal-tetrameter stanza from the Challenge 4 curriculum — and was left
+  untouched.
+- **`rhyme-fundamentals.md` mislabeled a feminine-rhyme example as an
+  identity** (`lonely / only`). It is a rhyme: the stressed syllables differ
+  before the vowel. Its tail is identical, which the chapter explicitly
+  permits without changing the classification.
+- **Both files' image inventories omitted this chapter.** `rhyme-strategy.md`
+  listed only its 2014 and 2011 sources; `rhyme-fundamentals.md` carried no
+  inventory line at all. This is the **fourth** consecutive Book 1 chapter
+  whose inventory concealed a defect.
+- **Bare "Chapter 4" / "Chapter 9" references in `rhyme-strategy.md`** were
+  genuinely ambiguous in a file citing three books — 2014 also has a Chapter 4,
+  which `rhyme-types.md` uses. Qualified with title and year per
+  `book-references.md`.
+
+### Added
+
+- **`rhyme-fundamentals.md` now names the chapter's five structural areas as a
+  set** — balance, pace, flow, closure, type of closure — and identifies them
+  as the Structural Pentad measured against rhyme instead of stress. The file
+  previously covered all five without ever connecting them.
+- **The through-written / fragmented pair is now linked to the rhythm
+  Paradigms** it is drawn from: `abab` is the simplest through-written system
+  "like rhythm Paradigm One," `aabb` the simplest fragmented one "like rhythm
+  Paradigm Two."
+- **Consonance rhyme is recorded as already named in 1991**, so the 2014
+  stability scale extends that vocabulary rather than introducing it.
+- The cheerleader analogy is now attributed to **both** 1991 Chapter 4 and
+  2014 Chapter 1 — it appears in both, verified by extraction. The prior
+  single-source attribution was incomplete, not wrong.
+
+### Verified — no change needed
+
+- **`prosody.md`'s "1991 Chapter 3-4 (Structural Pentad)" citation holds.**
+  Its standing "Chapter 4 still unaudited" flag is cleared: Chapter 4 opens by
+  naming all five Pentad properties and gives each a numbered section. Only
+  the non-book sources remain unaudited.
+- **`exercises.md`'s Chapter 4 block is complete** — Ex 18 through 28, no
+  numbering gap.
+- **`book-references.md`'s perfect-rhyme citation is accurate.**
+- **`rhyme-types.md`'s page-scan inventory is genuine** — every cited
+  *Essential Guide to Rhyming* (2014) filename resolves against a fresh
+  extraction. Book 4's gate passes at 139 spine items / 139 images.
+
 ## [0.8.4]
 
 A source-fidelity pass over *Essential Guide to Lyric Form and Structure*

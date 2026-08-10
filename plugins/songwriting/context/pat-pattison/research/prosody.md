@@ -8,8 +8,14 @@ article (motion controllers, tone-of-voice); patpattison.com
 American Songwriter "Motion Creates E-Motion" column (4-controller framework).
 
 Audited against *Writing Better Lyrics* (2009) Chapters 18-19, and against
-*Essential Guide to Lyric Form and Structure* (1991) Chapter 3 with its figures.
-**Still unaudited:** that book's Chapter 4, and every non-book source listed
+*Essential Guide to Lyric Form and Structure* (1991) Chapters 3 **and 4**, both
+with their figures. **The "Chapter 3-4 (Structural Pentad)" citation above
+holds.** Chapter 3 introduces the Pentad on rhythmic structure; Chapter 4 opens
+by naming all five properties — balance, pace, flow, closure, closure type —
+and gives each its own numbered section, applied to rhyme structure. The
+citation spans both chapters because the framework does.
+
+**Still unaudited:** every non-book source listed
 above — the Berklee Online article, patpattison.com, the American Songwriter
 column, and OSONG-525 — which remain distillations nobody has checked against
 their originals. Where this file's wording and the 1991 chapter's wording
@@ -23,6 +29,11 @@ diverge, the divergence is marked in place rather than silently reconciled.
   references, 56 unique**, `image_rsrc2YZ.jpg` through `image_rsrc30P.jpg`. The
   Structural Pentad worksheets this file cites exist only as page scans; see
   [meter](meter.md) for the inventory note.
+- *Essential Guide to Lyric Form and Structure* (1991), Chapter 4: **40 figure
+  references, 40 unique**, `image_rsrc30R.jpg` through `image_rsrc31Y.jpg`. The
+  chapter's five-property opening and its per-property sections are what carry
+  the Pentad onto rhyme structure; see
+  [rhyme fundamentals](rhyme-fundamentals.md) "The five structural areas".
 
 ## Core idea
 

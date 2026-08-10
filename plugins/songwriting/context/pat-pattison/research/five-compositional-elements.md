@@ -90,7 +90,8 @@ See [phrasing](phrasing.md) "length of phrases" for *Essential Guide to Lyric Fo
 
 The letters describing which lines rhyme with which. Adjacent rhymes
 (aabb) close fast; alternating (abab) suspend across the pair;
-enclosed (abba) wrap; unrhymed (xaxa or xxxa) open. Mixed schemes
+enclosed (abba) wrap **without closing** — the frame returns but the
+system stays open; unrhymed (xaxa or xxxa) open. Mixed schemes
 (abcb) close some pairs while leaving others open.
 
 See [rhyme strategy](rhyme-strategy.md) for scheme as a control of

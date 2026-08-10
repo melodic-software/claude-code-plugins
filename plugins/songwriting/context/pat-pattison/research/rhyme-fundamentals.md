@@ -4,6 +4,35 @@ Pat Pattison — *Songwriting: Essential Guide to Lyric Form and Structure*
 (1991), Chapter 4. Extended by *Pat Pattison's Songwriting: Essential
 Guide to Rhyming* (2014), Chapters 1-2.
 
+## Image inventory
+
+*Essential Guide to Lyric Form and Structure* (1991), Chapter 4: **40 linked
+page-scan figures, 40 unique**, read at 3x upscale. Earlier revisions of this
+file carried no inventory line at all. The chapter argues in its scans — the
+six balance paradigms, every through-written/fragmented pair, all three closure
+types, and the printed answer keys to its exercises exist only as images. The
+`abba` correction below came from a figure and from an exercise key, neither of
+which is in the text layer.
+
+## The five structural areas
+
+The chapter's organizing claim is that rhyme controls **five** areas of
+structure, and it treats them as one set rather than five topics:
+
+| # | Area | Values |
+|---|---|---|
+| I | Balance | symmetrical / asymmetrical |
+| II | Pace | constant / accelerating / decelerating |
+| III | Flow | through-written / fragmented |
+| IV | Closure | closed / open |
+| V | Type of closure | expected / deceptive / unexpected |
+
+These are the same five properties as the Structural Pentad in
+[meter](meter.md), measured against the rhyme scheme instead of the stress
+pattern. The preceding chapter introduces the Pentad on rhythmic structure;
+this chapter applies all five to rhyme structure. Diagnose a section once with
+the Pentad and read both surfaces off it — do not run two separate frameworks.
+
 ## Anchor stance — sonic roadmap
 
 > "Songs are made for ears, not eyes."
@@ -57,9 +86,11 @@ rhyme:     ace / brace / chase / erase
 identity:  place / replace / misplace
 ```
 
-Pat's "go! go! go!" cheerleader analogy (*Essential Guide to Rhyming*
-(2014), Chapter 1, paraphrased ≤25w): three "go"s in a row are not three
-rhymes — they are one word said three times. Identity is repetition,
+Pat's cheerleader analogy (*Essential Guide to Lyric Form and Structure*
+(1991), Chapter 4 and again in *Essential Guide to Rhyming* (2014),
+Chapter 1, paraphrased ≤25w): a crowd chanting one syllable over and over
+is not hearing rhymes — it is hearing one word repeated. Nobody in the
+stadium notices that the syllables sound alike. Identity is repetition,
 period.
 
 Identity can be useful when deliberate repetition is the effect, but do
@@ -113,7 +144,7 @@ by syllable count and structure:
 | Shape | Definition | Example |
 |---|---|---|
 | Masculine | rhyme falls on a single stressed syllable at line end | `time / rhyme` |
-| Feminine | rhyme spans a stressed syllable + one or more unstressed syllables | `lonely / only`-as-identity, `dreary / weary`, `going / showing` |
+| Feminine | rhyme spans a stressed syllable + one or more unstressed syllables | `only / lonely`, `dreary / weary`, `going / showing` |
 | Mosaic | rhyme is formed across multiple words on one or both sides | `Texas / wrecks us`, `silence / find us` |
 
 Mosaic is covered in depth in [mosaic-rhyme.md](mosaic-rhyme.md) — the
@@ -163,6 +194,13 @@ idea / Maria
 liver / give her
 ```
 
+Only the stressed syllable must rhyme. `only / lonely` is a feminine **rhyme**,
+not an identity — the stressed syllables differ before the vowel (nothing
+against `l`), which is exactly what condition 3 asks for. Its unstressed tail
+happens to be identical, and the chapter permits that: the tail may rhyme or
+may be an identity without changing the classification. Do not read a matching
+tail as disqualifying.
+
 Feminine rhyme can soften, extend, or comic-heighten a section because the
 resolution includes an unstressed tail. Later rhyme files expand this into a
 larger stability scale.
@@ -203,16 +241,25 @@ The third line repeats the first sound, so the ear expects the second sound to
 return. `dive` can balance the order; `live/dive` after `alive` alone does not
 create the same balanced series because the original order has not returned.
 
-Useful balanced patterns include:
+Pat prints six paradigms of BALANCE. All six deliver the same two things —
+repetition of sound and repetition of order:
 
 ```text
-abab
-aabb
-abba
-abcabc
+abab      xaxa      aa      aabb      abcabc      xxaxxa
 ```
 
+**`abba` is not among them, and is not a balanced pattern.** An earlier
+revision of this list included it. The chapter uses `abba` as the explicit
+counterexample: an opening `abb` is *not* balanced by adding a fourth line
+that returns to `a`. It is balanced by repeating the whole series —
+`abbabb` — or by answering it with a fresh pair, `abbacc`. The chapter's
+printed exercise key independently marks `abba` **open**, and a balanced
+system is by definition closed.
+
 Sometimes repeating the series matters more than merely repeating one sound.
+That is why `abbacc` balances `abb` even though `cc` introduces a sound the
+section has never heard: the *order* has completed even where the sound has
+not returned.
 
 ## Rhyme and pace
 
@@ -264,6 +311,18 @@ b
 b
 ```
 
+These two are not free-standing rhyme facts — the chapter names them as the
+rhyme-side twins of the rhythm Paradigms from the preceding chapter. `abab` is
+the simplest through-written system *"like rhythm Paradigm One"*; `aabb` is the
+simplest fragmented system *"like rhythm Paradigm Two"*. See
+[meter](meter.md) for the Paradigms themselves. The pairing is the point: a
+writer who has already chosen a rhythmic paradigm has half-chosen the rhyme
+flow that matches it.
+
+`aab` fragments for the same reason `aabb` does — the `a` pair bonds and rests
+before anything else happens. Whether a further sound follows makes no
+difference; the balancing has already occurred.
+
 Consecutive rhymes often fragment a system, but context matters. Consecutive
 rhymes that arrive after a stronger structural pressure can act as delay rather
 than a new fragment.
@@ -271,7 +330,15 @@ than a new fragment.
 Worked example: Pattison contrasts Marvell's rhymed couplets with the final
 six lines of Shelley's "Ozymandias." Couplets stop in little thought units. The
 six-line Shelley passage keeps moving because a new sound where closure could
-have happened prevents internal fragmentation.
+have happened prevents internal fragmentation. Had the fourth line reached back
+to either sound already in play, the passage would have fragmented; a fresh
+sound there is what keeps it through-written to the end.
+
+Worth recording for the rhyme-type files: the chapter names one of those
+Shelley end-sounds an imperfect rhyme and glosses it **"a Consonance Rhyme."**
+The full stability scale is developed in *Essential Guide to Rhyming* (2014),
+Chapters 4-6 and belongs there — but consonance is already named in 1991, so
+the 2014 scale extends this vocabulary rather than introducing it.
 
 ## Open and closed systems
 
@@ -379,9 +446,16 @@ A fully resolved (perfect) rhyme needs three conditions:
 2. Same consonant sound after the vowel.
 3. Different consonant sound before the vowel.
 
-Identity matches conditions 1 and 2 and **also** matches 3 — same
-opening consonant. Identities sound like repeats. Mark them `I` in
+Identity matches conditions 1 and 2 but **fails** condition 3 — the
+consonant before the vowel is the *same*, not different. That single
+failure is what makes it identity rather than rhyme: with no difference
+to resolve, there is no tension, so the ear hears a repeat instead of a
+connection. Identities sound like repeats. Mark them `I` in
 scheme notation, not as a rhyme letter.
+
+The failure is the whole test. An earlier revision of this file said
+identity "also matches 3," which inverts the one condition that
+distinguishes the two and would pass every identity as a rhyme.
 
 Use identity only when deliberate repetition serves the song.
 Otherwise filter at the worksheet stage.

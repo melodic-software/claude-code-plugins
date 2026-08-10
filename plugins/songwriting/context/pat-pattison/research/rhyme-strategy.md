@@ -7,7 +7,14 @@ Challenge 4.
 
 Source images inspected:
 
-- Chapter 9: `image_C-page20.jpg`, `image_E-page1.jpg`, `image_E-page2.jpg`,
+- *Essential Guide to Lyric Form and Structure* (1991), Chapter 4: **40 linked
+  page-scan figures**, all 40 unique, read at 3x upscale. This file's primary
+  source argues in scans — the balance paradigms, every closure type, and all
+  three strategy examples are figures, not prose. Earlier revisions of this
+  inventory listed only the *Essential Guide to Rhyming* (2014) and
+  *Songwriting Without Boundaries* (2011) images and omitted this chapter
+  entirely, which is how the `abba` error below survived.
+- *Essential Guide to Rhyming* (2014), Chapter 9: `image_C-page20.jpg`, `image_E-page1.jpg`, `image_E-page2.jpg`,
   `image_E-page3.jpg`, `image_E-page4.jpg`, `image_E-page5.jpg`,
   `image_E-page6.jpg`, `image_E-page7.jpg`, `image_E-page8.jpg`,
   `image_E-page9.jpg`, `image_E-page10.jpg`, `image_E-page11.jpg`.
@@ -21,6 +28,8 @@ movement, support meaning through prosody, and create relationships between
 sections.
 
 > "Prosody is one of the most important strategies you have"
+> — Pat Pattison, *Essential Guide to Lyric Form and Structure* (1991),
+> Chapter 4
 
 This file focuses on decision-making. For definitions and mechanics, see
 [rhyme fundamentals](rhyme-fundamentals.md).
@@ -63,18 +72,23 @@ a b a b
 Idea keeps moving through all four lines
 ```
 
-Worked contrast from Chapter 4:
+Worked contrast from *Essential Guide to Lyric Form and Structure* (1991),
+Chapter 4 (structure only; Pat's example lyrics are not reproduced):
+
+Pat sets the same four-line situation twice. The first setting pairs lines 1-2
+on one sound and lines 3-4 on another (`aabb`); the second alternates them
+(`abab`). Nothing else changes — same subject, same line lengths.
 
 ```text
-aabb: Love her or leave her to me
-      Keep her or let her go free
-      Don't go two-timing her
-      'less you're resignin' her
+aabb -> line 1 |
+        line 2 | first thought, closed by the couplet
+        line 3 |
+        line 4 | second thought, closed by the couplet
 
-abab: Some girls like their flirtin'
-      They're always on the roam
-      Blind to who they're hurtin'
-      Their eyes are never home
+abab -> line 1 ... rhyme opens
+        line 2 ... second sound opens
+        line 3 ... first sound returns, still unresolved
+        line 4 ... both resolve together
 ```
 
 The first naturally divides into two parts. The second stays in motion because
@@ -140,7 +154,8 @@ c
 b
 ```
 
-In Chapter 4's examples, the consecutive `c c c` cluster increases pressure before a
+In *Essential Guide to Lyric Form and Structure* (1991), Chapter 4's examples,
+the consecutive `c c c` cluster increases pressure before a
 later return. Feminine rhymes can heighten comedy because the two-syllable tail
 adds bounce while the cluster speeds up.
 
@@ -234,13 +249,20 @@ effect: the c cluster accelerates the middle; final b closes the frame
 Repeated song sections often force the reverse process. Verse 1 establishes a
 scheme; verse 2 must find content that fits it.
 
-Chapter 4's exercise uses `ABACCB`:
+*Essential Guide to Lyric Form and Structure* (1991), Chapter 4 drills this with
+an `ABACCB` scheme: the writer sketches a plot whose action fits the scheme's
+motion, then finds rhyme words for it. Pat's own worked answer is his to print —
+here is an equivalent built the same way:
 
 ```text
 scheme: ABACCB
-plot: lovers dancing, spouse enters, discovery
-words: dance / embrace / romance / eyes / surprise / disgrace
+plot: a late shift ends, the drive home turns toward someone
+      else's street, and the narrator keeps driving past
+words: light / alone / night / turn / burn / home
 ```
+
+The `cc` pair in positions 4-5 is where the plot's pressure spikes; the delayed
+`b` in position 6 is where it resolves.
 
 The method:
 
@@ -463,7 +485,8 @@ Workflow:
 5. Use more stable rhyme types in the resolved appearance.
 6. Check whether the song's larger journey now grows rather than repeats.
 
-This is the strategic point of the Randy Newman case study in Chapter 9: a remote
+This is the strategic point of the Randy Newman case study in
+*Essential Guide to Rhyming* (2014), Chapter 9: a remote
 family/consonance connection can keep an early prechorus unstable, while a
 perfect rhyme in the matching later prechorus can close firmly. The same formal
 slot changes emotional color through rhyme type alone.
@@ -576,10 +599,18 @@ join ideas across the section.
 |---|---|
 | `aabb` | Fragments each pair; each couplet closes a thought |
 | `abab` | Through-writes; idea spans the four-line arc |
-| `abba` | Encloses; outer pair frames the inner pair |
+| `abba` | Frames the inner pair — but stays **open**, not closed (see below) |
 | `xaxa` | Through-writes with relaxed structure |
 | `aaba` | Points forward toward a fourth `b` that does not arrive |
 | `abcb` | Closes the rhymed pair; leaves first and third open |
+
+**`abba` does not close.** Earlier revisions of this table said `abba`
+"encloses," which reads as a closure claim and contradicted this file's own
+Challenge 4 table below, where `abba` is listed under floating instability. The
+1991 chapter settles it twice over: it presents `abba` as the scheme that
+*fails* to balance an opening `abb`, and its printed exercise key marks `abba`
+**open**. Use `abba` when a section should frame an idea without resolving it —
+loss, hope, suspension — not when it needs to land.
 
 Use Strategy 1 to decide which idea-shape the section wants:
 fragmented declarations, single arcs, framed center, or unresolved push.
