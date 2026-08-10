@@ -678,8 +678,8 @@ assert_eq "a rename destination is reported when BOTH paths contain spaces" \
 
 # repo20 covers spaced paths on the RENAME arm only. The COPY arm reads the same
 # three fields through its own `read` calls, so it needs its own spaced case --
-# and the copy arm is now the one that admits unconditionally, so a field it
-# mis-reads becomes a WRONG path reported rather than a path silently dropped.
+# and the copy arm is now the one that admits unconditionally, so a misread
+# field becomes a WRONG path reported rather than a path silently dropped.
 # `core.quotepath` is set true (the git default) so the C-quoted-path form is
 # the one actually exercised; `--raw -z` is documented to defeat that quoting,
 # and this is what pins it.
