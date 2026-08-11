@@ -21,9 +21,12 @@ Load the audit checklist alongside these: [audit-checklist.md](../reference/audi
   repo's own rules declare additional required patterns, check those too
 - **Before flagging an absent baseline pattern, apply the narrowings** in
   [required-permissions.md](../reference/required-permissions.md) "Narrowing the baseline" — a
-  documented repo exemption, a documented project hook convention, or an installed enabled `PreToolUse`
-  hook that already blocks the family (that third case is `info` with the residual named, not `error`).
-  Where no hook inventory was taken, state the finding as conditional rather than as an assertion
+  documented repo exemption, a documented project hook convention, or a **live** `PreToolUse` hook that
+  already blocks that family on the tool surface the pattern defends (that third case is `info` with
+  the residual named, not `error`). Read the three preconditions there before downgrading: installed
+  and enabled is not enough, a `Bash` hook does not cover a `Read`-pattern family, and coverage of one
+  command family says nothing about a neighbouring one. Where no hook inventory was taken, state the
+  finding as conditional rather than as an assertion
 - **Deny rules in settings.json ONLY** — not in settings.local.json (bug [#8961](https://github.com/anthropics/claude-code/issues/8961))
 - **No overly broad patterns** — `Bash(git *)` should be split into specific operations
 - **Evaluation order** makes sense — deny overrides ask overrides allow

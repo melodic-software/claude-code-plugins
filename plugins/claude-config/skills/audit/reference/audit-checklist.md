@@ -38,8 +38,9 @@ additional ask-gates) get those checked at the same severities.
 The severities above are the *unnarrowed* rating. Apply
 [required-permissions.md](required-permissions.md) "Narrowing the baseline" first: a documented
 exemption or a documented project hook convention retires the finding, and a family already blocked by
-an installed, enabled `PreToolUse` hook drops to `info` with the residual named. Where no hook
-inventory was taken, the finding is stated conditionally, not asserted.
+a **live** `PreToolUse` hook on the tool surface that pattern defends drops to `info` with the residual
+named. "Live" is fenced there and is not the same as installed and enabled. Where no hook inventory was
+taken, the finding is stated conditionally, not asserted.
 
 ### B.4 Syntax checks
 

@@ -59,11 +59,14 @@ cat .claude/settings.local.json | tr -d '\r' | jq '.permissions.deny // empty'
 **The judgment on a baseline deny addition, stated.** Two things have to be checked before the rule is
 added, and neither is mechanical:
 
-1. **Is the family already covered?** An installed, enabled `PreToolUse` hook on the relevant tool
-   surface may already block it, in which case the finding is `info` rather than `error` and the rule
+1. **Is the family already covered?** A **live** `PreToolUse` hook on the tool surface that pattern
+   defends may already block it, in which case the finding is `info` rather than `error` and the rule
    is redundant — see [required-permissions.md](../reference/required-permissions.md) "Narrowing the
-   baseline". The audit reads settings-declared hooks only and cannot enumerate a plugin's
-   `hooks/hooks.json`, so this is a question to answer, not a lookup.
+   baseline", whose three preconditions govern: installed and enabled is not enough (`disableAllHooks`
+   and the managed `allowManagedHooksOnly` / `strictPluginOnlyCustomization` levers switch hooks off),
+   a `Bash` hook does not cover the `Read`-pattern family, and one command family's coverage says
+   nothing about another's. The audit reads settings-declared hooks only and cannot enumerate a
+   plugin's `hooks/hooks.json`, so this is a question to answer, not a lookup.
 2. **Would the addition suppress a gate the project built on purpose?** Deny and ask rules are
    evaluated regardless of what a `PreToolUse` hook returns, so adding a deny over a family a project
    hook escalates to an *ask* replaces the prompt with an outright block and the human loses the
