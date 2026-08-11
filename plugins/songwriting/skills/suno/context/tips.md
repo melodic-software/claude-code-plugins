@@ -123,6 +123,16 @@ MEDIUM confidence — works on 5/10 generations. Worth trying, regenerate if mis
 
 LOW-MEDIUM confidence. Use structural tags (`[Intro]`, `[Outro]`) as primary control; timing cues as secondary nudge.
 
+## Multilingual lyrics and diacritics
+
+This guidance is **community-empirical, not officially documented by Suno**:
+
+- Prefer one language per section when code-switching. Section-boundary changes are better attested than within-line switching.
+- Within-line Spanglish can work, but reports describe it as inconsistent. Treat it as an experiment, not a reliable controller.
+- Extend can drift into an unintended language. Re-state the intended language in the new lyrics and review the continuation before building on it.
+- Keep standard diacritics in lyrics and titles rather than stripping them defensively. Community reports support accented characters in lyrics, and Suno title display is Unicode-clean; official field behavior is undocumented.
+- An accented vowel can act as a stress cue for Spanish pronunciation. This is a community-attested technique, not a guarantee.
+
 ## Style-prompt micro-tricks
 
 ### Front-load the highest-priority tag

@@ -72,13 +72,15 @@ Fix for "the second verse is bad but the rest is perfect."
 
 ## Creative Sliders
 
+Suno's official help names these controls and their qualitative endpoints. **Every percentage, numeric range, and numeric default below is presented as community-empirical (MEDIUM confidence).** No percentage here is an official recommendation; use the numbers as A/B-test starting points.
+
 | Slider | Range | Default | Effect |
 |--------|-------|---------|--------|
 | **Weirdness** | Safe ↔ Chaos | 50% | Left = conventional structure / familiar progressions; right = unconventional / genre-bending |
 | **Style Influence** | Loose ↔ Strong | 50% | Right = strict adherence to descriptors; left = creative interpretation |
 | **Audio Influence** | (with upload only) | — | Weight of uploaded reference vs creative AI interpretation |
 
-Practical defaults:
+Community-empirical starting points:
 
 - **Polished pop / radio-ready**: Weirdness ~30%, Style Influence ~75%
 - **Genre-bending experimental**: Weirdness ~75%, Style Influence ~50%
@@ -86,7 +88,7 @@ Practical defaults:
 
 ## More Options panel (Custom mode)
 
-The "More Options" expandable section contains five controls. Empirical detail on each (HIGH confidence, multi-source community testing).
+The "More Options" expandable section contains five controls. Claims below are community-empirical unless explicitly identified as first-party; numeric thresholds are MEDIUM-confidence starting points.
 
 ### Exclude styles (text field)
 
@@ -126,6 +128,8 @@ Inference is **unreliable** — explicitly set the toggle when you care.
 
 **Interaction with Style Influence:**
 
+The following percentages are community-empirical, not official thresholds:
+
 - At SI ≥80%, the toggle's impact diminishes (style descriptors dominate)
 - At SI 40-50%, the toggle dominates over text descriptors
 - **Best practice:** explicit toggle + complementary descriptor in style prompt + SI 65-75%
@@ -147,9 +151,9 @@ Inference is **unreliable** — explicitly set the toggle when you care.
 
 **Default rule:** Auto in Simple Mode, **Manual in Custom Mode** for anything production-grade.
 
-### Weirdness slider (default 50%)
+### Weirdness slider (community-empirical numeric guidance)
 
-Community sweet spot: **60-65% for distinctive output that maintains coherence** (not the default 50%).
+Community-empirical sweet spot: **60-65% for distinctive output that maintains coherence**. The 50% baseline used here is also treated as community-empirical.
 
 | Range | Output character | Use case |
 |-------|------------------|----------|
@@ -160,9 +164,9 @@ Community sweet spot: **60-65% for distinctive output that maintains coherence**
 | 75-85% | Experimental, risky | Genre-bending, intentional weirdness |
 | 86%+ | Chaos, rarely usable | A/B sanity check only |
 
-**Protect-the-chorus principle:** when using Replace Section to swap a chorus, drop Weirdness to 25-40% — preserves the established hook character. Push higher in bridges where contrast is welcome.
+**Community-empirical protect-the-chorus principle:** when using Replace Section to swap a chorus, try Weirdness at 25-40% to preserve the established hook character. Push higher in bridges where contrast is welcome.
 
-### Style Influence slider (default 50%)
+### Style Influence slider (community-empirical numeric guidance)
 
 | Range | Effect |
 |-------|--------|
@@ -171,9 +175,9 @@ Community sweet spot: **60-65% for distinctive output that maintains coherence**
 | 65-80% | Strict genre adherence (mainstream pop, country, classical) |
 | 85%+ | Diminishing returns, repetitive, over-fits to descriptors |
 
-**Inverse interaction with Weirdness:** high Weirdness + high Style Influence = incoherent competition (model fights itself).
+**Community-empirical inverse interaction with Weirdness:** high Weirdness + high Style Influence may create incoherent competition.
 
-Coordinate as **balanced opposition:**
+Community testers coordinate the sliders as **balanced opposition:**
 
 - Weirdness 65-75% + Style Influence 55-70% — distinctive but coherent
 - Weirdness 30-40% + Style Influence 75-85% — polished and on-genre
