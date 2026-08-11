@@ -3,6 +3,23 @@
 All notable changes to the `typos-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.6]
+
+### Changed
+
+- **Shared `hook-utils.sh`: the jq gate now has a fail-CLOSED sibling, and the posture reasoning
+  lives at the helper (#2146).** `hook::require_jq` is unchanged and still fails OPEN — one visible
+  skip notice per session, then exit 0 — which is the correct posture for every hook in this plugin,
+  so **nothing in this plugin's behaviour changes**. What is new is `hook::require_jq_blocking`, a
+  second named function that denies the tool call instead, for the narrow class of guards whose job
+  is blocking an irreversible operation (today only two, both in `guardrails`). A sibling function
+  rather than a parameter, because a flag's omitted value would default to fail-open and a guard
+  whose flag someone forgot would then fail open *silently* — the exact defect #2146 reports,
+  reintroduced at the API. The two postures are now argued together in one block above both
+  functions, which is what #2146 asked for: previously each call site asserted a posture in a
+  comment and nothing where the decision is made explained it. Synced from `lib/hook-utils.sh`.
+
+
 ## [0.6.5]
 
 ### Changed

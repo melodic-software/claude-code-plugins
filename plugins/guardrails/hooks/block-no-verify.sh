@@ -59,50 +59,32 @@ start=${EPOCHREALTIME:-}
 # call, and a silent skip would pass exactly the traffic this guard exists to
 # stop. buffer_stdin already printed the BLOCKED reason to stderr. Buffering
 # does not require jq (hook::buffer_stdin's own JSON-completeness check is
-# jq-optional), so it runs before the jq gate below — hook::require_jq needs
-# the buffered input for its once-per-session notice scoping.
+# jq-optional), so it runs before the jq gate below.
 INPUT=$(hook::buffer_stdin) || {
   rc=$?
   ((rc == 2)) && exit 2
   exit 0
 }
 
-# jq is required to parse the tool payload. hook::require_jq fails OPEN
-# (advisory hooks never block over a missing prerequisite) but makes the
-# degraded state visible to both the user (systemMessage) and the agent
-# (additionalContext), once per session — see docs/conventions/hook-observability/.
-hook::require_jq "PreToolUse" "guardrails-block-no-verify" "$INPUT"
+# jq is required to parse the tool payload, and this guard FAILS CLOSED on its
+# absence (#2146) — the same posture the MAX_COMMAND_LEN ceiling below already
+# took toward an input it cannot parse. Before #2146 the two disagreed: an
+# over-long command was treated as obfuscation and blocked, while a machine
+# without jq skipped the guard entirely after one notice, so an author who could
+# not fit a bypass under the ceiling could simply be somewhere without jq. The
+# posture, the membership criterion for this class, and the disclosed cost are
+# argued at hook::require_jq_blocking in hook-utils.sh — this comment asserts the
+# behaviour, that one explains it.
+hook::require_jq_blocking "guardrails-block-no-verify" "block_no_verify_enabled"
 
 # Both payload fields in ONE jq process (hook::jq_fields), not two. A jq spawn is
 # ~140 ms of fork() emulation on Windows Git Bash and this guard runs on every
-# Bash/PowerShell call. rc 1 here means jq is absent, or jq could not parse the
-# payload at all — it exits 0 exactly as the empty-COMMAND skip below did, and
-# hook::require_jq above has already made a missing jq visible once per session.
-# That remaining allow-on-unparsable path is unchanged by #2122 and is NOT what
-# the NUL check below covers.
+# Bash/PowerShell call. Failure semantics are unchanged: a missing jq or an
+# unparsable payload yields rc 1 here, which exits 0 exactly as the empty-COMMAND
+# skip below did. A MISSING jq can no longer reach this line —
+# hook::require_jq_blocking above has already denied the call (#2146) — so the
+# rc-1 path here is now only the unparsable-payload case.
 hook::jq_fields "$INPUT" '.tool_input.command' '.tool_name' || exit 0
-
-# A NUL byte in EITHER field read above is fail-CLOSED, and is decided BEFORE
-# the empty-COMMAND skip below: the helper strips every NUL out of a value, so a
-# command consisting only of NUL bytes arrives EMPTY and would otherwise be waved
-# through by that skip as "no command" (#2122). Verified, not assumed — a lone
-# NUL yields an empty value with the flag set, while a leading NUL followed by
-# text keeps the text.
-#
-# Blocking rather than matching, because the value a guard can read is not
-# reliably the thing that would run. Two behaviours were measured and they
-# disagree — bash DISCARDS a NUL while parsing a command it reads, and Node's
-# child_process REFUSES a NUL-bearing string outright — and which of them, if
-# either, a hook payload reaches has not been traced. Blocking is the one verdict
-# correct under all of them, so it needs no such trace. A NUL here is malformed
-# input, not an exotic-but-valid command.
-if ((HOOK_JQ_FIELDS_NUL)); then
-  echo "BLOCKED: the payload carries a NUL byte, which a command cannot reliably carry." >&2
-  echo "What a guard can read is not dependably what would run, so this is refused rather than matched." >&2
-  echo "Fix: reissue the tool call without the embedded NUL." >&2
-  exit 2
-fi
-
 COMMAND="${HOOK_JQ_FIELDS[0]}"
 [[ -n "$COMMAND" ]] || exit 0
 TOOL_NAME="${HOOK_JQ_FIELDS[1]:-Bash}"

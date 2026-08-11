@@ -16,33 +16,11 @@ readonly _HOOK_UTILS_LOADED=1
 # read from the hook-process CLAUDE_PLUGIN_OPTION_<NAME>_ENABLED mirror.
 # Exits 0 (allow) if disabled. Place after source, before stdin parsing.
 #   hook::check_enabled "MARKDOWN_FORMAT"  # checks CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED
-#
-# Deliberately NOT layered with a marketplace-specific fleet switch. Claude Code
-# already ships the coarse controls, and a parallel scheme here would become a
-# second source of truth for the same question:
-#   * `--safe-mode` / `CLAUDE_CODE_SAFE_MODE` — start with every customization
-#     (CLAUDE.md, plugins, skills, hooks, MCP servers) disabled
-#   * `disableAllHooks` — disable all hooks and any custom status line
-#   * `claude plugin disable|enable <name>` — per-plugin, dependency-aware
-# This helper stays scoped to the one thing it owns: the plugin's own
-# `<name>_enabled` userConfig boolean, surfaced to hook processes as the native
-# `$CLAUDE_PLUGIN_OPTION_<KEY>` mirror.
-
-# hook::is_enabled <NAME> — the same check as a PREDICATE. Returns 0 when the
-# plugin should run, 1 when it should not. For callers that must not terminate
-# the process on a "disabled" answer.
-#
-# The statusline tee is exactly that caller: it is a TRANSPARENT WRAPPER around
-# the user's real statusline, so exiting 0 on "disabled" would suppress the
-# wrapped command's output and blank the status line. It needs to skip its own
-# side effect and still pass through.
-hook::is_enabled() {
-  local var_name="CLAUDE_PLUGIN_OPTION_${1}_ENABLED"
-  [[ "${!var_name:-true}" == "true" ]]
-}
-
 hook::check_enabled() {
-  hook::is_enabled "$1" || exit 0
+  local var_name="CLAUDE_PLUGIN_OPTION_${1}_ENABLED"
+  if [[ "${!var_name:-true}" != "true" ]]; then
+    exit 0
+  fi
 }
 
 # --- Prerequisite visibility --------------------------------------------------
@@ -145,11 +123,76 @@ hook::raw_file_path() {
   printf '%s' "${BASH_REMATCH[1]}"
 }
 
-# jq gate for hooks whose input parsing cannot proceed without it. When jq is
-# absent: one visible skip notice per session, then exit 0 — an advisory hook
-# never blocks the tool over a missing prerequisite. Place after
-# hook::check_enabled (and after any jq-free applicability pre-filter), passing
-# the buffered stdin for session scoping.
+# ============================================================================
+# THE jq GATE — TWO POSTURES, AND WHY THERE ARE TWO (#2146)
+# ============================================================================
+#
+# A hook that cannot parse its payload has exactly two honest moves: let the
+# tool call through (fail OPEN) or deny it (fail CLOSED). This library offers
+# both, as two named functions, and the choice belongs to the CALLING hook. The
+# reasoning lives HERE, at the decision point, not only at the call sites —
+# before #2146 every call site asserted a posture in a comment and nothing where
+# the posture is actually implemented explained it.
+#
+# hook::require_jq          fails OPEN  — the default, and correct for most hooks
+# hook::require_jq_blocking fails CLOSED — for a guard that blocks an
+#                                          irreversible operation
+#
+# WHY FAIL OPEN IS THE DEFAULT. Most hooks in this marketplace are advisory or
+# cosmetic: a formatter, a lint pass, a context injector, a detect-then-judge
+# oracle. Their finding is a prompt, not a verdict. Blocking a user's tool call
+# because an OPTIONAL formatting hook could not find an OPTIONAL dependency
+# inverts the cost: the guard's job is worth less than the work it would stop.
+# The once-per-session notice is what keeps that degradation honest rather than
+# silent — the user and the agent are both told the hook is off.
+#
+# WHY A MINORITY MUST FAIL CLOSED. A guard whose job is to stop an IRREVERSIBLE
+# operation cannot be a suggestion. Its whole value is that it is there when
+# nobody is watching, and "somewhere without jq" is not an exotic state — it is
+# the default state of a machine that has not installed one dependency. A guard
+# that a missing dependency silently switches off is not a guard; it is a guard
+# on machines that happen to be configured for it. #2146 measured this: with jq
+# unreachable, `git push --force origin main` was ALLOWED by block-dangerous-git,
+# after one notice, for the rest of the session.
+#
+# WHICH HOOKS ARE IN THAT MINORITY — the criterion is mechanical, and it is
+# INTERNAL CONSISTENCY, not a taste judgement about severity. A hook belongs in
+# the fail-closed class iff it ALREADY fails closed on some other
+# "I cannot parse this input" condition. Today exactly two do, both via a
+# MAX_COMMAND_LEN ceiling above which an unparsable command is denied unread:
+#
+#     plugins/guardrails/hooks/block-dangerous-git.sh
+#     plugins/guardrails/hooks/block-no-verify.sh
+#
+# Those two scripts held two opposite postures toward the same question — an
+# over-long command is hostile and blocked; a missing jq is fine and skipped —
+# which meant an author who could not fit a dangerous command under 16384
+# characters could simply be on a machine without jq. That contradiction is what
+# #2146 reports, and resolving it is all this class is for.
+# plugins/guardrails/hooks/require-jq-posture.test.sh pins the membership so the
+# two cannot drift apart again.
+#
+# DELIBERATELY NOT WIDENED. block-hook-bypass and block-noncanonical-commit also
+# exit 2, and block-hook-bypass carries the same "the only supported deliberate
+# bypass is the kill switch" sentence. They stay fail-open: they guard a FILE
+# WRITE or a message shape, both trivially reversible, and neither holds the
+# internal contradiction above. Severity is a slope; "already fails closed
+# elsewhere in the same script" is a line. If one of them grows a length ceiling
+# it joins the class, and the posture test will say so.
+#
+# WHY TWO FUNCTIONS RATHER THAN ONE WITH A FLAG. A parameter's OMITTED value has
+# to default to something, and the safe-looking default (fail open, matching
+# today's behaviour) means a guard that should fail closed but whose flag someone
+# forgot fails open SILENTLY — which is the exact defect class #2146 reports,
+# reintroduced at the API. Two names make the posture greppable, make the
+# fail-closed path impossible to reach by accident, and make omission a visible
+# choice instead of an invisible default.
+
+# Fail-OPEN jq gate — the default. For hooks whose input parsing cannot proceed
+# without jq and whose finding is advisory. When jq is absent: one visible skip
+# notice per session, then exit 0. Place after hook::check_enabled (and after any
+# jq-free applicability pre-filter), passing the buffered stdin for session
+# scoping. See the posture block above for when this is the WRONG choice.
 #   hook::require_jq PostToolUse my-plugin "$INPUT"
 hook::require_jq() {
   command -v jq >/dev/null 2>&1 && return 0
@@ -159,6 +202,45 @@ hook::require_jq() {
       "$plugin: jq not found on PATH — hook skipped for this session. Install jq (https://jqlang.org/download/) to enable it."
   fi
   exit 0
+}
+
+# Fail-CLOSED jq gate (#2146) — for a guard that blocks an irreversible
+# operation, per the membership criterion in the posture block above. When jq is
+# absent the tool call is DENIED (exit 2) with jq named as the missing
+# prerequisite and the same install route the fail-open notice uses.
+#
+# No notice_once here, and that is deliberate: this message is not a
+# once-per-session heads-up about a degraded hook, it is THIS tool call's denial
+# reason. Suppressing the repeat would leave a later denial unexplained. It also
+# goes to stderr rather than through hook::emit_channels, because stderr is the
+# channel a PreToolUse exit 2 feeds back to the agent.
+#
+# The kill switch stays the only supported deliberate bypass: a consumer who
+# genuinely wants the operation unguarded on a jq-less machine sets the guard's
+# own *_enabled userConfig option to false, which hook::check_enabled honours
+# BEFORE this gate is ever reached.
+# DISCLOSED COST, because it is not small: this guard runs on EVERY Bash and
+# PowerShell tool call, and without jq it cannot read the command at all — so it
+# cannot tell a dangerous one from a safe one and denies both. On a machine
+# without jq every such tool call is blocked until jq is installed or the kill
+# switch is set. That is the hard dependency #2146 accepted when it chose this
+# posture over a jq-free substring pre-check, which was rejected for
+# manufacturing a false sense of coverage.
+#
+# $1 = the hook's own id (for the message), $2 = the user-facing *_enabled
+# userConfig option name that turns this guard off.
+#   hook::require_jq_blocking guardrails-block-dangerous-git block_dangerous_git_enabled
+hook::require_jq_blocking() {
+  command -v jq >/dev/null 2>&1 && return 0
+  local hook_id="$1" option="${2:-}"
+  echo "BLOCKED: $hook_id cannot read the tool payload — the required prerequisite \`jq\` is not on PATH." >&2
+  echo "This guard blocks irreversible operations, so a missing prerequisite denies the call rather than silently skipping the guard (#2146)." >&2
+  if [[ -n "$option" ]]; then
+    echo "Install jq (https://jqlang.org/download/), or set the \`$option\` plugin option to false (/plugin configure) to bypass this guard." >&2
+  else
+    echo "Install jq (https://jqlang.org/download/) to restore the guard." >&2
+  fi
+  exit 2
 }
 
 # Normalize a path for the membership comparison below: backslashes → forward
@@ -644,107 +726,49 @@ hook::jq_field() {
 # the whole contract) would DROP the field here and silently shift every later
 # index onto the wrong filter. Emptiness stays the caller's decision.
 #
-# Returns 1 — with HOOK_JQ_FIELDS empty — when jq is absent, when jq cannot
-# parse the payload, or when the record count does not match what was asked for
-# in EITHER direction (an over-count rejects too: two concatenated well-formed
-# JSON documents parse fine and yield twice the records). Every guardrail caller
-# spells that `|| exit 0`, a PreToolUse ALLOW, so what can reach it matters. NUL
-# CONTENT no longer can (#2122). A payload jq itself rejects — malformed JSON, a
-# wrongly typed field, an empty buffer — still does, exactly as it did before
-# this change; that path is untouched here, and process substitution means jq's
-# own exit status is not observed either. Values are CR-stripped, as in
+# Returns 1 — with HOOK_JQ_FIELDS empty — when jq is absent or fails, or when
+# fewer values came back than filters were asked for, so a partial read can
+# never be mistaken for a complete one. Values are CR-stripped, as in
 # hook::jq_field.
 #
-# HOOK_JQ_FIELDS_NUL is set on EVERY call — "1" when any REQUESTED field carried
-# a NUL byte, "0" otherwise, and "0" on every failure path — so a caller can
-# never inherit a stale "1" from an earlier invocation by forgetting to reset it.
-# A caller that owns a block/allow verdict MUST consult it and fail CLOSED.
-#
 # Fields are NUL-separated on the wire, and every value has its own NUL bytes
-# REMOVED jq-side first, so the delimiter provably cannot occur inside a value
-# and the record count no longer depends on what a PARSEABLE payload holds. jq
-# used to emit the raw byte, the value split in two, the cardinality check below
-# failed, and the callers' `|| exit 0` turned a PreToolUse BLOCK into a silent
-# ALLOW (#2122).
+# REMOVED jq-side first, so the delimiter provably cannot occur inside a
+# value: the values carry arbitrary text (a Bash command spans newlines
+# routinely), and once NUL is out of the value alphabet no payload can put it
+# back. Without that strip, a JSON input encoding a literal \u0000 INSIDE a
+# string value — which a Write/Edit/NotebookEdit content field legitimately
+# may — made jq emit the raw byte, split that value in two, and fail the
+# cardinality check below, turning a caller's `|| exit 0` into a silent skip
+# of the entire guard.
 #
-# The FLAG is computed from the values as the payload carried them, BEFORE the
-# strip — the ordering is load-bearing and is the one thing a textual merge of
-# this function will get wrong. Strip first and `index(0)` looks at a value that
-# no longer holds a NUL, so the flag reads "0" on every payload and the guards
-# that consult it never fire: a fail-open with no diagnostic, which is the exact
-# defect #2122 filed. Anyone editing the jq program must keep the flag ahead of
-# the strip.
-#
-# Removing the NUL is NOT a claim about how a NUL executes, and must not be read
-# as one. Two behaviours were measured and they disagree: bash DISCARDS a NUL
-# while parsing a command it reads (stdin or a script file), so `echo ha<NUL>rd`
-# prints `hard`; Node's child_process REFUSES a NUL-bearing string outright, on
-# argv, on `shell: true`, and on exec alike. Which of those — if either — a hook
-# payload would ever reach is UNTRACED. No value semantics chosen here can claim
-# fidelity to the executor, in either direction, and none is claimed.
-#
-# That is exactly why the verdict is fail-CLOSED on the flag rather than a match
-# against the value: blocking is correct under deletion, under truncation, and
-# under refusal alike, so it does not depend on anyone having traced the path —
-# and it cannot be invalidated by tracing it later. The flag is the load-bearing
-# part; the value semantics are not.
-#
-# Deletion over truncation is chosen on grounds that appeal to no shell at all,
-# and it is the disposition #2120 already shipped: a truncating helper hides
-# everything after the first NUL from the ten scanning callers #2120 converted,
-# none of which consults the flag, so truncation would make a credential past a
-# NUL invisible to secret-pattern-detection and hardcoded-path-check. Deletion
-# keeps those callers seeing the whole value. The trade runs the other way for a
-# COMMAND caller that forgets the flag — `--no-verify<NUL>x` joins to
-# `--no-verifyx` and matches nothing — which is precisely why the two guards
-# refuse on the flag before reading a value at all, rather than relying on the
-# disposition to keep them safe.
-#
-# split/join (1-arity, a plain string split — NOT gsub, which would put a NUL
-# inside an Oniguruma pattern) for the strip, and explode/index for the flag, so
-# that no regex pattern and no string literal in the jq PROGRAM text carries a
-# NUL byte: a construct whose behaviour varied across jq builds would fail EVERY
-# payload, which is strictly worse than the payload-dependent bug being fixed.
-#
-# The library cannot impose the verdict itself — the plugins sourcing it include
-# formatters, for which exiting 2 would be wrong — so policy stays with the
-# caller and the library only reports the fact.
-#
-# Read through a process substitution rather than $( ): command substitution
-# strips NUL bytes, which would eat the separators themselves.
+# Dropping the NUL rather than encoding around it is not the lesser option,
+# it is the only representable one: a bash variable cannot hold a NUL byte,
+# so no framing scheme (length prefix, base64, …) could deliver one into
+# HOOK_JQ_FIELDS. It is also exactly what the per-field command substitution
+# this helper replaced did — $( ) discards NUL bytes and keeps the rest of
+# the value, so content AFTER a NUL is still returned and still scanned.
+# Read through a process substitution rather than $( ) because the delimiter
+# itself must survive the read; command substitution would strip it too.
 #
 #   hook::jq_fields "$INPUT" '.tool_input.command' '.tool_name' || exit 0
-#   if ((HOOK_JQ_FIELDS_NUL)); then echo "BLOCKED: …" >&2; exit 2; fi
 #   COMMAND="${HOOK_JQ_FIELDS[0]}" TOOL_NAME="${HOOK_JQ_FIELDS[1]}"
-# shellcheck disable=SC2034  # result globals are consumed by the sourcing hook, not this file
+# shellcheck disable=SC2034  # result global is consumed by the sourcing hook, not this file
 hook::jq_fields() {
   local input="$1"
   shift
   HOOK_JQ_FIELDS=()
-  HOOK_JQ_FIELDS_NUL=0
   (($#)) || return 1
   command -v jq >/dev/null 2>&1 || return 1
   local prog="" filter
   for filter in "$@"; do
     [[ -n "$prog" ]] && prog+=","
-    # Raw here: the NUL must still be in the value when the flag is computed
-    # below. The strip happens after, on the whole array.
-    prog+="((${filter}) // \"\" | tostring)"
+    # split/join (1-arity, a plain string split — NOT gsub, which would put a
+    # NUL inside an Oniguruma pattern) removes every NUL from the value.
+    prog+="((${filter}) // \"\" | tostring | split(\"\\u0000\") | join(\"\"))"
   done
-  # The NUL flag rides in front of the values as one more record, so reporting
-  # it costs no second jq process — the whole point of this helper. It is
-  # computed FIRST, from the values exactly as the payload carried them; only
-  # then is each value stripped. `-j` concatenates outputs verbatim, so emitting
-  # the separator as its own output yields exactly value NUL value NUL … with
-  # nothing added. `A | (X, Y)` feeds the SAME array to both branches, so the
-  # flag and the values come from one input with no jq variable in the program
-  # text. Moving the split/join up into the loop above — which is what a textual
-  # merge of this function produces — would silently zero the flag on every
-  # payload.
-  prog="[$prog]"
-  prog+=' | ((if (map(explode | index(0) != null) | any) then "1" else "0" end),'
-  prog+=' (.[] | split("\u0000") | join("")))'
-  prog+=" | (., \"\\u0000\")"
+  # `-j` concatenates outputs verbatim, so emitting the NUL as its own output
+  # after each value yields exactly value NUL value NUL … with nothing added.
+  prog="[$prog] | .[] | (., \"\\u0000\")"
   local -a values=()
   local v clean
   # `read -d ''` (not `mapfile -d ''`, which is Bash 4.4+; this lib supports
@@ -764,12 +788,8 @@ hook::jq_fields() {
     clean="${v//$'\r'/}"
     values+=("$clean")
   done < <(printf '%s' "$input" | jq -j "$prog" 2>/dev/null)
-  # One record for the flag plus one per filter. Short of that, jq produced no
-  # usable output — it is absent, it failed, or it rejected the payload. What can
-  # no longer shorten it is NUL CONTENT: the values carry no separator byte.
-  ((${#values[@]} == $# + 1)) || return 1
-  HOOK_JQ_FIELDS_NUL="${values[0]}"
-  HOOK_JQ_FIELDS=("${values[@]:1}")
+  ((${#values[@]} == $#)) || return 1
+  HOOK_JQ_FIELDS=("${values[@]}")
 }
 
 # Reduce a tool + optional Bash command to a privacy-safe subject label. For

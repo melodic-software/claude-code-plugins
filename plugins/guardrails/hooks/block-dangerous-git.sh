@@ -46,6 +46,15 @@
 # (`FOO=bar git push -f`) cannot alter this guard's behavior.
 #
 # BLOCKING: exits 2 on any detected form not in the allow-list.
+#
+# HARD PREREQUISITE — `jq` (#2146). This guard reads the tool payload with jq and
+# FAILS CLOSED when jq is absent: every matched tool call is denied, because a
+# guard that cannot read the command cannot tell a dangerous one from a safe one,
+# and a guard a missing dependency silently switches off is not a guard. That
+# matches the MAX_COMMAND_LEN posture already taken below and is the accepted
+# cost of the fail-closed decision. Install jq, or set the
+# `block_dangerous_git_enabled` option to false to turn the guard off
+# deliberately. Reasoning: hook::require_jq_blocking in hook-utils.sh.
 
 set -uo pipefail
 
@@ -74,26 +83,31 @@ start=${EPOCHREALTIME:-}
 # call, and a silent skip would pass exactly the traffic this guard exists to
 # stop. buffer_stdin already printed the BLOCKED reason to stderr. Buffering
 # does not require jq (hook::buffer_stdin's own JSON-completeness check is
-# jq-optional), so it runs before the jq gate below — hook::require_jq needs
-# the buffered input for its once-per-session notice scoping.
+# jq-optional), so it runs before the jq gate below.
 INPUT=$(hook::buffer_stdin) || {
   rc=$?
   ((rc == 2)) && exit 2
   exit 0
 }
 
-# jq is required to parse the tool payload. hook::require_jq fails OPEN
-# (advisory hooks never block over a missing prerequisite) but makes the
-# degraded state visible to both the user (systemMessage) and the agent
-# (additionalContext), once per session — see docs/conventions/hook-observability/.
-hook::require_jq "PreToolUse" "guardrails-block-dangerous-git" "$INPUT"
+# jq is required to parse the tool payload, and this guard FAILS CLOSED on its
+# absence (#2146) — the same posture the MAX_COMMAND_LEN ceiling below already
+# took toward an input it cannot parse. Before #2146 the two disagreed inside
+# this one script: an over-long command was treated as obfuscation and blocked,
+# while a machine without jq skipped the guard entirely after one notice —
+# measured, `git push --force origin main` was ALLOWED. The posture, the
+# membership criterion for this class, and the disclosed cost are argued at
+# hook::require_jq_blocking in hook-utils.sh — this comment asserts the
+# behaviour, that one explains it.
+hook::require_jq_blocking "guardrails-block-dangerous-git" "block_dangerous_git_enabled"
 
 # All three payload fields in ONE jq process (hook::jq_fields), not three. A jq
 # spawn is ~140 ms of fork() emulation on Windows Git Bash and this guard runs on
 # every Bash/PowerShell call. Failure semantics are unchanged: a missing jq or an
 # unparsable payload yields rc 1 here, which exits 0 exactly as the empty-COMMAND
-# skip below did — hook::require_jq above has already made the degraded state
-# visible once per session.
+# skip below did. A MISSING jq can no longer reach this line —
+# hook::require_jq_blocking above has already denied the call (#2146) — so the
+# rc-1 path here is now only the unparsable-payload case.
 #
 # `.cwd` is the directory the TOOL CALL runs in, which is not the hook process's
 # own: Claude Code launches hooks from the session root while the Bash tool runs
@@ -103,32 +117,7 @@ hook::require_jq "PreToolUse" "guardrails-block-dangerous-git" "$INPUT"
 # cleared a 40-hex lease that is a movable REF NAME where the push actually runs.
 # block-noncanonical-commit has read this field since it shipped; this guard did
 # not, and the same chain is adopted here rather than a second mechanism.
-#
-# That remaining allow-on-unparsable path is unchanged by #2122 and is NOT what
-# the NUL check below covers.
 hook::jq_fields "$INPUT" '.tool_input.command' '.cwd' '.tool_name' || exit 0
-
-# A NUL byte in ANY field read above is fail-CLOSED, and is decided BEFORE
-# the empty-COMMAND skip below: the helper strips every NUL out of a value, so a
-# command consisting only of NUL bytes arrives EMPTY and would otherwise be waved
-# through by that skip as "no command" (#2122). Verified, not assumed — a lone
-# NUL yields an empty value with the flag set, while a leading NUL followed by
-# text keeps the text.
-#
-# Blocking rather than matching, because the value a guard can read is not
-# reliably the thing that would run. Two behaviours were measured and they
-# disagree — bash DISCARDS a NUL while parsing a command it reads, and Node's
-# child_process REFUSES a NUL-bearing string outright — and which of them, if
-# either, a hook payload reaches has not been traced. Blocking is the one verdict
-# correct under all of them, so it needs no such trace. A NUL here is malformed
-# input, not an exotic-but-valid command.
-if ((HOOK_JQ_FIELDS_NUL)); then
-  echo "BLOCKED: the payload carries a NUL byte, which a command cannot reliably carry." >&2
-  echo "What a guard can read is not dependably what would run, so this is refused rather than matched." >&2
-  echo "Fix: reissue the tool call without the embedded NUL." >&2
-  exit 2
-fi
-
 COMMAND="${HOOK_JQ_FIELDS[0]}"
 [[ -n "$COMMAND" ]] || exit 0
 HOOK_CWD="${HOOK_JQ_FIELDS[1]}"

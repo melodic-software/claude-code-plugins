@@ -3,6 +3,36 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.0]
+
+### Changed
+
+- **`block-dangerous-git` and `block-no-verify` now FAIL CLOSED when `jq` is missing (#2146).**
+  `hook::require_jq` skipped the whole hook and exited 0 after one notice per session, so on a
+  machine without `jq` the guard was off: measured, `git push --force origin main` was **allowed**.
+  The same two scripts already fail *closed* on the other input they cannot parse — a command above
+  `MAX_COMMAND_LEN` is treated as obfuscation and blocked — so one script held two opposite postures
+  toward "I cannot read this input", and an author who could not fit a dangerous command under
+  16384 characters could simply be somewhere without `jq`. These two now deny instead, naming `jq`
+  as the missing prerequisite and pointing at the same install route the skip notice used.
+- **BREAKING for a `jq`-less machine, and stated plainly:** these guards run on every Bash and
+  PowerShell tool call, and without `jq` they cannot read the command at all — so they cannot tell a
+  dangerous one from a safe one and deny **both**. Every matched tool call is blocked until `jq` is
+  installed or the guard's own `block_dangerous_git_enabled` / `block_no_verify_enabled` option is
+  set to false. That is the hard dependency the fail-closed decision accepted; a `jq`-free substring
+  pre-check was considered and rejected for manufacturing a false sense of coverage. The kill switch
+  still bypasses the guard on a `jq`-less machine — `hook::check_enabled` runs before the gate.
+- **Every other guardrails hook is unchanged and still fails OPEN.** Membership in the fail-closed
+  class is mechanical, not a taste judgement about severity: a hook qualifies iff it *already* fails
+  closed on another unparsable-input condition (today, a `MAX_COMMAND_LEN` ceiling). Exactly two do.
+  `block-hook-bypass` and `block-noncanonical-commit` were considered and deliberately left
+  fail-open — they guard a reversible file write or a message shape, and neither holds the internal
+  contradiction. New `require-jq-posture.test.sh` pins the membership so the class cannot drift, and
+  measures the four-cell ALLOW/DENY grid with `jq` genuinely unreachable (hidden by overriding the
+  *lookup*, never by touching `PATH`, which would also remove `git` and produce the same answer for
+  an unrelated reason), with the `jq`-present column as the discrimination control and an advisory
+  hook as the posture control.
+
 ## [0.25.3]
 
 ### Fixed
