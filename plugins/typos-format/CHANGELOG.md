@@ -3,6 +3,15 @@
 All notable changes to the `typos-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.4]
+
+### Changed
+
+- **Upstream doc stamps re-verified against the live pages (2026-08-10).** Each dated claim below was re-checked against the complete raw markdown source of the page it cites (`https://code.claude.com/docs/en/<page>.md`), not a summarized fetch, and each was confirmed by a verbatim quote before its stamp was refreshed. No claim changed; only the verification dates moved.
+
+  - `hooks/typos-format.sh` — the same `${user_config.*}` shell-form rejection and
+    `CLAUDE_PLUGIN_OPTION_<KEY>` export guarantee (plugins reference, "User configuration").
+
 ## [0.6.3]
 
 ### Fixed

@@ -201,7 +201,7 @@ fi
 # into a shell command would let the shell run whatever that value contains, so
 # the component fails" — and every option is exported to hook processes as
 # CLAUDE_PLUGIN_OPTION_<KEY> anyway (Plugins reference, "User configuration",
-# https://code.claude.com/docs/en/plugins-reference, re-fetched 2026-07-31).
+# https://code.claude.com/docs/en/plugins-reference, re-fetched 2026-08-10).
 # Same idiom as hook::check_enabled's kill switch. Only the literal "true"
 # means write — the mutating direction must be the one that needs the exact
 # opt-in spelling, so a typo'd or half-set option value stays report-only.

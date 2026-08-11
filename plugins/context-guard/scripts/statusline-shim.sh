@@ -53,7 +53,7 @@
 # automatically 14 days later. The grace period lets concurrent Claude Code
 # sessions that already loaded the old version keep running without errors"
 # (plugins reference, "Plugin caching and file resolution",
-# https://code.claude.com/docs/en/plugins-reference, fetched 2026-07-30).
+# https://code.claude.com/docs/en/plugins-reference, fetched 2026-08-10).
 # UNINSTALL therefore leaves the tee on disk for ~14 days, and an mtime-only
 # shim keeps executing it for that whole window: the operator removes the
 # plugin and it keeps writing snapshots, with no signal that it is still

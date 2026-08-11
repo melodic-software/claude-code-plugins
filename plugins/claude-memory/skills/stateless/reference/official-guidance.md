@@ -1,7 +1,7 @@
 # Official Claude Code Guidance on Auto Memory State
 
 Last researched: 2026-07-22; code.claude.com/docs/en/claude-directory,
-code.claude.com/docs/en/settings, and code.claude.com/docs/en/cli-reference verified 2026-08-08
+code.claude.com/docs/en/settings, and code.claude.com/docs/en/cli-reference verified 2026-08-10
 (the other sources below were not re-checked on that date)
 Sources: [code.claude.com/docs/en/memory](https://code.claude.com/docs/en/memory),
 [code.claude.com/docs/en/settings](https://code.claude.com/docs/en/settings),
@@ -114,12 +114,12 @@ files. `claude project purge` deletes the store only as part of the full per-pro
 > 3. **Local project settings** (`.claude/settings.local.json`)
 > 4. **Shared project settings** (`.claude/settings.json`)
 > 5. **User settings** (`~/.claude/settings.json`)"
-> — code.claude.com/docs/en/settings (verified 2026-08-08; each item's nested detail bullets are
+> — code.claude.com/docs/en/settings (verified 2026-08-10; each item's nested detail bullets are
 > omitted, and item 1's three parenthetical links are flattened to their labels)
 
 > "Cannot be overridden by any other level, including command line arguments, apart from the
 > exceptions in the bullets below"
-> — code.claude.com/docs/en/settings (a nested bullet under item 1, verified 2026-08-08)
+> — code.claude.com/docs/en/settings (a nested bullet under item 1, verified 2026-08-10)
 
 Item 1's exception bullets are longer and more varied than is useful to enumerate here — read
 them on the page. What matters here is a negative: none of them names `autoMemoryEnabled`,
@@ -166,7 +166,7 @@ inside a settings file's `env` block; the docs bless the `env`-block form explic
   > "`sessions/` holds one small file per running session, used to detect concurrent sessions
   > and crashes. It isn't part of the age-based sweep: Claude Code removes each file when its
   > session exits and clears crash leftovers on the next launch."
-  > — code.claude.com/docs/en/claude-directory (verified 2026-08-08)
+  > — code.claude.com/docs/en/claude-directory (verified 2026-08-10)
 
   > "Run `claude project purge` to delete the state Claude Code holds for one project. It
   > deletes:
@@ -175,7 +175,7 @@ inside a settings file's `env` block; the docs bless the `env`-block form explic
   > - Per-session `tasks/`, `debug/`, and `file-history/` entries
   > - Matching prompt lines in `history.jsonl`
   > - The project's entry in `~/.claude.json`"
-  > — code.claude.com/docs/en/claude-directory (verified 2026-08-08)
+  > — code.claude.com/docs/en/claude-directory (verified 2026-08-10)
 
   As of that check the page no longer carries its "requires Claude Code v2.1.124 or later"
   sentence, and code.claude.com/docs/en/cli-reference documents `claude project purge` with no
@@ -187,7 +187,7 @@ inside a settings file's `env` block; the docs bless the `env`-block form explic
 
   > "The command leaves `shell-snapshots/` and `backups/` alone because those are not
   > project-scoped, and warns about them in the plan output."
-  > — code.claude.com/docs/en/claude-directory (verified 2026-08-08)
+  > — code.claude.com/docs/en/claude-directory (verified 2026-08-10)
 
   `sessions/` appears nowhere in the deletion list above — this plugin's reading of that list,
   not a separate upstream statement.
@@ -196,7 +196,7 @@ inside a settings file's `env` block; the docs bless the `env`-block form explic
 
   > "The command prints the full deletion plan and asks for confirmation before removing
   > anything."
-  > — code.claude.com/docs/en/claude-directory (verified 2026-08-08)
+  > — code.claude.com/docs/en/claude-directory (verified 2026-08-10)
 
   `CLAUDE_CODE_SKIP_PROMPT_HISTORY` skips "writing transcripts and prompt history in any mode"
   (code.claude.com/docs/en/claude-directory) — the true "no session persistence" lever, and the

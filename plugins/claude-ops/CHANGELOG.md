@@ -3,6 +3,16 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.5]
+
+### Changed
+
+- **Upstream doc stamps re-verified against the live pages (2026-08-10).** Each dated claim below was re-checked against the complete raw markdown source of the page it cites (`https://code.claude.com/docs/en/<page>.md`), not a summarized fetch, and each was confirmed by a verbatim quote before its stamp was refreshed. No claim changed; only the verification dates moved.
+
+  - `skills/observability/context/output-format.md` — Claude Code computing its own dollar figures
+    from token counts at standard list rates, the basis for the fixed Token / cost caveat line
+    (costs reference).
+
 ## [0.28.4]
 
 ### Changed

@@ -1,5 +1,30 @@
 # Changelog — session-flow plugin
 
+## [0.22.3]
+
+### Changed
+
+- **Upstream doc stamps re-verified against the live pages (2026-08-10).** Each dated claim below was re-checked against the complete raw markdown source of the page it cites (`https://code.claude.com/docs/en/<page>.md`), not a summarized fetch, and each was confirmed by a verbatim quote before its stamp was refreshed. No claim changed; only the verification dates moved.
+
+  - `skills/orchestrate/SKILL.md` — the workflow size guideline's agent counts (fewer than 5 for
+    `small`, 15 for `medium`, 50 for `large`) and the `Large workflow` warning above 25
+    agents (workflows reference).
+  - `skills/orchestrate/context/sources.md` — all twelve remaining dated quotes, the densest
+    citation block in the repo, re-checked one by one against the sub-agents, workflows, changelog,
+    and `whats-new/2026-w32` pages. Every quote still matches word for word: the depth-limit
+    `Agent` withholding and the fork's error-instead-of-spawn, the two tool filters and the
+    first filter's list (which still contains `Workflow`), the fork exemption, the agent-teams
+    task/cron carve-out, `Concurrent subagent limit reached` at 20 running with the ultracode
+    exemption and the `/subtask` slot rider, the v2.1.172 / v2.1.217 / v2.1.219 / v2.1.178
+    changelog entries, and the workflow runtime caps (16 concurrent, 1,000 per run, `Large
+    workflow` above 25 agents or 1.5M projected tokens, requiring v2.1.203).
+
+    The 0.22.2 finding above is independently re-confirmed: the sub-agents page now states
+    outright, "There's no limit on the total number of subagents Claude can spawn over a
+    session", and `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION` appears nowhere on it. That negative is
+    trustworthy here because the check ran against the complete page rather than a truncated
+    fetch.
+
 ## [0.22.2]
 
 ### Fixed

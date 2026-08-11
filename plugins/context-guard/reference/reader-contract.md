@@ -72,7 +72,7 @@ concurrent sessions each own the file named by their `session_id`.
   only when it is a string; absent otherwise, never guessed. It gates the token shape (see "Version
   floor"), so an absent one is not a defect — it just leaves the percentage shape standing alone.
 - `context_window` — copied **verbatim** from the statusline stdin schema
-  (<https://code.claude.com/docs/en/statusline>, verified 2026-07-24), so upstream field additions
+  (<https://code.claude.com/docs/en/statusline>, verified 2026-08-10), so upstream field additions
   flow through without a plugin change. The key is absent when the session's statusline payload
   carried none. Null states are upstream-documented and normal: `used_percentage` /
   `remaining_percentage` may be `null` early in a session; `current_usage` is `null` before the
@@ -142,15 +142,27 @@ information the other lacks (a deep-but-cache-heavy window, a small window near 
 a routing hint must degrade toward caution, never toward optimism.
 
 **Version floor:** `total_input_tokens` / `total_output_tokens` mean *current context occupancy*
-only since Claude Code **2.1.132** — before that they were cumulative session totals ("Before
-v2.1.132 these were cumulative session totals", statusline doc, verified 2026-07-26), which would
+only since Claude Code **2.1.132** — before that they were cumulative session totals, which would
 misfire the token bands badly. Cumulative semantics are **not observable from the numbers**: a
 cumulative 170k in a 200k window is a perfectly plausible current occupancy, sits inside the
 window, and resolves `dumb` while the live context may be smart-zone. So the token shape requires
 an explicit version signal — the snapshot's `cli_version`, which the tee copies from the
 statusline payload's top-level `version` field (Claude Code version — statusline doc, verified
-2026-07-26). **The token shape is computable only when `cli_version` is present, purely numeric
+2026-08-10). **The token shape is computable only when `cli_version` is present, purely numeric
 dotted, and ≥ 2.1.132**; absent, malformed, or older leaves the percentage shape to stand alone.
+
+> **Sourcing status of the 2.1.132 floor (re-checked 2026-08-10).** This doc previously quoted the
+> statusline page as saying "Before v2.1.132 these were cumulative session totals". That sentence is
+> **no longer on the page**: the current text states only the present-tense semantics this floor
+> depends on — "Token counts currently in the context window, from the most recent API response"
+> and "**Combined totals** (`total_input_tokens`, `total_output_tokens`): tokens currently in the
+> context window". The historical note and the version number are gone with it. The floor is
+> therefore a **retained claim with no current upstream source** — a conservative lower bound kept
+> deliberately, not doc-backed. It stays because dropping it can only *widen* which payloads the
+> token shape trusts, and the failure it guards is silent; re-source it before any change that
+> relaxes it. The verbatim quote was re-checked against the complete raw page
+> (`https://code.claude.com/docs/en/statusline.md`), not a summarized fetch, so this is a real
+> removal rather than a truncated read.
 
 **Plausibility guard (independent, retained):** **occupancy greater than `context_window_size`
 also marks the token shape not-computable** — that is corrupt or forged data, and it catches what
@@ -284,7 +296,7 @@ bash "<plugin-root>/scripts/context-zone.sh" <session_id>   # prints one zone wo
 ## Session-id discovery (how a consumer learns its own id)
 
 A skill learns its session id via the **`${CLAUDE_SESSION_ID}` substitution** in skill markdown
-content (<https://code.claude.com/docs/en/skills>, substitution table, verified 2026-07-24). The
+content (<https://code.claude.com/docs/en/skills>, substitution table, verified 2026-08-10). The
 skill body interpolates it into the snapshot path directly.
 
 **Fallback:** when the substitution is unavailable (older Claude Code, non-skill context, or the

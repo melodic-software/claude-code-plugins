@@ -7,7 +7,7 @@ advisory-versus-blocking, fail-open-versus-closed; this doc owns which of the th
 given situation uses and how each is shaped.
 
 Grounded against the official Claude Code hooks reference
-(<https://code.claude.com/docs/en/hooks>, fetched 2026-07-22) — every field name, cap, and timing
+(<https://code.claude.com/docs/en/hooks>, fetched 2026-08-10) — every field name, cap, and timing
 claim below is sourced from that fetch, not from training-data recall, per this repo's own
 research-verification discipline.
 
@@ -61,7 +61,7 @@ giving the whole scheme a documented home is a separate follow-up, tracked outsi
 edits a file the user is working in, on the strength of an unrelated tool call, with no prompt and no
 diff. The harness's own signal for it is a generic "PostToolUse hook modified `<file>` after your
 edit (likely a formatter)" line that names no hook and shows no change — verified against
-<https://code.claude.com/docs/en/hooks> (fetched 2026-07-26): the three documented output channels
+<https://code.claude.com/docs/en/hooks> (fetched 2026-08-10): the three documented output channels
 carry no file-change or diff surface, so a benign reflow and a wrong dictionary rewrite arrive
 identically. The person whose file was changed is the only one who can judge whether the change was
 correct, so **the hook must name what it changed on the user channel**, not only the agent one: what
@@ -161,7 +161,7 @@ melodic-software/claude-code-plugins#930.
   human-only-choice carve-out above; over-applying it to blocking paths or to advisory findings the
   model can act on is itself a conformance defect (redundant user noise, or misrouting
   agent-actionable content to the user channel).
-- **Not a UI feature.** No native "verbose hooks" toggle exists in Claude Code as of 2026-07-22
+- **Not a UI feature.** No native "verbose hooks" toggle exists in Claude Code as of 2026-08-10
   (confirmed against the same fresh fetch this doc cites) — `statusMessage` and `systemMessage`
   are the sanctioned surfaces available today. An upstream feature request for a native
   verbose-hooks UI toggle is tracked separately, outside this repo.

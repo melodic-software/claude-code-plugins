@@ -176,7 +176,7 @@ re-deriving a row.
 | [Agents](https://code.claude.com/docs/en/sub-agents) | Adopt on need | Plugin agents do not support `hooks`, `mcpServers`, or `permissionMode` (security restriction) — design within that limit rather than working around it. | 2026-07-17 |
 | [Workflows](https://code.claude.com/docs/en/workflows) | Adopt on need | Native and not experimental: a script in `workflows/`, or wherever the `workflows` manifest field points (that field replaces the default scan), runs as a plugin-namespaced `/plugin:name` command. Availability, not maturity, is the constraint — workflows are paid-plan-gated, a consumer can switch them off (`disableWorkflows`, `CLAUDE_CODE_DISABLE_WORKFLOWS`), and an org can disable them fleet-wide in managed settings; so, as with `bin/`, never make a workflow the only path to a capability. Not "Wait": the [deferred workflow engines](MIGRATION-PLAYBOOK.md#deferred-surfaces--decision-record-2026-07-12) are a named candidate carrying a live trigger, so the gap is identified rather than hypothetical. None ship in this fleet today. | 2026-07-27 |
 | [Hooks](https://code.claude.com/docs/en/hooks) | Adopt on need | Exec form (`args`) is mandatory wherever `${user_config.*}` appears — shell form errors since v2.1.207; otherwise read the `CLAUDE_PLUGIN_OPTION_<KEY>` mirror. Windows exec form spawns real executables only (no `.cmd`/`.bat` shims): use `"command": "node", "args": [...]`. | 2026-07-17 |
-| [MCP servers](https://code.claude.com/docs/en/mcp) | Adopt on need | Clears the plugin-acceptance security review for egress and trust delegation. Also the only component type that can cost a consumer their prompt cache: every other kind only appends to the request, while enabling or disabling a plugin that provides an MCP server forces a full re-read whenever the server's tools load into the prefix instead of being deferred by tool search ([actions that invalidate the cache](https://code.claude.com/docs/en/prompt-caching#actions-that-invalidate-the-cache), verified 2026-08-04). | 2026-08-04 |
+| [MCP servers](https://code.claude.com/docs/en/mcp) | Adopt on need | Clears the plugin-acceptance security review for egress and trust delegation. Also the only component type that can cost a consumer their prompt cache: every other kind only appends to the request, while enabling or disabling a plugin that provides an MCP server forces a full re-read whenever the server's tools load into the prefix instead of being deferred by tool search ([actions that invalidate the cache](https://code.claude.com/docs/en/prompt-caching#actions-that-invalidate-the-cache), verified 2026-08-10). | 2026-08-10 |
 | [LSP servers](https://code.claude.com/docs/en/plugins-reference) | Adopt on need | Consumer must have the language-server binary; declare the prerequisite per the failure-behavior rules. | 2026-07-17 |
 | [Output styles](https://code.claude.com/docs/en/plugins-reference) | Adopt on need | — | 2026-07-17 |
 | [`bin/`](https://code.claude.com/docs/en/plugins) | Adopt on need | Executables join the Bash tool's `PATH` while the plugin is enabled; names must be collision-safe (plugin-prefixed) — the platform does not namespace them. That `PATH` delivery is per-session and can silently fail ([anthropics/claude-code#68066](https://github.com/anthropics/claude-code/issues/68066)), so never make bare-name invocation load-bearing: invoke via `${CLAUDE_PLUGIN_ROOT}/bin/`, and note that a `bash "…/bin/x"` invocation does not match a `Bash(x:*)` allow rule. | 2026-07-17 |
@@ -420,7 +420,7 @@ data: removing the plugin's own tracked setup config is teardown, whereas an app
 that mutates a managed inventory the plugin maintains (a status change over existing entries, say)
 is ordinary `apply` surface, not teardown, and does not trip that trigger.
 
-Two native idioms are the sanctioned initialization surfaces (verified 2026-07-17 against the
+Two native idioms are the sanctioned initialization surfaces (verified 2026-08-10 against the
 [hooks reference](https://code.claude.com/docs/en/hooks) and
 [plugins reference](https://code.claude.com/docs/en/plugins-reference)): the `Setup` hook event
 (`--init-only`, or `--init`/`--maintenance` in `-p` mode) for headless and CI preparation, and a
@@ -544,7 +544,7 @@ whether or not the instruction ever fires. Official doctrine is explicit: "CLAUD
 every session, so only include things that apply broadly… For each line, ask: 'Would removing this
 cause Claude to make mistakes?' If not, cut it," and "If Claude already does something correctly
 without the instruction, delete it or convert it to a hook"
-([best-practices](https://code.claude.com/docs/en/best-practices), verified 2026-08-08). Anthropic
+([best-practices](https://code.claude.com/docs/en/best-practices), verified 2026-08-10). Anthropic
 applied the same doctrine to Claude Code itself, removing over 80% of its system prompt for the
 Opus 5 / Fable 5 generation with no measurable loss on its coding evaluations
 ([The new rules of context engineering for Claude 5 generation models](https://claude.com/blog/the-new-rules-of-context-engineering-for-claude-5-generation-models),
@@ -673,7 +673,7 @@ judgment and its target, never re-derives these rules.
 The default worker is a **generic fresh-context subagent carrying rich inline instructions** — the
 task, the artifact, the criteria, and the output shape all travel in the dispatch prompt. A subagent
 starts with a fresh, isolated context window and does not see the parent conversation
-([subagents](https://code.claude.com/docs/en/sub-agents), verified 2026-07-22), which is exactly the
+([subagents](https://code.claude.com/docs/en/sub-agents), verified 2026-08-10), which is exactly the
 independence the checkpoint buys. A skill may prefer an installed **named agent** on the next rung —
 but only when the named-agent bar below is met, and the site always states the generic fallback
 (presence-gate-plus-fallback, [seam phrasing](conventions/seam-phrasing/README.md)). The top rung, for
@@ -711,7 +711,7 @@ pin, or an enforced tool restriction is load-bearing.** Otherwise the generic su
 is the simpler, equally independent form. On tool cages: an allowlist that includes Bash bars
 Edit/Write and recursive spawning but is **not read-only** — Bash can write; state what the cage
 actually enforces, never "read-only" ([plugin agents support `tools` frontmatter](https://code.claude.com/docs/en/plugins-reference),
-verified 2026-07-22).
+verified 2026-08-10).
 
 ### Model tiers
 
@@ -726,10 +726,10 @@ except at the value `inherit`, which since v2.1.196 means normal resolution rath
 session model, so the knob has an off position as well as an on one
 ([model config: environment variables](https://code.claude.com/docs/en/model-config#environment-variables),
 verified 2026-08-10; `env` applies to every session and spawned subprocess,
-[settings](https://code.claude.com/docs/en/settings), verified 2026-07-22). There is no per-plugin
+[settings](https://code.claude.com/docs/en/settings), verified 2026-08-10). There is no per-plugin
 model seam — plugin `userConfig` declares only generic typed options with no model semantics
 ([plugins reference: user configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration),
-verified 2026-07-22) — so doctrine travels by authoring-time conformance in each skill, not runtime
+verified 2026-08-10) — so doctrine travels by authoring-time conformance in each skill, not runtime
 configuration.
 
 Tier-to-model mapping, dated 2026-08-04 (recheck trigger: a new Claude model family reaches GA, or
@@ -823,7 +823,7 @@ variable — and accepts all five level names including `max`; a level the activ
 support falls back to the highest supported level at or below it
 ([skills: frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference),
 [model config: adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level),
-verified 2026-07-29). The ladder itself — level names, per-model availability, per-model defaults —
+verified 2026-08-10). The ladder itself — level names, per-model availability, per-model defaults —
 is upstream-owned: resolve it from the model-config page at decision time, never from this document.
 
 What a pin actually buys is bounded by how allocation works: thinking is adaptive, so the model
@@ -916,7 +916,7 @@ name is not the same underlying value across models):
   consumer must clear rather than a silent cost. The same section independently corroborates the
   no-op corollary above — a change resolving to the level already in effect "skips the dialog and
   keeps the cache" ([prompt caching: changing effort level](https://code.claude.com/docs/en/prompt-caching#changing-effort-level),
-  verified 2026-08-03; recheck trigger: a Claude Code release changes the effort-change
+  verified 2026-08-10; recheck trigger: a Claude Code release changes the effort-change
   confirmation flow, or that section is reworded).
 
 **Effort is one dial of two, and the other is not an effort value.** The `thinking` parameter decides
@@ -963,7 +963,10 @@ live in a plugin-level shared spoke — the generic checker cannot assume a plug
 
 The complete categorized index of plugin-relevant official pages is
 [`docs/OFFICIAL-DOCS.md`](OFFICIAL-DOCS.md); `https://code.claude.com/docs/llms.txt` is the
-authoritative self-updating master list. Pages load-bearing for this document, verified 2026-07-17:
+authoritative self-updating master list. Claude Code pages load-bearing for this document, each
+re-fetched 2026-08-10 and confirmed to still carry the topics named beside it (the
+`melodic-software/standards` entry below is not a Claude Code page and was not re-checked on that
+date):
 
 - [Create plugins](https://code.claude.com/docs/en/plugins) — plugin structure incl. `bin/` and
   plugin `settings.json`, namespaces, testing, and migration.

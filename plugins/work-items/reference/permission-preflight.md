@@ -97,7 +97,7 @@ floor, whose destructive-verb rules are flag-scoped (`git push --force …`) rat
 **resolved through worktrees to the main checkout**, and the rule applies to sessions anywhere in
 that repository — every linked worktree included, however the worktree was created
 ([permissions](https://code.claude.com/docs/en/permissions#permission-system),
-[worktrees](https://code.claude.com/docs/en/worktrees); both fetched 2026-08-04). The main
+[worktrees](https://code.claude.com/docs/en/worktrees); both fetched 2026-08-10). The main
 checkout's local file is therefore part of a fresh worker worktree's effective settings, and the
 preflight reads it in **every** mode — but only once it has **verified** which directory that is.
 

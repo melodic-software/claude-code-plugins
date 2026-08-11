@@ -5,6 +5,18 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1]
+
+### Changed
+
+- **Upstream doc stamps re-verified against the live pages (2026-08-10).** Each dated claim below was re-checked against the complete raw markdown source of the page it cites (`https://code.claude.com/docs/en/<page>.md`), not a summarized fetch, and each was confirmed by a verbatim quote before its stamp was refreshed. No claim changed; only the verification dates moved.
+
+  - `scripts/packet-seal.sh`, `agents/auditor.md`, `skills/audit/SKILL.md` — `PostToolUse`
+    firing after a tool call succeeds, and a matcher keying on the tool name, both still stated in
+    the hooks reference. The tamper-evidence rationale is unchanged.
+  - `skills/audit/references/component-types/config.md` — the monitor `when` trigger, its
+    `"always"` default, and `"on-skill-invoke:<skill-name>"` (plugins reference, monitors).
+
 ## [0.6.0]
 
 ### Removed
