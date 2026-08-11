@@ -328,7 +328,10 @@ resolve_config() {
   # same-named sessions while stop reaches only the most-recent one. Reject it at
   # config time rather than silently acting on an ambiguous set.
   local dupes
-  dupes="$(jq -r '[.lanes[].name | select(. != null)] | group_by(.) | map(select(length > 1) | .[0]) | join(", ")' "$CONFIG")"
+  dupes="$(jq -r '[.lanes[].name | select(. != null)] | group_by(.) | map(select(length > 1) | .[0]) | join(", ")' "$CONFIG")" || {
+    err "lane config validation query failed (duplicate lane names): $CONFIG"
+    exit 3
+  }
   [[ -z "$dupes" ]] || {
     err "lane config has duplicate lane names: $dupes (names must be unique): $CONFIG"
     exit 3
@@ -344,7 +347,11 @@ resolve_config() {
   traversal="$(jq -r '
     [ .lanes[].name
       | select(. != null)
-      | select(test("[/\\\\]") or . == "." or . == "..") ] | join(", ")' "$CONFIG")"
+      | select(type == "string")
+      | select(test("[/\\\\]") or . == "." or . == "..") ] | join(", ")' "$CONFIG")" || {
+    err "lane config validation query failed (lane name path safety): $CONFIG"
+    exit 3
+  }
   [[ -z "$traversal" ]] || {
     err "lane config has lane names that are not usable as a path component: $traversal"
     err "  (a name must not contain '/' or '\\', or be '.' or '..'): $CONFIG"
@@ -369,7 +376,10 @@ resolve_config() {
       | select(.key == "name" or .key == "model" or .key == "effort" or .key == "prompt")
       | select(.value != null and (.value | type) != "string")
       | "lane #\($i) .\(.key) is \(.value | type)" ]
-    | join(", ")' "$CONFIG")"
+    | join(", ")' "$CONFIG")" || {
+    err "lane config validation query failed (lane field typing): $CONFIG"
+    exit 3
+  }
   [[ -z "$mistyped" ]] || {
     err "lane config has non-string values for string fields: $mistyped"
     err "  (name/model/effort/prompt must be JSON strings): $CONFIG"

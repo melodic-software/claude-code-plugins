@@ -243,6 +243,27 @@ for mistyped_field in name model effort prompt; do
   assert_contains "a boolean .$mistyped_field is named in the message" "$out" ".$mistyped_field is boolean"
 done
 
+# Defence-in-depth: a failed validation jq query must reject the config, not
+# pass vacuously on empty output when jq errors (#2088).
+REAL_JQ="$(command -v jq)"
+mkdir -p "$TMP/jqbin"
+cat >"$TMP/jqbin/jq" <<EOF
+#!/usr/bin/env bash
+if [[ "\$*" == *group_by* ]]; then
+  echo 'jq: error: simulated validation query failure' >&2
+  exit 1
+fi
+exec "$REAL_JQ" "\$@"
+EOF
+chmod +x "$TMP/jqbin/jq"
+cat >"$TMP/valid-for-jq-fail.json" <<'JSON'
+{ "lanes": [ { "name": "work", "prompt": "work.md" } ] }
+JSON
+out="$(PATH="$TMP/jqbin:$PATH" run_launcher status --repo "$REPO" --config "$TMP/valid-for-jq-fail.json" --agents-json "$AGENTS_EMPTY" 2>&1)"
+rc=$?
+assert_eq "a failed duplicate-names validation query exits 3" 3 "$rc"
+assert_contains "a failed duplicate-names validation query is named in the message" "$out" "validation query failed (duplicate lane names)"
+
 # `null` remains the JSON spelling of "no value" and stays equivalent to absent.
 jq -n '{lanes: [{name: "work", prompt: "work.md", model: null}]}' >"$TMP/nullmodel.json"
 out="$(run_launcher start --repo "$REPO" --config "$TMP/nullmodel.json" --agents-json "$AGENTS_EMPTY" --dry-run 2>&1)"
