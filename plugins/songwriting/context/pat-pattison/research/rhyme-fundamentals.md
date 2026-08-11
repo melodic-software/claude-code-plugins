@@ -400,7 +400,7 @@ which are the ones that actually establish the personification.
 The chapter's closing stance under that personification: "Rhyme can be your
 best friend—your biggest help in leading all those eyeless ears through your
 lyrics. Or it can be your enemy. I want to show you how to make rhyme your
-friend. That's why you should work your way through this book. All the way.
+friend. That’s why you should work your way through this book. All the way.
 Carefully." (*Essential Guide to Rhyming* (2014), Introduction.)
 
 Everything the section itself teaches about rhyme is the three-condition test

@@ -1,9 +1,8 @@
 # Rhyme Strategy
 
-Pat Pattison - *Songwriting: Essential Guide to Lyric Form and Structure*
-(1991), Chapter 4. Extended with *Pat Pattison's Songwriting: Essential Guide to
-Rhyming* (2014), Chapters 7 and 9, and *Songwriting Without Boundaries* (2011),
-Challenge 4.
+Pat Pattison - *Essential Guide to Lyric Form and Structure* (1991), Chapter 4.
+Extended with *Essential Guide to Rhyming* (2014), Chapters 7 and 9, and
+*Songwriting Without Boundaries* (2011), Challenge 4.
 
 Source images inspected:
 
