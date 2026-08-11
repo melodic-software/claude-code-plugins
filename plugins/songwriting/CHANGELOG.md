@@ -68,6 +68,14 @@ plus an extractor bug that had been silently corrupting every quoted stanza.**
   "Digging for the Line" and "As Each Year Ends", none of which the file named.
   Pat prints exactly **four** direct-address listener positions; the file's
   count is now his.
+- **Two restored quotes lost their italics and so looked like transcription
+  errors.** "you already knows all this stuff" and "a kind of universal feeling
+  that you seems to add" both read as subject-verb slips. They are not: the raw
+  XHTML italicises **`you`** in each, because Pat means the *word* `you` as a
+  mentioned term, which takes a singular verb. **Both sentences are correct as
+  printed**; the italics are now restored. This is a second, subtler failure
+  mode of the extractor — stripped italics can make correct verbatim text look
+  broken and invite a "correction" that would corrupt Pat's actual words.
 - **`point-of-view.md`'s own header over-claimed.** It said the file names "the
   song and writers"; "Sentimental Lady", "Digging for the Line" and "As Each
   Year Ends" carry **no writer credit** in Pat's text or the permissions page,

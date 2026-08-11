@@ -130,7 +130,7 @@ He runs both translations on "The Fire Inside" and reports what each one does.
 First person — *"There's a reckless feeling in my heart as I head out tonight"*:
 
 > The result is a clear first-person narrative. But something gets lost: a kind
-> of universal feeling that you seems to add.
+> of universal feeling that *you* seems to add.
 
 Third person — *"There's a reckless feeling in her heart as she heads out
 tonight"*:
@@ -396,7 +396,7 @@ And the transfer to lyrics:
 > You walked up and you said hello
 > And then you asked my name
 
-> This sounds unnatural because you already knows all this stuff. The verse is
+> This sounds unnatural because *you* already knows all this stuff. The verse is
 > trying to do two things at once: Tell the audience the facts, while pretending
 > to carry on a conversation with you. Technically, we have a point of view
 > problem: second person trying to do first or third person's job. Don't give
