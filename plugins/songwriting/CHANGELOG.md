@@ -104,10 +104,15 @@ the standard that actually applies. **All ten re-verified receipts were sound.**
 
 ### Notes
 
-- `context/pat-pattison/research/audit-checklist.md` is touched by the
-  punctuation restoration (3 lines). A previous brief placed that file
-  off-limits; this one does not, and the change is a source-proven punctuation
-  fix rather than an edit to its content. Disclosed rather than hidden.
+- **Exactly one file under `context/pat-pattison/research/` changed in this
+  release: `book-references.md`,** and its change is prose — the standing guard
+  on what verbatim covers, plus the buy-the-books title exemption. The other 31
+  are byte-identical to 1.0.2. (`audit-checklist.md` was briefly touched by the
+  punctuation sweep and is back to its previous state; the sweep was reverted in
+  full.)
+- Follow-up work is tracked in **issue #2233** — one owner decision (image-only
+  lyrics) plus five mechanical items. This release deliberately closes none of
+  them.
 - The **2011 book prints `Challenge #1` through `Challenge #4` with the hash**,
   including in its chapter titles. The plugin's citation convention drops it
   (168 occurrences) and ten sites keep it. Both were left as they stand: this is
