@@ -13,6 +13,10 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   silently omits the newest ones — the end most callers are actually reading for. Live on this
   repo: the loop-lane telemetry item #502 carries 31 comments and #657 carries 33. Now
   `--paginate` with `per_page=100`.
+- **…and its `sort_by` no longer runs per page.** `gh` applies `--jq` to each page separately, so
+  the recipe's `sort_by(.id)` emitted one separately-sorted array per page rather than one sorted
+  list — four arrays at four pages. The reduction now happens in `jq -s` after the pages are
+  collected, flattened with `.[][]`.
 
 ## [0.35.0]
 

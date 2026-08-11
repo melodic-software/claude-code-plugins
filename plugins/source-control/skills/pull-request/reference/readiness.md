@@ -50,13 +50,15 @@ When a security scanner or reviewer is added, replaced, or removed:
 
 ## Reading GitHub list APIs
 
-Every gate below reads a GitHub list endpoint, and every one of those endpoints returns **30 items per page** by default and reports nothing when it truncates. A truncated read is not a visibly short answer — it is a confidently wrong one. Two rules, both absolute:
+Every gate below reads a GitHub list endpoint, and every one of those endpoints returns **30 items per page** by default and reports nothing when it truncates. A truncated read is not a visibly short answer — it is a confidently wrong one. Three rules, all absolute:
 
-**1. Paginate every list read.** `--paginate` with `per_page=100`. Without it, "is X present?" answers a silent *no* for anything on a page you never fetched — indistinguishable from X not existing. This repo's own PRs carry 33–37 check runs, so the unpaginated form dropped `do-not-merge / do-not-merge`, a required status context, on every head it was run against, and a reader concluded the context never attaches. It attached and was green every time.
+**1. Paginate every list read.** `--paginate` with `per_page=100`. Without it, "is X present?" answers a silent *no* for anything on a page you never fetched — indistinguishable from X not existing. This repo's own PR heads carry 33–37 check runs, so the unpaginated form dropped `do-not-merge / do-not-merge`, a required status context, on every head it was run against, and a reader concluded the context never attaches. It attached and was green every time.
 
-**2. Never pair a positional index with a list.** `.[-1]` on a truncated list is the 30th-oldest item, not the newest — the read returns a real item, plausibly shaped, and simply wrong. On PR #657 (33 comments) `.[-1]` unpaginated returned a comment 11.5 hours older than the actual latest. Select by the property you actually care about (an id, a SHA, an author, a timestamp) so the query states its own intent and cannot be silently satisfied by the wrong record.
+**2. Never pair a positional index with a list.** `.[-1]` on a truncated list is the 30th-oldest item, not the newest — the read returns a real item, plausibly shaped, and simply wrong. On issue #657 (33 comments) `.[-1]` unpaginated returned a comment 11.5 hours older than the actual latest. Select by the property you actually care about (an id, a SHA, an author, a timestamp) so the query states its own intent and cannot be silently satisfied by the wrong record.
 
-Pagination alone only moves the cliff from 30 to 100, so where an endpoint reports a total, assert against it. `--jq` runs **per page**, so a naive `length` prints one line per page, each counting only its own page — slurp the page stream first:
+**3. Never reduce across pages inside `--jq`.** With `--paginate`, `gh` applies `--jq` to **each page separately**, so `length`, `sort_by`, `add`, `max`, `group_by` — anything that folds a whole list — silently answers per page. A count over four pages prints four numbers, none of them the total; a `sort_by` emits four separately-sorted arrays. Element-wise filters (`select`, `map` over `.[]`) are safe, because their results simply concatenate. When the operation folds, drop `--jq` and slurp the page stream with `jq -s`, indexing pages with `.[][]`.
+
+Pagination alone only moves the cliff from 30 to 100, so where an endpoint reports a total, assert against it — slurping per rule 3:
 
 ```bash
 gh api --paginate "repos/{owner}/{repo}/commits/<sha>/check-runs?per_page=100" \
@@ -147,10 +149,11 @@ gh api --paginate "repos/{owner}/{repo}/issues/<pr_number>/comments?per_page=100
   ```bash
   HEAD_SHA=$(git rev-parse HEAD)
   gh api --paginate "repos/{owner}/{repo}/pulls/<pr>/comments?per_page=100" \
-    --jq "[.[] | select(.user.login == \"chatgpt-codex-connector[bot]\" and .commit_id == \"$HEAD_SHA\")] | length"
+    | jq -s --arg sha "$HEAD_SHA" \
+      '[.[][] | select(.user.login == "chatgpt-codex-connector[bot]" and .commit_id == $sha)] | length'
   ```
 
-  Unpaginated this undercounts — the codex comments you are waiting on are the newest, and on a PR with prior review rounds the newest are exactly what page 1 omits.
+  Unpaginated this undercounts — the codex comments you are waiting on are the newest, and on a PR with prior review rounds the newest are exactly what page 1 omits. The count is slurped rather than passed to `--jq` for the reason rule 3 gives: a reduction like `length` inside `--jq` runs per page and prints one number per page, never the total.
 
 ### Gate 6: No pending work
 

@@ -23,6 +23,13 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `--jq` runs per page, so `.check_runs | length` reports one page at a time and must be slurped
   before comparing. The rule is hoisted out of Gate 1 into a `Reading GitHub list APIs` section,
   because it governs every gate in the file rather than one command.
+- **The per-page `--jq` trap is stated as its own rule, and Gate 5 no longer breaks it.** With
+  `--paginate`, `gh` applies `--jq` to each page *separately*, so any expression that folds a whole
+  list — `length`, `sort_by`, `add`, `max`, `group_by` — silently answers per page. Element-wise
+  filters are safe because their results concatenate; folds are not. Gate 5's codex-comment count
+  was itself an instance: `--jq '[…] | length'` over four pages printed `10 10 10 3` instead of
+  `33`. It now slurps the page stream with `jq -s` and flattens with `.[][]`, and the rule sits
+  beside the other two rather than being buried in the completeness-assertion prose.
 - **Every documented PR comment and review read is paginated, and the positional-index reads are
   gone.** The same 30-per-page default governs `issues/<pr>/comments`, `pulls/<pr>/comments`, and
   `pulls/<pr>/reviews`, all of which return **oldest-first** — so an unpaginated read drops the
@@ -34,7 +41,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **`reference/review-discipline.md` and `skills/pull-request/SKILL.md` no longer verify a reply
   with `.[-1]`.** This shape is worse than truncation: it does not omit, it answers. On an
   unpaginated oldest-first list `.[-1]` is the **30th-oldest** comment, so D7's "did my follow-up
-  post?" check passes or fails on someone else's comment. Measured on this repo: PR #657 (33
+  post?" check passes or fails on someone else's comment. Measured on this repo: issue #657 (33
   comments) returned a comment timestamped 11.5 hours before the actual latest; #502 (31) returned
   the second-newest. Both call sites now paginate and select on the fix SHA, so the query states
   what it is asserting and cannot be satisfied by the wrong record. The inline-reply verifications
