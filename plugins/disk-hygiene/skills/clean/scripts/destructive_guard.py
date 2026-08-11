@@ -1147,9 +1147,11 @@ def _discard_stream(stream: object) -> None:
     with contextlib.suppress(BaseException):
         null_fd = os.open(os.devnull, os.O_WRONLY)
         try:
-            os.dup2(null_fd, stream.fileno())
+            target_fd = stream.fileno()
+            os.dup2(null_fd, target_fd)
         finally:
-            os.close(null_fd)
+            if null_fd != target_fd:
+                os.close(null_fd)
 
 
 def _watchdog_fire(deadline: float) -> None:
