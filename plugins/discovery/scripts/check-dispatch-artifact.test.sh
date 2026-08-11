@@ -301,6 +301,51 @@ suite() {
   run 1 "a payload pointer into a directory that does not exist is unusable" "$good" --expect-index "$WORKROOT/nowhere/$INDEX_NAME"
   run 2 "--expect-index with no value is a usage error" "$good" --expect-index
 
+  # --- the by-value recovery rung -------------------------------------------
+  # A worker that finished its work and whose every write was refused leaves the
+  # slice holding nothing but the parent's own pre-dispatch baseline. The ladder
+  # routes that case to `persistence: by-value`: the PARENT writes the slice from
+  # the payload's verbatim artifact bodies and re-runs this same gate.
+  #
+  # Both halves are asserted, and the pair is the point. The first proves the
+  # exception is needed — the by-value end state really does exit 1, so it is not
+  # a rung invented for a failure the gate never produces. The second proves the
+  # exception routes THROUGH the gate rather than around it: the recovered slice
+  # earns its exit 0 from the same command, with the same freshness and pointer
+  # checks, as any run that wrote its own artifact. If a future change ever let
+  # `persistence: by-value` be believed without a passing gate, the second half
+  # stops being the thing that licenses proceeding and this pair stops meaning
+  # what it says.
+
+  local byvalue byvalue_baseline
+  byvalue="$(slice by-value)"
+  byvalue_baseline="$byvalue/.dispatch-baseline"
+  : >"$byvalue_baseline"
+  touch -t 200001010000 "$byvalue_baseline"
+
+  # Before: work complete, nothing persisted. The baseline is all that is there.
+  run 1 "a slice holding only the dispatch baseline is unusable" "$byvalue" \
+    --newer-than "$byvalue_baseline"
+  stdout_has 1 'index=<none> sidecars=0 missing=0' \
+    "the by-value end state reports no index at all" "$byvalue" --newer-than "$byvalue_baseline"
+
+  # After: the parent wrote the slice from the payload's bodies. Nothing about
+  # the gate changed — only who did the writing.
+  index "$byvalue" "# $PREFIX — recovered by value" \
+    "| codebase | [$PREFIX-codebase.md]($PREFIX-codebase.md#codebase) |"
+  sidecar "$byvalue" "$PREFIX-codebase.md" '---' 'section: codebase' '---'
+  run 0 "the same slice is usable once the parent writes it from the payload" "$byvalue" \
+    --newer-than "$byvalue_baseline" --expect-index "$byvalue/$INDEX_NAME" --expect-sidecars 1
+  stdout_has 0 'sidecars=1 missing=0 freshness=newer pointer=matches status=usable' \
+    "a parent-written slice passes every check a self-written one does" "$byvalue" \
+    --newer-than "$byvalue_baseline" --expect-index "$byvalue/$INDEX_NAME" --expect-sidecars 1
+
+  # The parent writes AFTER its own pre-dispatch touch, so freshness is earned
+  # rather than waived. A recovered slice whose index predates the baseline is
+  # still stale — the rung does not smuggle in an artifact from an older run.
+  run 1 "a recovered slice no newer than the baseline is still stale" "$byvalue" \
+    --newer-than "$future_baseline"
+
   # The opt-in checks compose, and a single verdict line carries all of them.
   run 0 "all three opt-in checks together pass on a good slice" "$good" \
     --newer-than "$old_baseline" --expect-index "$good/$INDEX_NAME" --expect-sidecars 1

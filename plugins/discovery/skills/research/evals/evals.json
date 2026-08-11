@@ -180,6 +180,47 @@
         "The fetch log records rung 1's outcome using the ladder vocabulary explicitly — carries-the-claim, probed-and-not-existing, unresolved, fetched-and-lacking-the-claim, or unreachable-after-escalation — keyed to the claim, rather than leaving the rung unaccounted for",
         "Reports the requested conditions (benchmark variant, context length, run count, retrieval mode) as sourced from the artifact that carries them, or reports each one it could not source as a Gap with its checked and unchecked sets named — never a bare 'not documented'"
       ]
+    },
+    {
+      "id": 13,
+      "name": "complete-but-unpersisted-routes-by-value-not-discard",
+      "prompt": "Research whether our pinned version of the HTTP client still has the connection-pool leak, then tell me whether to upgrade. [The dispatched discovery:researcher returns a well-formed payload: preload_token matching the sentinel, topic_as_received matching what you sent, status: complete, persistence: by-value, coverage: complete, artifact: <the slice>/RESEARCH.md, sidecars: 3 — followed by the full RESEARCH.md body, three RESEARCH-<section>.md bodies with their YAML headers, and research-checklist.md, all verbatim, plus one line saying every Write call was refused by the environment. check-dispatch-artifact.sh exits 1 against the slice.]",
+      "files": [],
+      "expected_output": "Reads persistence: by-value as a routing value, not an acceptance value. The parent writes the returned bodies into the memory-slice path it resolved before dispatch, then re-runs BOTH the artifact gate and the coverage-ledger gate, proceeding only when both exit 0. It does not treat the run as truncated, does not discard the slice, does not re-dispatch, and does not answer the upgrade question on the payload alone.",
+      "expectations": [
+        "The run is NOT graded as truncated and the completed research is NOT discarded; status: complete plus persistence: by-value is recognized as finished work that could not be saved",
+        "The parent writes the payload's verbatim RESEARCH.md, sidecar and research-checklist.md bodies into the memory-slice path IT resolved before dispatch, under those filenames — the payload's artifact: value on this path is a destination, not a claim that a file exists",
+        "BOTH gates are re-run against the now-written slice — check-dispatch-artifact.sh and check-coverage-complete.sh over the supplied ledger — and the workflow proceeds only when both exit 0; a non-zero re-run keeps the halt in force",
+        "The exception is applied to the halt, never to the gate: the coverage claim is still graded from the ledger rather than from the payload, and the upgrade recommendation does not issue on the payload alone",
+        "The parent does NOT resume or re-dispatch the agent first — a resume asks the worker to redo the write it just proved it cannot do, and a re-dispatch pays for every phase again to reproduce the same refusal",
+        "The sibling verifier is still dispatched against the recovered artifact; verification: pending is not waived by the recovery path"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "by-value-findings-instead-of-artifact-bodies-is-a-failed-dispatch",
+      "prompt": "Research whether our pinned HTTP client version still has the connection-pool leak. [The dispatched discovery:researcher returns: preload_token matching the sentinel, status: complete, persistence: by-value, coverage: complete — followed by a prose summary of what it concluded, with three URLs, no RESEARCH.md body, no sidecar bodies and no research-checklist.md. It says the slice was unwritable.]",
+      "files": [],
+      "expected_output": "Treats this as a failed dispatch rather than a by-value recovery. The by-value rung writes the slice from verbatim artifact bodies; a summary of findings is a claim about the run, and grading it would be the Tier-3 laundering the discipline forbids, arriving through the recovery path instead of the front door.",
+      "expectations": [
+        "The payload is graded as a FAILED dispatch, not as a by-value recovery, because it carries findings rather than the artifact bodies and the coverage ledger the parent would write",
+        "The prose summary and its three URLs are NOT accepted as research, NOT written into the slice as though they were the artifact, and NOT used to answer the question",
+        "The response names the reason explicitly: a payload the gate is invited to accept on the agent's word is the same laundering the source-tier discipline refuses everywhere else",
+        "The workflow halts and the ladder continues from the resume or discard rung"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "echo-back-mismatch-fails-the-dispatch",
+      "prompt": "Research how ${CLAUDE_PLUGIN_DATA} is resolved for the claude-ops plugin specifically. [The dispatched discovery:researcher returns a well-formed payload whose topic_as_received reads 'how <the discovery plugin's own data directory> is resolved for the claude-ops plugin specifically', with a complete RESEARCH.md artifact set on disk, a fully marked ledger, and both gates exiting 0.]",
+      "files": [],
+      "expected_output": "Compares topic_as_received against the topic the parent actually sent, notices they differ, and fails the dispatch even though every mechanical check passes. The artifact is a correct answer to the wrong topic. Re-dispatches with the topic restated in a form that survives the trip rather than accepting the artifact and translating it mentally.",
+      "expectations": [
+        "topic_as_received is compared against the topic in the parent's own pre-dispatch envelope, not against what the parent meant",
+        "The mismatch fails the dispatch even though both gates exit 0 and the ledger is fully marked — a present-but-wrong input is caught here or nowhere, and every other check in the gate keys on absence",
+        "The artifact is not accepted with a mental correction applied; the run is re-dispatched with the topic restated so it survives the trip",
+        "The response does not assert a mechanism for the rewrite as established harness behavior; it reports what was sent, what came back, and that the substitution ordering is undocumented"
+      ]
     }
   ]
 }

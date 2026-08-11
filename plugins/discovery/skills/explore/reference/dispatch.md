@@ -84,11 +84,37 @@ was wrong, or two runs are sharing one slice. Fix the envelope — the parent as
 it can disambiguate — and re-run the gate. Re-dispatching first pays for a whole exploration again
 to answer a question the parent could have answered itself.
 
+**Exit 1 with `persistence: by-value` — the parent writes the slice. Take this rung before the
+resume rung, because the payload has already told you why the disk is empty.** The agent finished
+and its environment refused every write. Neither of the rungs below helps: a resume asks a worker
+to redo the one thing it just proved it cannot do, and a re-dispatch pays for the whole exploration
+again to reproduce the same refusal at full cost.
+
+So the parent does the writing, which it can — this is the checkout-not-process boundary
+`reference/topic-docs.md` already draws, finally reachable from the failure that needs it:
+
+1. The payload carries the index and every sidecar as verbatim bodies after the YAML block, each
+   introduced by its filename. Write them into the memory-slice path **the parent resolved before
+   dispatch** — the same path it fed the gate — under those names. The payload's `artifact:` value
+   on this path is the destination the agent names, not a claim that a file exists.
+2. **Re-run the identical gate command.** Do not hand-inspect the directory instead; the whole
+   reason this rung is safe is that the artifact ends up graded by the same check as every other
+   run. Freshness needs no special handling: the parent writes after its own `touch`, so the index
+   is strictly newer than the baseline.
+3. Proceed only on exit 0. A non-zero second run drops through to the rungs below — the exception
+   is to the halt, never to the gate, and `persistence: by-value` grades nothing on its own.
+
+**A by-value payload that returns findings instead of artifact bodies is a failed dispatch, not a
+fallback.** The value of the third outcome is *routing*: it tells the parent which recovery to
+take. It is not an acceptance value, and treating it as one would let a run be believed on the
+agent's own word — the exact thing the gate exists to refuse.
+
 **Exit 1 with the agent still live — resume it; do not re-dispatch it.** A resume costs one message;
 a re-dispatch pays the full six dimensions over again. Address the agent by the **agent ID**, not by
 name, and ask for the return payload block alone rather than restating the task. If the artifact set
 is on disk and only the payload was malformed, the artifact is the source of truth — read the index
-for the pointer, and still dispatch the sibling verifier.
+for the pointer, and still dispatch the sibling verifier. If the payload comes back naming a refused
+write, you are on the by-value rung above, not this one.
 
 **A refused resume, or exit 1 again after one.** Discard the slice and re-dispatch with the same
 envelope. Do not resume a partial slice: a half-written artifact set cannot be told apart from a
@@ -97,6 +123,11 @@ complete one by reading it, which is why the truncation rule discards rather tha
 **Bound the wait either way.** The consuming session whose report produced this gate spent roughly
 eight minutes discovering the resume path by trial. That cost is why the ladder is written down.
 `status: truncated` is not a special case — it takes the same ladder.
+
+**Why exit 1 alone is not enough to pick a rung.** The script emits the same exit 1 and the same
+message whether the agent never launched or finished perfectly and could not write — correctly, as
+it grades disk state and nothing else, and reading the payload is not its job. The branch lives
+here instead, one level up, where gate step 1 has already put the payload in the parent's hands.
 
 ### What the harness actually guarantees about a resume
 

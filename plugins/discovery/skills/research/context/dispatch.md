@@ -148,11 +148,42 @@ two runs are sharing one slice, or a fan-out was graded at its root instead of a
 sub-slice. Fix the envelope and re-run the gate. Re-dispatching first pays for a whole research run
 again to answer a question the parent could have answered itself.
 
+**Exit 1 with `persistence: by-value` — the parent writes the slice. Take this rung before the resume
+rung, because the payload has already told you why the disk is empty.** The agent finished and its
+environment refused every write. Neither of the rungs below helps: a resume asks a worker to redo the
+one thing it just proved it cannot do, and a re-dispatch pays for every phase again to reproduce the
+same refusal — the most expensive way to learn nothing.
+
+So the parent does the writing, which it can — this is the checkout-not-process boundary
+[`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)
+already draws, finally reachable from the failure that needs it:
+
+1. The payload carries `RESEARCH.md`, every sidecar with its machine-readable header, and
+   `research-checklist.md` as verbatim bodies after the YAML block, each introduced by its filename.
+   Write them into the memory-slice path **the parent resolved before dispatch** — the same path it
+   fed the gate — under those names. The payload's `artifact:` value on this path is the destination
+   the agent names, not a claim that a file exists.
+2. **Re-run the identical checks — the artifact gate and the coverage-ledger gate both.** Do not
+   hand-inspect the directory instead; the whole reason this rung is safe is that the artifact ends
+   up graded by the same checks as every other run, including `check-coverage-complete.sh` over the
+   ledger the payload supplied. Freshness needs no special handling: the parent writes after its own
+   `touch`, so the index is strictly newer than the baseline. The slice was empty, so the stale-ledger
+   window this ladder's discard rung exists to close does not open here.
+3. Proceed only when both come back 0. A non-zero re-run drops through to the rungs below — the
+   exception is to the halt, never to the gate, and `persistence: by-value` grades nothing on its own.
+
+**A by-value payload that returns findings instead of artifact bodies is a failed dispatch, not a
+fallback.** The value of the third outcome is *routing*: it tells the parent which recovery to take.
+It is not an acceptance value. Letting the gate grade a claim the agent makes about its own research,
+in place of the artifact and the ledger, is the Tier-3 laundering the discipline forbids — arriving
+through the recovery path instead of the front door.
+
 **Exit 1 with the agent still live — resume it; do not re-dispatch it.** A resume costs one message; a
 re-dispatch pays all the phases over again. Address the agent by its **agent ID**, not by name, and ask
 for the return payload block alone rather than restating the task. If the artifact set is on disk and
 only the payload was malformed, the artifact is the source of truth — read the index for the pointer,
-and still dispatch the sibling verifier. What the harness actually guarantees about a resume, verified
+and still dispatch the sibling verifier. If the payload comes back naming a refused write, you are on
+the by-value rung above, not this one. What the harness actually guarantees about a resume, verified
 against the official sub-agents page and quoted there, is written down once in
 [`${CLAUDE_PLUGIN_ROOT}/skills/explore/reference/dispatch.md`](${CLAUDE_PLUGIN_ROOT}/skills/explore/reference/dispatch.md)
 ("What the harness actually guarantees about a resume"); it applies unchanged to `discovery:researcher`,
@@ -170,6 +201,11 @@ without any new machinery.
 **Bound the wait either way.** `status: truncated` is not a special case — it takes the same ladder,
 and the discard-rather-than-resume rule for a partial *slice* is below, which is a different question
 from resuming the *agent* for its payload.
+
+**Why exit 1 alone is not enough to pick a rung.** The gate emits the same exit 1 and the same message
+whether the agent never launched or finished every phase and could not write — correctly, since it
+grades disk state and nothing else, and reading the payload is not its job. The branch lives here
+instead, one level up, where gate step 1 has already put the payload in the parent's hands.
 
 ## Truncation
 

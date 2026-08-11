@@ -93,6 +93,45 @@
         "A non-zero exit halts the workflow and is reported; the run does NOT proceed to research, planning, or an edit on the strength of an exploration that did not happen",
         "Recovery resumes the existing agent by agent ID with SendMessage rather than immediately re-dispatching, and falls back to discarding the slice and re-dispatching with the same envelope when the resume is refused"
       ]
+    },
+    {
+      "id": 8,
+      "name": "complete-but-unpersisted-routes-by-value-not-discard",
+      "prompt": "Explore the payments rounding rules before I change them. [The dispatched discovery:explorer returns a well-formed payload: preload_token matching the sentinel, scope_as_received matching what you sent, status: complete, persistence: by-value, coverage: complete, artifact: <the slice>/EXPLORE.md, sidecars: 4 — followed by the full EXPLORE.md body and four EXPLORE-<section>.md bodies verbatim, and one line saying every Write call was refused by the environment. check-dispatch-artifact.sh exits 1 against the slice.]",
+      "files": [],
+      "expected_output": "Reads persistence: by-value as a routing value, not an acceptance value. The parent writes the returned bodies into the memory-slice path it resolved before dispatch, then re-runs the identical gate command and proceeds only on exit 0. It does not treat the run as truncated, does not discard the slice, does not re-dispatch, and does not proceed on the payload alone.",
+      "expectations": [
+        "The run is NOT graded as truncated and the completed work is NOT discarded; status: complete plus persistence: by-value is recognized as a finished exploration that could not be saved",
+        "The parent writes the payload's verbatim EXPLORE.md and EXPLORE-<section>.md bodies into the memory-slice path IT resolved before dispatch, under those filenames — the payload's artifact: value on this path is a destination, not a claim that a file exists",
+        "The identical check-dispatch-artifact.sh command is re-run against the now-written slice and the workflow proceeds only on exit 0; a non-zero re-run keeps the halt in force and drops back to the ladder",
+        "The exception is applied to the halt, never to the gate: nothing in the payload is accepted in place of the gate passing, and no downstream step proceeds on the payload alone",
+        "The parent does NOT resume or re-dispatch the agent first — a resume asks the worker to redo the write it just proved it cannot do, and a re-dispatch pays for the whole exploration again to reproduce the same refusal"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "by-value-summary-instead-of-artifact-bodies-is-a-failed-dispatch",
+      "prompt": "Explore the payments rounding rules before I change them. [The dispatched discovery:explorer returns: preload_token matching the sentinel, status: complete, persistence: by-value, coverage: complete — followed by three paragraphs summarizing what it found, with no EXPLORE.md body and no sidecar bodies. It says the slice was unwritable.]",
+      "files": [],
+      "expected_output": "Treats this as a failed dispatch rather than a by-value recovery. The by-value rung writes the slice from verbatim artifact bodies; a summary is not an artifact, and accepting it would let the gate grade a claim the agent makes about its own run.",
+      "expectations": [
+        "The payload is graded as a FAILED dispatch, not as a by-value recovery, because it carries findings rather than the artifact bodies the parent would write",
+        "The summary is NOT written into the slice as though it were the artifact, and is NOT accepted as a substitute for a gate-passing artifact set",
+        "The workflow halts and the ladder continues from the resume or discard rung; downstream planning or edits do not proceed"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "echo-back-mismatch-fails-the-dispatch",
+      "prompt": "Explore how ${CLAUDE_PLUGIN_DATA} is used by the claude-ops plugin. [The dispatched discovery:explorer returns a well-formed payload whose scope_as_received reads 'how <the discovery plugin's own data directory> is used by the claude-ops plugin', with a complete EXPLORE.md artifact set on disk and a gate exit of 0.]",
+      "files": [],
+      "expected_output": "Compares scope_as_received against the scope the parent actually sent, notices they differ, and fails the dispatch even though every on-disk check passes. The artifact is a correct answer to the wrong scope. Re-dispatches with the scope restated in a form that survives the trip rather than accepting the artifact and translating it mentally.",
+      "expectations": [
+        "scope_as_received is compared against the scope in the parent's own pre-dispatch envelope, not against what the parent meant",
+        "The mismatch fails the dispatch even though the artifact gate exits 0 and the artifact set is complete on disk — a present-but-wrong input is caught here or nowhere",
+        "The artifact is not accepted with a mental correction applied; the run is re-dispatched with the scope restated so it survives the trip",
+        "The response does not assert a mechanism for the rewrite as established harness behavior; it reports what was sent, what came back, and that the substitution ordering is undocumented"
+      ]
     }
   ]
 }

@@ -42,6 +42,8 @@ A missing or mismatched token is a **hard failure: the parent discards the run**
 **Pre-dispatch, one command:** `mkdir -p <the memory-slice path> && touch <that slice>/.research-dispatch`. That is the gate's freshness baseline, and without it a slice that already holds an earlier run's index passes every on-disk check even when this dispatch wrote nothing at all. The `mkdir -p` is not decoration: on a first-time topic the slice does not exist yet, a bare `touch` fails there, and the dispatch either stops before it starts or reaches a gate with no baseline to grade against. **On an N-topic fan-out that one baseline at the slice root serves every sub-slice** — the gate compares each sub-slice index's mtime against the file it is handed, and a baseline touched now is newer than anything an earlier run left anywhere under the slice — so a per-sub-slice baseline is optional, not owed. The memory root's self-ignoring `.gitignore` guard remains the agent's obligation, per its own contract.
 
 1. **The payload is well-formed** — `preload_token` matches the sentinel verbatim, and an `artifact:` pointer is present. Missing either is a **failed dispatch** whatever the `status` field says; a missing token is a discard, per the rule above.
+
+   **And `topic_as_received` matches the topic the parent actually sent.** Compare it against the envelope the parent wrote, not against what it meant. Every other check in this gate keys on something being *absent*; this is the only one that can fire on an input that is present and wrong, which is why it is a gate step rather than a matter of judgment. A mismatch is a **failed dispatch** — the run researched a different question from the one asked, and its artifact is a correct answer to the wrong topic, the most expensive shape of wrong there is, and on an N-topic fan-out it multiplies. Re-dispatch with the topic restated in a form that survives the trip (see the caveat under **Topic** below); do not accept the artifact and mentally translate it. A payload that is otherwise well-formed but carries no `topic_as_received` is an out-of-date agent definition, not a pass: say so rather than skipping the check.
 2. **The artifact set is actually on disk, and this run put it there:**
 
    ```bash
@@ -59,11 +61,25 @@ A missing or mismatched token is a **hard failure: the parent discards the run**
 
 **Any non-zero exit halts the workflow.** Report it, and do **not** proceed to planning, a decision, or an edit on the strength of research that did not happen — proceeding is the damage a silently-empty return actually causes; the missing artifact is only how it starts. Recovery ladder, and why a resume beats a re-dispatch: [`${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md`](${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md).
 
+**One named exception, and it is an exception to the halt, not to the gate.** Exit 1 with `persistence: by-value` in the payload means the agent finished and its environment refused every write — the one failure the ladder previously had no rung for, and the one where a re-dispatch pays for every phase again to reproduce the same refusal. There the parent **writes the slice itself** from the artifact bodies the payload carries verbatim, into the memory-slice path it resolved before dispatch (on that path the payload's `artifact:` value is a *destination* the agent names, not a claim that a file exists), and then **re-runs the identical checks above — both the artifact gate and the coverage-ledger gate.** The workflow proceeds only when both come back 0. If either is non-zero, the halt stands and the ladder resumes at the rung it was on. The freshness check needs nothing special: the parent writes after its own pre-dispatch `touch`, so the index is strictly newer than the baseline.
+
+Nothing in the payload is ever accepted *in place of* a gate passing. `persistence: by-value` routes the parent; it does not grade anything, and it is never a reason to believe a run. A by-value payload carrying a summary of findings rather than the artifact bodies — index, sidecars with their headers, and the coverage ledger — is a **failed dispatch**, not a fallback: research the gate is invited to accept on the agent's word is exactly the Tier-3 laundering this skill forbids everywhere else. Why the mode exists and where its boundary sits: [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md).
+
 ## Topic
 
 Research the following topic: $ARGUMENTS
 
 **A dispatched run does not read that line.** `$ARGUMENTS` substitutes to the empty string on the preload path, and a non-fork subagent has no view of the conversation to fall back on — so for a dispatched run the topic arrives in the dispatch prompt, and its absence is a parent-envelope failure the agent reports rather than repairs. Running **inline** with no topic supplied above, infer it from the current conversation context — identify the technical claim, decision, or implementation being worked on and research that.
+
+**Caveat — a `${CLAUDE_…}`-shaped token in a topic may not arrive as you typed it.** This is about the **inline** path above and about the topic text the parent writes into a dispatch prompt. It is a **different question** from what the paragraph above says about `$ARGUMENTS` on the preload path, and it is not evidence for or against it: one is about a placeholder the plugin's own body carries, the other about placeholder-shaped text a caller supplies. Stated as what was observed and what is documented, because the mechanism is neither:
+
+- **Observed 2026-08-10:** an argument naming *another* plugin's `${CLAUDE_PLUGIN_DATA}` directory reached the dispatched agent rewritten to **this** plugin's own path. The agent was asked a factually wrong question and answered it correctly.
+- **Documented** (`plugins-reference`, `skills`, both fetched 2026-08-11): skill and agent content is a substitution site for `${CLAUDE_PLUGIN_ROOT}`, `${CLAUDE_PLUGIN_DATA}` and `${CLAUDE_PROJECT_DIR}` "anywhere the placeholder appears", and there is **no escape** for them — "A backslash before any other `$` is left unchanged" covers `$ARGUMENTS` and declared argument names, not these.
+- **Not documented on any page:** whether argument-supplied text is itself scanned for those placeholders. The ordering is unstated, so do not read the observation above as a mechanism.
+
+Practically: name a path in plain words rather than passing a `${CLAUDE_…}` token and expecting it back. The `topic_as_received` echo-back in the acceptance gate is what catches this whichever way the substitution actually runs — and it matters most here, where `/discovery:research-deep` fans one topic out across N dispatches.
+
+**This caveat expires 2027-02-11.** Re-fetch both pages then. After that date it is an unverified claim, not a fact — say so rather than repeating it.
 
 ## Mandatory disciplines (non-negotiable)
 
