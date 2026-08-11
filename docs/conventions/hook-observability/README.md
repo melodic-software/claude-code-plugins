@@ -170,13 +170,20 @@ melodic-software/claude-code-plugins#930.
   the `--verbose` flag, `CLAUDE_CODE_DEBUG_LOG_LEVEL=verbose` for hook matcher counts, and
   `--include-hook-events` for the stream-json event feed.
 
-  What none of them is, is a **consumer-facing toggle that makes an ordinary hook's routine work
-  visible**. Each is either operator-driven debugging (`--debug`, the debug log level), a
-  transcript view the consumer must already have switched on, or a machine feed for a `-p` harness.
-  A plugin cannot assume any of them is active, and none changes where a hook must *put* its
-  message. So the rule stands unchanged — `statusMessage` and `systemMessage` are the surfaces a
-  fleet hook writes to — but it rests on "a plugin cannot depend on an operator's debug posture",
-  not on a nonexistence claim.
+  The rule this doc needs does not depend on what those surfaces are, only on what an author may
+  assume: **every one of them is off unless the consumer turned it on, and none of them changes
+  where a hook must put its message.** `Ctrl+O` is a keystroke the user presses; `--verbose` and
+  `--include-hook-events` are launch flags; `verbose` and `viewMode` are settings; the debug log
+  level is an environment variable. A plugin authored today cannot know which, if any, is active in
+  the session its hook runs in, and a hook whose output lands only in a channel the consumer may
+  never have enabled is not observable. So the rule stands unchanged — `statusMessage` and
+  `systemMessage` are the surfaces a fleet hook writes to — resting on **a plugin cannot assume the
+  consumer's view state**, not on any claim about which surfaces exist.
+
+  Recheck trigger: a Claude Code release that surfaces hook output on a channel active by default,
+  or that adds a hook-output field to the JSON output schema beyond the three in
+  [the three surfaces](#the-three-surfaces) — either would make the assumption above false and
+  reopen this bullet.
 
   > **Correction, 2026-08-11.** This bullet previously read "No native 'verbose hooks' toggle
   > exists in Claude Code," verified against a `hooks`-page fetch. The literal phrase "verbose
@@ -185,6 +192,14 @@ melodic-software/claude-code-plugins#930.
   > absence — the negative was scoped to the page searched and stated about the product. See
   > [upstream-drift, "Reading the basis"](../upstream-drift/README.md#reading-the-basis--the-fetch-route):
   > a claim of the form "X does not exist" has to name the surfaces searched.
+  >
+  > The counts above are illustrative of that error, not load-bearing: nothing in this doc's rules
+  > depends on how many pages carry the word. They are deliberately floored ("at least 13") and
+  > need no recheck — a count that only ever grows cannot falsify the point it illustrates. The
+  > one claim here that *is* load-bearing is the quoted `Ctrl+O` / `--verbose` sentence
+  > (basis: <https://code.claude.com/docs/en/hooks>, rung-1 raw-markdown read, 2026-08-11), and it
+  > argues **for** the rule rather than against it, so its recheck trigger is the one on the
+  > paragraph above.
 
 ## Conformance
 
