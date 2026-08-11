@@ -3,6 +3,99 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.0]
+
+### Added
+
+- **`audit-install-state`: a read-only audit of the machine-scope Claude Code installation
+  directory** — the `~/.claude` tree plus the home-root `~/.claude.json` — filling a gap nothing in
+  the marketplace covered. `claude-config` audits a *repo's* configuration files and its coordinator
+  refuses any target that is not the active project root; `disk-hygiene:clean` deliberately routes
+  product-managed state *out* of its engine; `claude-ops:plugins` reads
+  `~/.claude/plugins/installed_plugins.json` but nothing else in the tree. This is the missing
+  sibling to `plugins` (fleet state) and `observability` (telemetry state).
+
+  The skill is report-only and never writes to the target tree. It answers four questions and
+  refuses a fifth: what is here (inventory split automatically into a per-file authored surface and
+  rolled-up bulk trees, with a CSV artifact so "every file" literally exists), what Claude Code's own
+  retention sweep already manages, what each number in a filename actually *is*, and whether the tree
+  is in a deliberate or mid-experiment state. It does not answer "so what should I delete" —
+  deletion routes to `/disk-hygiene:clean`, shedding project state routes to `claude project purge`.
+
+- **The liveness gate is code, not advice — a number in a filename is not reliably a PID.** A prior
+  audit came one step from deleting `ide/22580.lock` because a process lookup for "22580" returned
+  nothing: 22580 is a listening TCP port, and the real PID in the file body was alive and serving a
+  running IDE integration. A lookup against a non-PID returns a clean, confident, *wrong* "dead."
+  `verdict_for()` therefore classifies the naming scheme first and calls the probe only when the
+  number is a PID; a spy-probe test asserts it is never invoked for `ide/<n>.lock` (TCP port),
+  `rate-limit-guard/*.tmp.<n>` (MSYS2 `$$`), `shell-snapshots/…` (epoch ms), `paste-cache/<hex>`
+  (content hash), or any unrecognised numeric name. Unknown schemes fail closed, and a probe that
+  cannot run reports `unverified`, never `dead`.
+
+- **Evidence tags and sampled ranges are schema properties, not conventions.** Every emitted claim
+  carries `measured` / `documented-default` / `inferred` / `no-upstream-row`, and every count that
+  can move during a scan is emitted as `{min, max, n}` — there is no field a single averaged number
+  could go in. A known-churning directory returning identical counts across fewer than three samples
+  is flagged `unanimous_small_n_on_volatile_path`, because agreement within one moment on a dynamic
+  system is a red flag rather than a confirmation.
+
+- **Deliberate-state detection runs before any staleness verdict.** A revert ledger (`RESTORE.md`,
+  `PLAYBOOK.md`, `restore*.py`, or a shallow `manifest.json` / baseline under `plugins/data/`)
+  deny-lists its whole subtree — such a directory is frequently the *only* copy of somebody's revert
+  path, and a prior audit's largest near-miss was a correct check run against a tree whose state was
+  deliberate. The skill also records that a ledger's own summary is not authoritative and must be
+  diffed against the stored baseline.
+
+- **The CSV artifact is complete by construction.** `--csv` writes one row per file in the scan set
+  — 86,653 rows for an 86,653-file install — and is the only artifact carrying per-file rows at
+  all; `--authored-threshold` governs only which entries the JSON summary *labels* `per-file`
+  rather than `rolled-up`. Driving the artifact off the JSON rollup instead produced
+  a 169-row CSV for the same install (86,984 files at that instant; the tree is live and the total
+  moved between runs) while the surrounding prose claimed completeness, so a test now
+  pins `csv.rows == totals.files` and asserts a threshold of `0` does not shrink it. Omitting
+  `--csv` reports `path: null` with a note that the run must not be described as covering every
+  file.
+
+- **Retention is resolved before any staleness claim, and an unparsable settings file is an
+  error.** Upstream pauses the retention cleanup sweep entirely while `settings.json` fails to parse
+  (unless managed settings supply `cleanupPeriodDays`), so a JSON syntax error is a retention outage,
+  not a lint nit. The engine reports the effective window with its evidence tag, the sweep's own
+  `.last-cleanup` watermark, and the plugin in-use sweep marker.
+
+  The exception is measured rather than assumed: the paused-sweep finding is raised while reading
+  `settings.json`, before managed settings have been looked at, so on an enterprise machine that
+  supplies a valid `cleanupPeriodDays` it was left standing and told the reader that nothing is
+  being swept and every staleness reading is suspect — when the exception named in its own claim
+  applied. It is now withdrawn once managed settings are measured to supply a usable value; the
+  parse failure itself stays on the record in `user_settings_parse`.
+
+  `cleanupPeriodDays` is also validated rather than merely type-checked. `bool` is an `int` in
+  Python, so `true` would have been read as a one-day window and `false` as a zero-day one, and a
+  zero or negative value is below the documented minimum of one day — a negative window puts the
+  retention cutoff in the *future* and marks effectively every swept file as past retention. A
+  rejected value is reported as `invalid: <value>` in `user_setting_days` / `managed_setting_days`
+  and the documented default stands.
+
+- **An entry holding a secret-bearing file is classified by its contents, not by its own name.**
+  Entry-level surfaces came from `SURFACE_TABLE` keyed on the top-level directory name alone.
+  `ide/*.lock` is in the never-read list and every row under `ide/` was promoted to `secret`, but
+  `ide` has no table row — so the entry line a reader scans first read `unclassified`, with the
+  milder `unclassified-report-only` verdict, over rows that were all `secret`. A `secret` member
+  now promotes its entry to `secret` (verdict `keep`) and the note carries the *count* of such
+  files, so a mixed tree promoted by a couple of vendored `*.pem` bundles can be read against the
+  entry's `files` field rather than assumed secret throughout.
+
+- **The recent-writer cutoff is compared at the precision it is stored.** `FileRow.mtime` carries
+  second precision while the cutoff carried microseconds; `.` (0x2E) sorts after `+` (0x2B), so a
+  file written inside the window but during the cutoff second compared *lower* than the cutoff and
+  was silently dropped from the behavioural-activity evidence. Same fix, and the same reason, as
+  the rollup cutoff already applied.
+
+### Changed
+
+- **`plugin.json` now describes eight skills.** The description enumerates `audit-install-state`
+  alongside the existing seven; `docs/CATALOG.md` regenerates from it.
+
 ## [0.28.6]
 
 ### Changed
