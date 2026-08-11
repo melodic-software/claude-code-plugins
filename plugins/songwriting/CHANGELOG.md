@@ -16,9 +16,13 @@ run that terminated on a content-filter error *before writing any receipt*, so
 none of it was audited. Eight fresh agents, one exclusive write-set each, were
 dispatched to disprove it rather than bless it.
 
-### Fixed — 19 defects the refutation pass found
+### Fixed — 20 defects the refutation pass found
 
-Every one is a fidelity failure, not an invention. The pattern from previous
+Counts summed from the eight receipt headers, not estimated: **49 CONFIRMED,
+20 REFUTED, 6 INCOMPLETE-RESTORATION, 0 UNPROVABLE.** Some hunks are both
+refuted and incomplete, so those two columns overlap.
+
+Every defect is a fidelity failure, not an invention. The pattern from previous
 sessions holds: the real risks are truncation, dropped items and over-claiming.
 
 - **Truncation.** `rhyme-fundamentals.md` presented the Introduction's first and
@@ -89,6 +93,14 @@ pedagogy — the false-positive trap that would have destroyed correct text.
 - Inline changelog prose ("An earlier revision of this file claimed…") remains
   in nine runtime context files. It is accurate and is this project's main
   defense against fabrications regrowing, but it belongs in a receipt.
+- **`hook.md` lyric enrichment was attempted and DROPPED.** The agent produced
+  141 lines, but it transcribed figures by building an **OCR pipeline** and then
+  "correcting OCR errors" — including inserting a missing apostrophe — instead
+  of rendering each figure and reading it. Roughly half of this project's
+  quote-checker misses are already extraction artifacts; OCR adds a new artifact
+  source, and repairing its output by inference is the fabrication risk the
+  whole audit exists to prevent. The work is discarded unverified rather than
+  shipped. `hook.md` is unchanged in this release.
 
 ## [1.0.0]
 
