@@ -3,6 +3,57 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.7]
+
+### Fixed
+
+- **Two no-git cases 0.11.1 left open: a file below the root with no `CLAUDE_PROJECT_DIR`, and the
+  opt-in pre-check.** 0.11.1 resolved the root from `CLAUDE_PROJECT_DIR` when the git probe could not
+  answer. That covers an anchored session, but not the configuration the fix is about: the
+  working-tree membership scope is gated on `CLAUDE_PROJECT_DIR` being **unset**, and the no-git
+  regression fixture runs unset — so a root read off that variable cannot serve it, and a nested
+  `.md` on a git-less host with no harness anchor was still skipped silently. The opt-in
+  **pre-check**, which runs before `jq` exists, still resolved its root the old way as well: with
+  `git` and `jq` both absent, a nested file made it read a repository that had opted in as one that
+  never did, swallowing the `jq` notice it was owed.
+
+  The root is now resolved from the filesystem when git cannot answer, by the walk git's own
+  discovery performs: upward from the edited file for a `.git` entry, accepted as a directory for an
+  ordinary clone or as a **file** for a linked worktree or submodule
+  ([gitrepository-layout](https://git-scm.com/docs/gitrepository-layout)). git's answer is returned
+  untouched whenever git produced one, so a host that has git is unaffected. `CLAUDE_PROJECT_DIR`
+  remains below that as the last resort, for a project that is no working tree at all — an unpacked
+  archive, a vendored copy — and only ever as the walk's terminator, never to widen scope, so the
+  fail-closed reasoning in `markdownlint_config_discoverable` is unchanged. When nothing resolves,
+  the previous hint stands, which keeps 0.11.1's out-of-tree bound true.
+
+- **An escaping symlink can no longer hand its out-of-tree target to `--fix` on a git-less host.**
+  Resolving the root from the filesystem makes discovery SUCCEED where it previously failed, and
+  success is what puts a file in front of `--fix` — so for an in-repository symlink whose target
+  lives outside the tree, the repository's own config opened the gate and the linter followed the
+  link and rewrote a file outside the repository. Without git this scope could not ask
+  `in_git_working_tree` anything, so containment went unchecked entirely; a symlink is precisely the
+  shape whose lexical parent (inside the repository) and physical parent (outside it) disagree.
+
+  Containment is now decided from the filesystem when git cannot answer, instead of being skipped.
+  The check runs only where the physical path differs from the lexical one — which for an ordinary
+  file it never does — so a git-less repository lints exactly as before; an undecidable *git* verdict
+  still lints, while an escape the filesystem can prove does not. Both operands are canonicalized
+  through `cd … && pwd -P`, the spelling `markdownlint_config_discoverable` and `CONFIG_ROOT` already
+  compare in: `hook::physical_path` resolves via `realpath`, which leaves `/tmp` as `/tmp` where
+  `pwd -P` resolves it to the underlying directory, so comparing one against the other would be a
+  spelling mismatch rather than a containment answer.
+
+  The root-level form of the same escape was reachable before this release too — there the old
+  resolution already returned the repository root, so discovery already succeeded — and is closed by
+  the same check.
+
+  This also retires the `"$REPO_ROOT" == "$(dirname "$FILE")"` guard, which was true only for a file
+  at the repository root: it spawned a second `git rev-parse` there wherever the payload's path
+  spelling matched git's own, and was false for every nested file, which is why 0.11.1's test file
+  records that the guard's inertness could not be made behaviourally observable. There is no longer
+  an untestable branch to observe.
+
 ## [0.11.6]
 
 ### Changed
