@@ -341,7 +341,7 @@ recalibration.
   delegated check passes through model refinement first; the gate belongs to the derived tier.
 - **Never propose an `@path` import as a context saving.** Splitting into imports "helps organization
   but doesn't reduce context, since imported files load at launch"
-  ([memory](https://code.claude.com/docs/en/memory), verified 2026-07-24). A split remediation must
+  ([memory](https://code.claude.com/docs/en/memory), verified 2026-08-10). A split remediation must
   name a load-deferring destination and price what it costs.
 
 ## What this skill does NOT do

@@ -123,14 +123,34 @@ if [[ -z "$OWNER" || -z "$REPO" ]]; then
   exit 2
 fi
 
-# --- Surface 1: General PR comments (issue-level) ----------------------------
+# --- Surface fetch -----------------------------------------------------------
 
-GENERAL_RAW=$(gh api --paginate "repos/$OWNER/$REPO/issues/$PR_NUMBER/comments" 2>/dev/null) || {
-  printf 'fetch-all-pr-comments: gh api issues/%s/comments failed\n' "$PR_NUMBER" >&2
-  exit 2
+# fetch_surface <endpoint> <jq-projection> — page one API surface and project it
+# into the shared schema, leaving the JSONL in SURFACE_JSON. Every surface has
+# the same two failure modes (the fetch, then the parse) and the same fail-loud
+# response to each, so they live here once rather than per surface.
+#
+# The result comes back through a GLOBAL rather than stdout: both guards must
+# terminate the SCRIPT, and an `exit 2` inside a `$( )` capture kills only the
+# subshell — the caller would sail on with an empty surface, which is exactly
+# the shape of a PR with no comments there.
+SURFACE_JSON=""
+fetch_surface() {
+  local endpoint="$1" projection="$2" raw
+  SURFACE_JSON=""
+  raw=$(gh api --paginate "repos/$OWNER/$REPO/$endpoint" 2>/dev/null) || {
+    printf 'fetch-all-pr-comments: gh api %s failed\n' "$endpoint" >&2
+    exit 2
+  }
+  SURFACE_JSON=$(printf '%s' "$raw" | jq -c "$projection" 2>/dev/null) || {
+    printf 'fetch-all-pr-comments: jq failed parsing %s response\n' "$endpoint" >&2
+    exit 2
+  }
 }
 
-if ! GENERAL=$(printf '%s' "$GENERAL_RAW" | jq -c '
+# --- Surface 1: General PR comments (issue-level) ----------------------------
+
+fetch_surface "issues/$PR_NUMBER/comments" '
   if type == "array" then .[] else . end
   | {
       id: .id,
@@ -142,19 +162,12 @@ if ! GENERAL=$(printf '%s' "$GENERAL_RAW" | jq -c '
       created_at: .created_at,
       in_reply_to_id: null
     }
-' 2>/dev/null); then
-  printf 'fetch-all-pr-comments: jq failed parsing issues/%s/comments response\n' "$PR_NUMBER" >&2
-  exit 2
-fi
+'
+GENERAL="$SURFACE_JSON"
 
 # --- Surface 2: Review-level comments ----------------------------------------
 
-REVIEWS_RAW=$(gh api --paginate "repos/$OWNER/$REPO/pulls/$PR_NUMBER/reviews" 2>/dev/null) || {
-  printf 'fetch-all-pr-comments: gh api pulls/%s/reviews failed\n' "$PR_NUMBER" >&2
-  exit 2
-}
-
-if ! REVIEWS=$(printf '%s' "$REVIEWS_RAW" | jq -c '
+fetch_surface "pulls/$PR_NUMBER/reviews" '
   if type == "array" then .[] else . end
   | select(.body != null and .body != "")
   | {
@@ -167,19 +180,12 @@ if ! REVIEWS=$(printf '%s' "$REVIEWS_RAW" | jq -c '
       created_at: (.submitted_at // .created_at),
       in_reply_to_id: null
     }
-' 2>/dev/null); then
-  printf 'fetch-all-pr-comments: jq failed parsing pulls/%s/reviews response\n' "$PR_NUMBER" >&2
-  exit 2
-fi
+'
+REVIEWS="$SURFACE_JSON"
 
 # --- Surface 3: Inline review comments (line-anchored) -----------------------
 
-INLINE_RAW=$(gh api --paginate "repos/$OWNER/$REPO/pulls/$PR_NUMBER/comments" 2>/dev/null) || {
-  printf 'fetch-all-pr-comments: gh api pulls/%s/comments failed\n' "$PR_NUMBER" >&2
-  exit 2
-}
-
-if ! INLINE=$(printf '%s' "$INLINE_RAW" | jq -c '
+fetch_surface "pulls/$PR_NUMBER/comments" '
   if type == "array" then .[] else . end
   | {
       id: .id,
@@ -191,10 +197,8 @@ if ! INLINE=$(printf '%s' "$INLINE_RAW" | jq -c '
       created_at: .created_at,
       in_reply_to_id: .in_reply_to_id
     }
-' 2>/dev/null); then
-  printf 'fetch-all-pr-comments: jq failed parsing pulls/%s/comments response\n' "$PR_NUMBER" >&2
-  exit 2
-fi
+'
+INLINE="$SURFACE_JSON"
 
 # --- Merge and sort by created_at --------------------------------------------
 

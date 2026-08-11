@@ -164,7 +164,7 @@ The writer chooses by trade-off, not by what reads best in isolation.
 Surface the labeled list with trade-offs. Let the writer choose.
 
 If the writer asks which is best, push back gently: "the choice depends on
-[the song's central emotion / the melody's pitch contour / the verse's POV
+[the song's central intent, idea, and emotion / the melody's pitch contour / the verse's POV
 discipline]. Which matters most for this song?"
 
 ## Artifact pattern

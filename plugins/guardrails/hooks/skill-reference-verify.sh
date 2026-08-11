@@ -118,7 +118,7 @@ shopt -u nullglob
 # holds a path or an array of paths, each relative to the plugin root, and those
 # ADD to the conventional `skills/` directory rather than replacing it — verified
 # against the Plugins reference (<https://code.claude.com/docs/en/plugins-reference>,
-# "Path behavior rules", fetched 2026-08-06). Collect them per plugin so a skill
+# "Path behavior rules", fetched 2026-08-10). Collect them per plugin so a skill
 # loaded from a declared location resolves like any other.
 #
 # One documented exception is NOT modelled: for a marketplace entry whose `source`
@@ -155,7 +155,7 @@ skill_frontmatter_name() {
 # declares nothing and the root itself is the skill.
 #
 # All three shapes come from the Plugins reference
-# (<https://code.claude.com/docs/en/plugins-reference>, fetched 2026-08-06):
+# (<https://code.claude.com/docs/en/plugins-reference>, fetched 2026-08-10):
 # declared paths are relative to the plugin root and start with `./` (the `skills`
 # key also accepts `.`, and both `.` and `./` denote the root); they ADD to the
 # default `skills/` scan; and a plugin with a root SKILL.md, no `skills/`
@@ -590,7 +590,7 @@ emit_tel() {
   if ((${#UNRESOLVED[@]} > 0)); then
     local r raw_list=""
     for r in "${UNRESOLVED[@]}"; do raw_list+="$r"$'\n'; done
-    findings_json=$(printf '%s' "$raw_list" | jq -R . | jq -s . 2>/dev/null) || findings_json="[]"
+    findings_json=$(printf '%s' "$raw_list" | jq -Rn '[inputs]' 2>/dev/null) || findings_json="[]"
   fi
   local data
   data=$(jq -n --arg file "$file_rel" --argjson findings "$findings_json" \

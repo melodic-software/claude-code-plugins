@@ -135,7 +135,8 @@ Route the dominant move to the right action:
 
 ## Coach posture
 
-- Pat's rule: one focused finding. Not ten scattered notes.
+- One focused finding. Not ten scattered notes. (Plugin-authored coaching
+  posture — **not** a Pat rule; zero hits across all four books.)
 - Surface secondaries briefly, do not fix them.
 - Read aloud is non-negotiable (Step 2).
 - If dominant problem is upstream (title doesn't fit form, form doesn't

@@ -209,7 +209,7 @@ def probe(settings_path: Path, plugin_id: str | None = None) -> dict[str, object
             "indeterminate",
             True,
             "A configured value is not a recognizable boolean "
-            f"({json.dumps({k: e['value'] for k, e in zip(interpreted, entries)})}); "
+            f"({json.dumps({entry['key']: entry['value'] for entry in entries})}); "
             "assuming the default (enabled). This is an assumption, not the "
             "configured value.",
             settings_path,

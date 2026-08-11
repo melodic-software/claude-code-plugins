@@ -110,6 +110,147 @@ current this way states divergence as its trigger — "a read-time re-fetch find
 longer matching the record" is an event decidable from evidence — so the divergence, never the
 lookup, is what fires, and only a firing invokes the maintenance procedure above.
 
+## Reading the basis — the fetch route
+
+Re-fetching a cited basis is the first step of every firing above, so **how** the page is read is
+part of the contract. A summarizing fetch of a long docs page is not a read of that page: it
+truncates, and a summarizer asked what the page contains then answers from the truncated span. That
+answer is indistinguishable from a genuine absence, so a truncated fetch does not merely fail — it
+manufactures drift that is not there. `env-vars` produced exactly that false negative on three
+independent fetches, each stopping before the `CLAUDE_CODE_MAX_*` range and each reporting those
+rows missing ([#2182](https://github.com/melodic-software/claude-code-plugins/pull/2182)).
+
+Three rules bind every read, whichever rung it comes from:
+
+- **No verbatim quote, no claim.** A record's basis is the text, not a paraphrase of it. A verdict
+  of "current" states the quoted span it matched.
+- **A truncated read supports no absence claim, ever.** If the fetch stops short, say so and mark
+  the item unverified. "Not in the response" is never "not on the page" — the reader cannot tell
+  those apart, which is the entire failure this rung ladder exists to prevent.
+- **An absence claim names the page it was checked against, and reaches no further.** A term missing
+  from one page is missing from *that page*; the product may document it elsewhere, under other
+  wording. Searching one page and stating the result about Claude Code is the same false negative
+  one scope up — see [the scope of an absence](#the-scope-of-an-absence).
+
+### The rungs
+
+| Rung | Route | What it yields |
+|---|---|---|
+| 1 — primary | `curl` the raw-markdown channel: append `.md` to the page URL (`https://code.claude.com/docs/en/<slug>.md`), write to a file, and search the file locally | Verbatim bytes, no summarizer, no truncation |
+| 2 — primary, degraded | The `.md` channel fetched through a summarizing tool, or the rendered HTML page | Truncates on long pages; usable only for a page short enough to arrive whole, and the read must show it arrived whole |
+| 3 — mirror | A verbatim third-party mirror of the same docs, with the freshness step below | Verbatim text, **one rung below a primary read**; the record says so |
+
+Rung 1 is the default. It was verified against `env-vars` on 2026-08-10: `curl` returned
+`text/markdown`, 361,797 bytes over 458 lines carrying 315 variable rows including the full
+`CLAUDE_CODE_MAX_*` range, and two fetches seconds apart hashed identically
+(SHA-256 `43a805b4cfffd9aae5e36cec42f3a271dc92ddead26db76cd401d61ff4048584`). That same fetch
+re-confirmed the header finding below — `Last-Modified` came back equal to `Date`.
+
+The route is not new here; it is **hoisted from two surfaces that each derived it independently**.
+`plugins/claude-ops/skills/changelog/context/read-actions.md` carried it page-scoped ("`curl` the
+`.md` and slice locally … Never report a version 'absent from the changelog' on a truncated
+fetch"), and `/knowledge:docpage-digest`'s Anthropic publisher profile carried it claim-scoped,
+binding any absence-establishing fetch to the raw `.md` channel with `curl` plus a recorded length,
+on the asymmetry that "a truncated fetch cannot fabricate a PRESENCE, only an ABSENCE" — after two
+of its runs asserted a false absence exactly this way. Two independent derivations of one rule is
+the signal that it wants an owner. Per the
+[convention registry](../../PLUGIN-PHILOSOPHY.md#convention-registry)'s one-owner-per-concern rule,
+the general form belongs in this doc and those surfaces keep their page-specific detail.
+
+**The `.md` channel is per-page, not universal.** `docpage-digest`'s profile records that a
+raw-markdown channel working for one doc can 404 for another, so a run verifies the channel for the
+page it is reading and drops a rung when it does not resolve.
+
+### A 200 does not mean you got the page you asked for
+
+A rung-1 fetch can return `200`, `text/markdown`, and a complete untruncated body that is
+**someone else's page**. A retired slug is silently aliased to its successor: no redirect, no
+`Location` header, no notice in the body. Verified 2026-08-11 —
+`https://code.claude.com/docs/en/slash-commands.md` returns `200` with 82,668 bytes whose first
+heading is `# Extend Claude with skills`, **byte-identical to `skills.md`** (both SHA-256
+`a833dd5c96b9b111de0daec5fc6436e210c8cdc009e51306d32438746db0b5a5`), while the rendered URL reports
+`0` redirects. This is not a catch-all: an invented slug (`nonexistent-page-xyz.md`) returns a clean
+`404`, so the alias is specific to slugs that once existed.
+
+The failure this produces is worse than truncation, because truncation at least yields text you can
+see is short. Here a search for a term the *requested* page owns comes back empty against a full,
+healthy-looking body — a false absence carrying every outward sign of a good read. **Absence is only
+ever assertable against a page whose identity was checked**, which makes identity part of rung 1
+rather than a nicety.
+
+Two checks, both cheap, and a run does them before it trusts a body:
+
+- **Confirm the slug is canonical against `https://code.claude.com/docs/llms.txt`.** It lists the
+  live pages, so a slug the index does not carry is retired or renamed — that alone flags the
+  alias. Verified across ten slugs on 2026-08-11: the nine live ones each appear as
+  `docs/en/<slug>.md`; `slash-commands` appears in no such entry (only an unrelated
+  `agent-sdk/slash-commands`), which is exactly the one that aliased.
+- **Read the body's own first heading before quoting it.** `skills.md` and a live `<slug>.md` both
+  say what they are on line 5. A heading that does not match the page you asked for ends the read;
+  a title that merely differs in wording from the slug does not (`sub-agents.md` is titled "Create
+  custom subagents", `costs.md` "Manage costs effectively" — both correct).
+
+A slug missing from `llms.txt` is not automatically a dead end: it may have been renamed, and the
+index is the place to find the successor. Fetch the successor and cite **that** slug, rather than
+the retired one that happens to still serve bytes. Because the alias is silent, an unchecked
+citation of a retired slug keeps working indefinitely while pointing somewhere its author never
+read — and the day the alias is dropped it becomes a `404` on a claim nobody re-derived.
+
+Credit where the fleet found it: this surfaced in the 2026-08-11 stamp re-verification
+([#2187](https://github.com/melodic-software/claude-code-plugins/pull/2187)), where a per-page
+channel check noticed `slash-commands.md` serving `skills` content and recorded that a `200` is not
+proof the page is the one you wanted.
+
+### The scope of an absence
+
+A verified absence is a fact about **the text searched**, never about the product. Two moves break
+it, and both produce a claim that reads as researched:
+
+- **Widening the subject.** Searching `hooks` and concluding "Claude Code has no X" asserts
+  something about every page not searched. The honest form names the corpus: "not documented on
+  `hooks`", or — if the sweep really covered the index — "not documented on any page listed in
+  `llms.txt` as of `<date>`", which is a much larger and much more expensive claim.
+- **Searching the phrase instead of the capability.** A literal string can be absent while the
+  thing it names is documented in other words on the same page. Worked instance, verified
+  2026-08-11 on `hooks.md`: the phrase "verbose hooks" appears **zero** times, yet the page itself
+  documents "Async hook completion notifications are suppressed by default. To see them, enable
+  verbose mode with `Ctrl+O` or start Claude Code with `--verbose`", and separately
+  "set `CLAUDE_CODE_DEBUG_LOG_LEVEL=verbose` to see additional log lines such as hook matcher
+  counts and query matching". A phrase search would have returned nothing and licensed "no verbose
+  hooks toggle exists" — false, from a complete, untruncated read of the right page.
+
+So an absence claim states the corpus and the terms tried, and a claim that a *capability* is
+missing searches the capability's plausible vocabulary, not one phrasing of it. This bit the fleet
+for real: the same 2026-08-11 sweep advertised a nonexistence claim of exactly this shape and
+withdrew it on re-check ([#2190](https://github.com/melodic-software/claude-code-plugins/pull/2190)).
+The conclusion it supported survived on a different premise — worth stating as its own rule, since
+it is the reason to care: **a sound conclusion resting on a false premise is not safe, it is
+fragile**, because the next reader who checks the premise discards the conclusion with it. Fix the
+premise and keep the conclusion; never keep a premise because the conclusion it props up is
+convenient.
+
+### The mirror rung and its freshness step
+
+A mirror read is admissible only when it is **verbatim** and its currency is **corroborated against
+the page's own content** — never against the mirror's self-reported sync time alone, which is a
+claim by the party whose freshness is in question. The corroboration names a fact that only a sync
+later than some known upstream change could carry, and the record states it. The worked instance:
+`ericbuess/claude-code-docs` `docs/env-vars.md` was accepted because it carried the v2.1.224
+removal of the 200-subagent-per-session cap, which no pre-v2.1.224 sync can contain.
+
+A record resting on a mirror **says on its face that it is one rung below a primary read**, and
+states retirement of that basis as part of its trigger: a later primary read of the same range
+replaces the mirror basis and the record is refreshed to say so. That is not hypothetical — the
+`discipline` `sweep-all` record written this way on 2026-08-10 fired and was refreshed to a primary
+basis the same day, by the rung-1 fetch above.
+
+### Currency of a primary read
+
+The docs serve no per-page content date ([below](#drift-signal--content-hashing-deferred)), so the
+honest currency statement for a rung-1 read is the fetch itself: *fetched live from `<url>` on
+`<date>`; upstream publishes no per-page content date.* Nothing stronger is available, and a stamp
+that implies otherwise is the overclaim this doc's [first rule](#a-date-is-never-authority) forbids.
+
 ## Drift signal — content hashing, deferred
 
 There is no mechanical per-page change signal on the official Claude Code docs: the raw-markdown
@@ -152,6 +293,7 @@ contract to fit its exceptions.
 | [hook-config-delivery](../hook-config-delivery/README.md) §Recheck triggers | already the canonical name | Conforming records — version-pinned facts table with per-fact basis, table-wide as-of dates, and fact-scoped event triggers. |
 | [loop-lane](../loop-lane/README.md) §Versioning | "Re-derivation triggers" | Conforming records — dated upstream-claim stamps; drift outcomes recorded in its changelog. |
 | [PLUGIN-PHILOSOPHY](../../PLUGIN-PHILOSOPHY.md) component-stances staleness disclaimer | unlabeled discipline | Conforming records — per-row claim, linked page, and verified date; the re-fetch-before-acting rule is [read-time validation](#read-time-validation-is-not-a-firing), and every row's stated trigger is a fetch diverging from the row. |
+| [PLUGIN-PHILOSOPHY](../../PLUGIN-PHILOSOPHY.md#recorded-gate-runs) recorded gate runs | new with this table | Conforming records of the second kind — **recorded decisions**, one per platform surface the Native-first adoption gate has been run against, carrying an adopt/defer/decline verdict, the quoted upstream basis it rests on, and a trigger written per row rather than the generic divergence-at-fetch. A verdict is re-derived when its own trigger fires, not on any fetch that differs. |
 | [OFFICIAL-DOCS](../../OFFICIAL-DOCS.md) staleness warning and per-row verified dates | unlabeled discipline | Conforming records — same shape as the component-stances table: link + date, divergence-at-fetch as the stated trigger. |
 | [MIGRATION-PLAYBOOK](../../MIGRATION-PLAYBOOK.md) decision records | "Revisit trigger", and "Re-trigger" on the plugin-acceptance review record | Mixed — the dated component-decision records cite upstream bases and conform; the org-internal records (e.g. the ratification and plugin-acceptance review records) are named triggers; the skill-quality retrofit record is a third kind, terminal exclusions that state "no recheck trigger" by design — decided out, so nothing fires. |
 | [ecosystem-commands](../ecosystem-commands/README.md) task-runner deferral | "Revisit triggers" | Named triggers only — an undated in-repo deferral; not a four-part record. |

@@ -3,6 +3,40 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.51.7]
+
+### Fixed
+
+- **`worktree_create_gate_enabled` could not be turned off.** `hooks/worktree-create-gate.sh`
+  reads `CLAUDE_PLUGIN_OPTION_WORKTREE_CREATE_GATE_ENABLED` and names the option in its own skip
+  message, but the option was never declared in `.claude-plugin/plugin.json`. Claude Code exports
+  `CLAUDE_PLUGIN_OPTION_<KEY>` only for **declared** options, so the variable was never set, the
+  hook's `:-true` fallback always won, and the gate ran unconditionally. Setting the option
+  produced no effect and no error — the failure was silent in both directions. The declaration is
+  now present with `default: true`, so behaviour is unchanged for anyone who does not set it, and
+  the documented routes for setting it now work.
+
+## [0.51.6]
+
+### Changed
+
+- **`skills/worktree`: the pre-compute constraint is grounded in the documented isolation checks
+  instead of one observed refusal (#2176).** The SKILL had recorded, from #1619, that "a
+  worktree-isolated agent refuses a git-bearing compound command" — true, but stated as an incident,
+  which invites a future author to test whether it still holds and fold the calls back. Claude Code
+  v2.1.224 documented the enforcement, so the constraint now cites it: an isolated session is screened
+  by three checks — main-checkout file edits, a command whose working directory resolves there, and a
+  git redirect into it "whether through `git -C`, `--git-dir`, a `GIT_DIR` or `GIT_WORK_TREE`
+  variable, or a `cd` into the main checkout before running git" — and both command-level checks fail
+  closed, since "Claude Code also blocks a command it can't verify stays inside the worktree"
+  (`code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation`, fetched 2026-08-10). That
+  reframes the refusal: an unverifiable compound command is blocked on the same footing as one that
+  would really have reached the main checkout, so no amount of narrowing the commands makes the
+  pre-compute block safe again. Two adjacent facts are recorded with it — the enforcement "covers
+  every subagent Claude spawns from the isolated session", interactive or background, so delegation
+  does not escape it; and "For PowerShell commands, Claude Code applies only the working-directory
+  check", noted as narrower coverage rather than as a sanctioned route around the git-redirect check.
+
 ## [0.51.5]
 
 ### Fixed

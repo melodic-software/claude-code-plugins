@@ -1,5 +1,5 @@
 ---
-description: "Diagnose and fix failing tests — failure classification, root-cause analysis (never retry blindly), then the reproduce → isolate → fix → retest → regression loop. Use for 'why does this fail', visible test failures, stack traces, or flaky tests; for authoring new tests use /testing:write, for running the suite /toolchain:check."
+description: "Diagnose and fix failing tests — failure classification, root-cause analysis (never retry blindly), then the reproduce → isolate → fix → retest → regression loop. Use when: 'why does this fail', 'this test is failing', 'fix the failing tests', 'why is this test flaky', visible test failures, stack traces, or flaky tests; for authoring new tests use /testing:write, for running the suite /toolchain:check."
 argument-hint: "[failure] (e.g., /testing:diagnose, /testing:diagnose the frozen-logger error, /testing:diagnose loop)"
 user-invocable: true
 disable-model-invocation: false

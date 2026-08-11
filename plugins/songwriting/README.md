@@ -74,6 +74,32 @@ internal rhyme generation.
 
 ## License
 
-MIT (SPDX-License-Identifier: MIT). Pat Pattison's books are cited as methodology
-sources; the plugin contains distilled craft guidance and short verified anchor quotes, not book
-text.
+MIT (SPDX-License-Identifier: MIT) covers **this plugin's own code, skills and
+prompts**. It does not extend to material quoted from other authors.
+
+**This wording changed in 0.8.6 because the previous version was inaccurate.** It
+said the plugin "contains distilled craft guidance and short verified anchor
+quotes, not book text." Since 0.8.5 that has not been true. The research files
+under `context/pat-pattison/research/` reproduce Pat Pattison's examples, worked
+analyses, exercise wording and printed answer keys **verbatim**, along with the
+song lyrics he analyses — because a summarized exercise is not an exercise, and
+a described worked example is not an example.
+
+That is a deliberate decision by the repository owner, who owns all four books
+and maintains this as a **personal craft reference for his own use**. It is
+recorded on [#2183](https://github.com/melodic-software/claude-code-plugins/pull/2183)
+and [#2189](https://github.com/melodic-software/claude-code-plugins/pull/2189).
+
+**Pat Pattison's writing remains his, and the song lyrics remain their writers'.**
+Where Pat quotes a lyric, his publisher licensed it; that license is theirs, not
+this repository's. Nothing here is relicensed, and the MIT header above grants
+you no rights to any of it.
+
+**If you are not the owner, do not treat the reproduced book text or lyrics as
+MIT-licensed material.** Buy the books — they are the source, and they are worth
+it:
+
+- *Songwriting: Essential Guide to Lyric Form and Structure* (1991)
+- *Writing Better Lyrics* (2009)
+- *Songwriting Without Boundaries* (2011)
+- *Essential Guide to Rhyming* (2014)

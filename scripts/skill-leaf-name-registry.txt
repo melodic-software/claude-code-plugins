@@ -62,7 +62,14 @@ clean disk-hygiene,repo-hygiene
 
 # D19, kept on merit. songwriting diagnoses a song, testing diagnoses a failing
 # suite -- unrelated domains, and the namespace disambiguates.
-diagnose songwriting,testing
+# computer-use joins on the same grounds: it diagnoses a screen-control session
+# (a failed capture, a blocked input, an unreadable screenshot). The alternative
+# considered and rejected was repeating the tool name as firecrawl and playwright
+# do -- but that exception covers a wrapper you INVOKE the tool through, and this
+# skill drives nothing: the computer-use MCP tools are called directly and the
+# skill only explains their behavior. Default imperative grammar therefore
+# applies, and this entry is the ordinary cost of it.
+diagnose computer-use,songwriting,testing
 
 # Kept on merit. planning:design designs an implementation approach for a code
 # change; evals:design designs an evaluation suite (success criteria + graded

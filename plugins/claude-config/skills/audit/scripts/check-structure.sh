@@ -49,7 +49,7 @@ LOCAL="$PROJECT_ROOT/.claude/settings.local.json"
 MCP="$PROJECT_ROOT/.mcp.json"
 
 # Managed (machine-scope) policy settings — highest-precedence layer. Paths per
-# the official settings doc (verified 2026-08-08); the legacy Windows
+# the official settings doc (verified 2026-08-10); the legacy Windows
 # C:\ProgramData location is unsupported since v2.1.75 and deliberately not
 # probed. Windows resolution goes through $PROGRAMFILES so a relocated
 # Program Files directory still resolves. SETTINGS_AUDIT_MANAGED_PATH is the

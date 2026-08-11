@@ -16,11 +16,33 @@ readonly _HOOK_UTILS_LOADED=1
 # read from the hook-process CLAUDE_PLUGIN_OPTION_<NAME>_ENABLED mirror.
 # Exits 0 (allow) if disabled. Place after source, before stdin parsing.
 #   hook::check_enabled "MARKDOWN_FORMAT"  # checks CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED
-hook::check_enabled() {
+#
+# Deliberately NOT layered with a marketplace-specific fleet switch. Claude Code
+# already ships the coarse controls, and a parallel scheme here would become a
+# second source of truth for the same question:
+#   * `--safe-mode` / `CLAUDE_CODE_SAFE_MODE` — start with every customization
+#     (CLAUDE.md, plugins, skills, hooks, MCP servers) disabled
+#   * `disableAllHooks` — disable all hooks and any custom status line
+#   * `claude plugin disable|enable <name>` — per-plugin, dependency-aware
+# This helper stays scoped to the one thing it owns: the plugin's own
+# `<name>_enabled` userConfig boolean, surfaced to hook processes as the native
+# `$CLAUDE_PLUGIN_OPTION_<KEY>` mirror.
+
+# hook::is_enabled <NAME> — the same check as a PREDICATE. Returns 0 when the
+# plugin should run, 1 when it should not. For callers that must not terminate
+# the process on a "disabled" answer.
+#
+# The statusline tee is exactly that caller: it is a TRANSPARENT WRAPPER around
+# the user's real statusline, so exiting 0 on "disabled" would suppress the
+# wrapped command's output and blank the status line. It needs to skip its own
+# side effect and still pass through.
+hook::is_enabled() {
   local var_name="CLAUDE_PLUGIN_OPTION_${1}_ENABLED"
-  if [[ "${!var_name:-true}" != "true" ]]; then
-    exit 0
-  fi
+  [[ "${!var_name:-true}" == "true" ]]
+}
+
+hook::check_enabled() {
+  hook::is_enabled "$1" || exit 0
 }
 
 # --- Prerequisite visibility --------------------------------------------------

@@ -86,6 +86,16 @@ require_file() {
   }
 }
 
+# Same shape as require_value above, for the three numeric flags. Callers then
+# assign with `$((10#$2))`, which forces base-10 so a leading-zero value is not
+# misread as octal (08 errors outright, 010 would evaluate as 8).
+require_uint() {
+  [[ "$2" =~ ^[0-9]+$ ]] || {
+    printf 'morning-brief: %s requires a non-negative integer\n' "$1" >&2
+    exit 3
+  }
+}
+
 while (($# > 0)); do
   case "$1" in
   -h | --help) usage ;;
@@ -101,33 +111,19 @@ while (($# > 0)); do
     ;;
   --stale-hours)
     require_value "$1" "${2:-}"
-    [[ "$2" =~ ^[0-9]+$ ]] || {
-      printf 'morning-brief: --stale-hours requires a non-negative integer\n' >&2
-      exit 3
-    }
-    # 10# forces base-10 so a leading-zero value (e.g. 08) is not later misread
-    # as octal in the staleness arithmetic (08 errors, 010 would evaluate as 8).
+    require_uint "$1" "$2"
     STALE_HOURS="$((10#$2))"
     shift 2
     ;;
   --rec-maxlen)
     require_value "$1" "${2:-}"
-    [[ "$2" =~ ^[0-9]+$ ]] || {
-      printf 'morning-brief: --rec-maxlen requires a non-negative integer\n' >&2
-      exit 3
-    }
-    # 10# forces base-10 so a leading-zero value (e.g. 010) is not later misread
-    # as octal in the truncation length (010 would evaluate as 8, not 10).
+    require_uint "$1" "$2"
     REC_MAXLEN="$((10#$2))"
     shift 2
     ;;
   --stranded-days)
     require_value "$1" "${2:-}"
-    [[ "$2" =~ ^[0-9]+$ ]] || {
-      printf 'morning-brief: --stranded-days requires a non-negative integer\n' >&2
-      exit 3
-    }
-    # 10# forces base-10 so a leading-zero value is not misread as octal.
+    require_uint "$1" "$2"
     STRANDED_DAYS="$((10#$2))"
     shift 2
     ;;

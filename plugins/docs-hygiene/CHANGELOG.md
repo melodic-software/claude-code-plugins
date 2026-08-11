@@ -1,5 +1,15 @@
 # Changelog — docs-hygiene plugin
 
+## [0.10.1]
+
+### Changed
+
+- **`/docs-hygiene:compress`'s trigger phrases are now single-quoted.** Same cause as the debugging
+  plugin's: escaped double quotes inside a double-quoted YAML scalar are not tracked by the
+  skill-quality gate's trigger-drop protection, so `'compress this doc'`, `'tighten markdown'`,
+  `'cut prose'`, `'shorten without losing meaning'` and `'trim onboarding doc'` carried no
+  regression cover. Quoting only; wording unchanged.
+
 ## [0.10.0]
 
 ### Changed

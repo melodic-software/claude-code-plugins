@@ -1,6 +1,6 @@
 ---
 name: object-writer
-description: "Performs one timed Pat Pattison object write itself — sense-bound, pivoting through the seven senses, stopping mid-word at the buzzer — then writes the result to a file and returns the path plus a seven-channel sense inventory quoting its own phrases. Dispatched blind, one per seed, by /songwriting:object-writing generate; deliberately given no access to the song, the draft, or the other writers. Not intended for direct ad-hoc use."
+description: "Performs one timed Pat Pattison object write itself — sense-bound, pivoting through the seven senses, stopping mid-word at the buzzer — then writes the write AND its phrase-quoting sense inventory to a file, returning only the file path, the seven channels each graded strong/thin/absent, and one sentence on where the pivot chain landed. Dispatched blind, one per seed, by /songwriting:object-writing generate; deliberately given no access to the song, the draft, or the other writers. Not intended for direct ad-hoc use."
 tools: "Write"
 model: inherit
 effort: high

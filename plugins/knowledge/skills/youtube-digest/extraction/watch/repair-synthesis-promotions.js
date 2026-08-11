@@ -34,26 +34,45 @@ function sessionSlugFromName(sessionName) {
 }
 
 /**
- * @param {string} sliceDir
- * @param {string} sourceFile
- * @returns {string}
+ * @typedef {{ selectedFrames: { file: string, timestampSec?: number }[], sessions: ReturnType<typeof parseSessionsFromClaimInventory> }} SessionIndex
  */
-function resolveSessionForSource(sliceDir, sourceFile) {
+
+/**
+ * Read the frame/session lookup a slice needs to re-derive session slugs.
+ * Loaded once per repair run — {@link repairPromotionRows} would otherwise
+ * re-parse selection.json and claim-inventory.md for every fixed row.
+ *
+ * @param {string} sliceDir
+ * @returns {SessionIndex|null} null when either artifact is missing
+ */
+function loadSessionIndex(sliceDir) {
   const selectionPath = lanePath(sliceDir, LANES.keyFrames, "selection.json");
   const claimPath = lanePath(sliceDir, LANES.research, "claim-inventory.md");
   if (!fs.existsSync(selectionPath) || !fs.existsSync(claimPath)) {
-    return "misc";
+    return null;
   }
   const selection = JSON.parse(fs.readFileSync(selectionPath, "utf8"));
-  const frame = (selection.selectedFrames ?? []).find(
-    (/** @type {{ file: string }} */ f) => f.file === sourceFile,
-  );
+  return {
+    selectedFrames: selection.selectedFrames ?? [],
+    sessions: parseSessionsFromClaimInventory(fs.readFileSync(claimPath, "utf8")),
+  };
+}
+
+/**
+ * @param {SessionIndex|null} index
+ * @param {string} sourceFile
+ * @returns {string}
+ */
+function resolveSessionForSource(index, sourceFile) {
+  if (!index) {
+    return "misc";
+  }
+  const frame = index.selectedFrames.find((f) => f.file === sourceFile);
   if (!frame || frame.timestampSec == null) {
     return "misc";
   }
-  const sessions = parseSessionsFromClaimInventory(fs.readFileSync(claimPath, "utf8"));
   const ts = frame.timestampSec;
-  for (const session of sessions) {
+  for (const session of index.sessions) {
     if (ts >= session.startSec && (session.endSec === null || ts < session.endSec)) {
       return sessionSlugFromName(session.name);
     }
@@ -208,6 +227,9 @@ function repairPromotionRows(doc, reserved, absSlice) {
   let sessionsFixed = 0;
   /** @type {[string, string][]} */
   const renamePairs = [];
+  // Loaded on the first row that needs a session fix, then reused.
+  /** @type {SessionIndex|null|undefined} */
+  let sessionIndex;
 
   for (const row of doc.decisions) {
     if (row.verdict !== "promote") {
@@ -226,7 +248,10 @@ function repairPromotionRows(doc, reserved, absSlice) {
     }
 
     if (typeof row.session === "string" && isForbiddenPipelineSessionSlug(row.session)) {
-      row.session = resolveSessionForSource(absSlice, row.sourceFile);
+      if (sessionIndex === undefined) {
+        sessionIndex = loadSessionIndex(absSlice);
+      }
+      row.session = resolveSessionForSource(sessionIndex, row.sourceFile);
       sessionsFixed += 1;
     }
   }

@@ -26,15 +26,19 @@ Online. Available in English, Spanish, and Portuguese.
    forward motion, structural pause
 3. **Sonic GPS — Mapping Your Song with Rhyme** — rhyme types, rhyme
    placement, sonic bonding (overlaps *Essential Guide to Rhyming* (2014), Chapters 4-9)
-4. **Making It Move** — prosody, motion, structural emotion (overlaps Book
-   2 Chapter 18-21)
+4. **Making It Move** — prosody, motion, structural emotion (overlaps
+   *Writing Better Lyrics* (2009), Chapters 18-21)
 
 ### Distinctive material vs the books
 
 - **Title rhythm as motif** — the title's stress pattern is treated as a
-  rhythmic motif developed across the song (state / vary / withhold /
-  deliver). The book material has this in seed form; the course makes the
-  motivic development explicit.
+  rhythmic motif developed across the song. **Unaudited** — course content,
+  not verifiable from the books. (An earlier draft glossed this as a
+  four-stage "state / vary / withhold / deliver" sequence; that phrasing was
+  **invented** and has been removed. Pat's actual treatment of motivic
+  development is in *Essential Guide to Lyric Form and Structure* (1991),
+  Chapter 7 — "Speed it up, slow it down, say it backwards, turn it upside
+  down" — see `hook.md`.)
 - **Stressed-vowel brainstorming from the title** — take the title's
   stressed vowels to the rhyming dictionary FIRST, before drafting lines.
   Generate seed words; build verses from them.
@@ -92,11 +96,17 @@ the recurring framing for Pat's craft stance.
 
 ### Anchor stance (≤25 word column quotes)
 
-> "Tools, not rules." — recurring column framing, also the column title in
-> *American Songwriter*
+> "There are no rules, only tools." — *Writing Better Lyrics* (2009),
+> Chapter 18
 
-> "Sense-bound is universal. Generic is not." — recurring teaching across
-> books + columns
+"Tools, Not Rules" is the **column title**, not a Pat quotation — the phrase
+in that order appears in none of the four books. Pat's printed wording is the
+line above; he prints it again in *Essential Guide to Rhyming* (2014),
+Chapter 4 as "there are no rules. Only tools."
+
+> "Songs should be universal, but don't mistake universal for generic.
+> Sense-bound is universal." — Pat Pattison, *Writing Better Lyrics*
+> (2009), Chapter 5; the point recurs in the columns
 
 Columns are short; not all are dated or archived consistently. For
 canonical Pat material, the books are primary; columns extend rather than
@@ -362,8 +372,23 @@ informally).
 
 ## Distinctive catchphrases / teaching-moment quotes (≤25 words, attributed)
 
-These verbatim Pat formulations appear across columns / podcasts / talks
-and serve as anchor stance for the skill:
+These Pat formulations appear across columns / podcasts / talks and serve as
+anchor stance for the skill.
+
+**EVERY QUOTE IN THIS SECTION IS UNAUDITED unless it carries a book citation.**
+They are spoken or web sources outside the four books; a mechanical check of the
+corpus cannot confirm them, and their absence from it is *not* evidence against
+them. Two consequences, both binding:
+
+1. **Never re-cite one of these to a book** to make it look checked. If you need
+   a citable version, find Pat's printed sentence and quote that instead.
+2. **Never treat these as verbatim.** Spoken phrasing drifts; several of these
+   are near-variants of printed lines (see `line-brainstorm.md`, which now pairs
+   two of them with their printed counterparts). "Verbatim" was claimed here and
+   cannot be supported for any un-cited item, so the word is gone.
+
+The one exception below is the last entry, which is a real book quote and is
+cited as such.
 
 > "Music means nothing. Music only feels. Words mean."
 > — Pat Pattison, Berklee Alumni Webinar Master Class
@@ -404,9 +429,12 @@ and serve as anchor stance for the skill:
 > "Bring two things to the table: who you are, and what you know."
 > — Pat Pattison, Unpaved interview
 
-> "You can't tell unless you show first." — Sister Mary Elizabeth (cited
-> by Pat as the "Rule of Songwriting"); *Writing Better Lyrics* (2009),
-> Chapter 2
+> "You can't tell unless you show first." — Sister Mary Elizabeth, in
+> *Writing Better Lyrics* (2009), Chapter 2. **This one is from a book and is
+> verbatim.** Pat's name for it is the whole phrase: 'To this day, I call that
+> the "Sister Mary Elizabeth Rule of Song-writing."' (He prints the rule name
+> twice in that chapter, hyphenated as "Song-writing" the first time and
+> "Songwriting" the second; both are as printed.)
 
 ## Cross-references
 

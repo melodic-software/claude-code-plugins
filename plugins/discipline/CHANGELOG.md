@@ -5,6 +5,88 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.12.4]
+
+### Changed
+
+- **Upstream doc stamps re-verified against the live pages (2026-08-10).** Each dated claim below was re-checked against the complete raw markdown source of the page it cites (`https://code.claude.com/docs/en/<page>.md`), not a summarized fetch, and each was confirmed by a verbatim quote before its stamp was refreshed. No claim changed; only the verification dates moved.
+
+  - `skills/use-your-skills/SKILL.md` — the skill listing carrying every skill name always and
+    shortening descriptions to fit its budget, with the body loading only on invocation
+    (skills reference); and, from the sub-agents reference, that without the `skills` field a
+    subagent "can still discover and invoke project, user, and plugin skills through the Skill
+    tool during execution" — the premise behind naming skills in a delegation prompt.
+
+## [0.12.3]
+
+### Changed
+
+- **`skills/sweep-all`: the mirror basis is retired for a primary one — the trigger 0.12.2 wrote
+  fired, and this honors it.** 0.12.2 could not read `CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY` from
+  `env-vars` (three fetches truncated before the `CLAUDE_CODE_MAX_*` range), so it sourced the row
+  from a same-day verbatim mirror, labelled it one rung below a primary read, and stated its own
+  retirement condition: "any env-vars fetch that reaches the `CLAUDE_CODE_MAX_*` range, which
+  retires the mirror basis for a primary one". A verbatim end-to-end read of the page on 2026-08-10
+  through the new [`.md` fetch route](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#reading-the-basis--the-fetch-route)
+  reached it. The row is **unchanged** — "Maximum number of read-only tools and subagents that can
+  execute in parallel (default: 10)" — so no cited value moves; what changes is the standing of the
+  citation, from mirror-corroborated to primary, which is the whole point of writing a retirement
+  condition down instead of leaving the rung permanent.
+- **`skills/sweep-all`: four more env-vars rows this skill leans on are now quoted from the same
+  read.** `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION` (removed in v2.1.224, previously default 200),
+  `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` (default 20), `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` (the
+  `run_in_background` parameter on Bash and subagent tools), and `CLAUDE_CODE_FORK_SUBAGENT`
+  ("overriding any server-side rollout") each match the way the preflight cites it. They were being
+  carried on reads the truncation problem had made unrepeatable; now one fetch covers all five and
+  the note says which. The recheck trigger widens to match the widened basis, and the currency claim
+  is capped at the fetch date because upstream publishes no per-page content date.
+
+## [0.12.2]
+
+### Fixed
+
+- **`skills/sweep-all`: the open `CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY` currency question is closed
+  (#2176).** 0.12.1 landed the v2.1.224 cap removal with an honest in-place marker saying the
+  concurrency variable beside it was carried forward from a 2026-07-29 read, not re-verified, and
+  "tracked as its own item". That item is now closed, so the marker pointed at nothing. The row reads
+  exactly as cited — "Maximum number of read-only tools and subagents that can execute in parallel
+  (default: 10)" — so the claim is current, not drifted. The marker is replaced rather than deleted,
+  because the route matters: `env-vars` truncated before the `MAX` range for a **third** time, so this
+  was read from a same-day verbatim mirror of the docs
+  ([`ericbuess/claude-code-docs` `docs/env-vars.md`](https://github.com/ericbuess/claude-code-docs/blob/main/docs/env-vars.md),
+  synced 2026-08-10), whose freshness is corroborated by its carrying the same v2.1.224 cap removal.
+  That is strong evidence one rung below a primary read, and the citation now says so instead of
+  either overclaiming a primary fetch or leaving a closed question looking open. The replacement
+  carries the [upstream-drift convention](../../docs/conventions/upstream-drift/README.md)'s fourth
+  part, which the marker it replaces did not need and the bare stamp would have dropped: a recheck
+  trigger — a release note naming tool-use concurrency, parallel tool execution, or the variable, or
+  any `env-vars` fetch that reaches the `CLAUDE_CODE_MAX_*` range, which retires the mirror basis for
+  a primary one.
+
+## [0.12.1]
+
+### Fixed
+
+- **`sweep-all` no longer counts dispatches against a per-session cap that was removed.** Its
+  budget reasoning had every Agent-tool subagent counting against both
+  `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` (default 20, still current) and
+  `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION` (documented default 200). The second was removed in
+  v2.1.220–v2.1.224 ([2026-w32](https://code.claude.com/docs/en/whats-new/2026-w32), verified
+  2026-08-10) and is gone from the sub-agents page along with its variable. The concurrency limit —
+  the one the paragraph calls "the hard one" — is unchanged, so the dispatch conclusion stands; only
+  the second constraint has since been removed. It was accurate when written (documented default
+  200, v2.1.212+) and went stale under the platform, which is the failure mode a dated verification
+  stamp exists to make findable.
+- **The `env-vars` citation is restored, and one variable is now marked as unverified.** Re-sourcing
+  the cap removal had swapped that link out, which left the paragraph's *first* claim —
+  `CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY`, documented default 10 — with no source at all. The link is
+  back alongside the new one. That variable itself could **not** be re-verified: two `env-vars`
+  fetches truncated before its alphabetical range, and the sub-agents page names only the concurrency
+  and depth limits. That is not evidence of removal — the same truncated fetch returned ABSENT for
+  `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`, which is quoted verbatim elsewhere — so the claim is marked
+  in place as carried forward from the 2026-07-29 read and not re-verified, with its currency tracked
+  as an open item rather than left looking fresh.
+
 ## [0.12.0]
 
 ### Removed

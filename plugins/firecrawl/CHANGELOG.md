@@ -3,6 +3,17 @@
 All notable changes to the `firecrawl` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.1]
+
+### Changed
+
+- **`/firecrawl:firecrawl`'s `Use when:` list now opens with typed phrases.** It previously listed
+  only *conditions* ("WebFetch returns 403/429", "a page requires JS rendering") — accurate, but
+  nothing a user types, and nothing the gate's trigger-drop protection could track.
+  `'scrape this page'`, `'crawl this site'`, `'search the web for X'`, `'WebFetch is blocked'`,
+  `'this page needs JS'` and `'extract the text from this PDF'` now front the list; every original
+  condition is retained behind them.
+
 ## [0.5.0]
 
 ### Changed

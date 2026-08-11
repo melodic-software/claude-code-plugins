@@ -54,7 +54,7 @@ Five Compositional Elements:
 Stable/unstable verdict:
 - Section lyric character: ...
 - Levers carrying that character: ...
-- Match with central emotion: supports | mutes | pushes-against
+- Match with central intent, idea, and emotion: supports | mutes | pushes-against
 - Match with section job: yes | partially | no
 
 Dominant problem (one):

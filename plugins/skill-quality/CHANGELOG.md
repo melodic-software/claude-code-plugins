@@ -3,6 +3,44 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.2]
+
+### Changed
+
+- **Two deferred judgment calls about `check-skill.sh` are now decided at their own sites**, so
+  neither gets re-litigated from a false premise. No behavior changes — comments only.
+  - **Check 5 keeps its backtick-form extraction.** #2179 deferred narrowing to markdown-link
+    targets as "a separate call"; the call is made against measurement. Over the 196-skill corpus,
+    122 unique backtick-form refs across 39 skills have no link form anywhere in the same
+    `SKILL.md`, and all 122 resolve to a real file — narrowing would delete that coverage at zero
+    observed false positives. The comment also corrects the premise that keeps resurfacing: this
+    check never matched bare paths in prose, only backtick-delimited refs and `](…)` link targets,
+    both scoped to the `INTERNAL_DIRS` allowlist.
+  - **Check 12's standing 4-skill warning floor is intentional**, and no
+    `disable-model-invocation` carve-out is added. Upstream states that a dmi-true skill's
+    "Description not in context, full skill loads when you invoke", so trigger phrasing there
+    cannot route anything; each of the four was re-checked for a stranded phrase and none is
+    stranded. Exempting dmi-true would hide the `kindle-dedrm` failure mode — a phrase reachable
+    only from a skill the model can never match.
+
+## [0.15.1]
+
+### Fixed
+
+- **A cross-skill citation reported as a broken internal ref pointed at the wrong directory.**
+  Check 5 resolves every bare `context/…`-shaped path against the CITING skill's own directory, so
+  a skill citing a sibling skill's supporting file failed with "no such file under the skill dir"
+  while the file plainly existed one directory over. The message sent the author looking for the
+  file where it could never be. When the unresolved path does resolve under a sibling skill of the
+  same skills root, the finding now also names that sibling and the citation form that works —
+  `${CLAUDE_PLUGIN_ROOT}/skills/<sibling>/<path>` in a plugin-shaped root, `../<sibling>/<path>`
+  outside one, where that variable is undefined. Still a FAIL: the bare form really does resolve
+  against the citing skill, so it is wrong regardless of where the file lives. The sibling hit is
+  evidence, not proof — this check deliberately extracts prose and inline-code refs, so a generic
+  path can collide with an unrelated same-named sibling file — so the original hand-verify wording
+  is kept and the suggestion is phrased conditionally. A path no sibling hosts is unchanged.
+  Extraction is unchanged too: prose and inline-code refs are still in scope, deliberately.
+
 ## [0.15.0]
 
 ### Changed

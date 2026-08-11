@@ -147,7 +147,7 @@ def main() -> int:
     except Exception as e:  # noqa: BLE001 -- any spawn-time failure must degrade gracefully
         print(f"observer: failed to spawn: {e}")
         return 0
-    print(f"observer: armed for session {args.session_id or transcript.stem} (pid {pid})")
+    print(f"observer: armed for session {sid} (pid {pid})")
     return 0
 
 

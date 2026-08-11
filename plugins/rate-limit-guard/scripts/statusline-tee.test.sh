@@ -18,6 +18,11 @@
 
 set -uo pipefail
 
+# Hermeticity for the enablement-gate cases below: both of these are real inputs
+# to _rlg_tee_enabled, so a developer's own exported value would otherwise decide
+# what this suite proves. Every case supplies its settings through a scoped HOME.
+unset CLAUDE_CONFIG_DIR CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEE="$SCRIPT_DIR/statusline-tee.sh"
 
@@ -388,6 +393,147 @@ if [[ ! -e "$LOCK21" ]]; then
 else
   fail "stale lock directory survived"
 fi
+
+# --- The enablement gate (_rlg_tee_enabled) ----------------------------------
+# Third limb of the contract: the tee's WRITE is gated by
+# `rate_limit_guard_enabled`, resolved from the settings scopes Claude Code
+# actually reads pluginConfigs back from (docs/conventions/hook-config-delivery,
+# fact 5) rather than from an environment variable this non-hook process never
+# receives. Two properties are inseparable and every case asserts BOTH: the gate
+# decides whether tee_snapshot runs, and it NEVER touches the wrapped
+# statusline's stdout — a gate that blanked the status line would be worse than
+# the bug it closes.
+#
+# Managed settings live at fixed, root-owned system paths, unwritable from a test
+# by design, so those cases source the wrapper (its `main` sourcing guard keeps
+# that inert) to stub the path list and then drive the real end-to-end path
+# through `main`. The user-scope cases are also proven black-box, unstubbed, by
+# the plain `run()` case at the end.
+
+write_settings() {
+  mkdir -p "$(dirname "$1")"
+  printf '%s\n' "$2" >"$1"
+}
+
+# Sourced-with-stub runner: $1 HOME, $2 managed settings file (may not exist),
+# $3 stdin payload, rest = the wrapped statusline command.
+gate_run() {
+  local home="$1" managed="$2" input="$3"
+  shift 3
+  printf '%s' "$input" | HOME="$home" RLG_TEST_MANAGED="$managed" bash -c '
+    source "$1" </dev/null
+    _rlg_managed_settings_files() {
+      [[ -f "$RLG_TEST_MANAGED" ]] && printf "%s\n" "$RLG_TEST_MANAGED"
+      return 0
+    }
+    shift
+    main "$@"
+  ' _ "$TEE" "$@"
+}
+
+GATE_INPUT="$(build_input)"
+# Deliberately never created: the default "managed configures nothing" stub, so a
+# real managed-settings file on the machine running this suite can never make the
+# user-scope cases non-deterministic.
+NO_MANAGED="$WORK/managed-absent.json"
+GATE_N=0
+
+# $1 label, $2 expected tee|no-tee, $3 user settings JSON ("" = no file at all),
+# $4 managed settings JSON ("" = managed configures nothing).
+gate_case() {
+  local label="$1" expect="$2" user="$3" managed="$4"
+  local home="$WORK/gate$GATE_N" managed_file="$NO_MANAGED" out rc
+  GATE_N=$((GATE_N + 1))
+  mkdir -p "$home"
+  [[ -n "$user" ]] && write_settings "$home/.claude/settings.json" "$user"
+  if [[ -n "$managed" ]]; then
+    managed_file="$home/managed-settings.json"
+    write_settings "$managed_file" "$managed"
+  fi
+  out="$(gate_run "$home" "$managed_file" "$GATE_INPUT" jq -r '.model.display_name')"
+  rc=$?
+  if [[ $rc -eq 0 && "$out" == "Opus" ]]; then
+    ok "gate/$label: statusline passthrough unchanged"
+  else
+    fail "gate/$label: passthrough broken (rc=$rc out=$out)"
+  fi
+  if [[ "$expect" == tee ]]; then
+    if [[ -f "$home/$TEE_REL" ]]; then ok "gate/$label: tee runs"; else fail "gate/$label: tee suppressed, want it to run"; fi
+  else
+    if [[ ! -e "$home/$TEE_REL" ]]; then ok "gate/$label: tee_snapshot suppressed"; else fail "gate/$label: tee ran, want it suppressed"; fi
+  fi
+}
+
+USER_FALSE='{"pluginConfigs":{"rate-limit-guard@melodic-software":{"options":{"rate_limit_guard_enabled":false}}}}'
+USER_TRUE='{"pluginConfigs":{"rate-limit-guard@melodic-software":{"options":{"rate_limit_guard_enabled":true}}}}'
+MANAGED_FALSE='{"pluginConfigs":{"rate-limit-guard@melodic-software":{"options":{"rate_limit_guard_enabled":false}}}}'
+MANAGED_TRUE='{"pluginConfigs":{"rate-limit-guard@melodic-software":{"options":{"rate_limit_guard_enabled":true}}}}'
+
+# Unconfigured → the plugin default, enabled. Both the no-file and the
+# no-pluginConfigs shapes, since they take different branches in the reader.
+gate_case "no settings file" tee "" ""
+gate_case "settings without pluginConfigs" tee '{"statusLine":{"type":"command","command":"x"}}' ""
+
+# The configured user-scope verdicts.
+gate_case "user settings false" no-tee "$USER_FALSE" ""
+gate_case "user settings true" tee "$USER_TRUE" ""
+
+# Marketplace handling: matched by PREFIX so a fork or private catalog install is
+# still gated, but never so loosely that another plugin's identically-named
+# option or a longer plugin name whose prefix collides can decide it.
+gate_case "false under a different marketplace suffix" no-tee \
+  '{"pluginConfigs":{"rate-limit-guard@a-fork":{"options":{"rate_limit_guard_enabled":false}}}}' ""
+gate_case "another plugin's identically-named option" tee \
+  '{"pluginConfigs":{"disk-hygiene@melodic-software":{"options":{"rate_limit_guard_enabled":false}},"rate-limit-guardian@melodic-software":{"options":{"rate_limit_guard_enabled":false}}}}' ""
+
+# Fail OPEN: an unreadable verdict is never a disable.
+gate_case "malformed settings JSON" tee 'not json at all' ""
+
+# Managed precedence, both directions. The false-over-true case is the policy
+# bypass this gate exists to close; the true-over-false MIRROR is what proves it
+# is real precedence rather than an or-of-falses that suppresses on any `false`.
+gate_case "managed false overrides user true" no-tee "$USER_TRUE" "$MANAGED_FALSE"
+gate_case "managed true overrides user false" tee "$USER_FALSE" "$MANAGED_TRUE"
+
+# --- Gate, unstubbed: the real script, invoked exactly as settings.json does --
+HOME_GATE="$WORK/home-gate-e2e"
+mkdir -p "$HOME_GATE"
+write_settings "$HOME_GATE/.claude/settings.json" "$USER_FALSE"
+OUT="$(run "$HOME_GATE" "$GATE_INPUT" jq -r '.model.display_name')"
+RC=$?
+if [[ $RC -eq 0 && "$OUT" == "Opus" ]]; then ok "gate end-to-end: passthrough unchanged"; else fail "gate end-to-end passthrough (rc=$RC out=$OUT)"; fi
+if [[ ! -e "$HOME_GATE/$TEE_REL" ]]; then ok "gate end-to-end: user settings false suppresses the tee"; else fail "gate end-to-end: tee ran despite a configured false"; fi
+
+# --- Gate: jq absent fails OPEN ----------------------------------------------
+# The reader cannot parse anything without jq, and a gate that read that as
+# "disabled" would silently drop the tee on every machine without it.
+VERDICT="$(HOME="$HOME_GATE" PATH="$FAKEBIN" bash -c '
+  source "$1" </dev/null
+  if _rlg_tee_enabled; then printf enabled; else printf disabled; fi
+' _ "$TEE")"
+if [[ "$VERDICT" == "enabled" ]]; then ok "gate: jq absent fails open despite a configured false"; else fail "gate: jq absent → $VERDICT"; fi
+
+# --- Gate: the managed path table is fixed and absolute ----------------------
+# The managed scope is only tamper-resistant while its paths are the documented
+# root-owned absolutes; a relative one would resolve against this process's cwd.
+UNAME_SHIM="$WORK/uname-shim"
+mkdir -p "$UNAME_SHIM"
+printf '#!/bin/sh\necho Plan9\n' >"$UNAME_SHIM/uname"
+chmod +x "$UNAME_SHIM/uname"
+if [[ -z "$(PATH="$UNAME_SHIM:$PATH" bash -c 'source "$1" </dev/null; _rlg_managed_settings_files' _ "$TEE")" ]]; then
+  ok "gate: unrecognized platform contributes no managed path"
+else
+  fail "gate: unrecognized platform produced a managed path"
+fi
+MANAGED_ABS=ok
+while IFS= read -r p; do
+  [[ -n "$p" ]] || continue
+  case "$p" in
+  /* | [A-Za-z]:[/\\]*) ;;
+  *) MANAGED_ABS="relative path: $p" ;;
+  esac
+done < <(bash -c 'source "$1" </dev/null; _rlg_managed_settings_files' _ "$TEE")
+if [[ "$MANAGED_ABS" == ok ]]; then ok "gate: every managed path is absolute"; else fail "gate: $MANAGED_ABS"; fi
 
 echo
 echo "PASS=$PASS FAIL=$FAIL"

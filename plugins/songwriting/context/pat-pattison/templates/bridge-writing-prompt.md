@@ -141,7 +141,7 @@ items:
 
 ## Coach posture
 
-- A bridge isn't a verse. (*Writing Better Lyrics* (2009), Chapter 22-23)
+- A bridge isn't a verse. (*Writing Better Lyrics* (2009), Chapters 22-23)
 - The bridge serves the chorus / final A. Its job is to make the return
   feel earned, not to compete with the chorus emotionally.
 - If the song doesn't have a missing angle the bridge can take, the song

@@ -49,8 +49,8 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=lib/clean-common.sh
-source "$SCRIPT_DIR/lib/clean-common.sh"
+# shellcheck source=lib/batch-common.sh
+source "$SCRIPT_DIR/lib/batch-common.sh"
 TREE_RESET="$SCRIPT_DIR/git-tree-reset.sh"
 
 usage() {
@@ -113,24 +113,6 @@ fail_usage() {
   exit 2
 }
 
-read_lines_into() {
-  # read_lines_into <array-name> <file|->  — append non-empty trimmed lines.
-  local -n _dest="$1"
-  local src="$2" line
-  if [[ "$src" == "-" ]]; then
-    while IFS= read -r line || [[ -n "$line" ]]; do
-      line="${line%$'\r'}"
-      [[ -n "$line" ]] && _dest+=("$line")
-    done
-  else
-    [[ -f "$src" ]] || fail_usage "file not found: $src"
-    while IFS= read -r line || [[ -n "$line" ]]; do
-      line="${line%$'\r'}"
-      [[ -n "$line" ]] && _dest+=("$line")
-    done <"$src"
-  fi
-}
-
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --dry-run) DRY_RUN=1 ;;
@@ -158,7 +140,8 @@ while [[ $# -gt 0 ]]; do
     ;;
   --repos-from)
     [[ $# -ge 2 ]] || fail_usage "--repos-from requires a file or -"
-    read_lines_into REPO_INPUTS "$2"
+    [[ "$2" == "-" || -f "$2" ]] || fail_usage "file not found: $2"
+    batch_read_lines_into REPO_INPUTS "$2"
     shift
     ;;
   --skip)
@@ -168,7 +151,8 @@ while [[ $# -gt 0 ]]; do
     ;;
   --skip-from)
     [[ $# -ge 2 ]] || fail_usage "--skip-from requires a file"
-    read_lines_into SKIP_INPUTS "$2"
+    [[ -f "$2" ]] || fail_usage "file not found: $2"
+    batch_read_lines_into SKIP_INPUTS "$2"
     shift
     ;;
   -h | --help)
@@ -248,13 +232,6 @@ CHILD_PASS=()
 # unpushed gate; a no-op when a repo is not ahead of its upstream.
 [[ "$INCLUDE_DIRTY" -eq 1 ]] && CHILD_PASS+=(--allow-unpushed)
 
-emit() {
-  printf 'Repo: %s\n' "$1"
-  printf 'Outcome: %s\n' "$2"
-  printf 'Reason: %s\n' "$3"
-  printf '%s\n' '---'
-}
-
 COUNT_RESET=0
 COUNT_SKIPPED=0
 COUNT_BLOCKED=0
@@ -279,7 +256,7 @@ for ((i = 0; i < ${#REPO_TOPS[@]}; i++)); do
     fi
   done
   if [[ -n "$matched" ]]; then
-    emit "$top" skipped "skip-list ($matched)"
+    batch_emit "$top" skipped "skip-list ($matched)"
     COUNT_SKIPPED=$((COUNT_SKIPPED + 1))
     continue
   fi
@@ -288,7 +265,7 @@ for ((i = 0; i < ${#REPO_TOPS[@]}; i++)); do
   if [[ "$INCLUDE_DIRTY" -eq 0 ]]; then
     dirty="$(repo_dirty_reason "$top")"
     if [[ -n "$dirty" ]]; then
-      emit "$top" skipped "$dirty (pass --include-dirty to reset anyway)"
+      batch_emit "$top" skipped "$dirty (pass --include-dirty to reset anyway)"
       COUNT_SKIPPED=$((COUNT_SKIPPED + 1))
       continue
     fi
@@ -323,7 +300,7 @@ for ((i = 0; i < ${#REPO_TOPS[@]}; i++)); do
       [[ -n "$discards" ]] && reason="$discards"
     fi
     if [[ "$DRY_RUN" -eq 1 ]]; then
-      emit "$top" would-reset "$reason"
+      batch_emit "$top" would-reset "$reason"
     else
       unremovable="$(printf '%s\n' "$out" | sed -n 's/^Unremovable: //p' | head -1)"
       if [[ "${unremovable:-0}" -gt 0 ]]; then
@@ -331,27 +308,27 @@ for ((i = 0; i < ${#REPO_TOPS[@]}; i++)); do
         if [[ "$reason" == none ]]; then reason="$note"; else reason="$reason; $note"; fi
         printf '%s\n' "$out" | grep -E 'could not be removed|failed to remove' >&2 || true
       fi
-      emit "$top" "done" "$reason"
+      batch_emit "$top" "done" "$reason"
     fi
     COUNT_RESET=$((COUNT_RESET + 1))
     ;;
   2)
-    emit "$top" skipped "no upstream tracking branch"
+    batch_emit "$top" skipped "no upstream tracking branch"
     COUNT_SKIPPED=$((COUNT_SKIPPED + 1))
     ;;
   3)
-    emit "$top" blocked "default-branch (pass --force-default-branch)"
+    batch_emit "$top" blocked "default-branch (pass --force-default-branch)"
     COUNT_BLOCKED=$((COUNT_BLOCKED + 1))
     ;;
   4)
     # Reachable only without --include-dirty (which passes --allow-unpushed): the
     # child re-gates unpushed after its fetch, so a repo that looked not-ahead at
     # the batch dirty-check can become ahead once fetch advances the upstream.
-    emit "$top" blocked "unpushed commits after fetch (pass --include-dirty)"
+    batch_emit "$top" blocked "unpushed commits after fetch (pass --include-dirty)"
     COUNT_BLOCKED=$((COUNT_BLOCKED + 1))
     ;;
   5)
-    emit "$top" failed "reset --hard failed mid-apply (child output below)"
+    batch_emit "$top" failed "reset --hard failed mid-apply (child output below)"
     printf '%s\n' "$out" >&2
     COUNT_FAILED=$((COUNT_FAILED + 1))
     ;;
@@ -361,16 +338,16 @@ for ((i = 0; i < ${#REPO_TOPS[@]}; i++)); do
     # the child reports non-zero. Treat it as failed like exit 5 so the batch
     # summary and exit status never report a repo that was only partly realigned
     # as a completed reset.
-    emit "$top" failed "clean failed after a successful reset -- partial apply, tree not fully cleaned (child output below)"
+    batch_emit "$top" failed "clean failed after a successful reset -- partial apply, tree not fully cleaned (child output below)"
     printf '%s\n' "$out" >&2
     COUNT_FAILED=$((COUNT_FAILED + 1))
     ;;
   6)
-    emit "$top" blocked "upstream-unresolved"
+    batch_emit "$top" blocked "upstream-unresolved"
     COUNT_BLOCKED=$((COUNT_BLOCKED + 1))
     ;;
   *)
-    emit "$top" blocked "tree-reset error (child exit $rc)"
+    batch_emit "$top" blocked "tree-reset error (child exit $rc)"
     COUNT_BLOCKED=$((COUNT_BLOCKED + 1))
     ;;
   esac
@@ -378,7 +355,7 @@ done
 
 # Invalid inputs reported as blocked outcomes.
 for ((i = 0; i < ${#INVALID_INPUTS[@]}; i++)); do
-  emit "${INVALID_INPUTS[$i]}" blocked "${INVALID_REASONS[$i]}"
+  batch_emit "${INVALID_INPUTS[$i]}" blocked "${INVALID_REASONS[$i]}"
   COUNT_BLOCKED=$((COUNT_BLOCKED + 1))
 done
 

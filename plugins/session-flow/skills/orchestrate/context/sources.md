@@ -81,7 +81,7 @@ under-delegating model too.
 
 ## Imperative 5 — NESTED SUBAGENTS
 
-Re-verified 2026-07-29 against two official surfaces — the prose page
+Re-verified 2026-08-10 against two official surfaces — the prose page
 <https://code.claude.com/docs/en/sub-agents> ("Let subagents spawn their own subagents") and the
 release changelog <https://code.claude.com/docs/en/changelog> (raw markdown at `changelog.md`,
 which is byte-exact where the rendered page summarizes), current through **v2.1.220**. The two
@@ -89,38 +89,48 @@ surfaces contradicted each other on 2026-07-26 and **agree as of 2026-07-29**; t
 note below records what the split was, so a reader who meets an older copy of either surface knows
 which way it broke.
 
-- Shipped, **not** experimental. Changelog v2.1.172 *(verbatim, verified 2026-07-29)*:
+- Shipped, **not** experimental. Changelog v2.1.172 *(verbatim, verified 2026-08-10)*:
   "Sub-agents can now spawn their own sub-agents (up to 5 levels deep)." **This version number is a
   historical citation — the release that shipped nesting — not a verification pin. Do not bump it.**
-  The sub-agents page's own version-history note corroborates it *(verbatim, verified 2026-07-29)*:
+  The sub-agents page's own version-history note corroborates it *(verbatim, verified 2026-08-10)*:
   "**v2.1.172 through v2.1.216**: subagents could nest by default, up to five layers deep, and the
   limit couldn't be changed."
 - **Current default depth is 3, and it is configurable.** Both surfaces now say so. Changelog
-  v2.1.219 *(verbatim, verified 2026-07-29)*: "Subagents can now spawn nested subagents up to depth
+  v2.1.219 *(verbatim, verified 2026-08-10)*: "Subagents can now spawn nested subagents up to depth
   3 by default (was 1); set `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1` to disable nesting." Sub-agents
-  page *(verbatim, verified 2026-07-29)*: "By default, a subagent can spawn subagents of its own, up
+  page *(verbatim, verified 2026-08-10)*: "By default, a subagent can spawn subagents of its own, up
   to three layers below the main conversation." The immediately preceding state was the opposite —
-  changelog v2.1.217 *(verbatim, verified 2026-07-29)*: "Changed subagents to no longer spawn nested
+  changelog v2.1.217 *(verbatim, verified 2026-08-10)*: "Changed subagents to no longer spawn nested
   subagents by default; set `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` to allow deeper nesting."
 - **The `Agent` tool is withheld at the depth limit, not while nesting is off** *(verbatim, verified
-  2026-07-29 — sub-agents page)*: "At the depth limit, Claude Code withholds the `Agent` tool from
+  2026-08-10 — sub-agents page)*: "At the depth limit, Claude Code withholds the `Agent` tool from
   every subagent except a fork, so a subagent at the limit does its delegated work itself and
   returns one summary. A fork at the limit keeps `Agent` in its inherited tool list, but the tool
   returns an error instead of spawning."
-- Gating by tool list — necessary, not sufficient *(verbatim, verified 2026-07-29 — sub-agents
+- Gating by tool list — necessary, not sufficient *(verbatim, verified 2026-08-10 — sub-agents
   page)*: "In a subagent definition, listing `Agent` in `tools` lets that subagent spawn subagents
   of its own while the depth limit allows it, but any type list inside the parentheses is ignored."
   To stop one spawning while nesting is on, "omit `Agent` from its `tools` list or add it to
   `disallowedTools`."
-- Three separate caps, each with its own variable *(verbatim, verified 2026-07-29 — sub-agents
-  page)*: "this one caps the total spawned over a session, the concurrent subagent limit stops
-  Claude from spawning more while too many are running, and the depth limit caps how deeply
-  subagents nest." Defaults: "at most 200 subagents per session"
-  (`CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION`, v2.1.212+) and "when 20 subagents are running in a
-  session, spawning another with the Agent tool fails with `Concurrent subagent limit reached`"
-  (`CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`, v2.1.217+). "A fork can't spawn further forks."
+- **Two caps now, not three — the per-session total was removed** *(verified 2026-08-10 — sub-agents
+  page)*. What remains is the concurrency limit and the depth limit: "By default, when 20 subagents
+  are running in a session, spawning another with the Agent tool fails with `Concurrent subagent
+  limit reached`, and the error tells Claude not to retry. Spawning succeeds again when the running
+  count drops below the limit" (`CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`, v2.1.217+), plus the depth
+  limit above. "A fork can't spawn further forks."
+  Two riders on the concurrency limit, both new since the 2026-07-29 read: "Sessions with
+  [ultracode](https://code.claude.com/docs/en/model-config#adjust-effort-level) active are exempt:
+  the limit isn't enforced there", and an in-session `/subtask` fork "takes a slot while it runs and
+  is never blocked by the limit."
+  **Superseded:** this entry previously recorded a third cap — "at most 200 subagents per session"
+  via `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION` (v2.1.212+), read 2026-07-29. Week 32 removed it:
+  "The 200-subagent-per-session cap is removed, so long-running sessions no longer refuse new
+  subagents; the concurrency and depth limits still apply"
+  ([2026-w32](https://code.claude.com/docs/en/whats-new/2026-w32), v2.1.220–v2.1.224). The variable
+  and the cap are both gone from the sub-agents page; a long-running orchestration should no longer
+  be planned around a session total.
 - **A permission gate can deny a spawn before depth is ever consulted.** Changelog v2.1.178
-  *(verbatim, verified 2026-07-29)*: "Improved auto mode: subagent spawns are now evaluated by the
+  *(verbatim, verified 2026-08-10)*: "Improved auto mode: subagent spawns are now evaluated by the
   classifier before launch, closing a gap where a subagent could request a blocked action without
   review." So a failed spawn needs its error text read before it counts as evidence about depth: a
   depth rejection names depth, a permission refusal names permission.
@@ -152,17 +162,17 @@ Backs the addendum's parenthetical on dynamic workflows. Two halves are needed: 
 filter that strips tools from every subagent, AND forks are exempt from that filter — either alone
 proves nothing.
 
-- **`Workflow` is removed from subagents by the first filter** *(verbatim, verified 2026-08-05 —
+- **`Workflow` is removed from subagents by the first filter** *(verbatim, verified 2026-08-10 —
   sub-agents page)*: "Subagents inherit the built-in tools and MCP tools available in the main
   conversation, narrowed by two filters: the first removes a short list of tools from every
   subagent, and the second reduces the built-in tool set for subagents that run in the background,
   which is the default." That first filter "removes these tools, even when listed in the `tools`
   field:" — a list whose members include `Workflow`. —
   <https://code.claude.com/docs/en/sub-agents>
-- **Forks are exempt, so a fork keeps `Workflow`** *(verbatim, verified 2026-08-05 — sub-agents
+- **Forks are exempt, so a fork keeps `Workflow`** *(verbatim, verified 2026-08-10 — sub-agents
   page)*: "Forks skip both filters and receive the main conversation's exact tool pool." — same URL
 - Teammates do not get it back: the agent-teams carve-out is additive to the background filter only
-  *(verbatim, verified 2026-08-05 — sub-agents page)*: "Teammates in agent teams additionally keep
+  *(verbatim, verified 2026-08-10 — sub-agents page)*: "Teammates in agent teams additionally keep
   the task tools and cron tools: `TaskCreate`, `TaskGet`, `TaskList`, `TaskUpdate`, `CronCreate`,
   `CronDelete`, and `CronList`." — same URL
 
@@ -221,6 +231,6 @@ Part-sourced, part authoring convention — the boundary is called out per facto
   agents, or its projected token total passes 1.5 million" (min-version 2.1.203); the `/config`
   size guideline sets the agent count Claude aims for (`small` "Fewer than 5 agents", `medium`
   "Fewer than 15 agents", `large` "Fewer than 50 agents"), and the runtime caps a run at up to 16
-  concurrent / 1,000 total agents. *(verbatim, verified 2026-07-29)* — these concrete numbers are
+  concurrent / 1,000 total agents. *(verbatim, verified 2026-08-10)* — these concrete numbers are
   version-pinned and stay in this sources file, NOT the model-/tool-agnostic brief, which speaks of
   a "wide fan-out" abstractly. — <https://code.claude.com/docs/en/workflows>

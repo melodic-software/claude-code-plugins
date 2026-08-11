@@ -37,11 +37,7 @@ if [[ -z "$REPO_ROOT" ]]; then
   exit 0
 fi
 
-DEFAULT_BRANCH="$(git -C "$REPO_ROOT" symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|^refs/remotes/origin/||' | tr -d '\r')"
-if [[ -z "$DEFAULT_BRANCH" ]] && command -v gh >/dev/null 2>&1; then
-  DEFAULT_BRANCH="$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null | tr -d '\r')"
-fi
-DEFAULT_BRANCH="${DEFAULT_BRANCH:-main}"
+DEFAULT_BRANCH="$(clean_default_branch "$REPO_ROOT")"
 
 CURRENT_BRANCH="$(git -C "$REPO_ROOT" branch --show-current 2>/dev/null | tr -d '\r')"
 

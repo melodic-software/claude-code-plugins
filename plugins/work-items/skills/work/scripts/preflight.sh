@@ -334,10 +334,14 @@ fi
 read_array() {
   # read_array <file> <jq-path> — one element per line; silent on a missing or
   # non-JSON file (a settings file may legitimately not exist).
-  local file="$1" path="$2"
+  # Read + CR-strip ONCE: `collect` calls this for every settings layer on every
+  # one of the three permission paths, so a second read-and-tr per file is pure
+  # per-layer overhead (worst on Windows, where each fork is expensive).
+  local file="$1" path="$2" json
   [[ -f "$file" ]] || return 0
-  tr -d '\r' <"$file" | jq -e . >/dev/null 2>&1 || return 0
-  tr -d '\r' <"$file" | jq -r "$path // [] | .[]" 2>/dev/null | tr -d '\r'
+  json="$(tr -d '\r' <"$file")" || return 0
+  jq -e . <<<"$json" >/dev/null 2>&1 || return 0
+  jq -r "$path // [] | .[]" <<<"$json" 2>/dev/null | tr -d '\r'
 }
 
 collect() {

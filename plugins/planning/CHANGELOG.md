@@ -3,6 +3,23 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.30.1]
+
+### Changed
+
+- **Every `planning` skill's `description` now uses `Use when:` rather than `use for`.**
+  `brainstorm`, `design`, `devils-advocate`, `interview`, `plan`, `prd` and `questionnaire` all
+  carried their routing phrases behind a lowercase `use for` (or, for `interview`, behind "on
+  explicit request (...)"), which the skill-quality gate does not recognize as trigger phrasing — so
+  each read as a summary of what the skill *is*. The six model-invocable ones each gain 2–3 phrases
+  a user would actually type (`'ideas for this'`, `'how should I structure this'`,
+  `'challenge this plan'`, `'ask me questions first'`, `'what's the approach here'`,
+  `'define the requirements'`, among others). `questionnaire` is `disable-model-invocation: true`,
+  so its description is never matched against user text and new phrases would buy it nothing — it
+  gets the `Use when:` connector and nothing else. Every phrase already present is preserved
+  verbatim, including `'devil's advocate'`, whose intra-word apostrophe the gate's extractor
+  normalizes.
+
 ## [0.30.0]
 
 ### Removed

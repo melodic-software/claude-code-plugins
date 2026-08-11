@@ -1,5 +1,5 @@
 ---
-description: "Boris Cherny Claude Code workflow tips (howborisusesclaudecode.com) — 127 tips across 115 sections on parallel sessions, planning, CLAUDE.md, skills, hooks, permissions, autonomy, orchestration, loops, and context engineering. Use when optimizing Claude Code setup, workflows, CLAUDE.md, skills, hooks, or parallel sessions."
+description: "Boris Cherny Claude Code workflow tips (howborisusesclaudecode.com) — 127 tips across 115 sections on parallel sessions, planning, CLAUDE.md, skills, hooks, permissions, autonomy, orchestration, loops, and context engineering. Use when: 'how does Boris use Claude Code', 'Claude Code workflow tips', 'optimize my CLAUDE.md', 'improve my Claude Code setup', 'parallel Claude sessions', 'hook ideas', or optimizing Claude Code setup, workflows, CLAUDE.md, skills, hooks, or parallel sessions."
 when_to_use: "CC workflow optimization, Boris tips, CLAUDE.md/skills/hooks setup, parallel sessions"
 user-invocable: true
 disable-model-invocation: false

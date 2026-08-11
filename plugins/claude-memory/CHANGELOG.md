@@ -3,6 +3,26 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.1]
+
+### Changed
+
+- **Upstream doc stamps re-verified against the live pages (2026-08-10).** Each dated claim below was re-checked against the complete raw markdown source of the page it cites (`https://code.claude.com/docs/en/<page>.md`), not a summarized fetch, and each was confirmed by a verbatim quote before its stamp was refreshed. No claim changed; only the verification dates moved.
+
+  - `skills/stateless/reference/official-guidance.md` — all seven block quotes from the settings
+    and `.claude` directory references (settings precedence ladder and its managed-tier override
+    bullet, the `env` description, `cleanupPeriodDays`, the not-automatically-cleaned table
+    heading, the `sessions/` sweep exclusion, the `claude project purge` deletion list, its
+    `shell-snapshots/`/`backups/` carve-out, and its confirmation prompt) matched the live pages
+    word for word. The file's own negative — that no settings-precedence exception bullet names
+    `autoMemoryEnabled`, `CLAUDE_CODE_DISABLE_AUTO_MEMORY`, or auto memory — was re-checked
+    against the complete bullet list and still holds, as does its note that the `v2.1.124+` floor
+    for `claude project purge` has no current upstream source. Every dated citation in the file
+    moved: the seven block quotes, the settings negative, the `env`-block quote (whose stamp wraps
+    across two lines), and the `cli-reference` observation that `claude project purge` now carries
+    no version requirement at all.
+  - `skills/audit/reference/official-guidance.md` — the memory reference re-verification date.
+
 ## [0.7.0]
 
 ### Removed

@@ -29,6 +29,14 @@ function fail(path, message) {
 
 const pluginRoot = join(root, "plugins");
 const pluginFiles = filesUnder(pluginRoot);
+
+// Every plugin file under `directory`, taken from the single plugins/ walk
+// above rather than walking the subtree again — same set, same order, one
+// traversal instead of one per checked subtree.
+function filesIn(directory) {
+  return pluginFiles.filter((path) => path.startsWith(directory + sep));
+}
+
 const setupSkills = pluginFiles.filter((path) =>
   /[\\/]skills[\\/]setup[\\/]SKILL\.md$/.test(path),
 );
@@ -99,7 +107,7 @@ for (const plugin of ["discovery", "planning", "implementation"]) {
   if (existsSync(manifest) && /"notes_dir"\s*:/.test(read(manifest))) {
     fail(manifest, "shared project artifact locations cannot use personal userConfig");
   }
-  for (const path of filesUnder(join(pluginRoot, plugin, "skills"))) {
+  for (const path of filesIn(join(pluginRoot, plugin, "skills"))) {
     if (path.endsWith(".md") && /\$\{user_config\.notes_dir\}/.test(read(path))) {
       fail(path, "lifecycle skills must use the shared repository artifact protocol");
     }
@@ -132,12 +140,14 @@ for (const legacyPath of [
   join(aiBriefingRoot, "skills", "generate", "scripts"),
   join(aiBriefingRoot, "skills", "generate", "seed"),
 ]) {
+  // filesUnder, not filesIn: this probes paths that must NOT exist, so it has
+  // to look at the filesystem rather than at a walk that already excluded them.
   if (filesUnder(legacyPath).length > 0) {
     fail(legacyPath, "legacy automated-X collectors must not be shipped");
   }
 }
 
-const aiBriefingFiles = filesUnder(aiBriefingRoot);
+const aiBriefingFiles = filesIn(aiBriefingRoot);
 const automatedXTokens =
   /--refresh-following|--grok-preload|following-list\.json|chrome-extract|per-profile-runner|grok-capture|mcp__claude-in-chrome/i;
 for (const path of aiBriefingFiles.filter((path) => /\.(?:js|json|md|sh)$/.test(path))) {
@@ -179,7 +189,7 @@ const aiBriefingBuildRoot = join(
   "output",
   "build",
 );
-for (const path of filesUnder(aiBriefingBuildRoot).filter((path) => path.endsWith(".js"))) {
+for (const path of filesIn(aiBriefingBuildRoot).filter((path) => path.endsWith(".js"))) {
   if (/fonts\.googleapis|fonts\.gstatic|cdn\.jsdelivr\.net|simple-icons@latest|networkidle/i.test(read(path))) {
     fail(path, "deterministic local rendering must not depend on remote assets or networkidle");
   }
@@ -221,7 +231,7 @@ if (existsSync(autonomyRoot)) {
   const fleetTokens = /melodic-software|ci-workflows|github-iac/i;
   const vendorTokens = /github|gitlab|bitbucket|slack|anthropic|claude|openai|copilot|cursor|devin/i;
   const autonomyReference = join(autonomyRoot, "reference") + sep;
-  for (const path of filesUnder(autonomyRoot)) {
+  for (const path of filesIn(autonomyRoot)) {
     let content = read(path);
     if (path.endsWith(`${sep}.claude-plugin${sep}plugin.json`)) {
       // Only the author block is exempt — description/keywords/etc. stay gated.
@@ -263,6 +273,32 @@ for (const path of pluginFiles) {
       if (defaults.includes(normalized)) {
         fail(path, `${field} must not name its auto-discovered default path (${value})`);
       }
+    }
+  }
+}
+
+// An `archive` catalog entry installs a plugin from a zip fetched over HTTPS
+// (Claude Code v2.1.224+). The platform's floor is transport-level only — HTTPS,
+// no loopback/link-local/cloud-metadata hosts, same rules on every redirect hop —
+// and the `sha256` digest that pins the bytes is documented as optional. Unpinned,
+// the same URL can serve different content on every install with nothing to detect
+// it, which is the mutable-remote-artifact surface the plugin-acceptance security
+// review (docs/MIGRATION-PLAYBOOK.md, criterion 6) denies by default. The pin is
+// required here so review never has to catch it by eye.
+const marketplacePath = join(root, ".claude-plugin", "marketplace.json");
+if (existsSync(marketplacePath)) {
+  const catalog = JSON.parse(read(marketplacePath));
+  for (const entry of [catalog.plugins ?? []].flat()) {
+    if (!entry || typeof entry !== "object") continue;
+    const source = entry.source;
+    // Documented entry shape: "source": { "source": "archive", "url": ..., "sha256"? : ... }.
+    if (typeof source !== "object" || source === null || source.source !== "archive") continue;
+    // The digest is 64 hex characters, uppercase or lowercase.
+    if (!/^[0-9a-fA-F]{64}$/.test(String(source.sha256 ?? ""))) {
+      fail(
+        marketplacePath,
+        `archive entry "${entry.name ?? "(unnamed)"}" must pin its download with a 64-hex sha256`,
+      );
     }
   }
 }

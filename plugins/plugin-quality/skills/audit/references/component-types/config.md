@@ -40,7 +40,7 @@ convention/config files the plugin reads.
   dispatched. Every stdout line from `command` reaches Claude as a notification; check volume for
   the trigger's actual lifetime and that the command runs on the consumer's platform. (All three
   surfaces per <https://code.claude.com/docs/en/plugins> and
-  <https://code.claude.com/docs/en/plugins-reference#monitors>, fetched 2026-08-04.)
+  <https://code.claude.com/docs/en/plugins-reference#monitors>, fetched 2026-08-10.)
 
 ## Reproduce
 
