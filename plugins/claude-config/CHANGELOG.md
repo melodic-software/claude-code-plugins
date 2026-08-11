@@ -3,6 +3,53 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.30.0]
+
+### Fixed
+
+- **`audit`: Category B manufactured an `error` on every repo whose destructive-git enforcement is a
+  hook rather than a deny rule.** The category iterates the baseline patterns and states flatly that
+  each "must appear" in `permissions.deny`; the only two ways out were prose the *consuming repo*
+  writes — a documented exemption in its own rules files, or its own documented hook conventions.
+  Neither is keyed on a hook that is actually installed and enabled, and `grep -rn "hook"` across the
+  whole skill returns no `hooks.json` read, no plugin-hook enumeration, and no coverage concept at
+  all. So a repo that blocks `git push --force` with a `PreToolUse` hook exiting 2 — which the
+  permissions reference says stops the call *before* permission rules are evaluated, ahead even of an
+  allow rule — was told its security floor was missing. "Narrowing the baseline" now carries a third
+  narrowing: a family already blocked by an installed, enabled `PreToolUse` hook is `info`, not
+  `error`, whether the hook came from the repo or from a plugin.
+- **And the narrowing states its own residual, because hook coverage is contingent in ways a deny rule
+  is not.** An `info` that hides that is worse than the `error` it replaced, so the off-ramp obliges
+  the report to name what ends the coverage: disabling or uninstalling the providing plugin, any
+  per-guard opt-out the hook exposes, and `allowManagedHooksOnly` / `strictPluginOnlyCustomization`.
+  The skill also cannot enumerate a plugin's `hooks/hooks.json`, so where no inventory was taken the
+  finding is now stated conditionally — "if a `PreToolUse` hook on `Bash` already blocks this family,
+  this finding is void" — rather than asserted. Fail open, not fail silent.
+- **The narrowings were also unreachable from where the check runs.** Category B's directive delegates
+  by *pattern* — "iterate the patterns in required-permissions.md" — and the checklist likewise says
+  "assert presence per sub-category". Neither named the off-ramp sections, so they were prose
+  elsewhere in a file the category cites only for its tables. Category B and the checklist's B.1–B.3
+  severity table now both point at "Narrowing the baseline" and say the tabled severities are the
+  *unnarrowed* rating.
+- **`audit`: and the false positive was routed straight into `--fix` as mechanical.** The Phase 5
+  matrix graded "Add missing baseline deny rules" `Auto-fixable: Yes (from checklist)` /
+  `Requires judgment: No` — the column that tells a user not to think about it, next to a prompt whose
+  offered reply `'all'` applies the lot in one keystroke. It also contradicted this skill's own
+  baseline reference, which says adding a deny for a family a project hook escalates to an *ask*
+  suppresses that prompt and must be audited against the project's hook conventions. Adding a baseline
+  deny rule is now judgment-required, with the judgment written out: is the family already covered, and
+  would the addition suppress a gate the project built deliberately. *Moving* a deny rule from local to
+  project stays mechanical — that is bug #8961 placement, not a policy change — and `SKILL.md`'s prose
+  restatement of the matrix now splits the two the same way instead of asserting the opposite.
+- Scope stated honestly: the applied change was *more* deny rules, which is fail-closed, and a
+  confirmation gate already existed and was already pinned by eval #2 — so this is not "unattended
+  auto-apply". The graded harm is unwanted config growth against a stated simplification goal, plus the
+  loss of a human approve/reject decision where a hook returned `ask`. A hook that blocks by `exit 2`
+  short-circuits before permission rules and suppresses nothing.
+- New eval #8 `baseline-deny-narrowed-by-installed-hook` grades the whole chain: absent patterns plus
+  an installed enabled hook must produce `info` with the residual named, and must not be offered as an
+  auto-fixable addition.
+
 ## [0.29.2]
 
 ### Changed

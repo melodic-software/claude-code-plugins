@@ -19,6 +19,11 @@ Load the audit checklist alongside these: [audit-checklist.md](../reference/audi
   `sensitive-file-deny` and `destructive-bash-deny` must appear in `settings.json` `permissions.deny`;
   each pattern in `ask-rules` must appear in `settings.json` `permissions.ask`. When the consuming
   repo's own rules declare additional required patterns, check those too
+- **Before flagging an absent baseline pattern, apply the narrowings** in
+  [required-permissions.md](../reference/required-permissions.md) "Narrowing the baseline" — a
+  documented repo exemption, a documented project hook convention, or an installed enabled `PreToolUse`
+  hook that already blocks the family (that third case is `info` with the residual named, not `error`).
+  Where no hook inventory was taken, state the finding as conditional rather than as an assertion
 - **Deny rules in settings.json ONLY** — not in settings.local.json (bug [#8961](https://github.com/anthropics/claude-code/issues/8961))
 - **No overly broad patterns** — `Bash(git *)` should be split into specific operations
 - **Evaluation order** makes sense — deny overrides ask overrides allow

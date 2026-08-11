@@ -135,11 +135,36 @@ Bash patterns that should require confirmation before execution. `git push` is t
 
 ## Narrowing the baseline
 
-The baseline is a floor for the common case, not an unconditional mandate. A repo where a pattern is
+The baseline is a floor for the common case, not an unconditional mandate. Three narrowings apply, and
+Category B checks all three before flagging an absent pattern.
+
+**1 — A documented exemption in the consuming repo.** A repo where a pattern is
 genuinely inapplicable — e.g. a read-only analysis or documentation repo with no push access, where
 the `git push` ask-gates protect nothing — documents the exemption in its own rules files; Category B
 checks for such a documented exemption before flagging an absent pattern. Undocumented absence is
 still a finding.
+
+**2 — A documented project hook convention.** See "Interaction with hook-based gates" below: where the
+project's own documented conventions say a safety hook escalates the operation, audit the pattern
+against those conventions rather than flagging its absence.
+
+**3 — An installed, enabled `PreToolUse` hook that already blocks the family.** An absent baseline
+pattern whose command family is blocked by a `PreToolUse` hook that is *installed and enabled* on the
+relevant tool surface (`Bash`, `PowerShell`) is reported `info`, not `error` — the deny rule is
+redundant with an enforcement path that already holds. This narrowing is available whether the hook
+comes from the repo or from an installed plugin; a plugin-provided hook is no weaker a block than a
+repo-provided one.
+
+**Name the residual whenever you take narrowing 3.** Hook coverage is contingent in ways a deny rule
+is not, and an `info` that hides this is worse than the `error` it replaced. State that the coverage
+ends if the providing plugin is disabled or uninstalled, that it is narrowable by any per-guard opt-out
+the hook exposes, and that it is suppressible by `allowManagedHooksOnly` / `strictPluginOnlyCustomization`.
+
+**Fail open where no hook inventory was taken.** The audit has no enumeration path over a plugin's
+`hooks/hooks.json` (it reads settings-declared hooks only), so on most runs you will not know what is
+installed. Do not resolve that by assuming absence. Where no inventory was taken, state the finding as
+conditional — "if a `PreToolUse` hook on `Bash` already blocks this family, this finding is void" —
+rather than as an assertion, and say which inventory would settle it.
 
 ## Interaction with hook-based gates
 

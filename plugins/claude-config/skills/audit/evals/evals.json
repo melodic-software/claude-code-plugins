@@ -89,6 +89,19 @@
         "Names the sandbox (filesystem.denyRead or credentials.files) as the OS-level enforcement path and notes it is unavailable on native Windows",
         "Describes a PreToolUse hook as best-effort rather than as a boundary"
       ]
+    },
+    {
+      "id": 8,
+      "name": "baseline-deny-narrowed-by-installed-hook",
+      "prompt": "/audit permissions — settings.json permissions.deny has none of the destructive-git patterns. We enforce that with the guardrails plugin's PreToolUse hook on Bash, which is installed and enabled and exits 2 on git push --force, git reset --hard, and git clean -fd.",
+      "expected_output": "A Category B report that applies the third narrowing from required-permissions.md 'Narrowing the baseline': the absent destructive-bash-deny patterns are reported as `info`, not `error`, because an installed and enabled PreToolUse hook already blocks the family — and the report names the residual (coverage ends if the plugin is disabled or uninstalled, is narrowable by a per-guard opt-out, and is suppressible by allowManagedHooksOnly / strictPluginOnlyCustomization). The recommendation is NOT presented as an auto-fixable mechanical addition.",
+      "files": [],
+      "expectations": [
+        "Rates the absent destructive-bash-deny patterns `info` rather than `error`, citing the installed enabled PreToolUse hook as coverage",
+        "Names the residual that hook coverage carries — plugin disable/uninstall, per-guard opt-out, and allowManagedHooksOnly / strictPluginOnlyCustomization suppression",
+        "Does NOT classify adding the baseline deny rules as auto-fixable or as requiring no judgment",
+        "Where it took no hook inventory of its own, states the finding conditionally rather than asserting the patterns are missing"
+      ]
     }
   ]
 }

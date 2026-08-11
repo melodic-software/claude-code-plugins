@@ -35,6 +35,12 @@ The baseline covers the cross-repo security floor (sensitive `.env*` / `secrets/
 own rules (extra secret-file paths, destructive API-endpoint families, hook-bypass blockers,
 additional ask-gates) get those checked at the same severities.
 
+The severities above are the *unnarrowed* rating. Apply
+[required-permissions.md](required-permissions.md) "Narrowing the baseline" first: a documented
+exemption or a documented project hook convention retires the finding, and a family already blocked by
+an installed, enabled `PreToolUse` hook drops to `info` with the residual named. Where no hook
+inventory was taken, the finding is stated conditionally, not asserted.
+
 ### B.4 Syntax checks
 
 | Check | Severity | How to verify |

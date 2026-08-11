@@ -209,10 +209,13 @@ After all fixes:
 
 ### Fixes the skill can apply
 
-Auto-fixable (add `$schema`, add/move deny rules, plugin orphan-removal +
-new-as-`false` via `scripts/fix-plugin-drift.sh --yes`) vs judgment-required (new settings from docs,
-permission restructure, MCP config, orphan-`true` removal, heuristic rename) — full matrix in
-[context/procedures.md](context/procedures.md) "Phase 5 — fixes the skill can apply".
+Auto-fixable (add `$schema`, **move** deny rules from local to project, plugin orphan-removal +
+new-as-`false` via `scripts/fix-plugin-drift.sh --yes`) vs judgment-required (**adding** a baseline deny
+rule, new settings from docs, permission restructure, MCP config, orphan-`true` removal, heuristic
+rename) — full matrix in [context/procedures.md](context/procedures.md) "Phase 5 — fixes the skill can
+apply". Adding and moving a deny rule are graded apart on purpose: moving one is #8961 placement, while
+adding one has to be checked against hook coverage that may already hold and against an ask-gate the
+addition would suppress.
 
 ---
 
