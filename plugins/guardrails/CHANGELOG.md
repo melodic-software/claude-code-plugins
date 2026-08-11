@@ -7,6 +7,13 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 
 ### Changed
 
+- **`block-hook-bypass`'s scope note now names `tee` and other inline-interpreter
+  write families it does not model (#2218).** No behaviour changes — the
+  `_BYPASS_SCOPE_NOTE`, two `SCOPE (documented residual)` blocks, the README
+  residuals section, and five accepted-floor tests now move together so a reader
+  does not credit the guard with `tee` or general interpreter coverage from the
+  old "recognized inline interpreter code" wording.
+
 - **0.25.0 described the scratch-root exemption's fail-close inaccurately on every surface, twice
   over. Corrected, and pinned (#2236; root cause #2226).** No behaviour changes — four documents
   become accurate and four regression tests now pin the boundaries they describe.
