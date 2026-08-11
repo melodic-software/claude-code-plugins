@@ -12,7 +12,7 @@ only after that version increases.
   a verbatim read, and one qualifier inside it is now flagged as uncorroborated.** The harness-side
   thinking facts were sourced from a 2026-08-04 live fetch, back when `env-vars` could only be read
   through a channel that truncates it. Read end to end on 2026-08-10 via the
-  [`.md` fetch route](../../docs/conventions/upstream-drift/README.md#reading-the-basis--the-fetch-route),
+  [`.md` fetch route](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#reading-the-basis--the-fetch-route),
   both cited rows hold: `MAX_THINKING_TOKENS` still carries the Anthropic-API-versus-third-party
   split, the Fable 5 exception, and the nonzero-ignored rule, and
   `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING` now states this file's central claim outright — "Has no

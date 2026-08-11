@@ -22,11 +22,14 @@ surface owned.
   `CLAUDE_CODE_MAX_*` range that had truncated away three times; two fetches, identical SHA-256).
   Rung 2 is a summarizing fetch, admissible only when the read shows the page arrived whole. Rung 3
   is a verbatim mirror.
-- **The route is hoisted, not invented.** `claude-ops`'s `changelog` skill already carried it
-  page-scoped and `knowledge`'s `docpage-digest` publisher profile already preferred the `.md`
-  channel; the one-owner-per-concern rule puts the general form here and leaves their page-specific
-  detail with them. The profile's warning that a raw-markdown channel can 404 per page is carried
-  across as the reason a run verifies the channel before trusting the rung.
+- **The route is hoisted, not invented — from two surfaces that derived it independently.**
+  `claude-ops`'s `changelog` skill carried it page-scoped; `knowledge`'s `docpage-digest` publisher
+  profile carried it claim-scoped, binding absence-establishing fetches to `curl` on the raw `.md`
+  channel after two of its own runs asserted a false absence. Two independent derivations is the
+  signal a rule wants an owner, and the one-owner-per-concern rule puts the general form here while
+  leaving their scope-specific detail with them. The profile's warning that a raw-markdown channel
+  can 404 per page is carried across as the reason a run verifies the channel before trusting the
+  rung.
 - **The mirror rung keeps the freshness-corroboration protocol from
   [#2182](https://github.com/melodic-software/claude-code-plugins/pull/2182)** and generalizes its
   bar: corroborate against a fact the page's own content can only carry after a known upstream

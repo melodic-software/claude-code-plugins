@@ -10,7 +10,7 @@ only after that version increases.
 
 - **`docpage-digest`: the Anthropic profile cited a live docs page by line number, and the line had
   moved.** The `api-only` near-miss sub-shape (3) recorded its sole attested instance as
-  `env-vars.md:394`. On a full verbatim read of that page on 2026-08-10 it runs 458 lines with 318
+  `env-vars.md:394`. On a full verbatim read of that page on 2026-08-10 it runs 458 lines with 315
   variable rows, line 394 is `DISABLE_UPGRADE_COMMAND`, and the retry/fallback row the instance
   actually describes is `FALLBACK_FOR_ALL_PRIMARY_MODELS` — the only row on the page that both
   describes Claude Code's own retry behavior and names a model subject, the sibling
@@ -19,13 +19,15 @@ only after that version increases.
   page by anchor, heading, or row key — never by line number, which the `.md` channel renumbers
   whenever the page gains a row. Line numbers into an archived snapshot stay citable, because that
   file is immutable.
-- **`docpage-digest`: the profile's preferred `.md` channel now says how to read it.** It named the
-  channel but not the discipline, and a summarizing fetch of a long page truncates and then reports
-  the rows past its cutoff as absent — a manufactured absence that reads exactly like a real one.
-  The bullet routes through the fleet
-  [fetch route](../../docs/conventions/upstream-drift/README.md#reading-the-basis--the-fetch-route):
-  `curl` to a file, search the file. The profile's own per-page channel caveat is unchanged and is
-  what that route cites as the reason a run re-verifies the channel before trusting it.
+- **`docpage-digest`: the profile's absence-fetch rule is now identified as the fleet rung it always
+  was.** The rule itself is unchanged and was already right — `curl` the raw `.md` channel, record
+  the retrieved length, because "a truncated fetch cannot fabricate a PRESENCE, only an ABSENCE".
+  That asymmetry is this pipeline's own and stays here. What is added is one sentence naming it as
+  rung 1 of the
+  [fetch route](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#reading-the-basis--the-fetch-route),
+  which the `upstream-drift` convention now owns fleet-wide — this profile's practice was one of two
+  surfaces that route was generalized from, so the pointer records provenance rather than importing
+  anything. Nothing is duplicated into or out of the profile.
 
 ## [0.11.0]
 

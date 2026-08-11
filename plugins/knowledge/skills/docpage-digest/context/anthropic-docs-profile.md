@@ -12,22 +12,19 @@ extraction waits for the third (Rule of Three).
 - **Docs pages (`platform.claude.com/docs/...`, `code.claude.com/docs/...`):** append `.md` to
   the page URL for clean raw markdown. Channel verified working for the Opus 5 prompting guide
   (2026-07); **re-verify per doc** — precedent, not a guarantee. Fallback: fetch the rendered
-  page and record the degradation. Read the channel **verbatim** — `curl` it to a file and search
-  the file, per the fleet
-  [fetch route](../../../../../docs/conventions/upstream-drift/README.md#reading-the-basis--the-fetch-route).
-  A summarizing fetch truncates a long page and then reports the rows past its cutoff as absent,
-  which is a manufactured absence, not an observation.
-- **Cite a live docs page by anchor, never by line number.** These pages gain and lose rows between
+  page and record the degradation.
+- **Cite a LIVE page by anchor, never by line number.** These pages gain and lose rows between
   reads and the `.md` channel renumbers with them, so a `<page>.md:<line>` citation rots silently
   into a pointer at an unrelated row. Cite the heading, the table row's key, or the variable name —
-  something the page itself carries. (Attested: the retry/fallback instance below was recorded as
-  `env-vars.md:394`; on a full verbatim read of 2026-08-10 that page runs 458 lines with 318
-  variable rows, line 394 is `DISABLE_UPGRADE_COMMAND`, and the row the instance describes —
-  the only one on the page both describing Claude Code's own retry behavior and naming a model
-  subject, `CLAUDE_CODE_DISABLE_NONSTREAMING_FALLBACK` naming none — is
-  `FALLBACK_FOR_ALL_PRIMARY_MODELS`, at line 400 that day. The instance stands; only its address
-  moved.) Line numbers into an **archived snapshot** this pipeline captured are unaffected: that
-  file is immutable, which is exactly what makes its line numbers citable.
+  something the page itself carries. This repo has the measurement, from its own two reads of
+  `env-vars.md`: 451 lines and 316 rows when the absence rule below was written, 458 lines and 315
+  rows on 2026-08-10, so both a growth and a removal landed between them. The attested near-miss
+  instance recorded as `env-vars.md:394` moved that way — 394 is `DISABLE_UPGRADE_COMMAND` today,
+  and the row the instance describes (the only one on the page that both describes Claude Code's
+  own retry behavior and names a model subject; the sibling
+  `CLAUDE_CODE_DISABLE_NONSTREAMING_FALLBACK` names none) is `FALLBACK_FOR_ALL_PRIMARY_MODELS`, at
+  line 400 that day. Line numbers into an **archived snapshot** this pipeline captured are
+  unaffected: that file is immutable, which is exactly what makes its line numbers citable.
 - **Blog posts (`claude.com/blog/...`):** no raw-markdown channel known; fetch rendered and
   extract. Record the channel used. **Two extraction artifacts reproduce on this channel; record
   them, never repair them** — `source.*` is immutable, so the fix belongs in whatever reads the
@@ -54,7 +51,10 @@ extraction waits for the third (Rule of Three).
   this way. In the steering-thinking slice the orchestrator's *resolution* re-fetched the same page
   through the same channel and reproduced the blind spot instead of testing it —
   `CLAUDE_CODE_MAX_OUTPUT_TOKENS` sits at line 277 of a 451-line, 316-row page whose rendered fetch
-  surfaced only roughly its first fifth.)
+  surfaced only roughly its first fifth.) This rule is the fleet-wide
+  [fetch route](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#reading-the-basis--the-fetch-route)'s
+  rung 1, which the upstream-drift convention now owns for every surface; the asymmetry above stays
+  here because it is this pipeline's reason for binding the rung to absence claims specifically.
 
 ## Archive-reading conventions
 

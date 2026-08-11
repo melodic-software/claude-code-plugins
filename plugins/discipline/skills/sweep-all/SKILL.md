@@ -236,7 +236,7 @@ unchanged and bind every member.
    2026-08-10. `CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY` above **re-verified
    2026-08-10 against the primary page**, read verbatim end to end through the
    `.md` fetch route
-   ([upstream-drift](../../../../docs/conventions/upstream-drift/README.md#reading-the-basis--the-fetch-route)),
+   ([upstream-drift](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#reading-the-basis--the-fetch-route)),
    which reached the `CLAUDE_CODE_MAX_*` range the three earlier fetches had
    truncated before. The row reads "Maximum number of read-only tools and
    subagents that can execute in parallel (default: 10)" — unchanged from the

@@ -14,7 +14,7 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   rows past the cutoff as absent; `env-vars` produced that false negative on three independent
   fetches (#2182). An auditor following this row as written could flag a perfectly valid variable as
   unrecognized and never know. The row now routes through the
-  [`.md` fetch route](../../docs/conventions/upstream-drift/README.md#reading-the-basis--the-fetch-route)
+  [`.md` fetch route](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#reading-the-basis--the-fetch-route)
   — `curl` to a file, grep the file — and states that a truncated read supports no finding at all.
 - **`audit`: and the inverse error the same row invited.** "Authoritative source" plus "do not flag
   as unrecognized without checking this page" reads as *absent here means not a real variable*.

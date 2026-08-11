@@ -142,10 +142,14 @@ Rung 1 is the default. It was verified against `env-vars` on 2026-08-10: `curl` 
 (SHA-256 `43a805b4cfffd9aae5e36cec42f3a271dc92ddead26db76cd401d61ff4048584`). That same fetch
 re-confirmed the header finding below — `Last-Modified` came back equal to `Date`.
 
-The route is not new here; it is **hoisted**. `plugins/claude-ops/skills/changelog/context/read-actions.md`
-already carried it page-scoped ("`curl` the `.md` and slice locally … Never report a version
-'absent from the changelog' on a truncated fetch"), and `/knowledge:docpage-digest`'s Anthropic
-publisher profile already names the `.md` channel as its preferred one. Per the
+The route is not new here; it is **hoisted from two surfaces that each derived it independently**.
+`plugins/claude-ops/skills/changelog/context/read-actions.md` carried it page-scoped ("`curl` the
+`.md` and slice locally … Never report a version 'absent from the changelog' on a truncated
+fetch"), and `/knowledge:docpage-digest`'s Anthropic publisher profile carried it claim-scoped,
+binding any absence-establishing fetch to the raw `.md` channel with `curl` plus a recorded length,
+on the asymmetry that "a truncated fetch cannot fabricate a PRESENCE, only an ABSENCE" — after two
+of its runs asserted a false absence exactly this way. Two independent derivations of one rule is
+the signal that it wants an owner. Per the
 [convention registry](../../PLUGIN-PHILOSOPHY.md#convention-registry)'s one-owner-per-concern rule,
 the general form belongs in this doc and those surfaces keep their page-specific detail.
 

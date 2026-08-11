@@ -219,7 +219,7 @@ Live fetches at authoring time (2026-08-04), for the harness-side thinking facts
 - <https://code.claude.com/docs/en/env-vars> — `MAX_THINKING_TOKENS`,
   `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING` and the models each reaches. **Re-verified 2026-08-10**
   on a verbatim end-to-end read of the page via the
-  [`.md` fetch route](../../../../docs/conventions/upstream-drift/README.md#reading-the-basis--the-fetch-route);
+  [`.md` fetch route](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#reading-the-basis--the-fetch-route);
   both rows still carry every claim restated above, and the second now states the Sonnet 5
   exclusion outright — "Has no effect on Fable 5, Sonnet 5, or Opus 4.7 and later, which always use
   adaptive reasoning". One qualifier is **not** re-verified and is flagged rather than dropped: the
