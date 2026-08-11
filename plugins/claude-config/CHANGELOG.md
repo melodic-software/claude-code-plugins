@@ -3,6 +3,20 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.2]
+
+### Changed
+
+- **Upstream doc stamps re-verified against the live pages (2026-08-10).** Each dated claim below was re-checked against the complete raw markdown source of the page it cites (`https://code.claude.com/docs/en/<page>.md`), not a summarized fetch, and each was confirmed by a verbatim quote before its stamp was refreshed. No claim changed; only the verification dates moved.
+
+  - `skills/audit/scripts/check-structure.sh` — managed-settings paths, and the legacy
+    `C:\ProgramData\ClaudeCode\managed-settings.json` location being unsupported since v2.1.75
+    (settings reference).
+  - `skills/audit-pass/reference/doctor-handoff.md` — `/doctor` proposing fixes it applies only
+    after confirmation (debug-your-config reference).
+  - `skills/audit-pass/SKILL.md` — `@path` imports not reducing context because imported files
+    load at launch (memory reference).
+
 ## [0.29.1]
 
 ### Fixed

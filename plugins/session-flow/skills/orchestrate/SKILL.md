@@ -111,7 +111,7 @@ a tree rather than authoring one.
 rationalizable either way. Not thresholds to enforce — the judgment still runs on context
 boundaries, not head-count — but the platform's own numbers anchor it: the workflow size guideline
 aims at fewer than 5 agents for `small`, 15 for `medium`, 50 for `large`, and flags a run above 25
-as `Large workflow` ([workflows](https://code.claude.com/docs/en/workflows), fetched 2026-07-26). So
+as `Large workflow` ([workflows](https://code.claude.com/docs/en/workflows), fetched 2026-08-10). So
 fewer than 5 is small, 5–14 medium, and anything tripping that warning is a size to justify out
 loud — and an order-of-magnitude disagreement with this anchor is one to name, not skip.
 

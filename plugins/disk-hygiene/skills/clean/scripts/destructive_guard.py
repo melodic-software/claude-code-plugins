@@ -5,7 +5,7 @@ Exit-code contract (see ``main`` / ``_decide`` / ``_watchdog_fire``): only ``0``
 (a deliberate JSON allow/ask/deny decision on stdout) and ``2`` (a blocking
 deny, one-line diagnostic on stderr) are reachable. Exit ``1`` is a Claude Code
 *non-blocking* status for PreToolUse
-(https://code.claude.com/docs/en/hooks, fetched 2026-07-25: "Claude Code treats
+(https://code.claude.com/docs/en/hooks, fetched 2026-08-10: "Claude Code treats
 exit code 1 as a non-blocking error and proceeds with the action... If your
 hook is meant to enforce a policy, use exit 2") — every internal failure path
 that could once fall through to the interpreter's default (uncaught exception

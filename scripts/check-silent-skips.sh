@@ -27,10 +27,14 @@
 #
 # A bare stderr write (`>&2`) is NOT a sanctioned visibility call: every site
 # this gate inspects is, by construction, an exit-0 skip path, and per the
-# official Claude Code hooks reference (fetched 2026-07-22,
-# docs/conventions/hook-observability/) stderr on exit 0 is discarded
-# entirely — never shown to the user or the agent. A `>&2`-only notice on
-# such a path is invisible regardless of intent.
+# official Claude Code hooks reference (re-fetched 2026-08-10,
+# docs/conventions/hook-observability/) "Stderr from a hook that exits 0 goes
+# to the debug log only, never the transcript, and Claude never sees it" — so
+# it reaches neither the user nor the agent on any path this gate inspects.
+# A `>&2`-only notice on such a path is invisible regardless of intent.
+# (Before 2026-08-10 this comment said such stderr was "discarded entirely";
+# the debug log is the one place it does survive, which changes nothing for
+# the gate — a debug-only sink is not a visibility surface.)
 #
 # This is a grep-level tripwire, not a semantic proof: it does not chase
 # helper-function bodies and does not flag a positive-form

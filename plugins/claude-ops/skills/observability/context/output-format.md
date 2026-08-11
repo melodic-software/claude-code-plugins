@@ -120,7 +120,7 @@ Top recurring (same `<bin>:<sha16>` ≥ 3×):
   apart from Token / cost instead of adding columns to it
 - **The Token / cost caveat line is fixed copy** — Claude Code documents the same list-rate
   limitation for its own locally computed dollar figures
-  (<https://code.claude.com/docs/en/costs.md>, verified 2026-08-04)
+  (<https://code.claude.com/docs/en/costs.md>, verified 2026-08-10)
 
 ## Severity coloring (terminal)
 

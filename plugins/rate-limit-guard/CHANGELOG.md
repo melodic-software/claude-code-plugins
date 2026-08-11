@@ -3,6 +3,30 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.4]
+
+### Fixed
+
+- **A cited plugins-reference section had been renamed upstream.** `scripts/statusline-shim.sh`
+  attributed the 14-day orphaned-cache-directory grace period to a section called "Plugin cache and
+  file access". That section is now titled **"Plugin caching and file resolution"**, and the cache
+  root it documents is `~/.claude/plugins/cache`. The behaviour cited is unchanged and still stated
+  verbatim; only the section title a reader would search for had moved, which is exactly the kind of
+  silent rot that makes a citation unfollowable. The comment now names the current title and records
+  the former one so the rename is traceable.
+
+### Changed
+
+- **Upstream doc stamps re-verified against the live pages (2026-08-10).** Each dated claim below was re-checked against the complete raw markdown source of the page it cites (`https://code.claude.com/docs/en/<page>.md`), not a summarized fetch, and each was confirmed by a verbatim quote before its stamp was refreshed. No claim changed; only the verification dates moved.
+
+  - `hooks/record-rate-limit-stop.sh` — `StopFailure` still carries `Can block?: No` with
+    "Output and exit code are ignored", which is what makes the hook side-effect-only.
+  - `scripts/statusline-shim.sh` — the 14-day orphaned-version-directory grace period, quoted
+    verbatim from the plugins reference.
+  - `reference/reader-contract.md` — `used_percentage` running 0 to 100, `resets_at` in Unix
+    epoch seconds, and `rate_limits` appearing only for Claude.ai subscribers with each window
+    independently absent (statusline reference).
+
 ## [0.5.3]
 
 ### Fixed

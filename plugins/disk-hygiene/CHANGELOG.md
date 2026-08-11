@@ -3,6 +3,16 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.1]
+
+### Changed
+
+- **Upstream doc stamps re-verified against the live pages (2026-08-10).** Each dated claim below was re-checked against the complete raw markdown source of the page it cites (`https://code.claude.com/docs/en/<page>.md`), not a summarized fetch, and each was confirmed by a verbatim quote before its stamp was refreshed. No claim changed; only the verification dates moved.
+
+  - `skills/clean/scripts/destructive_guard.py` — the quoted hooks-reference sentence on exit code
+    1 being a non-blocking error, and `exit 2` being the policy-enforcement code, is still present
+    verbatim.
+
 ## [0.17.0]
 
 ### Removed

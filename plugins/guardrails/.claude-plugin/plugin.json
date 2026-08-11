@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "guardrails",
-  "version": "0.24.1",
+  "version": "0.24.2",
   "description": "Twelve safety guards that block secret/credential writes, hardcoded machine-specific paths, git hook-bypass attempts, irreversible git operations (force-push, reset --hard, worktree-wide checkout/restore discards), Bash file-write workarounds that circumvent Write/Edit hooks, multi-line `git commit -m` messages (an actual-newline `-m` mangles across shells; single-line `-m` passes), commit subjects and gh pr create titles that violate the repo's tracked team convention (when one is declared in .claude/source-control.md), (advisory) hallucinated CLI flags, (advisory) /plugin:skill references that do not resolve, (advisory) markdown citing a repo path the repo's own history shows was removed, (advisory, opt-in) un-throttled Workflow fan-out that risks burst 529s, and (advisory, opt-in) direct gh pr create calls bypassing this marketplace's own pull-request skill — each independently toggleable.",
   "author": {
     "name": "Melodic Software",

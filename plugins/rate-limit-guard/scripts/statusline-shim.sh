@@ -6,8 +6,10 @@
 # WHY THIS EXISTS: ${CLAUDE_PLUGIN_ROOT} is version-pinned
 # (<config-dir>/plugins/cache/<marketplace>/<plugin>/<version>/) and changes on
 # every plugin update, with the old directory lingering ~14 days before
-# cleanup (plugins reference, "Plugin cache and file access", fetched
-# 2026-07-24). Wiring that raw path into settings.json means the tee silently
+# cleanup (plugins reference, "Plugin caching and file resolution" — that
+# section was titled "Plugin cache and file access" when this was first
+# cited; re-fetched 2026-08-10, cache root `~/.claude/plugins/cache`).
+# Wiring that raw path into settings.json means the tee silently
 # stops on the next version bump and breaks outright once the old directory is
 # pruned. The shim is the stable wiring target: it lives in this plugin's
 # operator-home directory (~/.claude/rate-limit-guard/bin/), is installed by
@@ -54,7 +56,7 @@
 # automatically 14 days later. The grace period lets concurrent Claude Code
 # sessions that already loaded the old version keep running without errors"
 # (plugins reference, "Plugin caching and file resolution",
-# https://code.claude.com/docs/en/plugins-reference, fetched 2026-07-30).
+# https://code.claude.com/docs/en/plugins-reference, fetched 2026-08-10).
 # UNINSTALL therefore leaves the tee on disk for ~14 days, and an mtime-only
 # shim keeps executing it for that whole window: the operator removes the
 # plugin and it keeps writing snapshots, with no signal that it is still

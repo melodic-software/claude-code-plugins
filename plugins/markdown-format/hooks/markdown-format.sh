@@ -869,7 +869,7 @@ fi
 # into a shell command would let the shell run whatever that value contains, so
 # the component fails" — while every option is exported to hook processes as
 # CLAUDE_PLUGIN_OPTION_<KEY> anyway (Plugins reference, "User configuration",
-# https://code.claude.com/docs/en/plugins-reference, fetched 2026-07-26). A
+# https://code.claude.com/docs/en/plugins-reference, fetched 2026-08-10). A
 # value that is not a non-negative integer falls back to the default rather
 # than being interpolated anywhere.
 MAX_FINDINGS=20

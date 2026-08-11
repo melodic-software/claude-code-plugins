@@ -7,7 +7,7 @@ and why the handoff is an operator instruction rather than a dispatch.
 ## It is never dispatched
 
 `/doctor` "reports what it finds … then proposes fixes it applies only after you confirm"
-([debug your configuration](https://code.claude.com/docs/en/debug-your-config), verified 2026-07-24).
+([debug your configuration](https://code.claude.com/docs/en/debug-your-config), verified 2026-08-10).
 An unattended run cannot answer that prompt, so driving it from this pass would either hang the run
 or push it toward answering a confirmation on the operator's behalf.
 

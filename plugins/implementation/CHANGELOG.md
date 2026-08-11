@@ -3,6 +3,18 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.2]
+
+### Changed
+
+- **Upstream doc stamps re-verified against the live pages (2026-08-10).** Each dated claim below was re-checked against the complete raw markdown source of the page it cites (`https://code.claude.com/docs/en/<page>.md`), not a summarized fetch, and each was confirmed by a verbatim quote before its stamp was refreshed. No claim changed; only the verification dates moved.
+
+  - `agents/implementer.md` — a subagent at the spawn-depth limit doing its delegated work itself
+    and returning one summary (subagents reference), quoted verbatim.
+  - `skills/implement-dispatch/SKILL.md` — the subagent model resolution order
+    (`CLAUDE_CODE_SUBAGENT_MODEL`, then the per-invocation `model` parameter, then frontmatter,
+    then the main conversation's model).
+
 ## [0.13.1]
 
 ### Changed

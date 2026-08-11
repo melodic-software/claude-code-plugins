@@ -5,6 +5,18 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.12.4]
+
+### Changed
+
+- **Upstream doc stamps re-verified against the live pages (2026-08-10).** Each dated claim below was re-checked against the complete raw markdown source of the page it cites (`https://code.claude.com/docs/en/<page>.md`), not a summarized fetch, and each was confirmed by a verbatim quote before its stamp was refreshed. No claim changed; only the verification dates moved.
+
+  - `skills/use-your-skills/SKILL.md` — the skill listing carrying every skill name always and
+    shortening descriptions to fit its budget, with the body loading only on invocation
+    (skills reference); and, from the sub-agents reference, that without the `skills` field a
+    subagent "can still discover and invoke project, user, and plugin skills through the Skill
+    tool during execution" — the premise behind naming skills in a delegation prompt.
+
 ## [0.12.3]
 
 ### Changed

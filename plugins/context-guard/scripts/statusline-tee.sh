@@ -100,9 +100,13 @@ tee_snapshot() {
   # simply fails the character-class gate below like any other bad value.
   #
   # cli_version carries the payload's top-level `version` (the Claude Code
-  # version — statusline reference, verified 2026-07-26). The reader needs it
-  # because `total_input_tokens` / `total_output_tokens` mean current context
-  # occupancy only from 2.1.132 and were CUMULATIVE session totals before it:
+  # version — statusline reference, verified 2026-08-10; the same re-check
+  # confirms `total_input_tokens` / `total_output_tokens` are documented as
+  # "tokens currently in the context window"). The reader needs it because
+  # those fields mean current context occupancy only from 2.1.132 and were
+  # CUMULATIVE session totals before it — a version floor the statusline page
+  # NO LONGER states as of the 2026-08-10 re-check, so it is a retained claim
+  # with no current upstream source; treat it as a lower bound, not doc-backed:
   # a cumulative total below the window size is indistinguishable from a real
   # occupancy, so without a version there is no sound way to trust the token
   # bands. Copied only when it is a string; absent leaves the reader on the

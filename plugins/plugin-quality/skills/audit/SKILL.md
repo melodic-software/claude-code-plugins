@@ -258,7 +258,7 @@ on its content being what the auditor wrote.
 
 The mechanism is documented harness behavior, not a quirk: `PostToolUse` runs *after a tool call
 succeeds* and may rewrite what the tool produced, and its `matcher` keys on the **tool name**
-(<https://code.claude.com/docs/en/hooks>, fetched 2026-07-31). So **any** sibling plugin registering
+(<https://code.claude.com/docs/en/hooks>, fetched 2026-08-10). So **any** sibling plugin registering
 `PostToolUse` on `Write|Edit` post-processes every packet write — nothing about the destination
 being this plugin's own data directory excludes it. Two such formatters ship in this fleet
 (`typos-format`, `markdown-format`), both matching `Write|Edit` unconditionally. Observed damage:

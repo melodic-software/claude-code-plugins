@@ -44,7 +44,7 @@ never sees torn JSON; the file is **last-writer-wins** across all sessions on th
 
 - `captured_at` — ISO-8601 UTC write time; always present. Drives the staleness rule.
 - `rate_limits` — copied verbatim from the statusline stdin schema
-  (<https://code.claude.com/docs/en/statusline>, verified 2026-07-23): `used_percentage` is 0–100,
+  (<https://code.claude.com/docs/en/statusline>, verified 2026-08-10): `used_percentage` is 0–100,
   `resets_at` is Unix epoch seconds. The key is present **only** when the session observes
   subscription windows; each window may be independently absent.
 - Session-distinguishing fields — `session_id`, `session_name`, and any **top-level** key whose name
