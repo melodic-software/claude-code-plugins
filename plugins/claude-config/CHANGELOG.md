@@ -3,6 +3,91 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.30.0]
+
+Two graded outputs move, which is why this is a minor rather than a patch: a baseline deny finding can
+now come back `info` where it previously came back `error`, and adding a baseline deny rule is no longer
+offered as a mechanical `--fix`.
+
+### Changed
+
+- **`audit`: Category B stopped manufacturing an `error` on every repo whose destructive-git
+  enforcement is a hook rather than a deny rule.** The category iterates the baseline patterns and
+  states flatly that each "must appear" in `permissions.deny`; the only two ways out were prose the
+  *consuming repo* writes — a documented exemption in its own rules files, or its own documented hook
+  conventions. Neither is keyed on a hook that is actually installed and enabled, and `grep -rn "hook"`
+  across the whole skill returns no `hooks.json` read, no plugin-hook enumeration, and no coverage
+  concept at all. So a repo that blocks `git push --force` with a `PreToolUse` hook exiting 2 — which
+  the permissions reference says stops the call *before* permission rules are evaluated, ahead even of
+  an allow rule — was told its security floor was missing. "Narrowing the baseline" now carries a third
+  narrowing: a family already blocked by a **live** `PreToolUse` hook is `info`, not `error`, whether
+  the hook came from the repo or from a plugin.
+- **The narrowing is fenced by three preconditions, because a careless downgrade is worse than the
+  false positive it replaces.** The hook must be *live* — `disableAllHooks`, `allowManagedHooksOnly`,
+  or `strictPluginOnlyCustomization` can have switched it off already, and a hook a setting has
+  disabled blocks nothing, so under any of those the finding stands unnarrowed. The hook must be on the
+  tool surface the pattern defends — `sensitive-file-deny` is a `Read`-pattern family, so a hook
+  matching only `Bash` leaves the `Read`/`Grep`/`Glob` path open and retires nothing. And it must block
+  *that* family: coverage of `git push --force` says nothing about `git clean -fd`, nor a long flag
+  about its short spelling. Narrow per family, pattern by pattern.
+- **Every downgrade names its own residual.** Hook coverage is contingent in ways a deny rule is not,
+  and an `info` that hides that is worse than the `error` it replaced, so the off-ramp obliges the
+  report to say what ends the coverage: disabling or uninstalling the providing plugin, any per-guard
+  opt-out the hook exposes, and later suppression by `disableAllHooks` / `allowManagedHooksOnly` /
+  `strictPluginOnlyCustomization` even where none is set today.
+- **`audit`: adding a baseline deny rule is judgment-required, not an auto-fix.** The Phase 5 matrix
+  graded it `Auto-fixable: Yes (from checklist)` / `Requires judgment: No` — the column that tells a
+  user not to think about it, next to a prompt whose offered reply `'all'` applies the lot in one
+  keystroke. It also contradicted this skill's own baseline reference, which says adding a deny for a
+  family a project hook escalates to an *ask* suppresses that prompt and must be audited against the
+  project's hook conventions. The judgment is now written out: is the family already covered, and would
+  the addition suppress a gate the project built deliberately. *Moving* a deny rule from local to
+  project stays mechanical — that is bug #8961 placement, not a policy change — and `SKILL.md`'s prose
+  restatement of the matrix splits the two the same way instead of asserting the opposite.
+- Scope stated honestly: the applied change was *more* deny rules, which is fail-closed, and a
+  confirmation gate already existed and was already pinned by eval #2 — so this was never "unattended
+  auto-apply". The graded harm is unwanted config growth against a stated simplification goal, plus the
+  loss of a human approve/reject decision where a hook returned `ask`. A hook that blocks by `exit 2`
+  short-circuits before permission rules and suppresses nothing.
+
+### Fixed
+
+- **The narrowings were unreachable from where the check runs.** Category B's directive delegates by
+  *pattern* — "iterate the patterns in required-permissions.md" — and the checklist likewise says
+  "assert presence per sub-category". Neither named the off-ramp sections, so they were prose elsewhere
+  in a file the category cites only for its tables, and a new off-ramp added there alone would have
+  inherited the same weak wiring. Category B and the checklist's B.1–B.3 severity table now both point
+  at "Narrowing the baseline" and say the tabled severities are the *unnarrowed* rating.
+- **The skill assumed absence where it simply could not see.** It has no enumeration path over a
+  plugin's `hooks/hooks.json` — it reads the settings-declared layer only — so on most runs it does not
+  know what is installed. A missing baseline pattern with no hook inventory behind it is now stated
+  conditionally ("if a `PreToolUse` hook on `Bash` already blocks this family, this finding is void")
+  and says which inventory would settle it, rather than asserting the gap. Fail open, not fail silent.
+
+### Added
+
+- **Category D now reads the hook-suppression levers**, because the new narrowing depends on a reading
+  nothing was taking. `disableAllHooks` in the settings-declared layer and `allowManagedHooksOnly` /
+  `strictPluginOnlyCustomization` in the managed layer each switch hooks off, and Category D checked
+  script paths, readability, timeouts, matchers, and events without ever asking whether the hooks it
+  inventoried could run at all. It reports each lever as set or unset with the hooks it disables —
+  `info`, because a repo may set any of them deliberately and the reading is state rather than a
+  defect. Category B may not take its third narrowing on a reading that was never made: an unread lever
+  leaves the narrowing **unavailable**, not assumed clear.
+- **And the dependency is sequenced, since Category B runs before Category D.** A–I is presentation
+  order, not a dependency ban: Category B pulls the lever reading forward before taking the narrowing,
+  or defers the downgrade and revises the severity once Category D has run. On a scope-filtered run that
+  never reaches Category D — `/audit permissions` is exactly this — the narrowing is unavailable unless
+  the operator supplies the state. Stated in both Category B and "Narrowing the baseline", so a reader
+  arriving at either one gets it.
+- Eval #8 `baseline-deny-narrowed-by-installed-hook` grades the narrowing *per family*: force-push and
+  hard-reset patterns drop to `info` under a live Bash hook, while `git clean` patterns the hook does
+  not match and `sensitive-file-deny` Read patterns it cannot reach stay at their unnarrowed severity.
+  Eval #9 `no-hook-inventory-states-the-finding-conditionally` grades the fail-open half, and eval #10
+  `suppressed-hook-does-not-narrow-the-baseline` grades the negative case the liveness precondition
+  exists for: a declared hook under `disableAllHooks: true` narrows nothing, and the finding holds at
+  `error`.
+
 ## [0.29.2]
 
 ### Changed

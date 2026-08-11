@@ -46,7 +46,7 @@ cat .claude/settings.local.json | tr -d '\r' | jq '.permissions.deny // empty'
 | Category | Auto-fixable | Requires judgment |
 | --- | --- | --- |
 | Add `$schema` | Yes | No |
-| Add missing baseline deny rules | Yes (from checklist) | No |
+| Add missing baseline deny rules | No | Yes (see below) |
 | Move deny rules from local to project | Yes | No |
 | Add new settings from docs | No | Yes (evaluate relevance) |
 | Restructure permissions | No | Yes (evaluate scope) |
@@ -55,3 +55,24 @@ cat .claude/settings.local.json | tr -d '\r' | jq '.permissions.deny // empty'
 | Add new upstream plugins as `false` | Yes (`scripts/fix-plugin-drift.sh --yes`) | No |
 | Remove orphan plugins (`true`) | No | Yes (user enabled a now-removed plugin — investigate intent) |
 | Rename plugins (heuristic match) | No | Yes (verify upstream rename, update key, preserve `enabled` value) |
+
+**The judgment on a baseline deny addition, stated.** Two things have to be checked before the rule is
+added, and neither is mechanical:
+
+1. **Is the family already covered?** A **live** `PreToolUse` hook on the tool surface that pattern
+   defends may already block it, in which case the finding is `info` rather than `error` and the rule
+   is redundant — see [required-permissions.md](../reference/required-permissions.md) "Narrowing the
+   baseline", whose three preconditions govern: installed and enabled is not enough (`disableAllHooks`
+   and the managed `allowManagedHooksOnly` / `strictPluginOnlyCustomization` levers switch hooks off),
+   a `Bash` hook does not cover the `Read`-pattern family, and one command family's coverage says
+   nothing about another's. The audit reads settings-declared hooks only and cannot enumerate a
+   plugin's `hooks/hooks.json`, so this is a question to answer, not a lookup.
+2. **Would the addition suppress a gate the project built on purpose?** Deny and ask rules are
+   evaluated regardless of what a `PreToolUse` hook returns, so adding a deny over a family a project
+   hook escalates to an *ask* replaces the prompt with an outright block and the human loses the
+   approve/reject decision. Fail-closed, so not a security regression — a workflow regression. See
+   "Interaction with hook-based gates" in the same file. (A hook that blocks by `exit 2` short-circuits
+   before permission rules, so nothing is suppressed there.)
+
+*Moving* an existing deny rule from local to project stays mechanical — it is bug #8961 placement, not
+a policy change — which is why the two rows are graded differently.

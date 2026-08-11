@@ -35,6 +35,13 @@ The baseline covers the cross-repo security floor (sensitive `.env*` / `secrets/
 own rules (extra secret-file paths, destructive API-endpoint families, hook-bypass blockers,
 additional ask-gates) get those checked at the same severities.
 
+The severities above are the *unnarrowed* rating. Apply
+[required-permissions.md](required-permissions.md) "Narrowing the baseline" first: a documented
+exemption or a documented project hook convention retires the finding, and a family already blocked by
+a **live** `PreToolUse` hook on the tool surface that pattern defends drops to `info` with the residual
+named. "Live" is fenced there and is not the same as installed and enabled. Where no hook inventory was
+taken, the finding is stated conditionally, not asserted.
+
 ### B.4 Syntax checks
 
 | Check | Severity | How to verify |
@@ -92,6 +99,7 @@ additional ask-gates) get those checked at the same severities.
 | Exec-form `command` resolves on every platform the repo targets | error | Same page: "On Windows, exec form requires `command` to resolve to a real executable such as a `.exe`." Windows-only constraint — `bash` and `sh` are real executables on macOS/Linux, so flag only for a repo that runs on Windows. There `bash` resolves to the WSL relay `System32\bash.exe` and the launch fails; a failed launch is a non-blocking error, so a gate hook silently enforces nothing. Fixes per the page: a real binary plus the script path in `args` (`"command": "node"`), or shell form with `"shell": "bash"`, which Claude Code routes through Git Bash instead of a PATH lookup |
 | No duplicate hooks (same script registered twice for same event) | info | Compare commands within each event |
 | Hook events are valid per official docs | error | Cross-reference against the [hooks reference](https://code.claude.com/docs/en/hooks) — fetch it live rather than trusting a recalled event list |
+| Hook-suppression levers are read and reported | info | Read `disableAllHooks` from the settings-declared layer and `allowManagedHooksOnly` / `strictPluginOnlyCustomization` from the managed layer. Report each as set or unset with the hooks it switches off. `info` because the reading is state, not a defect — a repo may set any of them deliberately. It is not optional, though: **B.1–B.3's third narrowing may not downgrade a missing deny rule on the strength of a hook one of these has already disabled**, so an unread lever means the narrowing is unavailable rather than assumed clear |
 
 ## E. Plugins
 
