@@ -68,6 +68,10 @@ plus an extractor bug that had been silently corrupting every quoted stanza.**
   "Digging for the Line" and "As Each Year Ends", none of which the file named.
   Pat prints exactly **four** direct-address listener positions; the file's
   count is now his.
+- **`point-of-view.md`'s own header over-claimed.** It said the file names "the
+  song and writers"; "Sentimental Lady", "Digging for the Line" and "As Each
+  Year Ends" carry **no writer credit** in Pat's text or the permissions page,
+  so it now says "the song, and the writers where Pat names them."
 - **`repetition.md` had silently truncated a quote** (a dropped opening clause,
   then recapitalized) and **softened a categorical rule** — Pat writes that the
   device *only* works in first and second person. Both restored.

@@ -9,7 +9,7 @@ to rewrite the same lyric from another camera distance.
 Quoted material is Pat's printed text, reproduced verbatim from *Writing Better
 Lyrics* (2009). Complete third-party song lyrics are not reproduced; where Pat
 prints a full lyric, this file keeps the excerpt his point turns on and names
-the song and writers.
+the song, and the writers where Pat names them.
 
 Source images inspected:
 
