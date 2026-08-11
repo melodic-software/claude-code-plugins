@@ -6,6 +6,57 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 Versions 0.1.0–0.7.0 predate this file (introduced with 0.7.1); their history lives in the
 merged work-package PRs (#333, #343, #356, #372, #377, #600, #676).
 
+## [0.15.0]
+
+### Changed — ACTION REQUIRED for anyone with an existing `L2`/`L3` binding
+
+- **The isolation probe now runs three assertions, and every level bound under the old
+  two-assertion recipe must be re-probed.** Transcripts captured before this release do not
+  carry the workspace assertion, so the security check leaves those levels UNPROVEN — and the
+  ladder's fail-closed rule then BLOCKS autonomous dispatch on that surface until a fresh probe
+  lands. Nothing degrades silently and no binding becomes invalid; the affected levels simply
+  stop counting toward isolation eligibility, and the check names the missing assertion so the
+  remedy is readable from the failure. **To restore dispatch: re-run the probe under the updated
+  recipe and re-record `probe_evidence`.** This is a deliberate bar raise — the two-assertion
+  recipe certified boundaries it had never measured.
+
+  The prior recipe could pass a boundary that still carried the entire host-execution attack
+  class. Its assertions covered egress and credentials; nothing covered the workspace mount,
+  which is a deliberate hole through the process boundary the levels describe.
+
+- **A zero exit is accepted where, and only where, the peer was substituted.** Peer identity is the
+  verdict and the exit code is evidence, so requiring a non-zero exit unconditionally would leave one
+  sealed boundary unprovable: an interception layer whose block page carries a SUCCESSFUL HTTP status
+  exits `0`. That target's `transport_outcome` must be `peer-substituted` and its two fingerprints
+  must differ; everywhere else a non-zero exit is still required, so the exception cannot excuse a
+  target that simply succeeded.
+
+- **Egress denial is proven by peer identity, not by a failed connection.** Two observed
+  behaviors defeated the old test: a raw `connect()` SUCCEEDS where an interception layer accepts
+  the SYN and then drops the session, and a policy block page is a valid HTTP response that a
+  fetch client exits `0` on. Certificate validity does not settle it either — an inspection CA
+  trusted inside the boundary makes an interceptor verify cleanly. An interceptor cannot present
+  the origin's own key, so the transcript now records and compares peer fingerprints. Three legs
+  close the rest: the probe client must be shown to RUN inside the boundary (an absent client
+  would satisfy every egress assertion trivially), at least two targets under different operators
+  must be denied (one denial is consistent with a policy that allows others), and the exercised
+  address families are recorded rather than inferred.
+
+- **`L2` in the isolation ladder now names contained workspace host-writes** alongside
+  default-deny egress and credential protection. Scope is WRITE containment, stated explicitly:
+  read exposure is not covered, and a copy-on-read workspace leaves reads fully open.
+
+### Added
+
+- **`workspace_host_write_contained`** — the third probe assertion, proven from the OUTER side so
+  one rule covers both substrate shapes: a read-only mount rejects the inner write, a
+  copy-on-read mount accepts and discards it, and both are contained. The inner exit code is
+  recorded but never asserted on, because constraining it would grade copy-on-read substrates
+  wrongly. Randomized canaries span an ordinary file, a dotfile, and a version-control path; the
+  host re-check runs after teardown so a caching mount cannot propagate a write behind the
+  probe's back. Where the host workspace is not observable from the outer context, the assertion
+  records `not-applicable` and the level stays UNPROVEN — never a silent pass.
+
 ## [0.14.4]
 
 ### Changed

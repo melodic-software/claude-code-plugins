@@ -175,7 +175,7 @@
           "enum": ["container", "os-sandbox", "vm-microvm", "hosted-ephemeral-executor"]
         },
         "probe_evidence": {
-          "description": "Reference to the live-validation probe transcript that proved this boundary; a binding without probe evidence is invalid. For L2/L3 the referenced transcript must VERIFY (capture shape with both assertions and a networked outer context) — under autonomous-enabled an unverifiable transcript leaves the level UNPROVEN and excluded from isolation eligibility, fail-closed.",
+          "description": "Reference to the live-validation probe transcript that proved this boundary; a binding without probe evidence is invalid. For L2/L3 the referenced transcript must VERIFY (capture shape with all three assertions — denied egress proven by peer identity, absent host credentials, contained workspace host-writes — and a networked outer context) — under autonomous-enabled an unverifiable transcript leaves the level UNPROVEN and excluded from isolation eligibility, fail-closed. A transcript captured before the workspace assertion existed does not verify: the level goes UNPROVEN and the surface re-probes.",
           "type": "string",
           "minLength": 1
         },
