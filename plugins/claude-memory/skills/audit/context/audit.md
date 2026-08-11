@@ -8,11 +8,13 @@ instruction/memory files.
 Find files in scope:
 
 ```bash
-# CLAUDE.md files
-find . -maxdepth 1 -name "CLAUDE.md" -o -name "CLAUDE.local.md" 2>/dev/null
-
-# Rules files
-find .claude/rules -name "*.md" -type f 2>/dev/null
+# CLAUDE.md and rules files, PROJECT and USER scope, each tagged with its scope.
+# The bundled script resolves ${CLAUDE_CONFIG_DIR:-$HOME/.claude} the same way the
+# memory-dir resolver does. A bare `find .` sees project scope only, which left
+# ~/.claude/CLAUDE.md and ~/.claude/rules/*.md audited by nothing — they load in
+# every session, and audit-instructions' surface partition hands them here by name.
+bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/discover-instruction-surfaces.sh"
+# Output: <scope>\t<kind>\t<path>  — scope is `project` or `user`
 
 # Auto-memory — CURRENT repo only. A bare `~/.claude/projects/*/memory/` glob
 # matches every project on a multi-project machine and resolves alphabetical-first
@@ -21,15 +23,23 @@ MEMORY_DIR=$(bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/resolve-memory-dir
 ls "$MEMORY_DIR"/*.md 2>/dev/null
 ```
 
-For each file found, record: path, line count, visible line count (excluding HTML comments).
+For each file found, record: **scope**, path, line count, visible line count (excluding HTML comments).
+Carry the scope forward — Step 2 routes on it, and a check applied at the wrong scope is a false
+positive rather than extra coverage.
 
 ## Step 2: Run checks
 
 Read [../reference/criteria.md](../reference/criteria.md), then execute every applicable check against
 each discovered file. Apply by entity type:
 
-- **C1-C9**: CLAUDE.md and CLAUDE.local.md (C9 is project-scoped — skip for CLAUDE.local.md)
-- **R1-R4**: `.claude/rules/` files
+- **C1-C9**: CLAUDE.md and CLAUDE.local.md, at either scope
+- **C9 is project-scoped — skip it for CLAUDE.local.md AND for every `user`-scope file.** The criteria
+  file says so directly: C9 applies to project CLAUDE.md only, and `~/.claude/CLAUDE.md` is "not
+  repo-scoped". This is the reason Step 1 emits a scope tag. A user-scope `CLAUDE.md` carrying no build
+  and test commands is correct, not a FAIL, and reporting one there would be a false positive
+  manufactured by the wider discovery
+- **R1-R4**: `.claude/rules/` files, at either scope — a `user`-scope rule loads in every session, so
+  the always-loaded cost R-checks are about applies to it at least as strongly as to a project rule
 - **C7/R3 (currency)**: version pins and counts are checked against the repo's own pin files
   (`global.json`, `.nvmrc`, `.python-version`, `.mcp.json`, or ecosystem equivalents). File-path-existence
   currency is **agent judgment**: read each path reference in context — instructional files cite
@@ -69,6 +79,11 @@ After per-file checks, cross-reference:
 1. Compare CLAUDE.md sections against `.claude/rules/` for contradictions
 2. Compare CLAUDE.md against CLAUDE.local.md for redundancy
 3. Check if any CLAUDE.md instruction is already enforced by rule, hook, or analyzer
+4. Compare the **user**-scope surfaces against the project ones. Both load together in every session
+   here, so a user instruction that contradicts a project one is a live conflict rather than a
+   layering choice, and a user instruction the project already states is redundant context on every
+   run. Report the contradiction against the pair, and say which scope each side came from — the
+   resolution differs, since only one of the two is yours to edit on behalf of the repo
 
 ## Step 4: Generate report
 

@@ -24,6 +24,11 @@ index and orphan always-loaded rules) yields identical findings on identical rep
 checks apply fixed criteria with model reading. Reports persist to the plugin's data directory — they
 audit contributor-personal auto-memory, so they never land in the repo.
 
+Scope covers **both** layers that load every session: the project's `CLAUDE.md` / `CLAUDE.local.md` /
+`.claude/rules/`, and the user-global `${CLAUDE_CONFIG_DIR:-~/.claude}/CLAUDE.md` and
+`${CLAUDE_CONFIG_DIR:-~/.claude}/rules/`. Every discovered file is tagged with its scope, so
+project-scoped criteria skip personal files instead of reporting a repo-scoped finding against one.
+
 ```shell
 /claude-memory:audit          # audit (default)
 /claude-memory:audit fix      # apply findings with per-item approval

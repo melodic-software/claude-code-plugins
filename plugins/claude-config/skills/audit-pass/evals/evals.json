@@ -5,12 +5,14 @@
       "id": 1,
       "name": "bare-invocation-is-read-only",
       "prompt": "/claude-config:audit-pass",
-      "expected_output": "Runs one coordinated read-only pass over the resolved target: three-scope inventory first, then delegated lanes, then a report written under CLAUDE_PLUGIN_DATA. It writes nothing into the target tree — git status --porcelain stays empty — because mutation is only reachable behind the explicit --fix override.",
+      "expected_output": "Runs one coordinated read-only pass over the resolved target: three-scope inventory first, then delegated lanes, then a report written under CLAUDE_PLUGIN_DATA at runs/<state-key>/<run-id>/findings.json. It applies no fix, because mutation is only reachable behind the explicit --fix override. It also evaluates whether the resolved report path is contained in the target root — CLAUDE_PLUGIN_DATA resolves under ~, so containment holds whenever the target is at or above the home directory — and where it holds, records that path in the run's own exclusion set before writing and says so in its output.",
       "files": [],
       "expectations": [
-        "Writes no file into the target repository, leaving git status --porcelain empty",
-        "Does not apply any fix, and states that --fix is the explicit override that would enable one",
-        "Writes the report under CLAUDE_PLUGIN_DATA rather than into the scan set"
+        "Applies no fix, and states that --fix is the explicit override that would enable one",
+        "Names the resolved report path under CLAUDE_PLUGIN_DATA at runs/<state-key>/<run-id>/findings.json",
+        "Evaluates whether the resolved report path is contained in the target root, rather than asserting the default path is outside it",
+        "Where containment holds, records the report path in THIS run's own exclusion set before writing it, and discloses that in the run output",
+        "Where containment does not hold, writes nothing into the target tree, leaving git status --porcelain empty"
       ]
     },
     {
@@ -260,12 +262,13 @@
       "id": 20,
       "name": "dirty-file-edited-without-changing-the-count",
       "prompt": "/claude-config:audit-pass another session edited a file that was already showing in git status while you ran — same branch, same number of modified files, nothing added or removed. Gate still good?",
-      "expected_output": "No. It reports indeterminate. HEAD is unchanged and the count of dirty paths is unchanged, and neither is what the gate measures: the state digest pairs every path with the content hash of its current bytes, so editing an already-dirty file changes the digest even though the count holds still. Swapping one dirty path for another is the same class and is caught the same way. A count-based gate would have reported this run as deterministic while different lanes read different states, which is the failure the digest exists to close. The pass's own artifacts — a --report-to path inside the target — are excluded from the digest on the same list that excludes them from the scan, so a redirected run does not invalidate its own gate by writing its report; any other file appearing or changing is still a moved tree.",
+      "expected_output": "No. It reports indeterminate. HEAD is unchanged and the count of dirty paths is unchanged, and neither is what the gate measures: the state digest pairs every path with the content hash of its current bytes, so editing an already-dirty file changes the digest even though the count holds still. Swapping one dirty path for another is the same class and is caught the same way. A count-based gate would have reported this run as deterministic while different lanes read different states, which is the failure the digest exists to close. The pass's own artifacts are excluded from the digest on the same list that excludes them from the scan — that exclusion is keyed on containment, so it covers any report path the run will write that lies inside the target root, whether it got there by --report-to or by CLAUDE_PLUGIN_DATA resolving under a target at or above ~. So writing its own report never invalidates the run's own gate; any other file appearing or changing is still a moved tree.",
       "files": [],
       "expectations": [
         "Reports indeterminate even though HEAD and the dirty-path count are both unchanged",
         "Names the per-path content hash, not the count, as what detects the change, and covers the swapped-path case as the same class",
-        "States that the pass's own artifacts are excluded from the digest as well as the scan, so a --report-to write does not make the run indeterminate"
+        "States that the pass's own artifacts are excluded from the digest as well as the scan, so writing its own report does not make the run indeterminate",
+        "Keys that exclusion on the report path being contained in the target root — NOT on --report-to having been passed — so a contained default report path is excluded too"
       ]
     },
     {
@@ -353,6 +356,20 @@
         "Names the enumeration of runs/<state-key>/*/lease as how the liveness conjunct is established when the lock carries no run id, and applies the same two-sided test rather than a new one",
         "Confirms the legacy lock is still reclaimable once no lease under the state key is live, so the age bound is not defeated permanently",
         "Surfaces the deliberate over-deferral — a live read-only run's lease also defers a legacy lock, since a lease records no run mode — as fail-closed and bounded, and scoped to pre-rule locks only"
+      ]
+    },
+    {
+      "id": 30,
+      "name": "non-git-target-is-refused-not-half-specified",
+      "prompt": "/claude-config:audit-pass ~/notes — it is not a git repository, just a directory of markdown, but it is where I stand and it has a CLAUDE.md.",
+      "expected_output": "Refuses, non-zero, before Phase 0 does any work. The target argument is the git repository to audit, and the gate enforces that rather than only 'resolves to the active project root' — the two used to disagree, which let a non-git directory through into a contract that cannot describe it. The refusal names the resolved path and the reason, and states what a non-git target would cost rather than leaving it implicit: the state key has a no-remote fallback but no no-git one, the scan baseline is defined as HEAD plus the state digest, Class 3 exclusion derives worktrees from git worktree list, assertion 2.1 is stated over git status --porcelain, and — the one that is a permanent capability loss rather than a missing derivation — suppression is enacted only by the team layer, which is the TRACKED layer, so no suppression would ever be enactable on such a target. It writes nothing, and it does not fall back to a degraded pass.",
+      "files": [],
+      "expectations": [
+        "Refuses the non-git target and exits non-zero rather than running a partial or degraded pass",
+        "Names the resolved path and the reason, in the same shape as the existing not-the-active-project-root refusal",
+        "Refuses BEFORE doing any Phase 0 work, and writes nothing anywhere",
+        "Names at least the suppression consequence — the team layer is the tracked layer, so no suppression is enactable without a repository — rather than refusing without a stated cost",
+        "Does NOT invent a non-git state key, scan baseline, or Class 3 fallback in order to proceed"
       ]
     }
   ]
