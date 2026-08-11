@@ -451,6 +451,13 @@ re-fetch constraint, and they say permission rules *"merge across scopes rather 
   `precedence_basis` grep, so it cannot pass on unrelated text.
 - **The start-directory-versus-project rank was deleted, not caveated.** With no same-kind election it
   is never consulted, so the undocumented rank never has to be invented.
+- **Whole-tool rules are computed, not caveated.** Caught by fresh-context review after the first
+  merge shipped: with exact-text comparison alone, managed `deny: ["Bash"]` and user
+  `allow: ["Bash(git status)"]` were two unrelated groups and BOTH were reported effective, while the
+  page says the bare name "removes the tool from Claude's context entirely". The tool token is the
+  text before the first `(` and needs no matcher, so this was a defect, not a bound. A whole-tool deny
+  now makes every rule for that tool inert (`removed_by=deny@<tool>`), a whole-tool ask outranks every
+  scoped allow for it, and `EndConversation` is exempt per its documented carve-out.
 - **Pattern subsumption is a known false-positive class with a known direction**, not an
   undecidability. The page documents that a broad deny beats a narrower allow; this merge compares
   exact text, so it over-reports allow and never over-reports blocking. Stated that way in the caveat.

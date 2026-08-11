@@ -50,9 +50,34 @@ Every `effective` record carries exactly one token. A record without one is a de
 | `evaluation-order` | two or more kinds for the same text | deny, then ask, then allow; first match wins, from any scope |
 | `evaluation-order+merged-across-scopes` | both of the above | both, in that order |
 
-An `inert` record is an entry whose kind lost. It carries `outranked_by=<kind>` and deliberately
-carries no basis — it is not part of the effective set, and a basis on it would read as a claim about
-what is in force.
+An `inert` record is an entry that is not in force. It deliberately carries no basis — a basis on it
+would read as a claim about what is in force — and instead names what displaced it:
+
+| Field | Meaning |
+| --- | --- |
+| `outranked_by=<kind>` | the same rule text exists in a kind that is evaluated earlier |
+| `removed_by=deny@<tool>` | a whole-tool deny took the tool out of the model context, so this rule has nothing to act on |
+| `outranked_by=ask@<tool>` | a whole-tool ask prompts for every call of that tool, so this scoped allow never applies |
+
+## Whole-tool rules
+
+> "A bare tool name like `Bash` removes the tool from Claude's context entirely, so Claude never sees
+> it… A scoped rule like `Bash(rm *)` leaves the tool available and blocks matching calls when Claude
+> attempts them."
+
+The tool token is the text before the first `(`; a rule that **is** its own token names the whole
+tool. That test needs no pattern matcher, so it is computed rather than caveated.
+
+- **A whole-tool deny makes every other rule for that tool inert**, whatever its kind. An inert deny
+  is moot, not weakened — the tool is gone, so a second deny has nothing left to block. Reporting a
+  scoped allow as effective underneath one would claim access to a tool that is not in context.
+- **`EndConversation` is the documented exception**: "a deny rule can't remove it while any other tool
+  remains, and an ask rule never prompts for it." It is exempt from removal here.
+- **A whole-tool ask outranks every scoped allow for that tool**, because it matches every call and
+  ask is evaluated before allow.
+
+Both cases print a `NOTE:` naming the tool, so the removal is announced rather than inferred from a
+run of `inert` records.
 
 ## Bounds every run states
 

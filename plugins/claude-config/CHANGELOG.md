@@ -45,7 +45,10 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   what a rule can lose is its kind, because deny is evaluated before ask and ask before allow from any
   scope in either direction — a user-level deny blocks a project-level allow just as the reverse. The
   beaten entry is reported as inert alongside the rule that beat it, which is the answer to "why is my
-  allow rule ignored". Every run states the two bounds on the claim: the command-line scope
+  allow rule ignored". A rule that is a bare tool name reaches every call of that tool: a whole-tool
+  deny removes the tool from context entirely, so every other rule naming it is inert — including
+  other denies, which are moot rather than weakened — and a whole-tool ask prompts for every call, so
+  no scoped allow for that tool applies. `EndConversation` is exempt from removal, as documented. Every run states the two bounds on the claim: the command-line scope
   (`--settings`, `--allowedTools`, `--disallowedTools`) outranks the files and has none to read, and
   rules are compared by exact text, so a narrow allow blocked only by a broader deny pattern is still
   reported effective — the error direction is over-reporting allow, never over-reporting blocking.

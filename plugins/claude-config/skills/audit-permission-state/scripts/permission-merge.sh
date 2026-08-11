@@ -93,6 +93,12 @@ function text_of(start,   i, s) {
   return s
 }
 
+# The tool token is everything before the first "(" — "Bash(rm *)" is a rule
+# about Bash. A rule that IS its bare tool token is the whole-tool form, and
+# whole-tool rules reach every call of that tool, which is decidable here with
+# no pattern matcher.
+function tool_of(t,   p) { p = index(t, "("); return p ? substr(t, 1, p - 1) : t }
+
 { if (passthrough) print }
 
 $1 == "rule" {
@@ -100,6 +106,24 @@ $1 == "rule" {
   scope = $2
   text = text_of(5)
   if (!(text in text_seen)) { text_seen[text] = 1; text_order[++n_texts] = text }
+  tool[text] = tool_of(text)
+  if (text == tool[text]) {
+    # A bare tool name removes the tool from the model context entirely, so the
+    # model never sees it. Every other rule naming that tool is then moot,
+    # whatever its kind. EndConversation is the documented exception: a deny
+    # rule cannot remove it while any other tool remains.
+    if (kind == "deny" && text != "EndConversation" && !(text in bare_deny)) {
+      bare_deny[text] = 1
+      bare_order[++n_bare] = "deny " text
+    }
+    # A whole-tool ask prompts for every call of the tool, and a matching ask
+    # rule prompts even when a more specific allow rule also matches the same
+    # call — so scoped allows for that tool never take effect.
+    if (kind == "ask" && !(text in bare_ask)) {
+      bare_ask[text] = 1
+      bare_order[++n_bare] = "ask " text
+    }
+  }
   k = text SUBSEP kind
   kind_seen[k] = 1
   ks = k SUBSEP scope
@@ -129,11 +153,20 @@ END {
   for (i = 1; i <= n_unread; i++)
     print "CAVEAT: " unread[i] " contributed no rules because it could not be read, not because it is empty. The merged set below is incomplete by that surface."
 
-  order["deny"] = 1; order["ask"] = 2; order["allow"] = 3
+  for (i = 1; i <= n_bare; i++) {
+    split(bare_order[i], b, " ")
+    if (b[1] == "deny")
+      print "NOTE: deny " b[2] " names the whole tool, which removes " b[2] " from the model context entirely. Every other rule naming that tool is reported inert below — including denies, which are moot rather than weakened."
+    else
+      print "NOTE: ask " b[2] " names the whole tool, so every " b[2] " call prompts and no scoped allow for it can take effect."
+  }
+
   split("deny ask allow", kinds, " ")
 
   for (t = 1; t <= n_texts; t++) {
     text = text_order[t]
+    tk = tool[text]
+    scoped = (text != tk)
     win = ""
     n_kinds = 0
     for (i = 1; i <= 3; i++) {
@@ -142,6 +175,18 @@ END {
         if (win == "") win = kinds[i]
       }
     }
+    if (scoped && (tk in bare_deny)) {
+      for (i = 1; i <= 3; i++) {
+        k = text SUBSEP kinds[i]
+        if (k in kind_seen) print "inert " kinds[i] " scopes=" scopes[k] " removed_by=deny@" tk " " text
+      }
+      continue
+    }
+    if (scoped && win == "allow" && (tk in bare_ask)) {
+      print "inert allow scopes=" scopes[text SUBSEP "allow"] " outranked_by=ask@" tk " " text
+      continue
+    }
+
     wk = text SUBSEP win
     basis = ""
     if (n_kinds > 1) basis = "evaluation-order"

@@ -124,6 +124,55 @@ EOF
 OUT=$(merge "$BOTH")
 assert_contains "both mechanics are cited when both applied" "$OUT" "precedence_basis=evaluation-order+merged-across-scopes"
 
+# --- Case 2b: a whole-tool rule reaches every call of that tool ---------------
+# Decidable with no pattern matcher: the tool token is the text before the first
+# "(", and a rule that IS its own token names the whole tool. Reporting a scoped
+# allow as effective under a bare deny would claim access to a tool that is no
+# longer in the model context at all.
+BARE=$(
+  cat <<'EOF'
+managed file present /policy/managed-settings.json
+user settings present /home/.claude/settings.json
+rule managed file deny Bash
+rule user settings allow Bash(git status)
+rule user settings deny Bash(rm *)
+EOF
+)
+OUT=$(merge "$BARE")
+assert_contains "the bare deny itself is effective" "$OUT" "effective deny scopes=managed precedence_basis=uncontested Bash"
+assert_contains "a scoped allow under a bare deny is inert" "$OUT" "inert allow scopes=user removed_by=deny@Bash Bash(git status)"
+assert_contains "a scoped deny under a bare deny is moot too" "$OUT" "inert deny scopes=user removed_by=deny@Bash Bash(rm *)"
+assert_eq "removal leaves exactly one effective record for the tool" 1 "$(count_matching "$OUT" '^effective .*Bash')"
+assert_contains "removal is announced, not just implied" "$OUT" "removes Bash from the model context entirely"
+
+# EndConversation is the documented exception: a deny rule cannot remove it while
+# any other tool remains, so its scoped rules stay live.
+END_CONV=$(
+  cat <<'EOF'
+managed file present /policy/managed-settings.json
+user settings present /home/.claude/settings.json
+rule managed file deny EndConversation
+rule user settings allow EndConversation(x)
+EOF
+)
+OUT=$(merge "$END_CONV")
+assert_not_contains "EndConversation is exempt from bare-name removal" "$OUT" "removed_by"
+assert_contains "its scoped rule stays effective" "$OUT" "effective allow scopes=user precedence_basis=uncontested EndConversation(x)"
+
+# A whole-tool ask prompts for every call, so no scoped allow for that tool can
+# take effect — the ask/allow half of the same mechanic.
+BARE_ASK=$(
+  cat <<'EOF'
+user settings present /home/.claude/settings.json
+project settings present /proj/.claude/settings.json
+rule user settings ask WebFetch
+rule project settings allow WebFetch(domain:example.com)
+EOF
+)
+OUT=$(merge "$BARE_ASK")
+assert_contains "a scoped allow under a whole-tool ask is inert" "$OUT" "inert allow scopes=project outranked_by=ask@WebFetch WebFetch(domain:example.com)"
+assert_eq "and it is not also reported effective" 0 "$(count_matching "$OUT" '^effective .*WebFetch\(')"
+
 # --- Case 3: no merged rule ships without a basis -----------------------------
 MIXED=$(
   cat <<'EOF'

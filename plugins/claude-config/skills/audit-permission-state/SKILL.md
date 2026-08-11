@@ -92,6 +92,11 @@ Two mechanics decide those records, and conflating them produces confident wrong
   directions.** A user-level deny blocks a project-level allow just as a project-level deny blocks a
   user-level allow. Scope rank does not enter into it. This is what answers "why is my allow rule
   ignored": the `inert` record names the rule that beat it.
+- **A rule that is a bare tool name reaches every call of that tool.** A whole-tool deny removes the
+  tool from context entirely, so every other rule naming it is inert — including other denies, which
+  are moot rather than weakened; `EndConversation` is the documented exception. A whole-tool ask
+  prompts for every call, so no scoped allow for that tool applies. Both print a `NOTE:` naming the
+  tool.
 
 `reference/criteria.md` maps every `precedence_basis` token to the sentence it follows from, and
 states the two standing bounds the run prints — the command-line scope has no file to read, and rules
