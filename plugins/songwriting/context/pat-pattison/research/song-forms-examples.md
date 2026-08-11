@@ -214,11 +214,13 @@ the Bridge.
 > **Cross-book warning — two different printings of this lyric exist.**
 > *Writing Better Lyrics* (2009), Chapter 20 works "Southern Comfort" again, for
 > a different argument (form follows function / the principle of contrast), and
-> prints it **differently**. Everything below is the 1991 Chapter 6 printing.
+> prints it **differently**. Everything below is the *Essential Guide to Lyric
+> Form and Structure* (1991), Chapter 6 printing.
 > The 2009 printing differs in at least these places: its verse 2 replaces the
 > first four lines entirely (*I've tried my best to ease the hurt / Leave the
 > pain behind / But evenings sitting on the porch / You're always on my mind*)
-> while keeping the last four; it capitalizes *Southern stars*; and its bridge
+> while retaining the wording of the last four despite capitalization and
+> apostrophe differences; it capitalizes *Southern stars*; and its bridge
 > reads *Someone new takes your place / No one's ever new* where 1991 reads
 > *Someone else takes your place / But no one's ever new*. Chapter 20 also
 > prints a **rewritten** verse 1 balancing six lines against two. Both books are

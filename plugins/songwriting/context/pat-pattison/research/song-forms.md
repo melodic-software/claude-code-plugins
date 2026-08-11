@@ -114,10 +114,10 @@ best material rather than preserving every written line.
 > What do you think of my distilled verses? Did I lose too much, or did I keep
 > the necessary stuff? You try it. Distill the original third and fourth verses
 > into one verse of the same structure. Remember to end the verse with the
-> refrain: Weak is a slow healing heart.
+> refrain: *Weak is a slow healing heart.*
 
-(The refrain line Chapter 22 prints inside Exercise 47 is *Weak* is a slow
-healing heart, not *Woe*. That is as printed; do not correct it.)
+(Chapter 22 prints the whole refrain in italics inside Exercise 47, and its
+first word is *Weak*, not *Woe*. That is as printed; do not correct it.)
 
 Second, turn one verse into a bridge:
 
@@ -141,7 +141,7 @@ rhyming AAA change the structure.
 
 > **EXERCISE 48**
 >
-> Now come up with your own bridge to fit "Slow Healing Heart."
+> Now come up with your own bridge to fit “Slow Healing Heart.”
 
 Third, keep the material but restructure two verses into one larger unit:
 
@@ -564,7 +564,8 @@ Chapter 6 example diagnosis — "Southern Comfort". (*Writing Better Lyrics*
 (2009), Chapter 20 prints this same lyric differently, for a different argument;
 see the cross-book warning in
 [song-forms-examples](song-forms-examples.md#southern-comfort--versechorus-chapter-6).
-The printing below is 1991's.)
+The printing below is from *Essential Guide to Lyric Form and Structure* (1991),
+Chapter 6.)
 
 ```text
 Spanish moss hanging low              VERSE

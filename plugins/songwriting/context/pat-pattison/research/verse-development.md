@@ -515,8 +515,24 @@ And they form a line of smiles
 > reality. They don't have a clue of where she really is. The trigger line sets
 > up the contrast between the external and the internal:
 
-The chapter then reprints verse 2 entire, exactly as given at the top of this
-file, followed by the chorus, and reads it:
+Then the full verse and chorus:
+
+```text
+The family comes on Sunday
+And they hover for a while
+They fill her room with chatter
+And they form a line of smiles
+Children of her children
+Bringing babies of their own
+Sometimes she remembers
+Then her mama calls her home
+
+Chorus
+
+And inside her mind
+She is running in the summer wind …
+Like a child again
+```
 
 > The power positions in this verse force the new color onto the chorus.
 > Outside, the generations chatter on; inside lies a place of peace, memory, and
@@ -844,7 +860,25 @@ decides:
 > the third-person narrative? The key will be in the third verse. We will choose
 > between listening in a more intimate situation to the singer telling us what
 > he/she learned from daddy, or observing Edwin from a distance as he discovers
-> the meaning of running
+> the meaning of running:
+
+| FIRST-PERSON NARRATIVE | THIRD-PERSON NARRATIVE |
+|---|---|
+| But daddy smiled and made | But as he grew old he learned |
+| me see | to see |
+| This is what he said to me | What it really means |
+| Son, a greyhound lives for running | A greyhound lives for running |
+| It's the strongest drive he has | It's the strongest drive he has |
+| And though he never wins the race | And though he never wins the race |
+| The losing's not so bad | The losing's not so bad |
+| If he never ran at all | If he never ran at all |
+| In time he'd surely die | In time he'd surely die |
+| The only world he cares to know | The only world he cares to know |
+| Is one that's always streaking by | Is one that's always streaking by |
+| It isn't what runs up ahead | It isn't what runs up ahead |
+| It isn't what's behind | It isn't what's behind |
+| The beauty's in the way it feels | The beauty's in the way it feels |
+| Digging for the line | Digging for the line |
 
 He then states a preference *for this case only*, and hands the decision back:
 

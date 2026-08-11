@@ -3,7 +3,7 @@
      within genre tables; padding them with empty pipes would obscure the prose. -->
 # Genre taxonomy
 
-Static reference catalog of ~220 genres organized by 12-family tree. Used by the `/songwriting:suno genre` action when no template matches, and as a vibe-to-genre lookup for the `prompt` and `style` actions. Cross-link: when a family has an existing template under `../templates/<name>.md`, prefer it for the prompt skeleton — this file supplies the descriptor vocabulary.
+Static reference catalog of ~220 genres organized by 12-family tree. Used by the `/songwriting:suno genre` action when no template matches, and as a vibe-to-genre lookup for the `prompt` and `style` actions. Cross-link: when a family has an existing genre template, prefer it for the prompt skeleton — this file supplies the descriptor vocabulary. The complete template set is listed under Cross-reference below.
 
 **Format conventions**
 
@@ -523,7 +523,11 @@ For each mood/vibe, 3-5 fitting genres ordered by descriptor density (first = mo
 
 ## Cross-reference
 
-- Templates with prompt skeletons + tweak knobs: `../templates/{pop,rock,hip-hop,trap,edm,jazz,classical,folk,metal,ambient,lofi,rnb}.md`
+- Templates with prompt skeletons + tweak knobs: `../templates/pop.md`,
+  `../templates/rock.md`, `../templates/hip-hop.md`, `../templates/trap.md`,
+  `../templates/edm.md`, `../templates/jazz.md`, `../templates/classical.md`,
+  `../templates/folk.md`, `../templates/metal.md`, `../templates/ambient.md`,
+  `../templates/lofi.md`, and `../templates/rnb.md`
 - 6-layer formula and confidence policy: parent `../SKILL.md` "Load-bearing fundamentals"
 - Style-prompt construction details: `style.md`
 - Live research recipes for niche genres: `research-recipes.md`

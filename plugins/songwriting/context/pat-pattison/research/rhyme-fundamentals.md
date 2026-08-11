@@ -1,8 +1,7 @@
 # Rhyme Fundamentals
 
-Pat Pattison — *Songwriting: Essential Guide to Lyric Form and Structure*
-(1991), Chapter 4. Extended by *Pat Pattison's Songwriting: Essential
-Guide to Rhyming* (2014), Introduction and Chapters 1-2.
+Pat Pattison — *Essential Guide to Lyric Form and Structure* (1991), Chapter 4.
+Extended by *Essential Guide to Rhyming* (2014), Introduction and Chapters 1-2.
 
 ## Image inventory
 
@@ -20,10 +19,10 @@ items 010–013): **4 linked figures, 4 unique** — `image_2-page10.jpg` …
 front-matter audit pass, and the text layer was confirmed complete against every
 one. Two things exist only in the scans: the **blank two-column Love/Desire
 table** on page xi (the text layer flattens it to the bare words `Love Desire`),
-and Pat's italics — `listen` in the opening sentence, `lines` in "just like
-*lines* in poetry," `not` in "The decision is *not* between rhyming and not
-rhyming," and both numbered COLD SPOT versions, which are set entirely in
-italic.
+and Pat's italics — `listen` in the opening paragraph's second sentence,
+`lines` in "just like *lines* in poetry," `not` in "The decision is *not*
+between rhyming and not rhyming," and both numbered COLD SPOT versions, which
+are set entirely in italic.
 
 *Essential Guide to Rhyming* (2014), Chapter 1 (printed pages 1–8): **8 linked
 figures, 8 unique** — `image_2-page14.jpg` … `image_2-page20.jpg` and
@@ -77,8 +76,12 @@ book rests on. Chapter 2 back-references it by name — "Even if you wanted
 (Remember 'besiege'?)" — so the worked example below has to be on file for that
 reference to mean anything.
 
-The two quoted sentences above open the Introduction. The opening paragraph
-continues:
+The two quoted sentences above are the Introduction's first and third
+sentences. The intervening sentence is:
+
+> "Because people *listen* to songs, you must learn to write for eyeless ears."
+
+The opening paragraph then continues:
 
 > "It shows them the way. So many times, rhyme seems like your enemy. Because
 > it's so hard to use rhyme and still sound natural, most songwriters go through
@@ -377,8 +380,8 @@ handshake is between **the reader and Rhyme**, which Pat personifies across the
 book's opening chapters: Chapter 1 introduces you, and Chapter 2 opens "You
 have been introduced. Now find out what Rhyme does for a living." The
 introduction runs on through the chapter titles, in the order the printed
-CONTENTS lists them (2014, CONTENTS, spine items 004–005 — the page itself
-carries no folio):
+CONTENTS lists them (*Essential Guide to Rhyming* (2014), Contents, spine items
+004–005 — the pages carry no folio):
 
 1. "RHYME IS YOUR FRIEND" — the introduction itself, opening on "SHAKING HANDS."
 2. "EXCHANGING BUSINESS CARDS" — what Rhyme does for a living
@@ -397,7 +400,8 @@ which are the ones that actually establish the personification.
 The chapter's closing stance under that personification: "Rhyme can be your
 best friend—your biggest help in leading all those eyeless ears through your
 lyrics. Or it can be your enemy. I want to show you how to make rhyme your
-friend." (2014, Introduction, page xii.)
+friend. That's why you should work your way through this book. All the way.
+Carefully." (*Essential Guide to Rhyming* (2014), Introduction.)
 
 Everything the section itself teaches about rhyme is the three-condition test
 above. Do not tell a writer that rhyme is two people walking toward each other,

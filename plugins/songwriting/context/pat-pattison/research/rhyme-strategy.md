@@ -415,7 +415,7 @@ destabilize that motion.
 
 Chapter 9's method statement, and the sentence the slogan caps:
 
-> Here, however, we'll look only at the rhymes themselves so we can isolate
+> Here, however, we’ll look only at the rhymes themselves so we can isolate
 > their motion; understand what they do within the more complicated motions
 > created in combination with the other elements. Isolate, understand, compose.
 
@@ -451,9 +451,15 @@ sin     b
 > …push forward. They raise our expectations, creating something akin to a
 > musical dominant function, a V, which asks to be resolved to a tonic function,
 > a resolution. An aba structure creates a sequence: first a, then b, then
-> another a, leading us to expect another b
+> another a, leading us to expect another b:
 
-He then marks the positions on the page with the chord symbols themselves:
+```text
+blush   a
+skin    b
+rush    a   V
+```
+
+> In this case, the resolving sound is
 
 ```text
 blush   a
@@ -462,12 +468,24 @@ rush    a   V
 sin     b   I
 ```
 
-"Arriving at sin, as it often does, makes you feel real good" — and you land on
-it hard "because the push from rush was so strong."
+> Arriving at sin, as it often does, makes you feel real good ☺. If fact, you
+> land on it pretty hard because the push from rush was so strong. The kind of
+> sin that could really do a number on you.
 
-The same idea can be reversed by swapping which sound family occupies `a` and
-`b`; Pat prints that reversal too, `skin / blush / sin (V) / rush (I)`, and says
-"the same thing happens." What matters is the structural job:
+> The same thing happens if you reverse the sequence:
+
+```text
+skin    a
+blush   b
+sin     a   V
+rush    b   I
+```
+
+> Rush hits hard, but notice it gets its power in part because sin has pushed
+> so hard from its dominant position.
+
+The sequence can be reversed by swapping which sound family occupies `a` and
+`b`. What matters is the structural job:
 
 - Dominant: push, lean, heighten expectation.
 - Tonic: land, resolve, close, or refuse to fully close.
@@ -649,43 +667,160 @@ Workflow:
 6. Check whether the song's larger journey now grows rather than repeats.
 
 This is the strategic point of the case study that closes
-*Essential Guide to Rhyming* (2014), Chapter 9: **Randy Newman's "Feels Like
-Home"** — "Randy Newman's little gem," introduced by "This is a job for Rhyme
-Types Man!" A remote family/consonance connection keeps the early prechorus
-unstable, while a perfect rhyme in the matching later prechorus closes firmly.
-The same formal slot changes emotional color through rhyme type alone.
+*Essential Guide to Rhyming* (2014), Chapter 9.
 
-The two rhyme pairs Pat names are the whole argument. First prechorus:
-`long/done`, family/consonance. Second prechorus: `touch/much`, perfect rhyme —
-"And, boy, does the gate ever slam shut. This is the essence of stability — the
-same thing, of course, that the lyric is addressing."
+> But wait! There’s hope! This is a job for Rhyme Types Man! Watch what
+> happens when Rhyme Types Man swoops down to help out in Randy Newman’s
+> little gem, *Feels Like Home*:
 
-> The rhyme types alone are responsible for the difference in feeling between
-> the first and second prechoruses — the family/consonance rhyme, long/done,
-> supporting (maybe even creating) the unstable feeling in the first prechorus,
-> and the perfect rhyme, touch/much, supporting (maybe even creating) the
-> stable feeling in the second.
+<!-- spellchecker:off -->
+```text
+Something in your eyes
+Makes me wanna lose myself
+Makes me wanna lose myself
+In your arms
+Something in your voice
+Makes my heart beat fast
+Hope this feeling will last
+The rest of my life
+If you knew how lonely my life has been
+And how low I’ve felt for so long
+If you knew how I wanted someone to come along
+And change my world the way you’ve done
+Feels like home to me
+Feels like home to me
+Feels like I’m all the way back where I come from
+Feels like home to me
+Feels like home to me
+Feels like I’m all the way back where I belong
+A window breaks
+Down a long dark street
+And a siren wails
+in the night
+That’s all right
+Cause I have you here with me
+And I can almost see
+In the dark there’s a light
+If you knew how much this moment means to me
+And how long I’ve waited for your touch
+If you knew how happy you are making me
+I never thought I’d love anyone so much
+Feels like home to me
+Feels like home to me
+Feels like I’m all the way back where I come from
+Feels like home to me
+Feels like home to me
+Feels like I’m all the way back where I belong
+Feels like I’m all the way back where I belong
+```
 
-He proves it by breaking it in both directions. Weaken the second prechorus's
-tonic rhyme and "the last line, which seemed like such an emotional line, has
-lost a lot of its feeling... The meaning hasn't really changed. But the motion,
-and thus the e-motion, has transformed dramatically." Strengthen the *first*
-prechorus to perfect rhyme and the damage is song-wide, not local:
+Pat then isolates the two prechoruses and tests both rhyme types in place:
 
-> Rather than moving unstable/unstable/stable in the first sequence, we're
-> moving unstable/stable/stable, and the last part of the song feels more like
-> it repeats the same ideas rather than growing.
+> Let’s look at the first prechorus:
 
-That is the reason to run this check at song scale and not line scale: a rhyme
-type that reads fine in its own section can flatten the whole journey. Pat's
-two-word verdict on the mechanism is "Rhyme types, baby," and his verdict on
-the song is that "'Feels Like Home' feels like home, and once it's stated,
-everything that follows feels stable, as it well ought to. What a lovely
-journey. And craft makes it all possible."
+```text
+If you knew how lonely my life has been
+And how low I’ve felt for so long
+If you knew how I wanted someone to come along
+And change my world the way you’ve done
+```
 
-The verses carry the same design by a different lever: verse 1 "lacks rhyme in
-the fourth and eighth lines, creating instability and opening the gate into the
-prechorus. The second verse does the opposite."
+> Essentially, it’s common meter with a shorter second and fourth line
+> matching. Does long/done rhyme? Well, I don’t really care what you call it,
+> but it does have some sonic connection: Ng and n are members of the same
+> family, the nasals. So long/done amounts to a family/consonance rhyme, about
+> as far afield as you can go and still give a hint of a sonic resemblance. It
+> probably wouldn’t be audible at all without the help of common meter, but it
+> sure opens the gate at the end of the section, creating instability rather
+> than closure. And what’s the emotion that the rhyme type creates? Something
+> like longing and uncertainty, which, of course, is exactly what the lyric
+> itself is saying. Pretty cool.
+
+> Now look at the second prechorus:
+
+```text
+If you knew how much this moment means to me
+And how long I’ve waited for your touch
+If you knew how happy you are making me
+I never thought I’d love anyone so much
+```
+
+> Look at the rhyme type now in the shorter second and fourth lines, touch/
+> much. Perfect rhyme. And, boy, does the gate ever slam shut. This is the
+> essence of stability—the same thing, of course, that the lyric is
+> addressing. The rhyme types alone are responsible for the difference in
+> feeling between the first and second prechoruses—the family/consonance
+> rhyme, long/done, supporting (maybe even creating) the unstable feeling in
+> the first prechorus, and the perfect rhyme, touch/much, supporting (maybe
+> even creating) the stable feeling in the second.
+
+> Look what happens if we adjust the rhyme type in the second prechorus:
+
+```text
+If you knew how much this moment means to me
+And how long I’ve waited for your love
+If you knew how happy you are making me
+I never thought I’d love anyone so much
+```
+
+> Say the whole thing a few times. I’ll wait. Right. The last line, which
+> seemed like such an emotional line, has lost a lot of its feeling. It seems
+> less glorious, less heartfelt. What seemed like such a sensational line has
+> turned ordinary. The meaning hasn’t really changed. But the motion, and thus
+> the e-motion, has transformed dramatically.
+
+> Look what happens with perfect rhyme in the first prechorus:
+
+```text
+If you knew how lonely my life has been
+And how low I’ve felt for so long
+If you knew how I wanted someone to come along
+And change my world with love this strong
+```
+
+> Again, the meaning is essentially the same, but now we hear a tribute to the
+> power of love, a stable feeling created, again, simply by the rhyme type. It
+> not only transforms the emotion of the section, but the color of the entire
+> first sequence of verse/prechorus/chorus. Now it feels essentially the same
+> as the second verse/prechorus/chorus: Rather than moving
+> unstable/unstable/stable in the first sequence, we’re moving
+> unstable/stable/stable, and the last part of the song feels more like it
+> repeats the same ideas rather than growing. Rhyme types, baby.
+
+> While we’re at it, look how the first verse:
+
+```text
+Something in your eyes
+Makes me wanna lose myself
+Makes me wanna lose myself
+In your arms
+Something in your voice
+Makes my heart beat fast
+Hope this feeling will last
+The rest of my life
+```
+
+> …lacks rhyme in the fourth and eighth lines, creating instability and
+> opening the gate into the prechorus. The second verse does the opposite:
+
+```text
+A window breaks
+Down a long dark street
+And a siren wails
+In the night
+That’s all right
+Cause I have you here with me
+And I can almost see
+In the dark there’s a light
+```
+<!-- spellchecker:on -->
+
+> “Feels Like Home” feels like home, and once it’s stated, everything that
+> follows feels stable, as it well ought to. What a lovely journey. And craft
+> makes it all possible.
+
+The case demonstrates why this check must run at song scale: a rhyme type that
+works locally can still flatten the larger emotional journey.
 
 ## Rhyme type placement workflow
 
@@ -1092,16 +1227,16 @@ closing page, and its answer to anyone who finds worksheets too slow to bother
 with. (Cite it as `*Essential Guide to Rhyming* (2014), Afterword`; it is not a
 numbered chapter.)
 
-> If you've worked through this book carefully, you've got more control of the
+> If you’ve worked through this book carefully, you’ve got more control of the
 > sounds of your writing.
 >
-> Don't be afraid of worksheets. They take time, but each time they take less
+> Don’t be afraid of worksheets. They take time, but each time they take less
 > time. Each time you create one, the process gets more inside you. Do them for
-> a while, and you'll reach a place where you do most of your work in your head.
+> a while, and you’ll reach a place where you do most of your work in your head.
 > Effectively. Knowing your options.
 >
 > And please keep using your brain as often as you use your heart. Writing
-> well is never easy. That's the fun of it. It's always an adventure. Don't worry
+> well is never easy. That’s the fun of it. It’s always an adventure. Don’t worry
 > about being able to write as well as someone else. The hardest thing you will
 > ever do is to write as well as you can.
 >
@@ -1110,14 +1245,15 @@ numbered chapter.)
 Two things there are load-bearing for coaching. First, **the worksheet is
 training, not overhead** — its payoff is the internalised search ("you do most
 of your work in your head. Effectively. Knowing your options."), so a user who
-resents the labour is being asked to do it *until it becomes unnecessary*.
-Second, the standard is self-referential: "the hardest thing you will ever do is
-to write as well as you can." Do not turn that into a comparative judgment
-against other writers — Pat rules that out in the sentence before it.
+resents the labour is being asked to keep practicing until most of the work
+moves into their head. Second, the standard is self-referential: "the hardest
+thing you will ever do is to write as well as you can." Do not turn that into a
+comparative judgment against other writers — Pat rules that out in the sentence
+before it.
 
-"Keep using your brain as often as you use your heart" is the same pairing
-Chapter 9 opens with, where rhyme types are what you bring "(along with your
-brain) to the writing table, where your heart has been struggling, all by
+"And please keep using your brain as often as you use your heart" is the same
+pairing Chapter 9 opens with, where rhyme types are what you bring "(along with
+your brain) to the writing table, where your heart has been struggling, all by
 itself."
 
 ### Chapter 7 exercises

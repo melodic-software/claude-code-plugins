@@ -630,10 +630,10 @@ The rest of each family is derived the same way:
 
 - `v` and `f` are labiodentals — lips and teeth, tongue flat. **M position.**
 - `w` is a **semi-vowel** — Pat's term, and his reason for reaching for it here
-  is that it is "a consonant not included in the Table of Family Rhymes." Say
-  "Wow!", then "Come willingly," and note how close the lips are to closed while
+  is that Pat moves to "a consonant not included in the Table of Family Rhymes":
+  say "Wow!" and "Come willingly"; note how close the lips are to closed while
   the tongue "stays in relatively the same position." **M position**, initial
-  only: "when it ends a word, as in `slow`, it doesn't close, nor does it sound."
+  only: "When it ends a word, as in `slow`, it doesn’t close, nor does it sound."
 - `j` is `d` + `zh`; `ch` is `t` + `sh`. Tongue touches the hard palate.
   **N position.**
 - `z` and `s` raise the tip toward the hard palate. **N position** (Pat later
@@ -644,8 +644,8 @@ The rest of each family is derived the same way:
   to the soft palate twice. **NG.**
 - `y` is "the other semi-vowel." Note how close the tongue is to the soft
   palate. "Like `w`, `y` sounds when it begins a word, but not when it ends a
-  word." Initial only, and then "it becomes another member of NG's small but
-  potent family." **NG.**
+  word." In Pat's words, "When it is initial, it becomes another member of NG’s
+  small but potent family"—the **NG** column below.
 
 The Table of Vertical Families, "organized from closer to more remote
 relationships as it descends":

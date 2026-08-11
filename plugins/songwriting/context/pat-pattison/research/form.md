@@ -12,19 +12,21 @@ Chapter 20-21.
   whole worked lyrics the way Chapter 6's do. The verbatim material below is
   transcribed from the figures themselves, not from the text layer, which drops
   them entirely.
-  **Rendered and read** directly against this file — 25 of the chapter's 32:
+  **Rendered and read by the restoration run** directly against this file — 25
+  of the chapter's 32:
   `31Z`, `320`, `321`, `322`, `323`, `324`, `325`, `32C`, `32E`, `32F`, `32G`,
   `32H`, `32J`, `32K`, `32M`, `32N`, `32P`, `32R`, `32S`, `32T`, `32U`, `32V`,
   `32W`, `32X`, `32Y`.
-  **Of those, actually transcribed** here or in
-  [section-building](section-building.md) — 21: `320`, `321`, `322`, `323`,
+  **Of those, substantive figure content actually transcribed** here or in
+  [section-building](section-building.md) — 20: `320`, `321`, `322`, `323`,
   `324`, `325`, `32E`, `32F`, `32G`, `32H`, `32J`, `32K`, `32M`, `32N`, `32P`,
-  `32R`, `32S`, `32T`, `32U`, `32V`, `32X`.
-  **Rendered, wording carried, but scansion marks deliberately NOT transcribed:**
-  `32W`, `32Y`. **Rendered but content not carried anywhere in this plugin:**
-  `31Z` (the scansion of the "One by one…" central section) and `32C`.
-  **Not verified against a render at all:** `326`, `327`, `328`, `329`, `32A`,
-  `32B`, `32D`. Do not describe those seven as confirmed.
+  `32R`, `32S`, `32T`, `32V`, `32X`.
+  **Rendered, wording carried, but scansion marks NOT transcribed:** `31Z`,
+  `32U`, `32W`, `32Y`. **Rendered but content not carried anywhere in this
+  plugin:** `32C`.
+  **Not verified against a render by that run at all:** `326`, `327`, `328`,
+  `329`, `32A`, `32B`, `32D`. Do not describe those seven as confirmed by the
+  restoration run.
   (An earlier revision of this line claimed "Chapter 5 has now been read in full
   with every figure." That was not true in effect: `322` and `323` both carried
   content no file in this plugin held, and both have since been restored.)
@@ -750,8 +752,8 @@ Use this carefully:
 - Let the eventual balancing phrase carry a real message.
 
 The final chorus of "Some People's Lives" is the worked case. *Writing Better
-Lyrics* (2009), Chapter 21 prints Chorus 1 and Chorus 2 identically at four
-phrases, then gives Chorus 3 a fifth:
+Lyrics* (2009), Chapter 21 prints Chorus 1 and Chorus 2 with the same four-phrase
+`x a x a` structure (but different opening words), then gives Chorus 3 a fifth:
 
 ```text
 Didn't anybody tell them      x
