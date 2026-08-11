@@ -797,7 +797,11 @@ def rollup(
     for row in rows:
         groups.setdefault(top_level_name(row.relpath), []).append(row)
 
-    cutoff = (datetime.now(timezone.utc) - timedelta(days=retention_days)).isoformat()
+    # Same precision as FileRow.mtime, so the lexicographic comparison below is
+    # exact rather than off by up to a second at the boundary.
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=retention_days)).isoformat(
+        timespec="seconds"
+    )
     out: list[dict] = []
     for name, members in sorted(groups.items()):
         surface, note = classify_entry(name)
@@ -1078,6 +1082,7 @@ def scan(
         },
         "self_excluded": sorted(exclude),
         "walk_errors": errors,
+        "_rows": rows,
         "totals": {
             "files": len(rows),
             "bytes": sum(r.bytes for r in rows),
@@ -1087,8 +1092,14 @@ def scan(
     }
 
 
-def write_csv(rows_source: dict, path: Path) -> int:
-    """Emit every file as a row so 'every file' literally exists as an artifact."""
+def write_csv(rows: list[FileRow], path: Path) -> int:
+    """Emit EVERY file as a row, so "every file" literally exists as an artifact.
+
+    This is deliberately independent of `--authored-threshold`. That flag
+    controls only how much per-file detail is embedded in the JSON summary; it
+    must never decide how much of the tree reaches the artifact, or the report
+    silently drops most of the install while its own prose claims completeness.
+    """
     written = 0
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.writer(handle)
@@ -1105,22 +1116,21 @@ def write_csv(rows_source: dict, path: Path) -> int:
                 "evidence",
             ]
         )
-        for entry in rows_source["entries"]:
-            for member in entry.get("members", []):
-                writer.writerow(
-                    [
-                        member["relpath"],
-                        member["bytes"],
-                        member["mtime"],
-                        member["surface"],
-                        member["number_meaning"],
-                        member["liveness"],
-                        member["liveness_reason"],
-                        member["deny_listed"],
-                        member["evidence"],
-                    ]
-                )
-                written += 1
+        for row in sorted(rows, key=lambda r: r.relpath):
+            writer.writerow(
+                [
+                    row.relpath,
+                    row.bytes,
+                    row.mtime,
+                    row.surface,
+                    row.number_meaning,
+                    row.liveness,
+                    row.liveness_reason,
+                    row.deny_listed,
+                    row.evidence,
+                ]
+            )
+            written += 1
     return written
 
 
@@ -1147,8 +1157,11 @@ def main(argv: list[str] | None = None) -> int:
         help="Entries with more files than this are rolled up instead of listed (default 200)",
     )
     parser.add_argument("--recent-hours", type=int, default=24, help="Recent-writer window")
-    parser.add_argument("--csv", default=None, help="Write the per-file listing here")
-    parser.add_argument("--full-csv", action="store_true", help="Include rolled-up trees in the CSV")
+    parser.add_argument(
+        "--csv",
+        default=None,
+        help="Write the COMPLETE per-file listing here (every file, always)",
+    )
     args = parser.parse_args(argv)
 
     root = resolve_root(args.root)
@@ -1156,23 +1169,38 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: not a directory: {root}", file=sys.stderr)
         return 2
 
-    threshold = sys.maxsize if args.full_csv else args.authored_threshold
     report = scan(
         root=root,
         samples=args.samples,
         interval=args.sample_interval,
-        authored_threshold=threshold,
+        authored_threshold=args.authored_threshold,
         recent_hours=args.recent_hours,
         exclude=self_excluded(root, [args.csv]),
     )
 
+    rows: list[FileRow] = report.pop("_rows")
     if args.csv:
-        count = write_csv(report, Path(args.csv))
-        report["csv"] = {"path": args.csv, "rows": count, "evidence": MEASURED}
-        if not args.full_csv:
-            report["csv"]["note"] = (
-                "Rolled-up trees are summarised, not listed. Re-run with --full-csv for every file."
-            )
+        count = write_csv(rows, Path(args.csv))
+        report["csv"] = {
+            "path": args.csv,
+            "rows": count,
+            "evidence": MEASURED,
+            "note": (
+                "Complete: one row per file in the scan set. --authored-threshold affects only "
+                "how much per-file detail the JSON summary embeds, never this artifact."
+            ),
+        }
+    else:
+        report["csv"] = {
+            "path": None,
+            "rows": 0,
+            "evidence": MEASURED,
+            "note": (
+                "No --csv given, so no complete per-file artifact was written. The JSON below "
+                "lists only the authored surface; bulk trees are rolled up. Do NOT describe this "
+                "run as covering every file."
+            ),
+        }
 
     for entry in report["entries"]:
         entry.pop("members", None)

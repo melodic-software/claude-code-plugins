@@ -344,6 +344,37 @@ class TestScanShape(unittest.TestCase):
             self.assertFalse(report["quiesced"])
 
 
+class TestCsvCompleteness(unittest.TestCase):
+    """The CSV is the artifact in which "every file" literally exists.
+
+    Pinned because an earlier version drove the CSV off the JSON rollup and
+    emitted 169 rows for an 86,984-file tree while the surrounding prose claimed
+    completeness -- the exact "silently drop 99% of the files" failure the skill
+    exists to prevent.
+    """
+
+    def test_csv_row_count_equals_the_scanned_file_count(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            build_tree(root)
+            report = engine.scan(root, samples=1, interval=0, authored_threshold=1000, recent_hours=24)
+            rows = report["_rows"]
+            out = Path(tmp) / "listing.csv"
+            self.assertEqual(engine.write_csv(rows, out), report["totals"]["files"])
+
+    def test_a_low_rollup_threshold_does_not_shrink_the_csv(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            build_tree(root)
+            report = engine.scan(root, samples=1, interval=0, authored_threshold=0, recent_hours=24)
+            self.assertTrue(
+                all(e["listing"] == "rolled-up" for e in report["entries"]),
+                "the threshold did not actually force rollups",
+            )
+            out = Path(tmp) / "listing.csv"
+            self.assertEqual(engine.write_csv(report["_rows"], out), report["totals"]["files"])
+
+
 class TestRootResolution(unittest.TestCase):
     def test_explicit_root_wins(self) -> None:
         self.assertEqual(engine.resolve_root("/tmp/x"), Path("/tmp/x"))

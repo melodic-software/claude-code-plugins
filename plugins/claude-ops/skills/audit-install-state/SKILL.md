@@ -1,6 +1,6 @@
 ---
 description: "Read-only audit of a Claude Code INSTALLATION directory — the machine-scope `~/.claude` tree plus `~/.claude.json` — inventorying every file, separating what the product's own retention sweep already manages from what nothing manages, resolving what each number in a filename actually means before any process-liveness check, and detecting a deliberate or mid-experiment state before classifying anything as stale. Reports; never deletes. Use when: 'audit my .claude folder', 'what is in my ~/.claude', 'why is my Claude Code install so big', 'is anything stale in my Claude directory', 'does Claude Code clean up after itself', 'check cleanupPeriodDays', 'is this lock file dead', 'tidy my Claude Code install'. Not for: a repo's project-scope .claude config (use /claude-config:audit), or deleting anything (use /disk-hygiene:clean)."
-argument-hint: "[root] [--full-csv] — root defaults to $CLAUDE_CONFIG_DIR or ~/.claude"
+argument-hint: "[root] — root defaults to $CLAUDE_CONFIG_DIR or ~/.claude; always pass --csv"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -64,11 +64,15 @@ counted and classified by the run that created it. If a destination inside the r
 pass it as `--csv` and the engine excludes it from its own scan set and records that under
 `self_excluded`.
 
-Useful flags: `--root <path>` (else `$CLAUDE_CONFIG_DIR`, else `~/.claude`) · `--samples N` (default
-2; use 3+ on a busy machine) · `--full-csv` (list every file rather than summarising bulk trees) ·
-`--authored-threshold N` (default 200).
+**Always pass `--csv`.** It is the only artifact in which every file exists — the JSON lists the
+authored surface per file and rolls up bulk trees, so on a real install it describes a few hundred
+of ~87,000 files. Without `--csv` the run wrote no complete listing, `csv.path` is `null`, and the
+report must not be described as covering every file. `--authored-threshold` changes only how much
+per-file detail the JSON embeds; it never shrinks the CSV.
 
-Python 3.11+ required. Nothing else — no PowerShell, no third-party packages.
+Useful flags: `--root <path>` (else `$CLAUDE_CONFIG_DIR`, else `~/.claude`) · `--samples N` (default
+2; use 3+ on a busy machine) · `--authored-threshold N` (default 200). Python 3.11+ is the only
+requirement — no PowerShell, no third-party packages.
 
 ## Phase 1 — read the deliberate-state result FIRST
 
@@ -140,8 +144,8 @@ See [reference/name-schemes.md](reference/name-schemes.md).
 carry tokens). The supported remedy for its growth is `claude project purge <path>` — it prints the
 full plan and confirms before removing anything, and `--dry-run` previews it.
 
-`.claude.json.tmp.<n>.<hash>` siblings are failed atomic-write remnants. The engine marks the number
-`unknown` and attempts no lookup: it *looks* like a PID and that has never been verified.
+`.claude.json.tmp.<n>.<hash>` siblings are failed atomic-write remnants whose number *looks* like a
+PID and has never been verified, so the engine marks it `unknown` and attempts no lookup.
 
 ## Phase 6 — report
 
@@ -154,8 +158,9 @@ Two output rules that are not negotiable:
 - **Ranges, never a central tendency, for anything time-varying.** `411–413 files, n=3`, never
   `~412`. If `file_count_sampled` carries `unanimous_small_n_on_volatile_path`, re-run with more
   samples or carry the flag into the report.
-- **Reference the CSV.** It is the artifact in which "every file" literally exists. Summarise in
-  chat; never silently drop 99% of the tree.
+- **Reference the CSV, and check `csv.rows` against `totals.files` before claiming completeness.**
+  The CSV is the artifact in which "every file" literally exists; the JSON summary is not. Summarise
+  in chat, cite the CSV path and its row count, and never silently drop 99% of the tree.
 
 State that the tree was live (`quiesced: false`). Counts drift while a scan runs, and any orphan
 count keyed on sessions carries a margin of error, because a session whose record vanished mid-run is
@@ -169,16 +174,11 @@ See [reference/evidence-discipline.md](reference/evidence-discipline.md).
 
 ## Verifying an upstream claim
 
-Any claim about what Claude Code itself does must come from the raw markdown endpoint — `curl` the
-page to a file, then read the file:
-
-```bash
-curl -sSL -o /tmp/claude-directory.md https://code.claude.com/docs/en/claude-directory.md
-```
-
-A summarizing fetch returns a small model's answer *about* the page, so **absence from it is not
-evidence of absence**, and no destructive conclusion may rest on one. Sanctioned channel:
-`code.claude.com`.
+Any claim about what Claude Code itself does must come from the raw markdown endpoint — `curl -sSL`
+`https://code.claude.com/docs/en/claude-directory.md` to a file, then read the file. A summarizing
+fetch returns a small model's answer *about* the page, so **absence from it is not evidence of
+absence**, and no destructive conclusion may rest on one.
+See [reference/evidence-discipline.md](reference/evidence-discipline.md) §6.
 
 ## Gotchas
 

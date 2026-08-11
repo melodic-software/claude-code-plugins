@@ -46,6 +46,14 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   deliberate. The skill also records that a ledger's own summary is not authoritative and must be
   diffed against the stored baseline.
 
+- **The CSV artifact is complete by construction.** `--csv` writes one row per file in the scan set
+  — 86,653 rows for an 86,653-file install — and `--authored-threshold` governs only how much
+  per-file detail the JSON summary embeds. Driving the artifact off the JSON rollup instead produced
+  a 169-row CSV for that same tree while the surrounding prose claimed completeness, so a test now
+  pins `csv.rows == totals.files` and asserts a threshold of `0` does not shrink it. Omitting
+  `--csv` reports `path: null` with a note that the run must not be described as covering every
+  file.
+
 - **Retention is resolved before any staleness claim, and an unparsable settings file is an
   error.** Upstream pauses the retention cleanup sweep entirely while `settings.json` fails to parse
   (unless managed settings supply `cleanupPeriodDays`), so a JSON syntax error is a retention outage,
