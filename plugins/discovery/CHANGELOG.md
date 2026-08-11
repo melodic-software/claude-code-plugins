@@ -1,5 +1,159 @@
 # Changelog — discovery plugin
 
+## [0.14.0]
+
+### Fixed
+
+- **The plugin's own by-value fallback was unreachable from the only failure that needs it.**
+  `reference/topic-docs.md` has said since the 2.0.0 contract that "a worker dispatched into its
+  **own** checkout (worktree or background session) returns findings by value instead, and the
+  parent writes the memory slice." No agent definition referenced that rule as a persistence mode
+  and neither recovery ladder carried a rung for it: `skills/explore/reference/dispatch.md` and
+  `skills/research/context/dispatch.md` had rungs for a bad envelope, a live agent to resume, and a
+  refused resume, and none for *the worker could not write*. Following the rule anyway guaranteed a
+  halt — an empty slice holding only the parent's pre-dispatch baseline is exactly what
+  `check-dispatch-artifact.sh` exits 1 on, and both `SKILL.md` files declared any non-zero exit to
+  halt the workflow. Two documents in one plugin prescribed opposite outcomes for the same run, and
+  the correct one was the unreachable one.
+
+  Compounding it, no payload value could say what had happened. `status` was `complete | truncated`
+  and `truncated` is the turn-budget stop whose ladder consequence is *discard the partial slice*;
+  `complete` requires an `artifact:` pointer the run had no file to name. Both available values
+  misdescribed a run that finished its work and could not save it, and the only honest one routed
+  the parent to throw the work away. Observed consequence: a parent reinvented the by-value rule ad
+  hoc in a resume message, because the rule the plugin already owned could not be reached from the
+  failure it was written for.
+
+  **`persistence: written | by-value` is now its own payload axis** on both agents, deliberately
+  separate from `status` and from `coverage` — `truncated` keeps meaning the budget stop, so the
+  discard rung stays correct, and `coverage` stays a statement about exploration and the corpus
+  ledger rather than about the disk. On the by-value path the agent returns its index, sidecars and
+  ledger as verbatim bodies after the YAML block, `artifact:` names the path the parent must write
+  to (a destination, not a claim that a file exists), and both ladders gained the matching rung
+  ahead of the resume rung: **the parent writes the slice from the payload, then re-runs the same
+  gate.**
+
+  **The exception is to the halt, not to the gate**, and both `SKILL.md` files now say so in those
+  terms. The workflow proceeds only on a subsequent exit 0 — for research, from both the artifact
+  gate and the coverage-ledger gate. `persistence: by-value` routes the parent and grades nothing;
+  a by-value payload that returns *findings* instead of artifact bodies is a failed dispatch, not a
+  fallback, because a claim the gate is invited to accept on the agent's word is the same laundering
+  the source-tier discipline refuses everywhere else. A by-value slice earns its exit 0 from the
+  identical command, freshness check included: the parent writes after its own pre-dispatch `touch`.
+
+  This also closes the seam where exit 1 read identically for "never ran" and "ran well, could not
+  persist". The script is right to grade disk state and nothing else; the branch belongs one level
+  up, in the ladder, where gate step 1 has already put the payload in the parent's hands.
+
+  **Three conditions bind the parent's write, because the recovery path must not become a hole in
+  the rules it recovers into.** The by-value rung is the only place in this contract where a
+  filename the *worker* produced becomes a write the *parent* performs, and the parent holds wider
+  write permission than the sandboxed worker — a researcher in particular spends its whole run
+  ingesting untrusted third-party pages. So: filenames are checked **before** anything reaches disk
+  and only the contract's own names are accepted (`EXPLORE.md` / `EXPLORE-<section>.md`,
+  `RESEARCH.md` / `RESEARCH-<section>.md` / `research-checklist.md`), as bare filenames; a directory
+  separator, a `..` segment or a leading `/` makes the payload a failed dispatch rather than a name
+  to sanitize. The explorer's **collision rule still applies** — a slice root already holding an
+  unrelated `EXPLORE.md` gets a parent-assigned sub-slice here too, because overwriting the index
+  that rule protects would be a silent, unrecoverable loss arriving through the recovery path. And
+  the research side's **unbounded-corpus rule is unchanged** — a run that recorded the corpus as
+  unbounded wrote no ledger and owes none here, so the coverage gate is re-run only when a ledger
+  was owed; running it against a file nobody was supposed to write exits 2, a FAIL, and would halt a
+  complete run on a check that never applied to it.
+
+- **`agents/researcher.md` described a tool grant it never made.** The file declared no `tools:` key
+  and no `disallowedTools:` key, so it inherited every tool available to a subagent — while its own
+  "Tool honesty" section asserted "`Edit` is absent from your tool list" and "`Agent` is listed."
+  Both sentences are false there. The paragraph is a verbatim copy from `agents/explorer.md`, where
+  the `tools:` allowlist at line 4 makes both of them true; it was carried into a file whose
+  frontmatter inverts them. Inheritance was not only derivable but observed — the agent's own
+  transcript shows it calling `ToolSearch` and `WebFetch`, neither of which appears in the
+  explorer's allowlist.
+
+  The harm is not tidiness. This is an unattended `maxTurns: 40` worker whose entire write boundary
+  is instruction-held, and the false inventory — understating the pool by roughly a dozen tools
+  including a second shell and the whole session MCP set — is the calibration input for that
+  boundary. Least-privilege understatement is the dangerous polarity.
+
+  The section now states what is true: no allowlist is declared, the pool is inherited, `Edit` and
+  `PowerShell` are held, `Agent` is inherited and conditionally filtered at the depth limit, the MCP
+  pool is held, and the memory-tier boundary holds by instruction and by nothing else. **No `tools:`
+  allowlist was added** — an allowlist removes every MCP tool, and the skill's third mandatory
+  discipline requires doc-MCP servers in the tool spread, so the allowlist would break the discipline
+  it was meant to protect. A narrow `disallowedTools:` denylist is the instrument instead.
+
+  Three decisions are now written down rather than left accidental. **`NotebookEdit` is denied** —
+  nothing in the contract writes notebooks. **`Edit` is kept, deliberately**: `research-checklist.md`
+  rows go `[ ]` → `[x]` as phases proceed, and denying `Edit` would force a full-file rewrite of the
+  coverage ledger at every phase boundary. **`EnterWorktree`/`ExitWorktree` are denied and
+  `isolation: worktree` is not set on either agent**, because these artifacts are graded off disk by
+  the parent, in the parent's checkout, against a slice path the parent resolved before dispatch —
+  work written into an isolated copy of the repository lands where that gate never looks, and the run
+  would read as having produced nothing. Isolation and a disk-graded handoff are incompatible by
+  construction; this plugin chose the handoff. The explorer/researcher asymmetry is now stated in
+  both files as the deliberate thing it is.
+
+  One thing the fix does **not** claim: it does not make the write boundary enforceable. You cannot
+  deny "Bash writing a file" without denying `Bash`, which the research discipline needs. Both agents
+  instead gain an explicit instruction that a refused `Write` is an answer rather than an obstacle —
+  do not route the same write through `Bash` to get around it. That is grounded in the transcript
+  asymmetry it was observed as (three `Write` calls refused while a Bash-mediated write succeeded to
+  the same directory tree), not in any documented rule about which guard covers which tool.
+
+- **Nothing restated the input, so a corrupted scope or topic passed every gate.** Every refusal
+  mechanism in the plugin was a presence test — preload token present or `MISSING`, envelope field
+  present or absent, index on disk or not, ledger rows marked or not, `artifact:` pointer present or
+  not — so none of them could fire on an input that arrived present and wrong. Observed 2026-08-10:
+  an argument naming *another* plugin's `${CLAUDE_PLUGIN_DATA}` directory reached a dispatched agent
+  rewritten to this plugin's own path. The agent was asked a factually wrong question and answered
+  it correctly, which is the most expensive shape of wrong available.
+
+  Both agents now echo the envelope back — `scope_as_received:` / `topic_as_received:`, quoted
+  verbatim, explicitly not paraphrased or normalized — and both acceptance gates compare it against
+  the envelope the parent wrote. A mismatch is a failed dispatch even when the artifact is complete
+  and every mechanical check exits 0. A payload lacking the field is an out-of-date agent definition,
+  not a pass.
+
+  The accompanying caveat in `skills/explore`, `skills/research` and `skills/research-deep` is
+  written as an observation rather than a mechanism, on purpose. What is documented (both pages
+  fetched 2026-08-11) is that skill and agent content is a substitution site for the three
+  `${CLAUDE_*}` path placeholders "anywhere the placeholder appears", and that no escape exists for
+  them — "A backslash before any other `$` is left unchanged" covers `$ARGUMENTS` and declared
+  argument names, not these. What is documented nowhere is whether argument-supplied text is itself
+  scanned for those placeholders. The caveat therefore states the observation, the two documented
+  facts, and the gap, and **carries an unconditional 2027-02-11 expiry** so the claim cannot go stale
+  invisibly. The echo-back is the part that works under either reading.
+
+  The caveat also states its own boundary, because two nearby claims read as if they were about one
+  thing. This is about placeholder-shaped text a **caller** supplies on the inline path or in a
+  dispatch prompt. It is a different question from what the adjacent paragraph says about a
+  `$ARGUMENTS` placeholder the plugin's **own body** carries on the preload path, and it is evidence
+  for neither side of it. That older claim is untouched here and is tracked separately.
+
+### Added
+
+- `plugins/discovery/agents/tool-honesty.test.sh` — a contract test over this plugin's own agent
+  definitions, locking the class of drift the second entry describes rather than the one instance of
+  it: prose claiming a tool is absent from (or present in) a tool list must be backed by a `tools:`
+  key that actually omits (or lists) it, every agent must declare its posture in frontmatter rather
+  than leaving the prose as the only inventory, neither agent may set `isolation:`, and both payload
+  contracts must carry the `persistence:` and echo-back fields. Scoped to this plugin's agents on
+  purpose — a repo-wide sweep would fail this plugin's test on another plugin's drift.
+
+- `scripts/check-dispatch-artifact.test.sh` gains the by-value pair: a slice holding only the
+  pre-dispatch baseline exits 1, and the same slice exits 0 once the parent writes it from the
+  payload, with freshness and pointer checks both passing. The pair is the point — the first half
+  proves the exception answers a failure the gate really produces, the second proves the recovery
+  routes *through* the gate rather than around it.
+
+- Eval cases on both skills covering the outcomes the new axis has to keep apart: a by-value
+  recovery that must be written and re-graded rather than discarded, a by-value payload carrying
+  findings instead of artifact bodies (a failed dispatch, not a fallback), an echo-back mismatch
+  that fails a dispatch whose artifact is otherwise perfect, a by-value payload naming a file
+  outside the contract (rejected before anything is written), an explore-side recovery into a slice
+  root already holding an unrelated index, and a research-side recovery of an unbounded corpus,
+  which owes no ledger and must not be graded against one.
+
 ## [0.13.1]
 
 ### Fixed
