@@ -123,7 +123,7 @@ files. `claude project purge` deletes the store only as part of the full per-pro
 
 Item 1's exception bullets are longer and more varied than is useful to enumerate here — read
 them on the page. What matters here is a negative: none of them names `autoMemoryEnabled`,
-`CLAUDE_CODE_DISABLE_AUTO_MEMORY`, or auto memory at all (verified 2026-08-08), so no lower
+`CLAUDE_CODE_DISABLE_AUTO_MEMORY`, or auto memory at all (verified 2026-08-10), so no lower
 settings scope overrides a managed `autoMemoryEnabled` value. That negative governs settings
 scopes only: the `CLAUDE_CODE_DISABLE_AUTO_MEMORY` environment variable sits outside settings
 precedence and, when set, still overrides the effective value — managed or not (see "Precedence:
@@ -135,7 +135,7 @@ Linux/WSL `/etc/claude-code/`, Windows registry `HKLM`/`HKCU\SOFTWARE\Policies\C
 > "Environment variables applied to every session and to subprocesses Claude Code spawns from
 > it."
 > — code.claude.com/docs/en/settings (the `env` setting's description, first sentence; verified
-> 2026-08-08)
+> 2026-08-10)
 
 So `CLAUDE_CODE_DISABLE_AUTO_MEMORY` can be set as a real OS environment variable **or**
 inside a settings file's `env` block; the docs bless the `env`-block form explicitly.
@@ -151,7 +151,7 @@ inside a settings file's `env` block; the docs bless the `env`-block form explic
   > "**Default**: `30` days, minimum `1`. Claude Code deletes session files and other
   > application data older than this period at startup."
   > — code.claude.com/docs/en/settings (the `cleanupPeriodDays` setting's description, first two
-  > sentences; verified 2026-08-08)
+  > sentences; verified 2026-08-10)
 
   Read "session files" there as per-session data files, not the `sessions/` directory: the page
   links that phrase to claude-directory's "Cleaned up automatically" table, whose rows are the
@@ -161,7 +161,7 @@ inside a settings file's `env` block; the docs bless the `env`-block form explic
 
   > "The following paths are not covered by automatic cleanup and persist indefinitely."
   > — code.claude.com/docs/en/claude-directory, heading the table whose first row is
-  > `history.jsonl` (verified 2026-08-08)
+  > `history.jsonl` (verified 2026-08-10)
 
   > "`sessions/` holds one small file per running session, used to detect concurrent sessions
   > and crashes. It isn't part of the age-based sweep: Claude Code removes each file when its
@@ -179,7 +179,7 @@ inside a settings file's `env` block; the docs bless the `env`-block form explic
 
   As of that check the page no longer carries its "requires Claude Code v2.1.124 or later"
   sentence, and code.claude.com/docs/en/cli-reference documents `claude project purge` with no
-  version requirement at all (verified 2026-08-08). The `v2.1.124+` floor this plugin still
+  version requirement at all (verified 2026-08-10). The `v2.1.124+` floor this plugin still
   states is therefore a retained claim with no current upstream source — treat it as a lower
   bound to re-source, not as doc-backed.
 

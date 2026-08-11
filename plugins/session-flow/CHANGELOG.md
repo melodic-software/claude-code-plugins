@@ -17,7 +17,9 @@
     task/cron carve-out, `Concurrent subagent limit reached` at 20 running with the ultracode
     exemption and the `/subtask` slot rider, the v2.1.172 / v2.1.217 / v2.1.219 / v2.1.178
     changelog entries, and the workflow runtime caps (16 concurrent, 1,000 per run, `Large
-    workflow` above 25 agents or 1.5M projected tokens, requiring v2.1.203).
+    workflow` above 25 agents or 1.5M projected tokens, requiring v2.1.203). Every dated citation
+    in the file moved, including the depth-limit stamp, whose date wraps onto its own line and so
+    escaped the first sweep.
 
     The 0.22.2 finding above is independently re-confirmed: the sub-agents page now states
     outright, "There's no limit on the total number of subagents Claude can spawn over a

@@ -9,6 +9,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A cited plugins-reference section had been renamed upstream.** `scripts/statusline-shim.sh`
+  attributed the 14-day orphaned-cache-directory grace period to a section called "Plugin cache and
+  file access". That section is now titled **"Plugin caching and file resolution"**, and the cache
+  root it documents is `~/.claude/plugins/cache`. The behaviour cited is unchanged and still stated
+  verbatim; only the section title a reader would search for had moved, which is exactly the kind of
+  silent rot that makes a citation unfollowable. The comment now names the current title and records
+  the former one so the rename is traceable.
+
 - **The 2.1.132 token-semantics floor no longer has an upstream source, and the reader contract now
   says so.** `reference/reader-contract.md` quoted the statusline page as stating "Before v2.1.132
   these were cumulative session totals". Re-checked 2026-08-10 against the complete raw page
@@ -39,7 +47,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - `reference/reader-contract.md` — the `context_window` field list, `current_usage` being null
     before the first API call and again immediately after `/compact`, `used_percentage` /
     `remaining_percentage` being nullable early in a session, and the `${CLAUDE_SESSION_ID}`
-    substitution in the skills reference's substitution table.
+    substitution in the skills reference's substitution table. Also the auto-compaction negative:
+    no numeric threshold is published anywhere, and `costs` still says only that auto-compaction
+    "summarizes conversation history when approaching context limits" — a negative that is
+    trustworthy here because the check ran against complete pages rather than truncated fetches.
 
 ## [0.6.3]
 

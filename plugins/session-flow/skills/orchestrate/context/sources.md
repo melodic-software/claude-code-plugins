@@ -103,7 +103,7 @@ which way it broke.
   changelog v2.1.217 *(verbatim, verified 2026-08-10)*: "Changed subagents to no longer spawn nested
   subagents by default; set `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` to allow deeper nesting."
 - **The `Agent` tool is withheld at the depth limit, not while nesting is off** *(verbatim, verified
-  2026-07-29 — sub-agents page)*: "At the depth limit, Claude Code withholds the `Agent` tool from
+  2026-08-10 — sub-agents page)*: "At the depth limit, Claude Code withholds the `Agent` tool from
   every subagent except a fork, so a subagent at the limit does its delegated work itself and
   returns one summary. A fork at the limit keeps `Agent` in its inherited tool list, but the tool
   returns an error instead of spawning."

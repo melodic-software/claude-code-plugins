@@ -235,7 +235,7 @@ session itself can know.
 
 **No official auto-compaction threshold exists to ground the bands on.** Verified 2026-07-23
 (how-Claude-Code-works, context-window, settings `autoCompactEnabled`, costs pages) and re-verified
-2026-07-24 (costs + statusline pages): the docs say only that compaction triggers "when approaching
+2026-08-10 (costs + statusline pages): the docs say only that compaction triggers "when approaching
 context limits". The empirical check (2026-07-24, execution session): no auto-compact event exists
 in the producing machine's entire transcript history — the largest session ran to 308k total input
 tokens uncompacted on a 1M-class window — so the shipped bands are **declared judgment defaults**

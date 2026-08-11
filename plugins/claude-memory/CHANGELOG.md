@@ -17,7 +17,10 @@ All notable changes to the `claude-memory` plugin are documented here. Format fo
     word for word. The file's own negative — that no settings-precedence exception bullet names
     `autoMemoryEnabled`, `CLAUDE_CODE_DISABLE_AUTO_MEMORY`, or auto memory — was re-checked
     against the complete bullet list and still holds, as does its note that the `v2.1.124+` floor
-    for `claude project purge` has no current upstream source.
+    for `claude project purge` has no current upstream source. Every dated citation in the file
+    moved: the seven block quotes, the settings negative, the `env`-block quote (whose stamp wraps
+    across two lines), and the `cli-reference` observation that `claude project purge` now carries
+    no version requirement at all.
   - `skills/audit/reference/official-guidance.md` — the memory reference re-verification date.
 
 ## [0.7.0]

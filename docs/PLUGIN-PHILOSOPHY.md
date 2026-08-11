@@ -88,7 +88,7 @@ blanket-sanctioned.
 
 A plugin skill declares no frontmatter `name`. The field is optional and defaults to the directory
 name ([frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference), fetched
-2026-08-09), and the directory here is already the name the skill is documented and invoked by, so
+2026-08-10), and the directory here is already the name the skill is documented and invoked by, so
 declaring it restates the path in the character set the Agent Skills specification allows. The one
 effect a declaration still buys is the bare alias: in a plugin skill a declared `name` also registers
 the bare `/<name>` alongside the namespaced command, unless another command already owns that token

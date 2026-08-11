@@ -49,7 +49,7 @@ The discipline, at each of the three surfaces where skills apply:
   your skill listing — it discovers project, user, and plugin skills on disk
   through the Skill tool during execution
   ([Subagents docs](https://code.claude.com/docs/en/sub-agents), fetched
-  2026-07-20). So **name the relevant skills in the delegation prompt** so the
+  2026-08-10). So **name the relevant skills in the delegation prompt** so the
   subagent knows to reach for them. For a custom subagent that should always
   carry a discipline, recommend its `skills:` frontmatter, which **preloads the
   full skill content** into the subagent at startup (preload, not access — the
