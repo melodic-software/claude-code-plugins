@@ -66,6 +66,15 @@ All notable changes to the `rate-limit-guard` plugin are documented here. Format
   the `[[ "${BASH_SOURCE[0]}" == "${0}" ]]` sourcing guard already used elsewhere in this
   repository, and its stdin read moved inside it; a direct invocation behaves exactly as before.
 
+- **The plugin's own documentation still described the pre-`0.5.5` single-surface switch.** Both
+  the manifest's option `description` (which is what `/plugin configure` shows) and the README's
+  `## Configuration` section called `rate_limit_guard_enabled` the kill switch for the StopFailure
+  hook alone, and the README additionally told operators that "disabling the statusline tee is the
+  operator's edit" — true before `0.5.5` gated the tee's write on the same option, wrong since.
+  Both now say the switch governs the hook **and** the tee's snapshot write, and the README states
+  where each surface reads it from and that the tee's precedence is managed → user → environment,
+  so an operator can tell why a managed value outranks the one they set themselves.
+
 ## [0.5.6]
 
 ### Fixed

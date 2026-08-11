@@ -87,17 +87,26 @@ One `userConfig` option:
 
 | Option | What it controls |
 |---|---|
-| `rate_limit_guard_enabled` | Kill switch for the StopFailure detection hook (default `true`). |
+| `rate_limit_guard_enabled` | Kill switch for the StopFailure detection hook **and** the statusline tee's snapshot write (default `true`). |
 
 Set it with `/plugin configure rate-limit-guard`, or headless on a fresh install via
 `claude plugin install rate-limit-guard@<marketplace> --config rate_limit_guard_enabled=false`.
 
+**Where the switch is read from.** The StopFailure hook receives it the ordinary way, as
+`CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED`. The statusline tee cannot: it is invoked by
+absolute path from the operator's own `statusLine` setting, and Claude Code exports those variables
+to *hook* processes only, so the tee reads `pluginConfigs` from the settings files directly. Its
+precedence is **managed settings → user settings → environment**, highest first — a managed
+`rate_limit_guard_enabled: false` is an organization's policy and wins over any user value. Every
+degraded read (no settings file, no `jq`, malformed JSON) leaves the tee enabled, and no outcome of
+that gate ever changes what your statusline prints.
+
 The tee path and the 90% pause threshold are deliberately **not** configurable: they are contract
 constants that cross-plugin consumers inline from the
 [reader contract](reference/reader-contract.md); a per-user override would silently split the
-writer from its readers. Disabling the statusline tee is the operator's edit (remove or unwrap the
-statusline command); disabling the hook is the kill switch; disabling everything is
-`enabledPlugins` / uninstall.
+writer from its readers. The kill switch stops the tee's *write* while leaving the wrapper
+transparent; removing the wrapper itself is the operator's edit to their `statusLine`; disabling
+everything is `enabledPlugins` / uninstall.
 
 ## Consumers
 
@@ -115,7 +124,7 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `rate_limit_guard_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED` | Master switch for the StopFailure detection hook |
+| `rate_limit_guard_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED` | Master switch for the StopFailure detection hook and the statusline tee's snapshot write; read from managed settings first, then user settings |
 
 ### How to set these
 

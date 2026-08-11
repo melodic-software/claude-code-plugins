@@ -20,7 +20,7 @@
     "rate_limit_guard_enabled": {
       "type": "boolean",
       "title": "rate-limit-guard hook kill switch",
-      "description": "Master switch for the StopFailure detection hook",
+      "description": "Master switch for the StopFailure detection hook and the statusline tee's snapshot write; read from managed settings first, then user settings",
       "default": true
     }
   }
