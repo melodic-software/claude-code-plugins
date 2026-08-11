@@ -3,7 +3,7 @@ description: "Proactively hunt a rotated lane of the codebase for safe structura
 argument-hint: "[<lane> | dry-run [<lane>] | self-update | help]"
 disable-model-invocation: false
 user-invocable: true
-allowed-tools: Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/tidy/scripts/open-pr-count.sh:*)
+allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/open-pr-count.sh:*)", "Bash(grep:*)", "Bash(echo:*)"]
 shell: bash
 metadata:
   workflow-stage: anytime
@@ -15,7 +15,7 @@ metadata:
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 Recent commits: !`git log --oneline -5 2>/dev/null || echo "no commits"`
 Working tree status: !`git status --porcelain 2>/dev/null | head -20 || echo "clean"`
-Open chore/tidy-* PRs: !`bash ${CLAUDE_PLUGIN_ROOT}/skills/tidy/scripts/open-pr-count.sh 2>/dev/null | grep -E '^(Open tidy|Throttle)' || echo "unknown"`
+Open chore/tidy-* PRs: !`${CLAUDE_SKILL_DIR}/scripts/open-pr-count.sh 2>/dev/null | grep -E '^(Open tidy|Throttle)' || echo "unknown"`
 
 ## Variables
 
