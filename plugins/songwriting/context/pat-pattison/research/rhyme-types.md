@@ -1,8 +1,8 @@
 # Rhyme Types
 
-Pat Pattison - *Pat Pattison's Songwriting: Essential Guide to Rhyming* (2014), Chapter 4-6.
+Pat Pattison - *Essential Guide to Rhyming* (2014), Chapters 4-6.
 
-This file covers the rhyme-type scale from full resolution through the most remote rhyme types developed in *Essential Guide to Rhyming* (2014), Chapter 4-6.
+This file covers the rhyme-type scale from full resolution through the most remote rhyme types developed in *Essential Guide to Rhyming* (2014), Chapters 4-6.
 
 ## Image inventory
 

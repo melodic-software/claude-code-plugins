@@ -1,6 +1,6 @@
 # Rhyme Worksheets
 
-Pat Pattison - *Pat Pattison's Songwriting: Essential Guide to Rhyming* (2014), Chapter 3 and Chapter 7.
+Pat Pattison - *Essential Guide to Rhyming* (2014), Chapters 3 and 7.
 
 Use this with [rhyme dictionary practice](rhyme-dictionary-practice.md) and
 [rhyme spotlight and connection](rhyme-spotlight-connection.md). This file

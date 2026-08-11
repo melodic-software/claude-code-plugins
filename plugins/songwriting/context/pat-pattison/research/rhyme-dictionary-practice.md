@@ -1,7 +1,6 @@
 # Rhyme Dictionary Practice
 
-Pat Pattison - *Pat Pattison's Songwriting: Essential Guide to Rhyming* (2014),
-Chapter 1, with the cross-reference lesson from *Essential Guide to Rhyming*
+Pat Pattison - *Essential Guide to Rhyming* (2014), Chapter 1, with the cross-reference lesson from *Essential Guide to Rhyming*
 (2014), Chapter 3.
 
 Use this with `rhyme-fundamentals.md`. *Essential Guide to Lyric Form and Structure* (1991) defines rhyme's structural

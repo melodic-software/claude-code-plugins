@@ -2,7 +2,7 @@
 
 Pat Pattison — preserves the numbered exercise series from
 *Songwriting: Essential Guide to Lyric Form and Structure* (1991)
-Chapter 1-7 and *Pat Pattison's Songwriting: Essential Guide to Rhyming*
+Chapters 1-7 and *Essential Guide to Rhyming*
 (2014) Chapter 4-6. *Writing Better Lyrics* (2009) worksheets live in [worksheets](worksheets.md);
 *Songwriting Without Boundaries* (2011) daily curriculum lives in [daily practice](daily-practice.md).
 

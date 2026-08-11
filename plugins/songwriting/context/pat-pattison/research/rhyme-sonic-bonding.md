@@ -1,6 +1,6 @@
 # Rhyme Sonic Bonding
 
-Pat Pattison - *Pat Pattison's Songwriting: Essential Guide to Rhyming*
+Pat Pattison - *Essential Guide to Rhyming*
 (2014), Chapter 8.
 
 Use this with [rhyme types](rhyme-types.md),
