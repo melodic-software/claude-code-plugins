@@ -907,8 +907,9 @@ rm -f "$TELA"
 #   * A 4x step against a 10x gate separates quadratic (~16x) from linear (~4x)
 #     and nothing finer. A genuine O(n^1.5) regression lands near 8x and passes.
 #     Narrowing the gate is not free — the current implementation itself reads
-#     up to 6.09x under load — so the honest bound is "quadratic", not
-#     "superlinear".
+#     up to 6.09x under load at the previous, larger N (2000->8000; not
+#     re-measured at the now-shipped 1000->4000 size) — so the honest bound
+#     is "quadratic", not "superlinear".
 #   * `depth` and `breadth` are the two PURE EXTREMES of a (distinct keys x
 #     repeats per key) space: one key by N repeats, and N keys by one repeat. A
 #     regression that only bites at moderate cardinality in BOTH dimensions
@@ -931,7 +932,7 @@ CF_SMALL_N=1000
 CF_BIG_N=4000
 CF_STEP=$((CF_BIG_N / CF_SMALL_N))
 CF_REPS=7
-CF_GATE_X100=1000 # 10.00x — see the table above
+CF_GATE_X100=1000 # 10.00x — worst-case headroom under load ~1.64x (current) / ~1.70x (quadratic); see table above
 
 # spellchecker:off
 CF_AWK="$WORK/classify-extract.awk"
@@ -999,8 +1000,9 @@ else
 fi
 
 # One jq process per row times both arms. `.appliedCount + .residualCount`
-# forces the ENTIRE pipeline (group_by, the per-key lookup, the partition and
-# the slice) rather than letting jq stop at a lazily-satisfied field.
+# is how the timed result is consumed; the full classify pipeline (group_by,
+# the per-key lookup, the partition and the slice) already runs because the
+# filter builds its result object in full.
 CF_BENCH="$WORK/classify-bench.jq"
 {
   printf 'def classify: '
