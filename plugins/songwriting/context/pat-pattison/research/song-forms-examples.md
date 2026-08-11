@@ -814,7 +814,8 @@ YOU'RE SEEING SOMEONE ELSE`.
   chapter: it is Chapter 6's, quoted in full under "Teddy" above.
 - `meter.md` — Common Meter, paradigms, Structural Pentad
 - `phrasing.md` — phrase length / count balance
-- `rhyme-strategy.md` — three rhyme strategies (Pat's named decision matrix)
+- `rhyme-strategy.md` — three rhyme strategies. (Its decision matrices are this
+  plugin's, not Pat's — `matrix` returns 0 hits across all four books.)
 - `prosody.md` — motion creates emotion
 
 ## When to load this file

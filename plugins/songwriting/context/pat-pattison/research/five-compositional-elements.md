@@ -33,8 +33,8 @@ The five elements:
 > subject of *Essential Guide to Rhyming* (2014).
 
 The five are not a rule; they are the five places where craft choices
-land. A section is "tight" when all five support the central emotion and
-the section's job within the form.
+land. A section is "tight" when all five support the central intent, idea,
+and emotion of the work, and the section's job within the form.
 
 ## Why all five at once
 
@@ -75,7 +75,7 @@ Section: <verse 1 | chorus | bridge | etc.>
                         deliberate variations>
 
 Verdict:
-- Supports central emotion? <yes | partially | no>
+- Supports the central intent, idea, and emotion? <yes | partially | no>
 - Supports section job in form? <yes | partially | no>
 - Strongest element: <which>
 - Weakest element: <which>

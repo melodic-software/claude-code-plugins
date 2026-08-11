@@ -230,7 +230,8 @@ Default chain:
    lengths, rhyme scheme, rhyme types, rhythm. See
    [Five Compositional Elements](five-compositional-elements.md).
 3. **Stable / unstable scan** — lyric, melody (if known), harmony,
-   melodic rhythm, harmonic rhythm — flag mismatches with central emotion.
+   melodic rhythm, harmonic rhythm — flag mismatches with the central
+   intent, idea, and emotion.
    See [stable / unstable](stable-unstable-meta.md).
 4. **Hot-spot audit** — what is in line 1 of each section? What is in the
    last line? Does the title sit in a hot spot? See [hook](hook.md).

@@ -27,13 +27,20 @@ and the phrase "preserving the natural shape of the language" are stated
 outright in *Writing Better Lyrics* (2009) Chapter 18, and that section is
 cited to the book below.
 
-**Still unaudited:** the Berklee Online article, patpattison.com, the American
-Songwriter column, and OSONG-525 — which remain distillations nobody has
-checked against their originals. Three passages here rest on those sources
-alone and stay paraphrased: the four-controller framework, tone of voice as a
-stability lever, and the third phrasing type. Where this file's wording and the
-1991 chapter's wording diverge, the divergence is marked in place rather than
-silently reconciled.
+**Web-source status, updated 2026-08-11.** The **American Songwriter column
+"Motion Creates E-Motion In Songwriting" (17 October 2012) has now been fetched
+and read** — see [motion creates e-motion](#motion-creates-e-motion--the-motion-controllers).
+Result: it does **not** carry a four-controller framework, and it never mentions
+line length, which dissolves a conflict this file previously recorded as live.
+
+**Still unaudited:** the Berklee Online article, patpattison.com, and OSONG-525
+— distillations nobody has checked against their originals. Two passages rest on
+those sources alone and stay paraphrased: tone of voice as a stability lever,
+and the third phrasing type. (`tone of voice` is also plugin-authored shorthand
+with 0 corpus hits — see
+[book-references](book-references.md) "Plugin-authored vocabulary".) Where this
+file's wording and the 1991 chapter's wording diverge, the divergence is marked
+in place rather than silently reconciled.
 
 ## Image inventory
 
@@ -1148,15 +1155,27 @@ verbatim wording for the two title-targeting drills is given below because the
 - Let line length, rhyme scheme, and line count disagree only when the emotional
   effect is worth the instability.
 
-## Motion creates e-motion — four controllers
+## Motion creates e-motion — the motion controllers
 
-**Unaudited — web source, paraphrase retained deliberately.** The American
-Songwriter column is not in the corpus, so nothing here has been checked against
-Pat's actual wording and none of it is restored to verbatim. Chapters 18-19 do
-not contain a four-controller list.
+**The column has now been READ — corrected 2026-08-11.** Fetched at
+<https://americansongwriter.com/motion-creates-e-motion-in-songwriting/>
+(Pat Pattison, 17 October 2012). Chapters 18-19 do not contain a
+four-controller list, and **neither does the column.** What the column actually
+prints is one sentence naming rhyme as *one* controller among others:
 
-Pat's American Songwriter column condenses the engine into four controllers
-that together create the song's motion (and therefore its emotion):
+> "Rhyme is one of the controllers of motion in a song."
+
+and one sentence naming the others in passing:
+
+> "Sure, the musical groove, the harmonic and melodic rhythms make things move.
+> But rhyme overlays these and adds yet another layer of motion in the song."
+
+The four items below are a fair distillation of what those two sentences name,
+and they are kept on that basis — but **Pat does not enumerate four
+controllers**, and this list must never be presented as his numbered framework.
+That is the "counts are the tell" failure this project keeps hitting.
+
+Distilled from the column, not enumerated by it:
 
 1. **Rhyme scheme** — pace, flow, closure.
 2. **Musical groove** — the rhythmic feel under the lyric.
@@ -1168,20 +1187,25 @@ The bare slogan "motion creates e-motion" is Pat's, but the fuller sentence this
 file used to print inside quotation marks and attribute to `— Pat` traces to no
 readable source and has been removed rather than left to look verbatim.
 
-**Challenge 4 contradicts this list on its central point.** The list names the
-rhyme scheme as the one lyric-side controller and puts everything else in the
-music — but *Songwriting Without Boundaries* (2011), Challenge 4, Day 13 ranks
-**line length above rhyme**: "Both line length and rhyme are traffic cops, but
-line length has a higher rank—captain, as opposed to sergeant." Line length is
-a lyric-side controller and it is the stronger one.
+**The list is INCOMPLETE, not contradicted — corrected 2026-08-11.** An earlier
+pass recorded a live conflict here between this list and Challenge 4. Having
+read the column, there is no conflict to resolve: **the phrase "line length"
+does not appear in the column at all**, and the column makes no comparative
+claim about line length against rhyme. It is silent on the question, not
+opposed to the books.
 
-Two books say so independently. *Writing Better Lyrics* (2009), Chapter 19 makes
-the same ranking on the two-line ladder in
+What remains true is that the list is not a complete inventory of lyric-side
+motion controllers, because line length is the strongest one and it is missing.
+*Songwriting Without Boundaries* (2011), Challenge 4, Day 13 ranks **line length
+above rhyme**: "Both line length and rhyme are traffic cops, but line length has
+a higher rank—captain, as opposed to sergeant." *Writing Better Lyrics* (2009),
+Chapter 19 makes the same ranking independently on the two-line ladder in
 [stability reference](#stability-reference): "So line length is a stronger
-motion creator than rhyme, huh? Yup." Treat the four-item list as an unaudited
-web paraphrase that is at minimum incomplete; use
+motion creator than rhyme, huh? Yup."
+
+So: use the column for the music-side controllers it names, and use
 [length of lines](#length-of-lines) and the stability ladder as the book-sourced
-account.
+account of the lyric side. Do not re-file this as a contradiction.
 
 See [stable / unstable](stable-unstable-meta.md) for the cross-controller
 diagnostic.

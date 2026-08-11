@@ -174,7 +174,9 @@ any prose lyric line.
       section, last word before a rhyme position)
 - [ ] **Hot-spot phrase rule** — within a phrase: 2nd-most-important word at
       the beginning, most-important word at the end (or first/last per
-      front-heavy/back-heavy choice)
+      front-heavy/back-heavy choice — `front-heavy` / `back-heavy` are
+      plugin-authored shorthand, 0 corpus hits; see
+      [book-references.md](book-references.md) "Plugin-authored vocabulary")
 - [ ] **Stress map** — every stressed syllable lands on a strong beat (no
       greedy spots — unstressed forced to a downbeat, or stressed forced
       to a weak beat)
@@ -198,7 +200,9 @@ any prose lyric line.
       middle for narrative, long-shot for chorus universality — or
       deliberate hybrid)
 - [ ] **Tone-of-voice** stable — same speaker, same emotional register as
-      the section's other lines
+      the section's other lines (`tone of voice` is plugin-authored shorthand,
+      0 corpus hits; see [book-references.md](book-references.md)
+      "Plugin-authored vocabulary")
 - [ ] **Vowel awareness** — the line's stressed vowels chosen, not
       defaulted; bright vowels (long-ē, long-ā) feel sharp; dark vowels
       (long-ō, long-ū) feel weighted
@@ -417,7 +421,8 @@ AABA", "do I need a bridge", or AI is about to recommend a song form.
 - [ ] **Transitional bridge (pre-chorus)** — only if a climb to chorus
       needs explicit lift; not by default
 - [ ] **Form fits melody** if a melody exists — see §2 phrasing checklist
-- [ ] **Stable/unstable signature** matches central emotion
+- [ ] **Stable/unstable signature** matches the central intent, idea, and
+      emotion of the work
 
 ## §7 Image filter (object writing + metaphor)
 

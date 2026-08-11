@@ -8,12 +8,16 @@ Challenge 4.
 Source images inspected:
 
 - *Essential Guide to Lyric Form and Structure* (1991), Chapter 4: **40 linked
-  page-scan figures**, all 40 unique, read at 3x upscale. This file's primary
-  source argues in scans — the balance paradigms, every closure type, and all
-  three strategy examples are figures, not prose. Earlier revisions of this
-  inventory listed only the *Essential Guide to Rhyming* (2014) and
-  *Songwriting Without Boundaries* (2011) images and omitted this chapter
-  entirely, which is how the `abba` error below survived.
+  page-scan figures**, all 40 distinct files, read at 3x-4x upscale. This
+  file's primary source argues in scans — the balance paradigms, every closure
+  type, the exercise answer keys, and all three strategy examples are figures,
+  not prose. Earlier revisions of this inventory listed only the *Essential
+  Guide to Rhyming* (2014) and *Songwriting Without Boundaries* (2011) images
+  and omitted this chapter entirely, which is how the `abba` error below
+  survived. Distinct files are not distinct content: `image_rsrc31U` and
+  `image_rsrc31X` print the same six-line lyric, because Pat reprints example
+  c) when he comes back to it. Reprints in this chapter are pedagogy — do not
+  fold them.
 - *Essential Guide to Rhyming* (2014), Chapter 7 (printed pp. 69-75, spine
   082-088; p. 76 is a blank verso): text layer complete and used verbatim.
   Scans consulted for layout only — `image_A-page2.jpg` (the two-column
@@ -40,20 +44,52 @@ sections.
 This file focuses on decision-making. For definitions and mechanics, see
 [rhyme fundamentals](rhyme-fundamentals.md).
 
-## The four control questions
+## The five areas rhyme controls
 
-Before changing words, diagnose what the rhyme scheme is doing:
+Chapter 4 names five, not four. Pat's list as printed:
+
+> Rhyme controls or helps to control each structural area:
+>
+> I. Rhyme helps create BALANCE (symmetry), or lack of BALANCE (asymmetry) in
+> a structure.
+>
+> II. Rhyme controls the PACE of structures. (Acceleration, Deceleration,
+> Constant Motion)
+>
+> III. Rhyme controls the FLOW of phrases by stopping motion, or by keeping
+> motion going.
+>
+> IV. Rhyme controls the CLOSURE (or resolution).
+>
+> V. Rhyme helps control TYPE OF CLOSURE. (EXPECTED CLOSURE, DECEPTIVE
+> CLOSURE, UNEXPECTED CLOSURE.)
+
+Before changing words, diagnose the section against those five, plus the
+scheme itself:
 
 - Scheme: which sounds repeat, which lines are unrhymed, and where identities
   are masquerading as rhymes?
-- Structure: does the scheme balance, unbalance, fragment, or through-write the
-  section?
-- Pace: are rhymes close enough to accelerate, far enough apart to decelerate,
-  or regular enough to stay constant?
-- Closure: does the section close expectedly, deceptively, unexpectedly, or
-  remain open?
+- Balance: is the system symmetrical or asymmetrical?
+- Pace: do the rhymes accelerate, decelerate, or hold constant motion?
+- Flow: does the scheme fragment the section or through-write it?
+- Closure: is the system closed or open?
+- Type of closure: expected, deceptive, or unexpected?
 
-These questions turn rhyme into a craft lever instead of a word-hunt.
+## The three rhyme strategies
+
+Having covered the "What," Chapter 4 turns to the "Why" and names three:
+
+> Once you understand the effect that rhyme structure has on a system, you can
+> start to develop strategies for choosing them. There are three basic rhyme
+> strategies:
+>
+> 1. Outlining the way ideas move.
+>
+> 2. Supporting meaning. (Prosody)
+>
+> 3. Creating relationships between sections.
+
+The three sections below take them in that order.
 
 ## Strategy 1: outline idea movement
 
@@ -161,9 +197,16 @@ more active.
 
 ## Accelerate strategically
 
-Acceleration comes from bringing rhymes closer together. Pat's example — the
-consecutive rhymes in lines 3, 4 and 5 accelerate the section and build
-pressure, working in sync with the idea:
+Acceleration comes from bringing rhymes closer together. Chapter 4's image for
+it:
+
+> Rhyme is like the accelerator in a car: the closer the accelerator gets to
+> the floor, the faster the car moves. The closer rhymes are to each other, the
+> faster your lyric moves. And, like the accelerator and the car floor, the
+> further apart they are, the slower you move.
+
+Pat's example — the consecutive rhymes in lines 3, 4 and 5 accelerate the
+section and build pressure, working in sync with the idea:
 
 ```text
 I saw her once and that was it        a
@@ -190,13 +233,18 @@ the consecutive `c c c` cluster increases pressure before a
 later return. Feminine rhymes can heighten comedy because the two-syllable tail
 adds bounce while the cluster speeds up.
 
-Use acceleration for:
+Acceleration and deceleration are relative terms; the chapter insists on a
+reference point. Alternating rhyme (`bring / search / sing`) sets a pace, and
+adding consecutive rhymes to it (`last / fast`) accelerates the system.
+Starting consecutive and moving to alternating decelerates it. Keeping either
+pattern going leaves the PACE CONSTANT.
 
-- Rising attraction.
-- Panic or comic escalation.
-- Physical action.
-- A thought narrowing toward obsession.
-- A title or hook that needs pressure behind it.
+There is a ceiling, and Pat states it plainly:
+
+> ... once you have consecutive rhymes, the pedal is to the metal. You cannot
+> accelerate. The only way to go faster then is to shorten PHRASE LENGTHS. In
+> juggling, when the balls are going at top speed, the only way to juggle
+> faster is to decrease the distance the balls have to go.
 
 Do not accelerate just because the rhyme words are available. If the next verse
 must reuse the scheme, the next verse needs an idea that can carry the same
@@ -207,13 +255,9 @@ late pressure.
 Deceleration comes from moving rhymes farther apart or returning from
 consecutive rhyme to alternating rhyme.
 
-Use deceleration for:
-
-- Reflection.
-- Regret.
-- Explanatory or narrative space.
-- A section that should relax before contrast.
-- A bridge idea that should not inherit a high-pressure verse scheme.
+Exercise 22 drills both directions on the same material: it gives three short
+rhyme lists and asks the writer to accelerate each by adding or subtracting
+words, then start over and decelerate them.
 
 If a repeated section has one verse about excitement and another about calm,
 the same rhyme acceleration may betray the calmer content. Solve by changing
@@ -241,19 +285,20 @@ in the closing spotlight.
 
 ## Strategy 3: relate sections
 
-Use rhyme to decide how sections speak to each other.
+Use rhyme to decide how sections speak to each other. Chapter 4 asks three
+questions and then hands the strategy forward:
 
-Ask:
+> Should a particular section move forward or should it stop? How strong should
+> the push forward or the stop be? How strong should the contrast be between
+> sections? This third strategy will be easier to deal with after the next
+> chapter on FORMAL ELEMENTS.
 
-- Should the verse move forward or stop?
-- Should the chorus answer with stronger closure?
-- Should the bridge relax, interrupt, or reframe the rhyme behavior?
-- How strong should the contrast be between sections?
-
-If two sections use different rhyme strategies, make the difference audible and
-meaningful. A through-written verse into a fragmented chorus can feel like
-motion resolving into a hook. A fragmented verse into a through-written chorus
-can feel like the hook opens the song outward.
+That deferral matters. Chapter 4 supplies Strategy 3's questions, not its
+answers, and prints no verse-scheme-to-chorus-scheme recommendations at all —
+so treat any such pairing as a reading of a particular draft, never as a menu
+the chapter offers. A through-written verse into a fragmented chorus can feel
+like motion resolving into a hook; a fragmented verse into a through-written
+chorus can feel like the hook opens the song outward.
 
 ## Working from idea to scheme
 
@@ -488,21 +533,33 @@ consonance rhyme in the fourth line can feel connected-but-unresolved.
 
 ## Decision matrix
 
-Use this matrix after labeling the scheme:
+"Decision matrix" is this file's scaffolding, not Pat's term — the word appears
+nowhere in any of the four books. Chapter 9 prints no table. It walks one `abab`
+frame (`blush / skin / rush / sin`) through nine type substitutions and says
+what each one does. Those nine, in the chapter's own order, are the matrix:
 
-| Section need | Dominant position | Tonic position |
+| Dominant (a) | Tonic (b) | What Chapter 9 says it does |
 | --- | --- | --- |
-| Strong declaration | Perfect | Perfect |
-| Stable but not slammed | Family | Perfect or family |
-| Gentle lean into closure | Family | Family |
-| Dreamy or floating | Assonance | Family or assonance |
-| Longing, uncertainty | Family or consonance | Consonance |
-| Almost no closure | Assonance or consonance | Assonance or consonance |
-| Contrast inside repeated sections | Weaker type in unstable section | Stronger type in stable section |
+| Perfect | Perfect | Maximum motion: the hardest push, the strongest resolution |
+| Family | Perfect | Push "a little lighter"; still resolves, but "slams the gates of purgatory rather than the gates of hell" |
+| Perfect | Family | Strong push; the landing "is softer and opens the gate a bit" |
+| Assonance | Perfect | "Precious little push," closer to an `xaxa` feeling; the arrival is "pretty light" |
+| Perfect | Assonance | The push "lands with a splat on the squishy surface"; `abab` "has suddenly lost its ability to close the deal" |
+| Assonance | Family | "A pretty light and dreamy flirtation" |
+| Family | Assonance | "Really off in dreamland, floating, floating in a misty reverie" |
+| Consonance | Family | "Barely nudges forward," yet more forward pressure than leaving lines 1 and 3 unrhymed |
+| Family | Consonance | "The gate is wide open" — longing and uncertainty; the Randy Newman case below |
 
-If the section already has strong meter, syntax, melody, or line-length
-pressure, the rhyme type can be weaker and still read as connected. If the
-section has little other pressure, weak rhyme types may feel like no structure.
+Family/family, assonance/assonance and consonance/consonance are not among
+them. The chapter never demonstrates those pairings, so this file does not
+recommend them.
+
+If the section already has strong meter or line-length pressure, the rhyme type
+can be weaker and still read as connected. Chapter 9 makes exactly that point:
+where an assonance rhyme leaves "precious little push" in dominant position, the
+push "would have to come from somewhere else, like e.g., line lengths (something
+like common meter ... which creates the same dominant push as an abab rhyme
+scheme)."
 
 ## Repeated-section problem
 
@@ -622,93 +679,66 @@ and any line-length pressure. Revise one line so the rhyme strategy better
 matches the emotional motion.
 ```
 
-## The three rhyme strategies (named)
+## Why `abba` does not close
 
-*Essential Guide to Lyric Form and Structure* (1991), Chapter 4 names three rhyme strategies. The skill applies each
-separately or in combination per section.
+An earlier revision of this file described `abba` as "enclosing," which reads as
+a closure claim and contradicted the Challenge 4 table above, where `abba` is
+listed under floating instability. *Essential Guide to Lyric Form and Structure*
+(1991), Chapter 4 settles it twice over, both times in figures rather than
+prose:
 
-### Strategy 1 — Outline how ideas move
+- The balance argument prints `trim / alive / dive` (`abb`, `image_rsrc30U`) and
+  says it "is not balanced by" `trim / live / dive / swim` — which is `abba`
+  (`image_rsrc30V`). What does balance it is `abbabb` (`image_rsrc30W`) or
+  `abbacc` (`image_rsrc30X`). `abba` is the chapter's counter-example to
+  balance, not an instance of it. `abba` is likewise absent from the chapter's
+  printed paradigms of BALANCE (`image_rsrc30Y`), which are `abab`, `xaxa`,
+  `aa`, `aabb`, `abcabc`, and `xxaxxa`.
+- Exercise 24 asks the reader to mark each scheme closed or open, and its answer
+  key — printed upside down at the foot of the page — gives item 6, `a b b a`,
+  as **O** for open (`image_rsrc31B`).
 
-Rhyme scheme as map of idea movement. Different schemes fragment or
-join ideas across the section.
+The other two books agree from the other direction. *Essential Guide to Rhyming*
+(2014), Chapter 9 reaches for `abba` as its example of "an unstable rhyme
+scheme," and *Songwriting Without Boundaries* (2011), Challenge 4 devotes a day
+to it as "Unstable Structure: abba," noting that it "creates an interesting
+feeling of floating."
 
-| Scheme | Effect on idea movement |
-|---|---|
-| `aabb` | Fragments each pair; each couplet closes a thought |
-| `abab` | Through-writes; idea spans the four-line arc |
-| `abba` | Frames the inner pair — but stays **open**, not closed (see below) |
-| `xaxa` | Through-writes with relaxed structure |
-| `aaba` | Points forward toward a fourth `b` that does not arrive |
-| `abcb` | Closes the rhymed pair; leaves first and third open |
+Use `abba` when a section should frame an idea without resolving it — loss,
+hope, suspension — not when it needs to land.
 
-**`abba` does not close.** Earlier revisions of this table said `abba`
-"encloses," which reads as a closure claim and contradicted this file's own
-Challenge 4 table below, where `abba` is listed under floating instability. The
-1991 chapter settles it twice over: it presents `abba` as the scheme that
-*fails* to balance an opening `abb`, and its printed exercise key marks `abba`
-**open**. Use `abba` when a section should frame an idea without resolving it —
-loss, hope, suspension — not when it needs to land.
+## Choosing the rhyme type for a slot
 
-Use Strategy 1 to decide which idea-shape the section wants:
-fragmented declarations, single arcs, framed center, or unresolved push.
+This index is the skill's own routing aid. An earlier revision claimed
+*Essential Guide to Rhyming* (2014), Chapter 9 "synthesizes a decision matrix
+for rhyme type by emotional intent"; it does not. Chapter 9 never sorts rhyme
+types by intent, and the rows below for partial and weak-syllable rhyme come
+from Chapter 6, not Chapter 9. The rhyme types are Pat's; the intent column is
+this file's gloss, and every definition lives in
+[rhyme types](rhyme-types.md).
 
-### Strategy 2 — Support meaning (prosody)
-
-Pick rhyme density to match the section's emotional pace. Close
-rhymes accelerate; spaced rhymes decelerate; missing rhymes float.
-
-| Pace need | Rhyme density |
-|---|---|
-| Contemplative verse | Spaced (every other line, or every 4) |
-| Active chorus | Close (couplets, internal rhymes) |
-| Drifting prechorus | Missing or weak (no rhyme on most lines) |
-| Settled refrain | Strong final pair |
-
-Strategy 2 is what Pat calls the accelerator-pedal use of rhyme:
-the closer the rhymes, the faster the lyric.
-
-### Strategy 3 — Relate sections
-
-Rhyme in one section sets up contrast or echo in the next. A verse
-with sparse rhyme makes a chorus with dense rhyme feel arrival.
-A chorus that echoes the verse's scheme creates continuity.
-
-| Relationship | Verse scheme | Chorus scheme |
+| Intent at the slot | Rhyme type | Where Pat defines it |
 |---|---|---|
-| Strong contrast | abab | aabbcc (couplet flood) |
-| Subtle contrast | xaxa | abab |
-| Continuity | abab | abab (with stronger rhyme types) |
-| Disruption | abab | xxxx (no rhyme; spoken-word feel) |
+| Confident arrival, declarative closure | Perfect | Chapter 1 |
+| Resolved but fresh; cliche-avoidance | Family | Chapter 4 |
+| Vowel ending; more options via consonant addition | Additive | Chapter 5 |
+| Cluster ending; more options via consonant removal | Subtractive | Chapter 5 |
+| Connection without closure; the vowel carrying | Assonance | Chapter 6 |
+| The shape of resolution without its certainty | Consonance | Chapter 6 |
+| Two-syllable word, no full close | Partial | Chapter 6 |
+| Connection only at the unstressed final syllable | Weak-syllable | Chapter 6 |
 
-Strategy 3 is the section-to-section move. It governs how the song's
-rhyme architecture composes, not just how a single section behaves.
+Working order at a slot:
 
-## Decision matrix — which rhyme type when
-
-*Essential Guide to Rhyming* (2014), Chapter 9 synthesizes a decision matrix for rhyme type by
-emotional intent. Pat's stance: rhyme type is not a default, it is
-a choice per slot.
-
-| Emotional intent | Rhyme type |
-|---|---|
-| Confident arrival, declarative closure | Perfect (fully resolved) |
-| Resolved but fresh; cliche-avoidance | Family |
-| Open-vowel start; cliche-avoidance via consonant addition | Additive |
-| Cluster-ending; declutter via consonant removal | Subtractive |
-| Connection without closure; held vowel carrying | Assonance |
-| Shape of resolution without certainty; consonant carrying | Consonance |
-| Feminine word but no full close | Partial |
-| Connection only at unstressed final syllable | Weak-syllable |
-| Spotlight without overclose | Deceptive closure (any type) |
-| Surprise after expected close | Unexpected closure |
-
-The matrix is read top-down per slot:
-
-1. Name the emotional intent at the slot.
-2. Identify the candidate rhyme type from the matrix.
+1. Name what the slot has to do emotionally.
+2. Take a candidate type from the index.
 3. Run the worksheet for that type.
-4. If candidates fail the line, drop to the next less-stable type.
-5. Sing the result.
+4. If nothing fits the line, move one step down the stability scale.
+
+Closure type is a separate lever, not a rhyme type. Deceptive and unexpected
+closure are structural moves from *Essential Guide to Lyric Form and Structure*
+(1991), Chapter 4, and they are covered under "Closure as spotlight" above; do
+not read them off this index.
 
 ## Shelley anchor — through-written without internal fragmentation
 
@@ -768,19 +798,25 @@ defaults.
 A named example for using consonance rhyme to relax verse motion
 strategically — not by accident.
 
-Pat cites Verse 3 of Paul Simon's "50 Ways to Leave Your Lover" as
-demonstrating consonance rhyme as a deceleration tool:
+Pat cites verse 3 of Paul Simon's "50 Ways to Leave Your Lover" as the case for
+consonance rhyme when a scheme is already committed and a later verse needs its
+motion relaxed:
 
-<!-- phonetic ending fragment trips the spell-checker --><!-- spellchecker:off -->
-- The verse's three rhyme-position words share consonant endings (pain /
-  again / explain) — all -ane ending consonance, technically a partial
-  rhyme since the stressed vowels differ
-- The consonance creates structural continuation without the harder
-  closure of perfect rhyme
-- The verse keeps the song "lighter" than the verses that use perfect rhyme
-- The placement is intentional — verse 3 is meant to feel less weighted
-  than verses 1-2, and the rhyme stability shift carries that intent
-<!-- spellchecker:on -->
+> Consonance rhyme never works like perfect rhyme. Yet, when it is strong
+> enough, it can work for you. You might use it in a case where you have already
+> committed to a rhyme scheme in an earlier verse, and want to keep it, yet
+> relax the motion in a later verse.
+
+The three end-rhymes he lists are `pain`, `again`, `explain`. Read what he
+actually says about them: it is `again`, in **second position**, that is the
+consonance rhyme — its stressed vowel differs, while `pain` and `explain` rhyme
+perfectly with each other. Sitting between them, the odd one out "dampens the
+resolving effect of the consecutive rhymes."
+
+- Pat's verdict: "His use of the consonance rhyme is pretty. The verses are
+  relaxed, both in attitude and structure."
+- His test: "Try replacing 'again' with a perfect rhyme and see what happens!
+  The prosody evaporates."
 
 ### What this teaches
 

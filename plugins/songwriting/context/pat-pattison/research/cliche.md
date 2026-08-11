@@ -94,7 +94,9 @@ fine; the next step is finding your own way of saying it.
 
 ## Four cliche families
 
-Diagnose cliches by family:
+The four family names and the four headed lists below them are Pat's. The
+Symptom and Cure columns of this table are **this plugin's, not Pat's** — a
+routing aid, not something he prints:
 
 | Family | Symptom | Cure |
 | --- | --- | --- |
@@ -112,7 +114,9 @@ Cliche phrases usually tell instead of show. They name a familiar emotion,
 gesture, or relational situation without giving the listener a body, object,
 room, weather, texture, or action to enter.
 
-Diagnosis questions:
+Diagnosis questions — these and the rewrite pattern below are **this plugin's,
+not Pat's**; Chapter 5 prints the phrase list and the two draft verses, and
+prescribes no procedure:
 
 - Does this phrase appear in hundreds of songs?
 - Could another singer in another story use it unchanged?
@@ -120,30 +124,44 @@ Diagnosis questions:
 - Does it explain emotion before showing Rusty's collar?
 - Does it arrive because the writer is trying to fill meter or rhyme?
 
-Pat's own list runs to roughly a hundred entries. A representative slice, in his
-grouping:
+Pat prints his own list under the heading CLICHÉ PHRASES as a three-column
+table. Here it is complete, in printed order:
 
 ```text
-(way down) deep inside      touch my (very) soul       take my hand
-heart-to-heart              eye to eye                 hand-in-hand
-side by side                face-to-face               by my side
-we've just begun            hurts so bad               walk out (that) door
-can't stand the pain        feel the pain              give me half a chance
-gotta take a chance         such a long time           night and day
-all night long              the test of time           rest of my life
-someone like you            no one can take your place lonely nights
-say you'll be mine          how it used to be          made up my mind
-calling out your name       it's gonna be all right    get down on my knees
-more than friends           set me free                heaven above
-done you wrong              break these chains         kiss your lips
-falling apart               can't live without you     taken for granted
-lost without you            break my heart             safe and warm
-give you my heart           broken heart               can't go on
-want you / need you / love you                         keep holding on
-end of the line             now or never               pay the price
-never let you (me) go       hold me tight              worth fighting for
-nothing to lose             see the light              forget my foolish pride
-oh baby                     drive me crazy             going insane
+(way down) deep inside      touch my (very) soul     take my hand
+heart-to-heart              eye to eye               hand-in-hand
+side by side                in and out               face-to-face
+up and down                 by my side               back and forth
+we've just begun            hurts so bad             walk out (that) door
+can't stand the pain        can't take it            feel the pain
+give me half a chance       last chance              gotta take a chance
+such a long time            night and day            take your time
+all night long              the test of time         the rest of time
+rest of my life             someone like you         end of time
+no one can take your place  all my love              no one like you
+lonely nights               say you'll be mine       losing sleep
+I'll get along              how it used to be        made up my mind
+calling out your name       it's gonna be all right  get down on my knees
+more than friends           set me free              end it all
+fooling around              work it out              had your fun
+heaven above                true to you              done you wrong
+break these chains          kiss your lips           back to me
+take it easy                falling apart            make you stay
+can't live without you      taken for granted        asking too much
+somebody else               lost without you         no tomorrow
+break my heart              safe and warm            give you my heart
+try one more time           broken heart             aching heart
+can't go on                 all we've been through   want you / need you / love you
+keep holding on             end of the line          now or never
+always be true              hold on                  over the hill
+pay the price               never let you (me) go    know for sure
+right or wrong              rise above               hold me tight
+what we're fighting for     all we've done           tear me apart
+you know it's true          worth fighting for       play the game
+hold me close               nothing to lose          see the light
+forget my foolish pride     losing sleep             oh baby
+drive me crazy              treat me like a fool     all my dreams come true
+going insane                rhyme or reason
 ```
 
 Rewrite pattern:
@@ -193,7 +211,9 @@ Pat's diagnosis of why the list looks like that, and the cure it implies:
 > won't notice the difference.
 
 Use [worksheets](worksheets.md) to build options, then use
-[rhyme types](rhyme-types.md) to widen the field:
+[rhyme types](rhyme-types.md) to widen the field. The assignments below are
+**this plugin's, not Pat's** — Chapter 5 names the imperfect types but assigns
+none of them a job, and consonance is not in his list here at all:
 
 - family rhyme for close-but-fresh resolution,
 - additive or subtractive rhyme for loosened resolution,
@@ -232,7 +252,8 @@ own memory:
 > What did your lover say? Where were you? What kind of car? What was the
 > texture of the upholstery in the backseat?
 
-Ask:
+Ask — extending Pat's four questions; the list below is **this plugin's, not
+Pat's**:
 
 - Whose lips, eyes, hands, door, room, or car?
 - What did the object actually look, smell, sound, or feel like?
@@ -278,7 +299,8 @@ thoughts, though a cliché, is a metaphor. It's literally false." So
 and literal falsehood separately.
 
 Do not ban these automatically. Ask whether the draft adds a fresh collision or
-specific sensory angle. If it does not, rebuild the metaphor from:
+specific sensory angle. If it does not, rebuild the metaphor from the following
+— **this plugin's** routing into Chapter 3, not a list Pat prints here:
 
 - object-writing details,
 - a less expected key of related words,
@@ -341,15 +363,15 @@ And it's all downhill from here
 The literal roller coaster earns the figurative phrase. Pat's warning attached to
 both cases: "Without a terrific setup, duck whenever you see a cliché."
 
-Pat's test has **two** parts, not four. He states the first outright, opening the
-section:
+Pat states the test outright, opening the section — one instruction with two
+alternatives:
 
 > In some cases, you can use a cliché to your advantage. Put it in a context that
 > brings out its original meaning or makes us see it in a new way.
 
-The second is the overtone condition quoted above: the cliche's usual sense must
-ride *under* a primary meaning the song has built, not carry the line itself. If
-neither holds, cut or rewrite.
+The overtone sentence quoted above is Pat's reading of the Fain/Kahal case, not a
+second general criterion: there, the cliche's usual sense rides *under* a primary
+meaning the song has built. Where a setup does neither job, cut or rewrite.
 
 ## Draft-stage tolerance
 

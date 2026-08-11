@@ -91,6 +91,33 @@ Pat Pattison — *What's in a Song* podcast, "Creating Metaphors" episode
 Date when relevant. Citation includes the publication / platform first,
 then the title.
 
+## Plugin-authored vocabulary — terms that are NOT Pat's
+
+These terms are used throughout this plugin as working shorthand. **None of them
+appears anywhere in the four-book corpus.** Each count below was measured against
+the extracted text of all four books, wrap-safe:
+
+| Term | Corpus hits | Status |
+| --- | --- | --- |
+| `tone of voice` | 0 | Plugin-authored shorthand. Keep, but never attribute to Pat. |
+| `front-heavy` / `back-heavy` | 0 | Plugin-authored shorthand for phrase weighting. Same rule. |
+| `central emotion` | 0 | **Do not use.** It truncates a real three-part phrase — see below. |
+
+`central emotion` is a distortion rather than an invention, which is why sweeps
+for fabricated quotes kept missing it. Pat's actual sentence is:
+
+> The elements all join together to support the central intent, idea, and emotion
+> of the work. Everything fits. Prosody: the appropriate relationship between
+> elements.
+> — Pat Pattison, *Writing Better Lyrics* (2009), Chapter 18
+
+When the three-part idea is meant, write it in Pat's wording — "the central
+intent, idea, and emotion" — not the shortened "central emotion."
+
+A term being plugin-authored is not a defect and does not have to be removed.
+Presenting one **as Pat's** is the defect. `stable-unstable-meta.md` carries the
+worked example of the correction.
+
 ## Why this convention matters
 
 - Book numbers are unstable references — readers (human or AI) re-order them

@@ -546,7 +546,7 @@ four-stress second phrase produces once it is carried across all four lines.
 
 ## Common meter as map
 
-In *Writing Better Lyrics* Chapter 14, common meter becomes a drafting map, not only
+In *Writing Better Lyrics* (2009), Chapter 14, common meter becomes a drafting map, not only
 a scansion label. Pat's image for the eight-bar section is a sea voyage — "the
 sea captain of Western popular music" — and the two- and four-bar subdivisions
 are landmarks along it. The end of bar two rests, bars three and four tack into
@@ -629,7 +629,7 @@ content. Do not turn on a spotlight for decoration.
 
 ## Common-meter spotlighting
 
-In *Writing Better Lyrics* Chapter 15, Pattison turns common meter into a controlled
+In *Writing Better Lyrics* (2009), Chapter 15, Pattison turns common meter into a controlled
 spotlight machine. Begin with a stable abab / 4-3-4-3 pattern, let the listener
 expect the fourth line to rhyme with line two and carry three stresses, then
 alter one variable at a time. His demonstration stanza, which the whole chapter
@@ -761,7 +761,7 @@ without the tighter nursery-rhyme pull of abab.
 
 ## Two-by-two meter
 
-In *Writing Better Lyrics* Chapter 16, Pattison contrasts common meter's eight-bar
+In *Writing Better Lyrics* (2009), Chapter 16, Pattison contrasts common meter's eight-bar
 journey with four-stress couplets that organize two bars plus two bars. The
 basic pattern is four stresses matched by four stresses. Because the line
 lengths match, the listener can stop comfortably after line two.
@@ -923,7 +923,7 @@ one that closes cleanly.
 
 ## Managing lockstep couplets
 
-In *Writing Better Lyrics* Chapter 17, Pattison treats repeated four-stress rhymed
+In *Writing Better Lyrics* (2009), Chapter 17, Pattison treats repeated four-stress rhymed
 couplets as useful raw material that can become deadly if every two lines stop
 and start the song again. The danger pattern is aa bb cc dd ee: matched lengths
 plus paired rhymes make the lyric march in small units, so every weak line
@@ -1252,7 +1252,7 @@ As with deceptive closure, use the surprise position for important content.
 
 ## Challenge 4 rhythm practice
 
-*Songwriting Without Boundaries* Challenge 4 links object writing to lyric
+*Songwriting Without Boundaries* (2011), Challenge 4 links object writing to lyric
 practice by putting timed sensory writing inside stress-counted forms. The
 writer still looks for sensory detail and metaphor, but now every line has a
 metrical job.
@@ -1508,21 +1508,34 @@ u   /    u   /     u  /   u   /
 Use Paradigm Three when the last idea must spotlight or unsettle. The
 expectation of a 3-stress close makes the longer line audible.
 
-## Paradigm comparison — One vs Two
+## Paradigm comparison — One vs Two (*Essential Guide to Lyric Form and Structure* (1991), Chapter 3)
 
-Teaching move: write the same idea in Paradigm One and Paradigm Two.
-The words feel different because the flow shape differs.
+Pat prints the two paradigms in immediate succession and states why:
+
+> Comparing PARADIGM 1 and PARADIGM 2 is the best way to understand FLOW. It
+> shows when and why a structure pushes forward, and when and why it doesn't.
+
+The comparison is drawn in arrows, not described. Paradigm 1's figure carries
+`-> motion` against phrases two and three and `<- closure` against phrase four;
+Paradigm 2's carries `<- closure` twice, against phrases two and four. The
+differences Chapter 3 names behind those arrows:
 
 | Aspect | Paradigm One | Paradigm Two |
 |---|---|---|
-| Stresses | 4/3/4/3 | 4/4/4/4 |
-| Flow | through-written | fragmented |
-| Length perception | Long arc | Two paired chunks |
-| Default mood | Expansive, narrative | Even, declarative |
-| Best for | Verses that develop | Choruses that declare |
+| Stress counts | 4/3/4/3 | 4/4/4/4 |
+| Repetition scheme | SAME / DIFFERENT / SAME ... | SAME / SAME / SAME / SAME |
+| Flow | through-written | fragmented — closes internally after phrase two |
 
-When unsure, draft both and sing each. The ear picks faster than
-the page.
+One consequence follows once the structure is set in bars: Paradigm Two
+"defines a four-bar unit as the primary unit of the structure rather than, like
+Common Meter, showing the four-bar unit as a subdivision of an eight-bar unit."
+
+Chapter 3 assigns neither paradigm a mood, a section type, or a "best for" use;
+the paradigms are characterized only by the Pentad. Earlier revisions of this
+file carried "Length perception," "Default mood," and "Best for" rows here,
+plus a "Teaching move" directing a writer to set the same idea in both — none
+of that is in the chapter, and Exercises 14 and 15 in fact ask for three systems
+of *different* content in each paradigm. Removed rather than re-sourced.
 
 ## Duple-to-triple and triple-to-duple physics
 
