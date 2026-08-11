@@ -29,14 +29,26 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 ### Added
 
 - **`audit-permission-state`** — a new skill reporting which permission rules are actually in effect
-  and where each comes from. Claude Code ships no `claude permissions` subcommand and no
-  machine-readable export, so the honest answer had been "read five files in five places and hope you
-  know all five". The reader discovers managed policy, user-global, project, local, and any
+  and where each comes from. `/permissions` lists your rules and the file each came from, but it does
+  not resolve which of two conflicting rules wins, cannot distinguish a scope that was empty from one
+  it could not read, and exists only inside a live session — there is no `claude permissions`
+  subcommand and no machine-readable export. The reader discovers managed policy, user-global,
+  project, local, and any
   pre-v2.1.211 start-directory copy, and inventories each scope's `allow`/`ask`/`deny` rules with its
   source named. Every scope and every managed surface emits a record on every OS, so a surface that
   was never attempted can never be mistaken for one that is genuinely empty: `absent` means looked and
   found nothing, `skipped` means could not look. Server-managed settings are disclosed as having no
   local path rather than assumed absent. Report-only, and managed policy is read-only by construction.
+  A second pass merges those scopes into the set actually in force, each rule naming every scope that
+  contributes it and the documented mechanic that put it there. Permission rules merge across scopes
+  rather than override, so a rule written at two scopes has no winner and is never reported as one;
+  what a rule can lose is its kind, because deny is evaluated before ask and ask before allow from any
+  scope in either direction — a user-level deny blocks a project-level allow just as the reverse. The
+  beaten entry is reported as inert alongside the rule that beat it, which is the answer to "why is my
+  allow rule ignored". Every run states the two bounds on the claim: the command-line scope
+  (`--settings`, `--allowedTools`, `--disallowedTools`) outranks the files and has none to read, and
+  rules are compared by exact text, so a narrow allow blocked only by a broader deny pattern is still
+  reported effective — the error direction is over-reporting allow, never over-reporting blocking.
 - **`lib/permission-patterns.sh`** — the auto-mode drop vocabulary (blanket, wildcarded-interpreter,
   package-manager-runner, and script-glob rule shapes, plus the top-level tool-token grammar) as a
   define-only library. It was inline in the P1 detector, which self-executes and cannot be sourced,

@@ -119,6 +119,42 @@ Consequences carried into the plan:
   managed source with no local path, so "the deployed managed policy" always means the local
   surfaces. A report that omits this implies a completeness it cannot have.
 
+## Addendum — 2026-08-11, the merge semantics Phase 2 rests on
+
+Phase 2 claims an *effective* permission set. Nothing in the table above says how rules from two
+scopes combine, so the two governing sections were re-fetched before any merge was written
+(<https://code.claude.com/docs/en/settings> §How scopes interact and
+<https://code.claude.com/docs/en/permissions> §Settings precedence). Verbatim:
+
+| Fact | Wording |
+|---|---|
+| Permission rules **merge**, they do not override | "For example, if your user settings set `spinnerTipsEnabled` to `true` and project settings set it to `false`, the project value applies. Permission rules behave differently because they merge across scopes rather than override, and a few security-sensitive settings honor a restrictive value from certain scopes that otherwise couldn't override them." |
+| Managed permission rules cannot be overridden | "Permission rules follow the same settings precedence as all other Claude Code settings, with managed settings highest: no other level, including command line arguments, can override a managed permission rule." |
+| Deny wins from **any** scope, in both directions | "If a tool is denied at any level, no other level can allow it… The same holds across settings scopes: if user settings allow a permission and project settings deny it, the deny rule blocks it. The reverse is also true: a user-level deny blocks a project-level allow, because deny rules from any scope are evaluated before allow rules." |
+| A broad deny beats a narrower allow | "A broad deny rule like `Bash(aws *)` blocks every matching call, including calls that also match a narrower allow rule like `Bash(aws s3 ls)`, so a deny rule can't carry allowlist exceptions. The same precedence applies between ask and allow." |
+| The command-line scope is a real scope | "**Command line arguments**: temporary session overrides" — ranked second, above local, project and user |
+| `/permissions` already shows rules and their source file | "You can view and manage Claude Code's tool permissions with `/permissions`. This UI lists all permission rules and the `settings.json` file each rule comes from." |
+
+Consequences carried into the plan:
+
+- **There is no same-kind winner to elect.** Because rules merge rather than override, a rule text
+  present in the same list at two scopes has both entries in effect; naming one as *the* origin would
+  be a precedence claim no page supports. Provenance for that case is the full contributor set. A
+  winner exists only **across kinds**, and the mechanic that elects it is evaluation order, which the
+  wording above makes explicitly scope-independent in both directions.
+- **The start-directory copy never needs ranking against project settings.** That rank is undocumented,
+  and with no same-kind election it is never consulted.
+- **Pattern subsumption is a known false-positive class, not an unknown.** A merge over exact rule text
+  reports `Bash(aws s3 ls)` as an effective allow even where `Bash(aws *)` is denied, because the page
+  documents that the broad deny wins. The direction is known — over-reporting allow — so the caveat
+  states it rather than pleading undecidability.
+- **The command-line scope is invisible to any file reader**, so an effective-set claim is bounded to
+  what the settings files define. This is a second invisible source alongside server-managed settings.
+- **`/permissions` is prior art and the skill must stop overclaiming.** It lists rules with their
+  source file interactively. It does not resolve deny-over-allow across scopes, does not distinguish a
+  scope that was empty from one that could not be read, and is not scriptable. The skill's framing is
+  narrowed to that difference rather than claiming there is no way to see rules at all.
+
 ## Version constants cleared for use
 
 `v2.1.75`, `v2.1.193`, `v2.1.198`, `v2.1.200`, `v2.1.203`, `v2.1.207`, `v2.1.208`, `v2.1.211`,

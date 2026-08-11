@@ -426,7 +426,44 @@ The integration slice. Everything downstream reads what this produces.
   yields `bash: command not found` and exit 127, because the interpreter itself becomes unresolvable,
   so the check would fail for a reason unrelated to jq.
 
-### Phase 2: Merge and per-rule provenance [TODO]
+### Phase 2: Merge and per-rule provenance [DONE]
+
+**Completed 2026-08-11.** `permission-merge.test.sh` 40/40, `shellcheck -x` clean,
+`permission-state.test.sh` still 42/42. `scripts/permission-merge.sh` consumes Phase 1's records and
+emits the effective set; `reference/criteria.md` now exists and carries the `precedence_basis`
+vocabulary; `SKILL.md` gained the Phase 2 pipeline.
+
+**The phase as written assumed the wrong merge model, and Phase 0's 2026-08-11 addendum overrides
+it.** The two governing sections were re-fetched before any code was written, per the standing
+re-fetch constraint, and they say permission rules *"merge across scopes rather than override"*. So:
+
+- **There is no same-kind winner, and electing one would have been an uncited precedence claim.** A
+  rule text in the same list at two scopes has both entries live. Provenance for that case is the
+  full contributor set (`precedence_basis=merged-across-scopes`), not an origin.
+- **A winner exists only across kinds**, elected by evaluation order — *"deny rules from any scope are
+  evaluated before allow rules"*, stated in both directions on the page. Losing entries ship as
+  `inert` records naming what beat them, which is what answers "why is my allow rule ignored".
+- **The phase's `origin` field is therefore not implemented as written.** `scopes=` carries every
+  contributing scope; the reader's emission order is presentation, never a ranking.
+- **The sanity check's one-winner assertion is bound to the cross-kind fixture**, where it is true,
+  and a second fixture asserts that a same-kind duplicate elects nothing and reports nothing beaten.
+  The basis invariant is anchored on the `effective` record prefix rather than a bare
+  `precedence_basis` grep, so it cannot pass on unrelated text.
+- **The start-directory-versus-project rank was deleted, not caveated.** With no same-kind election it
+  is never consulted, so the undocumented rank never has to be invented.
+- **Pattern subsumption is a known false-positive class with a known direction**, not an
+  undecidability. The page documents that a broad deny beats a narrower allow; this merge compares
+  exact text, so it over-reports allow and never over-reports blocking. Stated that way in the caveat.
+- **Two invisible sources bound every effective claim**: server-managed settings (already stated by
+  Phase 1) and the command-line scope, which ranks above local/project/user and has no file. The
+  merge prints the second on every run.
+- **An empty merge cannot mean an empty machine.** A pipeline swallowing the reader's `exit 2` would
+  report "nothing in effect" on a machine full of rules — the same family as Phase 1's three defects.
+  Zero scope records on input is `exit 2` before any merge line is emitted.
+- **`/permissions` is prior art the skill was overclaiming against.** The permissions page states it
+  "lists all permission rules and the `settings.json` file each rule comes from". `SKILL.md`'s Purpose
+  now names it, points readers to it for "where is this rule written", and claims only the
+  difference: outcome resolution, read-vs-empty distinction, and a consumable output.
 
 Acceptance criterion 1.
 
@@ -876,6 +913,12 @@ Remaining genuinely open, carried into implementation:
   **main checkout**. In a worktree they therefore look for the local file where it is not. Phase 1's
   new reader must resolve the main checkout; retrofitting the two existing detectors is a real but
   separate behavior change, deliberately not folded into Phase 9's approved scope.
+- **`check-skill.sh` warns `stale fresh-eyes-exempt directive` on `audit-permission-state`, and the
+  directive is right.** Verified 2026-08-11: the check's own judgment-language regex matches nothing
+  in the file, at HEAD or after Phase 2, so the warning is pre-existing and the heuristic list is the
+  gap — which is what the warning text itself says to check. The declaration is honest (the skill
+  interprets the consumer's configuration, never its own output) and stays. Fixing the heuristic is a
+  `skill-quality` change, not a `claude-config` one; Phase 8 decides whether to raise it there.
 
 ## Handoff to implementation
 

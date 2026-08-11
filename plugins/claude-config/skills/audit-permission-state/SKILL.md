@@ -10,10 +10,12 @@ metadata:
 
 ## Purpose
 
-Claude Code gives you no way to see the permission rules actually in effect. There is no
-`claude permissions` subcommand and no documented machine-readable export, so the honest answer to
-"where is this rule coming from" has been "read five files in five places and hope you know all
-five". This skill computes that locally.
+`/permissions` lists your rules and the settings file each one came from, and for "where is this rule
+written" that is the answer — use it. What it does not do is resolve the outcome: it will show you an
+allow and a deny for the same tool without saying which wins, it cannot tell a scope that was empty
+from one it could not read, there is no `claude permissions` subcommand or machine-readable export,
+and none of it exists outside a live session. This skill computes that locally, in a form another
+tool can consume.
 
 It answers a question the siblings do not. `audit-permission-grants` asks whether the grants you
 **wrote** are durable and portable; `audit` asks whether your config files are **correct**. This
@@ -62,6 +64,39 @@ NOTE: <text>                               anything the operator must know
 | `surface` | `file`, `dropin-dir`, `dropin-file:<name>`, `registry`, `plist` (managed); `settings` elsewhere |
 | `status` | `present`, `absent`, `unreadable`, `invalid-json`, `skipped`, `not-applicable` |
 | `kind` | `allow`, `ask`, `deny` |
+
+## Phase 2: Merge into the effective set
+
+Pipe the inventory through the merge to get what is actually in force, each rule carrying its
+provenance:
+
+```shell
+bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-permission-state/scripts/permission-state.sh" |
+  bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-permission-state/scripts/permission-merge.sh"
+```
+
+It passes the records above through, then appends:
+
+```text
+CAVEAT: <text>                                                 what bounds the claim
+effective <kind> scopes=<a,b> precedence_basis=<token> <rule>  one per live rule
+inert <kind> scopes=<a,b> outranked_by=<kind> <rule>           one per beaten entry
+```
+
+Two mechanics decide those records, and conflating them produces confident wrong answers:
+
+- **Rules merge across scopes rather than override**, so the same rule in the same list at two scopes
+  has no winner — both are live, and `scopes=` names every contributor. Never report one of them as
+  having overridden the other.
+- **Kind is decided by evaluation order — deny, then ask, then allow — from any scope, in both
+  directions.** A user-level deny blocks a project-level allow just as a project-level deny blocks a
+  user-level allow. Scope rank does not enter into it. This is what answers "why is my allow rule
+  ignored": the `inert` record names the rule that beat it.
+
+`reference/criteria.md` maps every `precedence_basis` token to the sentence it follows from, and
+states the two standing bounds the run prints — the command-line scope has no file to read, and rules
+are compared by exact text, so a narrow allow blocked only by a broader deny **pattern** is still
+reported effective. The error direction is over-reporting allow.
 
 ## Reading the output honestly
 
@@ -140,6 +175,10 @@ Observed failures, each of which produced a confidently wrong answer before it w
   looks where the file is not and reports `absent`. Three documented exceptions keep it in the start
   directory — outside a git repository, when the repository root is the home directory, and in Agent
   SDK sessions. The reader detects the first two and states that it cannot detect the third.
+- **An empty merge is not an empty machine.** Piping a reader that died into the merge would have
+  produced a clean "nothing in effect" on a machine full of rules. The merge now exits 2 when the
+  input carries no scope records at all; if you build your own pipeline around these scripts, check
+  the status rather than the output.
 - **Two live copies of `settings.local.json` are normal, not a bug.** When a pre-v2.1.211 copy sits in
   the start directory, the repository-root copy wins on a shared key but permission rules from both
   stay in effect. Reporting only one of them under-reports what is live.
