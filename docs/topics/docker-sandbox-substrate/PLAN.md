@@ -584,6 +584,82 @@ Test-first throughout — the fixture harness is already the red-green loop for 
    own release note. Phases 2–5 ship as a second PR carrying the topology change coherently.
    Alternative: one PR per phase, five review round-trips.
 
+### Reserved decisions — RESOLVED 2026-08-11
+
+All three were USER-RESERVED through planning and Phase 1. Research reframed two of them; the third
+was settled empirically rather than argued. Evidence:
+`.work/docker-sandbox-substrate/RESEARCH-reserved-questions.md`.
+
+#### Q21 — the ladder gains a class-level property, not a vendor-shaped rule
+
+**Decision: an `L2`+ binding must assert that nothing the run can install is able to WIDEN the
+boundary — only narrow it.**
+
+The vendor already solves this under organization governance, where the documented precedence is
+`kit allow ✗ / kit deny ✓` — *"Precedence is decided by a rule's decision rather than its source."*
+It does NOT solve it in local-policy-only mode, which the vendor's table leaves unstated and which
+this session measured: a component installed at sandbox-create time widened egress past a global
+default-deny, and **201,961 bytes of origin data flowed**, with the origin's own CA on the wire.
+
+Naming the vendor's component type here would violate the ladder's classes-never-vendors rule, and
+would not generalize. The property does: it covers browser-extension permissions, admission
+controllers, and any additive policy engine.
+
+Work items (land with the Phases 2–5 PR, since Phase 1 already edits this file):
+
+- [ ] `reference/guardrails/isolation-ladder.md` — state the property on `L2`. An additive policy
+      engine whose components can only narrow satisfies it; one where an installed component can widen
+      does not, and that surface fails closed until governance is configured so it cannot.
+- [ ] `templates/isolation-probe.md` — **the probe obligation this creates.** Target selection is
+      load-bearing: a probe sampling only hosts the installed components do NOT allow will certify a
+      boundary that is in fact open. The recipe must require probing in the configuration the run will
+      actually use, with at least one target drawn from what the installed components are permitted to
+      reach.
+- [ ] Fixture: a transcript whose probed targets exclude every component-allowed host is not a
+      conforming capture.
+
+#### Q22 — the three software-factory gaps get triggers in the T4 idiom
+
+**Decision: drafted below in the runner charter's trigger idiom — a named, judgement-free condition,
+explicitly not assumed to have fired.** Wording is for review.
+
+- **Fleet-level economics as tracked output.** *Trigger:* the return-accounting and telemetry contracts
+  are both bound and emitting for more than one repository under one org binding, AND a question is
+  asked of that data which per-run records cannot answer (cost or yield compared ACROSS repositories).
+  Until then the existing per-run contracts cover the need and a fleet aggregate would have no second
+  repository to aggregate.
+- **Portfolio-scale multi-repo fan-out as a unit of work.** *Trigger:* a single work item requires
+  coordinated change across two or more repositories with a shared acceptance criterion, and the
+  per-run seams cannot express it without a human sequencing the runs. Until then every seam is
+  per-run by construction and fan-out has no unit to carry.
+- **Self-service golden paths for humans and agents.** *Trigger:* a second adopter (any consumer
+  outside the authoring org) completes guided setup, OR the setup interview's unanswered-value rate
+  makes the interview itself the bottleneck. Until then a golden path would be generalized from a
+  single deployment, which is the sample size this repository already rejects elsewhere.
+
+Each is recorded as DEFERRED WITH A TRIGGER, never as rejected — the ladder's own "Rejected axis"
+section is reserved for what was deliberately not chosen, which these are not.
+
+#### Q23 — event-triggered re-verification, with a staleness bound as backstop
+
+**Decision: re-verify on events that could change the probed property; cap evidence age separately.
+No cadence keyed to release frequency.**
+
+The corpus already rejected the framing the question assumed. Release cadence is *evidentially inert*:
+CISA warns against reading fix counts as a negative signal; Ozment & Schechter measure median
+foundational vulnerability lifetime at **≥2.6 years** with ~67.6% found after 7.5; Rescorla cannot
+exclude a constant discovery rate. Three weeks is not a sample, so a release-frequency cadence would
+be ritual rather than control.
+
+- **Re-verification events:** a substrate version change touching the probed boundary; a policy-engine
+  or governance-mode change; a change to the installed component set (which Q21 just proved can widen
+  the boundary without any version change at all).
+- **Staleness bound:** evidence older than the repository's existing **">2-month"** idiom is stale
+  regardless of events. Reusing that number rather than inventing one — it is already the corpus's
+  own gate.
+- **What re-verification covers:** the specifics that rot — flags, defaults, guarantees. The
+  architecture and posture findings are durable and are not re-derived each time.
+
 ### Deferred, with triggers — recorded so they are not silently implied
 
 - **Workspace READ-exposure assertion.** Trigger: any adopter binds a substrate whose workspace mount
