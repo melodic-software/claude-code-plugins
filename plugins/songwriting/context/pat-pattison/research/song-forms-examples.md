@@ -577,10 +577,12 @@ important and spotlighted phrase in the Song system."
 > 2. ______________________________
 >    TEDDY DOESN'T LIVE HERE ANYMORE
 > ```
->
-> The scansion hint on try 1 is printed only inside the figure — the running
-> text gives no template. It sets up two 3-stress trochaic phrases in place
-> of the single long phrase.
+
+The scansion hint on try 1 is printed only inside figure `image_rsrc33Y` —
+the running text gives no template. Read off the scan, it is
+`(maybe try  / u / u / u ,  / u / u / )`: two 3-stress trochaic phrases in
+place of the single long phrase. (That gloss is this file's, not Pat's; the
+exercise itself is quoted verbatim above.)
 
 **The slingshot:** "I think of the longer phrase as the rubber of a
 slingshot, stretching to give power to the release. It seems to me that it

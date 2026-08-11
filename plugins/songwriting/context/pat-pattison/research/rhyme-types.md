@@ -1241,27 +1241,55 @@ rhymes are good when the line wants instability.
 
 ## Craft prepares creativity — Tiger Woods anchor
 
-*Essential Guide to Rhyming* (2014), Chapter 9 frames the entire rhyme-stability scale through the
-craft-vs-creativity question. Pat uses a Tiger Woods analogy
-(paraphrased): a golfer who knows every shot in the bag has more
-creative options on the course than one who only knows the driver.
+*Essential Guide to Rhyming* (2014), Chapter 9 ("Craft and Rhyme Types")
+frames the entire rhyme-stability scale through the craft-vs-creativity
+question. It opens on Tiger Woods, verbatim:
 
-> "All craft. All technique. Craft prepares him to be immensely creative
-> with his shots." — Pat, on Tiger Woods (*Essential Guide to Rhyming*
-> (2014), Chapter 9)
+> Why bother learning craft? Why do we have to pay attention to all this
+> stuff on rhyme types and sonics? Shouldn't the writing process just be
+> simple and organic—just letting things flow naturally? Ask Tiger Woods,
+> who works daily on his craft: focusing on the technical aspects of his
+> swing, learning different kinds of grasses and how they affect the
+> clubhead at impact, how to read the treetops for wind direction, how to
+> fade or draw a ball using modified grips and stances. All craft. All
+> technique. Craft prepares him to be immensely creative with his
+> shots—hitting a high fade over the trees against the wind to land
+> softly near the flag. Creativity indeed, but built on a platform of
+> craft.
+>
+> Why should songwriting be any different?
 
-The lesson for rhyme: knowing all six rhyme types (perfect, family,
-additive/subtractive, assonance, consonance, partial) multiplies a
-writer's options at every rhyme position. Creativity without craft
-tries to wing it from one tool; creativity with craft chooses from six.
+Pat's own next move is the "bag" image again — the rhyme types are the
+clubs:
 
-The discipline:
+> Let's look at rhyme types and the emotion they can create when you bring
+> them (along with your brain) to the writing table, where your heart has
+> been struggling, all by itself, to get over the trees against the wind
+> to the green. We'll look, as usual, through the lens of prosody: mutual
+> support of your intention with all the elements in your bag, your craft.
 
-1. Isolate one rhyme type.
-2. Practice it until the search runs without thought.
-3. Compose with all types available.
+And the working method he states for the chapter, ending in the three
+words this section used to paraphrase as a numbered drill:
 
-Pat's three-step paraphrase: isolate, understand, compose.
+> Here, however, we'll look only at the rhymes themselves so we can
+> isolate their motion; understand what they do within the more
+> complicated motions created in combination with the other elements.
+> Isolate, understand, compose.
+
+An earlier revision of this file glossed that as a three-step practice
+drill — "Isolate one rhyme type / Practice it until the search runs
+without thought / Compose with all types available" — which is not what
+Pat says. His "understand" is not *drill one type until it is automatic*;
+it is understanding what the rhymes do **in combination with the other
+elements**, which is the sentence's whole point. The three words are his;
+the drill was not.
+
+On counting: Pat never prints a number here. The printed scale heads five
+columns (see "Stability Scale" above), Chapter 6 adds partial rhyme and
+weak-syllable rhyme, and weak-syllable gets nothing but its name — so the
+six fully documented tiers are the ones this file works with, for the
+reasons set out under "Weak-syllable rhyme — source citation" below. Cite
+that reasoning rather than presenting "six" as Pat's count.
 
 ## The chord analogy — two sources, no slot-by-slot mapping
 

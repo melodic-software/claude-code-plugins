@@ -120,7 +120,9 @@ The cascade's stressed-vowel machinery is not invented — it is Pat's
 > "Make up your own title, and, using it as the first line of an oncoming
 > chorus, write an AAB structure leading up to it, with the third line
 > targeting a vowel sound in the title. Try not to target the end rhyme.
-> Instead, give the words inside the title a sonic boost."
+> Instead, give the words inside the title a sonic boost. Then rewrite the
+> third line (B line) to target a different vowel sound in the title. As in
+> the sample that follows."
 
 The point Pat is making — that a title's **inner** vowels, not its end
 rhyme, are the sonic handles — is what makes a stressed-vowel cascade

@@ -15,6 +15,19 @@ Related files: [repetition](repetition.md), [form](form.md),
 [phrasing](phrasing.md), [meter](meter.md), and
 [object writing](object-writing.md).
 
+**What in this file is Pat's.** Chapters 7 and 8 print running prose, worked
+readings of specific lyrics, one Moral, and — in Chapter 8 only — one
+exercise. (Chapter 7 contains no exercise at all: `EXERCISE` returns zero
+hits in it.) They print **no procedures, no checklists and no taxonomies.**
+So the numbered
+and bulleted lists under "Travelogue test", "Natural continuity", "Verse
+responsibility", "Use this scan", "Opening position", "Closing position",
+"Use trigger lines to", "Verse-development diagnosis" and "Skill workflow"
+are this file's own operational scaffolding, useful for coaching but **not
+Pat's text and not attributable to him.** The surrounding prose and block
+quotes in those sections are sourced; it is the lists themselves that are
+not. Everything in a `>` block quote is verbatim.
+
 ## Core idea
 
 Verses are colored spotlights. Each verse shines a particular color on the
@@ -27,7 +40,9 @@ gains weight.
 > choruses will look the same. If they project different or deeper colors, the
 > choruses will look different.
 
-> Boxes only show how the ideas evolve.
+> Boxes only show how the ideas evolve, regardless of the specific form you
+> use. In this chapter, we'll look a little closer at the responsibility your
+> verses have in making your boxes gain weight.
 
 The box model is form-neutral. Chapter 7 opens by listing the formal movements
 one three-box series can describe:
@@ -320,7 +335,9 @@ poles in one breath at the close of Chapter 8:
 > Verse development is probably a lyricist's trickiest job. Verse ideas must
 > advance enough, but can't move too much. If the ideas are too close, the
 > repetition of the chorus will become static and boring. If the verses' ideas
-> are too far apart, you might end up in fabulous Hawaii.
+> are too far apart, you might end up in fabulous Hawaii. Hawaii is a nice
+> place, but songwriters beware how you get there. The best trip is paid for
+> by royalty checks from great songs.
 
 ## Verse responsibility
 
@@ -350,17 +367,24 @@ Put important material there.
 Chapter 7 points at *Songwriting: Essential Guide to Lyric Form and Structure*
 for the full treatment; here it demonstrates on "Child Again."
 
-The most common power positions are:
+Chapter 7 never prints a list of power positions. It prints one Moral, and
+that is the whole taxonomy — **three** families, not nine:
 
-- opening line,
-- closing line,
-- beginning of a balanced subsection,
-- end of a balanced subsection,
-- trigger line immediately before a chorus or refrain,
-- shorter or longer line that breaks a pattern,
-- extra line,
-- early or delayed rhyme,
-- any structural surprise.
+> Moral: First be aware of where your power positions are: opening
+> positions, closing positions, and surprises, like shorter, longer, or
+> extra lines. Pay attention as you create them, then put something
+> important there. Everything will come up rosy, seafoam green, Tangiers
+> blue, sun yellow …
+
+The extra cases this file used to list as peers of those three — subsection
+openings and closings, the trigger line, an early rhyme — are not a fourth
+and fifth family. They are instances Pat derives inside the chapter's two
+readings: the "Child Again" subsections ("She uses her power positions — the
+first and last positions of the verse, plus the ending and beginning of its
+subsections") and the nursery-rhyme reading ("it gains extra punch by
+rhyming early, at the second rather than the third stress"). Both appear in
+full below. An earlier revision of this file flattened them into a
+nine-bullet "most common power positions" list that Pat does not print.
 
 Power positions are not decoration. They steer the listener's focus.
 
@@ -530,22 +554,21 @@ Use the closing to:
 
 ## Surprise positions
 
-Any structural surprise creates power:
+Pat opens the surprise case like this:
 
-- a shorter line,
-- a longer line,
-- an extra line,
-- an early rhyme,
-- a delayed rhyme,
-- a pattern break,
-- a repeated fragment,
-- a sudden change in syntax.
+> Opening and closing phrases are not the only way to create power positions.
+> Wherever you create a special effect with your structure, you call attention
+> to what you are saying. This extra focus gives the position its power.
+
+The surprises he actually names are **shorter, longer, or extra lines** (the
+Moral) and, in the nursery-rhyme reading below, **rhyming early**. An earlier
+revision of this file expanded that into an eight-item list adding "a delayed
+rhyme", "a pattern break", "a repeated fragment" and "a sudden change in
+syntax"; none of those are Chapter 7's. The test the chapter does give is the
+generalisation above: any special effect you create with structure.
 
 When using a surprise, place a meaningful idea there. A surprise that carries
 filler wastes focus.
-
-> Wherever you create a special effect with your structure, you call attention
-> to what you are saying. This extra focus gives the position its power.
 
 Pat's first demonstration extends a nursery rhyme past its expected close:
 
@@ -583,10 +606,13 @@ Woe is a slow healing heart                       c
 > the fourth phrase chimes in, and the fifth phrase closes with a rhyme. Six is
 > another opening and calls extra attention to its length.
 
-Five of nine positions are doing work. Pat's closing instruction for the whole
-chapter: "First be aware of where your power positions are: opening positions,
-closing positions, and surprises, like shorter, longer, or extra lines. Pay
-attention as you create them, then put something important there."
+Pat's own count and his refusal to pad it:
+
+> I could argue that seven is a power position as well, but I won't. Five out
+> of nine is plenty of action, a tribute to interesting structures.
+
+His closing Moral for the whole chapter is quoted under "Power positions"
+above.
 
 ## Verse-development diagnosis
 
@@ -604,17 +630,26 @@ When reviewing a draft:
 9. Use [object writing](object-writing.md) when the verse needs sharper
    sensory material.
 
-## Chapter 8 exercise as coaching prompt
+## Chapter 8's exercise
 
-Exercise 12 - Repair a travelogue:
+Chapter 8 prints one exercise, as a single paragraph. Verbatim:
 
-- Start with either verse two (Camille, West Beirut) or verse three (the ancient
-  Ford, South Africa) of the original "Chain Reaction" travelogue above.
-- Keep the same chorus.
-- Write two more verses that grow from that verse into a story.
-- Follow the current verse rhyme scheme and rhythm.
-- Make the verse sequence accumulate into one full-blown strategy.
-- Check that the verses still make sense when the chorus is removed.
+> **EXERCISE 12**
+>
+> Start with either verse two or verse three of the original and write two
+> more verses to make a story. (Keep the same chorus, and be sure to follow
+> the current verse rhyme scheme and rhythm.) You'll notice the power and
+> momentum your lyric develops as the verses accumulate into one full-blown
+> strategy.
+
+("The original" is the "Chain Reaction" travelogue above — verse two is
+Camille in West Beirut, verse three the ancient Ford in South Africa.) The
+paragraph runs straight on into "Verse development is probably a lyricist's
+trickiest job …", quoted under "Distance control" above. An earlier revision
+of this file inflated the exercise into six bullets, two of which — "make the
+verse sequence accumulate into one full-blown strategy" as an instruction,
+and "check that the verses still make sense when the chorus is removed" — are
+not part of what Pat asks for.
 
 ## Skill workflow
 

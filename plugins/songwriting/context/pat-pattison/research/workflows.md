@@ -14,7 +14,14 @@ Pat's craft tools are concept-organized; a songwriter at a desk works
 scenario-first. This file collapses the right sequence of passes per scenario,
 naming which `context/*.md` files to load and in what order.
 
-> "Tools, not rules." — Pat (column title; recurring stance)
+> "There are no rules, only tools."
+>
+> — *Writing Better Lyrics* (2009), Chapter 18
+
+("Tools, Not Rules" is the *American Songwriter* column title, **not** a Pat
+quotation — that word order appears in none of the four books. Pat prints the
+stance again in *Essential Guide to Rhyming* (2014), Chapter 4: "there are no
+rules. Only tools.")
 
 Every chain below is a default sequence, not a mandate. Skip steps the writer
 has already done. Jump back when a later pass exposes an earlier weakness

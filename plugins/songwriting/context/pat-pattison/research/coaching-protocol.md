@@ -26,7 +26,6 @@ tools each step applies — those are cited where they appear.*
      fixed" after three sites were repaired. It was not — it survived here, and
      still survives in two other files plus one template (see HANDOFF). -->
 
-
 The protocol exists because generic LLM defaults — long monologues, 14-step
 plans pre-decided, single-pick recommendations — directly contradict Pat's
 coaching practice. The AI must throttle itself into one-question dialog,

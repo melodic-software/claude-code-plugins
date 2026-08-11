@@ -746,9 +746,12 @@ Day 14 practice:
 4. Keep the simile only if the elaboration reveals usable sensory or emotional
    material.
 
-## Five-step metaphor practice
+## Five-step metaphor practice (*Writing Better Lyrics* (2009), Chapter 3, Exercise 8)
 
-Chapter 3 ends the exercise sequence with a slower habit-building practice:
+The count is Pat's own, not a rounding: "you will be ready for the final method
+to activate the process: **a five-step exercise** guaranteed to open your
+metaphorical eyes and keep them open." Chapter 3 ends the exercise sequence with
+this slower habit-building practice:
 
 1. List five adjectives; find a noun for each that creates a fresh collision.
 2. List five nouns; find a strong verb for each.
@@ -903,7 +906,12 @@ When applying this file:
 8. Check prosody: the figurative language should support the section's motion,
    rhyme, rhythm, and emotional weight.
 
-## Eight named metaphor moves (recipe card)
+## Eight metaphor moves — this repo's recipe card, not Pat's taxonomy
+
+<!-- The heading read "Eight **named** metaphor moves". The body already
+     debunked the taxonomy claim, but "named" kept asserting it one line above —
+     and a heading that outlives its body is how the claim grows a new body.
+     Nobody names these eight. Word removed. -->
 
 **Plugin-side synthesis — UNAUDITED, not Pat's taxonomy.** These eight
 are a generation checklist assembled here from the material above; they
@@ -1139,9 +1147,9 @@ work is the cost of the image.
 *Songwriting Without Boundaries* (2011), Challenge 2 Day 14 names the
 mechanical model for why simile works differently than metaphor:
 
-> "Simile doesn't transfer focus: like works as an energy blocker — it
+> "Simile doesn't transfer focus: *like* works as an energy blocker — it
 > reflects energy back onto the first term, refusing to let the energy
-> pass to the second term. The is of metaphor allows free passage of
+> pass to the second term. The *is* of metaphor allows free passage of
 > energy to the second term, and lights it up."
 > — Pat Pattison, *Songwriting Without Boundaries* (2011), Challenge 2
 > Day 14
@@ -1169,16 +1177,21 @@ demonstration, in order:
 >
 > — *Songwriting Without Boundaries* (2011), Challenge 2, Day 14
 
-The bolding is Pat's own typographic emphasis, recovered from the raw XHTML
-(`<span class="class_s5g3">` wraps the term in focus on each of those four
-lines). The plain text layer strips it, and without it the pairs read as bare
-repetition — the emphasis IS the argument.
+The emphasis is Pat's, not ours. The text layer strips it, and without it those
+pairs read as bare repetition — but the emphasis *is* the argument. What the
+source actually shows: in the raw XHTML each of those four lines wraps the term
+in focus in `<span class="class_s5g3">`, and that is a **different** class from
+the `class_s5g` Pat uses for italics (it wraps book titles, and words-as-words
+such as the *like* and *is* in the quotation above). The 2011 stylesheet was not
+extracted, so `class_s5g3` cannot be resolved to a named face here; across the
+book it wraps things like `90 seconds:` prompt labels and prompt words, which
+read as bold. Rendered as bold on that basis. **If a later pass gets the
+stylesheet and it says italic, change the face — do not delete the emphasis.**
 
 <!-- CORRECTED — GENERICIZATION. An invented pair, "Her smile IS sunlight" /
      "Her smile is LIKE sunlight", stood here doing the job of Pat's own
      `Love is a rose`, which he prints on the very same page. Substituting a
      made-up example for one of his is the failure the BRIEF names first. -->
-
 
 The mechanical consequence: **simile keeps the listener at distance**
 (comparing); **metaphor pulls the listener into identification**

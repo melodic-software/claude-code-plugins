@@ -61,7 +61,6 @@ suspension) or a bad one (the listener has to re-parse to catch the meaning).
      word and then claiming he named this state was the fabrication; the
      observation itself is fine, so it is kept, unattributed. -->
 
-
 ## Three ways out — this file's own framing, not Pat's
 
 *No book names an "alignment fix", numbers them, or supplies the `Use when:` and
@@ -124,7 +123,6 @@ Use when:
      Left out rather than demoted, because there is nothing left once the false
      attribution goes. -->
 
-
 Risk: overuse becomes a tic.
 
 ## How to diagnose
@@ -142,7 +140,15 @@ Risk: overuse becomes a tic.
 
 ## Greedy spots and roadmap mismatch
 
-Greed is Pat's word and it points one way only:
+**Frame first — the term covers different ground in two frames**, and this file
+is in the second one. Matching a lyric to a *model lyric* (verse 2 against verse
+1), greed is one-directional: Pat's too-hot failure only. Matching a lyric to a
+*melody* — the frame of this whole file — a mismatch in **either** direction is
+a greedy spot, because either one fights the bar. That two-frame split is the
+plugin's, not Pat's, and it is stated the same way in `prosody.md`, `meter.md`
+and `skills/meter-prosody/SKILL.md`; keep the four consistent.
+
+Pat's printed passage, which is the *model-lyric* frame:
 
 > "It is important not to be greedy: do not put stressed syllables in the
 > unstressed positions. This one is too hot. […] It is equally important to
@@ -151,25 +157,33 @@ Greed is Pat's word and it points one way only:
 > the important positions."
 > — *Essential Guide to Lyric Form and Structure* (1991), Chapter 3
 
-So a greedy spot is a stressed syllable sitting in an unstressed position. His
-*second* failure mode is not the mirror image of it — "too cold" is **weak or
-unimportant words occupying the important positions**, which is a question of
-word choice, not of stress inversion. Greedy spots share a root cause with a
-roadmap mismatch: the lyric's stresses disagree with the music's.
+In that passage greed is the **too-hot** failure only: stressed syllables put in
+unstressed positions. His too-cold failure is **not** its mirror image and is not
+a stress error at all — it is weak or unimportant words occupying the important
+positions, which no stress check finds. Do not scan for it; ask what each strong
+position is *carrying*.
 
-<!-- CORRECTED — DISTORTION. This paragraph defined a greedy spot as "a stressed
-     syllable that lands on a weak musical beat, OR an unstressed syllable
-     riding a strong one", and a following note claimed "both directions belong
-     in this definition", overriding "an earlier revision [that] covered only
-     the stressed-on-weak one". The earlier revision was right. I rendered both
-     1991 Ch 3 figures behind the dangling colons — image_rsrc2ZC ("too hot")
-     and image_rsrc2ZD ("too cold") — and read the printed scansion marks. Too
-     hot puts strong italicised words (deep / hold / heart / born / haunts /
-     God) into unstressed slots. Too cold puts function words (just / now /
-     place / Won't / get / out) into the important slots. Neither figure shows
-     an unstressed syllable riding a strong beat. `audit-checklist.md` had
-     already removed the same inversion; this file had regrown it. -->
+**In this file's melody frame**, a greedy spot is a stressed syllable landing on
+a weak musical beat, **or** an unstressed syllable riding a strong one. Either
+direction steals emphasis from where the music wants it. Greedy spots usually
+share a root cause with a roadmap mismatch: the lyric's stresses disagree with
+the melody's.
 
+<!-- Verified against the two 1991 Ch 3 figures behind the dangling colons.
+     image_rsrc2ZC ("too hot") puts strong italicised words — deep / hold /
+     heart / born / haunts / God — into unstressed slots. image_rsrc2ZD ("too
+     cold") puts function words — just / now / place / Won't / get / out — into
+     the important slots. So too-cold really is a word-choice failure, not a
+     stress inversion, and the model-lyric frame above is right.
+
+     I first read the both-directions definition here as a regrown fabrication
+     and cut it. That was WRONG and it has been restored. The CHANGELOG records
+     a deliberate five-file adjudication splitting the two frames, and it names
+     this file as belonging to the melody frame, where both directions count.
+     What was actually missing was the frame label and Pat's printed text — both
+     now present. Anyone tempted to "fix" this again: read the CHANGELOG entry
+     beginning "Greedy spot was defined inconsistently across five files"
+     first. -->
 
 When you find a greedy spot, check whether the surrounding lyric phrase
 has its boundary in the wrong place. Often fixing the roadmap fixes the
@@ -205,8 +219,8 @@ fine but the chorus feels jerky":
 3. Overlay: the natural lyric pause lands on beat 4 (no melodic rest), and
    the melody's beat-2 rest falls inside a noun phrase that does not want
    to break.
-4. Diagnosis: roadmap mismatch at two points. Greedy spot likely at beat 6,
-   where a stressed syllable is sitting in an unstressed position.
+4. Diagnosis: roadmap mismatch at two points. Greedy spot likely at beat 6
+   where an unstressed syllable rides a strong beat.
 5. Pick a fix:
    - Fix 1: extend the melody's beat-2 rest to beat 4. Risk: changes the
      chorus's hook shape.
@@ -243,7 +257,6 @@ The writer picks one. The skill does not pick for them.
   <!-- The figure "misses 80% of mismatches" was here. Invented. No book states
        any such proportion, and round-number thresholds in this plugin have been
        invented every time one has been checked. -->
-
 
 ## When a roadmap mismatch is good
 

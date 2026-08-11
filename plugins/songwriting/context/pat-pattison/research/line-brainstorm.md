@@ -285,9 +285,11 @@ Challenge #2.
 Partly corroborated in print, but only the Sondheim half: "Use the worksheet for
 reference. Remember, its main purpose is to get additional ideas and pictures.
 It is a brainstorming device, not a rhyme-finding device. It's a nice reference,
-though. Ask Stephen Sondheim: he uses worksheets all the time." — *Writing
-Better Lyrics* (2009). `Eminem` returns zero hits in all four books, and so does
-the phrase "worksheet process".
+though. Ask Stephen Sondheim: He uses worksheets all the time." — *Writing
+Better Lyrics* (2009), Chapter 24. (Pat's capital `He` is as printed; the
+sentence occurs exactly once in the corpus and `raw/` shows no italics.)
+`Eminem` returns zero hits in all four books, and so does the phrase
+"worksheet process".
 
 The brainstorm IS the worksheet process applied to a single line.
 

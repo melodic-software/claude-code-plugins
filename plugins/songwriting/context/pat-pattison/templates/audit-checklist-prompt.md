@@ -1,8 +1,9 @@
 # Audit Checklist Prompt Template
 
 Use when writer asks to pre-lock a line, a section, the title, or the
-form. "Tools, not rules" — each box is a deliberate choice point, not a
-gate. Naming a skip is fine; silent skips are not.
+form. "There are no rules, only tools." (*Writing Better Lyrics* (2009),
+Chapter 18) — each box is a deliberate choice point, not a gate. Naming a
+skip is fine; silent skips are not.
 
 ## Coach posture
 

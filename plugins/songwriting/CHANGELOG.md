@@ -28,10 +28,12 @@ removed and 283 passages restored verbatim.**
 - **Two answer keys existed only as images** and are restored — 2014 Exercise
   8.1 (printed rotated 180°) and Exercise 8.3 item 1, which had been silently
   dropped.
+<!-- spellchecker:off -->
 - **1991 Chapter 7's scansion figures** (12 of them) transcribed from the page
   images. Figure `34C` carries a genuine printing discrepancy — its stress marks
   show three stresses where its DUM-da row shows four — **reproduced as printed,
   not corrected.**
+<!-- spellchecker:on -->
 
 ### Fixed — invented scaffolding, the dominant defect class
 
@@ -84,18 +86,31 @@ removed and 283 passages restored verbatim.**
   names no such principle. The neighbouring quote is genuine and was kept — its
   *form* was fixed (a partial quote stitched mid-sentence, now quoted in full).
 - **Mechanical verification:** every block-quoted sentence in `context/` was
-  tested against the full four-book corpus — **1,558 checked, 1,466 matched
-  verbatim.** The residual were adjudicated individually as artifact,
-  correctly-sourced non-book material, or defect.
+  tested against the full four-book corpus — **1,936 checked, 1,840 matched
+  verbatim.** All 96 residual were adjudicated individually by four fresh
+  agents prompted to *refute*, as artifact, correctly-sourced non-book
+  material, wrong-citation, or fabrication. Roughly half were checker
+  artifacts:
+<!-- spellchecker:off -->
+  hyphenation at a line break (`struc- tural`), a space eaten at a
+  break (`second-personnarrative`), a **drop cap**, U+2003 em-space
+  separators, `[[FIG:]]` splitting a sentence, and the 2014 hard-wrap.
+<!-- spellchecker:on -->
+  **The checker's own limits are recorded with it**, because they bound this
+  claim: it reads only `>` block-quotes, so tables, inline quotes and fenced
+  blocks are not covered — and two of the defects found in the verification
+  pass were bullet lists that could never have appeared on a quote list.
 
 ### Fixed — fabrication-by-correction, a defect class in the opposite direction
 
 - **The plugin had silently corrected Pat's typos.** 1991 Chapter 7 prints "your
   verbs will all already **by** POV neutral"; the file had it as "be". Confirmed
   a book typo in the raw XHTML, and restored with a do-not-correct note.
+<!-- spellchecker:off -->
 - Now marked as printed and protected from future "fixes": `swiftless`,
   `frictatives`, `Famly`, `Percy Bysshe **Shelly**`, `Ozymandius`, and "YOUR
   CHORUS YOU WROTE".
+<!-- spellchecker:on -->
 
 ### Fixed — citations
 
@@ -124,6 +139,35 @@ removed and 283 passages restored verbatim.**
 - **2011 Challenge 1's material**: the Chekhov epigraph, the *writus
   interruptus* passage, Group Writing, and the objectwriting.com contest
   provenance that explains the named sample writers.
+
+### Fixed — verification pass (four fresh agents, prompted to refute)
+
+- **`verse-development.md` claimed a nine-item "power positions" list.**
+  *Writing Better Lyrics* (2009), Chapter 7 prints **no such list** — only a
+  Moral naming **three** families. An eight-bullet "surprise positions" list had
+  four items absent from the chapter, and **Exercise 12 had been inflated from
+  one printed paragraph into six bullets**, two of which Pat never asks for.
+  `EXERCISE` returns zero hits in that chapter, so the file's ten step-lists are
+  now labelled as the file's own rather than Pat's.
+- **`rhyme-fundamentals.md` carried an invented compressed quote** — `"Rhyme is
+  like the accelerator pedal." — Pat`. Pat's printed text (1991 Chapter 4, "II.
+  PACE") is "Rhyme is like the accelerator in a car: the closer the accelerator
+  gets to the floor, the faster the car moves…". Restored in full.
+- **`lyric-melodic-roadmaps.md` hijacked one of Pat's terms** — it claimed "Pat
+  names this state explicitly" while redefining his 1991 term *through-written*,
+  which has 10 corpus hits all meaning something else. Also removed a fabricated
+  "Pat cites Lady Antebellum…" attribution and an invented "misses 80% of
+  mismatches".
+- **`metaphor.md` had an invented four-row Imagination/Fancy table** placed
+  directly beneath a real Coleridge quotation and contradicting the paragraph
+  below it; Pat's whole statement is one sentence about degree.
+- **`cliche.md`'s Exercise 10 was inflated from two steps to five**, and an
+  invented four-bullet "Use this test:" replaced Pat's actual two-part rule.
+- **`meter.md` carried a wrong scansion inside a fenced block** — figure
+  `image_rsrc30K` prints `Knowing no one else can see` as `/ u / u / u /`; the
+  file had `no`/`one` swapped. Caught only by rendering the figure at 12×.
+- **An editorial gloss sat *inside* a block quote in `song-forms-examples.md`**,
+  wearing Pat's voice. Moved out.
 
 ### Changed
 

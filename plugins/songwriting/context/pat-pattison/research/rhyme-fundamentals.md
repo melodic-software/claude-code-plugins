@@ -692,15 +692,23 @@ order".
 
 ## The accelerator metaphor
 
-Pat's working analogy for rhyme density:
+Pat's working analogy for rhyme density, printed under the heading
+"II. PACE" in *Essential Guide to Lyric Form and Structure* (1991),
+Chapter 4:
 
-> "Rhyme is like the accelerator pedal." — Pat (*Essential Guide to Lyric Form and Structure* (1991), Chapter 4,
-> paraphrased)
+> Rhyme is like the accelerator in a car: the closer the accelerator gets
+> to the floor, the faster the car moves. The closer rhymes are to each
+> other, the faster your lyric moves. And, like the accelerator and the
+> car floor, the further apart they are, the slower you move.
 
-Close rhymes (couplets, internal rhymes) press the accelerator —
-lyric speeds up. Spaced rhymes (`abcb`, every-other-line) ease off —
-lyric decelerates. No rhyme is coasting — section floats forward
-without sonic propulsion.
+An earlier revision of this file printed a compressed invention, "Rhyme is
+like the accelerator pedal," in quotation marks and attributed it to Pat.
+He never wrote that sentence; the paragraph above is what the chapter
+prints. The ceiling is his too:
+
+> As you can see in number two, once you have consecutive rhymes, the
+> pedal is to the metal. You cannot accelerate. The only way to go faster
+> then is to shorten PHRASE LENGTHS.
 
 Use the analogy when coaching a writer who wants a pace change
 without knowing where to start. Density first, types second.
