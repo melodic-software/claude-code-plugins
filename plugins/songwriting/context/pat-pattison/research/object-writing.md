@@ -36,6 +36,53 @@ sentence:
 > —Anton Chekhov, epigraph to *Songwriting Without Boundaries* (2011),
 > Challenge 1
 
+He then earns that epigraph with three specimens before he ever defines object
+writing. The first is a couplet, followed by his interrogation of it — the
+questions are the point, because the reader has to supply every answer:
+
+> Turn down the lights, Turn down the bed
+>
+> Turn down these voices inside my head.
+>
+> "I Can't Make You Love Me" —Reid/Shamblin
+
+> Where do these words take you? Do they make you see something? What kind of
+> bed? Single? Double? What color is the bedspread? The pillows? Where is the
+> light coming from? A table lamp? Above the headboard?
+>
+> When a lyric stimulates and provokes your senses, you draw the images from
+> your own experiences. You fill Mike Reid's and Alan Shamblin's words with your
+> stuff. They involve you, so the song becomes about you. That's the power of
+> sense-bound writing. It pulls the listener into the song by using his own
+> memories as the song's material.
+
+The second specimen, and the sentence the whole discipline rests on:
+
+> I've got sunshine on a cloudy day
+>
+> When it's cold outside, I've got the month of May
+>
+> "My Girl" —Smokey Robinson
+
+> Sense-bound writing turns observers into participants. It is one of the most
+> powerful tools a writer has.
+
+The third is not a song at all — Pat reaches for Matthew Arnold to show the same
+muscle working in poetry. The trailing ellipsis is his:
+
+> The sea is calm tonight.
+> The tide is full, the moon lies fair
+> Upon the straits; on the French coast the light
+> Gleams and is gone; the cliffs of England stand;
+> Glimmering and vast, out in the tranquil bay …
+>
+> "Dover Beach" —Matthew Arnold
+
+All three specimens, and the prose between them, are *Songwriting Without
+Boundaries* (2011), Challenge 1. Only after all three does Pat name the
+technique: *"The best way I know to exercise the sense-bound writing muscle is
+to use a technique called 'object writing.'"*
+
 Skill behavior: when a user asks for "more vivid" lyrics, do not start by
 adding adjectives. Start by asking what the speaker sees, hears, smells, tastes,
 touches, feels inside the body, and feels through balance or motion.
@@ -621,9 +668,9 @@ Start with sensory access, then let meaning emerge.
 
 *Songwriting Without Boundaries* turns object writing into a 14-day curriculum.
 The purpose is not to collect finished lyrics. The purpose is to train the
-writer to enter material through sensory participation instead of observation.
-
-> Sense-bound writing turns observers into participants.
+writer to enter material through sensory participation instead of observation —
+Pat's *"sense-bound writing turns observers into participants"*, quoted in full
+with the specimens that earn it under [core idea](#core-idea) above.
 
 Pat sets out the daily shape and the provenance of the two sample writes printed
 under every prompt:

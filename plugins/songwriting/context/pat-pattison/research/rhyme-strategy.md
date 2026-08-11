@@ -1,9 +1,8 @@
 # Rhyme Strategy
 
-Pat Pattison - *Songwriting: Essential Guide to Lyric Form and Structure*
-(1991), Chapter 4. Extended with *Pat Pattison's Songwriting: Essential Guide to
-Rhyming* (2014), Chapters 7 and 9, and *Songwriting Without Boundaries* (2011),
-Challenge 4.
+Pat Pattison - *Essential Guide to Lyric Form and Structure* (1991), Chapter 4.
+Extended with *Essential Guide to Rhyming* (2014), Chapters 7 and 9, and
+*Songwriting Without Boundaries* (2011), Challenge 4.
 
 Source images inspected:
 
@@ -28,6 +27,17 @@ Source images inspected:
   `image_E-page3.jpg`, `image_E-page4.jpg`, `image_E-page5.jpg`,
   `image_E-page6.jpg`, `image_E-page7.jpg`, `image_E-page8.jpg`,
   `image_E-page9.jpg`, `image_E-page10.jpg`, `image_E-page11.jpg`.
+  Chapter 9 runs printed pp. 107-118 = spine 120-131; the "Feels Like Home"
+  case study occupies pp. 115-118 (spine 128-131).
+- *Essential Guide to Rhyming* (2014), Chapter 4 (printed p. 27, spine 040) for
+  the "Scale of Rhyme Types" figure only, read from `image_4-page20.jpg` at 3x
+  because the text layer flattens the figure into two run-together rows and
+  drops its bracket; the chapter itself belongs to
+  [rhyme types](rhyme-types.md).
+- *Essential Guide to Rhyming* (2014), **Afterword** (printed p. 119, spine
+  132, `image_E-page12.jpg`): one page, text layer complete, carried whole
+  below. Note the text layer emits the body *above* the `AFTERWORD` heading —
+  that is extraction ordering, not the printed order.
 - *Songwriting Without Boundaries* Challenge 4: `image_rsrc5M6.jpg`,
   `image_rsrc5M7.jpg`, `image_rsrc5M8.jpg`.
 
@@ -402,27 +412,78 @@ landing, and emotional stability.
 Rhyme schemes create expected motion. Rhyme types can reinforce, soften, or
 destabilize that motion.
 
-> Isolate, understand, compose.
+Chapter 9's method statement, and the sentence the slogan caps:
+
+> Here, however, we’ll look only at the rhymes themselves so we can isolate
+> their motion; understand what they do within the more complicated motions
+> created in combination with the other elements. Isolate, understand, compose.
+
+Read that as a deliberate simplification, not a claim that rhyme acts alone. Pat
+says so in the same breath: "Of course, melody, harmony, message, line lengths,
+and line rhythms always come into play in the real world, creating a complex
+dance with the motion of the rhyme scheme."
 
 Use [rhyme types](rhyme-types.md) for definitions. Use this section when the
 question is strategic: which type belongs in which position and why?
 
 ## Dominant and tonic positions
 
-In an `abab` scheme, the first three rhyme positions create expectation:
+Chapter 9 grounds this in musical function, on the same four-word `abab` frame
+it then runs through every rhyme-type substitution in the decision matrix below.
+As printed:
 
 ```text
-a
-b
-a  -> dominant push toward the expected b
-b  -> tonic resolution
+blush   a
+skin    b
+rush    a
+sin     b
 ```
 
-The third line, the second `a`, acts like a dominant position because it asks
-the listener to expect the second `b`. The fourth line, the second `b`, acts
-like a tonic position because it resolves the expectation.
+> The first three members,
+>
+> blush a
+>
+> skin b
+>
+> rush a
+>
+> …push forward. They raise our expectations, creating something akin to a
+> musical dominant function, a V, which asks to be resolved to a tonic function,
+> a resolution. An aba structure creates a sequence: first a, then b, then
+> another a, leading us to expect another b:
 
-The same idea can be reversed by swapping which sound family occupies `a` and
+```text
+blush   a
+skin    b
+rush    a   V
+```
+
+> In this case, the resolving sound is
+
+```text
+blush   a
+skin    b
+rush    a   V
+sin     b   I
+```
+
+> Arriving at sin, as it often does, makes you feel real good ☺. If fact, you
+> land on it pretty hard because the push from rush was so strong. The kind of
+> sin that could really do a number on you.
+
+> The same thing happens if you reverse the sequence:
+
+```text
+skin    a
+blush   b
+sin     a   V
+rush    b   I
+```
+
+> Rush hits hard, but notice it gets its power in part because sin has pushed
+> so hard from its dominant position.
+
+The sequence can be reversed by swapping which sound family occupies `a` and
 `b`. What matters is the structural job:
 
 - Dominant: push, lean, heighten expectation.
@@ -433,7 +494,24 @@ scheme but also each important rhyme's structural position.
 
 ## Stability scale for strategic use
 
-The practical scale from most stable to least stable:
+The scale is Pat's, and so is its name. He introduces it early — *Essential
+Guide to Rhyming* (2014), Chapter 4, "Family Friends" — as "the concept of a
+scale of rhyme types moving in degrees from more to less stable," introduces it
+with "Here's a quick peek:", and prints it as a titled figure. Reproduced from
+the page scan (`image_4-page20.jpg`) rather than the text layer, which flattens
+the figure into two run-together rows and loses its bracket — the five types sit
+in one row over a spanning bracket whose two ends are labelled:
+
+```text
+        Scale of Rhyme Types: Most Stable to Least Stable
+
+  Perfect     Family    Additive/Subtractive   Assonance   Consonance
+   Rhyme      Rhyme            Rhyme             Rhyme       Rhyme
+  |________________________________________________________________|
+  Most Stable                                          Least Stable
+```
+
+The book's index carries it as "rhyme type scale, 27." Written inline, that is:
 
 ```text
 perfect -> family -> additive/subtractive -> assonance -> consonance
@@ -548,7 +626,7 @@ what each one does. Those nine, in the chapter's own order, are the matrix:
 | Assonance | Family | "A pretty light and dreamy flirtation" |
 | Family | Assonance | "Really off in dreamland, floating, floating in a misty reverie" |
 | Consonance | Family | "Barely nudges forward," yet more forward pressure than leaving lines 1 and 3 unrhymed |
-| Family | Consonance | "The gate is wide open" — longing and uncertainty; the Randy Newman case below |
+| Family | Consonance | "The gate is wide open" — longing and uncertainty; the "Feels Like Home" case below |
 
 Family/family, assonance/assonance and consonance/consonance are not among
 them. The chapter never demonstrates those pairings, so this file does not
@@ -587,11 +665,161 @@ Workflow:
 5. Use more stable rhyme types in the resolved appearance.
 6. Check whether the song's larger journey now grows rather than repeats.
 
-This is the strategic point of the Randy Newman case study in
-*Essential Guide to Rhyming* (2014), Chapter 9: a remote
-family/consonance connection can keep an early prechorus unstable, while a
-perfect rhyme in the matching later prechorus can close firmly. The same formal
-slot changes emotional color through rhyme type alone.
+This is the strategic point of the case study that closes
+*Essential Guide to Rhyming* (2014), Chapter 9.
+
+> But wait! There’s hope! This is a job for Rhyme Types Man! Watch what
+> happens when Rhyme Types Man swoops down to help out in Randy Newman’s
+> little gem, *Feels Like Home*:
+
+<!-- spellchecker:off -->
+```text
+Something in your eyes
+Makes me wanna lose myself
+Makes me wanna lose myself
+In your arms
+Something in your voice
+Makes my heart beat fast
+Hope this feeling will last
+The rest of my life
+If you knew how lonely my life has been
+And how low I’ve felt for so long
+If you knew how I wanted someone to come along
+And change my world the way you’ve done
+Feels like home to me
+Feels like home to me
+Feels like I’m all the way back where I come from
+Feels like home to me
+Feels like home to me
+Feels like I’m all the way back where I belong
+A window breaks
+Down a long dark street
+And a siren wails
+in the night
+That’s all right
+Cause I have you here with me
+And I can almost see
+In the dark there’s a light
+If you knew how much this moment means to me
+And how long I’ve waited for your touch
+If you knew how happy you are making me
+I never thought I’d love anyone so much
+Feels like home to me
+Feels like home to me
+Feels like I’m all the way back where I come from
+Feels like home to me
+Feels like home to me
+Feels like I’m all the way back where I belong
+Feels like I’m all the way back where I belong
+```
+
+Pat then isolates the two prechoruses and tests both rhyme types in place:
+
+> Let’s look at the first prechorus:
+
+```text
+If you knew how lonely my life has been
+And how low I’ve felt for so long
+If you knew how I wanted someone to come along
+And change my world the way you’ve done
+```
+
+> Essentially, it’s common meter with a shorter second and fourth line
+> matching. Does long/done rhyme? Well, I don’t really care what you call it,
+> but it does have some sonic connection: Ng and n are members of the same
+> family, the nasals. So long/done amounts to a family/consonance rhyme, about
+> as far afield as you can go and still give a hint of a sonic resemblance. It
+> probably wouldn’t be audible at all without the help of common meter, but it
+> sure opens the gate at the end of the section, creating instability rather
+> than closure. And what’s the emotion that the rhyme type creates? Something
+> like longing and uncertainty, which, of course, is exactly what the lyric
+> itself is saying. Pretty cool.
+
+> Now look at the second prechorus:
+
+```text
+If you knew how much this moment means to me
+And how long I’ve waited for your touch
+If you knew how happy you are making me
+I never thought I’d love anyone so much
+```
+
+> Look at the rhyme type now in the shorter second and fourth lines, touch/
+> much. Perfect rhyme. And, boy, does the gate ever slam shut. This is the
+> essence of stability—the same thing, of course, that the lyric is
+> addressing. The rhyme types alone are responsible for the difference in
+> feeling between the first and second prechoruses—the family/consonance
+> rhyme, long/done, supporting (maybe even creating) the unstable feeling in
+> the first prechorus, and the perfect rhyme, touch/much, supporting (maybe
+> even creating) the stable feeling in the second.
+
+> Look what happens if we adjust the rhyme type in the second prechorus:
+
+```text
+If you knew how much this moment means to me
+And how long I’ve waited for your love
+If you knew how happy you are making me
+I never thought I’d love anyone so much
+```
+
+> Say the whole thing a few times. I’ll wait. Right. The last line, which
+> seemed like such an emotional line, has lost a lot of its feeling. It seems
+> less glorious, less heartfelt. What seemed like such a sensational line has
+> turned ordinary. The meaning hasn’t really changed. But the motion, and thus
+> the e-motion, has transformed dramatically.
+
+> Look what happens with perfect rhyme in the first prechorus:
+
+```text
+If you knew how lonely my life has been
+And how low I’ve felt for so long
+If you knew how I wanted someone to come along
+And change my world with love this strong
+```
+
+> Again, the meaning is essentially the same, but now we hear a tribute to the
+> power of love, a stable feeling created, again, simply by the rhyme type. It
+> not only transforms the emotion of the section, but the color of the entire
+> first sequence of verse/prechorus/chorus. Now it feels essentially the same
+> as the second verse/prechorus/chorus: Rather than moving
+> unstable/unstable/stable in the first sequence, we’re moving
+> unstable/stable/stable, and the last part of the song feels more like it
+> repeats the same ideas rather than growing. Rhyme types, baby.
+
+> While we’re at it, look how the first verse:
+
+```text
+Something in your eyes
+Makes me wanna lose myself
+Makes me wanna lose myself
+In your arms
+Something in your voice
+Makes my heart beat fast
+Hope this feeling will last
+The rest of my life
+```
+
+> …lacks rhyme in the fourth and eighth lines, creating instability and
+> opening the gate into the prechorus. The second verse does the opposite:
+
+```text
+A window breaks
+Down a long dark street
+And a siren wails
+In the night
+That’s all right
+Cause I have you here with me
+And I can almost see
+In the dark there’s a light
+```
+<!-- spellchecker:on -->
+
+> “Feels Like Home” feels like home, and once it’s stated, everything that
+> follows feels stable, as it well ought to. What a lovely journey. And craft
+> makes it all possible.
+
+The case demonstrates why this check must run at song scale: a rhyme type that
+works locally can still flatten the larger emotional journey.
 
 ## Rhyme type placement workflow
 
@@ -990,6 +1218,42 @@ The strategic point: the search is not a hunt for the one word that fits the
 slot you already have. It is a way of generating directions for the lyric. That
 is why the search runs wide enough to need trimming afterwards, and why every
 keyword gets searched rather than only the rhyme positions.
+
+### The book's last word on worksheets
+
+The whole of the Afterword to *Essential Guide to Rhyming* (2014) — the book's
+closing page, and its answer to anyone who finds worksheets too slow to bother
+with. (Cite it as `*Essential Guide to Rhyming* (2014), Afterword`; it is not a
+numbered chapter.)
+
+> If you’ve worked through this book carefully, you’ve got more control of the
+> sounds of your writing.
+>
+> Don’t be afraid of worksheets. They take time, but each time they take less
+> time. Each time you create one, the process gets more inside you. Do them for
+> a while, and you’ll reach a place where you do most of your work in your head.
+> Effectively. Knowing your options.
+>
+> And please keep using your brain as often as you use your heart. Writing
+> well is never easy. That’s the fun of it. It’s always an adventure. Don’t worry
+> about being able to write as well as someone else. The hardest thing you will
+> ever do is to write as well as *you* can.
+>
+> So write. And write fearlessly.
+
+Two things there are load-bearing for coaching. First, **the worksheet is
+training, not overhead** — its payoff is the internalised search ("you do most
+of your work in your head. Effectively. Knowing your options."), so a user who
+resents the labour is being asked to keep practicing until most of the work
+moves into their head. Second, the standard is self-referential: "the hardest
+thing you will ever do is to write as well as *you* can." Do not turn that into a
+comparative judgment against other writers — Pat rules that out in the sentence
+before it.
+
+"And please keep using your brain as often as you use your heart" is the same
+pairing Chapter 9 opens with, where rhyme types are what you bring "(along with
+your brain) to the writing table, where your heart has been struggling, all by
+itself."
 
 ### Chapter 7 exercises
 

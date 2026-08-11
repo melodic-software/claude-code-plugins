@@ -1,7 +1,6 @@
 # Rhyme Dictionary Practice
 
-Pat Pattison - *Pat Pattison's Songwriting: Essential Guide to Rhyming* (2014),
-Chapter 1, with the cross-reference lesson from *Essential Guide to Rhyming*
+Pat Pattison - *Essential Guide to Rhyming* (2014), Chapter 1, with the cross-reference lesson from *Essential Guide to Rhyming*
 (2014), Chapter 3.
 
 Use this with `rhyme-fundamentals.md`. *Essential Guide to Lyric Form and Structure* (1991) defines rhyme's structural
@@ -329,22 +328,36 @@ When a user is stuck, do not only mutate the first consonant. Search for:
 
 ## Exercises to preserve
 
-Exercise 1.1 is deliberately minimal: get a rhyming dictionary. In skill terms,
-the user needs a searchable sound inventory, not just memory.
+Exercise 1.1 is deliberately minimal — the heading carries half of it. Verbatim:
 
-Exercise 1.2 asks for two interesting rhymes for each target:
+> EXERCISE 1.1. Walk to a Bookstore
+>
+> …and get a rhyming dictionary.
+>
+> — *Essential Guide to Rhyming* (2014), Chapter 1
+
+In skill terms, the user needs a searchable sound inventory, not just memory.
+
+Exercise 1.2, verbatim, including Pat's numbering:
+
+> EXERCISE 1.2. Rhyming Dictionary Practice
+>
+> Using your rhyming dictionary, find two interesting rhymes for each of the
+> following words.
+>
+> — *Essential Guide to Rhyming* (2014), Chapter 1
 
 ```text
-love
-leadership
-blessed
-attendant
-crude
-Athena
-cripple
-grease
-stroked
-filet
+ 1. love
+ 2. leadership
+ 3. blessed
+ 4. attendant
+ 5. crude
+ 6. Athena
+ 7. cripple
+ 8. grease
+ 9. stroked
+10. filet
 ```
 
 Preserve the word list because it forces several categories: simple words,

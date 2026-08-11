@@ -3,6 +3,105 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.1]
+
+**Axis 2 closes at 226 of 226.** The last 21 fine-grained units — *Essential
+Guide to Rhyming* (2014) front matter (spine 0-13) and back matter (spine
+132-138) — are audited. No unit at any granularity remains unread in any of the
+four books. Axis 1 stays 44 of 44.
+
+The larger part of this release is a **refutation pass over unverified work**.
+An example-level sweep of all four books had been committed to this branch by a
+run that terminated on a content-filter error *before writing any receipt*, so
+none of it was audited. Eight fresh agents, one exclusive write-set each, were
+dispatched to disprove it rather than bless it.
+
+### Fixed — 20 defects the refutation pass found
+
+Counts summed from the eight receipt headers, not estimated: **49 CONFIRMED,
+20 REFUTED, 6 INCOMPLETE-RESTORATION, 0 UNPROVABLE.** Some hunks are both
+refuted and incomplete, so those two columns overlap.
+
+Every defect is a fidelity failure, not an invention. The pattern from previous
+sessions holds: the real risks are truncation, dropped items and over-claiming.
+
+- **Truncation.** `rhyme-fundamentals.md` presented the Introduction's first and
+  third sentences as consecutive and dropped the one between them; its closing
+  quotation stopped three sentences early. `rhyme-strategy.md` dropped a colon
+  and its three-line example, compressed a four-line reversal, and reduced a
+  worked case to two rhyme pairs. `verse-development.md` ended two set-ups on a
+  colon and replaced the printed examples with cross-references.
+- **Typography standing in for verbatim text.** Curly quotation marks normalized
+  to straight, and an italic span covering a complete refrain phrase dropped, in
+  `song-forms.md`; punctuation, capitalization and apostrophe typography altered
+  inside two quoted passages in `rhyme-sonic-bonding.md`.
+- **Over-claiming.** `form.md`'s own figure inventory claimed 21 substantive
+  transcriptions where the true count is 20, and asserted two choruses share
+  wording when they share a four-phrase `x a x a` structure and open
+  differently. A scaffolding note said four exercise bodies were already
+  verbatim while two still had formatting defects. A coaching gloss turned Pat's
+  qualified claim that most work moves into the writer's head into an absolute
+  claim that worksheets become unnecessary.
+- **Citation-format violations** against the plugin's own rule, in eight places.
+
+Deliberate repetitions were left intact wherever Pat prints a passage twice as
+pedagogy — the false-positive trap that would have destroyed correct text.
+
+### Fixed — Suno platform drift
+
+- **The highest-volume confidence error in the skill.** One line stamped "Creative
+  Slider behavior" as HIGH confidence and thereby certified roughly thirteen
+  unsourced numbers as officially confirmed. HIGH now covers only slider names
+  and qualitative endpoints; every numeric setting is community-empirical.
+- **Audio Influence for an active Voice: raise it.** The 25-30% figure is
+  removed along with its "contradicts initial Suno docs" framing, which was
+  backwards — it contradicts *current* docs. No threshold, including `>=70%`,
+  is first-party; Suno publishes no number.
+- The unsourced v4.5-metatag-breakage claim and the invented `[Vocalist:
+  Female]` form are deleted; `[Male Vocal]` / `[Female Vocal]` are kept.
+  `[Synth Solo]` no longer appears as non-standard ten lines above the list
+  that calls it recognized.
+- **Cover/harmony added with its evidence bounds attached.** The per-element
+  preserve table, the documented-absence answer on chord control, and the
+  re-record-then-Cover workaround. That cluster reached **zero community
+  sources** and Reddit was unreachable, so "Suno documents no way to do this"
+  is stated explicitly as not meaning "this cannot be done", and the section is
+  flagged for a community-source re-run.
+- Reuse corrected to text-field reuse with no slider; "harmonic seed" removed.
+
+### Verified rather than assumed
+
+- The **shipped invocation path** was tested cold for the first time. Routing
+  resolves, `${CLAUDE_PLUGIN_ROOT}` / `${CLAUDE_PROJECT_DIR}` expand correctly,
+  the response-filter pre-flight fires ahead of output, and **all 761 relative
+  links and 38 heading fragments resolve**. Caveat: the plugin is served from
+  the repo checkout, so this exercised the branch content, not the published
+  1.0.0 tarball.
+- Two `genre-taxonomy.md` pointers an earlier commit claimed to have repaired
+  did not resolve; they were placeholder and brace-expression forms that
+  ordinary link checking misses. Now expanded to concrete files.
+- Pat's italic on `you` — "the hardest thing you will ever do is to write as
+  well as *you* can" — restored from the Afterword page scan. The 2014 text
+  layer strips italics and wraps each word in its own span, so only the scan
+  could settle it.
+
+### Known, and deliberately not changed
+
+- **Suno D2 is unresolved and awaits a maintainer decision.** The skill teaches
+  a single varied 90-120s voice-clone clip in one file and three separate clips
+  in two others. No external source resolves it; agents were forbidden to pick.
+- Inline changelog prose ("An earlier revision of this file claimed…") remains
+  in nine runtime context files. It is accurate and is this project's main
+  defense against fabrications regrowing, but it belongs in a receipt.
+- **`hook.md` lyric enrichment was attempted and DROPPED.** The agent produced
+  141 lines, but it transcribed figures by building an **OCR pipeline** and then
+  "correcting OCR errors" — including inserting a missing apostrophe — instead
+  of rendering each figure and reading it. Roughly half of this project's
+  quote-checker misses are already extraction artifacts; OCR adds a new artifact
+  source, and repairing its output by inference is the fabrication risk the
+  whole audit exists to prevent. The work is discarded unverified rather than
+  shipped. `hook.md` is unchanged in this release.
+
 ## [1.0.0]
 
 **Chapter coverage was complete at 0.9.0; file coverage was not.** This release

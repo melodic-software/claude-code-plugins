@@ -81,7 +81,11 @@ Object-writing rules:
 - Mine after the buzzer.
 
 Every day of Challenge 1 has the same three-timer shape — 5 minutes, then 10
-minutes, then 90 seconds — and Pat supplies all three seeds. The complete list,
+minutes, then 90 seconds — and Pat supplies all three seeds. (The Introduction
+states the order the other way round: "The first 14-day challenge, Object
+Writing, asks you to respond to three prompts each day, of 10 minutes, 5
+minutes, and 90 seconds." That discrepancy is Pat's own; all fourteen day pages
+print 5 / 10 / 90, and the table below follows the day pages.) The complete list,
 in Pat's numbering (*Songwriting Without Boundaries* (2011), Challenge 1, Days
 1-14):
 
@@ -109,9 +113,16 @@ Loved One's Funeral — while the ninety-second slot stays small and physical.
 When generating a substitute seed, keep that weighting.
 
 Pat's instruction line, worth reading aloud before the timer starts. The long
-form below is printed **on Day 1 only**. Days 2-14 stop after "Stop IMMEDIATELY
-when the timer goes off." and swap the noun to match the category — "the
-following characters" on the who days, "the following places" on the where days:
+form below is printed **on Day 1 only**; Days 2-14 stop after "Stop IMMEDIATELY
+when the timer goes off." The noun he responds to is *not* swapped per category
+as neatly as the four-way split suggests — checked day by day, it is:
+
+- "the following **prompts**" — Days 1, 3, 4, 5, 6, 9, 10, 11 (so the first
+  "who" day and all three "when" days keep the default noun),
+- "the following **characters**" — Days 7-8 only,
+- "the following **places**" — Days 12, 13, 14 (all three "where" days),
+- Day 2 alone drops "following" entirely: "Once again, set a timer and respond
+  to the prompts for exactly the time allotted."
 
 > Set a timer and respond to the following prompts for exactly the time allotted.
 > Stop IMMEDIATELY when the timer goes off. Do not even finish the word you are
@@ -201,12 +212,29 @@ keep producing images, actions, and turns.
 
 Challenge 3 daily arc:
 
-| Days | Pat's days | Practice | Direction |
+| Days | Pat's days | Pat's printed heading | Direction |
 | --- | --- | --- | --- |
 | 29-31 | C3 D1-3 | Linking Qualities to Target Ideas | Supplied qualities, one direction. |
 | 32-35 | C3 D4-7 | Working Both Directions | Supplied qualities, then reverse the lens. |
 | 36-38 | C3 D8-10 | Finding Linking Qualities: Working One Direction | Writer finds three qualities, one direction. |
-| 39-42 | C3 D11-14 | Finding Linking Qualities: Moving Both Directions | Writer finds two qualities, then reverses. |
+| 39 | C3 D11 | Finding Linking Qualities: Working One Direction | Writer finds two qualities, then reverses. |
+| 40-42 | C3 D12-14 | Finding Linking Qualities: Moving Both Directions | Writer finds two qualities, then reverses. |
+
+Day 11 is the seam, and the seam is Pat's own. Its printed heading is still
+"Finding Linking Qualities: Working One Direction" — the table of contents
+groups Days 8-11 under that heading — but the body already reverses, and Pat
+flags the mismatch in his first sentence:
+
+> Today's exercise is a little different. You will explore your target idea
+> through the lens of traffic cop. After finding your linking qualities and
+> doing your usual ten minutes for each one, you'll spend another ten minutes
+> reversing directions, looking at traffic cop through the lens of your target
+> idea.
+>
+> — *Songwriting Without Boundaries* (2011), Challenge 3, Day 11
+
+Do not "correct" the heading when quoting the book, and do not treat Day 11 as
+a one-direction day when running it.
 
 Day prompts, with the linking qualities Pat actually supplies:
 
@@ -257,6 +285,7 @@ Sleeping late  -> Wasting time            -> Surfing the Web /
 Broken glass   -> Unable to be repaired   -> Broken trust / Mental illness
 Broken glass   -> Glittering and dangerous-> Las Vegas / Beautiful stranger
 Falling in love-> Swept away              -> Hurricane / Flash flood
+Falling in love-> Glittering and dangerous-> Las Vegas / Dagger
 Cheating lover -> Swept away              -> Avalanche / Waterfall
 Cheating lover -> Dangerous situation     -> Kids playing with a loaded gun /
                                              Smoking crack
@@ -333,7 +362,7 @@ gets finished.
 | --- | --- | --- | --- | --- | --- |
 | 43 | C4 D1 | Tetrameter Lines | Tetrameter, duple feel, no rhyme | Sunset | Art Museum |
 | 44 | C4 D2 | Tetrameter Lines | Tetrameter, duple feel, no rhyme | Digging for Gold | Pickup Truck |
-| 45 | C4 D3 | Tetrameter Couplets | Rhymed pairs | Mountain | Snowstorm |
+| 45 | C4 D3 | Tetrameter Couplets | Rhymed pairs, duple and triple | Mountain | Snowstorm |
 | 46 | C4 D4 | Tetrameter Couplets | Rhymed pairs, duple and triple | Train | Sleeping Late |
 | 47 | C4 D5 | Tetrameter Couplets | Rhymed pairs, duple and triple | John Brown | Broken Glass |
 | 48 | C4 D6 | Tetrameter Couplets | Rhymed pairs, duple and triple | Skydiving | Rocking Chair on the Front Porch at Sunset |
@@ -347,30 +376,71 @@ gets finished.
 | 56 | C4 D14 | Unstable Structure: abba | `abba` / `axxa` | Cloudy Day | Sleeping Late |
 
 Day 2 defines duple and triple feel with the shortest possible demonstration, and
-it is the one to use with a writer who cannot hear the difference:
+it is the one to use with a writer who cannot hear the difference. Pat's two
+sentences, verbatim:
 
 ```text
-Mary had a little lamb        duple feel
-Mary, she had the littlest lamb   triple feel
+Mary had a little lamb is a duple feel.
+
+Mary, she had the littlest lamb is a triple feel.
 ```
 
 Day 7 builds common meter live, adding one line at a time, and the reason it
-works is the imbalance in the middle:
+works is the imbalance in the middle. Pat prints the scansion and the words as
+two stacked blocks, not side by side. The completed section:
 
 <!-- Pat's scansion vocalization; not a misspelling --><!-- spellchecker:off -->
 ```text
-DUM da da DUM da DUM da da DUM    Give her a chance to sing by herself
-DUM da da DUM da DUM              Give her the room to shine
 DUM da da DUM da DUM da da DUM
+
+DUM da da DUM da DUM
+
+DUM da da DUM da DUM da da DUM
+
+DUM da da DUM da DUM
+
+Give her a chance to sing by herself
+
+Give her the room to shine
+
+Watch as she smiles and everyone melts
+
+Hearing a voice divine
 ```
 <!-- spellchecker:on -->
 
-You tap your foot four times in line 1 but only three in line 2. The body feels
-that imbalance — matching rhythms, differing lengths — and because you are off
-balance you must keep moving forward. Match line 3 to line 1 and rhyme it, and
-you have created a strong expectation for a fourth line. Line 4 lands and you
-feel the resolution. That is common meter, and like the tetrameter couplet it
-fits perfectly into an eight-bar sequence.
+His own account of why it works, verbatim:
+
+> You tap your foot four times in line 1, but only three times in line 2. Your
+> body feels the imbalance—there are some matching rhythms between line 1 and
+> line 2, but the differing lengths of the lines causes instability, throwing
+> the section off balance. Since you are off balance, you must continue to move
+> forward.
+
+("causes" is as printed — do not correct it.) Match line 3 to line 1 and rhyme
+it, and the structure asks for a fourth line that matches line 2, "the odd-duck
+line." Line 4 lands: "You feel the resolution. It is called common meter. You
+will find it everywhere, because it, like the tetrameter couplet, fits perfectly
+into an eight-bar sequence."
+
+Pat labels that section `abab` himself — "You have your choice in common meter of
+rhyming alternate lines, abab …" — so do not "correct" the label on the grounds
+that *herself* / *melts* do not chime; the letters track the four line-end
+positions, and *herself* / *melts* is the a-rhyme. He then prints the `xaxa`
+variant, changing only line 1:
+
+```text
+Give her a chance to sing all alone
+
+Give her the room to shine
+
+Watch as she smiles and everyone melts
+
+Hearing a voice divine
+```
+
+That is the whole difference between the Days 7-8 assignment (`xaxa`, rhyme only
+the trimeter lines) and the Days 9-10 assignment (`abab`, rhyme both).
 
 Day 12 names the problem that six-line shapes exist to solve: rhyming `aabccb`
 still produces a stop sign at the couplet. Moving to `abcabc` keeps the section
@@ -700,9 +770,14 @@ Pat restates on each of these days:
 > Don't pick something that can be literally angry, like people or bees. Those
 > wouldn't be metaphors. They'd just be angry people and angry bees.
 
-And on Day 3's `dark`: dark eyes could be literally true, so it is not a
-metaphor — "they join together rather than colliding." Dark *thoughts*, cliché
-though it is, is a metaphor, because it is literally false.
+And on Day 2's fourth adjective, `dark` — the restatement is on the same day as
+the angry/bees line, not the day after: dark eyes could be literally true, so it
+is not a metaphor. "They join together rather than colliding. Dark thoughts,
+though a cliché, is a metaphor. It's literally false." (Singular *is* is
+correct, and so is the singular *isn't* in "dark *eyes* … thus isn't a
+metaphor" — Pat italicises the second word of each pair, `dark *eyes*` and
+`Dark *thoughts,*`, so the subject is the phrase itself. Do not pluralise
+either verb.)
 
 Coach use: when a writer's collision comes back flat, check first whether it is
 literally true. That is the usual cause, and it is fixable in one substitution.

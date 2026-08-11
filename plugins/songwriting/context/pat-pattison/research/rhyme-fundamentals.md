@@ -1,8 +1,7 @@
 # Rhyme Fundamentals
 
-Pat Pattison — *Songwriting: Essential Guide to Lyric Form and Structure*
-(1991), Chapter 4. Extended by *Pat Pattison's Songwriting: Essential
-Guide to Rhyming* (2014), Chapters 1-2.
+Pat Pattison — *Essential Guide to Lyric Form and Structure* (1991), Chapter 4.
+Extended by *Essential Guide to Rhyming* (2014), Introduction and Chapters 1-2.
 
 ## Image inventory
 
@@ -13,6 +12,17 @@ six balance paradigms, every through-written/fragmented pair, all three closure
 types, and the printed answer keys to its exercises exist only as images. The
 `abba` correction below came from a figure and from an exercise key, neither of
 which is in the text layer.
+
+*Essential Guide to Rhyming* (2014), Introduction (printed pages ix–xii; spine
+items 010–013): **4 linked figures, 4 unique** — `image_2-page10.jpg` …
+`image_2-page13.jpg`. All four were rendered and read directly at 2x on the
+front-matter audit pass, and the text layer was confirmed complete against every
+one. Two things exist only in the scans: the **blank two-column Love/Desire
+table** on page xi (the text layer flattens it to the bare words `Love Desire`),
+and Pat's italics — `listen` in the opening paragraph's second sentence,
+`lines` in "just like *lines* in poetry," `not` in "The decision is *not*
+between rhyming and not rhyming," and both numbered COLD SPOT versions, which
+are set entirely in italic.
 
 *Essential Guide to Rhyming* (2014), Chapter 1 (printed pages 1–8): **8 linked
 figures, 8 unique** — `image_2-page14.jpg` … `image_2-page20.jpg` and
@@ -55,6 +65,204 @@ The "eyeless ears" framing is load-bearing. The listener cannot SEE the
 lyric. The rhyme structure tells them where the section is heading and
 when it has arrived. Spelling is irrelevant; the sung sound is the
 gate.
+
+## Introduction — "Do I Have To Rhyme?"
+
+The Introduction of *Essential Guide to Rhyming* (2014) (printed pages ix–xii;
+spine items 010–013) is craft content, not front matter. It is where the two
+anchor quotes above come from, and where Pat argues the case the rest of the
+book rests on. Chapter 2 back-references it by name — "Even if you wanted
+'strafe,' it is a transitive verb needing a direct object to complete it.
+(Remember 'besiege'?)" — so the worked example below has to be on file for that
+reference to mean anything.
+
+The two quoted sentences above are the Introduction's first and third
+sentences. The intervening sentence is:
+
+> "Because people *listen* to songs, you must learn to write for eyeless ears."
+
+The opening paragraph then continues:
+
+> "It shows them the way. So many times, rhyme seems like your enemy. Because
+> it's so hard to use rhyme and still sound natural, most songwriters go through
+> a 'trying not to rhyme' phase. Too often, rhyme seems to pull you in a wrong
+> direction, either (1) towards something that sounds unnatural, or (2) towards
+> something cliché. Both drain the blood from your lyric."
+
+Those two wrong directions are the Introduction's two section headings, and they
+are the whole reason the book exists.
+
+### SOMETHING UNNATURAL
+
+> "How many appeals have gone 'to the stars above?' How many emotions have flown
+> in on 'the wings of a dove?' Those countless stars and doves have every right
+> to feel like teenagers who get attention only because they hang out with
+> someone more desirable. In this case, 'love.' They aren't really wanted for
+> themselves."
+
+> "The need to rhyme has certainly held the shotgun at many an improbable
+> wedding. You may have been to a few yourself…."
+
+"Sometimes, the search for rhyme is even more destructive. Everyone has been in
+this situation: trying to find a way to connect words like"
+
+```text
+liege/besiege
+```
+
+"(No problem with cliché here.) Unless you were writing a comedy version of King
+Arthur or Robin Hood, you might never face this particular problem, but you have
+faced it in other ways many times. And you will face it again."
+
+**The transitive-verb trap, worked all the way through.** "'Besiege' is a
+transitive verb; you must use a direct object like 'the castle' to complete its
+sense. Putting a transitive verb at the end of a phrase inverts the natural
+sentence order:"
+
+```text
+He swore an oath unto his liege
+Tomorrow, the castle he would besiege.
+```
+
+"You can pull your poetic license out of your back pocket all you want to, but
+it won't make the phrase sound any more natural. You'll still sound like Yoda.
+Of course, the natural syntax is"
+
+```text
+He swore an oath unto his liege
+Tomorrow he would besiege the castle.
+```
+
+"You might try"
+
+```text
+He swore to his liege as a loyal vassal
+Tomorrow he would besiege the castle.
+```
+
+"The first phrase is ambiguous. Is the liege the vassal? Even though
+'liege/besiege' are in the same internal spot, the meaning is now a bit
+obscured. This is better:"
+
+```text
+To his liege, he swore as a loyal vassal
+Tomorrow, he would besiege the castle.
+```
+
+"This is a lot of twisting in the wind for a rhyme. And you still didn't get"
+
+```text
+liege/besiege
+```
+
+"…in the rhyming position. The problem is familiar to anyone who has worked with
+rhymes, especially where only a few rhymes are available. For 'liege,' there is
+only"
+
+```text
+besiege/siege
+```
+
+"Fortunately, 'siege' is a noun."
+
+```text
+He swore an oath unto his liege
+To lay the castle under siege.
+```
+
+"A lucky escape."
+
+The move that saves it is a **part-of-speech** move, not a rhyme move: Pat trades
+the transitive verb for a noun so the sentence can end where the rhyme has to
+end. Run that check before you rewrite a line's syntax — see
+[rhyme worksheets](rhyme-worksheets.md) for the same filter applied at the
+worksheet stage.
+
+### SOMETHING CLICHÉ
+
+"Having only a few rhymes available can cause even worse problems. Too often,
+the available rhymes have been used so much that they've become cliché. Have you
+ever tried to rhyme 'love?' Or 'desire?' Try for a minute. Make a list for each
+one."
+
+The page prints a blank two-column table for the reader to fill in. It is an
+exercise, not a list Pat supplies:
+
+| Love | Desire |
+|---|---|
+|  |  |
+
+"I thought of 'inspire.' Alas, it turns into the transitive verb problem. It
+threatens to sound unnatural:"
+
+```text
+You fill me with a strong desire
+Heat like this you can inspire
+```
+
+"Using cliché rhymes is pretty risky business. Most likely, your listener will
+start napping as soon as it is clear that you intend to use one of these old war
+horses. Unfortunately, English is full of them. Faced with these two problems:"
+
+1. "using something that sounds unnatural, or"
+2. "using cliché rhymes"
+
+"…you might be tempted to chuck rhyme altogether."
+
+Pat's roster of the actual offenders is in [cliche](cliche.md) "Cliche rhymes" —
+that list is from a different book and is not reprinted here.
+
+### Why refusing to rhyme is not the escape
+
+> "The problem is, refusing to rhyme hurts a lyric more than it helps it. This
+> isn't true in poetry, but remember, poetry is for the eye too. Rhymes in a
+> lyric are the ear's road signs, just like *lines* in poetry are the eye's road
+> signs. In the time of the troubadour, when poetry was oral, it always rhymed.
+> It was made for the ear, not the eye."
+
+Pat italicizes *lines* there: the printed line-break is the eye's road sign, and
+a lyric has no printed line-breaks for the listener. That is the whole argument
+for rhyme in one substitution.
+
+He then prints the same seven-line section twice — unrhymed, then rhymed — under
+"There is a big difference between these two systems." Both versions are quoted
+in full below.
+
+**Version 1 (unrhymed):**
+
+```text
+I've got a COLD SPOT in my heart
+Just for you
+Just for you
+It doesn't matter what you try
+Ain't no fire sneakin' in
+I've got a COLD SPOT in my heart
+Just for you
+```
+
+**Version 2 (rhymed):**
+
+```text
+I've got a COLD SPOT in my heart
+Just for you
+Just for you
+It doesn't matter what you do
+Ain't no fire sneakin' through
+I've got a COLD SPOT in my heart
+Just for you
+```
+
+Only lines 4 and 5 change. "You can feel the difference. The rhymed version has
+punch and sarcasm. The unrhymed version doesn't. Yet both versions have
+approximately (maybe even exactly) the same meaning."
+
+> "The decision is *not* between rhyming and not rhyming. The only decision is
+> to learn how to rhyme more effectively."
+
+That sentence is the Introduction's verdict, and the reason the book is a
+technique book rather than an argument for rhyme. Its closing paragraph — "Rhyme
+can be your best friend…" — is quoted under
+["Shaking Hands"](#shaking-hands--what-the-heading-actually-means) below.
 
 ## Core idea
 
@@ -171,13 +379,29 @@ Rhyming* (2014), Chapter 1. It is a heading, not a model of rhyme. The
 handshake is between **the reader and Rhyme**, which Pat personifies across the
 book's opening chapters: Chapter 1 introduces you, and Chapter 2 opens "You
 have been introduced. Now find out what Rhyme does for a living." The
-introduction runs on through the chapter titles — "Family Friends," "Friendly
-Relatives," "Kissin' Cousins," "The Fruits of Friendship."
+introduction runs on through the chapter titles, in the order the printed
+CONTENTS lists them (*Essential Guide to Rhyming* (2014), Contents, spine items
+004–005 — the pages carry no folio):
+
+1. "RHYME IS YOUR FRIEND" — the introduction itself, opening on "SHAKING HANDS."
+2. "EXCHANGING BUSINESS CARDS" — what Rhyme does for a living
+   ([rhyme spotlight/connection](rhyme-spotlight-connection.md)).
+3. "GETTING REFERENCES" — checking up on the new acquaintance, i.e. worksheets
+   ([rhyme worksheets](rhyme-worksheets.md)).
+4. "FAMILY FRIENDS" — family rhyme ([rhyme types](rhyme-types.md)).
+5. "FRIENDLY RELATIVES" — additive/subtractive rhyme (same file).
+6. "KISSIN' COUSINS" — assonance, consonance, partial rhyme (same file).
+7. "THE FRUITS OF FRIENDSHIP" — what the widened field buys you.
+
+The metaphor is a single unbroken arc from handshake to family: an earlier
+revision of this paragraph named only items 4-7 and dropped the first three,
+which are the ones that actually establish the personification.
 
 The chapter's closing stance under that personification: "Rhyme can be your
 best friend—your biggest help in leading all those eyeless ears through your
 lyrics. Or it can be your enemy. I want to show you how to make rhyme your
-friend." (2014, Introduction, page xii.)
+friend. That’s why you should work your way through this book. All the way.
+Carefully." (*Essential Guide to Rhyming* (2014), Introduction.)
 
 Everything the section itself teaches about rhyme is the three-condition test
 above. Do not tell a writer that rhyme is two people walking toward each other,
