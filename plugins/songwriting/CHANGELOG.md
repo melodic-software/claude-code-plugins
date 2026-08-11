@@ -6,49 +6,29 @@ All notable changes to the `songwriting` plugin are documented here. Format foll
 ## [1.1.0]
 
 Both audit denominators are unchanged: **Axis 1 stays 44 of 44** and **Axis 2
-stays 226 of 226.** Nothing here opens a new unit. This release restores printed
-punctuation across the whole Pat Pattison corpus, closes six sourced Suno
-remediations that a previous session left blocked, and records the first
-r/SunoAI thread ever read for this plugin.
+stays 226 of 226.** Nothing here opens a new unit. This release closes six
+sourced Suno remediations that a previous session left blocked, records the
+first r/SunoAI thread ever read for this plugin, and settles the buy-the-books
+title convention.
+
+### ⚠ PUNCTUATION GLYPHS ARE NOT A FIDELITY AXIS — DO NOT SWEEP FOR THEM
+
+**Verbatim means the words.** Apostrophe and quote *glyphs* — ASCII `'` `"`
+versus curly `’` `“` `”` — are not part of it. This repo is GitHub-flavored
+Markdown and either form is fine.
+
+Much of this session went into normalizing curly punctuation across 470 lines in
+31 files before the owner ruled it out of scope. Those lines are left as they
+stand, because reverting them would spend *more* effort on something that does
+not matter. They carry **no fidelity meaning**, and **no future session should
+measure, sweep, audit, or report on this class again.**
+
+The correction that does matter: during that work two earlier receipts (`V1`,
+`V7`) were recorded as "refuted on fidelity". **That was wrong — they were
+correct.** Their restorations reproduce the source's *words* exactly, which is
+the standard that actually applies. **All ten re-verified receipts were sound.**
 
 ### Fixed
-
-- **Printed punctuation restored across 470 lines in 31 corpus files.** Quoted
-  source throughout `context/pat-pattison/research/` carried ASCII `U+0027`
-  apostrophes and `U+0022` double quotes where the citing book prints `U+2019`,
-  `U+201C` and `U+201D`. **308 apostrophes and 396 quotation marks — 704
-  characters** restored; the diff across those 31 files is **470 insertions /
-  470 deletions with zero non-punctuation character changes**, recomputed
-  independently of the script that made them. Worst affected: `form.md` 52 lines,
-  `song-forms-examples.md` 49, `object-writing.md` 45, `rhyme-worksheets.md` 31,
-  `point-of-view.md` 30.
-
-  This is the same defect class an earlier refutation pass found and fixed in a
-  single place (`rhyme-fundamentals.md:403`) and noted twice more in
-  `rhyme-sonic-bonding.md`. **Three separate receipts touched it and each
-  treated it as a one-off; nobody ever swept the corpus.** It surfaced here only
-  because two restorations claimed byte-exactness and did not byte-match.
-
-  The fix was applied by a deterministic script with **no model in the loop** —
-  every replacement character was read out of the gated book at that position.
-  Two lines resolved ambiguously and were **refused rather than guessed**, then
-  settled individually. Known-present control: blockquote lines matching a book
-  byte-for-byte rose from **1,766 to 2,016**.
-
-- **Six lines where the first sweep picked the wrong book.** Its test was "is the
-  ASCII form absent from *any* of the four books?", which is not the same
-  question as "does the book this passage cites print it that way?" — and the
-  difference is load-bearing, because **the 2009 book genuinely prints ASCII
-  apostrophes** (2,373 ASCII against 6 curly in its own EPUB) while 1991, 2011
-  and 2014 print curly. Any line Pat reprinted in 2009 therefore got a free pass.
-  Caught by the refuting pass and repaired against the **citing** book:
-  - `song-forms.md:581,582,584,587` — a block that `song-forms.md:567` cites to
-    1991, in a section whose own line 564 **warns that 2009 prints the same lyric
-    differently**. The file documented the trap and the sweep walked into it.
-  - `brainstorm.md:148`, `object-writing.md:420` — the two lines settled by hand;
-    both blocks are cited to 2011, and both were aligned against 2009.
-
-  Each repair is asserted present in its cited book and absent before the change.
 
 - **Six sourced Suno remediations closed.** The `suno-drift` audit recorded
   findings S3, S7, S8, S9, G3 and G7 against sites that a previous session

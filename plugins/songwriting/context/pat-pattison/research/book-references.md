@@ -4,6 +4,22 @@ Single source of truth for how Pat Pattison's four books are cited
 throughout this skill. Every context file references books by SHORT NAME +
 year. The short name is used inline and in file headers.
 
+## ⚠ WHAT "VERBATIM" COVERS — read this before auditing anything
+
+**Verbatim means the WORDS.** Reproduce Pat's examples, exercises, answer keys,
+tables and analysed lyrics exactly as printed: no paraphrase, no genericizing,
+no invented substitutes.
+
+**It does NOT mean punctuation glyphs.** ASCII `'` and `"` versus curly `’`
+`“` `”` are typography, not content. This repo is GitHub-flavored Markdown and
+either form is acceptable. The four books are not even consistent with each
+other — the 2009 EPUB prints ASCII apostrophes, the other three print curly.
+
+**Do not sweep, measure, audit, or open work items on punctuation glyphs.** A
+session was spent on exactly that before the owner ruled it out of scope. If a
+restoration reproduces the printed words, it is verbatim, full stop. Spend the
+effort on missing content, invented content, and wrong citations instead.
+
 **Two places deliberately carry a title longer than the short name — do not
 "normalize" either one:** this file's bibliographic table below, and the
 buy-the-books list in the plugin `README.md`. That list exists so a reader can go
