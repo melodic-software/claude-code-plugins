@@ -16,10 +16,10 @@ extraction waits for the third (Rule of Three).
 - **Cite a LIVE page by anchor, never by line number.** These pages gain and lose rows between
   reads and the `.md` channel renumbers with them, so a `<page>.md:<line>` citation rots silently
   into a pointer at an unrelated row. Cite the heading, the table row's key, or the variable name —
-  something the page itself carries. This repo has the measurement, from its own two reads of
-  `env-vars.md`: 451 lines and 316 rows when the absence rule below was written, 458 lines and 315
-  rows on 2026-08-10, so both a growth and a removal landed between them. The attested near-miss
-  instance recorded as `env-vars.md:394` moved that way — 394 is `DISABLE_UPGRADE_COMMAND` today,
+  something the page itself carries. This pipeline has the measurement from its own two reads of
+  `env-vars.md`: the absence rule below records `CLAUDE_CODE_MAX_OUTPUT_TOKENS` at **line 277 of a
+  451-line page**; on 2026-08-10 that same row is at **line 280 of 458**. The attested near-miss
+  instance recorded as `env-vars.md:394` moved the same way — 394 is `DISABLE_UPGRADE_COMMAND` today,
   and the row the instance describes (the only one on the page that both describes Claude Code's
   own retry behavior and names a model subject; the sibling
   `CLAUDE_CODE_DISABLE_NONSTREAMING_FALLBACK` names none) is `FALLBACK_FOR_ALL_PRIMARY_MODELS`, at
