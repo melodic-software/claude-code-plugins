@@ -57,16 +57,55 @@ Parse `$ARGUMENTS`:
   **delegated** interfaces — each would have to accept and honor a target root — and belongs to
   those skills rather than this one. The argument itself survives because the state key, the lock,
   and the report are already keyed on the resolved root.
+
+  **The gate enforces both halves of that first sentence: the active project root, *and* a git
+  repository.** A `target` that is not inside a git repository is refused the same way — non-zero,
+  before Phase 0 does any work, naming the path and the reason, writing nothing.
+
+  **Name the directory, not an empty string.** In the case this refusal is *for*, the default
+  resolution above produces nothing: with no explicit `target` and no `${CLAUDE_PROJECT_DIR}`,
+  `git rev-parse --show-toplevel` fails outside a repository and there is no resolved root to report.
+  So for the diagnostic only, fall back to the current directory and name **that** — a refusal that
+  cannot say which path it refused is barely better than a silent one. The fallback is for the message;
+  it never becomes a target.
+  Requiring only "the active project root" let a non-git directory through into a contract with no
+  branch for it, and the run then went quiet in five places rather than one:
+
+  - the state key (§3) has a no-**remote** fallback and no no-**git** one, and "canonicalized repo
+    root" is undefined without a repository;
+  - the scan baseline is *the target's HEAD commit and the run's state digest*, and HEAD does not
+    exist;
+  - Class 3 exclusion derives worktrees from `git worktree list`, and unlike Class 1 it is given no
+    fallback;
+  - assertion 2.1 is stated over `git status --porcelain`, so the top read-only assertion is
+    unevaluable;
+  - and — the one that is a permanent capability loss rather than a missing derivation — **only the
+    team layer enacts a suppression**, and the team layer is the *tracked* layer. With nothing
+    tracked, no suppression is ever enactable on such a target, so an operator could accept a finding
+    and have the acceptance silently fail to persist, forever.
+
+  **The refusal says that cost out loud** rather than reading as an arbitrary restriction, and it names
+  the suppression consequence in particular. Refusing closes a target class deliberately; it is not a
+  side effect. The alternative — specifying all five branches — was considered and rejected, because
+  the last of them obliges the contract to promise a capability it can never deliver on that class.
+  A non-git directory is audited by opening it as a repository, or by the delegated skills directly.
 - **`--fix`** — the explicit mutation override. Absent, the pass writes nothing into the target.
 - **`--opinion`** — run the `OPINION`-tier checks the delegated catalogs declare default-off.
 - **`--resume`** — resume the most recent incomplete run for this target's state key.
-- **`--report-to <path>`** — redirect the report into the target tree. **The redirecting run adds
-  that path to its own exclusion set before writing** — not only for later runs, or the two runs'
-  derived sets could not be equal — and says so in its output. The destination is accepted only if it
-  is an `audit-pass`-owned report or a new path that is **not a recognized instruction surface**;
+- **`--report-to <path>`** — redirect the report into the target tree. The destination is accepted only
+  if it is an `audit-pass`-owned report or a new path that is **not a recognized instruction surface**;
   anything else is refused non-zero, naming the file. Refused on name rather than on existence,
   because `--report-to CLAUDE.md` against a repo that has none would *create* a live instruction
   surface out of a JSON report and then hide it from every later scan.
+
+  **The self-exclusion obligation is not this flag's.** It belongs to the predicate
+  `report_path ⊆ target_root`: **any** run whose resolved report path is contained in the target adds
+  that path to its own exclusion set before writing — not only for later runs, or the two runs' derived
+  sets could not be equal — and says so in its output. `--report-to` is one way containment arises. The
+  **default** path is another, because `${CLAUDE_PLUGIN_DATA}` resolves under `~` and is inside any
+  target at or above it. Full statement in
+  [reference/report-location-and-schema.md](reference/report-location-and-schema.md) §2 and
+  [reference/exclusion-set.md](reference/exclusion-set.md) Class 4.
 
 ## Phase 0 — Resolve, key, lock
 
@@ -350,4 +389,7 @@ recalibration.
   defect this skill's whole shape exists to avoid.
 - Never reads another plugin's files. Cross-plugin cooperation is invocation only.
 - Never edits managed policy or a user-scope file, in any mode.
-- Never writes into its own scan set without `--report-to`, and never scans what it wrote.
+- Never scans what it wrote. Where its resolved report path is contained in the target — by
+  `--report-to`, or by `${CLAUDE_PLUGIN_DATA}` resolving under `~` for a target at or above it — the
+  path is excluded before the write and the containment is disclosed. Never silently.
+- Never audits a target that is not a git repository. It refuses, and says what the refusal costs.

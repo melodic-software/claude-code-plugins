@@ -3,6 +3,74 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.0]
+
+`audit-pass` changes what it does on two target classes, which is why this is a minor: a target that is
+not a git repository is now refused, and a target at or above `~` now gets the self-exclusion and
+disclosure that only `--report-to` runs used to get. The three fixes are independent — the refusal does
+**not** subsume the containment work, because the class that falsified the containment claim is a *git*
+repository rooted at or above `$HOME`, which a dotfiles repo is.
+
+### Fixed
+
+- **`audit-pass` claimed its report lands "outside any target repository", and that is false by
+  construction.** `${CLAUDE_PLUGIN_DATA}` resolves to `~/.claude/plugins/data/{id}/`
+  ([plugins reference](https://code.claude.com/docs/en/plugins-reference), verified 2026-08-11), and no
+  documented setting relocates it — so the default report path is *inside* any target at or above `~`.
+  The sentence was true for an ordinary repo under `C:/Projects/…` and stated as a universal, while a
+  whole reachable target class falsifies it. It is now stated as what it is: outside a target below `~`,
+  inside one at or above it. That claim was load-bearing for the read-only contract's headline property
+  and for assertions 2.1 and 2.4.
+- **And the machinery that exists for exactly that situation was gated on the wrong thing.** Name-based
+  refusal, the pre-write exclusion entry, the operator disclosure, and the digest exclusion were all
+  written under the `--report-to` bullet. The flag is one way a report path ends up inside the target;
+  it was never the definition. The governing condition is now the predicate `report_path ⊆ target_root`,
+  evaluated against the resolved path on every run, with `--report-to` demoted to one instance of it.
+  Class 4 of the exclusion set is stated as that predicate rather than as a two-item list, so a member
+  added later inherits the rule instead of needing someone to remember the list.
+- **The consequence this retires:** a run against a dotfiles repository, or against `~` itself, wrote
+  its report into its own scan set with no exclusion entry and no disclosure, and then reported
+  `indeterminate` on its own determinism gate — every time, purely for doing what it was asked. The
+  digest exclusion in `determinism-tiers.md` is re-keyed on containment for the same reason.
+- **Assertions 2.1–2.4 are re-scoped on containment, and 2.6 is added.** 2.1 ("`git status --porcelain`
+  is empty") was falsified by the same class as 2.4, not just 2.4. 2.6 is the default-path twin of the
+  redirect disclosure: a run against a target at or above `~` with no `--report-to` discloses that its
+  report path is contained and names it, so a contained write is never silent.
+
+### Changed
+
+- **`audit-pass` refuses a target that is not a git repository.** `SKILL.md` called `target` "the git
+  repository to audit" while the gate required only that it "resolve to the active project root" — so a
+  non-git directory passed, and the contract then had no branch for it in five places: the state key has
+  a no-remote fallback and no no-git one; the scan baseline is defined as HEAD plus the state digest;
+  Class 3 exclusion derives worktrees from `git worktree list` and, unlike Class 1, is given no fallback;
+  assertion 2.1 is stated over `git status --porcelain`; and — the one that is a permanent capability
+  loss rather than a missing derivation — suppression is enacted only by the team layer, which is the
+  *tracked* layer, so no suppression is ever enactable on such a target. An operator could accept a
+  finding there and have the acceptance silently fail to persist, forever.
+
+  **This closes a target class, deliberately.** The alternative was specifying all five branches, which
+  obliges the contract to promise a capability it cannot deliver on that class. The refusal reuses the
+  existing channel — non-zero, before Phase 0, naming the path and the reason — rather than minting a
+  new exit code, and it states the cost out loud, naming the suppression consequence in particular, so
+  it does not read as an arbitrary restriction.
+
+  **It names the directory even when resolution produced nothing**, which is the case the refusal is
+  most for: on a bare invocation with no `${CLAUDE_PROJECT_DIR}`, the documented default is
+  `git rev-parse --show-toplevel`, and that fails outside a repository — leaving no resolved root to put
+  in the message. The diagnostic falls back to the current directory so the refusal can say what it
+  refused. That fallback is for the message only and never becomes a target.
+
+### Added
+
+- **Eval 30 `non-git-target-is-refused-not-half-specified`**, and evals 1 and 20 rewritten. This is the
+  row that had to land first: eval 1's expectation graded "writes the report under `CLAUDE_PLUGIN_DATA`
+  **rather than** into the scan set", and eval 20's graded the digest exclusion as a `--report-to`
+  property — so the suite passed a defect-exhibiting run and would have failed the corrected one. Eval 1
+  now grades that the containment predicate is *evaluated*, and that where it holds the path is recorded
+  before the write and disclosed; eval 20 grades that the exclusion is keyed on containment and not on
+  the flag. Reading all 29 shipped cases at HEAD found no others carrying the premise.
+
 ## [0.30.0]
 
 Two graded outputs move, which is why this is a minor rather than a patch: a baseline deny finding can

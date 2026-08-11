@@ -109,6 +109,13 @@ and one human gate per run. Findings report in three tiers — derived (exact eq
 judged (a stability tolerance whose violation fails the run's self-check), delegated. `/doctor` is an
 operator handoff, never a dispatch, because it is interactive.
 
+**The target must be a git repository**, and one that resolves to the active project root. Both halves
+are refused non-zero rather than reinterpreted. The git requirement is not incidental: the state key,
+the scan baseline, the worktree exclusion, and the top read-only assertion are all defined over git,
+and suppression is enacted only by the *tracked* layer — so on a non-git target no suppression would
+ever persist. Audit such a directory by opening it as a repository, or through the delegated skills
+directly.
+
 ```shell
 /claude-config:audit-pass                    # read-only pass over the current repo
 /claude-config:audit-pass --opinion          # include the default-off OPINION-tier checks
@@ -181,7 +188,9 @@ automatically. If you used `/claude-config-audit:memory-health`, install it expl
 
 No `userConfig`. One tracked consumer-project file — `audit-pass`'s suppression record, above.
 Persistent plugin state: `audit-pass` writes its run reports and manifests under
-`${CLAUDE_PLUGIN_DATA}`, outside any target repository, so a run never writes into its own scan set.
+`${CLAUDE_PLUGIN_DATA}`, which resolves under `~` — outside a target below the home directory, and
+inside one at or above it. A run never *scans* what it wrote: where the resolved report path is
+contained in the target, the run excludes that path before writing and says so.
 Network: `audit` fetches official docs pages and each registered marketplace's `marketplace.json`
 from `raw.githubusercontent.com` (read-only; a failed fetch degrades to SKIP).
 

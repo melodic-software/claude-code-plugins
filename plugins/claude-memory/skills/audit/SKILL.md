@@ -33,8 +33,15 @@ the `audit` and `automation-gaps` skills in the `claude-config` plugin).
 | Project instructions | `CLAUDE.md` | Every session, full | Yes |
 | Local overrides | `CLAUDE.local.md` | Every session, full | Yes |
 | Rules | `.claude/rules/**/*.md` | Every session (unconditional) or on-demand (path-scoped) | Yes |
+| **User instructions** | `${CLAUDE_CONFIG_DIR:-~/.claude}/CLAUDE.md` | Every session, full, in **every** project | Yes |
+| **User rules** | `${CLAUDE_CONFIG_DIR:-~/.claude}/rules/**/*.md` | Same as project rules, in every project | Yes |
 | Auto-memory | `~/.claude/projects/<project>/memory/` | First 200 lines / 25KB of MEMORY.md | Yes |
 | Settings, hooks, MCP, agents, skills | Various | Various | No — use `claude-config`'s `audit` / `automation-gaps` |
+
+The two user-scope rows are in scope because they load in every session regardless of where it starts,
+and because `claude-config`'s `audit-instructions` partitions memory-layer surfaces here **by name**,
+`~/.claude/rules/` included. Discovery tags every file with its scope so project-scoped criteria (C9)
+skip personal files rather than reporting a repo-scoped finding against one.
 
 ## Scope boundary (route out)
 

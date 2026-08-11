@@ -48,16 +48,26 @@ without being told about it.
 
 ## Class 4 — the pass's own artifacts
 
+**Derivation — one predicate, not a list of flags.** *Any path this run will write that is contained in
+the resolved target root* is excluded, recorded before the baseline is taken, and stated in the run's
+output. The membership test is `write_path ⊆ target_root`, evaluated against resolved paths. The two
+members below are the ways that condition arises today, not the definition of it — anything added later
+inherits the rule by satisfying the predicate, and no list has to be remembered and extended.
+
 - **The suppression record** (`.claude/audit-pass.md` and its cascade layers). Excluded from the scan
   set: otherwise suppressing a finding changes the tree and perturbs the next run, which would make
   the idempotence property unfalsifiable.
-- **A redirected report.** A run given `--report-to <path>` records that path in **its own**
-  exclusion list before it writes, and every subsequent run keeps it there; the run states this in
-  its output. Recording it only from run 2 onward would leave the path in one run's derived-tier
-  exclusion artifact and absent from the other's, and the derived tier is held to exact equality
-  across runs. The path is recorded whether or not a file exists there yet — the exclusion is about
-  the path the run is about to write. Scanning your own previous report is the failure the rule
-  exists to prevent.
+- **The run's own report, wherever it lands inside the target.** A run whose resolved report path is
+  contained in the target root records that path in **its own** exclusion list before it writes, and
+  every subsequent run keeps it there; the run states this in its output. `--report-to <path>` is one
+  way the path becomes contained — **the default path is another**, because `${CLAUDE_PLUGIN_DATA}`
+  resolves under `~` and is therefore inside any target at or above it. Keying this on the flag instead
+  of on containment was a defect: it left a run against a dotfiles repository, or against `~` itself,
+  writing into its own scan set with no exclusion entry and then failing its own determinism gate.
+  Recording it only from run 2 onward would leave the path in one run's derived-tier exclusion artifact
+  and absent from the other's, and the derived tier is held to exact equality across runs. The path is
+  recorded whether or not a file exists there yet — the exclusion is about the path the run is about to
+  write. Scanning your own previous report is the failure the rule exists to prevent.
 
 ## Suppression against an excluded path is a hard error
 
