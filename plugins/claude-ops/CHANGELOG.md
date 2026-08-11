@@ -49,7 +49,8 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 - **The CSV artifact is complete by construction.** `--csv` writes one row per file in the scan set
   — 86,653 rows for an 86,653-file install — and `--authored-threshold` governs only how much
   per-file detail the JSON summary embeds. Driving the artifact off the JSON rollup instead produced
-  a 169-row CSV for that same tree while the surrounding prose claimed completeness, so a test now
+  a 169-row CSV for the same install (86,984 files at that instant; the tree is live and the total
+  moved between runs) while the surrounding prose claimed completeness, so a test now
   pins `csv.rows == totals.files` and asserts a threshold of `0` does not shrink it. Omitting
   `--csv` reports `path: null` with a note that the run must not be described as covering every
   file.
