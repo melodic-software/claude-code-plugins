@@ -25,7 +25,8 @@ Place each on its own line at the start of the section.
 | `[Interlude]` | Short instrumental connector |
 | `[Outro]` | Closing wind-down |
 | `[End]` | Hard stop (vs gradual fade) |
-| `[Fade Out]`, `[Fade In]` (unattested; no source states it) | Volume change at boundary |
+| `[Fade Out]` | Volume change at boundary |
+| `[Fade In]` — **unattested**; no source states this tag, unlike `[Fade Out]` | Volume change at boundary (unconfirmed) |
 | `[Instrumental]`, `[Instrumental Break]`, `[Melodic Instrumental]` | No-vocal sections |
 | `[Guitar Solo]`, `[Piano Solo]`, `[Drum Solo]`, `[Bass Solo]`, `[Saxophone Solo]`, `[Synth Solo]` | Instrument-specific solos |
 | `[Spoken Word]` | Recited rather than sung |
