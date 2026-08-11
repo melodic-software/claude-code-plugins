@@ -60,13 +60,17 @@ giving the whole scheme a documented home is a separate follow-up, tracked outsi
 **Also required — a hook that CHANGED the user's file content without being asked.** An autofix hook
 edits a file the user is working in, on the strength of an unrelated tool call, with no prompt and no
 diff. The harness's own signal for it is a generic "PostToolUse hook modified `<file>` after your
-edit (likely a formatter)" line that names no hook and shows no change — an observed harness string,
-not a documented one: it appears on no Claude Code docs page (checked across the corpus 2026-08-11).
-What the docs do settle, verified against
-<https://code.claude.com/docs/en/hooks> (fetched 2026-08-10), is the negative this rule needs: the three documented output channels
+edit (likely a formatter)" line that names no hook and shows no change — quoted from an observed
+session, not from a docs page, and load-bearing here only as an illustration of the shape such a
+notice takes. What the docs settle is the negative this rule actually rests on, verified against
+<https://code.claude.com/docs/en/hooks> (fetched 2026-08-10): the three documented output channels
 carry no file-change or diff surface, so a benign reflow and a wrong dictionary rewrite arrive
-identically. The person whose file was changed is the only one who can judge whether the change was
-correct, so **the hook must name what it changed on the user channel**, not only the agent one: what
+identically. Recheck trigger: a Claude Code release that adds a file-change or diff surface to the
+hook output schema — a fourth output field, or such a payload on one of
+[the three](#the-three-surfaces) — which would make this rule's disclosure requirement redundant.
+
+The person whose file was changed is the only one who can judge whether the change was correct, so
+**the hook must name what it changed on the user channel**, not only the agent one: what
 was rewritten, to what, where, and how to prevent it. This is a *narrow* addition to the scope above,
 and its boundary is content the user did not request — a hook that only *reports* (a lint finding, a
 suggested fix, a diagnostic) still belongs on `additionalContext` alone. The same cap discipline as
