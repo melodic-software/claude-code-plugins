@@ -44,9 +44,13 @@ each discovered file. Apply by entity type:
   rule. A *path-scoped* user rule is absent until a matching file is read, so a repo-relative currency
   or redundancy finding against one is only valid where its `paths:` can match in **this** project —
   check that first rather than assuming co-residency
-- **Scope `both`**: one physical file both layers reach, which happens when the project root is the
-  home directory (a dotfiles repo) and `.claude/rules` *is* `~/.claude/rules`. Discovery emits it once
-  with this tag. Report it once, and never compare it against itself in Step 3
+- **R1 pairs within a scope.** A user rule's duplication check runs against the *user* `CLAUDE.md`, a
+  project rule's against the *project* one — see R1's "Which CLAUDE.md" note. Cross-scope overlap is
+  Step 3's, not R1's, or one overlap gets reported twice
+- **Scope `both`**: one physical file that both layers reach. Two dotfiles layouts produce it — a repo
+  rooted at `~` (where `.claude/rules` *is* `~/.claude/rules`) and a repo rooted at `~/.claude` itself
+  (where the depth-1 `CLAUDE.md` *is* `~/.claude/CLAUDE.md`). Discovery emits such a file once with
+  this tag. Report it once, and never compare it against itself in Step 3
 - **C7/R3 (currency)**: version pins and counts are checked against the repo's own pin files
   (`global.json`, `.nvmrc`, `.python-version`, `.mcp.json`, or ecosystem equivalents). File-path-existence
   currency is **agent judgment**: read each path reference in context — instructional files cite

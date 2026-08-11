@@ -163,10 +163,40 @@ assert_contains "the overlapping rule is tagged both" "$OUT_HOME" "$(printf 'bot
 assert_not_contains "the overlapping rule is not also tagged project" "$OUT_HOME" "$(printf 'project\trule\t')"
 assert_not_contains "the overlapping rule is not also tagged user" "$OUT_HOME" "$(printf 'user\trule\t')"
 
-# CLAUDE.md cannot collide even here: project discovery is depth-1 at the cwd, and
-# the user copy lives one level down inside the config root.
+# In THIS layout (repo rooted at ~) the two CLAUDE.md files really are distinct:
+# project discovery is depth-1 at the cwd, the user copy is one level down.
 assert_contains "repo-root CLAUDE.md is still project" "$OUT_HOME" "$(printf 'project\tclaude-md\tCLAUDE.md')"
 assert_contains "config-root CLAUDE.md is still user" "$OUT_HOME" "$(printf 'user\tclaude-md\t%s/CLAUDE.md' "$HOMEREPO/.claude")"
+
+# --- the OTHER dotfiles layout: the repo IS the config root ------------------
+# `~/.claude` tracked as the repo. Now `CLAUDE.md` at depth 1 and
+# `$config_root/CLAUDE.md` are the SAME file, and the rules dirs coincide too.
+
+CONFREPO="$TEST_TMPDIR/confrepo"
+mkdir -p "$CONFREPO/rules"
+printf '# the one CLAUDE.md\n' >"$CONFREPO/CLAUDE.md"
+printf '# the one rule\n' >"$CONFREPO/rules/only-rule.md"
+
+# cwd == config root: `.claude/rules` does not exist here, so only the CLAUDE.md
+# collision is in play — which is exactly the case the rules-only guard missed.
+OUT_CONF="$(run_in "$CONFREPO" "$CONFREPO")"
+
+MD_ROWS="$(printf '%s\n' "$OUT_CONF" | grep -c 'claude-md' || true)"
+if [[ "$MD_ROWS" == "1" ]]; then
+  pass "repo rooted at the config root emits CLAUDE.md exactly once"
+else
+  fail "repo rooted at the config root emits CLAUDE.md exactly once" "got $MD_ROWS rows: $OUT_CONF"
+fi
+assert_contains "the collided CLAUDE.md is tagged both" "$OUT_CONF" "$(printf 'both\tclaude-md\tCLAUDE.md')"
+assert_not_contains "it is not also emitted as a user row" "$OUT_CONF" "$(printf 'user\tclaude-md\t')"
+assert_not_contains "it is not also emitted as a project row" "$OUT_CONF" "$(printf 'project\tclaude-md\t')"
+
+# And it satisfies either filter, same as a both-tagged rule.
+OUT_CONF_USER="$(run_in "$CONFREPO" "$CONFREPO" --scope user)"
+assert_contains "--scope user shows the both-tagged CLAUDE.md" "$OUT_CONF_USER" "$(printf 'both\tclaude-md\t')"
+
+# A distinct-config layout must not regress into a both-tagged CLAUDE.md.
+assert_not_contains "distinct roots never produce a both-tagged CLAUDE.md" "$OUT" "$(printf 'both\tclaude-md\t')"
 
 # A `both` record satisfies either filter — the file really is reachable by each layer.
 OUT_HOME_USER="$(run_in "$HOMEREPO" "$HOMEREPO/.claude" --scope user)"

@@ -31,10 +31,12 @@
 #   kind   claude-md | claude-local-md | rule
 #   path   absolute for user scope, as-found for project scope
 #
-# `both` means one PHYSICAL file that both layers reach — the dotfiles case, where the
-# project root is the home directory and `.claude/rules` IS `~/.claude/rules`. Such a
-# file is emitted once, never twice under two path spellings, so it cannot produce a
-# duplicate finding or be compared against itself in the cross-scope pass.
+# `both` means one PHYSICAL file that both layers reach. Two dotfiles layouts do this:
+# a repo rooted at `~` (where `.claude/rules` IS `~/.claude/rules`), and a repo rooted
+# at `~/.claude` itself (where `CLAUDE.md` at depth 1 IS `~/.claude/CLAUDE.md`, and the
+# rules dirs coincide too). Such a file is emitted once, never twice under two path
+# spellings, so it cannot produce a duplicate finding or be compared against itself in
+# the cross-scope pass.
 
 set -uo pipefail
 
@@ -52,8 +54,8 @@ Emits one TAB-separated record per file: <scope> <kind> <path>
 
   scope   project  — CLAUDE.md / CLAUDE.local.md at the current root, and .claude/rules/*.md
           user     — ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/CLAUDE.md and .../rules/*.md
-          both     — one physical file both layers reach (project root IS the config
-                     root's parent, i.e. a home-directory dotfiles repo). Emitted once.
+          both     — one physical file both layers reach (a repo rooted at ~, or one
+                     rooted at ~/.claude itself). Emitted once, not twice.
   kind    claude-md | claude-local-md | rule
 
 User-scope files load in EVERY session regardless of where the session starts, so they are
@@ -89,25 +91,39 @@ emit() {
 }
 
 # Canonical physical path of a directory, or empty when it does not resolve.
-# `pwd -P` because the two rules dirs can be the SAME directory reached by two
-# different strings — see the overlap note below.
+# `pwd -P` because two dirs can be the SAME directory reached by two different
+# strings — see the overlap note below.
 canon_dir() {
   [[ -d "$1" ]] || return 0
   (cd "$1" 2>/dev/null && pwd -P) || true
 }
 
+# Canonical physical path of a FILE, or empty. Resolves the containing directory and
+# re-appends the basename, so it works without readlink -f (absent on some platforms).
+canon_file() {
+  [[ -f "$1" ]] || return 0
+  local d b
+  d="$(canon_dir "$(dirname "$1")")"
+  [[ -n "$d" ]] || return 0
+  b="$(basename "$1")"
+  printf '%s/%s' "$d" "$b"
+}
+
 # --- scope overlap -----------------------------------------------------------
-# When the audited project root IS the home directory — a dotfiles repo, which the
-# sibling audit-pass contract calls an ordinary target — `.claude/rules` relative to
-# the cwd and `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/rules` are the SAME directory. The
-# same physical rule would otherwise be emitted twice under two different path
-# strings, producing a duplicate finding per rule and a cross-scope comparison of a
-# file against itself. So the two are compared canonically and, where they coincide,
-# each file is emitted ONCE with scope `both`.
+# Two layouts make a project-scope path and a user-scope path the SAME physical file,
+# and both are real. Emitting such a file twice under two path strings would produce a
+# duplicate finding and a cross-scope comparison of a file against itself, so wherever
+# the canonical paths coincide the file is emitted ONCE with scope `both`.
 #
-# Only rules can collide. Project CLAUDE.md discovery is depth-1 at the cwd, while the
-# user copy lives at `<config_root>/CLAUDE.md` — a different file even when the repo
-# root is `$HOME`.
+#   1. Project root IS the home directory (a `~` dotfiles repo — the shape the sibling
+#      audit-pass contract calls an ordinary target). Then `.claude/rules` relative to
+#      the cwd and `<config_root>/rules` are one directory.
+#   2. Project root IS the config root (`~/.claude` itself tracked as the repo, which
+#      is a common dotfiles layout). Then `CLAUDE.md` at depth 1 and
+#      `<config_root>/CLAUDE.md` are one file — and so are the two rules dirs.
+#
+# Case 2 is why the CLAUDE.md comparison exists rather than being argued away: it is
+# only the `~`-rooted case that leaves the two CLAUDE.md files distinct.
 config_root="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 
 proj_rules_canon="$(canon_dir ".claude/rules")"
@@ -118,11 +134,23 @@ if [[ -n "$proj_rules_canon" && "$proj_rules_canon" == "$user_rules_canon" ]]; t
   rules_overlap=1
 fi
 
+proj_md_canon="$(canon_file "CLAUDE.md")"
+user_md_canon="$(canon_file "$config_root/CLAUDE.md")"
+
+md_overlap=0
+if [[ -n "$proj_md_canon" && "$proj_md_canon" == "$user_md_canon" ]]; then
+  md_overlap=1
+fi
+
 # --- project scope -----------------------------------------------------------
 # Depth 1 by design: CLAUDE.md files nested deeper are subtree memory that loads only
 # on demand, and are not this checklist's subject.
 
-[[ -f "CLAUDE.md" ]] && emit project claude-md "CLAUDE.md"
+if [[ -f "CLAUDE.md" ]]; then
+  proj_md_scope=project
+  [[ "$md_overlap" -eq 1 ]] && proj_md_scope=both
+  emit "$proj_md_scope" claude-md "CLAUDE.md"
+fi
 [[ -f "CLAUDE.local.md" ]] && emit project claude-local-md "CLAUDE.local.md"
 
 if [[ -d ".claude/rules" ]]; then
@@ -138,7 +166,11 @@ fi
 # `~/.claude` tree when set, so the instruction surfaces move with it.
 
 if [[ -n "$config_root" && -d "$config_root" ]]; then
-  [[ -f "$config_root/CLAUDE.md" ]] && emit user claude-md "$config_root/CLAUDE.md"
+  # Suppressed when it is the same physical file as the project one, already emitted
+  # above as `both`.
+  if [[ -f "$config_root/CLAUDE.md" && "$md_overlap" -eq 0 ]]; then
+    emit user claude-md "$config_root/CLAUDE.md"
+  fi
 
   # Suppressed entirely when the two rules dirs coincide — those files were already
   # emitted above, once, as `both`.
