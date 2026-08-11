@@ -3,6 +3,60 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.0]
+
+### Added
+
+- **`audit-install-state`: a read-only audit of the machine-scope Claude Code installation
+  directory** — the `~/.claude` tree plus the home-root `~/.claude.json` — filling a gap nothing in
+  the marketplace covered. `claude-config` audits a *repo's* configuration files and its coordinator
+  refuses any target that is not the active project root; `disk-hygiene:clean` deliberately routes
+  product-managed state *out* of its engine; `claude-ops:plugins` reads
+  `~/.claude/plugins/installed_plugins.json` but nothing else in the tree. This is the missing
+  sibling to `plugins` (fleet state) and `observability` (telemetry state).
+
+  The skill is report-only and never writes to the target tree. It answers four questions and
+  refuses a fifth: what is here (inventory split automatically into a per-file authored surface and
+  rolled-up bulk trees, with a CSV artifact so "every file" literally exists), what Claude Code's own
+  retention sweep already manages, what each number in a filename actually *is*, and whether the tree
+  is in a deliberate or mid-experiment state. It does not answer "so what should I delete" —
+  deletion routes to `/disk-hygiene:clean`, shedding project state routes to `claude project purge`.
+
+- **The liveness gate is code, not advice — a number in a filename is not reliably a PID.** A prior
+  audit came one step from deleting `ide/22580.lock` because a process lookup for "22580" returned
+  nothing: 22580 is a listening TCP port, and the real PID in the file body was alive and serving a
+  running IDE integration. A lookup against a non-PID returns a clean, confident, *wrong* "dead."
+  `verdict_for()` therefore classifies the naming scheme first and calls the probe only when the
+  number is a PID; a spy-probe test asserts it is never invoked for `ide/<n>.lock` (TCP port),
+  `rate-limit-guard/*.tmp.<n>` (MSYS2 `$$`), `shell-snapshots/…` (epoch ms), `paste-cache/<hex>`
+  (content hash), or any unrecognised numeric name. Unknown schemes fail closed, and a probe that
+  cannot run reports `unverified`, never `dead`.
+
+- **Evidence tags and sampled ranges are schema properties, not conventions.** Every emitted claim
+  carries `measured` / `documented-default` / `inferred` / `no-upstream-row`, and every count that
+  can move during a scan is emitted as `{min, max, n}` — there is no field a single averaged number
+  could go in. A known-churning directory returning identical counts across fewer than three samples
+  is flagged `unanimous_small_n_on_volatile_path`, because agreement within one moment on a dynamic
+  system is a red flag rather than a confirmation.
+
+- **Deliberate-state detection runs before any staleness verdict.** A revert ledger (`RESTORE.md`,
+  `PLAYBOOK.md`, `restore*.py`, or a shallow `manifest.json` / baseline under `plugins/data/`)
+  deny-lists its whole subtree — such a directory is frequently the *only* copy of somebody's revert
+  path, and a prior audit's largest near-miss was a correct check run against a tree whose state was
+  deliberate. The skill also records that a ledger's own summary is not authoritative and must be
+  diffed against the stored baseline.
+
+- **Retention is resolved before any staleness claim, and an unparsable settings file is an
+  error.** Upstream pauses the retention cleanup sweep entirely while `settings.json` fails to parse
+  (unless managed settings supply `cleanupPeriodDays`), so a JSON syntax error is a retention outage,
+  not a lint nit. The engine reports the effective window with its evidence tag, the sweep's own
+  `.last-cleanup` watermark, and the plugin in-use sweep marker.
+
+### Changed
+
+- **`plugin.json` now describes eight skills.** The description enumerates `audit-install-state`
+  alongside the existing seven; `docs/CATALOG.md` regenerates from it.
+
 ## [0.28.6]
 
 ### Changed

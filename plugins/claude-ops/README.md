@@ -1,8 +1,9 @@
 # claude-ops
 
 A Claude Code plugin for running Claude Code well over time — one cohesive
-capability across seven skills and a family of telemetry-emitter hooks.
-Observability reads what your sessions actually did, known-issues tracks what
+capability across eight skills and a family of telemetry-emitter hooks.
+audit-install-state reports on the machine-scope `~/.claude` install directory
+itself, observability reads what your sessions actually did, known-issues tracks what
 upstream has broken, changelog integration keeps your repo current with what
 upstream has shipped, the plugins skill keeps your own plugin fleet current,
 morning-brief prints your read-only operator morning view, lanes launches and
@@ -15,6 +16,7 @@ Claude Code's native OTEL cannot see.
 
 | Skill | What it does |
 |---|---|
+| `/claude-ops:audit-install-state` | Read-only audit of the machine-scope Claude Code installation directory — the `~/.claude` tree plus the home-root `~/.claude.json`. Inventories every file (authored surface listed per file, bulk trees rolled up, full CSV artifact), separates what Claude Code's own `cleanupPeriodDays` sweep already manages from what nothing manages, resolves what each number in a filename actually *is* before attempting any process-liveness lookup, and deny-lists any subtree holding a revert ledger before classifying anything as stale. Never deletes; hands off to `claude project purge` and `/disk-hygiene:clean`. |
 | `/claude-ops:observability` | Reads locally captured Claude Code telemetry — OTEL DuckDB store, machine-owned collector, optional Aspire dashboard, hook-event JSONL, ccusage — and renders cross-session trend reports (`session`/`day`/`week`/`month`/`since:`/`all` scopes). Read-only except the explicit `clean` action, which prunes the JSONL log and OTEL store by age. |
 | `/claude-ops:known-issues` | Searches known Claude product GitHub bugs before you build on a feature, checks service health and model quality, and maintains a persistent registry of tracked issues (what they block, workarounds, follow-ups when fixed). Actions: `status` (default), `search`, `check-all`, `scan`, `list`, `quality`, `create`. |
 | `/claude-ops:changelog` | Ingests Claude Code changelog entries and integrates them into the current repo: `fetch` (read-only display), `diff` (impact triage, no edits), `status` (applied versions from git history), and `apply` (full explore → research → interview → implement pipeline, explicit user intent only). |
@@ -178,6 +180,12 @@ your own repository's context:
 The audit hooks are Bash scripts (Git Bash on native Windows — install
 [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows)) and
 use `jq`; without jq they fail open (no audit line is written).
+
+`audit-install-state` needs **Python 3.11+ only** — no PowerShell, no third-party packages, no
+`jq`. Its inventory, surface classification, filename-scheme resolution, retention resolution and
+sampling are pure `os.walk` + `stat` + regex and behave identically on every platform. The single
+OS-specific seam is one function, `probe_pid()`, with a POSIX body (`os.kill(pid, 0)`) and a Windows
+body (`OpenProcess`); a probe that cannot run reports `unverified`, never `dead`.
 
 Core flows need only `git`, `jq`, `gh` (authenticated), and `python3`.
 Optional: `duckdb` for OTEL store queries and `npx` for ccusage. The machine-level
