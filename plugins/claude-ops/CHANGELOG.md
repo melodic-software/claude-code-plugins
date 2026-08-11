@@ -47,8 +47,9 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   diffed against the stored baseline.
 
 - **The CSV artifact is complete by construction.** `--csv` writes one row per file in the scan set
-  — 86,653 rows for an 86,653-file install — and `--authored-threshold` governs only how much
-  per-file detail the JSON summary embeds. Driving the artifact off the JSON rollup instead produced
+  — 86,653 rows for an 86,653-file install — and is the only artifact carrying per-file rows at
+  all; `--authored-threshold` governs only which entries the JSON summary *labels* `per-file`
+  rather than `rolled-up`. Driving the artifact off the JSON rollup instead produced
   a 169-row CSV for the same install (86,984 files at that instant; the tree is live and the total
   moved between runs) while the surrounding prose claimed completeness, so a test now
   pins `csv.rows == totals.files` and asserts a threshold of `0` does not shrink it. Omitting
@@ -60,6 +61,35 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   (unless managed settings supply `cleanupPeriodDays`), so a JSON syntax error is a retention outage,
   not a lint nit. The engine reports the effective window with its evidence tag, the sweep's own
   `.last-cleanup` watermark, and the plugin in-use sweep marker.
+
+  The exception is measured rather than assumed: the paused-sweep finding is raised while reading
+  `settings.json`, before managed settings have been looked at, so on an enterprise machine that
+  supplies a valid `cleanupPeriodDays` it was left standing and told the reader that nothing is
+  being swept and every staleness reading is suspect — when the exception named in its own claim
+  applied. It is now withdrawn once managed settings are measured to supply a usable value; the
+  parse failure itself stays on the record in `user_settings_parse`.
+
+  `cleanupPeriodDays` is also validated rather than merely type-checked. `bool` is an `int` in
+  Python, so `true` would have been read as a one-day window and `false` as a zero-day one, and a
+  zero or negative value is below the documented minimum of one day — a negative window puts the
+  retention cutoff in the *future* and marks effectively every swept file as past retention. A
+  rejected value is reported as `invalid: <value>` in `user_setting_days` / `managed_setting_days`
+  and the documented default stands.
+
+- **An entry holding a secret-bearing file is classified by its contents, not by its own name.**
+  Entry-level surfaces came from `SURFACE_TABLE` keyed on the top-level directory name alone.
+  `ide/*.lock` is in the never-read list and every row under `ide/` was promoted to `secret`, but
+  `ide` has no table row — so the entry line a reader scans first read `unclassified`, with the
+  milder `unclassified-report-only` verdict, over rows that were all `secret`. A `secret` member
+  now promotes its entry to `secret` (verdict `keep`) and the note carries the *count* of such
+  files, so a mixed tree promoted by a couple of vendored `*.pem` bundles can be read against the
+  entry's `files` field rather than assumed secret throughout.
+
+- **The recent-writer cutoff is compared at the precision it is stored.** `FileRow.mtime` carries
+  second precision while the cutoff carried microseconds; `.` (0x2E) sorts after `+` (0x2B), so a
+  file written inside the window but during the cutoff second compared *lower* than the cutoff and
+  was silently dropped from the behavioural-activity evidence. Same fix, and the same reason, as
+  the rollup cutoff already applied.
 
 ### Changed
 

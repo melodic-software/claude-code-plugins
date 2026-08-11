@@ -14,8 +14,8 @@ metadata:
 
 Answers four questions about a Claude Code installation, and refuses to answer a fifth.
 
-1. **What is actually here?** Split automatically into an authored surface listed per file and bulk
-   trees rolled up, so a ~100k-file tree does not drown a ~150-file answer.
+1. **What is actually here?** Every entry labelled automatically as an authored surface or a bulk
+   tree, so a ~100k-file tree does not drown a ~150-file answer. Per-file rows live in the CSV.
 2. **What does the product already manage?** Claude Code runs its own retention sweep. Recommending
    a manual prune of a path it owns generates churn, not space.
 3. **For each number in a filename — what IS that number?** A liveness lookup against a TCP port or a
@@ -64,11 +64,12 @@ counted and classified by the run that created it. If a destination inside the r
 pass it as `--csv` and the engine excludes it from its own scan set and records that under
 `self_excluded`.
 
-**Always pass `--csv`.** It is the only artifact in which every file exists — the JSON lists the
-authored surface per file and rolls up bulk trees, so on a real install it describes a few hundred
-of ~87,000 files. Without `--csv` the run wrote no complete listing, `csv.path` is `null`, and the
-report must not be described as covering every file. `--authored-threshold` changes only how much
-per-file detail the JSON embeds; it never shrinks the CSV.
+**Always pass `--csv`.** It is the only artifact carrying per-file rows at all. The JSON is a
+summary: one line per top-level entry, never a file listing. Without `--csv` the run wrote no
+per-file listing anywhere, `csv.path` is `null`, and the report must not be described as covering
+every file. `--authored-threshold` decides only which entries the JSON *labels* `listing:
+"per-file"` (small enough to be a hand-authored surface worth reading file by file in the CSV)
+versus `listing: "rolled-up"`; it embeds no per-file rows either way and never shrinks the CSV.
 
 Useful flags: `--root <path>` (else `$CLAUDE_CONFIG_DIR`, else `~/.claude`) · `--samples N` (default
 2; use 3+ on a busy machine) · `--authored-threshold N` (default 200). Python 3.11+ is the only

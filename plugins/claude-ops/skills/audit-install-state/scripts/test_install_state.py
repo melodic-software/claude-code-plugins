@@ -8,15 +8,32 @@ machine it runs on.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import install_state as engine  # noqa: E402
+
+
+@contextlib.contextmanager
+def _managed_paths(paths: list[Path]):
+    """Point the machine-scope managed-settings lookup at a temp file.
+
+    The real locations are absolute machine paths this suite must never depend on
+    or write to, so the seam is patched rather than the filesystem.
+    """
+    original = engine.managed_settings_paths
+    engine.managed_settings_paths = lambda: paths
+    try:
+        yield
+    finally:
+        engine.managed_settings_paths = original
 
 
 def build_tree(root: Path) -> None:
@@ -240,6 +257,65 @@ class TestRetention(unittest.TestCase):
             ids = [f["id"] for f in retention["findings"]]
             self.assertIn("settings-unparsable-pauses-sweep", ids)
 
+    def test_managed_settings_withdraw_the_sweep_paused_finding(self) -> None:
+        """The finding's own claim names managed settings as the exception. When the
+        exception is measured to apply, telling the reader nothing is being swept --
+        and that every staleness reading is suspect -- is simply false."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "settings.json").write_text("{ not json", encoding="utf-8")
+            managed = root / "managed-settings.json"
+            managed.write_text(json.dumps({"cleanupPeriodDays": 7}), encoding="utf-8")
+            with _managed_paths([managed]):
+                retention = engine.read_retention(root)
+            ids = [f["id"] for f in retention["findings"]]
+            self.assertNotIn("settings-unparsable-pauses-sweep", ids)
+            self.assertEqual(retention["effective_days"], 7)
+            # The parse failure itself is still on the record.
+            self.assertTrue(retention["user_settings_parse"].startswith("failed:"))
+
+    def test_invalid_managed_value_keeps_the_sweep_paused_finding(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "settings.json").write_text("{ not json", encoding="utf-8")
+            managed = root / "managed-settings.json"
+            managed.write_text(json.dumps({"cleanupPeriodDays": 0}), encoding="utf-8")
+            with _managed_paths([managed]):
+                retention = engine.read_retention(root)
+            ids = [f["id"] for f in retention["findings"]]
+            self.assertIn("settings-unparsable-pauses-sweep", ids)
+            self.assertEqual(retention["effective_days"], 30)
+
+    def test_a_retention_value_below_the_documented_minimum_is_rejected(self) -> None:
+        """`bool` is an `int` in Python and a negative window puts the cutoff in the
+        FUTURE, marking effectively every swept file as past retention."""
+        for bad in (True, False, 0, -5, "14", 14.0, None):
+            with self.subTest(value=bad):
+                self.assertIsNone(engine.valid_retention_days(bad))
+        self.assertEqual(engine.valid_retention_days(1), 1)
+        self.assertEqual(engine.valid_retention_days(30), 30)
+
+    def test_an_invalid_user_value_is_reported_and_does_not_drive_the_window(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "settings.json").write_text(
+                json.dumps({"cleanupPeriodDays": -5}), encoding="utf-8"
+            )
+            retention = engine.read_retention(root)
+            self.assertEqual(retention["effective_days"], 30)
+            self.assertEqual(retention["effective_evidence"], engine.DOCUMENTED_DEFAULT)
+            self.assertIn("invalid", str(retention["user_setting_days"]))
+
+    def test_a_boolean_user_value_is_not_read_as_one_day(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "settings.json").write_text(
+                json.dumps({"cleanupPeriodDays": True}), encoding="utf-8"
+            )
+            retention = engine.read_retention(root)
+            self.assertEqual(retention["effective_days"], 30)
+            self.assertIn("invalid", str(retention["user_setting_days"]))
+
 
 class TestReadings(unittest.TestCase):
     def test_a_swept_path_inside_the_window_is_product_managed_healthy(self) -> None:
@@ -270,6 +346,71 @@ class TestReadings(unittest.TestCase):
     def test_session_scoped_state_is_keep_not_stale(self) -> None:
         entry = {"entry": "sessions", "surface": engine.SESSION_SCOPED, "older_than_retention": 7, "deny_listed": False}
         self.assertEqual(engine.staleness_reading(entry, 30)["verdict"], "keep")
+
+
+class TestEntrySurfacePromotion(unittest.TestCase):
+    """A secret-bearing member must not be summarised by a milder entry line.
+
+    `ide/*.lock` is in NEVER_READ_GLOBS but `ide` has no SURFACE_TABLE row, so the
+    entry-level surface came from the directory NAME alone and read `unclassified`
+    while every row beneath it read `secret`.
+    """
+
+    def _entries(self, root: Path) -> dict:
+        rows, _errors = engine.walk_tree(root, denied=[], probe=lambda _pid: (engine.DEAD, "x"))
+        return {e["entry"]: e for e in engine.rollup(rows, retention_days=30, authored_threshold=200)}
+
+    def test_a_secret_bearing_member_promotes_its_entry(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            build_tree(root)
+            entries = self._entries(root)
+            self.assertEqual(entries["ide"]["surface"], engine.SECRET)
+            self.assertEqual(entries["ide"]["reading"]["verdict"], "keep")
+            self.assertEqual(entries["ide"]["surface_evidence"], engine.MEASURED)
+
+    def test_an_entry_with_no_secret_member_is_not_promoted(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            build_tree(root)
+            entries = self._entries(root)
+            self.assertEqual(entries["some-plugin-state"]["surface"], engine.UNCLASSIFIED)
+
+    def test_every_secret_member_is_covered_by_its_entry_surface(self) -> None:
+        """The general property, not just the `ide` instance: no row may be SECRET
+        under an entry whose own surface is milder."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            build_tree(root)
+            rows, _ = engine.walk_tree(root, denied=[], probe=lambda _pid: (engine.DEAD, "x"))
+            entries = self._entries(root)
+            for row in rows:
+                if row.surface == engine.SECRET:
+                    head = engine.top_level_name(row.relpath)
+                    with self.subTest(path=row.relpath):
+                        self.assertEqual(entries[head]["surface"], engine.SECRET)
+
+
+class TestRecentWriterPrecision(unittest.TestCase):
+    def test_a_write_in_the_cutoff_second_is_not_dropped(self) -> None:
+        """`FileRow.mtime` carries second precision; a cutoff carrying microseconds
+        compares HIGHER (`.` 0x2E sorts after `+` 0x2B), so a file written inside the
+        window but in the cutoff second was silently excluded."""
+        cutoff_second = (
+            datetime.now(timezone.utc) - timedelta(hours=24)
+        ).isoformat(timespec="seconds")
+        row = engine.FileRow(
+            relpath="projects/x.jsonl",
+            bytes=1,
+            mtime=cutoff_second,
+            surface=engine.SWEPT,
+            number_meaning=engine.NO_NUMBER,
+            liveness=engine.NOT_APPLICABLE,
+            liveness_reason="",
+            deny_listed=False,
+            evidence=engine.MEASURED,
+        )
+        self.assertEqual([w["entry"] for w in engine.recent_writers([row], 24)], ["projects"])
 
 
 class TestSampledCounts(unittest.TestCase):
