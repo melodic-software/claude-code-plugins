@@ -41,6 +41,29 @@ Sing actual melodies, not spoken word. The model learns your sung timbre, not yo
 
 **Why single clip + variety beats multiple flat clips:** Suno's auto-selection picks a 2-min window from training material. A varied single window gives it the full dynamic spectrum to model from; multiple flat clips often get sampled at the most-frequent dynamic and miss your range.
 
+### Two-stage bootstrap for non-singers
+
+**LOW-MEDIUM confidence — a SINGLE community post plus its comment thread, not multi-source consensus.** Read 2026-08-11 from [r/SunoAI, "Another useful trick to use your own voice in Suno, even if you cannot sing well"](https://www.reddit.com/r/SunoAI/comments/1ujzbqj/another_useful_trick_to_use_your_own_voice_in/) (posted 2026-06-30, 152 votes, 58 comments). Not documented by Suno. Untested here.
+
+For a writer who cannot deliver the sung 90-120s session above, the reported route is to clone twice:
+
+1. Record **30-60s of ordinary speech** — read anything, no singing — clean and dry, exported as WAV.
+2. Save it as a voice, then generate a short a cappella test using it as the lead voice, with a style prompt asking for unaccompanied vocal and clipped, on-beat delivery.
+3. Reported slider settings for that test generation: **Weirdness 0%, Style Influence 100%, Audio Influence ~95-100%.**
+4. From the generated take, **create a second voice from the part where the voice actually sings** — that second voice is the one to use. The poster notes you can also try the whole generated piece rather than a selected span.
+
+**⚠ This DOES conflict with "sing actual melodies, not spoken word" above, and the conflict is not resolvable from the source.** Both are recorded because both are reported; neither is edited to fit the other.
+
+The rule at the top of this section gives a reason: the model learns your *sung* timbre, not your speaking voice. In this technique the only audio the writer ever performs is **speech**. The "singing" that voice #2 is built from is Suno's own extrapolation from a speech-trained clone — synthesized singing, not the writer's. So a reader following the rule records singing, and a reader following this technique never sings at all. **They are opposite instructions at the only step a human performs.** If you can sing the 90-120s session, the rule above is the better-supported route; this is a fallback for writers who cannot, and it is untested here.
+
+**Interaction with the verification phrase below is UNRESOLVED.** That guard compares a live spoken phrase against *your uploaded singing*. Stage 4 uploads **Suno-generated** audio, not your own recording. Whether that clears verification, and what the anti-impersonation check means when the singing was synthesized, is not addressed by the source and was not tested here.
+
+**Also unreconciled: the slider value.** Step 3's reported ~95-100% Audio Influence sits above the 85%+ tier in the table below, which this file describes as over-fitting to the recording environment. That may well be *desirable* when the goal is to capture a voice rather than produce a track — but no source says so, so it is flagged rather than explained.
+
+**Reported failure mode:** the stage-2 test generation usually arrives with a beat or backing behind the vocal. The poster reports the voice-creation step filters to the vocal anyway, that selecting only the cleanest sung span works better, and that the backing can also be pushed back via Excluded Styles or the style field.
+
+**⚠ The poster states the "make this voice public" toggle is ON by default when creating a voice — turn it off before finishing.** This applies to **every** voice you create, not only to this technique. Unverified against Suno's documentation; asked about in the thread and re-affirmed by the poster, not contradicted. Note it also sits awkwardly beside this file's "account-locked" line above, which nobody has reconciled. **Check the toggle yourself.**
+
 ## Verification phrase
 
 Anti-impersonation guard. After upload:

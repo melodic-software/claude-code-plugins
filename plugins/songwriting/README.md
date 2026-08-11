@@ -102,4 +102,9 @@ it:
 - *Songwriting: Essential Guide to Lyric Form and Structure* (1991)
 - *Writing Better Lyrics* (2009)
 - *Songwriting Without Boundaries* (2011)
-- *Essential Guide to Rhyming* (2014)
+- *Pat Pattison's Songwriting: Essential Guide to Rhyming* (2014)
+
+Titles here are the cover names, kept longer than the short names used elsewhere
+in this plugin so they are searchable in a bookshop. See
+[`context/pat-pattison/research/book-references.md`](context/pat-pattison/research/book-references.md)
+for the citation convention — **this list is a deliberate exception to it.**

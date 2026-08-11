@@ -2,8 +2,35 @@
 
 Single source of truth for how Pat Pattison's four books are cited
 throughout this skill. Every context file references books by SHORT NAME +
-year. The short name is used inline and in file headers; the full title
-appears in this file's bibliographic table.
+year. The short name is used inline and in file headers.
+
+## ⚠ WHAT "VERBATIM" COVERS — read this before auditing anything
+
+**Verbatim means the WORDS.** Reproduce Pat's examples, exercises, answer keys,
+tables and analysed lyrics exactly as printed: no paraphrase, no genericizing,
+no invented substitutes.
+
+**It does NOT mean punctuation glyphs.** ASCII `'` and `"` versus curly `’`
+`“` `”` are typography, not content. This repo is GitHub-flavored Markdown and
+either form is acceptable. The four books are not even consistent with each
+other — the 2009 EPUB prints ASCII apostrophes, the other three print curly.
+
+**Do not sweep, measure, audit, or open work items on punctuation glyphs.** A
+session was spent on exactly that before the owner ruled it out of scope. If a
+restoration reproduces the printed words, it is verbatim, full stop. Spend the
+effort on missing content, invented content, and wrong citations instead.
+
+**Two places deliberately carry a title longer than the short name — do not
+"normalize" either one:** this file's bibliographic table below, and the
+buy-the-books list in the plugin `README.md`. That list exists so a reader can go
+and purchase the books, which is the one job a short name does not do.
+
+This only affects the 1991 and 2014 books; the 2009 and 2011 short names *are*
+their full titles, so those two entries look identical everywhere. Note the
+README deliberately stops short of the full catalogue string for 1991: its
+`dc:title` is `Songwriting: Essential Guide to Lyric Form and Structure: Tools
+and Techniques for Writing Better Lyrics (Songwriting Guides)`, and the subtitle
+and series marker are dropped because they are not needed to find the book.
 
 ## Canonical short names
 

@@ -7,7 +7,7 @@ Pair with `tips.md` (lyric-side performance tricks) and `lyrics.md` "Per-section
 ## Tag weighting via position
 
 - **First tag = highest weight.** Front-load whatever matters most.
-- **Last tag = highest exclusion weight.** This is why negatives go at the end of the style prompt.
+- **Grouping negatives at the end is an organizational convention.** No source establishes that end-placement changes exclusion weight; the `no X` syntax itself is community-attested.
 - **Middle tags often softened or merged.** Don't rely on tags 4-7 carrying strong signal.
 
 Practical: if mood matters more than genre for a specific song, lead with mood. If a single instrument is the song's signature, name it before the genre.

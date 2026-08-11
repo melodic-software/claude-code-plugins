@@ -48,7 +48,9 @@ Suno documents none of these techniques. They are probabilistic rather than dete
 
 **Community sources (unaudited):** `sunoaiwiki.com`, "How to Specify Chord Progressions in Suno AI"; `solfej.io`, "Suno AI Chord Progressions: How to Specify Chords in Suno"; `jackrighteous`, Suno covers guide.
 
-**Evidence note:** Three community guides/wikis were read, not forum threads. Reddit / r/SunoAI remains unread; `site:reddit.com` searches returned nothing relevant.
+**Evidence note:** Three community guides/wikis were read for the harmony question above, not forum threads. `site:reddit.com` search returned nothing relevant to it, and **r/SunoAI has still not been read on the Cover-harmony question specifically** — the documented-absence finding above rests on the guides and on first-party silence.
+
+**r/SunoAI is no longer unreachable, and one thread has now been read.** Web-search and direct-fetch routes to reddit.com both fail; a browser session reaches it. A voice-cloning thread was read that way on 2026-08-11 and is recorded in `voices.md` under "Two-stage bootstrap for non-singers". Nothing found there bears on Cover harmony. Future sweeps of this subreddit should use the browser route rather than search.
 
 ## Recipe 1: Demo upload → finished track
 
