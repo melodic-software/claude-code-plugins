@@ -144,7 +144,7 @@ def main() -> int:
         try:
             options = json.loads(manifest.read_text(encoding="utf-8")).get("userConfig") or {}
         except json.JSONDecodeError as exc:
-            print(f"  MANIFEST UNPARSEABLE: {d.name}: {exc}", file=sys.stderr)
+            print(f"  MANIFEST UNPARSABLE: {d.name}: {exc}", file=sys.stderr)
             return 2
         if not options:
             skipped += 1
