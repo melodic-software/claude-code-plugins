@@ -285,14 +285,18 @@ def branch_rules(repo: str, branch: str) -> dict[str, object]:
                 if isinstance(c, dict) and cast(dict[str, Any], c).get("context")
             )
         elif rtype == "pull_request":
-            # An uninterpretable-but-present count reads as one review, never
-            # as zero: reading it as zero would be the one fail-OPEN step in a
-            # fold whose whole argument is that it can only ever over-report.
-            count = params.get("required_approving_review_count", 0)
-            required_reviews = max(
-                required_reviews,
-                count if isinstance(count, int) else (1 if count else 0),
-            )
+            # Absence and unreadability are different facts. No key means the
+            # rule requires no reviews, which is 0. A key holding anything this
+            # code cannot read as a count -- null, "", 0.0, [], {} -- means a
+            # requirement IS stated and its size is unknown, so it counts as
+            # one: a falsy non-int must not collapse to 0, which would be the
+            # single fail-OPEN step in a fold that may only ever over-report.
+            if "required_approving_review_count" not in params:
+                count = 0
+            else:
+                raw = params["required_approving_review_count"]
+                count = int(raw) if isinstance(raw, int) else 1
+            required_reviews = max(required_reviews, count)
             require_thread_resolution = require_thread_resolution or bool(
                 params.get("required_review_thread_resolution", False)
             )

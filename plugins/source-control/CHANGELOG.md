@@ -30,7 +30,11 @@ All notable changes to the `source-control` plugin are documented here. Format f
   one could lose a blocker outright: a trailing rule with `required_approving_review_count: 0`
   erased an earlier ruleset's requirement and dropped the "needs N approving review(s)" hold. Not
   observed — one such rule governs the branch today. The count fold is a behaviour change; the
-  boolean is report-only, never consumed as a blocker.
+  boolean is report-only, never consumed as a blocker. The count also distinguishes an ABSENT
+  `required_approving_review_count` (the rule requires no reviews — zero) from one present but
+  unreadable (`null`, `""`, `0.0`, `[]`, `{}` — a requirement is stated and its size is unknown, so
+  it counts as one). Collapsing a falsy non-int to zero would be the single fail-open step in a
+  fold whose guarantee is that it may only ever over-report.
 
 ## [0.51.7]
 

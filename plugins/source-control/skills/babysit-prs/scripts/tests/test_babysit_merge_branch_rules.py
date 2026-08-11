@@ -145,6 +145,47 @@ class PullRequestRulesFoldFailClosed(unittest.TestCase):
         )
         self.assertTrue(summary["requireThreadResolution"])
 
+    def test_an_unreadable_count_counts_as_one_not_zero(self) -> None:
+        """Every FALSY non-int too -- the shape that keeps re-opening this hole.
+
+        `None` is the realistic one: a ruleset payload carrying the key with a
+        null value. A truthiness test reads all of these as zero, which is the
+        fail-open this fold exists to prevent.
+        """
+        for raw in (None, "", 0.0, [], {}, "two", object()):
+            with self.subTest(raw=raw):
+                summary = self._branch_rules(
+                    _rules(
+                        {
+                            "type": "pull_request",
+                            "parameters": {
+                                "required_approving_review_count": raw
+                            },
+                        }
+                    )
+                )
+                self.assertEqual(summary["requiredApprovingReviews"], 1)
+
+    def test_an_absent_count_is_zero_not_one(self) -> None:
+        """Absence is readable: the rule states no review requirement."""
+        summary = self._branch_rules(
+            _rules({"type": "pull_request", "parameters": {}})
+        )
+        self.assertEqual(summary["requiredApprovingReviews"], 0)
+
+    def test_a_readable_count_is_reported_as_an_int(self) -> None:
+        """`bool` is an `int` subclass; it must not leak into the summary."""
+        summary = self._branch_rules(
+            _rules(
+                {
+                    "type": "pull_request",
+                    "parameters": {"required_approving_review_count": True},
+                }
+            )
+        )
+        self.assertIs(type(summary["requiredApprovingReviews"]), int)
+        self.assertEqual(summary["requiredApprovingReviews"], 1)
+
 
 class AnEmptyLaterRuleCannotUnprotectTheBase(unittest.TestCase):
     """The union keeps `baseUnprotected` honest, and with it the merge hold.
