@@ -1255,6 +1255,11 @@ In both lists item 2's colon points at a figure, and a paragraph of Pat's
 commentary then sits **between item 2 and item 3** — it is commentary on item 2,
 and its position is part of its meaning. The order below is the book's.
 
+<!-- markdownlint-disable MD029 -->
+<!-- Pat's "3." resumes a list the figure and his commentary interrupt. It is
+     his numbering, not a new list starting at three. Renumbering it to "1."
+     would misreport the book. -->
+
 > Because of all the repetition of structure, this lyric gets boring fast. It
 > needs a release from all the repetition. You could consider a Bridge in this
 > situation. It would accomplish three things:
@@ -1291,6 +1296,8 @@ For the verse/chorus lyric:
 
 > 3. A Bridge would also give the idea a chance to "breathe" by releasing to a
 >    new angle or perspective.
+
+<!-- markdownlint-enable MD029 -->
 
 (Figures `image_rsrc331` and `image_rsrc33D` are Chapter 6's and belong to
 [song-forms-examples](song-forms-examples.md), Chapter 6's home; neither has
