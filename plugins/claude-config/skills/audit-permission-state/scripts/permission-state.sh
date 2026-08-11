@@ -245,17 +245,31 @@ elif ! command -v reg >/dev/null 2>&1; then
 else
   # The policy JSON lives in a single `Settings` value on the key. HKCU is
   # documented as "lowest policy priority, only used when no admin-level source
-  # exists", so the first key that answers wins and the rest are not consulted —
-  # merging them would report policy that is not in force.
+  # exists", so the search stops at the first key that EXISTS and the rest are
+  # not consulted — merging them would report policy that is not in force.
+  #
+  # Existence is probed with a bare `reg query <key>`, not `/v Settings`: with
+  # `/v` the two failures that must not be conflated — key absent, and key
+  # present but carrying no Settings value — return the same exit code and the
+  # same message ("The system was unable to find the specified registry key or
+  # value"), measured on Windows 11 2026-08-11. Keying the search on the /v form
+  # would let an admin-level key with an unreadable value fall through to HKCU
+  # and report user-level policy as the managed policy while the admin-level key
+  # is what is in force. A key that exists but yields nothing readable is
+  # reported as `unreadable`, never as a licence to consult the next key.
   registry_status="absent"
   registry_path="-"
   while IFS= read -r key; do
     [[ -n "$key" ]] || continue
+    reg_cmd query "$key" >/dev/null 2>&1 || continue
+    registry_path="$key"
     if reg_cmd query "$key" /v Settings >/dev/null 2>&1; then
       registry_status="present"
-      registry_path="$key"
-      break
+    else
+      registry_status="unreadable"
+      note "Managed policy key $registry_path exists but carries no readable Settings value. Lower-priority policy keys are NOT consulted in its place — an admin-level key that exists is the source in force, so the managed registry result is unread rather than empty."
     fi
+    break
   done <<<"$registry_keys"
   emit managed registry "$registry_status" "$registry_path"
   if [[ "$registry_status" == "present" && "$mode" == "full" ]]; then

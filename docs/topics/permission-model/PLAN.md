@@ -304,7 +304,8 @@ deployed to the machine) was created, read, parsed, and deleted; `HKCU\SOFTWARE\
 was confirmed still absent afterwards. The shipped test uses the key-list seam instead, because a test
 that writes to a consumer's registry is not something this marketplace should ship.
 
-**Two wrong-answer defects the stub-`PATH` case caught before they shipped:**
+**Three wrong-answer defects caught before they shipped**, two by the stub-`PATH` case and one by
+reviewing the code against this plan's own `HKCU`-is-a-fallback claim:
 
 - **MSYS argument conversion silently broke every registry read.** Git Bash rewrites an argument
   containing backslashes as though it were a POSIX path, so `reg query 'HKLM\SOFTWARE\...'` reaches
@@ -312,6 +313,13 @@ that writes to a consumer's registry is not something this marketplace should sh
   managed policy deployed" on a machine that has one. Exactly the failure mode the Option A decision
   was chosen to avoid, arriving by a different route. Fixed by scoping `MSYS2_ARG_CONV_EXCL` to those
   calls; measured both ways.
+- **A stray admin-level registry key could have made user-level policy look like the managed
+  policy.** The search stopped at the first key whose `Settings` value parsed, so an `HKLM` key with a
+  missing or malformed value fell through to `HKCU` — reporting lowest-priority policy as the one in
+  force, the exact failure the `HKCU`-is-a-fallback rule exists to prevent. `reg query <key> /v
+  Settings` cannot distinguish a missing key from a missing value; a bare `reg query <key>` can, and
+  is now the existence probe. Covered by a read-only test using `HKCU\SOFTWARE`, which exists
+  everywhere and carries no `Settings` value.
 - **A missing shared library reported a clean machine.** With `dirname` off `PATH`, plugin-root
   resolution collapsed, the `source` failed, and every managed surface reported `absent` while the run
   still exited 0. Now resolved with builtins only (`${BASH_SOURCE[0]%/*}`) and a hard `exit 2` when the
@@ -388,6 +396,9 @@ The integration slice. Everything downstream reads what this produces.
     JSON lives in a `Settings` value (`REG_SZ`/`REG_EXPAND_SZ`) on the key, so the read targets that
     value; `HKCU` is documented as lowest policy priority, "only used when no admin-level source
     exists", so consulting it while `HKLM` carries policy would report policy that is not in force.
+    **The search therefore ends at the first key that EXISTS, not at the first key whose value
+    parses** — see the Phase 0 addendum for why the `/v` form cannot make that distinction. An
+    existing key with no readable value is reported unread, never as permission to consult the next.
   - **Server-managed settings are a managed source with no local path.** Delivered remotely at
     sign-in, so no local reader can see them. Every managed finding says "the local managed surfaces",
     never "the managed policy" — the completeness claim is not available.
@@ -425,6 +436,16 @@ Acceptance criterion 1.
   requires each precedence claim to cite its mechanic.
 - Per the Brief's decidability bound: anything resting on classifier judgment, runtime demotion state,
   or an open upstream discrepancy becomes a named caveat on the affected finding, never a silent drop.
+- **Treat `not-applicable` exactly like `absent` when merging, and keep them distinct in the report.**
+  Phase 1 emits a record for every scope on every OS; `startdir-local` is `not-applicable` when the
+  session started at the repository root, and the optional managed legs are `not-applicable` off their
+  native OS. A merge that skips only `absent` trips over the others. `skipped` and `unreadable` are a
+  third case again — they contribute no rules but must not be merged as "this scope is empty", because
+  the scope was never read.
+- **`reference/criteria.md` does not exist yet.** Phase 1 deliberately did not create it rather than
+  fill it with a restatement of the record contract `SKILL.md` already carries. This phase's
+  `precedence_basis` is the first content that genuinely belongs in it — create it here, or leave it
+  to Phase 4, but do not recreate the duplication.
 
 **Sanity Check:** run against a fixture with a rule defined at two scopes; assert the output names
 exactly one winner and that `grep -c 'precedence_basis'` equals the merged-rule count (no rule

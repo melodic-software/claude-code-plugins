@@ -193,7 +193,41 @@ assert_contains "portable core still read: base file" "$OUT_NOREG" "managed file
 assert_contains "portable core still read: drop-in dir" "$OUT_NOREG" "managed dropin-dir present"
 assert_contains "other scopes unaffected" "$OUT_NOREG" "rule user settings allow Bash(python*)"
 
-# --- Case 12: jq is required for correctness ---------------------------------
+# --- Case 12: registry key selection stops at the first key that EXISTS -------
+# HKCU is documented as lowest policy priority, used only when no admin-level
+# source exists, so an existing higher-priority key must end the search even when
+# its Settings value cannot be read — otherwise a stray admin-level key lets
+# user-level policy be reported as the managed policy.
+#
+# Read-only, and writes nothing to the registry: the fixture keys are one that
+# cannot exist and HKCU\SOFTWARE, which exists on every Windows install and
+# carries no Settings value — exactly the key-present/value-absent case.
+if command -v reg >/dev/null 2>&1; then
+  OUT_REG=$(env -u CLAUDE_CONFIG_DIR HOME="$FX/home" \
+    PERMISSION_STATE_FIXTURE_DIR="$FX/proj" \
+    PERMISSION_STATE_STARTDIR="$FX/startdir" \
+    PERMISSION_STATE_MANAGED_PATH="$FX/policy/managed-settings.json" \
+    PERMISSION_STATE_REGISTRY_KEYS="$(printf 'HKCU\\SOFTWARE\\ClaudeCodeNoSuchKeyExists\nHKCU\\SOFTWARE')" \
+    PERMISSION_STATE_PLIST_DOMAIN="" \
+    bash "$SCRIPT")
+  assert_contains "an absent key is skipped, the existing one is selected" "$OUT_REG" "managed registry unreadable HKCU\\SOFTWARE"
+  assert_contains "a key with no readable value is not a licence to fall through" "$OUT_REG" "Lower-priority policy keys are NOT consulted"
+  assert_eq "no rules are claimed from an unreadable key" "0" "$(count_matching "$OUT_REG" '^rule managed registry ')"
+
+  OUT_REG_NONE=$(env -u CLAUDE_CONFIG_DIR HOME="$FX/home" \
+    PERMISSION_STATE_FIXTURE_DIR="$FX/proj" \
+    PERMISSION_STATE_STARTDIR="$FX/startdir" \
+    PERMISSION_STATE_MANAGED_PATH="$FX/policy/managed-settings.json" \
+    PERMISSION_STATE_REGISTRY_KEYS="$(printf 'HKCU\\SOFTWARE\\ClaudeCodeNoSuchKeyExists\nHKCU\\SOFTWARE\\ClaudeCodeAlsoAbsent')" \
+    PERMISSION_STATE_PLIST_DOMAIN="" \
+    bash "$SCRIPT")
+  assert_contains "no policy keys at all reports absent" "$OUT_REG_NONE" "managed registry absent"
+else
+  pass "registry key selection (skipped — reg not on PATH)"
+  pass "registry absence reporting (skipped — reg not on PATH)"
+fi
+
+# --- Case 13: jq is required for correctness ---------------------------------
 # The jq gate runs before any external tool, so an EMPTY stub dir is enough here;
 # bash is invoked by absolute path so the empty PATH cannot hide the interpreter.
 empty_path_dir="$TEST_TMPDIR/empty-path"

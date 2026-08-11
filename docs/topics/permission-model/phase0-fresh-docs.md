@@ -108,8 +108,13 @@ Consequences carried into the plan:
 
 - Phase 1 can state drop-in merge results as **decided**, not caveated — the ordering is documented.
   The `$defaults`-style caveat the Brief's decidability bound calls for does not apply here.
-- Phase 1's Windows registry leg reads the `Settings` value and consults `HKCU` **only** when `HKLM`
-  carries nothing.
+- Phase 1's Windows registry leg reads the `Settings` value and consults `HKCU` **only when no
+  admin-level key exists** — key existence, not value readability, ends the search. Measured
+  2026-08-11: `reg query <key> /v Settings` returns the same exit code and the same message for a
+  missing key and for a present key with no such value, so keying the search on the `/v` form would
+  let an `HKLM` key with an unreadable value fall through and report user-level policy as the managed
+  policy. A bare `reg query <key>` does distinguish the two (exit 0 when the key exists), so that is
+  the existence probe; an existing key that yields nothing readable is reported unread.
 - Phase 6's managed-conformance report carries a standing caveat that server-managed settings are a
   managed source with no local path, so "the deployed managed policy" always means the local
   surfaces. A report that omits this implies a completeness it cannot have.
