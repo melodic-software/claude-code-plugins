@@ -46,7 +46,7 @@ Two independent community sources converge on two harmonic nudges:
 
 Suno documents none of these techniques. They are probabilistic rather than deterministic: they can raise the odds but guarantee nothing, and they do not establish a Cover-specific harmony control.
 
-**Community sources (unaudited):** `sunoaiwiki.com`, “How to Specify Chord Progressions in Suno AI”; `solfej.io`, “Suno AI Chord Progressions: How to Specify Chords in Suno”; `jackrighteous`, Suno covers guide.
+**Community sources (unaudited):** `sunoaiwiki.com`, "How to Specify Chord Progressions in Suno AI"; `solfej.io`, "Suno AI Chord Progressions: How to Specify Chords in Suno"; `jackrighteous`, Suno covers guide.
 
 **Evidence note:** Three community guides/wikis were read, not forum threads. Reddit / r/SunoAI remains unread; `site:reddit.com` searches returned nothing relevant.
 

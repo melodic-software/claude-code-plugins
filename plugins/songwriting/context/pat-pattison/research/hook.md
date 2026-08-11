@@ -320,6 +320,9 @@ The printed section (fig `image_rsrc34D`):
 ```
 <!-- spellchecker:on -->
 
+The figure prints `(balancing position)` as an annotation, although Pat's prose
+never names it as a second position; see "Strategic position" below.
+
 > "You could have prevented a match in line four by adding two shorter phrases
 > instead of a 5-stress phrase. Like this:"
 
@@ -358,8 +361,6 @@ I CAN'T FIGHT THIS FEELING ANYMORE
 <!-- spellchecker:on -->
 
 > "you will arrive in a blaze of glory."
-
-Source: *Essential Guide to Lyric Form and Structure* (1991), Chapter 7.
 
 ## Irregular hook rhythms
 

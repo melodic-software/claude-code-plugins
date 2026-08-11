@@ -65,6 +65,17 @@ decisions, and normalizes the plugin's own citation convention.
   not revision narration. That removal was overturned.
 - **Two expanded-title citations in `stable-unstable-meta.md`** that every
   single-line grep had missed, because they wrap across lines.
+- **The last surviving 3-clip instruction**, in `troubleshoot.md`. The
+  consolidation missed it because the search pattern used to find the D2 sites
+  looked for "three clips" and "3 separate clips" but not the bare "3 clips".
+  A user hitting a voice-clone problem was still being sent back to the retired
+  method. Found by the PR review gate; a broad re-search now returns zero.
+- **`hook.md`'s `(balancing position)` annotation reconciled, not deleted.**
+  Figure `image_rsrc34D` really does print that label, and the file's audited
+  `Strategic position` note is also right that Pat's prose never names it as a
+  second position. Both are true, so the transcription stays verbatim and a
+  sentence now records the tension — altering transcribed source text to fit a
+  claim elsewhere is the fabrication this project exists to prevent.
 
 ### Verification
 
