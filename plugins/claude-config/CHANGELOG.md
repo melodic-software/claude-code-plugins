@@ -77,7 +77,10 @@ offered as a mechanical `--fix`.
 - Eval #8 `baseline-deny-narrowed-by-installed-hook` grades the narrowing *per family*: force-push and
   hard-reset patterns drop to `info` under a live Bash hook, while `git clean` patterns the hook does
   not match and `sensitive-file-deny` Read patterns it cannot reach stay at their unnarrowed severity.
-  Eval #9 `no-hook-inventory-states-the-finding-conditionally` grades the fail-open half.
+  Eval #9 `no-hook-inventory-states-the-finding-conditionally` grades the fail-open half, and eval #10
+  `suppressed-hook-does-not-narrow-the-baseline` grades the negative case the liveness precondition
+  exists for: a declared hook under `disableAllHooks: true` narrows nothing, and the finding holds at
+  `error`.
 
 ## [0.29.2]
 
