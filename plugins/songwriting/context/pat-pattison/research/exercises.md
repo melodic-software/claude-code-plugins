@@ -1,9 +1,9 @@
 # Exercises — *Essential Guide to Lyric Form and Structure* (1991) and *Essential Guide to Rhyming* (2014)
 
 Pat Pattison — preserves the numbered exercise series from
-*Songwriting: Essential Guide to Lyric Form and Structure* (1991)
-Chapters 1-7 and *Essential Guide to Rhyming*
-(2014) Chapter 4-6. *Writing Better Lyrics* (2009) worksheets live in [worksheets](worksheets.md);
+*Essential Guide to Lyric Form and Structure* (1991), Chapters 1-7 and
+*Essential Guide to Rhyming* (2014), Chapters 4-6.
+*Writing Better Lyrics* (2009) worksheets live in [worksheets](worksheets.md);
 *Songwriting Without Boundaries* (2011) daily curriculum lives in [daily practice](daily-practice.md).
 
 Use this file when a user wants a craft drill rather than a coaching
@@ -804,7 +804,7 @@ summary, verbatim:
 
 Routes to: [hook](hook.md).
 
-## *Essential Guide to Rhyming* (2014) — Rhyme search exercises (Chapter 4-6)
+## *Essential Guide to Rhyming* (2014) — Rhyme search exercises (Chapters 4-6)
 
 ### Ex 4.1 — Family rhymes for `league`
 
