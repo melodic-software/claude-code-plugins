@@ -148,17 +148,35 @@ still a finding.
 project's own documented conventions say a safety hook escalates the operation, audit the pattern
 against those conventions rather than flagging its absence.
 
-**3 — An installed, enabled `PreToolUse` hook that already blocks the family.** An absent baseline
-pattern whose command family is blocked by a `PreToolUse` hook that is *installed and enabled* on the
-relevant tool surface (`Bash`, `PowerShell`) is reported `info`, not `error` — the deny rule is
-redundant with an enforcement path that already holds. This narrowing is available whether the hook
-comes from the repo or from an installed plugin; a plugin-provided hook is no weaker a block than a
-repo-provided one.
+**3 — A live `PreToolUse` hook that already blocks the family.** An absent baseline pattern whose
+command family is blocked by a `PreToolUse` hook that is *installed, enabled, and able to run* on the
+tool surface the pattern defends is reported `info`, not `error` — the deny rule is redundant with an
+enforcement path that already holds. This narrowing is available whether the hook comes from the repo
+or from an installed plugin; a plugin-provided hook is no weaker a block than a repo-provided one.
+
+**Three preconditions, all of which must hold before you take it.**
+
+- **The hook is live, not merely present.** Installed and enabled is not sufficient: `disableAllHooks`
+  turns every hook off, and a managed `allowManagedHooksOnly` or `strictPluginOnlyCustomization`
+  suppresses non-exempt hooks outright. A hook a setting has already switched off blocks nothing, so
+  under any of those the narrowing does not apply at all and the finding stands at its unnarrowed
+  severity. Check the settings-declared layer for these before downgrading — Category D already reads
+  it.
+- **The hook is on the tool surface the pattern defends.** `destructive-bash-deny` and `ask-rules` are
+  Bash-command families, so a `PreToolUse` hook on `Bash`/`PowerShell` can cover them.
+  `sensitive-file-deny` is a `Read`-pattern family, and a Read deny covers the built-in file tools as
+  well as the recognized Bash file commands — a hook matching only `Bash` therefore leaves the
+  `Read`/`Grep`/`Glob` path open and **does not** retire a `sensitive-file-deny` finding. Match the
+  matcher to the family, and where the hook covers only part of the family, narrow only that part.
+- **The hook blocks that specific family**, not a neighbouring one. Coverage of `git push --force`
+  says nothing about `git clean -fd`, and coverage of a long flag says nothing about its short
+  spelling unless the hook matches both. Narrow per family, pattern by pattern.
 
 **Name the residual whenever you take narrowing 3.** Hook coverage is contingent in ways a deny rule
 is not, and an `info` that hides this is worse than the `error` it replaced. State that the coverage
 ends if the providing plugin is disabled or uninstalled, that it is narrowable by any per-guard opt-out
-the hook exposes, and that it is suppressible by `allowManagedHooksOnly` / `strictPluginOnlyCustomization`.
+the hook exposes, and that it is suppressible later by `disableAllHooks`, `allowManagedHooksOnly`, or
+`strictPluginOnlyCustomization` even where none of them is set today.
 
 **Fail open where no hook inventory was taken.** The audit has no enumeration path over a plugin's
 `hooks/hooks.json` (it reads settings-declared hooks only), so on most runs you will not know what is

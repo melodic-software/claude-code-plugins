@@ -93,14 +93,27 @@
     {
       "id": 8,
       "name": "baseline-deny-narrowed-by-installed-hook",
-      "prompt": "/audit permissions — settings.json permissions.deny has none of the destructive-git patterns. We enforce that with the guardrails plugin's PreToolUse hook on Bash, which is installed and enabled and exits 2 on git push --force, git reset --hard, and git clean -fd.",
-      "expected_output": "A Category B report that applies the third narrowing from required-permissions.md 'Narrowing the baseline': the absent destructive-bash-deny patterns are reported as `info`, not `error`, because an installed and enabled PreToolUse hook already blocks the family — and the report names the residual (coverage ends if the plugin is disabled or uninstalled, is narrowable by a per-guard opt-out, and is suppressible by allowManagedHooksOnly / strictPluginOnlyCustomization). The recommendation is NOT presented as an auto-fixable mechanical addition.",
+      "prompt": "/audit permissions — settings.json permissions.deny is empty and permissions.ask is empty. We enforce force-push and hard-reset with the guardrails plugin's PreToolUse hook on Bash: it is installed, enabled, and exits 2 on both git push --force and git push -f, and on git reset --hard. It does not match git clean, and it does not read files. disableAllHooks is not set and there is no managed settings layer.",
+      "expected_output": "A Category B report that applies the third narrowing from required-permissions.md 'Narrowing the baseline' per family rather than wholesale. The four force-push patterns and the two hard-reset patterns drop to `info` because a live PreToolUse hook on Bash blocks those families; the git clean patterns stay `error` because the hook does not match them; and the sensitive-file-deny Read patterns stay `error` because a Bash hook does not cover the Read tool surface. The report names the residual that hook coverage carries, and does not present adding the deny rules as an auto-fixable mechanical correction.",
       "files": [],
       "expectations": [
-        "Rates the absent destructive-bash-deny patterns `info` rather than `error`, citing the installed enabled PreToolUse hook as coverage",
-        "Names the residual that hook coverage carries — plugin disable/uninstall, per-guard opt-out, and allowManagedHooksOnly / strictPluginOnlyCustomization suppression",
-        "Does NOT classify adding the baseline deny rules as auto-fixable or as requiring no judgment",
-        "Where it took no hook inventory of its own, states the finding conditionally rather than asserting the patterns are missing"
+        "Rates the absent force-push and hard-reset deny patterns `info` rather than `error`, citing the live PreToolUse hook as coverage",
+        "Keeps the git clean deny patterns at their unnarrowed severity, because the hook does not match that family",
+        "Keeps the sensitive-file-deny Read patterns at their unnarrowed severity, because a hook matching Bash does not cover the Read tool surface",
+        "Names the residual that hook coverage carries — plugin disable/uninstall, per-guard opt-out, and later suppression by disableAllHooks / allowManagedHooksOnly / strictPluginOnlyCustomization",
+        "Does NOT classify adding the baseline deny rules as auto-fixable or as requiring no judgment"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "no-hook-inventory-states-the-finding-conditionally",
+      "prompt": "/audit permissions — settings.json permissions.deny is missing the destructive-git patterns. I have no idea what hooks are installed, and I am not going to go look.",
+      "expected_output": "A Category B report that, having no way to enumerate a plugin's hooks/hooks.json, does not assume hook coverage is absent. Where a baseline deny pattern is missing and no hook inventory was taken, the finding is stated conditionally — if a PreToolUse hook on Bash already blocks this family, the finding is void — and the report says which inventory would settle it. It does not silently assert the patterns are missing.",
+      "files": [],
+      "expectations": [
+        "States a missing baseline deny finding conditionally when no hook inventory was taken, rather than asserting it",
+        "Says what would settle it — an inventory of the installed plugins' hooks on the Bash tool surface",
+        "Does NOT treat the absence of a hook inventory as evidence that no hook covers the family"
       ]
     }
   ]
