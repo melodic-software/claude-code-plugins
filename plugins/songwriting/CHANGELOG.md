@@ -126,8 +126,9 @@ Scansion was read off rendered figures rather than re-derived, and **Pat's own
 The two first-party-contradicted tier rows are corrected: **Free has no stem
 separation at all** (the "2-track stems: Free ✓" row was false), and Split from
 Mix / Auto Split / Advanced Split are three **modes**, not track counts. Voices
-reached free plans on 7 August 2026, with an unresolved web-versus-mobile caveat
-recorded rather than guessed. **The remaining Suno remediation items are not
+stays Pro / Premier; free plans got a **trial** on 7 August 2026, with an
+unresolved web-versus-mobile caveat recorded rather than guessed — a trial is
+not all-tier entitlement, and the plugin no longer describes it as one. **The remaining Suno remediation items are not
 done** — see the audit's own ordering in `.work/songwriting-plugin-pilot/`.
 
 ## [0.9.0]
