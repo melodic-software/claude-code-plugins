@@ -69,9 +69,18 @@ STARTDIR_LOCAL="$START_DIR/.claude/settings.local.json"
 # fallback keeps a direct invocation working. SETTINGS_AUDIT_MANAGED_PATH stays
 # this script's own test seam — the real locations are absolute system paths a
 # fixture dir cannot reach.
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)}"
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "${BASH_SOURCE[0]%/*}/../../.." && pwd)}"
+MANAGED_SCOPE_LIB="$PLUGIN_ROOT/lib/managed-scope.sh"
+# Fail loudly rather than fall through: an unsourced library leaves the managed
+# path empty and every managed row would read `Present: no`, reporting an
+# administrator's policy as absent because this script could not find its own
+# location list.
+if [[ ! -r "$MANAGED_SCOPE_LIB" ]]; then
+  echo "ERROR: cannot read $MANAGED_SCOPE_LIB — the plugin's shared managed-scope library is missing" >&2
+  exit 2
+fi
 # shellcheck source=../../../lib/managed-scope.sh
-source "$PLUGIN_ROOT/lib/managed-scope.sh"
+source "$MANAGED_SCOPE_LIB"
 MANAGED="$(mscope::base_file "${SETTINGS_AUDIT_MANAGED_PATH:-}")"
 MANAGED_DROPIN="$(mscope::dropin_dir "${SETTINGS_AUDIT_MANAGED_PATH:-}")"
 

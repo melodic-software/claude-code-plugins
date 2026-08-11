@@ -28,6 +28,15 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 ### Added
 
+- **`audit-permission-state`** — a new skill reporting which permission rules are actually in effect
+  and where each comes from. Claude Code ships no `claude permissions` subcommand and no
+  machine-readable export, so the honest answer had been "read five files in five places and hope you
+  know all five". The reader discovers managed policy, user-global, project, local, and any
+  pre-v2.1.211 start-directory copy, and inventories each scope's `allow`/`ask`/`deny` rules with its
+  source named. Every scope and every managed surface emits a record on every OS, so a surface that
+  was never attempted can never be mistaken for one that is genuinely empty: `absent` means looked and
+  found nothing, `skipped` means could not look. Server-managed settings are disclosed as having no
+  local path rather than assumed absent. Report-only, and managed policy is read-only by construction.
 - **`lib/permission-patterns.sh`** — the auto-mode drop vocabulary (blanket, wildcarded-interpreter,
   package-manager-runner, and script-glob rule shapes, plus the top-level tool-token grammar) as a
   define-only library. It was inline in the P1 detector, which self-executes and cannot be sourced,

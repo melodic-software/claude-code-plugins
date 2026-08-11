@@ -287,7 +287,51 @@ runtime**; it does not discharge the **implementer's** obligation.
 gate constant appearing anywhere in the two new skills also appears in that file
 (`comm -23` of the two sorted constant lists is empty).
 
-### Phase 1: Walking skeleton — scope discovery across all five scopes [TODO]
+### Phase 1: Walking skeleton — scope discovery across all five scopes [DONE]
+
+**Completed 2026-08-11.** `permission-state.test.sh` 38/38, covering every sanity check below:
+all four file scopes exactly once, all four managed surfaces exactly once, drop-ins in the documented
+alphabetical order with dotfiles ignored, `absent` distinguished from `invalid-json` and from
+`skipped`, the start-directory copy never double-counted, jq-absent exit 2, and the optional-leg
+degradation (stub `PATH` without `reg`: exit 0, announced skip, portable core still read).
+`check-skill.sh audit-permission-state` PASS, `check-evals-quality.sh` PASS,
+`validate-plugins.sh` clean, cheat sheet and catalog regenerated, listing budget 5892/8000 across
+eight skills. `shellcheck -x` clean; both Phase 9 suites still pass after the fail-loud retrofit below.
+
+**The registry leg is verified against the real registry, not a fixture.** A scratch key
+(`HKCU\SOFTWARE\ClaudeCodePluginTest`, deliberately **not** under `Policies`, so no policy was ever
+deployed to the machine) was created, read, parsed, and deleted; `HKCU\SOFTWARE\Policies\ClaudeCode`
+was confirmed still absent afterwards. The shipped test uses the key-list seam instead, because a test
+that writes to a consumer's registry is not something this marketplace should ship.
+
+**Two wrong-answer defects the stub-`PATH` case caught before they shipped:**
+
+- **MSYS argument conversion silently broke every registry read.** Git Bash rewrites an argument
+  containing backslashes as though it were a POSIX path, so `reg query 'HKLM\SOFTWARE\...'` reaches
+  `reg.exe` mangled and exits non-zero with `ERROR: Invalid syntax` — which the reader scored as "no
+  managed policy deployed" on a machine that has one. Exactly the failure mode the Option A decision
+  was chosen to avoid, arriving by a different route. Fixed by scoping `MSYS2_ARG_CONV_EXCL` to those
+  calls; measured both ways.
+- **A missing shared library reported a clean machine.** With `dirname` off `PATH`, plugin-root
+  resolution collapsed, the `source` failed, and every managed surface reported `absent` while the run
+  still exited 0. Now resolved with builtins only (`${BASH_SOURCE[0]%/*}`) and a hard `exit 2` when the
+  library is unreadable. The same fail-loud guard was retrofitted to `check-structure.sh`, which had
+  the identical fall-through from Phase 9.
+
+**Deviations from the phase as written, recorded rather than silent:**
+
+- **No `reference/criteria.md` yet.** Phase 1 ships an inventory, not a check, so a criteria file
+  today could only restate the record contract that `SKILL.md` already carries at run time — the
+  duplication this repository's no-duplication rule exists to prevent. It lands with the first
+  mechanical check (Phase 4), or with Phase 2's precedence basis, whichever comes first.
+- **`evals/evals.json` shipped now rather than in Phase 8**, since the skill directory is created
+  here and a new skill without evals is a gap for however many phases it stays open.
+- **`plugin.json`'s description and the generated catalog and cheat sheet were updated now**, not
+  deferred: both are generated artifacts with a required CI parity check, and the manifest's skill
+  count was factually wrong the moment the directory existed. Phase 8 still owns extending both for
+  `draft-auto-mode-rules`; the version bump remains the single one already taken.
+- **The macOS `plist` surface reports presence, not contents.** The reader names the domain and says
+  so explicitly. Inventorying it needs a machine that can be verified, which this plan does not have.
 
 The integration slice. Everything downstream reads what this produces.
 

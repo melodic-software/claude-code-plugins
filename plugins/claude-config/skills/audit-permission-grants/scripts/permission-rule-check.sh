@@ -84,9 +84,14 @@ fi
 # root the way every other component in this marketplace does: Claude Code sets
 # CLAUDE_PLUGIN_ROOT in plugin form, and the BASH_SOURCE fallback keeps a direct
 # invocation (the test harness, a developer running the script) working.
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)}"
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "${BASH_SOURCE[0]%/*}/../../.." && pwd)}"
+PATTERNS_LIB="$PLUGIN_ROOT/lib/permission-patterns.sh"
+if [[ ! -r "$PATTERNS_LIB" ]]; then
+  echo "ERROR: cannot read $PATTERNS_LIB — the plugin's shared permission-pattern library is missing" >&2
+  exit 2
+fi
 # shellcheck source=../../../lib/permission-patterns.sh
-source "$PLUGIN_ROOT/lib/permission-patterns.sh"
+source "$PATTERNS_LIB"
 P1_ERE="$CCPERM_P1_ERE"
 
 # P2 — machine home-path shapes, ASSEMBLED FROM FRAGMENTS so no contiguous
