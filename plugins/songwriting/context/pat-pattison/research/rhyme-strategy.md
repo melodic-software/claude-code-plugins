@@ -1238,7 +1238,7 @@ numbered chapter.)
 > And please keep using your brain as often as you use your heart. Writing
 > well is never easy. That’s the fun of it. It’s always an adventure. Don’t worry
 > about being able to write as well as someone else. The hardest thing you will
-> ever do is to write as well as you can.
+> ever do is to write as well as *you* can.
 >
 > So write. And write fearlessly.
 
@@ -1247,7 +1247,7 @@ training, not overhead** — its payoff is the internalised search ("you do most
 of your work in your head. Effectively. Knowing your options."), so a user who
 resents the labour is being asked to keep practicing until most of the work
 moves into their head. Second, the standard is self-referential: "the hardest
-thing you will ever do is to write as well as you can." Do not turn that into a
+thing you will ever do is to write as well as *you* can." Do not turn that into a
 comparative judgment against other writers — Pat rules that out in the sentence
 before it.
 
