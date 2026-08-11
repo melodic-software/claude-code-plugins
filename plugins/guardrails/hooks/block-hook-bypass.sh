@@ -604,11 +604,34 @@ scratch_target_exempt() {
   # reaches the compare as the safe-looking prefix `/tmp/scratch/a`. Exempting
   # that is precisely the one-token bypass the `/dev/null` precedent warns about.
   # The only surviving evidence is the RAW command, so refuse the exemption when
-  # any quote or backslash appears after the first redirect operator. Deliberately
-  # conservative — a compound whose LATER segment quotes something also loses the
-  # exemption, and an operator who wants it writes the target unquoted. The same
-  # truncation reaches the `/dev/null` exemption and predates this axis; it is
-  # filed as #2226 and pinned by a control test.
+  # any quote or backslash appears after the first `>` in it.
+  #
+  # STATE THE TRUE SCOPE — it is broader than "the operand" in TWO ways, and both
+  # are easy to describe more precisely than they behave:
+  #
+  #   1. NOT segment-scoped. This reads the WHOLE raw tail, not the segment being
+  #      evaluated and not the target word, so a quote anywhere later in a compound
+  #      command costs an EARLIER, unambiguous write its exemption:
+  #      `echo x > /tmp/scratch/f && grep foo "notes.txt"` blocks, even though
+  #      segment 1's target is a plain path.
+  #   2. NOT keyed on the redirect OPERATOR. `${COMMAND#*>}` splits at the first
+  #      literal `>` CHARACTER and never decides whether it is an operator, so a
+  #      `>` inside quoted CONTENT starts the tail early and that content's own
+  #      closing quote lands inside it: `echo "a > b" > /tmp/scratch/f` blocks.
+  #      Quotes before the redirect are otherwise fine — `echo "hi there" > …` is
+  #      exempt — but only while the quoted content holds no `>`.
+  #
+  # Both are deliberate and both are the safe direction: this test can only ever
+  # REFUSE an exemption, never grant one, so the failure mode is lost convenience,
+  # never a bypass. Fixing either one needs the same thing — knowing which `>` and
+  # which quotes are SYNTAX rather than CONTENT — and that is exactly the
+  # association strip_literals destroys before this code runs. Same root cause as
+  # #2226; not attempted here. Four regression tests pin these boundaries so the
+  # breadth cannot silently widen or narrow. An operator who wants the exemption
+  # keeps quotes, backslashes and `>` out of the command after the target.
+  #
+  # The same truncation reaches the `/dev/null` exemption and predates this axis;
+  # it is filed as #2226 and pinned by a control test.
   [[ "${COMMAND#*>}" == *[\"\'\\]* ]] && return 1
   _norm_path "$target" || return 1
   [[ -n "$_NORM_PATH" ]] || return 1

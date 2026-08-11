@@ -3,9 +3,58 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.1]
+
+### Changed
+
+- **0.25.0 described the scratch-root exemption's fail-close inaccurately on every surface, twice
+  over. Corrected, and pinned (#2236; root cause #2226).** No behaviour changes — four documents
+  become accurate and four regression tests now pin the boundaries they describe.
+
+  0.25.0 said the exemption fails closed on "a quoted or escaped **operand**", "after the first
+  redirect **operator**". Both halves are wrong, in the same direction — they imply precision the
+  check does not have:
+
+  1. **It is not operand-scoped.** It reads the whole raw command tail, not the segment being
+     evaluated and not the target word, so a quote in an unrelated *later* segment cancels the
+     exemption for an earlier, unambiguous write.
+  2. **It is not keyed on the redirect operator.** `${COMMAND#*>}` splits at the first literal `>`
+     **character**, without deciding whether that `>` is an operator at all. A `>` inside quoted
+     *content* therefore starts the scanned tail early, and the closing quote of that same content
+     lands inside it.
+
+  Consequence of (2), and the case 0.25.0's own text got backwards: it claimed quotes *before* the
+  redirect are the ordinary case and keep the exemption. That holds only while the quoted content
+  contains no `>`.
+
+  | command, root `/tmp/scratch` | verdict |
+  | --- | --- |
+  | `echo x > /tmp/scratch/f` | allowed |
+  | `echo "hello world" > /tmp/scratch/f` | allowed |
+  | `echo x > /tmp/scratch/f && grep foo "notes.txt"` — quote in a later segment | **blocked** |
+  | `echo x > /tmp/scratch/f && grep foo notes.txt` | allowed |
+  | `echo "a > b" > /tmp/scratch/f` — `>` inside quoted content | **blocked** |
+  | `echo 'x > y' > /tmp/scratch/f` | **blocked** |
+
+  The breadth stays. It is one-directional — the check can only ever *refuse* an exemption, never
+  grant one — so the failure mode is lost convenience, never a bypass. Keying it on the real redirect
+  operator, or narrowing it to the operand, both need the same thing: knowing which `>` and which
+  quotes are syntax rather than content. That is exactly the association `strip_literals` destroys
+  before this code runs, which is **#2226**, not a separate fix, and it is deliberately not attempted
+  here. Recorded on #2226 as further evidence.
+
+  The hook comment, the README, the manifest's option description and this entry now state the
+  mechanism as it is: **any quote or backslash after the first `>` character, operator or not,
+  anywhere in the command.**
+
+  0.25.0's entry below is left as it shipped, per Keep a Changelog; this entry is its erratum.
+
 ## [0.25.0]
 
 ### Added
+
+> **Erratum:** the fail-close scope described in this entry is inaccurate in two ways. See 0.25.1
+> above for the corrected mechanism. The behaviour described elsewhere in this entry is unchanged.
 
 - **`block-hook-bypass` gains an opt-in scratch-root exemption, and with it its first
   target-scoped axis (#2210).** A read-only investigation that writes a throwaway probe file
