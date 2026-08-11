@@ -67,7 +67,7 @@ the metaphor feels random. The craft move is to create enough conflict to
 spark imagination while leaving enough hidden relationship for the listener to
 feel the connection.
 
-> "Productive ambiguity lies at the heart of metaphor."
+> "You'll find that productive ambiguity lies at the heart of metaphor."
 > — Pat Pattison, *Songwriting Without Boundaries* (2011), Challenge 2
 > Day 1
 
@@ -1061,10 +1061,10 @@ The mechanical consequence: **simile keeps the listener at distance**
 
 ### Coleridge's imagination-vs-fancy distinction
 
-Pat cites Samuel Taylor Coleridge in Challenge 2 Day 14:
+Pat cites Coleridge in Challenge 2 Day 14:
 
-> "Coleridge called metaphor 'an act of the imagination,' whereas he
-> relegated simile to 'an act of fancy.'"
+> "Samuel Taylor Coleridge called metaphor 'an act of the imagination,'
+> whereas he relegated simile to 'an act of fancy.'"
 > — Pat Pattison (citing Coleridge),
 > *Songwriting Without Boundaries* (2011), Challenge 2 Day 14
 

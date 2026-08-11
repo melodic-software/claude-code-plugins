@@ -401,7 +401,8 @@ Pat's second documented demonstration is Cathy Brettell's ten-minute write on
 > jellies to my toes like an anchor hoisted over ship" took Cathy from an
 > elevator ride to an ocean storm, no permission asked.
 >
-> — Pat Pattison, same
+> — Pat Pattison, *Songwriting Without Boundaries* (2011), Challenge 1
+> opener
 
 Note the ending: "(time!)" and then "soft crystal knob pulls shut" cut off. That
 is the buzzer, printed.
@@ -761,8 +762,10 @@ The single most-emphasized object-writing discipline across Books
 
 Not after finishing the word. Not after closing the thought. Stop.
 
-> "Stop immediately when the timer ends." — Pat (*Writing Better Lyrics* (2009), Chapter 1;
-> *Songwriting Without Boundaries* (2011), Challenges 1-4, paraphrased)
+> "Stop IMMEDIATELY when the timer goes off. Do not even finish the word
+> you are on."
+> — Pat Pattison, *Songwriting Without Boundaries* (2011), Challenge 1
+> Day 1 (the instruction repeats at the head of the later days)
 
 Reasons:
 

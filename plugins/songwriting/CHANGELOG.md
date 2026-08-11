@@ -92,6 +92,49 @@ plus an extractor bug that had been silently corrupting every quoted stanza.**
   then recapitalized) and **softened a categorical rule** — Pat writes that the
   device *only* works in first and second person. Both restored.
 
+### Fixed — a second sweep, and the scaffolding thesis measured
+
+- **`audit-checklist.md` was nearly half wrong, box by box.** 192 lines carrying
+  26 chapter citations and **zero reproduced text** — pure `- [ ]` scaffolding
+  attributed to specific chapters. All 83 checkboxes were tallied against the
+  cited chapters: **42 traceable, 15 distorted, 26 invented.** Traceable boxes
+  now quote Pat's actual sentence; distorted ones are corrected; invented ones
+  are relabelled as this file's own synthesis rather than deleted, so the owner
+  can see what is his tooling's invention and what is Pat's. **11 false section
+  attributions** were fixed.
+- **`bridge.md` opened on a six-word quote.** `"A bridge isn't a verse."` was
+  bare and uncited. The sentence is real but was **truncated** — Pat's full
+  passage in *Writing Better Lyrics* (2009) Chapter 23 goes on to contrast the
+  bridge against verse and chorus. Restored in full and cited, along with
+  Exercises 49 and 50 (entirely absent), the 1991 Chapter 5 five-point bridge
+  definition, and the transitional-bridge list — each restored as Pat's printed
+  numbered list rather than a flattened paraphrase.
+- **A fabricated alias pair in `bridge.md`.** The file listed "channel" and
+  "runway" as names for the pre-chorus. Zooming the actual figure shows Pat
+  lists only Pre-Chorus, Climb or Lift, Vest, Verse Extension, Ramp and Prime.
+  Removed. **This one was only catchable by reading the image.**
+- **A fabricated quote in `response-filter.md`**, plus a quote misattributed to
+  *Writing Better Lyrics* (2009) Chapter 1 that is really Chapter 5. Several
+  Berklee-sourced blockquotes elsewhere were de-quoted rather than left
+  masquerading as Pat's printed words.
+- **`cliche.md` presented two couplets as displayed stanzas.** Pat quotes both
+  inline in running prose, slash-separated. Corrected to match.
+
+### Verified — the line-break damage is narrower than feared
+
+The `<br>` bug was reported as potentially affecting all ~9,000 restored lines.
+**Measured, it does not.** Every quoted block in all 49 research files was
+checked mechanically — **1,109 consecutive line-pairs** — for the specific
+corruption signature, a file splitting a line the corrected source keeps whole.
+
+27 candidates surfaced and nearly all were legitimate: 14 in `phrasing.md` are
+Pat's own deliberate split into **eight short phrases**, and the rest are
+dialogue split per speaker, contrasted variant lines, and a wrapped thesaurus
+entry. **Only `cliche.md` needed correcting.** A proposed "fix" to `hook.md` was
+checked against the raw XHTML and **rejected** — there is a `<br>` between every
+line there, so those are genuinely separate printed lines and joining them would
+have introduced the very corruption being hunted.
+
 **The shape of the defect, now that five files have been done at once:** the
 paraphrase rule did not merely omit Pat's text, it **replaced it with invented
 scaffolding** — "Use when" lists, bullet "tests", checklists, named axes and

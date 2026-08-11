@@ -95,8 +95,9 @@ the recurring framing for Pat's craft stance.
 > "Tools, not rules." — recurring column framing, also the column title in
 > *American Songwriter*
 
-> "Sense-bound is universal. Generic is not." — recurring teaching across
-> books + columns
+> "Songs should be universal, but don't mistake universal for generic.
+> Sense-bound is universal." — Pat Pattison, *Writing Better Lyrics*
+> (2009), Chapter 5; the point recurs in the columns
 
 Columns are short; not all are dated or archived consistently. For
 canonical Pat material, the books are primary; columns extend rather than
