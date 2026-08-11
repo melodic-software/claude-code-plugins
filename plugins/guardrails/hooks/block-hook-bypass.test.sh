@@ -827,14 +827,20 @@ run "scratch: relative configured root exempts nothing (blocked)" \
 run "scratch: root of / exempts nothing (blocked)" \
   "echo hello > /tmp/scratch/f" 2 "$SCRATCH_ENV=/"
 
-# Windows spellings normalize to the Git Bash form, so a root and a target
-# written in different spellings of the same directory compare equal.
-run "scratch: backslash target under a /d root (allowed)" \
-  "echo hello > D:\\\\jobtmp\\\\scratch\\\\f" 0 "$SCRATCH_ENV=/d/jobtmp/scratch" # portability-ok: a backslash-separated Windows path in a test fixture, not a regex/sed construct
+# Windows spellings normalize to the Git Bash form, so a CONFIGURED ROOT written
+# `D:\jobtmp\scratch` and a target written `/d/jobtmp/scratch/f` compare equal.
+# The root is configuration, not command text, so the escaped-operand fail-close
+# does not apply to it.
 run "scratch: /d target under a D:\\ root (allowed)" \
   "echo hello > /d/jobtmp/scratch/f" 0 "$SCRATCH_ENV=D:\\jobtmp\\scratch" # portability-ok: a backslash-separated Windows path in a test fixture, not a regex/sed construct
 run "scratch: Windows sibling sharing the prefix (blocked)" \
   "echo hello > /d/jobtmp/scratchevil/f" 2 "$SCRATCH_ENV=/d/jobtmp/scratch"
+# A backslash-spelled TARGET is never exempt, by the same fail-close as a quoted
+# operand: in bash a backslash is an escape, so `D:\jobtmp\scratch\f` is not the
+# path it looks like, and what reaches the compare is not what gets written.
+# Windows targets belong in the `/d/...` spelling.
+run "scratch: backslash-spelled target is not exempted (blocked)" \
+  "echo hello > D:\\\\jobtmp\\\\scratch\\\\f" 2 "$SCRATCH_ENV=/d/jobtmp/scratch" # portability-ok: a backslash-separated Windows path in a test fixture, not a regex/sed construct
 
 # Documented residual, pinned so it moves only deliberately: the segment scan
 # runs over the lowercased command, so the compare is case-insensitive.

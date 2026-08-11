@@ -31,9 +31,12 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   byte-for-byte what it was.
 
   The match is made against a lexically normalized path, never a substring or a bare prefix compare.
-  Windows separators and drive letters fold to the Git Bash spelling, `.` and `..` resolve by
+  Windows separators and drive letters fold to the Git Bash spelling — so a root configured as
+  `D:\jobtmp\scratch` covers a target written `/d/jobtmp/scratch/f` — `.` and `..` resolve by
   component, and containment requires the target to continue with `/` past the root's last
-  component. The adversarial floor is the point of the test block, not the happy path:
+  component. (A backslash-spelled *target* is a separate matter and is never exempt: in bash a
+  backslash is an escape, so it is not the path it looks like. See the fail-close below.) The
+  adversarial floor is the point of the test block, not the happy path:
 
   | shape | verdict |
   | --- | --- |
