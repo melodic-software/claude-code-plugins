@@ -35,6 +35,17 @@ export function resolveSourceFile(destFile, promotionMap) {
 }
 
 /**
+ * A slice's key-frames/promotion-map.json, or `{}` when the slice has none yet.
+ *
+ * @param {string} sliceDir
+ * @returns {Record<string, { sourceFile?: string } | string>}
+ */
+export function readPromotionMap(sliceDir) {
+  const mapPath = lanePath(path.resolve(sliceDir), LANES.keyFrames, "promotion-map.json");
+  return fs.existsSync(mapPath) ? JSON.parse(fs.readFileSync(mapPath, "utf8")) : {};
+}
+
+/**
  * @param {string} sliceDir
  */
 export function rebuildVisualFrames(sliceDir) {
@@ -43,8 +54,7 @@ export function rebuildVisualFrames(sliceDir) {
     fs.readFileSync(lanePath(absSlice, LANES.keyFrames, "selection.json"), "utf8"),
   );
   const byFile = Object.fromEntries(sel.selectedFrames.map((f) => [f.file, f]));
-  const mapPath = lanePath(absSlice, LANES.keyFrames, "promotion-map.json");
-  const promotionMap = fs.existsSync(mapPath) ? JSON.parse(fs.readFileSync(mapPath, "utf8")) : {};
+  const promotionMap = readPromotionMap(absSlice);
 
   const synDir = lanePath(absSlice, LANES.keyFrames, "frames");
   const files = fs

@@ -17,6 +17,8 @@ The skill is a **prompt-craft assistant**, not an audio generator. Suno produces
 
 Suno v5.5 (released March 26, 2026; verified 2026-07-18 against <https://suno.com/blog/v5-5>) preserved v5's prompt syntax but improved adherence to nuanced descriptors and added three personalization layers (Voices, Custom Models, My Taste). Everything below targets v5.5 unless noted; legacy v4 (~200-char style prompt) is out of scope.
 
+> **Deprecation horizon:** Suno and Warner Music Group committed to launching licensed models in 2026 and deprecating the current models when those launch; they announced no date. Re-check Suno's release notes before relying on v5.5-specific behavior. Source: [joint WMG/Suno announcement, 2025-11-25](https://www.prnewswire.com/news-releases/warner-music-group-and-suno-forge-groundbreaking-partnership-302626017.html).
+
 ## Action Router
 
 Parse `$ARGUMENTS`: first token = action, remainder = args. If empty
@@ -64,9 +66,9 @@ Sweet spot: **5–8 distinct tags**. Fewer than 4 → generic. More than 10 → 
 
 | Field | Limit | Notes |
 |-------|-------|-------|
-| Style prompt (v5/v5.5) | **~1,000 chars** | Up from ~200 in v4. Truncates silently. Front-load critical content. |
+| Style prompt (v5/v5.5) | **~1,000 chars** | Up from ~200 in v4. Late-prompt attention may decay; silent truncation is unverified. Front-load critical content. |
 | Lyrics | **5,000-char hard cap** (v4.5/v5/v5.5) | 3,000 was the v4-era cap. Quality sweet spot stays **~3,000** (~40-60 lines / 200-300 words) — past that Suno rushes, skips sections, or cuts output short. |
-| Title | **~100 chars** | Up from ~80 in v4. No effect on musical output |
+| Title | **~100 chars** | Up from ~80 in v4. Minimal or no known effect on musical output; community reports differ |
 | Exclude field | Free-text in Advanced Options (Custom mode) | Same vocabulary as inline negatives |
 
 **Verified 2026-07-18** — no official Suno page states field limits; figures are third-party tester consensus ([hookgenius character limits](https://hookgenius.app/learn/suno-character-limits/), [aimusicapi cheat sheet, 2026-07-03](https://aimusicapi.ai/en/blog/suno-ai-prompt-character-limits)).
@@ -142,7 +144,7 @@ Contrast section — often a key change or stripped-back
 [End]
 ```
 
-Negative prompts go at the **end** of the style prompt: `..., no autotune, no reverb wash`. The `Exclude` field in Custom mode's Advanced Options is the structural alternative.
+The `no X` syntax works for negative prompts: `no autotune, no reverb wash`. Grouping negatives at the end is a readability convention, not a verified adherence rule. The `Exclude` field in Custom mode's Advanced Options is the structural alternative.
 
 ### Anti-patterns (always flag these in `clean` action)
 
@@ -156,7 +158,7 @@ Negative prompts go at the **end** of the style prompt: `..., no autotune, no re
 | `(x2)` after a lyric line | Repeat is largely ignored | Write the line twice with minor variation |
 | Naming artists directly (`like Drake`) | Blocked or ignored | Use sound descriptors (`Toronto trap bounce`, `silk-smooth R&B falsetto`) |
 | `no drums` in a drum-heavy genre alone | Drums still appear | Pair with positive (`piano only, no drums`) |
-| Style prompt > 1000 chars | Silent truncation | Front-load critical content |
+| Style prompt near / over ~1,000 chars | Later content may receive less attention; silent truncation is unverified | Front-load critical content |
 | Capitalize EVERY word | Effect dilutes | Cap only turning-point words for emphasis |
 | Vocal descriptor + active Voices/Custom Model | Conflict between clone and prompt | **Drop gender/tone descriptors when a Voice or Custom Model is selected** |
 
@@ -211,8 +213,8 @@ If `<name>` is ambiguous (could be template OR research OR suggest), ask user wh
 
 ## Confidence flags (be honest about source quality)
 
-- **HIGH confidence**: claims confirmed by Suno's official help center (`help.suno.com`) or `suno.com/blog`. The 6-layer formula, structural and vocal tag names, Custom mode requirements, Voices/Custom Models/My Taste mechanics, Creative Slider behavior — all HIGH. Character budgets are NOT officially published — third-party tester consensus only (MEDIUM-HIGH).
-- **MEDIUM confidence**: community-validated techniques across multiple guides + Reddit consensus, but no official Suno doc. Capitalization weighting magnitude, vowel-stretching letter counts, hyphenation staccato, `(x2)` failure mode — all MEDIUM. Effects are real (multi-source agreement); exact magnitudes are folk wisdom.
+- **HIGH confidence**: claims confirmed by Suno's official help center (`help.suno.com`) or `suno.com/blog`. The 6-layer formula, structural and vocal tag names, Custom mode requirements, Voices/Custom Models/My Taste mechanics, and Creative Slider names and qualitative endpoints — all HIGH. Character budgets are NOT officially published — third-party tester consensus only (MEDIUM-HIGH).
+- **MEDIUM confidence**: community-validated techniques across multiple guides + Reddit consensus, but no official Suno doc. Capitalization weighting magnitude, vowel-stretching letter counts, hyphenation staccato, `(x2)` failure mode, and **every numeric Creative Slider setting or range in this skill** are community-empirical. Treat exact magnitudes and slider numbers as starting points for A/B tests, not official values.
 - **Re-verified 2026-07-18 — position flipped since the 2026-05-10 pass**: current third-party testers agree the lyrics **hard cap is 5,000 chars on v4.5/v5/v5.5**; 3,000 was the v4-and-earlier cap. The earlier "3,000 consensus" conflated the old cap with the quality threshold. **~3,000 remains the practical budget** — past it Suno rushes, skips sections, or shortens output. Sources: [hookgenius character limits](https://hookgenius.app/learn/suno-character-limits/), [aimusicapi cheat sheet, 2026-07-03](https://aimusicapi.ai/en/blog/suno-ai-prompt-character-limits). No official Suno page states field limits.
 
 When generating prompts, default to HIGH-confidence techniques. Surface MEDIUM-confidence tricks as opt-in suggestions, not commands.

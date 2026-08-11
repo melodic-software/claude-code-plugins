@@ -45,7 +45,7 @@ and expect contexts where it does not fire at all.
 **Packet files are write-once evidence.** A sibling plugin's `PostToolUse` hook registered on the
 `Write|Edit` matcher rewrites your packet files in place after your write succeeds — that event is
 documented harness behavior (`PostToolUse` runs after a tool call succeeds and may rewrite content;
-the matcher keys on tool name — <https://code.claude.com/docs/en/hooks>, fetched 2026-07-31), and
+the matcher keys on tool name — <https://code.claude.com/docs/en/hooks>, fetched 2026-08-10), and
 two such formatters ship in this fleet. They damage precisely what you are writing down: verbatim
 quotations and code-span identifiers. So: never edit a packet file after it lands (a correction is
 a NEW file — their autocorrect has no memory and reverts a hand-repair on the next edit);

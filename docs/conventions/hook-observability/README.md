@@ -7,7 +7,7 @@ advisory-versus-blocking, fail-open-versus-closed; this doc owns which of the th
 given situation uses and how each is shaped.
 
 Grounded against the official Claude Code hooks reference
-(<https://code.claude.com/docs/en/hooks>, fetched 2026-07-22) — every field name, cap, and timing
+(<https://code.claude.com/docs/en/hooks>, fetched 2026-08-10) — every field name, cap, and timing
 claim below is sourced from that fetch, not from training-data recall, per this repo's own
 research-verification discipline.
 
@@ -60,11 +60,17 @@ giving the whole scheme a documented home is a separate follow-up, tracked outsi
 **Also required — a hook that CHANGED the user's file content without being asked.** An autofix hook
 edits a file the user is working in, on the strength of an unrelated tool call, with no prompt and no
 diff. The harness's own signal for it is a generic "PostToolUse hook modified `<file>` after your
-edit (likely a formatter)" line that names no hook and shows no change — verified against
-<https://code.claude.com/docs/en/hooks> (fetched 2026-07-26): the three documented output channels
+edit (likely a formatter)" line that names no hook and shows no change — quoted from an observed
+session, not from a docs page, and load-bearing here only as an illustration of the shape such a
+notice takes. What the docs settle is the negative this rule actually rests on, verified against
+<https://code.claude.com/docs/en/hooks> (fetched 2026-08-10): the three documented output channels
 carry no file-change or diff surface, so a benign reflow and a wrong dictionary rewrite arrive
-identically. The person whose file was changed is the only one who can judge whether the change was
-correct, so **the hook must name what it changed on the user channel**, not only the agent one: what
+identically. Recheck trigger: a Claude Code release that adds a file-change or diff surface to the
+hook output schema — a fourth output field, or such a payload on one of
+[the three](#the-three-surfaces) — which would make this rule's disclosure requirement redundant.
+
+The person whose file was changed is the only one who can judge whether the change was correct, so
+**the hook must name what it changed on the user channel**, not only the agent one: what
 was rewritten, to what, where, and how to prevent it. This is a *narrow* addition to the scope above,
 and its boundary is content the user did not request — a hook that only *reports* (a lint finding, a
 suggested fix, a diagnostic) still belongs on `additionalContext` alone. The same cap discipline as
@@ -161,10 +167,43 @@ melodic-software/claude-code-plugins#930.
   human-only-choice carve-out above; over-applying it to blocking paths or to advisory findings the
   model can act on is itself a conformance defect (redundant user noise, or misrouting
   agent-actionable content to the user channel).
-- **Not a UI feature.** No native "verbose hooks" toggle exists in Claude Code as of 2026-07-22
-  (confirmed against the same fresh fetch this doc cites) — `statusMessage` and `systemMessage`
-  are the sanctioned surfaces available today. An upstream feature request for a native
-  verbose-hooks UI toggle is tracked separately, outside this repo.
+- **Not a UI feature — but "no verbose surface exists" is the wrong reason.** Verbose surfaces do
+  exist and one of them carries hook output: "Async hook completion notifications are suppressed by
+  default. To see them, enable verbose mode with `Ctrl+O` or start Claude Code with `--verbose`"
+  (hooks reference, verified 2026-08-11). Alongside it are the `verbose` and `viewMode` settings,
+  the `--verbose` flag, `CLAUDE_CODE_DEBUG_LOG_LEVEL=verbose` for hook matcher counts, and
+  `--include-hook-events` for the stream-json event feed.
+
+  The rule this doc needs does not depend on what those surfaces are, only on what an author may
+  assume: **every one of them is off unless the consumer turned it on, and none of them changes
+  where a hook must put its message.** `Ctrl+O` is a keystroke the user presses; `--verbose` and
+  `--include-hook-events` are launch flags; `verbose` and `viewMode` are settings; the debug log
+  level is an environment variable. A plugin authored today cannot know which, if any, is active in
+  the session its hook runs in, and a hook whose output lands only in a channel the consumer may
+  never have enabled is not observable. So the rule stands unchanged — `statusMessage` and
+  `systemMessage` are the surfaces a fleet hook writes to — resting on **a plugin cannot assume the
+  consumer's view state**, not on any claim about which surfaces exist.
+
+  Recheck trigger: a Claude Code release that surfaces hook output on a channel active by default,
+  or that adds a hook-output field to the JSON output schema beyond the three in
+  [the three surfaces](#the-three-surfaces) — either would make the assumption above false and
+  reopen this bullet.
+
+  > **Correction, 2026-08-11.** This bullet previously read "No native 'verbose hooks' toggle
+  > exists in Claude Code," verified against a `hooks`-page fetch. The literal phrase "verbose
+  > hooks" appears on no page, but the word `verbose` appears across at least 13 Claude Code
+  > pages including four hook-related mentions on `hooks` itself. Absence from one page is not
+  > absence — the negative was scoped to the page searched and stated about the product. See
+  > [upstream-drift, "Reading the basis"](../upstream-drift/README.md#reading-the-basis--the-fetch-route):
+  > a claim of the form "X does not exist" has to name the surfaces searched.
+  >
+  > The counts above are illustrative of that error, not load-bearing: nothing in this doc's rules
+  > depends on how many pages carry the word. They are deliberately floored ("at least 13") and
+  > need no recheck — a count that only ever grows cannot falsify the point it illustrates. The
+  > one claim here that *is* load-bearing is the quoted `Ctrl+O` / `--verbose` sentence
+  > (basis: <https://code.claude.com/docs/en/hooks>, rung-1 raw-markdown read, 2026-08-11), and it
+  > argues **for** the rule rather than against it, so its recheck trigger is the one on the
+  > paragraph above.
 
 ## Conformance
 

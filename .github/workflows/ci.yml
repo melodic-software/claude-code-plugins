@@ -424,6 +424,22 @@ jobs:
       - name: Check plugin hook configs for bare userConfig argv tokens
         run: scripts/check-hook-userconfig-argv.sh
 
+  # Every option a plugin declares must be documented in that plugin's README.
+  # The block is generated from the manifest, so the failure this catches is an
+  # option added to plugin.json whose README block was never regenerated -- an
+  # undocumented knob is indistinguishable from one that does not exist, and the
+  # only place a user can discover it is the manifest itself.
+  plugin-options-docs-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check plugin option docs are in sync with each manifest
+        run: python3 scripts/sync-plugin-options-docs.py --check
+
   silent-skip-gate:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -1030,6 +1046,7 @@ jobs:
       - cross-plugin-source-drift
       - skill-leaf-name-gate
       - userconfig-argv-gate
+      - plugin-options-docs-gate
       - silent-skip-gate
       - plugin-manifest-presence-gate
       - orphaned-fixture-gate

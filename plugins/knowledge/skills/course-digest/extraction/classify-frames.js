@@ -36,7 +36,12 @@ const args = parseCliArgs({
 
 const log = createLogger(resolveLogLevel(args));
 
-function forEachLesson(courseDir, course, fn) {
+/**
+ * Yield every lesson that has screenshots on disk, with its PNG paths.
+ *
+ * @returns {Generator<{ module: object, lesson: object, pngs: string[] }>}
+ */
+function* eachLessonWithFrames(courseDir, course) {
   const modulesDir = join(courseDir, "modules");
   for (const module of course.modules) {
     for (const lesson of module.lessons) {
@@ -49,7 +54,7 @@ function forEachLesson(courseDir, course, fn) {
       );
       const pngs = walkPngs(lDir);
       if (pngs.length === 0) continue;
-      fn(module, lesson, pngs);
+      yield { module, lesson, pngs };
     }
   }
 }
@@ -60,8 +65,7 @@ async function generateContactSheets(courseDir, course) {
 
   let generated = 0;
 
-  for (const entry of collectLessons(courseDir, course)) {
-    const { module, lesson, pngs } = entry;
+  for (const { module, lesson, pngs } of eachLessonWithFrames(courseDir, course)) {
     const label = `M${module.position}L${lesson.position}`;
     const outFile = join(outDir, `${label}-${lessonDirName(lesson.position, lesson.title)}.jpg`);
 
@@ -84,21 +88,12 @@ async function generateContactSheets(courseDir, course) {
   log.info(`\n  Generated: ${generated} contact sheets → ${outDir}`);
 }
 
-function collectLessons(courseDir, course) {
-  /** @type {{ module: object, lesson: object, pngs: string[] }[]} */
-  const lessons = [];
-  forEachLesson(courseDir, course, (module, lesson, pngs) => {
-    lessons.push({ module, lesson, pngs });
-  });
-  return lessons;
-}
-
 async function computeDedup(courseDir, course) {
   let totalFrames = 0;
   let totalDups = 0;
   const results = {};
 
-  for (const { module, lesson, pngs } of collectLessons(courseDir, course)) {
+  for (const { module, lesson, pngs } of eachLessonWithFrames(courseDir, course)) {
     const key = `M${module.position}L${lesson.position}`;
     // biome-ignore lint/performance/noAwaitInLoops: lesson dedup runs sequentially to cap memory on large courses
     const frameSet = await deduplicateFrames(pngs, {}, { log });
@@ -144,7 +139,7 @@ function printSummary(courseDir, course) {
 
   let grandTotal = 0;
 
-  forEachLesson(courseDir, course, (module, lesson, pngs) => {
+  for (const { module, lesson, pngs } of eachLessonWithFrames(courseDir, course)) {
     const sizes = pngs.map((p) => statSync(p).size);
     const avgKB = Math.round(sizes.reduce((a, b) => a + b, 0) / sizes.length / 1024);
     const method = detectFrameMethod(pngs.map((p) => basename(p)));
@@ -153,7 +148,7 @@ function printSummary(courseDir, course) {
       `  M${module.position}L${String(lesson.position).padStart(2)}  ${lesson.title.substring(0, 44).padEnd(46)} ${String(pngs.length).padStart(4)}  ${method.padEnd(10)} ${String(avgKB).padStart(4)}`,
     );
     grandTotal += pngs.length;
-  });
+  }
 
   log.info(`  ${"-".repeat(78)}`);
   log.info(`  Grand total: ${grandTotal} frames`);

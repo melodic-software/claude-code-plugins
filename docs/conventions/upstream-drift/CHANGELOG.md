@@ -4,6 +4,93 @@ Notable changes to the upstream-drift contract (SemVer). Changing a required par
 name, or an enforceability verdict is a major bump; additive guidance is a minor bump; docs-only
 clarification is a patch.
 
+## 1.3.0 — 2026-08-11
+
+Closes two holes in [§Reading the basis — the fetch route](README.md#reading-the-basis--the-fetch-route)
+that 1.2.0 left open, both found by the fleet using it. Additive guidance; no required part,
+canonical name, or enforceability verdict changed.
+
+- **A `200` does not mean you got the page you asked for, and 1.2.0's rung 1 implied it did.** The
+  rung guarded against truncation and against a channel that 404s, but not against a channel that
+  succeeds with the wrong page. A retired slug is silently aliased to its successor — no redirect,
+  no `Location`, no notice in the body: `slash-commands.md` returns `200` with 82,668 bytes titled
+  "Extend Claude with skills", **byte-identical to `skills.md`** (both SHA-256 `a833dd5c…`), with
+  `0` redirects reported (verified 2026-08-11). An invented slug still `404`s, so the aliasing is
+  specific to slugs that once existed. This failure outranks truncation: a term the *requested*
+  page owns comes back missing from a full, healthy-looking body, so the false absence carries
+  every outward sign of a good read. Identity is now part of rung 1, with two cheap checks —
+  confirm the slug against `llms.txt` (across ten slugs, the nine live ones appear as
+  `docs/en/<slug>.md` and only the aliased one does not), and read the body's first heading before
+  quoting it. A missing slug is a prompt to find the successor in the index and cite **that** slug.
+- **An absence claim now carries its scope, because the rung ladder only ever bounded one scope
+  down.** 1.2.0 said a truncated read supports no absence claim; it never said a *complete* read of
+  one page supports no claim about the product. Two moves break it: widening the subject (searching
+  `hooks`, concluding "Claude Code has no X"), and searching a phrase rather than the capability.
+  It joins the binding list at the top of the section, which now states **three** rules rather than
+  two — the count is part of the normative text, so a reader can tell a binding rule from an
+  explanatory aside.
+  Worked instance, verified on `hooks.md`: "verbose hooks" appears **zero** times while the same
+  page documents enabling verbose mode with `Ctrl+O` or `--verbose` for async hook notifications,
+  and `CLAUDE_CODE_DEBUG_LOG_LEVEL=verbose` for matcher counts — so a phrase search licenses a
+  false nonexistence claim from a complete read of the right page. An absence claim states the
+  corpus and the terms tried.
+- **Stated as its own rule because it is the reason to care: a sound conclusion on a false premise
+  is fragile, not safe.** The instance above kept its conclusion on a corrected premise
+  ([#2190](https://github.com/melodic-software/claude-code-plugins/pull/2190)); the next reader who
+  checks a false premise discards the conclusion with it.
+
+Both holes were found by the 2026-08-11 stamp re-verification
+([#2187](https://github.com/melodic-software/claude-code-plugins/pull/2187)) applying 1.2.0 at
+scale — the convention's own recheck discipline surfacing gaps in the convention, one release after
+it shipped.
+
+## 1.2.0 — 2026-08-10
+
+Adds [§Reading the basis — the fetch route](README.md#reading-the-basis--the-fetch-route): a rung
+ladder for reading an upstream page the firing procedure already tells you to re-fetch. No required
+part, canonical name, or enforceability verdict changed — the four parts and the observability bar
+are untouched; this says how the basis is read, which every firing already depended on and no
+surface owned.
+
+- **The failure the rung ladder closes is a false negative, not a fetch error.** A summarizing fetch
+  of a long page truncates, and a summarizer then answers "what does this page contain" from the
+  truncated span — an answer indistinguishable from genuine absence. `env-vars` produced exactly
+  that on three independent fetches. Two rules bind every read regardless of rung: no verbatim
+  quote, no claim; and a truncated read supports no absence claim, ever.
+- **Rung 1 — `curl` the `.md` channel and search the file locally — is the default**, verified
+  against `env-vars` on 2026-08-10 (361,797 bytes, 458 lines, 315 variable rows including the
+  `CLAUDE_CODE_MAX_*` range that had truncated away three times; two fetches, identical SHA-256).
+  Rung 2 is a summarizing fetch, admissible only when the read shows the page arrived whole. Rung 3
+  is a verbatim mirror.
+- **The route is hoisted, not invented — from two surfaces that derived it independently.**
+  `claude-ops`'s `changelog` skill carried it page-scoped; `knowledge`'s `docpage-digest` publisher
+  profile carried it claim-scoped, binding absence-establishing fetches to `curl` on the raw `.md`
+  channel after two of its own runs asserted a false absence. Two independent derivations is the
+  signal a rule wants an owner, and the one-owner-per-concern rule puts the general form here while
+  leaving their scope-specific detail with them. The profile's warning that a raw-markdown channel
+  can 404 per page is carried across as the reason a run verifies the channel before trusting the
+  rung.
+- **The mirror rung keeps the freshness-corroboration protocol from
+  [#2182](https://github.com/melodic-software/claude-code-plugins/pull/2182)** and generalizes its
+  bar: corroborate against a fact the page's own content can only carry after a known upstream
+  change, never against the mirror's self-reported sync time. A mirror-based record says on its face
+  it is one rung below primary and states retirement of that basis in its trigger.
+- **Currency of a rung-1 read is fixed at what the docs actually support** — the fetch date and
+  nothing more, because the endpoints publish no per-page content date. The 2026-08-10 fetch
+  independently re-confirmed that 1.0.0 header finding: `Last-Modified` came back equal to `Date`.
+
+## 1.1.0 — 2026-08-10
+
+Adopters registry gains a row for
+[`PLUGIN-PHILOSOPHY` recorded gate runs](../../PLUGIN-PHILOSOPHY.md#recorded-gate-runs)
+([#2175](https://github.com/melodic-software/claude-code-plugins/issues/2175)). No required part,
+canonical name, or enforceability verdict changed.
+
+- The new table is the registry's first entry of the **recorded-decision** kind that also carries a
+  per-row trigger: each row states the observable event for its own verdict, rather than the
+  divergence-at-fetch trigger the component-stances and `OFFICIAL-DOCS` rows share. The row says so,
+  so a reader does not carry the wrong firing rule across from the sibling table.
+
 ## 1.0.0 — 2026-07-26
 
 Initial published contract

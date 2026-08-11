@@ -27,12 +27,15 @@ hook::check_enabled "ACTIONLINT"
 # under `set -u` would abort before the advisory exit 0.
 start=${EPOCHREALTIME:-}
 
-# Telemetry needs the high-res start stamp. When EPOCHREALTIME is unavailable
-# (Bash < 5.0) the stamp is empty and telemetry is skipped, so the hook still
-# lints on older bash rather than aborting.
+# Emit this run's telemetry envelope: $1 status, $2 findings JSON array.
+# Two guards: the high-res start stamp (EPOCHREALTIME is Bash 5.0+; on older
+# bash it is empty and telemetry is skipped, so the hook still lints rather
+# than aborting) and the sink opt-in. The data payload costs a jq subprocess,
+# so it is built here after both guards — never on the unwired path.
 emit_tel() {
   [[ -n "$start" ]] || return 0
-  hook::emit_telemetry "$@"
+  hook::telemetry_enabled || return 0
+  hook::emit_telemetry "actionlint-check" "PostToolUse" "$1" "$start" "$(build_data_json "$2")" "$REPO_ROOT"
 }
 
 INPUT=$(hook::buffer_stdin) || exit 0
@@ -72,7 +75,13 @@ case "$FILE_NORM" in
 *) exit 0 ;;
 esac
 
-TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
+# Telemetry-only. Parsed behind the sink opt-in so the unwired default path
+# spawns zero telemetry-only subprocesses (FILE_REL below is NOT gated — it is
+# the path actionlint itself is invoked with).
+TOOL=""
+if hook::telemetry_enabled; then
+  TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
+fi
 
 # Resolve repo root early — used to compute the schema-required repo-relative
 # path in data.file.
@@ -121,8 +130,7 @@ build_data_json() {
 # both channels (agent + user). Telemetry (opt-in) also records a "skipped"
 # status so a consumer sink can observe the coverage gap.
 if ! command -v actionlint >/dev/null 2>&1; then
-  data_json=$(build_data_json '[]')
-  emit_tel "actionlint-check" "PostToolUse" "skipped" "$start" "$data_json" "$REPO_ROOT"
+  emit_tel "skipped" '[]'
   if hook::notice_once "actionlint-missing" "$INPUT"; then
     hook::emit_skip_notice PostToolUse "actionlint: 'actionlint' not found on PATH — workflow lint skipped for this session. Install: https://github.com/rhysd/actionlint/blob/main/docs/install.md"
   fi
@@ -140,8 +148,7 @@ fi
 # clean-workflow telemetry (status ok, findings []), indistinguishable from a
 # real pass. Changing this process's cwd is safe -- the hook exits below.
 if ! cd "$REPO_ROOT" 2>/dev/null; then
-  data_json=$(build_data_json '[]')
-  emit_tel "actionlint-check" "PostToolUse" "error" "$start" "$data_json" "$REPO_ROOT"
+  emit_tel "error" '[]'
   exit 0
 fi
 AL_OUTPUT=$(actionlint -shellcheck= -pyflakes= -- "$FILE_REL" 2>&1)
@@ -155,8 +162,7 @@ if [[ "$AL_STATUS" -ge 2 ]]; then
   if [[ -n "$AL_OUTPUT" ]]; then
     FINDINGS_JSON=$(printf '%s' "$AL_OUTPUT" | jq -R . | jq -s . 2>/dev/null) || FINDINGS_JSON='[]'
   fi
-  data_json=$(build_data_json "$FINDINGS_JSON")
-  emit_tel "actionlint-check" "PostToolUse" "error" "$start" "$data_json" "$REPO_ROOT"
+  emit_tel "error" "$FINDINGS_JSON"
   exit 0
 fi
 
@@ -175,12 +181,10 @@ if [[ -n "$AL_OUTPUT" ]]; then
   if [[ -n "$findings_raw" ]]; then
     FINDINGS_JSON=$(printf '%s' "$findings_raw" | jq -R . | jq -s . 2>/dev/null) || FINDINGS_JSON='[]'
   fi
-  data_json=$(build_data_json "$FINDINGS_JSON")
-  emit_tel "actionlint-check" "PostToolUse" "ok" "$start" "$data_json" "$REPO_ROOT"
+  emit_tel "ok" "$FINDINGS_JSON"
   exit 0
 fi
 
 # Clean workflow.
-data_json=$(build_data_json '[]')
-emit_tel "actionlint-check" "PostToolUse" "ok" "$start" "$data_json" "$REPO_ROOT"
+emit_tel "ok" '[]'
 exit 0

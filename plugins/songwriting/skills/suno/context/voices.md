@@ -1,6 +1,8 @@
 # Voices — full guide
 
-Voices clones YOUR singing identity. v5.5 only. **Pro / Premier tier.** 18+, geographically gated.
+Voices clones YOUR singing identity. v5.5 only. 18+, geographically gated.
+
+**Tier updated 2026-08-08 — Pro / Premier, plus a free-plan TRIAL.** The release note says free plans can "try" Voices; **a trial is not all-tier entitlement, and this file must not describe it as one.** <https://suno.com/release-notes>, Aug 7 2026: "We brought Voices to both iOS and Android. Record your voice once and use it on any song. Now available to try on free plans." **Caveat:** that entry carries no `Web` tag (unlike other web-touching entries in the same window), `suno.com/pricing` lists no Voices bullet under Free, and both Voices help articles are silent on plan gating — so free-plan Voices may be mobile-only. Unresolved; verify in-app.
 
 ## What Voices does
 
@@ -54,23 +56,24 @@ This blocks: cloning a public figure's voice from YouTube, cloning a friend / co
 
 1. Custom mode (required — Voices not available in Simple)
 2. Voice selector dropdown → pick your voice
-3. **Set Audio Influence slider to 25-30%** (sweet spot per community empirical testing — see below)
-4. Climb in 10% increments only if voice identity is too weak
+3. If voice resemblance is poor, **raise the Audio Influence slider**
+4. Increase gradually while checking whether resemblance improves
 
-### Audio Influence sweet spot (HIGH confidence, contradicts initial Suno docs)
+### Audio Influence with an active Voice
 
-**Empirical sweet spot is 25-30%, NOT the higher values some early Suno docs suggested.**
+**First-party direction, narrowly scoped:** Suno's Voices walkthrough says to set Audio Influence "fairly high," and its Voices FAQ says to experiment with turning it up, when fixing poor voice resemblance. Neither article publishes a number or claims that higher settings are universally better.
+
+Specific thresholds — including the `>=70%` starting point in the troubleshooting guide — are **community-derived and unverified**, not first-party guidance.
+
+Community reports also describe higher settings carrying more of the source recording's artifacts. The ranges below are retained as **unverified community observations**, not documented slider behavior:
 
 | Slider | Effect |
 |--------|--------|
-| 25-30% | Sweet spot — voice identity preserved, recording artifacts minimized |
 | 40-50% | Voice still identifiable, room tone / mic artifacts start surfacing |
 | 60-80% | Voice character preserved BUT imports recording artifacts, breath sounds, room reverb from training clips |
 | 85%+ | Voice clone over-fits to training audio's environment (mic, room), output sounds like the recording session, not a produced track |
 
-**Why this matters:** higher slider values cause Suno to inherit the **physical environment** of your training recording (mic coloration, room tone, breath placement) as much as the voice itself. 25-30% extracts vocal identity while letting the song's production layer apply normally.
-
-Start low, climb only if needed. Most users settle at 25-30%.
+Raise Audio Influence when resemblance is poor. If artifacts increase, treat that as a community-reported tradeoff: compare outputs, back down as needed, and improve the source recording rather than relying on an official threshold that Suno has not published.
 
 ### Voice clone input — quality over quantity
 

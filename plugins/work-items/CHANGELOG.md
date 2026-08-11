@@ -3,7 +3,7 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.35.1]
+## [0.35.2]
 
 ### Fixed
 
@@ -17,6 +17,15 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   the recipe's `sort_by(.id)` emitted one separately-sorted array per page rather than one sorted
   list — four arrays at four pages. The reduction now happens in `jq -s` after the pages are
   collected, flattened with `.[][]`.
+
+## [0.35.1]
+
+### Changed
+
+- **Upstream doc stamps re-verified against the live pages (2026-08-10).** Each dated claim below was re-checked against the complete raw markdown source of the page it cites (`https://code.claude.com/docs/en/<page>.md`), not a summarized fetch, and each was confirmed by a verbatim quote before its stamp was refreshed. No claim changed; only the verification dates moved.
+
+  - `reference/permission-preflight.md` — the "Yes, don't ask again" rule landing in
+    `.claude/settings.local.json` at the repository root (permissions and worktrees references).
 
 ## [0.35.0]
 

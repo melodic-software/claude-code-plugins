@@ -3,6 +3,27 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.6]
+
+### Changed
+
+- **Carries the shared hook library's new `hook::is_enabled` predicate.** `hook::check_enabled`
+  exits the process when a plugin is gated off, which is correct for a hook but wrong for a
+  caller that must keep running afterward. The resolution is now also available as a predicate
+  that returns instead of exiting. No behaviour of this plugin changes; the version moves so
+  consumers receive the updated library.
+
+## [0.11.5]
+
+### Changed
+
+- **Upstream doc stamps re-verified against the live pages (2026-08-10).** Each dated claim below was re-checked against the complete raw markdown source of the page it cites (`https://code.claude.com/docs/en/<page>.md`), not a summarized fetch, and each was confirmed by a verbatim quote before its stamp was refreshed. No claim changed; only the verification dates moved.
+
+  - `hooks/markdown-format.sh` — shell-form hook commands rejecting `${user_config.*}`
+    substitution, and every option still being exported to hook processes as
+    `CLAUDE_PLUGIN_OPTION_<KEY>` (plugins reference, "User configuration"). The quoted rationale
+    sentence is unchanged word for word.
+
 ## [0.11.4]
 
 ### Fixed

@@ -1,6 +1,6 @@
 # Official Claude Code Guidance on CLAUDE.md
 
-Last researched: 2026-06-20; code.claude.com/docs/en/memory re-verified 2026-08-04 (the other
+Last researched: 2026-06-20; code.claude.com/docs/en/memory re-verified 2026-08-10 (the other
 sources below were not re-checked on that date)
 Sources: [Steering Claude Code (June 18, 2026)](https://claude.com/blog/steering-claude-code-skills-hooks-rules-subagents-and-more), code.claude.com/docs/en/memory, code.claude.com/docs/en/hooks, code.claude.com/docs/en/best-practices, code.claude.com/docs/en/sub-agents, howborisusesclaudecode.com
 

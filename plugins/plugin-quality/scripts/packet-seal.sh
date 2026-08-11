@@ -4,7 +4,7 @@
 # Packet files are written with the Write tool, and any sibling plugin that
 # registers a `PostToolUse` hook on the `Write|Edit` matcher post-processes
 # every one of them: PostToolUse runs after a tool call succeeds and may rewrite
-# content (https://code.claude.com/docs/en/hooks, fetched 2026-07-31), and the
+# content (https://code.claude.com/docs/en/hooks, fetched 2026-08-10), and the
 # matcher keys on the TOOL NAME, so nothing about the destination directory
 # excludes a packet. Observed in this fleet: `typos-format` and
 # `markdown-format` both register that matcher unconditionally and both rewrite

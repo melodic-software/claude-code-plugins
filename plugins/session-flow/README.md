@@ -316,3 +316,66 @@ network-free (retro and running-retro use the same stdlib-only Python 3.10+ pars
 parser, and `reconcile` reads them read-only and mutates only the in-session task ledger);
 `continue-in-background` spawns a local `claude --bg` process, a new Claude Code session with ordinary
 session network access, but the skill itself performs no egress.
+
+<!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
+
+### Options reference
+
+Generated from this plugin's `.claude-plugin/plugin.json`. Every option Claude Code
+will prompt for when the plugin is enabled, with the environment variable each hook
+reads it from.
+
+| Option | Type | Default | Environment variable | Description |
+| --- | --- | --- | --- | --- |
+| `observer_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_OBSERVER_ENABLED` | Opt in to the SessionStart hook that arms the detached running-retro observer for every real interactive session. Default off: installing session-flow changes no behavior until this is enabled. The manual `/session-flow:running-retro arm` action works regardless of this toggle. |
+| `observer_analysis_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_ENABLED` | When armed, run a headless post-session running-retro checkpoint after the observer detects the session ended (mtime-idle), writing the findings to the running-retro ledger. Off = the observer only distills observations and retains them under its plugin work dir for manual inspection; it does not analyze or write the ledger (no per-session Claude spend, no automatic in-session consumer). |
+| `observer_analysis_model` | string | `"claude-haiku-4-5"` | `CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_MODEL` | Model id for the headless post-end analysis run (the dominant cost lever). Defaults to the cheapest active tier; pin a different id to trade cost for depth. |
+| `observer_analysis_bare` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_BARE` | Drop auto-discovery (a further cost lever) on the analysis run. Off by default because --bare fails on OAuth-login installs (the run reports 'Not logged in'); enable only where auth is an env-var API key that survives it. See reference/observer.md. |
+| `observer_idle_seconds` | number | `900` | `CLAUDE_PLUGIN_OPTION_OBSERVER_IDLE_SECONDS` | How long the transcript must stop growing before the observer treats the session as ended. Keep it above the longest expected single turn (large fan-outs, long builds) or a mid-turn pause will be misread as end and fire analysis on a partial transcript. |
+| `observer_poll_seconds` | number<br>*min 1* | `5` | `CLAUDE_PLUGIN_OPTION_OBSERVER_POLL_SECONDS` | How often the observer re-reads the transcript to distill new observations and re-check the mtime-idle threshold. Lower costs more wakeups for a faster end-detection; raise it on a busy machine. The idle threshold, not this, decides when the session is over. Bounded below at 1: 0 spins the detached observer continuously, and a negative value raises at its sleep and kills it silently. |
+| `observer_max_seconds` | number | `86400` | `CLAUDE_PLUGIN_OPTION_OBSERVER_MAX_SECONDS` | Absolute cap on observer lifetime. Reaching it exits WITHOUT running analysis (it is a safety valve, not an end signal); mtime-idle is the intended terminator. Default 24h. |
+
+### How to set these
+
+Three supported routes, in the order most people want them:
+
+1. **Interactively** — Claude Code prompts for declared options when you enable the
+   plugin. To change them later: `/plugin configure session-flow`.
+2. **Headless, at install time** — repeat `--config` for each option. Replace
+   `<marketplace>` with the marketplace you installed this plugin from:
+
+   ```shell
+   claude plugin install session-flow@<marketplace> --config observer_enabled=<value>
+   ```
+
+3. **By hand, in settings** — add the value under `pluginConfigs` in your **user**
+   settings (`~/.claude/settings.json`):
+
+   ```json
+   {
+     "pluginConfigs": {
+       "session-flow@<marketplace>": {
+         "options": {
+           "observer_enabled": <value>
+         }
+       }
+     }
+   }
+   ```
+
+   Plugin option values are read from **user**, `--settings`, and managed settings
+   only — **not** from a project's `.claude/settings.json`. To vary behavior per
+   repository, enable or disable the plugin in that project's `enabledPlugins`
+   instead of setting an option there.
+
+Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself. They are how Claude Code
+hands a configured value to a hook process; the value comes from the routes above.
+
+### Upstream documentation
+
+- [User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration) — the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
+- [Plugin settings](https://code.claude.com/docs/en/settings#plugin-settings) — `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
+- [Configuration scopes](https://code.claude.com/docs/en/settings#configuration-scopes) — user vs project vs local precedence
+- [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins) — enabling, disabling, `/plugin list`
+
+<!-- END GENERATED: plugin options -->

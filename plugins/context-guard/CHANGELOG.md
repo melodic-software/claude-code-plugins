@@ -5,6 +5,63 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.5]
+
+### Changed
+
+- **Carries the shared hook library's new `hook::is_enabled` predicate.** `hook::check_enabled`
+  exits the process when a plugin is gated off, which is correct for a hook but wrong for a
+  caller that must keep running afterward. The resolution is now also available as a predicate
+  that returns instead of exiting. No behaviour of this plugin changes; the version moves so
+  consumers receive the updated library.
+
+## [0.6.4]
+
+### Fixed
+
+- **A cited plugins-reference section had been renamed upstream.** `scripts/statusline-shim.sh`
+  attributed the 14-day orphaned-cache-directory grace period to a section called "Plugin cache and
+  file access". That section is now titled **"Plugin caching and file resolution"**, and the cache
+  root it documents is `~/.claude/plugins/cache`. The behaviour cited is unchanged and still stated
+  verbatim; only the section title a reader would search for had moved, which is exactly the kind of
+  silent rot that makes a citation unfollowable. The comment now names the current title and records
+  the former one so the rename is traceable.
+
+- **The 2.1.132 token-semantics floor no longer has an upstream source, and the reader contract now
+  says so.** `reference/reader-contract.md` quoted the statusline page as stating "Before v2.1.132
+  these were cumulative session totals". Re-checked 2026-08-10 against the complete raw page
+  (`https://code.claude.com/docs/en/statusline.md`, not a summarized fetch): that sentence is gone,
+  and with it the version number. What the page still states is only the present-tense semantics the
+  floor depends on — "Token counts currently in the context window, from the most recent API
+  response" and "**Combined totals** (`total_input_tokens`, `total_output_tokens`): tokens currently
+  in the context window". The dead quote is removed and replaced with an explicit sourcing-status
+  note; `statusline-tee.sh` carries the same note at its `cli_version` comment. **The floor itself is
+  unchanged** — `TOKEN_SEMANTICS_MIN_VERSION` still gates the token shape at `>= 2.1.132`, and no
+  behaviour, test, or zone result moves. Dropping it could only widen which payloads the token shape
+  trusts, and the misfire it prevents (a pre-2.1.132 cumulative 170k reading as a plausible current
+  occupancy) is silent, so it stays as a deliberate conservative lower bound. Re-source it before any
+  change that relaxes it.
+
+### Changed
+
+- **Upstream doc stamps re-verified against the live pages (2026-08-10).** Each claim below was
+  re-checked against the complete raw markdown source of the page it cites, and confirmed by a
+  verbatim quote before its stamp was refreshed.
+
+  - `hooks/post-compact-mark.sh` — "PostCompact hooks have no decision control", still stated
+    verbatim, which is what makes the hook side-effect-only.
+  - `scripts/statusline-shim.sh` — the 14-day orphaned-version-directory grace period, quoted
+    verbatim from the plugins reference.
+  - `scripts/statusline-tee.sh` — the statusline payload's top-level `version` field carrying the
+    Claude Code version.
+  - `reference/reader-contract.md` — the `context_window` field list, `current_usage` being null
+    before the first API call and again immediately after `/compact`, `used_percentage` /
+    `remaining_percentage` being nullable early in a session, and the `${CLAUDE_SESSION_ID}`
+    substitution in the skills reference's substitution table. Also the auto-compaction negative:
+    no numeric threshold is published anywhere, and `costs` still says only that auto-compaction
+    "summarizes conversation history when approaching context limits" — a negative that is
+    trustworthy here because the check ran against complete pages rather than truncated fetches.
+
 ## [0.6.3]
 
 ### Fixed

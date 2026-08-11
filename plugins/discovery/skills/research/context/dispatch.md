@@ -148,11 +148,59 @@ two runs are sharing one slice, or a fan-out was graded at its root instead of a
 sub-slice. Fix the envelope and re-run the gate. Re-dispatching first pays for a whole research run
 again to answer a question the parent could have answered itself.
 
+**Exit 1 with `persistence: by-value` — the parent writes the slice. Take this rung before the resume
+rung, because the payload has already told you why the disk is empty.** The agent finished and its
+environment refused every write. Neither of the rungs below helps: a resume asks a worker to redo the
+one thing it just proved it cannot do, and a re-dispatch pays for every phase again to reproduce the
+same refusal — the most expensive way to learn nothing.
+
+So the parent does the writing, which it can — this is the checkout-not-process boundary
+[`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)
+already draws, finally reachable from the failure that needs it:
+
+1. **Check every filename before writing anything.** The payload carries `RESEARCH.md`, every
+   sidecar with its machine-readable header, and — when the run wrote one — `research-checklist.md`,
+   each introduced by a filename. This is the only place in the contract where a name the *worker*
+   produced becomes a write the *parent* performs, at the parent's wider permission, and the worker
+   that produced it spent its whole run ingesting untrusted third-party pages. Accept exactly
+   `RESEARCH.md`, `research-checklist.md`, and `RESEARCH-<section>.md`
+   (`^RESEARCH-[A-Za-z0-9_-]+\.md$`), each a bare filename. Reject anything carrying a directory
+   separator, a `..` segment, a leading `/`, or any other shape — as a **failed dispatch**, the same
+   as a payload returning findings instead of bodies. Confirm the resolved path of every write still
+   sits directly inside the destination directory.
+2. **Write into the memory-slice path the parent resolved before dispatch** — the same path it fed
+   the gate, which on a fan-out is the sub-slice that topic was assigned rather than the slice root.
+   The payload's `artifact:` value is the destination the agent *names*, never the anchor.
+3. **Re-run the identical checks — the artifact gate always, and the coverage-ledger gate whenever a
+   ledger was owed.** Do not hand-inspect the directory instead; the whole reason this rung is safe
+   is that the artifact ends up graded by the same checks as every other run. Freshness needs no
+   special handling: the parent writes after its own `touch`, so the index is strictly newer than
+   the baseline. The slice was empty, so the stale-ledger window this ladder's discard rung exists
+   to close does not open here.
+
+   **A run that recorded the corpus as unbounded wrote no ledger, and none is owed on this path
+   either.** The standing rule is unchanged — no ledger on disk is correct *only* when the artifact
+   records the corpus as unbounded — so check the recovered index for that record, exactly as you
+   would for a run that wrote its own slice. Running the ledger gate anyway against a file nobody
+   was supposed to write exits 2, which is a FAIL, and would halt a complete run on a check that
+   never applied to it. A bounded corpus with no ledger body in the payload is still a Phase 0 that
+   never ran, whatever the payload says.
+4. Proceed only when every check that applied comes back 0. A non-zero re-run drops through to the
+   rungs below — the exception is to the halt, never to the gate, and `persistence: by-value` grades
+   nothing on its own.
+
+**A by-value payload that returns findings instead of artifact bodies is a failed dispatch, not a
+fallback.** The value of the third outcome is *routing*: it tells the parent which recovery to take.
+It is not an acceptance value. Letting the gate grade a claim the agent makes about its own research,
+in place of the artifact and the ledger, is the Tier-3 laundering the discipline forbids — arriving
+through the recovery path instead of the front door.
+
 **Exit 1 with the agent still live — resume it; do not re-dispatch it.** A resume costs one message; a
 re-dispatch pays all the phases over again. Address the agent by its **agent ID**, not by name, and ask
 for the return payload block alone rather than restating the task. If the artifact set is on disk and
 only the payload was malformed, the artifact is the source of truth — read the index for the pointer,
-and still dispatch the sibling verifier. What the harness actually guarantees about a resume, verified
+and still dispatch the sibling verifier. If the payload comes back naming a refused write, you are on
+the by-value rung above, not this one. What the harness actually guarantees about a resume, verified
 against the official sub-agents page and quoted there, is written down once in
 [`${CLAUDE_PLUGIN_ROOT}/skills/explore/reference/dispatch.md`](${CLAUDE_PLUGIN_ROOT}/skills/explore/reference/dispatch.md)
 ("What the harness actually guarantees about a resume"); it applies unchanged to `discovery:researcher`,
@@ -170,6 +218,11 @@ without any new machinery.
 **Bound the wait either way.** `status: truncated` is not a special case — it takes the same ladder,
 and the discard-rather-than-resume rule for a partial *slice* is below, which is a different question
 from resuming the *agent* for its payload.
+
+**Why exit 1 alone is not enough to pick a rung.** The gate emits the same exit 1 and the same message
+whether the agent never launched or finished every phase and could not write — correctly, since it
+grades disk state and nothing else, and reading the payload is not its job. The branch lives here
+instead, one level up, where gate step 1 has already put the payload in the parent's hands.
 
 ## Truncation
 

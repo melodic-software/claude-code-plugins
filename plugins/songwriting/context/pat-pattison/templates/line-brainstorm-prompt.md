@@ -253,7 +253,14 @@ The brainstorm is volume; the curation is dialog.
 
 > "Eminem and Stephen Sondheim approach their writing through the same
 > process. It's called a worksheet process."
-> — Pat Pattison (American Blues Scene interview)
+> — Pat Pattison (American Blues Scene interview) — **unaudited**
+
+Non-book source, so it cannot be checked against the four books. Only the
+Sondheim half is corroborated in print — *Writing Better Lyrics* (2009),
+Chapter 24: "Ask Stephen Sondheim: He uses worksheets all the time."
+`Eminem` and the phrase "worksheet process" both return zero hits in all
+four books. Full audit note in
+[line-brainstorm.md](../research/line-brainstorm.md).
 
 The line-brainstorm IS the worksheet process applied to a single line.
 

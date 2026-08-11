@@ -3,7 +3,7 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.18.1]
+## [0.18.3]
 
 ### Fixed
 
@@ -19,6 +19,28 @@ All notable changes to the `review` plugin are documented here. Format follows
   `/annotations` returns a bare array with no envelope and no `total_count`, so the completeness
   assertion is unavailable there and `--paginate` is the only guard, and its pages are combined
   with `add` rather than through a `.check_runs` wrapper.
+
+## [0.18.2]
+
+### Changed
+
+- **`/review:fanout`'s `description` now uses `Use when:`.** Its five routing phrases sat behind a
+  lowercase `use for`, which the skill-quality gate does not recognize as trigger phrasing. All five
+  are preserved verbatim and `'review this from all sides'` joins them.
+
+## [0.18.1]
+
+### Changed
+
+- **README: `/review` is now the bundled reviewer, not a shorthand for this plugin (#2176).** As of
+  Claude Code v2.1.223, "`/review` is an alias of `/code-review`; before v2.1.223, it was a separate
+  command that ran a single-pass, read-only review of a GitHub pull request"
+  (`code.claude.com/docs/en/code-review#review-a-diff-locally`, fetched 2026-08-10). The README's
+  graceful-degrade bullet already distinguished the bundled `/code-review` command, the managed Code
+  Review GitHub App, and the `code-review` marketplace plugin; it now names `/review` as a fourth
+  spelling of the first of those, so a reader who abbreviates this plugin to its namespace doesn't
+  land on the built-in reviewer by accident. Nothing about the plugin's own commands changes — 0.18.0
+  already made `/review:quality-gate` and `/review:fanout` the only forms it registers.
 
 ## [0.18.0]
 

@@ -14,7 +14,7 @@ import { fail, ok, timed } from "@melodic/video-digestion/shared/result";
 import { writeStdout } from "@melodic/video-digestion/shared/terminal";
 
 import { login as clerkLogin } from "../lib/auth/clerk.js";
-import { promptManualLogin } from "../lib/auth/manual-login.js";
+import { loginOrPromptManual } from "../lib/auth/manual-login.js";
 import { getHlsUrl } from "../lib/players/mux.js";
 import {
   DESCRIPTION_META_SELECTOR,
@@ -367,17 +367,14 @@ export async function authenticate({ context, page, course, storageStatePath, pl
     return { baseUrl };
   }
 
-  const email = process.env[`${envPrefix}_EMAIL`];
-  const password = process.env[`${envPrefix}_PASSWORD`];
-
-  if (email && password && loginUrl) {
-    writeStdout("  Logging in automatically...");
-    await clerkLogin(page, email, password, loginUrl);
-    await context.storageState({ path: storageStatePath });
-    writeStdout("  Logged in and saved auth state.\n");
-  } else {
-    await promptManualLogin(context, storageStatePath, envPrefix);
-  }
+  await loginOrPromptManual({
+    context,
+    page,
+    storageStatePath,
+    envPrefix,
+    loginUrl,
+    login: clerkLogin,
+  });
 
   return { baseUrl };
 }

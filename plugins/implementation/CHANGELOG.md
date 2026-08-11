@@ -3,6 +3,32 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.2]
+
+### Changed
+
+- **Upstream doc stamps re-verified against the live pages (2026-08-10).** Each dated claim below was re-checked against the complete raw markdown source of the page it cites (`https://code.claude.com/docs/en/<page>.md`), not a summarized fetch, and each was confirmed by a verbatim quote before its stamp was refreshed. No claim changed; only the verification dates moved.
+
+  - `agents/implementer.md` — a subagent at the spawn-depth limit doing its delegated work itself
+    and returning one summary (subagents reference), quoted verbatim.
+  - `skills/implement-dispatch/SKILL.md` — the subagent model resolution order
+    (`CLAUDE_CODE_SUBAGENT_MODEL`, then the per-invocation `model` parameter, then frontmatter,
+    then the main conversation's model).
+
+## [0.13.1]
+
+### Changed
+
+- **`/implementation:implement`'s `description` now uses `Use when:`.** Its routing phrases sat
+  behind a lowercase `use for`, which the skill-quality gate does not recognize as trigger phrasing.
+  `'build this'`, `'write the code'`, `'make this change'` and `'apply the plan'` join the four
+  already there, all of which are preserved verbatim.
+- **`/implementation:implement-dispatch` gained typed trigger phrases.** Its `Use when` clause
+  described a *state* ("the plan routes phases to worker surfaces") with no phrase a user would
+  type, so the gate saw no trackable trigger at all. `'dispatch this to workers'`,
+  `'run this with subagents'`, `'execute the plan in parallel'` and `'fan the plan out'` now precede
+  that condition, which is retained.
+
 ## [0.13.0]
 
 ### Removed

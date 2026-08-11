@@ -3,6 +3,899 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.2]
+
+Both audit denominators are unchanged: **Axis 1 stays 44 of 44** and **Axis 2
+stays 226 of 226.** Nothing here opens a new unit. This release restores content
+inside units that were already audited and closed, settles two open maintainer
+decisions, and normalizes the plugin's own citation convention.
+
+### Added
+
+- **The 2014 Preface, restored verbatim.** Spine 009's scope, audience,
+  exercise/reference workflow and rhyming-dictionary requirement were absent
+  from the plugin although the unit was closed. Restored to
+  `rhyme-fundamentals.md` at **204 of 204 words**, byte-exact, with a codepoint
+  census matching the source (U+2014 x1, U+2019 x6). Both italic runs — the
+  purpose clause including its final period, and the dictionary title with its
+  following comma *outside* the italics — were confirmed by rendering the page
+  scan. This book carries **no `<i>`/`<em>` tags and no `font-style` in its
+  CSS**, and wraps every word in its own `<span>`, so the scan is the only
+  authority for emphasis. An earlier proposal to paraphrase this passage was
+  rejected.
+- **Chapter 7's Strategy 5 demonstration, restored to `hook.md`.** Chapter 7
+  emits 27 figure markers; the file cited 22. The five uncited figures were
+  proven read-only before any writer was dispatched, and four sit at
+  dangling-colon sites, meaning the content exists only in the image. The
+  `34D`-`34G` worked demonstration and the `34T` resolving scan are now present,
+  each transcribed from a rendered figure read directly. **OCR was forbidden
+  explicitly**, after a previous attempt's 141 OCR-derived lines were discarded.
+- **A prompt-side harmonic technique for Suno**, surfaced by re-running the
+  Cover/harmony research with real search budget: key plus mood in the Style
+  field, and bracketed chord tags in Custom Mode's Lyrics field — recorded with
+  its named failure mode (the model sings the chord names as lyrics) and its
+  stated limits, and scoped explicitly to general generation rather than Cover.
+
+### Changed
+
+- **Suno voice-clone protocol consolidated on the single varied 90-120s clip.**
+  `v55-features.md` and `tips.md` advised three separate clips; `voices.md` and
+  `power-tips.md` advised one. The single-clip side is the only one that supplies
+  a mechanism, so it wins. Marked community-derived — Suno publishes nothing
+  either way on clip count or length — and each file now records that the 3-clip
+  advice was **retired deliberately**, so it does not regrow.
+- **Citations normalized to the short title and plural chapter ranges.** Ranges
+  read `Chapters N-M`. Where a file quoted its own citation string back at
+  itself, both halves were changed together so no self-reference dangles.
+- **`book-references.md` no longer contradicts itself.** Its opening paragraph
+  said the full title appears in file headers. After normalization that is false,
+  and it is a regrowth vector — a future agent reading it would re-expand every
+  header. The full title now lives where it belongs: this file's bibliographic
+  table.
+
+### Fixed
+
+- **`hook.md` no longer over-claims figure `image_rsrc34F`.** It described the
+  fifth row as "3 stresses". The scan prints a **doubled slash** there, and
+  whether that denotes two stresses or is a printing anomaly cannot be
+  determined from the figure. Row five is recorded as printed, `u u / u // u /`.
+- **A removed anti-regrowth note was restored to `prosody.md`.** One agent moved
+  out a note that names a specific fabrication — an invented three-item trigger
+  list — and whose first sentence is a substantive statement about the source,
+  not revision narration. That removal was overturned.
+- **Two expanded-title citations in `stable-unstable-meta.md`** that every
+  single-line grep had missed, because they wrap across lines.
+- **The last surviving 3-clip instruction**, in `troubleshoot.md`. The
+  consolidation missed it because the search pattern used to find the D2 sites
+  looked for "three clips" and "3 separate clips" but not the bare "3 clips".
+  A user hitting a voice-clone problem was still being sent back to the retired
+  method. Found by the PR review gate; a broad re-search now returns zero.
+- **`hook.md`'s `(balancing position)` annotation reconciled, not deleted.**
+  Figure `image_rsrc34D` really does print that label, and the file's audited
+  `Strategic position` note is also right that Pat's prose never names it as a
+  second position. Both are true, so the transcription stays verbatim and a
+  sentence now records the tension — altering transcribed source text to fit a
+  claim elsewhere is the fabrication this project exists to prevent.
+
+### Verification
+
+Ten build agents and three independent refuters ran, each with an exclusive
+write-set. Counts summed from the receipt headers by script, not from memory:
+
+- Build agents: **53 CONFIRMED, 2 REFUTED, 1 UNPROVABLE, 2 INCOMPLETE-RESTORATION.**
+- Refuters: **32 UPHELD, 0 OVERTURNED, 3 NEW DEFECTS.**
+
+The refuting pass found real defects in this session's own work for the fourth
+session running. Two are fixed above; the third is disclosed below.
+
+**Known and deliberate omissions.**
+
+- Figure `image_rsrc34F`'s printed lyric is **not restored**. It is image-only —
+  absent from the gated 1991 text layer, confirmed against a known-present
+  control — so the mandated "splice from the spine, never place lyric text in a
+  tool request" method has no source to splice from. The file says so in place.
+- Reddit / r/SunoAI **remains unread**; the Suno re-run read community guides and
+  wikis, not forum threads. `workflow-recipes.md` records that the avenue is
+  still open rather than implying it was exhausted.
+- `templates/audit-checklist-prompt.md` received a correct plural-range fix
+  although the session's own brief forbids touching `audit-checklist*.md`. The
+  change is right and is kept deliberately; the scope violation is disclosed
+  rather than quietly retained.
+
+## [1.0.1]
+
+**Axis 2 closes at 226 of 226.** The last 21 fine-grained units — *Essential
+Guide to Rhyming* (2014) front matter (spine 0-13) and back matter (spine
+132-138) — are audited. No unit at any granularity remains unread in any of the
+four books. Axis 1 stays 44 of 44.
+
+The larger part of this release is a **refutation pass over unverified work**.
+An example-level sweep of all four books had been committed to this branch by a
+run that terminated on a content-filter error *before writing any receipt*, so
+none of it was audited. Eight fresh agents, one exclusive write-set each, were
+dispatched to disprove it rather than bless it.
+
+### Fixed — 20 defects the refutation pass found
+
+Counts summed from the eight receipt headers, not estimated: **49 CONFIRMED,
+20 REFUTED, 6 INCOMPLETE-RESTORATION, 0 UNPROVABLE.** Some hunks are both
+refuted and incomplete, so those two columns overlap.
+
+Every defect is a fidelity failure, not an invention. The pattern from previous
+sessions holds: the real risks are truncation, dropped items and over-claiming.
+
+- **Truncation.** `rhyme-fundamentals.md` presented the Introduction's first and
+  third sentences as consecutive and dropped the one between them; its closing
+  quotation stopped three sentences early. `rhyme-strategy.md` dropped a colon
+  and its three-line example, compressed a four-line reversal, and reduced a
+  worked case to two rhyme pairs. `verse-development.md` ended two set-ups on a
+  colon and replaced the printed examples with cross-references.
+- **Typography standing in for verbatim text.** Curly quotation marks normalized
+  to straight, and an italic span covering a complete refrain phrase dropped, in
+  `song-forms.md`; punctuation, capitalization and apostrophe typography altered
+  inside two quoted passages in `rhyme-sonic-bonding.md`.
+- **Over-claiming.** `form.md`'s own figure inventory claimed 21 substantive
+  transcriptions where the true count is 20, and asserted two choruses share
+  wording when they share a four-phrase `x a x a` structure and open
+  differently. A scaffolding note said four exercise bodies were already
+  verbatim while two still had formatting defects. A coaching gloss turned Pat's
+  qualified claim that most work moves into the writer's head into an absolute
+  claim that worksheets become unnecessary.
+- **Citation-format violations** against the plugin's own rule, in eight places.
+
+Deliberate repetitions were left intact wherever Pat prints a passage twice as
+pedagogy — the false-positive trap that would have destroyed correct text.
+
+### Fixed — Suno platform drift
+
+- **The highest-volume confidence error in the skill.** One line stamped "Creative
+  Slider behavior" as HIGH confidence and thereby certified roughly thirteen
+  unsourced numbers as officially confirmed. HIGH now covers only slider names
+  and qualitative endpoints; every numeric setting is community-empirical.
+- **Audio Influence for an active Voice: raise it.** The 25-30% figure is
+  removed along with its "contradicts initial Suno docs" framing, which was
+  backwards — it contradicts *current* docs. No threshold, including `>=70%`,
+  is first-party; Suno publishes no number.
+- The unsourced v4.5-metatag-breakage claim and the invented `[Vocalist:
+  Female]` form are deleted; `[Male Vocal]` / `[Female Vocal]` are kept.
+  `[Synth Solo]` no longer appears as non-standard ten lines above the list
+  that calls it recognized.
+- **Cover/harmony added with its evidence bounds attached.** The per-element
+  preserve table, the documented-absence answer on chord control, and the
+  re-record-then-Cover workaround. That cluster reached **zero community
+  sources** and Reddit was unreachable, so "Suno documents no way to do this"
+  is stated explicitly as not meaning "this cannot be done", and the section is
+  flagged for a community-source re-run.
+- Reuse corrected to text-field reuse with no slider; "harmonic seed" removed.
+
+### Verified rather than assumed
+
+- The **shipped invocation path** was tested cold for the first time. Routing
+  resolves, `${CLAUDE_PLUGIN_ROOT}` / `${CLAUDE_PROJECT_DIR}` expand correctly,
+  the response-filter pre-flight fires ahead of output, and **all 761 relative
+  links and 38 heading fragments resolve**. Caveat: the plugin is served from
+  the repo checkout, so this exercised the branch content, not the published
+  1.0.0 tarball.
+- Two `genre-taxonomy.md` pointers an earlier commit claimed to have repaired
+  did not resolve; they were placeholder and brace-expression forms that
+  ordinary link checking misses. Now expanded to concrete files.
+- Pat's italic on `you` — "the hardest thing you will ever do is to write as
+  well as *you* can" — restored from the Afterword page scan. The 2014 text
+  layer strips italics and wraps each word in its own span, so only the scan
+  could settle it.
+
+### Known, and deliberately not changed
+
+- **Suno D2 is unresolved and awaits a maintainer decision.** The skill teaches
+  a single varied 90-120s voice-clone clip in one file and three separate clips
+  in two others. No external source resolves it; agents were forbidden to pick.
+- Inline changelog prose ("An earlier revision of this file claimed…") remains
+  in nine runtime context files. It is accurate and is this project's main
+  defense against fabrications regrowing, but it belongs in a receipt.
+- **`hook.md` lyric enrichment was attempted and DROPPED.** The agent produced
+  141 lines, but it transcribed figures by building an **OCR pipeline** and then
+  "correcting OCR errors" — including inserting a missing apostrophe — instead
+  of rendering each figure and reading it. Roughly half of this project's
+  quote-checker misses are already extraction artifacts; OCR adds a new artifact
+  source, and repairing its output by inference is the fabrication risk the
+  whole audit exists to prevent. The work is discarded unverified rather than
+  shipped. `hook.md` is unchanged in this release.
+
+## [1.0.0]
+
+**Chapter coverage was complete at 0.9.0; file coverage was not.** This release
+audits the five files built from chapters closed in earlier sessions, reads the
+three non-book web sources that eight sessions had treated as unopenable, and —
+for the first time in ten sessions — **tests whether the plugin's output is any
+good.**
+
+Scoreboard, computed from the ledger and unchanged by this release because the
+work was file-level, not chapter-level: **Axis 1 — formally audited, 44 of 44
+units (100%). Axis 2 — fine-grained, 205 of 226 (91%).** The 21 outstanding
+fine-grained units remain *Essential Guide to Rhyming* (2014) front matter
+(spine 0-13) and back matter (spine 132-138) — TOC, preface, afterword, index.
+No craft chapter is unaudited in any of the four books.
+
+### Added — the output test, and what it found
+
+- **The lines are good, and the reason matters.** Running the craft skills on a
+  real brief produced usable verses in common meter and a chorus using Paradigm
+  Three's deceptive closure to spotlight the title. The `object-writer` agent is
+  the strongest component: dispatched blind on the seed "an extension cord",
+  knowing nothing of the brief, it returned "seven turns, always seven, he
+  counted them out loud" for a song about a dead father. The blind dispatch is
+  what produced that, and both writers graded a thin sense channel honestly
+  rather than padding it.
+- **The quality is contingent on the response filter actually running.** Every
+  good line survived because a specific §2 box rejected a worse one; drafting
+  without naming boxes produced the generic default the filter exists to catch.
+  **`response-filter.md` is therefore the highest-leverage file in the plugin**,
+  and the filter is self-administered with no enforcement.
+- Caveat recorded rather than glossed: the installed plugin was 0.8.3 while this
+  branch was 0.9.0, so the *content* was tested by executing the skill bodies
+  directly. **The shipped invocation path is still untested end to end.**
+
+### Fixed — two "duplications" that were not, and one that was
+
+- **`phrasing.md` and `meter.md` were FALSE POSITIVES.** Pat prints the Steely
+  Dan verse at eight phrases, then pulls one out to show seven, then cuts to
+  four — that is his pedagogy. `meter.md`'s two "Mary Had a Little Lamb" blocks
+  differ in line four: a three-stress close for Paradigm One against a
+  four-stress overshoot for Paradigm Three. **Folding either would have
+  destroyed correct Pat text.** Both left alone.
+- **`song-forms.md` was the only genuine one** — a whole "Third-system risk"
+  section restating Chapter 23's worked lyric and Pat's three numbered Options.
+  Folded to a cross-reference; the surviving section verified to lose nothing.
+
+### Fixed — the 1991 figure trap, caught live again
+
+`"She sold the fleece to pay the rent"` returns **zero hits** in the 1991 text
+layer, wrap-safe and by fragment. It is **genuinely printed** in figure
+`image_rsrc30F` with "the rent" in italics. That book argues in figures and its
+text layer under-reports; every cut in `meter.md` was checked against a rendered
+scan first. A verification pass rendered **all 45 Chapter 3 figures** and
+confirmed none prints a mood, a section label, or a "best for" line — so the
+three unsourced comparison rows and the "Teaching move" line were cut correctly.
+
+### Fixed — file-level audits
+
+- **`cliche.md`** — the cliché-phrase list shipped as "a representative slice,
+  in his grouping" and was neither: **43 of Pat's 101 printed cells were
+  missing, and surviving rows were stitched together from different printed
+  rows.** The complete 34-row table is restored from the raw XHTML and verified
+  cell-for-cell, including the duplicate `losing sleep` that Pat really prints
+  twice.
+- **`rhyme-strategy.md`** — the two "Decision matrix" sections were **not**
+  duplicates but different subjects; one had Pat's family/assonance pairing
+  **inverted**. Nine Chapter 9 pairings re-verified in the chapter's own order.
+  The two Strategy 1/2/3 treatments *were* genuine duplication and are merged.
+- **`rhyme-worksheets.md`** — a thirteen-slot seed box was attributed to
+  Exercise 7.2; the page-75 scan shows it inside the Exercise 7.1 grid, between
+  `6. risk` and `7. chance`. A column-order extraction artifact. Also fixed:
+  `flirt / church` mislabelled consonance when Pat's own definition requires
+  differing vowels, and a claim that all eleven seeds came from his page-20
+  sketch when only three do.
+- **`object-writing.md`** — 2009 Chapter 2 prints no exercise at all; an
+  invented count was presented under its provenance. Rusty's collar moves down
+  **two** lines, not one.
+
+### Fixed — non-book sources, all three READ for the first time
+
+- **patpattison.com "Lyric and Melodic Phrases"** — the "maximum meaning" quote
+  is real and had been truncated. Its taxonomy of fixes is **Pat's own and has
+  four options**, not three; a prior pass had demoted it as plugin-authored, and
+  dropping his fourth ("Keep it the way it is, since no one listens to lyrics
+  anyway") is what made the list look invented.
+- **patpattison.com "The Art of Phrasing"** — **`front-heavy` / `back-heavy` are
+  Pat's own coinage**, defined on that page, not plugin shorthand. So is
+  "Phrasing has the power to create emotion. It's the body language of your
+  song." Both had been wrongly marked. **"Not in the four books" and "not Pat's" are
+  different claims** — cite the column, never a chapter.
+- **American Songwriter "Motion Creates E-Motion"** — carries no four-controller
+  framework and never mentions line length, so the "live unresolved conflict"
+  with *Songwriting Without Boundaries* (2011) Challenge 4, Day 13 **does not
+  exist.** Recorded as incomplete, not contradicted.
+
+### Fixed — third-party lyric restorations (all Class A defects cleared)
+
+All five `LYRIC-HANDOFF` markers in `form.md` are resolved — every dangling
+set-up now has its text under it: the four "IT WAS A VERY GOOD YEAR" verses in
+Pat's order, the "Years" chorus and its nine-line verse, both Song Systems from
+figures `image_rsrc32F` / `32G`, and the deceptive-closure rhyme figures.
+Scansion was read off rendered figures rather than re-derived, and **Pat's own
+"thirty-five" / "thirty five" inconsistency is preserved as printed.**
+
+### Fixed — vocabulary and the agent contract
+
+- **`central emotion` (0 corpus hits) replaced with Pat's real phrase**, "the
+  central intent, idea, and emotion of the work" (*Writing Better Lyrics*
+  (2009), Chapter 18), across nine files. It truncated a real three-part phrase,
+  which is why quote sweeps kept missing it.
+- `tone of voice` (0 hits, and not located in any Pat column either) registered
+  as plugin shorthand in `book-references.md`.
+- **The `object-writer` agent's frontmatter promised a return shape its own
+  output contract forbids.** Corrected to match: path, seven graded channels,
+  one sentence.
+- Audit-process vocabulary had leaked into shipped content — a reader hitting
+  "see LYRIC-HANDOFF" had no way to know what that meant. Removed.
+
+### Fixed — Suno platform drift (partial)
+
+The two first-party-contradicted tier rows are corrected: **Free has no stem
+separation at all** (the "2-track stems: Free ✓" row was false), and Split from
+Mix / Auto Split / Advanced Split are three **modes**, not track counts. Voices
+stays Pro / Premier; free plans got a **trial** on 7 August 2026, with an
+unresolved web-versus-mobile caveat recorded rather than guessed — a trial is
+not all-tier entitlement, and the plugin no longer describes it as one. **The remaining Suno remediation items are not
+done** — see the audit's own ordering in `.work/songwriting-plugin-pilot/`.
+
+## [0.9.0]
+
+**All four Pat Pattison books are now formally audited — 44 of 44 units.** This
+release closes the remaining 15: *Essential Guide to Lyric Form and Structure*
+(1991) Chapters 5 and 7, *Essential Guide to Rhyming* (2014) Chapters 1-9, and
+*Songwriting Without Boundaries* (2011) Challenges 1-4. **127 fabrications were
+removed and 283 passages restored verbatim.**
+
+### Fixed — charts and figures the EPUB text layer corrupts
+
+- **Pat's Vowel Triangle was wrong in both legs**, in two files. The figure is
+  printed as a **V with the apex `ä (papa)` at the bottom**; the text layer
+  hoists `ä` to the top and transposes vowels on each leg. Corrected against the
+  page scan to tongue leg `ä → ă (cat) → ĕ (end) → ĭ (it) → ē (me)` and lip leg
+  `ä → ŭ (up) → ŏ (hot) → oo (foot) → ū (too)`. **This is load-bearing:** family
+  assonance is defined as *one step* along a leg, so a transposition changes
+  which pairs count as adjacent. `rhyme-generation.md` had it worse — `ŭ (up)`
+  on the wrong leg entirely and `ă (cat)` missing. Both files now carry an
+  in-file warning against re-deriving it from text.
+- **The consonant chart (2014 Chapter 5) emits column-major as garbage.**
+  Transcribed from the scan. Nasals are a *single* row (all voiced), not a
+  voiced/unvoiced split.
+- **Two answer keys existed only as images** and are restored — 2014 Exercise
+  8.1 (printed rotated 180°) and Exercise 8.3 item 1, which had been silently
+  dropped.
+<!-- spellchecker:off -->
+- **1991 Chapter 7's scansion figures** (12 of them) transcribed from the page
+  images. Figure `34C` carries a genuine printing discrepancy — its stress marks
+  show three stresses where its DUM-da row shows four — **reproduced as printed,
+  not corrected.**
+<!-- spellchecker:on -->
+
+### Fixed — invented scaffolding, the dominant defect class
+
+- **127 fabrications removed across 30 files.** The recurring shapes: `Use when:`
+  lists, bullet "tests", `- [ ]` checklists, named axes, "Revision workflow"
+  step-lists, decision matrices, and round-number thresholds.
+- **Counts and category lists were the most reliable tell.** Corrected: a
+  five-item metaphor taxonomy where **Pat's count is three**; "Pat's four focus
+  questions" where he prints **six**; a seven-name transitional-bridge alias list
+  where the figure prints **six**; a seven-row clause table where he names
+  **five**; a four-bullet hot-spot list where he prints **three** levels; "six
+  rhyme types" under a heading whose printed scale has **five**.
+- **Round-number thresholds were invented without exception** — "3-5
+  candidates", "over 30 minutes", "5-15 per seed word", "removes ~30% of
+  AI-generated rhyme lists". `minutes` appears **zero times** in the entire 2014
+  book.
+- **A table that inverted its chapter's argument.** `rhyme-generation.md`
+  assigned each rhyme tier one fixed use-case; 2014 Chapter 9 argues every
+  effect is **position-conditional** — the same family rhyme lightens a push in
+  the dominant slot and softens a landing in the tonic slot. Replaced with Pat's
+  seven printed dominant×tonic substitutions.
+- **An entire masculine/feminine/mosaic example table** whose every pair
+  (`time/rhyme`, `dreary/weary`, `going/showing`, `silence/find us`) returns zero
+  hits in **both** the 2014 and 1991 books while cited to "2014, Chapter 1".
+- **`metaphor.md`'s self-declared "Restoration blocked" hole is closed** — all
+  six of Pat's printed Day 10 answers restored verbatim.
+- **A misattribution to Pat of someone else's term.** "Destination writing" is
+  **Andrea Stolpe's**; Pat credits her by name and book title. The invented
+  "8-9 minutes / 1-2 minutes" form attached to it is gone.
+
+### Fixed — quotes
+
+- **A fabrication recorded as fixed in 0.8.6 was still live.** `"Craft prepares
+  you to be creative."` was corrected in `rhyme-types.md` and **survived in
+  `exercises.md`** with its citation intact. Pat's real line is "Craft prepares
+  **him** to be immensely creative with his shots". A fix in one file is not
+  proof the invention is gone from the corpus.
+- **A paraphrase was standing in as a verbatim quote.** "Tools, not rules." in
+  that word order appears in **none** of the four books — it is the *column
+  title*. Pat's printed line is "There are no rules, only tools."
+  (*Writing Better Lyrics* (2009), Chapter 18), and again as "there are no
+  rules. Only tools." (*Essential Guide to Rhyming* (2014), Chapter 4).
+- **"One focused finding outweighs ten scattered notes" was invented** (zero
+  corpus hits) and was labelled **"Pat's rule"** in two files. Retained as
+  plugin-authored coaching posture with the attribution removed.
+- **`state / vary / withhold / deliver`** — an invented four-stage scaffold
+  carrying a blockquote falsely attributed to 1991 Chapter 7. Removed from
+  `hook.md` and from its recurrence in `beyond-books.md`.
+- **An invented "Shelley principle"** with a three-item `Use when:` list. Pat
+  names no such principle. The neighbouring quote is genuine and was kept — its
+  *form* was fixed (a partial quote stitched mid-sentence, now quoted in full).
+- **Mechanical verification:** every block-quoted sentence in `context/` was
+  tested against the full four-book corpus — **1,936 checked, 1,840 matched
+  verbatim.** All 96 residual were adjudicated individually by four fresh
+  agents prompted to *refute*, as artifact, correctly-sourced non-book
+  material, wrong-citation, or fabrication. Roughly half were checker
+  artifacts:
+<!-- spellchecker:off -->
+  hyphenation at a line break (`struc- tural`), a space eaten at a
+  break (`second-personnarrative`), a **drop cap**, U+2003 em-space
+  separators, `[[FIG:]]` splitting a sentence, and the 2014 hard-wrap.
+<!-- spellchecker:on -->
+  **The checker's own limits are recorded with it**, because they bound this
+  claim: it reads only `>` block-quotes, so tables, inline quotes and fenced
+  blocks are not covered — and two of the defects found in the verification
+  pass were bullet lists that could never have appeared on a quote list.
+
+### Fixed — fabrication-by-correction, a defect class in the opposite direction
+
+- **The plugin had silently corrected Pat's typos.** 1991 Chapter 7 prints "your
+  verbs will all already **by** POV neutral"; the file had it as "be". Confirmed
+  a book typo in the raw XHTML, and restored with a do-not-correct note.
+<!-- spellchecker:off -->
+- Now marked as printed and protected from future "fixes": `swiftless`,
+  `frictatives`, `Famly`, `Percy Bysshe **Shelly**`, `Ozymandius`, and "YOUR
+  CHORUS YOU WROTE".
+<!-- spellchecker:on -->
+
+### Fixed — citations
+
+- **Two `Book N` citations were live on `main`**, hidden from the regression grep
+  by line wrapping: `beyond-books.md` ("overlaps Book / 2 Chapter 18-21") and
+  `object-writing.md` ("across Books / 2 and 3"). **The single-line grep in use
+  has a false negative** — the wrap-safe form is
+  `grep -rnPzo "Books?\s+[1-4]\b" | tr '\0' '\n'`.
+- 2014 Chapter 9's boundary corrected from the running heads: spine **120-131**,
+  with 132 being the **Afterword**.
+
+### Added — verbatim restorations
+
+- **1991 Chapter 5 and Chapter 7 in full**, closing the 1991 book: the five hook
+  strategies as printed, the A/B/C forward-motion cases, TARGETING (named in the
+  book, not "in lectures"), the strategic-position passage, Chapter 5's
+  BUILDING SECTIONS material and its four juggling parameters.
+- **1991 Exercises 34-38 and 39-44 restored verbatim**, recovering the song
+  titles and hooks the paraphrases had genericized away — `SOUTHERN COMFORT`,
+  `TEDDY DOESN'T LIVE HERE ANYMORE`, `YOU DON'T HAVE THE BEST OF ME YET`,
+  `I SLIPPED AND FELL IN LOVE`, `LAST NIGHT'S LOVE` and others — plus Pat's
+  printed answer slots.
+- **2014 Chapter 1's secondary-stress pages**, absent entirely, restored.
+- **2014 Chapter 4's central worked example** — Warren Zevon's "Hasten Down the
+  Wind" with all four rhyme-type versions — was missing and is restored.
+- **2011 Challenge 1's material**: the Chekhov epigraph, the *writus
+  interruptus* passage, Group Writing, and the objectwriting.com contest
+  provenance that explains the named sample writers.
+
+### Fixed — verification pass (four fresh agents, prompted to refute)
+
+- **`verse-development.md` claimed a nine-item "power positions" list.**
+  *Writing Better Lyrics* (2009), Chapter 7 prints **no such list** — only a
+  Moral naming **three** families. An eight-bullet "surprise positions" list had
+  four items absent from the chapter, and **Exercise 12 had been inflated from
+  one printed paragraph into six bullets**, two of which Pat never asks for.
+  `EXERCISE` returns zero hits in that chapter, so the file's ten step-lists are
+  now labelled as the file's own rather than Pat's.
+- **`rhyme-fundamentals.md` carried an invented compressed quote** — `"Rhyme is
+  like the accelerator pedal." — Pat`. Pat's printed text (1991 Chapter 4, "II.
+  PACE") is "Rhyme is like the accelerator in a car: the closer the accelerator
+  gets to the floor, the faster the car moves…". Restored in full.
+- **`lyric-melodic-roadmaps.md` hijacked one of Pat's terms** — it claimed "Pat
+  names this state explicitly" while redefining his 1991 term *through-written*,
+  which has 10 corpus hits all meaning something else. Also removed a fabricated
+  "Pat cites Lady Antebellum…" attribution and an invented "misses 80% of
+  mismatches".
+- **`metaphor.md` had an invented four-row Imagination/Fancy table** placed
+  directly beneath a real Coleridge quotation and contradicting the paragraph
+  below it; Pat's whole statement is one sentence about degree.
+- **`cliche.md`'s Exercise 10 was inflated from two steps to five**, and an
+  invented four-bullet "Use this test:" replaced Pat's actual two-part rule.
+- **`meter.md` carried a wrong scansion inside a fenced block** — figure
+  `image_rsrc30K` prints `Knowing no one else can see` as `/ u / u / u /`; the
+  file had `no`/`one` swapped. Caught only by rendering the figure at 12×.
+- **An editorial gloss sat *inside* a block quote in `song-forms-examples.md`**,
+  wearing Pat's voice. Moved out.
+
+### Changed
+
+- Two probes from the audit ledger are resolved with verbatim evidence: the
+  "Can't Fight This Feeling" five-stress claim is **supported** (1991 Chapter 5
+  prose plus Chapter 7's scansion figures — though **Chapter 7 never uses the
+  word "duple"**), and the "Years" composite-balance claim is **supported in its
+  arithmetic** while a trailing paragraph asserting bar counts was **invented**
+  and removed.
+
+## [0.8.6]
+
+**Wave A cleanup — the five research files the previous pass left unfinished,
+plus an extractor bug that had been silently corrupting every quoted stanza.**
+
+### Fixed — the extraction bug, which reaches back into 0.8.5
+
+- **`<br>` carries attributes in these EPUBs and the extractor was missing
+  them.** The sources are Calibre-produced and write line breaks as
+  `<br class="calibre2"/>`, which a `<br\s*/?>` pattern does not match; the
+  tag-stripper then removed them, so **every lyric stanza arrived as a single
+  run-together line**. Agents restoring those stanzas were **inferring the line
+  breaks**. Corrected to `<br\b[^>]*>` and the corpus re-extracted.
+- **This is a correctness bug, not a cosmetic one** — line count is what
+  balance, stability and scansion claims are *about*. Re-verifying against the
+  corrected source immediately caught a real error: the stagnant sheriff Box 3
+  in *Writing Better Lyrics* (2009) Chapter 6 is **two printed lines, not one**.
+- **The spine/image invariants do not detect it** — all four passed cleanly
+  before and after. A stanza spot-check has been added to the extractor gate.
+- **The ~9,000 lines restored in 0.8.5 were built with the buggy pattern** and
+  have not been re-verified. Recorded for the verification pass.
+
+### Fixed — fabricated material removed
+
+- **`rhyme-types.md` carried an invented Pat quote.** A pull-quote reading
+  "Craft prepares you to be creative." appears **nowhere in any of the four
+  books**. Replaced with the real sentence from *Essential Guide to Rhyming*
+  (2014), Chapter 9.
+- **`stable-unstable-meta.md`, a 201-line file, held seven separate
+  fabrications** — an unsourced "central emotion" `— Pat` quote (zero corpus
+  hits), an epigraph falsely attributed to Berklee Online, an entirely invented
+  "five motion controllers" table (`melodic rhythm` and `harmonic rhythm` return
+  zero hits corpus-wide), invented stability-lever rows, a fake tone-of-voice
+  quote, an invented "Pat's stance" paragraph with invented examples, and an
+  invented table column plus a phantom pre-chorus row. All replaced with Pat's
+  actual five elements of structure from *Writing Better Lyrics* (2009)
+  Chapter 18, or relabelled unaudited where no book source exists.
+- **`repetition.md`'s hidden-question and hidden-command matrices were
+  invented**, including a fabricated "Effect" column. Replaced with Pat's
+  printed `do` / `did` / `will` blocks and the real
+  *You tell me / Tell me / Want me* sequence.
+- **`box-model.md` was largely invented above the citation line.** Removed: the
+  three-tier box-weight scheme, an entire fabricated **"Other named division
+  axes"** table (Time of day / Season / Location / Sense / Speaker stance /
+  Distance — no such list exists in either chapter), an invented three-bullet
+  "travelogue test", an invented three-bullet "same-color test", invented
+  You-I-We and Past-Present-Future bullet glosses, invented failure-mode rows,
+  and editorializing Pat never wrote ("if Box 3 is lighter than Box 2, the song
+  sags"). Each replaced with Pat's actual passage — the stack-of-boxes
+  paragraph, his Hawaii travelogue definition, his colored-spotlights paragraph
+  and his real worked diagnoses. **"Same-color" is this file's shorthand, not
+  Pat's term, and is now labelled as such.**
+- **`box-model.md`'s "One More Dollar" section was a prose plot summary.**
+  Replaced with Pat's printed lyric and the real box diagram
+  (Working / Gambling / Panhandling to get home), read off the figure.
+- **`point-of-view.md` was scaffolded with invented apparatus.** Removed five
+  separate invented "Use when" lists, an invented four-question direct-address
+  "fact test", invented translation "tests", and a fabricated
+  *One walks into the room / You walk into the room* example. Replaced with
+  Pat's actual one→you substitution on the Seger couplet, his real one-sentence
+  test, his printed narrative rewrites, and the songs he actually names —
+  "The Great Pretender", "Sentimental Lady", "Dress Rehearsal Rag",
+  "Digging for the Line" and "As Each Year Ends", none of which the file named.
+  Pat prints exactly **four** direct-address listener positions; the file's
+  count is now his.
+- **`stable-unstable-meta.md` debunked "central emotion" at the top and then
+  kept using it as a diagnostic key.** The fabricated quote was replaced, but
+  the worked diagnostic, the coaching prompts and the anti-patterns still keyed
+  off the invented phrase. All three now use Pat's actual wording from
+  *Writing Better Lyrics* (2009) Chapter 18 — **"central intent, idea, and
+  emotion"**. A provenance section was added naming the two things in the file
+  that are **not** Pat's: the tone-of-voice axis (non-book, 0 corpus hits) and
+  the worked diagnostic (this file's own applied example).
+- **Two restored quotes lost their italics and so looked like transcription
+  errors.** "you already knows all this stuff" and "a kind of universal feeling
+  that you seems to add" both read as subject-verb slips. They are not: the raw
+  XHTML italicises **`you`** in each, because Pat means the *word* `you` as a
+  mentioned term, which takes a singular verb. **Both sentences are correct as
+  printed**; the italics are now restored. This is a second, subtler failure
+  mode of the extractor — stripped italics can make correct verbatim text look
+  broken and invite a "correction" that would corrupt Pat's actual words.
+- **`point-of-view.md`'s own header over-claimed.** It said the file names "the
+  song and writers"; "Sentimental Lady", "Digging for the Line" and "As Each
+  Year Ends" carry **no writer credit** in Pat's text or the permissions page,
+  so it now says "the song, and the writers where Pat names them."
+- **`repetition.md` had silently truncated a quote** (a dropped opening clause,
+  then recapitalized) and **softened a categorical rule** — Pat writes that the
+  device *only* works in first and second person. Both restored.
+
+### Changed — the License section now describes what is actually here
+
+- **`README.md`'s License paragraph was factually false.** It claimed the plugin
+  "contains distilled craft guidance and short verified anchor quotes, not book
+  text." It has not been true since 0.8.5. Rewritten: MIT covers the plugin's
+  own code, skills and prompts and does not extend to quoted material; the
+  research files reproduce Pat's text and the lyrics he analyses verbatim, as a
+  deliberate decision by the owner, who owns all four books and is the only user;
+  Pat's writing remains his and the lyrics remain their writers'; readers who are
+  not the owner get no rights to any of it from the MIT header, and are pointed
+  at the four books.
+- **`point-of-view.md` had invented its own no-full-lyrics rule** — "Complete
+  third-party song lyrics are not reproduced" — and cut lyrics to fragments,
+  leaving it inconsistent with `box-model.md`, which reproduces them in full.
+  The rule was never the owner's; it is revoked and the header now says so. The
+  "As Each Year Ends" stanza is restored to Pat's full six lines. **Some
+  excerpts in that file are still short; this is recorded there as a known gap
+  rather than a policy.**
+
+### Fixed — a second sweep, and the scaffolding thesis measured
+
+- **`audit-checklist.md` was nearly half wrong, box by box.** 192 lines carrying
+  26 chapter citations and **zero reproduced text** — pure `- [ ]` scaffolding
+  attributed to specific chapters. All 83 checkboxes were tallied against the
+  cited chapters: **42 traceable, 15 distorted, 26 invented.** Traceable boxes
+  now quote Pat's actual sentence; distorted ones are corrected; invented ones
+  are relabelled as this file's own synthesis rather than deleted, so the owner
+  can see what is his tooling's invention and what is Pat's. **11 false section
+  attributions** were fixed.
+- **`bridge.md` opened on a six-word quote.** `"A bridge isn't a verse."` was
+  bare and uncited. The sentence is real but was **truncated** — Pat's full
+  passage in *Writing Better Lyrics* (2009) Chapter 23 goes on to contrast the
+  bridge against verse and chorus. Restored in full and cited, along with
+  Exercises 49 and 50 (entirely absent), the 1991 Chapter 5 five-point bridge
+  definition, and the transitional-bridge list — each restored as Pat's printed
+  numbered list rather than a flattened paraphrase.
+- **A fabricated alias pair in `bridge.md`.** The file listed "channel" and
+  "runway" as names for the pre-chorus. Zooming the actual figure shows Pat
+  lists only Pre-Chorus, Climb or Lift, Vest, Verse Extension, Ramp and Prime.
+  Removed. **This one was only catchable by reading the image.**
+- **A fabricated quote in `response-filter.md`**, plus a quote misattributed to
+  *Writing Better Lyrics* (2009) Chapter 1 that is really Chapter 5. Several
+  Berklee-sourced blockquotes elsewhere were de-quoted rather than left
+  masquerading as Pat's printed words.
+- **`cliche.md` presented two couplets as displayed stanzas.** Pat quotes both
+  inline in running prose, slash-separated. Corrected to match.
+
+### Verified — the line-break damage is narrower than feared
+
+The `<br>` bug was reported as potentially affecting all ~9,000 restored lines.
+**Measured, it does not.** Every quoted block in all 49 research files was
+checked mechanically — **1,109 consecutive line-pairs** — for the specific
+corruption signature, a file splitting a line the corrected source keeps whole.
+
+27 candidates surfaced and nearly all were legitimate: 14 in `phrasing.md` are
+Pat's own deliberate split into **eight short phrases**, and the rest are
+dialogue split per speaker, contrasted variant lines, and a wrapped thesaurus
+entry. **Only `cliche.md` needed correcting.** A proposed "fix" to `hook.md` was
+checked against the raw XHTML and **rejected** — there is a `<br>` between every
+line there, so those are genuinely separate printed lines and joining them would
+have introduced the very corruption being hunted.
+
+**The shape of the defect, now that five files have been done at once:** the
+paraphrase rule did not merely omit Pat's text, it **replaced it with invented
+scaffolding** — "Use when" lists, bullet "tests", checklists, named axes and
+failure-mode tables that read like craft guidance and cite nothing. This
+apparatus is the single most common fabrication form found, it is present in
+every file examined, and it is more dangerous than a wrong quote because it
+looks like the useful part.
+
+### Fixed — citations and claims narrowed
+
+- **`box-model.md` was cited to *Writing Better Lyrics* (2009) Chapters 6-9,
+  22-23.** Chapters 22 and 23 contain **zero** occurrences of "box". Narrowed to
+  Chapters 6-9.
+- **`five-compositional-elements.md` claimed the 1991 book has "no family,
+  additive, assonance, or consonance vocabulary".** Narrowed rather than
+  deleted: family, additive and assonance are genuinely absent, but
+  *Essential Guide to Lyric Form and Structure* (1991) Chapter 4 names
+  **Consonance Rhyme** in the Shelley analysis.
+- **`rhyme-types.md`'s "six rhyme types" count was checked and left unchanged** —
+  the reported count/list disagreement was not real.
+- **Exercise 8.7 is genuinely absent from the printed book.** *Essential Guide
+  to Rhyming* (2014) Chapter 8 runs 8.1-8.6 and 8.8-8.10, confirmed against the
+  page scans rather than the text layer alone, because a numbering gap is
+  normally an omission detector. `rhyme-sonic-bonding.md` already said so.
+
+### Restored — Pat's verbatim text
+
+- **`box-model.md`** — the form-neutral box definition, the progressive-weight
+  passage, the division-of-labor principle and the "Between Fathers and Sons"
+  analysis, from *Writing Better Lyrics* (2009) Chapters 6-9.
+- **`point-of-view.md`** — the perspectives, the Hangman material and the
+  Chapter 13 dialogue, from *Writing Better Lyrics* (2009) Chapters 10-13. Its
+  Berklee Online material was deliberately left untouched and marked unaudited;
+  **no quote was invented for a source that cannot be read.**
+- **`stable-unstable-meta.md`** — Pat's actual stability wording, the film-score
+  passage, the high-wire opening and the "Can't Be Really Gone" reading.
+- **`repetition.md`** — the sheriff summaries and box sets, the
+  "I'd just like to know" three-box demo, the neutral chorus, and the
+  "Strawberry Wine" and "Unanswered Prayers" analyses with their songwriter
+  credits.
+- **`song-forms-examples.md`** — Pat's worked form analyses from *Essential
+  Guide to Lyric Form and Structure* (1991) Chapter 6: the missing verses of
+  "This Bottle and Me", his three-purposes bridge passage, the Ballad Stanza
+  introduction with the "Western Wind" and "The Unquiet Grave" quotes, and
+  Exercises 35 and 38. The file's header also claimed these were "canonical
+  songs"; they are **Pat's own demo lyrics**, and now say so.
+- **Figure-only content recovered.** Several passages in 1991 Chapter 6 exist
+  **only as images**, following a dangling colon in the text — including the
+  AABA **statement / restatement / variation / return** table, the S1/S2/S3
+  bridge diagrams, the ABAB ballad-stanza principle and the verse scansion
+  strips. The chorus walk-through phrase attributions were also corrected
+  against the figures, so each of Pat's sentences now sits beside the printed
+  phrase it describes.
+
+## [0.8.5]
+
+**A reversal of standing policy, plus a source-fidelity pass.**
+
+Every previous release of this plugin was built under a "paraphrase only —
+never reproduce Pat's text" rule that had been propagating through eight
+handoffs. **That rule is revoked.** The repo owner owns all four books and this
+reference is for their own use, and the paraphrasing was actively destroying
+the value of the craft guidance: an exercise summarized is not an exercise, and
+a worked example described is not an example. Pat's actual text, actual
+examples, actual exercise wording and actual printed answer keys are being
+restored across the whole knowledge base.
+
+This release covers *Essential Guide to Lyric Form and Structure* (1991)
+Chapter 4 (Rhyme), read in full with **all 40 of its figures** at 3x upscale,
+plus the first wave of the verbatim restoration across the other research
+files. Two findings below came only from the figures: the balance-paradigm set
+and the printed exercise answer keys, neither of which exists in the text
+layer.
+
+### Restored — Chapter 4
+
+- **Pat's two worked `aabb` / `abab` sections are back in `rhyme-strategy.md`
+  in full**, as he wrote them, with the Exercise 27 instruction to reverse
+  them. Likewise his worked `ABACCB` plot sketch and rhyme words from Exercise
+  28, his "Ready or Not" verse and chorus, and both `abcccb` acceleration
+  examples including the feminine-rhyme comedy version.
+- **The closure sections now show Pat's actual word-schemes** rather than bare
+  letters: both deceptive continuations, both non-deceptive open contrasts,
+  both unexpected-closure cases, and the paired `aaa` illustration that
+  distinguishes looking-backward identity from a genuinely open odd-count
+  system.
+- **The three labeling drills now carry their printed answer keys** (Ex 23, 24,
+  25), transcribed from the page scans. Ex 24 #6 independently confirms `abba`
+  is open. The keys are printed rotated 180° at the foot of each scan; reading
+  them in place gets them wrong, so they were re-read from cropped, rotated,
+  4x-upscaled strips. Ex 23 #7 is `T` — consecutive rhymes do not fragment when
+  they follow an odd phrase count, which the chapter states outright.
+- **Three fabrications, not just omissions.** `rhyme-types.md`'s weak-syllable
+  examples (`mountain/certain`, `shadow/window`, `ringing/falling`) were
+  invented — the chapter names weak-syllable rhyme but never defines it.
+  `form.md`'s transitional-bridge list carried ten names where the chapter
+  prints six, adding "channel" and "runway", splitting "Climb or Lift", and
+  attaching genre and era attributions the book does not make; its heading also
+  cited *Writing Better Lyrics* (2009) Chapter 13, which is "Dialogue and Point
+  of View". `exercises.md` invented its item counts. The paraphrase rule did not
+  only omit — it produced authoritative-looking inventions.
+- **`bridge.md` attached the "four times is a lot" warning to `V/Ch/V/Ch`.**
+  *Writing Better Lyrics* (2009) Chapter 22 attaches it to `v/v/ch/v/v/ch` —
+  four verses, four trips. `song-forms.md` was right all along. Long-standing
+  known defect, now closed with the verbatim passage.
+- **`exercises.md` was missing Ex 32 and 33**, jumping 31 → 34. Both are in
+  Chapter 5. Restored; the 1991 numbering now runs 1-44 unbroken.
+- **The Marvell and Shelley passages are quoted** rather than described — both
+  public domain — with the consonance-rhyme gloss Pat attaches to
+  "Ozymandias."
+
+### Restored — across the knowledge base
+
+Twenty-nine research files were swept. Pat's real examples, exercise wording,
+worksheet layouts and printed answer keys replace the summaries that stood in
+for them. Highlights:
+
+- **`exercises.md` no longer advertises that its exercises are paraphrases** —
+  they were, which meant not one numbered exercise in the file was actually
+  Pat's. They are now.
+- **`rhyme-types.md`** — every stability tier now carries Pat's own definition
+  wording and his actual example word-pairs, tier by tier. This is the file the
+  rhyme skill runs on.
+- **`daily-practice.md`** — the 56-day curriculum now lists Pat's real seeds
+  and day titles with his numbering, replacing "(paraphrased shape)" stubs.
+- **`prosody.md`, `meter.md`** — Pat's actual scansion strips, motion/emotion
+  demonstrations, and worked stress examples.
+- **`five-compositional-elements.md`** — Pat's full "Some People's Lives"
+  demonstration, including the counterfactual rewrites and his commentary on
+  why the one-row change matters at song scale.
+- **`worksheets.md`, `rhyme-worksheets.md`** — real worksheet layouts and
+  Pat's numbered step text, quoted.
+- **`song-forms.md`, `song-forms-examples.md`, `form.md`, `hook.md`,
+  `bridge.md`, `phrasing.md`** — worked song analyses with their real sections
+  rather than "mechanism analyses (NOT lyric reproduction)".
+- **`metaphor.md`, `cliche.md`, `object-writing.md`, `repetition.md`,
+  `verse-development.md`, `box-model.md`, `title-game.md`, `idea-to-title.md`,
+  `mosaic-rhyme.md`, `rhyme-sonic-bonding.md`,
+  `rhyme-spotlight-connection.md`, `rhyme-dictionary-practice.md`** — real
+  collision lists, cliche examples, sample writes, and rhyme demonstrations.
+
+Web-sourced passages (Berklee Online, patpattison.com, American Songwriter,
+Coursera) stay paraphrased and stay marked unaudited — those sources are not in
+the corpus and nothing was invented to fill them.
+
+### Changed — tooling
+
+- **Scansion strips are wrapped in the spell-checker's block directive.** Pat's
+  stressed-syllable vocalization is flagged as a misspelling of "DUMB", and it
+  now appears verbatim in `meter.md`, `prosody.md` and `daily-practice.md`. An
+  earlier revision of this branch added the exception to `_typos.toml`
+  directly; that file is synchronized from `melodic-software/standards` and a
+  local edit to it is silently dropped on the next sync, so the exception is
+  applied with the inline `spellchecker:off` / `spellchecker:on` convention
+  that config itself blesses. A permanent fix belongs upstream.
+
+### Fixed
+
+- **`rhyme-fundamentals.md`'s identity test asserted the opposite of the
+  rule it was stating.** It said identity "matches conditions 1 and 2 and
+  **also** matches 3" where condition 3 is *"different consonant sound before
+  the vowel."* Identity fails condition 3 — that failure is the entire
+  distinction. As written, the test passed every identity as a rhyme. Every
+  other file in the plugin states the check correctly; this was the sole
+  outlier.
+- **`abba` was listed as a balanced pattern.** The chapter uses `abba` as its
+  explicit counterexample — an opening `abb` is *not* balanced by returning to
+  `a`; it is balanced by `abbabb` or `abbacc` — and the chapter's printed
+  exercise key marks `abba` **open**. Since a balanced system is closed by
+  definition, both sources agree it is neither.
+- **`rhyme-strategy.md` contradicted itself about `abba`,** calling it
+  "encloses" in the strategy table while its own Challenge 4 table listed it
+  under floating instability. Resolved toward the source; the strategy table
+  now states it stays open.
+- **The balance-paradigm list was missing half the set.** Pat prints six
+  (`abab`, `xaxa`, `aa`, `aabb`, `abcabc`, `xxaxxa`); the file carried three
+  of them plus the counterexample.
+- **`five-compositional-elements.md` described `abba` as a "wrap"** in a list
+  where every neighbouring entry names a closure state, inviting the same
+  wrong reading. Clarified that the frame returns without closing. The
+  In Memoriam `abba` in `meter.md` is a **different frame** — Tennyson's
+  equal-tetrameter stanza from the Challenge 4 curriculum — and was left
+  untouched.
+- **`rhyme-fundamentals.md` mislabeled a feminine-rhyme example as an
+  identity** (`lonely / only`). It is a rhyme: the stressed syllables differ
+  before the vowel. Its tail is identical, which the chapter explicitly
+  permits without changing the classification.
+- **Both files' image inventories omitted this chapter.** `rhyme-strategy.md`
+  listed only its 2014 and 2011 sources; `rhyme-fundamentals.md` carried no
+  inventory line at all. This is the **fourth** consecutive Book 1 chapter
+  whose inventory concealed a defect.
+- **Bare "Chapter 4" / "Chapter 9" references in `rhyme-strategy.md`** were
+  genuinely ambiguous in a file citing three books — 2014 also has a Chapter 4,
+  which `rhyme-types.md` uses. Qualified with title and year per
+  `book-references.md`.
+- **Seven remaining bare "Book N" citations retired**, in `audit-checklist.md`
+  (2), `bridge.md`, `rhyme-generation.md` (2), and
+  `templates/audit-checklist-prompt.md` (2) — constructions like "Books 1
+  Chapter 4, 2 Chapter 4, 4 Chapters 4-6" that `book-references.md` prints as
+  the counterexample. The plugin now has no bare "Book N" reference outside
+  that file. Regression test:
+  `grep -rn "Books\? [1-4]\b" context/ skills/ agents/ | grep -v book-references`
+- **`exercises.md`'s header claimed its exercises were paraphrases** while
+  carrying the restored verbatim ones — a stale notice that contradicted the
+  file's own contents.
+- **The Marvell / Shelley worked example appeared three times in
+  `rhyme-fundamentals.md`** — a paraphrase in the flow section, the restored
+  verbatim quotes, and a bullet restating Marvell a third time under a heading
+  promising two examples. The verbatim quotation was prepended rather than
+  substituted for what it replaced. Consolidated to one quotation with the
+  other two positions now referencing it.
+
+### Added
+
+- **`rhyme-fundamentals.md` now names the chapter's five structural areas as a
+  set** — balance, pace, flow, closure, type of closure — and identifies them
+  as the Structural Pentad measured against rhyme instead of stress. The file
+  previously covered all five without ever connecting them.
+- **The through-written / fragmented pair is now linked to the rhythm
+  Paradigms** it is drawn from: `abab` is the simplest through-written system
+  "like rhythm Paradigm One," `aabb` the simplest fragmented one "like rhythm
+  Paradigm Two."
+- **Consonance rhyme is recorded as already named in 1991**, so the 2014
+  stability scale extends that vocabulary rather than introducing it.
+- The cheerleader analogy is now attributed to **both** 1991 Chapter 4 and
+  2014 Chapter 1 — it appears in both, verified by extraction. The prior
+  single-source attribution was incomplete, not wrong.
+
+### Verified — no change needed
+
+- **`prosody.md`'s "1991 Chapter 3-4 (Structural Pentad)" citation holds.**
+  Its standing "Chapter 4 still unaudited" flag is cleared: Chapter 4 opens by
+  naming all five Pentad properties and gives each a numbered section. Only
+  the non-book sources remain unaudited.
+- **`exercises.md`'s Chapter 4 block is complete** — Ex 18 through 28, no
+  numbering gap.
+- **`book-references.md`'s perfect-rhyme citation is accurate.**
+- **`rhyme-types.md`'s page-scan inventory is genuine** — every cited
+  *Essential Guide to Rhyming* (2014) filename resolves against a fresh
+  extraction. Book 4's gate passes at 139 spine items / 139 images.
+
 ## [0.8.4]
 
 A source-fidelity pass over *Essential Guide to Lyric Form and Structure*

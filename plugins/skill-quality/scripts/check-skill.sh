@@ -40,7 +40,10 @@
 #      sibling did not carry at the base ref — WARNs, since the marketplace
 #      listing still routes it; lost phrases and coincidental overlap FAIL)
 #   4. SKILL.md < 500 lines (hard cap)
-#   5. Backtick-cited skill-internal supporting files resolve
+#   5. Backtick-cited skill-internal supporting files resolve (a path that misses
+#      here but resolves under a SIBLING skill also names that sibling and the
+#      `${CLAUDE_PLUGIN_ROOT}/skills/<sibling>/…` cross-skill form, without
+#      dropping the hand-verify caveat — the hit may be a name collision)
 #   6. markdownlint clean (markdownlint-cli2; WARN-skip if npx absent)
 #   7. scripts/*.test.sh pass where present
 #   8. vendor/ byte-identical vs HEAD, unless paired with an upstream-version
@@ -166,6 +169,18 @@ note() {
   printf 'INFO: %s\n' "$*"
 }
 
+# Sorted-unique trigger phrases in a frontmatter block's LISTING text — the
+# description + when_to_use pair the harness assembles into one listing entry.
+# Reads the frontmatter as a string so every caller (working tree, base ref,
+# sibling skill) derives triggers the same way.
+fm_listing_triggers() {
+  local fm="$1"
+  printf '%s\n%s\n' \
+    "$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field description <<<"$fm")")" \
+    "$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field when_to_use <<<"$fm")")" |
+    skill_frontmatter::extract_triggers
+}
+
 if [[ ! -d "$SKILL_DIR" ]]; then
   # A `plugin:skill` argument is a common miss: the operator wants to gate a
   # marketplace-INSTALLED skill, but this checker resolves a bare skill name
@@ -196,6 +211,15 @@ if [[ ! -f "$SKILL_MD" ]]; then
   err "SKILL.md not found: $SKILL_MD"
   exit 1
 fi
+
+# Is this skill bundled in a PLUGIN, or a loose skill under some skills root?
+# A plugin manifest two levels up (<plugin>/skills/<skill>/) is the marker.
+# Several checks branch on it — check 1 (a declared `name` also registers a bare
+# alias there) and check 5 (a cross-skill citation anchors at
+# ${CLAUDE_PLUGIN_ROOT}, which is undefined outside a plugin) — so the layout
+# convention is asserted in ONE place rather than restated per call site.
+IS_PLUGIN_SKILL=0
+[[ -f "$SKILL_DIR/../../.claude-plugin/plugin.json" ]] && IS_PLUGIN_SKILL=1
 
 # --- Check 1: frontmatter parses; description present; declared name matches --
 
@@ -229,7 +253,7 @@ else
     err "frontmatter name '$CUR_NAME' is not kebab-case ([a-z0-9] and hyphens, per the Agent Skills spec)"
   elif [[ -n "$CUR_NAME" && "$CUR_NAME" != "$SKILL_NAME" ]]; then
     err "frontmatter name '$CUR_NAME' does not match skill directory '$SKILL_NAME'"
-  elif [[ -n "$CUR_NAME" && -f "$SKILL_DIR/../../.claude-plugin/plugin.json" ]]; then
+  elif [[ -n "$CUR_NAME" && "$IS_PLUGIN_SKILL" == 1 ]]; then
     # In a PLUGIN skill a matching `name` is not inert: a declared name also
     # answers to the bare `/<name>` unless another command owns that token
     # (https://code.claude.com/docs/en/skills#how-a-skill-gets-its-command-name),
@@ -267,9 +291,7 @@ fi
 
 if git -C "$REPO_ROOT" cat-file -e "$BASE_REF:$SKILL_REL/SKILL.md" 2>/dev/null; then
   BASE_FM_3="$(git -C "$REPO_ROOT" show "$BASE_REF:$SKILL_REL/SKILL.md" 2>/dev/null | skill_frontmatter::extract)"
-  BASE_DESC="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field description <<<"$BASE_FM_3")")"
-  BASE_WTU="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field when_to_use <<<"$BASE_FM_3")")"
-  BASE_TRIG="$(printf '%s\n%s\n' "$BASE_DESC" "$BASE_WTU" | skill_frontmatter::extract_triggers)"
+  BASE_TRIG="$(fm_listing_triggers "$BASE_FM_3")"
   CUR_TRIG="$(printf '%s\n%s\n' "$CUR_DESC" "$CUR_WTU" | skill_frontmatter::extract_triggers)"
   if [[ -n "$BASE_TRIG" ]]; then
     MISSING="$(comm -23 <(printf '%s\n' "$BASE_TRIG") <(printf '%s\n' "$CUR_TRIG"))"
@@ -287,28 +309,30 @@ if git -C "$REPO_ROOT" cat-file -e "$BASE_REF:$SKILL_REL/SKILL.md" 2>/dev/null; 
       # repo root), so sibling base-ref lookups address the right tree entry.
       SKILLS_REL_PARENT=""
       [[ "$SKILL_REL" == */* ]] && SKILLS_REL_PARENT="${SKILL_REL%/*}"
+      # A sibling's working-tree listing text is the same for every missing
+      # phrase, so read and parse each SKILL.md once here rather than once per
+      # phrase (the per-phrase scan below then only walks the cached arrays).
+      # Glob order is preserved, so the first-genuine-host tie-break is unchanged.
+      SIB_NAMES=()
+      SIB_TRIGS=()
+      for other_md in "$SKILLS_ROOT"/*/SKILL.md; do
+        [[ -f "$other_md" ]] || continue
+        [[ "$other_md" == "$SKILL_MD" ]] && continue
+        OTHER_NAME="${other_md%/SKILL.md}"
+        SIB_NAMES+=("${OTHER_NAME##*/}")
+        SIB_TRIGS+=("$(fm_listing_triggers "$(skill_frontmatter::extract <"$other_md")")")
+      done
       LOST=""
       while IFS= read -r phrase; do
         [[ -n "$phrase" ]] || continue
         MOVE_HOST=""
-        for other_md in "$SKILLS_ROOT"/*/SKILL.md; do
-          [[ -f "$other_md" ]] || continue
-          [[ "$other_md" == "$SKILL_MD" ]] && continue
-          OTHER_FM="$(skill_frontmatter::extract <"$other_md")"
-          OTHER_TRIG="$(printf '%s\n%s\n' \
-            "$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field description <<<"$OTHER_FM")")" \
-            "$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field when_to_use <<<"$OTHER_FM")")" |
-            skill_frontmatter::extract_triggers)"
-          printf '%s\n' "$OTHER_TRIG" | grep -qxF -- "$phrase" || continue
-          OTHER_NAME="${other_md%/SKILL.md}"
-          OTHER_NAME="${OTHER_NAME##*/}"
+        for ((sib_i = 0; sib_i < ${#SIB_NAMES[@]}; sib_i++)); do
+          printf '%s\n' "${SIB_TRIGS[$sib_i]}" | grep -qxF -- "$phrase" || continue
+          OTHER_NAME="${SIB_NAMES[$sib_i]}"
           OTHER_REL="${SKILLS_REL_PARENT:+$SKILLS_REL_PARENT/}$OTHER_NAME"
           if git -C "$REPO_ROOT" cat-file -e "$BASE_REF:$OTHER_REL/SKILL.md" 2>/dev/null; then
-            OTHER_BASE_FM="$(git -C "$REPO_ROOT" show "$BASE_REF:$OTHER_REL/SKILL.md" 2>/dev/null | skill_frontmatter::extract)"
-            OTHER_BASE_TRIG="$(printf '%s\n%s\n' \
-              "$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field description <<<"$OTHER_BASE_FM")")" \
-              "$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field when_to_use <<<"$OTHER_BASE_FM")")" |
-              skill_frontmatter::extract_triggers)"
+            OTHER_BASE_TRIG="$(fm_listing_triggers \
+              "$(git -C "$REPO_ROOT" show "$BASE_REF:$OTHER_REL/SKILL.md" 2>/dev/null | skill_frontmatter::extract)")"
             # Sibling already carried the phrase at BASE_REF: coincidental
             # overlap, not a move — keep looking for a genuine host.
             printf '%s\n' "$OTHER_BASE_TRIG" | grep -qxF -- "$phrase" && continue
@@ -354,6 +378,27 @@ fi
 # char-class below excludes `<` and `>`, so it never enters this loop. A
 # gitignored runtime-output path is auto-skipped (not a tracked supporting file,
 # so skipping cannot mask a real tracked ref).
+#
+# DECIDED, do not re-litigate (#2179 deferred this as "a separate call"; settled
+# here). Narrowing extraction to markdown-link targets only — dropping the
+# backtick branch — was rejected on measurement, not taste. Two premises usually
+# offered for narrowing are both false:
+#
+#   1. "It matches bare paths in prose." It does not. Both generators below are
+#      delimited — backtick-wrapped, or a `](…)` link target — and both are
+#      scoped to the INTERNAL_DIRS allowlist. Naked prose never matches.
+#   2. "The backtick branch is redundant with the link branch." Measured over
+#      the 196-skill corpus: 122 unique backtick-form refs across 39 skills have
+#      no link form anywhere in the same SKILL.md, so narrowing would drop them
+#      from coverage entirely. All 122 resolve to a real file today, i.e. the
+#      backtick branch contributes 122 refs' worth of real coverage at zero
+#      false positives on the current corpus.
+#
+# The false-positive risk that motivated the proposal is real but latent, not
+# observed: a generic path in an illustrative example could collide. That is
+# handled by message wording — every failure below carries `hand-verify the line
+# before fixing, may be an illustrative example` — rather than by deleting
+# coverage of 39 skills. Reopen only if a false positive is actually observed.
 INTERNAL_DIRS='context|templates|scripts|reference|references|actions|evals|lanes|catalog|vendor'
 while IFS= read -r ref; do
   [[ -z "$ref" ]] && continue
@@ -363,7 +408,47 @@ while IFS= read -r ref; do
   fi
   if [[ ! -e "$SKILL_DIR/$ref" ]]; then
     ref_line="$(grep -nF "$ref" "$SKILL_MD" 2>/dev/null | head -1 | cut -d: -f1)"
-    err "broken skill-internal ref: $ref (no such file under the skill dir; cited at SKILL.md:${ref_line:-?} — hand-verify the line before fixing, may be an illustrative example)"
+    # A path that misses here but DOES resolve under a SIBLING skill of the same
+    # skills root is most often a cross-skill citation written in the
+    # skill-internal form — not a missing file. Every bare path in this check
+    # resolves against the CITING skill's dir, so the bare form is wrong either
+    # way and still FAILs; what changes is the message. The default wording
+    # sends the author looking for the file under their own skill, where it will
+    # never be — naming the host sibling and the anchored form that works is the
+    # difference between a dead end and a one-line fix.
+    #
+    # The sibling hit is EVIDENCE, not proof: this check deliberately extracts
+    # inline-code refs as well as link targets, so a generic path (`scripts/run.sh`) can
+    # collide with an unrelated same-named sibling file. The wording therefore
+    # stays conditional and keeps the hand-verify instruction the default
+    # message carries — a coincidental name match and an illustrative example
+    # are both still live readings. Glob order is sorted, so a path present
+    # under more than one sibling names the first deterministically.
+    REF_HOST=""
+    for other_md in "$SKILLS_ROOT"/*/SKILL.md; do
+      [[ -f "$other_md" ]] || continue
+      [[ "$other_md" == "$SKILL_MD" ]] && continue
+      if [[ -e "${other_md%/SKILL.md}/$ref" ]]; then
+        REF_HOST="${other_md%/SKILL.md}"
+        REF_HOST="${REF_HOST##*/}"
+        break
+      fi
+    done
+    if [[ -z "$REF_HOST" ]]; then
+      err "broken skill-internal ref: $ref (no such file under the skill dir; cited at SKILL.md:${ref_line:-?} — hand-verify the line before fixing, may be an illustrative example)"
+    else
+      # Plugin-shaped root: bundled plugin assets are anchored at the plugin
+      # root, so that is the form to name. Outside a plugin
+      # ${CLAUDE_PLUGIN_ROOT} is undefined, so name the layout-free
+      # sibling-relative form rather than advertise a variable that resolves to
+      # nothing.
+      if [[ "$IS_PLUGIN_SKILL" == 1 ]]; then
+        ref_fix="\${CLAUDE_PLUGIN_ROOT}/skills/$REF_HOST/$ref"
+      else
+        ref_fix="../$REF_HOST/$ref"
+      fi
+      err "broken skill-internal ref: $ref (no such file under the skill dir; cited at SKILL.md:${ref_line:-?} — hand-verify the line before fixing, may be an illustrative example). A file with that path DOES exist under sibling skill '$REF_HOST': if that is the file meant, this is a cross-skill citation, and a bare path always resolves against the CITING skill's dir — write it as $ref_fix. If the names merely collide, the ref is unrelated to that sibling."
+    fi
   fi
 done < <(
   {
@@ -469,6 +554,21 @@ fi
 
 # --- Check 12: description carries trigger phrasing --------------------------
 
+# The standing 4-skill warning floor is INTENTIONAL, and no dmi carve-out is
+# wanted here (#2181 left them; re-reviewed and confirmed). `discipline:wait-what`,
+# `firecrawl:update`, `playbooks:update`, and `github:setup` are all
+# `disable-model-invocation: true`, and upstream states outright that for that
+# setting the "Description not in context, full skill loads when you invoke"
+# (skills.md frontmatter-behavior table, verified 2026-08-10) — so trigger
+# phrasing on them can never route anything. Each was re-checked for a STRANDED
+# phrase (one a user would type that no model-invocable skill can receive) and
+# none is stranded: the two `update` skills are maintainer-only with
+# consumer-facing siblings that carry the phrases, `github:setup` is a declared
+# slash-command-only contract with `advise`/`audit` model-invocable beside it,
+# and `wait-what` triggers on self-observation the model cannot detect. Adding a
+# dmi exemption branch would suppress a warning that is doing no harm while
+# hiding the kindle-dedrm failure mode (a phrase reachable only from a dmi-true
+# skill), so the warning stays and the exemptions stay documented instead.
 if [[ -n "$CUR_DESC" ]]; then
   if ! grep -qi 'use when' <<<"$CUR_DESC$CUR_WTU"; then
     warn "description has no 'Use when:' trigger phrasing — a description is a trigger spec, not a summary"

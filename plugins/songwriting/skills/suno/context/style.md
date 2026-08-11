@@ -2,14 +2,14 @@
 
 The style/genre prompt tells Suno **what kind of song to make**. v5/v5.5 expanded this field from ~200 chars (v4) to ~1,000 chars, and adherence to nuanced descriptors improved dramatically. Treat the style prompt as a layered tag list, not a sentence.
 
-## Character budgets (silent truncation)
+## Character budgets (reported limits)
 
 | Field | Limit | Notes |
 |-------|-------|-------|
-| Style prompt (v5/v5.5) | **~1,000 chars** | Truncates silently — front-load critical content |
+| Style prompt (v5/v5.5) | **~1,000 chars** | Late-prompt attention may decay; silent truncation is unverified — front-load critical content |
 | Style prompt (v4 legacy) | ~200 chars | Out of scope for this skill, noted for orientation |
 | Lyrics | **5,000-char hard cap** (v4.5/v5/v5.5) | 3,000 was the v4-era cap. Quality sweet spot stays **~3,000** (~40-60 lines / 200-300 words) — past that Suno rushes, skips sections, or cuts output short |
-| Title | **~100 chars** | Up from ~80 in v4. No effect on musical output |
+| Title | **~100 chars** | Up from ~80 in v4. Minimal or no known effect on musical output; community reports differ |
 | Exclude (Custom mode Advanced Options) | Free-text box | Same vocabulary as inline negatives |
 
 **Re-verified 2026-07-18 — position flipped since the 2026-05-10 pass.** Current third-party testers agree the lyrics hard cap is **5,000 chars on v4.5/v5/v5.5**; 3,000 was the v4-and-earlier cap, and the earlier "3,000 consensus" conflated that old cap with the quality threshold. ~3,000 remains the practical budget. No official Suno page states field limits — sources: [hookgenius character limits](https://hookgenius.app/learn/suno-character-limits/), [aimusicapi cheat sheet, 2026-07-03](https://aimusicapi.ai/en/blog/suno-ai-prompt-character-limits).
@@ -111,7 +111,7 @@ exclude electric guitar, exclude pad synths
 avoid 4-on-the-floor kick
 ```
 
-**Place negatives at the END of the style prompt.** Positives processed first, exclusions applied second. Mixing them mid-prompt weakens both.
+The `no X` syntax is community-attested. No source establishes that negatives must go at the end; grouping them there is an organizational convention only.
 
 **Exclude field (Custom mode Advanced Options):** a separate free-text box for unwanted elements. Use the same vocabulary. The Exclude field has stronger effect than inline negatives in some cases — try both if one fails.
 

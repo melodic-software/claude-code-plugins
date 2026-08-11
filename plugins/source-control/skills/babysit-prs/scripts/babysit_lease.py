@@ -54,11 +54,10 @@ def normalize_scope_repos(value: Any) -> tuple[str, ...]:
     if value is None:
         return ()
     if isinstance(value, str):
-        raw = [part for part in value.split(",")]
+        raw = value.split(",")
     else:
         raw = [str(part) for part in value]
-    repos = sorted({parse_repo(part) for part in raw if part.strip()})
-    return tuple(repos)
+    return tuple(sorted({parse_repo(part) for part in raw if part.strip()}))
 
 
 def active_workers_dir(state_dir: str | Path) -> Path:

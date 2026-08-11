@@ -3,8 +3,19 @@
 Pat Pattison's documented Title Game exercise, used as a co-write warmup
 and as a solo title-generation drill. Source: Songwriter Trysts podcast
 episode 40 (verified web research 2026-05-10) — the most detailed public
-documentation of the mechanics. Also referenced briefly in *Writing
-Better Lyrics* (2009) appendix.
+documentation of the mechanics.
+
+> **Sourcing note.** The Title Game does **not** appear in *Writing
+> Better Lyrics* (2009) or *Songwriting Without Boundaries* (2011). An
+> earlier version of this file claimed it was "referenced briefly in
+> *Writing Better Lyrics* (2009) appendix" — that is false. The appendix
+> ("Co-Writing: The 'No'-Free Zone") mentions Pat arriving at a Nashville
+> session "with my notes and titles" and contains no title exercise of
+> any kind. This file's cascade mechanics are podcast-sourced and cannot
+> be made verbatim-from-book. The two things this file borrows that
+> **are** in the books are the No-Free Zone protocol (2009 appendix) and
+> the stressed-vowel targeting method (2009, Chapter 19), both restored
+> below with citations.
 
 ## Core idea
 
@@ -45,8 +56,26 @@ For two writers:
 2. **Read titles aloud, trade off** — Writer A reads a title; Writer B
    takes the stressed vowel of A's title and generates a new title from
    it; passes to A; A generates from B's title; repeat
-3. **No rejection.** Per No-Free Zone (per `co-writing.md`): silence =
-   request for more; do not say "no" mid-cascade
+3. **No rejection.** Per the No-Free Zone. Pat learned it from Stan Webb,
+   his first professional co-writer, in a SESAC writers' room in
+   Nashville; the appendix to *Writing Better Lyrics* (2009) prints
+   Stan's rules in his own words:
+
+   > "Say everything that comes into your head. Say it out loud, no
+   > matter how dumb it is. Don't censor anything. If you say something
+   > really dumb, you might give me an idea that's not quite as dumb."
+
+   > "So that means that we'll never say 'no' to each other. A co-writing
+   > room is a 'no'-free zone. If you suggest a line and I don't like it,
+   > I just won't say anything. Silence is a request for more, more,
+   > more. It says 'just keep throwing stuff out there.' When either one
+   > of us likes something, we'll say 'yes.' Otherwise, just keep going."
+
+   Pat's own addition, same appendix: "Never talk about writing in a
+   co-writing room, especially about technique. Telling what you know
+   about writing isn't writing." And the closing line: "Don't be afraid
+   to write crap — it makes the best fertilizer. The more of it you
+   write, the better your chances are of growing something wonderful."
 4. **Cascade for 5-10 minutes** without stopping to judge
 5. **Mine together** — both writers underline the 3-5 titles in the chain
    that pulled hardest
@@ -81,9 +110,39 @@ the writers can let any of them go.
 Tighter constraints surface tighter clusters but reduce surprise. Looser
 constraints surface variety but make mining harder.
 
+### The vowel constraint's book source
+
+The cascade's stressed-vowel machinery is not invented — it is Pat's
+**targeting** technique from *Writing Better Lyrics* (2009), Chapter 19
+("Understanding Motion"), applied to titles. His instruction, Exercise
+28:
+
+> "Make up your own title, and, using it as the first line of an oncoming
+> chorus, write an AAB structure leading up to it, with the third line
+> targeting a vowel sound in the title. Try not to target the end rhyme.
+> Instead, give the words inside the title a sonic boost. Then rewrite the
+> third line (B line) to target a different vowel sound in the title. As in
+> the sample that follows."
+
+The point Pat is making — that a title's **inner** vowels, not its end
+rhyme, are the sonic handles — is what makes a stressed-vowel cascade
+productive rather than a rhyme-list. His worked illustration uses the
+title "For One Smile in a Million": an unrhymed `while` in line three of
+the preceding section emphasizes `smile` in the chorus. Exercise 41
+generalizes it: "Construct a title that matches the unmatched line in
+both rhythm and rhyme. Target an inner vowel of the title line rather
+than the end rhyme."
+
+Chapter 4 adds the worksheet-side guideline: "If you are working with a
+title, be sure to put its key vowel sounds in the list."
+
 ## Title types to feed the cascade
 
-Per `hook.md` "Title generation", the seven title types are:
+Per `hook.md` "Title generation". **Unverified against the books:** the
+seven-type taxonomy below appears in neither *Writing Better Lyrics*
+(2009) nor *Songwriting Without Boundaries* (2011). It is owned by
+`hook.md` and left as-is here; whoever owns `hook.md` should confirm its
+source.
 
 1. One-word
 2. Place-name
@@ -96,9 +155,13 @@ Per `hook.md` "Title generation", the seven title types are:
 Mixing types within a cascade adds variety (One-word → Place-name →
 Word-play on the same vowel). Sticking to one type tightens focus.
 
-## Stressed-vowel cascade example (structure only)
+## Stressed-vowel cascade example (synthesized)
 
-(No specific song titles reproduced — describing the cascade SHAPE only.)
+The chain below is **synthesized, not Pat's**. No cascade transcript
+exists in either book — the exercise is podcast-sourced, and the podcast
+does not print a title chain. Nothing is being withheld here; there is no
+source text to restore. Treat the shape as a template and generate real
+titles into it.
 
 Seed: 3-stress title with long-A vowel
 ↓ (next: same vowel, different content)

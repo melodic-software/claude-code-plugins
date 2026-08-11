@@ -1,8 +1,8 @@
 # Song Forms
 
-Pat Pattison - *Songwriting: Essential Guide to Lyric Form and Structure*
+Pat Pattison - *Essential Guide to Lyric Form and Structure*
 (1991), Chapter 6. Pat Pattison - *Writing Better Lyrics* (2009),
-Chapter 22-23.
+Chapters 22-23.
 
 ## Image inventory
 
@@ -53,7 +53,32 @@ deliver the strongest version of the song?"
 ## V/V/Ch Risk Repair
 
 Chapter 22 gives three practical repair strategies for a verse/verse/chorus,
-verse/verse/chorus draft.
+verse/verse/chorus draft. It works all three on one lyric — Jim Rushing's
+"Slow Healing Heart," first arranged as a `v / v / ch / v / v / ch` lyric so
+the risk is visible. Verse 4 is the crucial one, the place "where you run the
+risk of making the song seem too long":
+
+```text
+There's a part of me still on the lookout
+Alert for those cutting remarks
+Looks that are sweet
+Soon will cause you to bleed
+Woe is a slow healing heart
+```
+
+Every one of the three repairs re-times the arrival of this chorus, so it is
+the fixed point all three are measured against:
+
+```text
+A slow healing heart
+Is dying to mend
+Longing for love
+Lonely again
+When a spirit is broken
+And the memories start
+Nothing moves slower
+Than a slow healing heart
+```
 
 First, dump a verse by distilling two verses into one. Keep the essential
 information, preserve the necessary turn, and move to:
@@ -62,9 +87,37 @@ information, preserve the necessary turn, and move to:
 v / v / ch / v / ch
 ```
 
+Pat distills verses 3 and 4 on a "best of" principle. Two of his attempts:
+
+```text
+There's a part of me still on the lookout
+Alert for cutting remarks
+But the sweetest of words
+Only sharpen this hurt
+Woe is a slow healing heart
+```
+
+```text
+How I prayed for blind faith to lead me
+Away from those cutting remarks
+Now I'm doing fine
+Both in body and mind
+But woe is a slow healing heart
+```
+
 The second chorus then arrives earlier, which can make the whole form feel more
 streamlined. The distilled verse is often stronger because it must choose the
 best material rather than preserving every written line.
+
+> **EXERCISE 47**
+>
+> What do you think of my distilled verses? Did I lose too much, or did I keep
+> the necessary stuff? You try it. Distill the original third and fourth verses
+> into one verse of the same structure. Remember to end the verse with the
+> refrain: *Weak is a slow healing heart.*
+
+(Chapter 22 prints the whole refrain in italics inside Exercise 47, and its
+first word is *Weak*, not *Woe*. That is as printed; do not correct it.)
 
 Second, turn one verse into a bridge:
 
@@ -74,7 +127,21 @@ v / v / ch / v / ch / br / ch
 
 This only works if the new bridge changes both structure and information. A
 bridge is not a renamed verse. It needs a different perspective, phrase shape,
-line count, rhyme behavior, or tense.
+line count, rhyme behavior, or tense. Pat's bridge for "Slow Healing Heart":
+
+```text
+I pray that someday
+I won't be afraid
+But some hurts take longer to fade
+```
+
+He names exactly what it changes: the move to future tense shifts away from
+the verse material, and shorter lines plus a three-line unbalanced section
+rhyming AAA change the structure.
+
+> **EXERCISE 48**
+>
+> Now come up with your own bridge to fit “Slow Healing Heart.”
 
 Third, keep the material but restructure two verses into one larger unit:
 
@@ -84,9 +151,41 @@ v / ch / v / ch
 
 The point is not to remove the blank line on the lyric sheet. The point is to
 make the longer verse change internally, so two blocks of information no longer
-repeat the same structure. In the "Slow Healing Heart" example, common-meter
-motion gives way to four-stress couplet motion inside the verse, forcing a
-fresh musical feel while retaining the material.
+repeat the same structure. Here is how Rushing's actual verse does it —
+Chapter 22 prints the rhyme letter and stress count beside each line:
+
+| Line | Rhyme | Stresses |
+|---|---|---|
+| When I left I left walking wounded | x | 3+ |
+| I made my escape from the rain | a | 3 |
+| Still a prisoner of hurt | b | 2 |
+| I had months worth of work | b | 2 |
+| Freeing my mind of the pain | a | 3 |
+| I had hours of sitting alone in the dark | c | 4 |
+| Listening to sad songs and coming apart | c | 4 |
+| Lord knows I made crying an art | c | 4 |
+| Woe is a slow healing heart | c | 3 |
+
+Rushing's second verse runs the same nine-line shape, so the restructuring is
+a form the whole lyric holds, not a one-off:
+
+```text
+How I prayed for blind faith to lead me
+To places where I'm not afraid
+Now I'm doing fine
+Both in body and mind
+But some hurts take longer to fade
+There's a part of my feelings ever on guard
+Against looks that are tender and words that are hard
+I still remember those cutting remarks
+Woe is a slow healing heart
+```
+
+Pat's reading: the first half is basic common meter, in three-quarter time,
+with a rhyme acceleration in the third line; the second half "moves two by two
+in four-stress couplets, creating a whole different feel (which will force a
+musical change). Rushing creates two interesting, unified verses rather than
+four helpings of the same structure."
 
 ## Repetition risk audit
 
@@ -111,10 +210,55 @@ to wait through avoidable repetition.
 v / ch / v / ch / v / ch
 ```
 
-Two verse/chorus systems may establish and develop the song well. The third
-can feel flat because the listener has already heard the structural package
-twice. The form is not wrong by default; it simply stops helping unless the
-third idea earns another identical trip.
+The worked sample is a three-verse lyric Pat titles "Love Her or Leave Her
+to Me." All three systems are printed, because the chapter's whole verdict
+turns on the third one arriving in a shape you have already heard twice:
+
+```text
+You're living with a woman you ain't true to
+Playin' round but keep her hanging on
+If you don't want her, let me have her
+You won't believe how fast I'll grab her
+You'll hardly even notice that she's gone
+
+Love her or leave her to me
+Keep her or let her go free
+Don't go two-timing her
+'Less you're resigning her
+Love her or leave her to me
+
+You're out all night while she's alone without you
+Just for fun she calls me on the phone
+She comes to me, I play the friend
+I know she'll love me in the end
+As long as you keep leaving her alone
+
+Love her or leave her to me
+Keep her or let her go free
+Don't go two-timing her
+'Less you're resigning her
+Love her or leave her to me
+
+Well I guess some men got no appreciation
+They never see the finer things in life
+When they leave the best behind 'em
+Someone else is bound to find 'em
+Won't be long she's someone else's wife
+
+Love her or leave her to me
+Keep her or let her go free
+Don't go two-timing her
+'Less you're resigning her
+Love her or leave her to me
+```
+
+Two verse/chorus systems may establish and develop the song well. Pat's
+verdict on this one: "Not a bad lyric. It chugs along nicely for two verse /
+chorus systems, developing its ideas with light, cute structure. The third
+system, however, seems to fall a little flat, not so much for what it says,
+but because we've seen its structure twice before." The form is not wrong by
+default; it simply stops helping unless the third idea earns another
+identical trip.
 
 Chapter 23 gives three alternatives.
 
@@ -126,7 +270,25 @@ v / ch / v / ch / br / v / ch
 
 Use this when the third verse is still needed as a verse, but the song needs a
 contrasting section first. The bridge should supply a missing angle and change
-structure significantly.
+structure significantly — "a different rhyme scheme, a different number of
+lines, and different line lengths," and it should also say something
+different.
+
+Pat finds the missing angle by auditing what the lyric already says: we know
+the speaker wants the wife, that the husband is fooling around, that she calls
+the speaker, and that the speaker has plans — but we never learn what makes
+her so desirable. A bridge on her qualities leads smoothly into the third
+verse, which opens:
+
+```text
+Well, I guess some men got no appreciation
+They never see the finer things in life …
+```
+
+(Chapter 23 prints this opening line **twice**, differently: with a comma here,
+where it is quoted on its own, and without one — *Well I guess some men got no
+appreciation* — inside the full lyric above. Both are as printed. Do not fold
+them together.)
 
 Chapter 23 names the cost: because the form returns to a full verse before the
 last chorus, the lyric can still get — or seem — long. That is the risk this
@@ -140,7 +302,19 @@ v / ch / v / ch / br / ch
 ```
 
 This is leaner than returning to another full verse. It works when the bridge
-can carry the missing turn without needing a full third verse.
+can carry the missing turn without needing a full third verse. Pat's bridge
+for "Love Her or Leave Her to Me" is two lines — it recycles the third
+verse's idea into a couplet and hands straight back to the chorus:
+
+```text
+Leave the finest things behind, an'
+Someone else is bound to find 'em
+```
+
+> **EXERCISE 50**
+>
+> Try substituting the bridge you wrote for the one I wrote. Do you like how it
+> works?
 
 Option 3 changes the song into AABA verse/refrain form when the material truly
 needs three verse-like ideas:
@@ -154,7 +328,35 @@ A verse/refrain
 
 This lets the first two A sections define home, the B section depart, and the
 final A feel like a real return rather than a third repeated verse/chorus
-system.
+system. Pat rewrites the same three ideas with the title demoted from chorus
+to refrain — the chorus disappears and every verse now ends on the title:
+
+```text
+You're living with a woman you ain't true to
+You play around, she sits home faithfully
+If you don't want her let me have her
+Wait and see how fast I grab her
+Love her or leave her to me
+
+While you're out she gets a little lonesome
+What to do, she's got her evenings free
+She calls me up, I play the friend
+I know she'll love me in the end
+Love her or leave her to me
+Boy just keep your blinders on
+You'll never notice when she's gone
+
+I'm glad some men got no appreciation
+The finest things are just too hard to see
+You just keep two-timing her
+Soon you'll be resigning her
+Love her or leave her to me
+```
+
+Pat on why it works: "The first two verses define 'home base,' then the bridge
+takes you away from home — away from the familiar structure. When you come
+back to the third verse, you come back home to familiar territory. It's a real
+homecoming, seeing the old neighborhood again after a long trip."
 
 ## Bridge Validity
 
@@ -167,13 +369,38 @@ develop situation or plot, while the chorus comments, summarizes, or warns. A
 bridge needs another angle: a missing character quality, a new perspective, a
 shift in tense, or a concise turn that neither verse nor chorus has supplied.
 
-Use object writing when the missing angle is character or sensory detail. The
-chapter's exercise asks for a list of the woman's qualities, then an
-object-writing pass, before drafting bridges.
+Use object writing when the missing angle is character or sensory detail.
+Chapter 23 sets the order as an exercise, and supplies its own object-writing
+sample inside it:
+
+> **EXERCISE 49**
+>
+> A bridge focusing on her qualities would lead smoothly into the third verse.
+> Start by making a list of her qualities — things she is, things she does.
+> Draw the list from your own experiences. Do a little object writing. For
+> example:
+>
+> Kicking through the fallen leaves, gold-brown and red. Cheeks flushed and
+> soft, glowing with the afternoon sunlight. You don't speak, I don't dare
+> speak; our shoulders touching, lingering a little, skin electric, breath
+> coming a little faster. You step slowly, patiently, listening to the leaves
+> swirling and dancing in colors as we move together.
+>
+> Your object writing will create a mood and character for you to respond to.
+> Then try a few bridges. Be sure your bridge is a contrasting section. Keep it
+> short and effective.
 
 ## Home base principle
 
-Pattison starts from the limerick principle:
+Pattison starts from the limerick principle, and Chapter 6 opens with the
+limerick itself:
+
+```text
+There once was a student named Esser
+Whose knowledge grew lesser and lesser
+It at last grew so small, he knew nothing at all
+And now he's a college professor
+```
 
 ```text
 1. statement of structure      A
@@ -181,6 +408,12 @@ Pattison starts from the limerick principle:
 3. variation of structure      B
 4. return to original          A
 ```
+
+> "Repeating the structure of the first statement defines 'home base.' Moving
+> away from home base at the third phrase creates tension — a move to
+> unfamiliar territory. Coming back to familiar territory at phrase four is a
+> resolution, a welcome home party." — *Essential Guide to Lyric Form and
+> Structure* (1991), Chapter 6
 
 The return matters because the listener has heard home base before. Without a
 defined home, departure and return lose force.
@@ -200,7 +433,18 @@ The refrain usually contains the title or central idea. Because every system is
 the same size, the form can become monotonous unless the verse ideas develop
 strongly or a bridge interrupts the pattern.
 
-Chapter 6 example diagnosis:
+Chapter 6 example diagnosis — "This Bottle and Me," verse 1:
+
+```text
+We've been sitting here the whole night long
+Pouring out our hearts
+About how loving never ends the way
+We felt it at the start
+And we'll sit right here till we decide
+What the next step ought to be
+We got a lot to talk about
+THIS BOTTLE AND ME
+```
 
 ```text
 verse structure: Common Meter twice
@@ -208,6 +452,11 @@ rhyme scheme:    x a x a x b x b
 internal shape:  A A, fragmented after line 4
 refrain:         final two phrases, part of verse structure
 ```
+
+The refrain is "We got a lot to talk about / THIS BOTTLE AND ME"; the hook is
+the title line alone. Because the structure repeats so heavily, Pat's own
+verdict is that "this lyric gets boring fast" and needs a release — which is
+what the bridge below supplies.
 
 Use this form when the repeated central idea should feel woven into the verse
 rather than announced by a separate chorus.
@@ -230,9 +479,23 @@ The bridge accomplishes three jobs:
 - Gives the lyric a new perspective before the final verse/refrain.
 
 The bridge must differ where difference is needed, especially at its first
-line. In the Chapter 6 example, the bridge is asymmetrical, rhythmically different
-from the verses, and closes with a rhythmic deception that points forward into
-the last verse.
+line. Chapter 6's bridge for "This Bottle and Me":
+
+```text
+THIS BOTTLE AND ME will do all right
+We'll just stay right here together
+Waste away the night
+Waiting till the morning comes
+And the ache is almost gone
+Struggle through another day
+Till another night comes rolling on
+```
+
+It is asymmetrical — 7 phrases — and different from the verses in both rhythm
+and rhyme. Its last four lines still run on Common Meter; the difference is
+placed where difference is needed: the first line is a clear rhythmic
+departure, and the last line's extra stressed syllable is a rhythmic
+Deception that moves forward into the last verse.
 
 ## AABA
 
@@ -264,6 +527,23 @@ then feeling the arrival back at it.
 Simple verse/chorus form works like Common Meter — also called the **Ballad
 Stanza** — at the section level. Chapter 6 states the two mappings as a pair:
 AABA runs on the limerick's principle, verse/chorus runs on Common Meter's.
+The two stanzas Chapter 6 prints to establish the pattern:
+
+```text
+O Western Wind, when will thou blow
+That the small rain down can rain?
+Christ, that my love were in my arms
+And I in my bed again
+                            — Anonymous
+```
+
+```text
+The wind doth blow today my love
+And a few small drops of rain
+I never had but one true love
+In cold grave she was lain
+                            — From "The Unquiet Grave," Anonymous
+```
 
 ```text
 1. statement                    A  Verse
@@ -280,13 +560,49 @@ S1: Verse -> Chorus
 S2: Verse -> Chorus
 ```
 
-Chapter 6 example diagnosis:
+Chapter 6 example diagnosis — "Southern Comfort". (*Writing Better Lyrics*
+(2009), Chapter 20 prints this same lyric differently, for a different argument;
+see the cross-book warning in
+[song-forms-examples](song-forms-examples.md#southern-comfort--versechorus-chapter-6).
+The printing below is from *Essential Guide to Lyric Form and Structure* (1991),
+Chapter 6.)
+
+```text
+Spanish moss hanging low              VERSE
+Swaying from the trees
+Honeysuckle, sweet magnolia
+Riding on the breeze
+Southern evenings, southern stars
+Used to bring me peace
+But now they only make me cry
+They only make me realize
+
+There's no SOUTHERN COMFORT           CHORUS
+Unless you're in my arms
+You're the only cure
+For this aching in my heart
+I've searched everywhere
+Tried the bedrooms, tried the bars
+But there's no SOUTHERN COMFORT
+Unless you're in my arms
+```
 
 ```text
 verse:  Common Meter setup, then deceptive closure
 chorus: delivers the withheld three-stress closure and rhyme balance
 effect: verse points; chorus closes
 ```
+
+The verse runs eight phrases rhyming `x a x a x a b b`. The first six lock the
+ear into Common Meter and the seventh only continues the pattern, so everyone
+expects a three-stress Common Meter close — and the eighth phrase refuses it
+in both rhythm and rhyme. "The last phrase of this verse, and the last phrase
+alone, unbalances the section… Any three-stress phrase would have balanced the
+verse! But the verse has refused to deliver."
+
+In the chorus every line has three stresses except line 6, "Tried the
+bedrooms, tried the bars," which is two phrases and accelerates at that point;
+the final two phrases return to three stresses and close the song system.
 
 Use this form when the lyric needs repeated cycles of development into a
 central idea.
@@ -315,6 +631,23 @@ bridge development: build into longer phrases
 result:             new angle, then chorus realization
 ```
 
+Worked on "Southern Comfort": the song runs on 3- and 4-stress phrases, plus
+quick passes at 2-stress phrases in "Southern evenings, / southern stars" and
+"Tried the bedrooms, / tried the bars" — always in non-resolving places. Pat
+takes that hint and develops it:
+
+```text
+Bar to bar
+Face to face
+Someone else takes your place
+But no one's ever new
+I always turn them into you
+```
+
+Start with fast 2-stress phrases (diving into the singles-bar lifestyle) for
+contrast and a push forward, then build into longer phrases, slowing down
+until the realization lands — and the restated chorus completes it.
+
 Use this form when the song has already completed two strong cycles and needs a
 new pressure source before the final chorus.
 
@@ -331,7 +664,10 @@ Chorus:       central arrival
 
 This avoids the risk of four same-shaped verses while preserving the full
 story. The larger verse must not simply be two verses pasted together. It
-should behave like one designed unit with a deliberate internal turn.
+should behave like one designed unit with a deliberate internal turn. The
+worked instance is the "Slow Healing Heart" verse tabled above: `x a b b a` at
+3/3/2/2/3 stresses, then `c c c c` at 4/4/4/3 — common meter giving way to
+four-stress couplets inside a single verse.
 
 ## Verse / Transitional Bridge / Chorus
 
@@ -346,7 +682,32 @@ S2: Verse -> Transitional Bridge -> Chorus
 Its job is not the same as a full bridge. It is shorter, more unstable, and
 designed to make the chorus feel necessary.
 
-Chapter 6 example diagnosis:
+Chapter 6 example diagnosis — "Teddy Doesn't Live Here Anymore," song
+system 1:
+
+```text
+Teddy feels alone again              VERSE 1
+It happens every night
+There inside his room again
+He listens as they fight
+
+Tonight it will be different         VERSE 2
+Leaving while they sleep
+He sneaks into the closed garage
+Tonight he'll find peace
+
+Crying "Mama won't you listen!       TRANS BR 1
+Daddy can't you see!"
+He slides the seat back
+Turns the key
+
+It's a short ride to the dark side   CHORUS
+All the love he might have known
+Lost forever, left alone
+No one in the world could hear
+The closing of the door
+TEDDY DOESN'T LIVE HERE ANYMORE
+```
 
 ```text
 verse:  clear Common Meter opening
@@ -354,6 +715,9 @@ verse 2 strategy: slight rhythmic unbalance at a tense idea
 transitional bridge: longest phrase so far, then shorter phrases
 chorus: title/hook delivers the prepared stress shape
 ```
+
+The song's third system is bridge → chorus: it drops the verse block
+entirely rather than running a third verse and transitional bridge.
 
 Use this form when verse and chorus share a strong groove or when the chorus
 needs a small lift, ramp, or release before arrival.
@@ -376,6 +740,26 @@ verse: long phrases, imperfect rhymes, distance between rhyme sounds
 transitional bridge: short phrases, quick rhymes
 refrain: title closes the system
 ```
+
+Chapter 6's example is "You Never Let Me Down," song system 1:
+
+```text
+Turned loose in a company of strangers        VERSE 1
+Getting nowhere, we had nowhere to go
+Bad blues hit you harder when you're aching
+They never leave you, they'll never leave you alone
+They get you crawlin'
+
+I might've fallen                             TRANS BR 1
+But you were always around
+
+YOU NEVER LET ME DOWN                         REFRAIN
+YOU NEVER LET ME DOWN
+```
+
+Pat pairs "They get you crawlin' / I might've fallen" as the contrasting
+move — short phrases, quick rhymes — and then "But you were always around" is
+the set-up: a 3-stress line supplying a sound for the hook to attach to.
 
 Use this when the title should remain part of the verse system, but the lyric
 still needs a short ramp into the title.
@@ -406,6 +790,21 @@ verse 2: final phrase adds rhythmic irregularity at a tense idea
 effect: section still closes, but tips forward into transitional bridge
 ```
 
+"Teddy Doesn't Live Here Anymore," verse 2:
+
+```text
+Tonight it will be different
+Leaving while they sleep
+He sneaks into the closed garage
+Tonight he'll find peace
+```
+
+The last phrase puts two stressed syllables in a row, forcing an irregular
+rhythm — and a regular one would have been easy to write. The irregularity
+lands at a point of strong tension in the ideas, so it is prosody as well as
+motion; the imperfect rhyme "sleep/peace" defines the section while still
+letting you feel the pull forward into the transitional bridge.
+
 Use second-verse strategy when the story or emotion has intensified but the
 song still needs the same formal identity.
 
@@ -420,8 +819,20 @@ shorten or lengthen phrases toward pressure
 deliver title/hook in the prepared position
 ```
 
-In one example, a long phrase before the hook acts like a slingshot: stretching
-time gives power to the release into the title.
+In "Teddy Doesn't Live Here Anymore," the longest phrase in the song system
+sits immediately before the hook:
+
+```text
+No one in the world could hear
+The closing of the door
+TEDDY DOESN'T LIVE HERE ANYMORE
+```
+
+Pat: "I think of the longer phrase as the rubber of a slingshot, stretching to
+give power to the release. It seems to me that it should be longer than the
+Hook, especially since there are no 5-stress lines to set up expectations for
+a 5-stress close." Exercise 37 asks the writer to try the opposite — set up
+the hook with shorter phrases instead — and compare the sense of arrival.
 
 ## Parallel sections
 
@@ -435,7 +846,32 @@ variation: extra weak syllables between strong positions
 effect: faster surface motion without losing structure
 ```
 
+"Teddy Doesn't Live Here Anymore" changes the content of its second
+transitional bridge but keeps it in close parallel with the first:
+
+```text
+He cries, "Baby, it's so cold here
+Won't you take me home?"
+She shivers as she turns away
+Leaves alone
+```
+
+The third line, "She shivers as she turns away," carries the same three strong
+stresses as its counterpart "He slides the seat back" — the additional
+unstressed syllables "shiver quickly past and leave with her," forcing the
+music to accelerate by stuffing syllables between the strong positions. Pat
+calls the effect startling here, then adds the general rule: "Normally,
+though, keep your sections parallel."
+
 ## Exercises to preserve
+
+**This list is the file's own operational scaffolding, not Pat's text.** It
+generalizes the drills so they can be applied to a user's own lyric. Pat's
+actual exercise bodies are quoted verbatim in the sections above — Exercises 47
+and 48 under [V/V/Ch Risk Repair](#vvch-risk-repair), Exercise 50 under
+[Three-System Verse/Chorus Risk](#three-system-versechorus-risk), and Exercise 49
+under [Bridge Validity](#bridge-validity), all from *Writing Better Lyrics*
+(2009), Chapters 22-23. Quote those, not these bullets, when attributing to Pat.
 
 - Scan a second verse and chorus to test whether they form a parallel second
   song system.
@@ -499,15 +935,17 @@ effect: faster surface motion without losing structure
 
 ## Limerick principle — home base at section level
 
-*Essential Guide to Lyric Form and Structure* (1991), Chapter 6 names the principle behind A-A-B-A and similar forms:
+*Essential Guide to Lyric Form and Structure* (1991), Chapter 6 names the principle behind A-A-B-A and similar forms. The limerick, the A-A-B-A structure block, and Pat's "home base" quote are printed once above under [Home base principle](#home-base-principle) — this section applies them at section level rather than reprinting them.
 
-> "Statement, restatement, variation, return to original." — Pat
-> (*Essential Guide to Lyric Form and Structure* (1991), Chapter 6, paraphrased)
+One detail worth holding, because it looks like an error and is not: Chapter 6
+prints the limerick in **four** phrases, running "It at last grew so small, he
+knew nothing at all" as a single phrase. Chapter 2 prints the *same* limerick in
+**five**, splitting that line in two, because there the point is that the shorter
+third and fourth phrases accelerate into the punchline. Both printings are Pat's.
 
-The limerick is the small-scale model. Lines 1-2 state, line 3 varies
-(often with shorter length or different rhyme), lines 4-5 return.
-A song's AABA form runs the same principle at section level: A states,
-A restates, B varies (the bridge), A returns.
+Phrases 1-2 state and restate, phrase 3 varies (shorter units, different
+rhyme), phrase 4 returns. A song's AABA form runs the same principle at
+section level: A states, A restates, B varies (the bridge), A returns.
 
 Use the home-base principle to:
 
@@ -519,7 +957,7 @@ Use the home-base principle to:
 
 ## Form potency — when delivery matches package
 
-Pat's "(Im)potent Packages" framing from *Writing Better Lyrics* (2009), Chapter 22-23 (extends
+Pat's "(Im)potent Packages" framing from *Writing Better Lyrics* (2009), Chapters 22-23 (extends
 *Essential Guide to Lyric Form and Structure* (1991), Chapter 6): a song's form is potent when it delivers the strongest
 version of its idea, impotent when repetition causes the message to
 sag.
@@ -576,46 +1014,51 @@ The companion failure mode to four-times-verses: a verse-chorus form
 that runs three full systems with no contrast risks flatness on the
 third arrival.
 
-Three named alternatives:
-
-1. **Bridge before the third verse.** Inserts contrast before the
-   final V/Ch arrival: `v / ch / v / ch / br / v / ch`. Carries its
-   own risk — the song returns to a full verse before the last
-   chorus, so it can still read as long.
-2. **Bridge replacing the third verse.** The bridge carries the turn
-   the third verse would have carried, and the final chorus follows
-   directly: `v / ch / v / ch / br / ch`. There is no third verse.
-3. **AABA verse/refrain conversion.** For the opposite case — when
-   the third idea genuinely needs to stay a verse. AABA thrives on
-   three-idea development, so all three verse ideas survive; the
-   title becomes a refrain inside each verse rather than a separate
-   chorus.
+Chapter 23's worked lyric ("Love Her or Leave Her to Me"), Pat's three
+numbered Options, and his bridge material are all above under
+[Three-System Verse/Chorus Risk](#three-system-versechorus-risk) — that
+section is the canonical treatment and this one no longer restates it.
 
 Diagnose at form-planning: count the systems, name what each is
-supposed to add, choose the alternative if needed.
+supposed to add, choose the Option if needed.
 
-## Song system sizing
+## Song system
 
-Sections are grouped into song systems. A song system is a complete
-cycle that the listener experiences as a single unit. Sizing the
-system shapes the form's pace.
+Pat's own definition, and the origin of the term, *Essential Guide to Lyric
+Form and Structure* (1991), Chapter 5:
 
-| System size | Components | Effect |
-|---|---|---|
-| Small | Single section (verse only, refrain only) | Stark; intimate; static |
-| Medium | Verse + chorus | Standard pop arc |
-| Large | Verse + prechorus + chorus | Builds tension before arrival |
-| Extended | Verse + bridge + chorus | Slower pace; literary feel |
+> Either I made up this name, or my friend Tom Frazee did. I don't remember
+> which. A "Song System" is a group of sections that work together in larger
+> movements, or cycles of motion. The idea is especially helpful when looking at
+> a group of contrasting sections. A Song System always has a CENTRAL SECTION
+> and often has one or more DEVELOPMENTAL SECTIONS.
 
-Mixing sizes within a song creates motion: a medium first system
-followed by a large second system feels expansive; the reverse feels
-compressed.
+> Each Song System is a cycle. Each closes down after the CENTRAL SECTION. Once
+> you finish a Song System, you have to start something else: maybe another
+> system just like the one you finished, or maybe something different. But one
+> thing is clear: you have finished something, so you must either be through
+> with the song, or start something up again.
+
+> Talking about Song Systems is the most useful in lyrics that have different
+> kinds of sections: Verse + Chorus, Verse + Bridge + Chorus, Bridge + Chorus.
+> Song Systems give you a way to describe how larger units (groups or sections)
+> work together. It comes in handy.
+
+> In a lyric where all the sections are the same, and each section contains the
+> CENTRAL IDEA ("IT WAS A VERY GOOD YEAR," for example), the concept of Song
+> System doesn't help much. You could talk about "sections" just as easily.
+
+*Essential Guide to Lyric Form and Structure* (1991), Chapter 7 adds the one
+rule that ties the hook to the Song System:
+
+> Your HOOK should come at least once in each Song System. That is usually
+> enough. Within reason you can squeeze it in a few more times.
 
 ## *Essential Guide to Lyric Form and Structure* (1991) worked examples
 
 Pat's *Essential Guide to Lyric Form and Structure* (1991), Chapter 6 has four canonical worked examples demonstrating each
-form's mechanics on real songs. See [song-forms-examples](song-forms-examples.md)
-for paraphrased mechanism analyses (NOT lyric reproduction) of:
+form's mechanics on a full lyric. See [song-forms-examples](song-forms-examples.md)
+for the lyrics as Chapter 6 prints them plus his mechanism analyses of:
 
 - **"This Bottle and Me"** — verse/refrain with Common Meter ×2, xaxaxbxb,
   fragmentation after line 4; bridge variant demonstrates all three *Essential
@@ -630,7 +1073,8 @@ for paraphrased mechanism analyses (NOT lyric reproduction) of:
   unstressed-syllable trick implying a fifth stress; hook delivers 5-stress
   for the first time
 - **"You Never Let Me Down"** — verse/trans-bridge/refrain with deliberate
-  long-distance-imperfect → short-close-perfect contrast mechanism
+  contrast: long phrases and distant imperfect rhyme in the verse, then
+  "short phrases, quick rhymes" in the transitional bridge
 
 Load song-forms-examples when a writer asks "how is this form actually
 built?" or "how does a deceptive verse hand off to a resolving chorus?"

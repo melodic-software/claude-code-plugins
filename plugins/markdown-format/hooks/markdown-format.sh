@@ -869,7 +869,7 @@ fi
 # into a shell command would let the shell run whatever that value contains, so
 # the component fails" — while every option is exported to hook processes as
 # CLAUDE_PLUGIN_OPTION_<KEY> anyway (Plugins reference, "User configuration",
-# https://code.claude.com/docs/en/plugins-reference, fetched 2026-07-26). A
+# https://code.claude.com/docs/en/plugins-reference, fetched 2026-08-10). A
 # value that is not a non-negative integer falls back to the default rather
 # than being interpolated anywhere.
 MAX_FINDINGS=20
@@ -917,22 +917,17 @@ FIX_OUTPUT="${FIX_OUTPUT//$'\r'/}"
 # that this hook changed the file, so it is reported rather than dropped; the
 # clean-after-fix path used to emit nothing at all, which made a rewrite of the
 # user's file indistinguishable from the hook not running.
+#
+# Split in the SAME pass: the output is also divided into violation lines and
+# everything else. The banner lines markdownlint-cli2 always prints (its
+# version, the resolved `Finding:` glob list, `Linting: N files`, `Summary: N
+# issues`) carry no information about the file being edited and cost context on
+# every single edit, so they do not enter the report — the counts below are
+# derived here instead. Violation lines are identified by the " MD<digits>/"
+# rule-code pattern, matching what the telemetry schema calls a finding. Neither
+# classification depends on the other, and a lint run over a large file emits
+# thousands of lines, so they share one walk rather than each taking their own.
 FIXES_LINE=""
-while IFS= read -r line; do
-  case "$line" in
-  "Attempted: 0 fixes"*) ;;
-  "Attempted:"*) FIXES_LINE="$line" ;;
-  *) ;;
-  esac
-done <<<"$FIX_OUTPUT"
-
-# Split the output into violation lines and everything else. The banner lines
-# markdownlint-cli2 always prints (its version, the resolved `Finding:` glob
-# list, `Linting: N files`, `Summary: N issues`) carry no information about the
-# file being edited and cost context on every single edit, so they do not enter
-# the report — the counts below are derived here instead. Violation lines are
-# identified by the " MD<digits>/" rule-code pattern, matching what the
-# telemetry schema calls a finding.
 findings_raw=""
 FINDING_COUNT=0
 RULE_TALLY=""
@@ -942,6 +937,11 @@ while IFS= read -r line; do
     FINDING_COUNT=$((FINDING_COUNT + 1))
     RULE_TALLY+="${BASH_REMATCH[1]}"$'\n'
   fi
+  case "$line" in
+  "Attempted: 0 fixes"*) ;;
+  "Attempted:"*) FIXES_LINE="$line" ;;
+  *) ;;
+  esac
 done <<<"$FIX_OUTPUT"
 
 hook::ctx_reset

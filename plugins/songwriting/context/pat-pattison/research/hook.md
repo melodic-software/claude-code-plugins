@@ -1,229 +1,435 @@
 # Hook
 
-Pat Pattison - *Songwriting: Essential Guide to Lyric Form and Structure* (1991), Chapter 7.
+Pat Pattison — *Essential Guide to Lyric Form and Structure* (1991), Chapter 7:
+"HOOK PLACEMENT AND FOCUS: TURNING THE LIGHTS ON."
 
 Notation: `/` = stressed syllable, `u` = unstressed syllable.
 
 ## Core idea
 
-The hook is the title or focused statement of the central idea. Structure should
-put it in the spotlight instead of hoping the listener notices it.
+Pat's opening paragraph, verbatim:
 
-> "Your HOOK is the hero of your lyric."
+> "Your HOOK is the hero of your lyric. It belongs in the spotlight, the most
+> important place in your lyric. But putting it there is up to you. You have to
+> put it in focus. You can't just toss your HOOK anywhere and hope the light
+> shines on it — you have to choose where and when to turn the spotlight on.
+> You must refuse to let the light shine anyplace else. Here are five useful
+> strategies for putting your HOOK in lights."
 
-Pattison gives five strategies:
+The five, as printed:
 
-1. Put the hook at the beginning or end of its section, maybe both.
-2. Keep structure moving forward until the hook.
-3. Repeat the hook.
-4. Use sound to spotlight the hook.
-5. Use the hook's rhythm in other strategic places.
+1. Put the HOOK at the beginning or end of its section, maybe both.
+2. Keep your structure moving forward until you get to the HOOK.
+3. Repeat the HOOK.
+4. Use sound to spotlight your HOOK.
+5. Use the HOOK's rhythm in other strategic places.
+
+> "Let's take a quick tour."
 
 ## Strategy 1: hot spots
 
-Beginnings and endings are hot spots. They are high-attention positions at
-several levels:
+> "This one is easy, but it is worth looking at. What it really says is that
+> lights are brighter at the beginnings and ends of sections than in the spaces
+> between."
 
-- Opening and closing section of the whole lyric.
-- Opening and closing phrase of the whole lyric.
-- Opening and closing phrase of each section.
-- Opening and closing idea word inside a phrase.
+Pat then extends it. His three levels, verbatim (italics as printed):
 
-For a chorus, the hook can appear:
+> "The principle of beginnings and endings applies other places.
+>
+> For the lyric as a whole, it says that the opening *section* and the closing
+> *section* must be very strong.
+>
+> *For the lyric as a whole,* it says that the opening *phrase* and the closing
+> *phrase* must be very strong.
+>
+> *For each phrase of your lyric.*"
+
+For a chorus, the hook can appear first, last, or both. Chapter 7's three
+examples:
+
+**Hook first** — Paul and Gene Nelson, "EIGHTEEN WHEELS AND A DOZEN ROSES."
+Note that the last phrase is also an important idea, so both hot spots are
+working:
 
 ```text
-hook first:
-HOOK
-supporting lines
-important closing idea
-
-hook last:
-supporting lines
-HOOK
-
-hook first and last:
-HOOK
-supporting lines
-HOOK
+EIGHTEEN WHEELS AND A DOZEN ROSES
+Ten more miles on his four lane run
+A few more songs from the all night radio
+And he'll spend the rest of his life
+with the one that he loves
 ```
 
-For verse/refrain forms, the hook often appears at the beginning or end of the
-verse as the refrain. Using it both places in every verse can become too much
-unless the structure needs it.
+**Hook last** — Donald Fagen and Walter Becker, "HAITIAN DIVORCE":
+
+```text
+O, No Hesitation
+No tears and no hearts breaking
+No remorse
+O, Congratulations!
+This is your HAITIAN DIVORCE
+```
+
+**Hook first and last** — Jim Rushing, "A SLOW HEALING HEART":
+
+```text
+A SLOW HEALING HEART
+Is dying to mend
+Longing for love
+Lonely again
+When a spirit is broken
+And the memories start
+Nothing moves slower
+Than A SLOW HEALING HEART
+```
+
+The same strategies are available when the verse contains the hook, but in a
+verse/refrain you will usually use it either at the beginning or the end, not
+both — using it both places means using it twice in *every* verse, which in
+most cases would be too much.
 
 ## Hot spots make meaning
 
-Two revision questions are equivalent:
+> "This is important: when you use beginnings and endings for their value as
+> HOT SPOTS, you can think of it this way:
+>
+> Find your most important ideas and put them in the HOT SPOTS.
+>
+> Or, you can think of it this way:
+>
+> Whatever ideas you put in HOT SPOTS become your most important ideas. You
+> make them important by putting them there."
 
-- Which ideas are most important, and are they in hot spots?
-- Which ideas are in hot spots, and have you accidentally made them most
-  important?
-
-If a section opens or closes on a weak line, the structure is spotlighting the
-wrong thing. Move the central idea, title, or best image into the hot spot.
+> "Imagine you have a blinking red LED in your brain set to go off every time
+> you put something at the beginning or end of a section. That will warn you to
+> use the positions well."
 
 ## Strategy 2: point forward to the hook
 
-If the hook ends a central section, keep rhythm and rhyme pushing until the
-hook arrives. The hook should light up, balance, and close.
+Pat's heading for this strategy reads "Keep the structure pointing forward
+until you get to the HOOK"; his opening list of the five reads "Keep your
+structure moving forward until you get to the HOOK." Both are as printed.
 
-```text
-central section:
-setup phrase -> setup phrase -> pressure phrase -> HOOK
-motion       -> motion       -> motion          -> closure
-```
+He gives three cases, A/B/C:
 
-If the hook opens the next section, a developmental section can lean forward
-into it. The developmental section must still feel like a section; it should be
-closed enough to hold together but unbalanced enough to want the hook.
+**A. In CENTRAL SECTIONS, focus your structure on the HOOK** (scanned in fig
+`image_rsrc344`):
 
-```text
-developmental section: coherent but unbalanced
-next section:          HOOK opens / arrival begins
-```
+> "In this case the HOOK is at the end of the section. The structure pushes you
+> forward with both rhythm and rhyme until you finally land on the HOOK. It
+> lights up, balances, and closes."
 
-The same can happen across whole sections: verse or bridge motion points into a
-title-bearing chorus.
+**B. In DEVELOPMENTAL SECTIONS unbalance to push forward when there is a HOOK
+opening the next section.**
+
+> "(Note that your section must still feel like a section, so you can't simply
+> leave it open.)"
+
+His example is the "THE GREAT PRETENDER" bridge. Of it:
+
+> "The rhyme throws you off balance. You expected a rhyme with 'believe.'
+> Instead, 'conceal' works with 'real/feeling/ real/feel,' to keep you off
+> balance."
+
+Then Jim Rushing's verse (fig `image_rsrc345`), leaning into the chorus — see
+"Worked diagnostics" below for Pat's sentence about it.
+
+**C. Most common, simply keep your sections moving into one another.**
+
+His example is the "FATHERS AND SONS" chorus running into the next section:
+
+> "Scan the first part. The phrases are the same length. This is a clear case
+> where the number of phrases unbalances the section and leans ahead."
+
+He closes the case list with Steely Dan:
+
+> "Finally, Fagen and Becker at work:"
+
+> "This one both leans and closes, almost by magic..."
 
 ## Lyric structure can help music
 
-Music can move balanced lyric sections forward, but lyric structure can help.
-Use phrase count, phrase length, rhythm, rhyme, and closure to make the hook's
-arrival feel necessary before the melody carries it.
+Pat closes Strategy 2 with a caution, verbatim:
+
+> "A final caution. It is not necessary that sections not containing a HOOK be
+> unbalanced. There is another obvious way to move one section to the next —
+> musically. If all of your lyric sections were perfectly balanced, the music
+> could still move them forward. But music often appreciates and profits from a
+> helping hand from the lyric."
 
 ## Strategy 3: repeat the hook
 
-The hook should usually appear at least once in each song system. That may be
-enough. Additional repetition should earn its place.
+> "Your HOOK should come at least once in each Song System. That is usually
+> enough. Within reason you can squeeze it in a few more times."
 
-Good repetition types:
+> "Direct repetition is simple, but effective."
 
-- Direct repetition for emphasis.
-- Beginning-and-ending repetition for frame.
-- Verse refrain plus chorus hook when the form can support both.
-- Repetition that completes or balances the structure.
-- Repetition with a turn in meaning.
+Chapter 7's repetition moves, in the order Pat prints them:
 
-Bad repetition is repetition that merely spends attention without structural or
-semantic need.
+- **Direct repetition** — simple but effective:
+
+```text
+TEDDY DOESN'T LIVE HERE ANYMORE
+TEDDY DOESN'T LIVE HERE ANYMORE
+
+They get you crawlin'
+I might'a fallen
+But you were always around
+YOU NEVER LET ME DOWN
+YOU NEVER LET ME DOWN
+```
+
+- **Direct repetition with a turn in meaning** — the second pair means
+  something the first pair did not:
+
+```text
+You were RIGHT FROM THE START
+RIGHT FROM THE START
+You had my number all along
+You were right and I was wrong
+RIGHT FROM THE START
+RIGHT FROM THE START
+```
+
+- **Beginning-and-ending repetition for frame** — Randy Newman, "TICKLE ME":
+
+```text
+Why don't you TICKLE ME
+Gee whiz won't that be fine
+What a great idea,
+What a perfect way to kill some time
+Can't stop to think
+'Cause if we do we'll lose our minds
+Why don't you TICKLE ME
+```
+
+- **Verse refrain plus chorus hook** when the form can support both — John
+  Jarvis and Gary Nicholson, "FATHERS AND SONS," where the verse ends on the
+  title and the chorus ends on it again:
+
+```text
+Now when I look at my own son
+I know what my father went through
+There's only so much you can do
+You're proud when they walk
+Scared when they run
+That's how it always has been between FATHERS AND SONS
+```
+
+- **Repetition that completes or balances the structure** — see below.
+
+Pat's own caution, delivered by demonstration: "Of course, if you repeat
+yourself too much if you repeat yourself too much if you repeat yourself too
+much if you repeat yourself too much if you repeat yourself too much you get
+boring, so be cautious."
+
+The sentence continues straight into the remedy:
+
+> "If you can make your repetition necessary to finish the structure, all the
+> better:"
 
 ## Make repetition necessary
 
-Repetition is stronger when the structure needs it to balance.
+Of the first example (fig `image_rsrc346`) Pat writes only:
 
-```text
-unbalanced first pass:
-3-stress phrase
-3-stress phrase
-long phrase ending on HOOK
+> "The section is balanced by the repetition."
 
-balanced by repetition:
-3-stress phrase
-3-stress phrase
-long phrase ending on HOOK
-long phrase ending on HOOK repeated
-```
+His worked case is the "SEEING SOMEONE ELSE" chorus, scanned across three
+figures (`image_rsrc347`, `348`, `349`):
 
-Another move is to make the refrain the fifth or seventh phrase so the repeated
-hook completes an odd-count pressure.
+> "The first two phrases are each 3-stresses at best. There are certainly some
+> grey areas here"
 
-Exercise pattern: write a verse ending with a refrain, then make the hook
-repeat necessary by using awkward rhythmic closure and an odd-numbered hook
-position.
+> "The next two lines (as written) add up to one 7-stress phrase"
+
+> "You can hear the section close, but it still feels a little off balance. You
+> can feel the general shape of Common Meter, plus the 'self/else' rhyme, but
+> the rhythm is a little irregular and the phrase lengths are uneven, even if
+> you think of the first two phrases as one phrase"
+
+> "It still fails to balance the last phrase. Repeating the last phrase does
+> the trick."
+
+And after the repeat:
+
+> "You have made the repetition a part of the structure."
 
 ## Strategy 4: target hook sounds
 
-Targeting means preparing the ear with a sound that appears in the hook. A
-vowel sound or rhyme color can appear an odd number of times before the hook,
-so the hook feels like the sonic destination.
+Pat's in-chapter heading reads "4. Use sound to spotlight the Hook."; both his
+opening list and his closing recap read "4. Use sound to spotlight your HOOK."
+Headings 2, 3 and 4 all differ slightly from their list entries; all are as
+printed and none is normalised here.
 
-```text
-setup: repeated target vowel or rhyme color
-hook:  key hook word contains that sound
-effect: the title feels sonically lit
-```
-
-Worked example: in "Can't Fight This Feeling," repeated long-i sounds in the
-transitional bridge target an important sound in the coming title. Pattison
-also notes that music can spotlight another hook word at the same time, so
-lyric targeting and harmonic arrival can cooperate.
-
-Use targeting when the hook should feel inevitable but not merely repeated.
+See "TARGETING — the named strategy" below for his naming sentence, his two
+examples, and his analysis of the Kevin Cronin bridge.
 
 ## Strategy 5: use hook rhythm strategically
 
-Know the hook rhythm before writing the lyric. Then place that rhythm in
-strategic positions: positions that must later be matched to balance the
-section.
+> "This is a terrific strategy. It not only helps spotlight your HOOK, but it
+> makes finding line lengths and rhythms for your verses less arbitrary."
 
-In Common Meter, phrase two is strategic because phrase four balances it:
-
-```text
-Phrase 1: / u / u / u /
-Phrase 2: / u / u /       <- strategic position
-Phrase 3: / u / u / u /
-Phrase 4: / u / u /       <- balancing position
-```
-
-If the hook rhythm occupies the strategic position, the listener wants that
-rhythm again. Withhold the match until the hook arrives.
+The Common Meter scansion and the definition of "strategic position" are under
+"Strategic position" below; the composers' analogy Pat draws it
+from is under "Motivic development analogy."
 
 ## Withholding the hook rhythm
 
-Unbalance the system by replacing the expected matching rhythm:
+Pat's two printed ways of unbalancing Common Meter, arrows on the strategic
+second phrase — fig `image_rsrc34B`:
 
+<!-- spellchecker:off -->
 ```text
-Phrase 1: / u / u / u /
-Phrase 2: / u / u /       <- hook rhythm planted
-Phrase 3: / u / u / u /
-Phrase 4: / u / u / u /   <- withheld match
-
-Later:
-HOOK:     / u / u /       <- satisfying match
+    / u / u / u /       DUM da DUM da DUM da DUM
+->  / u / u /     <-    DUM da DUM da DUM
+    / u / u / u /       DUM da DUM da DUM da DUM
+    / u u / u u /       DUM da da DUM da da DUM
 ```
+<!-- spellchecker:on -->
 
-This is motivic development for lyric rhythm: state the hook shape, vary or
-withhold it, then let the title deliver it.
+and fig `image_rsrc34C`:
+
+<!-- spellchecker:off -->
+```text
+    / u / u / u /       DUM da DUM da DUM da DUM
+->  / u / u /     <-    DUM da DUM da DUM
+    / u / u / u /       DUM da DUM da DUM da DUM
+    / u / u /           DUM da DUM da DUM da DUM
+```
+<!-- spellchecker:on -->
+
+<!-- spellchecker:off -->
+(In `34C` the printed stress marks on the fourth line show three stresses while
+the printed DUM-da syllables show four. Reproduced as printed; Pat's argument
+rests on the DUM row.)
+<!-- spellchecker:on -->
+
+> "your listener will still want the rhythm of the strategic position. If the
+> rhythm of the HOOK is in the strategic position, your HOOK will light up when
+> you arrive."
+
+> "Applying this logic, here is a section. Line two is the strategic position:"
+
+The printed section (fig `image_rsrc34D`):
+
+<!-- spellchecker:off -->
+```text
+    / u / u / u / u / u
+->  / u / u / u / u /  <-  (strategic position)
+    / u / u / u / u / u
+    / u / u / u / u /      (balancing position)
+```
+<!-- spellchecker:on -->
+
+The figure prints `(balancing position)` as an annotation, although Pat's prose
+never names it as a second position; see "Strategic position" below.
+
+> "You could have prevented a match in line four by adding two shorter phrases
+> instead of a 5-stress phrase. Like this:"
+
+The revised section (fig `image_rsrc34E`):
+
+<!-- spellchecker:off -->
+```text
+    / u / u / u / u / u
+->  / u / u / u / u /  <-  (strategic position)
+    / u / u / u / u / u
+  { u / u / u / u }        (unbalancing phrases)
+  { u u / u / u / }
+```
+<!-- spellchecker:on -->
+
+> "Watch."
+
+The scan in fig `image_rsrc34F` is a five-line lyric block. Rows one through
+four print 5, 5, 5, and 3 slash marks. Row five prints `u u / u // u /`,
+including a doubled slash; whether that doubled mark denotes two stresses or
+is a printing anomaly cannot be determined from the scan. Line two carries the
+strategic-position arrows; line four carries the unbalancing-phrases label. Its
+printed lyric is image-only and was deliberately not reproduced: it is absent
+from the gated 1991 spine text, so the required file-to-file lyric splice cannot
+be applied.
+
+> "When your HOOK rhythm matches the second phrase, as in"
+
+The printed HOOK (fig `image_rsrc34G`) is:
+
+<!-- spellchecker:off -->
+```text
+/ u / u / u / u /
+I CAN'T FIGHT THIS FEELING ANYMORE
+```
+<!-- spellchecker:on -->
+
+> "you will arrive in a blaze of glory."
 
 ## Irregular hook rhythms
 
-The strategy also works for irregular hooks. Put the irregular hook rhythm in a
-strategic position. Later, write an unmatching phrase that still closes the
-section. When the chorus finally states the irregular hook rhythm, the arrival
-feels like a surprise party.
+> "This strategy works just as well for HOOKS with irregular rhythms. Just put
+> the irregular rhythm in a strategic position so you will have to match it to
+> balance the system. What if your HOOK is"
+
+His worked hook (fig `image_rsrc34U`) is `LAST NIGHT'S LOVE`, scanned `/ / /`.
+
+> "You could do this:"
+
+Fig `image_rsrc34V`, arrows on the second phrase:
 
 ```text
-hook rhythm:       / / /
-strategic setup:   / / / placed where balance will demand a match
-withholding line:  / u u / u /
-hook arrival:      / / /
+    / u / u / u /
+->  / / /            <-
+    / u / u / u / ...
 ```
 
-Do not regularize a distinctive hook just because the verse is easier to write
-that way. Use the irregularity as a structural feature.
+> "Now write an unmatching last phrase to unbalance, YET CLOSE the section.
+> Like"
+
+Fig `image_rsrc34W`: `/ u u / u /`
+
+> "or even the very regular phrase,"
+
+Fig `image_rsrc34X`: `/ u / u /`
+
+> "Because the regular phrase withholds the match with / / / , the section
+> unbalances. When you get to the HOOK in the Chorus,"
+
+Fig `image_rsrc34Y`: `LAST NIGHT'S LOVE` again, scanned `/ / /`.
+
+> "it will be like a surprise party. All the lights come on at once."
 
 ## Deceptive cadence — spotlight the title by withholding the rhyme
 
-Pat's borrowed term (*Writing Better Lyrics* (2009), Chapter 13) for a chorus
-that sets up an expected rhyme and then repeats the title instead.
+Not from Chapter 7 — but **verified**, and it is Pat's own coinage, not a
+borrowed term. *Writing Better Lyrics* (2009), Chapter 13 ("Dialogue and Point
+of View"), analysing the chorus of "Give Me Wings" by Don Schlitz and Rhonda
+Kye Fleming. Pat first writes his own fully-rhyming `abab` alternative fourth
+line, then rejects it:
 
-The setup: an `aba` chorus opening leaves one word unrhymed, and the ear
-actively wants a fourth line rhyming with it — an `abab` close, fully resolved.
-Give the ear that resolution and the chorus lands securely. Repeat the title in
-the fourth position instead (`abaa`) and three things happen at once:
+> Okay, my line is pretty cheesy, but even so, it does the job, resolving the
+> tension nicely, both structurally and emotionally. The rhyme structure,
+> wings/fly/sing/sky, feels much more resolved than the situation of the song
+> intends. She's asking for, not getting, wings. That's why the real chorus's
+> rhyme scheme, abaa, is so perfect:
 
-1. The title repeats — the commercially useful move.
-2. The structural surprise spotlights the title, because the ear was leaning
-   toward a different sound and got the title instead.
-3. The chorus still resolves, but **less securely** than the expected rhyme
-   would have resolved it.
+Then, of the real `abaa` chorus:
 
-That third effect is the craft point, not a side cost. The worked example in
-Chapter 13 is a chorus whose character is asking for something she has not yet
-been given. A fully resolved `abab` close would sound as though she already had
-it; the deceptive cadence leaves the section slightly unsettled, which is what
-the emotional situation actually is. **Match the security of the cadence to
-whether the song's question is answered.**
+> The last line fools you (I call it a deceptive cadence), and in doing so, it
+> accomplishes three things: (1) it repeats the title — a good commercial move;
+> (2) the structural surprise spotlights the title; and (3) it resolves the
+> chorus, though not as solidly as a rhyme for *fly* would have. The surprise
+> rhyme is emotionally better suited to the intent of the chorus since it's a
+> little less secure.
+
+> Neat structure. It lights up the title and supports the emotion of the lines
+> with perfect prosody. I'm glad we looked.
+
+That third effect is the craft point, not a side cost: **match the security of
+the cadence to whether the song's question is answered.**
+
+<!-- EDITORIAL INFERENCE, NOT PRINTED. Everything from here to the end of this
+section is this file's extrapolation from the nine lines Pat actually prints
+(2009 spine 020, "Give Me Wings"). He states the abaa effect and the prosody
+match; he gives no when-to-use list, no when-NOT-to rule, and no diagnostic
+procedure. Do not cite these as Pat's. -->
 
 When to reach for it:
 
@@ -241,42 +447,133 @@ promised and whether the section's emotional state deserves that promise kept.
 
 ## Strategic positions can shift
 
-A phrase may look like the strategic position early in a section and then be
-reinterpreted later. If a later expected match is changed, the earlier phrase
-can become newly important. Use this to make a hook rhythm gather importance
-before the hook arrives.
+> "Here is an interesting rhythm. Its third phrase is the strategic position."
+
+Fig `image_rsrc34K`, arrow on the third phrase:
 
 ```text
-early expectation: phrase 2 seems strategic
-later change:      phrase 5 refuses expected match
-result:            phrase 2 rhythm becomes a stronger setup
+    / u / u / u /
+    / u / u /
+->  / u / u / u / u /
+    / u / u / u /
+    / u / u /
+    / u / u / u / u /
+```
+
+> "What is interesting is that you start through it syllable by syllable, so
+> the second phrase seems like the strategic position all the way until the 4th
+> stress of the third phrase:"
+
+Fig `image_rsrc34M` prints the first three phrases only, the third broken off
+mid-line: `/ u / u / u /`, `/ u / u /`, `/ u / u / u / ...`
+
+> "It feels like Common Meter so far. For a second you think of"
+
+Fig `image_rsrc34N`: `/ u / u /`
+
+> "as the resolving phrase. Although it does not turn out to be the strategic
+> position, the fact that it could have been emphasizes it a little. Plus, if
+> you change the fifth phrase (where you expect to hear it again) you will
+> unbalance the system and make the 3-stress phrase a strategic position:"
+
+Fig `image_rsrc34P`, arrows on the third and fourth phrases — note that
+phrases 4 and 5 now both end unstressed:
+
+```text
+    / u / u / u /
+    / u / u /
+->  / u / u / u / u /
+->  / u / u / u
+    / u / u / u
+    / u / u / u / u /
 ```
 
 ## Worked diagnostics
 
-"Slow Healing Heart" places the title at both ends of a chorus and balances
-the section with stress-group arithmetic: two 3-stress phrases balance three
-2-stress phrases.
+Jim Rushing's "A SLOW HEALING HEART" appears twice in Chapter 7. Its **chorus**
+is the hook-at-both-ends example under Strategy 1. Its **verse** (fig
+`image_rsrc345`) is a Strategy 2 example, and Pat's point there is the opposite
+of balance:
+
+> "Look at this one by Jim Rushing. It is really pretty because it ends on the
+> HOOK, but the HOOK is the shorter, unbalancing phrase, making it lean forward
+> to arrive at — the HOOK:"
 
 "Seeing Someone Else" becomes balanced only when the hook phrase repeats; the
 repetition is part of the structure, not just emphasis.
 
-"Can't Fight This Feeling" uses a hook rhythm in several strategic positions,
-withholds final closure in verse and transitional bridge, and makes the chorus
-arrival satisfying.
+Kevin Cronin's "I CAN'T FIGHT THIS FEELING ANY MORE" is Pat's longest Strategy
+5 case (figs `image_rsrc34H` and `image_rsrc34J` flank the quoted bridge):
+
+> "If you look closer at Kevin Cronin's whole approach to the HOOK, you will
+> see the HOOK rhythm used in several strategic positions."
+
+> "Because the first Verse actually closes the section with the 5-stress
+> phrase, not closing with it at the end of the second verse makes it all the
+> more tantalizing. When you hear it in triplets at the end of the Transitional
+> Bridge, it is maddening. It is so satisfying to finally reach the 5-stress
+> rhythm at the HOOK."
+
+For "SEEING SOMEONE ELSE," Pat scans verse 1 (fig `image_rsrc34R`), then:
+
+> "The 3-stress second phrase becomes more and more important as you get
+> through the two verses."
+
+> "The rhythm of the Transitional Bridge picks up the 3-stress rhythm
+> immediately, although it is not stated smoothly:"
+
+and after fig `image_rsrc34S`:
+
+> "As you saw earlier, it smooths out for the first time at the HOOK."
+
+The resolving scan (fig `image_rsrc34T`):
+
+<!-- spellchecker:off -->
+```text
+u / u / u / u /
+The way you look at me is like
+u / u / u /
+You’re SEEING SOMEONE ELSE
+```
+<!-- spellchecker:on -->
 
 ## Exercises to preserve
 
-- Write a balanced chorus with a supplied title first, then rewrite it with the
-  same title last.
-- Write a verse that sets up that chorus, using beginning and ending positions
-  for important ideas.
-- Write a verse ending with a supplied refrain; make the repetition structurally
-  necessary.
-- Write two transitional bridges that target different hook sounds.
-- For supplied hooks, write verses that use the hook rhythm in strategic
-  positions.
-- Write a full song system using all five hook-focus strategies.
+The supplied titles *are* the exercise — keep them.
+
+- **Exercise 39** — Write a balanced chorus using the title
+  "YOU DON'T HAVE THE BEST OF ME YET" at the beginning. Then rewrite it with
+  the same title at the end.
+- **Exercise 40** — Write a verse to set up that chorus. Make sure you use the
+  beginning and end positions for important ideas.
+- **Exercise 41** — Write a verse that ends with the refrain "YOU DON'T HAVE
+  THE BEST OF ME YET." Make a repetition necessary by using two strategies:
+  (1) unbalance the system by making the rhythmic closure at the refrain
+  awkward, like "SEEING SOMEONE ELSE"; (2) unbalance the section by making the
+  refrain an odd-numbered phrase (5th or 7th would be ideal).
+- **Exercise 42** — Write a balanced chorus that begins and ends with the hook
+  "I SLIPPED AND FELL IN LOVE." Then, using "WHY CAN'T I HAVE YOU" as a model,
+  (1) write a transitional bridge leading up to it that TARGETS the vowel sound
+  in "slipped," and (2) write a transitional bridge that targets "fell."
+- **Exercise 43** — For each hook below, write a verse that uses the hook
+  rhythm in a strategic position: "LAST NIGHT'S LOVE"; "MY FIRST LOVE WILL BE
+  MY LAST"; "THE LAST OF THE LONELY HEARTS."
+- **Exercise 44** — Using all five strategies, write a song system for the hook
+  "DON'T GIVE UP."
+
+## Pat's chapter close
+
+He restates the five, then:
+
+> "So there they are, five strategies for making your HOOK your hero, basking
+> in the structural spotlight you created for it."
+
+> "Remember these strategies and try them out. They aren't so hard, and they
+> get even easier with practice. Putting your HOOK in the right place at the
+> right time with the right stuff doesn't have to be an accident. You just need
+> to learn to work the switches."
+
+Chapter 7 is the last chapter; the book's AFTERWORD follows it directly.
 
 ## Revision workflow
 
@@ -305,10 +602,12 @@ arrival satisfying.
 
 ## TARGETING — the named strategy
 
-*Essential Guide to Lyric Form and Structure* (1991), Chapter 7's fourth strategy has a name Pat uses in lectures:
-TARGETING. Plant the title's stressed-vowel sound earlier in the
-section (odd-numbered times), so when the title arrives, its sound
-is already in the listener's ear.
+Pat names the fourth strategy in the book itself, in
+*Essential Guide to Lyric Form and Structure* (1991), Chapter 7:
+
+> "This technique is subtle, but very useful. I call it TARGETING. Here are two
+> examples. Both use a vowel sound that occurs in the HOOK an odd number of
+> times to prepare your ear for the HOOK..."
 
 Mechanism:
 
@@ -319,78 +618,84 @@ Mechanism:
 4. The title arrives prepared; the listener hears familiarity even
    on first listen.
 
-Why odd numbers: an even count would feel paired (one sound calls
-its matching sound). An odd count leaves the ear waiting for the
-balancing sound — which the title supplies.
+Pat gives no reason for the odd count beyond the effect itself — "a vowel sound
+that occurs in the HOOK an odd number of times to prepare your ear for the
+HOOK." Any explanation of *why* odd works is inference, not Chapter 7.
 
-Use TARGETING when:
+Pat's two examples are "WHY CAN'T I HAVE YOU" ("For the first example, see
+'WHY CAN'T I HAVE YOU,' (p. 62).") and a Kevin Cronin transitional bridge into
+the chorus of "I CAN'T FIGHT THIS FEELING ANY MORE." His analysis of the second:
 
-- the title's sound is distinctive enough to be planted,
-- the section is long enough to support 1, 3, or 5 sound-plants,
-- the title's emotional weight benefits from prepared arrival.
+> "This is straightforward. Three 'ite' sounds set up the second most important
+> word in the HOOK. Musically, the tonic chord comes on 'feeling.' Both ideas
+> are supported and spotlighted, one by sound TARGETING in the lyric, the other
+> by the arrival of the tonic. Neat."
 
-Combine with the other four hook strategies; targeting is not a
-substitute for hot-spot placement.
+## Strategic position
 
-## Strategic vs balancing position
+Pat names exactly **one** position in Chapter 7, and this is it. An earlier
+version of this file also gave a "Balancing position" as though it were a
+second Pat term; it is not. He describes the later phrase as the thing that
+*balances*, never as a named position.
 
-Pat names the two structural positions that shape hook expectation:
+> "I thought you'd never ask ... A strategic position is a place you have to
+> match in order to balance a section. In Common Meter, this is a strategic
+> position:"
 
-- **Strategic position** — a position in a section that establishes
-  a pattern the section will need to match later. Often phrase 2 of
-  a Common Meter system.
-- **Balancing position** — the position later in the section that
-  resolves what the strategic position set up. Often phrase 4 of a
-  Common Meter system.
+He then scans Common Meter and says of it:
 
-In Common Meter (4/3/4/3 stress pattern):
+> "The second phrase is the strategic position — when you match it by repeating
+> it in the fourth phrase, the section balances."
 
-| Position | Line | Stress count | Job |
-|---|---|---|---|
-| 1 | line 1 | 4 | First statement |
-| 2 | line 2 | 3 | Strategic — sets up the balancing return |
-| 3 | line 3 | 4 | Restatement or variation |
-| 4 | line 4 | 3 | Balancing — resolves what line 2 set up |
+The Common Meter scansion he prints (fig `image_rsrc34A`), with the arrows
+pointing at the second phrase:
+
+<!-- spellchecker:off -->
+```text
+/ u / u / u /          DUM da DUM da DUM da DUM
+/ u / u /       <-  -> DUM da DUM da DUM  <-
+/ u / u / u /          DUM da DUM da DUM da DUM
+/ u / u /              DUM da DUM da DUM
+```
+<!-- spellchecker:on -->
 
 Place the hook rhythm in the strategic position (line 2) and the
 ear waits for line 4 to match it. Place the hook rhythm only in
 line 4 and the section feels arbitrary.
 
-Two refinements:
+Pat's own next move is to unbalance the system so the match never lands where
+expected:
 
-- A strategic position can be reinterpreted mid-section. A phrase
-  that looked strategic in line 2 can become balancing if a new
-  pattern emerges by line 3. Sing the section to test which
-  interpretation lands.
-- Strategic-balancing relationships work at section level too. A
-  bridge's first line is strategic for the bridge's last line.
+> "If you unbalance the system, [...] or, [...] your listener will still want
+> the rhythm of the strategic position. If the rhythm of the HOOK is in the
+> strategic position, your HOOK will light up when you arrive."
 
 ## Motivic development analogy
 
-Composers state a melodic motif, vary it, withhold it, then deliver
-it. Lyricists do the same with hook rhythm.
+Pat's verbatim framing of Strategy 5:
 
-Four stages:
+> "Think of this strategy in the same way composers think of melodic themes:
+> they state their theme, then use it other places in different ways. Speed it
+> up, slow it down, say it backwards, turn it upside down, keep its shape but
+> change its notes, keep its notes but change its chords, keep its rhythm but
+> change its notes and chords. They call this 'Motivic Development.'"
 
-1. **State** — establish the hook rhythm in a strategic position.
-2. **Vary** — recombine its elements through the section without
-   landing exactly on the hook.
-3. **Withhold** — let the ear expect the hook and delay it.
-4. **Deliver** — land the hook rhythm at the balancing position.
+He gives two reasons composers use it:
 
-> "Motivic development at the lyric level: state, vary, withhold,
-> deliver." — paraphrase, *Essential Guide to Lyric Form and Structure* (1991), Chapter 7
+> "1. It is a subtle way of repeating a theme without getting boring.
+> 2. It makes the theme the focus of the piece."
 
-Use motivic development when the section has time to develop. A
-short refrain may only have room for state-deliver; a longer chorus
-or bridge can run all four stages.
+> "Though you don't need to make it nearly so complicated, you can do the same
+> thing with the rhythm of your HOOK."
 
 ## Know the hook rhythm before writing the lyric
 
-Pat's load-bearing planning rule from *Essential Guide to Lyric Form and Structure* (1991), Chapter 7:
+Pat's load-bearing planning rule, printed in caps on its own line in
+*Essential Guide to Lyric Form and Structure* (1991), Chapter 7:
 
-> "Know the rhythm of your hook before you start writing your
-> lyric." — Pat
+> KNOW THE RHYTHM OF YOUR HOOK BEFORE YOU START WRITING YOUR LYRIC
+
+> "Then use your HOOK'S rhythm in 'strategic positions.'"
 
 Mechanism:
 
@@ -406,12 +711,20 @@ a rhythm that the chorus cannot match, so the chorus's hook arrives
 out of context. Knowing the hook rhythm first ties the whole song
 to the hook.
 
-## Title generation — the seven types
+## Title generation — UNAUDITED, no book source
+
+**UNAUDITED — not from Chapter 7, and no book source is cited.** Chapter 7 of
+*Essential Guide to Lyric Form and Structure* (1991) contains no title
+typology, no "seven types," and no Nashville stressed-vowel method. The two
+quotes below are attributed to Berklee Online and patpattison.com — non-book
+sources that cannot be verified against the corpus, which is exactly where an
+invented quote is hardest to detect. Treat the table, the counts ("5+", "20+"),
+and both quotes as unverified until someone checks the cited web sources.
 
 For situations where the writer has an idea but no title, Pat
 catalogs title types and a Nashville generation method.
 
-### Seven title types
+### Title types (unaudited — the count "seven" is ours, not Pat's)
 
 | Type | Shape | Effect |
 |---|---|---|
@@ -468,39 +781,49 @@ for the full pipeline.
 
 ## Phrase-level hot spots (*Essential Guide to Lyric Form and Structure* (1991), Chapter 7 Strategy 1)
 
-The hot-spot principle does not only apply at the section level — it
-extends to the phrase level. Within a single phrase, the prose-writing
-rule applies:
+Pat's third level, verbatim (italics restored from the raw XHTML):
 
-- The **most important** content word goes at the **end** of the phrase
-- The **second-most important** content word goes at the **beginning**
-- Less important words live in the middle
+> "*For each phrase of your lyric.* Prose writers use the principle of
+> beginnings and endings as a strategy when they write sentences. They insist
+> that the sentence's first 'idea' word (noun, adjective, or verb) should be
+> one of the most important words in the sentence. The same for the end of the
+> sentence. Some writers go so far as to insist that, wherever possible, *the
+> second most important word* in the sentence come at the beginning, and the
+> *most important word* come at the *end.* There is a big difference between
+> the following two sentences. The first puts all its substance at the end."
 
-Two example phrases (Pat-style contrast — describing only):
+```text
+1. When it happens naturally, and no one is wiser, wild sex yanks my chain.
+2. Wild sex, when it happens naturally, and no one is wiser, yanks my chain.
+```
 
-- Phrase A places the strongest noun at the end: ear lands hard there
-- Phrase B places the same noun in the middle: ear coasts past it
+> "Two 'dead' clauses tread water in the first version, waiting for something
+> to happen. The same clauses gather steam in the second version. Starting
+> strong will color what comes afterwards."
 
-Same content, different phrasing — wildly different impact. The phrase
-itself is a small hot-spot system.
+Pat's own summary of the level, one line later:
+
+> "You can apply prose writer's logic to lyric phrases. If you put something
+> important at the beginning of your phrase and something important at the end,
+> your phrase will show off your best ideas where they are most likely to be
+> noticed."
+
+> "Beginnings and endings. HOT SPOTS."
 
 ### LED-in-the-brain metaphor
 
-Pat's kinesthetic training image: imagine a red LED in your brain that
-blinks every time you place a content word at the beginning or end of a
-section, phrase, or line. The LED trains the ear to notice when strong
-material is sitting in a power position — and when it's wasted in the
-middle.
-
-Use the LED metaphor when coaching new writers; it makes the hot-spot
-audit visceral rather than abstract.
+Quoted in full under "Hot spots make meaning" above, where Chapter 7 places it.
+Two things to keep straight when using it: Pat sets the LED to **sections**
+only, not to phrases or lines, and he gives it exactly one job — to *warn* you
+to use the positions well.
 
 ## Conscious craft stance — "you can" (*Essential Guide to Lyric Form and Structure* (1991), Chapter 7 Strategy 5 close)
 
 After analyzing a song's motivic development, Pat closes Chapter 7 Strategy 5
 with a recurring craft stance:
 
-> "Did [the writer] do it on purpose? They could have. Whether or not THEY did is not the point. YOU can."
+> "You can see how well the strategy works. Did Kevin Cronin do it on purpose?
+> He could have. Whether or not HE did is not the point. YOU can."
 
 The principle: identifying a craft tool in another writer's song does NOT
 require proving the other writer used it consciously. The tool exists; you

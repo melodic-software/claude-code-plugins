@@ -79,12 +79,16 @@ hook::check_enabled "TYPOS_FORMAT"
 # `set -u` would abort before the advisory exit 0, failing every edit.
 start=${EPOCHREALTIME:-}
 
-# Telemetry needs the high-res start stamp. When EPOCHREALTIME is unavailable
-# (Bash < 5.0) the stamp is empty and telemetry is skipped, so the hook still
-# fixes typos on older bash rather than aborting.
+# Emit this run's telemetry envelope: $1 status, $2 residual-findings JSON
+# array, optional $3 applied-corrections JSON array.
+# Two guards: the high-res start stamp (EPOCHREALTIME is Bash 5.0+; on older
+# bash it is empty and telemetry is skipped, so the hook still fixes typos
+# rather than aborting) and the sink opt-in. The data payload costs a jq
+# subprocess, so it is built here after both guards — never on the unwired path.
 emit_tel() {
   [[ -n "$start" ]] || return 0
-  hook::emit_telemetry "$@"
+  hook::telemetry_enabled || return 0
+  hook::emit_telemetry "typos-format" "PostToolUse" "$1" "$start" "$(build_data_json "$2" "${3:-[]}")" "$REPO_ROOT"
 }
 
 INPUT=$(hook::buffer_stdin) || exit 0
@@ -100,7 +104,13 @@ hook::require_jq PostToolUse typos-format "$INPUT"
 
 FILE=$(printf '%s' "$INPUT" | hook::read_file_path) || exit 0
 
-TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
+# Telemetry-only. Parsed behind the sink opt-in so the unwired default path
+# spawns zero telemetry-only subprocesses (FILE_REL below is NOT gated — it is
+# also the path typos itself is invoked with).
+TOOL=""
+if hook::telemetry_enabled; then
+  TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
+fi
 
 # Resolve repo root early — used as the CWD typos runs in and to compute
 # the schema-required repo-relative path in data.file.
@@ -147,9 +157,7 @@ build_data_json() {
 }
 
 emit_skipped() {
-  local data_json
-  data_json=$(build_data_json '[]')
-  emit_tel "typos-format" "PostToolUse" "skipped" "$start" "$data_json" "$REPO_ROOT"
+  emit_tel "skipped" '[]'
   exit 0
 }
 
@@ -193,7 +201,7 @@ fi
 # into a shell command would let the shell run whatever that value contains, so
 # the component fails" — and every option is exported to hook processes as
 # CLAUDE_PLUGIN_OPTION_<KEY> anyway (Plugins reference, "User configuration",
-# https://code.claude.com/docs/en/plugins-reference, re-fetched 2026-07-31).
+# https://code.claude.com/docs/en/plugins-reference, re-fetched 2026-08-10).
 # Same idiom as hook::check_enabled's kill switch. Only the literal "true"
 # means write — the mutating direction must be the one that needs the exact
 # opt-in spelling, so a typo'd or half-set option value stays report-only.
@@ -236,17 +244,14 @@ emit_tool_break() {
     hook::ctx_append "  $line"
   done <<<"$1"
   hook::ctx_flush PostToolUse
-  local data_json
-  data_json=$(build_data_json '[]')
-  emit_tel "typos-format" "PostToolUse" "skipped" "$start" "$data_json" "$REPO_ROOT"
+  emit_tel "skipped" '[]'
   exit 0
 }
 
 if [[ $SCAN_RC -eq 0 ]]; then
   # Clean, or excluded by the repo's own typos config. Nothing was changed and
   # there is nothing to disclose.
-  data_json=$(build_data_json '[]')
-  emit_tel "typos-format" "PostToolUse" "ok" "$start" "$data_json" "$REPO_ROOT"
+  emit_tel "ok" '[]'
   exit 0
 fi
 
@@ -406,29 +411,46 @@ if [[ -z "$CLASSIFIED" ]]; then
   hook::ctx_reset
   hook::ctx_append "typos-format ran on $(basename "$FILE") and its findings could not be summarized (internal parse failure). If the file was rewritten, review it — this run cannot say what changed."
   hook::ctx_flush PostToolUse
-  data_json=$(build_data_json '[]')
-  emit_tel "typos-format" "PostToolUse" "skipped" "$start" "$data_json" "$REPO_ROOT"
+  emit_tel "skipped" '[]'
   exit 0
 fi
 
-read_field() { printf '%s' "$CLASSIFIED" | jq -r "$1" 2>/dev/null; }
-APPLIED_COUNT=$(read_field '.appliedCount')
-RESIDUAL_COUNT=$(read_field '.residualCount')
-APPLIED_LINES=$(read_field '.appliedText')
-APPLIED_INLINE=$(read_field '.appliedInline')
-RESIDUAL_LINES=$(read_field '.residualText')
-APPLIED_JSON=$(printf '%s' "$CLASSIFIED" | jq -c '.applied' 2>/dev/null) || APPLIED_JSON='[]'
-FINDINGS_JSON=$(printf '%s' "$CLASSIFIED" | jq -c '.findings' 2>/dev/null) || FINDINGS_JSON='[]'
+# Unpack the classification in ONE jq process (hook::jq_fields), not seven. The
+# same spawn cost the classifier above was built to avoid applies here: reading
+# these seven values with a jq call apiece paid seven forks over a document jq
+# had just produced, charged against the handler's 15-second budget on exactly
+# the typo-heavy runs that already spent the most of it. hook::jq_fields exists
+# for this shape and records the cost it removes (three forks over one envelope
+# measured at ~840 ms on Windows Git Bash). The array fields come back
+# via `tostring`, which is the same compact JSON `jq -c` emitted. jq_fields also
+# strips every CR (its documented contract): the Windows jq build writes stdout
+# in text mode, so a multi-line value would otherwise arrive with a CR embedded
+# before every newline and carry a literal \r into the emitted context.
+#
+# The failure arm is near-unreachable — jq is a hard prerequisite
+# (hook::require_jq above) and CLASSIFIED is jq's own output — but it must not
+# leave the display strings unset under `set -u`.
+if hook::jq_fields "$CLASSIFIED" \
+  '.appliedCount' '.residualCount' '.appliedText' '.appliedInline' '.residualText' \
+  '.applied' '.findings'; then
+  APPLIED_COUNT="${HOOK_JQ_FIELDS[0]}"
+  RESIDUAL_COUNT="${HOOK_JQ_FIELDS[1]}"
+  APPLIED_LINES="${HOOK_JQ_FIELDS[2]}"
+  APPLIED_INLINE="${HOOK_JQ_FIELDS[3]}"
+  RESIDUAL_LINES="${HOOK_JQ_FIELDS[4]}"
+  APPLIED_JSON="${HOOK_JQ_FIELDS[5]}"
+  FINDINGS_JSON="${HOOK_JQ_FIELDS[6]}"
+else
+  APPLIED_COUNT=0
+  RESIDUAL_COUNT=0
+  APPLIED_LINES=""
+  APPLIED_INLINE=""
+  RESIDUAL_LINES=""
+  APPLIED_JSON='[]'
+  FINDINGS_JSON='[]'
+fi
 [[ "$APPLIED_COUNT" =~ ^[0-9]+$ ]] || APPLIED_COUNT=0
 [[ "$RESIDUAL_COUNT" =~ ^[0-9]+$ ]] || RESIDUAL_COUNT=0
-# jq writes stdout in text mode on Windows, so a multi-line value comes back
-# with CRLF line endings; command substitution strips only the trailing one and
-# leaves a CR embedded before every remaining newline, which then survives
-# JSON-escaping into the emitted context as a literal \r. These strings are
-# display text with no meaningful carriage returns of their own.
-APPLIED_LINES="${APPLIED_LINES//$'\r'/}"
-APPLIED_INLINE="${APPLIED_INLINE//$'\r'/}"
-RESIDUAL_LINES="${RESIDUAL_LINES//$'\r'/}"
 [[ -n "$APPLIED_LINES" ]] && APPLIED_LINES="$APPLIED_LINES"$'\n'
 [[ -n "$RESIDUAL_LINES" ]] && RESIDUAL_LINES="$RESIDUAL_LINES"$'\n'
 
@@ -506,10 +528,9 @@ CTX=$(truncate_to "$CTX" 12000)
 
 hook::emit_channels PostToolUse "$CTX" "$SYSMSG"
 
-data_json=$(build_data_json "$FINDINGS_JSON" "$APPLIED_JSON")
 # Status "ok" — typos RAN and produced a judgment (findings live in
 # data.findings, applied rewrites in data.applied), mirroring the sibling
 # formatter plugins where status reflects whether the tool ran, not whether it
 # was clean.
-emit_tel "typos-format" "PostToolUse" "ok" "$start" "$data_json" "$REPO_ROOT"
+emit_tel "ok" "$FINDINGS_JSON" "$APPLIED_JSON"
 exit 0

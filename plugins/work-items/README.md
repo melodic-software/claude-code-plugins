@@ -142,6 +142,69 @@ and its own `CLAUDE.md` / rules for write-identity policy (e.g. routing tracker
 writes through a bot wrapper) and development workflow. The skills degrade
 gracefully when any of these are absent.
 
+<!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
+
+### Options reference
+
+Generated from this plugin's `.claude-plugin/plugin.json`. Every option Claude Code
+will prompt for when the plugin is enabled, with the environment variable each hook
+reads it from.
+
+| Option | Type | Default | Environment variable | Description |
+| --- | --- | --- | --- | --- |
+| `lane_instance` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_LANE_INSTANCE` | Writer identity for this machine's loop-lane telemetry, per the loop-lane convention's lane-instance identity rule. It becomes the suffix of the lane's telemetry sentinel marker (`work-items:work-loop@<id>`), so each concurrently running lane instance owns its own comment and none can overwrite another's durable state — including first_drain_complete, whose loss would end one machine's earn-trust ratification gate because a different machine finished a drain. Must match ^\[a-z0-9\]\[a-z0-9-\]{0,31}$, be stable across restarts, and be distinct across concurrent instances; two lanes on one machine each need an explicit value. Absent: the sanitized lowercased hostname. The value appears verbatim in tracker comments — set an opaque id if a machine name should not be published in a public tracker. |
+| `work_dispatch_concurrency_cap` | number<br>*min 1* | *(none)* | `CLAUDE_PLUGIN_OPTION_WORK_DISPATCH_CONCURRENCY_CAP` | Maximum concurrent dispatch waves /work-items:work's autonomous execute step allows per invocation (it runs exactly one item per invocation). Give a whole number of waves; a fractional value is floored to whole waves since a wave is discrete. When set, /work-items:work threads it into /implementation:implement-dispatch as that skill's --wave-cap ceiling. Leave unset to let implement-dispatch apply its own internal 3-5 wave default — this key declares no default, so an unset value stays distinguishable from a configured one (which a declared default would collapse into a hard cap). |
+| `work_loop_item_cap_start` | number<br>*min 1* | `2` | `CLAUDE_PLUGIN_OPTION_WORK_LOOP_ITEM_CAP_START` | Where the work-loop lane's adaptive per-cycle item cap starts. The cap ramps up by one after three consecutive clean items (never while a rate-limit warning is latched) and drops by one on any dirty item; enforcement is the loop body's own arithmetic. |
+| `work_loop_item_cap_ceiling` | number<br>*min 1* | `3` | `CLAUDE_PLUGIN_OPTION_WORK_LOOP_ITEM_CAP_CEILING` | Upper bound the work-loop lane's adaptive item cap can ramp to for non-frontier-tier items. Frontier-tier items are bounded separately by work_loop_frontier_item_cap_ceiling. |
+| `work_loop_item_cap_floor` | number<br>*min 1* | `1` | `CLAUDE_PLUGIN_OPTION_WORK_LOOP_ITEM_CAP_FLOOR` | Lower bound the work-loop lane's adaptive item cap can drop to on dirty items. |
+| `work_loop_frontier_item_cap_ceiling` | number<br>*min 1* | `2` | `CLAUDE_PLUGIN_OPTION_WORK_LOOP_FRONTIER_ITEM_CAP_CEILING` | Quota guard for frontier-capability-tier items in the work-loop lane: such items run at concurrency 1 and their adaptive cap is bounded by this ceiling instead of the general one. Keep it at or below work_loop_item_cap_ceiling. The frontier tier is read from the item body, which any item author can write, so a frontier ceiling above the general one would let a body claim buy higher throughput; the lane detects that inversion and ignores this ceiling, bounding the item by the general one instead. The manifest cannot enforce the ordering — userConfig min/max are static bounds with no cross-key validation. |
+| `work_loop_no_progress_threshold` | number<br>*min 1* | `3` | `CLAUDE_PLUGIN_OPTION_WORK_LOOP_NO_PROGRESS_THRESHOLD` | Consecutive no-progress cycles (actionable work in view, no item advanced and no PR opened) before the work-loop lane raises its stall escalation. The lane escalates and keeps looping; it never stops on a stall. Idle cycles with nothing actionable neither count nor reset. |
+
+### How to set these
+
+Three supported routes, in the order most people want them:
+
+1. **Interactively** — Claude Code prompts for declared options when you enable the
+   plugin. To change them later: `/plugin configure work-items`.
+2. **Headless, at install time** — repeat `--config` for each option. Replace
+   `<marketplace>` with the marketplace you installed this plugin from:
+
+   ```shell
+   claude plugin install work-items@<marketplace> --config lane_instance=<value>
+   ```
+
+3. **By hand, in settings** — add the value under `pluginConfigs` in your **user**
+   settings (`~/.claude/settings.json`):
+
+   ```json
+   {
+     "pluginConfigs": {
+       "work-items@<marketplace>": {
+         "options": {
+           "lane_instance": <value>
+         }
+       }
+     }
+   }
+   ```
+
+   Plugin option values are read from **user**, `--settings`, and managed settings
+   only — **not** from a project's `.claude/settings.json`. To vary behavior per
+   repository, enable or disable the plugin in that project's `enabledPlugins`
+   instead of setting an option there.
+
+Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself. They are how Claude Code
+hands a configured value to a hook process; the value comes from the routes above.
+
+### Upstream documentation
+
+- [User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration) — the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
+- [Plugin settings](https://code.claude.com/docs/en/settings#plugin-settings) — `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
+- [Configuration scopes](https://code.claude.com/docs/en/settings#configuration-scopes) — user vs project vs local precedence
+- [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins) — enabling, disabling, `/plugin list`
+
+<!-- END GENERATED: plugin options -->
+
 ## License
 
 MIT (SPDX-License-Identifier: MIT).
