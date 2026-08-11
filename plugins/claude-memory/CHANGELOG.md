@@ -36,16 +36,21 @@ The audit now covers two surfaces it never could before, which is why this is a 
   C9 on `~/.claude/CLAUDE.md` and FAIL it for not stating a repo's build and test commands. Step 2 now
   routes on the emitted scope, and the R-checks apply at both scopes — an always-loaded user rule costs
   context in every session of every project, so they apply to it at least as strongly as to a project
-  rule. 38 checks in the sibling `*.test.sh` style, including the Git Bash case where the config root is
+  rule. 44 checks in the sibling `*.test.sh` style, including the Git Bash case where the config root is
   a Windows path with a drive letter.
 - **A third scope value, `both`, for the two dotfiles layouts where one physical file is reachable by
-  each layer.** A repo rooted at `~` — the same target shape the sibling `audit-pass` fix calls ordinary
-  — makes `.claude/rules` relative to the cwd and `~/.claude/rules` the **same directory**. A repo rooted
-  at `~/.claude` itself, an equally common layout, additionally makes the depth-1 `CLAUDE.md` and
-  `~/.claude/CLAUDE.md` the **same file**. Either way a naive widening emits the file twice under two
-  path spellings: a duplicate finding, and a cross-scope comparison of a file against itself. Paths are
-  now canonicalized and compared, and where they coincide the file is emitted once as `both`, which
-  satisfies either `--scope` filter because the file really is reachable by each layer.
+  each layer.** A naive widening emits such a file twice under two path spellings: a duplicate finding,
+  and a cross-scope comparison of a file against itself. Paths are now canonicalized and compared, and
+  where they coincide the file is emitted once as `both`, which satisfies either `--scope` filter
+  because the file really is reachable by each layer.
+
+  **Each layout collides exactly one surface, which is why the two comparisons are computed
+  independently rather than from one flag.** A repo rooted at `~` — the target shape the sibling
+  `audit-pass` fix calls ordinary — makes `.claude/rules` and `~/.claude/rules` the same **directory**,
+  while its two `CLAUDE.md` files stay distinct. A repo rooted at `~/.claude` itself makes the depth-1
+  `CLAUDE.md` and `~/.claude/CLAUDE.md` the same **file**, while its rules dirs stay distinct — project
+  rules there resolve to `~/.claude/.claude/rules`, not `~/.claude/rules`. Cases pin the asymmetry in
+  both directions.
 - **Path-scoped rules are not assumed loaded.** A user rule carrying `paths:` frontmatter is absent until
   a matching file is read, so a repo-relative currency or redundancy finding against one is valid only
   where its `paths:` can match in *this* project. Step 2 and the Step 3 comparison both say to establish
@@ -56,7 +61,10 @@ The audit now covers two surfaces it never could before, which is why this is a 
   because R1 is a redundancy the owner of that layer fixes by deleting one of the two, and only a
   same-scope pair is theirs to fix. Cross-scope overlap is real and belongs to the Step 3 pass, which
   reports it against the pair and names each side's scope; routing it through R1 as well would report
-  one overlap twice and address it to the wrong person.
+  one overlap twice and address it to the wrong person. A `both`-scoped rule is the one case with no
+  same-scope partner — it arises only in the `~`-rooted layout, where the two `CLAUDE.md` files stay
+  distinct — so it compares against each `CLAUDE.md` in scope, attributing every finding to the scope of
+  the one it overlapped.
 - **Step 3 gains a cross-scope consistency pass.** Both layers load together, so a user instruction that
   contradicts a project one is a live conflict rather than a layering choice, and one the project already
   states is redundant context on every run. The report names which scope each side came from, because the

@@ -198,6 +198,30 @@ assert_contains "--scope user shows the both-tagged CLAUDE.md" "$OUT_CONF_USER" 
 # A distinct-config layout must not regress into a both-tagged CLAUDE.md.
 assert_not_contains "distinct roots never produce a both-tagged CLAUDE.md" "$OUT" "$(printf 'both\tclaude-md\t')"
 
+# --- each layout collides exactly ONE surface, not both ----------------------
+# This asymmetry is why the two comparisons are computed independently rather than
+# from one flag, so pin it in both directions.
+#
+# Layout 1 (repo at ~): rules collide, CLAUDE.md does not — asserted above via
+# OUT_HOME (both-tagged rule, and project/user CLAUDE.md rows still separate).
+assert_contains "layout 1 collides rules" "$OUT_HOME" "$(printf 'both\trule\t')"
+assert_not_contains "layout 1 leaves CLAUDE.md distinct" "$OUT_HOME" "$(printf 'both\tclaude-md\t')"
+
+# Layout 2 (repo at ~/.claude): CLAUDE.md collides, rules do NOT — project rules
+# would live at $config_root/.claude/rules, which is not $config_root/rules.
+CONFREPO2="$TEST_TMPDIR/confrepo2"
+mkdir -p "$CONFREPO2/rules" "$CONFREPO2/.claude/rules"
+printf '# the one CLAUDE.md\n' >"$CONFREPO2/CLAUDE.md"
+printf '# user-layer rule\n' >"$CONFREPO2/rules/user-layer.md"
+printf '# project-layer rule, a genuinely different file\n' >"$CONFREPO2/.claude/rules/project-layer.md"
+
+OUT_CONF2="$(run_in "$CONFREPO2" "$CONFREPO2")"
+
+assert_contains "layout 2 collides CLAUDE.md" "$OUT_CONF2" "$(printf 'both\tclaude-md\tCLAUDE.md')"
+assert_not_contains "layout 2 leaves the rules dirs distinct" "$OUT_CONF2" "$(printf 'both\trule\t')"
+assert_contains "layout 2 emits the project-layer rule as project" "$OUT_CONF2" "$(printf 'project\trule\t.claude/rules/project-layer.md')"
+assert_contains "layout 2 emits the user-layer rule as user" "$OUT_CONF2" "$(printf 'user\trule\t%s/rules/user-layer.md' "$CONFREPO2")"
+
 # A `both` record satisfies either filter — the file really is reachable by each layer.
 OUT_HOME_USER="$(run_in "$HOMEREPO" "$HOMEREPO/.claude" --scope user)"
 assert_contains "--scope user still shows the both-tagged rule" "$OUT_HOME_USER" "shared-rule.md"

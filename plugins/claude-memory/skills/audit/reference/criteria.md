@@ -268,12 +268,18 @@ keeps this check from flagging a repo that followed the other half of the same p
 
 **Which CLAUDE.md** — two can be in scope now, so name the pairing rather than leaving it to be
 guessed. Compare against the one at the rule's **own scope**: a project rule against the project
-`CLAUDE.md`, a user rule against the user `CLAUDE.md`, a `both`-scoped rule against whichever
-`CLAUDE.md` shares its scope. R1 is a redundancy the owner of that layer fixes by deleting one of the
-two, and only a same-scope pair is theirs to fix. Overlap **across** scopes is real and is not R1 — the
-audit workflow's cross-scope consistency step owns it, reports it against the pair, and names which
-side each came from. Routing it here as well would report one overlap twice and address it to the
-wrong person.
+`CLAUDE.md`, a user rule against the user `CLAUDE.md`. R1 is a redundancy the owner of that layer fixes
+by deleting one of the two, and only a same-scope pair is theirs to fix. Overlap **across** scopes is
+real and is not R1 — the audit workflow's cross-scope consistency step owns it, reports it against the
+pair, and names which side each came from. Routing it here as well would report one overlap twice and
+address it to the wrong person.
+
+**A `both`-scoped rule has no same-scope partner, so it pairs with each.** `both` means one physical
+rule file that each layer loads, which arises in a `~`-rooted repo — and there the two `CLAUDE.md`
+files stay distinct, so there is no `both`-scoped `CLAUDE.md` to pair against. Compare such a rule
+against **every** `CLAUDE.md` in scope, and attribute each finding to the scope of the `CLAUDE.md` it
+overlapped. That is not double-reporting: the rule is genuinely loaded alongside both, and a
+duplication against either is a real redundancy for that layer.
 
 ### R2: Path Scoping Fit [INFO]
 

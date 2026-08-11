@@ -31,12 +31,12 @@
 #   kind   claude-md | claude-local-md | rule
 #   path   absolute for user scope, as-found for project scope
 #
-# `both` means one PHYSICAL file that both layers reach. Two dotfiles layouts do this:
-# a repo rooted at `~` (where `.claude/rules` IS `~/.claude/rules`), and a repo rooted
-# at `~/.claude` itself (where `CLAUDE.md` at depth 1 IS `~/.claude/CLAUDE.md`, and the
-# rules dirs coincide too). Such a file is emitted once, never twice under two path
-# spellings, so it cannot produce a duplicate finding or be compared against itself in
-# the cross-scope pass.
+# `both` means one PHYSICAL file that both layers reach. Two dotfiles layouts do this,
+# each colliding exactly one surface: a repo rooted at `~` collides the RULES dir
+# (`.claude/rules` IS `~/.claude/rules`), and a repo rooted at `~/.claude` itself
+# collides CLAUDE.md (the depth-1 `CLAUDE.md` IS `~/.claude/CLAUDE.md`). Such a file is
+# emitted once, never twice under two path spellings, so it cannot produce a duplicate
+# finding or be compared against itself in the cross-scope pass.
 
 set -uo pipefail
 
@@ -110,20 +110,24 @@ canon_file() {
 }
 
 # --- scope overlap -----------------------------------------------------------
-# Two layouts make a project-scope path and a user-scope path the SAME physical file,
-# and both are real. Emitting such a file twice under two path strings would produce a
-# duplicate finding and a cross-scope comparison of a file against itself, so wherever
-# the canonical paths coincide the file is emitted ONCE with scope `both`.
+# Two dotfiles layouts make a project-scope path and a user-scope path the SAME physical
+# file. Emitting such a file twice under two path strings would produce a duplicate
+# finding and a cross-scope comparison of a file against itself, so wherever the
+# canonical paths coincide the file is emitted ONCE with scope `both`.
 #
-#   1. Project root IS the home directory (a `~` dotfiles repo — the shape the sibling
-#      audit-pass contract calls an ordinary target). Then `.claude/rules` relative to
-#      the cwd and `<config_root>/rules` are one directory.
-#   2. Project root IS the config root (`~/.claude` itself tracked as the repo, which
-#      is a common dotfiles layout). Then `CLAUDE.md` at depth 1 and
-#      `<config_root>/CLAUDE.md` are one file — and so are the two rules dirs.
+# Each layout collides exactly ONE of the two surfaces, which is why both guards below
+# are needed and neither can be argued away from the other:
 #
-# Case 2 is why the CLAUDE.md comparison exists rather than being argued away: it is
-# only the `~`-rooted case that leaves the two CLAUDE.md files distinct.
+#   1. Project root IS the home directory (a `~`-rooted dotfiles repo — the shape the
+#      sibling audit-pass contract calls an ordinary target).
+#        rules:     `.claude/rules` == `<config_root>/rules`          -> COLLIDES
+#        CLAUDE.md: `./CLAUDE.md` vs `<config_root>/CLAUDE.md`        -> distinct
+#   2. Project root IS the config root (`~/.claude` itself tracked as the repo).
+#        CLAUDE.md: `./CLAUDE.md` == `<config_root>/CLAUDE.md`        -> COLLIDES
+#        rules:     `.claude/rules` resolves to `<config_root>/.claude/rules`,
+#                   which is NOT `<config_root>/rules`                -> distinct
+#
+# So the two comparisons are computed independently rather than from one flag.
 config_root="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 
 proj_rules_canon="$(canon_dir ".claude/rules")"
