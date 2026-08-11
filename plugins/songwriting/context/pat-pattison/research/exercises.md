@@ -11,9 +11,11 @@ conversation. Each entry is a self-contained exercise the writer can
 do alone, given in Pat's own instruction wording with his numbering,
 his word lists and rhyme schemes, and the answer keys the book prints.
 
-Earlier revisions summarized the exercises instead — which meant none of
-them were actually Pat's, the item counts were invented, and Exercises 32
-and 33 had been dropped entirely.
+Earlier revisions summarized the exercises instead, which meant none of
+them were actually Pat's and the item counts were invented. That has since
+been undone: the exercises are given in Pat's printed instruction wording,
+with the titles, hooks, word lists and answer slots he supplies alongside
+them.
 
 ## How to use
 
@@ -24,7 +26,13 @@ and 33 had been dropped entirely.
 3. After the writer finishes, route to the relevant context file for
    the principles the exercise tests.
 
-> "Craft prepares you to be creative." — Pat (*Essential Guide to Rhyming* (2014), Chapter 9)
+> "All craft. All technique. Craft prepares him to be immensely creative
+> with his shots—hitting a high fade over the trees against the wind to
+> land softly near the flag. Creativity indeed, but built on a platform
+> of craft." — *Essential Guide to Rhyming* (2014), Chapter 9, of Tiger
+> Woods. The full passage, with Pat's "Why should songwriting be any
+> different?", is in [rhyme types](rhyme-types.md) under "Craft prepares
+> creativity — Tiger Woods anchor".
 
 The exercises are not assessments. They are repetitions. The
 specific answers do not matter; the writing habit does.
@@ -462,9 +470,12 @@ Routes to: [rhyme strategy](rhyme-strategy.md) "three strategies".
 
 ## *Essential Guide to Lyric Form and Structure* (1991) — Form exercises (Chapter 5)
 
-All five Chapter 5 exercises work the same "candy bar" section. Pat
-uses one verse again and again to show that it is structure, not
-content, that makes a section what it is.
+All five Chapter 5 exercises work the same "candy bar" section. Pat's
+own note on why, verbatim: "By the time you finish this chapter, you
+will have a better sense of how to build the most typical lyric
+sections. You will also be very tired of candy bars. I used the same
+verse again and again to show that it is structure, not content, that
+makes a section what it is."
 
 ```text
 Love me like a candy bar
@@ -494,7 +505,9 @@ SHORTENING THE FIRST PHRASE TO MAKE IT SOUND DIFFERENT RIGHT AWAY.**
 STANDS.** (Rewrite of "Melt me down...":)
 
 Routes to: [form](form.md) "four building levers" and
-[section building](section-building.md).
+[section building](section-building.md) — the "Melt me down like
+butterscotch" Song System that the second half of Ex 29 rewrites is
+printed there.
 
 ### Ex 30 — Verse leading to the candy bar chorus
 
@@ -528,7 +541,7 @@ EFFECT:
 USES:
 ```
 
-Routes to: [form](form.md) "three bridge functions",
+Routes to: [form](form.md) "Bridge — three functions",
 [song forms](song-forms.md).
 
 ### Ex 32 — Two versions juggling rhyme schemes
@@ -552,13 +565,18 @@ Routes to: [form](form.md), [rhyme strategy](rhyme-strategy.md),
 
 ### Ex 33 — Two more transitional bridges
 
-Pat's model for a candy-bar Transitional Bridge — unbalanced, pushing
-forward, but still feeling like a section:
+Writing a Transitional Bridge takes more radical moves. One could
+look more like this:
 
 ```text
 Love me like a candy bar
 Milky Way and Mars
 ```
+
+This is unbalanced. It pushes forward, though it still feels like a
+section. Even a Transitional Bridge should feel like a section. Here
+rhyme takes care of the feeling of section, while the shorter phrase
+length kicks the supports out from under the section.
 
 **EXERCISE 33: WRITE TWO MORE TRANSITIONAL BRIDGES, USING THE "CANDY
 BAR" SECTION. JUGGLE WHATEVER YOU LIKE, BUT MAKE SURE THAT BOTH CAN
@@ -577,100 +595,212 @@ Routes to: [song forms](song-forms.md) "transitional bridge",
 
 ## *Essential Guide to Lyric Form and Structure* (1991) — Song forms exercises (Chapter 6)
 
-### Ex 34 — Second-system analysis
+### Ex 34 — Scan the second verse of "SOUTHERN COMFORT"
 
-Pick a song with two verses and a chorus (V/Ch/V/Ch form). Scan
-verse 2's rhythm. Check verse 2's rhyme. Analyze how the second
-verse develops or restates verse 1.
+**EXERCISE 34: SCAN THE SECOND VERSE FOR RHYTHM AND LOOK AT ITS RHYME
+STRUCTURE TO SEE IF IT IS PARALLEL TO THE FIRST VERSE. DO VERSE 2 AND
+THE SECOND CHORUS FORM A SECOND SONG SYSTEM?**
 
-Routes to: [verse development](verse-development.md),
+Pat prints verse 2 of "SOUTHERN COMFORT" under the instruction, then
+two slots:
+
+```text
+Rhyme structure:__________________________
+
+Comments:
+```
+
+The verse is reproduced verbatim in
+[song forms examples](song-forms-examples.md) under the "Southern
+Comfort" heading; work the exercise against the text there.
+
+Pat's discussion resumes right after the slots: "You have been through
+two Song Systems. The lyric ends here nicely. A B A B delivers a very
+effective punch." That A B A B names the section form
+(Verse/Chorus/Verse/Chorus), not verse 2's rhyme scheme, so it is not
+the answer to the "Rhyme structure:" slot.
+
+Routes to: [song forms examples](song-forms-examples.md),
 [song forms](song-forms.md).
 
-### Ex 35 — Bridge for an existing song
+### Ex 35 — Write a bridge for "SOUTHERN COMFORT"
 
-Pick a song without a bridge. Write a bridge for it. The bridge
-should break monotony, create a different-size song system, and
-provide a new perspective.
+**EXERCISE 35: WRITE A BRIDGE OF YOUR OWN FOR "SOUTHERN COMFORT."**
 
-Routes to: [song forms](song-forms.md), [form](form.md).
+That one sentence is the whole exercise. Pat supplies no slots. He has
+already shown his own bridge for the song a few paragraphs earlier
+("Here is my result:"), and the three things a bridge would accomplish
+are discussion preceding the exercise, not part of it — both are in
+[song forms examples](song-forms-examples.md) under the "Southern
+Comfort" heading.
 
-### Ex 36 — Transitional bridge rewrite
+Routes to: [song forms examples](song-forms-examples.md),
+[song forms](song-forms.md), [form](form.md).
 
-Take an existing transitional bridge. Rewrite it shorter to longer
-phrases. Then rewrite it with a different rhyme scheme. Sing each
-version into the following chorus.
+### Ex 36 — Rewrite the "TEDDY" transitional bridge
 
-Routes to: [song forms](song-forms.md).
+**EXERCISE 36: REWRITE THE TRANSITIONAL BRIDGE SO THAT IT MOVES FROM
+SHORTER PHRASES TO LONGER ONES. TRY TO MOVE IT EVEN FURTHER FROM THE
+VERSE STRUCTURE BY CHANGING THE RHYME SCHEME. WHAT EFFECT DO YOU THINK
+THE X A X A RHYME SCHEME HAS? HOW WOULD YOU HAVE DONE IT?**
 
-### Ex 37 — Hook setup with shorter phrases
+Pat supplies no slots. "The transitional bridge" is the one he has just
+walked through phrase by phrase in "TEDDY DOESN'T LIVE HERE ANYMORE",
+of which he writes: "The opening phrase of the Transitional Bridge is
+the longest phrase so far in the lyric... The second phrase is
+shorter... The third phrase is even shorter... You can feel the tension
+as the lines get shorter and Teddy's life closes, too abruptly, too
+early." That is the direction the exercise asks you to reverse. The
+bridge is quoted in [song forms examples](song-forms-examples.md) under
+the "Teddy Doesn't Live Here Anymore" heading.
 
-Take an existing hook line. Write a new approach to it using
-shorter phrases than the original setup. Does the shorter approach
-arrive better or worse?
+Routes to: [song forms examples](song-forms-examples.md),
+[song forms](song-forms.md).
 
-Routes to: [hook](hook.md), [phrasing](phrasing.md).
+### Ex 37 — Set up the hook with shorter phrases
 
-### Ex 38 — Transitional bridge to chorus development
+**EXERCISE 37: TRY SETTING UP THE HOOK BY USING SHORTER PHRASES INSTEAD
+OF THE LONG PHRASE:**
 
-Take a verse/transitional-bridge/refrain form. Change the
-transitional bridge to an unbalanced section. Develop the chorus as
-a separate song system. Compare to the original.
+```text
+No one in the world could hear
 
-Routes to: [song forms](song-forms.md).
+the closing of the door
+```
+
+Try to create a sense of arrival with your shorter phrases; make a
+couple of tries:
+
+```text
+1.  (maybe try  / u / u / u ,  / u / u / )
+
+TEDDY DOESN'T LIVE HERE ANYMORE
+
+2.
+
+TEDDY DOESN'T LIVE HERE ANYMORE
+```
+
+The scansion hint on try 1 is printed only inside a figure; the running
+text gives no template. Try 2 is left bare, as printed.
+
+Routes to: [hook](hook.md), [phrasing](phrasing.md),
+[song forms examples](song-forms-examples.md).
+
+### Ex 38 — Unbalance the "YOU NEVER LET ME DOWN" bridge
+
+**EXERCISE 38: CHANGE THE TRANSITIONAL BRIDGE OF "YOU NEVER LET ME
+DOWN" SO IT FORMS AN UNBALANCED SECTION BY ITSELF. THEN DEVELOP THE
+CHORUS INTO A SEPARATE SYSTEM.**
+
+```text
+Trans Br:
+
+Chorus:
+```
+
+Last exercise in the chapter. Pat introduces the lyric it names with
+"Sometimes a Transitional Bridge leads, NOT to a separate Chorus, but
+to a Refrain." — worth holding onto while reading the exercise's second
+half. The lyric is quoted in
+[song forms examples](song-forms-examples.md) under the "You Never Let
+Me Down" heading.
+
+Routes to: [song forms examples](song-forms-examples.md),
+[song forms](song-forms.md).
 
 ## *Essential Guide to Lyric Form and Structure* (1991) — Hook exercises (Chapter 7)
 
 ### Ex 39 — Title first then title last
 
-Pick a chorus idea. Write a balanced chorus with the title in line 1.
-Then rewrite with the title as the last line. Compare. Which
-position spotlights the title harder?
+**EXERCISE 39: WRITE A BALANCED CHORUS USING THE FOLLOWING TITLE AT
+THE BEGINNING. THEN, REWRITE IT WITH THE SAME TITLE AT THE END.**
+
+```text
+YOU DON'T HAVE THE BEST OF ME YET
+
+Title First:
+
+Title Last:
+```
 
 Routes to: [hook](hook.md) "five strategies".
 
 ### Ex 40 — Verse setting up that chorus
 
-Take the chorus from Ex 39. Write a verse that sets it up using
-beginning-and-ending positions for important ideas.
+**EXERCISE 40: WRITE A VERSE TO SET UP YOUR CHORUS YOU WROTE FOR THE
+LAST EXERCISE. MAKE SURE YOU USE THE BEGINNING AND END POSITIONS FOR
+IMPORTANT IDEAS.**
+
+("YOUR CHORUS YOU WROTE" is as printed — do not correct it.)
 
 Routes to: [hook](hook.md), [verse development](verse-development.md).
 
 ### Ex 41 — Verse ending with refrain
 
-Write a verse ending with a refrain line. Make the refrain feel
-structurally necessary — use unbalanced rhythm and an odd phrase
-position so the refrain arrival is earned, not arbitrary.
+**EXERCISE 41: WRITE A VERSE THAT ENDS WITH THE REFRAIN:**
+
+```text
+YOU DON'T HAVE THE BEST OF ME YET
+```
+
+Make a repetition necessary by using two strategies:
+
+1. Unbalance the system by making the rhythmic closure at the Refrain
+   awkward, like "SEEING SOMEONE ELSE."
+2. Unbalance the section by making the Refrain an odd numbered phrase
+   (5th phrase or 7th would be ideal).
 
 Routes to: [hook](hook.md), [form](form.md).
 
-### Ex 42 — Title in different chorus positions plus targeting
+### Ex 42 — Chorus opening and closing with the hook, plus targeting
 
-Take an existing title phrase. Write a chorus beginning with it.
-Then write a chorus ending with it. Then write two transitional
-bridges, each targeting a different vowel sound that prepares the
-title's stressed vowel.
+**EXERCISE 42: WRITE A BALANCED CHORUS THAT BEGINS AND ENDS WITH THE
+HOOK,**
+
+```text
+I SLIPPED AND FELL IN LOVE
+```
+
+Now, using "WHY CAN'T I HAVE YOU" as a model,
+
+1. write a Transitional Bridge leading up to it that TARGETS to the
+   vowel sound in "slipped."
+2. Write a Transitional Bridge that targets to "fell."
 
 Routes to: [hook](hook.md) "targeting".
 
 ### Ex 43 — Hook rhythm in strategic position
 
-Pick three existing hook phrases (one duple, one triple, one mixed).
-Write a verse for each that places the hook's rhythm in the
-strategic position (the position that must later be matched at the
-balancing position).
+**EXERCISE 43: FOR EACH HOOK BELOW, WRITE A VERSE THAT USES THE HOOK
+RHYTHM IN A STRATEGIC POSITION.**
+
+```text
+1. LAST NIGHT'S LOVE
+
+2. MY FIRST LOVE WILL BE MY LAST
+
+3. THE LAST OF THE LONELY HEARTS
+```
 
 Routes to: [hook](hook.md) "strategic vs balancing position".
 
 ### Ex 44 — Full song system using all five strategies
 
-Pick a title phrase. Write a full song system that uses all five
-hook strategies:
+**EXERCISE 44: USING ALL FIVE STRATEGIES, WRITE A SONG SYSTEM FOR THE
+HOOK "DON'T GIVE UP."**
 
-1. Hot spots — title in section beginnings or endings.
-2. Point forward — earlier sections lead toward the title.
-3. Repeat — repeat the title for emphasis.
-4. Target sounds — plant the title's stressed vowel earlier.
-5. Hook rhythm in strategic positions.
+That is the whole exercise — one sentence. The five strategies are
+not part of it; Pat prints them separately as the chapter's closing
+summary, verbatim:
+
+```text
+1. Put the HOOK at the beginning or end of its section, maybe both.
+2. Keep your structure moving forward until you get to the HOOK
+3. Repeat the HOOK
+4. Use sound to spotlight your HOOK.
+5. Use the HOOK's rhythm in other strategic places.
+```
 
 Routes to: [hook](hook.md).
 

@@ -5,8 +5,27 @@ skill MUST coach the writer step-by-step, surfacing choice points, applying
 the relevant Pat tool to the writer's answer, and proceeding only when the
 writer has chosen. This file codifies the dialog mechanics.
 
-> "Tools, not rules." — Pat Pattison (recurring column / seminar framing,
-> also the name of his *American Songwriter* magazine column)
+*Provenance: **the protocol is this repo's, not Pat's.** He publishes no dialog
+loop, no phase list, no option quota and no anti-pattern table; the four books
+are written prose, not transcripts of him coaching. Every count in this file
+(≥3 options, 3-15 labeled options, the six sanity-check phases) is a repo
+default. What is genuinely his is the stance the mechanics serve, and the craft
+tools each step applies — those are cited where they appear.*
+
+> "There are no rules, only tools." — *Writing Better Lyrics* (2009),
+> Chapter 18. He prints the same stance in *Essential Guide to Rhyming*
+> (2014), Chapter 4: "there are no rules. Only tools."
+
+<!-- CORRECTED. This block-quoted '"Tools, not rules." — Pat Pattison
+     (recurring column / seminar framing…)'. In that word order the phrase
+     appears in NONE of the four books — 0 hits, wrap-safe, all four. It is the
+     title of his *American Songwriter* column, not something he is recorded
+     saying, so presenting it as a Pat quotation invented a quotation out of a
+     masthead. Replaced with the two sentences he actually prints. Note for the
+     next sweep: the orchestrator's table records this fabrication as "All
+     fixed" after three sites were repaired. It was not — it survived here, and
+     still survives in two other files plus one template (see HANDOFF). -->
+
 
 The protocol exists because generic LLM defaults — long monologues, 14-step
 plans pre-decided, single-pick recommendations — directly contradict Pat's
@@ -148,14 +167,19 @@ When a writer says "you decide", the AI:
 This preserves the writer's agency without forcing the dialog when the
 writer wants a draft.
 
-Example:
+Example — invented illustrative dialogue, not a Pat quotation. It is fenced
+rather than block-quoted precisely so it cannot be mistaken for one (the
+mechanical quote checker flagged all three of its sentences while it was in a
+`>` block):
 
-> Writer: "Just give me a title — I trust you."
-> AI: "Going with 'Last Call at the Moonlight' — image-as-title, front-
-> heavy, sets a specific bar (not 'the bar'), supports a wistful-with-hope
-> feel. The runner-up was 'What's Left' for ambiguity, but it pulls darker
-> than you said you wanted. Want to run with Moonlight or look at What's
-> Left for contrast?"
+```text
+Writer: "Just give me a title — I trust you."
+AI: "Going with 'Last Call at the Moonlight' — image-as-title, front-
+heavy, sets a specific bar (not 'the bar'), supports a wistful-with-hope
+feel. The runner-up was 'What's Left' for ambiguity, but it pulls darker
+than you said you wanted. Want to run with Moonlight or look at What's
+Left for contrast?"
+```
 
 ## Sanity checks per phase
 
@@ -167,7 +191,7 @@ Each coaching phase ends with a sanity check the writer can affirm:
 | Pick the title | Stressed vowel identified, rhyme-stability tested, form-fit named |
 | Draft the central section | Reads aloud naturally, title sits in a hot spot, no greedy spots, ≥1 sense-bound image |
 | Draft verses | Verse 1 sets up, verse 2 develops (not travelogues), POV consistent |
-| Bridge decision | Either no bridge OR bridge does ≥1 of Pat's three jobs |
+| Bridge decision | Either no bridge OR a bridge that does all three of the jobs *Essential Guide to Lyric Form and Structure* (1991), Ch 6 lists — he presents them as three things one bridge does together, not a menu to satisfy one of |
 | Pre-lock | All applicable response-filter sections pass, writer affirms aloud-reading |
 
 When the sanity check passes, the AI says so out loud and offers the next
@@ -201,15 +225,25 @@ specialized action is the right tool.
 
 ## Anchor stance
 
+**All three quotes below are UNAUDITED** — spoken, non-book sources catalogued in
+`beyond-books.md`. Measured wrap-safe across all four books: `Music means
+nothing` = 0 hits, `Verbs are the amplifiers` = 0 hits, `telling people who you
+are` = 0 hits. Absence from the corpus is not evidence against a spoken source,
+so they stay — but do not re-cite any of them to a book, and do not treat them as
+verbatim.
+
 > "Music means nothing. Music only feels. Words mean."
-> — Pat Pattison (Berklee Alumni Webinar Master Class)
+> — Pat Pattison (Berklee Alumni Webinar Master Class) — **unaudited**
 
 > "When you're writing a song, it's not about telling people who you are.
 > It's about telling people who they are."
-> — Pat Pattison (Songwriting Planet interview, 2014)
+> — Pat Pattison (Songwriting Planet interview, 2014) — **unaudited**
 
 > "Verbs are the amplifiers of language."
-> — Pat Pattison (Unpaved interview)
+> — Pat Pattison (Unpaved interview) — **unaudited**. Printed and citable
+> instead: "They're the most potent force in language. […] The difference
+> between average and great writing: verbs." — *Songwriting Without Boundaries*
+> (2011), Challenge #2.
 
 The coaching protocol exists so the AI's process matches Pat's process —
 the writer's voice arrives at the writer's song.

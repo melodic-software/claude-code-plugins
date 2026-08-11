@@ -108,12 +108,16 @@ generally carries the day's most loaded seed — Crash, Dentist, Homeless Child,
 Loved One's Funeral — while the ninety-second slot stays small and physical.
 When generating a substitute seed, keep that weighting.
 
-Pat's own instruction line for every one of these days, worth reading aloud
-before the timer starts:
+Pat's instruction line, worth reading aloud before the timer starts. The long
+form below is printed **on Day 1 only**. Days 2-14 stop after "Stop IMMEDIATELY
+when the timer goes off." and swap the noun to match the category — "the
+following characters" on the who days, "the following places" on the where days:
 
 > Set a timer and respond to the following prompts for exactly the time allotted.
 > Stop IMMEDIATELY when the timer goes off. Do not even finish the word you are
 > on. Use only your seven senses. No judgments, comments, or quotes allowed.
+>
+> — *Songwriting Without Boundaries* (2011), Challenge 1, Day 1
 
 He also prints a seven-word strip to let the eye wander over when the writer
 stalls:
@@ -496,9 +500,11 @@ Diagnostic:
 - Do not switch back and forth deliberately — pick whichever the
   page is already doing.
 
-## Anti-patterns Pat names
+## Anti-patterns
 
-Five patterns the timed write should reject:
+Pat states one prohibition, quoted at the end of this section. The five below
+are this skill's expansion of it, not his wording — do not attribute them to
+him. Patterns the timed write should reject:
 
 1. **Explanation mode** — the page narrates what the writer is
    doing, thinking, or feeling rather than what the senses register.
@@ -513,8 +519,8 @@ Five patterns the timed write should reject:
 
 Items 3 and 4 apply to Challenges 1-3 only. Challenge 4 requires both — its whole
 subject is fitting sense-bound material into stress counts and rhyme schemes — so
-do not carry the prohibition into Days 43-56. The rule Pat states without
-qualification, on every day of Challenge 1, is narrower than the list above: "Use
+do not carry the prohibition into Days 43-56. The rule Pat actually states is
+narrower than the list above, and he prints it once, on Challenge 1, Day 1: "Use
 only your seven senses. No judgments, comments, or quotes allowed."
 
 > "No judgments, comments, or quotes allowed." — Pat, *Songwriting Without
@@ -525,9 +531,10 @@ only your seven senses. No judgments, comments, or quotes allowed."
 *Songwriting Without Boundaries* (2011)'s reader-sample sections reveal three recurring critique
 moves Pat applies. Use them when reviewing a writer's daily write:
 
-1. **Spot sense clusters and their leaps.** A passage that moves
-   from one sensory environment to another (elevator to ocean,
-   kitchen to wartime) is doing the work; name the leap.
+1. **Spot sense clusters and their leaps.** A passage that moves from one
+   sensory environment to another is doing the work; name the leap. Pat's own
+   instance is Cathy Brettell's "Elevator," which he says "took Cathy from an
+   elevator ride to an ocean storm, no permission asked."
 2. **Name the productive ambiguity.** When a line could mean two
    things and both work, mark the dual reading — do not flatten.
    See [metaphor](metaphor.md) "Productive ambiguity".
@@ -703,15 +710,16 @@ Pat's own worked recovery, on Day 3's `ghost`: a ghost can plausibly be lazy, so
 `lazy ghost` is "not quite a collision" — try unhuman qualities like `brittle` or
 `wrinkled` instead.
 
-## Pat's critique-move vocabulary (*Songwriting Without Boundaries* (2011) — recurring across all four challenges)
+## Critique-move vocabulary (*Songwriting Without Boundaries* (2011) — recurring across all four challenges)
 
-Throughout writer-sample commentary in all four challenges, Pat applies
-the same recurring diagnostic phrases. These are the coaching vocabulary
-for reviewing object writes and lens writes. Treat as named moves:
+Throughout writer-sample commentary in all four challenges, Pat makes the same
+diagnostic moves. Four of the labels below are his; three are this file's
+shorthand (see the note under the table). Coaching vocabulary for reviewing
+object writes and lens writes:
 
 | Critique move | What it directs |
 |---|---|
-| **Spot sense clusters and their leaps** | Identify where the writing moves from one sensory environment (kitchen) to another (highway); leaps are signals, not failures |
+| **Spot sense clusters and their leaps** | Identify where the writing moves from one sensory environment to another — Pat's instance is Cathy Brettell's elevator ride becoming an ocean storm; leaps are signals, not failures |
 | **Name the productive ambiguity** | When a line could mean two things and both work, mark the dual reading explicitly |
 | **Praise verbs over adjectives** | Verbs carry sensory access; adjectives explain. Underline the verbs first |
 | **Invite family members** | In lens writing, count how many source-family words appear in the target-lens write — the more, the stronger the metaphor |
@@ -719,8 +727,13 @@ for reviewing object writes and lens writes. Treat as named moves:
 | **Rhyming positions are spotlights** | Content of end-line positions tells most of the story; weak words in rhyme positions are wasted spotlights |
 | **Form is a road map** | Structure tells the writer where to go; rhyme shifts signal perspective shifts; line-length shifts signal pace shifts |
 
-Use these phrases verbatim when coaching writer samples. The shorthand
-makes the same critique replicable across sessions.
+Only four of these labels are Pat's own words — "Rhyming positions are
+spotlights" and "Form is a road map" (Challenge 4, Day 11, sourced below),
+"Invite family members" (Challenge 3, Day 2, sourced below), and "Underline the
+verbs," which is Challenge 1, Day 4: "Check out Nick and Linda's verbs. Go
+ahead, underline them. I'll wait." The other three are this file's shorthand for
+moves he makes without naming. Use the shorthand internally; quote only the
+sourced wording back to a writer.
 
 The last two both come from *Songwriting Without Boundaries* (2011), Challenge 4,
 Day 11, in Pat's commentary on six-line sections, and his own wording is shorter

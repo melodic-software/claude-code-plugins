@@ -1,6 +1,8 @@
 # Rhyme Dictionary Practice
 
-Pat Pattison - *Pat Pattison's Songwriting: Essential Guide to Rhyming* (2014), Chapter 1.
+Pat Pattison - *Pat Pattison's Songwriting: Essential Guide to Rhyming* (2014),
+Chapter 1, with the cross-reference lesson from *Essential Guide to Rhyming*
+(2014), Chapter 3.
 
 Use this with `rhyme-fundamentals.md`. *Essential Guide to Lyric Form and Structure* (1991) defines rhyme's structural
 behavior; *Essential Guide to Rhyming* (2014), Chapter 1 turns the definition into a practical search workflow.
@@ -262,6 +264,30 @@ use rhyme creatively." A large candidate set increases creative room.
 
 Practical note: you will be slow at first. "Like anything else, you will get
 better with practice."
+
+## Cross-references: a column can be missing on purpose
+
+*Essential Guide to Rhyming* (2014), Chapter 3 adds the one dictionary skill
+Chapter 1 does not cover: what to do when the word you looked up is not where you
+expected it. Pat's comment 5 on his own search, verbatim:
+
+> "Ignored" didn't appear under "ORD," where I thought it should. But at the end
+> of the column, I saw "adored, etc." which referred me to *OR*. The reference
+> means to look at the *OR* column and add *D* whenever you can. The Wood book
+> uses this shorthand to avoid unnecessary duplication. So, I went to the *OR*
+> column and added *D*. I like the list.
+>
+> — *Essential Guide to Rhyming* (2014), Chapter 3
+
+An absent column is not an absent rhyme family. There is no `ORD` heading because
+every word that would sit under it is an `OR` word with a `D` added, and the Wood
+book declines to print the same list twice. So read to the end of a column before
+concluding the search is over, and follow the `etc.` — Pat's `ignored` column is
+ten words deep only because he did.
+
+Skill behavior: when a lookup comes back empty or thin, try the same stressed
+vowel with the final consonant stripped, then add that consonant back across the
+column you find.
 
 ## Alphabet-search failure
 

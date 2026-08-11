@@ -37,9 +37,14 @@ one.
 
 > A worksheet externalizes the inward process of lyric writing.
 
-*Essential Guide to Rhyming* (2014)'s rhyme worksheet focuses on rhyme expansion. *Writing Better Lyrics* (2009), Chapter 4 is broader:
-focus the lyric idea, generate idea-language, then build rhyme options around
-the words that matter.
+The same three stages run *Essential Guide to Rhyming* (2014), Chapter 3, in
+almost the same words — focus the idea, list words that fit it, look them up —
+but that chapter builds the sheet out of perfect rhyme only, and reaches its idea
+words straight from a prose idea sketch. *Writing Better Lyrics* (2009), Chapter
+4 is broader on both counts: it routes the idea-word stage through object writing
+and a Roget's thesaurus, and it searches every rhyme type from the start. See
+[rhyme worksheets](rhyme-worksheets.md) for the Chapter 3 version and for
+Chapter 7, where the rhyming book widens its own search.
 
 ## Three-stage worksheet
 

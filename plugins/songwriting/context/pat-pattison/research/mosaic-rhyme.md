@@ -1,6 +1,6 @@
 # Mosaic Rhyme — Multi-Word Combos Across Parts of Speech
 
-Pat Pattison — *Pat Pattison's Songwriting: Essential Guide to Rhyming*
+Pat Pattison — *Essential Guide to Rhyming*
 (2014), Chapter 1 — where mosaic rhyme is named and defined. Worked examples
 run through Chapter 2 (the "risky business" walkthrough), Chapter 4 (feminine
 family rhymes), and Chapter 6 (feminine assonance rhymes). Extended for
@@ -44,8 +44,8 @@ labeled as such.
 | `commander` / `understand her` | feminine | the unstressed tail is a pronoun, not an identity | Chapter 1 |
 | `expand me` / `strand thee` | feminine | verb + object pronoun on both sides | Chapter 1 |
 | `ap-pre-ci-ate` / `the quiche he ate` | masculine (three-syllable) | article + noun + pronoun + verb | Chapter 1 |
-| `business` / `fizzless` | feminine | noun + adjectival suffix borrowed from `less` | Chapter 2 |
-| `business` / `quizless` | feminine | same construction, different stressed vowel word | Chapter 2 |
+| `business` / `fizzless` | feminine | `fizz` from the masculine short `i` + `z` column, `less` from the masculine short `e` + `s` column | Chapter 2 |
+| `business` / `quizless` | feminine | same construction, `quiz` from the same short `i` + `z` column | Chapter 2 |
 | `travel` / `glass full` | feminine | noun + adjective read as one unit | Chapter 4 |
 | `homely` / `phone me` | feminine | masculine word + pronoun `me` | Chapter 4 |
 | `believer` / `please her` | feminine | verb + object pronoun `her` | Chapter 4 |
@@ -154,10 +154,14 @@ sailin'  /  tail him
 The transferable discipline — and the part that squares with Pat's method — is
 that every word becomes rhyme-able once you decompose its *sound* and
 reassemble a matching unit out of several words. That is exactly the move Pat
-makes in Chapter 2 when `business` has no dictionary partner and he builds
-`fizzless` out of the masculine short `e` + `s` column. The book's route to a
-mosaic is: fail in the obvious section, then rebuild from a different section
-of the dictionary.
+makes in Chapter 2 when `business` has no dictionary partner: the feminine
+<!-- spellchecker:off -->
+section under "IZ ness" is empty, so he rebuilds the word from two *masculine*
+<!-- spellchecker:on -->
+columns — short `i` + `z` for the stressed syllable (`fizz`, `quiz`) and short
+`e` + `s` for the unstressed tail (`less`) — and gets `fizzless` / `quizless`.
+The book's route to a mosaic is: fail in the obvious section, then rebuild from
+a different section of the dictionary.
 
 ## Where mosaic rhyme is generated in the worksheet
 
@@ -174,9 +178,11 @@ When running the three-stage worksheet (per
    - Proper-noun mosaic candidates (if the song's world allows)
    - Slang / contraction / phrase-fragment mosaic candidates
 
-The mosaic column generates 5-15 candidates per seed word in addition to
-the standard tiers. Stressed-vowel anchor identification + identity check
-still apply.
+The mosaic column runs alongside the standard tiers rather than replacing
+them; generate as many candidates per seed word as the search yields.
+Stressed-vowel anchor identification + identity check still apply. (The book
+sets no candidate count — Pat's own `business` search produced seven from the
+short `i` + `z` column and eleven from short `e` + `s`.)
 
 ## Identity check for mosaic rhyme
 
@@ -225,12 +231,17 @@ sound-legal list — `Bess, bless, chess, dress, fess, guess, jess, less, mess,
 press, stress` — and threw nearly all of it out on stress grounds: "Most of
 these are too strong to work as the unstressed syllable in a feminine mosaic.
 You need something with the same stress pattern as `busi-ness`." Try `guess`
-and you get `hís guéss`, two stresses where the target has one. Only `less`
-survives, "since it actually could be unstressed." Sound-legal is not the
-same as scannable.
+and Pat prints two failing scansions: `his guess` marked `/ /` (both stressed,
+where the target has one), "…or, even worse," `his guess` marked `˘ /` — the
+stress on the tail, the exact opposite of `busi-ness`. "Both of these are
+forced and again, self-consciously funny." Only `less` survives, "since it
+actually could be unstressed." Sound-legal is not the same as scannable.
 
 ## Mosaic risk register
 
+**Generated, not Pat's.** No failure-mode table appears in *Essential Guide to
+Rhyming*. The rows below are this plugin's own; the only one traceable to the
+book is the meter-break row, which is Pat's `busi-ness` stress filter above.
 Mosaic rhyme has failure modes:
 
 | Risk | What it looks like | Correction |
@@ -244,6 +255,11 @@ Mosaic rhyme has failure modes:
 | Hot-spot misplacement | Mosaic landed in a verse-middle line, not a hot spot | Place mosaic moves in section-end positions where craft can be seen |
 
 ## When mosaic rhyme is the RIGHT call
+
+**Generated, not Pat's.** These two lists are the plugin's decision aid. Pat
+prints no "use when" criteria for mosaic; in the book, mosaic is simply what
+you reach for when the feminine section comes up empty (Chapter 2) or when a
+feminine target's unstressed syllable rhymes with a pronoun (Chapters 4 and 6).
 
 - Source word has few single-word partners (proper nouns, polysyllabic
   abstractions, words ending in rare consonant clusters)

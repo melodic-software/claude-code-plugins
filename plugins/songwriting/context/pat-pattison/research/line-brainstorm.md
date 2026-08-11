@@ -80,6 +80,13 @@ bridge. Run Scope A FOR EACH LINE. Then add:
 
 ## Discipline (filtered through response-filter.md)
 
+*Provenance: the five columns, every target count in this file (~30, ~10, ~5,
+≥5, top-3, 30-50+), and the checkboxes below are **this repo's tool spec**, not
+Pat's. He publishes no line-brainstorm procedure and no candidate quotas. What
+IS his is the craft each box invokes — identity, stability tiers, the seven
+senses, cliché scanning, verb strength — each sourced in the file it links to.
+Do not restate any of these numbers as Pat's.*
+
 The brainstorm is fast and high-volume, but NOT undisciplined. Pre-dump:
 
 - [ ] **Stressed vowel of the end-line word identified** before Column 1
@@ -255,13 +262,32 @@ labels + top-3 suggestions + hand-off route. Volume + curation.
 
 ## Anchor quotes
 
+**Both quotes below are UNAUDITED — spoken interviews, outside the four books,
+unverifiable from the corpus.** Neither is in any book; do not cite either as a
+book quote. Each does, however, have a printed counterpart, and the printed one
+is what to quote when it matters:
+
 > "Verbs are the amplifiers of language. The difference between great
 > writers and average writers is almost always in their verbs."
-> — Pat Pattison (Unpaved interview)
+> — Pat Pattison (Unpaved interview) — **unaudited**
+
+Printed counterpart, and the citable form: "Verbs. You've already learned
+something about them. They're the most potent force in language. Nouns are
+inert. They sit there. Adjectives pile on top of them and sit there. Verbs
+electrify them, propel them, launch them into action. The difference between
+average and great writing: verbs." — *Songwriting Without Boundaries* (2011),
+Challenge #2.
 
 > "Eminem and Stephen Sondheim approach their writing through the same
 > process. It's called a worksheet process."
-> — Pat Pattison (American Blues Scene interview)
+> — Pat Pattison (American Blues Scene interview) — **unaudited**
+
+Partly corroborated in print, but only the Sondheim half: "Use the worksheet for
+reference. Remember, its main purpose is to get additional ideas and pictures.
+It is a brainstorming device, not a rhyme-finding device. It's a nice reference,
+though. Ask Stephen Sondheim: he uses worksheets all the time." — *Writing
+Better Lyrics* (2009). `Eminem` returns zero hits in all four books, and so does
+the phrase "worksheet process".
 
 The brainstorm IS the worksheet process applied to a single line.
 

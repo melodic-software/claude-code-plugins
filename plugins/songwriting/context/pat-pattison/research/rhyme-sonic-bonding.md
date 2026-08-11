@@ -111,12 +111,12 @@ Internal rhyme is usually local. "It does not affect phrase structure and,
 unlike end rhymes, does not need to be matched in parallel song sections. Just
 put it in your section, let it do its work, then forget about it."
 
-Use internal rhyme when:
-
-- a passage needs extra motion without changing the rhyme scheme,
-- a line should feel tightly woven,
-- a transition needs sonic continuity,
-- a phrase wants pressure, speed, or play.
+The three effects Pat actually names for it, in order of appearance:
+**acceleration** (symmetrical placement, midline and end line); an
+**off-balance feel** (asymmetrical placement, which he uses prosodically —
+"the house is a bit off-balance here"); and **sonic fabric** (rhymes placed
+internally across several lines). Nothing else in the section claims a use
+for it.
 
 ## Voice leading
 
@@ -169,15 +169,11 @@ That maps onto the three assonance types directly. Simple and hidden assonance
 are the *retained* note (the C you keep). Family assonance is the *moved* note
 (E→F, G→A) — a change, but the smallest one available.
 
-In lyric writing it means choosing vowels and consonants so that the mouth,
-tongue, and ear move with intention. Use it to ask:
-
-- Does this sound glide smoothly into the next sound?
-- Does the line need legato motion or a staccato stop?
-- Are the nearby vowels moving by small steps or making a large expressive
-  jump?
-- Are consonants linking the phrase, or interrupting it?
-- Does the sonic motion match the meaning?
+You can create the effect "both with vowels (assonance) and consonants
+(alliteration)" — which is the chapter's own structure from here on. Its
+audible result, per Pat, is that "these vowel connections can create a
+smoother, more legato line," and that the words' purpose "is to lead you
+through the words smoothly."
 
 Voice leading differs from rhyme. Rhyme can create structure when it appears at
 phrase endings. Voice leading usually works inside phrases, shaping flow,
@@ -242,21 +238,14 @@ Glimmering and vast, out in the tranquil bay.
 (Pat prints these three groups without attribution; the poets are named only
 where he names them.)
 
-Use it to:
+Pat's whole summary of the type is one line: "Simple assonance. The
+repetition of vowel sounds." The purpose he attaches to it is the one he
+attaches to all sonic repetition — to "link ideas sonically as well as
+conceptually."
 
-- bind images or ideas without end-rhyme pressure,
-- make a line more singable,
-- create an undercurrent of smoothness,
-- connect words that are conceptually related.
-
-Coaching test:
-
-1. Mark the stressed vowel sounds in the line.
-2. Circle repeated vowels.
-3. Ask whether those repeated vowels connect meaningful words.
-4. If the connection is accidental but useful, keep it.
-5. If the connection makes the line too sweet, predictable, or mushy, create
-   contrast.
+Chapter 8 sets no test or checklist here; it sets **Exercise 8.1**, which is
+to mark the simple assonance relationships in two passages (both reproduced
+in the exercises section below).
 
 ## Hidden assonance
 
@@ -327,7 +316,20 @@ get the knitting of the short `e` of `pen` picking up the initial short `e`
 sound of the diphthong in `brain`, as well as the long `ee`, the second vowel
 sound in the long `a`. Whew."
 
-Two more diphthongs behave the same way:
+Pat then restates `oi` and `ou` as "other than the diphthongs formed by many
+of the long vowels, there are others" — and note he re-spells them here, and
+adds a parenthesis he does not repeat anywhere else:
+
+```text
+oi (as in boy) = o (as in go) + ee (as in me)   (really a triphthong)
+ou (as in couch) = ah (as in papa) + oo (as in too)
+```
+
+That first line differs from the table on the previous page, where `oi` is
+`ŏ (as in "hot") + ē`. Both spellings are printed; Pat does not reconcile
+them, so do not silently pick one.
+
+These two behave the same way:
 
 ```text
 Boil / roast          Father / grouch
@@ -373,50 +375,56 @@ look inside diphthongs and `l`/`r` colored vowels.
 
 ## The Vowel Triangle (geometry)
 
-Pat's vowel triangle (*Essential Guide to Rhyming* (2014), Chapter 8)
-maps the nine pure English vowels into a triangle whose apex is the most-
-open vowel and whose two legs extend toward tongue-position (left) and
-lip-position (right) closure. Adjacency on either leg = family-assonance
-candidates (small mouth-position changes = smooth voice leading).
+The Vowel Triangle (*Essential Guide to Rhyming* (2014), Chapter 8) "lists
+vowel sounds according to the way they are formed by the mouth." It holds the
+nine pure vowels; everything else is a diphthong. Pat's word for the vertex is
+**the point**, and the most open sound sits there: "At the point is `ä` (as
+in "papa"), the most open sound." The two legs run outward from it, tongue
+vowels left and lip vowels right. Adjacency along a leg is what family
+assonance trades on.
 
-Pat's own layout prints it as two columns flanking the apex — "Tongue Vowels"
-on the left, "Lip Vowels" on the right:
+Pat prints it as a **V** — the point at the *bottom*, "Tongue Vowels" heading
+the left leg, "Lip Vowels" the right, both legs opening upward and outward:
 
 <!-- phonetic vowel markings trip the spell-checker --><!-- spellchecker:off -->
 
 ```text
-                ä (papa)
-        (cat) ă         ŭ (up)
-        (end) ĕ         ŏ (hot)
-         (me) ē         ū (too)
-         (it) ĭ         oo (foot)
-       Tongue Vowels   Lip Vowels
+  Tongue Vowels                          Lip Vowels
+  (me) ē \                                 / ū (too)
+          \                               /
+   (it) ĭ  \                             /  oo (foot)
+            \                           /
+  (end) ĕ    \                         /    ŏ (hot)
+              \                       /
+   (cat) ă     \                     /      ŭ (up)
+                \                   /
+                 \                 /
+                  \               /
+                        ä
+                      (papa)
 ```
 
-Expanded to show the geometry:
+Reading **outward from the point**, which is the order that matters for
+family assonance, the two legs run:
 
-```text
-                      ä   (apex — most open; "papa", "father")
-                     / \
-                    /   \
-   tongue leg ──▶  /     \  ◀── lip leg
-   (raise tongue)  /       \  (round lips)
-                  /         \
-                ă             ŭ   ("cat" tongue; "up" lip)
-                /             \
-               /               \
-              ĕ                 ŏ   ("end" tongue; "hot" lip)
-              /                 \
-             /                   \
-            ē                     ū   ("me" tongue; "too" lip)
-            /                     \
-           /                       \
-          ĭ                         oo   ("it" tongue; "foot" lip)
-```
+- **tongue leg:** ä → ă (cat) → ĕ (end) → ĭ (it) → ē (me)
+- **lip leg:** ä → ŭ (up) → ŏ (hot) → oo (foot) → ū (too)
 
-(The triangle is not strictly drawn; layout is approximate. The
-canonical geometry: apex = ä, left leg = tongue raises progressively
-[ă → ĕ → ē → ĭ], right leg = lips round progressively [ŭ → ŏ → ū → oo].)
+Vowels printed at the same height sit on opposite legs: ē/ū, ĭ/oo, ĕ/ŏ,
+ă/ŭ. (Pat attaches no rule to those pairings; it is just how the figure is
+laid out.)
+
+> **Transcription warning.** The EPUB text layer emits this figure in the
+> wrong order — it hoists `ä` to the top and swaps the outer two vowels on
+> each leg, giving `ă ĕ ē ĭ` and `ŭ ŏ ū oo`. The printed figure (spine 095,
+> reprinted at 100, 101 and 103) shows `ĭ` *between* `ĕ` and `ē`, and `oo`
+> *between* `ŏ` and `ū`. The printed order is also the phonetically correct
+> one — the tongue rises ă → ĕ → ĭ → ē, the lips round ŭ → ŏ → oo → ū.
+> Pat's prose independently fixes which leg is which: the Eliot lines "work
+> with ah (at the point of the vowel triangle) and the first two steps of
+> the lip vowels: short u and short o." So `ŭ` and `ŏ` are *lip* vowels.
+> Verified against the page scan; do not re-derive this figure from the
+> text layer.
 
 <!-- spellchecker:on -->
 
@@ -434,38 +442,34 @@ vowels to extreme tongue vowels." The full triangle is traversed in one
 syllable. The drill teaches what mouth changes accompany which vowel
 transitions — useful when picking family-assonance partners.
 
-### Adjacency rules
+### Counting steps
 
-| Move | Effect |
-|---|---|
-| Stay on same vowel | simple assonance — strongest sonic bond |
-| Step one position on same leg | family assonance — smooth voice leading |
-| Step two positions on same leg | weaker bond; still in the family |
-| Cross from one leg to the apex | family assonance via ä |
-| Jump from leg to leg (skipping apex) | far step; deliberate rupture |
-| End at opposite leg's terminus | maximum vowel contrast |
+Pat does not tabulate the moves; he counts steps in prose while working a
+passage, and only three step-counts actually appear in Chapter 8:
 
-The triangle lets the writer pick by emotional intent: stay close for
-euphony / chant / formality; step further for forward motion / contrast;
-jump across for isolation / rupture / surprise.
+- **same vowel** — simple assonance. `brown` and `dawn` "share the triangle's
+  point, `ah`."
+- **one step** — the working definition of family assonance, and the whole
+  instruction for Exercise 8.6: "supply a word that moves no more than one
+  step from the stressed syllable of the italicized word." Pat's instance:
+  "the double short `u` of `London` is a step away from both `ah` and
+  short `o`."
+- **two steps** — still counted as connection: the initial `ah` of `crowd`
+  "is two steps from `flowed` and `over`'s initial short `o`."
 
-### Diphthong decomposition through the triangle
+For contrast he gives a direction rather than a number: "You can also use it
+to create strong sonic contrast by seeking out words several steps away" —
+the `death` of Exercise 8.5 being the worked case.
 
-Pat's diphthong table (*Essential Guide to Rhyming* (2014), Chapter 8)
-maps each diphthong to two pure-vowel positions on the triangle:
+### What the triangle is for
 
-| Diphthong | Decomposes to | Triangle path |
-|---|---|---|
-| long ā (`play`) | ĕ + ē | tongue-leg sliding inward |
-| long ī (`cry`) | ä + ē | apex → tongue-leg |
-| long ō (`grow`) | ŏ + ū | lip-leg sliding outward |
-| oi (`boy`) | ŏ + ē | lip-leg → tongue-leg |
-| ou (`couch`) | ä + ū | apex → lip-leg |
+Pat's use for it is practical and he states it plainly: "When you use the
+vowel triangle with your rhyming dictionary, you're able to explore not only
+rhymes, but also related vowel sounds. Work on two levels at once: you'll be
+mining ideas and sounds simultaneously."
 
-Singers hold one component of the diphthong depending on register and
-phrasing. The held component is what the ear hears most clearly — useful
-for hidden-assonance matching (the held component bonds with words
-sharing that pure vowel).
+The diphthong decomposition that pairs with it is printed once, in the hidden
+assonance section above — the same five rows. It is not repeated here.
 
 ## Family assonance
 
@@ -512,21 +516,15 @@ of the tool: "When you have a choice between words, this principle of voice
 leading — taking small sonic steps (or large steps, as Eliot did with `death`)
 — could make the difference between a good line and a great one."
 
-Use family assonance when:
+That completes the vowel side of the chapter, and Pat closes it by stacking
+the three levels: "You've now seen all three levels of vowel relationships:
+simple assonance, hidden assonance, and family assonance. Together, they can
+help you knit a strong and euphonious sonic fabric."
 
-- exact vowel repetition is too obvious,
-- the line needs formality, chant, or euphony,
-- a nearby word can keep the sound moving by a small step,
-- the song needs contrast by deliberately jumping several steps away.
-
-Coaching workflow:
-
-1. Identify the stressed vowel in the target word.
-2. Find words with the same vowel for simple assonance.
-3. Find diphthong components for hidden assonance.
-4. Find adjacent vowel sounds for family assonance.
-5. Use a larger vowel jump when the lyric needs isolation, fear, rupture, or
-   emphasis.
+The tool cuts both ways, and Pat says so in the same breath as the euphony:
+small steps for the "sense of formality, as though these lines, echoing
+Dante, are meant to be intoned"; and "strong sonic contrast by seeking out
+words several steps away," which is what isolates `death`.
 
 This is another way to use a rhyme worksheet: not every worksheet word becomes
 an end rhyme. Some words belong inside phrases as sonic motion. "Work on two
@@ -719,22 +717,15 @@ of `b` and `p`, aided by the more remote members of the family, `v` and `w`.
 The dance of the two families, M and N, combined with the several vowel
 connections, creates a musicality that's hard to deny or resist."
 
-Use concealed alliteration to:
+Pat's method for finding it is not analytic but physical, and he states it as
+an instruction: "Read the lines aloud very slowly and listen. Pay special
+attention to your tongue positions. How many times does the tip of your
+tongue rise to touch your hard palate?" That count *is* the diagnostic.
 
-- add a subtle sonic grid under a line,
-- support meter or stress substitutions,
-- connect images through shared mouth movement,
-- make a passage feel musically inevitable,
-- create a pause when consonant movement forces one.
-
-Coaching workflow:
-
-1. Mark the stressed syllables.
-2. Identify repeated exact consonants.
-3. Identify related consonants in `M`, `N`, and `NG` families.
-4. Read the line slowly and count where the mouth repeats a position.
-5. Ask whether that pattern supports the image, emotion, or motion.
-6. If it is too dense, replace one word with a less related sound.
+The stated purpose is the same one that opens the section: "As in family
+rhyme, which uses the horizontal consonant families to expand your rhyming
+palate, you'll use the vertical consonant families to expand your
+alliterative palate."
 
 **Concealed alliteration can separate as well as link.** Pat's example is the
 enjambment in the same passage:
@@ -819,13 +810,9 @@ and how the puppy of the second line runs effortless circles, "each word moving
 smoothly into the next. Say it. Now say it keeping your teeth together. The
 legato junctures illustrate the puppy's former ease of motion."
 
-Useful deliberate juncture can:
-
-- lengthen a space,
-- make distance feel real,
-- make weight or age feel heavy,
-- break a too-smooth motion,
-- reinforce a lyrical stop or turn.
+Pat's own summary of what juncture is for is a single sentence, and it is
+symmetrical: "Juncture can either make words flow one into the other, or it
+can also separate them, providing yet another tool for creating prosody."
 
 Skill behavior: always test lyric lines aloud for accidental collisions. If a
 line is hard to sing or easy to mishear, check juncture before changing the
@@ -906,14 +893,10 @@ do is listen for prosody, then choose accordingly."
 > "Reasons for choosing. Choosing for reasons." — Pat Pattison,
 > *Essential Guide to Rhyming* (2014), Chapter 8
 
-When comparing synonyms, ask:
-
-- Which word keeps the motion going?
-- Which word breaks the motion?
-- Which word sounds like the scene?
-- Which word creates the right mouth-feel for the singer?
-- Which word makes the emotional action easier to hear?
-- Which word gives the best reason for choosing it?
+Pat asks exactly one pair of questions at each comparison, and asks it three
+times unchanged: **"Given these two ways to say the same thing, which word
+works better? Why?"** Keep the wording — the second question is the whole
+lesson, and the chapter supplies no rubric for answering it beyond listening.
 
 ## Exercises as coaching prompts
 
@@ -932,6 +915,28 @@ so keep them distinct. (The book has no Exercise 8.7.)
    By sea-girls wreathed with seaweed red and brown
    Till human voices wake us, and we drown.
 ```
+
+Pat prints an answer key, **rotated 180° at the foot of the page**, which
+marks each assonance group with a different typographic device rather than
+naming it. Reproduced with the devices intact:
+
+> *Under* the <u>brown</u> **fog** of a **win**ter **dawn**,
+> A <u>crowd</u> FLOWED OVER *London* **Bridge**, SO many,
+> I had ***not thought*** death had *undone* SO many.
+
+> We have lin*gered* in the <u>cham</u>*bers* of the sea
+> By **sea**-*girls* **wreathed** with **seaweed** red and brown
+> Till human voices <u>wake</u> us, and **we** drown.
+
+Reading the devices — **this gloss is inference, not Pat's; he prints the
+marks and names nothing**: italic = short `ŭ` (*Under*, *London*, *undone*);
+underline = the `ou` diphthong (<u>brown</u>, <u>crowd</u>); capitals =
+long `ō` (FLOWED, OVER, SO); bold-italic = short `ŏ` (***not thought***).
+In the second passage bold = long `ē` (**sea**, **wreathed**, **seaweed**,
+**we**), italic = `ər` (lin*gered*, cham*bers*, *girls*), underline = long
+`ā` (<u>cham</u>bers, <u>wake</u>). Bold in the *first* passage covers two
+sets at once — `fog`/`dawn` and `win`ter/`Bridge` — so do not read a single
+vowel off it.
 
 **Exercise 8.2. Simple Assonance Practice.** Using your rhyming dictionary,
 supply a word that creates simple assonance with the stressed syllable of the
@@ -959,8 +964,27 @@ italicized word:
 2. After the torchlight red on sweaty faces
 ```
 
-For 2, Pat gives the answer: `light` and `faces` share the `ee`; `red` and
-`faces` share `ĕ`.
+Pat answers **both**, again by marking rather than naming (the marks are
+stripped from the text layer; recovered from the page scan):
+
+<!-- Pat italicises part-words to isolate a sound; verbatim as printed --><!-- spellchecker:off -->
+
+> (Answer)
+> Listen! you hear the *grat*ing roar
+> Of *peb*bles…
+
+<!-- spellchecker:on -->
+
+The italics fall on the short `ĕ` — overt in `pebbles`, hidden inside the
+long `ā` of `grating` (`ĕ`+`ē`). Same mechanism as `play head games`.
+
+> (Answer)
+> After the torch<u>light</u> *red* on *sweaty* <u>fa</u>ces
+> (*Light and faces share the ee. Red and faces share `ĕ`.*)
+
+The parenthesis is Pat's own gloss, so item 2 is the one place in the chapter
+where he names the shared sounds outright. Note `sweaty` is marked too,
+joining `red` on the `ĕ`.
 
 **Exercise 8.4. Hidden Assonance.** The same ten prompts as 8.2, but now
 worked with the diphthong table, the rhyming dictionary, and the vowel triangle
@@ -1038,12 +1062,16 @@ best matches the meaning.
 
 ## Chapter 8 skill workflow
 
-When applying Chapter 8 directly:
+**This ordering is this file's, not Pat's.** Chapter 8 sets exercises, not a
+procedure; the steps below simply walk its five topics in the order it
+introduces them (internal rhyme → assonance → alliteration → voice leading
+and prosody → juncture). Step 1 is Pat's, and he repeats it throughout:
+"Read the lines aloud very slowly and listen."
 
 1. Read the line or section aloud.
 2. Mark end rhymes separately from interior sound links.
-3. Identify local internal rhymes and decide whether they accelerate,
-   stabilize, or unbalance the phrase.
+3. Identify local internal rhymes and decide whether they accelerate or
+   unbalance the phrase.
 4. Mark vowel connections: simple, hidden, family, and contrast.
 5. Mark consonant connections: exact alliteration, medial/terminal repetition,
    and vertical-family concealed alliteration.
@@ -1086,8 +1114,8 @@ Juncture section above — rough (staccato) versus smooth (legato), given a full
 treatment in *Essential Guide to Rhyming* (2014), Chapter 8 with the
 `She can't take your rent`, "Ozymandias," and Frost demonstrations. The
 three-state table below is a linguistics import layered on top of Pat's two
-states for diction and genre work. It is **not** Pat's terminology and should
-not be attributed to him.
+states for diction and genre work. It is **not** Pat's terminology, is
+**unaudited** (no book source), and must not be attributed to him.
 
 | State | Mechanism | Sonic effect |
 |---|---|---|
@@ -1120,8 +1148,9 @@ juncture.
 
 ## Sonic fabric — the section-wide texture
 
-**Sonic fabric is Pat's own term**, used throughout Chapter 8 (and indexed to
-its first appearance there). He introduces it for interior rhyme placement:
+**Sonic fabric is Pat's own term**, used four times in Chapter 8 and carried
+in the book's index at its first appearance ("sonic fabric, 78"). He
+introduces it for interior rhyme placement:
 
 > "Call it sonic fabric, created by placing rhymes internally. Great stuff."
 > — Pat Pattison, *Essential Guide to Rhyming* (2014), Chapter 8
@@ -1131,8 +1160,8 @@ together" — and again after the three assonance levels: "Together, they can
 help you knit a strong and euphonious sonic fabric."
 
 The section-wide diagnostic below extends that idea from the line to the
-section. The extension is this knowledge base's; the term and the weaving
-metaphor are Pat's.
+section. That extension is this knowledge base's and is **unaudited** — only
+the term and the weaving metaphor are Pat's.
 
 Sonic fabric:
 

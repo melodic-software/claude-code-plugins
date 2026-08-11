@@ -2,7 +2,7 @@
 
 Pat Pattison - *Songwriting: Essential Guide to Lyric Form and Structure*
 (1991), Chapter 4. Extended with *Pat Pattison's Songwriting: Essential Guide to
-Rhyming* (2014), Chapter 9, and *Songwriting Without Boundaries* (2011),
+Rhyming* (2014), Chapters 7 and 9, and *Songwriting Without Boundaries* (2011),
 Challenge 4.
 
 Source images inspected:
@@ -14,6 +14,12 @@ Source images inspected:
   inventory listed only the *Essential Guide to Rhyming* (2014) and
   *Songwriting Without Boundaries* (2011) images and omitted this chapter
   entirely, which is how the `abba` error below survived.
+- *Essential Guide to Rhyming* (2014), Chapter 7 (printed pp. 69-75, spine
+  082-088; p. 76 is a blank verso): text layer complete and used verbatim.
+  Scans consulted for layout only — `image_A-page2.jpg` (the two-column
+  `safe`/`business` worksheet and the `swiftless` spelling) and
+  `image_A-page8.jpg` (Exercise 7.1's three-column fill-in grid, which the text
+  layer flattens into an unreadable order, and its bordered keyword box).
 - *Essential Guide to Rhyming* (2014), Chapter 9: `image_C-page20.jpg`, `image_E-page1.jpg`, `image_E-page2.jpg`,
   `image_E-page3.jpg`, `image_E-page4.jpg`, `image_E-page5.jpg`,
   `image_E-page6.jpg`, `image_E-page7.jpg`, `image_E-page8.jpg`,
@@ -707,24 +713,30 @@ The matrix is read top-down per slot:
 ## Shelley anchor — through-written without internal fragmentation
 
 *Essential Guide to Lyric Form and Structure* (1991), Chapter 4 uses Shelley's "Ozymandias" as a teaching anchor (the
-poem itself is public domain). The sonnet's rhyme scheme deliberately
-avoids `aabb` adjacency. Each pair is separated, so no internal
-couplet closes early and fragments the sonnet's single argument.
+poem itself is public domain). Pat's scansion is scoped to **"these last
+six lines"**, not the whole poem — do not restate it as a claim about the
+sonnet entire. Across those six lines each rhyme pair is separated, so no
+internal couplet closes early and fragments the single argument.
+
+(Two spellings are as printed and are not ours to correct: Pat sets the
+attribution "Percy Bysshe Shelly", and the title appears as "Ozymandius"
+in his running text and again in the *Essential Guide to Rhyming* (2014)
+index.)
 
 The lesson: rhyme adjacency forces structural decisions even before
 the words are chosen. A long single thought benefits from spread
 rhymes; a section made of short paired thoughts benefits from
 couplet adjacency.
 
-Use the Shelley principle when:
+**"The Shelley principle" is not Pat's term** — he names no such principle,
+and the three-item "use when" list that stood here was invented. The
+preceding paragraph is the actual lesson the chapter draws. Pat's own words
+for what rhyme is doing here:
 
-- a verse needs to read as one continuous thought,
-- a section's argument depends on the listener following from line
-  1 to line N without internal stops,
-- the writer is tempted to use couplets out of habit rather than
-  intent.
-
-> "Nothing can match rhyme's power" to control flow. — Pat (*Essential Guide to Lyric Form and Structure* (1991), Chapter 4)
+> "Rhyme is the best way to control a lyric's FLOW. Nothing can match
+> rhyme's power in this area. Not phrase length. Not rhythm."
+>
+> — *Essential Guide to Lyric Form and Structure* (1991), Chapter 4
 
 ## Sound vs order — the two forces
 
@@ -779,12 +791,187 @@ Match stability to weight; pick deliberately.
 
 Cross-ref the decision matrix above and `rhyme-types.md` stability scale.
 
+## The full rhyme search (*Essential Guide to Rhyming* (2014), Chapter 7)
+
+Chapter 7, "The Fruits of Friendship," is where the rhyme-type layer above stops
+being theory and becomes a search procedure. Pat opens it:
+
+> Now it's time to go back to worksheets. This time, we'll launch a full rhyme
+> search.
+>
+> Our goal is to find better words than we did with perfect rhyme. Look again:
+
+The lyric he looks again at is his own two-line seed:
+
+```text
+I'm sick of all this risky business
+I want to play it safe
+```
+
+> For starters, "business" and "safe" can go on the worksheet. Now, you can find
+> rhymes for them.
+
+His worksheet, exactly as printed (`swiftless` is as printed — do not correct
+it):
+
+<!-- spellchecker:off -->
+```text
+safe            business
+faith           collisions
+chase           decisions
+race            visions
+space           forgiveness
+brave           frigid
+grave           religious
+slave           gifted
+cage            shiftless
+stage           swiftless
+castaway        kisses
+ricochet        ambitious
+runaway         delicious
+haste           suspicious
+braced          submissive
+                riches
+                finish
+                whiz
+                stiff
+```
+<!-- spellchecker:on -->
+
+> Better. There are some real possibilities here.
+
+### The search is run against every keyword, not just the rhyme slot
+
+`safe` and `business` have now been searched. Pat then prints the same search
+for the other eleven worksheet keywords, numbered 1-11, each split into a
+Perfect Rhymes column and an Imperfect Rhymes column:
+
+> Here is a complete rhyme search for each of the words on the worksheet. Figure
+> out what kind of rhymes they are and how I found them. They are all related to
+> the general idea of "RISKY BUSINESS." The list will have to be trimmed down
+> later.
+
+Three things in that instruction are the strategy, and all three are easy to
+skip past:
+
+1. **Every keyword gets searched**, not only the words that happen to sit in
+   rhyme position. Only `business` and `safe` end lines in the printed couplet;
+   the other eleven do not appear in it at all. The keyword list is the song's
+   vocabulary, not its rhyme scheme.
+2. **The reader has to reverse-engineer the type** ("figure out what kind of
+   rhymes they are and how I found them") rather than being handed labels.
+3. **Over-generate first, trim later.** The list "will have to be trimmed down
+   later" — needing a trim is the expected outcome, not a sign of a bad search.
+
+The thirteen keywords, as printed in the bordered box on p. 75 (note `scared`
+here; the numbered search columns and the Exercise 7.1 grid both print `scare`):
+
+<!-- spellchecker:off -->
+```text
+1. scared     6. risk       11. gone
+2. afraid     7. chance     12. safe
+3. flirt      8. dull       13. business
+4. attention  9. leave
+5. left out  10. ignored
+```
+<!-- spellchecker:on -->
+
+**One worked specimen — keyword 9, `leave`.** This is an excerpt, not the whole
+search; the other ten numbered columns run across pp. 70-74 (spine 083-087) and
+belong under [rhyme worksheets](rhyme-worksheets.md).
+
+<!-- spellchecker:off -->
+```text
+Perfect Rhymes        Imperfect Rhymes
+
+9. leave              9. leave
+believe               breathe          peace
+deceive               seethe           police (Identity)
+grieve                appeased         beach
+ho-heave              please           c.o.d.
+                      diseased         debris
+                      freeze           guarantee(s)
+                      squeeze(d)       knees
+                      tease(d)         degrees
+                      prestige         refugee(s)
+                      relief           amenities
+                      grief            apologies
+                      thief            dignity
+                      teeth            fantasies
+                      caprice          hostilities
+```
+<!-- spellchecker:on -->
+
+Note what the columns carry besides words. Pat flags `police` as an **Identity**
+inside the imperfect column — the same separation this file's diagnostic
+workflow asks for ("mark identities separately from rhymes"). His other
+annotations across the search work the same way: `dance (cliché?)`,
+`knockout (id.)`, `lookout (id.)`, `(oops!)` printed under `disc` in the perfect
+column for `risk`, and `mend on, etc.` / `stretchin', etc.` closing the
+imperfect column for `attention`. The parenthesised
+`(s)`, `(d)`, `(ed)` are inflection options he leaves open on the page rather
+than resolving early.
+
+The sharpest single piece of evidence for the chapter's premise is the entry for
+keyword 6, `risk`. Its **entire** Perfect Rhymes column, as printed, is two
+lines:
+
+```text
+6. risk
+disc
+(oops!)
+```
+
+The Imperfect column beside it runs thirty-four entries in two sub-columns —
+`fist, kissed, mist, resist, tryst, wisp, abyss, avarice, bliss, dismissed,
+wished, dish, drift, gift, hints, shift, swift` alongside
+`cliff, stiff, tiff, quick, kicks,
+lick(s), sick, trick, transfixed, ditch, itch, pitch, switch, bridge, crypt,
+chips, apocalypse`. When a keyword's perfect rhymes amount to `disc`, the full
+search is not a refinement on perfect rhyme — it is the only way that keyword
+gets usable options at all.
+
+### Why the search is worth the labour
+
+The chapter closes on a single claim, and it is the argument for worksheets:
+
+> Rhymes are suggestive. As you look through them, they create associations that
+> can lead you in directions you might not have seen otherwise. A good reason to
+> use worksheets.
+
+The strategic point: the search is not a hunt for the one word that fits the
+slot you already have. It is a way of generating directions for the lyric. That
+is why the search runs wide enough to need trimming afterwards, and why every
+keyword gets searched rather than only the rhyme positions.
+
+### Chapter 7 exercises
+
+**EXERCISE 7.1. Perfect and Imperfect Rhyme Practice**
+
+> From the columns of perfect and imperfect rhymes above, choose your ten
+> favorite rhymes for each of the keywords and write them down below.
+
+Printed as a three-column fill-in grid over the thirteen keywords, with writing
+space under each. (In the grid, keyword 1 is printed `scare`; in the boxed
+keyword list on the same page it is `scared`. Both are as printed — do not
+normalise either.)
+
+**EXERCISE 7.2. "Risky Business" Practice**
+
+> Rewrite your lyric "Risky Business" using some of your new ideas and rhyme
+> words.
+
+As a coaching pair these are one move, not two: trim the over-long search down
+to ten per keyword, then rewrite the lyric from what survived. The trim is the
+craft step Chapter 7 exists to force.
+
 ## Cross-references
 
 - [rhyme types](rhyme-types.md) — the stability scale that fills
   the decision matrix.
 - [rhyme worksheets](rhyme-worksheets.md) — full search algorithm
-  per slot.
+  per slot, and the twelve "RISKY BUSINESS" perfect/imperfect columns this
+  file excerpts only `leave` from.
 - [rhyme generation](rhyme-generation.md) — internal generation discipline.
 - [Five Compositional Elements](five-compositional-elements.md) —
   rhyme scheme (row 3) and rhyme types (row 4) per section.

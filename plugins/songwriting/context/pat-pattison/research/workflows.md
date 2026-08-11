@@ -358,8 +358,9 @@ Default chain:
    hook / align-melody / cliche / form / object-writing / bridge / rhyme /
    audit-checklist).
 
-Coach posture: Pat's rule — one focused finding, not ten scattered notes.
-Surface secondaries briefly, do not fix them.
+Coach posture: one focused finding, not ten scattered notes. Surface
+secondaries briefly, do not fix them. (Plugin-authored coaching posture —
+**not** a Pat rule. The phrase returns zero hits across all four books.)
 
 ## Routing notes
 

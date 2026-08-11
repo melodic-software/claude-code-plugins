@@ -38,7 +38,7 @@ Chapter 3 opens with the friend-finding analogy in Pat's own words:
 
 The whole method is three steps:
 
-> The trick is to look for rhymes before you start to write. It is not as hard
+> The trick is to look for rhymes *before* you start to write. It is not as hard
 > as it sounds.
 >
 > 1. Focus your lyric idea as clearly as you can.
@@ -48,7 +48,9 @@ The whole method is three steps:
 >
 > — *Essential Guide to Rhyming* (2014), Chapter 3
 
-The chapter's running example is the couplet Pat returns to in Chapter 7:
+Pat does not introduce a fresh example to run the method on. He writes, verbatim,
+"Start with our old idea." — the couplet already in play from earlier in the book,
+and the one he returns to in Chapter 7:
 
 ```text
 I'm sick of all this risky business
@@ -61,13 +63,12 @@ A rhyme worksheet is not a finished lyric, a rhyme dump, or a display of clever
 language. It is a map of possible spotlight words and idea-connected rhyme
 families.
 
-It helps the writer:
-
-- Find words that fit the lyric idea before line endings are locked.
-- Avoid choosing target words with weak rhyme potential.
-- Discover new story, metaphor, or emotional directions from rhyme families.
-- Keep cliches, identities, and awkward grammar out of important positions.
-- Enter drafting with more than one route through the lyric.
+Pat's page 24 summary makes four claims for it, and he ranks them: no dead ends
+("keep from boxing yourself into a corner"), net time saved despite the up-front
+cost, higher quality, and — "more importantly" — rhyme positions that
+"communicate ideas effectively." The last is the one the whole procedure exists
+for. The summary is quoted in full under
+[English is rhyme-poor](#english-is-rhyme-poor).
 
 Skill behavior: when a user asks for rhymes, first decide whether they need a
 single rhyme answer or a worksheet. If they are drafting a song section, a
@@ -97,7 +98,10 @@ And Pat's own idea sketch for "Risky Business," verbatim:
 >
 > — *Essential Guide to Rhyming* (2014), Chapter 3
 
-Useful focus questions (expanded from Pat's four for skill use):
+Pat prints six questions, in that order: "What does your lyric say? What could it
+say? Is it a lyric about the dangers of dating good-looking men/women? The risk I
+take being with you? Why? Is 'you' a flirt?" Further focus questions, not in the
+book, added here for skill use:
 
 - Who is speaking?
 - Who is being addressed?
@@ -154,16 +158,15 @@ And the selection rule, verbatim:
 >
 > — *Essential Guide to Rhyming* (2014), Chapter 3
 
-Seed-word categories (skill expansion of Pat's rule):
+Note what the two selection constraints are and are not. They are phonetic —
+mostly masculine, different vowel sounds — not thematic. The theme is already
+handled by where the words come from: "Let the list come from your idea sketch."
+Every one of Pat's eleven is lifted from his own sketch on page 20.
 
-- Title words.
-- Emotional words.
-- Action words.
-- Relationship words.
-- Conflict words.
-- Concrete images.
-- Words that imply the section's turn.
-- Words with promising vowel variety.
+"Mostly masculine" is exact rather than loose: ten of the eleven are masculine,
+and `attention` is the one feminine word on the sheet. For the second rule Pat
+gives the instruction and no rationale — "Pick words with different vowel
+sounds." — so take it as stated.
 
 Do not treat the seed list as final. It is only a list of words to test.
 
@@ -172,13 +175,14 @@ Do not treat the seed list as final. It is only a list of words to test.
 Exercise 3.2 makes the title part of the worksheet habit. Pat's instruction:
 "Make it a habit to include each important word from the title in your list."
 
-Why:
+He does not say why. Two things elsewhere in the chapter do. Comment 6 records
+what happens when the running example's own keywords are tested: "business" —
+half the title "risky business" — and "safe" both get eliminated "because they
+don't yield many rhymes." And Exercise 3.3 adds the parenthetical "(If you use my
+title, be sure not to put it in a rhyming position.)"
 
-- Title words are likely to become spotlight words.
-- They may need to be protected from weak rhyme positions.
-- Their rhyme families can suggest better title placement.
-- A title word may have poor rhyme potential, warning the writer not to force
-  it into an end rhyme.
+So testing a title word is not a way of guaranteeing it a line-ending. It is a
+way of finding out early whether it can hold one at all.
 
 Skill behavior: when a user gives a title, split it into important words and
 test each one as a seed.
@@ -193,7 +197,9 @@ Pat's step 3, verbatim:
 >
 > — *Essential Guide to Rhyming* (2014), Chapter 3
 
-Active search means:
+"Look actively" is Pat's phrase from step 2. Each of the following is a move he
+either instructs on page 20 or performs in his seven comments on page 23,
+generalised into an instruction:
 
 - Add a better seed word if the search reveals one.
 - Remove a seed word that has poor promise.
@@ -211,22 +217,22 @@ worksheet is a thinking tool, not a compliance form.
 
 After the raw search, filter the list by function. Reject or mark:
 
-- Transitive verbs that need an object and therefore land awkwardly at the end
-  of a line.
-- Cliche pairs that make the listener predict the next word.
-- Identities that repeat too much of the target sound.
-- Words that technically rhyme but do not fit the song's relationship,
-  setting, or tone.
-- Words that produce comic energy in a serious section.
-- Words whose grammar would force the line into an unnatural syntax.
+Chapter 3 rejects on three grounds, each of which Pat performs rather than states:
 
-Keep:
+- Transitive verbs, which "are awkward in the rhyming position" — comment 1,
+  where he drops "desert."
+- Clichés — comment 2, where he drops "romance" and "trance," and the
+  `(Cliché?)` mark he leaves on `dance`.
+- Identities — not discussed in this chapter, only marked, six times, on the
+  sheet itself.
 
-- Words that fit the idea.
-- Words that deepen the emotional situation.
-- Words that open a new but related story path.
-- Words with useful stress and phrase-end behavior.
-- Words that can carry spotlight attention.
+Two further grounds are worth applying but come from elsewhere in the corpus, not
+from Chapter 3: words that technically rhyme but do not fit the song's
+relationship, setting, or tone, and words whose grammar would force the line into
+an unnatural syntax.
+
+The keep-rule is one sentence, and it is the whole test: "Write down only rhyme
+words that fit with your idea." Pat states no second criterion.
 
 ## Change the seed if needed
 
@@ -235,14 +241,15 @@ because the new form generates more useful rhymes. This is not cheating. It is
 craft. Pat does it on the page: seed 1 enters the box as `scared` and leaves the
 search as `scare`.
 
-Examples of acceptable changes:
+His reasoning, verbatim, is comment 3: "I changed 'scared' to 'scare' because it
+had better rhymes. 'Scare' is usually a transitive verb, though it could be used
+as a noun. It might not be much use itself, but I like the rhyme list it
+generates."
 
-- Change tense.
-- Change noun to verb or verb to noun.
-- Replace an adjective with a noun from the same field.
-- Replace a weak title-adjacent word with a stronger synonym.
-- Move a poor-rhyming word out of the rhyme position and let a related word
-  carry the end.
+Two things there are worth copying. The swap is licensed purely by yield — better
+rhymes — not by the new word being a better lyric word. And Pat keeps the seed
+even after admitting it "might not be much use itself," because the seed's job is
+to generate a column, not to appear in the song.
 
 Skill behavior: when the target word has poor rhyme potential, offer a
 "nearby seed" option rather than only giving weak rhymes.
@@ -252,13 +259,9 @@ Skill behavior: when the target word has poor rhyme potential, offer a
 Some words should not be put into rhyme positions even if they matter to the
 song. A word can be central to the idea and still be a poor end-rhyme target.
 
-Drop or protect a seed when:
-
-- It yields too few useful rhymes.
-- Its best rhymes are off-tone.
-- Its rhymes are all cliches.
-- Its sound family forces the section toward comedy.
-- It tempts the writer toward awkward grammar.
+Chapter 3 gives exactly one criterion for dropping a seed, and it is quantitative:
+the word doesn't yield many rhymes. Nothing about tone, register, or comedy enters
+into it at this stage.
 
 Pat's own case: `risk` produces almost nothing ("disc… (oops!)"), and he leaves
 `safe` and `business` off the Chapter 3 list entirely because they "don't yield
@@ -294,11 +297,41 @@ Exercise wording, verbatim:
 >
 > — *Essential Guide to Rhyming* (2014), Chapter 3
 
+"The sheet below" is a printed blank form filling the rest of page 21: the eleven
+seeds spread as headings across three columns with room to write under each, and
+the ruled seed box reproduced again in the middle of the page so the writer can
+see the whole list while filling in any one column.
+
+```text
+1. scared           5. left out             8. dull
+
+                    ┌──────────────┐
+2. afraid           │  1. scared   │        9. leave
+                    │  2. afraid   │
+                    │  3. flirt    │
+                    │  4. attention│
+                    │  5. left out │
+                    │  6. risk     │
+                    │  7. chance   │
+                    │  8. dull     │
+                    │  9. leave    │
+                    │ 10. ignored  │
+                    │ 11. gone     │
+                    └──────────────┘
+
+3. flirt            6. risk                 10. ignored
+
+
+4. attention        7. chance               11. gone
+```
+
 ### Pattison's completed Chapter 3 worksheet
 
 "Here is my result:" — Pat's own filled-in sheet, verbatim, three columns across
 the page with the boxed seed list sitting in the middle. Marks in parentheses are
-his.
+his. One typographic detail the plain-text block cannot carry: in `look out
+(Identity)` the printed page sets `out` alone in italic. `knockout (Identity)` on
+the line above it is entirely roman. Pat gives no reason for the difference.
 
 <!-- book worksheet word lists trip the spell-checker --><!-- spellchecker:off -->
 
@@ -361,10 +394,10 @@ Verbatim, numbered as printed:
 > 4. The only chance "risk" has is to "slip a disc." I can't think of a good use
 >    for "compact disc."
 > 5. "Ignored" didn't appear under "ORD," where I thought it should. But at the
->    end of the column, I saw "adored, etc." which referred me to OR. The
->    reference means to look at the OR column and add D whenever you can. The
+>    end of the column, I saw "adored, etc." which referred me to *OR*. The
+>    reference means to look at the *OR* column and add *D* whenever you can. The
 >    Wood book uses this shorthand to avoid unnecessary duplication. So, I went
->    to the OR column and added D. I like the list.
+>    to the *OR* column and added *D*. I like the list.
 > 6. I left "safe" and "business" out of the list. If I had been starting from
 >    scratch, I would have tried them, but then eliminated them because they
 >    don't yield many rhymes.
@@ -380,12 +413,16 @@ the reason for the whole procedure (7).
 
 For skill use, the output should show both candidates and labels:
 
-```text
-seed: ignored
-useful: adored, bored, restored
-watch: identity risk with same ending family
-idea paths: neglect, craving attention, repair after neglect
-```
+Pat labels candidates on the sheet itself rather than in a separate note, and he
+uses exactly two marks in Chapter 3. Copy those two rather than inventing a
+vocabulary:
+
+- `(Identity)` on `left out / knockout`, `left out / look out`, and on
+  `attention / detention`, `intention`, `pretention`, `tension`.
+- `(Cliché?)` — with the question mark — on `chance / dance`.
+
+He also writes a dead seed down instead of deleting it: `risk` gets `disc…`
+followed by `(oops!)`.
 
 The label is as important as the candidate. It teaches the writer to judge the
 word, not just collect it.

@@ -4,6 +4,14 @@ The writer has a partial line, hook fragment, half a verse, or scrap of
 language but doesn't know how to develop it. This file routes fragment →
 draft.
 
+<!-- unaudited: this file is a routing workflow, not a book chapter. Its numbered
+steps, its Step-1/Step-2 inventories, its "structural role" and "Common failure
+modes" tables, and its trigger-phrase list are editorial scaffolding — Pat
+prints no fragment-development procedure in any of the four books. Only the two
+passages carrying an explicit citation (the Chapter 5 build order in Step 5, and
+the refrain reference in the Step 4 table) are traceable to a page. Everything
+else here is house method; do not quote it as Pat's. -->
+
 Distinct from:
 
 - `brainstorm.md` — no material yet
@@ -86,9 +94,17 @@ the surrounding context develops.
 
 ## Step 5 — Build outward (working backwards from strong material)
 
-Pat's principle: build the central section first. If the fragment IS the
-central section's seed, draft outward from it. If the fragment is a verse
-piece, locate the central section first, then draft the fragment's verse.
+Pat states the build order himself, *Essential Guide to Lyric Form and
+Structure* (1991), Chapter 5:
+
+> You, of course, have to decide what you want your lyric to say — what your
+> CENTRAL IDEA will be. Once you have decided, construct a CENTRAL SECTION for
+> it. Then construct your DEVELOPMENTAL SECTIONS to serve THE CENTRAL SECTION.
+> Each section in your lyric will have its own job to do.
+
+So: if the fragment IS the central section's seed, draft outward from it. If the
+fragment is a verse piece, locate the central section first, then draft the
+fragment's verse.
 
 Per `verse-development.md`:
 
@@ -122,7 +138,12 @@ context:
 
 Most fragments survive their original form; some get sharpened during the
 build. A fragment that wants to change as the song develops is a healthy
-fragment — Pat: every revision is an option, not a betrayal.
+fragment.
+
+<!-- FABRICATION REMOVED: this paragraph previously ended "— Pat: every revision
+is an option, not a betrayal." No such sentence appears anywhere in the four
+books; "betray"/"betrayal" occurs in the corpus only inside two object-writing
+samples in *Songwriting Without Boundaries* (2011). Invented quote, deleted. -->
 
 ## When the fragment resists development
 
