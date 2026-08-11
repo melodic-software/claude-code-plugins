@@ -1519,7 +1519,7 @@ function verifyWorkspaceContainment(transcript, path) {
     return base.startsWith(".") && !isVcsControlPlane(entry);
   };
   const missingShapes = [
-    isVcsControlPlane(canaries.find(isVcsControlPlane) ?? "") ? null : "a VCS-control-plane path (a `.git/`-relative entry)",
+    canaries.some(isVcsControlPlane) ? null : "a VCS-control-plane path (a `.git/`-relative entry)",
     canaries.some(isDotfile) ? null : "a dotfile",
     canaries.some((entry) => !isVcsControlPlane(entry) && !isDotfile(entry)) ? null : "an ordinary file",
   ].filter(Boolean);
