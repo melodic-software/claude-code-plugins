@@ -453,6 +453,19 @@ jobs:
       - name: Run silent-skip-gate tests
         run: bash scripts/check-silent-skips.test.sh
 
+  discriminating-test-skip-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check plugin tests for discriminating skip_case sites
+        run: scripts/check-discriminating-test-skips.sh
+      - name: Run discriminating-test-skip-gate tests
+        run: bash scripts/check-discriminating-test-skips.test.sh
+
   # #1547: a routine `git merge origin/main` silently dropped
   # plugins/guardrails/.claude-plugin/plugin.json for ~14 minutes on a branch
   # while .claude-plugin/marketplace.json still catalogued "guardrails" at that
@@ -1048,6 +1061,7 @@ jobs:
       - userconfig-argv-gate
       - plugin-options-docs-gate
       - silent-skip-gate
+      - discriminating-test-skip-gate
       - plugin-manifest-presence-gate
       - orphaned-fixture-gate
       - changelog-parity-gate
