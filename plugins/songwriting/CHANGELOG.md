@@ -68,6 +68,14 @@ plus an extractor bug that had been silently corrupting every quoted stanza.**
   "Digging for the Line" and "As Each Year Ends", none of which the file named.
   Pat prints exactly **four** direct-address listener positions; the file's
   count is now his.
+- **`stable-unstable-meta.md` debunked "central emotion" at the top and then
+  kept using it as a diagnostic key.** The fabricated quote was replaced, but
+  the worked diagnostic, the coaching prompts and the anti-patterns still keyed
+  off the invented phrase. All three now use Pat's actual wording from
+  *Writing Better Lyrics* (2009) Chapter 18 — **"central intent, idea, and
+  emotion"**. A provenance section was added naming the two things in the file
+  that are **not** Pat's: the tone-of-voice axis (non-book, 0 corpus hits) and
+  the worked diagnostic (this file's own applied example).
 - **Two restored quotes lost their italics and so looked like transcription
   errors.** "you already knows all this stuff" and "a kind of universal feeling
   that you seems to add" both read as subject-verb slips. They are not: the raw

@@ -203,7 +203,7 @@ demonstrates it on Kevin Cronin's "Can't Fight This Feeling," and notes:
 A two-verse / chorus / verse / chorus draft where verse 1 lands fine but
 the chorus feels weak:
 
-- Central emotion: defiant relief after walking out.
+- Central intent, idea, and emotion: defiant relief after walking out.
 - Character: stable (resolved).
 - Verse 1: unstable (image-driven, fragments, family rhyme, suspended
   closure). Matches the "before-the-decision" moment. Verdict: supports.
@@ -222,7 +222,7 @@ The diagnosis names where to push. The fix is craft choices in the
 
 Use these when a writer says "something's off":
 
-- What is the central emotion in one phrase?
+- What is the central intent, idea, and emotion in one phrase?
 - Is that emotion stable or unstable in character?
 - For each section: is the lyric stable or unstable, and how do you know?
 - Where does the rhyme stability fight the lyric stability?
@@ -236,12 +236,30 @@ Use these when a writer says "something's off":
 - **Treating stable/unstable as a property of the writer's style** — it is
   a property of each lever, each section, each line. Reset per song.
 - **Defaulting all verses to unstable and all choruses to stable** without
-  checking the central emotion. Some emotions want a stable verse and an
-  unstable chorus.
+  checking the central intent, idea, and emotion. Some emotions want a stable
+  verse and an unstable chorus.
 - **Picking remote rhyme types because they sound fresh** without asking
   whether the moment wants more or less closure.
 - **Ignoring the tone-of-voice axis** because it cannot be seen on the
   page. Tone overrides typography.
+  <!-- unaudited: "tone of voice" returns 0 hits across all four books; this
+  axis is non-book (attributed to Berklee Online in prosody.md). Retained as
+  paraphrase, not presented as Pat's printed guidance. -->
+
+<!-- The "different tone of voice" coaching prompt above carries the same
+non-book caveat. -->
+
+## Provenance of this file
+
+Pat's printed text is quoted and cited. Two things here are **not** his and are
+marked inline: the **tone-of-voice axis** (non-book, attributed to Berklee
+Online in `prosody.md`; 0 corpus hits), and the **worked diagnostic**, which is
+this file's own applied example rather than a case Pat prints.
+
+A "central emotion" quote attributed to Pat was carried here for eight
+handoffs and is **fabricated** — 0 hits across all four books. It has been
+replaced with his real sentence from *Writing Better Lyrics* (2009), Chapter 18,
+and the phrase is now used in his wording, "central intent, idea, and emotion".
 
 ## Cross-references
 
