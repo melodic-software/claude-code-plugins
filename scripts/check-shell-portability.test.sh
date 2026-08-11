@@ -547,7 +547,7 @@ rm -f "$f"
 # cluster (one token covers both), and --in-place (GNU long form) — #1513
 # =============================================================================
 
-tok="$(one_token_list '(^|[^[:alnum:]_])sed([[:space:]]([^;&|()`\n]|[<>]\([^)]*\))*)?[[:space:]]-[bEnrsuz]*i([[:space:]|&;()<>]|$)')"
+tok="$(one_token_list '(^|[^[:alnum:]_])s(\$?['\''"]|\\)*e(\$?['\''"]|\\)*d(\$?['\''"]|\\)*([[:space:]]([^;&|()`\n]|[<>]\([^)]*\))*)?[[:space:]]+(\$?['\''"]|\\)*-[bEnrsuz]*i([[:space:]|&;()<>]|$)')"
 
 f="$(tmpsh "sed -i 's/foo/bar/' \"\$file\"")"
 if out="$(scan_paths "$tok" "$f" 2>&1)"; then
@@ -787,7 +787,7 @@ sed -Ei; echo done
 CASES
 rm -f "$tok"
 
-tok="$(one_token_list '(^|[^[:alnum:]_])sed([[:space:]]([^;&|()`\n]|[<>]\([^)]*\))*)?[[:space:]]--in-place([[:space:]|&;()<>]|=|$)')"
+tok="$(one_token_list '(^|[^[:alnum:]_])s(\$?['\''"]|\\)*e(\$?['\''"]|\\)*d(\$?['\''"]|\\)*([[:space:]]([^;&|()`\n]|[<>]\([^)]*\))*)?[[:space:]]+(\$?['\''"]|\\)*--(\$?['\''"]|\\)*i(\$?['\''"]|\\)*n(\$?['\''"]|\\)*-(\$?['\''"]|\\)*p(\$?['\''"]|\\)*l(\$?['\''"]|\\)*a(\$?['\''"]|\\)*c(\$?['\''"]|\\)*e(\$?['\''"]|\\)*([[:space:]|&;()<>]|=|$)')"
 
 f="$(tmpsh "sed --in-place 's/foo/bar/' \"\$file\"")"
 if out="$(scan_paths "$tok" "$f" 2>&1)"; then
@@ -2722,6 +2722,26 @@ if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "a quote-spliced stat command word should fail, got success: $out"
 else
   ok "a quote-spliced stat command word is detected"
+fi
+rm -f "$f"
+# shell quote removal splices sed the same way (#2091): `"sed" -i` and `s"e"d
+# -ni` invoke GNU sed with no backup suffix and must not read clean.
+f="$(tmpsh "$(printf '%s\n' \
+  '"sed" -i '\''s/x/y/'\'' file' \
+  's"e"d -ni p file')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "quoted or quote-spliced sed command words should fail, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 2 ]]; then
+  ok "a quoted or quote-spliced sed command word is detected"
+else
+  fail "expected both quoted sed command-word forms flagged, got: $out"
+fi
+rm -f "$f"
+f="$(tmpsh '"sed" --in-place '\''s/x/y/'\'' file')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a quoted sed command word with --in-place should fail, got success: $out"
+else
+  ok "a quoted sed command word with --in-place is detected"
 fi
 rm -f "$f"
 # the guard must recognize the spliced spelling on BOTH rungs, or a real ladder
