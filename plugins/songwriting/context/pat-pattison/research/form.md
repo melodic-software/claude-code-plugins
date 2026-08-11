@@ -1,8 +1,8 @@
 # Form
 
-Pat Pattison - *Songwriting: Essential Guide to Lyric Form and Structure*
+Pat Pattison - *Essential Guide to Lyric Form and Structure*
 (1991), Chapters 5-6. Pat Pattison - *Writing Better Lyrics* (2009),
-Chapter 20-21.
+Chapters 20-21.
 
 ## Image inventory
 

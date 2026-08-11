@@ -202,13 +202,13 @@ For a sequel-sounding follow-up: reuse exact mood + key + BPM + production tags.
 
 ### 10. Voice cloning prep
 
-Best clone results from:
+**MEDIUM confidence — community-derived; Suno does not publish a recommendation for clip count or target length.** Best clone results from one continuous 90-120s acapella clip containing:
 
-- 3 acapella clips
-- Each 30-90 seconds
-- Across emotional range (gentle / mid / intense)
+- Gentle / quiet, mid-dynamic, and intense / belted passages across the emotional range
 - Same mic, same room, same distance
 - Clean room (treated or quiet)
+
+An earlier revision advised three separate clips; that guidance was deliberately retired in favor of the single varied clip, the only approach here with a stated mechanism: community reports say Suno's auto-selection favors the most-frequent dynamic, so variety within one clip beats several flat-dynamic clips.
 
 ## When to stop iterating
 

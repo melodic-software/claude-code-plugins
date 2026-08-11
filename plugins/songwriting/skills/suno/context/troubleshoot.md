@@ -100,7 +100,7 @@ Most Suno issues are **prompt-side preventable**. The model can't fix audio post
 
 1. **Drop ALL vocal direction descriptors** from the style prompt
 2. Raise Audio Influence when resemblance is poor. Suno publishes no number; `>=70%` is only a community-derived, unverified starting point
-3. Re-record cleaner acapella source if voice quality is the issue (3 clips, emotional range, quiet room)
+3. Re-record cleaner acapella source if voice quality is the issue (one continuous 90-120s clip carrying the emotional range within it, same mic, quiet or treated room)
 
 ### "Output is repetitive / boring after 5 regenerations"
 

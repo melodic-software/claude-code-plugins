@@ -2,8 +2,8 @@
 
 Pat Pattison — primary source *Writing Better Lyrics* (2009), Chapter 18
 "Prosody: Structure as Film Score" and Chapter 21 "The Great Balancing Act",
-with supporting material from *Songwriting: Essential Guide to Lyric Form and
-Structure* (1991), Chapters 1-3, and *Songwriting Without Boundaries* (2011),
+with supporting material from *Essential Guide to Lyric Form and Structure*
+(1991), Chapters 1-3, and *Songwriting Without Boundaries* (2011),
 Challenge #4. Stable/unstable is Pat's own umbrella term: it is not a rhyme
 tool he extended, it is the lens he applies to every element of a section.
 
@@ -71,8 +71,8 @@ Lyric stability is not one thing. It is the sum of several smaller choices.
 | Length of phrases | Balanced (equal stress counts) | Unbalanced (unequal stress counts) |
 | Rhythm | Regular, paired feet | Deliberate variations that throw it off kilter |
 
-Pat's rule for the whole table, verbatim from *Songwriting: Essential Guide to
-Lyric Form and Structure* (1991), Chapter 1:
+Pat's rule for the whole table, verbatim from *Essential Guide to Lyric Form
+and Structure* (1991), Chapter 1:
 
 > "The answer is that unbalanced sections create a sense of forward movement,
 > while balanced sections stop the motion. Like a juggler, you rely on moving

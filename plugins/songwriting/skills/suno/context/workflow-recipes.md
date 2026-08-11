@@ -33,7 +33,22 @@ Cover is documented as an audio-derived re-style: it keeps the melody, carries l
 
 **Workaround to test:** re-record the demo with the desired chords, then Cover that recording. Suno documents the upload-to-Cover workflow; expecting the new progression to carry through is an inference from Cover's audio inheritance, not a Suno recommendation or an in-app-verified guarantee.
 
-**Evidence limitation:** this audit reached zero community sources, and Reddit was unreachable by every attempted method. Re-run the Cover/harmony research with community sources before treating these conclusions as hardened practice.
+**Community corroboration for Cover (unaudited, community-derived; MEDIUM confidence):** The `jackrighteous` Suno covers guide says Cover preserves core identity (such as the main melody, chorus hook, lyric concept, and rhythmic signature) while transforming genre, era, instrumentation, vocal treatment, rhythm section, production texture, or energy arc. It also cautions that Cover remains generative and may reinterpret details rather than reproduce every bar. The guide says nothing about chords, harmony, or key under Cover. The Cover-specific documented-absence finding above therefore stands and is now corroborated by a community source as well as by first-party silence.
+
+**Prompt-side harmonic nudges (general generation, not Cover-specific; unaudited, community-derived; MEDIUM confidence):**
+
+Two independent community sources converge on two harmonic nudges:
+
+- In the Style field, name the key with the mood (for example, `melancholic indie folk, A minor key`) to improve the odds of staying in the intended harmonic neighborhood. Mood words can steer scale choice indirectly: sad or melancholic tends toward natural minor, while bright or happy tends toward major.
+- In Custom Mode's Lyrics field, add bracketed chord tags either inline at the start of the relevant lyric line (for example, `[Am]`) or in an explicitly labelled block (`Chord progression: [Am] [F] [G] [Em]`).
+- **Failure mode:** Suno frequently treats chord names as lyric content and sings them instead of playing the progression. Explicitly labelling the chord block reduces, but does not eliminate, this failure.
+- Keep expectations to simple pop/rock progressions and blues patterns. Exact voicings, mid-song key changes, complex jazz harmony, and specific cadences are not reliable controls. Roman-numeral notation such as `I-V-vi-IV` is not viable input; prompt the feeling and genre instead.
+
+Suno documents none of these techniques. They are probabilistic rather than deterministic: they can raise the odds but guarantee nothing, and they do not establish a Cover-specific harmony control.
+
+**Community sources (unaudited):** `sunoaiwiki.com`, "How to Specify Chord Progressions in Suno AI"; `solfej.io`, "Suno AI Chord Progressions: How to Specify Chords in Suno"; `jackrighteous`, Suno covers guide.
+
+**Evidence note:** Three community guides/wikis were read, not forum threads. Reddit / r/SunoAI remains unread; `site:reddit.com` searches returned nothing relevant.
 
 ## Recipe 1: Demo upload → finished track
 

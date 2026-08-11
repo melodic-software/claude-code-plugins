@@ -74,7 +74,7 @@ For the chosen line, walk through each cluster aloud with the writer:
 - [ ] No cliche metaphor family unreframed?
 - [ ] If cliche used: is it "friendly" (earned by context)?
 
-**Prosody** (*Writing Better Lyrics* (2009), Chapter 18-21)
+**Prosody** (*Writing Better Lyrics* (2009), Chapters 18-21)
 - [ ] Motion (stable/unstable) supports emotion at this moment?
 - [ ] Structure at line boundary aligns with content tension?
 - [ ] Tone-of-voice stable?

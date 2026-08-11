@@ -1,6 +1,6 @@
 # Object Writing
 
-Pat Pattison - *Writing Better Lyrics* (2009), Chapter 1-2; Pat Pattison -
+Pat Pattison - *Writing Better Lyrics* (2009), Chapters 1-2; Pat Pattison -
 *Songwriting Without Boundaries* (2011), Challenge 1.
 
 Use this when a user asks for object writing, sensory detail, showing rather

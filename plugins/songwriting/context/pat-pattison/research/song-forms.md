@@ -1,8 +1,8 @@
 # Song Forms
 
-Pat Pattison - *Songwriting: Essential Guide to Lyric Form and Structure*
+Pat Pattison - *Essential Guide to Lyric Form and Structure*
 (1991), Chapter 6. Pat Pattison - *Writing Better Lyrics* (2009),
-Chapter 22-23.
+Chapters 22-23.
 
 ## Image inventory
 
@@ -957,7 +957,7 @@ Use the home-base principle to:
 
 ## Form potency — when delivery matches package
 
-Pat's "(Im)potent Packages" framing from *Writing Better Lyrics* (2009), Chapter 22-23 (extends
+Pat's "(Im)potent Packages" framing from *Writing Better Lyrics* (2009), Chapters 22-23 (extends
 *Essential Guide to Lyric Form and Structure* (1991), Chapter 6): a song's form is potent when it delivers the strongest
 version of its idea, impotent when repetition causes the message to
 sag.

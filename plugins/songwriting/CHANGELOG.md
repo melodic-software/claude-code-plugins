@@ -3,6 +3,105 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.2]
+
+Both audit denominators are unchanged: **Axis 1 stays 44 of 44** and **Axis 2
+stays 226 of 226.** Nothing here opens a new unit. This release restores content
+inside units that were already audited and closed, settles two open maintainer
+decisions, and normalizes the plugin's own citation convention.
+
+### Added
+
+- **The 2014 Preface, restored verbatim.** Spine 009's scope, audience,
+  exercise/reference workflow and rhyming-dictionary requirement were absent
+  from the plugin although the unit was closed. Restored to
+  `rhyme-fundamentals.md` at **204 of 204 words**, byte-exact, with a codepoint
+  census matching the source (U+2014 x1, U+2019 x6). Both italic runs — the
+  purpose clause including its final period, and the dictionary title with its
+  following comma *outside* the italics — were confirmed by rendering the page
+  scan. This book carries **no `<i>`/`<em>` tags and no `font-style` in its
+  CSS**, and wraps every word in its own `<span>`, so the scan is the only
+  authority for emphasis. An earlier proposal to paraphrase this passage was
+  rejected.
+- **Chapter 7's Strategy 5 demonstration, restored to `hook.md`.** Chapter 7
+  emits 27 figure markers; the file cited 22. The five uncited figures were
+  proven read-only before any writer was dispatched, and four sit at
+  dangling-colon sites, meaning the content exists only in the image. The
+  `34D`-`34G` worked demonstration and the `34T` resolving scan are now present,
+  each transcribed from a rendered figure read directly. **OCR was forbidden
+  explicitly**, after a previous attempt's 141 OCR-derived lines were discarded.
+- **A prompt-side harmonic technique for Suno**, surfaced by re-running the
+  Cover/harmony research with real search budget: key plus mood in the Style
+  field, and bracketed chord tags in Custom Mode's Lyrics field — recorded with
+  its named failure mode (the model sings the chord names as lyrics) and its
+  stated limits, and scoped explicitly to general generation rather than Cover.
+
+### Changed
+
+- **Suno voice-clone protocol consolidated on the single varied 90-120s clip.**
+  `v55-features.md` and `tips.md` advised three separate clips; `voices.md` and
+  `power-tips.md` advised one. The single-clip side is the only one that supplies
+  a mechanism, so it wins. Marked community-derived — Suno publishes nothing
+  either way on clip count or length — and each file now records that the 3-clip
+  advice was **retired deliberately**, so it does not regrow.
+- **Citations normalized to the short title and plural chapter ranges.** Ranges
+  read `Chapters N-M`. Where a file quoted its own citation string back at
+  itself, both halves were changed together so no self-reference dangles.
+- **`book-references.md` no longer contradicts itself.** Its opening paragraph
+  said the full title appears in file headers. After normalization that is false,
+  and it is a regrowth vector — a future agent reading it would re-expand every
+  header. The full title now lives where it belongs: this file's bibliographic
+  table.
+
+### Fixed
+
+- **`hook.md` no longer over-claims figure `image_rsrc34F`.** It described the
+  fifth row as "3 stresses". The scan prints a **doubled slash** there, and
+  whether that denotes two stresses or is a printing anomaly cannot be
+  determined from the figure. Row five is recorded as printed, `u u / u // u /`.
+- **A removed anti-regrowth note was restored to `prosody.md`.** One agent moved
+  out a note that names a specific fabrication — an invented three-item trigger
+  list — and whose first sentence is a substantive statement about the source,
+  not revision narration. That removal was overturned.
+- **Two expanded-title citations in `stable-unstable-meta.md`** that every
+  single-line grep had missed, because they wrap across lines.
+- **The last surviving 3-clip instruction**, in `troubleshoot.md`. The
+  consolidation missed it because the search pattern used to find the D2 sites
+  looked for "three clips" and "3 separate clips" but not the bare "3 clips".
+  A user hitting a voice-clone problem was still being sent back to the retired
+  method. Found by the PR review gate; a broad re-search now returns zero.
+- **`hook.md`'s `(balancing position)` annotation reconciled, not deleted.**
+  Figure `image_rsrc34D` really does print that label, and the file's audited
+  `Strategic position` note is also right that Pat's prose never names it as a
+  second position. Both are true, so the transcription stays verbatim and a
+  sentence now records the tension — altering transcribed source text to fit a
+  claim elsewhere is the fabrication this project exists to prevent.
+
+### Verification
+
+Ten build agents and three independent refuters ran, each with an exclusive
+write-set. Counts summed from the receipt headers by script, not from memory:
+
+- Build agents: **53 CONFIRMED, 2 REFUTED, 1 UNPROVABLE, 2 INCOMPLETE-RESTORATION.**
+- Refuters: **32 UPHELD, 0 OVERTURNED, 3 NEW DEFECTS.**
+
+The refuting pass found real defects in this session's own work for the fourth
+session running. Two are fixed above; the third is disclosed below.
+
+**Known and deliberate omissions.**
+
+- Figure `image_rsrc34F`'s printed lyric is **not restored**. It is image-only —
+  absent from the gated 1991 text layer, confirmed against a known-present
+  control — so the mandated "splice from the spine, never place lyric text in a
+  tool request" method has no source to splice from. The file says so in place.
+- Reddit / r/SunoAI **remains unread**; the Suno re-run read community guides and
+  wikis, not forum threads. `workflow-recipes.md` records that the avenue is
+  still open rather than implying it was exhausted.
+- `templates/audit-checklist-prompt.md` received a correct plural-range fix
+  although the session's own brief forbids touching `audit-checklist*.md`. The
+  change is right and is kept deliberately; the scope violation is disclosed
+  rather than quietly retained.
+
 ## [1.0.1]
 
 **Axis 2 closes at 226 of 226.** The last 21 fine-grained units — *Essential
