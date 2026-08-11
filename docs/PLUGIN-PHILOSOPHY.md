@@ -748,7 +748,7 @@ That ladder is a cost ordering, and one capability does not travel down it: **in
 a thinking block between tool calls rather than only before the first and after the last.** Claude Code
 models it per model, as the `interleaved_thinking` capability value
 ([model config: customize pinned model display and capabilities](https://code.claude.com/docs/en/model-config#customize-pinned-model-display-and-capabilities),
-verified 2026-08-03; a pinned model's unlisted capabilities are disabled). The per-model roster is
+verified 2026-08-10; a pinned model's unlisted capabilities are disabled). The per-model roster is
 upstream-owned — resolve it at
 [thinking: interleaved thinking](https://platform.claude.com/docs/en/build-with-claude/thinking#interleaved-thinking),
 which today states that interleaving is automatic on every model supporting adaptive thinking with
