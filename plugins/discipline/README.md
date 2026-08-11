@@ -388,3 +388,62 @@ read-only (it never writes config — reconfiguration stays the native flow).
 Batch membership and order otherwise live in each corrector's own colocated
 tier metadata (`metadata.discipline-batch` + `discipline-batch-rank`), so changing
 a shipped tier is a PR to that corrector.
+
+<!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
+
+### Options reference
+
+Generated from this plugin's `.claude-plugin/plugin.json`. Every option Claude Code
+will prompt for when the plugin is enabled, with the environment variable each hook
+reads it from.
+
+| Option | Type | Default | Environment variable | Description |
+| --- | --- | --- | --- | --- |
+| `batch_exclude` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BATCH_EXCLUDE` | Comma-separated corrector skill names to drop from the posture batch (for example: point-dont-copy). Overrides the corrector's own declared tier. Empty runs the tiers exactly as the correctors declare them. |
+| `batch_promote` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BATCH_PROMOTE` | Comma-separated situational corrector skill names to always run in the batch instead of gating them on relevance to the conversation. |
+| `batch_demote` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BATCH_DEMOTE` | Comma-separated core corrector skill names to run only when relevant to the conversation instead of every session. |
+| `research_deep_verification` | string | `"tiered"` | `CLAUDE_PLUGIN_OPTION_RESEARCH_DEEP_VERIFICATION` | Default verification depth for do-your-research-deep: 'tiered' (the default — resolve trivial and non-load-bearing inventory items inline, fan fresh-context subagents out only over the load-bearing ones) or 'full' (subagent-verify every inventory item). An invocation argument overrides this. An empty value, an unexpanded ${user_config.…} token, or an unrecognized string all fall back to tiered. |
+
+### How to set these
+
+Three supported routes, in the order most people want them:
+
+1. **Interactively** — Claude Code prompts for declared options when you enable the
+   plugin. To change them later: `/plugin configure discipline`.
+2. **Headless, at install time** — repeat `--config` for each option:
+
+   ```shell
+   claude plugin install discipline@melodic-software --config batch_exclude=<value>
+   ```
+
+3. **By hand, in settings** — add the value under `pluginConfigs` in your **user**
+   settings (`~/.claude/settings.json`):
+
+   ```json
+   {
+     "pluginConfigs": {
+       "discipline@melodic-software": {
+         "options": {
+           "batch_exclude": <value>
+         }
+       }
+     }
+   }
+   ```
+
+   Plugin option values are read from **user**, `--settings`, and managed settings
+   only — **not** from a project's `.claude/settings.json`. To vary behavior per
+   repository, enable or disable the plugin in that project's `enabledPlugins`
+   instead of setting an option there.
+
+Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself. They are how Claude Code
+hands a configured value to a hook process; the value comes from the routes above.
+
+### Upstream documentation
+
+- [User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration) — the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
+- [Plugin settings](https://code.claude.com/docs/en/settings#plugin-settings) — `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
+- [Configuration scopes](https://code.claude.com/docs/en/settings#configuration-scopes) — user vs project vs local precedence
+- [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins) — enabling, disabling, `/plugin list`
+
+<!-- END GENERATED: plugin options -->
