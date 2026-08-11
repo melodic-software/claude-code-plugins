@@ -33,7 +33,7 @@ per-repo outcome summary.
 ## Script
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/clean-batch.sh \
+${CLAUDE_SKILL_DIR}/scripts/clean-batch.sh \
   --tier <caches|build|git|all> \
   [--dry-run|--apply] \
   [--repo DIR]... [--repos-from FILE|-]... \
@@ -151,10 +151,10 @@ Dry-run a caches sweep of the whole `ghq` tree, skipping one repo, then apply th
 gated plan after confirming:
 
 ```bash
-ghq list -p | bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/clean-batch.sh \
+ghq list -p | ${CLAUDE_SKILL_DIR}/scripts/clean-batch.sh \
   --tier caches --repos-from - --skip melodic-software/standards
 # → BatchPlan: /tmp/…/plan  — confirm, then:
-CLEAN_GUARD_ACK=1 bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/clean-batch.sh \
+CLEAN_GUARD_ACK=1 ${CLAUDE_SKILL_DIR}/scripts/clean-batch.sh \
   --tier caches --apply --batch-plan /tmp/…/plan
 ```
 
@@ -162,6 +162,6 @@ Dry-run a git prune across an explicit set including worktrees (each shared stor
 pruned once):
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/clean-batch.sh \
+${CLAUDE_SKILL_DIR}/scripts/clean-batch.sh \
   --tier git --repo ~/repos/a --repo ~/repos/a-worktree --repo ~/repos/b
 ```

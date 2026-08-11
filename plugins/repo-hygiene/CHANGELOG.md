@@ -3,6 +3,47 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.0]
+
+### Fixed
+
+- **`/repo-hygiene:clean`'s script grant was inert, and broader than anything it should have
+  granted.** The single rule `Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/*)` never matched:
+  `${CLAUDE_PLUGIN_ROOT}` is not substituted in `allowed-tools` (only `${CLAUDE_SKILL_DIR}` and
+  `${CLAUDE_PROJECT_DIR}` are), so it stayed a literal string. Had it matched, it would have
+  pre-approved every script in the directory behind a single wildcarded-interpreter rule — the shape
+  auto mode drops outright — including `git-tree-reset.sh` and `remove-path.sh`.
+
+  Dropping `bash` from the rule, the repair that suggests itself, would have produced a **dead**
+  grant rather than a working one: `bash` is not among the wrappers Claude Code strips before
+  matching (`timeout`, `time`, `nice`, `nohup`, `stdbuf`, `command`, `builtin`, `noglob`), so a rule
+  without it stops matching a body that still says `bash <path>`. The change is **paired** — the
+  skill body and every bundled `context/*.md` now invoke their scripts directly through
+  `${CLAUDE_SKILL_DIR}/scripts/…`, and the rules name those same strings.
+
+### Changed
+
+- **The grant is now five narrow rules covering the read-only scripts only** —
+  `resolve-clean-action.sh`, `scan.sh`, `preflight.sh`, `git-branch-audit.sh`, `git-stash-audit.sh`.
+  The mutating scripts (`clean-caches`, `clean-build`, `git-prune`, `git-tree-reset`,
+  `git-tree-reset-batch`, `remove-path`, `clean-batch`) are deliberately **not** pre-approved: they
+  keep routing through the PreToolUse destructive guard and the permission flow, which is where the
+  dry-run-then-confirm contract is actually enforced. Since the old rule matched nothing, nothing
+  regresses; what changes is that the read-only inventory step stops prompting while the destructive
+  tiers keep their gate.
+
+  The PreToolUse guard's own `command` still resolves `${CLAUDE_PLUGIN_ROOT}` and is unchanged —
+  hook commands are a different substitution context, where that variable is documented to work.
+
+### Added
+
+- **`scripts/allowed-tools-pairing.test.sh`**, asserting the contract the fix establishes: no
+  interpreter-led grant and no `${CLAUDE_PLUGIN_ROOT}` in `allowed-tools`, every bundled-script
+  invocation across the skill's markdown — `SKILL.md` and `context/` alike — unquoted and free of a
+  `bash` wrapper, and every granted script present, executable, and actually invoked by a body. The
+  `context/` coverage is deliberate: a conversion that stopped at `SKILL.md` would leave the routed
+  detail files telling Claude to run a form the rules no longer match.
+
 ## [0.9.1]
 
 ### Changed

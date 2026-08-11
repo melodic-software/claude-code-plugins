@@ -7,7 +7,7 @@ Full detail for the `git` action's branch-audit half (§4.2–§4.7). SKILL.md k
 Run the branch-audit script — do not reimplement collection inline:
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/git-branch-audit.sh
+${CLAUDE_SKILL_DIR}/scripts/git-branch-audit.sh
 ```
 
 **Output contract** (per branch): `Branch:`, `Tier:`, `Age days:`, `PR:`, `Unpushed:`, `Reason:`; trailing `Summary: protected=… worktree=… safe=… likely-safe=… review=…`.
@@ -84,4 +84,4 @@ Deleted: refactor/x (was LIKELY-SAFE — upstream gone)
 Failed: some-branch — has unmerged changes (use -D to force)
 ```
 
-After deletion, run `bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/git-prune.sh --apply` to prune orphaned worktree metadata and compact loose objects.
+After deletion, run `${CLAUDE_SKILL_DIR}/scripts/git-prune.sh --apply` to prune orphaned worktree metadata and compact loose objects.
