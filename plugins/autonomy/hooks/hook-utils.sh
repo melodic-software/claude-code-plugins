@@ -748,49 +748,107 @@ hook::jq_field() {
 # the whole contract) would DROP the field here and silently shift every later
 # index onto the wrong filter. Emptiness stays the caller's decision.
 #
-# Returns 1 — with HOOK_JQ_FIELDS empty — when jq is absent or fails, or when
-# fewer values came back than filters were asked for, so a partial read can
-# never be mistaken for a complete one. Values are CR-stripped, as in
+# Returns 1 — with HOOK_JQ_FIELDS empty — when jq is absent, when jq cannot
+# parse the payload, or when the record count does not match what was asked for
+# in EITHER direction (an over-count rejects too: two concatenated well-formed
+# JSON documents parse fine and yield twice the records). Every guardrail caller
+# spells that `|| exit 0`, a PreToolUse ALLOW, so what can reach it matters. NUL
+# CONTENT no longer can (#2122). A payload jq itself rejects — malformed JSON, a
+# wrongly typed field, an empty buffer — still does, exactly as it did before
+# this change; that path is untouched here, and process substitution means jq's
+# own exit status is not observed either. Values are CR-stripped, as in
 # hook::jq_field.
 #
-# Fields are NUL-separated on the wire, and every value has its own NUL bytes
-# REMOVED jq-side first, so the delimiter provably cannot occur inside a
-# value: the values carry arbitrary text (a Bash command spans newlines
-# routinely), and once NUL is out of the value alphabet no payload can put it
-# back. Without that strip, a JSON input encoding a literal \u0000 INSIDE a
-# string value — which a Write/Edit/NotebookEdit content field legitimately
-# may — made jq emit the raw byte, split that value in two, and fail the
-# cardinality check below, turning a caller's `|| exit 0` into a silent skip
-# of the entire guard.
+# HOOK_JQ_FIELDS_NUL is set on EVERY call — "1" when any REQUESTED field carried
+# a NUL byte, "0" otherwise, and "0" on every failure path — so a caller can
+# never inherit a stale "1" from an earlier invocation by forgetting to reset it.
+# A caller that owns a block/allow verdict MUST consult it and fail CLOSED.
 #
-# Dropping the NUL rather than encoding around it is not the lesser option,
-# it is the only representable one: a bash variable cannot hold a NUL byte,
-# so no framing scheme (length prefix, base64, …) could deliver one into
-# HOOK_JQ_FIELDS. It is also exactly what the per-field command substitution
-# this helper replaced did — $( ) discards NUL bytes and keeps the rest of
-# the value, so content AFTER a NUL is still returned and still scanned.
-# Read through a process substitution rather than $( ) because the delimiter
-# itself must survive the read; command substitution would strip it too.
+# Fields are NUL-separated on the wire, and every value has its own NUL bytes
+# REMOVED jq-side first, so the delimiter provably cannot occur inside a value
+# and the record count no longer depends on what a PARSEABLE payload holds. jq
+# used to emit the raw byte, the value split in two, the cardinality check below
+# failed, and the callers' `|| exit 0` turned a PreToolUse BLOCK into a silent
+# ALLOW (#2122).
+#
+# The FLAG is computed from the values as the payload carried them, BEFORE the
+# strip — the ordering is load-bearing and is the one thing a textual merge of
+# this function will get wrong. Strip first and `index(0)` looks at a value that
+# no longer holds a NUL, so the flag reads "0" on every payload and the guards
+# that consult it never fire: a fail-open with no diagnostic, which is the exact
+# defect #2122 filed. Anyone editing the jq program must keep the flag ahead of
+# the strip.
+#
+# Removing the NUL is NOT a claim about how a NUL executes, and must not be read
+# as one. Two behaviours were measured and they disagree: bash DISCARDS a NUL
+# while parsing a command it reads (stdin or a script file), so `echo ha<NUL>rd`
+# prints `hard`; Node's child_process REFUSES a NUL-bearing string outright, on
+# argv, on `shell: true`, and on exec alike. Which of those — if either — a hook
+# payload would ever reach is UNTRACED. No value semantics chosen here can claim
+# fidelity to the executor, in either direction, and none is claimed.
+#
+# That is exactly why the verdict is fail-CLOSED on the flag rather than a match
+# against the value: blocking is correct under deletion, under truncation, and
+# under refusal alike, so it does not depend on anyone having traced the path —
+# and it cannot be invalidated by tracing it later. The flag is the load-bearing
+# part; the value semantics are not.
+#
+# Deletion over truncation is chosen on grounds that appeal to no shell at all,
+# and it is the disposition #2120 already shipped: a truncating helper hides
+# everything after the first NUL from the ten scanning callers #2120 converted,
+# none of which consults the flag, so truncation would make a credential past a
+# NUL invisible to secret-pattern-detection and hardcoded-path-check. Deletion
+# keeps those callers seeing the whole value. The trade runs the other way for a
+# COMMAND caller that forgets the flag — `--no-verify<NUL>x` joins to
+# `--no-verifyx` and matches nothing — which is precisely why the two guards
+# refuse on the flag before reading a value at all, rather than relying on the
+# disposition to keep them safe.
+#
+# split/join (1-arity, a plain string split — NOT gsub, which would put a NUL
+# inside an Oniguruma pattern) for the strip, and explode/index for the flag, so
+# that no regex pattern and no string literal in the jq PROGRAM text carries a
+# NUL byte: a construct whose behaviour varied across jq builds would fail EVERY
+# payload, which is strictly worse than the payload-dependent bug being fixed.
+#
+# The library cannot impose the verdict itself — the plugins sourcing it include
+# formatters, for which exiting 2 would be wrong — so policy stays with the
+# caller and the library only reports the fact.
+#
+# Read through a process substitution rather than $( ): command substitution
+# strips NUL bytes, which would eat the separators themselves.
 #
 #   hook::jq_fields "$INPUT" '.tool_input.command' '.tool_name' || exit 0
+#   if ((HOOK_JQ_FIELDS_NUL)); then echo "BLOCKED: …" >&2; exit 2; fi
 #   COMMAND="${HOOK_JQ_FIELDS[0]}" TOOL_NAME="${HOOK_JQ_FIELDS[1]}"
-# shellcheck disable=SC2034  # result global is consumed by the sourcing hook, not this file
+# shellcheck disable=SC2034  # result globals are consumed by the sourcing hook, not this file
 hook::jq_fields() {
   local input="$1"
   shift
   HOOK_JQ_FIELDS=()
+  HOOK_JQ_FIELDS_NUL=0
   (($#)) || return 1
   command -v jq >/dev/null 2>&1 || return 1
   local prog="" filter
   for filter in "$@"; do
     [[ -n "$prog" ]] && prog+=","
-    # split/join (1-arity, a plain string split — NOT gsub, which would put a
-    # NUL inside an Oniguruma pattern) removes every NUL from the value.
-    prog+="((${filter}) // \"\" | tostring | split(\"\\u0000\") | join(\"\"))"
+    # Raw here: the NUL must still be in the value when the flag is computed
+    # below. The strip happens after, on the whole array.
+    prog+="((${filter}) // \"\" | tostring)"
   done
-  # `-j` concatenates outputs verbatim, so emitting the NUL as its own output
-  # after each value yields exactly value NUL value NUL … with nothing added.
-  prog="[$prog] | .[] | (., \"\\u0000\")"
+  # The NUL flag rides in front of the values as one more record, so reporting
+  # it costs no second jq process — the whole point of this helper. It is
+  # computed FIRST, from the values exactly as the payload carried them; only
+  # then is each value stripped. `-j` concatenates outputs verbatim, so emitting
+  # the separator as its own output yields exactly value NUL value NUL … with
+  # nothing added. `A | (X, Y)` feeds the SAME array to both branches, so the
+  # flag and the values come from one input with no jq variable in the program
+  # text. Moving the split/join up into the loop above — which is what a textual
+  # merge of this function produces — would silently zero the flag on every
+  # payload.
+  prog="[$prog]"
+  prog+=' | ((if (map(explode | index(0) != null) | any) then "1" else "0" end),'
+  prog+=' (.[] | split("\u0000") | join("")))'
+  prog+=" | (., \"\\u0000\")"
   local -a values=()
   local v clean
   # `read -d ''` (not `mapfile -d ''`, which is Bash 4.4+; this lib supports
@@ -810,8 +868,12 @@ hook::jq_fields() {
     clean="${v//$'\r'/}"
     values+=("$clean")
   done < <(printf '%s' "$input" | jq -j "$prog" 2>/dev/null)
-  ((${#values[@]} == $#)) || return 1
-  HOOK_JQ_FIELDS=("${values[@]}")
+  # One record for the flag plus one per filter. Short of that, jq produced no
+  # usable output — it is absent, it failed, or it rejected the payload. What can
+  # no longer shorten it is NUL CONTENT: the values carry no separator byte.
+  ((${#values[@]} == $# + 1)) || return 1
+  HOOK_JQ_FIELDS_NUL="${values[0]}"
+  HOOK_JQ_FIELDS=("${values[@]:1}")
 }
 
 # Reduce a tool + optional Bash command to a privacy-safe subject label. For
