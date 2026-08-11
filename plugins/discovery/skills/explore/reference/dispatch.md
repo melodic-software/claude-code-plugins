@@ -93,15 +93,27 @@ again to reproduce the same refusal at full cost.
 So the parent does the writing, which it can — this is the checkout-not-process boundary
 `reference/topic-docs.md` already draws, finally reachable from the failure that needs it:
 
-1. The payload carries the index and every sidecar as verbatim bodies after the YAML block, each
-   introduced by its filename. Write them into the memory-slice path **the parent resolved before
-   dispatch** — the same path it fed the gate — under those names. The payload's `artifact:` value
-   on this path is the destination the agent names, not a claim that a file exists.
-2. **Re-run the identical gate command.** Do not hand-inspect the directory instead; the whole
-   reason this rung is safe is that the artifact ends up graded by the same check as every other
-   run. Freshness needs no special handling: the parent writes after its own `touch`, so the index
-   is strictly newer than the baseline.
-3. Proceed only on exit 0. A non-zero second run drops through to the rungs below — the exception
+1. **Check every filename before writing anything.** The payload carries the index and every sidecar
+   as verbatim bodies, each introduced by a filename — and this is the only place in the contract
+   where a name the *worker* produced becomes a write the *parent* performs, at the parent's wider
+   permission. Accept exactly `EXPLORE.md` and `EXPLORE-<section>.md` (`^EXPLORE-[A-Za-z0-9_-]+\.md$`),
+   each a bare filename. Reject anything carrying a directory separator, a `..` segment, a leading
+   `/`, or any other shape — and reject it as a **failed dispatch**, the same as a payload returning
+   findings instead of bodies. Confirm the resolved path of every write still sits directly inside
+   the destination directory. An explorer reads a repository and a researcher fetches the open web;
+   neither payload is a trusted source of paths.
+2. **Pick the destination the way a written run would have.** Anchor on the memory-slice path **the
+   parent resolved before dispatch** — the same path it fed the gate. If that slice root already
+   holds an unrelated `EXPLORE.md` from an earlier exploration, the collision rule applies here
+   exactly as it applies to a worker that could write: the parent assigns a sub-slice under the root
+   and writes the whole set there, rather than overwriting the index the collision rule exists to
+   protect. The parent chooses that sub-slice, as it chooses every other one; the payload's
+   `artifact:` value is the destination the agent *names*, never the anchor.
+3. **Re-run the identical gate command**, against whichever of the two the parent wrote to. Do not
+   hand-inspect the directory instead; the whole reason this rung is safe is that the artifact ends
+   up graded by the same check as every other run. Freshness needs no special handling: the parent
+   writes after its own `touch`, so the index is strictly newer than the baseline.
+4. Proceed only on exit 0. A non-zero second run drops through to the rungs below — the exception
    is to the halt, never to the gate, and `persistence: by-value` grades nothing on its own.
 
 **A by-value payload that returns findings instead of artifact bodies is a failed dispatch, not a

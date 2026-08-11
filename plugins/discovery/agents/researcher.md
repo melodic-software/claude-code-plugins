@@ -209,22 +209,35 @@ statement about the corpus ledger only — never about whether anything was writ
   refused. Do not retry through another tool, and do not silently downgrade to `truncated`. Instead:
   1. `status:` stays `complete` if the research is complete. It is.
   2. `artifact:` carries **the path you would have written** — the index path from your dispatch
-     envelope. On this path it is a **destination for the parent, not a claim that a file exists**.
+     envelope, which on a fan-out is the sub-slice you were assigned rather than the slice root. On
+     this path it is a **destination for the parent, not a claim that a file exists**, and it does
+     not override the parent's own anchor: the parent writes under the slice path it resolved
+     before dispatching you.
   3. `sidecars:` is the count of sidecar bodies you are returning, not a count of files on disk.
   4. **Append the artifact bodies verbatim after the YAML block**, each in its own fenced block
      introduced by the filename it belongs in — `RESEARCH.md` first, then every sidecar with its
-     machine-readable YAML header intact, then `research-checklist.md`. This is the one case where
-     the "nothing resembling a transcript" rule is suspended, because these bodies *are* the
-     artifact and the parent writes the slice from them. It is still not a transcript: no queries,
-     no fetched pages, no working notes — only the files.
-  5. Say in one line what refused the write and what the refusal text said.
+     machine-readable YAML header intact, then `research-checklist.md` **if this run wrote one**.
+     A run that recorded the corpus as unbounded writes no ledger, and that stays true here:
+     synthesizing one now would fabricate a coverage claim out of a recovery path. Say which case
+     you are in. This is the one case where the "nothing resembling a transcript" rule is
+     suspended, because these bodies *are* the artifact and the parent writes the slice from them.
+     It is still not a transcript: no queries, no fetched pages, no working notes — only the files.
+  5. **Name only the files this contract defines: `RESEARCH.md`, `RESEARCH-<section>.md`, and
+     `research-checklist.md`.** A bare filename, never a path — no directory component, no `..`, no
+     leading `/`. On this one path a name you emit becomes a name the *parent* writes, and the
+     parent holds wider write permission than you do. That matters more here than anywhere else in
+     this contract: your whole job is ingesting untrusted third-party content, and a fetched page
+     that could steer your payload would otherwise be steering a privileged write. A name outside
+     that set is a failed dispatch and the parent will treat it as one.
+  6. Say in one line what refused the write and what the refusal text said.
 
   The bodies you return are the same bodies you would have written — full artifact text under the
   skill's Output Format, already through the criteria that are yours to grade. They are not a
   summary of your findings, and returning findings *instead of* the artifact is not this mode. The
   parent writes what you return to the slice and then re-runs the same gate against disk, including
-  the coverage ledger's script; nothing you return is accepted in place of that gate passing. That
-  is the whole point of the mode: a claim you make about your own run is still not evidence.
+  the coverage ledger's script whenever a ledger was owed; nothing you return is accepted in place
+  of that gate passing. That is the whole point of the mode: a claim you make about your own run is
+  still not evidence.
 
   Rationale for the mode, and the boundary it sits on:
   [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)

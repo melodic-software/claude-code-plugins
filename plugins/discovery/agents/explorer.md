@@ -206,14 +206,22 @@ only — never about whether anything was written.
 - **`persistence: by-value`** — you finished the work and **every** attempt to write the slice was
   refused. Do not retry through another tool, and do not silently downgrade to `truncated`. Instead:
   1. `status:` stays `complete` if the exploration is complete. It is.
-  2. `artifact:` carries **the path you would have written** — the index path from your dispatch
-     envelope. On this path it is a **destination for the parent, not a claim that a file exists**.
+  2. `artifact:` carries **the path you would have written** — the same path the collision rule
+     above would have sent you to, so a slice root already holding an unrelated `EXPLORE.md` still
+     resolves to the sub-slice rather than to the root. On this path it is a **destination for the
+     parent, not a claim that a file exists**, and it does not override the parent's own anchor:
+     the parent writes under the slice path it resolved before dispatching you, choosing the
+     sub-slice itself when the collision rule applies.
   3. `sidecars:` is the count of sidecar bodies you are returning, not a count of files on disk.
   4. **Append the artifact bodies verbatim after the YAML block**, each in its own fenced block
      introduced by the filename it belongs in — the index first, then every sidecar. This is the one
      case where the "at most one paragraph of prose" rule is suspended, because these bodies *are*
      the artifact and the parent writes the slice from them.
-  5. Say in one line what refused the write and what the refusal text said.
+  5. **Name only the files this contract defines: `EXPLORE.md` and `EXPLORE-<section>.md`.** A bare
+     filename, never a path — no directory component, no `..`, no leading `/`. On this one path a
+     name you emit becomes a name the *parent* writes, and the parent holds wider write permission
+     than you do; a name outside that set is a failed dispatch and the parent will treat it as one.
+  6. Say in one line what refused the write and what the refusal text said.
 
   The bodies you return are the same bodies you would have written — full artifact text under the
   normal output format, already through the outcome gate. They are not a summary, not an abstract,

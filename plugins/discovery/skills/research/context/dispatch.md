@@ -158,19 +158,36 @@ So the parent does the writing, which it can — this is the checkout-not-proces
 [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)
 already draws, finally reachable from the failure that needs it:
 
-1. The payload carries `RESEARCH.md`, every sidecar with its machine-readable header, and
-   `research-checklist.md` as verbatim bodies after the YAML block, each introduced by its filename.
-   Write them into the memory-slice path **the parent resolved before dispatch** — the same path it
-   fed the gate — under those names. The payload's `artifact:` value on this path is the destination
-   the agent names, not a claim that a file exists.
-2. **Re-run the identical checks — the artifact gate and the coverage-ledger gate both.** Do not
-   hand-inspect the directory instead; the whole reason this rung is safe is that the artifact ends
-   up graded by the same checks as every other run, including `check-coverage-complete.sh` over the
-   ledger the payload supplied. Freshness needs no special handling: the parent writes after its own
-   `touch`, so the index is strictly newer than the baseline. The slice was empty, so the stale-ledger
-   window this ladder's discard rung exists to close does not open here.
-3. Proceed only when both come back 0. A non-zero re-run drops through to the rungs below — the
-   exception is to the halt, never to the gate, and `persistence: by-value` grades nothing on its own.
+1. **Check every filename before writing anything.** The payload carries `RESEARCH.md`, every
+   sidecar with its machine-readable header, and — when the run wrote one — `research-checklist.md`,
+   each introduced by a filename. This is the only place in the contract where a name the *worker*
+   produced becomes a write the *parent* performs, at the parent's wider permission, and the worker
+   that produced it spent its whole run ingesting untrusted third-party pages. Accept exactly
+   `RESEARCH.md`, `research-checklist.md`, and `RESEARCH-<section>.md`
+   (`^RESEARCH-[A-Za-z0-9_-]+\.md$`), each a bare filename. Reject anything carrying a directory
+   separator, a `..` segment, a leading `/`, or any other shape — as a **failed dispatch**, the same
+   as a payload returning findings instead of bodies. Confirm the resolved path of every write still
+   sits directly inside the destination directory.
+2. **Write into the memory-slice path the parent resolved before dispatch** — the same path it fed
+   the gate, which on a fan-out is the sub-slice that topic was assigned rather than the slice root.
+   The payload's `artifact:` value is the destination the agent *names*, never the anchor.
+3. **Re-run the identical checks — the artifact gate always, and the coverage-ledger gate whenever a
+   ledger was owed.** Do not hand-inspect the directory instead; the whole reason this rung is safe
+   is that the artifact ends up graded by the same checks as every other run. Freshness needs no
+   special handling: the parent writes after its own `touch`, so the index is strictly newer than
+   the baseline. The slice was empty, so the stale-ledger window this ladder's discard rung exists
+   to close does not open here.
+
+   **A run that recorded the corpus as unbounded wrote no ledger, and none is owed on this path
+   either.** The standing rule is unchanged — no ledger on disk is correct *only* when the artifact
+   records the corpus as unbounded — so check the recovered index for that record, exactly as you
+   would for a run that wrote its own slice. Running the ledger gate anyway against a file nobody
+   was supposed to write exits 2, which is a FAIL, and would halt a complete run on a check that
+   never applied to it. A bounded corpus with no ledger body in the payload is still a Phase 0 that
+   never ran, whatever the payload says.
+4. Proceed only when every check that applied comes back 0. A non-zero re-run drops through to the
+   rungs below — the exception is to the halt, never to the gate, and `persistence: by-value` grades
+   nothing on its own.
 
 **A by-value payload that returns findings instead of artifact bodies is a failed dispatch, not a
 fallback.** The value of the third outcome is *routing*: it tells the parent which recovery to take.

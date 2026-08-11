@@ -45,6 +45,22 @@
   persist". The script is right to grade disk state and nothing else; the branch belongs one level
   up, in the ladder, where gate step 1 has already put the payload in the parent's hands.
 
+  **Three conditions bind the parent's write, because the recovery path must not become a hole in
+  the rules it recovers into.** The by-value rung is the only place in this contract where a
+  filename the *worker* produced becomes a write the *parent* performs, and the parent holds wider
+  write permission than the sandboxed worker — a researcher in particular spends its whole run
+  ingesting untrusted third-party pages. So: filenames are checked **before** anything reaches disk
+  and only the contract's own names are accepted (`EXPLORE.md` / `EXPLORE-<section>.md`,
+  `RESEARCH.md` / `RESEARCH-<section>.md` / `research-checklist.md`), as bare filenames; a directory
+  separator, a `..` segment or a leading `/` makes the payload a failed dispatch rather than a name
+  to sanitize. The explorer's **collision rule still applies** — a slice root already holding an
+  unrelated `EXPLORE.md` gets a parent-assigned sub-slice here too, because overwriting the index
+  that rule protects would be a silent, unrecoverable loss arriving through the recovery path. And
+  the research side's **unbounded-corpus rule is unchanged** — a run that recorded the corpus as
+  unbounded wrote no ledger and owes none here, so the coverage gate is re-run only when a ledger
+  was owed; running it against a file nobody was supposed to write exits 2, a FAIL, and would halt a
+  complete run on a check that never applied to it.
+
 - **`agents/researcher.md` described a tool grant it never made.** The file declared no `tools:` key
   and no `disallowedTools:` key, so it inherited every tool available to a subagent — while its own
   "Tool honesty" section asserted "`Edit` is absent from your tool list" and "`Agent` is listed."
@@ -130,10 +146,13 @@
   proves the exception answers a failure the gate really produces, the second proves the recovery
   routes *through* the gate rather than around it.
 
-- Eval cases on both skills covering the three outcomes the new axis has to keep apart: a by-value
+- Eval cases on both skills covering the outcomes the new axis has to keep apart: a by-value
   recovery that must be written and re-graded rather than discarded, a by-value payload carrying
-  findings instead of artifact bodies (a failed dispatch, not a fallback), and an echo-back mismatch
-  that fails a dispatch whose artifact is otherwise perfect.
+  findings instead of artifact bodies (a failed dispatch, not a fallback), an echo-back mismatch
+  that fails a dispatch whose artifact is otherwise perfect, a by-value payload naming a file
+  outside the contract (rejected before anything is written), an explore-side recovery into a slice
+  root already holding an unrelated index, and a research-side recovery of an unbounded corpus,
+  which owes no ledger and must not be graded against one.
 
 ## [0.13.1]
 
