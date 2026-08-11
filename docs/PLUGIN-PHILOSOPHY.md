@@ -32,9 +32,12 @@ Keep plugins horizontally decoupled:
   Claude Code installs automatically) or guarded behind an "if installed" check with the documented
   fallback. A bare unguarded cross-plugin reference is a defect.
 
-This follows Claude Code's distinction between project-specific standalone configuration and plugins
-intended for reusable, versioned distribution. Namespaced skill invocations are part of that isolation,
-not an implementation detail.
+This follows Claude Code's own distinction between standalone configuration — for "personal
+workflows, project-specific customizations, quick experiments" — and plugins, for "sharing with
+teammates, distributing to community, versioned releases, reusable across projects"
+([create plugins](https://code.claude.com/docs/en/plugins#when-to-use-plugins-vs-standalone-configuration),
+verified 2026-08-10). Namespaced skill invocations are part of that isolation, not an
+implementation detail.
 
 ## Naming
 
@@ -42,8 +45,12 @@ A skill name is an imperative verb phrase; the plugin namespace supplies the obj
 (`/machine-health:audit`, `/source-control:commit`). Names compose into instruction sentences —
 "/discovery:explore the module, then /planning:interview me" — and one grammar keeps every name in
 the marketplace predictable. This is a deliberate, documented deviation from the official authoring
-guidance's gerund preference; that guidance sanctions imperative alternatives and treats
-collection-wide consistency as a requirement, which this section provides.
+guidance's gerund preference — and the guidance sanctions it: gerunds are what it says to "consider
+using", action-oriented names (`process-pdfs`, `analyze-spreadsheets`) are listed under "Acceptable
+alternatives", and what it puts under Avoid is "inconsistent patterns within your skill collection",
+which is exactly the consistency this section supplies
+([skill authoring best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices),
+verified 2026-08-10).
 
 Verb meanings are fixed:
 
@@ -319,9 +326,14 @@ only criterion this definition governs — a plugin whose `userConfig` is trivia
 whenever (a) or (b) holds, which is the ordinary case for a plugin whose real surface is a project
 config file or an external tool and whose manifest carries only a kill switch.
 
-The uniform contract: the skill is named `setup`, sets `disable-model-invocation: true`, and offers
-`check` (read-only inspect and verify) and `apply` (idempotent configure) actions. This is a
-normative target — setup skills that predate this contract are nonconforming until brought into
+The uniform contract: the skill is named `setup`, sets `disable-model-invocation: true` — matching
+upstream's own rule for the flag, "for workflows with side effects that you want to trigger
+manually" ([best practices](https://code.claude.com/docs/en/best-practices), verified 2026-08-10) —
+and offers `check` (read-only inspect and verify) and `apply` (idempotent configure) actions. The
+rest of the shape is house doctrine, and says so: upstream documents native *initialization*
+surfaces (below) but takes no position on a consumer-facing `setup` skill, so the `check`/`apply`
+split and the criteria above rest on the reasoning given here rather than on upstream backing. This
+is a normative target — setup skills that predate this contract are nonconforming until brought into
 conformance, and the fleet conformance audit tracks the gap rather than the doctrine pretending it
 is closed. Setup must be:
 
@@ -592,7 +604,14 @@ made a mistake plausible is still active, so a self-check inherits the bias. A f
 subagent — generic or named — removes it: it starts in its own fresh context window, blind to the
 reasoning under review. A fork does not: it inherits the parent session's full conversation history, so
 it carries the same bias forward
-([subagents](https://code.claude.com/docs/en/sub-agents), verified 2026-07-22).
+([subagents](https://code.claude.com/docs/en/sub-agents), verified 2026-08-10).
+Upstream now states the doctrine, not only the mechanism: a fresh context "improves code review
+since Claude won't be biased toward code it just wrote", and a verification subagent exists "so the
+agent doing the work isn't the one grading it" — a reviewer in a fresh subagent context "sees only
+the diff and the criteria you give it, not the reasoning that produced the change"
+([best practices](https://code.claude.com/docs/en/best-practices), verified 2026-08-10). This
+section is the authoring-time form of that guidance, applied where an invoker cannot be relied on
+to remember it.
 
 The rule: **a skill step whose output judges work produced in the same context delegates that judgment
 to a fresh-context (non-fork) subagent** — generic or named; what the rule requires is the fresh
@@ -662,7 +681,13 @@ A dispatch prompt at any rung:
 - hands over the **artifact, not the story** — the diff, file, or plan itself, never the authoring
   session's rationale, which would re-import the bias being removed;
 - **degrades when absent** — a preferred named agent or advisor that is not installed routes to the
-  generic fresh-context subagent, never to a command that may not resolve.
+  generic fresh-context subagent, never to a command that may not resolve; and
+- **bounds what counts as a finding** — correctness and the stated requirements, everything else
+  optional. Upstream names the failure this prevents: "A reviewer prompted to find gaps will
+  usually report some, even when the work is sound, because that is what it was asked to do", and
+  chasing all of them "leads to over-engineering"
+  ([best practices](https://code.claude.com/docs/en/best-practices), verified 2026-08-10). An
+  unbounded adversarial prompt buys noise at the same price as judgment.
 
 ### Named-agent bar
 
@@ -680,11 +705,13 @@ The ladder is relative to the session: **a consequential verdict runs at the ses
 above, never below; tedious or mechanical preparation may drop one tier.** The heavy default must be
 explicit — an agent definition that omits `model` defaults to `inherit`, the main conversation's
 model ([subagents: model resolution](https://code.claude.com/docs/en/sub-agents#choose-a-model),
-verified 2026-07-22; frontmatter accepts `sonnet`, `opus`, `haiku`, `fable`, a full model ID, or
+verified 2026-08-10; frontmatter accepts `sonnet`, `opus`, `haiku`, `fable`, a full model ID, or
 `inherit`). Consumers hold one global override knob: `CLAUDE_CODE_SUBAGENT_MODEL`, set via the
-settings `env` map, which overrides both the per-invocation `model` parameter and frontmatter
+settings `env` map, which overrides both the per-invocation `model` parameter and frontmatter —
+except at the value `inherit`, which since v2.1.196 means normal resolution rather than forcing the
+session model, so the knob has an off position as well as an on one
 ([model config: environment variables](https://code.claude.com/docs/en/model-config#environment-variables),
-verified 2026-07-22; `env` applies to every session and spawned subprocess,
+verified 2026-08-10; `env` applies to every session and spawned subprocess,
 [settings](https://code.claude.com/docs/en/settings), verified 2026-07-22). There is no per-plugin
 model seam — plugin `userConfig` declares only generic typed options with no model semantics
 ([plugins reference: user configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration),
@@ -708,22 +735,26 @@ agentic coding and enterprise work" — while Fable 5 is "the most capable model
 positioned for tasks larger than a single sitting rather than for harder verdicts at ordinary
 length. Opus 4.8, the previous row-1 entry, is now a legacy
 model. Rows 2 and 3 re-verify unchanged: Sonnet 5 and Haiku 4.5 remain the current Sonnet and Haiku.
-The figures behind the cost ordering below are upstream-owned
+The trigger itself re-tested negative: a further family, Claude Mythos 5, now appears upstream but
+has not fired it — Mythos "is not generally available", offered invitation-only to approved
+customers under Project Glasswing, so no lane may reach for it. The figures behind the cost ordering
+below are upstream-owned
 ([pricing](https://platform.claude.com/docs/en/about-claude/pricing)) and are not restated here.
 ([model config](https://code.claude.com/docs/en/model-config),
 [models overview](https://platform.claude.com/docs/en/about-claude/models/overview), both verified
-2026-08-04.)
+2026-08-10.)
 
 That ladder is a cost ordering, and one capability does not travel down it: **interleaved thinking —
 a thinking block between tool calls rather than only before the first and after the last.** Claude Code
 models it per model, as the `interleaved_thinking` capability value
 ([model config: customize pinned model display and capabilities](https://code.claude.com/docs/en/model-config#customize-pinned-model-display-and-capabilities),
-verified 2026-08-03; a pinned model's unlisted capabilities are disabled). The per-model roster is
+verified 2026-08-10; a pinned model's unlisted capabilities are disabled). The per-model roster is
 upstream-owned — resolve it at
 [thinking: interleaved thinking](https://platform.claude.com/docs/en/build-with-claude/thinking#interleaved-thinking),
 which today states that interleaving is automatic on every model supporting adaptive thinking with
-no beta header, and that Claude Haiku 4.5 does not support it (verified 2026-08-03; recheck trigger:
-a new Haiku generation reaches GA, or that page's per-model sentence changes).
+no beta header, and that Claude Haiku 4.5 does not support it (verified 2026-08-10, corroborated by
+the model roster's adaptive-thinking column; recheck trigger: a new Haiku generation reaches GA, or
+that page's per-model sentence changes).
 
 The dispatch consequence, phrased as capability rather than family name so it survives an alias
 moving under it: **require interleaving only where extended reasoning between tool results is
@@ -748,19 +779,27 @@ repository, which `git grep -n '^model:' -- 'plugins/*/agents/*.md'` enumerates 
 list restated here.
 
 That floor is the consumer's to lose. An enterprise `availableModels` allowlist applies "everywhere
-a user can specify a model" — frontmatter pins included — and a pin naming a family it excludes
-"falls back to the inherited or default model rather than failing the request". Which of those two
-branches applies is **unresolved upstream, and stated here as such**; what is documented is that
-`enforceAvailableModels` resolves a Default falling outside the list to the *first* allowed,
-available allowlist entry, and that this reaches
-"the fallback used when an excluded selection is dropped" — an ordering nothing ties to this
-ladder. So a blocked pin can land **below** the session, and the tier invariant above is not
-self-enforcing: under an allowlist a lane may not depend on its pin in either direction, neither
-that it is at least its tier nor that it is cheap, and no error is raised either way. A design
-whose correctness needs a tier needs a mechanism that is not a frontmatter pin
+a user can specify a model" — frontmatter pins included — and where this document once recorded the
+blocked-pin branch as unresolved upstream, upstream now resolves it, per surface and differently for
+each. A blocked **subagent** override "falls back to the subagent's inherited model … rather than
+failing the request", except that on the Anthropic API and Claude Platform on AWS a blocked *family
+alias* instead follows the substitution rule and runs "on the newest permitted version of its
+family" — a v2.1.222 change the page dates, before which the alias fell back like any other blocked
+value. A blocked **skill or command** override behaves differently again: "Claude Code ignores the
+override, including a blocked family alias, and the skill or command runs on the session model."
+
+The earlier derivation's conclusion survives its replacement. A blocked subagent alias can still
+land **below** the session — session on Opus 5, lane pinned `opus`, allowlist permitting only an
+older Opus — and a blocked *cheap* pin lands on the inherited model, which is the session's and
+therefore not cheap. So the tier invariant above is still not self-enforcing for a subagent lane: it
+may depend on its pin in neither direction, and no error is raised either way. Only the skill and
+command branch is now pinned down, and it degrades upward-bounded — to exactly the session model,
+never below it. A design whose correctness needs a tier still needs a mechanism that is not a
+frontmatter pin
 ([model config: restrict model selection](https://code.claude.com/docs/en/model-config#restrict-model-selection),
-verified 2026-08-04; recheck trigger: that section's fallback sentence for a blocked subagent,
-skill, or command override changing, or `enforceAvailableModels`' enforced-Default scope changing).
+[sub-agents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model), both
+verified 2026-08-10; recheck trigger: either page's blocked-override behavior for a subagent,
+skill, or command changing).
 
 ### Effort tiers
 
@@ -804,7 +843,20 @@ name is not the same underlying value across models):
   caveat below.
 - **Bulk mechanical sweeps may pin `low`** — upstream pitches `low` for simpler tasks needing the
   best speed and lowest cost, "such as subagents", and lower effort spends fewer tool calls
-  ([effort](https://platform.claude.com/docs/en/build-with-claude/effort)).
+  ([effort](https://platform.claude.com/docs/en/build-with-claude/effort)) — but not at the model
+  ladder's own bottom rung, because the two ladders do not compose there. Effort is a per-model
+  capability and Haiku has none: "Models not listed here do not support effort", and no Haiku
+  appears in that table
+  ([model config: adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level)),
+  which the model roster corroborates with adaptive thinking off for Claude Haiku 4.5
+  ([models overview](https://platform.claude.com/docs/en/about-claude/models/overview), both
+  verified 2026-08-10). The documented unsupported-level fallback above does not reach this case:
+  it presupposes a supported level to fall back *to*, and here there is none. What the harness then
+  does with the pin — ignore it, warn, or fail — is **undocumented, and unverified here**; the
+  pages above establish the absent capability and nothing about the runtime handling, so no reading
+  of them settles it. The rule does not rest on that gap: a lane wanting the cheapest tier takes it
+  by model alone and omits the pin, because the dial it would be reaching for only exists one rung
+  up.
 - **Every other lane omits the pin** and inherits the session level: effort is a general
   preference, not a task-by-task decision
   ([choosing a model and effort level](https://claude.com/blog/claude-model-and-effort-level-in-claude-code)).
