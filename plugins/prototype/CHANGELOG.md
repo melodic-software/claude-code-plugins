@@ -3,6 +3,41 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.0]
+
+### Fixed
+
+- **Both skills' ecosystem-detector grant was inert, and the fix everyone reaches for first would
+  have made it dead instead.** `explore-directions` and `pressure-test` each granted
+  `Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/detect-ecosystems.sh:*)`. `${CLAUDE_PLUGIN_ROOT}` is not
+  one of the substitutions Claude Code performs in `allowed-tools` — only `${CLAUDE_SKILL_DIR}` and
+  `${CLAUDE_PROJECT_DIR}` are — so the rule stayed a literal string, never matched, and the
+  pre-computed ecosystem line fell through to a prompt or the classifier on every invocation.
+
+  The obvious repair — drop `bash` from the rule — is wrong, and that correction is the part worth
+  recording. `bash` is not one of the wrappers Claude Code strips before matching a Bash rule (that
+  set is `timeout`, `time`, `nice`, `nohup`, `stdbuf`, `command`, `builtin`, and `noglob`), so a rule
+  without `bash` stops matching the moment the body still says `bash <path>`. Dropping it alone would
+  have turned an inert grant into a dead one while making the diff look like a fix. The change is
+  therefore **paired**: the body invokes the script directly, and the rule names that same string,
+  `Bash(${CLAUDE_SKILL_DIR}/scripts/detect-ecosystems.sh:*)`. Quoting is part of the pairing — an
+  unquoted rule does not match a body path wrapped in quotes, so the body's quotes came off too.
+
+### Added
+
+- **A skill-local entry point for the shared ecosystem detector**, one per skill, at
+  `skills/<skill>/scripts/detect-ecosystems.sh`. `${CLAUDE_SKILL_DIR}` resolves to the skill's own
+  subdirectory rather than the plugin root, so a grant that must reach a bundled script has to name a
+  path underneath it. The detector stays single-sourced at `scripts/detect-ecosystems.sh`; each entry
+  point is a self-locating wrapper that `exec`s it. Self-locating rather than
+  `${CLAUDE_PLUGIN_ROOT}`-resolving because that variable is not exported into the Bash tool's
+  environment, so expanding it inside a script yields an empty string.
+
+- **`scripts/allowed-tools-pairing.test.sh`**, asserting the contract the fix establishes: no
+  interpreter-led grant and no `${CLAUDE_PLUGIN_ROOT}` in `allowed-tools`, every bundled-script
+  invocation in skill markdown unquoted and free of a `bash` wrapper, and every granted script
+  present, executable, and actually invoked by a body — a grant nothing runs is dead weight.
+
 ## [0.6.0]
 
 ### Removed
