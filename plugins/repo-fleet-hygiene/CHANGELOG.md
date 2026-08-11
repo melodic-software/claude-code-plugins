@@ -3,6 +3,35 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.0]
+
+### Fixed
+
+- **`/repo-fleet-hygiene:audit`'s grant has been dead since #1798 "fixed" it, for a reason nobody
+  filed: a quote mismatch.** That issue corrected the variable half
+  (`${CLAUDE_PLUGIN_ROOT}` → `${CLAUDE_SKILL_DIR}`) and explicitly parked quoting as "Unverified, not
+  asserted." The shipped rule wrote the path unquoted —
+  `Bash(bash ${CLAUDE_SKILL_DIR}/scripts/audit-fleet.sh *)` — while the body ran
+  `bash "${CLAUDE_SKILL_DIR}/scripts/audit-fleet.sh" …` with the path quoted. A Bash rule is matched
+  against the literal command string, so the character after the wrapper name is a closing quote
+  where the rule expects a path: the grant never matched, and the fleet audit has been prompting or
+  falling to the classifier ever since.
+
+  The remaining half of #1798's advice — "drop the `bash` prefix only" — would not have fixed it
+  either, and that correction is the point. `bash` is not among the wrappers Claude Code strips
+  before matching (`timeout`, `time`, `nice`, `nohup`, `stdbuf`, `command`, `builtin`, `noglob`), so
+  a rule without `bash` stops matching a body that still says `bash <path>`, and dropping the prefix
+  addresses nothing about the quoting. The change is **paired** on both axes: the body invokes the
+  script directly and unquoted, and the rule names that exact string,
+  `Bash(${CLAUDE_SKILL_DIR}/scripts/audit-fleet.sh:*)`. The arguments the skill passes stay quoted
+  individually — it is a prefix rule, so their quoting does not affect the match.
+
+### Added
+
+- **`scripts/allowed-tools-pairing.test.sh`**, which encodes the failure #1798 could not assert:
+  besides rejecting an interpreter-led grant and `${CLAUDE_PLUGIN_ROOT}` in `allowed-tools`, it fails
+  on a quoted bundled-script path in any skill markdown, because an unquoted rule will not match one.
+
 ## [0.10.0]
 
 ### Removed
