@@ -753,4 +753,130 @@ run "invoked script with its own redirect (allowed)" "bash execute.sh >> run.log
 run "non-producer redirect (allowed)" "sort data.txt > out.txt" 0
 run "cat with input files is not a heredoc write (allowed)" "cat a.txt b.txt > c.txt" 0
 
+# --- Scratch-root exemption (block_hook_bypass_scratch_roots) ----------------
+# The guard's first TARGET-scoped axis. The last exemption of this shape
+# (`/dev/null`) shipped a one-token bypass of the whole guard, so the assertions
+# that matter here are the ones proving the BYPASS SHAPES STILL BLOCK — a target
+# that merely contains the exempt string, a `..` escape out of an exempt root,
+# and a discard-then-real-file redirect ordering. The happy path is one line;
+# everything below it is the adversarial floor.
+SCRATCH_ENV=CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS
+
+# Shipped default is unchanged: with no roots configured, a temp write blocks
+# exactly as it did before this option existed.
+run "scratch: temp write blocks with option unset (blocked)" \
+  "echo hello > /tmp/scratch/data.json" 2
+run "scratch: temp write blocks with option empty (blocked)" \
+  "echo hello > /tmp/scratch/data.json" 2 "$SCRATCH_ENV="
+
+# Happy path: a write strictly under a configured root is exempt, in both lanes.
+run "scratch: echo under configured root (allowed)" \
+  "echo hello > /tmp/scratch/data.json" 0 "$SCRATCH_ENV=/tmp/scratch"
+run "scratch: cat under configured root (allowed)" \
+  "cat > /tmp/scratch/data.json" 0 "$SCRATCH_ENV=/tmp/scratch"
+run "scratch: append under configured root (allowed)" \
+  "echo hello >> /tmp/scratch/log" 0 "$SCRATCH_ENV=/tmp/scratch"
+run "scratch: second root in the comma list (allowed)" \
+  "echo hello > /var/jobtmp/f" 0 "$SCRATCH_ENV=/tmp/scratch, /var/jobtmp"
+run "scratch: nested below the root (allowed)" \
+  "echo hello > /tmp/scratch/a/b/c.json" 0 "$SCRATCH_ENV=/tmp/scratch"
+
+# THE BYPASS SHAPE. A sibling whose name merely STARTS WITH the root's last
+# component is a different directory; a string-prefix compare would exempt it.
+run "scratch: sibling sharing the root's prefix (blocked)" \
+  "echo hello > /tmp/scratchevil/data.json" 2 "$SCRATCH_ENV=/tmp/scratch"
+run "scratch: root name as a substring mid-path (blocked)" \
+  "echo hello > /opt/tmp/scratch-not/f" 2 "$SCRATCH_ENV=/tmp/scratch"
+# The root itself is not a file the exemption covers — containment is strict.
+run "scratch: the root path itself (blocked)" \
+  "echo hello > /tmp/scratch" 2 "$SCRATCH_ENV=/tmp/scratch"
+# `..` escapes are resolved BEFORE the compare, so the effective target governs.
+run "scratch: dot-dot escape out of the root (blocked)" \
+  "echo hello > /tmp/scratch/../../etc/passwd" 2 "$SCRATCH_ENV=/tmp/scratch"
+run "scratch: dot-dot escape to a prefix sibling (blocked)" \
+  "echo hello > /tmp/scratch/../scratchevil/f" 2 "$SCRATCH_ENV=/tmp/scratch"
+# `..` INSIDE the root still resolves under it and stays exempt.
+run "scratch: dot-dot resolving back inside the root (allowed)" \
+  "echo hello > /tmp/scratch/a/../b" 0 "$SCRATCH_ENV=/tmp/scratch"
+# Left-to-right redirect ordering: the same trap the /dev/null exemption already
+# survived. The EFFECTIVE target is the real file, so it blocks.
+run "scratch: exempt target then real file (blocked)" \
+  "echo hello > /tmp/scratch/f > real.txt" 2 "$SCRATCH_ENV=/tmp/scratch"
+run "scratch: exempt target then explicit 1> real file (blocked)" \
+  "echo hello > /tmp/scratch/f 1>real.txt" 2 "$SCRATCH_ENV=/tmp/scratch"
+# ...and the reverse ordering is exempt, because the effective target is exempt.
+run "scratch: real file then exempt target (allowed)" \
+  "echo hello > real.txt > /tmp/scratch/f" 0 "$SCRATCH_ENV=/tmp/scratch"
+# A compound command cannot leak one segment's exemption onto the next.
+run "scratch: exemption does not leak across segments (blocked)" \
+  "echo a > /tmp/scratch/f && echo b > real.txt" 2 "$SCRATCH_ENV=/tmp/scratch"
+
+# FAIL CLOSED on every target whose written text is not dependably the path that
+# gets written.
+run "scratch: relative target (blocked)" \
+  "echo hello > scratch/data.json" 2 "$SCRATCH_ENV=/tmp/scratch"
+run "scratch: unexpanded variable in target (blocked)" \
+  "echo hello > \$TMPDIR/data.json" 2 "$SCRATCH_ENV=/tmp/scratch"
+run "scratch: tilde target (blocked)" \
+  "echo hello > ~/scratch/data.json" 2 "$SCRATCH_ENV=/tmp/scratch,~"
+run "scratch: glob target (blocked)" \
+  "echo hello > /tmp/scratch/*.json" 2 "$SCRATCH_ENV=/tmp/scratch"
+# A root that fails the same normalization is skipped, not honoured loosely.
+run "scratch: relative configured root exempts nothing (blocked)" \
+  "echo hello > /tmp/scratch/f" 2 "$SCRATCH_ENV=scratch"
+run "scratch: root of / exempts nothing (blocked)" \
+  "echo hello > /tmp/scratch/f" 2 "$SCRATCH_ENV=/"
+
+# Windows spellings normalize to the Git Bash form, so a CONFIGURED ROOT written
+# `D:\jobtmp\scratch` and a target written `/d/jobtmp/scratch/f` compare equal.
+# The root is configuration, not command text, so the escaped-operand fail-close
+# does not apply to it.
+run "scratch: /d target under a D:\\ root (allowed)" \
+  "echo hello > /d/jobtmp/scratch/f" 0 "$SCRATCH_ENV=D:\\jobtmp\\scratch" # portability-ok: a backslash-separated Windows path in a test fixture, not a regex/sed construct
+run "scratch: Windows sibling sharing the prefix (blocked)" \
+  "echo hello > /d/jobtmp/scratchevil/f" 2 "$SCRATCH_ENV=/d/jobtmp/scratch"
+# A backslash-spelled TARGET is never exempt, by the same fail-close as a quoted
+# operand: in bash a backslash is an escape, so `D:\jobtmp\scratch\f` is not the
+# path it looks like, and what reaches the compare is not what gets written.
+# Windows targets belong in the `/d/...` spelling.
+run "scratch: backslash-spelled target is not exempted (blocked)" \
+  "echo hello > D:\\jobtmp\\scratch\\f" 2 "$SCRATCH_ENV=/d/jobtmp/scratch" # portability-ok: a backslash-separated Windows path in a test fixture, not a regex/sed construct
+
+# Documented residual, pinned so it moves only deliberately: the segment scan
+# runs over the lowercased command, so the compare is case-insensitive.
+run "scratch: case-insensitive compare (documented residual, allowed)" \
+  "echo hello > /tmp/SCRATCH/f" 0 "$SCRATCH_ENV=/tmp/scratch"
+
+# TRUNCATED-OPERAND FAIL-CLOSED. strip_literals keeps a quoted write target but
+# drops its quotes, and normalize_segments then resolves a `;`, `|`, `&`,
+# newline or space inside that operand as SYNTAX — so a quoted pathname reaches
+# the compare as a safe-looking prefix of itself. bash treats the whole quoted
+# word as one pathname, so exempting the prefix would be a one-token bypass.
+# The scratch axis therefore refuses to exempt any quoted or escaped operand.
+run "scratch: quoted operand with ; is not exempted (blocked)" \
+  "echo x > \"/tmp/scratch/a;/../../etc/passwd\"" 2 "$SCRATCH_ENV=/tmp/scratch"
+run "scratch: quoted operand with | is not exempted (blocked)" \
+  "echo x > \"/tmp/scratch/a|/../../etc/passwd\"" 2 "$SCRATCH_ENV=/tmp/scratch"
+run "scratch: quoted operand with & is not exempted (blocked)" \
+  "echo x > \"/tmp/scratch/a&/../../etc/passwd\"" 2 "$SCRATCH_ENV=/tmp/scratch"
+run "scratch: quoted operand with whitespace is not exempted (blocked)" \
+  "echo x > \"/tmp/scratch/a ../../etc/pw\"" 2 "$SCRATCH_ENV=/tmp/scratch"
+run "scratch: escaped operand is not exempted (blocked)" \
+  "echo x > /tmp/scratch/a\\ ../../etc/pw" 2 "$SCRATCH_ENV=/tmp/scratch"
+run "scratch: even a benign quoted target is not exempted (blocked)" \
+  "echo x > \"/tmp/scratch/f\"" 2 "$SCRATCH_ENV=/tmp/scratch"
+# Quotes BEFORE the redirect operator are the ordinary case and must not cost
+# the exemption — only the operand side is suspect.
+run "scratch: quoted content, unquoted target (allowed)" \
+  "echo \"hello world\" > /tmp/scratch/f" 0 "$SCRATCH_ENV=/tmp/scratch"
+# Control: the SAME truncation reaches the /dev/null exemption and predates this
+# axis, which is why it is filed as #2226 rather than fixed here. Pinned so a
+# future strip_literals fix flips it visibly.
+run "control: /dev/null still shows the inherited truncation (#2226, allowed)" \
+  "echo x > \"/dev/null;/../../etc/passwd\"" 0
+
+# The exemption is target-scoped only — it must not relax the producer axis.
+run "scratch: python3 -c write into an exempt root still blocks" \
+  "python3 -c \"open('/tmp/scratch/x','w').write('a')\"" 2 "$SCRATCH_ENV=/tmp/scratch"
+
 report
