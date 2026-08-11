@@ -126,7 +126,13 @@ Pat rules out the other candidate reading before he gets here. He reads the
 whole first verse in first person and concludes: *"Clearly, Seger is not using
 you as a disguise for I."*
 
-## Translation tests
+## One test for second-person narrative
+
+<!-- This heading previously read "Translation tests" — plural. CHANGELOG line
+     63 records invented translation "tests" as removed from this file, but the
+     plural heading survived the removal. Pat prints ONE test, singular, and the
+     heading is now his own printed phrase (2009 spine 019:167). There is no set
+     of translation tests; do not reintroduce one. -->
 
 Pat states the test in one sentence:
 
@@ -413,11 +419,24 @@ And the transfer to lyrics:
 > problem: second person trying to do first or third person's job. Don't give
 > the facts to someone who already should know them!
 
-## Direct-address fact test
+## Direct address — do the facts belong in the song?
+
+<!-- This heading previously read "Direct-address fact test". Pat never uses the
+     phrase "fact test" — `grep -i "fact test"` returns zero hits in Writing
+     Better Lyrics (2009), Chapter 11 — and the four-question "test" that once
+     sat here was invented and has already been removed. The heading is a
+     PARAPHRASE of Pat's printed question at spine 018:70 — "Do you really want
+     the audience to know that it was Saturday and she had braids and she made
+     the first move?" — not printed text itself. Do not reintroduce a numbered
+     test here. -->
 
 Pat's first two repairs are pure pronoun moves, printed side by side with the
-broken verse. First-person narrative — *"would sound closer to what's really
-happening"*:
+broken verse, and he sets them up with a warning:
+
+> Though it's tempting to try to give the audience facts by letting them
+> eavesdrop on a conversation, be careful. You might end up with something as
+> stilted and unnatural sounding as the little gem above. First-person narrative
+> would sound closer to what's really happening:
 
 > I met her on a Saturday
 > Her hair was wound in braids
@@ -440,7 +459,7 @@ the facts deserve to be in the song at all:
 > audience to know that it was Saturday and she had braids and she made the
 > first move? If not, just drop the unnatural verse and write a better, more
 > natural one. If the facts are important, you have to say them naturally, like
-> you would in a real conversation.
+> you would in a real conversation:
 
 ## Natural ways to include shared history
 

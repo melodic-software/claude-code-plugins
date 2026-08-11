@@ -1,6 +1,9 @@
 # Audit Checklist — Pre-Lock Review Tools
 
-**Tools, not rules.** Every box below is a deliberate choice point. Skipping
+**"There are no rules, only tools."** — *Writing Better Lyrics* (2009),
+Chapter 18. (Pat prints the same stance in *Essential Guide to Rhyming*
+(2014), Chapter 4: "there are no rules. Only tools.") Every box below is a
+deliberate choice point. Skipping
 or refusing a box is valid — but skipping silently is not. Name the skip
 reason out loud so the writer keeps craft conscious, not accidental.
 
@@ -414,7 +417,7 @@ lines, matched line length, stable rhythm, and stable rhyme scheme."
 
 - [ ] number of lines counted (even? odd? deliberate?)
 - [ ] line lengths counted — "line length is determined by the number of
-      stressed syllables in a line" (Chapter 19)
+      stresses in a line" (Chapter 19)
 - [ ] rhyme scheme notated. His convention, verbatim: "To notate the way a
       structure moves, let's use capital letters (e.g., A, B, C) to stand for
       lines that have both the same line lengths and the same rhyme scheme.
@@ -554,7 +557,7 @@ repo wants an audit conducted, not because Pat says it.*
 
 - Do not list every miss. Surface the dominant problem first.
 - If the dominant problem is upstream (title doesn't fit form, form doesn't fit emotion), fixing downstream lines won't help.
-- "Tools, not rules" applies to the audit itself — the writer can refuse any box, but should know they're refusing.
+- "There are no rules, only tools." applies to the audit itself — the writer can refuse any box, but should know they're refusing.
 - After the audit, run one focused revision pass — not a sweep.
 
 ## Cross-references

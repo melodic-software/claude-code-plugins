@@ -5,6 +5,17 @@ Pat Pattison — *patpattison.com* "Lyric and Melodic Phrases" plus
 phrasing. Books bracket the music; this file is the bridge between a lyric's
 natural phrasing and a melody's actual phrasing.
 
+**UNAUDITED — read this before quoting anything below.** The "roadmap" framing
+is not in the four books. Measured wrap-safe across all four: `roadmap` returns
+**one** hit, in *Essential Guide to Rhyming* (2014) and in a different sense
+("Rhyme creates a sonic roadmap"); `compatible roadmaps` and `maximum meaning`
+return **zero**. The two `— Pat (patpattison.com)` quotes below are from a
+non-book source nobody here has been able to open, so they are neither confirmed
+nor refuted — treat them as unverified paraphrase, not as quotable Pat, and
+never build a citation on them. The 1991 Chapter 1-2 citation above is sound
+(those chapters are "Number of Phrases" and "Length of Phrases"); it covers the
+phrase material, not the roadmap vocabulary.
+
 Use this when a writer says "the words don't fit the music", "this line
 breaks weird", "the singer is breathing in the middle of a word", "we set
 the lyric to the melody and it isn't landing", or when a co-writer brings
@@ -21,7 +32,8 @@ listener hears two competing structures and the meaning blurs.
 > getting maximum meaning." — Pat (patpattison.com)
 
 The diagnostic is whether the lyric's phrase boundaries align with the
-melody's phrase boundaries. The fix is one of three named moves below.
+melody's phrase boundaries. Three ways out are set out below; they are this
+file's own organisation of the problem, not a taxonomy Pat publishes.
 
 ## What a roadmap is
 
@@ -34,13 +46,28 @@ breathe, pause, and arrive. Two roadmaps exist in every sung song:
 - **Melodic roadmap** — actual pauses derived from rest durations, phrase
   arcs, breath marks, and harmonic cadences.
 
-A through-written character emerges when the lyric reads as one continuous
-thought even though the melody phrases it in two — that is, lyric roadmap
-disagrees with melodic roadmap. Pat names this state explicitly; it can be
-a good effect (deliberate suspension) or a bad effect (the listener has to
-re-parse to catch the meaning).
+When the lyric reads as one continuous thought even though the melody phrases it
+in two, the two roadmaps disagree. That can be a good effect (deliberate
+suspension) or a bad one (the listener has to re-parse to catch the meaning).
 
-## The three named alignment fixes
+<!-- CORRECTED — TERM HIJACK. This paragraph called that state "a
+     through-written character" and asserted "Pat names this state explicitly."
+     He does not. `through-written` has 10 hits, all in *Essential Guide to
+     Lyric Form and Structure* (1991) Ch 3-4, and it means something else
+     entirely — a property of a rhyme/phrase STRUCTURE, opposed to *fragmented*:
+     "the structure is through-written: that is, there is no place of resolution
+     before the end of the last phrase. The structure keeps pushing you
+     forward." Nothing to do with lyric-vs-melody disagreement. Borrowing his
+     word and then claiming he named this state was the fabrication; the
+     observation itself is fine, so it is kept, unattributed. -->
+
+## Three ways out — this file's own framing, not Pat's
+
+*No book names an "alignment fix", numbers them, or supplies the `Use when:` and
+`Risk:` lines below. They are this repo's decision aid. They are still useful;
+they are just not citable to Pat. Do not reintroduce the word "named" here — an
+earlier heading asserted "the three **named** alignment fixes", and a heading
+that keeps claiming a taxonomy is how the claim grows a body back.*
 
 When a roadmap mismatch is breaking the lyric, pick one:
 
@@ -87,8 +114,14 @@ Use when:
   listener to read past as a single thought,
 - a deliberate suspension effect is desired.
 
-Song example: Lady Antebellum "Love Don't Live Here" — Pat cites verses 1-3
-lines 3-4 for this pattern.
+<!-- REMOVED — FABRICATED ATTRIBUTION. This read: 'Song example: Lady Antebellum
+     "Love Don't Live Here" — Pat cites verses 1-3 lines 3-4 for this pattern.'
+     Measured wrap-safe across all four books: `Lady Antebellum` = 0 hits,
+     `Love Don't Live Here` = 0 hits. Pat cites nothing of the kind anywhere in
+     the corpus. The song may well do what the bullet says, but "Pat cites" was
+     invented, and a bare verse-and-line reference reads as a book reference.
+     Left out rather than demoted, because there is nothing left once the false
+     attribution goes. -->
 
 Risk: overuse becomes a tic.
 
@@ -107,14 +140,50 @@ Risk: overuse becomes a tic.
 
 ## Greedy spots and roadmap mismatch
 
-A greedy spot is a stressed syllable that lands on a weak musical beat, or an
-unstressed syllable riding a strong one. Either direction steals emphasis from
-where the music wants it. Greedy spots are usually caused by the same root
-problem as a roadmap mismatch: lyric stress disagrees with melodic stress.
+**Frame first — the term covers different ground in two frames**, and this file
+is in the second one. Matching a lyric to a *model lyric* (verse 2 against verse
+1), greed is one-directional: Pat's too-hot failure only. Matching a lyric to a
+*melody* — the frame of this whole file — a mismatch in **either** direction is
+a greedy spot, because either one fights the bar. That two-frame split is the
+plugin's, not Pat's, and it is stated the same way in `prosody.md`, `meter.md`
+and `skills/meter-prosody/SKILL.md`; keep the four consistent.
 
-Both directions belong in this definition: the worked example below diagnoses
-the unstressed-on-strong case, and an earlier revision covered only the
-stressed-on-weak one, leaving the two at odds.
+Pat's printed passage, which is the *model-lyric* frame:
+
+> "It is important not to be greedy: do not put stressed syllables in the
+> unstressed positions. This one is too hot. […] It is equally important to
+> match the original's important words with equally important words. This one is
+> too cold […] You must resist greed. But you must put your important words in
+> the important positions."
+> — *Essential Guide to Lyric Form and Structure* (1991), Chapter 3
+
+In that passage greed is the **too-hot** failure only: stressed syllables put in
+unstressed positions. His too-cold failure is **not** its mirror image and is not
+a stress error at all — it is weak or unimportant words occupying the important
+positions, which no stress check finds. Do not scan for it; ask what each strong
+position is *carrying*.
+
+**In this file's melody frame**, a greedy spot is a stressed syllable landing on
+a weak musical beat, **or** an unstressed syllable riding a strong one. Either
+direction steals emphasis from where the music wants it. Greedy spots usually
+share a root cause with a roadmap mismatch: the lyric's stresses disagree with
+the melody's.
+
+<!-- Verified against the two 1991 Ch 3 figures behind the dangling colons.
+     image_rsrc2ZC ("too hot") puts strong italicised words — deep / hold /
+     heart / born / haunts / God — into unstressed slots. image_rsrc2ZD ("too
+     cold") puts function words — just / now / place / Won't / get / out — into
+     the important slots. So too-cold really is a word-choice failure, not a
+     stress inversion, and the model-lyric frame above is right.
+
+     I first read the both-directions definition here as a regrown fabrication
+     and cut it. That was WRONG and it has been restored. The CHANGELOG records
+     a deliberate five-file adjudication splitting the two frames, and it names
+     this file as belonging to the melody frame, where both directions count.
+     What was actually missing was the frame label and Pat's printed text — both
+     now present. Anyone tempted to "fix" this again: read the CHANGELOG entry
+     beginning "Greedy spot was defined inconsistently across five files"
+     first. -->
 
 When you find a greedy spot, check whether the surrounding lyric phrase
 has its boundary in the wrong place. Often fixing the roadmap fixes the
@@ -183,8 +252,11 @@ The writer picks one. The skill does not pick for them.
 - **Repeating words to bridge gaps that wanted to stay open** — Fix 3 is
   for moments where a single continuous thought needs to span a melodic
   break. Overuse turns it into filler.
-- **Co-writing without speaking-and-singing each line** — silent
-  roadmap planning misses 80% of mismatches.
+- **Co-writing without speaking-and-singing each line** — mismatches are
+  audible and hard to see; planning a roadmap silently misses them.
+  <!-- The figure "misses 80% of mismatches" was here. Invented. No book states
+       any such proportion, and round-number thresholds in this plugin have been
+       invented every time one has been checked. -->
 
 ## When a roadmap mismatch is good
 

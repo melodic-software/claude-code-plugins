@@ -10,6 +10,9 @@ verse/transitional-bridge/refrain.
 them, Pat's structural analysis of each in his own words, the content of the
 chapter's scansion and Song System figures (several of which carry material
 that appears nowhere in the running text), and Exercises 34-38 as printed.
+Chapter 7's own fifth demonstration lyric, "SEEING SOMEONE ELSE," is kept
+separate in the addendum at the foot of the file so the four Chapter 6
+analyses stay a set.
 The analysis is about where specific stresses, rhymes, and phrase lengths
 fall, so the lines are quoted rather than described — a summary of a
 scansion argument is not usable.
@@ -574,10 +577,12 @@ important and spotlighted phrase in the Song system."
 > 2. ______________________________
 >    TEDDY DOESN'T LIVE HERE ANYMORE
 > ```
->
-> The scansion hint on try 1 is printed only inside the figure — the running
-> text gives no template. It sets up two 3-stress trochaic phrases in place
-> of the single long phrase.
+
+The scansion hint on try 1 is printed only inside figure `image_rsrc33Y` —
+the running text gives no template. Read off the scan, it is
+`(maybe try  / u / u / u ,  / u / u / )`: two 3-stress trochaic phrases in
+place of the single long phrase. (That gloss is this file's, not Pat's; the
+exercise itself is quoted verbatim above.)
 
 **The slingshot:** "I think of the longer phrase as the rubber of a
 slingshot, stretching to give power to the release. It seems to me that it
@@ -740,12 +745,73 @@ feel like two different speakers handing off.
    verse-vs-TB opposition demonstrates that section difference is
    structural payoff, not structural weakness.
 
+## Addendum — "SEEING SOMEONE ELSE" (Chapter 7, not Chapter 6)
+
+The four analyses above are Chapter 6's. Chapter 7 adds a fifth complete
+demonstration lyric of its own, introduced with one line — "Look at this Song
+System." — and printed with no section labels, as three stanzas under the
+title. Reproduced as printed:
+
+<!-- spellchecker:off -->
+
+```text
+SEEING SOMEONE ELSE
+
+I feel some changes in the air
+You haven't been yourself
+You been lookin' kinda dreamy off in space
+Could it be the smell of perfume
+That's starting up this aching
+Or the secrets I see lighting up your face
+
+When we talk you never meet my eyes
+You're looking right on past
+I've been trying not to notice up till now
+But I can't escape the feeling
+That something's going down now
+It's almost like there's someone else around
+
+Even though you're with me
+Might as well be by myself
+'cause the way you look at me is like
+You're SEEING SOMEONE ELSE
+The way you look at me is like
+You're SEEING SOMEONE ELSE
+```
+
+<!-- spellchecker:on -->
+
+Pat's analysis of it, complete, in order. The stanzas are unlabelled in print,
+but this prose names them: stanzas one and two are the Verses, "Even though
+you're with me / Might as well be by myself" is the Transitional Bridge, and
+the HOOK is the repeated last pair.
+
+> You can see the same rhythmic strategy in both Verses. I will scan the first
+> Verse.
+
+Figure `image_rsrc34R` is that scan — the six lines of stanza one with stress
+and unstress marks over every syllable.
+
+> The 3-stress second phrase becomes more and more important as you get through
+> the two verses.
+
+> The rhythm of the Transitional Bridge picks up the 3-stress rhythm
+> immediately, although it is not stated smoothly:
+
+Figure `image_rsrc34S`, the Transitional Bridge scanned.
+
+> As you saw earlier, it smooths out for the first time at the HOOK.
+
+Figure `image_rsrc34T`, the HOOK pair scanned: `The way you look at me is like /
+YOU'RE SEEING SOMEONE ELSE`.
+
 ## Cross-references
 
 - `song-forms.md` — form taxonomy + four-times-a-lot warnings
 - `form.md` — section identification, candy bar discipline, bridge functions
-- `hook.md` — five strategies, hot spots, targeting (slingshot principle
-  origin)
+- `hook.md` — five strategies, hot spots, targeting (*Essential Guide to Lyric
+  Form and Structure* (1991), Chapter 7). The slingshot is **not** from that
+  chapter: it is Chapter 6's, quoted in full under "Teddy" above.
 - `meter.md` — Common Meter, paradigms, Structural Pentad
 - `phrasing.md` — phrase length / count balance
 - `rhyme-strategy.md` — three rhyme strategies (Pat's named decision matrix)

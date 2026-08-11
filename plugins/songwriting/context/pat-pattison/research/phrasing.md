@@ -473,30 +473,71 @@ When a section feels wrong, test phrase structure before rewriting every line:
 - Match lyric phrase boundaries to musical phrase boundaries.
 - Contrast verse and chorus phrase lengths when the ideas contrast.
 
-## Clause taxonomy
+## Phrase taxonomy
 
-When slashing a lyric for phrase boundaries, name the kind of clause each
-unit is. Different clause types feel different in song:
+When slashing a lyric for phrase boundaries, name the kind of phrase each unit
+is. Pat's own word for all of them is "phrases," not "clauses."
 
-| Clause type | Example shape | Sonic effect |
-|---|---|---|
-| Prepositional | "in the rain", "under the bridge" | Setting; locates the listener |
-| Verbal | "running home", "having said that" | Action without subject; pushes forward |
-| Adjective | "wearing the same coat", "tired and alone" | Modifier; colors the noun |
-| Adverb | "long after midnight", "without warning" | Modifier; colors the verb |
-| Noun (subject or object) | "the longest day", "what you meant" | The thing itself; stabilizes |
-| Independent clause | "she said goodbye" | Full thought; stops |
-| Dependent clause | "who left the door open" | Hangs; requires anchor |
+> "Phrases are sentences or natural pieces of sentences sometimes called
+> 'clauses.'" — *Essential Guide to Lyric Form and Structure* (1991), Chapter 1
 
-Use the taxonomy to diagnose why a section feels jerky: too many
-independent clauses can feel choppy (every line a stop); too many
-dependent clauses can feel suspended (nothing lands). Mix clause types
-for natural sentence motion in song.
+Pat names **five** phrase types, with his own examples. His preamble: "Any book
+on English Grammar has more than enough to say about phrases, clauses, and
+sentences. It is enough here to look at a few examples. For convenience, call
+them all 'phrases.'"
 
-> "Phrases are sentences or natural pieces of sentences sometimes
-> called 'clauses.'" — Pat (*Essential Guide to Lyric Form and Structure* (1991), Chapter 1)
+Italics are Pat's, and they carry the teaching: in each sentence he italicises
+the span that *is* the phrase.
+
+**Prepositional phrases:**
+
+- *After the rain,* the birds sang madly.
+- Starships exploded *over the shoulder of Orion.*
+
+**Verbal Phrases:**
+
+- *Soaring on paper wings* is risky business. (Gerund)
+- *Barely cracking a smile,* he bowed. (Participle)
+
+**Adjective phrases (modify nouns):**
+
+- She longed for someone *who would serve her forever.*
+
+**Adverb phrases (modify verbs):**
+
+- *When the fog lifted,* she turned for home.
+
+**Noun phrases (used as subject, predicate, or object):**
+
+- *What you* see is a broken man. (Subject) — the italic span closes mid-phrase
+  in the source markup; the noun phrase is "What you see."
+- Sex is not *what it is cracked up to be.* (Predicate)
+- Hit the dealers *where it hurts the most.* (Object)
+
+Pat does **not** list "independent clause" and "dependent clause" as two further
+types. Dependency is a property he points out about the last three, verbatim:
+
+> The next phrases contain both a subject and a verb, but still depend on being
+> part of something bigger. Can you see why?
+
+and, after them:
+
+> Each of the phrases has a word that connects it to a part of the main
+> sentence. (Words like "who, what, when where, why, that.") These words turn
+> the phrases into dependents rather that self-reliant individuals.
+
+(Both oddities in that last sentence — the missing comma in "when where" and
+"rather that" for "rather than" — are in the source XHTML, not extraction
+artifacts; verified against `raw/`. Do not correct them.)
 
 ## Front-heavy and back-heavy phrases
+
+**Unaudited — non-book material.** "Front-heavy," "back-heavy" and "body
+language" return **zero hits across all four books**; the frame comes from
+patpattison.com and seminar material that is not in the corpus. This file
+previously printed two sentences below as block quotations attributed to
+`— Pat`, one of them with no source label at all. Neither can be checked, so
+neither is set as a quotation any more.
 
 Where a lyric phrase begins relative to the bar shapes its emotional
 character. Two states:
@@ -509,10 +550,8 @@ character. Two states:
   late in the bar. The phrase feels in motion, unsettled, leaning
   forward. Body language: walking, falling, reaching.
 
-> "Front-heavy phrases feel solid, stable. They are anchored." — Pat
-> (patpattison.com)
-
-> "Back-heavy phrases are in motion — they feel unstable." — Pat
+The paraphrase stands, unattributed: front-heavy reads as solid and anchored,
+back-heavy reads as in motion and unstable.
 
 Strong vs weak bars amplify the effect. In a 4-bar or 8-bar grouping,
 bars alternate strong (1, 3, 5, 7) and weak (2, 4, 6, 8). Pairings:
@@ -530,14 +569,16 @@ wants back-heavy on a weak bar.
 
 ## Body language
 
-Pat reframes phrasing as the song's body language. Where a phrase sits
-against the bar communicates emotion before the words register.
+**Unaudited — non-book material**, same scope as the section above: "body
+language" appears nowhere in the four books, so do not attribute this framing to
+Pat. Two sentences previously stood here as quotations attributed to
+`— Pat (patpattison.com)` and `— Pat (seminar copy)`; the second was also
+ungrammatical as printed ("Line like body language helps deliver the emotion you
+intend"), which is a fair sign it was never transcribed from anything. Both are
+gone.
 
-> "Phrasing has the power to create emotion. It's the body language."
-> — Pat (patpattison.com)
-
-> "Line like body language helps deliver the emotion you intend."
-> — Pat (seminar copy)
+The framing itself, unattributed: phrasing is the song's body language. Where a
+phrase sits against the bar communicates emotion before the words register.
 
 Three diagnostic questions:
 

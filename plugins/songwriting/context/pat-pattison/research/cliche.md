@@ -1,6 +1,7 @@
 # Cliche
 
-Pat Pattison - *Writing Better Lyrics* (2009), Chapter 5.
+Pat Pattison - *Writing Better Lyrics* (2009), Chapter 5; one ruling from
+*Songwriting Without Boundaries* (2011), Challenge 2, Day 2.
 
 Use this when a user asks why a lyric feels generic, predictable, sleepy,
 familiar, or "AI-ish"; when a line leans on stock phrases, stock rhymes, stock
@@ -268,6 +269,14 @@ anger), not just a banned word. The whole family of associated words comes
 pre-worn with it. Pat's pointer for repair is back to Chapter 3, "Making
 Metaphors" — "There's no reason to keep sleepwalking in these yellow fogs."
 
+A cliche metaphor is still a metaphor. Pat makes the point explicitly in
+*Songwriting Without Boundaries* (2011), Challenge 2 Day 2, while ruling
+on the adjective `dark`: "Remember, dark eyes could be literally true,
+and thus isn't a metaphor. They join together rather than colliding. Dark
+thoughts, though a cliché, is a metaphor. It's literally false." So
+"cliche" and "not a metaphor" are separate verdicts — diagnose staleness
+and literal falsehood separately.
+
 Do not ban these automatically. Ask whether the draft adds a fresh collision or
 specific sensory angle. If it does not, rebuild the metaphor from:
 
@@ -332,14 +341,15 @@ And it's all downhill from here
 The literal roller coaster earns the figurative phrase. Pat's warning attached to
 both cases: "Without a terrific setup, duck whenever you see a cliché."
 
-Use this test:
+Pat's test has **two** parts, not four. He states the first outright, opening the
+section:
 
-- Does the lyric make the familiar phrase mean something newly specific?
-- Is the phrase carrying overtone rather than acting as the main idea?
-- Would the line collapse if the cliche were removed?
-- Has the song earned the phrase through image, situation, or dramatic irony?
+> In some cases, you can use a cliché to your advantage. Put it in a context that
+> brings out its original meaning or makes us see it in a new way.
 
-If the answer is no, cut or rewrite.
+The second is the overtone condition quoted above: the cliche's usual sense must
+ride *under* a primary meaning the song has built, not carry the line itself. If
+neither holds, cut or rewrite.
 
 ## Draft-stage tolerance
 
@@ -389,16 +399,22 @@ Rewrite source: object writing and worksheet words.
 
 ## Chapter 5 exercise as coaching prompt
 
-Exercise 10 - Cliche inventory and parody draft:
+**EXERCISE 10**, verbatim. Pat sets **two** experiments, not five:
 
-- Make a long personal list of cliche phrases, rhymes, images, and metaphors —
-  Pat's instruction is "at least as long as my list above," and he adds "(It
-  won't be difficult.)"
-- String yours and Pat's together into a verse/chorus/verse/chorus lyric,
-  "making sure nothing original sneaks in."
-- Notice how easily it fills space while saying little.
-- Return to a real draft and mark any similar placeholders.
-- Rewrite each one through sensory detail, fresh rhyme, or new metaphor.
+> For fun, try these two experiments. First, come up with your own lists of
+> clichés, at least as long as my list above. (It won't be difficult.) Second,
+> string some of yours and mine together into a verse / chorus / verse / chorus
+> lyric, making sure nothing original sneaks in.
+
+The reason he sets it, stated immediately after:
+
+> Knowledge brings responsibility. Now that you know the fundamental cause of
+> puppy narcolepsy, you have a special responsibility to keep your writing
+> sense-bound and original. No one likes a person who puts puppies to sleep.
+
+Coaching extension — **this plugin's, not Pat's**: after the parody draft, return
+to a real draft, mark any similar placeholders, and rewrite each through sensory
+detail, fresh rhyme, or new metaphor.
 
 ## Skill workflow
 

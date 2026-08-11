@@ -433,7 +433,9 @@ section still feels pushed forward by phrase count.
 ## Stress count vs syllable count
 
 This rule reaches the reader as a parenthesis printed inside a page scan, which
-is why it is easy to miss. Pat's words:
+is why it is easy to miss — it is *Essential Guide to Lyric Form and Structure*
+(1991), Chapter 3, figure `image_rsrc2ZU.jpg`, and it appears nowhere in the
+EPUB text layer. Pat's words:
 
 > (Now we can be more precise when we say one phrase is "longer" or "shorter"
 > than another one. When you want to know how long a phrase is, you can figure it
@@ -1157,7 +1159,7 @@ u    /  u   /  u   /  u  //
 Keeping out of sight
 /  u    /   u  /
 Knowing no one else can see
-/  u    u  /   /    u  /
+/  u    /  u   /    u  /
 Knowing something isn't right
 /  u    /  u    /  u  /
 ```
@@ -1594,55 +1596,100 @@ not only louder and longer than unstressed — they're also **higher in
 pitch**. Treating stress as pitch makes the underlying music of speech
 audible.
 
-The model:
+Pat's rule, as printed:
 
-- **Tonic (do)** — unstressed syllable pitch
-- **Sol** (a fifth above) — primary stress
-- **Fa** (a fourth above) — typical strong-stress
-- **Mi** (a third above) — secondary stress
+> Every word with two or more syllables has a melodic shape: One or more
+> syllables have higher pitches than the others. They are called stressed
+> syllables. Stressed syllables are usually a major fourth (fa) above the
+> "tonic" (do) established by the unstressed syllables.
 
-<!-- phonetic stress spelling trips the spell-checker --><!-- spellchecker:off -->
-So a content word like "lonely" carries `sol-do` (loo-uh-LEE-NLY... actually
-`SOL-do`); a two-syllable preposition like "before" carries `mi-do` —
-secondary stress, not full primary. This matters when setting melody: pitch
-contours that mirror natural speech stress feel inevitable; pitch contours
-that fight it feel forced.
+<!-- spellchecker:off -->
+His demonstration word is `release` — "da DUM," with "a melodic leap of a
+fourth on 'lease'—(do fa)." His worked list, with his own solfège:
 <!-- spellchecker:on -->
+
+<!-- Pat's stress-marked spellings trip the spell-checker --><!-- spellchecker:off -->
+```text
+unkínd          do fa
+butcher         fa do
+Uncónscious     do fa do
+Ópposíte        sol do fa
+Cónsequénces    sol do fa do
+Ínterrúpted     fa do sol do
+```
+<!-- spellchecker:on -->
+
+When a word carries two or more stressed syllables, the primary stress is the
+highest in pitch and is "usually a step above the secondary stress." Multi-
+syllable words with more than one stressed syllable will contain a secondary
+stress. One-syllable meaning carriers are "usually raised somewhere between a
+third and fifth above the tonic (do) set by the unstressed syllable" — Pat
+calls those raised pitches "spotlights that shine on these words and draw
+attention to them."
 
 ### Compound word stress rule
 
-<!-- stress-caps compound examples trip the spell-checker --><!-- spellchecker:off -->
-Primary stress on **compound words** in English almost always lands on the
-**first syllable**. Examples: HOMEwork, RAINbow, FOOTball, SUITcase. The
-second syllable carries secondary stress, not primary.
+Pat's frame: some two-syllable words carry **both** a primary and a secondary
+stress. "These are unusual, but easily recognized, since they are usually made
+up of two separate words that would be stressed if they appeared alone, called
+compound words." His examples, in his order:
+
+<!-- Pat's compound-word list trips the spell-checker --><!-- spellchecker:off -->
+```text
+hotdog   sunlight   nighttime   newsstand   pigtail   sandstorm
+```
 <!-- spellchecker:on -->
 
-This rule conflicts with default phrase-stress reading; it must be applied
-word-by-word.
+> In English, the primary stress in compound words is almost always on the
+> first syllable.
 
 ### Two-syllable prepositions — secondary stress
 
-Two-syllable prepositions (`óver`, `befóre`, `accróss`, `aróund`, `intó`)
-carry secondary stress on one syllable — but the pitch rise is `mi` (third
-above tonic), not `sol`/`fa` (fourth/fifth). This is internal stress, not
-full content-word stress.
+Articles, prepositions and conjunctions are usually unstressed, because their
+job is to show relationships between meaning functions — a grammatical (or
+secondary) function. But many prepositions have two or more syllables and so
+contain, within themselves, more and less stressed syllables. Pat's two
+examples: `óver` has a stronger first syllable, `befóre` a stronger second.
+"Generally these stronger syllables rise a major third (mi) above the tonic set
+by the unstressed syllable."
+
+> Because prepositions are not as important as the nouns, verbs, adjectives,
+> and adverbs they serve, their stressed syllables are marked with a secondary
+> stress (//), which also notes their secondary function in the line. Because of
+> this, when you set lyric to melody, you will remember to relegate prepositions
+> to secondary rhythmic positions in the bar.
 
 ### The "into" rule (*Songwriting Without Boundaries* (2011), Challenge 4)
 
-Pat: "into" is probably the most badly handled word in songwriting.
+Pat's own paragraph, and the reason behind it:
 
-The conventional reading is **ínto** (stressed on first syllable). When
-writers set it as **intó** (stressed on second syllable, to fit a melody
-that needs the stress on "to"), the ear knows it's wrong even if the
-listener can't name what's wrong.
+> Take a second to notice into, another two-syllable preposition. It is stressed
+> ínto, not intó. It is probably the most badly handled word in
+> songwriting—perhaps since it usually follows a stressed syllable:
+>
+> She walked into the room.
+>
+> The proper handling is
+>
+> She walked (pause) ínto the room.
+>
+> not
+>
+> She walked intó the room.
+>
+> 'Nuff said.
 
-Fix: rephrase the line so "into" sits in its natural ínto reading, OR
-substitute another preposition that fits the stress pattern.
+The remedy is a **setting** instruction, not a revision one: give "into" its own
+rhythmic space so the first syllable lands where the stress already is. It
+follows directly from the preceding rule — prepositions get relegated to
+secondary rhythmic positions in the bar, and "into" breaks most often because
+the stressed syllable in front of it crowds it off that position.
 
 ## "In Memoriam" quatrain (*Songwriting Without Boundaries* (2011), Challenge 4)
 
-A named variant of the abba quatrain, sourced from Tennyson's *In Memoriam
-A.H.H.*: four equal-length tetrameter lines, abba rhyme scheme.
+A named variant of the abba quatrain, named by Pat after "a poem of that title
+by Alfred, Lord Tennyson": four equal-length tetrameter lines, abba rhyme
+scheme.
 
 Structure:
 
@@ -1653,15 +1700,24 @@ Structure:
 4-stress line  a
 ```
 
-The equal line lengths + the abba pattern (rhyme returning to the
-outermost position after a paired inner rhyme) create suspended-emotion
-texture. The unresolved-then-resolved arc is appropriate for mourning,
-loss, retrospective, dream-state.
+Pat's naming paragraph, verbatim:
 
-Pat lists this form in the Challenge 4 / 14-day rhythm-and-rhyme
-curriculum. Distinct from the looser `abba` Pat uses elsewhere — In
-Memoriam constrains line length to equal tetrameter, where general `abba`
-allows mixed lengths.
+> This is called an "In Memoriam" quatrain, after a poem of that title by
+> Alfred, Lord Tennyson. It was a poem mourning the death of a friend, and
+> because the rhyme scheme's unstable nature was so perfectly appropriate for
+> the subject matter, the name stuck to both the rhyme scheme and the quatrain.
+
+So the effect Pat names is **instability**, not resolution. `abba` is the Day 14
+"unstable structure," and his own statement of what it is for is:
+
+> Today you'll work with an unstable structure, one that will help support lyric
+> ideas in the unstable camp—loss, heartbreak, hope, dreaming, etc.
+
+Distinct from the `abba` Pat drills on that day: Day 14 asks for **tetrameter
+outside lines (1 and 4) and trimeter inside lines (2 and 3)**, and the In
+Memoriam quatrain is what you get when you turn that sequence into equal-length
+tetrameter lines. Pat encourages experimenting with the equal-length version but
+sets the 4/3/3/4 shape for the exercise itself.
 
 ## Pentad cross-domain applicability (*Essential Guide to Lyric Form and Structure* (1991), Chapter 3)
 
@@ -1677,12 +1733,11 @@ surfaces:
 Pat's word for the third surface is *musical*, and it stops there. Earlier
 revisions of this file split it into "melodic structure" and "harmonic
 structure (chord pattern stability per pentad property)"; that split is not in
-the source, and the per-surface criteria it implied were never Pat's. If a
-melody- or harmony-specific stability read is what is wanted, the file that
-actually carries per-domain criteria is
-[stable / unstable](stable-unstable-meta.md), whose five motion controllers
-include melody, harmony, melodic rhythm, and harmonic rhythm as separate rows
-with their own stable/unstable tests.
+the source, and the per-surface criteria it implied were never Pat's. Pat does
+not break the musical surface down here, and no file in this plugin should
+supply per-domain melodic or harmonic stability criteria on his authority. The
+adjacent song-wide frame is [stable / unstable](stable-unstable-meta.md), but it
+works from the five elements of structure, not from a musical-domain table.
 
 The pentad is one analysis frame applied across multiple structural
 surfaces. Do not confuse it with the

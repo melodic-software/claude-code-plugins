@@ -12,7 +12,8 @@ captured in the other context files. It is the gate, not new craft.
 
 ## Stance: Tools, Not Rules — applied to the AI itself
 
-> "Tools, not rules." — Pat Pattison (recurring column / seminar framing)
+> "There are no rules, only tools."
+> — Pat Pattison, *Writing Better Lyrics* (2009), Chapter 18
 
 The filter is a tool the AI uses to check its own work. The AI may skip a box
 when justified — but a skip must be NAMED. Silent skips are not OK.
@@ -71,14 +72,27 @@ skip+reason):**
       = identity-in-disguise, REJECTED; `Texas / wrecks us` = rhyme).
 - [ ] **No suffix-driven identity** sneaking through (`-ation`, `-ing`,
       `-tion`, `-ly`, `-ness` chains routinely produce identities)
-- [ ] **≥4 stability tiers surfaced** — perfect / family / additive-
-      subtractive / assonance / consonance — not all perfect
+- [ ] **≥4 stability tiers surfaced** — not all perfect. Pat's printed
+      "Scale of Rhyme Types: Most Stable to Least Stable" runs, in order:
+      Perfect Rhyme → Family Rhyme → Additive/Subtractive Rhyme →
+      Assonance Rhyme → Consonance Rhyme (*Essential Guide to Rhyming*
+      (2014), Chapter 5, chapter-opening scale)
 - [ ] **MOSAIC tier MANDATORY** — ≥3 mosaic candidates surfaced per
       [mosaic-rhyme.md](mosaic-rhyme.md), regardless of source word.
       Cross-part-of-speech (verb+pronoun, adjective+noun, imperative phrase,
       contraction stack) included. Proper-noun mosaic considered when
       the song's world allows. The AI's default is single-word-rhyme; the
       filter forces mosaic onto the table.
+- [ ] **Additive/subtractive search runs in Pat's noticeability order**
+      when the tier is reached — voiced plosives, then unvoiced plosives,
+      then unvoiced fricatives. His worked search on "free" goes
+      +b ("not much there"), +d, +p, +t, +k, then +f, then +s. The
+      governing guideline is printed as: "In general, the more sound you
+      add, the less stable the rhyme becomes. The less sound you add, the
+      more stable the rhyme becomes, and you're closer to a perfect rhyme
+      substitute." Fricatives add more sound than plosives; other than
+      l and r, nasals add the most (*Essential Guide to Rhyming* (2014),
+      Chapter 5)
 - [ ] **Masculine / feminine / mosaic** taxonomy taught (per
       *Essential Guide to Rhyming* (2014), Chapter 1) — at least one
       feminine (2-syllable) candidate AND at least one mosaic candidate
@@ -95,7 +109,13 @@ skip+reason):**
 - [ ] **Syllable match flagged per candidate** when the rhyme position
       demands a specific stress count (mosaic must preserve source meter)
 - [ ] **NO single winner imposed** — writer picks by emotional intent
-- [ ] **Sing-check noted** — the AI cannot sing; the WRITER must sing-check
+- [ ] **Sing-check noted** — the AI cannot sing; the WRITER must sing-check.
+      Not optional politeness: Pat makes singing the test that settles an
+      additive rhyme, twice in Chapter 5 alone (see anchor quotes below).
+      Chapter 4 gives the reason — "Since lyrics are sung, vowel sounds are
+      promoted and consonant sounds are demoted. If you take the time to
+      sing the family rhymes, they will not trouble your sensibilities."
+      (*Essential Guide to Rhyming* (2014), Chapter 4)
 
 **Fail signature 1 — single-word default:** if the AI's about-to-emit
 rhyme list reads like [`rose`, `chose`, `pose`, `nose`, `goes`, `knows`,
@@ -122,7 +142,12 @@ the filter must catch this. See [mosaic-rhyme.md](mosaic-rhyme.md)
 **Anchor quote:**
 
 > "Never stop listening. If your ear says a sound is wrong, find another
-> rhyme. Trust your ears."
+> rhyme. Trust your ears. (But be sure to sing your rhymes when you check.)"
+> — Pat Pattison, *Essential Guide to Rhyming* (2014), Chapter 5
+
+And again two pages later, closing the l/r additive lists:
+
+> "Again, sing them. Trust your ears."
 > — Pat Pattison, *Essential Guide to Rhyming* (2014), Chapter 5
 
 ## §2 Line-writing filter
@@ -278,10 +303,14 @@ or a closure call.
 distinction. STOP. Pick the dominant problem and the one revision that
 unlocks the rest.
 
-**Anchor quote:**
+**Posture note (UNAUDITED — not a Pat quote):**
 
-> "One focused finding outweighs ten scattered notes."
-> — synthesized from Pat's recurring critique practice (workshops + columns)
+One focused finding outweighs ten scattered notes. This is plugin-authored
+guidance, not attributable to any of the four books. A prior version of this
+file presented it as a direct quotation credited to "Pat's recurring critique
+practice (workshops + columns)" — an unverifiable non-book label. No such
+sentence appears anywhere in the four-book corpus; the quotation marks and
+the attribution have been removed rather than re-sourced.
 
 ## §4 Coaching posture filter
 
@@ -318,10 +347,13 @@ deliver any step-by-step process.
 all decisions made on the writer's behalf, no questions asked. STOP. The
 writer is the songwriter; AI is the coach.
 
-**Anchor quote:**
+**Posture note (UNAUDITED — not a Pat quote):**
 
-> "Make it sense-bound. Then make it sing. The writer makes both calls."
-> — synthesized from Pat's coaching practice (Berklee + Coursera)
+Make it sense-bound, then make it sing; the writer makes both calls. This is
+plugin-authored guidance. A prior version presented it as a direct quotation
+credited to "Pat's coaching practice (Berklee + Coursera)" — an unverifiable
+non-book label. No such sentence appears anywhere in the four-book corpus; the
+quotation marks and the attribution have been removed rather than re-sourced.
 
 ## §5 Title + hook filter
 
@@ -340,9 +372,9 @@ about to suggest a title or hook position.
 - [ ] **Stressed-vowel analysis** per candidate (vowel sound + stress count
       + front-heavy or back-heavy)
 - [ ] **≥5 title candidates surfaced** — not one pick
-- [ ] **Title types varied** across Pat's seven (per [hook.md](hook.md)):
-      one-word / place-name / person-name / color-or-sensory / comparative /
-      word-play / sonic-bonding
+- [ ] **Title types varied** across the title types catalogued in
+      [hook.md](hook.md) — that file is the single source for their names
+      and count; do not re-assert a count here
 - [ ] **Rhyme stability tested** per finalist — what can rhyme with each
       title's stressed vowel
 - [ ] **Form fit named** — does the title repeat well (chorus form) or
@@ -409,8 +441,10 @@ material.
 - [ ] **Surprising verb** — the verb does more than describe; it judges,
       reveals, contradicts
 - [ ] **Metaphor type named** when offering a metaphor (per
-      [metaphor.md](metaphor.md)): adjective-noun / noun-verb / expressed
-      identity / simile / linking quality
+      [metaphor.md](metaphor.md)). Pat's count is **three**: Expressed
+      Identity, Qualifying Metaphor, Verbal Metaphor. Simile is NOT a
+      fourth type (it is focus control), and neither is personification —
+      it is a recipe within the three. Do not invent extra types
 - [ ] **Productive ambiguity preserved** — the metaphor lets the reader
       complete it; don't over-explain
 - [ ] **Tone center maintained** — the metaphor's emotional pull aligns

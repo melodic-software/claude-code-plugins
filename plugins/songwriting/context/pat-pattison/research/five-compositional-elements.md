@@ -25,7 +25,12 @@ The five elements:
 4. **Rhyme types** (the stability of each rhyme pair)
 5. **Rhythm** (the stress pattern under the line)
 
-> "There will be those five characteristics." — Pat (Coursera companion)
+> **Unaudited.** The "five characteristics" framing comes from Pat's Coursera
+> specialization, which is outside the four books and cannot be checked against
+> the corpus. It is paraphrase, not quotation. Only elements 1–4 are attested in
+> the books as a numbered set (*Essential Guide to Lyric Form and Structure*
+> (1991); see the four-juggling-balls note below); element 5, rhyme type, is the
+> subject of *Essential Guide to Rhyming* (2014).
 
 The five are not a rule; they are the five places where craft choices
 land. A section is "tight" when all five support the central emotion and
@@ -33,10 +38,23 @@ the section's job within the form.
 
 ## Why all five at once
 
-The classic prosody mistake is to fix one element in isolation. Switching
-a rhyme type from family to assonance can change a section's stability,
-but if the line lengths and rhythm still push stable, the new rhyme just
-sounds wrong. Diagnose all five before changing any one.
+The rows are not independent. Pat states the row 4 × row 3 interaction
+directly when he introduces the remote rhyme types
+(*Essential Guide to Rhyming* (2014), Chapter 6):
+
+> Now, let's look at even more remote rhyme types. They have many of the
+> qualities that you value, plus they can do things for you that we can't get
+> from most of our friends so far: they can suppress—or at least diminish—the
+> structural effects of your rhyme schemes.
+>
+> They'll still give you a main rhyming benefit: expressive use of the rhyming
+> position. But they give you something extra: a more subtle control of
+> structure, and new ways to affect the *moving* and *stopping* of structures.
+> These new techniques will be useful tools.
+
+Row 4 can suppress or diminish what row 3 does. So a row read alone can
+report the wrong answer: an `aabb` scheme is not closing anything if the
+types filling it are consonance. Diagnose all five before changing any one.
 
 ## The diagnostic worksheet
 
@@ -48,8 +66,11 @@ Section: <verse 1 | chorus | bridge | etc.>
 1. Number of lines:    <count>
 2. Line lengths:       <stresses per line, e.g., 4/3/4/3 or 4/4/4/4>
 3. Rhyme scheme:       <letters, e.g., abab, aabb, abcb, xaxa, none>
-4. Rhyme types:        <per pair: perfect / family / additive / subtractive
-                        / assonance / consonance / partial / weak-syllable>
+4. Rhyme types:        <per pair, most stable to least: perfect / family
+                        / additive / subtractive / assonance / consonance;
+                        plus partial (off-scale, prevents closure).
+                        "weak-syllable" is named but never defined in the
+                        source — see the caution under element 4 below.>
 5. Rhythm:             <duple / triple / mixed; established pattern;
                         deliberate variations>
 
@@ -99,10 +120,52 @@ pace, flow, and closure.
 
 ### 4. Rhyme types
 
-The stability of each rhyme. Perfect closes hardest; family closes
-nearly as hard; additive / subtractive close meaningfully; assonance
-and consonance suspend; partial opens. A section can have multiple
-rhyme types across its scheme.
+The stability of each rhyme. Pat prints the scale in *Essential Guide to
+Rhyming* (2014), Chapter 6 twice — once to open the chapter (p. 59) and
+again to close it (p. 67, "Look again at our scale") — having introduced
+it in Chapter 4:
+
+```text
+Scale of Rhyme Types: Most Stable to Least Stable
+
+Perfect      Family      Additive/Subtractive     Assonance     Consonance
+Rhyme        Rhyme              Rhyme               Rhyme         Rhyme
+
+Most Stable ─────────────────────────────────────────────────► Least Stable
+```
+
+Five positions, not a two-bucket split: consonance sits strictly below
+assonance. **Partial rhyme is not on the scale.** Pat treats it apart:
+"Partial rhyme is the first rhyme type you have seen that is used only
+for its special effects on structure. Use it to prevent closure in
+otherwise closed structures."
+
+A section can have multiple rhyme types across its scheme.
+
+**A caution on `weak-syllable` as a worksheet answer.** Chapter 6 opens by
+announcing four rhyme types — "1. assonance rhyme / 2. consonance rhyme /
+3. partial rhyme / 4. weak-syllable rhyme" — then delivers sections for only
+the first three. The phrase "weak-syllable rhyme" occurs exactly once in the
+whole of *Essential Guide to Rhyming* (2014), on that list, and the book's own
+index points only back to that page ("weak-syllable rhymes, 59"). It is never
+defined. Treat any weak-syllable answer in row 4 as undefined by the source
+rather than as a recognized type.
+
+Why row 4 is a lever and not just a label — Pat closes the chapter by
+naming what the remote types are *for*:
+
+> These more esoteric rhyme types are useful for two purposes:
+>
+> 1. developing strong content for rhyming positions
+> 2. modifying structural effects.
+>
+> With assonance rhyme, consonance rhyme, and partial rhyme, there is no
+> guesswork involved; they will affect structure. They will create
+> instability. Use them to support unstable ideas. Prosody.
+
+"No guesswork involved" is what makes this row a lever: setting it is a
+prosody decision with a predictable structural result, not a description
+of one.
 
 See [rhyme types](rhyme-types.md) for the full stability scale and
 worked examples per type.
@@ -253,13 +316,46 @@ are all single-row edits, which is why they are legible.
 
 Pat's four named uses of row 1 (phrase count), from the same chapter:
 
-1. spotlighting important ideas,
-2. pushing one section forward into another section,
-3. contrasting one section with another one,
-4. creating a need for a balancing section or phrase.
+1. SPOTLIGHTING IMPORTANT DETAILS
+2. PUSHING ONE SECTION FORWARD INTO ANOTHER SECTION
+3. CONTRASTING ONE SECTION WITH ANOTHER ONE
+4. CREATING A NEED FOR A BALANCING SECTION OR PHRASE
+
+These are Chapter 21's four section headings, printed in caps as shown.
 
 > Unbalanced sections make you want to move to find a stable spot. Balanced
 > sections stop motion; they pause for a rest.
+
+## Worked example — row 4 alone (*Essential Guide to Rhyming* (2014), Chapter 6)
+
+The "Some People's Lives" demonstration above edits one row at a time — row 3
+(rhyme scheme), then row 1 (phrase count). Chapter 6 supplies the matching
+demonstration for **row 4**: the rhyme scheme is left alone and only the rhyme
+*type* in one position changes.
+
+> Consonance rhyme never works like perfect rhyme. Yet, when it is strong
+> enough, it can work for you. You might use it in a case where you have already
+> committed to a rhyme scheme in an earlier verse, and want to keep it, yet relax
+> the motion in a later verse. In verse 3 of Paul Simon's "50 Ways to Leave Your
+> Lover," the end-rhymes are:
+>
+> ```text
+> pain
+> again
+> explain
+> ```
+>
+> His use of the consonance rhyme is pretty. The verses are relaxed, both in
+> attitude and structure. The consonance rhyme in second position dampens the
+> resolving effect of the consecutive rhymes. Try replacing "again" with a
+> perfect rhyme and see what happens! The prosody evaporates.
+
+Rows 1, 2, 3 and 5 are untouched; only the type in second position moves, and the
+section's motion changes. That is the row-4 lever in isolation.
+
+See [rhyme types](rhyme-types.md) for the consonance and partial-rhyme
+treatments in full, and [rhyme strategy](rhyme-strategy.md) for the same example
+read as a scheme-level decision.
 
 ## Coaching prompts
 
@@ -280,8 +376,11 @@ Pat's four named uses of row 1 (phrase count), from the same chapter:
 - **Treating consistency across sections as a virtue.** Verse and
   chorus should differ on at least two rows.
 - **Changing all five rows at once.** One row at a time. Then re-test.
-- **Skipping row 4 (rhyme types).** This is the row most writers leave
-  on autopilot. Naming it forces a stability decision.
+- **Skipping row 4 (rhyme types).** Pat's ground for filling it is that
+  the remote types are predictable, not decorative: "there is no
+  guesswork involved; they will affect structure. They will create
+  instability" (*Essential Guide to Rhyming* (2014), Chapter 6). An
+  unfilled row 4 is a structural effect you did not choose.
 - **Counting syllables instead of stresses for row 2.** Stress count
   is what the ear tracks.
 
@@ -294,8 +393,36 @@ Pat's four named uses of row 1 (phrase count), from the same chapter:
 
 ## Four-juggling-balls origin (*Essential Guide to Lyric Form and Structure* (1991) introduction)
 
-Pat's *Essential Guide to Lyric Form and Structure* (1991) introduction frames lyric craft as juggling balls — the
-writer learns one ball before adding the next. In *Essential Guide to Lyric Form and Structure* (1991), four
+The Introduction is titled "LYRIC ELEMENTS: THE GREAT JUGGLING ACT". After a
+verse of Sting's "BE STILL MY BEATING HEART", Pat writes:
+
+> You will have no trouble learning about lyric structure. It is simple, just
+> like juggling. When a juggler keeps four balls in the air at once it may seem
+> like magic, but there is no magic involved. The juggler learned by throwing
+> one ball up and catching it, throwing and catching, stopping and starting the
+> motion; always gaining greater control over the movement of the ball. Then
+> came two balls, then three, throwing and catching, stopping and starting,
+> with greater and greater control.
+>
+> As a lyricist, you must learn to juggle four balls.
+
+He then prints the four questions twice — first as analysis of Sting's verse,
+then as the writer's own choices:
+
+> 1. How many phrases does it have?
+> 2. How long is each phrase?
+> 3. What is the rhythm of each phrase?
+> 4. How are rhymes arranged?
+
+> Any time you write a verse (or any part of a lyric for that matter) you will
+> have to deal with these four lyric elements.
+>
+> 1. How many phrases will I have?
+> 2. How long will each phrase be?
+> 3. What rhythms will I use in each phrase?
+> 4. How should I arrange the rhymes?
+
+In *Essential Guide to Lyric Form and Structure* (1991), four
 balls (not five) are introduced sequentially:
 
 - Ball 1 (Chapter 1) — phrase count (number of lines)

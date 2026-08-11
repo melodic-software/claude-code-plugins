@@ -953,22 +953,37 @@ Three named alternatives:
 Diagnose at form-planning: count the systems, name what each is
 supposed to add, choose the alternative if needed.
 
-## Song system sizing
+## Song system
 
-Sections are grouped into song systems. A song system is a complete
-cycle that the listener experiences as a single unit. Sizing the
-system shapes the form's pace.
+Pat's own definition, and the origin of the term, *Essential Guide to Lyric
+Form and Structure* (1991), Chapter 5:
 
-| System size | Components | Effect |
-|---|---|---|
-| Small | Single section (verse only, refrain only) | Stark; intimate; static |
-| Medium | Verse + chorus | Standard pop arc |
-| Large | Verse + prechorus + chorus | Builds tension before arrival |
-| Extended | Verse + bridge + chorus | Slower pace; literary feel |
+> Either I made up this name, or my friend Tom Frazee did. I don't remember
+> which. A "Song System" is a group of sections that work together in larger
+> movements, or cycles of motion. The idea is especially helpful when looking at
+> a group of contrasting sections. A Song System always has a CENTRAL SECTION
+> and often has one or more DEVELOPMENTAL SECTIONS.
 
-Mixing sizes within a song creates motion: a medium first system
-followed by a large second system feels expansive; the reverse feels
-compressed.
+> Each Song System is a cycle. Each closes down after the CENTRAL SECTION. Once
+> you finish a Song System, you have to start something else: maybe another
+> system just like the one you finished, or maybe something different. But one
+> thing is clear: you have finished something, so you must either be through
+> with the song, or start something up again.
+
+> Talking about Song Systems is the most useful in lyrics that have different
+> kinds of sections: Verse + Chorus, Verse + Bridge + Chorus, Bridge + Chorus.
+> Song Systems give you a way to describe how larger units (groups or sections)
+> work together. It comes in handy.
+
+> In a lyric where all the sections are the same, and each section contains the
+> CENTRAL IDEA ("IT WAS A VERY GOOD YEAR," for example), the concept of Song
+> System doesn't help much. You could talk about "sections" just as easily.
+
+*Essential Guide to Lyric Form and Structure* (1991), Chapter 7 adds the one
+rule that ties the hook to the Song System:
+
+> Your HOOK should come at least once in each Song System. That is usually
+> enough. Within reason you can squeeze it in a few more times.
 
 ## *Essential Guide to Lyric Form and Structure* (1991) worked examples
 

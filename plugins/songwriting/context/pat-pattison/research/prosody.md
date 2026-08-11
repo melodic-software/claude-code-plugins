@@ -309,6 +309,20 @@ Pat's control experiment is the same content rebuilt in four lines:
 Line length is measured by stressed syllables, not raw syllables. Equal stress
 lengths stop the ear; unequal stress lengths push the ear forward.
 
+Pat extends the traffic-cop image in *Songwriting Without Boundaries* (2011),
+Challenge 4, Day 13, and the extension is a **ranking** — line length outranks
+rhyme as a motion controller:
+
+> Both line length and rhyme are traffic cops, but line length has a higher
+> rank—captain, as opposed to sergeant.
+
+He shows the same order of authority twice more in that challenge. Of a
+six-line `xxaxxa` section: "Whatever motion there is comes from line lengths
+matching and unmatching, not from rhyme. These sections feel like they float
+with only rhythm driving the bus, since we don't hear a rhyme until the end."
+And of an `xxaxxa` common-meter/pentameter section: "Even without rhymes in the
+tetrameter and trimeter lines, the line lengths push forward pretty strongly."
+
 Pat demonstrates both inside the "Can't Be Really Gone" verse quoted above.
 Lines one and two, taken as a pair:
 
@@ -1150,12 +1164,24 @@ that together create the song's motion (and therefore its emotion):
 4. **Melodic rhythm** — long notes vs short notes, syncopation, line-end
    note durations.
 
-> "Motion creates e-motion. How you make it move, all by itself, creates
-> a feeling." — Pat
+The bare slogan "motion creates e-motion" is Pat's, but the fuller sentence this
+file used to print inside quotation marks and attribute to `— Pat` traces to no
+readable source and has been removed rather than left to look verbatim.
 
-The lyric controller (this skill's domain) is the rhyme-scheme one. The
-other three live in the music. The lyric's motion choices have to fit the
-musical controllers, push against them deliberately, or expose a mismatch.
+**Challenge 4 contradicts this list on its central point.** The list names the
+rhyme scheme as the one lyric-side controller and puts everything else in the
+music — but *Songwriting Without Boundaries* (2011), Challenge 4, Day 13 ranks
+**line length above rhyme**: "Both line length and rhyme are traffic cops, but
+line length has a higher rank—captain, as opposed to sergeant." Line length is
+a lyric-side controller and it is the stronger one.
+
+Two books say so independently. *Writing Better Lyrics* (2009), Chapter 19 makes
+the same ranking on the two-line ladder in
+[stability reference](#stability-reference): "So line length is a stronger
+motion creator than rhyme, huh? Yup." Treat the four-item list as an unaudited
+web paraphrase that is at minimum incomplete; use
+[length of lines](#length-of-lines) and the stability ladder as the book-sourced
+account.
 
 See [stable / unstable](stable-unstable-meta.md) for the cross-controller
 diagnostic.
@@ -1186,6 +1212,18 @@ apart, because the same word means something narrower in one of them.
 
 The three failures take three different fixes: rescan, re-set against the bar,
 or change which words carry the weight. Name which one you found.
+
+**One case of the melody-side claim is book-sourced**, so it does not rest on
+the web material. *Songwriting Without Boundaries* (2011), Challenge 4, Day 6,
+on rhyming a secondary stress against a primary one:
+
+> Be careful rhyming secondary stress with primary stress: If you place the
+> secondary stress on a stronger musical beat than the primary stress, you'll
+> distort the natural shape of the word.
+
+Pat's worked instances there are the rhyme pairs `breeze/harmonies` and
+`company/memory`, where the rhyming syllable of the longer word is its
+secondary stress.
 
 ### The 1991 source text — too hot, too cold, just right
 
@@ -1334,9 +1372,10 @@ Lyrics* (2009) Chapters 18-19 contain no tone-of-voice material, so there is no
 book text to restore here and none has been invented. The six levers below are
 this file's distillation, not Pat's list.
 
-Pat extends the stable/unstable diagnostic with a non-rhyme, non-meter
-axis: tone of voice. A line printed on the page has one stability
-character; the same line sung in two different voices has two.
+The axis itself: tone of voice sits outside both rhyme and meter. A line printed
+on the page has one stability character; the same line sung in two different
+voices has two. **Do not attribute this axis to Pat** — the phrase "tone of
+voice" returns zero hits across all four books, and no book chapter develops it.
 
 Levers carried by tone:
 
@@ -1357,8 +1396,11 @@ content that the chosen tone can carry without contradiction. A
 declarative chorus delivered breathy from below the beat undermines
 the words, on purpose or by accident.
 
-> "Tone of voice can change stability without changing a single
-> word." — paraphrase of Berklee article
+The claim in one line, **unattributed and unaudited**: tone of voice can change
+a section's stability without a single word changing. This file previously
+printed that sentence inside quotation marks against "paraphrase of Berklee
+article" — quotation marks around an admitted paraphrase of an unreadable
+source. It is not a quotation and is no longer set as one.
 
 If a draft "sounds wrong" but the printed page looks fine, the tone
 of voice may be the lever doing the work. Sing the chorus two ways.
@@ -1411,11 +1453,11 @@ notation — it requires hearing the bar structure clearly. When the melody
 makes the bar boundaries audible, strong/weak bar phrasing creates
 section-internal motion the other two types can't access alone.
 
-Use the third type when:
-
-- a section needs internal motion without rhyme-density change
-- a chorus needs alternating weight without changing line lengths
-- a melody already establishes strong bars and the lyric needs to match
+No "use when" rule for the third type is sourced. An earlier revision of this
+file carried a three-item trigger list here; it was scaffolding invented on top
+of an already-unreadable source, and it has been removed rather than restated.
+If you reach for the strong/weak-bar idea, reach for it descriptively — name
+what the bars are doing — and do not present a selection rule as Pat's.
 
 ## Cross-references
 

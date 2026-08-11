@@ -277,6 +277,30 @@ AABA verse / refrain form."
 > An AABA's last system is actually bridge / verse, providing a nice contrast
 > to the opening verses, as well as sponsoring the homecoming parade.
 
+The 1991 original of that paragraph is *Essential Guide to Lyric Form and
+Structure* (1991), Chapter 5, and it is worth having in Pat's earlier wording
+because it names the mechanism ("away from the verse structure"):
+
+> An A A B A song form is effective partly because it creates this sense of
+> resolution when it moves back to the third verse. The structure of the first
+> two verses defines "home base." Then, the Bridge takes you away from home —
+> away from the verse structure. So when you come back to the third verse, you
+> come back home to familiar territory. It is a real homecoming, like seeing the
+> old neighborhood again after a long trip. The tension created by moving away
+> has been resolved.
+
+Chapter 5 then names what the last system is, in figure `image_rsrc327`:
+
+```text
+( Bridge  ->  Verse ),
+or
+( DEVELOPMENTAL SECTION  ->  CENTRAL SECTION ).
+```
+
+> The sense of arrival when you get to the third verse is the same thing you
+> feel when you move to the Chorus in a Verse/Chorus Song System. A new Song
+> System is formed by the DEVELOPMENTAL SECTION moving into the CENTRAL SECTION.
+
 *Essential Guide to Lyric Form and Structure* (1991), Chapter 6, states the
 return directly:
 
@@ -289,10 +313,19 @@ These are different sections. Do not conflate.
 
 **Transitional bridge** — *Essential Guide to Lyric Form and Structure* (1991),
 Chapter 5. Pat: "This is as close as I can come to an accurate name for this
-elusive little section. I have heard it called by many names" — the figure
-lists exactly six: **Pre-Chorus · Climb or Lift · Vest · Verse Extension ·
-Ramp · Prime**. (Earlier drafts of this file added "channel" and "runway";
-they are not in Pat's list.) Then: "This section is used for so many jobs,
+elusive little section. I have heard it called by many names" — the names live
+only in figure `image_rsrc32E`, which prints exactly **six**, set as a
+three-column, two-row grid (reproduced here in the figure's own layout, because
+row-order and column-order readings disagree and the scan settles nothing
+beyond the grid):
+
+| | | |
+|---|---|---|
+| Pre-Chorus | Vest | Ramp |
+| Climb or Lift | Verse Extension | Prime |
+
+(Earlier drafts of this file added "channel" and "runway"; they are not in
+Pat's list.) Then: "This section is used for so many jobs,
 none of these descriptive names quite fit all of them:"
 
 > 1. It is a DEVELOPMENTAL section.
@@ -324,9 +357,14 @@ explicit, working from the AABA case ("The Great Pretender") outward:
 > because it functions as a complete unit, works like a verse section in an
 > A A B A form.
 
-His worked case is Donald Fagen and Walter Becker's "Babylon Sisters" (Steely
-Dan) — the bridge "makes a clear move away from the structures of the Verse and
-Chorus," and:
+His worked case is **"HAITIAN DIVORCE"** — "Here is a fine example by Donald
+Fagen and Walter Becker of Steely Dan" — printed in full across figures
+`image_rsrc32B` and `image_rsrc32C` as three Song Systems (Verse/Chorus,
+Verse/Chorus, Bridge → Verse/Chorus). An earlier revision of this file named the
+song "Babylon Sisters"; that is wrong, and the figures say so on every line
+("Babs and Clean Willie were in love they said", "This is your HAITIAN
+DIVORCE"). The bridge "makes a clear move away from the structures of the Verse
+and Chorus," and:
 
 > In this lyric, the Bridge leads to another verse. As long as the bridge takes
 > you back to familiar territory, the sense of return or resolution will be

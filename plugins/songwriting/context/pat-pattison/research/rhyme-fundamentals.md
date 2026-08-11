@@ -14,6 +14,15 @@ types, and the printed answer keys to its exercises exist only as images. The
 `abba` correction below came from a figure and from an exercise key, neither of
 which is in the text layer.
 
+*Essential Guide to Rhyming* (2014), Chapter 1 (printed pages 1–8): **8 linked
+figures, 8 unique** — `image_2-page14.jpg` … `image_2-page20.jpg` and
+`image_4-page1.jpg`. Each is a whole-page scan, and the 2014 EPUB carries a
+complete word-level text layer over it, so nothing in this chapter exists only
+in an image. Two consequences for anyone re-auditing it: Pat's stress marks
+(`/`, `//`) sit on their own collapsed lines in the text layer, and the text
+hard-wraps at every printed line — a single-line grep for a full sentence
+returns zero hits even though the sentence is on the page.
+
 ## The five structural areas
 
 The chapter's organizing claim is that rhyme controls **five** areas of
@@ -61,48 +70,86 @@ behave like the idea.
 
 ## What counts as rhyme
 
-Rhyme connects syllables, not whole printed words. Perfect rhyme needs
-three conditions:
+*Essential Guide to Rhyming* (2014), Chapter 1 opens the definition:
+"Rhyme is a connection between the sounds of syllables, not words." Only the
+last syllables rhyme in `underwear/repair`; the other syllables, `under/re`,
+"…don't figure in at all."
 
-- The vowel sounds are the same.
-- The ending consonants, if present, are the same.
-- The beginnings are different.
+"When two syllables rhyme perfectly, three things happen:"
 
-The ear matters more than the spelling. `love/club` can rhyme because
-their vowel sounds match; two visible `o` letters may not rhyme if the
-vowel sounds differ.
+1. "The syllables' vowel sounds are identical." — `wear/pair`. "Even though
+   they have different letters, they make the same sound in these words. Only
+   your ears count, not your eyes."
+2. "The consonant sounds after the vowels (if any) are identical." — `wear/pair`.
+   "(As you can see by the 'ea' in 'wear' and 'ear,' the same letters can make
+   different sounds in different contexts.)" The "(if any)" matters because
+   syllables don't always end in consonants, as in `disagree/referee`.
+3. "The syllables begin differently." — `wear/pair`.
 
-The different beginning is not optional. Rhyme depends on tension moving
-into resolution: difference first, sameness after.
+"When syllables meet all three of these conditions, call it perfect rhyme."
+
+The third condition is not optional, and Pat says why: "It shows that rhyme
+works by the basic musical principle of tension/resolution: difference moving
+into sameness." When you hear `wear/pair` or `gree/ree`, "your ear notices
+that, in spite of the difference at the beginnings of the syllables, they end
+up sounding alike!"
 
 ## Identity is not rhyme
 
-Identity repeats the same starting sound and ending sound. It is
-repetition, not rhyme, because there is no tension to resolve.
+"When syllables begin the same way, they don't tell the ear to notice sound.
+This is called an identity:"
 
 ```text
-rhyme:     ace / brace / chase / erase
-identity:  place / replace / misplace
+fuse/confuse
 ```
 
-Pat's cheerleader analogy (*Essential Guide to Lyric Form and Structure*
-(1991), Chapter 4 and again in *Essential Guide to Rhyming* (2014),
-Chapter 1, paraphrased ≤25w): a crowd chanting one syllable hears only
-repetition. Nobody in the stadium notices the syllables sound alike.
-Identity is repetition, period.
+"This isn't a rhyme. Your ear doesn't pay attention to the sounds of the
+syllables. Rhyme works with sounds, just like music. Tension/resolution. If
+there is no tension—no 'difference' to be resolved—there can be no
+resolution." (*Essential Guide to Rhyming* (2014), Chapter 1.)
 
-Identity can be useful when deliberate repetition is the effect, but do
-not mistake it for rhyme. If the syllables start the same way, the ear
-hears the repeated unit rather than the rhyming relationship.
+Pat's cheerleader illustration runs in both books (*Essential Guide to Lyric
+Form and Structure* (1991), Chapter 4 and again in *Essential Guide to
+Rhyming* (2014), Chapter 1). The 2014 wording: "The way rhymed syllables begin
+makes a difference: it allows your ear to notice the identical sounds that
+follow. Otherwise, your ear will pick up only repetition, not rhyme. When you
+hear a cheerleader yell:"
 
-**Reordering test** (*Essential Guide to Rhyming* (2014), Chapter 1):
-take a pair you suspect — `peace / piece`. Move one half to a different
-partner: `peace / lease`. The first pairing is identity (same sound start
-to finish); the second is rhyme. The same words; different pairings;
-only one is rhyme.
+```text
+go! go! go! go! go!
+```
 
-Practice move: when using a rhyming dictionary, avoid picking two entries
-from the same identity family unless repetition is the point.
+"…you pay attention to the repetition, not to the sounds of the syllables. No
+one in the stadium thinks, 'Hey, those syllables sound the same!'"
+
+Identity is a property of the *pairing*, not of the word. The same four words
+become rhymes when you re-partner them:
+
+```text
+peace/piece    lease/police
+```
+
+"These words don't call attention to their sounds, because their syllables do
+not resolve difference into sameness. The same sounds are repeated, just like
+a cheerleader's yell. But try:"
+
+```text
+peace/lease    piece/police
+```
+
+"Now you hear the rhymes. Your ear moves to the level of sound."
+
+"There is also a big difference between these two lists:"
+
+```text
+1. birthplace, commonplace, misplace, place, replace
+2. ace, brace, chase, erase, face, disgrace, resting place
+```
+
+"Say them aloud. Your ear doesn't focus on the sounds in the first list, but
+it's drawn like a magnet to the sounds in the second list. In the first list,
+you hear simple repetition. In the second list, you hear the sound of music—or,
+rather, of tension/resolution."
 
 ## Perfect rhyme — Pat prefers "fully resolved"
 
@@ -117,55 +164,127 @@ The terminology preference pervades Pat's later teaching. The skill uses
 both interchangeably; when teaching, prefer "fully resolved" to avoid the
 implied hierarchy.
 
-## Shaking hands — the rhyme metaphor
+## "Shaking Hands" — what the heading actually means
 
-*Essential Guide to Rhyming* (2014), Chapter 1 names rhyme as **"shaking
-hands"** between two syllables. The metaphor:
+"SHAKING HANDS" is the title of the opening section of *Essential Guide to
+Rhyming* (2014), Chapter 1. It is a heading, not a model of rhyme. The
+handshake is between **the reader and Rhyme**, which Pat personifies across the
+book's opening chapters: Chapter 1 introduces you, and Chapter 2 opens "You
+have been introduced. Now find out what Rhyme does for a living." The
+introduction runs on through the chapter titles — "Family Friends," "Friendly
+Relatives," "Kissin' Cousins," "The Fruits of Friendship."
 
-- two people walk toward each other (different beginnings — the pre-vowel
-  consonants differ)
-- they meet (the stressed vowels match)
-- they shake hands (the post-vowel consonants match — or match by family
-  per stability tier)
+The chapter's closing stance under that personification: "Rhyme can be your
+best friend—your biggest help in leading all those eyeless ears through your
+lyrics. Or it can be your enemy. I want to show you how to make rhyme your
+friend." (2014, Introduction, page xii.)
 
-Identity is the same person greeting themselves: no introduction, no
-meeting, no handshake. Just the same word said twice.
-
-The shaking-hands metaphor explains WHY the three-condition test is the
-test. Each condition is one element of the meeting.
+Everything the section itself teaches about rhyme is the three-condition test
+above. Do not tell a writer that rhyme is two people walking toward each other,
+meeting, and shaking hands — Pat never says that, and it invites the error that
+the *vowel* is the meeting and the *ending consonant* is the handshake.
 
 ## Masculine / feminine / mosaic
 
-*Essential Guide to Rhyming* (2014), Chapter 1 names three rhyme shapes
-by syllable count and structure:
+This is **two** categories, not three. *Essential Guide to Rhyming* (2014),
+Chapter 1: "Most rhymes, including perfect rhymes, belong to one of two
+categories. Never to both. Every rhyme is either masculine or feminine. (We
+will conveniently ignore three-syllable rhymes, at least for now.)" Mosaic is
+not a third category — it is a way of *building* either one, out of pieces of
+more than one word.
 
-| Shape | Definition | Example |
-|---|---|---|
-| Masculine | rhyme falls on a single stressed syllable at line end | `time / rhyme` |
-| Feminine | rhyme spans a stressed syllable + one or more unstressed syllables | `only / lonely`, `dreary / weary`, `going / showing` |
-| Mosaic | rhyme is formed across multiple words on one or both sides | `Texas / wrecks us`, `silence / find us` |
-
-Mosaic is covered in depth in [mosaic-rhyme.md](mosaic-rhyme.md) — the
-tier the AI routinely skips, and the tier that unlocks proper-noun
-rhyming + cross-part-of-speech rhyming + the entire rap / hip-hop craft
-tradition.
-
-All three shapes apply within each stability tier. Surface candidates
-across the matrix: tier × shape.
+"Here are some masculine rhymes:"
 
 ```text
-sound: -ace
-rhymes: ace / brace / chase / face / disgrace
-
-sound: -ive
-rhymes: alive / dive / strive / deprive
+command/land/understand/expand/strand
 ```
 
+"Here are some feminine rhymes:"
+
+```text
+commanding/landing/understanding/expanding/stranding
+```
+
+"As you can see, the difference is in the way they end." Masculine rhymes "are
+either one-syllable words, or words that end on a stressed syllable." Feminine
+rhymes "will always end on an unstressed syllable. They are always two-syllable
+rhymes. (Masculine rhymes are one-syllable rhymes.)"
+
+The stressed syllables carry the work. Look at the feminine list above and
+"you'll see that they're all perfect rhymes": `mand-ing`, `land-ing`,
+`stand-ing`, `pand-ing`, `strand-ing` — the stress falls on the first syllable
+of each pair. "Stressed syllables, whether in feminine rhymes or masculine
+rhymes, are the creators of rhyme's tension and resolution."
+
+"The unstressed syllables at the end of the list above are all identities,
+which is normal for feminine rhyme. These identities only continue the
+resolution. Unstressed syllables of feminine rhymes are usually identities, but
+they don't have to be."
+
+```text
+commander/understand her
+expand me/strand thee
+```
+
+"Call these pairs above mosaic rhymes, since they are put together with
+syllables of different words, like stained glass pieces in a church window."
+Mosaic is covered in depth in [mosaic-rhyme.md](mosaic-rhyme.md).
+
 <!-- nonsense drill syllables trip the spell-checker --><!-- spellchecker:off -->
-The source exercise asks for three perfect rhymes for nonsense or partial
-syllables such as `lant`, `ints`, `rutch`, `mose`, and `kate`. Treat that as an
-ear-training drill: find sound matches first, usable words second.
+Exercise 18 of *Essential Guide to Lyric Form and Structure* (1991), Chapter 4
+asks for three perfect rhymes for nonsense or partial syllables such as `lant`,
+`ints`, `rutch`, `mose`, and `kate`. Treat that as an ear-training drill: find
+sound matches first, usable words second.
 <!-- spellchecker:on -->
+
+## Secondary stress — the "appreciate" case
+
+*Essential Guide to Rhyming* (2014), Chapter 1: "Some words end on secondary
+stress—a syllable that, while it is not the primary stress in the word, is
+stronger than the syllables around it. Use '//' to mark secondary stress."
+Pat's notation puts `/` over the primary stress and `//` over the secondary. He
+marks the four-syllable word `ap–pre–ci–ate` with `/` over `pre` and `//` over
+`ate`.
+
+"Listen to it. You can tell by the pitch of the last syllable that it is
+stronger than the syllable before it. You can't treat it as a feminine rhyme,
+since its second last syllable is the unstressed syllable. All feminine rhymes
+have a stressed second-last syllable, or at least their second-last syllable is
+stronger than the last syllable."
+
+"You have two choices when you rhyme 'appreciate.'"
+
+1. "You can treat it as a one-syllable masculine rhyme." — `appreciate/fate/relate`.
+   "Even better, you can use secondary stresses:" `appreciate`, `navigate`,
+   `compensate` (each marked `/` on the primary, `//` on the final syllable).
+   Both sub-cases are masculine; matching secondary stress to secondary stress
+   is a better-sounding masculine rhyme, not a different category.
+2. "You can treat it as a three-syllable rhyme (here, as a mosaic):"
+   `ap-pre-ci-ate/the quiche he ate`.
+
+"These three-syllable rhymes are still masculine, since their last syllable is
+more stressed than the one before it. The somersaults you have to turn for
+these little gems are worth it only if you are writing comedy. They sure do
+dance."
+
+## Finding vs. using — the fundamentals claim
+
+Under "FINDING RHYMES," *Essential Guide to Rhyming* (2014), Chapter 1 draws
+the line the whole rhyme workflow rests on: "Use a rhyming dictionary. This is
+one place where self-reliance and rugged individualism are silly. Finding
+rhymes is almost never a creative act. It's a purely mechanical search. On
+those few occasions where finding a rhyme is creative (finding mosaic rhymes,
+for example), a rhyming dictionary can still stimulate the creative process."
+
+And the payoff: "Finding rhymes is mechanical. Once you have found out what is
+available, the real creative process begins: using rhyme. And the more
+alternatives you have to choose from, the more room you have to be creative.
+Anyone can find a rhyme; not everyone can use rhyme creatively."
+
+The procedure this implies — the alphabet-process critique, the Clement Wood
+walkthrough, Exercises 1.1 and 1.2 — lives in
+[rhyme dictionary practice](rhyme-dictionary-practice.md). Do not duplicate it
+here; this file holds the claim, that file holds the method.
 
 ## Masculine rhyme
 
@@ -573,15 +692,23 @@ order".
 
 ## The accelerator metaphor
 
-Pat's working analogy for rhyme density:
+Pat's working analogy for rhyme density, printed under the heading
+"II. PACE" in *Essential Guide to Lyric Form and Structure* (1991),
+Chapter 4:
 
-> "Rhyme is like the accelerator pedal." — Pat (*Essential Guide to Lyric Form and Structure* (1991), Chapter 4,
-> paraphrased)
+> Rhyme is like the accelerator in a car: the closer the accelerator gets
+> to the floor, the faster the car moves. The closer rhymes are to each
+> other, the faster your lyric moves. And, like the accelerator and the
+> car floor, the further apart they are, the slower you move.
 
-Close rhymes (couplets, internal rhymes) press the accelerator —
-lyric speeds up. Spaced rhymes (`abcb`, every-other-line) ease off —
-lyric decelerates. No rhyme is coasting — section floats forward
-without sonic propulsion.
+An earlier revision of this file printed a compressed invention, "Rhyme is
+like the accelerator pedal," in quotation marks and attributed it to Pat.
+He never wrote that sentence; the paragraph above is what the chapter
+prints. The ceiling is his too:
+
+> As you can see in number two, once you have consecutive rhymes, the
+> pedal is to the metal. You cannot accelerate. The only way to go faster
+> then is to shorten PHRASE LENGTHS.
 
 Use the analogy when coaching a writer who wants a pace change
 without knowing where to start. Density first, types second.

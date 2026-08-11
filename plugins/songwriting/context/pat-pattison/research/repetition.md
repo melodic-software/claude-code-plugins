@@ -1,6 +1,8 @@
 # Repetition
 
-Pat Pattison - *Writing Better Lyrics* (2009), Chapter 6 and Chapter 9.
+Pat Pattison - *Writing Better Lyrics* (2009), Chapter 6 and Chapter 9, plus
+*Essential Guide to Lyric Form and Structure* (1991), Chapter 7 for structural
+repetition (the section at the foot of this file).
 
 Use this when a user asks whether a chorus, refrain, hook, title, repeated
 line, or repeated phrase is working; when a song sags on second chorus; when a
@@ -189,9 +191,13 @@ Losing the human race
 **Watch the third-person `-s`.** Pat's note on when you can skip verb
 neutralization entirely:
 
-> If you don't use *he*, *she*, or *it* in your lyric, none of your verbs will
-> add an *s*, so your verbs will all already be POV neutral. You won't need to
-> neutralize the verbs — you just need to drop the pronouns.
+> When you use third person with present tense, the verb adds an *s*: She
+> loses. If you don't use *he*, *she*, or *it* in your lyric, none of your verbs
+> will add an *s*, so your verbs will all already by POV neutral. You won't need
+> to neutralize the verbs — you just need to drop the pronouns:
+
+"all already **by** POV neutral" is as printed — the raw XHTML has `by`, not
+`be`. Do not correct it.
 
 Which is why *And lose the human race* works under I / we / you / they. But it
 is tense-locked, not POV-locked, and breaks the moment a verse goes past:
@@ -881,7 +887,7 @@ Love Love Love
 ```
 
 > This idea contains three tenses: past, present, and future. Try separating
-> them into separate boxes.
+> them into separate boxes:
 
 - **Past** — what happened (the seed event)
 - **Present** — what is now (current state)
@@ -1037,15 +1043,17 @@ His second: "Try it with: *You give me everything I need.*" It becomes *Give me
 everything I need.*
 
 Note: **third-person cannot generate commands** because English third-
-person verbs take an -s. Pat's counterexample, run through the same two passes:
+person verbs take an -s. Pat states it and then runs his counterexample through
+the same two passes:
+
+> Note that this trick doesn't work in third person, since third person adds an
+> *s* to the verb. You create only simple repetition — no command is isolated:
 
 ```text
 She tells me that she wants me.
 Tells me that she wants me.
 Wants me.
 ```
-
-> You create only simple repetition — no command is isolated.
 
 The technique needs the bare verb base, which first and second person supply and
 third person does not.
@@ -1116,6 +1124,91 @@ visit shift what the hidden question / command means in context.
 Cross-ref the chorus-stripping workflow above and the
 [box-model](box-model.md) division-of-labor framework.
 
+## Structural repetition — make the repeat necessary (*Essential Guide to Lyric Form and Structure* (1991), Chapter 7)
+
+Everything above asks whether a repeat *means* more. Chapter 7 of *Essential
+Guide to Lyric Form and Structure* (1991) asks a different, purely structural
+question: whether the repeat is *needed* to finish the section. It is strategy
+3 of that chapter's five hook strategies, and it opens with a frequency rule:
+
+> Your HOOK should come at least once in each Song System. That is usually
+> enough. Within reason you can squeeze it in a few more times.
+
+The warning and the rule arrive in one sentence — Pat demonstrating the vice
+inside the caution against it. It is printed exactly like this; it is not a
+transcription error, and it must not be "fixed":
+
+> Of course, if you repeat yourself too much if you repeat yourself too much if
+> you repeat yourself too much if you repeat yourself too much if you repeat
+> yourself too much you get boring, so be cautious. If you can make your
+> repetition *necessary* to finish the structure, all the better:
+
+Figure `image_rsrc346`, transcribed — a ten-phrase section whose last two
+phrases are the same phrase, with Pat's rhyme letters at the right:
+
+```text
+1.   My kitchen clock's on Phoenix time    a
+2.   That's where you promised you'd be mine    a
+3.   My watch is set for Tennessee    b
+4.   The place where time ran out on me    b
+5.   My bedroom's still in Boston's zone    c
+6.   I wake at dawn, I rise alone,    c
+7.   And though these times all disagree    b
+8.   At least one thing stays true    d
+9.   MY HEART'S STILL SET ON YOU    d
+10.  MY HEART'S STILL SET ON YOU    d
+```
+
+> The section is balanced by the repetition.
+
+### The repeat that finishes the structure — "SEEING SOMEONE ELSE"
+
+Chapter 7's second case is a section that will not balance until its last
+phrase is repeated. As first written it is four phrases:
+
+```text
+Even though you're with me
+Might as well be by myself
+'Cause the way you look at me is like
+You're SEEING SOMEONE ELSE
+```
+
+Pat's diagnosis, in order. Each quote is followed in the book by a scansion
+figure — `image_rsrc347` (the first two phrases), `image_rsrc348` (the last
+two), `image_rsrc349` (the first two run together as one phrase):
+
+> The first two phrases are each 3-stresses at best. There are certainly some
+> grey areas here:
+
+> The next two lines (as written) add up to one 7-stress phrase:
+
+> You can hear the section close, but it still feels a little off balance. You
+> can feel the general shape of Common Meter, plus the "self/else" rhyme, but
+> the rhythm is a little irregular and the phrase lengths are uneven, even if
+> you think of the first two phrases as one phrase:
+
+> It still fails to balance the last phrase. Repeating the last phrase does the
+> trick.
+
+The repaired section — six phrases, the last two a repeat of phrases three and
+four:
+
+```text
+Even though you're with me
+Might as well be by myself
+'Cause the way you look at me is like
+You're SEEING SOMEONE ELSE
+The way you look at me is like
+You're SEEING SOMEONE ELSE
+```
+
+> You have made the repetition a part of the structure.
+
+**The diagnostic this gives you.** Before cutting a repeat, ask the structural
+question as well as the meaning question: if the repeat came out, would the
+section still close? In this case it would not — so the repeat is load-bearing
+and stays. That is the whole of Pat's "all the better" clause.
+
 ## Cross-references
 
 - [box-model](box-model.md) — full division-of-labor framework
@@ -1124,3 +1217,7 @@ Cross-ref the chorus-stripping workflow above and the
 - [verse-development](verse-development.md) — power positions, travelogue
 - [point-of-view](point-of-view.md) — camera distances
 - [stable-unstable-meta](stable-unstable-meta.md) — section prosody scan
+- [hook](hook.md) — the other four hook strategies from *Essential Guide to
+  Lyric Form and Structure* (1991), Chapter 7; "Repeat the HOOK" is strategy 3
+- [song-forms-examples](song-forms-examples.md) — the full "SEEING SOMEONE
+  ELSE" Song System this section's repair belongs to

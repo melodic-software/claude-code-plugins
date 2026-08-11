@@ -99,14 +99,99 @@ else investigates?", "He arrests. What else arrests?" — and named
 writers answer each one, mine the answer's word-family, then apply that
 family back to `policeman` in a sentence.
 
-> **Restoration blocked.** Pat's six printed answers, their family
-> word-lists, and the applied sentences could not be reproduced here;
-> the permission system refused the edit. A previous version of this
-> file filled the space with an invented table (body armor, mother,
-> antibiotic, dam, dental probe, jeweler's loupe, brake pedal, freeze
-> frame, prison gate, cardiac arrest) attributed to Pat. **None of
-> those appear in Day 10.** The fabrication has been deleted rather
-> than replaced — read Challenge 2 Day 10 directly for the real lists.
+**He protects. What else protects?** — Chanelle Davis:
+
+```text
+1. Flu Vaccine
+2. Lifeguard
+
+Flu Vaccine: needle, injections, nurse, doctor, veins, immunize, blood,
+cure, medicine, prick, hospital, cough, sickness, mucus, winter
+
+  The police immunize the public and help fight the symptoms of gangs
+  in New York.
+
+Lifeguard: drowning, waves, rip, sea, beach, swimming, uniform, swift,
+strong, muscly, watchful, on duty
+
+  The police were watchful after the earthquake and rescued many stores
+  from the waves of looters that flooded the city.
+```
+
+**What else does a policeman do? He investigates. What else
+investigates?** — Kristin Cifelli: X-ray
+
+```text
+X-ray: black and white, broken bones, revealing, diagnose
+
+  The police are an x-ray, investigating the broken bones of the
+  neighborhood, revealing every fracture in black and white.
+```
+
+**What else does a policeman do? He arrests. What else arrests?** —
+Chanelle Davis: Heart
+
+```text
+Heart: stop beating, death, hospital, electric shock, blood,
+circulation, ambulance, dying
+
+  More police were pumped into the undercover operation, aiming to stop
+  the circulation of pornography.
+```
+
+Pat's two long answers. In print they follow the short one under the same
+quality: mechanic comes second under *investigates*, the loudest sound
+second under *arrests*. **What else investigates?** — Charlie Worsham:
+mechanic
+
+```text
+Mechanic: engine, oil, sweat, heat, grease, dirty, smudged, pistons,
+wrench, fans, belts, whirring, motor, crank, hood
+```
+
+> Policemen are the mechanics of mystery. They roll up their sleeves,
+> wipe their brow, and pop open the hood of a criminal case, hoping to
+> unlock the mystery. Every piston that misfires, every loose fan belt,
+> every drop of oil is a fingerprint, a smoking gun, a clue as to what
+> went wrong and who's to blame. In the workshop of a downtown office
+> building or crime lab, they take apart and rebuild every piece of the
+> machine. Whatever it takes, they don't stop till they can prosecute
+> the bad guy. And like years of sweat equity beneath the workings of
+> vehicles, years of experience with all makes and models of crimes,
+> train a professional policeman to spot likely suspects quickly and
+> efficiently.
+
+**What else arrests?** — Caroline Harvey: The loudest sound you can
+imagine
+
+```text
+The loudest sound you can imagine: makes everything else disappear,
+stops time, terrifies, echoes, makes your ears numb and ringing, makes
+everything after feel silent and small, makes you flinch
+```
+
+> When I saw him stand up, the rest of the courtroom disappeared. I
+> couldn't feel my legs, my hands were dangling at my side like a shaky
+> mess of Parkinson's. He thundered to the witness chair, his feet
+> thumping loudly with every gait. I cannot remember anything else from
+> that day, but I can recall exactly the way he adjusted first his left
+> shirt sleeve and then his right. How his hair was parted just a few
+> degrees of center and shone under the fluorescent lights like
+> Superman's pompadour. The sound of his voice, as he answered my
+> attorney's questions, echoed the way I imagine a blow horn might sound
+> in the Grand Canyon. All living creatures living miles within distance
+> of the courthouse were silenced when he spoke. When he finished and
+> was excused, I looked down at my hands. I was gripping the fabric of
+> my flowered dress and my left knee, jittery as a mosquito, was
+> helpless.
+
+Those are all six of Pat's printed Day 10 answers. After each quality he
+hands the same task back to the reader — verbatim, under *protects*:
+"Your turn. List two of your own things that protect. Then find related
+nouns, verbs, and adjectives for each one and try to apply them to
+policeman. Write a sentence or a short paragraph for the ones you like."
+Under *investigates* and *arrests* the wording shifts only to "List two
+other things that investigate" / "that arrest."
 
 The three quality-columns generate three different metaphor pools per
 target. The writer picks by emotional intent: an arrest-themed pool
@@ -136,6 +221,17 @@ definitions and examples:
 His extension example for expressed identity: `clouds are sailing ships on
 rivers of wind`.
 
+Pat's one worked close-reading in the Challenge 2 opener is Shelley's
+*Ode to the West Wind*, printed inline exactly as follows — "Look at this
+metaphor from Shelley's *Ode to the West Wind*: 'A heavy weight of hours
+has chained and bowed/One too like thee …'"
+
+His gloss, verbatim: "Hours are links of a chain, accumulating weight and
+bending the old man's back lower and lower as each new hour is added. An
+interesting way to look at old age …" He adds that great metaphors "seem
+to come in a flare of inspiration," but "even if great metaphors come
+from inspiration, you can certainly prepare yourself for their flaring."
+
 Expressed identity is the most explicit and structurally demanding. Qualifying
 metaphor is often compact and local. Verbal metaphor is especially powerful
 because verbs drive language; when the verb surprises the noun, the image
@@ -144,13 +240,18 @@ moves.
 ### Personification — a metaphor sub-type
 
 *Songwriting Without Boundaries* (2011), Challenge 2 Day 1 explicitly
-names **personification** as one form of metaphor: attributing human
-characteristics to nonhuman things. Examples — clouds moping, wind
-yelping, doors complaining, mornings refusing to start.
+names **personification** as one form of metaphor. Pat's verbatim gloss,
+on Jess Meider's weeping handkerchief: "Personification—attributing human
+characteristics to nonhuman things—is just one of the many ways to make a
+metaphor. Just another way to create collisions." His other Day 1 example
+is Susan Cattaneo's "Daylight hurried away, leaving lonely moonlight to
+console the solitary oak tree that wept autumn leaves" — Pat's comment:
+"Personification. Simple. And effective."
 
-Personification is a verbal-metaphor or qualifying-metaphor sub-pattern
-where the borrowed quality is specifically a HUMAN-life one. It is not
-its own fourth type; it is a recipe within the three types. Useful in
+Pat does not assign personification to one of his three types — he calls
+it only "one of the many ways to make a metaphor." It is **not** a fourth
+type; treat it as a recipe that runs inside the three, with the borrowed
+quality being specifically a human one. Useful in
 the eight-recipe table as a quality-source generator.
 
 ## Expressed identity forms
@@ -645,9 +746,12 @@ Day 14 practice:
 4. Keep the simile only if the elaboration reveals usable sensory or emotional
    material.
 
-## Five-step metaphor practice
+## Five-step metaphor practice (*Writing Better Lyrics* (2009), Chapter 3, Exercise 8)
 
-Chapter 3 ends the exercise sequence with a slower habit-building practice:
+The count is Pat's own, not a rounding: "you will be ready for the final method
+to activate the process: **a five-step exercise** guaranteed to open your
+metaphorical eyes and keep them open." Chapter 3 ends the exercise sequence with
+this slower habit-building practice:
 
 1. List five adjectives; find a noun for each that creates a fresh collision.
 2. List five nouns; find a strong verb for each.
@@ -802,11 +906,21 @@ When applying this file:
 8. Check prosody: the figurative language should support the section's motion,
    rhyme, rhythm, and emotional weight.
 
-## Eight named metaphor moves (recipe card)
+## Eight metaphor moves — this repo's recipe card, not Pat's taxonomy
 
-Pat's patpattison.com "Pat's Lyric Tips" plus Berklee teaching catalog
-the metaphor toolkit as eight named generation moves. Use as a recipe
-card when stuck on a single subject and needing options.
+<!-- The heading read "Eight **named** metaphor moves". The body already
+     debunked the taxonomy claim, but "named" kept asserting it one line above —
+     and a heading that outlives its body is how the claim grows a new body.
+     Nobody names these eight. Word removed. -->
+
+**Plugin-side synthesis — UNAUDITED, not Pat's taxonomy.** These eight
+are a generation checklist assembled here from the material above; they
+are **not** a list of metaphor types, and no book prints them as a set of
+eight. Pat's types number **three** (Expressed Identity, Qualifying,
+Verbal — see above); moves 1-3 below restate those three, and moves 4-8
+are craft procedures, not categories. Do not cite this table as Pat's.
+Use it only as a recipe card when stuck on a single subject and needing
+options.
 
 | # | Move | Form | When to use |
 |---|---|---|---|
@@ -874,17 +988,6 @@ Use participles for:
 Pat's framing for collisions that produce a legible double meaning —
 neither reading is wrong; both are present in the lyric at once.
 
-> "Productive ambiguity — having at least two meanings, both work in
-> context." — Pat (*Songwriting Without Boundaries* (2011), Challenge 2)
-
-A productive-ambiguity test:
-
-1. The line has at least two legitimate readings (literal and
-   metaphoric, or two metaphoric readings).
-2. Each reading reinforces or complicates the other; neither cancels.
-3. The listener does not have to "pick"; both meanings live together
-   under the music.
-
 Pat's actual example is Greg Becker's `lonely handkerchief` sentence in
 Challenge 2 Day 1, where the handkerchief is "crumpling into himself,
 clutching his near empty glass." Pat's comment: "It's hard to tell in
@@ -905,13 +1008,12 @@ subjects nearby in the line.
 
 ### Productive ambiguity vs strained collision
 
-| Test | Productive ambiguity | Strained collision |
-|---|---|---|
-| Both readings legitimate | Yes | No, one is forced |
-| Family distance | Medium | Too far (random) |
-| Listener stops to decode | No, both register | Yes, parse stalls |
-| Literally false test | One reading false, one true; both meaningful | Both readings false; comparison opaque |
-| Cuts on revision? | Never | Often |
+Pat's own criterion for a collision that is *not* working is Day 8's, on
+`the captain is summer`: "When you have very few family members stepping
+into the other living room, simile may work better." He states the
+positive case at Day 8's wineglass/restaurant pair: "This one works well
+both ways. Lots of family members in common—the mark of a productive
+metaphor."
 
 If the collision is too far for the listener to bridge in a single
 hearing, it is strained, not ambiguous. The fix is usually to bring
@@ -986,8 +1088,11 @@ slide together without friction. **A single nondiatonic word collides**
 This is Pat's "playing in keys" workflow at the vocabulary level:
 
 1. Pick a tone center (the song's central concept)
-2. List 10-20 diatonic words (its family)
-3. Combine diatonic words into secondary collisions (winter-bone, cold-letter, frost-prayer)
+2. List its diatonic words — its family. Pat's own worked lists are the
+   three keys above; e.g. diatonic to `tide`: ocean, moon, recede, power,
+   beach.
+3. Combine members of that family into secondary collisions — Pat's own,
+   in the key of power: "An avalanche is an army of snow."
 4. Apply nondiatonic words DELIBERATELY — they make metaphors land
 5. Avoid accidental nondiatonic drift — it makes the lyric feel
    unfocused
@@ -1042,18 +1147,51 @@ work is the cost of the image.
 *Songwriting Without Boundaries* (2011), Challenge 2 Day 14 names the
 mechanical model for why simile works differently than metaphor:
 
-> "Simile doesn't transfer focus: like works as an energy blocker — it
+> "Simile doesn't transfer focus: *like* works as an energy blocker — it
 > reflects energy back onto the first term, refusing to let the energy
-> pass to the second term. The is of metaphor allows free passage of
+> pass to the second term. The *is* of metaphor allows free passage of
 > energy to the second term, and lights it up."
 > — Pat Pattison, *Songwriting Without Boundaries* (2011), Challenge 2
 > Day 14
 
-In metaphor (`Her smile IS sunlight`), the energy of `sunlight` transfers
-directly to `her smile` — the smile becomes the sunlight. In simile
-(`Her smile is LIKE sunlight`), the word `like` blocks the transfer; the
-energy reflects back to `her smile`, and `sunlight` becomes merely an
-illustrative comparison.
+Pat works this on his own pair, and it is the one to use — his printed
+demonstration, in order:
+
+> Love is a rose.
+>
+> Where do you focus? On the second term?
+>
+> Love = **rose**
+>
+> Or the first term?
+>
+> **Love** = rose
+>
+> If you want the texture, smell, color of the rose in focus, use metaphor.
+>
+> Love is a **rose**.
+>
+> If you want love as the focus, use simile:
+>
+> **Love** is like a rose.
+>
+> — *Songwriting Without Boundaries* (2011), Challenge 2, Day 14
+
+The emphasis is Pat's, not ours. The text layer strips it, and without it those
+pairs read as bare repetition — but the emphasis *is* the argument. What the
+source actually shows: in the raw XHTML each of those four lines wraps the term
+in focus in `<span class="class_s5g3">`, and that is a **different** class from
+the `class_s5g` Pat uses for italics (it wraps book titles, and words-as-words
+such as the *like* and *is* in the quotation above). The 2011 stylesheet was not
+extracted, so `class_s5g3` cannot be resolved to a named face here; across the
+book it wraps things like `90 seconds:` prompt labels and prompt words, which
+read as bold. Rendered as bold on that basis. **If a later pass gets the
+stylesheet and it says italic, change the face — do not delete the emphasis.**
+
+<!-- CORRECTED — GENERICIZATION. An invented pair, "Her smile IS sunlight" /
+     "Her smile is LIKE sunlight", stood here doing the job of Pat's own
+     `Love is a rose`, which he prints on the very same page. Substituting a
+     made-up example for one of his is the failure the BRIEF names first. -->
 
 The mechanical consequence: **simile keeps the listener at distance**
 (comparing); **metaphor pulls the listener into identification**
@@ -1068,14 +1206,25 @@ Pat cites Coleridge in Challenge 2 Day 14:
 > — Pat Pattison (citing Coleridge),
 > *Songwriting Without Boundaries* (2011), Challenge 2 Day 14
 
-The distinction:
+The distinction, as Pat states it — one sentence, and it is only about degree:
 
-| Imagination (metaphor) | Fancy (simile) |
-|---|---|
-| Creates a NEW understanding by fusing two terms | Compares two terms while keeping them distinct |
-| The shared qualities are deeply submerged | The shared quality is explicit and surface-level |
-| Listener does the work of completing | Writer does the work of pointing |
-| Pressure builds and resolves internally | Pressure resolves at the comparison itself |
+> "He identified the difference between metaphor and simile as a difference of
+> degree, depending on how much the two ideas shared in common. If they shared
+> only a few, simile. More, metaphor."
+> — *Songwriting Without Boundaries* (2011), Challenge 2, Day 14
+
+<!-- REMOVED — INVENTED SCAFFOLDING. A four-row "Imagination (metaphor) / Fancy
+     (simile)" table stood here, directly under the Coleridge quotation, so it
+     read as Pat's or Coleridge's gloss. It is neither. Rows such as "Listener
+     does the work of completing" / "Writer does the work of pointing" and
+     "Pressure builds and resolves internally" / "Pressure resolves at the
+     comparison itself" have no counterpart anywhere in Day 14 or in *Writing
+     Better Lyrics* (2009) Ch 3. Pat's whole statement of the distinction is the
+     single sentence now quoted above — a difference of DEGREE, nothing more.
+     The invented table also contradicted the paragraph immediately following
+     it, which correctly reports that Pat declines the degree test in favour of
+     commitment. Classic named-axes signature: four tidy oppositions where the
+     source has one. -->
 
 Both are valid craft moves. Pat does **not** adopt Coleridge's
 shared-quality test as his own decision rule. His stated criterion is
@@ -1093,13 +1242,28 @@ the first time without help` (focus stays on the concept of freedom).
 *Songwriting Without Boundaries* (2011), Challenge 2 Day 14 names five
 simile targets the writer practices on, with elaboration:
 
-| Target | Pattern |
-|---|---|
-| Trust | "Trust is like \_\_\_because\_\_\_" — pick a thing that shares an attribute, then elaborate why |
-| A bad joke | same pattern |
-| Divorce | same pattern |
-| A waterfall | same pattern |
-| Hope | same pattern |
+**Trust**, **a bad joke**, **divorce**, **a waterfall**, **hope** —
+"Find three similes for each of the following terms. Then write a short
+elaboration on each one."
+
+Pat's own model, printed before the exercise:
+
+```text
+Thirst is like a guest who won't go away.
+  You can bear it for a while, but the longer you wait, the more
+  uncomfortable you feel, until you finally have to head for the
+  bathroom and close the door.
+
+Thirst is like a buffalo hunter on the dry plains of Montana.
+  It stalks everywhere, looking for prey to bring down, peering through
+  tumbleweed at figures moving in the distance toward the waterhole. If
+  it has its way it'll stop them cold before they can get there.
+
+Being thirsty is like being the parent of a teenage daughter.
+  Always wanting another little drop of information and attention, in
+  the dry landscape of texting and sleepovers, after the waterfall of
+  affection from childhood has long since turned to a trickle.
+```
 
 The elaboration is the craft move: a simile without elaboration is a
 naked comparison. A simile WITH elaboration earns its place — the

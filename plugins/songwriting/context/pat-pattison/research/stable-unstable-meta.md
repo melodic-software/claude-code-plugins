@@ -184,19 +184,36 @@ How am I to hold you
 
 | Section | Default | Pat's reason, from the books |
 |---|---|---|
-| Verse | Unstable | Developmental sections "move toward or depart from a CENTRAL SECTION" |
-| Chorus | Stable | "Because the Chorus is a CENTRAL SECTION — a place where ideas are completed — the end of the Chorus should stop forward motion. This creates the feeling of 'starting over again' in the next section." |
-| Refrain | Stable | Contains the CENTRAL IDEA; "the most balanced element in the lyric" |
-| Bridge / transitional section | Unstable | "Using an odd number of phrases to unbalance a section works wonders if you want to build up pressure, for example, in a transitional section between verse and chorus." |
+| Verse | **Closes down** — it sets the standard | Ch 5's verse job list ends "4. To set structural standards for the lyric, / thus, 5. Verses should close down." A verse is the point of comparison, not automatically the unstable section: "Verses establish BALANCE, PACE, FLOW, CLOSURE, AND CLOSURE TYPE for the lyric, setting a point of comparison for other structures in the lyric." |
+| Chorus | Stable | "Because the Chorus is a CENTRAL SECTION — a place where ideas are completed — the end of the Chorus should stop forward motion. This creates the feeling of 'starting over again' in the next section." Ch 5's chorus list: "4. Is typically the lyric's most balanced section. / thus, 5. Stops forward motion." |
+| Refrain | Not a section — no stability of its own | "This is not a section at all. It is just a name for the part of a Verse that contains the CENTRAL IDEA and gets repeated in the other Verses." Scan the verse it lives in, not the refrain. |
+| Bridge | Unstable | "3. It unbalances the section by moving away from established structures, creating structural tension. … thus, 5. It is frequently the lyric's most unbalanced section." |
+| Transitional bridge | Unstable, and shortest | "Thus, 5. It is usually the lyric's shortest and most unbalanced section." And from Chapter 1: "Using an odd number of phrases to unbalance a section works wonders if you want to build up pressure, for example, in a transitional section between verse and chorus." |
 
-Quotes above from *Songwriting: Essential Guide to Lyric Form and Structure*
-(1991), Chapters 1 and 5.
+Quotes above from *Essential Guide to Lyric Form and Structure* (1991),
+Chapter 5, except the "works wonders" sentence, which is Chapter 1.
 
-Pat's technique for pushing a second verse forward: "Make the first verse
-completely balanced, then unbalance the second verse by adding an extra
-phrase. This unbalancing will make it move forward into the chorus." He
-demonstrates it on Kevin Cronin's "Can't Fight This Feeling," and notes:
-"if you reverse the two verses, the motion stops."
+Two corrections to an earlier revision of this table: the Verse row read
+"Unstable", which contradicts Chapter 5's own verse list; and the Refrain row
+carried "the most balanced element in the lyric", which Chapter 5 says about the
+**chorus** of "Years", not about a refrain.
+
+Pat's technique for pushing a second verse forward — *Essential Guide to Lyric
+Form and Structure* (1991), **Chapter 1**, not 2009:
+
+> This unbalancing strategy is also useful when you have two verses that lead
+> into a chorus. Make the first verse completely balanced, then unbalance the
+> second verse by adding an extra phrase. This unbalancing will make it move
+> forward into the chorus. The first and second verses of Kevin Cronin's "CAN'T
+> FIGHT THIS FEELING" provide a good example.
+
+> Unbalancing the second verse makes it move forward. It throws it into the air,
+> just like juggling. Notice that if you reverse the two verses, the motion
+> stops.
+
+Chapter 5 returns to the same verse 2 to make a rhythm point instead — see
+[section building](section-building.md), "The same trick in 'Can't Fight This
+Feeling'".
 
 ## Worked diagnostic
 
