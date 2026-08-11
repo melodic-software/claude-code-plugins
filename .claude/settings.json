@@ -2,32 +2,6 @@
   "env": {
     "HOOK_TELEMETRY_SINK": ".claude/hooks/hook-telemetry-sink.sh"
   },
-  "hooks": {
-    "SessionStart": [
-      {
-        "matcher": "startup|resume",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/session-start.sh"
-          }
-        ]
-      }
-    ],
-    "PreToolUse": [
-      {
-        "matcher": "^mcp__github__(create|update)_pull_request$",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/pr-linkage-mcp-gate.sh",
-            "timeout": 15,
-            "statusMessage": "Checking PR body against the repo's pr-issue-linkage gate..."
-          }
-        ]
-      }
-    ]
-  },
   "extraKnownMarketplaces": {
     "melodic-software": {
       "source": {
@@ -35,17 +9,6 @@
         "path": "./"
       }
     }
-  },
-  "enabledPlugins": {
-    "markdown-format@melodic-software": true,
-    "bash-format@melodic-software": true,
-    "biome-format@melodic-software": true,
-    "typos-format@melodic-software": true,
-    "actionlint@melodic-software": true,
-    "eol-normalizer@melodic-software": true,
-    "guardrails@melodic-software": true,
-    "source-control@melodic-software": true,
-    "skill-quality@melodic-software": true
   },
   "worktree": {
     "baseRef": "head"
