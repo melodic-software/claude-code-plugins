@@ -49,7 +49,7 @@ pedagogy — the false-positive trap that would have destroyed correct text.
 
 ### Fixed — Suno platform drift
 
-- **The highest-volume mis-tiering in the skill.** One line stamped "Creative
+- **The highest-volume confidence error in the skill.** One line stamped "Creative
   Slider behavior" as HIGH confidence and thereby certified roughly thirteen
   unsourced numbers as officially confirmed. HIGH now covers only slider names
   and qualitative endpoints; every numeric setting is community-empirical.
