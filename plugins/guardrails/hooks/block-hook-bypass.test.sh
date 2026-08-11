@@ -841,6 +841,20 @@ run "scratch: Windows sibling sharing the prefix (blocked)" \
 run "scratch: case-insensitive compare (documented residual, allowed)" \
   "echo hello > /tmp/SCRATCH/f" 0 "$SCRATCH_ENV=/tmp/scratch"
 
+# Documented residual, INHERITED from the shared target extraction rather than
+# introduced by the scratch axis: a quoted redirect operand containing
+# whitespace is judged on its first word only, because strip_literals keeps a
+# quoted target as literal content (dropping the quotes) and _redir_scan's
+# target class ends at whitespace. The /dev/null exemption has the identical
+# shape and already behaved this way before the scratch axis existed — the
+# second assertion is the control proving that, and it is what makes this the
+# extraction's residual and not this option's. Both are pinned so a future fix
+# to strip_literals flips them together and visibly.
+run "scratch: quoted target with whitespace judged on word 1 (residual, allowed)" \
+  "echo x > \"/tmp/scratch/a ../../etc/pw\"" 0 "$SCRATCH_ENV=/tmp/scratch"
+run "control: /dev/null shows the same inherited residual (allowed)" \
+  "echo x > \"/dev/null ../../etc/pw\"" 0
+
 # The exemption is target-scoped only — it must not relax the producer axis.
 run "scratch: python3 -c write into an exempt root still blocks" \
   "python3 -c \"open('/tmp/scratch/x','w').write('a')\"" 2 "$SCRATCH_ENV=/tmp/scratch"

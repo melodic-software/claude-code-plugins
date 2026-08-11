@@ -46,13 +46,22 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   | a relative, `$VAR`, `~` or glob target | **blocked** |
   | `python3 -c "open('/tmp/scratch/x','w').write('a')"` — producer axis unchanged | **blocked** |
 
-  Two residuals, both deliberate and both stated in the file and the README. Normalization is
-  lexical, not filesystem resolution: symlinks are not followed, because resolving them needs a
-  subprocess per segment on a path this file deliberately keeps fork-free, and the target frequently
-  does not exist yet — naming a root is accepting that root's contents. And the compare is
-  case-insensitive, because the segment scan runs over the lowercased command; on a case-sensitive
-  filesystem a sibling differing from a root only in case is also exempt. A test pins that residual
-  so it can only move deliberately.
+  Three residuals, all deliberate, all stated in the file and the README, and all pinned by tests.
+  Normalization is lexical, not filesystem resolution: symlinks are not followed, because resolving
+  them needs a subprocess per segment on a path this file deliberately keeps fork-free, and the
+  target frequently does not exist yet — naming a root is accepting that root's contents. The
+  compare is case-insensitive, because the segment scan runs over the lowercased command; on a
+  case-sensitive filesystem a sibling differing from a root only in case is also exempt.
+
+  And a **quoted** redirect operand containing whitespace is judged on its first word only:
+  `echo x > "/tmp/scratch/a ../../etc/pw"` reads as `/tmp/scratch/a`. This one is **inherited from
+  the shared redirect-target extraction and is not introduced here** — `strip_literals` deliberately
+  keeps a quoted write target as literal content, which drops the quotes, and `_redir_scan`'s target
+  class ends at whitespace, so the `/dev/null` exemption has the identical shape. Measured at
+  `685dd381`, before this change: `echo x > "/dev/null ../../etc/pw"` already returns **0 (allowed)**
+  while an unexempted `echo x > "/tmp/scratch/a ../../etc/pw"` returns 2. A control test pins the
+  `/dev/null` half alongside the scratch half, so a future fix to `strip_literals` flips both
+  together and visibly. Filed separately as the extraction defect it is (#2226).
 
   Bash lane only. The PowerShell lane classifies on cmdlet/redirect co-occurrence and never resolves
   a single effective target, so there is no well-defined target to exempt there; its `$null` discard

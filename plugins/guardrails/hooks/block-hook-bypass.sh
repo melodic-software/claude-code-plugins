@@ -534,6 +534,18 @@ set_last_stdout_target() {
 # On a case-sensitive filesystem a sibling directory differing from a configured
 # root only in case is therefore also exempt.
 #
+# SCOPE (documented residual, INHERITED — this axis does not introduce it): a
+# quoted redirect operand containing WHITESPACE is exempted on its first word
+# only. strip_literals deliberately KEEPS a quoted write target as literal
+# content (see `open_keep`), which drops the quotes, and _redir_scan's target
+# class ends at whitespace — so `> "/tmp/scratch/a ../../etc/pw"` is judged on
+# `/tmp/scratch/a`. The `/dev/null` exemption has the same shape and the same
+# behaviour at HEAD (`> "/dev/null ../../etc/pw"` is exempt there too, before
+# this change), so the seam is in the shared target extraction, not here.
+# Recovering it needs strip_literals to mark a kept operand's internal
+# whitespace, which is shared machinery this row does not touch. Both forms are
+# pinned by accepted-floor tests so neither can drift silently. Filed as #2226.
+#
 # SCOPE: Bash lane only. The PowerShell lane classifies on cmdlet/redirect
 # CO-OCCURRENCE and never resolves a single effective target, so there is no
 # well-defined target to exempt there; its `$null` discard is unchanged.

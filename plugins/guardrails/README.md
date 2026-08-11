@@ -107,10 +107,15 @@ out of scope until such a signal exists.
   boundary: `/tmp/scratchevil/f` is not under `/tmp/scratch`, a `..` escape is
   resolved away before the compare, `echo x > /tmp/scratch/f > real.txt` still
   blocks, and a relative, unexpanded (`$VAR`, `~`) or glob target is never
-  exempt. Two residuals, both deliberate: normalization is lexical, so symlinks
-  out of a root are not followed, and the compare is case-insensitive because the
-  segment scan runs over the lowercased command. Naming a root is accepting that
-  root's contents.
+  exempt. Three residuals, all deliberate and all pinned by tests: normalization
+  is lexical, so symlinks out of a root are not followed; the compare is
+  case-insensitive because the segment scan runs over the lowercased command; and
+  a **quoted** target containing whitespace is judged on its first word only
+  (`echo x > "/tmp/scratch/a ../../etc/pw"` reads as `/tmp/scratch/a`). That last
+  one is **inherited from the shared redirect-target extraction, not introduced by
+  this option** — the `/dev/null` exemption has the same shape and the same
+  behaviour, and a control test pins that (#2226). Naming a root is accepting that root's
+  contents.
 - **`flag-commit-pr-skill-bypass` is a nudge, not a gate.** Detection is a
   literal-stripped top-level regex match, not a full argv-grammar parser — it
   does not evaluate shell variable / command substitution, and a determined
