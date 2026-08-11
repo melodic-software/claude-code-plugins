@@ -236,9 +236,13 @@ D1–D7 cycles. Exploration and validation must run on the PR's head branch.
   - [ ] **verify follow-up reply posted — same surface routing as D5:** inline thread →
     `pulls/<pr>/comments` filtered by `in_reply_to_id`; issue-level → `gh api --paginate
     "repos/{owner}/{repo}/issues/<pr>/comments?per_page=100" --jq '.[] |
-    select(.body | contains("<sha>")) | .body'`. Select on the SHA, never `.[-1]` — these
-    endpoints return oldest-first, so on an unpaginated list `.[-1]` is the 30th-oldest comment
-    and the check passes or fails on a comment that is not yours
+    select((.body | contains("<sha>")) and .user.login == "<posting-identity>") | .body'`.
+    Constrain on BOTH the SHA and the posting identity, and never on `.[-1]`. `.[-1]` is wrong
+    because these endpoints return oldest-first, so on an unpaginated list it is the 30th-oldest
+    comment. SHA alone is wrong because this is a control gate you act on: anyone else quoting the
+    fix SHA — a reviewer, another bot — satisfies it, and the check reports your reply as posted
+    when the write failed. `<posting-identity>` is the login you posted as (the bot-identity
+    wrapper's account when the project has one, your own otherwise)
 - [ ] D7.5 — Resolve review thread — **author- and classification-conditional, inline review
   comments only** (this section is the canonical policy). <!-- contract-restatement-begin: D7.5-thread-eligibility --> **Resolution is a thread-level act
   while dispositions are per-finding, so eligibility is a property of the whole thread:** every

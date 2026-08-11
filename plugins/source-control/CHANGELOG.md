@@ -46,6 +46,14 @@ All notable changes to the `source-control` plugin are documented here. Format f
   the second-newest. Both call sites now paginate and select on the fix SHA, so the query states
   what it is asserting and cannot be satisfied by the wrong record. The inline-reply verifications
   filtered by `in_reply_to_id` are paginated for the same reason.
+- **D7's follow-up verification is constrained on the posting identity, not just the SHA.** Selecting
+  on SHA-in-body alone proves the SHA was *mentioned*, not that you posted it — a reviewer quoting
+  the fix commit, or a bot restating it, satisfies the selector while your own failed write goes
+  unnoticed. That is the same failure shape as the `.[-1]` bug it replaced: a plausible positive
+  instead of a real presence signal, on a control gate an autonomous agent acts on. Both copies of
+  the checklist step now pin `.user.login` as well. Rule 2 gains the general form: where a query is
+  a control gate, ask what else could satisfy the selector and constrain that too — one property is
+  usually not enough.
 
 ## [0.51.7]
 
