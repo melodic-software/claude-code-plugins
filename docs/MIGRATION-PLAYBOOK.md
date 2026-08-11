@@ -1280,8 +1280,9 @@ surface to a published plugin for a single consumer's low-value nicety.
 1. Register the marketplace in the consumer's `extraKnownMarketplaces` and enable the plugin in
    `enabledPlugins` (project `settings.json`, so clones inherit it on trust — the interactive trust prompt
    both registers and installs the enabled plugin). Headless/CI has no such prompt, and registering a
-   marketplace does not install its plugins, so do both explicitly: `claude plugin marketplace add <repo>`
-   then `claude plugin install <plugin>@<marketplace> --scope project --config KEY=VALUE …`, seeding every
+   marketplace does not install its plugins, so do both explicitly at project scope: `claude plugin
+   marketplace add <repo> --scope project` then `claude plugin install <plugin>@<marketplace> --scope
+   project --config KEY=VALUE …`, seeding every
    non-default `userConfig` toggle on that install command — `--config` applies only on a fresh install and
    is ignored once the plugin is already installed (smoke-test C), so a headless reconfiguration later
    means uninstall/reinstall. Otherwise the marketplace is known but the plugin is absent, and step 3's
