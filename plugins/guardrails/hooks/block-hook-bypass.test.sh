@@ -865,21 +865,31 @@ run "scratch: escaped operand is not exempted (blocked)" \
   "echo x > /tmp/scratch/a\\ ../../etc/pw" 2 "$SCRATCH_ENV=/tmp/scratch"
 run "scratch: even a benign quoted target is not exempted (blocked)" \
   "echo x > \"/tmp/scratch/f\"" 2 "$SCRATCH_ENV=/tmp/scratch"
-# Quotes BEFORE the redirect operator are the ordinary case and must not cost
-# the exemption.
+# Quotes BEFORE the redirect are the ordinary case and must not cost the
+# exemption — as long as the quoted content holds no `>`; see the pair below.
 run "scratch: quoted content, unquoted target (allowed)" \
   "echo \"hello world\" > /tmp/scratch/f" 0 "$SCRATCH_ENV=/tmp/scratch"
-# THE BREADTH, pinned rather than left to drift. The check reads the whole RAW
-# tail after the first `>`, not the segment being evaluated and not the target
-# word, so a quote in an unrelated LATER segment also cancels the exemption for
-# an earlier, unambiguous write. Deliberate and one-directional — it can only
-# refuse an exemption, never grant one — but broader than "the operand", so both
-# sides of the boundary are asserted. Narrowing it needs the operand/quote
-# association strip_literals destroys (#2226).
+# THE BREADTH, pinned rather than left to drift. It is blunt in TWO directions
+# and both sides of each boundary are asserted, so a later change cannot quietly
+# widen or narrow either. Both are one-directional — the check can only refuse an
+# exemption, never grant one — and making either precise needs to know which `>`
+# and which quotes are syntax rather than content, which is exactly what
+# strip_literals destroys before this runs (#2226).
+#
+# (1) NOT segment-scoped: a quote in an unrelated LATER segment cancels the
+#     exemption for an earlier, unambiguous write.
 run "scratch: quote in an unrelated later segment cancels it (blocked)" \
   "echo x > /tmp/scratch/f && grep foo \"notes.txt\"" 2 "$SCRATCH_ENV=/tmp/scratch"
 run "scratch: the same compound with no quotes keeps it (allowed)" \
   "echo x > /tmp/scratch/f && grep foo notes.txt" 0 "$SCRATCH_ENV=/tmp/scratch"
+# (2) NOT keyed on the redirect OPERATOR: `${COMMAND#*>}` splits at the first `>`
+#     CHARACTER, so a `>` inside quoted CONTENT starts the tail early and that
+#     content's own closing quote lands inside it. This is the case the 0.25.0
+#     text got backwards by promising that quotes before the redirect are safe.
+run "scratch: > inside double-quoted content cancels it (blocked)" \
+  "echo \"a > b\" > /tmp/scratch/f" 2 "$SCRATCH_ENV=/tmp/scratch"
+run "scratch: > inside single-quoted content cancels it (blocked)" \
+  "echo 'x > y' > /tmp/scratch/f" 2 "$SCRATCH_ENV=/tmp/scratch"
 # Control: the SAME truncation reaches the /dev/null exemption and predates this
 # axis, which is why it is filed as #2226 rather than fixed here. Pinned so a
 # future strip_literals fix flips it visibly.
