@@ -3,7 +3,7 @@ description: "Classify tracked markdown for five noise shapes — historical cit
 argument-hint: "[audit] [target]"
 user-invocable: true
 disable-model-invocation: false
-allowed-tools: Bash(bash *audit-noise/scripts/detect.sh*)
+allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/detect.sh:*)", "Bash(grep:*)", "Bash(head:*)", "Bash(echo:*)"]
 shell: bash
 metadata:
   workflow-stage: anytime
@@ -14,7 +14,7 @@ metadata:
 
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 Uncommitted .md files: !`git status --porcelain 2>/dev/null | grep '\.md$' | head -10 || echo "none"`
-Noise findings (sample): !`bash "${CLAUDE_SKILL_DIR}/scripts/detect.sh" 2>/dev/null | grep -E '^(Summary total:|Finding shape:)' | head -20 || echo "none"`
+Noise findings (sample): !`${CLAUDE_SKILL_DIR}/scripts/detect.sh 2>/dev/null | grep -E '^(Summary total:|Finding shape:)' | head -20 || echo "none"`
 
 ## Purpose
 
@@ -59,7 +59,7 @@ Consumers with their own ephemeral-path or noise conventions can refine these de
 
 | Action | Args | Behavior |
 |---|---|---|
-| `<target>` (default, no action keyword) | empty → uncommitted `.md` files from git; file path → single-file; dir path → batch | run `bash "${CLAUDE_SKILL_DIR}/scripts/detect.sh"` on targets; map the emitted facts to the per-file tier table using the treatments above |
+| `<target>` (default, no action keyword) | empty → uncommitted `.md` files from git; file path → single-file; dir path → batch | run `${CLAUDE_SKILL_DIR}/scripts/detect.sh` on targets; map the emitted facts to the per-file tier table using the treatments above |
 | `audit [target]` | same target rules | explicit form of the default; same behavior |
 
 Single action v1; `relocate` and `generalize` actions are deferred until real demand surfaces — author hand-edits driven by audit output cover the sweep workflow.

@@ -1,5 +1,38 @@
 # Changelog — docs-hygiene plugin
 
+## [0.11.0]
+
+### Fixed
+
+- **`/docs-hygiene:audit-noise`'s detector grant worked, but only by accident.**
+  `Bash(bash *audit-noise/scripts/detect.sh*)` matched the body's
+  `bash "${CLAUDE_SKILL_DIR}/scripts/detect.sh"` because its leading and trailing wildcards absorbed
+  both the `bash` wrapper and the quotes around the path. That is the wildcarded-interpreter shape
+  auto mode drops outright, and a rule anchored on a bare wrapper name matches that name at *any*
+  path, including an unvetted copy.
+
+  The obvious repair — drop `bash` from the rule — would have been a straight **regression** here,
+  from a working grant to a broken one. `bash` is not among the wrappers Claude Code strips before
+  matching (`timeout`, `time`, `nice`, `nohup`, `stdbuf`, `command`, `builtin`, `noglob`), so a rule
+  without it stops matching a body that still says `bash <path>`; and removing the wildcards without
+  unquoting the body breaks the match a second way. The change is therefore **paired**: the body
+  invokes the script directly and unquoted, and the rule names that same string,
+  `Bash(${CLAUDE_SKILL_DIR}/scripts/detect.sh:*)` — narrow, anchored to this skill's own directory,
+  and carried over into auto mode rather than dropped.
+
+### Changed
+
+- **The skill now grants the read-only commands its pre-compute pipes through** (`grep`, `head`,
+  `echo`). A permission rule must match each subcommand of a compound command independently, so the
+  script grant alone left the surrounding pipeline uncovered and the pre-compute prompted anyway.
+
+### Added
+
+- **`scripts/allowed-tools-pairing.test.sh`**, asserting the contract the fix establishes: no
+  interpreter-led grant and no `${CLAUDE_PLUGIN_ROOT}` in `allowed-tools`, every bundled-script
+  invocation in the skill's markdown unquoted and free of a `bash` wrapper, and every granted script
+  present, executable, and actually invoked by a body.
+
 ## [0.10.1]
 
 ### Changed
