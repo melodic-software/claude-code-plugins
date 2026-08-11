@@ -1,9 +1,12 @@
 # Mosaic Rhyme — Multi-Word Combos Across Parts of Speech
 
 Pat Pattison — *Pat Pattison's Songwriting: Essential Guide to Rhyming*
-(2014), Chapter 1 — taxonomy alongside masculine and feminine. Extended by
-Pat's columns + Coursera Module 3 and by hip-hop / rap craft tradition
-(Eminem, Sondheim, Lin-Manuel Miranda) which Pat references frequently.
+(2014), Chapter 1 — where mosaic rhyme is named and defined. Worked examples
+run through Chapter 2 (the "risky business" walkthrough), Chapter 4 (feminine
+family rhymes), and Chapter 6 (feminine assonance rhymes). Extended for
+cross-part-of-speech search by Pat's columns + Coursera Module 3 and by
+hip-hop / rap craft tradition — those extensions are marked as non-book where
+they appear below.
 
 **Mosaic rhyme is a rhyme where one (or both) of the rhyming units is
 COMPOSED OF MULTIPLE WORDS.** The rhyme works on stressed-vowel + post-
@@ -11,15 +14,61 @@ vowel-consonant identity; the words being combined to produce that sound
 can cross parts of speech, mix proper nouns, slang, contractions, and
 phrase fragments.
 
-Mosaic rhyme is a tier the AI routinely skips. Generic LLM defaults pull
-single-word rhymes from a single part of speech (noun rhymes with noun,
+> "Call these pairs above mosaic rhymes, since they are put together with
+> syllables of different words, like stained glass pieces in a church window."
+> — Pat Pattison, *Essential Guide to Rhyming* (2014), Chapter 1
+
+**Mosaic is a construction, not a third rhyme category.** This is the single
+most-misread point in the taxonomy. Chapter 1 is explicit that "every rhyme is
+either masculine or feminine. Never to both." A mosaic rhyme is still one or
+the other — `commander/understand her` is feminine; `ap-pre-ci-ate/the quiche
+he ate` is a three-syllable rhyme that Pat classifies as **masculine**, "since
+[its] last syllable is more stressed than the one before it." Mosaic describes
+*how the rhyming unit was assembled*, which is orthogonal to where its stress
+falls. Never present mosaic as a peer of masculine and feminine.
+
+Mosaic rhyme is a construction the AI routinely skips. Generic LLM defaults
+pull single-word rhymes from a single part of speech (noun rhymes with noun,
 verb with verb) and miss the multi-word territory entirely. Mosaic
 SURFACE IS MANDATORY for any rhyme suggestion task per
 [response-filter](response-filter.md) §1.
 
+## Pat's own mosaic examples
+
+These are the pairs Pat actually prints, with the chapter each comes from.
+Treat them as the reference set; everything generated later in this file is
+labeled as such.
+
+| Mosaic pair | Type | How it is built | Source |
+|---|---|---|---|
+| `commander` / `understand her` | feminine | the unstressed tail is a pronoun, not an identity | Chapter 1 |
+| `expand me` / `strand thee` | feminine | verb + object pronoun on both sides | Chapter 1 |
+| `ap-pre-ci-ate` / `the quiche he ate` | masculine (three-syllable) | article + noun + pronoun + verb | Chapter 1 |
+| `business` / `fizzless` | feminine | noun + adjectival suffix borrowed from `less` | Chapter 2 |
+| `business` / `quizless` | feminine | same construction, different stressed vowel word | Chapter 2 |
+| `travel` / `glass full` | feminine | noun + adjective read as one unit | Chapter 4 |
+| `homely` / `phone me` | feminine | masculine word + pronoun `me` | Chapter 4 |
+| `believer` / `please her` | feminine | verb + object pronoun `her` | Chapter 4 |
+| `sailin'` / `tail him` | feminine | g-dropping opens the word to a verb + pronoun | Chapter 4 |
+| `lonely` / `hold me` | feminine | transitive verb + `me` | Chapter 6 |
+| `lonely` / `close me` | feminine | transitive verb + `me` | Chapter 6 |
+
+Two generative rules fall straight out of that list:
+
+1. **Masculine transitive verb + `me` / `her` / `him`.** Pat states it
+   directly in Chapter 6: "One way is to use masculine transitive verbs plus
+   the pronoun 'me'." This is the highest-yield mosaic construction in the
+   book, and it works whenever the feminine target's unstressed syllable
+   rhymes with a pronoun (Chapter 4).
+2. **Drop the `g` on feminine `-ing` words.** "A neat trick: If the tone of
+   your lyric is informal, you might try dropping the `g` on feminine 'ing'
+   words, like 'sailing.' Then you can create a mosaic rhyme with 'him'"
+   (Chapter 4).
+
 ## What mosaic rhyme is
 
-**Single word ↔ multi-word combo:**
+**Single word ↔ multi-word combo** (generated candidates in the shape of Pat's
+constructions — run identity and meter checks per song):
 
 | Source word | Mosaic partner | Construction |
 |---|---|---|
@@ -28,7 +77,7 @@ SURFACE IS MANDATORY for any rhyme suggestion task per
 | `wedding` | `fed him` | verb + pronoun |
 | `delicate` | `tell a kid` | imperative + object |
 | `lyrical` | `miracle` (near-perfect) plus mosaic-stacks like `it'd be a` | hesitant filler phrase |
-| `Pat Pattison` | `that's a fashion` (paraphrase example) | name → demonstrative + noun |
+| `lonely` | `hold me` | transitive verb + pronoun — **Pat's own**, Chapter 6 |
 
 **Multi-word combo ↔ multi-word combo:**
 
@@ -82,22 +131,33 @@ Mosaic-friendly proper-noun categories:
 
 ## Hip-hop / rap craft tradition
 
-Mosaic rhyme is the dominant tier in rap and hip-hop. Pat references this
-explicitly in his columns and Coursera material. Eminem's interview with
-Anderson Cooper is canonical: he diagrammed mosaic rhyme chains for words
-"impossible" to rhyme by showing multi-word decomposition.
+**Mostly non-book.** The claim that mosaic rhyme is the dominant construction
+in rap and hip-hop comes from craft tradition and from Pat's columns and
+Coursera material, not from *Essential Guide to Rhyming*. No specific rapper's
+rhyme chains are reproduced here, because none appear in the book, and coining
+them and attributing them to a named artist would be worse than omitting them.
+If a writer wants worked rap examples, send them to the primary recordings.
 
-Examples of the kind of stacked mosaic move (paraphrased for IP):
+What the book *does* say about the genre is narrow and usable — the g-dropping
+trick from Chapter 4:
 
-- Source: `orange` → mosaic chains using `door hinge`, `four-inch`,
-  `pour ink` (stressed vowel + family/additive consonant)
-- Source: `purple` → mosaic chains using `circle`, `hurts you'll`
-- Source: `month` → mosaic chains using `once a`, `lunch a`,
-  `dunce-uh` (filler / nonsense word in the chain)
+> "This trick works especially well in country and hip-hop, where `g` is
+> dropped almost as a matter of principle."
+> — Pat Pattison, *Essential Guide to Rhyming* (2014), Chapter 4
 
-The rap tradition treats every word as rhyme-able by decomposing the
-sound and reassembling from multi-word combos. Pat names this discipline
-in *Essential Guide to Rhyming* (2014), Chapter 1.
+with his own worked pair:
+
+```text
+sailin'  /  tail him
+```
+
+The transferable discipline — and the part that squares with Pat's method — is
+that every word becomes rhyme-able once you decompose its *sound* and
+reassemble a matching unit out of several words. That is exactly the move Pat
+makes in Chapter 2 when `business` has no dictionary partner and he builds
+`fizzless` out of the masculine short `e` + `s` column. The book's route to a
+mosaic is: fail in the obvious section, then rebuild from a different section
+of the dictionary.
 
 ## Where mosaic rhyme is generated in the worksheet
 
@@ -155,10 +215,19 @@ Stress paradigms apply across word boundaries:
 |---|---|---|---|
 | `Téx-as` (X.) | trochee | `wrécks-us` (X.) | `whatever wrecks us` (..X.) |
 | `de-cíde` (.X) | iamb | `the bríde` (.X) | `here is the bride` (...X) |
-| `só-li-ta-ry` (X..X) | dactyl-trochee | `só-lemn ma-ry` | `the so-lem-ni-ty` |
+| `só-li-tà-ry` (X.X.) | double trochee | `só-lemn Mà-ry` (X.X.) | `the so-lém-ni-ty` (.X..) |
 
 The meter scan (per [meter](meter.md)) is the gate. Mosaic that breaks
 meter does not earn its place in a hot spot.
+
+Pat's own version of this gate is the `business` filter in Chapter 2. He had a
+sound-legal list — `Bess, bless, chess, dress, fess, guess, jess, less, mess,
+press, stress` — and threw nearly all of it out on stress grounds: "Most of
+these are too strong to work as the unstressed syllable in a feminine mosaic.
+You need something with the same stress pattern as `busi-ness`." Try `guess`
+and you get `hís guéss`, two stresses where the target has one. Only `less`
+survives, "since it actually could be unstressed." Sound-legal is not the
+same as scannable.
 
 ## Mosaic risk register
 
@@ -195,8 +264,10 @@ Mosaic rhyme has failure modes:
 - Better single-word options exist that serve the song's emotion better
 - The mosaic feels like a parlor trick rather than craft
 
-Per [rhyme-strategy](rhyme-strategy.md) decision matrix: pick the tier
-that serves emotional intent. Mosaic is one tier; not a default.
+Per [rhyme-strategy](rhyme-strategy.md) decision matrix: pick the option
+that serves emotional intent. Mosaic is one search lane among several, not a
+default — and it is orthogonal to the stability tiers, since a mosaic can land
+anywhere from perfect down to subtractive.
 
 ## Surfacing mosaic to the writer
 
@@ -204,7 +275,9 @@ The AI surfaces mosaic candidates in the standard rhyme list (per
 [rhyme-generation](rhyme-generation.md) Step 8) BUT labels them as
 mosaic and shows the decomposition:
 
-```
+<!-- phonetic vowel markings trip the spell-checker --><!-- spellchecker:off -->
+
+```text
 Stressed vowel: ĕ-ks (as in "Texas")
 
 Perfect (single-word, fully resolved):
@@ -226,6 +299,8 @@ From the song's world:
 - [pulls per the song's setting / character / era]
 ```
 
+<!-- spellchecker:on -->
+
 Each mosaic candidate gets:
 
 - The decomposition shown
@@ -236,9 +311,16 @@ Each mosaic candidate gets:
 
 ## Examples by source type
 
+**Generated, not Pat's.** Every table in this section is machine-generated in
+the shape of Pat's constructions — none of these pairs appear in
+*Essential Guide to Rhyming*. Pat's actual pairs are in the reference table
+near the top of this file. Run the identity check and the meter scan on any
+candidate below before using it; several are deliberately included at varying
+quality so the tiering is visible.
+
 ### Common nouns
 
-| Source | Mosaic options (illustrative, paraphrased; check identity + meter per song) |
+| Source | Mosaic options (generated; check identity + meter per song) |
 |---|---|
 | `mother` | `another`, `smother her`, `recover`, `discover` (non-mosaic), `love her`, `above her`, `shove her` |
 | `morning` | `warning`, `forming`, `storming`, `for me`, `floor me`, `more please`, `for any` |
@@ -279,7 +361,7 @@ when the proper noun has not yet earned its mention.
   across word boundary
 - [rhyme-strategy](rhyme-strategy.md) — when to deploy mosaic by
   emotional intent
-- [response-filter](response-filter.md) §1 — mandatory mosaic-tier check
+- [response-filter](response-filter.md) §1 — mandatory mosaic-surface check
 - [line-brainstorm](line-brainstorm.md) — Column 1 includes mosaic
 - [meter](meter.md) — stress paradigm preserved across word boundary
 - [cliche](cliche.md) — friendly cliche test applies to mosaic too
@@ -293,9 +375,9 @@ when the proper noun has not yet earned its mention.
 
 > "Rhyme creates a sonic roadmap: it tells those eyeless ears where to
 > go and when to stop." — Pat Pattison
-> (*Essential Guide to Rhyming* (2014), Introduction, paraphrased ≤25w)
+> (*Essential Guide to Rhyming* (2014), Introduction)
 
 Mosaic rhyme works because the ear hears the SOUND, not the spelling or
 the part of speech. Pat's craft applies the same identity check + tier
-walk + cliche scan to multi-word units. The AI must surface this tier
+walk + cliche scan to multi-word units. The AI must surface this construction
 or it has under-served the song.

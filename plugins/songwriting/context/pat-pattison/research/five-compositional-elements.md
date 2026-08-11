@@ -90,7 +90,8 @@ See [phrasing](phrasing.md) "length of phrases" for *Essential Guide to Lyric Fo
 
 The letters describing which lines rhyme with which. Adjacent rhymes
 (aabb) close fast; alternating (abab) suspend across the pair;
-enclosed (abba) wrap; unrhymed (xaxa or xxxa) open. Mixed schemes
+enclosed (abba) wrap **without closing** — the frame returns but the
+system stays open; unrhymed (xaxa or xxxa) open. Mixed schemes
 (abcb) close some pairs while leaving others open.
 
 See [rhyme strategy](rhyme-strategy.md) for scheme as a control of
@@ -144,32 +145,121 @@ These are defaults. The five-row check exposes when the writer
 diverged from default — and lets the writer decide whether the
 divergence was deliberate prosody or accidental drift.
 
-## Worked example
+## Worked example — "Some People's Lives"
 
-A four-line verse with three lines feeling right and one feeling
-"off" — the five-row check might return:
+Pat's own extended demonstration of rows 1 and 3 is Janis Ian and Kye Fleming's
+"Some People's Lives" (*Writing Better Lyrics* (2009), Chapter 21). It is worth
+running the five-row check against, because Pat shows the counterfactuals.
+
+Verse 1 as written:
+
+```text
+Some people's lives      a
+Run down like clocks     b
+One day they stop        b
+That's all they've got   b
+```
 
 ```text
 Section: verse 1
 
-1. Number of lines:    4
-2. Line lengths:       4/4/4/4 stresses
-3. Rhyme scheme:       abab
-4. Rhyme types:        perfect / family / consonance / family
-5. Rhythm:             duple, established line 1, deliberate
-                       variation line 3 (matches narrative pivot)
-
-Verdict:
-- Supports central emotion? Partially — central emotion is
-  resigned-stable; consonance on line 3 opens suspended.
-- Supports section job? Yes for setup, no for arrival.
-- Strongest element: rhythm variation at line 3 (matches pivot).
-- Weakest element: consonance rhyme type at line 3 fights the
-  resigned tone.
-- Cheapest fix: change line 3's rhyme type from consonance to family.
+1. Number of lines:    4 (even — balanced)
+2. Line lengths:       short and matched throughout
+3. Rhyme scheme:       abbb
+4. Rhyme types:        perfect (1991 vocabulary; see the four-ball note below)
+5. Rhythm:             matched
 ```
 
-One row fix. The other four stay. Diagnose all five, change one.
+Rows 1 and 3 disagree on purpose, and Pat says so:
+
+> That's all they've got is the climax of the section. The balancing position
+> allows us to savor it by letting it rest in the spotlight a few seconds. Note,
+> however, that the rhyme scheme, abbb, is a little unstable. Though the line
+> lengths and rhythms match, we have the same effect at the end of line three
+> that we saw earlier … the abb rhyme pattern raises no expectations.
+
+Now the counterfactual — Pat rewrites row 3 only, leaving rows 1, 2, and 5
+untouched:
+
+```text
+Some people's lives      x
+Run down like clocks     a
+One day they cease       x
+That's all they've got   a
+```
+
+> Now it feels really stable. The stability actually adds an emotion (motion
+> creates emotion).
+
+And the real version's instability adds a different one:
+
+> Isn't it sad? It makes me feel like something's missing.
+
+**Why the one-row change matters at song scale.** Verses 1 and 2 both run abbb,
+so two unstable sections land on a very stable chorus:
+
+```text
+Didn't anybody tell them    x
+Didn't anybody see          a
+Didn't anybody love them    x
+Like you love me?           a
+```
+
+> So we have two unstable sections (sad lives), moving into a stable section —
+> "our love makes me stable. I wish everyone had this kind of love in their
+> lives." If the rhyme scheme in the verses were stable, the arrival at a stable
+> section in the chorus wouldn't have the same power.
+
+Pat proves that too, restabilizing both verses to xaxa and reporting the loss:
+
+> Now we feel stable for the whole trip. The chorus, and therefore the singer's
+> gratitude for the love she receives, is diminished by the stable rhyme scheme.
+> The chorus is less of a landing place than it is in the original version.
+
+**Then row 1 does the same job.** Verses 1-3 are all four lines. Verse 4 is
+three:
+
+```text
+Some people laugh           a
+When they need to cry       b
+And they never know why     b
+```
+
+> The contrast with these balanced sections gives verse four its power. We expect
+> stability. Instead, it totters on the brink for a moment.
+
+Three phrases plus the chorus's four leaves seven — still odd, still unresolved
+— and verse 5 pulls the same trick again. The payoff is a single extra line on
+the final chorus:
+
+```text
+Didn't anybody tell them    x
+Didn't anybody see          a
+Didn't anybody love them    x
+Like you love me?           a
+'Cause that's all they need a
+```
+
+> Spotlights blaze onto the extra phrase as it balances the entire last system
+> with an even number of phrases (twelve), and steps onto the platform at the
+> other side of the high-wire journey.
+
+Two rows, deliberately set, across a whole song. That is what the five-row check
+is looking for.
+
+**The reading discipline this models.** Diagnose all five rows; change one; keep
+the other four fixed so you can hear what the change did. Pat's counterfactuals
+are all single-row edits, which is why they are legible.
+
+Pat's four named uses of row 1 (phrase count), from the same chapter:
+
+1. spotlighting important ideas,
+2. pushing one section forward into another section,
+3. contrasting one section with another one,
+4. creating a need for a balancing section or phrase.
+
+> Unbalanced sections make you want to move to find a stable spot. Balanced
+> sections stop motion; they pause for a rest.
 
 ## Coaching prompts
 

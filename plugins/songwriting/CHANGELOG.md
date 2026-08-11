@@ -3,6 +3,193 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.5]
+
+**A reversal of standing policy, plus a source-fidelity pass.**
+
+Every previous release of this plugin was built under a "paraphrase only —
+never reproduce Pat's text" rule that had been propagating through eight
+handoffs. **That rule is revoked.** The repo owner owns all four books and this
+reference is for their own use, and the paraphrasing was actively destroying
+the value of the craft guidance: an exercise summarized is not an exercise, and
+a worked example described is not an example. Pat's actual text, actual
+examples, actual exercise wording and actual printed answer keys are being
+restored across the whole knowledge base.
+
+This release covers *Essential Guide to Lyric Form and Structure* (1991)
+Chapter 4 (Rhyme), read in full with **all 40 of its figures** at 3x upscale,
+plus the first wave of the verbatim restoration across the other research
+files. Two findings below came only from the figures: the balance-paradigm set
+and the printed exercise answer keys, neither of which exists in the text
+layer.
+
+### Restored — Chapter 4
+
+- **Pat's two worked `aabb` / `abab` sections are back in `rhyme-strategy.md`
+  in full**, as he wrote them, with the Exercise 27 instruction to reverse
+  them. Likewise his worked `ABACCB` plot sketch and rhyme words from Exercise
+  28, his "Ready or Not" verse and chorus, and both `abcccb` acceleration
+  examples including the feminine-rhyme comedy version.
+- **The closure sections now show Pat's actual word-schemes** rather than bare
+  letters: both deceptive continuations, both non-deceptive open contrasts,
+  both unexpected-closure cases, and the paired `aaa` illustration that
+  distinguishes looking-backward identity from a genuinely open odd-count
+  system.
+- **The three labeling drills now carry their printed answer keys** (Ex 23, 24,
+  25), transcribed from the page scans. Ex 24 #6 independently confirms `abba`
+  is open. The keys are printed rotated 180° at the foot of each scan; reading
+  them in place gets them wrong, so they were re-read from cropped, rotated,
+  4x-upscaled strips. Ex 23 #7 is `T` — consecutive rhymes do not fragment when
+  they follow an odd phrase count, which the chapter states outright.
+- **Three fabrications, not just omissions.** `rhyme-types.md`'s weak-syllable
+  examples (`mountain/certain`, `shadow/window`, `ringing/falling`) were
+  invented — the chapter names weak-syllable rhyme but never defines it.
+  `form.md`'s transitional-bridge list carried ten names where the chapter
+  prints six, adding "channel" and "runway", splitting "Climb or Lift", and
+  attaching genre and era attributions the book does not make; its heading also
+  cited *Writing Better Lyrics* (2009) Chapter 13, which is "Dialogue and Point
+  of View". `exercises.md` invented its item counts. The paraphrase rule did not
+  only omit — it produced authoritative-looking inventions.
+- **`bridge.md` attached the "four times is a lot" warning to `V/Ch/V/Ch`.**
+  *Writing Better Lyrics* (2009) Chapter 22 attaches it to `v/v/ch/v/v/ch` —
+  four verses, four trips. `song-forms.md` was right all along. Long-standing
+  known defect, now closed with the verbatim passage.
+- **`exercises.md` was missing Ex 32 and 33**, jumping 31 → 34. Both are in
+  Chapter 5. Restored; the 1991 numbering now runs 1-44 unbroken.
+- **The Marvell and Shelley passages are quoted** rather than described — both
+  public domain — with the consonance-rhyme gloss Pat attaches to
+  "Ozymandias."
+
+### Restored — across the knowledge base
+
+Twenty-nine research files were swept. Pat's real examples, exercise wording,
+worksheet layouts and printed answer keys replace the summaries that stood in
+for them. Highlights:
+
+- **`exercises.md` no longer advertises that its exercises are paraphrases** —
+  they were, which meant not one numbered exercise in the file was actually
+  Pat's. They are now.
+- **`rhyme-types.md`** — every stability tier now carries Pat's own definition
+  wording and his actual example word-pairs, tier by tier. This is the file the
+  rhyme skill runs on.
+- **`daily-practice.md`** — the 56-day curriculum now lists Pat's real seeds
+  and day titles with his numbering, replacing "(paraphrased shape)" stubs.
+- **`prosody.md`, `meter.md`** — Pat's actual scansion strips, motion/emotion
+  demonstrations, and worked stress examples.
+- **`five-compositional-elements.md`** — Pat's full "Some People's Lives"
+  demonstration, including the counterfactual rewrites and his commentary on
+  why the one-row change matters at song scale.
+- **`worksheets.md`, `rhyme-worksheets.md`** — real worksheet layouts and
+  Pat's numbered step text, quoted.
+- **`song-forms.md`, `song-forms-examples.md`, `form.md`, `hook.md`,
+  `bridge.md`, `phrasing.md`** — worked song analyses with their real sections
+  rather than "mechanism analyses (NOT lyric reproduction)".
+- **`metaphor.md`, `cliche.md`, `object-writing.md`, `repetition.md`,
+  `verse-development.md`, `box-model.md`, `title-game.md`, `idea-to-title.md`,
+  `mosaic-rhyme.md`, `rhyme-sonic-bonding.md`,
+  `rhyme-spotlight-connection.md`, `rhyme-dictionary-practice.md`** — real
+  collision lists, cliche examples, sample writes, and rhyme demonstrations.
+
+Web-sourced passages (Berklee Online, patpattison.com, American Songwriter,
+Coursera) stay paraphrased and stay marked unaudited — those sources are not in
+the corpus and nothing was invented to fill them.
+
+### Changed — tooling
+
+- **Scansion strips are wrapped in the spell-checker's block directive.** Pat's
+  stressed-syllable vocalization is flagged as a misspelling of "DUMB", and it
+  now appears verbatim in `meter.md`, `prosody.md` and `daily-practice.md`. An
+  earlier revision of this branch added the exception to `_typos.toml`
+  directly; that file is synchronized from `melodic-software/standards` and a
+  local edit to it is silently dropped on the next sync, so the exception is
+  applied with the inline `spellchecker:off` / `spellchecker:on` convention
+  that config itself blesses. A permanent fix belongs upstream.
+
+### Fixed
+
+- **`rhyme-fundamentals.md`'s identity test asserted the opposite of the
+  rule it was stating.** It said identity "matches conditions 1 and 2 and
+  **also** matches 3" where condition 3 is *"different consonant sound before
+  the vowel."* Identity fails condition 3 — that failure is the entire
+  distinction. As written, the test passed every identity as a rhyme. Every
+  other file in the plugin states the check correctly; this was the sole
+  outlier.
+- **`abba` was listed as a balanced pattern.** The chapter uses `abba` as its
+  explicit counterexample — an opening `abb` is *not* balanced by returning to
+  `a`; it is balanced by `abbabb` or `abbacc` — and the chapter's printed
+  exercise key marks `abba` **open**. Since a balanced system is closed by
+  definition, both sources agree it is neither.
+- **`rhyme-strategy.md` contradicted itself about `abba`,** calling it
+  "encloses" in the strategy table while its own Challenge 4 table listed it
+  under floating instability. Resolved toward the source; the strategy table
+  now states it stays open.
+- **The balance-paradigm list was missing half the set.** Pat prints six
+  (`abab`, `xaxa`, `aa`, `aabb`, `abcabc`, `xxaxxa`); the file carried three
+  of them plus the counterexample.
+- **`five-compositional-elements.md` described `abba` as a "wrap"** in a list
+  where every neighbouring entry names a closure state, inviting the same
+  wrong reading. Clarified that the frame returns without closing. The
+  In Memoriam `abba` in `meter.md` is a **different frame** — Tennyson's
+  equal-tetrameter stanza from the Challenge 4 curriculum — and was left
+  untouched.
+- **`rhyme-fundamentals.md` mislabeled a feminine-rhyme example as an
+  identity** (`lonely / only`). It is a rhyme: the stressed syllables differ
+  before the vowel. Its tail is identical, which the chapter explicitly
+  permits without changing the classification.
+- **Both files' image inventories omitted this chapter.** `rhyme-strategy.md`
+  listed only its 2014 and 2011 sources; `rhyme-fundamentals.md` carried no
+  inventory line at all. This is the **fourth** consecutive Book 1 chapter
+  whose inventory concealed a defect.
+- **Bare "Chapter 4" / "Chapter 9" references in `rhyme-strategy.md`** were
+  genuinely ambiguous in a file citing three books — 2014 also has a Chapter 4,
+  which `rhyme-types.md` uses. Qualified with title and year per
+  `book-references.md`.
+- **Seven remaining bare "Book N" citations retired**, in `audit-checklist.md`
+  (2), `bridge.md`, `rhyme-generation.md` (2), and
+  `templates/audit-checklist-prompt.md` (2) — constructions like "Books 1
+  Chapter 4, 2 Chapter 4, 4 Chapters 4-6" that `book-references.md` prints as
+  the counterexample. The plugin now has no bare "Book N" reference outside
+  that file. Regression test:
+  `grep -rn "Books\? [1-4]\b" context/ skills/ agents/ | grep -v book-references`
+- **`exercises.md`'s header claimed its exercises were paraphrases** while
+  carrying the restored verbatim ones — a stale notice that contradicted the
+  file's own contents.
+- **The Marvell / Shelley worked example appeared three times in
+  `rhyme-fundamentals.md`** — a paraphrase in the flow section, the restored
+  verbatim quotes, and a bullet restating Marvell a third time under a heading
+  promising two examples. The verbatim quotation was prepended rather than
+  substituted for what it replaced. Consolidated to one quotation with the
+  other two positions now referencing it.
+
+### Added
+
+- **`rhyme-fundamentals.md` now names the chapter's five structural areas as a
+  set** — balance, pace, flow, closure, type of closure — and identifies them
+  as the Structural Pentad measured against rhyme instead of stress. The file
+  previously covered all five without ever connecting them.
+- **The through-written / fragmented pair is now linked to the rhythm
+  Paradigms** it is drawn from: `abab` is the simplest through-written system
+  "like rhythm Paradigm One," `aabb` the simplest fragmented one "like rhythm
+  Paradigm Two."
+- **Consonance rhyme is recorded as already named in 1991**, so the 2014
+  stability scale extends that vocabulary rather than introducing it.
+- The cheerleader analogy is now attributed to **both** 1991 Chapter 4 and
+  2014 Chapter 1 — it appears in both, verified by extraction. The prior
+  single-source attribution was incomplete, not wrong.
+
+### Verified — no change needed
+
+- **`prosody.md`'s "1991 Chapter 3-4 (Structural Pentad)" citation holds.**
+  Its standing "Chapter 4 still unaudited" flag is cleared: Chapter 4 opens by
+  naming all five Pentad properties and gives each a numbered section. Only
+  the non-book sources remain unaudited.
+- **`exercises.md`'s Chapter 4 block is complete** — Ex 18 through 28, no
+  numbering gap.
+- **`book-references.md`'s perfect-rhyme citation is accurate.**
+- **`rhyme-types.md`'s page-scan inventory is genuine** — every cited
+  *Essential Guide to Rhyming* (2014) filename resolves against a fresh
+  extraction. Book 4's gate passes at 139 spine items / 139 images.
+
 ## [0.8.4]
 
 A source-fidelity pass over *Essential Guide to Lyric Form and Structure*

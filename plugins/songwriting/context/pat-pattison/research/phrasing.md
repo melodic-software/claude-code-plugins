@@ -24,17 +24,50 @@ Lyric phrases can be nested. A short phrase can be a real phrase and also part
 of a longer phrase. Count both levels when diagnosing a section:
 
 ```text
-short phrase / short phrase
-longer phrase made from the two short phrases
+Who are these children / who scheme and run wild     two short phrases
+Who are these children who scheme and run wild?      one longer phrase
 ```
 
+Pattison asks directly whether the longer or the shorter phrases are the real
+ones. His answer: "They both are." A phrase like "who scheme and run wild"
+depends on being part of something bigger to sound natural, but it still has an
+identity of its own.
+
 The test is whether the unit has a natural identity in speech. Some short
-phrases stand alone. Others depend on a larger sentence but still feel shaped.
+phrases stand alone:
+
+```text
+Why don't you tickle me?
+He shouts.
+She bites.
+```
+
+Others depend on a larger sentence but still feel shaped.
 Fragments that clearly need missing words are not useful phrase units.
 
 For grammar-heavy passages, slash the sentence where natural phrase boundaries
 fall. Pattison's Thoreau exercise matters because it trains the ear to hear
 phrase boundaries before the lyric is set to music.
+
+**Exercise 1** (*Essential Guide to Lyric Form and Structure* (1991), Chapter 1):
+try dividing this paragraph from Henry David Thoreau's "The Battle of the Ants"
+into phrases. Use a slash (/) between phrases to show where the divisions are.
+Pat does the first few to get you started; the unslashed remainder is the
+exercise.
+
+```text
+"I took up the chip / on which the three I have described
+were struggling, / carried it / into my house, / and placed
+it under a tumbler on my window sill in order to see the
+issue. Holding a microscope to the first-mentioned red
+ant, I saw that, though he was assiduously gnawing at the
+near fore leg of his enemy, having severed his remaining
+feeler, his own breast was all torn away, exposing what
+vitals he had there to the jaws of the black warrior, whose
+breastplate was apparently too thick for him to pierce; and
+the dark carbuncles of the sufferer's eyes shone with
+ferocity such as war only could excite.
+```
 
 ## Lyric phrases and musical phrases
 
@@ -44,15 +77,35 @@ of the emotion.
 
 Mark musical phrases with brackets and lyric phrases with slashes:
 
+Pattison's mismatch example — a rewrite of an actual song, words changed
+"to protect the innocent (or maybe the guilty)":
+
 ```text
-[lyric phrase / lyric phrase /]
-[one musical phrase continuing]
+[Some days it's simple/ but some days it's not/]
+[Sometimes I wonder if there's one thing we've got]
+[In common/ to stop us from drifting apart/]
 ```
 
+"One thing we've got in common" sounds very strange when it is split across
+separate musical phrases. It is distracting and takes away from the emotion in
+the song.
+
 Do not let the music make a partial thought sound complete. A musical phrase
-boundary can temporarily change meaning before the lyric corrects it. When a
-line can mean either "I know your plans" or "I know your plans do not include
-me," phrase boundaries decide which thought the listener hears first.
+boundary can temporarily change meaning before the lyric corrects it:
+
+```text
+[I know your schemes]
+[Don't include me/]
+```
+
+There is a big difference between saying
+
+1. "I know your schemes. Please don't include me."
+2. "I know (that) your schemes don't include me."
+
+Decide which one you mean, then write your musical phrases to match. When
+musical phrases and lyric phrases are the same length, the problem does not
+crop up.
 
 ## Counting phrases
 
@@ -61,12 +114,61 @@ Count phrases at two levels:
 - Short phrases: the smallest natural lyric units.
 - Long phrases: combinations that form larger musical or syntactic units.
 
-Both levels matter. Pattison's Steely Dan example can be heard as eight short
-phrases or four longer phrases; either count feels balanced because it is even.
+Both levels matter. Pattison counts the verse of Steely Dan's "Your Gold Teeth
+II" (Donald Fagen and Walter Becker) both ways — eight short phrases, or four
+when you count their combinations into longer phrases. Either count feels
+balanced because it is even.
+
+```text
+Who are these children              1
+who scheme and run wild             2
+who speak with their wings          3
+and the way that they smile         4
+what are the secrets                5
+they trace in the sky               6
+and why do you tremble              7
+each time they ride by              8
+```
+
+Each of these lyric phrases also matches a musical phrase, and the shorter
+phrases combine easily and naturally into longer ones.
 
 ## Balance and unbalance
 
 Even phrase counts feel balanced. Odd phrase counts feel unbalanced.
+
+Pattison demonstrates by pulling one phrase out of the Steely Dan verse. Seven
+phrases seem awkward:
+
+```text
+Who are these children              1
+who scheme and run wild             2
+who speak with their wings          3
+and the way that they smile         4
+what are the secrets                5
+they trace in the sky               6
+each time they ride by              7
+```
+
+It would have seemed balanced cut to four:
+
+```text
+Who are these children              1
+who scheme and run wild             2
+who speak with their wings          3
+and the way that they smile         4
+```
+
+or rebuilt to six:
+
+```text
+Who are these children              1
+who scheme and run wild             2
+who speak with their smiles         3
+what are the secrets                4
+they trace in the sky               5
+each time they ride by              6
+```
 
 Balanced sections tend to stop motion. Unbalanced sections create motion because
 the listener expects a balancing phrase that has not arrived.
@@ -103,8 +205,19 @@ spotlights whatever lands there. Put summary lines, reversals, and emotional
 turns in that position when they should carry weight.
 
 Worked example: in Buck Ram's "The Great Pretender," the fourth phrase lands
-the section's emotional summary. The even-numbered position makes the line feel
-like the point of the section, not just another detail.
+the section's emotional summary.
+
+```text
+Yes I'm the GREAT PRETENDER         1
+Pretending that I'm doing well      2
+My need is such, I pretend too much 3
+I'm lonely but no one can tell      4
+```
+
+The last phrase is in the even-numbered position, balancing the section. That
+position spotlights "I'm lonely but no one can tell" — almost a summary of the
+section. The even-numbered position makes the line feel like the point of the
+section, not just another detail.
 
 Revision move: if the final phrase of a balanced section is not the main idea,
 try rearranging the same phrases so the important idea lands last.
@@ -114,24 +227,43 @@ try rearranging the same phrases so the important idea lands last.
 An odd number of phrases withholds the expected stop. This can build pressure
 before a chorus or in a transitional section.
 
-Worked example: Pattison shows a three-phrase build made from repeated short
-requests. The repeated wording is less important than the count: three units
-imply a fourth, so the section leans forward when the fourth never arrives.
-
-Pattern:
+Worked example: Pattison builds pressure in a transitional section between
+verse and chorus by repeating one phrase three times.
 
 ```text
-Phrase A
-Phrase A repeated or varied
-Phrase A intensified
+Baby can you see it                 1
+Baby can you see it                 2
+Baby can you see it                 3
 ```
 
-The same effect can happen with three different phrases if they share a clear
-shape. The listener still wants a balancing position.
+The repeated wording is less important than the count: three units imply a
+fourth, so the section leans forward when the fourth never arrives. The same
+effect works with three different phrases that share a clear shape.
+
+```text
+One more time to reach you          1
+One more time to touch you          2
+One more time to tell you           3
+```
+
+The pressure to move forward builds up simply because the listener feels the
+need for a balancing position.
 
 **Two unbalanced sections can balance each other.** Pattison's stated use for
 motion is connecting one unbalanced section to another equally unbalanced one —
-his worked case pairs three phrases with three more. The pressure that an odd
+his worked case pairs three phrases with three more, bracketed as two groups:
+
+```text
+[ Who are these children
+[ who scheme and run wild
+[ who speak with their smiles
+
+[ what are the secrets
+[ they trace in the sky
+[ each time they ride by.
+```
+
+The pressure that an odd
 section builds does not have to be discharged by an even section; it can be
 answered by a matching odd section, which balances at the pair level while both
 halves stay in motion internally.
@@ -141,10 +273,25 @@ halves stay in motion internally.
 Balance can change across verses. A first verse can be fully balanced so it
 settles; a second verse can add one extra phrase so it pushes into the chorus.
 
-Worked example: Pattison points to Kevin Cronin's "Can't Fight This Feeling."
-The first verse balances at four phrases. The second verse adds a fifth near the
-end, tipping the structure forward and making the chorus feel like the needed
-landing point.
+Worked example: Pattison points to the first two verses of Kevin Cronin's
+"Can't Fight This Feeling." The first verse balances at four phrases; the second
+adds a fifth near the end, tipping the structure forward and making the chorus
+feel like the needed landing point.
+
+```text
+I can't fight this feeling any longer            1
+And yet I'm still afraid to let it flow          2
+What started out as friendship has grown stronger 3
+I only wish I had the strength to let it show    4
+
+I tell myself that I can't hold out forever      1
+I say there is no reason for my fear             2
+'Cause I feel so secure when we're together      3
+You give my life direction                       4  <- added phrase
+You make everything so clear                     5
+```
+
+Unbalancing the second verse throws it into the air, "just like juggling."
 
 **The reversal test.** Pattison's own check on this example: swap the two
 verses and the motion stops. If reversing a pair of verses does not change how
@@ -155,6 +302,23 @@ This also works inside a repeated verse form: an extra final phrase can surprise
 the ear, spotlight the normal balanced position, and then spotlight the added
 line even more strongly. In "The Great Pretender" the balanced verse runs four
 phrases and the contrasting one runs five.
+
+```text
+verse 1:  O yes I'm THE GREAT PRETENDER        1
+          Pretending that I'm doing well       2
+          My need is such, I pretend too much  3
+          I'm lonely but no one can tell       4
+
+verse 3:  Yes I'm THE GREAT PRETENDER          1
+          Just laughing and gay like a clown   2
+          I seem to be what I'm not, you see   3
+          I'm wearing my heart like a crown    4
+          Pretending that you're still around  5
+```
+
+The extra phrase in the last verse is a surprise. The balancing position in
+verse three is spotlighted, but the surprise extra phrase spotlights both
+lines, especially the last one.
 
 ## Phrase length controls speed
 
@@ -169,13 +333,34 @@ already established.
 
 ## Acceleration
 
-Shorter phrases compress time. In a limerick, the shorter third and fourth
-phrases speed the structure before the punchline. In a song section, shorter
-phrases can sound active, urgent, comic, breathless, or cornered.
+Shorter phrases compress time. Limericks are the most familiar systems that use
+phrase length to create speed:
 
-Worked example: Pattison's discussion of Beth Nielsen Chapman's "Years" points
-to a short final phrase about time moving quickly. The phrase length enacts the
-idea: the structure speeds up exactly where the lyric says time does.
+```text
+There once was a student named Esser
+Whose knowledge grew lesser and lesser
+It at last grew so small
+He knew nothing at all
+And now he's a college professor
+```
+
+The shorter third and fourth phrases accelerate the movement. Speeding up right
+before the punchline adds to the humor when we get there. In a song section,
+shorter phrases can sound active, urgent, comic, breathless, or cornered.
+
+Worked example: Beth Nielsen Chapman's "Years."
+
+```text
+And I let time go by so slow
+And I made every moment last
+And I thought about years
+How they take so long
+And go so fast
+```
+
+Pattison: "It is no accident that Beth Nielsen Chapman's shortest phrase about
+years is, *And go so fast*." The phrase length enacts the idea — the structure
+speeds up exactly where the lyric says time does.
 
 Use acceleration when the lyric should feel impatient, physically active,
 compressed, comic, or pushed toward a hook.
@@ -185,10 +370,28 @@ compressed, comic, or pushed toward a hook.
 Longer phrases stretch time. They can slow the section, make a thought feel
 heavy, or make an important phrase hang over the established pattern.
 
-Worked example: in Gary Nicholson and John Jarvis's "Fathers and Sons,"
-Pattison notes that the title-bearing final phrase is much longer than the
-nearby short phrases. The long phrase decelerates dramatically and spotlights
-the title idea.
+```text
+One by one
+Step by step
+We fall into the pit of despair
+One by one
+```
+
+The long third phrase slows the pace down, setting us up to pitch headlong into
+the pit at line four.
+
+Worked example: in Gary Nicholson and John Jarvis's "Fathers and Sons," the
+title-bearing final phrase is much longer than the nearby short phrases.
+
+```text
+You're proud when they walk
+Scared when they run
+That's how it always has been between FATHERS AND SONS
+```
+
+This line "decelerates dramatically because of its length, calling all kinds of
+attention to the part of the phrase that hangs over. It just happens to be the
+title of the song."
 
 Use deceleration when the lyric should feel reflective, emotionally weighted,
 expansive, delayed, or like a landing point.

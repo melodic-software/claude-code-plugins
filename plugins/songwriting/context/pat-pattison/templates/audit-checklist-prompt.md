@@ -34,7 +34,7 @@ For the chosen line, walk through each cluster aloud with the writer:
 ```
 **Line:** "<the line>"
 
-**Stress & meter** (Books 1 Chapter 3, 3 Chapter 4)
+**Stress & meter** (*Essential Guide to Lyric Form and Structure* (1991), Chapter 3; *Songwriting Without Boundaries* (2011), Challenge 4)
 - [ ] Every stressed syllable on a strong beat?
 - [ ] No greedy spots? (unstressed forced to strong beat, or stressed to weak)
 - [ ] "into" handled per ínto rule (*Songwriting Without Boundaries* (2011), Challenge 4)?
@@ -42,7 +42,7 @@ For the chosen line, walk through each cluster aloud with the writer:
 - [ ] Grey-area stress flagged, not silently resolved?
 - [ ] Sing-check passed?
 
-**Rhyme stability** (Books 1 Chapter 4, 2 Chapter 4, 4 Chapters 4-6) — if rhyme position
+**Rhyme stability** (*Essential Guide to Lyric Form and Structure* (1991), Chapter 4; *Writing Better Lyrics* (2009), Chapter 4; *Essential Guide to Rhyming* (2014), Chapters 4-6) — if rhyme position
 - [ ] Identity check: pre-vowel consonants DIFFER?
 - [ ] Stability tier chosen by emotional intent?
 - [ ] No automatic cliche pair?

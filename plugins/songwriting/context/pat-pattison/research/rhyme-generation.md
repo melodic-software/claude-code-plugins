@@ -11,7 +11,8 @@ discipline and trust intuition.
 
 ## Source
 
-Synthesized across Books 1 Chapter 4 (rhyme structure), 4 Chapters 1-9 (rhyme types,
+Synthesized across *Essential Guide to Lyric Form and Structure* (1991),
+Chapter 4 (rhyme structure), *Essential Guide to Rhyming* (2014), Chapters 1-9 (rhyme types,
 phonetic families, worksheets, sonic bonding), and `rhyme-types.md` +
 `rhyme-strategy.md` + `rhyme-worksheets.md` + `rhyme-fundamentals.md`.
 
@@ -163,7 +164,8 @@ include words from that world (proper nouns, brand names, regional terms,
 era-specific objects) — not just dictionary entries. The world's vocabulary
 is the writer's primary rhyme inventory.
 
-This is why object-writing the world first (Books 2 Chapter 1, 3 Challenge 1) is
+This is why object-writing the world first (*Writing Better Lyrics* (2009),
+Chapter 1; *Songwriting Without Boundaries* (2011), Challenge 1) is
 prerequisite for rhyme work: object-writing generates the world's
 vocabulary, which becomes the worksheet input.
 

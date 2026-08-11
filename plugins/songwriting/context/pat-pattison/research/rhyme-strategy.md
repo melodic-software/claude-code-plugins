@@ -7,7 +7,14 @@ Challenge 4.
 
 Source images inspected:
 
-- Chapter 9: `image_C-page20.jpg`, `image_E-page1.jpg`, `image_E-page2.jpg`,
+- *Essential Guide to Lyric Form and Structure* (1991), Chapter 4: **40 linked
+  page-scan figures**, all 40 unique, read at 3x upscale. This file's primary
+  source argues in scans — the balance paradigms, every closure type, and all
+  three strategy examples are figures, not prose. Earlier revisions of this
+  inventory listed only the *Essential Guide to Rhyming* (2014) and
+  *Songwriting Without Boundaries* (2011) images and omitted this chapter
+  entirely, which is how the `abba` error below survived.
+- *Essential Guide to Rhyming* (2014), Chapter 9: `image_C-page20.jpg`, `image_E-page1.jpg`, `image_E-page2.jpg`,
   `image_E-page3.jpg`, `image_E-page4.jpg`, `image_E-page5.jpg`,
   `image_E-page6.jpg`, `image_E-page7.jpg`, `image_E-page8.jpg`,
   `image_E-page9.jpg`, `image_E-page10.jpg`, `image_E-page11.jpg`.
@@ -21,6 +28,8 @@ movement, support meaning through prosody, and create relationships between
 sections.
 
 > "Prosody is one of the most important strategies you have"
+> — Pat Pattison, *Essential Guide to Lyric Form and Structure* (1991),
+> Chapter 4
 
 This file focuses on decision-making. For definitions and mechanics, see
 [rhyme fundamentals](rhyme-fundamentals.md).
@@ -63,22 +72,26 @@ a b a b
 Idea keeps moving through all four lines
 ```
 
-Worked contrast from Chapter 4:
+Worked contrast from *Essential Guide to Lyric Form and Structure* (1991),
+Chapter 4. Pat wrote both of these himself as a) and b):
 
 ```text
-aabb: Love her or leave her to me
-      Keep her or let her go free
-      Don't go two-timing her
-      'less you're resignin' her
+a)  Love her or leave her to me      a
+    Keep her or let her go free      a
+    Don't go two-timing her          b
+    'less you're resignin' her       b
 
-abab: Some girls like their flirtin'
-      They're always on the roam
-      Blind to who they're hurtin'
-      Their eyes are never home
+b)  Some girls like their flirtin'   a
+    They're always on the roam       b
+    Blind to who they're hurtin'     a
+    Their eyes are never home        b
 ```
 
 The first naturally divides into two parts. The second stays in motion because
 the first rhyme waits across intervening material before resolving.
+
+Exercise 27 in the chapter is to reverse them — through-write a) and fragment
+b) — keeping as much of the same meaning as possible.
 
 ## Through-write when the idea should flow
 
@@ -114,14 +127,27 @@ the rhyme keeps applying the brakes.
 The rhyme scheme should behave like the emotional or dramatic action.
 
 For a leisurely verse, spread rhymes apart. For a chorus that bursts forward,
-move to consecutive rhymes. Pattison's "Ready or Not" example uses a more
-leisurely verse pattern and a fast consecutive chorus pattern so the rhyme pace
-matches the content's change in energy.
+move to consecutive rhymes. Pat's "Ready or Not":
 
 ```text
-verse:  spread rhymes -> room, thought, pressure building
-chorus: d d d d       -> immediate launch, compact hook energy
+VERSE    If I went into analysis                      a
+         And took myself apart                        b
+         And laid me out for both of us to see        c
+         You'd go into paralysis                      a
+         Right there in my arms                       b
+         Finding out you're not a bit like me         c
+
+CHORUS   READY OR NOT                                 d
+         We've got what we've got                     d
+         Let's give it a shot                         d
+         READY OR NOT                                 d
 ```
+
+The verse rhymes are spread apart — their leisurely pace works with the idea,
+especially for the first three phrases. As the rhymes start to connect the last
+three phrases back to the first three, the pressure pushes the section forward.
+The chorus rhymes are consecutive, one after another, as fast as rhymes can go:
+ideal for the "out-of-the-starting-blocks" idea of the chorus.
 
 Prosody can also operate inside one section. If the idea becomes more active or
 pressurized, accelerate the rhyme scheme near the place where the lyric becomes
@@ -129,18 +155,32 @@ more active.
 
 ## Accelerate strategically
 
-Acceleration comes from bringing rhymes closer together.
+Acceleration comes from bringing rhymes closer together. Pat's example — the
+consecutive rhymes in lines 3, 4 and 5 accelerate the section and build
+pressure, working in sync with the idea:
 
 ```text
-a
-b
-c
-c
-c
-b
+I saw her once and that was it        a
+I felt my knees go weak               b
+I tossed and turned all night in bed  c
+Knew she had me in her web            c
+Tried to make her leave my head       c
+Couldn't fall asleep                  b
 ```
 
-In Chapter 4's examples, the consecutive `c c c` cluster increases pressure before a
+The same scheme, this time with feminine rhymes to heighten the comedy:
+
+```text
+You can't play ping pong with my heart  a
+When I'm without a paddle               b
+It's 40-love, you've got the ball       c
+The odds are astronomical               c
+The situation's comical                 c
+You've really got me rattled            b
+```
+
+In *Essential Guide to Lyric Form and Structure* (1991), Chapter 4's examples,
+the consecutive `c c c` cluster increases pressure before a
 later return. Feminine rhymes can heighten comedy because the two-syllable tail
 adds bounce while the cluster speeds up.
 
@@ -234,13 +274,26 @@ effect: the c cluster accelerates the middle; final b closes the frame
 Repeated song sections often force the reverse process. Verse 1 establishes a
 scheme; verse 2 must find content that fits it.
 
-Chapter 4's exercise uses `ABACCB`:
+*Essential Guide to Lyric Form and Structure* (1991), Chapter 4, Exercise 28
+drills this: think up a plot whose action fits the movement of the rhyme
+scheme, then come up with rhyme words for the plot. Pat's own worked example:
 
 ```text
-scheme: ABACCB
-plot: lovers dancing, spouse enters, discovery
-words: dance / embrace / romance / eyes / surprise / disgrace
+RHYME SCHEME: ABACCB
+
+PLOT SKETCH:
+My lover and I are dancing, enjoying our closeness.
+My spouse enters the lounge and spots me. We have been
+discovered!
+
+Rhyme words: dance/embrace/romance/eyes/surprise/disgrace
 ```
+
+The exercise then hands the writer three more schemes to do the same with:
+`AABBCC`, `XAXABB`, and `AABCCC`.
+
+The `cc` pair in positions 4-5 is where the plot's pressure spikes; the delayed
+`b` in position 6 is where it resolves.
 
 The method:
 
@@ -463,7 +516,8 @@ Workflow:
 5. Use more stable rhyme types in the resolved appearance.
 6. Check whether the song's larger journey now grows rather than repeats.
 
-This is the strategic point of the Randy Newman case study in Chapter 9: a remote
+This is the strategic point of the Randy Newman case study in
+*Essential Guide to Rhyming* (2014), Chapter 9: a remote
 family/consonance connection can keep an early prechorus unstable, while a
 perfect rhyme in the matching later prechorus can close firmly. The same formal
 slot changes emotional color through rhyme type alone.
@@ -576,10 +630,18 @@ join ideas across the section.
 |---|---|
 | `aabb` | Fragments each pair; each couplet closes a thought |
 | `abab` | Through-writes; idea spans the four-line arc |
-| `abba` | Encloses; outer pair frames the inner pair |
+| `abba` | Frames the inner pair — but stays **open**, not closed (see below) |
 | `xaxa` | Through-writes with relaxed structure |
 | `aaba` | Points forward toward a fourth `b` that does not arrive |
 | `abcb` | Closes the rhymed pair; leaves first and third open |
+
+**`abba` does not close.** Earlier revisions of this table said `abba`
+"encloses," which reads as a closure claim and contradicted this file's own
+Challenge 4 table below, where `abba` is listed under floating instability. The
+1991 chapter settles it twice over: it presents `abba` as the scheme that
+*fails* to balance an opening `abb`, and its printed exercise key marks `abba`
+**open**. Use `abba` when a section should frame an idea without resolving it —
+loss, hope, suspension — not when it needs to land.
 
 Use Strategy 1 to decide which idea-shape the section wants:
 fragmented declarations, single arcs, framed center, or unresolved push.
