@@ -3,7 +3,16 @@ description: "Repo hygiene action-router: scan (inventory), caches, build, git (
 user-invocable: true
 argument-hint: "[scan|caches|build|git|stash|tree|tree-batch|all|caches-batch|build-batch|git-batch|all-batch|aliases…] (bare → menu or auto-detect)"
 allowed-tools:
-  - Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/*)
+  # Read-only scripts only, one narrow rule each. The mutating scripts
+  # (clean-caches / clean-build / git-prune / git-tree-reset[-batch] /
+  # remove-path / clean-batch) are deliberately NOT pre-approved: they stay
+  # behind the PreToolUse destructive guard and the permission flow, which is
+  # where the dry-run-then-confirm contract below is actually enforced.
+  - Bash(${CLAUDE_SKILL_DIR}/scripts/resolve-clean-action.sh:*)
+  - Bash(${CLAUDE_SKILL_DIR}/scripts/scan.sh:*)
+  - Bash(${CLAUDE_SKILL_DIR}/scripts/preflight.sh:*)
+  - Bash(${CLAUDE_SKILL_DIR}/scripts/git-branch-audit.sh:*)
+  - Bash(${CLAUDE_SKILL_DIR}/scripts/git-stash-audit.sh:*)
 hooks:
   PreToolUse:
     - matcher: "Bash"
@@ -37,7 +46,7 @@ Bare invocation never mutates silently: resolve intent → dry-run → user conf
 `$ARGUMENTS` — cleanup action or alias. Resolve first:
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/resolve-clean-action.sh $ARGUMENTS
+${CLAUDE_SKILL_DIR}/scripts/resolve-clean-action.sh $ARGUMENTS
 ```
 
 When a leading action token is followed by free text, the resolver also emits a `Note: <text>` line. That note is **advisory context you must address** — a question to answer (e.g. "does this include stashes?") or a live-session constraint to honor (e.g. "6-7 live sessions, mind WIP") — not part of action selection. Surface it and act on it alongside the resolved action; never silently drop it.
@@ -99,11 +108,11 @@ Run `resolve-clean-action.sh`. If `Action: menu`, show table + ask. Otherwise di
 
 ### 1. Scan (`scan`)
 
-`bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/scan.sh` — read-only inventory. Stop if action is `scan`.
+`${CLAUDE_SKILL_DIR}/scripts/scan.sh` — read-only inventory. Stop if action is `scan`.
 
 ### 1.5. Pre-flight (caches / build / all only)
 
-`bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/preflight.sh` — see [context/preflight.md](context/preflight.md). Interactive: [confirm](#confirmation-gate) before `--apply` when non-empty. Autonomous: abort.
+`${CLAUDE_SKILL_DIR}/scripts/preflight.sh` — see [context/preflight.md](context/preflight.md). Interactive: [confirm](#confirmation-gate) before `--apply` when non-empty. Autonomous: abort.
 
 #### Dry-run → confirm → apply manifest flow (caches / build)
 
@@ -111,11 +120,11 @@ Both selective mutating tiers pay the filesystem walk **once**. `--dry-run` writ
 
 ### 2. Caches
 
-`bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/clean-caches.sh` — default `--dry-run`; apply per the manifest flow above (`--apply --manifest <path>`) only after confirmation.
+`${CLAUDE_SKILL_DIR}/scripts/clean-caches.sh` — default `--dry-run`; apply per the manifest flow above (`--apply --manifest <path>`) only after confirmation.
 
 ### 3. Build (includes caches)
 
-`bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/clean-build.sh --include-caches` — default `--dry-run`; apply per the manifest flow above only after confirmation. `--include-caches` folds the caches tier into the one build manifest.
+`${CLAUDE_SKILL_DIR}/scripts/clean-build.sh --include-caches` — default `--dry-run`; apply per the manifest flow above only after confirmation. `--include-caches` folds the caches tier into the one build manifest.
 
 ### 4. Git
 
@@ -123,15 +132,15 @@ Both selective mutating tiers pay the filesystem walk **once**. `--dry-run` writ
 
 #### 4.1 Prune and gc
 
-`bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/git-prune.sh` — `--dry-run` default; `--apply` after confirmation.
+`${CLAUDE_SKILL_DIR}/scripts/git-prune.sh` — `--dry-run` default; `--apply` after confirmation.
 
 #### 4.2 Branch audit
 
-`bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/git-branch-audit.sh` — deletion via the [confirmation gate](#confirmation-gate) per [context/git-branch-cleanup.md](context/git-branch-cleanup.md). Branches in the `WORKTREE` tier are checked out in a linked worktree: never offer them for `git branch -d` — route the user to the worktree-management tool to clean up the worktree first. Branches carrying `no upstream, M commits not on origin/<default>` are never-pushed local work — surface the count and confirm before any deletion.
+`${CLAUDE_SKILL_DIR}/scripts/git-branch-audit.sh` — deletion via the [confirmation gate](#confirmation-gate) per [context/git-branch-cleanup.md](context/git-branch-cleanup.md). Branches in the `WORKTREE` tier are checked out in a linked worktree: never offer them for `git branch -d` — route the user to the worktree-management tool to clean up the worktree first. Branches carrying `no upstream, M commits not on origin/<default>` are never-pushed local work — surface the count and confirm before any deletion.
 
 #### 4.3 Stash audit
 
-`bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/git-stash-audit.sh` — read-only per-stash facts (age, source branch, diffstat, PR/merge signal, advisory). **Never drops a stash.** Present the list and, for each stash, ask the user keep-or-drop ([Confirmation gate](#confirmation-gate)); a `possibly superseded` / `likely superseded` advisory is a hint to raise first, never an autonomous drop. Dedup a fleet sweep by the `StashStore:` key (linked worktrees share one stash ref). When the resolved action is `stash`, run only this step.
+`${CLAUDE_SKILL_DIR}/scripts/git-stash-audit.sh` — read-only per-stash facts (age, source branch, diffstat, PR/merge signal, advisory). **Never drops a stash.** Present the list and, for each stash, ask the user keep-or-drop ([Confirmation gate](#confirmation-gate)); a `possibly superseded` / `likely superseded` advisory is a hint to raise first, never an autonomous drop. Dedup a fleet sweep by the `StashStore:` key (linked worktrees share one stash ref). When the resolved action is `stash`, run only this step.
 
 **Dropping stashes safely.** A confirmed drop is destructive and gated by the session guard — after the user confirms, re-issue as `CLEAN_GUARD_ACK=1 git stash drop <ref>`. The `Stash:` selector (`stash@{n}`) is **volatile**: the list renumbers after every drop, so dropping more than one by selector top-down retargets the wrong entry. Drop by the stable `Commit:` id (resolve it to its current selector immediately before each drop), or drop the highest-numbered selector first so lower indices stay valid.
 
@@ -141,13 +150,13 @@ Both selective mutating tiers pay the filesystem walk **once**. `--dry-run` writ
 
 ### 6. Tree (destructive)
 
-`bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/git-tree-reset.sh` — default `--dry-run`. Detail: [context/git-tree-reset.md](context/git-tree-reset.md). Default-preserve; opt-in `--include-deps` / `--include-secrets`; `--allow-unpushed` when HEAD is ahead of upstream.
+`${CLAUDE_SKILL_DIR}/scripts/git-tree-reset.sh` — default `--dry-run`. Detail: [context/git-tree-reset.md](context/git-tree-reset.md). Default-preserve; opt-in `--include-deps` / `--include-secrets`; `--allow-unpushed` when HEAD is ahead of upstream.
 
 **Mandatory gate:** show dry-run output → [confirmation gate](#confirmation-gate) → only then `--apply`. Surface the dry-run's `PreserveDeps` / `PreserveSecrets` / `AheadCount` lines in the confirmation so the user knows what survives. An exit 4 (`unpushed-commits`) or non-zero `AheadCount` means HEAD has unpushed commits — confirm loss before adding `--allow-unpushed`. Autonomous sessions: abort. Post-step: after a tree reset that removed dependencies, suggest reinstalling them with the project's own bootstrap/setup and re-validating the environment. For a truly pristine tree, close running dev tooling first (MCP servers, telemetry collectors, build/test watchers) — live processes recreate ignored dirs (`obj/`, `node_modules/`, and the like) the moment they are deleted, and may hold locks that surface as `Unremovable:`.
 
 ### 6.5. Tree batch — multi-repo (destructive)
 
-`bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/git-tree-reset-batch.sh` — default `--dry-run`. Runs §6 `tree` across a set of repos behind one gate, with a separator-agnostic skip list and a dirty-by-default guard. Detail + examples: [context/git-tree-reset-batch.md](context/git-tree-reset-batch.md). Additive over §6 — the batch layer runs no destructive git itself; each per-repo reset delegates to the unchanged `git-tree-reset.sh`, preserving every single-repo gate.
+`${CLAUDE_SKILL_DIR}/scripts/git-tree-reset-batch.sh` — default `--dry-run`. Runs §6 `tree` across a set of repos behind one gate, with a separator-agnostic skip list and a dirty-by-default guard. Detail + examples: [context/git-tree-reset-batch.md](context/git-tree-reset-batch.md). Additive over §6 — the batch layer runs no destructive git itself; each per-repo reset delegates to the unchanged `git-tree-reset.sh`, preserving every single-repo gate.
 
 Repo sources: `--repo` (repeatable; a shell glob expands to these) and `--repos-from FILE|-` (ingests `ghq list -p` output). Skip list: `--skip ENTRY` / `--skip-from FILE` (absolute path, `owner/repo`, or bare `repo`; separator-agnostic). Passthrough to the child: `--force-default-branch` / `--include-deps` / `--include-secrets`.
 
@@ -155,7 +164,7 @@ Repo sources: `--repo` (repeatable; a shell glob expands to these) and `--repos-
 
 ### 7. Orphaned path removal (destructive, on explicit request only)
 
-`bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/remove-path.sh <target>` — default `--dry-run`. Removes a whole clone or leftover directory under the ghq root (`--root` overrides) — e.g. a local clone whose upstream repository was deleted. Not composed into any tier and never inferred: run it only when the user explicitly asks to delete that path. Guards resolve paths physically and require the target to share the root's filesystem device (symlink/junction/cross-mount ancestors cannot escape containment), and refuse the containment root, symlink targets, linked worktrees (that lifecycle belongs to `git worktree remove`), any plain directory still holding nested git repos (normal, bare, or worktree), any target holding ignored skill-owned `data/` (irreplaceable — no override; move it out first), and any repo with uncommitted changes, stashes, registered worktrees, ignored secret-class files (`--include-secrets` to discard), or unpushed refs (`--allow-unpushed` to discard).
+`${CLAUDE_SKILL_DIR}/scripts/remove-path.sh <target>` — default `--dry-run`. Removes a whole clone or leftover directory under the ghq root (`--root` overrides) — e.g. a local clone whose upstream repository was deleted. Not composed into any tier and never inferred: run it only when the user explicitly asks to delete that path. Guards resolve paths physically and require the target to share the root's filesystem device (symlink/junction/cross-mount ancestors cannot escape containment), and refuse the containment root, symlink targets, linked worktrees (that lifecycle belongs to `git worktree remove`), any plain directory still holding nested git repos (normal, bare, or worktree), any target holding ignored skill-owned `data/` (irreplaceable — no override; move it out first), and any repo with uncommitted changes, stashes, registered worktrees, ignored secret-class files (`--include-secrets` to discard), or unpushed refs (`--allow-unpushed` to discard).
 
 **Mandatory gate:** show dry-run output → [confirmation gate](#confirmation-gate) → only then `--apply`. Surface `Kind` / `UnpushedRefs` / `SecretsCount` / `SkillData` in the confirmation. Autonomous sessions: abort.
 
@@ -163,7 +172,7 @@ Repo sources: `--repo` (repeatable; a shell glob expands to these) and `--repos-
 
 ### 8. Batch — multi-repo selective tiers (`caches-batch` / `build-batch` / `git-batch` / `all-batch`)
 
-`bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/clean-batch.sh --tier <caches|build|git|all>` — default `--dry-run`. Runs the §2–§5 selective tiers across a set of repos behind one gate, the selective-tier sibling of §6.5 `tree-batch`. Detail + examples: [context/clean-batch.md](context/clean-batch.md). Additive over the single-repo tiers — the batch layer runs no removal itself; each per-repo action delegates to the unchanged child (`clean-caches.sh` / `clean-build.sh` / `git-prune.sh`), preserving every child gate. **`tree` is not batched here** (use §6.5); **branch audit/deletion is not batched** (interactive per-branch deletion can't sit behind one gate) — batch `git` is prune/gc/remote-prune only, once per unique shared object store.
+`${CLAUDE_SKILL_DIR}/scripts/clean-batch.sh --tier <caches|build|git|all>` — default `--dry-run`. Runs the §2–§5 selective tiers across a set of repos behind one gate, the selective-tier sibling of §6.5 `tree-batch`. Detail + examples: [context/clean-batch.md](context/clean-batch.md). Additive over the single-repo tiers — the batch layer runs no removal itself; each per-repo action delegates to the unchanged child (`clean-caches.sh` / `clean-build.sh` / `git-prune.sh`), preserving every child gate. **`tree` is not batched here** (use §6.5); **branch audit/deletion is not batched** (interactive per-branch deletion can't sit behind one gate) — batch `git` is prune/gc/remote-prune only, once per unique shared object store.
 
 Repo sources: `--repo` (repeatable; a shell glob expands to these) and `--repos-from FILE|-` (ingests `ghq list -p`; backslash paths normalized). Skip list: `--skip ENTRY` / `--skip-from FILE` (same separator-agnostic matcher as `tree-batch`).
 

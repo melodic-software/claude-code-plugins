@@ -3,6 +3,61 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.0]
+
+### Fixed
+
+- **`/repo-hygiene:clean`'s script grant was inert, and broader than anything it should have
+  granted.** The single rule `Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/*)` never matched:
+  `${CLAUDE_PLUGIN_ROOT}` is not substituted in `allowed-tools` (only `${CLAUDE_SKILL_DIR}` and
+  `${CLAUDE_PROJECT_DIR}` are), so it stayed a literal string. Had it matched, it would have
+  pre-approved every script in the directory behind a single wildcarded-interpreter rule — the shape
+  auto mode drops outright — including `git-tree-reset.sh` and `remove-path.sh`.
+
+  Dropping `bash` from the rule, the repair that suggests itself, would have produced a **dead**
+  grant rather than a working one: `bash` is not among the wrappers Claude Code strips before
+  matching (`timeout`, `time`, `nice`, `nohup`, `stdbuf`, `command`, `builtin`, `noglob`), so a rule
+  without it stops matching a body that still says `bash <path>`. The change is **paired** — the
+  skill body now invokes its scripts directly through `${CLAUDE_SKILL_DIR}/scripts/…`, and the rules
+  name those same strings. All five granted scripts are invoked from `SKILL.md`, so the pairing is
+  complete for everything the grant covers.
+
+  **Scoped to `SKILL.md` on purpose.** The bundled `context/*.md` files still invoke through
+  `bash ${CLAUDE_PLUGIN_ROOT}/…` and are deliberately left alone: the skills documentation scopes
+  `${CLAUDE_SKILL_DIR}` substitution to "the skill's markdown content", and whether that reaches a
+  bundled context file loaded later is not resolved either way by the docs. Converting them on that
+  assumption could silently defeat the very pairing this change makes — an unsubstituted body emits a
+  literal that cannot match the substituted rule. It fails safe (a prompt, not a wrong action), but
+  silently, which is the defect class this change exists to remove. Tracked separately, gated on
+  settling the substitution scope.
+
+### Changed
+
+- **The grant is now five narrow rules covering the read-only scripts only** —
+  `resolve-clean-action.sh`, `scan.sh`, `preflight.sh`, `git-branch-audit.sh`, `git-stash-audit.sh`.
+  The mutating scripts (`clean-caches`, `clean-build`, `git-prune`, `git-tree-reset`,
+  `git-tree-reset-batch`, `remove-path`, `clean-batch`) are deliberately **not** pre-approved: they
+  keep routing through the PreToolUse destructive guard and the permission flow, which is where the
+  dry-run-then-confirm contract is actually enforced. Since the old rule matched nothing, nothing
+  regresses; what changes is that the read-only inventory step stops prompting while the destructive
+  tiers keep their gate.
+
+  The PreToolUse guard's own `command` still resolves `${CLAUDE_PLUGIN_ROOT}` and is unchanged —
+  hook commands are a different substitution context, where that variable is documented to work.
+
+### Added
+
+- **`scripts/allowed-tools-pairing.test.sh`**, asserting the contract the fix establishes: no
+  interpreter-led grant and no `${CLAUDE_PLUGIN_ROOT}` in `allowed-tools`, every `${CLAUDE_SKILL_DIR}`
+  invocation in the skill's markdown unquoted and free of a `bash` wrapper, and every granted script
+  present, executable, and actually invoked by a body.
+
+  It also pins the granted **set** against an allowlist of the five read-only scripts. The pairing
+  checks alone could not catch a re-widening: every mutating script here is bundled, executable, and
+  named in the skill's markdown, so a rule added for one of them would "pair" correctly and pass
+  green. Verified by injecting a `clean-caches.sh` grant — the pairing checks passed and only the
+  allowlist failed.
+
 ## [0.9.1]
 
 ### Changed
