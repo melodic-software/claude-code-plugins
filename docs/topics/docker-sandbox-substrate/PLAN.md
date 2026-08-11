@@ -213,9 +213,17 @@ cite it, and Phase 1 is independent of every other phase.
 
 #### Phase 1: Probe hardening — data-flow egress + workspace host-write containment [DONE]
 
+**SHIPPED.** PR #2150 merged as `c1b4c629`; `autonomy` is at `0.15.0` on `main`. 34/34 checks,
+11/11 review threads resolved, 474 fixture checks, 0 pre-existing pinned reasons changed.
+
 **Merge gate satisfied 2026-08-10.** Evidence: `.work/docker-sandbox-substrate/probe-evidence-hardened-recipe.md`.
-All three assertions failed inside a live boundary; 446/446 fixture checks pass; 0 pre-existing pinned
-reasons changed.
+All three assertions failed inside a live boundary.
+
+**Carried into Phase 2 — Phase 1 does NOT satisfy the Q21 probe obligation.** Target selection is
+load-bearing, and the shipped recipe does not yet require a target drawn from what the run's installed
+components may reach. Measured consequence: 201,961 bytes of origin data crossed a global
+default-deny through a component-installed allow rule. Until that leg lands, a conforming transcript
+can still certify a boundary that is open.
 
 **What the live run changed.** It was not a formality — it found two recipe defects and one stale
 environment claim that no amount of review would have caught:
