@@ -3,6 +3,24 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.5]
+
+### Fixed
+
+- **The statusline tee ignored `rate_limit_guard_enabled` and wrote on every render regardless.**
+  `scripts/statusline-tee.sh` is invoked by absolute path from the user's `settings.json`
+  `statusLine`, not by the plugin hook runner, so it was reached whatever the plugin's enablement
+  said — it was the one code path in this plugin that kept running while the plugin was disabled,
+  rewriting `~/.claude/rate-limit-guard/rate-limits.json` on the statusline's refresh cadence. It
+  now consults the option before taking the snapshot.
+
+  The gate uses the new `hook::is_enabled` predicate rather than `hook::check_enabled`. The tee is
+  a **transparent wrapper** around the user's real statusline: `check_enabled` exits 0, which here
+  would have suppressed the wrapped command's stdout and blanked the status line. Only the tee's
+  own write is skipped; the passthrough is unconditional and byte-identical either way. If the
+  shared library cannot be read the tee still runs, consistent with this script's existing rule
+  that no tee outcome ever alters the wrapped statusline.
+
 ## [0.5.4]
 
 ### Fixed

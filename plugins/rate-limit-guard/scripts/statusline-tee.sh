@@ -248,7 +248,29 @@ tee_snapshot() {
   return 0
 }
 
-tee_snapshot
+# The tee's WRITE is plugin behavior and is gated like any other hook's. Two
+# things make this call site different from a normal `hook::check_enabled`:
+#
+#   1. This script is a TRANSPARENT statusline wrapper. `hook::check_enabled`
+#      exits 0 on "disabled", which here would suppress the wrapped command's
+#      stdout and blank the user's status line. The predicate form skips only
+#      the snapshot; the passthrough below stays unconditional.
+#   2. This script is invoked BY ABSOLUTE PATH from settings.json `statusLine`,
+#      not by the plugin hook runner, so it is reached whatever the plugin's
+#      enablement says. Without this gate it is the one code path in the plugin
+#      that keeps running when the plugin is off.
+#
+# The library is the plugin's own synced copy in the sibling hooks/ directory.
+# If it cannot be read the tee still runs, consistent with this script's rule
+# that no tee outcome ever alters the wrapped statusline.
+_rlg_hook_utils="$(cd "$(dirname "${BASH_SOURCE[0]}")/../hooks" 2>/dev/null && pwd)/hook-utils.sh"
+if [[ -r "$_rlg_hook_utils" ]]; then
+  # shellcheck source=../hooks/hook-utils.sh
+  source "$_rlg_hook_utils"
+fi
+if ! declare -F hook::is_enabled >/dev/null 2>&1 || hook::is_enabled "RATE_LIMIT_GUARD"; then
+  tee_snapshot
+fi
 
 if (($#)); then
   # Wrapped mode: transparent passthrough. The wrapped command sees the same
