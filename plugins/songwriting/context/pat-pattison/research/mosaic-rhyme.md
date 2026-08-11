@@ -227,8 +227,28 @@ The meter scan (per [meter](meter.md)) is the gate. Mosaic that breaks
 meter does not earn its place in a hot spot.
 
 Pat's own version of this gate is the `business` filter in Chapter 2. He had a
-sound-legal list — `Bess, bless, chess, dress, fess, guess, jess, less, mess,
-press, stress` — and threw nearly all of it out on stress grounds: "Most of
+sound-legal list — the short `e` + `s` column, printed with his own two marks on
+it —
+
+<!-- book worksheet word lists trip the spell-checker --><!-- spellchecker:off -->
+
+```text
+Bess
+bless
+chess
+dress
+fess
+guess
+jess
+less (eureka)
+mess (hmmm)
+press
+stress
+```
+
+<!-- spellchecker:on -->
+
+He threw nearly all of it out on stress grounds: "Most of
 these are too strong to work as the unstressed syllable in a feminine mosaic.
 You need something with the same stress pattern as `busi-ness`." Try `guess`
 and Pat prints two failing scansions: `his guess` marked `/ /` (both stressed,

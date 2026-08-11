@@ -28,6 +28,17 @@ Source images inspected:
   `image_E-page3.jpg`, `image_E-page4.jpg`, `image_E-page5.jpg`,
   `image_E-page6.jpg`, `image_E-page7.jpg`, `image_E-page8.jpg`,
   `image_E-page9.jpg`, `image_E-page10.jpg`, `image_E-page11.jpg`.
+  Chapter 9 runs printed pp. 107-118 = spine 120-131; the "Feels Like Home"
+  case study occupies pp. 115-118 (spine 128-131).
+- *Essential Guide to Rhyming* (2014), Chapter 4 (printed p. 27, spine 040) for
+  the "Scale of Rhyme Types" figure only, read from `image_4-page20.jpg` at 3x
+  because the text layer flattens the figure into two run-together rows and
+  drops its bracket; the chapter itself belongs to
+  [rhyme types](rhyme-types.md).
+- *Essential Guide to Rhyming* (2014), **Afterword** (printed p. 119, spine
+  132, `image_E-page12.jpg`): one page, text layer complete, carried whole
+  below. Note the text layer emits the body *above* the `AFTERWORD` heading —
+  that is extraction ordering, not the printed order.
 - *Songwriting Without Boundaries* Challenge 4: `image_rsrc5M6.jpg`,
   `image_rsrc5M7.jpg`, `image_rsrc5M8.jpg`.
 
@@ -402,28 +413,61 @@ landing, and emotional stability.
 Rhyme schemes create expected motion. Rhyme types can reinforce, soften, or
 destabilize that motion.
 
-> Isolate, understand, compose.
+Chapter 9's method statement, and the sentence the slogan caps:
+
+> Here, however, we'll look only at the rhymes themselves so we can isolate
+> their motion; understand what they do within the more complicated motions
+> created in combination with the other elements. Isolate, understand, compose.
+
+Read that as a deliberate simplification, not a claim that rhyme acts alone. Pat
+says so in the same breath: "Of course, melody, harmony, message, line lengths,
+and line rhythms always come into play in the real world, creating a complex
+dance with the motion of the rhyme scheme."
 
 Use [rhyme types](rhyme-types.md) for definitions. Use this section when the
 question is strategic: which type belongs in which position and why?
 
 ## Dominant and tonic positions
 
-In an `abab` scheme, the first three rhyme positions create expectation:
+Chapter 9 grounds this in musical function, on the same four-word `abab` frame
+it then runs through every rhyme-type substitution in the decision matrix below.
+As printed:
 
 ```text
-a
-b
-a  -> dominant push toward the expected b
-b  -> tonic resolution
+blush   a
+skin    b
+rush    a
+sin     b
 ```
 
-The third line, the second `a`, acts like a dominant position because it asks
-the listener to expect the second `b`. The fourth line, the second `b`, acts
-like a tonic position because it resolves the expectation.
+> The first three members,
+>
+> blush a
+>
+> skin b
+>
+> rush a
+>
+> …push forward. They raise our expectations, creating something akin to a
+> musical dominant function, a V, which asks to be resolved to a tonic function,
+> a resolution. An aba structure creates a sequence: first a, then b, then
+> another a, leading us to expect another b
+
+He then marks the positions on the page with the chord symbols themselves:
+
+```text
+blush   a
+skin    b
+rush    a   V
+sin     b   I
+```
+
+"Arriving at sin, as it often does, makes you feel real good" — and you land on
+it hard "because the push from rush was so strong."
 
 The same idea can be reversed by swapping which sound family occupies `a` and
-`b`. What matters is the structural job:
+`b`; Pat prints that reversal too, `skin / blush / sin (V) / rush (I)`, and says
+"the same thing happens." What matters is the structural job:
 
 - Dominant: push, lean, heighten expectation.
 - Tonic: land, resolve, close, or refuse to fully close.
@@ -433,7 +477,24 @@ scheme but also each important rhyme's structural position.
 
 ## Stability scale for strategic use
 
-The practical scale from most stable to least stable:
+The scale is Pat's, and so is its name. He introduces it early — *Essential
+Guide to Rhyming* (2014), Chapter 4, "Family Friends" — as "the concept of a
+scale of rhyme types moving in degrees from more to less stable," introduces it
+with "Here's a quick peek:", and prints it as a titled figure. Reproduced from
+the page scan (`image_4-page20.jpg`) rather than the text layer, which flattens
+the figure into two run-together rows and loses its bracket — the five types sit
+in one row over a spanning bracket whose two ends are labelled:
+
+```text
+        Scale of Rhyme Types: Most Stable to Least Stable
+
+  Perfect     Family    Additive/Subtractive   Assonance   Consonance
+   Rhyme      Rhyme            Rhyme             Rhyme       Rhyme
+  |________________________________________________________________|
+  Most Stable                                          Least Stable
+```
+
+The book's index carries it as "rhyme type scale, 27." Written inline, that is:
 
 ```text
 perfect -> family -> additive/subtractive -> assonance -> consonance
@@ -548,7 +609,7 @@ what each one does. Those nine, in the chapter's own order, are the matrix:
 | Assonance | Family | "A pretty light and dreamy flirtation" |
 | Family | Assonance | "Really off in dreamland, floating, floating in a misty reverie" |
 | Consonance | Family | "Barely nudges forward," yet more forward pressure than leaving lines 1 and 3 unrhymed |
-| Family | Consonance | "The gate is wide open" — longing and uncertainty; the Randy Newman case below |
+| Family | Consonance | "The gate is wide open" — longing and uncertainty; the "Feels Like Home" case below |
 
 Family/family, assonance/assonance and consonance/consonance are not among
 them. The chapter never demonstrates those pairings, so this file does not
@@ -587,11 +648,44 @@ Workflow:
 5. Use more stable rhyme types in the resolved appearance.
 6. Check whether the song's larger journey now grows rather than repeats.
 
-This is the strategic point of the Randy Newman case study in
-*Essential Guide to Rhyming* (2014), Chapter 9: a remote
-family/consonance connection can keep an early prechorus unstable, while a
-perfect rhyme in the matching later prechorus can close firmly. The same formal
-slot changes emotional color through rhyme type alone.
+This is the strategic point of the case study that closes
+*Essential Guide to Rhyming* (2014), Chapter 9: **Randy Newman's "Feels Like
+Home"** — "Randy Newman's little gem," introduced by "This is a job for Rhyme
+Types Man!" A remote family/consonance connection keeps the early prechorus
+unstable, while a perfect rhyme in the matching later prechorus closes firmly.
+The same formal slot changes emotional color through rhyme type alone.
+
+The two rhyme pairs Pat names are the whole argument. First prechorus:
+`long/done`, family/consonance. Second prechorus: `touch/much`, perfect rhyme —
+"And, boy, does the gate ever slam shut. This is the essence of stability — the
+same thing, of course, that the lyric is addressing."
+
+> The rhyme types alone are responsible for the difference in feeling between
+> the first and second prechoruses — the family/consonance rhyme, long/done,
+> supporting (maybe even creating) the unstable feeling in the first prechorus,
+> and the perfect rhyme, touch/much, supporting (maybe even creating) the
+> stable feeling in the second.
+
+He proves it by breaking it in both directions. Weaken the second prechorus's
+tonic rhyme and "the last line, which seemed like such an emotional line, has
+lost a lot of its feeling... The meaning hasn't really changed. But the motion,
+and thus the e-motion, has transformed dramatically." Strengthen the *first*
+prechorus to perfect rhyme and the damage is song-wide, not local:
+
+> Rather than moving unstable/unstable/stable in the first sequence, we're
+> moving unstable/stable/stable, and the last part of the song feels more like
+> it repeats the same ideas rather than growing.
+
+That is the reason to run this check at song scale and not line scale: a rhyme
+type that reads fine in its own section can flatten the whole journey. Pat's
+two-word verdict on the mechanism is "Rhyme types, baby," and his verdict on
+the song is that "'Feels Like Home' feels like home, and once it's stated,
+everything that follows feels stable, as it well ought to. What a lovely
+journey. And craft makes it all possible."
+
+The verses carry the same design by a different lever: verse 1 "lacks rhyme in
+the fourth and eighth lines, creating instability and opening the gate into the
+prechorus. The second verse does the opposite."
 
 ## Rhyme type placement workflow
 
@@ -990,6 +1084,41 @@ The strategic point: the search is not a hunt for the one word that fits the
 slot you already have. It is a way of generating directions for the lyric. That
 is why the search runs wide enough to need trimming afterwards, and why every
 keyword gets searched rather than only the rhyme positions.
+
+### The book's last word on worksheets
+
+The whole of the Afterword to *Essential Guide to Rhyming* (2014) — the book's
+closing page, and its answer to anyone who finds worksheets too slow to bother
+with. (Cite it as `*Essential Guide to Rhyming* (2014), Afterword`; it is not a
+numbered chapter.)
+
+> If you've worked through this book carefully, you've got more control of the
+> sounds of your writing.
+>
+> Don't be afraid of worksheets. They take time, but each time they take less
+> time. Each time you create one, the process gets more inside you. Do them for
+> a while, and you'll reach a place where you do most of your work in your head.
+> Effectively. Knowing your options.
+>
+> And please keep using your brain as often as you use your heart. Writing
+> well is never easy. That's the fun of it. It's always an adventure. Don't worry
+> about being able to write as well as someone else. The hardest thing you will
+> ever do is to write as well as you can.
+>
+> So write. And write fearlessly.
+
+Two things there are load-bearing for coaching. First, **the worksheet is
+training, not overhead** — its payoff is the internalised search ("you do most
+of your work in your head. Effectively. Knowing your options."), so a user who
+resents the labour is being asked to do it *until it becomes unnecessary*.
+Second, the standard is self-referential: "the hardest thing you will ever do is
+to write as well as you can." Do not turn that into a comparative judgment
+against other writers — Pat rules that out in the sentence before it.
+
+"Keep using your brain as often as you use your heart" is the same pairing
+Chapter 9 opens with, where rhyme types are what you bring "(along with your
+brain) to the writing table, where your heart has been struggling, all by
+itself."
 
 ### Chapter 7 exercises
 

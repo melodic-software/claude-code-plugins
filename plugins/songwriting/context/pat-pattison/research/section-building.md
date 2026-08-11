@@ -133,6 +133,13 @@ Figure `image_rsrc32P` sets #1A inside a Song System, transcribed:
         Make your Tootsie Roll
 ```
 
+<!-- The "OH HENRY" chorus is printed TWICE in Chapter 5, in two different
+figures, and the two differ by one apostrophe: `image_rsrc32P` prints
+"'Till Mars deserts the Milky Way" and `image_rsrc32R` prints "Till Mars
+deserts the Milky Way". Both figures have been rendered and read at zoom 4.
+That is Pat's own inconsistency between his two scans, and both are correct as
+printed. DO NOT normalize either one to match the other. -->
+
 Pat then asks whether #1A could be a Bridge and answers no — the quote and
 EXERCISE 29 are preserved once, in [bridge](bridge.md). Figure `image_rsrc32R`
 is the Song System he means, with #1A moved to the bridge slot:

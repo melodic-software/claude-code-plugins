@@ -77,12 +77,11 @@ muscle working in poetry. The trailing ellipsis is his:
 > Glimmering and vast, out in the tranquil bay …
 >
 > "Dover Beach" —Matthew Arnold
->
-> — *Songwriting Without Boundaries* (2011), Challenge 1
 
-Only after all three does he name the technique: *"The best way I know to
-exercise the sense-bound writing muscle is to use a technique called 'object
-writing.'"*
+All three specimens, and the prose between them, are *Songwriting Without
+Boundaries* (2011), Challenge 1. Only after all three does Pat name the
+technique: *"The best way I know to exercise the sense-bound writing muscle is
+to use a technique called 'object writing.'"*
 
 Skill behavior: when a user asks for "more vivid" lyrics, do not start by
 adding adjectives. Start by asking what the speaker sees, hears, smells, tastes,

@@ -1,6 +1,7 @@
 # Verse Development
 
-Pat Pattison - *Writing Better Lyrics* (2009), Chapter 7-8.
+Pat Pattison - *Writing Better Lyrics* (2009), Chapter 7-8. The Ibsen's-gun
+section at the foot of the file is Chapter 10's, and is cited as such there.
 
 Use this when a user asks how to make verses develop, how to avoid second-verse
 stagnation, how a verse should set up a chorus or refrain, or where important
@@ -8,8 +9,12 @@ ideas should go inside a lyric section.
 
 Source images inspected:
 
-- Chapter 7: no linked page-scan images.
+- Chapter 7: no linked page-scan images. Its two-column bridge duet and its
+  rhyme/stress scans are HTML tables, not images, and survive extraction.
 - Chapter 8: no linked page-scan images.
+- Chapter 10: one image, `image_rsrcAU6.jpg` (the POINT OF VIEW: CAMERA ANGLES
+  diagram). It belongs to [point-of-view](point-of-view.md), not to the
+  Ibsen material used here.
 
 Related files: [repetition](repetition.md), [form](form.md),
 [phrasing](phrasing.md), [meter](meter.md), and
@@ -98,10 +103,25 @@ Sometimes she remembers
 Then her mama calls her home
 ```
 
-The bridge is an overlay of old-fashioned children's songs, sung as a duet —
-"It's raining it's pouring" against "Come out and play with me," "The old man is
-snoring" against "And bring your dollies three," and so on, closing on "Some
-more / Forever more."
+The bridge is an overlay of old-fashioned children's songs. Chapter 7 prints it
+as a two-column table — the two voices of the duet sung simultaneously, not
+alternately:
+
+| Bridge (duet) | |
+|---|---|
+| It's raining it's pouring | It's raining |
+| The old man is snoring | Come out and play with me |
+| Bumped his head on the edge of the bed | And bring your dollies three |
+| And he never got up in the morning | Climb up my apple tree |
+| Rain rain go away | Slide down my rain barrel |
+| Come again another day | Into my cellar door |
+| Little Johnny wants to play | And we'll be jolly friends |
+| Some more | Forever more |
+
+(The chapter prints this bridge **twice** — once in the full lyric and again in
+the analysis. The second printing reads *And he couldn't get up in the morning*
+where the first reads *And he never got up in the morning*. Both are as printed;
+do not normalize them.)
 
 **How the color changes.** Verse 1 contains three scenes, each showing the old
 woman being taken somewhere; her physical helplessness is established in the
@@ -242,9 +262,20 @@ Gargles in their throats
 Infidels and pagan hosts
 ```
 
-Verse 3 relocates again, to "fabulous old South Africa" (*White boys rock the
-ancient Ford / Teeter-totter swing …*). Pat's verdict on verse 2 is the precise
-statement of the failure:
+Verse 3 makes "one last stop in this travelogue of violence" — "racial hatred
+in fabulous old South Africa":
+
+```text
+White boys rock the ancient Ford
+Teeter-totter swing
+Trapped inside, the children shudder
+Afrikaner ditties ring
+Drag the papa, slag the mama
+Flames that lick and stink
+Little buggers boil like ink
+```
+
+Pat's verdict on verse 2 is the precise statement of the failure:
 
 > However compelling the scene is, it is isolated; a single snowball a third of
 > the way up the mountain. … Its only power comes from what it is, not what it
@@ -444,6 +475,13 @@ Líttle squáres of dáylight              x       3+
 Like a húndred tímes befóre             a       3
 ```
 
+(Line 2 reads *While* here and *Till* in the full lyric at the top of this file.
+Chapter 7 prints it **both** ways — *Till the sun moves down the floor* in the
+full lyric and in First Verse Focus, *While the sun moves down the floor* in this
+scan and in the full-verse reprint that follows it. Both are as printed. **Do not
+reconcile them.** The same chapter also prints *Likes a hundred times before*
+once, in First Verse Focus, where every other printing reads *Like*.)
+
 > After these four lines, things are balanced. The structure has resolved. This
 > creates a new beginning at line five — another power position.
 
@@ -461,6 +499,65 @@ positions." All four carry the same message: she is moved, taken, returned.
 
 > Chapman makes sure we enter the first chorus from the angle of physical
 > helplessness. … forcing us to see the first chorus the color she wants us to.
+
+**Verse two's power positions.** The same scan run on verse 2 finds a different
+color in the same slots. Pat marks its subsection close as well:
+
+> This verse shifts focus to her room, where she is surrounded on Sunday by
+> family visitors. They are external to her, shown by the brilliant metaphor
+> closing the first subsection:
+
+```text
+And they form a line of smiles
+```
+
+> The family seems almost oblivious as she seems to slip in and out of their
+> reality. They don't have a clue of where she really is. The trigger line sets
+> up the contrast between the external and the internal:
+
+The chapter then reprints verse 2 entire, exactly as given at the top of this
+file, followed by the chorus, and reads it:
+
+> The power positions in this verse force the new color onto the chorus.
+> Outside, the generations chatter on; inside lies a place of peace, memory, and
+> happiness.
+
+**The accumulation.** Chapter 7 then prints both verses stripped down to their
+four power positions alone, to show what the listener is actually carrying into
+each chorus — "Each verse works beautifully to set up its special view of the
+chorus. The accumulation of the two systems delivers the knockout":
+
+```text
+Verse 1
+
+She's wheeled into the hallway
+Like a hundred times before
+She's taken to the garden
+They return her to her room
+
+Chorus
+
+And inside her mind
+She is running in the summer wind …
+Like a child again
+
+Verse 2
+
+The family comes on Sunday
+And they form a line of smiles
+Children of her children
+Then her mama calls her home
+
+Chorus
+
+And inside her mind
+She is running in the summer wind …
+Like a child again
+```
+
+That reduction is the chapter's proof: the four lines per verse that occupy
+power positions carry the verse's whole argument, and the chorus is colored by
+them alone.
 
 Use this scan:
 
@@ -738,11 +835,22 @@ What it really means
 > Much cleaner than with two characters. Simplify, simplify, simplify.
 
 The cut is not an emotional judgment on the character; it is structural — with
-the story in third person, her function was redundant. Note the limit Pat sets
-on his own conclusion: he does *not* declare third person the winner. The choice
-between "listening in a more intimate situation to the singer telling us what he
-learned from daddy" and "observing Edwin from a distance as he discovers the
-meaning of running" is left open — "Your call."
+the story in third person, her function was redundant.
+
+Note how Pat closes it. He frames the remaining choice as one the third verse
+decides:
+
+> The only question now is: Which do you prefer, the first-person narrative or
+> the third-person narrative? The key will be in the third verse. We will choose
+> between listening in a more intimate situation to the singer telling us what
+> he/she learned from daddy, or observing Edwin from a distance as he discovers
+> the meaning of running
+
+He then states a preference *for this case only*, and hands the decision back:
+
+> In first person, the singer as character/storyteller is right in front of us.
+> We feel like we know him/her. But third person is cleaner and more focused in
+> this case, because it eliminates a character. Your call.
 
 ## Cross-references (continued)
 

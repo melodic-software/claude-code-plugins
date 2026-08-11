@@ -211,6 +211,20 @@ the Bridge.
 
 **Form:** verse/chorus. Verse builds; chorus delivers.
 
+> **Cross-book warning — two different printings of this lyric exist.**
+> *Writing Better Lyrics* (2009), Chapter 20 works "Southern Comfort" again, for
+> a different argument (form follows function / the principle of contrast), and
+> prints it **differently**. Everything below is the 1991 Chapter 6 printing.
+> The 2009 printing differs in at least these places: its verse 2 replaces the
+> first four lines entirely (*I've tried my best to ease the hurt / Leave the
+> pain behind / But evenings sitting on the porch / You're always on my mind*)
+> while keeping the last four; it capitalizes *Southern stars*; and its bridge
+> reads *Someone new takes your place / No one's ever new* where 1991 reads
+> *Someone else takes your place / But no one's ever new*. Chapter 20 also
+> prints a **rewritten** verse 1 balancing six lines against two. Both books are
+> Pat. **Do not reconcile one against the other** — a diff between this file and
+> anything sourced from 2009 Chapter 20 is expected, not a defect.
+
 "If the A A B A song form works on the principle of the limerick, the
 simple Verse/Chorus form works on the principle of Common Meter (also
 called the 'Ballad Stanza')." Pat prints two anonymous examples:

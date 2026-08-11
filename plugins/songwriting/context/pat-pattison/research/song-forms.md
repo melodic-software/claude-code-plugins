@@ -66,6 +66,20 @@ Soon will cause you to bleed
 Woe is a slow healing heart
 ```
 
+Every one of the three repairs re-times the arrival of this chorus, so it is
+the fixed point all three are measured against:
+
+```text
+A slow healing heart
+Is dying to mend
+Longing for love
+Lonely again
+When a spirit is broken
+And the memories start
+Nothing moves slower
+Than a slow healing heart
+```
+
 First, dump a verse by distilling two verses into one. Keep the essential
 information, preserve the necessary turn, and move to:
 
@@ -95,6 +109,16 @@ The second chorus then arrives earlier, which can make the whole form feel more
 streamlined. The distilled verse is often stronger because it must choose the
 best material rather than preserving every written line.
 
+> **EXERCISE 47**
+>
+> What do you think of my distilled verses? Did I lose too much, or did I keep
+> the necessary stuff? You try it. Distill the original third and fourth verses
+> into one verse of the same structure. Remember to end the verse with the
+> refrain: Weak is a slow healing heart.
+
+(The refrain line Chapter 22 prints inside Exercise 47 is *Weak* is a slow
+healing heart, not *Woe*. That is as printed; do not correct it.)
+
 Second, turn one verse into a bridge:
 
 ```text
@@ -114,6 +138,10 @@ But some hurts take longer to fade
 He names exactly what it changes: the move to future tense shifts away from
 the verse material, and shorter lines plus a three-line unbalanced section
 rhyming AAA change the structure.
+
+> **EXERCISE 48**
+>
+> Now come up with your own bridge to fit "Slow Healing Heart."
 
 Third, keep the material but restructure two verses into one larger unit:
 
@@ -137,6 +165,21 @@ Chapter 22 prints the rhyme letter and stress count beside each line:
 | Listening to sad songs and coming apart | c | 4 |
 | Lord knows I made crying an art | c | 4 |
 | Woe is a slow healing heart | c | 3 |
+
+Rushing's second verse runs the same nine-line shape, so the restructuring is
+a form the whole lyric holds, not a one-off:
+
+```text
+How I prayed for blind faith to lead me
+To places where I'm not afraid
+Now I'm doing fine
+Both in body and mind
+But some hurts take longer to fade
+There's a part of my feelings ever on guard
+Against looks that are tender and words that are hard
+I still remember those cutting remarks
+Woe is a slow healing heart
+```
 
 Pat's reading: the first half is basic common meter, in three-quarter time,
 with a rhyme acceleration in the third line; the second half "moves two by two
@@ -168,7 +211,8 @@ v / ch / v / ch / v / ch
 ```
 
 The worked sample is a three-verse lyric Pat titles "Love Her or Leave Her
-to Me":
+to Me." All three systems are printed, because the chapter's whole verdict
+turns on the third one arriving in a shape you have already heard twice:
 
 ```text
 You're living with a woman you ain't true to
@@ -176,6 +220,30 @@ Playin' round but keep her hanging on
 If you don't want her, let me have her
 You won't believe how fast I'll grab her
 You'll hardly even notice that she's gone
+
+Love her or leave her to me
+Keep her or let her go free
+Don't go two-timing her
+'Less you're resigning her
+Love her or leave her to me
+
+You're out all night while she's alone without you
+Just for fun she calls me on the phone
+She comes to me, I play the friend
+I know she'll love me in the end
+As long as you keep leaving her alone
+
+Love her or leave her to me
+Keep her or let her go free
+Don't go two-timing her
+'Less you're resigning her
+Love her or leave her to me
+
+Well I guess some men got no appreciation
+They never see the finer things in life
+When they leave the best behind 'em
+Someone else is bound to find 'em
+Won't be long she's someone else's wife
 
 Love her or leave her to me
 Keep her or let her go free
@@ -217,6 +285,11 @@ Well, I guess some men got no appreciation
 They never see the finer things in life …
 ```
 
+(Chapter 23 prints this opening line **twice**, differently: with a comma here,
+where it is quoted on its own, and without one — *Well I guess some men got no
+appreciation* — inside the full lyric above. Both are as printed. Do not fold
+them together.)
+
 Chapter 23 names the cost: because the form returns to a full verse before the
 last chorus, the lyric can still get — or seem — long. That is the risk this
 whole chapter exists to manage, so weigh it against Option 2.
@@ -237,6 +310,11 @@ verse's idea into a couplet and hands straight back to the chorus:
 Leave the finest things behind, an'
 Someone else is bound to find 'em
 ```
+
+> **EXERCISE 50**
+>
+> Try substituting the bridge you wrote for the one I wrote. Do you like how it
+> works?
 
 Option 3 changes the song into AABA verse/refrain form when the material truly
 needs three verse-like ideas:
@@ -292,18 +370,25 @@ bridge needs another angle: a missing character quality, a new perspective, a
 shift in tense, or a concise turn that neither verse nor chorus has supplied.
 
 Use object writing when the missing angle is character or sensory detail.
-Exercise 49 sets the order: list her qualities — things she is, things she
-does, drawn from your own experience — then do an object-writing pass, then
-draft bridges. Pat's own sample for "Love Her or Leave Her to Me":
+Chapter 23 sets the order as an exercise, and supplies its own object-writing
+sample inside it:
 
+> **EXERCISE 49**
+>
+> A bridge focusing on her qualities would lead smoothly into the third verse.
+> Start by making a list of her qualities — things she is, things she does.
+> Draw the list from your own experiences. Do a little object writing. For
+> example:
+>
 > Kicking through the fallen leaves, gold-brown and red. Cheeks flushed and
 > soft, glowing with the afternoon sunlight. You don't speak, I don't dare
 > speak; our shoulders touching, lingering a little, skin electric, breath
 > coming a little faster. You step slowly, patiently, listening to the leaves
 > swirling and dancing in colors as we move together.
-
-"Your object writing will create a mood and character for you to respond to."
-Then try a few bridges — contrasting section, short and effective.
+>
+> Your object writing will create a mood and character for you to respond to.
+> Then try a few bridges. Be sure your bridge is a contrasting section. Keep it
+> short and effective.
 
 ## Home base principle
 
@@ -475,7 +560,11 @@ S1: Verse -> Chorus
 S2: Verse -> Chorus
 ```
 
-Chapter 6 example diagnosis — "Southern Comfort":
+Chapter 6 example diagnosis — "Southern Comfort". (*Writing Better Lyrics*
+(2009), Chapter 20 prints this same lyric differently, for a different argument;
+see the cross-book warning in
+[song-forms-examples](song-forms-examples.md#southern-comfort--versechorus-chapter-6).
+The printing below is 1991's.)
 
 ```text
 Spanish moss hanging low              VERSE
@@ -774,6 +863,14 @@ calls the effect startling here, then adds the general rule: "Normally,
 though, keep your sections parallel."
 
 ## Exercises to preserve
+
+**This list is the file's own operational scaffolding, not Pat's text.** It
+generalizes the drills so they can be applied to a user's own lyric. Pat's
+actual exercise bodies are quoted verbatim in the sections above — Exercises 47
+and 48 under [V/V/Ch Risk Repair](#vvch-risk-repair), Exercise 50 under
+[Three-System Verse/Chorus Risk](#three-system-versechorus-risk), and Exercise 49
+under [Bridge Validity](#bridge-validity), all from *Writing Better Lyrics*
+(2009), Chapters 22-23. Quote those, not these bullets, when attributing to Pat.
 
 - Scan a second verse and chorus to test whether they form a parallel second
   song system.

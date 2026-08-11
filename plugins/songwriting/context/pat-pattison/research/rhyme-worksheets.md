@@ -165,8 +165,9 @@ handled by where the words come from: "Let the list come from your idea sketch."
 That is about content, not about copying words across. Only three of Pat's
 eleven — `afraid`, `attention`, `left out` — appear as words in the page 20
 sketch; `risk` and `flirt` appear only in the focus questions above it; and
-`scared`, `chance`, `dull`, `leave`, `ignored`, `gone` are not printed anywhere
-on page 20. Pat's instruction leaves room for both routes: the list comes from
+`scared`, `chance`, `dull`, `leave`, `ignored`, `gone` appear on page 20 only in
+the boxed list itself — nowhere in the sketch or the focus questions that
+generate it. Pat's instruction leaves room for both routes: the list comes from
 the sketch, "adding any extra inspiration you have."
 
 "Mostly masculine" is exact rather than loose: ten of the eleven are masculine,
