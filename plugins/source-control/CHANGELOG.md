@@ -3,6 +3,19 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.51.7]
+
+### Fixed
+
+- **`worktree_create_gate_enabled` could not be turned off.** `hooks/worktree-create-gate.sh`
+  reads `CLAUDE_PLUGIN_OPTION_WORKTREE_CREATE_GATE_ENABLED` and names the option in its own skip
+  message, but the option was never declared in `.claude-plugin/plugin.json`. Claude Code exports
+  `CLAUDE_PLUGIN_OPTION_<KEY>` only for **declared** options, so the variable was never set, the
+  hook's `:-true` fallback always won, and the gate ran unconditionally. Setting the option
+  produced no effect and no error — the failure was silent in both directions. The declaration is
+  now present with `default: true`, so behaviour is unchanged for anyone who does not set it, and
+  the documented routes for setting it now work.
+
 ## [0.51.6]
 
 ### Changed
