@@ -54,7 +54,7 @@ words become phrases, phrases become sections, and sections become song
 systems that move through time.
 
 > Lyrics are made up of pieces: syllables gather into words, words form phrases
-> and phrases stack up into sections, sections group into "song systems," which
+> and phrases stack up into sections, sections group into “song systems,” which
 > finally work together to create the lyric. A lyric is like a piece of music,
 > it moves forward one syllable at a time, through time. It is not like a
 > painting, which you can experience all at once. Lyric structure is your guide
@@ -103,7 +103,7 @@ HOOK
 ```
 
 > A lyric does not have to have all these elements to work properly. A clock
-> doesn't have to have an alarm to keep time.
+> doesn’t have to have an alarm to keep time.
 
 Basic motion:
 
@@ -186,7 +186,7 @@ My vision's blurred, can't see the net      c
 I'm feeling most unstable                   b
 ```
 
-> Built for speed. The consecutive rhymes, "set/sweat/net," slam the ideas home.
+> Built for speed. The consecutive rhymes, “set/sweat/net,” slam the ideas home.
 > The internal rhymes, "nerves/curves/blurred" and "shot/got," put us in
 > overdrive. The acceleration creates prosody, the mutual support of structure
 > and meaning — form follows function.
@@ -303,7 +303,7 @@ Beneath the sparkling lights
 The rings came easy to my hand
 My parents stood and smiled
 They fell to me at my command
-A golden summer's child
+A golden summer’s child
 ```
 
 > With the first Verse as a reference point, it is easy to recognize this as
@@ -327,7 +327,7 @@ directly from the comparison:
 > will require a different musical treatment than the verses. It also seems to
 > sum up or comment on the verse information. The verses set up, then serve this
 > new section. It is the CENTRAL SECTION, and contains the CENTRAL IDEA, in this
-> case, life's passage through time.
+> case, life’s passage through time.
 
 Revision test: if the verse does not clearly establish a pattern, later
 sections cannot sound like repetition, contrast, departure, or return.
@@ -350,12 +350,12 @@ sets against it. Verse one:
 When I was seventeen IT WAS A VERY GOOD YEAR
 IT WAS A VERY GOOD YEAR for small town girls
 On soft summer nights
-We'd hide from the lights
+We’d hide from the lights
 On the village green
 When I was seventeen
 ```
 
-> — Ervin Drake, "IT WAS A VERY GOOD YEAR"
+> — Ervin Drake, “IT WAS A VERY GOOD YEAR”
 
 > Again, the verse sets the standard. Again, it is easy to recognize a
 > repetition:
@@ -369,7 +369,7 @@ That came undone
 When I was twenty-one
 ```
 
-> "IT WAS A VERY GOOD YEAR," like many songs, is made up only of verses. It has
+> “IT WAS A VERY GOOD YEAR,” like many songs, is made up only of verses. It has
 > no contrasting sections. When you write a lyric that contains only verses,
 > make sure they are interesting.
 
@@ -377,7 +377,7 @@ When I was twenty-one
 When I was thirty-five IT WAS A VERY GOOD YEAR
 IT WAS A VERY GOOD YEAR for blue-blooded girls
 Of independent means
-We'd ride in limousines
+We’d ride in limousines
 Their chauffeurs would drive
 When I was thirty five
 ```
@@ -387,11 +387,11 @@ When I was thirty five
      the hyphen — the plugin has been caught silently correcting Pat before. -->
 
 > In the fourth verse there is a wonderful variation. You expect the CENTRAL
-> IDEA to be the second phrase because that's where it was in the other verses.
+> IDEA to be the second phrase because that’s where it was in the other verses.
 > But no.
 
 ```text
-But now the days are short, I'm in the autumn of the year
+But now the days are short, I’m in the autumn of the year
 And now I think of my life as a vintage wine
 From fine old kegs
 From the brim to the dregs
@@ -409,8 +409,8 @@ IT WAS A VERY GOOD YEAR
 Chapter 5 then names what that last verse actually pulls off, quoting the two
 lines that set it up:
 
-> The thing I like best about this lyric is the double meaning in "IT WAS A VERY
-> GOOD YEAR" that is set up by
+> The thing I like best about this lyric is the double meaning in “IT WAS A VERY
+> GOOD YEAR” that is set up by
 
 ```text
 And now I think of my life as a vintage wine
@@ -426,7 +426,7 @@ verse above; this is Pat re-quoting them, not a fifth verse.)
 And on why the verses stay interesting:
 
 > Verses should work like the paragraphs of an essay, moving forward from one
-> idea to the next. Look carefully at "IT WAS A VERY GOOD YEAR." Each verse
+> idea to the next. Look carefully at “IT WAS A VERY GOOD YEAR.” Each verse
 > moves to a new place.
 
 ## Chorus
@@ -438,16 +438,16 @@ Verse list above:
 >
 > 1. Completes, comments on, or summarizes ideas.
 > 2. Contains the CENTRAL IDEA.
-> 3. Is the lyric's CENTRAL SECTION.
-> 4. Is typically the lyric's most balanced section.
+> 3. Is the lyric’s CENTRAL SECTION.
+> 4. Is typically the lyric’s most balanced section.
 >
 > thus, 5. Stops forward motion.
 
 > Because every song that has a Chorus has one or more verses, a Chorus is
-> usually a contrasting element. The verse ideas move toward or "come home" to
+> usually a contrasting element. The verse ideas move toward or “come home” to
 > the Chorus. Because the Chorus is a CENTRAL SECTION — a place where ideas are
 > completed — the end of the Chorus should stop forward motion. This creates the
-> feeling of "starting over again" in the next section. Here is an excellent
+> feeling of “starting over again” in the next section. Here is an excellent
 > Chorus.
 
 ```text
@@ -470,8 +470,8 @@ His verdict on that chorus (the "Years" chorus, discussed further under "Chorus
 balance can be composite" below):
 
 > This certainly fits all five of the prescriptions for a Chorus. It summarizes
-> and comments on the verses. It contains the CENTRAL IDEA: "Years are both fast
-> and slow at the same time." It is the lyric's CENTRAL ELEMENT, in terms of
+> and comments on the verses. It contains the CENTRAL IDEA: “Years are both fast
+> and slow at the same time.” It is the lyric’s CENTRAL ELEMENT, in terms of
 > structure and meaning, it is the most balanced element in the lyric, and it
 > stops motion.
 
@@ -648,7 +648,7 @@ Pat's, read off the printed figures.
 The chapter frames the same chorus against the five Chorus prescriptions:
 
 > Of course, as you saw earlier, it does its own trick with phrase lengths.
-> Being most balanced doesn't necessarily mean perfectly balanced.
+> Being most balanced doesn’t necessarily mean perfectly balanced.
 
 <!-- Chapter 5 gives stress arithmetic only. A prior revision of this file
 added a paragraph about the two groups sharing "the same four bars" and the
@@ -662,7 +662,7 @@ about the verse too — Chapter 5, verbatim:
 
 > The verse phrases are long. It takes a long time to get from rhyme to rhyme.
 > It is even a challenge to figure out exactly where some of the phrases start
-> and stop. And the "just-barely-if-at-all" rhyme "there/year" sort of trails
+> and stop. And the “just-barely-if-at-all” rhyme “there/year” sort of trails
 > off as you watch the singer look around and remember...
 
 The verse those sentences point at — Chapter 5 prints it here, directly between
@@ -671,13 +671,13 @@ in the source (spine 013 raw: nine consecutive `<p>` elements):
 
 ```text
 Across the street
-the Randall's oldest daughter must have come home
+the Randall’s oldest daughter must have come home
 Her two boys built a snowman by the backyard swings
 I thought of Old Man Randall and his Christmas decorations
 And how he used to leave them up till early spring
 And I thought of all the summers
-I paced that porch and swore I'd die of boredom there
-And I thought of what I'd give
+I paced that porch and swore I’d die of boredom there
+And I thought of what I’d give
 to feel another summer linger when a day feels like a year
 ```
 
@@ -871,7 +871,7 @@ Weak is a SLOW HEALING HEART
     Nothing moves slower
     Than A SLOW HEALING HEART
 
-                  — Jim Rushing, "SLOW HEALING HEART"
+                  — Jim Rushing, “SLOW HEALING HEART”
 ```
 
 The section labels, the indentation of the chorus and the attribution line are
@@ -959,7 +959,7 @@ Too real when I feel what my heart can't conceal   b
 Here the italics move: Pat sets "real", "feel", "real", "feel" and the "ceal"
 of "conceal" in italics — five marked sounds, not two.
 
-> A slick deception that throws you off balance with five "eel" sounds. Since
+> A slick deception that throws you off balance with five “eel” sounds. Since
 > you are a little off balance, the return to familiar territory is a relief. A
 > new and bigger Song System is formed.
 
@@ -1021,22 +1021,22 @@ Pat's worked example is Ric Ocasek's "WHY CAN'T I HAVE YOU" — "This one by Ric
 Ocasek of The Cars is typical." Chapter 5, verbatim:
 
 > The structure of this Transitional Bridge is VERY effective. Its first two
-> lines don't rhyme, but they make a couplet with repeating rhythmic structure:
+> lines don’t rhyme, but they make a couplet with repeating rhythmic structure:
 
 > The third line is short, unbalancing the section both in length and with an
 > odd number of phrases.
 
-> Added to these unbalancing techniques is the imperfect rhyme "time/mind"
+> Added to these unbalancing techniques is the imperfect rhyme “time/mind”
 > positioned to trip you up like a piano wire stretched across the road:
 
 > Not only does this asymmetrical position push you forward, but it sets you up
-> for the long "i" sound of the key words of the HOOK: "WHY CAN'T I HAVE YOU"!
-> The chorus "i" sounds are also positioned asymmetrically, so there is no
+> for the long “i” sound of the key words of the HOOK: “WHY CAN’T I HAVE YOU”!
+> The chorus “i” sounds are also positioned asymmetrically, so there is no
 > resolution until the end of the system.
 
 > A Transitional Bridge can change. Here, one phrase makes a difference in
-> meaning, but the structure is preserved. The tripping effect at the long "i"
-> rhyme at "blind" again sets up the sound of the Title.
+> meaning, but the structure is preserved. The tripping effect at the long “i”
+> rhyme at “blind” again sets up the sound of the Title.
 
 The lines each of those colons points at, in Pat's order. He builds the bridge
 up a phrase at a time. First the couplet whose two lines do not rhyme:
@@ -1051,7 +1051,7 @@ Then the short third line that unbalances it:
 ```text
 Just one more time to touch you
 Just one more time to tell you
-You're on my mind
+You’re on my mind
 ```
 
 Then the same bridge running into the Chorus, where the imperfect "time/mind"
@@ -1060,11 +1060,11 @@ rhyme trips the ear and sets up the long "i" of the title:
 ```text
 Just one more time to touch you
 Just one more time to tell you
-You're on my mind
-WHY CAN'T I HAVE YOU
-You're breaking my heart in two
-You know what I'm going through
-WHY CAN'T I HAVE YOU
+You’re on my mind
+WHY CAN’T I HAVE YOU
+You’re breaking my heart in two
+You know what I’m going through
+WHY CAN’T I HAVE YOU
 ```
 
 All seven lines are printed at this stage — three bridge phrases and the full
@@ -1087,12 +1087,12 @@ Just like you
 
     Just one more time to touch you                  TR. BR.
     Just one more time to tell you
-    You're on my mind
+    You’re on my mind
 
 WHY CAN'T I HAVE YOU                                 CHORUS
-You're breaking my heart in two
-You know what I'm going through
-WHY CAN'T I HAVE YOU
+You’re breaking my heart in two
+You know what I’m going through
+WHY CAN’T I HAVE YOU
 ```
 
 Song System 2, read from figure `image_rsrc32G` — the same transitional bridge
@@ -1135,11 +1135,11 @@ been corrected and now carries both of Chapter 21's printed versions. -->
 > This is not a section at all. It is just a name for the part of a Verse that
 > contains the CENTRAL IDEA and gets repeated in the other Verses. A Refrain is
 > different from a Chorus, since a Chorus is contained in its own separate
-> section. "Refrain" is a handy term when you talk about lyrics that have only
+> section. “Refrain” is a handy term when you talk about lyrics that have only
 > Verses, or Verses and a Bridge.
 
 > A Refrain usually comes either at the beginning or the end of a verse. In
-> older "Standards" of the 30's and 40's it usually came at the beginning of the
+> older “Standards” of the 30’s and 40’s it usually came at the beginning of the
 > Verse. Recently it comes more often at the end. What is important is:
 >
 > 1. It contains the CENTRAL IDEA
@@ -1156,7 +1156,7 @@ been corrected and now carries both of Chapter 21's printed versions. -->
 *Essential Guide to Lyric Form and Structure* (1991), Chapter 5, in full — it is
 two sentences and a semicolon-separated list, not a bulleted one:
 
-> In lyrics, "HOOK" means (or should mean) "TITLE." It is the focused statement
+> In lyrics, “HOOK” means (or should mean) “TITLE.” It is the focused statement
 > of the CENTRAL IDEA. You should put it in the most important places in your
 > lyric: in the balancing position; in the deceptive position; in the unexpected
 > position; first and/or last in your Chorus.
@@ -1275,7 +1275,7 @@ and its position is part of its meaning. The order below is the book's.
 > Song System is the length of each verse. Adding a Bridge creates another Song
 > System that starts at the Bridge and ends when the last verse closes.
 
-> 3. A Bridge would also give the verse ideas a chance to "breathe" by moving to
+> 3. A Bridge would also give the verse ideas a chance to “breathe” by moving to
 >    a new angle or perspective.
 
 For the verse/chorus lyric:
@@ -1294,7 +1294,7 @@ For the verse/chorus lyric:
 > S3 will be shorter, giving the Chorus a boost in interest when you get to it
 > "early."
 
-> 3. A Bridge would also give the idea a chance to "breathe" by releasing to a
+> 3. A Bridge would also give the idea a chance to “breathe” by releasing to a
 >    new angle or perspective.
 
 <!-- markdownlint-enable MD029 -->
@@ -1417,10 +1417,10 @@ On relative size, all Chapter 5 says is point 5 of its transitional-bridge list:
 
 And on when you would reach for one:
 
-> You won't use Transitional Bridges too often unless you write dance songs, in
+> You won’t use Transitional Bridges too often unless you write dance songs, in
 > R&B and more Pop-oriented rock, where songs rely on a strong dance groove.
 > Both verse and chorus usually have the same groove, so a Transitional Bridge
-> is inserted between them as a "release" — to break the monotony and build
+> is inserted between them as a “release” — to break the monotony and build
 > tension for a return to the groove.
 
 <!-- A prior revision carried a four-row comparison table asserting line counts
@@ -1472,8 +1472,8 @@ song. Multiple song systems stack to form the full song.
 
 Pat's fuller wording, verbatim:
 
-> Either I made up this name, or my friend Tom Frazee did. I don't remember
-> which. A "Song System" is a group of sections that work together in larger
+> Either I made up this name, or my friend Tom Frazee did. I don’t remember
+> which. A “Song System” is a group of sections that work together in larger
 > movements, or cycles of motion. The idea is especially helpful when looking at
 > a group of contrasting sections. A Song System always has a CENTRAL SECTION
 > and often has one or more DEVELOPMENTAL SECTIONS.

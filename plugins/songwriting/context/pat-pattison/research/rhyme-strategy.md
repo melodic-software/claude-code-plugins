@@ -1071,7 +1071,7 @@ Cross-ref the decision matrix above and `rhyme-types.md` stability scale.
 Chapter 7, "The Fruits of Friendship," is where the rhyme-type layer above stops
 being theory and becomes a search procedure. Pat opens it:
 
-> Now it's time to go back to worksheets. This time, we'll launch a full rhyme
+> Now it’s time to go back to worksheets. This time, we’ll launch a full rhyme
 > search.
 >
 > Our goal is to find better words than we did with perfect rhyme. Look again:
@@ -1079,11 +1079,11 @@ being theory and becomes a search procedure. Pat opens it:
 The lyric he looks again at is his own two-line seed:
 
 ```text
-I'm sick of all this risky business
+I’m sick of all this risky business
 I want to play it safe
 ```
 
-> For starters, "business" and "safe" can go on the worksheet. Now, you can find
+> For starters, “business” and “safe” can go on the worksheet. Now, you can find
 > rhymes for them.
 
 His worksheet, exactly as printed (`swiftless` is as printed — do not correct
@@ -1123,7 +1123,7 @@ Perfect Rhymes column and an Imperfect Rhymes column:
 
 > Here is a complete rhyme search for each of the words on the worksheet. Figure
 > out what kind of rhymes they are and how I found them. They are all related to
-> the general idea of "RISKY BUSINESS." The list will have to be trimmed down
+> the general idea of “RISKY BUSINESS.” The list will have to be trimmed down
 > later.
 
 Three things in that instruction are the strategy, and all three are easy to
@@ -1269,7 +1269,7 @@ normalise either.)
 
 **EXERCISE 7.2. "Risky Business" Practice**
 
-> Rewrite your lyric "Risky Business" using some of your new ideas and rhyme
+> Rewrite your lyric “Risky Business” using some of your new ideas and rhyme
 > words.
 
 As a coaching pair these are one move, not two: trim the over-long search down

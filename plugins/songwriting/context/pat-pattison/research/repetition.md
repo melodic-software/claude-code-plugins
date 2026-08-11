@@ -236,8 +236,8 @@ Pat carries the same reading through the other two verses:
 
 > Verse two's possible interpretations of the refrain include: *I am still crazy
 > after all these years*, and *you are still crazy after all these years*. We can
-> almost hear the jukebox whispering "Hey fella, you're still crazy about her
-> after all these years." Again, the POV swabs multiple colors on the refrain,
+> almost hear the jukebox whispering “Hey fella, you're still crazy about her
+> after all these years.” Again, the POV swabs multiple colors on the refrain,
 > creating depth. In the third verse, *my peers wouldn't convict me because I
 > would be still crazy after all these years*, or *they would be still crazy
 > after all these years*. I could cop a plea of insanity. They would understand,
@@ -353,19 +353,19 @@ title idea *I'd just like to know*:
 ```text
 Box 1  "Hi, it's nice to see you. You're looking good, and you're looking
        really happy. Are you? I hope you don't mind my asking.
-       I'd just like to know."
+       I'd just like to know.”
        -> 'Sup     I'd just like to know
 
 Box 2  "When you left, did you already know you were moving in with him?
        When I was out of town, did he come over to your place? Did you hide
        that picture of us you kept on your dresser? I suppose it doesn't
-       matter now, but I'd just like to know."
+       matter now, but I'd just like to know.”
        -> D'ja cheat?     I'd just like to know
 
 Box 3  "For me, a relationship is all about honesty. I want to be able to say
        everything to you, and for you to say everything to me. I don't want
        any secrets, no matter what. You could have told me about him. I
-       wouldn't have tried to stop you. I'd just like to know."
+       wouldn't have tried to stop you. I'd just like to know.”
 ```
 
 Box 2 "combines the first box, the meeting, with some history." Box 3
@@ -436,11 +436,11 @@ and Gary Harrison):
 Box 1: The hot July moon saw us down by the river having our first experience.
 
 Box 2: The hot July moon knew that our love, like so many before
-       ("well-beaten path"), wouldn't last.
+       (“well-beaten path”), wouldn't last.
 
 Box 3: The hot July moon knew that, over time, we'd become unable to experience
        the innocence and power of first love — accumulated experiences would
-       create too much awareness — "the fields have grown over now."
+       create too much awareness — “the fields have grown over now.”
 ```
 
 > The moon grows from an observer to a prophet and predictor of the future. It
@@ -585,16 +585,16 @@ around before assuming the song must continue forward from the first draft.
 Chapter 6's framing, twice stated:
 
 > Just because you wrote a verse first doesn't mean it's your first verse. Give
-> yourself two chances. Don't just ask "Where do I go next?" Try asking "What
-> happened before this?"
+> yourself two chances. Don't just ask “Where do I go next?” Try asking “What
+> happened before this?”
 
-> Instead of asking "Where do I go now?" it may help to ask "Where did I get
-> here from?" Get used to juggling and trying new things.
+> Instead of asking “Where do I go now?” it may help to ask “Where did I get
+> here from?” Get used to juggling and trying new things.
 
 **The stronger move is upstream of the stuck point.**
 
 > Thinking about boxes from the outset, the minute an idea comes, is by far the
-> best remedy for "second-verse hell" (songwriters' term for "Where do I go
+> best remedy for “second-verse hell” (songwriters' term for “Where do I go
 > next?").
 
 Reordering is the rescue; planning the boxes is the prevention. When a writer arrives with an idea and no verses yet, sketch the box
@@ -1024,7 +1024,7 @@ terms can be met.
 
 Pat states the precondition, then runs it:
 
-> Declarative sentences (or "statements") often can be easy prey for productive
+> Declarative sentences (or “statements”) often can be easy prey for productive
 > repetition. If the subject of the sentence is *you*, and the verb is present
 > tense, there's usually a command (imperative) lurking, waiting to be isolated:
 >
@@ -1167,10 +1167,10 @@ Chapter 7's second case is a section that will not balance until its last
 phrase is repeated. As first written it is four phrases:
 
 ```text
-Even though you're with me
+Even though you’re with me
 Might as well be by myself
-'Cause the way you look at me is like
-You're SEEING SOMEONE ELSE
+’Cause the way you look at me is like
+You’re SEEING SOMEONE ELSE
 ```
 
 Pat's diagnosis, in order. Each quote is followed in the book by a scansion
@@ -1183,7 +1183,7 @@ two), `image_rsrc349` (the first two run together as one phrase):
 > The next two lines (as written) add up to one 7-stress phrase:
 
 > You can hear the section close, but it still feels a little off balance. You
-> can feel the general shape of Common Meter, plus the "self/else" rhyme, but
+> can feel the general shape of Common Meter, plus the “self/else” rhyme, but
 > the rhythm is a little irregular and the phrase lengths are uneven, even if
 > you think of the first two phrases as one phrase:
 
@@ -1194,12 +1194,12 @@ The repaired section — six phrases, the last two a repeat of phrases three and
 four:
 
 ```text
-Even though you're with me
+Even though you’re with me
 Might as well be by myself
-'Cause the way you look at me is like
-You're SEEING SOMEONE ELSE
+’Cause the way you look at me is like
+You’re SEEING SOMEONE ELSE
 The way you look at me is like
-You're SEEING SOMEONE ELSE
+You’re SEEING SOMEONE ELSE
 ```
 
 > You have made the repetition a part of the structure.

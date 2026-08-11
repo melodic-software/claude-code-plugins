@@ -12,12 +12,12 @@ this file's ASCII stand-in for that cup, not an addition to Pat's system.
 
 Chapter 3's opening epigraph sets the duple/triple movement the chapter unpacks:
 
-> Sink like a stone that's been thrown in the ocean
+> Sink like a stone that’s been thrown in the ocean
 > My logic has drowned in a sea of emotion
 > Stop before you start
 > BE STILL MY BEATING HEART
 >
-> — Sting, "Be Still My Beating Heart"
+> — Sting, “Be Still My Beating Heart”
 
 The first two phrases ride a long triple figure; the last two snap into duples.
 The whole chapter is about hearing that contrast and using it deliberately.
@@ -172,7 +172,7 @@ word's job is in the phrase:
 Pat's argument for why the unstressed words matter is the opening of Lewis
 Carroll's "Jabberwocky":
 
-> 'Twas brillig, and the slithy toves
+> ’Twas brillig, and the slithy toves
 > Did gyre and gimble in the wabe;
 
 The lines seem to say something although "brillig," "slithy," "toves," "gimble,"
@@ -251,7 +251,7 @@ Pat scans the chapter's opening Sting verse first, so the rewrites have a model
 to answer to:
 
 ```text
-Sink like a stone that's been thrown in the ocean
+Sink like a stone that’s been thrown in the ocean
 /    u    u /     u     u    /      u  u   / u
 My logic has drowned in a sea of emotion
 u  / u   u   /      u  u /   u  u / u
@@ -282,12 +282,12 @@ GOD give me peace at last
 /   /    u  /     u  /
 ```
 
-> The "greedy" spots would surely get buried or at the very least sound hurried
+> The “greedy” spots would surely get buried or at the very least sound hurried
 > (and lose their emotion) when you set them to the music of the original verse.
 
 ### Too cold
 
-> It is equally important to match the original's important words with equally
+> It is equally important to match the original’s important words with equally
 > important words. This one is too cold.
 
 ```text
@@ -301,7 +301,7 @@ And GET me OUT at last
 u   /   u  /   u  /
 ```
 
-> This should be enough to lose anyone's interest.
+> This should be enough to lose anyone’s interest.
 
 Read the marks, not the vocabulary: lines two and four scan against the model
 syllable for syllable and are still dead, because "now," "place," "get," and
@@ -392,7 +392,7 @@ opened with:
 I've been through every single book I know      (4 stresses)
 Soothe the thoughts that plague me so
 /     u   /       u    /      u  /              (4 stresses)
-Sink like a stone that's been thrown in the ocean
+Sink like a stone that’s been thrown in the ocean
 /    u    u /     u     u    /      u  u   / u
 My logic has drowned in a sea of emotion
 u  / u   u   /      u  u /   u  u / u
@@ -483,7 +483,7 @@ positions of 4/4 bars and walks the eight bars one phrase at a time. Phrase one
 fills two bars — four quarter notes, then three and a rest. Phrase two takes
 bars three and four:
 
-> The silent third beat of the fourth bar serves to define phrase two's
+> The silent third beat of the fourth bar serves to define phrase two’s
 > difference from phrase one, and at the same time uses the silence to define the
 > four-bar phrase.
 
@@ -511,7 +511,7 @@ The lamb was sure to go
 u   /    u   /    u  /
 ```
 
-> The secondary stress on "everywhere" does not change the pattern. Treat
+> The secondary stress on “everywhere” does not change the pattern. Treat
 > secondary stresses just like a strong stress. The unaccented syllable opening
 > lines two, three, and four work as pickups; they do not change the pattern
 > either.
@@ -997,8 +997,8 @@ under full spotlight.
 
 Pat's image for how far the delay can stretch:
 
-> But it's like stretching a rubber band (Minnesotans call them "binders", New
-> Englanders call them "elastics"… weird): You don't want to stretch them too far
+> But it's like stretching a rubber band (Minnesotans call them “binders”, New
+> Englanders call them “elastics”… weird): You don't want to stretch them too far
 > or they'll break. If you don't stretch it far enough, though, they won't hurt
 > when you snap someone with them.
 
@@ -1154,7 +1154,7 @@ His worked instance is a four-line system whose fourth phrase overruns the
 three-stress close the first three lines predicted:
 
 ```text
-We're always meeting secretly
+We’re always meeting secretly
 u    /  u   /  u   /  u  //
 Keeping out of sight
 /  u    /   u  /
@@ -1513,7 +1513,7 @@ expectation of a 3-stress close makes the longer line audible.
 Pat prints the two paradigms in immediate succession and states why:
 
 > Comparing PARADIGM 1 and PARADIGM 2 is the best way to understand FLOW. It
-> shows when and why a structure pushes forward, and when and why it doesn't.
+> shows when and why a structure pushes forward, and when and why it doesn’t.
 
 The comparison is drawn in arrows, not described. Paradigm 1's figure carries
 `-> motion` against phrases two and three and `<- closure` against phrase four;
@@ -1614,7 +1614,7 @@ Pat's rule, as printed:
 > Every word with two or more syllables has a melodic shape: One or more
 > syllables have higher pitches than the others. They are called stressed
 > syllables. Stressed syllables are usually a major fourth (fa) above the
-> "tonic" (do) established by the unstressed syllables.
+> “tonic” (do) established by the unstressed syllables.
 
 <!-- spellchecker:off -->
 His demonstration word is `release` — "da DUM," with "a melodic leap of a
@@ -1715,15 +1715,15 @@ Structure:
 
 Pat's naming paragraph, verbatim:
 
-> This is called an "In Memoriam" quatrain, after a poem of that title by
+> This is called an “In Memoriam” quatrain, after a poem of that title by
 > Alfred, Lord Tennyson. It was a poem mourning the death of a friend, and
-> because the rhyme scheme's unstable nature was so perfectly appropriate for
+> because the rhyme scheme’s unstable nature was so perfectly appropriate for
 > the subject matter, the name stuck to both the rhyme scheme and the quatrain.
 
 So the effect Pat names is **instability**, not resolution. `abba` is the Day 14
 "unstable structure," and his own statement of what it is for is:
 
-> Today you'll work with an unstable structure, one that will help support lyric
+> Today you’ll work with an unstable structure, one that will help support lyric
 > ideas in the unstable camp—loss, heartbreak, hope, dreaming, etc.
 
 Distinct from the `abba` Pat drills on that day: Day 14 asks for **tetrameter

@@ -225,9 +225,9 @@ Day 11 is the seam, and the seam is Pat's own. Its printed heading is still
 groups Days 8-11 under that heading — but the body already reverses, and Pat
 flags the mismatch in his first sentence:
 
-> Today's exercise is a little different. You will explore your target idea
+> Today’s exercise is a little different. You will explore your target idea
 > through the lens of traffic cop. After finding your linking qualities and
-> doing your usual ten minutes for each one, you'll spend another ten minutes
+> doing your usual ten minutes for each one, you’ll spend another ten minutes
 > reversing directions, looking at traffic cop through the lens of your target
 > idea.
 >
@@ -542,7 +542,7 @@ took the same seed three different ways:
 
 > Object writing is pretty flexible. Susan stayed at an actual car crash. Scarlet
 > crashes pots on the linoleum floor. Both stay focused on one scene, as I did in
-> "Sky," while Cathy takes you floating away on a carpet of free association. The
+> “Sky,” while Cathy takes you floating away on a carpet of free association. The
 > only rule: Stay attached to your senses.
 
 So the two states are:
@@ -767,8 +767,8 @@ Days 7-9 again over noun-noun identity. Three ladders, same shape.
 The constraint that makes the search real is the literal-falseness test, which
 Pat restates on each of these days:
 
-> Don't pick something that can be literally angry, like people or bees. Those
-> wouldn't be metaphors. They'd just be angry people and angry bees.
+> Don’t pick something that can be literally angry, like people or bees. Those
+> wouldn’t be metaphors. They’d just be angry people and angry bees.
 
 And on Day 2's fourth adjective, `dark` — the restatement is on the same day as
 the angry/bees line, not the day after: dark eyes could be literally true, so it
@@ -836,9 +836,9 @@ finished sample writing rather than as a prompt.
 **POV flip — Challenge 1, Day 8.** Two writers took the Cyclist prompt from
 opposite positions, one from inside the biker and one from outside:
 
-> As an experiment, try reversing them: Read Manuel's in third person ("as he
+> As an experiment, try reversing them: Read Manuel’s in third person (“as he
 > takes off …") and read Tasleem's in first person ("Rain slaps against my knees
-> as I race …"). Is there a difference in tone and immediacy?
+> as I race …”). Is there a difference in tone and immediacy?
 
 **Tense flip — Challenge 1, Day 9.** On a past-tense sample: past tense removes
 the reader a bit from the scene, since it happened, after all, in the past. Pat
@@ -846,9 +846,9 @@ reprints it in present tense and calls the difference "pretty big." His rule:
 
 > Present tense is more immediate than past tense or future tense—not that
 > everything you write needs to be immediate. Just remember that tense is a
-> tool—a choice you make. Don't let the fact that it happened in the past make
-> you write it in past tense. Don't let "how it really happened" drive the bus.
-> You're the writer.
+> tool—a choice you make. Don’t let the fact that it happened in the past make
+> you write it in past tense. Don’t let “how it really happened” drive the bus.
+> You’re the writer.
 
 **Tense-neutral -ing forms — also Day 9.** Asking two present-tense samples to be
 translated into past tense, Pat notes that both "use a lot of the *ing* form of

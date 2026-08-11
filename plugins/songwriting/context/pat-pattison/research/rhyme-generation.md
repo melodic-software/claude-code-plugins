@@ -144,7 +144,7 @@ unrhymed first and third lines" (`skin x / blush a / breathe x / touch a`) —
 "Say them both several times and you'll feel the n in action." And with
 consonance in the tonic slot, against `blush a / skin x / touch a / breathe x`:
 
-> Here, there's no sense of longing to connect back to skin, whereas in
+> Here, there’s no sense of longing to connect back to skin, whereas in
 > [`blush / skin / touch / dawn`] …you can feel dawn trembling, looking back
 > to skin, feeling the pull but tearfully, reluctantly, moving on. Sad.
 
@@ -156,7 +156,7 @@ One scheme-level note, p.109, on couplets:
 > (In an aabb rhyme scheme, perfect rhyme creates the strongest separation
 > between aa and bb because it slams the door after the first couplet,
 > bringing us to a full stop before starting the motor again at b. Then it
-> slams the door again at bb. That's why a steady diet of perfect rhyme
+> slams the door again at bb. That’s why a steady diet of perfect rhyme
 > couplets can make a song feel so long: we have to stop every two lines, then
 > start the car again until we hit the next stop sign.)
 
@@ -223,11 +223,11 @@ its phonetic knowledge — no external lookup needed.
 Do not silently drop to assonance. Pat names three triggers, verbatim,
 *Essential Guide to Rhyming* (2014), Chapter 5, p.49:
 
-> Sometimes, family rhyme won't help:
+> Sometimes, family rhyme won’t help:
 >
 > 1. when words end in vowels
 > 2. when your family rhyme search has not given you acceptable choices
-> 3. when you're looking for a less stable rhyme type
+> 3. when you’re looking for a less stable rhyme type
 
 Trigger 1 is structural and the generator must test for it first: "Family
 rhymes depend on consonants after the syllables' stressed vowels. When there
@@ -360,7 +360,7 @@ First prechorus, the pair `long / done` (italics as printed, p.116):
 >
 > *Ng* and *n* are members of the same family, the nasals. So *long/done*
 > amounts to a *family/consonance* rhyme, about as far afield as you can go and
-> still give a hint of a sonic resemblance. It probably wouldn't be audible at
+> still give a hint of a sonic resemblance. It probably wouldn’t be audible at
 > all without the help of common meter, but it sure opens the gate at the end
 > of the section, creating instability rather than closure.
 >
@@ -384,7 +384,7 @@ fourth line — unchanged — is left with nothing to resolve against (p.117):
 
 > The last line, which seemed like such an emotional line, has lost a lot of
 > its feeling. It seems less glorious, less heartfelt. What seemed like such a
-> sensational line has turned ordinary. The meaning hasn't really changed. But
+> sensational line has turned ordinary. The meaning hasn’t really changed. But
 > the motion, and thus the e-motion, has transformed dramatically.
 
 In the first prechorus he goes the other way, rewriting the closing fourth line
@@ -394,7 +394,7 @@ so that `long` is answered by a perfect rhyme instead of by `done` (p.118):
 > power of love, a stable feeling created, again, simply by the rhyme type. It
 > not only transforms the emotion of the section, but the color of the entire
 > first sequence of verse/prechorus/chorus. […] Rather than moving
-> unstable/unstable/stable in the first sequence, we're moving
+> unstable/unstable/stable in the first sequence, we’re moving
 > unstable/stable/stable, and the last part of the song feels more like it
 > repeats the same ideas rather than growing.
 

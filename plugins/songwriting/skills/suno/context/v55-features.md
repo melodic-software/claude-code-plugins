@@ -86,7 +86,7 @@ Char-limit rows verified 2026-07-18 against third-party testers ([hookgenius cha
 ## Multilingual
 
 - ~50 languages supported with varying quality
-- **Best**: English, Spanish, Portuguese, French, German, Italian, Japanese, Korean, Mandarin, Russian, Arabic
+- **Best**: English, Spanish, Portuguese, French, Japanese, Korean, Mandarin — these seven are the sourceable set. German, Italian, Russian and Arabic are also commonly listed here but are **unsourced**: no source places them in the top tier, and none places them outside it. Retained, unverified.
 - **Auto-detected** from lyrics text — no explicit language specification needed
 - Optional reinforcement: name the language in style prompt (`Spanish flamenco`, `Mandarin pop ballad`)
 - Language tags (`[Spanish]`, `[Spanglish]`) work as **soft hints** but aren't reliable controllers — write in target language for actual control

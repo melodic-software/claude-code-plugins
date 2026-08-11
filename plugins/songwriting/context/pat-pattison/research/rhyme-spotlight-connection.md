@@ -331,7 +331,7 @@ to go into your 'I-don't-want-to-rhyme' stage. Try working with this:"
 Pat's worked "Going Deeper" case starts here:
 
 ```text
-I'm sick of all this risky business
+I’m sick of all this risky business
 I want to play it safe
 ```
 
@@ -373,9 +373,9 @@ Rhymes for `safe`: `chafe`, `strafe`, `waif`. "Ick. Even if you wanted
 (Remember 'besiege'?)" That leaves `chafe` and `waif`. "Try 'chafe' first."
 
 ```text
-I'm sick of all this risky business
+I’m sick of all this risky business
 I want to play it safe
-I'll learn to drink my tonic fizzless
+I’ll learn to drink my tonic fizzless
 Where no one makes me chafe (?)
 ```
 
@@ -385,7 +385,7 @@ better idea. I don't see much hope. I don't see much hope for 'waif' either.
 You might try something like:"
 
 ```text
-I'm sick of all this risky business
+I’m sick of all this risky business
 I want to play it safe
 Or die a helpless waif
 ```
@@ -449,9 +449,9 @@ fizzless
 "Try."
 
 ```text
-I'm sick of all this risky business
+I’m sick of all this risky business
 I want to play it safe
-I'll learn to drink my tonic fizzless
+I’ll learn to drink my tonic fizzless
 ```
 
 "Of course, 'drink my tonic' is the linking idea that allows 'fizzless' to

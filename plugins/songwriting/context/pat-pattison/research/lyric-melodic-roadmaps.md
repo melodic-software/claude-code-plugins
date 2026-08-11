@@ -192,7 +192,7 @@ Pat's printed passage, which is the *model-lyric* frame:
 
 > "It is important not to be greedy: do not put stressed syllables in the
 > unstressed positions. This one is too hot. […] It is equally important to
-> match the original's important words with equally important words. This one is
+> match the original’s important words with equally important words. This one is
 > too cold […] You must resist greed. But you must put your important words in
 > the important positions."
 > — *Essential Guide to Lyric Form and Structure* (1991), Chapter 3

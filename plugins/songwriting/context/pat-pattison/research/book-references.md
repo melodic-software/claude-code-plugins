@@ -2,8 +2,13 @@
 
 Single source of truth for how Pat Pattison's four books are cited
 throughout this skill. Every context file references books by SHORT NAME +
-year. The short name is used inline and in file headers; the full title
-appears in this file's bibliographic table.
+year. The short name is used inline and in file headers.
+
+**Full titles appear in exactly two places, and both are deliberate — do not
+"normalize" either one to a short name:** this file's bibliographic table below,
+and the buy-the-books list in the plugin `README.md`. That list exists so a
+reader can go and purchase the books, which is the one job a short name does not
+do, so it carries all four full catalogue titles.
 
 ## Canonical short names
 

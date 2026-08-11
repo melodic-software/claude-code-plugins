@@ -24,7 +24,7 @@ Chapter 6 was read as a full page span and these page scans were inspected: `ima
 
 > "I don't particularly like the name 'perfect rhyme,' since 'perfect' also
 > seems to imply 'better.' I prefer something like 'fully resolved rhyme,'
-> because it's a description, not an accolade. Rhyme in a lyric:
+> because it’s a description, not an accolade. Rhyme in a lyric:
 >
 > 1. organizes lyric structure, making it visible to the ear
 > 2. creates and controls movement through the structure:
@@ -55,7 +55,7 @@ The chapter's thesis, against forcing full resolution:
 > "Forcing a rhyme does not uphold a tradition, nor does making rhyme woefully
 > predictable. And though it may be a proof of verbal skill to manage to say
 > something nifty despite using rhymes that have been heard ten thousand times,
-> it happens all too infrequently. It's also impressive to watch someone contort,
+> it happens all too infrequently. It’s also impressive to watch someone contort,
 > struggle, and wriggle out of a straight jacket, but our interest lies in the
 > difficulty, not the beauty, of the act.
 >
@@ -103,10 +103,10 @@ consonants in common. Even the vowel sounds are different."
 
 <!-- spellchecker:off -->
 ```text
-She's so many women
-He can't find the one who was his friend
-He's hanging on to half a heart
-But he can't have the restless part
+She’s so many women
+He can’t find the one who was his friend
+He’s hanging on to half a heart
+But he can’t have the restless part
 So he tells her to HASTEN DOWN THE WIND
 ```
 <!-- spellchecker:on -->
@@ -120,11 +120,11 @@ let her go, sadly. 'I'll always remember you.'"
 
 <!-- spellchecker:off -->
 ```text
-She's so many women
-He can't find the one who was his friend
-He's hanging on to half a heart
-But he can't have the restless part
-So he tells her to hasten 'round the bend
+She’s so many women
+He can’t find the one who was his friend
+He’s hanging on to half a heart
+But he can’t have the restless part
+So he tells her to hasten ’round the bend
 ```
 <!-- spellchecker:on -->
 
@@ -142,10 +142,10 @@ this:"
 
 <!-- spellchecker:off -->
 ```text
-She's so many women
-He can't believe she once belonged to him
-He's hanging on to half a heart
-But he can't have the restless part
+She’s so many women
+He can’t believe she once belonged to him
+He’s hanging on to half a heart
+But he can’t have the restless part
 So he tells her to HASTEN DOWN THE WIND
 ```
 <!-- spellchecker:on -->
@@ -164,10 +164,10 @@ which is muddied slightly by the addition of 'd' in him/wind."
 
 <!-- spellchecker:off -->
 ```text
-She's so many women
-But she won't be what she had always been
-He's hanging on to half a heart
-But he can't have the restless part
+She’s so many women
+But she won’t be what she had always been
+He’s hanging on to half a heart
+But he can’t have the restless part
 So he tells her to HASTEN DOWN THE WIND
 ```
 <!-- spellchecker:on -->
@@ -474,9 +474,9 @@ build to an explosion." Pat's plugged-nose demonstration:
 
 <!-- spellchecker:off -->
 ```text
-"My mommy misses me."          M turns into b.
-"No one notices Nanna."        N becomes d.
-"I sing songs that ring wrong."  Ng turns into g.
+“My mommy misses me.”          M turns into b.
+“No one notices Nanna.”        N becomes d.
+“I sing songs that ring wrong.”  Ng turns into g.
 ```
 <!-- spellchecker:on -->
 
@@ -1246,7 +1246,7 @@ frames the entire rhyme-stability scale through the craft-vs-creativity
 question. It opens on Tiger Woods, verbatim:
 
 > Why bother learning craft? Why do we have to pay attention to all this
-> stuff on rhyme types and sonics? Shouldn't the writing process just be
+> stuff on rhyme types and sonics? Shouldn’t the writing process just be
 > simple and organic—just letting things flow naturally? Ask Tiger Woods,
 > who works daily on his craft: focusing on the technical aspects of his
 > swing, learning different kinds of grasses and how they affect the
@@ -1262,16 +1262,16 @@ question. It opens on Tiger Woods, verbatim:
 Pat's own next move is the "bag" image again — the rhyme types are the
 clubs:
 
-> Let's look at rhyme types and the emotion they can create when you bring
+> Let’s look at rhyme types and the emotion they can create when you bring
 > them (along with your brain) to the writing table, where your heart has
 > been struggling, all by itself, to get over the trees against the wind
-> to the green. We'll look, as usual, through the lens of prosody: mutual
+> to the green. We’ll look, as usual, through the lens of prosody: mutual
 > support of your intention with all the elements in your bag, your craft.
 
 And the working method he states for the chapter, ending in the three
 words this section used to paraphrase as a numbered drill:
 
-> Here, however, we'll look only at the rhymes themselves so we can
+> Here, however, we’ll look only at the rhymes themselves so we can
 > isolate their motion; understand what they do within the more
 > complicated motions created in combination with the other elements.
 > Isolate, understand, compose.

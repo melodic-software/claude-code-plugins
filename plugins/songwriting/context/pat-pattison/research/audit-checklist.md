@@ -83,8 +83,8 @@ different jobs — auditing a refrain like a chorus is the wrong test.
 
 > "1. Completes, comments on, or summarizes ideas.
 > 2. Contains the CENTRAL IDEA.
-> 3. Is the lyric's CENTRAL SECTION.
-> 4. Is typically the lyric's most balanced section.
+> 3. Is the lyric’s CENTRAL SECTION.
+> 4. Is typically the lyric’s most balanced section.
 >
 > thus, 5. Stops forward motion."
 > — *Essential Guide to Lyric Form and Structure* (1991), Chapter 5
@@ -184,7 +184,7 @@ Pat frames this as Goldilocks — too hot, too cold, just right:
 > unstressed positions. This one is too hot. […] The 'greedy' spots would
 > surely get buried or at the very least sound hurried (and lose their
 > emotion) when you set them to the music of the original verse. It is equally
-> important to match the original's important words with equally important
+> important to match the original’s important words with equally important
 > words. This one is too cold […] You must resist greed. But you must put your
 > important words in the important positions. This one is just right."
 > — *Essential Guide to Lyric Form and Structure* (1991), Chapter 3

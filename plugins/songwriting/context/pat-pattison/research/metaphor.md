@@ -153,9 +153,9 @@ wrench, fans, belts, whirring, motor, crank, hood
 > wipe their brow, and pop open the hood of a criminal case, hoping to
 > unlock the mystery. Every piston that misfires, every loose fan belt,
 > every drop of oil is a fingerprint, a smoking gun, a clue as to what
-> went wrong and who's to blame. In the workshop of a downtown office
+> went wrong and who’s to blame. In the workshop of a downtown office
 > building or crime lab, they take apart and rebuild every piece of the
-> machine. Whatever it takes, they don't stop till they can prosecute
+> machine. Whatever it takes, they don’t stop till they can prosecute
 > the bad guy. And like years of sweat equity beneath the workings of
 > vehicles, years of experience with all makes and models of crimes,
 > train a professional policeman to spot likely suspects quickly and
@@ -171,14 +171,14 @@ everything after feel silent and small, makes you flinch
 ```
 
 > When I saw him stand up, the rest of the courtroom disappeared. I
-> couldn't feel my legs, my hands were dangling at my side like a shaky
-> mess of Parkinson's. He thundered to the witness chair, his feet
+> couldn’t feel my legs, my hands were dangling at my side like a shaky
+> mess of Parkinson’s. He thundered to the witness chair, his feet
 > thumping loudly with every gait. I cannot remember anything else from
 > that day, but I can recall exactly the way he adjusted first his left
 > shirt sleeve and then his right. How his hair was parted just a few
 > degrees of center and shone under the fluorescent lights like
-> Superman's pompadour. The sound of his voice, as he answered my
-> attorney's questions, echoed the way I imagine a blow horn might sound
+> Superman’s pompadour. The sound of his voice, as he answered my
+> attorney’s questions, echoed the way I imagine a blow horn might sound
 > in the Grand Canyon. All living creatures living miles within distance
 > of the courthouse were silenced when he spoke. When he finished and
 > was excused, I looked down at my hands. I was gripping the fabric of
@@ -631,7 +631,7 @@ tried for burning a barn.
 What quality does a can of sardines have?   Crowded.
 What else is crowded?                       The courtroom.
 The courtroom = can of sardines
-In what respect?                            They're both crowded.
+In what respect?                            They’re both crowded.
 ```
 
 Having established the link, the sardine family's nouns, verbs, and
@@ -1249,7 +1249,7 @@ elaboration on each one."
 Pat's own model, printed before the exercise:
 
 ```text
-Thirst is like a guest who won't go away.
+Thirst is like a guest who won’t go away.
   You can bear it for a while, but the longer you wait, the more
   uncomfortable you feel, until you finally have to head for the
   bathroom and close the door.
@@ -1257,7 +1257,7 @@ Thirst is like a guest who won't go away.
 Thirst is like a buffalo hunter on the dry plains of Montana.
   It stalks everywhere, looking for prey to bring down, peering through
   tumbleweed at figures moving in the distance toward the waterhole. If
-  it has its way it'll stop them cold before they can get there.
+  it has its way it’ll stop them cold before they can get there.
 
 Being thirsty is like being the parent of a teenage daughter.
   Always wanting another little drop of information and attention, in
@@ -1275,7 +1275,7 @@ elaboration extends the shared quality into the song.
 failure mode via Samuel Butler, quoted as a couplet:
 
 ```text
-Like a lobster boil'd, the morn
+Like a lobster boil’d, the morn
 From black to red began to turn
                     — Samuel Butler
 ```
@@ -1287,7 +1287,7 @@ he prints all three expressed-identity forms to show them failing:
 ```text
 Morning is a boiled lobster
 The boiled lobster of the morning
-Morning's boiled lobster
+Morning’s boiled lobster
 ```
 
 **Diagnostic:** count the shared qualities before choosing. Pat's own

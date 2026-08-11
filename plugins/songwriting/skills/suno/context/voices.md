@@ -41,6 +41,23 @@ Sing actual melodies, not spoken word. The model learns your sung timbre, not yo
 
 **Why single clip + variety beats multiple flat clips:** Suno's auto-selection picks a 2-min window from training material. A varied single window gives it the full dynamic spectrum to model from; multiple flat clips often get sampled at the most-frequent dynamic and miss your range.
 
+### Two-stage bootstrap for non-singers
+
+**LOW-MEDIUM confidence — a SINGLE community post plus its comment thread, not multi-source consensus.** Read 2026-08-11 from [r/SunoAI, "Another useful trick to use your own voice in Suno, even if you cannot sing well"](https://www.reddit.com/r/SunoAI/comments/1ujzbqj/another_useful_trick_to_use_your_own_voice_in/) (posted 2026-06-30, 152 votes, 58 comments). Not documented by Suno. Untested here.
+
+For a writer who cannot deliver the sung 90-120s session above, the reported route is to clone twice:
+
+1. Record **30-60s of ordinary speech** — read anything, no singing — clean and dry, exported as WAV.
+2. Save it as a voice, then generate a short a cappella test using it as the lead voice, with a style prompt asking for unaccompanied vocal and clipped, on-beat delivery.
+3. Reported slider settings for that test generation: **Weirdness 0%, Style Influence 100%, Audio Influence ~95-100%.**
+4. From the generated take, **create a second voice from the part where the voice actually sings** — that second voice is the one to use.
+
+**This does not contradict "sing actual melodies, not spoken word" above — it agrees with it.** The speech clip is scaffolding only; the voice a writer actually keeps is still built from sung material. What the technique changes is where the sung material comes from.
+
+**Reported failure mode:** the stage-2 test generation usually arrives with a beat or backing behind the vocal — the poster reports the voice-creation step filters to the vocal anyway, and that selecting only the cleanest sung span works better.
+
+**One commenter reports the "make this voice public" toggle is ON by default when creating a voice.** Unverified against Suno's own documentation, and the same thread disputes it. Check the toggle yourself before finishing a voice rather than trusting either claim.
+
 ## Verification phrase
 
 Anti-impersonation guard. After upload:

@@ -427,7 +427,7 @@ b)  Some girls like their flirtin'    a
 ```text
 REWRITE OF A): (LOVE HER OR LEAVE HER TO ME)
 
-REWRITE OF B): (SOME GIRLS LIKE THEIR FLIRTIN')
+REWRITE OF B): (SOME GIRLS LIKE THEIR FLIRTIN’)
 ```
 
 Routes to: [rhyme strategy](rhyme-strategy.md).
@@ -674,11 +674,11 @@ couple of tries:
 ```text
 1.  (maybe try  / u / u / u ,  / u / u / )
 
-TEDDY DOESN'T LIVE HERE ANYMORE
+TEDDY DOESN’T LIVE HERE ANYMORE
 
 2.
 
-TEDDY DOESN'T LIVE HERE ANYMORE
+TEDDY DOESN’T LIVE HERE ANYMORE
 ```
 
 The scansion hint on try 1 is printed only inside a figure; the running
@@ -717,7 +717,7 @@ Routes to: [song forms examples](song-forms-examples.md),
 THE BEGINNING. THEN, REWRITE IT WITH THE SAME TITLE AT THE END.**
 
 ```text
-YOU DON'T HAVE THE BEST OF ME YET
+YOU DON’T HAVE THE BEST OF ME YET
 
 Title First:
 
@@ -741,7 +741,7 @@ Routes to: [hook](hook.md), [verse development](verse-development.md).
 **EXERCISE 41: WRITE A VERSE THAT ENDS WITH THE REFRAIN:**
 
 ```text
-YOU DON'T HAVE THE BEST OF ME YET
+YOU DON’T HAVE THE BEST OF ME YET
 ```
 
 Make a repetition necessary by using two strategies:
@@ -776,7 +776,7 @@ Routes to: [hook](hook.md) "targeting".
 RHYTHM IN A STRATEGIC POSITION.**
 
 ```text
-1. LAST NIGHT'S LOVE
+1. LAST NIGHT’S LOVE
 
 2. MY FIRST LOVE WILL BE MY LAST
 
@@ -799,7 +799,7 @@ summary, verbatim:
 2. Keep your structure moving forward until you get to the HOOK
 3. Repeat the HOOK
 4. Use sound to spotlight your HOOK.
-5. Use the HOOK's rhythm in other strategic places.
+5. Use the HOOK’s rhythm in other strategic places.
 ```
 
 Routes to: [hook](hook.md).

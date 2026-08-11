@@ -72,9 +72,9 @@ The title entry needs one extra move: find an interesting angle on it. Pat's is 
 scrap of dialogue.
 
 ```text
-"What do you do for a living?"
-"I survive on the streets."
-"That's a pretty risky business."
+“What do you do for a living?”
+“I survive on the streets.”
+“That's a pretty risky business.”
 ```
 
 In each case it is on you to find the angle, brainstorm the idea, and create the
@@ -96,8 +96,8 @@ Use [object writing](object-writing.md) to ask:
 Pat's definition, and it is worth using verbatim because it sets the bar at
 touchability rather than at cleverness:
 
-> These expressive objects or situations are what T.S. Eliot calls "objective
-> correlatives" — objects anyone can touch, smell, and see that correlate with
+> These expressive objects or situations are what T.S. Eliot calls “objective
+> correlatives” — objects anyone can touch, smell, and see that correlate with
 > the emotion you want to express.
 
 His two examples for the homelessness lyric are a broken wheel on a homeless

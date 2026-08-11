@@ -102,4 +102,4 @@ it:
 - *Songwriting: Essential Guide to Lyric Form and Structure* (1991)
 - *Writing Better Lyrics* (2009)
 - *Songwriting Without Boundaries* (2011)
-- *Essential Guide to Rhyming* (2014)
+- *Pat Pattison's Songwriting: Essential Guide to Rhyming* (2014)

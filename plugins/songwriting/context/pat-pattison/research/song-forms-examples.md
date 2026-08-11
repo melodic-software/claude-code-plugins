@@ -46,7 +46,7 @@ limerick":
 There once was a student named Esser
 Whose knowledge grew lesser and lesser
 It at last grew so small, he knew nothing at all
-And now he's a college professor
+And now he’s a college professor
 ```
 
 "The principle is simple" — printed as a four-step figure:
@@ -70,11 +70,11 @@ a Bridge. Here are the Verses":
 Verse 1:
 
 ```text
-We've been sitting here the whole night long
+We’ve been sitting here the whole night long
 Pouring out our hearts
 About how loving never ends the way
 We felt it at the start
-And we'll sit right here till we decide
+And we’ll sit right here till we decide
 What the next step ought to be
 We got a lot to talk about
 THIS BOTTLE AND ME
@@ -88,7 +88,7 @@ That things would work out fine
 But drinking from the loving cup
 We somehow missed the signs
 Sip by sip we used it up
-Now it's empty as can be
+Now it’s empty as can be
 We got a lot to talk about
 THIS BOTTLE AND ME
 ```
@@ -97,10 +97,10 @@ Verse 3:
 
 ```text
 When the sun has set and I need a friend
-And there's no one else around
+And there’s no one else around
 I open up the cupboard
 Take this empty bottle down
-It's the last one I was drinking
+It’s the last one I was drinking
 When my drinking made her leave
 We got a lot to talk about
 THIS BOTTLE AND ME
@@ -170,7 +170,7 @@ Verses 1 and 2 are unchanged; the Bridge falls between verse 2 and verse 3:
 
 ```text
 THIS BOTTLE AND ME will do all right
-We'll just stay right here together
+We’ll just stay right here together
 Waste away the night
 Waiting till the morning comes
 And the ache is almost gone
@@ -272,13 +272,13 @@ They only make me realize
 Chorus:
 
 ```text
-There's no SOUTHERN COMFORT
+There’s no SOUTHERN COMFORT
 Unless you're in my arms
 You're the only cure
 For this aching in my heart
 I've searched everywhere
 Tried the bedrooms, tried the bars
-But there's no SOUTHERN COMFORT
+But there’s no SOUTHERN COMFORT
 Unless you're in my arms
 ```
 
@@ -398,7 +398,7 @@ Here is my result":
 Bar to bar
 Face to face
 Someone else takes your place
-But no one's ever new
+But no one’s ever new
 I always turn them into you
 ```
 
@@ -433,19 +433,19 @@ He listens as they fight
 Tonight it will be different     VERSE 2
 Leaving while they sleep
 He sneaks into the closed garage
-Tonight he'll find peace
+Tonight he’ll find peace
 
-Crying "Mama won't you listen!   TRANS BR 1
-Daddy can't you see!"
+Crying “Mama won’t you listen!   TRANS BR 1
+Daddy can’t you see!”
 He slides the seat back
 Turns the key
 
-It's a short ride to the dark side   CHORUS
+It’s a short ride to the dark side   CHORUS
 All the love he might have known
 Lost forever, left alone
 No one in the world could hear
 The closing of the door
-TEDDY DOESN'T LIVE HERE ANYMORE
+TEDDY DOESN’T LIVE HERE ANYMORE
 ```
 
 Song System 2:
@@ -457,12 +457,12 @@ But at a party in a crowd
 The girl he should have met
 
 She feels a longing, feels a pull
-From somewhere she can't see
+From somewhere she can’t see
 While Teddy from the other side
 Struggles to break free
 
-He cries, "Baby, it's so cold here   TRANS BR 2
-Won't you take me home?"
+He cries, “Baby, it’s so cold here   TRANS BR 2
+Won’t you take me home?”
 She shivers as she turns away
 Leaves alone
 
@@ -478,16 +478,16 @@ Song System 3 replaces the verse block entirely with a bridge:
 Just sixteen                     BRIDGE
 He couldn't see
 Where life ahead of him might lead
-He couldn't see at sweet sixteen
+He couldn’t see at sweet sixteen
 What could have been
 
-It's a short ride to the dark side   CHORUS
+It’s a short ride to the dark side   CHORUS
 All the love he might have known
 Lost forever, left alone
 No one in the world could hear
 The closing of the door
-TEDDY DOESN'T LIVE HERE ANYMORE
-TEDDY DOESN'T LIVE HERE ANYMORE
+TEDDY DOESN’T LIVE HERE ANYMORE
+TEDDY DOESN’T LIVE HERE ANYMORE
 ```
 
 The final chorus repeats the hook line twice.
@@ -549,7 +549,7 @@ five printed lines into four rhythmic ones — the count Pat's "three balanced
 ```text
 Just sixteen. He couldn't see
 Where life ahead of him might lead
-He couldn't see at sweet sixteen
+He couldn’t see at sweet sixteen
 What could have been
 ```
 
@@ -557,7 +557,7 @@ The first phrases "play off against the rhythms, grouping this way":
 
 ```text
 Just sixteen
-He couldn't see where life ahead of him might lead
+He couldn’t see where life ahead of him might lead
 ```
 
 "The Bridge starts fast, then slows with the long second phrase. The last
@@ -588,10 +588,10 @@ important and spotlighted phrase in the Song system."
 >
 > ```text
 > 1. (maybe try  / u / u / u ,  / u / u / )
->    TEDDY DOESN'T LIVE HERE ANYMORE
+>    TEDDY DOESN’T LIVE HERE ANYMORE
 >
 > 2. ______________________________
->    TEDDY DOESN'T LIVE HERE ANYMORE
+>    TEDDY DOESN’T LIVE HERE ANYMORE
 > ```
 
 The scansion hint on try 1 is printed only inside figure `image_rsrc33Y` —
@@ -634,11 +634,11 @@ Song system 1:
 ```text
 Turned loose in a company of strangers        VERSE 1
 Getting nowhere, we had nowhere to go
-Bad blues hit you harder when you're aching
-They never leave you, they'll never leave you alone
-They get you crawlin'
+Bad blues hit you harder when you’re aching
+They never leave you, they’ll never leave you alone
+They get you crawlin’
 
-I might've fallen                             TRANS BR 1
+I might’ve fallen                             TRANS BR 1
 But you were always around
 
 YOU NEVER LET ME DOWN                         REFRAIN
@@ -653,9 +653,9 @@ Song system 2:
 Tough kids growing up like we were brothers   VERSE 2
 Making trouble, barely making it through
 Quick hitch, Viet Nam was tougher
-I didn't worry, I was counting on you
+I didn’t worry, I was counting on you
 
-Fightin' dirty                                TRANS BR 2
+Fightin’ dirty                                TRANS BR 2
 Might'a hurt me
 But you were always around
 
@@ -679,13 +679,13 @@ Some things will never change
 I still lean on you
 
 No tears for times we shared together         VERSE 3
-Know you'd want it, I know you'd want it that way
+Know you’d want it, I know you’d want it that way
 Slow years ticking by as I remember
 Touching you now makes them easy to face
 
-It's like you're still here                   TRANS BR 3
+It’s like you’re still here                   TRANS BR 3
 I feel you so clear
-It's like you're always around
+It’s like you’re always around
 
 YOU NEVER LET ME DOWN                         REFRAIN
 YOU NEVER LET ME DOWN
@@ -711,8 +711,8 @@ they'll never leave you alone." Both readings are as printed.)
 "Now, the contrasting section. Short phrases. Quick rhymes."
 
 ```text
-They get you crawlin'
-I might've fallen
+They get you crawlin’
+I might’ve fallen
 ```
 
 "and the set-up: 3-stress line and a sound for the HOOK to attach to: 'But
@@ -774,25 +774,25 @@ title. Reproduced as printed:
 SEEING SOMEONE ELSE
 
 I feel some changes in the air
-You haven't been yourself
-You been lookin' kinda dreamy off in space
+You haven’t been yourself
+You been lookin’ kinda dreamy off in space
 Could it be the smell of perfume
-That's starting up this aching
+That’s starting up this aching
 Or the secrets I see lighting up your face
 
 When we talk you never meet my eyes
-You're looking right on past
-I've been trying not to notice up till now
-But I can't escape the feeling
-That something's going down now
-It's almost like there's someone else around
+You’re looking right on past
+I’ve been trying not to notice up till now
+But I can’t escape the feeling
+That something’s going down now
+It’s almost like there’s someone else around
 
-Even though you're with me
+Even though you’re with me
 Might as well be by myself
-'cause the way you look at me is like
-You're SEEING SOMEONE ELSE
+’cause the way you look at me is like
+You’re SEEING SOMEONE ELSE
 The way you look at me is like
-You're SEEING SOMEONE ELSE
+You’re SEEING SOMEONE ELSE
 ```
 
 <!-- spellchecker:on -->

@@ -3,6 +3,119 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.0]
+
+Both audit denominators are unchanged: **Axis 1 stays 44 of 44** and **Axis 2
+stays 226 of 226.** Nothing here opens a new unit. This release restores printed
+punctuation across the whole Pat Pattison corpus, closes six sourced Suno
+remediations that a previous session left blocked, and records the first
+r/SunoAI thread ever read for this plugin.
+
+### Fixed
+
+- **Printed punctuation restored across 470 lines in 31 corpus files.** Quoted
+  source throughout `context/pat-pattison/research/` carried ASCII `U+0027`
+  apostrophes and `U+0022` double quotes where the books print `U+2019`,
+  `U+201C` and `U+201D`. **308 apostrophes and 393 quotation marks** were
+  restored; the git diff is **468 insertions / 468 deletions with zero
+  non-punctuation character changes**, independently recomputed rather than
+  asserted. Worst affected: `form.md` 52 lines, `song-forms-examples.md` 49,
+  `object-writing.md` 45, `rhyme-worksheets.md` 31, `point-of-view.md` 30.
+
+  This is the same defect class an earlier refutation pass found and fixed in a
+  single place (`rhyme-fundamentals.md:403`) and noted twice more in
+  `rhyme-sonic-bonding.md`. **Three separate receipts touched it and each
+  treated it as a one-off; nobody ever swept the corpus.** It surfaced here only
+  because two restorations claimed byte-exactness and did not byte-match.
+
+  The fix was applied by a deterministic script with **no model in the loop** —
+  every replacement character was read out of the gated book at that position. A
+  line was changed only when the plugin's form was absent from all four books
+  *and* the curly form was present, which proves both that the line is quoted
+  source and that the fix is the book's own typography. Two lines resolved
+  ambiguously and were **refused rather than guessed**, then settled individually
+  by positional alignment. Known-present control: blockquote lines matching a
+  book byte-for-byte rose from **1,766 to 2,016**.
+
+- **Six sourced Suno remediations closed.** The `suno-drift` audit recorded
+  findings S3, S7, S8, S9, G3 and G7 against sites that a previous session
+  declared **BLOCKED** because they sat outside its exclusive write-set. Nobody
+  picked them up, so the skill has been contradicting itself since:
+  - `troubleshoot.md` asserted **silent truncation** as a mechanism while
+    `SKILL.md` and `style.md` said it is unverified. Now hedged to
+    attention-decay, matching its siblings.
+  - `troubleshoot.md` said the title has **no effect** on musical output while
+    its siblings said "minimal or no known effect; community reports differ".
+    Now softened to match — the best source says *minimal*, and minimal is not
+    zero.
+  - `power-tips.md` and `troubleshoot.md` presented **negatives-at-the-end** as
+    an adherence rule via a "last tag = highest exclusion weight" mechanism. No
+    source establishes it; both now present grouping as an organizational
+    convention, matching `style.md` and `SKILL.md`. The `no X` syntax itself is
+    attested and was left alone.
+  - `lyrics.md` described `(text)` parentheticals as **never sung**, which the
+    same file already contradicted eleven lines earlier. Now carries the length
+    bound; the attested delivery-modifier mechanism is kept.
+  - `lyrics.md` listed **`[Fade In]`** inside a HIGH-reliability set although no
+    source states it. Marked unattested at both sites. **Kept, not dropped** —
+    the audit's row says "drop" but its own summary groups it under "soften",
+    and its neighbouring row establishes that unsourced is not the same as
+    contradicted. The file's existing `[Synth Solo]` handling set the precedent.
+  - `v55-features.md` listed eleven **best-supported languages** where only
+    seven are sourceable. All eleven are retained; German, Italian, Russian and
+    Arabic are marked unsourced. They are unsupported, not disproven, and the
+    audit's explicit warning against "repairing" the list from an availability
+    table (that column is Bark-v0 availability, not a quality tier) was obeyed.
+
+### Added
+
+- **A two-stage voice-clone bootstrap for non-singers**, in `voices.md`, from
+  **the first r/SunoAI thread this plugin has ever read.** Record 30-60s of
+  ordinary speech, save it as a voice, generate a short a cappella test with it,
+  then build the voice you actually keep from the *sung* part of that output.
+  Reported test-stage sliders and the reported failure mode are included.
+
+  Tiered **LOW-MEDIUM: one post plus its comment thread, not consensus**, and
+  labelled untested. Also recorded, as an unverified and *disputed* community
+  report, that the "make this voice public" toggle may default to on — with the
+  reader told to check it rather than trust either side.
+
+  This does not contradict the file's existing "sing actual melodies, not spoken
+  word" rule; the speech clip is scaffolding and the kept voice is still built
+  from sung material. That reconciliation is stated in the file rather than left
+  for a future reader to trip over.
+
+### Changed
+
+- **`workflow-recipes.md` no longer says r/SunoAI is unreachable.** It was
+  reachable all along — search and direct fetch fail, but a browser session
+  reaches it, and navigating to the `.json` form of a thread URL is what yields
+  the body. The note now records the working route, and states plainly that
+  **nothing found there bears on the Cover-harmony question**, so that
+  documented-absence finding still rests on the community guides and first-party
+  silence. It was not strengthened by a thread that does not address it.
+- **The buy-the-books list in `README.md` now carries all four full titles.**
+  The 1991 entry used its full title and the 2014 entry its short name; 2009 and
+  2011 are unaffected because their short and full titles are identical. The
+  list's purpose is purchasing, and a full catalogue title is the one thing a
+  short name cannot do, so the 2014 entry was expanded rather than the 1991 one
+  shortened. `book-references.md` now names **both** places a full title
+  legitimately appears and why — its previous wording implied the bibliographic
+  table was the only one, which would have invited a future agent to normalize
+  the README and undo this.
+
+### Notes
+
+- `context/pat-pattison/research/audit-checklist.md` is touched by the
+  punctuation restoration (3 lines). A previous brief placed that file
+  off-limits; this one does not, and the change is a source-proven punctuation
+  fix rather than an edit to its content. Disclosed rather than hidden.
+- The **2011 book prints `Challenge #1` through `Challenge #4` with the hash**,
+  including in its chapter titles. The plugin's citation convention drops it
+  (168 occurrences) and ten sites keep it. Both were left as they stand: this is
+  a convention question for the maintainer, not a fidelity defect, and nothing
+  was changed on the strength of a guess.
+
 ## [1.0.2]
 
 Both audit denominators are unchanged: **Axis 1 stays 44 of 44** and **Axis 2

@@ -37,7 +37,7 @@ The test is whether the unit has a natural identity in speech. Some short
 phrases stand alone:
 
 ```text
-Why don't you tickle me?
+Why don’t you tickle me?
 He shouts.
 She bites.
 ```
@@ -56,7 +56,7 @@ Pat does the first few to get you started; the unslashed remainder is the
 exercise.
 
 ```text
-"I took up the chip / on which the three I have described
+“I took up the chip / on which the three I have described
 were struggling, / carried it / into my house, / and placed
 it under a tumbler on my window sill in order to see the
 issue. Holding a microscope to the first-mentioned red
@@ -81,8 +81,8 @@ Pattison's mismatch example — a rewrite of an actual song, words changed
 "to protect the innocent (or maybe the guilty)":
 
 ```text
-[Some days it's simple/ but some days it's not/]
-[Sometimes I wonder if there's one thing we've got]
+[Some days it’s simple/ but some days it’s not/]
+[Sometimes I wonder if there’s one thing we’ve got]
 [In common/ to stop us from drifting apart/]
 ```
 
@@ -95,7 +95,7 @@ boundary can temporarily change meaning before the lyric corrects it:
 
 ```text
 [I know your schemes]
-[Don't include me/]
+[Don’t include me/]
 ```
 
 There is a big difference between saying
@@ -341,7 +341,7 @@ There once was a student named Esser
 Whose knowledge grew lesser and lesser
 It at last grew so small
 He knew nothing at all
-And now he's a college professor
+And now he’s a college professor
 ```
 
 The shorter third and fourth phrases accelerate the movement. Speeding up right
@@ -386,7 +386,7 @@ title-bearing final phrase is much longer than the nearby short phrases.
 ```text
 You're proud when they walk
 Scared when they run
-That's how it always has been between FATHERS AND SONS
+That’s how it always has been between FATHERS AND SONS
 ```
 
 This line "decelerates dramatically because of its length, calling all kinds of
@@ -523,7 +523,7 @@ types. Dependency is a property he points out about the last three, verbatim:
 and, after them:
 
 > Each of the phrases has a word that connects it to a part of the main
-> sentence. (Words like "who, what, when where, why, that.") These words turn
+> sentence. (Words like “who, what, when where, why, that.”) These words turn
 > the phrases into dependents rather that self-reliant individuals.
 
 (Both oddities in that last sentence — the missing comma in "when where" and

@@ -204,8 +204,8 @@ Form and Structure* (1991), **Chapter 1**, not 2009:
 > This unbalancing strategy is also useful when you have two verses that lead
 > into a chorus. Make the first verse completely balanced, then unbalance the
 > second verse by adding an extra phrase. This unbalancing will make it move
-> forward into the chorus. The first and second verses of Kevin Cronin's "CAN'T
-> FIGHT THIS FEELING" provide a good example.
+> forward into the chorus. The first and second verses of Kevin Cronin’s “CAN’T
+> FIGHT THIS FEELING” provide a good example.
 
 > Unbalancing the second verse makes it move forward. It throws it into the air,
 > just like juggling. Notice that if you reverse the two verses, the motion

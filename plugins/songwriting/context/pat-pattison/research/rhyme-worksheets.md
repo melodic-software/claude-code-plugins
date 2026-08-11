@@ -24,13 +24,13 @@ panic-filled availability.
 
 Chapter 3 opens with the friend-finding analogy in Pat's own words:
 
-> If you're lonely and you want to make friends, you should go places where
-> you're likely to find people you have things in common with. Maybe go to a
+> If you’re lonely and you want to make friends, you should go places where
+> you’re likely to find people you have things in common with. Maybe go to a
 > concert. Even a library. If you look around for a while in the right kind of
 > place, something may click.
 >
-> When you start writing your lyric before you think about rhymes, it's like
-> looking for friends in places where you don't fit in. You might meet someone
+> When you start writing your lyric before you think about rhymes, it’s like
+> looking for friends in places where you don’t fit in. You might meet someone
 > with things in common, but you could improve the odds by looking in places
 > you like.
 >
@@ -53,7 +53,7 @@ Pat does not introduce a fresh example to run the method on. He writes, verbatim
 and the one he returns to in Chapter 7:
 
 ```text
-I'm sick of all this risky business
+I’m sick of all this risky business
 I want to play it safe
 ```
 
@@ -94,8 +94,8 @@ And Pat's own idea sketch for "Risky Business," verbatim:
 > I thought being with you would be exciting. You are so popular and always the
 > center of attention. I worked hard to get your attention. But now, we spend
 > time together in a whirlpool of social activity. Mostly, I just feel left out.
-> Worse, I'm afraid you don't find me exciting. Every time you say hello to
-> someone else, I think, "Uh-oh. This is it." I can't stand living this way.
+> Worse, I’m afraid you don’t find me exciting. Every time you say hello to
+> someone else, I think, “Uh-oh. This is it.” I can’t stand living this way.
 >
 > — *Essential Guide to Rhyming* (2014), Chapter 3
 
@@ -153,7 +153,7 @@ And the selection rule, verbatim:
 
 > Find mostly masculine words. Pick words with different vowel sounds. Your goal
 > is to make a list of words to look up in your rhyming dictionary. This is not a
-> final list. As you look in the rhyming dictionary, look actively. Don't be
+> final list. As you look in the rhyming dictionary, look actively. Don’t be
 > afraid to switch, add, or take words out. You can even adjust your basic
 > approach as you go.
 >
@@ -392,22 +392,22 @@ Verbatim, numbered as printed:
 
 > There is plenty of raw material now. A few comments on my search:
 >
-> 1. I left out transitive verbs, including "desert," since I know they are
+> 1. I left out transitive verbs, including “desert,” since I know they are
 >    awkward in the rhyming position.
-> 2. I left out the clichés "romance" and "trance." Did you?
-> 3. I changed "scared" to "scare" because it had better rhymes. "Scare" is
+> 2. I left out the clichés “romance” and “trance.” Did you?
+> 3. I changed “scared” to “scare” because it had better rhymes. “Scare” is
 >    usually a transitive verb, though it could be used as a noun. It might not
 >    be much use itself, but I like the rhyme list it generates.
-> 4. The only chance "risk" has is to "slip a disc." I can't think of a good use
->    for "compact disc."
-> 5. "Ignored" didn't appear under "ORD," where I thought it should. But at the
+> 4. The only chance “risk” has is to “slip a disc.” I can’t think of a good use
+>    for “compact disc.”
+> 5. “Ignored” didn’t appear under “ORD,” where I thought it should. But at the
 >    end of the column, I saw "adored, etc." which referred me to *OR*. The
 >    reference means to look at the *OR* column and add *D* whenever you can. The
 >    Wood book uses this shorthand to avoid unnecessary duplication. So, I went
 >    to the *OR* column and added *D*. I like the list.
-> 6. I left "safe" and "business" out of the list. If I had been starting from
+> 6. I left “safe” and “business” out of the list. If I had been starting from
 >    scratch, I would have tried them, but then eliminated them because they
->    don't yield many rhymes.
+>    don’t yield many rhymes.
 > 7. The purpose of all this preliminary work is to put you in charted territory
 >    when you start writing.
 >
@@ -444,14 +444,14 @@ the song's idea.
 
 The chapter opens, verbatim:
 
-> Now it's time to go back to worksheets. This time, we'll launch a full rhyme
+> Now it’s time to go back to worksheets. This time, we’ll launch a full rhyme
 > search. Our goal is to find better words than we did with perfect rhyme. Look
 > again:
 >
-> I'm sick of all this risky business
+> I’m sick of all this risky business
 > I want to play it safe
 >
-> For starters, "business" and "safe" can go on the worksheet. Now, you can find
+> For starters, “business” and “safe” can go on the worksheet. Now, you can find
 > rhymes for them.
 >
 > — *Essential Guide to Rhyming* (2014), Chapter 7
@@ -555,7 +555,7 @@ Pat's framing instruction for the big list, verbatim:
 
 > Here is a complete rhyme search for each of the words on the worksheet. Figure
 > out what kind of rhymes they are and how I found them. They are all related to
-> the general idea of "RISKY BUSINESS." The list will have to be trimmed down
+> the general idea of “RISKY BUSINESS.” The list will have to be trimmed down
 > later.
 >
 > — *Essential Guide to Rhyming* (2014), Chapter 7
@@ -622,7 +622,7 @@ Perfect Rhymes          Imperfect Rhymes
                            procession     protection
                            resurrection   affection
                            mend on, etc.
-                           stretchin', etc.
+                           stretchin’, etc.
 
 5. left out             5. left out
    doubt                   aloud          renowned
@@ -866,9 +866,9 @@ choose a balanced set: some stable, some surprising, all idea-fit.
 
 Exercise wording, verbatim:
 
-> EXERCISE 7.2. "Risky Business" Practice
+> EXERCISE 7.2. “Risky Business” Practice
 >
-> Rewrite your lyric "Risky Business" using some of your new ideas and rhyme
+> Rewrite your lyric “Risky Business” using some of your new ideas and rhyme
 > words.
 >
 > — *Essential Guide to Rhyming* (2014), Chapter 7
@@ -941,9 +941,9 @@ usable skill output should be a trimmed, labeled working map.
 
 Exercise wording, verbatim:
 
-> EXERCISE 3.2. Worksheet "Last Night's Love"
+> EXERCISE 3.2. Worksheet “Last Night’s Love”
 >
-> Make up a worksheet on "last night's love." Start with an idea sketch. Make it
+> Make up a worksheet on “last night’s love.” Start with an idea sketch. Make it
 > a habit to include each important word from the title in your list.
 >
 > — *Essential Guide to Rhyming* (2014), Chapter 3
@@ -980,7 +980,7 @@ Exercise wording, verbatim:
 > EXERCISE 3.3. Song Sections
 >
 > Using your worksheet (or mine), write two sections (maybe a verse and a
-> chorus). You can come up with your own title, or use "risky business." (If you
+> chorus). You can come up with your own title, or use “risky business.” (If you
 > use my title, be sure not to put it in a rhyming position.)
 >
 > — *Essential Guide to Rhyming* (2014), Chapter 3
@@ -1002,8 +1002,8 @@ English. Verbatim:
 > It takes time, but it also saves time. More importantly, it raises quality and
 > guarantees that your rhyming position will communicate ideas effectively.
 >
-> But even when you're armed with a good rhyming dictionary and have mastered
-> making a worksheet, the sad fact is that English is a "rhyme-poor" language.
+> But even when you’re armed with a good rhyming dictionary and have mastered
+> making a worksheet, the sad fact is that English is a “rhyme-poor” language.
 > Why? English does not use the endings of words in any systematic way. In other
 > languages, like Italian, French, and Spanish, the ends of words are used for
 > grammatical purposes. They tell you:
@@ -1014,8 +1014,8 @@ English. Verbatim:
 >    subject, etc.
 > 4. how to categorize words according to gender.
 >
-> English does none of these things except in two minor cases: the "ing" ending
-> for gerunds and participles, and the "ly" ending for many adverbs.
+> English does none of these things except in two minor cases: the “ing” ending
+> for gerunds and participles, and the “ly” ending for many adverbs.
 >
 > When languages use endings in a systematic way, they limit the ways words can
 > end, increasing rhyme possibilities. Since English does not limit the number
@@ -1025,7 +1025,7 @@ English. Verbatim:
 > Worksheets are very important. Because of the overuse of many English rhymes
 > (clichés), the options in English are severely limited. Fortunately, there are
 > even more ways to improve your chances of finding effective rhymes in English.
-> Let's turn to them.
+> Let’s turn to them.
 >
 > — *Essential Guide to Rhyming* (2014), Chapter 3
 
