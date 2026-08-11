@@ -39,17 +39,12 @@ Chapter 5 opens on a PBS documentary about a narcoleptic puppy who keeps
 toppling over mid-romp. The narrator blames the disorder; Pat blames the radio
 playing in the background. The puppy drops at these lines:
 
-```text
-You gotta take a chance
-If you want a true romance
-```
+"You gotta take a chance / If you want a true romance." She sleeps until the
+song finishes, then gets up chasing her tail until she hears "Take my hand /
+Let me know you understand." Plop.
 
-and then again at:
-
-```text
-Take my hand
-Let me know you understand
-```
+(Pat quotes both couplets inline, slash-separated, inside the running prose —
+not as displayed stanzas.)
 
 > I may not be *The New England Journal of Medicine*, but I know why the puppy
 > is falling asleep: clichés. Cliché phrases. Cliché rhymes. Cliché images.

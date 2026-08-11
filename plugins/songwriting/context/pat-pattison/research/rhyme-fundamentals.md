@@ -41,7 +41,6 @@ the Pentad and read both surfaces off it — do not run two separate frameworks.
 > "Rhyme creates a sonic roadmap: it tells those eyeless ears where to
 > go and when to stop."
 > — Pat Pattison, *Essential Guide to Rhyming* (2014), Introduction
-> (paraphrased ≤25w)
 
 The "eyeless ears" framing is load-bearing. The listener cannot SEE the
 lyric. The rhyme structure tells them where the section is heading and

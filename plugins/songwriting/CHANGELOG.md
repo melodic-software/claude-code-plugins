@@ -3,6 +3,211 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.6]
+
+**Wave A cleanup — the five research files the previous pass left unfinished,
+plus an extractor bug that had been silently corrupting every quoted stanza.**
+
+### Fixed — the extraction bug, which reaches back into 0.8.5
+
+- **`<br>` carries attributes in these EPUBs and the extractor was missing
+  them.** The sources are Calibre-produced and write line breaks as
+  `<br class="calibre2"/>`, which a `<br\s*/?>` pattern does not match; the
+  tag-stripper then removed them, so **every lyric stanza arrived as a single
+  run-together line**. Agents restoring those stanzas were **inferring the line
+  breaks**. Corrected to `<br\b[^>]*>` and the corpus re-extracted.
+- **This is a correctness bug, not a cosmetic one** — line count is what
+  balance, stability and scansion claims are *about*. Re-verifying against the
+  corrected source immediately caught a real error: the stagnant sheriff Box 3
+  in *Writing Better Lyrics* (2009) Chapter 6 is **two printed lines, not one**.
+- **The spine/image invariants do not detect it** — all four passed cleanly
+  before and after. A stanza spot-check has been added to the extractor gate.
+- **The ~9,000 lines restored in 0.8.5 were built with the buggy pattern** and
+  have not been re-verified. Recorded for the verification pass.
+
+### Fixed — fabricated material removed
+
+- **`rhyme-types.md` carried an invented Pat quote.** A pull-quote reading
+  "Craft prepares you to be creative." appears **nowhere in any of the four
+  books**. Replaced with the real sentence from *Essential Guide to Rhyming*
+  (2014), Chapter 9.
+- **`stable-unstable-meta.md`, a 201-line file, held seven separate
+  fabrications** — an unsourced "central emotion" `— Pat` quote (zero corpus
+  hits), an epigraph falsely attributed to Berklee Online, an entirely invented
+  "five motion controllers" table (`melodic rhythm` and `harmonic rhythm` return
+  zero hits corpus-wide), invented stability-lever rows, a fake tone-of-voice
+  quote, an invented "Pat's stance" paragraph with invented examples, and an
+  invented table column plus a phantom pre-chorus row. All replaced with Pat's
+  actual five elements of structure from *Writing Better Lyrics* (2009)
+  Chapter 18, or relabelled unaudited where no book source exists.
+- **`repetition.md`'s hidden-question and hidden-command matrices were
+  invented**, including a fabricated "Effect" column. Replaced with Pat's
+  printed `do` / `did` / `will` blocks and the real
+  *You tell me / Tell me / Want me* sequence.
+- **`box-model.md` was largely invented above the citation line.** Removed: the
+  three-tier box-weight scheme, an entire fabricated **"Other named division
+  axes"** table (Time of day / Season / Location / Sense / Speaker stance /
+  Distance — no such list exists in either chapter), an invented three-bullet
+  "travelogue test", an invented three-bullet "same-color test", invented
+  You-I-We and Past-Present-Future bullet glosses, invented failure-mode rows,
+  and editorializing Pat never wrote ("if Box 3 is lighter than Box 2, the song
+  sags"). Each replaced with Pat's actual passage — the stack-of-boxes
+  paragraph, his Hawaii travelogue definition, his colored-spotlights paragraph
+  and his real worked diagnoses. **"Same-color" is this file's shorthand, not
+  Pat's term, and is now labelled as such.**
+- **`box-model.md`'s "One More Dollar" section was a prose plot summary.**
+  Replaced with Pat's printed lyric and the real box diagram
+  (Working / Gambling / Panhandling to get home), read off the figure.
+- **`point-of-view.md` was scaffolded with invented apparatus.** Removed five
+  separate invented "Use when" lists, an invented four-question direct-address
+  "fact test", invented translation "tests", and a fabricated
+  *One walks into the room / You walk into the room* example. Replaced with
+  Pat's actual one→you substitution on the Seger couplet, his real one-sentence
+  test, his printed narrative rewrites, and the songs he actually names —
+  "The Great Pretender", "Sentimental Lady", "Dress Rehearsal Rag",
+  "Digging for the Line" and "As Each Year Ends", none of which the file named.
+  Pat prints exactly **four** direct-address listener positions; the file's
+  count is now his.
+- **`stable-unstable-meta.md` debunked "central emotion" at the top and then
+  kept using it as a diagnostic key.** The fabricated quote was replaced, but
+  the worked diagnostic, the coaching prompts and the anti-patterns still keyed
+  off the invented phrase. All three now use Pat's actual wording from
+  *Writing Better Lyrics* (2009) Chapter 18 — **"central intent, idea, and
+  emotion"**. A provenance section was added naming the two things in the file
+  that are **not** Pat's: the tone-of-voice axis (non-book, 0 corpus hits) and
+  the worked diagnostic (this file's own applied example).
+- **Two restored quotes lost their italics and so looked like transcription
+  errors.** "you already knows all this stuff" and "a kind of universal feeling
+  that you seems to add" both read as subject-verb slips. They are not: the raw
+  XHTML italicises **`you`** in each, because Pat means the *word* `you` as a
+  mentioned term, which takes a singular verb. **Both sentences are correct as
+  printed**; the italics are now restored. This is a second, subtler failure
+  mode of the extractor — stripped italics can make correct verbatim text look
+  broken and invite a "correction" that would corrupt Pat's actual words.
+- **`point-of-view.md`'s own header over-claimed.** It said the file names "the
+  song and writers"; "Sentimental Lady", "Digging for the Line" and "As Each
+  Year Ends" carry **no writer credit** in Pat's text or the permissions page,
+  so it now says "the song, and the writers where Pat names them."
+- **`repetition.md` had silently truncated a quote** (a dropped opening clause,
+  then recapitalized) and **softened a categorical rule** — Pat writes that the
+  device *only* works in first and second person. Both restored.
+
+### Changed — the License section now describes what is actually here
+
+- **`README.md`'s License paragraph was factually false.** It claimed the plugin
+  "contains distilled craft guidance and short verified anchor quotes, not book
+  text." It has not been true since 0.8.5. Rewritten: MIT covers the plugin's
+  own code, skills and prompts and does not extend to quoted material; the
+  research files reproduce Pat's text and the lyrics he analyses verbatim, as a
+  deliberate decision by the owner, who owns all four books and is the only user;
+  Pat's writing remains his and the lyrics remain their writers'; readers who are
+  not the owner get no rights to any of it from the MIT header, and are pointed
+  at the four books.
+- **`point-of-view.md` had invented its own no-full-lyrics rule** — "Complete
+  third-party song lyrics are not reproduced" — and cut lyrics to fragments,
+  leaving it inconsistent with `box-model.md`, which reproduces them in full.
+  The rule was never the owner's; it is revoked and the header now says so. The
+  "As Each Year Ends" stanza is restored to Pat's full six lines. **Some
+  excerpts in that file are still short; this is recorded there as a known gap
+  rather than a policy.**
+
+### Fixed — a second sweep, and the scaffolding thesis measured
+
+- **`audit-checklist.md` was nearly half wrong, box by box.** 192 lines carrying
+  26 chapter citations and **zero reproduced text** — pure `- [ ]` scaffolding
+  attributed to specific chapters. All 83 checkboxes were tallied against the
+  cited chapters: **42 traceable, 15 distorted, 26 invented.** Traceable boxes
+  now quote Pat's actual sentence; distorted ones are corrected; invented ones
+  are relabelled as this file's own synthesis rather than deleted, so the owner
+  can see what is his tooling's invention and what is Pat's. **11 false section
+  attributions** were fixed.
+- **`bridge.md` opened on a six-word quote.** `"A bridge isn't a verse."` was
+  bare and uncited. The sentence is real but was **truncated** — Pat's full
+  passage in *Writing Better Lyrics* (2009) Chapter 23 goes on to contrast the
+  bridge against verse and chorus. Restored in full and cited, along with
+  Exercises 49 and 50 (entirely absent), the 1991 Chapter 5 five-point bridge
+  definition, and the transitional-bridge list — each restored as Pat's printed
+  numbered list rather than a flattened paraphrase.
+- **A fabricated alias pair in `bridge.md`.** The file listed "channel" and
+  "runway" as names for the pre-chorus. Zooming the actual figure shows Pat
+  lists only Pre-Chorus, Climb or Lift, Vest, Verse Extension, Ramp and Prime.
+  Removed. **This one was only catchable by reading the image.**
+- **A fabricated quote in `response-filter.md`**, plus a quote misattributed to
+  *Writing Better Lyrics* (2009) Chapter 1 that is really Chapter 5. Several
+  Berklee-sourced blockquotes elsewhere were de-quoted rather than left
+  masquerading as Pat's printed words.
+- **`cliche.md` presented two couplets as displayed stanzas.** Pat quotes both
+  inline in running prose, slash-separated. Corrected to match.
+
+### Verified — the line-break damage is narrower than feared
+
+The `<br>` bug was reported as potentially affecting all ~9,000 restored lines.
+**Measured, it does not.** Every quoted block in all 49 research files was
+checked mechanically — **1,109 consecutive line-pairs** — for the specific
+corruption signature, a file splitting a line the corrected source keeps whole.
+
+27 candidates surfaced and nearly all were legitimate: 14 in `phrasing.md` are
+Pat's own deliberate split into **eight short phrases**, and the rest are
+dialogue split per speaker, contrasted variant lines, and a wrapped thesaurus
+entry. **Only `cliche.md` needed correcting.** A proposed "fix" to `hook.md` was
+checked against the raw XHTML and **rejected** — there is a `<br>` between every
+line there, so those are genuinely separate printed lines and joining them would
+have introduced the very corruption being hunted.
+
+**The shape of the defect, now that five files have been done at once:** the
+paraphrase rule did not merely omit Pat's text, it **replaced it with invented
+scaffolding** — "Use when" lists, bullet "tests", checklists, named axes and
+failure-mode tables that read like craft guidance and cite nothing. This
+apparatus is the single most common fabrication form found, it is present in
+every file examined, and it is more dangerous than a wrong quote because it
+looks like the useful part.
+
+### Fixed — citations and claims narrowed
+
+- **`box-model.md` was cited to *Writing Better Lyrics* (2009) Chapters 6-9,
+  22-23.** Chapters 22 and 23 contain **zero** occurrences of "box". Narrowed to
+  Chapters 6-9.
+- **`five-compositional-elements.md` claimed the 1991 book has "no family,
+  additive, assonance, or consonance vocabulary".** Narrowed rather than
+  deleted: family, additive and assonance are genuinely absent, but
+  *Essential Guide to Lyric Form and Structure* (1991) Chapter 4 names
+  **Consonance Rhyme** in the Shelley analysis.
+- **`rhyme-types.md`'s "six rhyme types" count was checked and left unchanged** —
+  the reported count/list disagreement was not real.
+- **Exercise 8.7 is genuinely absent from the printed book.** *Essential Guide
+  to Rhyming* (2014) Chapter 8 runs 8.1-8.6 and 8.8-8.10, confirmed against the
+  page scans rather than the text layer alone, because a numbering gap is
+  normally an omission detector. `rhyme-sonic-bonding.md` already said so.
+
+### Restored — Pat's verbatim text
+
+- **`box-model.md`** — the form-neutral box definition, the progressive-weight
+  passage, the division-of-labor principle and the "Between Fathers and Sons"
+  analysis, from *Writing Better Lyrics* (2009) Chapters 6-9.
+- **`point-of-view.md`** — the perspectives, the Hangman material and the
+  Chapter 13 dialogue, from *Writing Better Lyrics* (2009) Chapters 10-13. Its
+  Berklee Online material was deliberately left untouched and marked unaudited;
+  **no quote was invented for a source that cannot be read.**
+- **`stable-unstable-meta.md`** — Pat's actual stability wording, the film-score
+  passage, the high-wire opening and the "Can't Be Really Gone" reading.
+- **`repetition.md`** — the sheriff summaries and box sets, the
+  "I'd just like to know" three-box demo, the neutral chorus, and the
+  "Strawberry Wine" and "Unanswered Prayers" analyses with their songwriter
+  credits.
+- **`song-forms-examples.md`** — Pat's worked form analyses from *Essential
+  Guide to Lyric Form and Structure* (1991) Chapter 6: the missing verses of
+  "This Bottle and Me", his three-purposes bridge passage, the Ballad Stanza
+  introduction with the "Western Wind" and "The Unquiet Grave" quotes, and
+  Exercises 35 and 38. The file's header also claimed these were "canonical
+  songs"; they are **Pat's own demo lyrics**, and now say so.
+- **Figure-only content recovered.** Several passages in 1991 Chapter 6 exist
+  **only as images**, following a dangling colon in the text — including the
+  AABA **statement / restatement / variation / return** table, the S1/S2/S3
+  bridge diagrams, the ABAB ballad-stanza principle and the verse scansion
+  strips. The chorus walk-through phrase attributions were also corrected
+  against the figures, so each of Pat's sentences now sits beside the printed
+  phrase it describes.
+
 ## [0.8.5]
 
 **A reversal of standing policy, plus a source-fidelity pass.**

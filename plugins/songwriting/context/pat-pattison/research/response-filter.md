@@ -121,8 +121,9 @@ the filter must catch this. See [mosaic-rhyme.md](mosaic-rhyme.md)
 
 **Anchor quote:**
 
-> "When you cheat the rhyme, you cheat the ear. The ear is the boss."
-> — Pat Pattison (recurring teaching, *Essential Guide to Rhyming* (2014))
+> "Never stop listening. If your ear says a sound is wrong, find another
+> rhyme. Trust your ears."
+> — Pat Pattison, *Essential Guide to Rhyming* (2014), Chapter 5
 
 ## §2 Line-writing filter
 
@@ -211,9 +212,9 @@ the risk live.
 
 **Anchor quote:**
 
-> "Sense-bound is universal. Generic is not."
-> — Pat Pattison (recurring teaching, *Writing Better Lyrics* (2009),
-> Chapter 1)
+> "Songs should be universal, but don't mistake universal for generic.
+> Sense-bound is universal."
+> — Pat Pattison, *Writing Better Lyrics* (2009), Chapter 5
 
 ## §3 Critique filter
 

@@ -898,9 +898,10 @@ start by saying 'I want a word that sounds like the ocean and breaks my voice
 leading expressively.' But the selection process led him there. All you have to
 do is listen for prosody, then choose accordingly."
 
-> "Put yourself in situations where you have several alternatives, and,
-> provided that you understand how and why to pick, your writing will get
-> better." — Pat Pattison, *Essential Guide to Rhyming* (2014), Chapter 8
+> "Moral: Put yourself in situations where you have several alternatives,
+> and, provided that you understand how and why to pick, your writing will
+> get better." — Pat Pattison, *Essential Guide to Rhyming* (2014),
+> Chapter 8
 
 > "Reasons for choosing. Choosing for reasons." — Pat Pattison,
 > *Essential Guide to Rhyming* (2014), Chapter 8
