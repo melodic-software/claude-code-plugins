@@ -38,8 +38,15 @@ each discovered file. Apply by entity type:
   repo-scoped". This is the reason Step 1 emits a scope tag. A user-scope `CLAUDE.md` carrying no build
   and test commands is correct, not a FAIL, and reporting one there would be a false positive
   manufactured by the wider discovery
-- **R1-R4**: `.claude/rules/` files, at either scope — a `user`-scope rule loads in every session, so
-  the always-loaded cost R-checks are about applies to it at least as strongly as to a project rule
+- **R1-R4**: `.claude/rules/` files, at either scope. **Read the rule's `paths:` frontmatter before
+  applying a check that assumes it is loaded.** An always-loaded user rule (no `paths:`) costs context
+  in every session of every project, so the R-checks apply to it at least as strongly as to a project
+  rule. A *path-scoped* user rule is absent until a matching file is read, so a repo-relative currency
+  or redundancy finding against one is only valid where its `paths:` can match in **this** project —
+  check that first rather than assuming co-residency
+- **Scope `both`**: one physical file both layers reach, which happens when the project root is the
+  home directory (a dotfiles repo) and `.claude/rules` *is* `~/.claude/rules`. Discovery emits it once
+  with this tag. Report it once, and never compare it against itself in Step 3
 - **C7/R3 (currency)**: version pins and counts are checked against the repo's own pin files
   (`global.json`, `.nvmrc`, `.python-version`, `.mcp.json`, or ecosystem equivalents). File-path-existence
   currency is **agent judgment**: read each path reference in context — instructional files cite
@@ -83,7 +90,10 @@ After per-file checks, cross-reference:
    here, so a user instruction that contradicts a project one is a live conflict rather than a
    layering choice, and a user instruction the project already states is redundant context on every
    run. Report the contradiction against the pair, and say which scope each side came from — the
-   resolution differs, since only one of the two is yours to edit on behalf of the repo
+   resolution differs, since only one of the two is yours to edit on behalf of the repo.
+   **Two exclusions.** A `both`-scoped file is one file, not a pair: never compare it with itself. And
+   a path-scoped user rule only co-resides where its `paths:` can match here, so establish that before
+   calling it a contradiction or a redundancy
 
 ## Step 4: Generate report
 

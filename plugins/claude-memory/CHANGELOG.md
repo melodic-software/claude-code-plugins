@@ -35,8 +35,20 @@ The audit now covers two surfaces it never could before, which is why this is a 
   project-scoped and its own criteria row says to skip personal files, so an unscoped widening would fire
   C9 on `~/.claude/CLAUDE.md` and FAIL it for not stating a repo's build and test commands. Step 2 now
   routes on the emitted scope, and the R-checks apply at both scopes because a user rule loads every
-  session in every project. 23 checks in the sibling `*.test.sh` style, including the Git Bash case where
+  session in every project. 32 checks in the sibling `*.test.sh` style, including the Git Bash case where
   the config root is a Windows path with a drive letter.
+- **A third scope value, `both`, for the dotfiles case.** When the project root *is* the home directory —
+  the same target shape the sibling `audit-pass` fix calls ordinary — `.claude/rules` relative to the cwd
+  and `~/.claude/rules` are the **same directory**, so a naive widening emits every rule twice under two
+  path spellings: a duplicate finding per rule, and a cross-scope comparison of a file against itself.
+  The two roots are compared canonically and, where they coincide, each file is emitted once as `both`.
+  It satisfies either `--scope` filter, because the file really is reachable by each layer. `CLAUDE.md`
+  cannot collide this way — project discovery is depth-1 at the cwd while the user copy sits inside the
+  config root — and a case pins that too.
+- **Path-scoped rules are not assumed loaded.** A user rule carrying `paths:` frontmatter is absent until
+  a matching file is read, so a repo-relative currency or redundancy finding against one is valid only
+  where its `paths:` can match in *this* project. Step 2 and the Step 3 comparison both say to establish
+  co-residency first rather than treating every discovered user rule as live here.
 - **Step 3 gains a cross-scope consistency pass.** Both layers load together, so a user instruction that
   contradicts a project one is a live conflict rather than a layering choice, and one the project already
   states is redundant context on every run. The report names which scope each side came from, because the

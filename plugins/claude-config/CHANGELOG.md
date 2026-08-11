@@ -51,9 +51,15 @@ repository rooted at or above `$HOME`, which a dotfiles repo is.
 
   **This closes a target class, deliberately.** The alternative was specifying all five branches, which
   obliges the contract to promise a capability it cannot deliver on that class. The refusal reuses the
-  existing channel — non-zero, before Phase 0, naming the resolved path and the reason — rather than
-  minting a new exit code, and it states the cost out loud, naming the suppression consequence in
-  particular, so it does not read as an arbitrary restriction.
+  existing channel — non-zero, before Phase 0, naming the path and the reason — rather than minting a
+  new exit code, and it states the cost out loud, naming the suppression consequence in particular, so
+  it does not read as an arbitrary restriction.
+
+  **It names the directory even when resolution produced nothing**, which is the case the refusal is
+  most for: on a bare invocation with no `${CLAUDE_PROJECT_DIR}`, the documented default is
+  `git rev-parse --show-toplevel`, and that fails outside a repository — leaving no resolved root to put
+  in the message. The diagnostic falls back to the current directory so the refusal can say what it
+  refused. That fallback is for the message only and never becomes a target.
 
 ### Added
 

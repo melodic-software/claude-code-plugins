@@ -59,8 +59,15 @@ Parse `$ARGUMENTS`:
   and the report are already keyed on the resolved root.
 
   **The gate enforces both halves of that first sentence: the active project root, *and* a git
-  repository.** A resolved `target` that is not inside a git repository is refused the same way —
-  non-zero, before Phase 0 does any work, naming the resolved path and the reason, writing nothing.
+  repository.** A `target` that is not inside a git repository is refused the same way — non-zero,
+  before Phase 0 does any work, naming the path and the reason, writing nothing.
+
+  **Name the directory, not an empty string.** In the case this refusal is *for*, the default
+  resolution above produces nothing: with no explicit `target` and no `${CLAUDE_PROJECT_DIR}`,
+  `git rev-parse --show-toplevel` fails outside a repository and there is no resolved root to report.
+  So for the diagnostic only, fall back to the current directory and name **that** — a refusal that
+  cannot say which path it refused is barely better than a silent one. The fallback is for the message;
+  it never becomes a target.
   Requiring only "the active project root" let a non-git directory through into a contract with no
   branch for it, and the run then went quiet in five places rather than one:
 

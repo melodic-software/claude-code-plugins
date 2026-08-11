@@ -140,6 +140,43 @@ else
   pass "skipped: cygpath unavailable (not Git Bash)"
 fi
 
+# --- the dotfiles case: project root IS the config root's parent -------------
+# `.claude/rules` relative to cwd and $CONFIG/rules are then the SAME directory.
+# Emitting each file twice under two path spellings would produce a duplicate
+# finding per rule and a cross-scope comparison of a file against itself.
+
+HOMEREPO="$TEST_TMPDIR/homerepo"
+mkdir -p "$HOMEREPO/.claude/rules"
+printf '# shared rule\n' >"$HOMEREPO/.claude/rules/shared-rule.md"
+printf '# user memory in a dotfiles repo\n' >"$HOMEREPO/.claude/CLAUDE.md"
+printf '# repo root memory\n' >"$HOMEREPO/CLAUDE.md"
+
+OUT_HOME="$(run_in "$HOMEREPO" "$HOMEREPO/.claude")"
+
+RULE_ROWS="$(printf '%s\n' "$OUT_HOME" | grep -c 'shared-rule\.md' || true)"
+if [[ "$RULE_ROWS" == "1" ]]; then
+  pass "overlapping rules dir emits each rule exactly once"
+else
+  fail "overlapping rules dir emits each rule exactly once" "got $RULE_ROWS rows: $OUT_HOME"
+fi
+assert_contains "the overlapping rule is tagged both" "$OUT_HOME" "$(printf 'both\trule\t.claude/rules/shared-rule.md')"
+assert_not_contains "the overlapping rule is not also tagged project" "$OUT_HOME" "$(printf 'project\trule\t')"
+assert_not_contains "the overlapping rule is not also tagged user" "$OUT_HOME" "$(printf 'user\trule\t')"
+
+# CLAUDE.md cannot collide even here: project discovery is depth-1 at the cwd, and
+# the user copy lives one level down inside the config root.
+assert_contains "repo-root CLAUDE.md is still project" "$OUT_HOME" "$(printf 'project\tclaude-md\tCLAUDE.md')"
+assert_contains "config-root CLAUDE.md is still user" "$OUT_HOME" "$(printf 'user\tclaude-md\t%s/CLAUDE.md' "$HOMEREPO/.claude")"
+
+# A `both` record satisfies either filter — the file really is reachable by each layer.
+OUT_HOME_USER="$(run_in "$HOMEREPO" "$HOMEREPO/.claude" --scope user)"
+assert_contains "--scope user still shows the both-tagged rule" "$OUT_HOME_USER" "shared-rule.md"
+OUT_HOME_PROJ="$(run_in "$HOMEREPO" "$HOMEREPO/.claude" --scope project)"
+assert_contains "--scope project still shows the both-tagged rule" "$OUT_HOME_PROJ" "shared-rule.md"
+
+# The non-overlapping fixture must NOT regress into `both`.
+assert_not_contains "distinct rules dirs never produce a both tag" "$OUT" "$(printf 'both\t')"
+
 # --- unknown argument is advisory, not fatal ---------------------------------
 
 run_in "$PROJ" "$CONF" --nonsense >/dev/null 2>&1

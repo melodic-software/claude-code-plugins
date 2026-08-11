@@ -366,7 +366,7 @@
       "files": [],
       "expectations": [
         "Refuses the non-git target and exits non-zero rather than running a partial or degraded pass",
-        "Names the resolved path and the reason, in the same shape as the existing not-the-active-project-root refusal",
+        "Names the directory it refused and the reason, in the same shape as the existing not-the-active-project-root refusal — and names it even on a bare invocation where git rev-parse --show-toplevel produced nothing, falling back to the current directory for the message",
         "Refuses BEFORE doing any Phase 0 work, and writes nothing anywhere",
         "Names at least the suppression consequence — the team layer is the tracked layer, so no suppression is enactable without a repository — rather than refusing without a stated cost",
         "Does NOT invent a non-git state key, scan baseline, or Class 3 fallback in order to proceed"
