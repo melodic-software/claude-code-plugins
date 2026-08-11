@@ -3,6 +3,39 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.51.9]
+
+### Fixed
+
+- **`babysit_merge` no longer drops required status contexts when more than one ruleset governs the
+  base branch.** `branch_rules` assigned `requiredContexts` inside its loop over
+  `repos/{repo}/rules/branches/{branch}`, but that endpoint returns one rule of a given type PER
+  RULESET, so each `required_status_checks` rule overwrote the previous one and only the last
+  survived. On a branch governed by two rulesets this reported one of four required contexts,
+  under-reporting `effectiveRules` and the "required checks not satisfied" blocker. The single-rule
+  assumption was correct under classic branch protection, which has exactly one such rule, and does
+  not hold under rulesets. Contexts are now unioned across all rules, deduped (two rulesets may
+  legitimately require the same context) and sorted (stable regardless of the order rulesets are
+  returned in). An entry carrying no `context` is dropped rather than surfacing as a literal `None`
+  required context. Not a merge-safety hole: the gate refuses independently on `mergeStateStatus`,
+  which GitHub computes from all required checks. Its one safety-adjacent effect ran in the
+  over-holding direction — `baseUnprotected` is true when the context list is empty, which under
+  the bug meant "the LAST status-checks rule is empty" and now means "ALL of them are", a subset —
+  so the bug produced a false hold on a superset of cases and never retired one. Latent on this
+  repository, where neither ruleset carries an empty context list.
+- **`pull_request` rules are folded across rulesets too.** Same assign-in-loop shape, same
+  function. `requiredApprovingReviews` now takes the max and `requireThreadResolution` the OR — the
+  fail-closed direction whatever GitHub's own composition rule is, since max/OR can only
+  over-report and hold a PR for a human, where last-wins can under-report and release one. This
+  one could lose a blocker outright: a trailing rule with `required_approving_review_count: 0`
+  erased an earlier ruleset's requirement and dropped the "needs N approving review(s)" hold. Not
+  observed — one such rule governs the branch today. The count fold is a behaviour change; the
+  boolean is report-only, never consumed as a blocker. The count also distinguishes an ABSENT
+  `required_approving_review_count` (the rule requires no reviews — zero) from one present but
+  unreadable (`null`, `""`, `0.0`, `[]`, `{}` — a requirement is stated and its size is unknown, so
+  it counts as one). Collapsing a falsy non-int to zero would be the single fail-open step in a
+  fold whose guarantee is that it may only ever over-report.
+
 ## [0.51.8]
 
 ### Fixed
