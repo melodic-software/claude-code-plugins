@@ -60,8 +60,10 @@ giving the whole scheme a documented home is a separate follow-up, tracked outsi
 **Also required — a hook that CHANGED the user's file content without being asked.** An autofix hook
 edits a file the user is working in, on the strength of an unrelated tool call, with no prompt and no
 diff. The harness's own signal for it is a generic "PostToolUse hook modified `<file>` after your
-edit (likely a formatter)" line that names no hook and shows no change — verified against
-<https://code.claude.com/docs/en/hooks> (fetched 2026-08-10): the three documented output channels
+edit (likely a formatter)" line that names no hook and shows no change — an observed harness string,
+not a documented one: it appears on no Claude Code docs page (checked across the corpus 2026-08-11).
+What the docs do settle, verified against
+<https://code.claude.com/docs/en/hooks> (fetched 2026-08-10), is the negative this rule needs: the three documented output channels
 carry no file-change or diff surface, so a benign reflow and a wrong dictionary rewrite arrive
 identically. The person whose file was changed is the only one who can judge whether the change was
 correct, so **the hook must name what it changed on the user channel**, not only the agent one: what
@@ -161,10 +163,28 @@ melodic-software/claude-code-plugins#930.
   human-only-choice carve-out above; over-applying it to blocking paths or to advisory findings the
   model can act on is itself a conformance defect (redundant user noise, or misrouting
   agent-actionable content to the user channel).
-- **Not a UI feature.** No native "verbose hooks" toggle exists in Claude Code as of 2026-08-10
-  (confirmed against the same fresh fetch this doc cites) — `statusMessage` and `systemMessage`
-  are the sanctioned surfaces available today. An upstream feature request for a native
-  verbose-hooks UI toggle is tracked separately, outside this repo.
+- **Not a UI feature — but "no verbose surface exists" is the wrong reason.** Verbose surfaces do
+  exist and one of them carries hook output: "Async hook completion notifications are suppressed by
+  default. To see them, enable verbose mode with `Ctrl+O` or start Claude Code with `--verbose`"
+  (hooks reference, verified 2026-08-11). Alongside it are the `verbose` and `viewMode` settings,
+  the `--verbose` flag, `CLAUDE_CODE_DEBUG_LOG_LEVEL=verbose` for hook matcher counts, and
+  `--include-hook-events` for the stream-json event feed.
+
+  What none of them is, is a **consumer-facing toggle that makes an ordinary hook's routine work
+  visible**. Each is either operator-driven debugging (`--debug`, the debug log level), a
+  transcript view the consumer must already have switched on, or a machine feed for a `-p` harness.
+  A plugin cannot assume any of them is active, and none changes where a hook must *put* its
+  message. So the rule stands unchanged — `statusMessage` and `systemMessage` are the surfaces a
+  fleet hook writes to — but it rests on "a plugin cannot depend on an operator's debug posture",
+  not on a nonexistence claim.
+
+  > **Correction, 2026-08-11.** This bullet previously read "No native 'verbose hooks' toggle
+  > exists in Claude Code," verified against a `hooks`-page fetch. The literal phrase "verbose
+  > hooks" appears on no page, but the word `verbose` appears across at least 13 Claude Code
+  > pages including four hook-related mentions on `hooks` itself. Absence from one page is not
+  > absence — the negative was scoped to the page searched and stated about the product. See
+  > [upstream-drift, "Reading the basis"](../upstream-drift/README.md#reading-the-basis--the-fetch-route):
+  > a claim of the form "X does not exist" has to name the surfaces searched.
 
 ## Conformance
 
