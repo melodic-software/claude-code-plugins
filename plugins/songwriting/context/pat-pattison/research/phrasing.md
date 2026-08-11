@@ -1,6 +1,6 @@
 # Phrasing
 
-Pat Pattison - *Songwriting: Essential Guide to Lyric Form and Structure* (1991), Chapter 1-2;
+Pat Pattison - *Essential Guide to Lyric Form and Structure* (1991), Chapters 1-2;
 extended via patpattison.com "Art of Phrasing" and "Lyric and Melodic Phrases"
 articles for front-heavy/back-heavy framing and body-language metaphor.
 

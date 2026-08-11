@@ -1,9 +1,9 @@
 # Five Compositional Elements
 
 Pat Pattison — Coursera "Songwriting: Writing the Lyrics" specialization
-framing, synthesized from *Songwriting: Essential Guide to Lyric Form and
-Structure* (1991) Chapter 1-4 (where each element is named separately) and
-*Writing Better Lyrics* (2009) Chapter 20-21 ("Form Follows Function", "Great
+framing, synthesized from *Essential Guide to Lyric Form and
+Structure* (1991) Chapters 1-4 (where each element is named separately) and
+*Writing Better Lyrics* (2009) Chapters 20-21 ("Form Follows Function", "Great
 Balancing Act").
 
 Use this as a section-by-section diagnostic checklist. Every lyric section

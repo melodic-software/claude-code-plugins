@@ -1,7 +1,7 @@
 # Prosody
 
-Pat Pattison - *Writing Better Lyrics* (2009), Chapter 18-19; extended via
-*Songwriting: Essential Guide to Lyric Form and Structure* (1991) Chapter 3-4
+Pat Pattison - *Writing Better Lyrics* (2009), Chapters 18-19; extended via
+*Essential Guide to Lyric Form and Structure* (1991) Chapters 3-4
 (Structural Pentad); Berklee Online "Prosody in Music and Songwriting"
 article (motion controllers, tone-of-voice); patpattison.com
 "Language and Songwriting" (greedy spots in the melody frame);
@@ -9,7 +9,7 @@ American Songwriter "Motion Creates E-Motion" column (4-controller framework).
 
 Audited against *Writing Better Lyrics* (2009) Chapters 18-19, and against
 *Essential Guide to Lyric Form and Structure* (1991) Chapters 3 **and 4**, both
-with their figures. **The "Chapter 3-4 (Structural Pentad)" citation above
+with their figures. **The "Chapters 3-4 (Structural Pentad)" citation above
 holds.** Chapter 3 introduces the Pentad on rhythmic structure; Chapter 4 opens
 by naming all five properties — balance, pace, flow, closure, closure type —
 and gives each its own numbered section, applied to rhyme structure. The
@@ -1477,9 +1477,6 @@ notation — it requires hearing the bar structure clearly. When the melody
 makes the bar boundaries audible, strong/weak bar phrasing creates
 section-internal motion the other two types can't access alone.
 
-No "use when" rule for the third type is sourced. An earlier revision of this
-file carried a three-item trigger list here; it was scaffolding invented on top
-of an already-unreadable source, and it has been removed rather than restated.
 If you reach for the strong/weak-bar idea, reach for it descriptively — name
 what the bars are doing — and do not present a selection rule as Pat's.
 

@@ -1,6 +1,6 @@
 # *Essential Guide to Lyric Form and Structure* (1991) Song-Form Worked Examples
 
-Pat Pattison - *Songwriting: Essential Guide to Lyric Form and Structure*
+Pat Pattison - *Essential Guide to Lyric Form and Structure*
 (1991), Chapter 6. These are the densest pedagogy in the book — four worked
 mechanism analyses on Pat's own demonstration lyrics, covering verse/refrain
 (A A B A), verse/chorus, verse/transitional-bridge/chorus, and

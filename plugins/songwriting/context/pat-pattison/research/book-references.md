@@ -37,7 +37,7 @@ Every `context/*.md` file MUST have a header attributing source books:
 # <Concept name>
 
 Pat Pattison — *Essential Guide to Lyric Form and Structure* (1991),
-Chapter 4. Extended by *Essential Guide to Rhyming* (2014), Chapter 1-2.
+Chapter 4. Extended by *Essential Guide to Rhyming* (2014), Chapters 1-2.
 ```
 
 When a file synthesizes across multiple books, list them in chronological

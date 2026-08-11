@@ -1,7 +1,7 @@
 # Meter
 
-Pat Pattison - *Songwriting: Essential Guide to Lyric Form and Structure* (1991), Chapter 3.
-Pat Pattison - *Writing Better Lyrics* (2009), Chapter 14-17.
+Pat Pattison - *Essential Guide to Lyric Form and Structure* (1991), Chapter 3.
+Pat Pattison - *Writing Better Lyrics* (2009), Chapters 14-17.
 Pat Pattison - *Songwriting Without Boundaries* (2011), Challenge 4.
 
 Notation: `/` = primary stress, `//` = secondary stress, `u` = unstressed. Words
@@ -26,7 +26,7 @@ Pat's own scansion of that verse is reproduced under
 
 ## Image inventory
 
-- *Songwriting: Essential Guide to Lyric Form and Structure*, Chapter 3: **59
+- *Essential Guide to Lyric Form and Structure*, Chapter 3: **59
   figure references, 56 unique**, running `image_rsrc2YZ.jpg` through
   `image_rsrc30P.jpg` (`image_rsrc30P.jpg` is a closure arrow, used four times).
   This chapter argues *in* its figures: every scansion, all three Paradigms, the

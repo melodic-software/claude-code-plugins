@@ -1,7 +1,7 @@
 # Lyric-Melodic Roadmaps
 
 Pat Pattison — *patpattison.com* "Lyric and Melodic Phrases" plus
-*Songwriting: Essential Guide to Lyric Form and Structure* (1991) Chapter 1-2 on
+*Essential Guide to Lyric Form and Structure* (1991) Chapters 1-2 on
 phrasing. Books bracket the music; this file is the bridge between a lyric's
 natural phrasing and a melody's actual phrasing.
 
@@ -25,7 +25,7 @@ demoted this session on the mistaken grounds that no source carried it; a
 refuting pass found the page immediately. Its tail "of your song" had been
 truncated and is restored.
 
-The 1991 Chapter 1-2 citation above is sound (those chapters are "Number of
+The 1991 Chapters 1-2 citation above is sound (those chapters are "Number of
 Phrases" and "Length of Phrases"); it covers the phrase material, not the
 roadmap vocabulary.
 

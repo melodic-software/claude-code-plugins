@@ -3,6 +3,22 @@
 Pat Pattison — *Essential Guide to Lyric Form and Structure* (1991), Chapter 4.
 Extended by *Essential Guide to Rhyming* (2014), Introduction and Chapters 1-2.
 
+## 2014 Preface
+
+*Essential Guide to Rhyming* (2014), Preface.
+
+This is not a general book on lyric writing. It has a very specific purpose: *to help you find better rhymes and use them more effectively.*
+
+If you’ve written lyrics before, maybe even professionally, and you want to take a new look or gain even greater control and understanding of your craft, this book could be just the thing for you.
+
+If you’ve never written lyrics before, this book will help. You won’t have had a chance to develop bad habits.
+
+Rhyme is one of the most crucial areas of lyric writing. The great lyricists have at least this in common: they are skilled rhymers. This book will give you control over rhyming. It’ll give you the technical information necessary to develop your skills completely—to make rhyme work for you, rather than against you.
+
+You can work completely through this book in two or three sittings. If you do the exercises, you’ll understand it the first time through. After that, use it for reference.
+
+You’ll need a rhyming dictionary. I use *The Complete Rhyming Dictionary*, edited by Clement Wood (Dell Publishing) as my source. I suggest you use it too. However, you can easily apply the information in this book to any rhyming dictionary.
+
 ## Image inventory
 
 *Essential Guide to Lyric Form and Structure* (1991), Chapter 4: **40 linked

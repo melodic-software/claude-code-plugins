@@ -1,6 +1,6 @@
 # Verse Development
 
-Pat Pattison - *Writing Better Lyrics* (2009), Chapter 7-8. The Ibsen's-gun
+Pat Pattison - *Writing Better Lyrics* (2009), Chapters 7-8. The Ibsen's-gun
 section at the foot of the file is Chapter 10's, and is cited as such there.
 
 Use this when a user asks how to make verses develop, how to avoid second-verse
@@ -395,7 +395,7 @@ Put important material there.
 > it in the lights of a power position, and you will communicate the idea more
 > forcefully.
 
-Chapter 7 points at *Songwriting: Essential Guide to Lyric Form and Structure*
+Chapter 7 points at *Essential Guide to Lyric Form and Structure*
 for the full treatment; here it demonstrates on "Child Again."
 
 Chapter 7 never prints a list of power positions. It prints one Moral, and
