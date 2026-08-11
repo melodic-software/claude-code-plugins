@@ -162,7 +162,9 @@ or from an installed plugin; a plugin-provided hook is no weaker a block than a 
   under any of those the narrowing does not apply at all and the finding stands at its unnarrowed
   severity. Category D reads and reports all three, so take the reading from there; where that reading
   was not taken, the narrowing is **unavailable** rather than assumed clear — an unread lever is not an
-  unset one.
+  unset one. Category D runs *after* Category B, so pull the reading forward or defer the downgrade and
+  revise the severity once Category D has run; on a scope-filtered run that never reaches Category D
+  (`/audit permissions`), the narrowing is unavailable unless the operator supplies the state.
 - **The hook is on the tool surface the pattern defends.** `destructive-bash-deny` and `ask-rules` are
   Bash-command families, so a `PreToolUse` hook on `Bash`/`PowerShell` can cover them.
   `sensitive-file-deny` is a `Read`-pattern family, and a Read deny covers the built-in file tools as

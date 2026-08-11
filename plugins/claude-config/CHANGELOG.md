@@ -74,6 +74,12 @@ offered as a mechanical `--fix`.
   `info`, because a repo may set any of them deliberately and the reading is state rather than a
   defect. Category B may not take its third narrowing on a reading that was never made: an unread lever
   leaves the narrowing **unavailable**, not assumed clear.
+- **And the dependency is sequenced, since Category B runs before Category D.** A–I is presentation
+  order, not a dependency ban: Category B pulls the lever reading forward before taking the narrowing,
+  or defers the downgrade and revises the severity once Category D has run. On a scope-filtered run that
+  never reaches Category D — `/audit permissions` is exactly this — the narrowing is unavailable unless
+  the operator supplies the state. Stated in both Category B and "Narrowing the baseline", so a reader
+  arriving at either one gets it.
 - Eval #8 `baseline-deny-narrowed-by-installed-hook` grades the narrowing *per family*: force-push and
   hard-reset patterns drop to `info` under a live Bash hook, while `git clean` patterns the hook does
   not match and `sensitive-file-deny` Read patterns it cannot reach stay at their unnarrowed severity.
