@@ -6,7 +6,7 @@
 
 ### 1. Voices (clone your singing identity)
 
-**Pro / Premier only.** Clone your own vocals so generated songs sound like YOU singing.
+**Free plans included since Aug 7 2026 — with an unresolved platform caveat (see below).** Clone your own vocals so generated songs sound like YOU singing.
 
 | Detail | Spec |
 |--------|------|
@@ -19,7 +19,11 @@
 | Privacy | Private by default, account-locked, non-shareable |
 | Activation | Select voice from dropdown in Custom mode + raise Audio Influence |
 
-Clip length, 2-minute auto-selection, verification, and privacy rows verified 2026-07-18 against <https://help.suno.com/en/articles/11362369>; Pro/Premier tier per <https://suno.com/blog/v5-5>.
+Clip length, 2-minute auto-selection, verification, and privacy rows verified 2026-07-18 against <https://help.suno.com/en/articles/11362369>.
+
+**Tier corrected 2026-08-08.** The March 2026 Pro/Premier gate (per <https://suno.com/blog/v5-5>) has been superseded. <https://suno.com/release-notes>, Aug 7 2026: "We brought Voices to both iOS and Android. Record your voice once and use it on any song. Now available to try on free plans."
+
+**Unresolved platform caveat — do not assume free Voices on web.** That release-note entry is tagged *Improvement, iOS, Android, Create* with **no `Web` tag**, while every other web-touching entry in the same window carries one. <https://suno.com/pricing> shows no Voices bullet under Free, and both Voices help articles are silent on plan gating. Free-plan Voices may therefore be mobile-only. Unresolved as of 2026-08-08 — verify in-app before relying on it.
 
 **Critical prompting rule when a Voice is active:**
 
@@ -97,9 +101,10 @@ Char-limit rows verified 2026-07-18 against third-party testers ([hookgenius cha
 | Cover | ✓ | ✓ | ✓ |
 | Extend | ✓ | ✓ | ✓ |
 | Audio upload | up to 8 min | up to 30 min | up to 30 min |
-| 2-track stems | ✓ | ✓ | ✓ |
-| 12-track stems | — | ✓ | ✓ |
-| Voices | — | ✓ | ✓ |
+| Stem separation — Split from Mix (2 stems) | — | ✓ | ✓ |
+| Stem separation — Auto Split (up to 12 stems) | — | ✓ | ✓ |
+| Stem separation — Advanced Split (~100 instruments) | — | — | ✓ |
+| Voices | see platform caveat above | ✓ | ✓ |
 | Custom Models (up to 3) | — | ✓ | ✓ |
 | Replace Section | — | ✓ | ✓ |
 | Suno Studio | — | — | ✓ |
@@ -108,6 +113,7 @@ Char-limit rows verified 2026-07-18 against third-party testers ([hookgenius cha
 
 - Studio row corrected 2026-07-18: **Premier-exclusive** per <https://suno.com/pricing> — Pro has no Studio access.
 - Audio-upload row verified 2026-07-18 against <https://suno.com/pricing>: Free up to 8 minutes, Pro/Premier up to 30 minutes (the earlier 60s/120s figures were stale).
+- **Stem rows corrected 2026-08-08** against <https://suno.com/pricing>. Free reads "No stem separation" — the previous "2-track stems: Free ✓" row was false. Pro carries "2 stem separation types (Auto; Split from mix)"; Premier carries "3 stem separation types (… and Advanced split)". Naming correction too: Auto Split / Split from Mix / Advanced Split are three **modes**, not track counts — "12-track stems" was a misnomer for Auto Split, which yields up to 12 stems.
 - Free-tier generation runs on **v4.5-all**, not v5.5 (third-party report: TechRadar).
 
 ## Sources

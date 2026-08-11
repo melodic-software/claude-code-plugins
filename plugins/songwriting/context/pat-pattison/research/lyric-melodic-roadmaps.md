@@ -18,11 +18,12 @@ throughout as its governing metaphor. The "maximum meaning" quote below is
 **confirmed verbatim** against that page, and the three fixes below are **Pat's
 own numbered options**, not this file's invention — see that section.
 
-Still unconfirmed: the `"Phrasing has the power to create emotion. It's the body
-language."` quote further down. It is **not** in the "Lyric and Melodic Phrases"
-article — the phrase "body language" does not appear there at all — and no other
-patpattison.com page carrying it has been located. It is marked unaudited in
-place and must not be quoted as Pat.
+The `"body language"` quote further down is **also confirmed**, but to a
+different column — "The Art of Phrasing"
+(<https://www.patpattison.com/art-of-phrasing>), not this one. It was briefly
+demoted this session on the mistaken grounds that no source carried it; a
+refuting pass found the page immediately. Its tail "of your song" had been
+truncated and is restored.
 
 The 1991 Chapter 1-2 citation above is sound (those chapters are "Number of
 Phrases" and "Length of Phrases"); it covers the phrase material, not the
@@ -237,18 +238,24 @@ Where the lyric phrase begins relative to the bar shapes the roadmap.
 - **Back-heavy** — phrase starts after the downbeat. Feels in motion,
   unstable.
 
-<!-- DEMOTED 2026-08-11 — attribution not confirmed. This was carried as a
-     direct quotation credited to patpattison.com. The "Lyric and Melodic
-     Phrases" article was fetched and read on 2026-08-11 and does NOT contain
-     it: the phrase "body language" does not appear in that article at all, and
-     no other patpattison.com page carrying it has been located. The quotation
-     marks and the attribution are removed rather than re-sourced. The
-     observation itself is retained below, unattributed, because it is useful
-     and the craft point does not depend on who said it. Do NOT re-add a
-     citation without reading a page that actually prints the sentence. -->
+<!-- DEMOTED, THEN RESTORED, both on 2026-08-11. The demotion was WRONG and is
+     recorded here so it is not repeated. This quote was demoted on the grounds
+     that the "Lyric and Melodic Phrases" article does not contain it (true —
+     "body language" does not appear in THAT article) and that no other
+     patpattison.com page carrying it had been located (FALSE). A refuting
+     verification pass found the source on the first search: it is a DIFFERENT
+     column, "The Art of Phrasing". The lesson is that failing to find a source
+     is not evidence it does not exist — search again before demoting. -->
 
-Phrasing carries emotion — it is a section's body language. (Unattributed;
-plugin-authored phrasing of the point. See the demotion note above.)
+> "Phrasing has the power to create emotion. It's the body language of your
+> song."
+> — Pat Pattison, patpattison.com, "The Art of Phrasing"
+> (<https://www.patpattison.com/art-of-phrasing>, fetched 2026-08-11)
+
+Note the tail: the plugin previously printed this as "It's the body language."
+and stopped. The article reads "the body language **of your song**" — the same
+truncation this file made to the "maximum meaning" quote above. Both are now
+restored in full.
 
 A back-heavy lyric phrase against a front-heavy melodic phrase fights the
 section's body language. The fix is usually to shift the lyric's leading

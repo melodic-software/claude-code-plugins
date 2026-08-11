@@ -91,17 +91,31 @@ Pat Pattison — *What's in a Song* podcast, "Creating Metaphors" episode
 Date when relevant. Citation includes the publication / platform first,
 then the title.
 
-## Plugin-authored vocabulary — terms that are NOT Pat's
+## Vocabulary that is NOT in the four books
 
-These terms are used throughout this plugin as working shorthand. **None of them
-appears anywhere in the four-book corpus.** Each count below was measured against
-the extracted text of all four books, wrap-safe:
+**"Not in the books" and "not Pat's" are different claims. Do not collapse
+them** — an earlier version of this table did, and was wrong. Pat teaches
+outside the books too, and terms he coins in a column are still his.
+
+Each corpus count below was measured wrap-safe against the extracted text of all
+four books:
 
 | Term | Corpus hits | Status |
 | --- | --- | --- |
-| `tone of voice` | 0 | Plugin-authored shorthand. Keep, but never attribute to Pat. |
-| `front-heavy` / `back-heavy` | 0 | Plugin-authored shorthand for phrase weighting. Same rule. |
+| `front-heavy` / `back-heavy` | 0 | **Pat's own coinage**, outside the books — see below. Citable to the column, never to a book. |
+| `tone of voice` | 0 | Not located in any Pat source, book or column. Treat as plugin shorthand; never attribute to Pat. |
 | `central emotion` | 0 | **Do not use.** It truncates a real three-part phrase — see below. |
+
+`front-heavy` / `back-heavy` are Pat's, coined in his patpattison.com column
+"The Art of Phrasing" (fetched and read 2026-08-11,
+<https://www.patpattison.com/art-of-phrasing>), which defines both:
+
+> "We'll call phrases that start on the downbeat of a bar, or pick up to the
+> downbeat, front-heavy."
+> "We'll call phrases that start after the downbeat back-heavy."
+
+So the correct caveat on these two is **"not in the four books, cite the
+column"** — not "not Pat's". `phrasing.md` had this right before this table did.
 
 `central emotion` is a distortion rather than an invention, which is why sweeps
 for fabricated quotes kept missing it. Pat's actual sentence is:

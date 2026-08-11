@@ -306,6 +306,32 @@ sections cannot sound like repetition, contrast, departure, or return.
 Pat's worked case is Ervin Drake's "IT WAS A VERY GOOD YEAR."
 *Essential Guide to Lyric Form and Structure* (1991), Chapter 5:
 
+All four verses, in the order Chapter 5 prints them, each with the prose Pat
+sets against it. Verse one:
+
+```text
+When I was seventeen IT WAS A VERY GOOD YEAR
+IT WAS A VERY GOOD YEAR for small town girls
+On soft summer nights
+We'd hide from the lights
+On the village green
+When I was seventeen
+```
+
+> — Ervin Drake, "IT WAS A VERY GOOD YEAR"
+
+> Again, the verse sets the standard. Again, it is easy to recognize a
+> repetition:
+
+```text
+When I was twenty-one IT WAS A VERY GOOD YEAR
+IT WAS A VERY GOOD YEAR for city girls
+Who lived up the stair
+With perfumed hair
+That came undone
+When I was twenty-one
+```
+
 > "IT WAS A VERY GOOD YEAR," like many songs, is made up only of verses. It has
 > no contrasting sections. When you write a lyric that contains only verses,
 > make sure they are interesting.
@@ -334,31 +360,6 @@ From fine old kegs
 From the brim to the dregs
 It poured sweet and clear
 IT WAS A VERY GOOD YEAR
-```
-
-The four verses Pat prints, in his order. Verse one sets the standard:
-
-```text
-When I was seventeen IT WAS A VERY GOOD YEAR
-IT WAS A VERY GOOD YEAR for small town girls
-On soft summer nights
-We'd hide from the lights
-On the village green
-When I was seventeen
-```
-
-— Ervin Drake, "IT WAS A VERY GOOD YEAR"
-
-> Again, the verse sets the standard. Again, it is easy to recognize a
-> repetition:
-
-```text
-When I was twenty-one IT WAS A VERY GOOD YEAR
-IT WAS A VERY GOOD YEAR for city girls
-Who lived up the stair
-With perfumed hair
-That came undone
-When I was twenty-one
 ```
 
 > Saving the CENTRAL IDEA till last has two effects:
@@ -403,7 +404,13 @@ How they take so long
 And they go so fast
 ```
 
-— Beth Nielsen Chapman, "Years"
+<!-- No attribution line is printed under this chorus in Chapter 5 — Pat runs it
+     straight into "This certainly fits all five…". Do NOT add one: an earlier
+     pass added "— Beth Nielsen Chapman, 'Years'" here in the same em-dash form
+     as Pat's one real attribution (the Ervin Drake line above, spine 013 raw
+     l.57), which made fabricated typography look like printed text. The song is
+     "Years" and Pat names Beth Nielsen Chapman in his own prose below; that is
+     where the credit lives. -->
 
 His verdict on that chorus (the "Years" chorus, discussed further under "Chorus
 balance can be composite" below):
@@ -467,6 +474,26 @@ and "3+" is an ordinary variant of its four-stress line, so the section still
 leans toward the meter the verse has already established at length. Where a
 chorus is meant to contrast with a common-meter verse, check what its
 balancing phrases are doing, not only whether the numbers differ.
+
+The verse itself, as Chapter 5 prints it — nine typographic lines, each its own
+paragraph in the source:
+
+```text
+Across the street
+the Randall's oldest daughter must have come home
+Her two boys built a snowman by the backyard swings
+I thought of Old Man Randall and his Christmas decorations
+And how he used to leave them up till early spring
+And I thought of all the summers
+I paced that porch and swore I'd die of boredom there
+And I thought of what I'd give
+to feel another summer linger when a day feels like a year
+```
+
+**Nine printed lines, eight phrases — and the mismatch is Pat's point, not an
+error.** He introduces this verse by saying the phrases are long and that "It is
+even a challenge to figure out exactly where some of the phrases start and
+stop." Do not count the printed lines and call that a phrase count.
 
 On how many verse phrases that is: **the two books agree at eight, and the
 apparent standoff was our error, not Pat's.** *Writing Better Lyrics* (2009),
@@ -835,6 +862,37 @@ rhyme trips the ear and sets up the long "i" of the title:
 Just one more time to touch you
 Just one more time to tell you
 You're on my mind
+WHY CAN'T I HAVE YOU
+You're breaking my heart in two
+You know what I'm going through
+WHY CAN'T I HAVE YOU
+```
+
+All seven lines are printed at this stage — three bridge phrases and the full
+four-line Chorus. Keep the Chorus complete here: the paragraph above turns on
+the chorus "i" sounds being "positioned asymmetrically, so there is no
+resolution until the end of the system", and the evidence for that is the last
+three lines. Quoting only the first Chorus line leaves that claim with nothing
+under it.
+
+Song System 1, read from figure `image_rsrc32F` — the whole system Pat brackets
+on the page, so the transitional bridge can be seen in its place between verse
+and chorus:
+
+```text
+Dreamy lips, set in motion, flashing                 VERSE
+Breathless hush, pounding soft, lasting
+Glossy mouth, taste untamed, moving
+Carousel, up and down
+Just like you
+
+    Just one more time to touch you                  TR. BR.
+    Just one more time to tell you
+    You're on my mind
+
+WHY CAN'T I HAVE YOU                                 CHORUS
+You're breaking my heart in two
+You know what I'm going through
 WHY CAN'T I HAVE YOU
 ```
 

@@ -174,9 +174,10 @@ any prose lyric line.
       section, last word before a rhyme position)
 - [ ] **Hot-spot phrase rule** — within a phrase: 2nd-most-important word at
       the beginning, most-important word at the end (or first/last per
-      front-heavy/back-heavy choice — `front-heavy` / `back-heavy` are
-      plugin-authored shorthand, 0 corpus hits; see
-      [book-references.md](book-references.md) "Plugin-authored vocabulary")
+      front-heavy/back-heavy choice — `front-heavy` / `back-heavy` are **Pat's
+      own terms**, coined in his patpattison.com "The Art of Phrasing" column
+      rather than in any of the four books, so cite the column and never a
+      chapter; see [book-references.md](book-references.md))
 - [ ] **Stress map** — every stressed syllable lands on a strong beat (no
       greedy spots — unstressed forced to a downbeat, or stressed forced
       to a weak beat)
@@ -200,9 +201,9 @@ any prose lyric line.
       middle for narrative, long-shot for chorus universality — or
       deliberate hybrid)
 - [ ] **Tone-of-voice** stable — same speaker, same emotional register as
-      the section's other lines (`tone of voice` is plugin-authored shorthand,
-      0 corpus hits; see [book-references.md](book-references.md)
-      "Plugin-authored vocabulary")
+      the section's other lines (`tone of voice` is 0 hits across the four books
+      and has not been located in a Pat column either — treat as plugin
+      shorthand; see [book-references.md](book-references.md))
 - [ ] **Vowel awareness** — the line's stressed vowels chosen, not
       defaulted; bright vowels (long-ē, long-ā) feel sharp; dark vowels
       (long-ō, long-ū) feel weighted

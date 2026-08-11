@@ -167,8 +167,8 @@ Useful coaching questions:
 
 Chapter 2 closes on this, and it is a real, named case, not a general caution.
 Pat prints Gillian Welch's "One More Dollar" and then a deliberately de-specified
-rewrite of it — see LYRIC-HANDOFF, the lyric itself is not reproduced here —
-and reports the verdict:
+rewrite of it. The two lyrics are not reproduced here; the verdict he draws from
+the comparison is:
 
 > Instant bland. David Rawlings, Welch's partner and an ardent student and
 > practitioner of songwriting, called me with this beige version, remarking how

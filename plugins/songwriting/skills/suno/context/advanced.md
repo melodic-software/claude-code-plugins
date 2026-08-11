@@ -15,7 +15,7 @@ Suno v5.5 has multiple generation modes, post-generation tools, and personalizat
 
 | Feature | Where to find it | Tier |
 |---------|------------------|------|
-| **Voices** (clone YOUR singing identity) | [voices.md](voices.md) — full guide | Pro / Premier |
+| **Voices** (clone YOUR singing identity) | [voices.md](voices.md) — full guide | All tiers since Aug 7 2026 (free-plan access may be mobile-only — see [voices.md](voices.md)) |
 | **Custom Models** (fine-tune on your catalog) | [v55-features.md](v55-features.md#2-custom-models-fine-tune-on-your-catalog) | Pro / Premier |
 | **My Taste** (passive preference learning) | [v55-features.md](v55-features.md#3-my-taste-passive-preference-learning) | All tiers |
 | **Personas** (vibe templates from existing songs) | this file, below | All tiers |
@@ -23,7 +23,7 @@ Suno v5.5 has multiple generation modes, post-generation tools, and personalizat
 | **Extend** (lengthen songs) | this file | All tiers |
 | **Replace Section** (inpainting) | this file | Pro / Premier |
 | **Upload Audio** (demo as seed) | [workflow-recipes.md](workflow-recipes.md#recipe-1-demo-upload--finished-track) | All tiers (size varies) |
-| **Stems** (2-track / 12-track export) | [studio.md](studio.md#stem-isolation--export) | 2-track all / 12-track Pro+ |
+| **Stems** (Split from Mix / Auto Split / Advanced Split) | [studio.md](studio.md#stem-isolation--export) | No stem separation on Free; Split from Mix + Auto Split on Pro+; Advanced Split Premier-only |
 | **Suno Studio (GAW)** (multitrack DAW) | [studio.md](studio.md) — full guide | Premier |
 | **Creative Sliders** (Weirdness, Style Influence, Audio Influence) | this file, below | Custom mode |
 | **ReMi** (lyric-generation model) | this file, below | All tiers |

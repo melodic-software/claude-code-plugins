@@ -1,6 +1,8 @@
 # Voices — full guide
 
-Voices clones YOUR singing identity. v5.5 only. **Pro / Premier tier.** 18+, geographically gated.
+Voices clones YOUR singing identity. v5.5 only. 18+, geographically gated.
+
+**Tier corrected 2026-08-08 — no longer Pro/Premier-only.** <https://suno.com/release-notes>, Aug 7 2026: "We brought Voices to both iOS and Android. Record your voice once and use it on any song. Now available to try on free plans." **Caveat:** that entry carries no `Web` tag (unlike other web-touching entries in the same window), `suno.com/pricing` lists no Voices bullet under Free, and both Voices help articles are silent on plan gating — so free-plan Voices may be mobile-only. Unresolved; verify in-app.
 
 ## What Voices does
 
