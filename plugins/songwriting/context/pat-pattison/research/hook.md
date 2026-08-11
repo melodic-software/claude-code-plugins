@@ -303,6 +303,61 @@ the printed DUM-da syllables show four. Reproduced as printed; Pat's argument
 rests on the DUM row.)
 <!-- spellchecker:on -->
 
+> "your listener will still want the rhythm of the strategic position. If the
+> rhythm of the HOOK is in the strategic position, your HOOK will light up when
+> you arrive."
+
+> "Applying this logic, here is a section. Line two is the strategic position:"
+
+The printed section (fig `image_rsrc34D`):
+
+<!-- spellchecker:off -->
+```text
+    / u / u / u / u / u
+->  / u / u / u / u /  <-  (strategic position)
+    / u / u / u / u / u
+    / u / u / u / u /      (balancing position)
+```
+<!-- spellchecker:on -->
+
+> "You could have prevented a match in line four by adding two shorter phrases
+> instead of a 5-stress phrase. Like this:"
+
+The revised section (fig `image_rsrc34E`):
+
+<!-- spellchecker:off -->
+```text
+    / u / u / u / u / u
+->  / u / u / u / u /  <-  (strategic position)
+    / u / u / u / u / u
+  { u / u / u / u }        (unbalancing phrases)
+  { u u / u / u / }
+```
+<!-- spellchecker:on -->
+
+> "Watch."
+
+The scan in fig `image_rsrc34F` is a five-line lyric block scanned at 5, 5,
+5, 3, and 3 stresses. Line two carries the strategic-position arrows; line
+four carries the unbalancing-phrases label. Its printed lyric is image-only and
+was deliberately not reproduced: it is absent from the gated 1991 spine text,
+so the required file-to-file lyric splice cannot be applied.
+
+> "When your HOOK rhythm matches the second phrase, as in"
+
+The printed HOOK (fig `image_rsrc34G`) is:
+
+<!-- spellchecker:off -->
+```text
+/ u / u / u / u /
+I CAN'T FIGHT THIS FEELING ANYMORE
+```
+<!-- spellchecker:on -->
+
+> "you will arrive in a blaze of glory."
+
+Source: *Essential Guide to Lyric Form and Structure* (1991), Chapter 7.
+
 ## Irregular hook rhythms
 
 > "This strategy works just as well for HOOKS with irregular rhythms. Just put
@@ -466,6 +521,17 @@ For "SEEING SOMEONE ELSE," Pat scans verse 1 (fig `image_rsrc34R`), then:
 and after fig `image_rsrc34S`:
 
 > "As you saw earlier, it smooths out for the first time at the HOOK."
+
+The resolving scan (fig `image_rsrc34T`):
+
+<!-- spellchecker:off -->
+```text
+u / u / u / u /
+The way you look at me is like
+u / u / u /
+You’re SEEING SOMEONE ELSE
+```
+<!-- spellchecker:on -->
 
 ## Exercises to preserve
 

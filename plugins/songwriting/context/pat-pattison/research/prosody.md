@@ -1477,6 +1477,10 @@ notation — it requires hearing the bar structure clearly. When the melody
 makes the bar boundaries audible, strong/weak bar phrasing creates
 section-internal motion the other two types can't access alone.
 
+No "use when" rule for the third type is sourced. An earlier revision of this
+file carried a three-item trigger list here; it was scaffolding invented on top
+of an already-unreadable source, and it has been removed rather than restated.
+
 If you reach for the strong/weak-bar idea, reach for it descriptively — name
 what the bars are doing — and do not present a selection rule as Pat's.
 
