@@ -127,6 +127,10 @@ Two rules bind every read, whichever rung it comes from:
 - **A truncated read supports no absence claim, ever.** If the fetch stops short, say so and mark
   the item unverified. "Not in the response" is never "not on the page" — the reader cannot tell
   those apart, which is the entire failure this rung ladder exists to prevent.
+- **An absence claim names the page it was checked against, and reaches no further.** A term missing
+  from one page is missing from *that page*; the product may document it elsewhere, under other
+  wording. Searching one page and stating the result about Claude Code is the same false negative
+  one scope up — see [the scope of an absence](#the-scope-of-an-absence).
 
 ### The rungs
 
@@ -156,6 +160,74 @@ the general form belongs in this doc and those surfaces keep their page-specific
 **The `.md` channel is per-page, not universal.** `docpage-digest`'s profile records that a
 raw-markdown channel working for one doc can 404 for another, so a run verifies the channel for the
 page it is reading and drops a rung when it does not resolve.
+
+### A 200 does not mean you got the page you asked for
+
+A rung-1 fetch can return `200`, `text/markdown`, and a complete untruncated body that is
+**someone else's page**. A retired slug is silently aliased to its successor: no redirect, no
+`Location` header, no notice in the body. Verified 2026-08-11 —
+`https://code.claude.com/docs/en/slash-commands.md` returns `200` with 82,668 bytes whose first
+heading is `# Extend Claude with skills`, **byte-identical to `skills.md`** (both SHA-256
+`a833dd5c96b9b111de0daec5fc6436e210c8cdc009e51306d32438746db0b5a5`), while the rendered URL reports
+`0` redirects. This is not a catch-all: an invented slug (`nonexistent-page-xyz.md`) returns a clean
+`404`, so the alias is specific to slugs that once existed.
+
+The failure this produces is worse than truncation, because truncation at least yields text you can
+see is short. Here a search for a term the *requested* page owns comes back empty against a full,
+healthy-looking body — a false absence carrying every outward sign of a good read. **Absence is only
+ever assertable against a page whose identity was checked**, which makes identity part of rung 1
+rather than a nicety.
+
+Two checks, both cheap, and a run does them before it trusts a body:
+
+- **Confirm the slug is canonical against `https://code.claude.com/docs/llms.txt`.** It lists the
+  live pages, so a slug the index does not carry is retired or renamed — that alone flags the
+  alias. Verified across ten slugs on 2026-08-11: the nine live ones each appear as
+  `docs/en/<slug>.md`; `slash-commands` appears in no such entry (only an unrelated
+  `agent-sdk/slash-commands`), which is exactly the one that aliased.
+- **Read the body's own first heading before quoting it.** `skills.md` and a live `<slug>.md` both
+  say what they are on line 5. A heading that does not match the page you asked for ends the read;
+  a title that merely differs in wording from the slug does not (`sub-agents.md` is titled "Create
+  custom subagents", `costs.md` "Manage costs effectively" — both correct).
+
+A slug missing from `llms.txt` is not automatically a dead end: it may have been renamed, and the
+index is the place to find the successor. Fetch the successor and cite **that** slug, rather than
+the retired one that happens to still serve bytes. Because the alias is silent, an unchecked
+citation of a retired slug keeps working indefinitely while pointing somewhere its author never
+read — and the day the alias is dropped it becomes a `404` on a claim nobody re-derived.
+
+Credit where the fleet found it: this surfaced in the 2026-08-11 stamp re-verification
+([#2187](https://github.com/melodic-software/claude-code-plugins/pull/2187)), where a per-page
+channel check noticed `slash-commands.md` serving `skills` content and recorded that a `200` is not
+proof the page is the one you wanted.
+
+### The scope of an absence
+
+A verified absence is a fact about **the text searched**, never about the product. Two moves break
+it, and both produce a claim that reads as researched:
+
+- **Widening the subject.** Searching `hooks` and concluding "Claude Code has no X" asserts
+  something about every page not searched. The honest form names the corpus: "not documented on
+  `hooks`", or — if the sweep really covered the index — "not documented on any page listed in
+  `llms.txt` as of `<date>`", which is a much larger and much more expensive claim.
+- **Searching the phrase instead of the capability.** A literal string can be absent while the
+  thing it names is documented in other words on the same page. Worked instance, verified
+  2026-08-11 on `hooks.md`: the phrase "verbose hooks" appears **zero** times, yet the page itself
+  documents "Async hook completion notifications are suppressed by default. To see them, enable
+  verbose mode with `Ctrl+O` or start Claude Code with `--verbose`", and separately
+  "set `CLAUDE_CODE_DEBUG_LOG_LEVEL=verbose` to see additional log lines such as hook matcher
+  counts and query matching". A phrase search would have returned nothing and licensed "no verbose
+  hooks toggle exists" — false, from a complete, untruncated read of the right page.
+
+So an absence claim states the corpus and the terms tried, and a claim that a *capability* is
+missing searches the capability's plausible vocabulary, not one phrasing of it. This bit the fleet
+for real: the same 2026-08-11 sweep advertised a nonexistence claim of exactly this shape and
+withdrew it on re-check ([#2190](https://github.com/melodic-software/claude-code-plugins/pull/2190)).
+The conclusion it supported survived on a different premise — worth stating as its own rule, since
+it is the reason to care: **a sound conclusion resting on a false premise is not safe, it is
+fragile**, because the next reader who checks the premise discards the conclusion with it. Fix the
+premise and keep the conclusion; never keep a premise because the conclusion it props up is
+convenient.
 
 ### The mirror rung and its freshness step
 
