@@ -840,7 +840,7 @@ run "scratch: Windows sibling sharing the prefix (blocked)" \
 # path it looks like, and what reaches the compare is not what gets written.
 # Windows targets belong in the `/d/...` spelling.
 run "scratch: backslash-spelled target is not exempted (blocked)" \
-  "echo hello > D:\\\\jobtmp\\\\scratch\\\\f" 2 "$SCRATCH_ENV=/d/jobtmp/scratch" # portability-ok: a backslash-separated Windows path in a test fixture, not a regex/sed construct
+  "echo hello > D:\\jobtmp\\scratch\\f" 2 "$SCRATCH_ENV=/d/jobtmp/scratch" # portability-ok: a backslash-separated Windows path in a test fixture, not a regex/sed construct
 
 # Documented residual, pinned so it moves only deliberately: the segment scan
 # runs over the lowercased command, so the compare is case-insensitive.
