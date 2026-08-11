@@ -3,6 +3,7 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+<<<<<<< HEAD
 ## [0.10.1]
 
 ### Fixed
@@ -16,6 +17,20 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
   confirmation gate unsatisfied rather than asking inline. The fallback now triggers on absent,
   denied, **or otherwise unusable** — including a denial discovered only by calling it — mirroring
   the sibling fix in `disk-hygiene` (#2016).
+=======
+## [Unreleased]
+
+### Documentation
+
+- **Record the accepted two-form invocation split for `/repo-hygiene:clean` (#2237).** decide-lane
+  verdict: **DEFER** converting bundled `context/*.md` files from
+  `bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/…` to `${CLAUDE_SKILL_DIR}/scripts/…`.
+  `${CLAUDE_SKILL_DIR}` substitutes in SKILL.md content and `allowed-tools` only (skills docs,
+  changelog v2.1.69); context files are Read raw and whether substitution reaches them is
+  unverified — a wrong conversion expands to `/scripts/…` and fails silently. New spoke
+  `skills/clean/reference/invocation-forms.md`; `allowed-tools-pairing.test.sh` now guards that
+  `context/*.md` never adopt the direct `${CLAUDE_SKILL_DIR}/scripts/…` form.
+>>>>>>> 9a829ef6 (docs(repo-hygiene): record CLAUDE_SKILL_DIR scope residual for clean context files)
 
 ## [0.10.0]
 

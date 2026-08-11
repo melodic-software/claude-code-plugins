@@ -41,6 +41,8 @@ Return the repo toward a known-good state. **Selective tiers** (`scan`, `caches`
 
 Bare invocation never mutates silently: resolve intent → dry-run → user confirmation → `--apply`. Full menu, aliases, and confirmation matrix: [context/action-router.md](context/action-router.md).
 
+Bundled-script invocation uses two deliberate forms — paired `${CLAUDE_SKILL_DIR}` in this file (matches `allowed-tools`) and interpreter-led `${CLAUDE_PLUGIN_ROOT}` in routed `context/*.md` detail files. Rationale and decide-lane verdict: [reference/invocation-forms.md](reference/invocation-forms.md).
+
 ## Arguments
 
 `$ARGUMENTS` — cleanup action or alias. Resolve first:

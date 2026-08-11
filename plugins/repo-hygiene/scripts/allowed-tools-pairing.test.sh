@@ -15,6 +15,14 @@
 # `allowed-tools`; `${CLAUDE_PLUGIN_ROOT}` stays a literal string there and the
 # grant is inert.
 #
+# Two-form split (decide-lane #2237, DEFER): `SKILL.md` uses the paired
+# `${CLAUDE_SKILL_DIR}/scripts/…` form that matches its grants; bundled
+# `context/*.md` files keep the interpreter-led
+# `bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/…` form because substitution
+# of `${CLAUDE_SKILL_DIR}` into on-demand context files is unverified — a wrong
+# conversion expands to `/scripts/…` and fails silently. See
+# `skills/clean/reference/invocation-forms.md`.
+#
 # SC2016 is disabled file-wide on purpose. Every single-quoted `${…}` here is a
 # fixed string searched for VERBATIM in markdown and frontmatter, where those
 # placeholders are substituted by Claude Code at load time. Letting the shell
@@ -83,6 +91,17 @@ for skill in "${SKILLS[@]}"; do
     fi
     if grep -qF '"${CLAUDE_SKILL_DIR}/scripts/' "$f"; then
       fail "$f: body quotes the bundled-script path — an unquoted rule will not match it"
+    fi
+    # Bundled context files must stay on `${CLAUDE_PLUGIN_ROOT}` until substitution
+    # scope for on-demand context is verified (#2237). Direct
+    # `${CLAUDE_SKILL_DIR}/scripts/…` there would look paired but expand to
+    # `/scripts/…` if the placeholder is not substituted.
+    if [[ "$f" == skills/*/context/* ]]; then
+      if grep -qF '${CLAUDE_SKILL_DIR}/scripts/' "$f"; then
+        fail "$f: context file must not use \${CLAUDE_SKILL_DIR}/scripts/ — keep \${CLAUDE_PLUGIN_ROOT} form (#2237)"
+      else
+        pass "$f: context file free of direct \${CLAUDE_SKILL_DIR}/scripts/ invocations"
+      fi
     fi
   done
 
