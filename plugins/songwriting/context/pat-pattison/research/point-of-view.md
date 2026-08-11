@@ -7,9 +7,17 @@ should use I/you/he/she/they, why a draft feels distant or too exposed, or how
 to rewrite the same lyric from another camera distance.
 
 Quoted material is Pat's printed text, reproduced verbatim from *Writing Better
-Lyrics* (2009). Complete third-party song lyrics are not reproduced; where Pat
-prints a full lyric, this file keeps the excerpt his point turns on and names
-the song, and the writers where Pat names them.
+Lyrics* (2009), including the lyrics he analyses, as he prints them. Songs are
+named, with their writers where Pat names them — several carry no writer credit
+in his text or on the permissions page, and none is invented here.
+
+An earlier pass imposed a "complete third-party song lyrics are not reproduced"
+rule and cut the lyrics down to fragments. **That rule was never the repo
+owner's and has been revoked** — he owns all four books and keeps this as a
+personal reference. Sibling files such as `box-model.md` already reproduce the
+lyrics Pat works with in full; this file is being brought into line with them.
+**Some excerpts here are still short and are a known remaining gap, not a
+policy.**
 
 Source images inspected:
 
@@ -342,6 +350,9 @@ speaks to the image of someone in his past"*:
 > Becky Rose, you stole the night
 > Body dark, a sash of light
 > Soft you slippered from my bed
+> Not to wake me, dressing slow
+> How I watched I still don't know
+> I should have knelt and bowed to you instead
 
 > Even though Becky Rose is not in the singer's presence, it's still pretty
 > intimate stuff.

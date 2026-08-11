@@ -92,6 +92,25 @@ plus an extractor bug that had been silently corrupting every quoted stanza.**
   then recapitalized) and **softened a categorical rule** — Pat writes that the
   device *only* works in first and second person. Both restored.
 
+### Changed — the License section now describes what is actually here
+
+- **`README.md`'s License paragraph was factually false.** It claimed the plugin
+  "contains distilled craft guidance and short verified anchor quotes, not book
+  text." It has not been true since 0.8.5. Rewritten: MIT covers the plugin's
+  own code, skills and prompts and does not extend to quoted material; the
+  research files reproduce Pat's text and the lyrics he analyses verbatim, as a
+  deliberate decision by the owner, who owns all four books and is the only user;
+  Pat's writing remains his and the lyrics remain their writers'; readers who are
+  not the owner get no rights to any of it from the MIT header, and are pointed
+  at the four books.
+- **`point-of-view.md` had invented its own no-full-lyrics rule** — "Complete
+  third-party song lyrics are not reproduced" — and cut lyrics to fragments,
+  leaving it inconsistent with `box-model.md`, which reproduces them in full.
+  The rule was never the owner's; it is revoked and the header now says so. The
+  "As Each Year Ends" stanza is restored to Pat's full six lines. **Some
+  excerpts in that file are still short; this is recorded there as a known gap
+  rather than a policy.**
+
 ### Fixed — a second sweep, and the scaffolding thesis measured
 
 - **`audit-checklist.md` was nearly half wrong, box by box.** 192 lines carrying
