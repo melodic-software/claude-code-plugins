@@ -174,3 +174,66 @@ config outlives any plugin restructure). Personal overlays follow the marketplac
 convention: `.claude/autonomy/**/*.local.*` stays gitignored; layers resolve per the
 binding-seam ladder — user-global → org binding (when pointed) → project → local overlay —
 additively.
+
+<!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
+
+### Options reference
+
+Generated from this plugin's `.claude-plugin/plugin.json`. Every option Claude Code
+will prompt for when the plugin is enabled, with the environment variable each hook
+reads it from.
+
+| Option | Type | Default | Environment variable | Description |
+| --- | --- | --- | --- | --- |
+| `lane_stop_gate_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED` | Opt an autonomous lane into the deterministic Stop-hook completion gate. Default OFF — a Stop-blocking hook must never engage for an interactive session. Honored from user or managed settings only (the gate reads those files itself); per-session lanes are armed by the claude-ops lane launcher instead. The env mirror is never authority (#1784). |
+| `lane_stop_gate_sentinel` | string | `"LANE-STOP-OK"` | `CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL` | The exact token the agent emits in its final message to declare the lane's goal met and authorize a stop. Matched only when alone on its own line. Honored from user/managed settings or the launcher's arm record, never the bare environment. |
+| `lane_stop_gate_marker` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER` | Optional path to a completion-marker file whose existence also authorizes a stop (absolute, or relative to the session cwd). Empty disables the file signal. Honored from user/managed settings or the launcher's arm record, never the bare environment. |
+| `lane_stop_gate_arm_id` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID` | Written by the lane launcher at launch: names this session's arm record in the plugin's own data directory (hooks/lane-stop-gate-arm.sh). A capability pointer, never authority by itself — the gate validates it, honors only a record in its install-derived store, and binds it to the first presenting session. Not set by hand. |
+| `lane_notify_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_ENABLED` | Master switch for the operator alert fired when a lane stops without signaling completion. |
+| `lane_notify_os_toast_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_OS_TOAST_ENABLED` | OS-native desktop toast (macOS/Linux) for the lane-stop alert. |
+| `lane_notify_terminal_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_TERMINAL_ENABLED` | Audible bell + OSC 9 notification written to the controlling terminal for the lane-stop alert. |
+
+### How to set these
+
+Three supported routes, in the order most people want them:
+
+1. **Interactively** — Claude Code prompts for declared options when you enable the
+   plugin. To change them later: `/plugin configure autonomy`.
+2. **Headless, at install time** — repeat `--config` for each option. Replace
+   `<marketplace>` with the marketplace you installed this plugin from:
+
+   ```shell
+   claude plugin install autonomy@<marketplace> --config lane_stop_gate_enabled=<value>
+   ```
+
+3. **By hand, in settings** — add the value under `pluginConfigs` in your **user**
+   settings (`~/.claude/settings.json`):
+
+   ```json
+   {
+     "pluginConfigs": {
+       "autonomy@<marketplace>": {
+         "options": {
+           "lane_stop_gate_enabled": <value>
+         }
+       }
+     }
+   }
+   ```
+
+   Plugin option values are read from **user**, `--settings`, and managed settings
+   only — **not** from a project's `.claude/settings.json`. To vary behavior per
+   repository, enable or disable the plugin in that project's `enabledPlugins`
+   instead of setting an option there.
+
+Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself. They are how Claude Code
+hands a configured value to a hook process; the value comes from the routes above.
+
+### Upstream documentation
+
+- [User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration) — the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
+- [Plugin settings](https://code.claude.com/docs/en/settings#plugin-settings) — `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
+- [Configuration scopes](https://code.claude.com/docs/en/settings#configuration-scopes) — user vs project vs local precedence
+- [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins) — enabling, disabling, `/plugin list`
+
+<!-- END GENERATED: plugin options -->
