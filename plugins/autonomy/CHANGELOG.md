@@ -22,7 +22,6 @@ merged work-package PRs (#333, #343, #356, #372, #377, #600, #676).
   functions, which is what #2146 asked for: previously each call site asserted a posture in a
   comment and nothing where the decision is made explained it. Synced from `lib/hook-utils.sh`.
 
-
 ## [0.15.0]
 
 ### Changed — ACTION REQUIRED for anyone with an existing `L2`/`L3` binding

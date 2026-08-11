@@ -21,7 +21,6 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   functions, which is what #2146 asked for: previously each call site asserted a posture in a
   comment and nothing where the decision is made explained it. Synced from `lib/hook-utils.sh`.
 
-
 ## [0.6.5]
 
 ### Changed

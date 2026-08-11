@@ -19,7 +19,6 @@ All notable changes to the `actionlint` plugin are documented here. Format follo
   functions, which is what #2146 asked for: previously each call site asserted a posture in a
   comment and nothing where the decision is made explained it. Synced from `lib/hook-utils.sh`.
 
-
 ## [0.8.4]
 
 ### Changed
