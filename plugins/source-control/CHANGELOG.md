@@ -3,7 +3,7 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.51.8]
+## [0.51.9]
 
 ### Fixed
 
@@ -35,6 +35,58 @@ All notable changes to the `source-control` plugin are documented here. Format f
   unreadable (`null`, `""`, `0.0`, `[]`, `{}` — a requirement is stated and its size is unknown, so
   it counts as one). Collapsing a falsy non-int to zero would be the single fail-open step in a
   fold whose guarantee is that it may only ever over-report.
+
+## [0.51.8]
+
+### Fixed
+
+- **`skills/pull-request/reference/readiness.md` no longer documents a `check-runs` query that
+  silently truncates.** Gate 1's codex-verification command called
+  `repos/{owner}/{repo}/commits/<sha>/check-runs` with no pagination. The endpoint returns 30 per
+  page by default and reports nothing when it truncates, so on any PR carrying more than 30 check
+  runs the command answers "is check X present?" with a silent *no* for every check that landed on
+  a page the caller never fetched — indistinguishable from a check that never attached. Observed on
+  this repo: three separate heads returned `total_count=33, returned=30`, dropping
+  `do-not-merge / do-not-merge` — a required status context — every time, and a reader concluded
+  the context never attaches. It attached and was green on all three. The command now uses
+  `--paginate` with `per_page=100`, matching the form
+  `skills/pull-request/scripts/fetch-annotations.sh` already used. Pagination alone only moves the
+  cliff to 100, so the gate also documents a completeness assertion — `total_count` against the
+  flattened count across every page — and names the trap that makes the naive assertion wrong:
+  `--jq` runs per page, so `.check_runs | length` reports one page at a time and must be slurped
+  before comparing. The rule is hoisted out of Gate 1 into a `Reading GitHub list APIs` section,
+  because it governs every gate in the file rather than one command.
+- **The per-page `--jq` trap is stated as its own rule, and Gate 5 no longer breaks it.** With
+  `--paginate`, `gh` applies `--jq` to each page *separately*, so any expression that folds a whole
+  list — `length`, `sort_by`, `add`, `max`, `group_by` — silently answers per page. Element-wise
+  filters are safe because their results concatenate; folds are not. Gate 5's codex-comment count
+  was itself an instance: `--jq '[…] | length'` over four pages printed `10 10 10 3` instead of
+  `33`. It now slurps the page stream with `jq -s` and flattens with `.[][]`, and the rule sits
+  beside the other two rather than being buried in the completeness-assertion prose.
+- **Every documented PR comment and review read is paginated, and the positional-index reads are
+  gone.** The same 30-per-page default governs `issues/<pr>/comments`, `pulls/<pr>/comments`, and
+  `pulls/<pr>/reviews`, all of which return **oldest-first** — so an unpaginated read drops the
+  newest items, which on a PR being monitored are the only ones that matter. Corrected in
+  `readiness.md` (comment-only actor discovery, bot-actor discovery, the codex-comment count at
+  HEAD, and Gate 4's three reads) and `skills/pull-request/reference/monitor.md` (all three
+  review-surface polls; the reviews poll filters `submitted_at` client-side, which made pagination
+  load-bearing there rather than merely tidy).
+- **`reference/review-discipline.md` and `skills/pull-request/SKILL.md` no longer verify a reply
+  with `.[-1]`.** This shape is worse than truncation: it does not omit, it answers. On an
+  unpaginated oldest-first list `.[-1]` is the **30th-oldest** comment, so D7's "did my follow-up
+  post?" check passes or fails on someone else's comment. Measured on this repo: issue #657 (33
+  comments) returned a comment timestamped 11.5 hours before the actual latest; #502 (31) returned
+  the second-newest. Both call sites now paginate and select on the fix SHA, so the query states
+  what it is asserting and cannot be satisfied by the wrong record. The inline-reply verifications
+  filtered by `in_reply_to_id` are paginated for the same reason.
+- **D7's follow-up verification is constrained on the posting identity, not just the SHA.** Selecting
+  on SHA-in-body alone proves the SHA was *mentioned*, not that you posted it — a reviewer quoting
+  the fix commit, or a bot restating it, satisfies the selector while your own failed write goes
+  unnoticed. That is the same failure shape as the `.[-1]` bug it replaced: a plausible positive
+  instead of a real presence signal, on a control gate an autonomous agent acts on. Both copies of
+  the checklist step now pin `.user.login` as well. Rule 2 gains the general form: where a query is
+  a control gate, ask what else could satisfy the selector and constrain that too — one property is
+  usually not enough.
 
 ## [0.51.7]
 

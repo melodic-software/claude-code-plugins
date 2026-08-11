@@ -3,7 +3,7 @@ description: "Audit Git/GitHub hygiene across a fleet of local repositories: fin
 user-invocable: true
 argument-hint: "[--root <dir>]... [--repo <dir>]... [--config <file>] [--canonical <github.com/owner/repo=path>]... [--max-depth <1..12>]"
 allowed-tools:
-  - Bash(bash ${CLAUDE_SKILL_DIR}/scripts/audit-fleet.sh *)
+  - Bash(${CLAUDE_SKILL_DIR}/scripts/audit-fleet.sh:*)
 metadata:
   workflow-stage: operator
   summary: Audit git and GitHub hygiene across all local repositories, read-only
@@ -64,7 +64,7 @@ argument; never assemble a shell fragment from config, repository, remote, or br
 Run exactly once:
 
 ```bash
-bash "${CLAUDE_SKILL_DIR}/scripts/audit-fleet.sh" --project-dir "${CLAUDE_PROJECT_DIR}" <validated-and-quoted-arguments>
+${CLAUDE_SKILL_DIR}/scripts/audit-fleet.sh --project-dir "${CLAUDE_PROJECT_DIR}" <validated-and-quoted-arguments>
 ```
 
 The script validates config with `git config --file`; it never sources or executes it.
