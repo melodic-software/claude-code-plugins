@@ -69,8 +69,12 @@ that have aged, not a safe default. Add the cold half only after confirming `col
 ### Tool decisions (`claude_code.tool_decision`)
 
 Event `event_name='tool_decision'` in `cc_logs` / `cc_logs_cold()`. Promoted columns:
-`decision`, `decision_source`, `tool_name`, `tool_use_id`, `session_id`, `prompt_id`,
+`decision`, `source`, `tool_name`, `tool_use_id`, `session_id`, `prompt_id`,
 `trace_id`, `span_id`.
+
+**Column mapping:** Claude Code's `tool_decision` event emits the deciding-mechanism
+attribute as `source` (see monitoring docs). `tool_result` events use `decision_source` for
+the same semantics; `cc-otel.sql` coalesces both into the `source` column.
 
 **Use when:** "which tool calls were denied?", "why was this tool call blocked?", "how many
 permission denials this session?"
@@ -78,14 +82,14 @@ permission denials this session?"
 **Do not:** search session transcripts or hook-events.jsonl — those surfaces do not carry
 permission outcomes.
 
-**Attribution caveat:** `decision_source='config'` lumps settings, allow/deny rules, managed
+**Attribution caveat:** `source='config'` lumps settings, allow/deny rules, managed
 policy, CLI tool lists, permission mode, session grants, and inherently-safe-tool logic.
 Counts of `reject`+`config` are an upper bound on config-driven denials, not per-rule
 attribution.
 
 ```sql
 -- rejected tool calls in window (upper bound on config-driven denials)
-SELECT event_time, tool_name, tool_use_id, decision, decision_source, session_id
+SELECT event_time, tool_name, tool_use_id, decision, source, session_id
 FROM cc_logs
 WHERE event_name = 'tool_decision'
   AND decision = 'reject'
@@ -93,23 +97,26 @@ WHERE event_name = 'tool_decision'
 ORDER BY event_time DESC
 LIMIT 50;
 
--- reject rate by tool and decision_source
-SELECT tool_name, decision_source,
+-- reject rate by tool and source (rate, not raw volume — high-volume tools can reject more
+-- calls yet reject a smaller share)
+SELECT tool_name, source,
        count(*) FILTER (WHERE decision = 'reject') AS rejects,
-       count(*) AS total
+       count(*) AS total,
+       count(*) FILTER (WHERE decision = 'reject')::DOUBLE
+         / NULLIF(count(*), 0) AS reject_rate
 FROM cc_logs
 WHERE event_name = 'tool_decision'
   AND event_time >= TIMESTAMP '<SINCE_ISO>'
 GROUP BY 1, 2
-ORDER BY rejects DESC;
+ORDER BY reject_rate DESC, rejects DESC;
 
 -- config-driven denials for a session (join by tool_use_id to trace spans if needed)
-SELECT event_time, tool_name, tool_use_id, decision_source
+SELECT event_time, tool_name, tool_use_id, source
 FROM cc_logs
 WHERE event_name = 'tool_decision'
   AND session_id = '<session_id>'
   AND decision = 'reject'
-  AND decision_source = 'config'
+  AND source = 'config'
 ORDER BY event_time;
 ```
 

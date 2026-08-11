@@ -119,9 +119,13 @@ mechanism drove the decision.
 | Field (promoted column) | Values | Meaning |
 |---|---|---|
 | `decision` | `accept` / `reject` | Outcome |
-| `decision_source` | `config`, … | Bucket for the deciding mechanism — see [Claude Code monitoring docs](https://code.claude.com/docs/en/monitoring-usage) |
+| `source` | `config`, … | Bucket for the deciding mechanism — see [Claude Code monitoring docs](https://code.claude.com/docs/en/monitoring-usage) |
 
-A `reject` with `decision_source='config'` is a configuration-driven denial (settings,
+**Column mapping:** the OTEL attribute on `tool_decision` events is `source` (official name).
+`tool_result` events emit `decision_source` for the same bucket; the DuckDB projection
+(`cc-otel.sql`) coalesces both into the promoted `source` column.
+
+A `reject` with `source='config'` is a configuration-driven denial (settings,
 allow/deny rules, managed policy, `--allowedTools`/`--disallowedTools`, permission mode,
 session grants, inherently-safe tools, etc.). **Attribution caveat:** `config` is one bucket
 over many mechanisms — a `reject`+`config` count is an **upper bound** on deny-rule firings
