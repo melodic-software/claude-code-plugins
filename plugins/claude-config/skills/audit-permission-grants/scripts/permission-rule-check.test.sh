@@ -132,8 +132,24 @@ jq -n --arg posix "Bash(${POSIX_MP}:*)" --arg win "Bash(${WIN_MP}:*)" \
   '{permissions:{allow:[$posix,$win]}}' >"$D4/.claude/settings.json"
 OUT=$(run "$D4")
 assert_contains "flags POSIX-normalized machine path" "$OUT" "[P2]"
-assert_contains "P2 detail mentions literal matching" "$OUT" "no ~/\$HOME"
+assert_contains "P2 detail names the portability break" "$OUT" "breaks on other machines"
+assert_not_contains "P2 detail does not assert a blanket no-expansion rule" "$OUT" "no ~/\$HOME"
+assert_not_contains "P2 detail does not scope its rationale to Bash rules" "$OUT" "Bash rules match literally"
 assert_eq "two machine-path findings" "2" "$(run "$D4" --count)"
+
+# P2 fires on Read/Edit rules too, and those rule classes DO resolve `~/`
+# (permissions.md: "`~/path` | Path from home directory"). One message string serves
+# every class, so it must not carry a Bash-only mechanism — that would be a false
+# claim on a true finding.
+D4B="$TEST_TMPDIR/p2-file-tools"
+mkdir -p "$D4B/.claude"
+jq -n '{permissions:{allow:["Read(/c/Users/kyle/notes.md)","Edit(/Users/alice/src/**)"]}}' \
+  >"$D4B/.claude/settings.json"
+OUT_FT=$(run "$D4B")
+assert_contains "flags a machine path in a Read rule" "$OUT_FT" "[P2]"
+assert_not_contains "Read-rule finding does not claim Bash semantics" "$OUT_FT" "Bash rules match literally"
+assert_not_contains "Read-rule finding does not deny ~ expansion" "$OUT_FT" "no ~/\$HOME"
+assert_eq "both file-tool machine paths flagged" "2" "$(run "$D4B" --count)"
 
 # --- Case 5: P2 exemptions — PROJECT_DIR / home-relative not flagged ---------
 D5="$TEST_TMPDIR/p2-exempt"
@@ -241,6 +257,34 @@ jq -n '{permissions:{allow:["Bash(python*)"]}}' >"$D8B/.claude/settings.local.js
 OUT=$(run "$D8B")
 assert_contains "flags P1 grant in settings.local.json" "$OUT" "Bash(python*)"
 assert_contains "finding names the local settings file" "$OUT" "settings.local.json"
+
+# --- Case 9b: unresolvable scan root refuses instead of sweeping -------------
+# The root ladder is $PERMISSION_HYGIENE_FIXTURE_DIR -> git toplevel ->
+# $CLAUDE_PROJECT_DIR, with NO fallback to the cwd. Run from a non-repo directory
+# with every rung unset: the scan must refuse (exit 2, the environment-gap channel)
+# rather than walk whatever the cwd happens to be and report a clean bill.
+#
+# CLAUDE_PROJECT_DIR is unset explicitly as well as the fixture var — an outer
+# session that exports it would otherwise resolve the root and hide the regression.
+nonrepo="$TEST_TMPDIR/not-a-repo"
+mkdir -p "$nonrepo"
+
+rc=0
+root_err=$(cd "$nonrepo" && env -u PERMISSION_HYGIENE_FIXTURE_DIR -u CLAUDE_PROJECT_DIR \
+  GIT_CEILING_DIRECTORIES="$TEST_TMPDIR" bash "$SCRIPT" 2>&1) || rc=$?
+assert_exit "unresolvable root exits 2, not 0" 2 "$rc"
+assert_contains "refusal names the failure" "$root_err" "no scan root resolved"
+assert_not_contains "refusal is not a clean bill" "$root_err" "No fragile permission grants found."
+
+rc=0
+count_err=$(cd "$nonrepo" && env -u PERMISSION_HYGIENE_FIXTURE_DIR -u CLAUDE_PROJECT_DIR \
+  GIT_CEILING_DIRECTORIES="$TEST_TMPDIR" bash "$SCRIPT" --count 2>&1) || rc=$?
+assert_exit "--count also refuses rather than printing 0" 2 "$rc"
+assert_not_contains "--count prints no count on a refusal" "$count_err" "0
+"
+
+# A resolvable root still works, so the refusal did not break the normal path.
+assert_eq "explicit fixture root still scans" "0" "$(run "$TEST_TMPDIR/p2-exempt" --count)"
 
 # --- Case 9: missing jq exits 2 ---------------------------------------------
 real_bash=$(command -v bash)

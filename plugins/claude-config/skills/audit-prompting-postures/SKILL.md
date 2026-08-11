@@ -75,8 +75,61 @@ Dispatch one fresh-context, non-fork verifier per surface batch, prompted to ref
 addition: "argue this component's purpose does not need this posture, or that it already carries
 it." Findings a verifier refutes are dropped or demoted to `info`.
 
-Persist the report to `${CLAUDE_PLUGIN_DATA}/audit-prompting-postures/last-audit.md` and summarize
-in chat:
+Persist the report to
+`${CLAUDE_PLUGIN_DATA}/audit-prompting-postures/<state-key>/last-audit.md`.
+
+**Derive `<state-key>` by running the commands below.** `${CLAUDE_PLUGIN_DATA}` is machine-global, not
+per-project, so a fixed `last-audit.md` is silently overwritten by the next run from any other root —
+this skill's only durable deliverable, destroyed by ordinary use of it. The scheme is `audit-pass`'s,
+reused rather than reinvented: `<repo-identity>/<worktree-discriminator>`, per
+[audit-pass's run-state reference](../audit-pass/reference/run-state-and-resumability.md) §3.
+
+```bash
+# sha256sum is absent on stock macOS; shasum -a 256 is the portable partner.
+sha256() { if command -v sha256sum >/dev/null 2>&1; then sha256sum; else shasum -a 256; fi; }
+
+remote=$(git config --get remote.origin.url 2>/dev/null || true)
+root=$(git rev-parse --show-toplevel 2>/dev/null || true)
+
+# repo-identity
+if [ -n "$remote" ]; then
+  identity=$(printf '%s' "$remote" \
+    | sed -e 's#^[a-z+]*://##' -e 's#^[^@/]*@##' -e 's#:#/#' -e 's#\.git$##' \
+    | tr '[:upper:]' '[:lower:]')
+elif [ -n "$root" ]; then
+  identity="local/$(printf '%s' "$root" | sha256 | cut -c1-12)"
+else
+  # Non-repo root. audit-pass's ladder stops at the two git rungs because it refuses
+  # non-git targets; this skill is report-only and audits them, so it needs a third.
+  identity="nonrepo/$(printf '%s' "$PWD" | sha256 | cut -c1-12)"
+fi
+
+# worktree-discriminator — two worktrees of one repo legitimately hold different content
+discriminator=$(printf '%s' "${root:-$PWD}" | sha256 | cut -c1-8)
+
+state_key="$identity/$discriminator"
+```
+
+Executed against this repository the three rungs give, respectively,
+`github.com/melodic-software/claude-code-plugins/8163d6b9`, `local/<12>/<8>`, and `nonrepo/<12>/<8>`;
+two worktrees of one repository differ in the discriminator (`8163d6b9` vs `009628cd`), which is the
+property it exists for.
+
+Run those and use the result. Do **not** express the path as a condition over `${CLAUDE_PROJECT_DIR}`
+"when set": that placeholder is substituted inline before this file reaches you, so the literal token
+is never visible and the condition is not yours to evaluate. Derive the key from commands you actually
+run.
+
+**Open the report with a three-line header**, so a file that does survive is self-describing rather
+than merely un-overwritten:
+
+```
+Resolved root: <absolute path audited>
+Scope filter:  <the scope argument this run used, or "all">
+Run (UTC):     <ISO-8601 timestamp>
+```
+
+Then summarize in chat:
 
 | # | Posture | Component | Verdict | Proposed addition |
 |---|---------|-----------|---------|-------------------|
