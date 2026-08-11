@@ -59,6 +59,12 @@ Load the audit checklist alongside these: [audit-checklist.md](../reference/audi
   finds the WSL relay and the hook silently never launches
 - No duplicate hooks (same script registered twice for same event)
 - Hook events are valid (cross-reference against official docs)
+- **Hook-suppression levers are read and reported**, because a hook that cannot run is not a control:
+  `disableAllHooks` in the settings-declared layer, and `allowManagedHooksOnly` /
+  `strictPluginOnlyCustomization` in the managed layer. Report each as set or unset — this is a state
+  reading, not a finding on its own — and say which of the inventoried hooks each one switches off.
+  Category B's third baseline narrowing depends on this reading: it may not downgrade a missing deny
+  rule on the strength of a hook any of these has already disabled
 
 ## Category E: Plugins
 

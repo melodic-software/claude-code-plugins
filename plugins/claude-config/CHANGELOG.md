@@ -66,6 +66,14 @@ offered as a mechanical `--fix`.
 
 ### Added
 
+- **Category D now reads the hook-suppression levers**, because the new narrowing depends on a reading
+  nothing was taking. `disableAllHooks` in the settings-declared layer and `allowManagedHooksOnly` /
+  `strictPluginOnlyCustomization` in the managed layer each switch hooks off, and Category D checked
+  script paths, readability, timeouts, matchers, and events without ever asking whether the hooks it
+  inventoried could run at all. It reports each lever as set or unset with the hooks it disables —
+  `info`, because a repo may set any of them deliberately and the reading is state rather than a
+  defect. Category B may not take its third narrowing on a reading that was never made: an unread lever
+  leaves the narrowing **unavailable**, not assumed clear.
 - Eval #8 `baseline-deny-narrowed-by-installed-hook` grades the narrowing *per family*: force-push and
   hard-reset patterns drop to `info` under a live Bash hook, while `git clean` patterns the hook does
   not match and `sensitive-file-deny` Read patterns it cannot reach stay at their unnarrowed severity.
