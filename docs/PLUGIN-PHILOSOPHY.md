@@ -850,10 +850,13 @@ name is not the same underlying value across models):
   ([model config: adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level)),
   which the model roster corroborates with adaptive thinking off for Claude Haiku 4.5
   ([models overview](https://platform.claude.com/docs/en/about-claude/models/overview), both
-  verified 2026-08-10). This is not the unsupported-level fallback above — there is no supported
-  level to fall back *to* — so the pin is inert rather than downgraded, and silently so. A lane that
-  wants the cheapest tier takes it by model alone and omits the pin; `low` is a dial that exists one
-  rung up.
+  verified 2026-08-10). The documented unsupported-level fallback above does not reach this case:
+  it presupposes a supported level to fall back *to*, and here there is none. What the harness then
+  does with the pin — ignore it, warn, or fail — is **undocumented, and unverified here**; the
+  pages above establish the absent capability and nothing about the runtime handling, so no reading
+  of them settles it. The rule does not rest on that gap: a lane wanting the cheapest tier takes it
+  by model alone and omits the pin, because the dial it would be reaching for only exists one rung
+  up.
 - **Every other lane omits the pin** and inherits the session level: effort is a general
   preference, not a task-by-task decision
   ([choosing a model and effort level](https://claude.com/blog/claude-model-and-effort-level-in-claude-code)).
