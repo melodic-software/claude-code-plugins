@@ -337,11 +337,14 @@ The revised section (fig `image_rsrc34E`):
 
 > "Watch."
 
-The scan in fig `image_rsrc34F` is a five-line lyric block scanned at 5, 5,
-5, 3, and 3 stresses. Line two carries the strategic-position arrows; line
-four carries the unbalancing-phrases label. Its printed lyric is image-only and
-was deliberately not reproduced: it is absent from the gated 1991 spine text,
-so the required file-to-file lyric splice cannot be applied.
+The scan in fig `image_rsrc34F` is a five-line lyric block. Rows one through
+four print 5, 5, 5, and 3 slash marks. Row five prints `u u / u // u /`,
+including a doubled slash; whether that doubled mark denotes two stresses or
+is a printing anomaly cannot be determined from the scan. Line two carries the
+strategic-position arrows; line four carries the unbalancing-phrases label. Its
+printed lyric is image-only and was deliberately not reproduced: it is absent
+from the gated 1991 spine text, so the required file-to-file lyric splice cannot
+be applied.
 
 > "When your HOOK rhythm matches the second phrase, as in"
 

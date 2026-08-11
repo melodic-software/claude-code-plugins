@@ -2,8 +2,8 @@
 
 Single source of truth for how Pat Pattison's four books are cited
 throughout this skill. Every context file references books by SHORT NAME +
-year. The short name is used inline; the full title appears in file
-headers.
+year. The short name is used inline and in file headers; the full title
+appears in this file's bibliographic table.
 
 ## Canonical short names
 
