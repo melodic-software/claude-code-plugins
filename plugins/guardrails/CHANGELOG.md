@@ -33,7 +33,6 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   an unrelated directory the scan used to compose is no longer blocked on an expansion git would
   never perform.
 
-
 - **A `!` shell alias lost the directory its invocation resolved to, so a prepared merge commit was
   blocked instead of exempted.** Found in review of the above. A `!` alias body re-parses as a NEW
   top-level command, and that fresh argv carries neither the wrapper that moved git nor git's own
