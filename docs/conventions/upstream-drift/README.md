@@ -120,7 +120,7 @@ manufactures drift that is not there. `env-vars` produced exactly that false neg
 independent fetches, each stopping before the `CLAUDE_CODE_MAX_*` range and each reporting those
 rows missing ([#2182](https://github.com/melodic-software/claude-code-plugins/pull/2182)).
 
-Two rules bind every read, whichever rung it comes from:
+Three rules bind every read, whichever rung it comes from:
 
 - **No verbatim quote, no claim.** A record's basis is the text, not a paraphrase of it. A verdict
   of "current" states the quoted span it matched.

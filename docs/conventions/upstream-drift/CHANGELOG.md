@@ -26,6 +26,9 @@ canonical name, or enforceability verdict changed.
   down.** 1.2.0 said a truncated read supports no absence claim; it never said a *complete* read of
   one page supports no claim about the product. Two moves break it: widening the subject (searching
   `hooks`, concluding "Claude Code has no X"), and searching a phrase rather than the capability.
+  It joins the binding list at the top of the section, which now states **three** rules rather than
+  two — the count is part of the normative text, so a reader can tell a binding rule from an
+  explanatory aside.
   Worked instance, verified on `hooks.md`: "verbose hooks" appears **zero** times while the same
   page documents enabling verbose mode with `Ctrl+O` or `--verbose` for async hook notifications,
   and `CLAUDE_CODE_DEBUG_LOG_LEVEL=verbose` for matcher counts — so a phrase search licenses a
