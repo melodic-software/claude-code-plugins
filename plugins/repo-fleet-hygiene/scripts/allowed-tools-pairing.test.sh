@@ -14,6 +14,12 @@
 # `${CLAUDE_SKILL_DIR}` is the only skill-relative token substituted in
 # `allowed-tools`; `${CLAUDE_PLUGIN_ROOT}` stays a literal string there and the
 # grant is inert.
+#
+# SC2016 is disabled file-wide on purpose. Every single-quoted `${…}` here is a
+# fixed string searched for VERBATIM in markdown and frontmatter, where those
+# placeholders are substituted by Claude Code at load time. Letting the shell
+# expand any of them would make this gate silently match nothing.
+# shellcheck disable=SC2016
 set -uo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
