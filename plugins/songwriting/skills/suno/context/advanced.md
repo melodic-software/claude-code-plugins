@@ -15,7 +15,7 @@ Suno v5.5 has multiple generation modes, post-generation tools, and personalizat
 
 | Feature | Where to find it | Tier |
 |---------|------------------|------|
-| **Voices** (clone YOUR singing identity) | [voices.md](voices.md) — full guide | All tiers since Aug 7 2026 (free-plan access may be mobile-only — see [voices.md](voices.md)) |
+| **Voices** (clone YOUR singing identity) | [voices.md](voices.md) — full guide | Pro / Premier; free plans got a **trial** on Aug 7 2026, possibly mobile-only — see [voices.md](voices.md) |
 | **Custom Models** (fine-tune on your catalog) | [v55-features.md](v55-features.md#2-custom-models-fine-tune-on-your-catalog) | Pro / Premier |
 | **My Taste** (passive preference learning) | [v55-features.md](v55-features.md#3-my-taste-passive-preference-learning) | All tiers |
 | **Personas** (vibe templates from existing songs) | this file, below | All tiers |

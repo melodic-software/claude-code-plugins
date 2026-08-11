@@ -7,7 +7,7 @@ All notable changes to the `songwriting` plugin are documented here. Format foll
 
 **Chapter coverage was complete at 0.9.0; file coverage was not.** This release
 audits the five files built from chapters closed in earlier sessions, reads the
-two non-book web sources that eight sessions had treated as unopenable, and —
+three non-book web sources that eight sessions had treated as unopenable, and —
 for the first time in ten sessions — **tests whether the plugin's output is any
 good.**
 

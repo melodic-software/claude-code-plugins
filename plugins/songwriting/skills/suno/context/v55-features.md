@@ -6,7 +6,7 @@
 
 ### 1. Voices (clone your singing identity)
 
-**Free plans included since Aug 7 2026 — with an unresolved platform caveat (see below).** Clone your own vocals so generated songs sound like YOU singing.
+**Pro / Premier. Free plans got a *trial* on Aug 7 2026 — with an unresolved platform caveat (see below).** Clone your own vocals so generated songs sound like YOU singing.
 
 | Detail | Spec |
 |--------|------|
@@ -104,7 +104,7 @@ Char-limit rows verified 2026-07-18 against third-party testers ([hookgenius cha
 | Stem separation — Split from Mix (2 stems) | — | ✓ | ✓ |
 | Stem separation — Auto Split (up to 12 stems) | — | ✓ | ✓ |
 | Stem separation — Advanced Split (~100 instruments) | — | — | ✓ |
-| Voices | see platform caveat above | ✓ | ✓ |
+| Voices | trial only (see caveat above) | ✓ | ✓ |
 | Custom Models (up to 3) | — | ✓ | ✓ |
 | Replace Section | — | ✓ | ✓ |
 | Suno Studio | — | — | ✓ |
