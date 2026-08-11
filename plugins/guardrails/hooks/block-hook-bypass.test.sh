@@ -830,9 +830,9 @@ run "scratch: root of / exempts nothing (blocked)" \
 # Windows spellings normalize to the Git Bash form, so a root and a target
 # written in different spellings of the same directory compare equal.
 run "scratch: backslash target under a /c root (allowed)" \
-  "echo hello > C:\\\\Users\\\\me\\\\scratch\\\\f" 0 "$SCRATCH_ENV=/c/Users/me/scratch"
+  "echo hello > C:\\\\Users\\\\me\\\\scratch\\\\f" 0 "$SCRATCH_ENV=/c/Users/me/scratch" # portability-ok: a backslash-separated Windows path in a test fixture, not a regex/sed construct
 run "scratch: /c target under a C:\\ root (allowed)" \
-  "echo hello > /c/Users/me/scratch/f" 0 "$SCRATCH_ENV=C:\\Users\\me\\scratch"
+  "echo hello > /c/Users/me/scratch/f" 0 "$SCRATCH_ENV=C:\\Users\\me\\scratch" # portability-ok: a backslash-separated Windows path in a test fixture, not a regex/sed construct
 run "scratch: Windows sibling sharing the prefix (blocked)" \
   "echo hello > /c/Users/me/scratchevil/f" 2 "$SCRATCH_ENV=/c/Users/me/scratch"
 
