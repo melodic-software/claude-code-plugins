@@ -3,6 +3,44 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.1]
+
+### Fixed
+
+- **`audit`: the MANDATORY env-var check told auditors to do the exact thing that fabricates
+  findings.** Category F required fetching `code.claude.com/docs/en/env-vars` and searching it for
+  each name, calling that page "the authoritative source" — with no word about how to read it. The
+  page carries 315 variable rows and truncates through a summarizing fetch, which then reports the
+  rows past the cutoff as absent; `env-vars` produced that false negative on three independent
+  fetches (#2182). An auditor following this row as written could flag a perfectly valid variable as
+  unrecognized and never know. The row now routes through the
+  [`.md` fetch route](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#reading-the-basis--the-fetch-route)
+  — `curl` to a file, grep the file — and states that a truncated read supports no finding at all.
+- **`audit`: and the inverse error the same row invited.** "Authoritative source" plus "do not flag
+  as unrecognized without checking this page" reads as *absent here means not a real variable*.
+  It does not: `CLAUDE_CODE_ENTRYPOINT`, `CLAUDE_CODE_ENHANCED_TELEMETRY_BETA`, and
+  `CLAUDE_CODE_EXPERIMENTAL_OBSERVER_AGENTS` are each cited as real in this repo and each absent
+  from a full verbatim read of the page on 2026-08-10. The row now caps the strongest available
+  verdict at "not documented on `env-vars`" and names the sibling pages to check first.
+- **`audit-instructions`: the effort-audit reading list promised a release the page does not state.**
+  It sent auditors to `env-vars` for `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING` "with the models **and
+  release** it reaches"; the row states the models — "Has no effect on Fable 5, Sonnet 5, or Opus
+  4.7 and later" — and no release at all (verbatim read, 2026-08-10). Sending a reader to look for
+  something that is not there invites them to invent it. The clause is corrected, and the entry
+  routes through the fetch route for the same truncation reason as Category F above.
+- **`audit-pass`: `DISABLE_DOCTOR_COMMAND` is documented, and the handoff said it was not.**
+  `reference/doctor-handoff.md` carried it as a design-phase channel "not documented on the current
+  official pages … does not appear in the environment variables list (checked 2026-07-24)". A live
+  verbatim read on 2026-08-10 found it, and found it describing this skill precisely: "Set to `1` to
+  hide the `/doctor` setup checkup skill and its `/checkup` alias … Doesn't affect the `claude
+  doctor` terminal command. Before v2.1.205, this variable hid the `/doctor` diagnostics screen
+  command" — which independently corroborates the v2.1.205 cutover the same section already states.
+  It moves up into the verified list with the scope the row actually draws (session skill, not the
+  terminal command). The pass still **detects** rather than predicts: a documented suppression lever
+  says an operator could have set it, never that they did. The `skillOverrides` half is untouched and
+  still says so — this run re-derived the `env-vars` basis only, and the recheck trigger now names
+  the settings fetch that would retire the stale half.
+
 ## [0.29.0]
 
 ### Removed

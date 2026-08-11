@@ -15,7 +15,11 @@ training-data recall.
 > that date is the ceiling on how current the row still is, not a guarantee. A fetch that no longer
 > matches a row is that row's recheck trigger: update the row, refreshing its date with the
 > outcome. The [upstream-drift convention](conventions/upstream-drift/README.md) owns this
-> stamp-and-trigger discipline.
+> stamp-and-trigger discipline, and its
+> [fetch route](conventions/upstream-drift/README.md#reading-the-basis--the-fetch-route) owns how to
+> read the page you re-fetch: several of these pages are long enough that a summarizing fetch
+> truncates them and then reports what it never reached as absent. Read the `.md` channel verbatim
+> before recording any verdict, and record none at all from a truncated read.
 
 ## Plugin components → doc page
 
@@ -108,7 +112,7 @@ SDK-based host.
 | Permissions | <https://code.claude.com/docs/en/permissions> | 2026-08-06 |
 | Permission modes | <https://code.claude.com/docs/en/permission-modes> | 2026-08-06 |
 | Configure auto mode (`autoMode`, `claude auto-mode`) | <https://code.claude.com/docs/en/auto-mode-config> | 2026-08-09 |
-| Environment variables | <https://code.claude.com/docs/en/env-vars> | 2026-08-06 |
+| Environment variables | <https://code.claude.com/docs/en/env-vars> | 2026-08-10 |
 
 ## Prompting doctrine (platform docs)
 

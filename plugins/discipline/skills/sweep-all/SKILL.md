@@ -233,17 +233,26 @@ unchanged and bind every member.
    (<https://code.claude.com/docs/en/sub-agents>,
    <https://code.claude.com/docs/en/env-vars>,
    <https://code.claude.com/docs/en/whats-new/2026-w32>; cap removal verified
-   2026-08-10. `CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY` above re-verified
-   2026-08-10 (#2176) and unchanged from the 2026-07-29 read — but NOT from the
-   env-vars page, which truncated before that range on a third re-fetch; the row
-   was read verbatim from a same-day mirror of these docs
-   (<https://github.com/ericbuess/claude-code-docs/blob/main/docs/env-vars.md>,
-   synced 2026-08-10), whose freshness is corroborated by its carrying the
-   v2.1.224 cap removal above. Treat it as one rung below a primary read.
-   Recheck trigger: a Claude Code release note naming tool-use concurrency,
-   parallel tool execution, or this variable — or any env-vars fetch that
-   reaches the `CLAUDE_CODE_MAX_*` range, which retires the mirror basis for a
-   primary one).
+   2026-08-10. `CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY` above **re-verified
+   2026-08-10 against the primary page**, read verbatim end to end through the
+   `.md` fetch route
+   ([upstream-drift](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#reading-the-basis--the-fetch-route)),
+   which reached the `CLAUDE_CODE_MAX_*` range the three earlier fetches had
+   truncated before. The row reads "Maximum number of read-only tools and
+   subagents that can execute in parallel (default: 10)" — unchanged from the
+   2026-07-29 read, and the same-day mirror basis that stood in for it (#2176)
+   is **retired**, exactly as that record's own trigger said it would be on a
+   primary read of this range. The env-vars rows for
+   `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION` ("Removed in v2.1.224 and now a
+   no-op … Previously capped … (default: 200)"),
+   `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` ("default: 20"),
+   `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` ("the `run_in_background` parameter on
+   Bash and subagent tools"), and `CLAUDE_CODE_FORK_SUBAGENT` ("overriding any
+   server-side rollout") were read in the same fetch and each matches the way
+   this skill cites it. Upstream publishes no per-page content date, so the
+   fetch date is the whole of the currency claim. Recheck trigger: a Claude Code
+   release note naming tool-use concurrency, parallel tool execution, or any of
+   these variables — or a re-fetch of env-vars diverging from a quoted row).
    So even a fully-admitted set —
    every core plus every situational corrector — dispatches in one wave in an
    otherwise-quiet session.
