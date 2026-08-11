@@ -26,6 +26,26 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
 
 SKILLS=(clean)
 
+# Optional per-skill allowlist, space-separated and sorted. When a skill names
+# one, the granted set must equal it EXACTLY — this is the guard for a
+# deliberate narrowing decision, which the pairing checks below cannot catch on
+# their own: a script that is bundled, executable, and mentioned in the body
+# "pairs" fine, so a later edit could re-widen the grant to cover it and every
+# other assertion here would still pass green.
+# `clean` names one because its grant scope carries real blast radius: only the
+# READ-ONLY scripts are pre-approved. The mutating ones (clean-caches,
+# clean-build, git-prune, git-tree-reset[-batch], remove-path, clean-batch) must
+# keep routing through the PreToolUse destructive guard and the permission flow,
+# and every one of them is bundled, executable, and invoked in the skill's
+# markdown — so without this allowlist a grant added for any of them would
+# satisfy every other check here and land silently.
+expected_granted() {
+  case "$1" in
+    clean) echo "git-branch-audit.sh git-stash-audit.sh preflight.sh resolve-clean-action.sh scan.sh" ;;
+    *) echo "" ;;
+  esac
+}
+
 fails=0
 pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1" >&2; fails=1; }
@@ -85,6 +105,19 @@ for skill in "${SKILLS[@]}"; do
       fail "$skill: grant for $g has no matching body invocation (dead grant)"
     fi
   done
+
+  expected="$(expected_granted "$skill")"
+  if [[ -n "$expected" ]]; then
+    actual="$(printf '%s\n' "${granted[@]}" | sort -u | tr '\n' ' ')"
+    actual="${actual% }"
+    if [[ "$actual" == "$expected" ]]; then
+      pass "$skill: granted set matches the allowlist exactly"
+    else
+      fail "$skill: granted set drifted from the allowlist
+    expected: $expected
+    actual:   $actual"
+    fi
+  fi
 done
 
 if [[ $fails -ne 0 ]]; then
