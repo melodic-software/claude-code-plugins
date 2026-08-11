@@ -224,13 +224,27 @@ Pat's pronoun table, as printed — all four rows, both columns:
 > the audience observes.
 
 Pat's first specimen is **Buck Ram's "The Great Pretender"** — he prints it whole
-here and then twice more with the pronouns changed, so it is the control case
-for the whole comparison. Its opening quatrain:
+here and then twice more with the pronouns changed (first-person narrative, then
+direct address), so it is the control case for the whole comparison. His
+third-person version in full:
 
 > Yes, she's the great pretender
 > Pretending that she's doing well
 > Her need is such, she pretends too much
 > She's lonely but no one can tell
+>
+> Yes, she's the great pretender
+> Adrift in a world of her own
+> She plays the game, but to her real shame
+> He's left her to dream all alone
+>
+> Too real is her feeling of make-believe
+> Too real when she feels what her heart can't conceal
+> Yes, she's the great pretender
+> Just laughing and gay like a clown
+> She seems to be what she's not, you see
+> She's wearing her heart like a crown
+> Pretending that he's still around
 
 > Imagine watching a singer perform the song. Either gender could sing it, no
 > problem. As an audience, we would look at the pretender along with the singer.
@@ -267,6 +281,30 @@ actually does diagnostic work:
 > In a first-person narrative, the first-person pronouns mix with third-person
 > pronouns. There is no you.
 
+He then reprints **"The Great Pretender"** in first person — the same control
+case, pronouns changed, so the two versions can be read against each other. Note
+that he sets the "Too real" couplet off as its own stanza here, and that the
+"(or she's)" parentheticals are his:
+
+> Oh yes, I'm the great pretender
+> Pretending that I'm doing well
+> My need is such, I pretend too much
+> I'm lonely but no one can tell
+>
+> Yes, I'm the great pretender
+> Adrift in a world of my own
+> I play the game, but to my real shame
+> He's (or she's) left me to dream all alone
+>
+> Too real is this feeling of make-believe
+> Too real when I feel what my heart can't conceal
+>
+> Yes, I'm the great pretender
+> Just laughing and gay like a clown
+> I seem to be what I'm not, you see
+> I'm wearing my heart like a crown
+> Pretending that he's (or she's) still around
+
 And the camera position, stated flatly:
 
 > We, the audience, have some level of intimacy with the singer, but we are
@@ -275,8 +313,9 @@ And the camera position, stated flatly:
 > the pronouns will now make a difference. In film terms, this is the
 > middle-distance shot.
 
-Pat's first-person specimen is **"Digging for the Line"**, which opens *"My daddy
-loved the greyhounds / Oh he lived to watch 'em run."* His gloss:
+His second first-person specimen, introduced with "Look at this:", is **"Digging
+for the Line"**, which opens *"My daddy loved the greyhounds / Oh he lived to
+watch 'em run."* His gloss:
 
 > The narrator tells the story, but includes him/herself in it. In the last
 > verse, daddy is quoted by the narrator while we are allowed to eavesdrop.
@@ -329,6 +368,24 @@ Feelings at one end, Long Range: Facts at the other.
 > Second-person pronouns are mixed with first-person pronouns to produce direct
 > address — contact between I and you.
 
+He reprints **"The Great Pretender"** a third time to show it. Note that he
+starts this printing at the *second* stanza — the opening quatrain contains no
+you, so it cannot demonstrate direct address:
+
+> Yes, I'm the great pretender
+> Adrift in a world of my own
+> I play the game, but to my real shame
+> You've left me to dream all alone
+>
+> Too real is this feeling of make-believe
+> Too real when I feel what my heart can't conceal
+>
+> Yes, I'm the great pretender
+> Just laughing and gay like a clown
+> I seem to be what I'm not, you see
+> I'm wearing my heart like a crown
+> Pretending that you're still around
+
 Pat prints **four** listener positions, not "several" — and states them from
 inside the listener's head, first person:
 
@@ -350,8 +407,8 @@ inside the listener's head, first person:
 >
 > However I do it, it's pretty intimate.
 
-His direct-address specimen is **"As Each Year Ends"**, in which *"the singer
-speaks to the image of someone in his past"*:
+His second direct-address specimen is **"As Each Year Ends"**, in which *"the
+singer speaks to the image of someone in his past"*:
 
 > Becky Rose, you stole the night
 > Body dark, a sash of light

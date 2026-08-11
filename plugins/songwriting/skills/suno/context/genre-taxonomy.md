@@ -3,7 +3,7 @@
      within genre tables; padding them with empty pipes would obscure the prose. -->
 # Genre taxonomy
 
-Static reference catalog of ~220 genres organized by 12-family tree. Used by the `/songwriting:suno genre` action when no template matches, and as a vibe-to-genre lookup for the `prompt` and `style` actions. Cross-link: when a family has an existing template under `templates/<name>.md`, prefer it for the prompt skeleton — this file supplies the descriptor vocabulary.
+Static reference catalog of ~220 genres organized by 12-family tree. Used by the `/songwriting:suno genre` action when no template matches, and as a vibe-to-genre lookup for the `prompt` and `style` actions. Cross-link: when a family has an existing template under `../templates/<name>.md`, prefer it for the prompt skeleton — this file supplies the descriptor vocabulary.
 
 **Format conventions**
 
@@ -23,7 +23,7 @@ Static reference catalog of ~220 genres organized by 12-family tree. Used by the
 
 ## 1. Rock
 
-Template: `templates/rock.md`. The umbrella subdivides by era (classic / alt / indie / modern), aggression (punk / hard rock), and crossover (folk-rock / blues-rock / country-rock). 6/8 and 12/8 feels common in blues-rock and classic; 4/4 dominates everywhere else.
+Template: `../templates/rock.md`. The umbrella subdivides by era (classic / alt / indie / modern), aggression (punk / hard rock), and crossover (folk-rock / blues-rock / country-rock). 6/8 and 12/8 feels common in blues-rock and classic; 4/4 dominates everywhere else.
 
 | Genre | Era | Region | BPM | Key | Vocal | Production | Mood | Conf |
 |-------|-----|--------|-----|-----|-------|------------|------|------|
@@ -62,7 +62,7 @@ Template: `templates/rock.md`. The umbrella subdivides by era (classic / alt / i
 
 ## 2. Metal
 
-Template: `templates/metal.md`. Down-tuned guitars define the family; subdivisions are by aggression vector (speed / heaviness / atmosphere / technicality) and vocal approach (clean operatic / harsh growl / shriek).
+Template: `../templates/metal.md`. Down-tuned guitars define the family; subdivisions are by aggression vector (speed / heaviness / atmosphere / technicality) and vocal approach (clean operatic / harsh growl / shriek).
 
 | Genre | Era | Region | BPM | Key | Vocal | Production | Mood | Conf |
 |-------|-----|--------|-----|-----|-------|------------|------|------|
@@ -100,7 +100,7 @@ Template: `templates/metal.md`. Down-tuned guitars define the family; subdivisio
 
 ## 3. Pop
 
-Template: `templates/pop.md`. Pop is hook-engineering wrapped around the production zeitgeist of the decade; subdivisions track production fashion (analog synths / R&B-blend / EDM-influence / hyperpop chaos) and demographic targeting (teen / adult-contemporary / global-export / niche).
+Template: `../templates/pop.md`. Pop is hook-engineering wrapped around the production zeitgeist of the decade; subdivisions track production fashion (analog synths / R&B-blend / EDM-influence / hyperpop chaos) and demographic targeting (teen / adult-contemporary / global-export / niche).
 
 <!-- chord/vocal-production vocabulary in table trips the spell-checker --><!-- spellchecker:off -->
 | Genre | Era | Region | BPM | Key | Vocal | Production | Mood | Conf |
@@ -129,7 +129,7 @@ Template: `templates/pop.md`. Pop is hook-engineering wrapped around the product
 
 ## 4. Hip-hop
 
-Template: `templates/hip-hop.md` (boom bap, conscious), `templates/trap.md` (trap and modern variants). Hip-hop subdivisions track region, era, and instrumental approach (sample-based vs. synth-based) more than genre boundaries.
+Template: `../templates/hip-hop.md` (boom bap, conscious), `../templates/trap.md` (trap and modern variants). Hip-hop subdivisions track region, era, and instrumental approach (sample-based vs. synth-based) more than genre boundaries.
 
 | Genre | Era | Region | BPM | Key | Vocal | Production | Mood | Conf |
 |-------|-----|--------|-----|-----|-------|------------|------|------|
@@ -173,7 +173,7 @@ Template: `templates/hip-hop.md` (boom bap, conscious), `templates/trap.md` (tra
 
 ## 5. R&B / Soul
 
-Template: `templates/rnb.md`. The family arcs from gospel-rooted classic soul through Motown/Memphis/Philly regional schools, funk, the 80s-90s contemporary R&B mainstream, and post-2010 alt-R&B (PBR&B). Vocal performance is the throughline; instrumentation modernizes per decade.
+Template: `../templates/rnb.md`. The family arcs from gospel-rooted classic soul through Motown/Memphis/Philly regional schools, funk, the 80s-90s contemporary R&B mainstream, and post-2010 alt-R&B (PBR&B). Vocal performance is the throughline; instrumentation modernizes per decade.
 
 | Genre | Era | Region | BPM | Key | Vocal | Production | Mood | Conf |
 |-------|-----|--------|-----|-----|-------|------------|------|------|
@@ -197,7 +197,7 @@ Template: `templates/rnb.md`. The family arcs from gospel-rooted classic soul th
 
 ## 6. Electronic / Dance
 
-The largest family by subgenre count. Subdivisions follow tempo zone (house ~120-128, techno ~125-145, DnB 170-180, dubstep 138-145 half-time), and rhythmic feel (four-on-floor / breakbeat / syncopated). Template: `templates/edm.md` covers festival house/EDM; ambient and IDM crossover to `templates/ambient.md`.
+The largest family by subgenre count. Subdivisions follow tempo zone (house ~120-128, techno ~125-145, DnB 170-180, dubstep 138-145 half-time), and rhythmic feel (four-on-floor / breakbeat / syncopated). Template: `../templates/edm.md` covers festival house/EDM; ambient and IDM crossover to `../templates/ambient.md`.
 
 | Genre | Era | Region | BPM | Key | Vocal | Production | Mood | Conf |
 |-------|-----|--------|-----|-----|-------|------------|------|------|
@@ -256,7 +256,7 @@ The largest family by subgenre count. Subdivisions follow tempo zone (house ~120
 
 ## 7. Jazz
 
-Template: `templates/jazz.md`. The family arcs from swing-era big band through bebop's small-group revolution, modal and free's harmonic expansions, and fusion's plug-in revolution. Specifying "modal" or "bop" gives Suno strong direction; vaguer "jazz" defaults to smooth.
+Template: `../templates/jazz.md`. The family arcs from swing-era big band through bebop's small-group revolution, modal and free's harmonic expansions, and fusion's plug-in revolution. Specifying "modal" or "bop" gives Suno strong direction; vaguer "jazz" defaults to smooth.
 
 | Genre | Era | Region | BPM | Key | Vocal | Production | Mood | Conf |
 |-------|-----|--------|-----|-----|-------|------------|------|------|
@@ -281,7 +281,7 @@ Template: `templates/jazz.md`. The family arcs from swing-era big band through b
 
 ## 8. Folk / Country / Americana / Blues
 
-The family weaves regional folk traditions, country's evolution (classic → outlaw → bro), blues (Delta → Chicago → contemporary), and the Americana umbrella reuniting them. Templates: `templates/folk.md` covers the indie/Americana lane.
+The family weaves regional folk traditions, country's evolution (classic → outlaw → bro), blues (Delta → Chicago → contemporary), and the Americana umbrella reuniting them. Templates: `../templates/folk.md` covers the indie/Americana lane.
 
 | Genre | Era | Region | BPM | Key | Vocal | Production | Mood | Conf |
 |-------|-----|--------|-----|-----|-------|------------|------|------|
@@ -523,7 +523,7 @@ For each mood/vibe, 3-5 fitting genres ordered by descriptor density (first = mo
 
 ## Cross-reference
 
-- Templates with prompt skeletons + tweak knobs: `templates/{pop,rock,hip-hop,trap,edm,jazz,classical,folk,metal,ambient,lofi,rnb}.md`
+- Templates with prompt skeletons + tweak knobs: `../templates/{pop,rock,hip-hop,trap,edm,jazz,classical,folk,metal,ambient,lofi,rnb}.md`
 - 6-layer formula and confidence policy: parent `../SKILL.md` "Load-bearing fundamentals"
-- Style-prompt construction details: `context/style.md`
-- Live research recipes for niche genres: `context/research-recipes.md`
+- Style-prompt construction details: `style.md`
+- Live research recipes for niche genres: `research-recipes.md`
