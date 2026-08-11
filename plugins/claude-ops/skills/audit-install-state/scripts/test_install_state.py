@@ -9,10 +9,12 @@ machine it runs on.
 from __future__ import annotations
 
 import contextlib
+import io
 import json
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -514,6 +516,54 @@ class TestCsvCompleteness(unittest.TestCase):
             )
             out = Path(tmp) / "listing.csv"
             self.assertEqual(engine.write_csv(report["_rows"], out), report["totals"]["files"])
+
+
+class TestCsvNoteAccuracy(unittest.TestCase):
+    """The emitted `csv.note` must not outlive what the code does.
+
+    `main()` drops `members` from every entry before serializing, so the JSON
+    embeds no per-file rows whatever `--authored-threshold` is. The note claimed
+    the threshold governed "how much per-file detail the JSON summary embeds" and
+    survived a commit that corrected the same sentence in SKILL.md, README.md and
+    the CHANGELOG -- because no test pinned the runtime string. This is that test.
+    """
+
+    def _report(self, root: Path, csv_path: Path | None) -> dict:
+        argv = ["--root", str(root), "--samples", "1", "--sample-interval", "0"]
+        if csv_path is not None:
+            argv += ["--csv", str(csv_path)]
+        buffer = io.StringIO()
+        with redirect_stdout(buffer):
+            self.assertEqual(engine.main(argv), 0)
+        return json.loads(buffer.getvalue())
+
+    def test_the_json_never_embeds_per_file_rows(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            build_tree(root)
+            report = self._report(root, Path(tmp) / "out.csv")
+            self.assertTrue(report["entries"])
+            for entry in report["entries"]:
+                with self.subTest(entry=entry["entry"]):
+                    self.assertNotIn("members", entry)
+
+    def test_the_csv_note_does_not_claim_the_json_embeds_per_file_detail(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            build_tree(root)
+            csv_path = Path(tmp) / "out.csv"
+            for target in (csv_path, None):
+                note = self._report(root, target)["csv"]["note"]
+                with self.subTest(csv=target is not None):
+                    self.assertNotIn("per-file detail", note)
+                    self.assertNotIn("embeds", note.replace("embeds no per-file rows", ""))
+
+    def test_the_csv_row_count_reported_matches_the_file_count(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            build_tree(root)
+            report = self._report(root, Path(tmp) / "out.csv")
+            self.assertEqual(report["csv"]["rows"], report["totals"]["files"])
 
 
 class TestRootResolution(unittest.TestCase):

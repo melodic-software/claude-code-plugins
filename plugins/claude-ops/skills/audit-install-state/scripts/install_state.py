@@ -1169,8 +1169,8 @@ def scan(
 def write_csv(rows: list[FileRow], path: Path) -> int:
     """Emit EVERY file as a row, so "every file" literally exists as an artifact.
 
-    This is deliberately independent of `--authored-threshold`. That flag
-    controls only how much per-file detail is embedded in the JSON summary; it
+    This is deliberately independent of `--authored-threshold`. That flag decides
+    only which entries the JSON summary LABELS `per-file` versus `rolled-up`; it
     must never decide how much of the tree reaches the artifact, or the report
     silently drops most of the install while its own prose claims completeness.
     """
@@ -1260,8 +1260,10 @@ def main(argv: list[str] | None = None) -> int:
             "rows": count,
             "evidence": MEASURED,
             "note": (
-                "Complete: one row per file in the scan set. --authored-threshold affects only "
-                "how much per-file detail the JSON summary embeds, never this artifact."
+                "Complete: one row per file in the scan set, and the only artifact carrying "
+                "per-file rows at all. --authored-threshold affects only which entries the JSON "
+                "summary labels per-file vs rolled-up; it embeds no per-file rows either way "
+                "and never shrinks this artifact."
             ),
         }
     else:
@@ -1270,12 +1272,18 @@ def main(argv: list[str] | None = None) -> int:
             "rows": 0,
             "evidence": MEASURED,
             "note": (
-                "No --csv given, so no complete per-file artifact was written. The JSON below "
-                "lists only the authored surface; bulk trees are rolled up. Do NOT describe this "
-                "run as covering every file."
+                "No --csv given, so no per-file listing was written anywhere. The JSON below is "
+                "a summary: one line per top-level entry, never a file listing. Do NOT describe "
+                "this run as covering every file."
             ),
         }
 
+    # The JSON stays a summary: `rollup` attaches `members` to every entry it labels
+    # per-file, and they are dropped here rather than serialized. Measured at +58 KB
+    # against a 27 KB summary (3.2x) on an 86k-file install, against a report a model
+    # reads end to end -- and `write_csv` already emits every row. Any note or doc
+    # describing this flag must say it LABELS entries, not that it embeds rows;
+    # `TestCsvNoteAccuracy` pins that, because the claim drifted here once already.
     for entry in report["entries"]:
         entry.pop("members", None)
 
