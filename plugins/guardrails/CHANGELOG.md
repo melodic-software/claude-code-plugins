@@ -3,6 +3,61 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.0]
+
+### Added
+
+- **`block-hook-bypass` gains an opt-in scratch-root exemption, and with it its first
+  target-scoped axis (#2210).** A read-only investigation that writes a throwaway probe file
+  under a session or job temp root was blocked exactly like a repo-file write — reproduced twice,
+  once against the reporting session and once against the validation pass that confirmed it, which
+  was blocked by the installed guard while building a telemetry-sink probe under `/tmp`. None of the
+  Write/Edit hooks this guard exists to protect (the nine formatters, secret-pattern detection,
+  hardcoded-path checking, the three verifiers) would ever process such a file.
+
+  **State the design change plainly, because it is one.** This guard is PRODUCER-scoped: it fires on
+  `echo`/`printf`/`cat`/`python3 -c` as the command whose stdout reaches a file, wherever that file
+  lives. The originating report framed a carve-out as a *tightening of the existing producer
+  scoping*; it is not, and shipping that rationale would have been wrong. A carve-out by target path
+  adds a new axis to the guard's design. The producer axis is untouched — an inline `python3 -c`
+  write into an exempt root still blocks, and a test pins that.
+
+  The new `block_hook_bypass_scratch_roots` option takes a comma-separated list of absolute
+  directories and **defaults to empty, so no shipped behaviour changes**. Two tests assert exactly
+  that: a temp write still blocks with the option unset, and again with it set empty. The reported
+  friction therefore persists until an operator names their own roots — deliberately, because the
+  last target-based exemption of this shape (`/dev/null`) shipped a one-token bypass of the whole
+  guard (write the discard first, the real file second), and the default trust surface stays
+  byte-for-byte what it was.
+
+  The match is made against a lexically normalized path, never a substring or a bare prefix compare.
+  Windows separators and drive letters fold to the Git Bash spelling, `.` and `..` resolve by
+  component, and containment requires the target to continue with `/` past the root's last
+  component. The adversarial floor is the point of the test block, not the happy path:
+
+  | shape | verdict |
+  | --- | --- |
+  | `echo x > /tmp/scratch/f`, root `/tmp/scratch` | allowed |
+  | `echo x > /tmp/scratchevil/f`, same root (a string prefix would exempt it) | **blocked** |
+  | `echo x > /tmp/scratch` — the root itself; containment is strict | **blocked** |
+  | `echo x > /tmp/scratch/../../etc/passwd` | **blocked** |
+  | `echo x > /tmp/scratch/f > real.txt` — the effective-target rule the `/dev/null` exemption already survived | **blocked** |
+  | `echo a > /tmp/scratch/f && echo b > real.txt` — an exemption cannot leak across segments | **blocked** |
+  | a relative, `$VAR`, `~` or glob target | **blocked** |
+  | `python3 -c "open('/tmp/scratch/x','w').write('a')"` — producer axis unchanged | **blocked** |
+
+  Two residuals, both deliberate and both stated in the file and the README. Normalization is
+  lexical, not filesystem resolution: symlinks are not followed, because resolving them needs a
+  subprocess per segment on a path this file deliberately keeps fork-free, and the target frequently
+  does not exist yet — naming a root is accepting that root's contents. And the compare is
+  case-insensitive, because the segment scan runs over the lowercased command; on a case-sensitive
+  filesystem a sibling differing from a root only in case is also exempt. A test pins that residual
+  so it can only move deliberately.
+
+  Bash lane only. The PowerShell lane classifies on cmdlet/redirect co-occurrence and never resolves
+  a single effective target, so there is no well-defined target to exempt there; its `$null` discard
+  is unchanged.
+
 ## [0.24.3]
 
 ### Changed
