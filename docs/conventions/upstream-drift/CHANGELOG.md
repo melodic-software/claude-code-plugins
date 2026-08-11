@@ -4,6 +4,46 @@ Notable changes to the upstream-drift contract (SemVer). Changing a required par
 name, or an enforceability verdict is a major bump; additive guidance is a minor bump; docs-only
 clarification is a patch.
 
+## 1.3.0 — 2026-08-11
+
+Closes two holes in [§Reading the basis — the fetch route](README.md#reading-the-basis--the-fetch-route)
+that 1.2.0 left open, both found by the fleet using it. Additive guidance; no required part,
+canonical name, or enforceability verdict changed.
+
+- **A `200` does not mean you got the page you asked for, and 1.2.0's rung 1 implied it did.** The
+  rung guarded against truncation and against a channel that 404s, but not against a channel that
+  succeeds with the wrong page. A retired slug is silently aliased to its successor — no redirect,
+  no `Location`, no notice in the body: `slash-commands.md` returns `200` with 82,668 bytes titled
+  "Extend Claude with skills", **byte-identical to `skills.md`** (both SHA-256 `a833dd5c…`), with
+  `0` redirects reported (verified 2026-08-11). An invented slug still `404`s, so the aliasing is
+  specific to slugs that once existed. This failure outranks truncation: a term the *requested*
+  page owns comes back missing from a full, healthy-looking body, so the false absence carries
+  every outward sign of a good read. Identity is now part of rung 1, with two cheap checks —
+  confirm the slug against `llms.txt` (across ten slugs, the nine live ones appear as
+  `docs/en/<slug>.md` and only the aliased one does not), and read the body's first heading before
+  quoting it. A missing slug is a prompt to find the successor in the index and cite **that** slug.
+- **An absence claim now carries its scope, because the rung ladder only ever bounded one scope
+  down.** 1.2.0 said a truncated read supports no absence claim; it never said a *complete* read of
+  one page supports no claim about the product. Two moves break it: widening the subject (searching
+  `hooks`, concluding "Claude Code has no X"), and searching a phrase rather than the capability.
+  It joins the binding list at the top of the section, which now states **three** rules rather than
+  two — the count is part of the normative text, so a reader can tell a binding rule from an
+  explanatory aside.
+  Worked instance, verified on `hooks.md`: "verbose hooks" appears **zero** times while the same
+  page documents enabling verbose mode with `Ctrl+O` or `--verbose` for async hook notifications,
+  and `CLAUDE_CODE_DEBUG_LOG_LEVEL=verbose` for matcher counts — so a phrase search licenses a
+  false nonexistence claim from a complete read of the right page. An absence claim states the
+  corpus and the terms tried.
+- **Stated as its own rule because it is the reason to care: a sound conclusion on a false premise
+  is fragile, not safe.** The instance above kept its conclusion on a corrected premise
+  ([#2190](https://github.com/melodic-software/claude-code-plugins/pull/2190)); the next reader who
+  checks a false premise discards the conclusion with it.
+
+Both holes were found by the 2026-08-11 stamp re-verification
+([#2187](https://github.com/melodic-software/claude-code-plugins/pull/2187)) applying 1.2.0 at
+scale — the convention's own recheck discipline surfacing gaps in the convention, one release after
+it shipped.
+
 ## 1.2.0 — 2026-08-10
 
 Adds [§Reading the basis — the fetch route](README.md#reading-the-basis--the-fetch-route): a rung
