@@ -62,26 +62,61 @@ Chapter 9's worked refrain is *He lost the human race* — a good line, double
 meaning and all, which then refuses to sit under a future-tense verse (*He'll
 tilt his head one final night*). The three strategies applied to it:
 
-| Strategy | Chapter 9's version | Effect |
+| Strategy | Chapter 9's version | What Pat says it does |
 | --- | --- | --- |
-| `-ing` form | Losing the human race | Accepts past, present, or future context. |
-| Infinitive | To lose the human race | Points toward action without committing to time. |
-| No verb | A loss in the human race | Turns the repeat into a commentary or image. |
+| `-ing` form | Losing the human race | "the neutralized refrain accepts any tense" |
+| Infinitive | To lose the human race | Same — Pat gives the infinitive **no distinct effect**; he says only "whichever results you like better, the `-ing` form or the infinitive, it's nice to have the option" |
+| No verb | A loss in the human race | "it makes the refrain sound like a commentary" |
+
+Pat's closing instruction on the three: **"Always try all three options. Use
+whichever feels best."**
 
 Pat's rules for each: with `-ing`, omit any helping verbs (*losing*, not *is
 losing* / *was losing* / *will be losing*), and don't confuse the verb form with
 a participle (*a losing strategy*) or a gerund (*losing builds character*). With
 the infinitive, omit the main verb — *to lose*, not *I hate to lose*.
 
-The verse it has to survive, in all three tenses:
+The original, tense-locked:
 
 ```text
 Exploding from the starting blocks
-Again he set / sets / he'll set the pace
+Again he set the pace
+Though he was crowned by laurel wreaths
+As thousands cheered he came to grief
+He lost the human race
+```
+
+The `-ing` refrain under Pat's three printed tense settings — same last line
+every time:
+
+```text
+Past tense
+
+Exploding from the starting blocks
+Again he set the pace
 Though he was crowned by laurel wreaths
 As thousands cheered he came to grief
 Losing the human race
+
+Present tense
+
+Exploding from the starting blocks
+Again he sets the pace
+Although he's crowned by laurel wreaths
+As thousands cheer he comes to grief
+Losing the human race
+
+Future tense
+
+Exploding from the starting blocks
+Again he'll set the pace
+Though he'll be crowned by laurel wreaths
+As thousands cheer he'll come to grief
+Losing the human race
 ```
+
+Pat then runs the same three tenses again with *To lose the human race* and
+again with *A loss in the human race*.
 
 > Always try all three options. Use whichever feels best.
 
@@ -110,13 +145,45 @@ race* does the same double duty — no verb tense, no pronoun — and the chapte
 proves it by running the identical refrain under five different verse POVs:
 
 ```text
-Again I set the pace     … As thousands cheer I'll come to grief
-Again we set the pace    … As thousands cheer we'll come to grief
-Again you set the pace   … As thousands cheer you'll come to grief
-Again she sets the pace  … As thousands cheer she'll come to grief
-Again they set the pace  … As thousands cheer they'll come to grief
+First person (singular)
 
-                         Losing the human race
+Exploding from the starting blocks
+Again I set the pace
+Although I'm crowned by laurel wreaths
+As thousands cheer I'll come to grief
+Losing the human race
+
+First person (plural)
+
+Exploding from the starting blocks
+Again we set the pace
+Although we're crowned by laurel wreaths
+As thousands cheer we'll come to grief
+Losing the human race
+
+Second person
+
+Exploding from the starting blocks
+Again you set the pace
+Although you're crowned by laurel wreaths
+As thousands cheer you'll come to grief
+Losing the human race
+
+Third person (singular)
+
+Exploding from the starting blocks
+Again she sets the pace
+Although she's crowned by laurel wreaths
+As thousands cheer she'll come to grief
+Losing the human race
+
+Third person (plural)
+
+Exploding from the starting blocks
+Again they set the pace
+Although they're crowned by laurel wreaths
+As thousands cheer they'll come to grief
+Losing the human race
 ```
 
 **Watch the third-person `-s`.** Pat's note on when you can skip verb
@@ -129,11 +196,20 @@ neutralization entirely:
 Which is why *And lose the human race* works under I / we / you / they. But it
 is tense-locked, not POV-locked, and breaks the moment a verse goes past:
 
+> Be careful, though. *And lose the human race* works only in present tense. If
+> you change to past, you're in trouble:
+
 ```text
+Third person (plural)
+
+Exploding from the starting blocks
+Again they set the pace
 Though they were crowned by laurel wreaths
 As thousands cheered they came to grief
-And lose the human race        <- wrong; needs "Losing the human race"
+And lose the human race
 ```
+
+> You'd need to neutralize the verb tense, too, back to *losing the human race*.
 
 Diagnose which coat you are stripping. Dropping pronouns fixes POV; only
 changing the verb form fixes tense.
@@ -149,6 +225,18 @@ We were still crazy after all these years
 
 > All three work fine. The result is a productive ambiguity that adds to the
 > spell of the lyric.
+
+Pat carries the same reading through the other two verses:
+
+> Verse two's possible interpretations of the refrain include: *I am still crazy
+> after all these years*, and *you are still crazy after all these years*. We can
+> almost hear the jukebox whispering "Hey fella, you're still crazy about her
+> after all these years." Again, the POV swabs multiple colors on the refrain,
+> creating depth. In the third verse, *my peers wouldn't convict me because I
+> would be still crazy after all these years*, or *they would be still crazy
+> after all these years*. I could cop a plea of insanity. They would understand,
+> being, as my peers, crazy themselves. Again, the neutral refrain contributes
+> productivity to the ambiguity.
 
 ## Verses show, chorus tells
 
@@ -387,10 +475,13 @@ Symptoms:
 Fix stagnant repetition by changing the development, not by changing the
 chorus words first.
 
-**Stagnation does not merely flatten the boxes — it can shrink them.** Chapter 6
-is explicit that stagnant boxes are the same size at best, and more likely lose
-weight, because boredom amplifies across repeats. A second chorus that merely
-repeats does not land neutrally; it lands weaker than the first.
+**Stagnation does not merely flatten the boxes — it can shrink them.**
+
+> The refrain suffers from the same disease as the verses: stagnation. Boredom is
+> amplified. The boxes, at best, are all the same size — they don't gain any
+> weight. More likely, the boxes lose weight. You can feel the letdown when you
+> get to the second and third boxes. You can only fix stagnation by developing
+> the ideas.
 
 **Polished language cannot fix it.** Chapter 6's demonstration is a sheriff
 song, written as bare prose summaries on purpose. Stagnant:
@@ -426,7 +517,8 @@ Box 1  The sheriff is the toughest man in town.
        Beware, beware. All hands beware.
 Box 2  He is very strong and has a fast gun.
        Beware, beware. All hands beware.
-Box 3  Everyone in town knows the sheriff is tough. They are afraid of him.
+Box 3  Everyone in town knows the sheriff is tough.
+       They are afraid of him.
        Beware, beware. All hands beware.
 ```
 
@@ -675,9 +767,11 @@ Will you love me?
 Love me.
 ```
 
-This works best in first or second person with present-tense or infinitive
-verbs. Third person often creates simple repetition rather than command because
-the verb form changes.
+Pat's limit on this is categorical, not a preference: "Remember that this
+technique only works in first person and second person, not third person" —
+third person adds an *s* to the verb, so you get simple repetition and no
+command. With past- or future-tense verbs, isolate the infinitive instead. Full
+matrices below.
 
 ## Repetition diagnosis
 
@@ -839,27 +933,57 @@ isolates the question or command underneath.
 
 ### Hidden questions — full grammatical matrix
 
-**Delete the interrogative pronoun, and KEEP the auxiliary.** The auxiliary is
-what makes the remaining fragment a question; deleting it destroys the effect
-rather than producing it. The deleted word is `who`, `what`, `when`, `where`,
-`why`, or `how`.
+Pat builds it one step at a time:
 
-The change in meaning is the point. The full question presupposes the action
-happens and asks for its object, place, reason, or method. The isolated
-fragment asks whether the action exists at all — a genuinely different and
-usually more exposed question.
+> Look at this question:
+>
+> Who do you love?
+>
+> It starts with one of the interrogative pronouns (who, what, when, where, why,
+> how). It also contains the auxiliary verb *do*. What if you drop *who*? It
+> becomes:
+>
+> Do you love?
+>
+> Now you've got a brand new question. Simply repeat that smaller piece:
+>
+> Who do you love? Do you love?
+>
+> You've isolated a part of the sentence and repeated it, giving a new meaning.
+> You can do it with the other interrogative pronouns, too:
 
-| Original (full question) | Hidden (interrogative pronoun deleted) | Effect |
-|---|---|---|
-| Who do you love? | Do you love? | Asks whether loving happens at all |
-| Where did you go? | Did you go? | Asks whether the leaving happened |
-| What will you try? | Will you try? | Asks whether the attempt will be made |
-| When will I know? | Will I know? | Asks whether knowing ever arrives |
-| Why do you laugh? | Do you laugh? | Asks whether the laughter is real |
-| How did you know? | Did you know? | Asks whether the knowledge existed |
+```text
+What do you love? Do you love?
+When do I love? Do I love?
+Where do you go? Do you go?
+Why do you laugh? Do you laugh?
+How do you know? Do you know?
+```
 
-The technique scales across tenses via the auxiliary — `do` / `did` / `will` —
-and across the subjunctive modals `can` / `could` / `should` / `would`:
+> The auxiliary verb *do* can also introduce a question. That's what makes it
+> work. You can do the same thing with the past and future tense, *did* and
+> *will*:
+
+```text
+Who did you love? Did you love?
+What did you try? Did you try?
+When did I know? Did I know?
+Where did you go? Did you go?
+Why did you laugh? Did you laugh?
+How did you know? Did you know?
+```
+
+```text
+Who will you love? Will you love?
+What will you try? Will you try?
+When will I know? Will I know?
+Where will you go? Will you go?
+Why will you laugh? Will you laugh?
+How will you know? Will you know?
+```
+
+> How about the subjunctive (can, could, should, would) with the interrogative
+> pronouns? Simply delete the pronoun:
 
 | Original | Hidden |
 |---|---|
@@ -867,6 +991,8 @@ and across the subjunctive modals `can` / `could` / `should` / `would`:
 | Who could you love? | Could you love? |
 | Who should you love? | Should you love? |
 | Who would you love? | Would you love? |
+
+> (I'll leave it to you to fill out the other interrogative pronouns.)
 
 The deletion creates a fragment the listener hears as both repetition AND new
 content. Chapter 6's real-world instance is Joni Mitchell's "Roses Blue," where
@@ -880,27 +1006,35 @@ And only with your laughter can you win
 Can you win? Can you win?
 ```
 
-> By simply isolating and repeating a portion of the line, *can you win*, she
-> moves from a declarative sentence into a question, creating new energy and
-> adding a new idea — in this case, the character's uncertainty whether winning
-> (laughter) is possible.
+> In the last two lines, by simply isolating and repeating a portion of the line,
+> *can you win*, she moves from a declarative sentence into a question, creating
+> new energy and adding a new idea — in this case, the character's uncertainty
+> whether winning (laughter) is possible.
 
 Nothing was added. The statement of the terms became a doubt about whether the
 terms can be met.
 
 ### Hidden commands — subject deletion
 
-A declarative with explicit subject can be reduced to a command by deleting
-the subject:
+Pat states the precondition, then runs it:
 
-| Original (declarative) | Hidden command (subject deleted) | Effect |
-|---|---|---|
-| You tell me that you want me. | Tell me that you want me. | Imperative emerges |
-| Tell me that you want me. | Want me. | Second pass; strips to the appeal |
-| You give me everything I need. | Give me everything I need. | Imperative emerges |
-
+> Declarative sentences (or "statements") often can be easy prey for productive
+> repetition. If the subject of the sentence is *you*, and the verb is present
+> tense, there's usually a command (imperative) lurking, waiting to be isolated:
+>
+> You tell me that you want me.
+>
 > Just delete the subject, isolating the verb, and presto, you have yourself a
-> command.
+> command:
+>
+> Tell me that you want me.
+>
+> And even:
+>
+> Want me.
+
+His second: "Try it with: *You give me everything I need.*" It becomes *Give me
+everything I need.*
 
 Note: **third-person cannot generate commands** because English third-
 person verbs take an -s. Pat's counterexample, run through the same two passes:
@@ -917,33 +1051,61 @@ The technique needs the bare verb base, which first and second person supply and
 third person does not.
 
 A second-person question hides a command the same way: `Will you love me?`
-reduces to `Love me.`
+reduces to `Love me.` Pat: "You can isolate commands from questions using
+second-person direct address."
+
+> Whenever you are working with present-tense verbs, look for the opportunity to
+> repeat, starting from the verb, to create a command. Remember that this
+> technique only works in first person and second person, not third person.
 
 ### Infinitive isolation — past and future
 
-Pat's extension: with a past- or future-tense verb, the command hides inside the
-INFINITIVE phrase, not the main verb. Isolate the infinitive and drop its `to`.
+> With past-tense or future-tense verbs, you can use the infinitive (*to*) form
+> of the verb, so the verb can be isolated, creating a present-tense command:
+>
+> Did (past) you want to win my heart? Win my heart.
+>
+> He loved (past) to walk alone. Walk alone.
+>
+> Won't (future) you try to walk alone?
+>
+> Try to walk alone.
+>
+> Walk alone.
+>
+> Neat, huh?
 
-| Original | Infinitive isolation | Tense effect |
-|---|---|---|
-| Did you want to win my heart? | Win my heart. | Past → present command |
-| He loved to walk alone. | Walk alone. | Past → present command |
-| Won't you try to walk alone? | Try to walk alone. → Walk alone. | Future → present, two-stage |
-
-The third row shows the staging the chapter demonstrates: the fragment can be
-isolated once, then isolated again, each pass shedding another layer and landing
-harder.
+The last example shows the staging: the fragment can be isolated once, then
+isolated again, each pass shedding another layer and landing harder.
 
 This is why the main verb's tense stops mattering — the infinitive carries no
 tense of its own, so the same surface fragment works after a past verse and a
 future one alike. That makes it the line-level counterpart of the chorus-level
 tense-neutralization above.
 
-**Moving between sentence types is itself the payoff.** Chapter 6 frames the
-gain as an energy boost: statement → question, or statement → command, lifts the
-emotion to a new level. The repetition is the vehicle; the change of sentence
-type is the cargo. A fragment that repeats without changing sentence type is
-just an echo.
+**Moving between sentence types is itself the payoff.**
+
+> When you move from one type of sentence to another, you create an energy boost
+> that takes the emotion to a new level. … When you're writing a song, stay alert
+> for chances to ask a question or give a command. It'll engage your listeners.
+
+The repetition is the vehicle; the change of sentence type is the cargo. A
+fragment that repeats without changing sentence type is just an echo.
+
+Pat closes the chapter by running the technique on his own prose:
+
+> In general, be alert to the smaller grammatical units in your lines.
+>
+> Sometimes they can do something really special.
+>
+> Do something really special.
+>
+> Would you like to be a better writer?
+>
+> Be a better writer.
+
+Those last four lines are the chapter's final words — Pat demonstrating both moves
+(statement → command, question → command) on himself.
 
 ### When to use
 

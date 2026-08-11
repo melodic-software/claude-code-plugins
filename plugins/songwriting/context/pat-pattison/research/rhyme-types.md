@@ -931,7 +931,9 @@ craft-vs-creativity question. Pat uses a Tiger Woods analogy
 (paraphrased): a golfer who knows every shot in the bag has more
 creative options on the course than one who only knows the driver.
 
-> "Craft prepares you to be creative." — Pat (*Essential Guide to Rhyming* (2014), Chapter 9)
+> "All craft. All technique. Craft prepares him to be immensely creative
+> with his shots." — Pat, on Tiger Woods (*Essential Guide to Rhyming*
+> (2014), Chapter 9)
 
 The lesson for rhyme: knowing all six rhyme types (perfect, family,
 additive/subtractive, assonance, consonance, partial) multiplies a

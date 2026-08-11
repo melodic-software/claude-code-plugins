@@ -306,7 +306,12 @@ balls (not five) are introduced sequentially:
 The **fifth element (rhyme type)** was added in *Essential Guide to Rhyming*
 (2014). *Essential Guide to Lyric Form and Structure* (1991)
 intentionally uses only **perfect rhyme and identity** for all 44
-exercises — no family, additive, assonance, or consonance vocabulary.
+exercises. Family, additive, and assonance vocabulary is absent from the
+book entirely. **Consonance is the one exception**: Chapter 4 names the
+type once, in passing, analysing Shelley's "Ozymandias" — "'Appear' is
+an imperfect rhyme (technically, a Consonance Rhyme) with 'despair' and
+'bare.'" — but never defines it, never lists it among the working types,
+and never asks for it in an exercise.
 
 This pedagogical bounding matters: *Essential Guide to Lyric Form and Structure* (1991) exercises should be coached
 WITHOUT rhyme-type substitutions because the bounding is intentional.
