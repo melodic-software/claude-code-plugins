@@ -27,7 +27,11 @@ only after that version increases.
   [fetch route](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#reading-the-basis--the-fetch-route),
   which the `upstream-drift` convention now owns fleet-wide — this profile's practice was one of two
   surfaces that route was generalized from, so the pointer records provenance rather than importing
-  anything. Nothing is duplicated into or out of the profile.
+  anything. Nothing is duplicated into or out of the profile. Its recorded "451-line, 316-row page"
+  is qualified in place: the count has no stated counting rule and this page admits two differing by
+  three, so it supports nothing by subtraction — the rule rests on the unambiguous 277-of-451
+  position and the first-fifth cutoff. Qualified, not deleted, per the profile's own rule that a
+  source artifact is noted at the row and never silently repaired.
 
 ## [0.11.0]
 

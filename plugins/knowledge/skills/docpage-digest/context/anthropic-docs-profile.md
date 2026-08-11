@@ -51,7 +51,13 @@ extraction waits for the third (Rule of Three).
   this way. In the steering-thinking slice the orchestrator's *resolution* re-fetched the same page
   through the same channel and reproduced the blind spot instead of testing it —
   `CLAUDE_CODE_MAX_OUTPUT_TOKENS` sits at line 277 of a 451-line, 316-row page whose rendered fetch
-  surfaced only roughly its first fifth.) This rule is the fleet-wide
+  surfaced only roughly its first fifth.) That "316-row" is preserved as recorded but **carries no
+  counting rule**, and this page admits two that differ by three — 315 variable rows, or 318 with a
+  second table's settings-file rows. So it supports nothing by subtraction: the rule above rests on
+  the 277-of-451 position and the first-fifth cutoff, both unambiguous, and the sibling rule above
+  argues from line numbers for the same reason. This is a
+  [noted source artifact, not a repaired one](#archive-reading-conventions) — an observation is
+  qualified where it is thin, never rewritten. This rule is the fleet-wide
   [fetch route](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#reading-the-basis--the-fetch-route)'s
   rung 1, which the upstream-drift convention now owns for every surface; the asymmetry above stays
   here because it is this pipeline's reason for binding the rung to absence claims specifically.
