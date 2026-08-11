@@ -125,7 +125,7 @@
     "block_hook_bypass_scratch_roots": {
       "type": "string",
       "title": "block-hook-bypass scratch roots",
-      "description": "Comma-separated ABSOLUTE directories block-hook-bypass exempts as scratch/temp write targets (e.g. /tmp/scratch,/c/Users/me/AppData/Local/Temp/jobs); empty (the default) exempts nothing and leaves the guard's shipped behaviour unchanged. Matching is on the effective stdout target after lexical normalization, at a path-component boundary — a sibling merely sharing the name prefix, a `..` escape out of a root, and a discard-then-real-file redirect all still block. Symlinks are not followed",
+      "description": "Comma-separated ABSOLUTE directories block-hook-bypass exempts as scratch/temp write targets (e.g. /tmp/scratch,/d/jobtmp/session); empty (the default) exempts nothing and leaves the guard's shipped behaviour unchanged. Matching is on the effective stdout target after lexical normalization, at a path-component boundary — a sibling merely sharing the name prefix, a `..` escape out of a root, and a discard-then-real-file redirect all still block. Symlinks are not followed",
       "default": ""
     },
     "stdin_read_timeout": {
