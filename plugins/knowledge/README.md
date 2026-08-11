@@ -124,7 +124,7 @@ reads it from.
 | `yt_dlp_js_runtimes` | string | `"node"` | `CLAUDE_PLUGIN_OPTION_YT_DLP_JS_RUNTIMES` | JavaScript runtime yt-dlp uses for YouTube signature deciphering. Default 'node'. Set to 'off' to omit the --js-runtimes flag entirely. |
 | `yt_dlp_cookies_file` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_YT_DLP_COOKIES_FILE` | Path to a Netscape-format cookies.txt for authenticated YouTube acquisition. Empty by default (unauthenticated, with automatic browser-cookie fallback on a bot check). Never commit cookie files. |
 | `yt_dlp_cookies_from_browser` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_YT_DLP_COOKIES_FROM_BROWSER` | Browser to pull YouTube cookies from (e.g. chrome, firefox, edge), forcing one instead of the automatic platform-ordered fallback. Empty by default. A cookies file, when set, wins over this. |
-| `max_concurrent_acquires` | number | `1` | `CLAUDE_PLUGIN_OPTION_MAX_CONCURRENT_ACQUIRES` | Cap on concurrent yt-dlp acquisition runs during a batch. Default 1; raising it increases HTTP 429 throttling risk. |
+| `max_concurrent_acquires` | number<br>*min 1, max 3* | `1` | `CLAUDE_PLUGIN_OPTION_MAX_CONCURRENT_ACQUIRES` | Cap on concurrent yt-dlp acquisition runs during a batch. Default 1; raising it increases HTTP 429 throttling risk. |
 
 ### How to set these
 

@@ -56,6 +56,18 @@ def render(plugin: str, marketplace: str, options: dict) -> str:
     ]
     for key, spec in options.items():
         typ = spec.get("type", "string")
+        # `multiple: true` means the option takes an array of that type, and the
+        # constraint keys bound it. Rendering only `type` made a repeated option
+        # indistinguishable from a scalar one -- source-control declares 10 such options
+        # whose hand-written prose already says "string (multiple)", so the generated
+        # table contradicted the prose beside it.
+        if spec.get("multiple"):
+            typ = f"{typ} (multiple)"
+        bounds = [f"{k} {spec[k]}" for k in ("min", "max") if k in spec]
+        if spec.get("required"):
+            bounds.insert(0, "required")
+        if bounds:
+            typ = f"{typ}<br>*{', '.join(str(b) for b in bounds)}*"
         default = spec.get("default", "")
         # MD049: this repo's markdownlint requires asterisk emphasis, not underscore.
         default = "*(none)*" if default == "" else f"`{json.dumps(default)}`"
@@ -147,6 +159,23 @@ def main() -> int:
             print(f"  MANIFEST UNPARSABLE: {d.name}: {exc}", file=sys.stderr)
             return 2
         if not options:
+            # A plugin that removed its LAST option must lose its generated block too.
+            # Skipping here left a stale block documenting options that no longer exist,
+            # and --check never read the README on this branch, so the gate reported it
+            # as up to date -- the one path where the gate silently fails at its own job.
+            if readme.exists():
+                current = readme.read_text(encoding="utf-8")
+                if BEGIN in current and END in current:
+                    head = current[: current.index(BEGIN)]
+                    tail = current[current.index(END) + len(END) :]
+                    stripped = (head.rstrip("\n") + "\n" + tail.lstrip("\n")).rstrip("\n") + "\n"
+                    if check:
+                        stale.append(d.name)
+                    else:
+                        readme.write_text(stripped, encoding="utf-8", newline="\n")
+                        wrote += 1
+                        print(f"  removed stale block: plugins/{d.name}/README.md (0 options)")
+                    continue
             skipped += 1
             continue
         if not readme.exists():

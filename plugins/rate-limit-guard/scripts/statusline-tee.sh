@@ -263,12 +263,36 @@ tee_snapshot() {
 # The library is the plugin's own synced copy in the sibling hooks/ directory.
 # If it cannot be read the tee still runs, consistent with this script's rule
 # that no tee outcome ever alters the wrapped statusline.
-_rlg_hook_utils="$(cd "$(dirname "${BASH_SOURCE[0]}")/../hooks" 2>/dev/null && pwd)/hook-utils.sh"
-if [[ -r "$_rlg_hook_utils" ]]; then
-  # shellcheck source=../hooks/hook-utils.sh
-  source "$_rlg_hook_utils"
-fi
-if ! declare -F hook::is_enabled >/dev/null 2>&1 || hook::is_enabled "RATE_LIMIT_GUARD"; then
+# CHANNEL: this process is NOT a hook process. Claude Code exports
+# CLAUDE_PLUGIN_OPTION_<KEY> to hook processes only (plugins-reference, "User
+# configuration"; and this repo's docs/conventions/hook-config-delivery/README.md scopes
+# the env channel the same way). Reading that variable alone would always find it unset,
+# always fall back to enabled, and produce a gate that is decorative -- so the value is
+# read from the configured source directly, which is the sanctioned route for a non-hook
+# consumer. The env var is still honored first in case it is ever delivered here.
+#
+# Marketplace-agnostic: pluginConfigs is keyed `<plugin>@<marketplace>`, and this plugin
+# may be installed from a fork or private catalog, so the key is matched by prefix.
+_rlg_tee_enabled() {
+  case "${CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED:-}" in
+    true) return 0 ;;
+    "") : ;;
+    *) return 1 ;;
+  esac
+  local cfg="${CLAUDE_CONFIG_DIR:-${HOME:-}/.claude}/settings.json"
+  [[ -r "$cfg" ]] || return 0
+  command -v jq >/dev/null 2>&1 || return 0
+  local value
+  # NOT `// empty`: jq's alternative operator treats `false` as falsy, so the one value
+  # this gate exists to detect would be discarded. `tostring` yields "false"/"true"/"null".
+  value="$(jq -r '(.pluginConfigs // {}) | to_entries[]
+      | select(.key | startswith("rate-limit-guard@"))
+      | .value.options.rate_limit_guard_enabled | tostring' "$cfg" 2>/dev/null \
+    | grep -v '^null$' | head -n 1)"
+  [[ "$value" == "false" ]] && return 1
+  return 0
+}
+if _rlg_tee_enabled; then
   tee_snapshot
 fi
 

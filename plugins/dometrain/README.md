@@ -156,7 +156,7 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `dometrain_api_key` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_DOMETRAIN_API_KEY` | **Sensitive** — stored in the OS keychain or protected credentials file. Dometrain account API key from https://dometrain.com/dashboard/account/ (MCP API keys section). Required — the remote MCP server rejects requests without it. Stored by Claude Code in secure credential storage, never settings.json. |
+| `dometrain_api_key` | string<br>*required* | *(none)* | `CLAUDE_PLUGIN_OPTION_DOMETRAIN_API_KEY` | **Sensitive** — stored in the OS keychain or protected credentials file. Dometrain account API key from https://dometrain.com/dashboard/account/ (MCP API keys section). Required — the remote MCP server rejects requests without it. Stored by Claude Code in secure credential storage, never settings.json. |
 
 ### How to set these
 

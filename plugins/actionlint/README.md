@@ -90,7 +90,7 @@ reads it from.
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
 | `actionlint_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_ACTIONLINT_ENABLED` | Lint GitHub Actions workflow files on edit via actionlint |
-| `stdin_read_timeout` | number | `2` | `CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT` | Idle bound on reading the hook payload from stdin — how long the pipe may go silent before the hook gives up and fails open |
+| `stdin_read_timeout` | number<br>*min 1* | `2` | `CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT` | Idle bound on reading the hook payload from stdin — how long the pipe may go silent before the hook gives up and fails open |
 
 ### How to set these
 

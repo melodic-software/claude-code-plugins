@@ -182,7 +182,7 @@ reads it from.
 | --- | --- | --- | --- | --- |
 | `markdown_format_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED` | Auto-format and lint Markdown on Write/Edit of .md/.mdc files (runs only when the repo carries a markdownlint config) |
 | `markdown_format_lint_gitignored` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_LINT_GITIGNORED` | By default the hook leaves gitignored files alone — a scratch tier the repo excludes is neither rewritten nor reported on. Set true to bypass THIS HOOK's git check; markdownlint-cli2's own ignores/gitignore config still applies downstream, so a path your markdownlint config also excludes stays untouched. |
-| `markdown_format_max_findings` | number | `20` | `CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_MAX_FINDINGS` | How many individual markdownlint violations are listed per run. The total count and the leading rule codes are always reported regardless. 0 = unlimited. |
+| `markdown_format_max_findings` | number<br>*min 0* | `20` | `CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_MAX_FINDINGS` | How many individual markdownlint violations are listed per run. The total count and the leading rule codes are always reported regardless. 0 = unlimited. |
 
 ### How to set these
 

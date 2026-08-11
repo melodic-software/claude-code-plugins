@@ -3,6 +3,21 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.6]
+
+### Fixed
+
+- **The statusline tee's kill switch read a channel that never reaches it.** The previous
+  release gated the tee on `CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED`, but Claude Code
+  exports `CLAUDE_PLUGIN_OPTION_<KEY>` to **hook processes** only, and this script is invoked by
+  absolute path from the user's `statusLine` setting. The variable was therefore always unset,
+  the `:-true` fallback always won, and the gate was decorative -- it only appeared to work
+  because the tests injected the variable by hand. The tee now reads
+  `pluginConfigs.<plugin>@<marketplace>.options.rate_limit_guard_enabled` from the user's
+  settings directly, the sanctioned route for a non-hook consumer. The `pluginConfigs` key is
+  matched by prefix so a fork or private catalog works, and every failure path -- no settings
+  file, no jq, malformed JSON -- still runs the tee.
+
 ## [0.5.5]
 
 ### Fixed

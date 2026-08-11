@@ -93,7 +93,7 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `miro_api_token` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_MIRO_API_TOKEN` | **Sensitive** — stored in the OS keychain or protected credentials file. Miro REST API token from https://miro.com/app/settings/user-profile/apps. Required — the bundled MCP server exits at startup without it. Stored by Claude Code in secure credential storage, never settings.json. |
+| `miro_api_token` | string<br>*required* | *(none)* | `CLAUDE_PLUGIN_OPTION_MIRO_API_TOKEN` | **Sensitive** — stored in the OS keychain or protected credentials file. Miro REST API token from https://miro.com/app/settings/user-profile/apps. Required — the bundled MCP server exits at startup without it. Stored by Claude Code in secure credential storage, never settings.json. |
 
 ### How to set these
 
