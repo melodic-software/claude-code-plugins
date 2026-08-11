@@ -11,7 +11,7 @@ Full detail for the destructive `tree` action. SKILL.md §6 carries the headline
 ## Script
 
 ```bash
-${CLAUDE_SKILL_DIR}/scripts/git-tree-reset.sh \
+bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/git-tree-reset.sh \
   [--dry-run] [--apply] [--force-default-branch] \
   [--include-deps] [--include-secrets] [--allow-unpushed]
 ```

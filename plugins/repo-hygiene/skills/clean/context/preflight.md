@@ -16,7 +16,7 @@ Detect runtime conditions where deletion would corrupt active state:
 Run the preflight script — do not reimplement detection inline:
 
 ```bash
-${CLAUDE_SKILL_DIR}/scripts/preflight.sh
+bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/preflight.sh
 ```
 
 **Output contract:**

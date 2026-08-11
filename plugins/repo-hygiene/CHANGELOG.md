@@ -18,8 +18,18 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
   grant rather than a working one: `bash` is not among the wrappers Claude Code strips before
   matching (`timeout`, `time`, `nice`, `nohup`, `stdbuf`, `command`, `builtin`, `noglob`), so a rule
   without it stops matching a body that still says `bash <path>`. The change is **paired** — the
-  skill body and every bundled `context/*.md` now invoke their scripts directly through
-  `${CLAUDE_SKILL_DIR}/scripts/…`, and the rules name those same strings.
+  skill body now invokes its scripts directly through `${CLAUDE_SKILL_DIR}/scripts/…`, and the rules
+  name those same strings. All five granted scripts are invoked from `SKILL.md`, so the pairing is
+  complete for everything the grant covers.
+
+  **Scoped to `SKILL.md` on purpose.** The bundled `context/*.md` files still invoke through
+  `bash ${CLAUDE_PLUGIN_ROOT}/…` and are deliberately left alone: the skills documentation scopes
+  `${CLAUDE_SKILL_DIR}` substitution to "the skill's markdown content", and whether that reaches a
+  bundled context file loaded later is not resolved either way by the docs. Converting them on that
+  assumption could silently defeat the very pairing this change makes — an unsubstituted body emits a
+  literal that cannot match the substituted rule. It fails safe (a prompt, not a wrong action), but
+  silently, which is the defect class this change exists to remove. Tracked separately, gated on
+  settling the substitution scope.
 
 ### Changed
 
@@ -38,11 +48,15 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
 ### Added
 
 - **`scripts/allowed-tools-pairing.test.sh`**, asserting the contract the fix establishes: no
-  interpreter-led grant and no `${CLAUDE_PLUGIN_ROOT}` in `allowed-tools`, every bundled-script
-  invocation across the skill's markdown — `SKILL.md` and `context/` alike — unquoted and free of a
-  `bash` wrapper, and every granted script present, executable, and actually invoked by a body. The
-  `context/` coverage is deliberate: a conversion that stopped at `SKILL.md` would leave the routed
-  detail files telling Claude to run a form the rules no longer match.
+  interpreter-led grant and no `${CLAUDE_PLUGIN_ROOT}` in `allowed-tools`, every `${CLAUDE_SKILL_DIR}`
+  invocation in the skill's markdown unquoted and free of a `bash` wrapper, and every granted script
+  present, executable, and actually invoked by a body.
+
+  It also pins the granted **set** against an allowlist of the five read-only scripts. The pairing
+  checks alone could not catch a re-widening: every mutating script here is bundled, executable, and
+  named in the skill's markdown, so a rule added for one of them would "pair" correctly and pass
+  green. Verified by injecting a `clean-caches.sh` grant — the pairing checks passed and only the
+  allowlist failed.
 
 ## [0.9.1]
 
