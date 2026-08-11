@@ -12,7 +12,22 @@ extraction waits for the third (Rule of Three).
 - **Docs pages (`platform.claude.com/docs/...`, `code.claude.com/docs/...`):** append `.md` to
   the page URL for clean raw markdown. Channel verified working for the Opus 5 prompting guide
   (2026-07); **re-verify per doc** — precedent, not a guarantee. Fallback: fetch the rendered
-  page and record the degradation.
+  page and record the degradation. Read the channel **verbatim** — `curl` it to a file and search
+  the file, per the fleet
+  [fetch route](../../../../../docs/conventions/upstream-drift/README.md#reading-the-basis--the-fetch-route).
+  A summarizing fetch truncates a long page and then reports the rows past its cutoff as absent,
+  which is a manufactured absence, not an observation.
+- **Cite a live docs page by anchor, never by line number.** These pages gain and lose rows between
+  reads and the `.md` channel renumbers with them, so a `<page>.md:<line>` citation rots silently
+  into a pointer at an unrelated row. Cite the heading, the table row's key, or the variable name —
+  something the page itself carries. (Attested: the retry/fallback instance below was recorded as
+  `env-vars.md:394`; on a full verbatim read of 2026-08-10 that page runs 458 lines with 318
+  variable rows, line 394 is `DISABLE_UPGRADE_COMMAND`, and the row the instance describes —
+  the only one on the page both describing Claude Code's own retry behavior and naming a model
+  subject, `CLAUDE_CODE_DISABLE_NONSTREAMING_FALLBACK` naming none — is
+  `FALLBACK_FOR_ALL_PRIMARY_MODELS`, at line 400 that day. The instance stands; only its address
+  moved.) Line numbers into an **archived snapshot** this pipeline captured are unaffected: that
+  file is immutable, which is exactly what makes its line numbers citable.
 - **Blog posts (`claude.com/blog/...`):** no raw-markdown channel known; fetch rendered and
   extract. Record the channel used. **Two extraction artifacts reproduce on this channel; record
   them, never repair them** — `source.*` is immutable, so the fix belongs in whatever reads the
@@ -116,7 +131,8 @@ asserts:
   a workload another guide teaches, with no shared guidance or cross-reference;
   (3) **[campaign-owned amendment] harness-internal recognition or support** — a harness doc names
   the subject in describing the harness's own internal behavior toward it, without exposing a
-  user-reachable path to it (sole attested instance: retry/fallback, `env-vars.md:394`). Each such
+  user-reachable path to it (sole attested instance: retry/fallback, `env-vars.md`
+  `FALLBACK_FOR_ALL_PRIMARY_MODELS`). Each such
   hit is disclosed as a near-miss per the rule above. Both labels are load-bearing, not decoration:
   shapes (1) and (2) carry an identical adjudication from two independent verification arms, but
   nothing in the corpus ever *defined* "harness surface", so an unlabelled definition would read as

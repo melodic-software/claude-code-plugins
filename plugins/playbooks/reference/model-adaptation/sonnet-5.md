@@ -217,7 +217,17 @@ in-repo path to it — the URL and capture stamp below are the citable provenanc
 Live fetches at authoring time (2026-08-04), for the harness-side thinking facts only:
 
 - <https://code.claude.com/docs/en/env-vars> — `MAX_THINKING_TOKENS`,
-  `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING` and the models each reaches.
+  `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING` and the models each reaches. **Re-verified 2026-08-10**
+  on a verbatim end-to-end read of the page via the
+  [`.md` fetch route](../../../../docs/conventions/upstream-drift/README.md#reading-the-basis--the-fetch-route);
+  both rows still carry every claim restated above, and the second now states the Sonnet 5
+  exclusion outright — "Has no effect on Fable 5, Sonnet 5, or Opus 4.7 and later, which always use
+  adaptive reasoning". One qualifier is **not** re-verified and is flagged rather than dropped: the
+  page states no release for `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING`, so the "from Claude Code
+  v2.1.111" above rests on the 2026-08-04 read alone and is uncorroborated by the current page —
+  uncontradicted too, and immaterial to the behavior, since the exclusion holds on every version
+  the page describes. Recheck trigger: a re-fetch diverging from either quoted row, or a release
+  note naming adaptive reasoning or the thinking budget.
 - <https://code.claude.com/docs/en/model-config> — adaptive reasoning versus fixed thinking budgets.
 - <https://platform.claude.com/docs/en/about-claude/models/migration-guide> — the Sonnet 4.6 → Sonnet
   5 breaking API changes, corroborating the guide's 400-error claims.

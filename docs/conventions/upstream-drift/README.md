@@ -110,6 +110,71 @@ current this way states divergence as its trigger — "a read-time re-fetch find
 longer matching the record" is an event decidable from evidence — so the divergence, never the
 lookup, is what fires, and only a firing invokes the maintenance procedure above.
 
+## Reading the basis — the fetch route
+
+Re-fetching a cited basis is the first step of every firing above, so **how** the page is read is
+part of the contract. A summarizing fetch of a long docs page is not a read of that page: it
+truncates, and a summarizer asked what the page contains then answers from the truncated span. That
+answer is indistinguishable from a genuine absence, so a truncated fetch does not merely fail — it
+manufactures drift that is not there. `env-vars` produced exactly that false negative on three
+independent fetches, each stopping before the `CLAUDE_CODE_MAX_*` range and each reporting those
+rows missing ([#2182](https://github.com/melodic-software/claude-code-plugins/pull/2182)).
+
+Two rules bind every read, whichever rung it comes from:
+
+- **No verbatim quote, no claim.** A record's basis is the text, not a paraphrase of it. A verdict
+  of "current" states the quoted span it matched.
+- **A truncated read supports no absence claim, ever.** If the fetch stops short, say so and mark
+  the item unverified. "Not in the response" is never "not on the page" — the reader cannot tell
+  those apart, which is the entire failure this rung ladder exists to prevent.
+
+### The rungs
+
+| Rung | Route | What it yields |
+|---|---|---|
+| 1 — primary | `curl` the raw-markdown channel: append `.md` to the page URL (`https://code.claude.com/docs/en/<slug>.md`), write to a file, and search the file locally | Verbatim bytes, no summarizer, no truncation |
+| 2 — primary, degraded | The `.md` channel fetched through a summarizing tool, or the rendered HTML page | Truncates on long pages; usable only for a page short enough to arrive whole, and the read must show it arrived whole |
+| 3 — mirror | A verbatim third-party mirror of the same docs, with the freshness step below | Verbatim text, **one rung below a primary read**; the record says so |
+
+Rung 1 is the default. It was verified against `env-vars` on 2026-08-10: `curl` returned
+`text/markdown`, 361,797 bytes over 458 lines carrying 315 variable rows including the full
+`CLAUDE_CODE_MAX_*` range, and two fetches seconds apart hashed identically
+(SHA-256 `43a805b4cfffd9aae5e36cec42f3a271dc92ddead26db76cd401d61ff4048584`). That same fetch
+re-confirmed the header finding below — `Last-Modified` came back equal to `Date`.
+
+The route is not new here; it is **hoisted**. `plugins/claude-ops/skills/changelog/context/read-actions.md`
+already carried it page-scoped ("`curl` the `.md` and slice locally … Never report a version
+'absent from the changelog' on a truncated fetch"), and `/knowledge:docpage-digest`'s Anthropic
+publisher profile already names the `.md` channel as its preferred one. Per the
+[convention registry](../../PLUGIN-PHILOSOPHY.md#convention-registry)'s one-owner-per-concern rule,
+the general form belongs in this doc and those surfaces keep their page-specific detail.
+
+**The `.md` channel is per-page, not universal.** `docpage-digest`'s profile records that a
+raw-markdown channel working for one doc can 404 for another, so a run verifies the channel for the
+page it is reading and drops a rung when it does not resolve.
+
+### The mirror rung and its freshness step
+
+A mirror read is admissible only when it is **verbatim** and its currency is **corroborated against
+the page's own content** — never against the mirror's self-reported sync time alone, which is a
+claim by the party whose freshness is in question. The corroboration names a fact that only a sync
+later than some known upstream change could carry, and the record states it. The worked instance:
+`ericbuess/claude-code-docs` `docs/env-vars.md` was accepted because it carried the v2.1.224
+removal of the 200-subagent-per-session cap, which no pre-v2.1.224 sync can contain.
+
+A record resting on a mirror **says on its face that it is one rung below a primary read**, and
+states retirement of that basis as part of its trigger: a later primary read of the same range
+replaces the mirror basis and the record is refreshed to say so. That is not hypothetical — the
+`discipline` `sweep-all` record written this way on 2026-08-10 fired and was refreshed to a primary
+basis the same day, by the rung-1 fetch above.
+
+### Currency of a primary read
+
+The docs serve no per-page content date ([below](#drift-signal--content-hashing-deferred)), so the
+honest currency statement for a rung-1 read is the fetch itself: *fetched live from `<url>` on
+`<date>`; upstream publishes no per-page content date.* Nothing stronger is available, and a stamp
+that implies otherwise is the overclaim this doc's [first rule](#a-date-is-never-authority) forbids.
+
 ## Drift signal — content hashing, deferred
 
 There is no mechanical per-page change signal on the official Claude Code docs: the raw-markdown

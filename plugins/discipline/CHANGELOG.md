@@ -5,6 +5,30 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.12.3]
+
+### Changed
+
+- **`skills/sweep-all`: the mirror basis is retired for a primary one — the trigger 0.12.2 wrote
+  fired, and this honors it.** 0.12.2 could not read `CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY` from
+  `env-vars` (three fetches truncated before the `CLAUDE_CODE_MAX_*` range), so it sourced the row
+  from a same-day verbatim mirror, labelled it one rung below a primary read, and stated its own
+  retirement condition: "any env-vars fetch that reaches the `CLAUDE_CODE_MAX_*` range, which
+  retires the mirror basis for a primary one". A verbatim end-to-end read of the page on 2026-08-10
+  through the new [`.md` fetch route](../../docs/conventions/upstream-drift/README.md#reading-the-basis--the-fetch-route)
+  reached it. The row is **unchanged** — "Maximum number of read-only tools and subagents that can
+  execute in parallel (default: 10)" — so no cited value moves; what changes is the standing of the
+  citation, from mirror-corroborated to primary, which is the whole point of writing a retirement
+  condition down instead of leaving the rung permanent.
+- **`skills/sweep-all`: four more env-vars rows this skill leans on are now quoted from the same
+  read.** `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION` (removed in v2.1.224, previously default 200),
+  `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` (default 20), `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` (the
+  `run_in_background` parameter on Bash and subagent tools), and `CLAUDE_CODE_FORK_SUBAGENT`
+  ("overriding any server-side rollout") each match the way the preflight cites it. They were being
+  carried on reads the truncation problem had made unrepeatable; now one fetch covers all five and
+  the note says which. The recheck trigger widens to match the widened basis, and the currency claim
+  is capped at the fetch date because upstream publishes no per-page content date.
+
 ## [0.12.2]
 
 ### Fixed

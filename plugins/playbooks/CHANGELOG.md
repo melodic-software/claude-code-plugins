@@ -4,6 +4,25 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.8.3]
+
+### Changed
+
+- **`reference/model-adaptation/sonnet-5.md`: the `env-vars` provenance entry is re-verified against
+  a verbatim read, and one qualifier inside it is now flagged as uncorroborated.** The harness-side
+  thinking facts were sourced from a 2026-08-04 live fetch, back when `env-vars` could only be read
+  through a channel that truncates it. Read end to end on 2026-08-10 via the
+  [`.md` fetch route](../../docs/conventions/upstream-drift/README.md#reading-the-basis--the-fetch-route),
+  both cited rows hold: `MAX_THINKING_TOKENS` still carries the Anthropic-API-versus-third-party
+  split, the Fable 5 exception, and the nonzero-ignored rule, and
+  `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING` now states this file's central claim outright — "Has no
+  effect on Fable 5, Sonnet 5, or Opus 4.7 and later". The one part that did **not** re-verify is the
+  "from Claude Code v2.1.111" attribution: the page states no release for that variable at all. It
+  is flagged in place rather than deleted or quietly kept, because it is uncontradicted and
+  immaterial — the exclusion holds on every version the page describes — and a reader owes the
+  distinction between a claim re-read today and a claim carried forward. A recheck trigger is stated
+  where none was.
+
 ## [0.8.2]
 
 ### Changed

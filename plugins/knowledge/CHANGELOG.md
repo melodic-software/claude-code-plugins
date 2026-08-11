@@ -4,6 +4,29 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.11.1]
+
+### Fixed
+
+- **`docpage-digest`: the Anthropic profile cited a live docs page by line number, and the line had
+  moved.** The `api-only` near-miss sub-shape (3) recorded its sole attested instance as
+  `env-vars.md:394`. On a full verbatim read of that page on 2026-08-10 it runs 458 lines with 318
+  variable rows, line 394 is `DISABLE_UPGRADE_COMMAND`, and the retry/fallback row the instance
+  actually describes is `FALLBACK_FOR_ALL_PRIMARY_MODELS` — the only row on the page that both
+  describes Claude Code's own retry behavior and names a model subject, the sibling
+  `CLAUDE_CODE_DISABLE_NONSTREAMING_FALLBACK` naming none. The attestation is intact; its address
+  was not, so the citation now names the variable. A standing rule goes with it: cite a live docs
+  page by anchor, heading, or row key — never by line number, which the `.md` channel renumbers
+  whenever the page gains a row. Line numbers into an archived snapshot stay citable, because that
+  file is immutable.
+- **`docpage-digest`: the profile's preferred `.md` channel now says how to read it.** It named the
+  channel but not the discipline, and a summarizing fetch of a long page truncates and then reports
+  the rows past its cutoff as absent — a manufactured absence that reads exactly like a real one.
+  The bullet routes through the fleet
+  [fetch route](../../docs/conventions/upstream-drift/README.md#reading-the-basis--the-fetch-route):
+  `curl` to a file, search the file. The profile's own per-page channel caveat is unchanged and is
+  what that route cites as the reason a run re-verifies the channel before trusting it.
+
 ## [0.11.0]
 
 ### Removed

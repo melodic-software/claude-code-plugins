@@ -4,6 +4,38 @@ Notable changes to the upstream-drift contract (SemVer). Changing a required par
 name, or an enforceability verdict is a major bump; additive guidance is a minor bump; docs-only
 clarification is a patch.
 
+## 1.2.0 — 2026-08-10
+
+Adds [§Reading the basis — the fetch route](README.md#reading-the-basis--the-fetch-route): a rung
+ladder for reading an upstream page the firing procedure already tells you to re-fetch. No required
+part, canonical name, or enforceability verdict changed — the four parts and the observability bar
+are untouched; this says how the basis is read, which every firing already depended on and no
+surface owned.
+
+- **The failure the rung ladder closes is a false negative, not a fetch error.** A summarizing fetch
+  of a long page truncates, and a summarizer then answers "what does this page contain" from the
+  truncated span — an answer indistinguishable from genuine absence. `env-vars` produced exactly
+  that on three independent fetches. Two rules bind every read regardless of rung: no verbatim
+  quote, no claim; and a truncated read supports no absence claim, ever.
+- **Rung 1 — `curl` the `.md` channel and search the file locally — is the default**, verified
+  against `env-vars` on 2026-08-10 (361,797 bytes, 458 lines, 315 variable rows including the
+  `CLAUDE_CODE_MAX_*` range that had truncated away three times; two fetches, identical SHA-256).
+  Rung 2 is a summarizing fetch, admissible only when the read shows the page arrived whole. Rung 3
+  is a verbatim mirror.
+- **The route is hoisted, not invented.** `claude-ops`'s `changelog` skill already carried it
+  page-scoped and `knowledge`'s `docpage-digest` publisher profile already preferred the `.md`
+  channel; the one-owner-per-concern rule puts the general form here and leaves their page-specific
+  detail with them. The profile's warning that a raw-markdown channel can 404 per page is carried
+  across as the reason a run verifies the channel before trusting the rung.
+- **The mirror rung keeps the freshness-corroboration protocol from
+  [#2182](https://github.com/melodic-software/claude-code-plugins/pull/2182)** and generalizes its
+  bar: corroborate against a fact the page's own content can only carry after a known upstream
+  change, never against the mirror's self-reported sync time. A mirror-based record says on its face
+  it is one rung below primary and states retirement of that basis in its trigger.
+- **Currency of a rung-1 read is fixed at what the docs actually support** — the fetch date and
+  nothing more, because the endpoints publish no per-page content date. The 2026-08-10 fetch
+  independently re-confirmed that 1.0.0 header finding: `Last-Modified` came back equal to `Date`.
+
 ## 1.1.0 — 2026-08-10
 
 Adopters registry gains a row for

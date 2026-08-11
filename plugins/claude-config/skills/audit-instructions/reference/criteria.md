@@ -155,8 +155,10 @@ I15–I28 apply to all surfaces; I13 and I14 name narrower surface sets in their
   <https://code.claude.com/docs/en/model-config>
 - Settings (the `effortLevel` value set) — <https://code.claude.com/docs/en/settings>
 - Environment variables (`CLAUDE_CODE_EFFORT_LEVEL`, `MAX_THINKING_TOKENS`, and
-  `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING` with the models and release it reaches) —
-  <https://code.claude.com/docs/en/env-vars>
+  `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING` with the models it reaches) —
+  <https://code.claude.com/docs/en/env-vars>; read it verbatim per the
+  [fetch route](../../../../../docs/conventions/upstream-drift/README.md#reading-the-basis--the-fetch-route),
+  because a summarizing fetch truncates this page well before these rows
 - Prompt caching (what belongs to the cache key) — <https://code.claude.com/docs/en/prompt-caching>
 - CLI reference (`claude doctor` and the other terminal forms) —
   <https://code.claude.com/docs/en/cli-reference>
