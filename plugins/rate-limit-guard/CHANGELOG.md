@@ -3,6 +3,69 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.7]
+
+### Fixed
+
+- **The statusline tee's kill switch read only one of the three scopes the contract names, so a
+  managed policy was silently ignored.** `0.5.6` moved the gate onto a direct settings read but
+  implemented the user settings file alone. This repository's own
+  [hook-config-delivery](../../docs/conventions/hook-config-delivery/README.md) convention, fact 5,
+  states that `pluginConfigs` is read back from **user settings, the `--settings` flag, and managed
+  settings** — so an organization that set `rate_limit_guard_enabled: false` in
+  `managed-settings.json` had the tee keep writing anyway. Managed settings are the
+  highest-precedence scope and cannot be overridden by any user or project scope, which is exactly
+  what makes that a policy bypass rather than a cosmetic omission.
+
+  The gate now reads managed settings too, mirroring the channel-F exemplars the convention points
+  at — `plugins/disk-hygiene/lib/killswitch_config.py` and the sibling bash reader
+  `plugins/autonomy/hooks/lane-stop-gate-lib.sh`: the fixed per-platform root-owned paths
+  (`/Library/Application Support/ClaudeCode/`, `/etc/claude-code/`, `C:/Program Files/ClaudeCode/`)
+  selected by `uname -s`, plus the `managed-settings.d/` drop-ins in sorted order with later files
+  overriding earlier ones. The Windows path is the literal absolute path the docs give, never
+  `%ProgramFiles%`-derived, and every resolved path is re-checked as absolute — an
+  environment-derived or relative base would let a repository redirect the one scope that outranks
+  every other.
+
+  **Precedence is now managed → user settings → environment**, highest first. Managed wins because
+  a gate a user or a repository can out-vote is not a policy control. The environment channel also
+  moved *below* user settings, which is a second behaviour change and deliberate: it is retained
+  only in case `CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED` is ever delivered to a `statusLine`
+  process, and for an unconfigured key a repository `.claude/settings.json` `env` block populates it
+  freely with no provenance (same convention, fact 4), so it must not out-vote a value a real
+  settings scope configured. Every previously held property survives: the tee fails **open** on a
+  missing file, missing `jq`, malformed JSON, or an unrecognized platform; the `pluginConfigs` key
+  is still matched by prefix so a fork or private catalog works; and the jq filter still avoids
+  `// empty` on the value — the alternative operator treats `false` as falsy and would discard the
+  exact value this gate exists to detect — using `tostring` plus an explicit `length == 0` emptiness
+  test instead.
+
+  **Residuals (accepted, unchanged by this release).** The *user* settings file is still located
+  from `${CLAUDE_CONFIG_DIR:-$HOME/.claude}` rather than channel F's install-cache anchor, so a
+  repository `env` block that redirects `CLAUDE_CONFIG_DIR` can still hide a user-scope `false`;
+  and a value supplied only through a session `--settings` file is invisible to any on-disk read
+  (channel F's own documented residual). Neither reaches the managed verdict, which is
+  environment-independent by construction, so the scope an organization actually enforces with is
+  now sound.
+
+- **Nothing tested the gate at all.** `scripts/statusline-tee.test.sh` had no coverage of
+  `_rlg_tee_enabled` under either implementation; the `0.5.5` version passed review only because
+  the tests injected the environment variable by hand, and `0.5.6` carried the same gap forward.
+  The suite now drives the gate through real settings files on a scoped `HOME`: unconfigured (no
+  file, and a file with no `pluginConfigs`), user `false` and user `true`, a `false` under a
+  different marketplace suffix (the prefix match), another plugin's identically-named option and a
+  prefix-colliding plugin name, malformed JSON and a missing `jq` (both fail open), and managed
+  `false` over user `true` *and* managed `true` over user `false` — the mirror case is what
+  distinguishes real precedence from an or-of-falses. Every case also asserts that the wrapped
+  statusline's stdout is unchanged, because a gate that blanked the status line would be worse than
+  the bug it closes; one unstubbed end-to-end case exercises the script exactly as `settings.json`
+  invokes it.
+
+  Managed settings live at fixed root-owned paths a test cannot write, so those cases source the
+  wrapper and stub the path list. To make that possible the script gained a `main` function behind
+  the `[[ "${BASH_SOURCE[0]}" == "${0}" ]]` sourcing guard already used elsewhere in this
+  repository, and its stdin read moved inside it; a direct invocation behaves exactly as before.
+
 ## [0.5.6]
 
 ### Fixed
