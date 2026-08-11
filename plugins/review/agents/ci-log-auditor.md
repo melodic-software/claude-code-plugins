@@ -19,7 +19,7 @@ You are a read-only CI run auditor for GitHub Actions. Your job: catch issues `#
 2. **Get run facts without raw logs first** — jobs, conclusions, step states, timing:
 
    ```bash
-   gh api --paginate "repos/<owner>/<repo>/actions/runs/<run-id>/jobs" --jq '.jobs[] | {name, conclusion, steps: [.steps[] | {name, conclusion, number}]}'
+   gh api --paginate "repos/<owner>/<repo>/actions/runs/<run-id>/jobs?per_page=100" --jq '.jobs[] | {name, conclusion, steps: [.steps[] | {name, conclusion, number}]}'
    gh api "repos/<owner>/<repo>/actions/runs/<run-id>/timing"
    ```
 
