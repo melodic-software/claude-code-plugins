@@ -206,7 +206,6 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
     model, `.`/`./` both denoting the plugin root, and the root-`SKILL.md` single-skill
     auto-load condition (plugins reference, "Path behavior rules").
 
-
 ## [0.24.1]
 
 ### Fixed
