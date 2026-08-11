@@ -74,14 +74,22 @@ Studio's export menu has **3 scopes**:
 
 **Tempo-Locked WAV** is the key one for DAW workflows — embeds tempo + grid info so the stem snaps cleanly when imported into Logic / Ableton / Pro Tools.
 
-### 2-track vs 12-track stems (v5.5)
+### Stem separation modes (v5.5)
 
-| Tier | Stem split |
-|------|-----------|
-| Free / lower | 2-track: vocals + instrumental |
-| Pro / Premier | 12-track: drums, bass, vocals, harmony, lead synth, pads, sax/lead, percussion, FX, etc. |
+**Corrected 2026-08-11** against <https://suno.com/pricing>. The old table here
+read "Free: 2-track stems", which is **false** — Free reads "No stem
+separation". The naming was wrong too: these are three **modes**, not track
+counts.
 
-12-track is what you want for serious external mixing — replace any single instrument, automate per-stem, master each lane independently.
+| Mode | What it yields | Tier |
+|------|----------------|------|
+| Split from Mix | 2 stems (vocals + instrumental) | Pro / Premier |
+| Auto Split | up to 12 stems (drums, bass, vocals, harmony, synth, pads, percussion, FX, etc.) | Pro / Premier |
+| Advanced Split | ~100 instruments | Premier only |
+
+Free has no stem separation at all. Auto Split is what you want for serious
+external mixing — replace any single instrument, automate per-stem, master each
+lane independently.
 
 ## Demo / file upload into Studio
 

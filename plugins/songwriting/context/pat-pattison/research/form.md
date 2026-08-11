@@ -306,18 +306,61 @@ sections cannot sound like repetition, contrast, departure, or return.
 Pat's worked case is Ervin Drake's "IT WAS A VERY GOOD YEAR."
 *Essential Guide to Lyric Form and Structure* (1991), Chapter 5:
 
+All four verses, in the order Chapter 5 prints them, each with the prose Pat
+sets against it. Verse one:
+
+```text
+When I was seventeen IT WAS A VERY GOOD YEAR
+IT WAS A VERY GOOD YEAR for small town girls
+On soft summer nights
+We'd hide from the lights
+On the village green
+When I was seventeen
+```
+
+> — Ervin Drake, "IT WAS A VERY GOOD YEAR"
+
+> Again, the verse sets the standard. Again, it is easy to recognize a
+> repetition:
+
+```text
+When I was twenty-one IT WAS A VERY GOOD YEAR
+IT WAS A VERY GOOD YEAR for city girls
+Who lived up the stair
+With perfumed hair
+That came undone
+When I was twenty-one
+```
+
 > "IT WAS A VERY GOOD YEAR," like many songs, is made up only of verses. It has
 > no contrasting sections. When you write a lyric that contains only verses,
 > make sure they are interesting.
+
+```text
+When I was thirty-five IT WAS A VERY GOOD YEAR
+IT WAS A VERY GOOD YEAR for blue-blooded girls
+Of independent means
+We'd ride in limousines
+Their chauffeurs would drive
+When I was thirty five
+```
+
+<!-- Pat prints "thirty-five" in the first line and "thirty five" in the last,
+     within the same verse. Both are as printed at spine 013. Do NOT normalize
+     the hyphen — the plugin has been caught silently correcting Pat before. -->
 
 > In the fourth verse there is a wonderful variation. You expect the CENTRAL
 > IDEA to be the second phrase because that's where it was in the other verses.
 > But no.
 
-<!-- LYRIC-HANDOFF pending: Chapter 5 prints four verses of "IT WAS A VERY GOOD
-YEAR" (Ervin Drake) at spine 013 l.87-141 — seventeen / twenty-one /
-thirty-five / "But now the days are short". None is transcribed here yet, so the
-analysis above has no text to point at. -->
+```text
+But now the days are short, I'm in the autumn of the year
+And now I think of my life as a vintage wine
+From fine old kegs
+From the brim to the dregs
+It poured sweet and clear
+IT WAS A VERY GOOD YEAR
+```
 
 > Saving the CENTRAL IDEA till last has two effects:
 >
@@ -353,9 +396,21 @@ Verse list above:
 > feeling of "starting over again" in the next section. Here is an excellent
 > Chorus.
 
-<!-- LYRIC-HANDOFF pending: Pat's colon-equivalent above ("Here is an excellent
-Chorus.") is followed in the chapter by the five-phrase "Years" chorus, spine
-013 l.171-181. Not transcribed here yet. -->
+```text
+And I let time go by so slow
+And I made every moment last
+And I thought about YEARS
+How they take so long
+And they go so fast
+```
+
+<!-- No attribution line is printed under this chorus in Chapter 5 — Pat runs it
+     straight into "This certainly fits all five…". Do NOT add one: an earlier
+     pass added "— Beth Nielsen Chapman, 'Years'" here in the same em-dash form
+     as Pat's one real attribution (the Ervin Drake line above, spine 013 raw
+     l.57), which made fabricated typography look like printed text. The song is
+     "Years" and Pat names Beth Nielsen Chapman in his own prose below; that is
+     where the credit lives. -->
 
 His verdict on that chorus (the "Years" chorus, discussed further under "Chorus
 balance can be composite" below):
@@ -420,6 +475,26 @@ leans toward the meter the verse has already established at length. Where a
 chorus is meant to contrast with a common-meter verse, check what its
 balancing phrases are doing, not only whether the numbers differ.
 
+The verse itself, as Chapter 5 prints it — nine typographic lines, each its own
+paragraph in the source:
+
+```text
+Across the street
+the Randall's oldest daughter must have come home
+Her two boys built a snowman by the backyard swings
+I thought of Old Man Randall and his Christmas decorations
+And how he used to leave them up till early spring
+And I thought of all the summers
+I paced that porch and swore I'd die of boredom there
+And I thought of what I'd give
+to feel another summer linger when a day feels like a year
+```
+
+**Nine printed lines, eight phrases — and the mismatch is Pat's point, not an
+error.** He introduces this verse by saying the phrases are long and that "It is
+even a challenge to figure out exactly where some of the phrases start and
+stop." Do not count the printed lines and call that a phrase count.
+
 On how many verse phrases that is: **the two books agree at eight, and the
 apparent standoff was our error, not Pat's.** *Writing Better Lyrics* (2009),
 Chapter 20 reads the verse as two complete common-meter systems — eight lines —
@@ -473,14 +548,35 @@ Chapter 5 — the arithmetic is his, and the figures `image_rsrc320` and
 > Beth Nielsen Chapman also does a neat trick with stresses to balance the
 > section. The first two phrases are three stresses (2 x 3 = 6):
 
+Transcribed from figure `image_rsrc320`, rendered and read (`u` = Pat's breve,
+`/` = his acute):
+
+```text
+And I let time go by so slow
+ u  u  u   /  u  /  u   /
+And I made every moment last
+ u  u  u    /u   /u    /
+```
+
 > The last three phrases are each two stresses (3 x 2 = 6):
 
-> A balancing act with built in acceleration.
+Transcribed from figure `image_rsrc321`:
 
-<!-- LYRIC-HANDOFF pending: both of Pat's colons above are dangling — the
-scanned phrases live only in figures `image_rsrc320` and `image_rsrc321` (spine
-013 l.187-191), and the eight-phrase "Years" verse he comments on below is at
-l.206-222. None is transcribed here yet. -->
+```text
+And I thought about Years
+ u  u    /     u u   /
+How they take so long
+ u   u    /   u   /
+And they go so fast
+ u   u   /  u   /
+```
+
+Two markings worth not "correcting": **"made" carries a breve, not a stress**,
+and in "thought about" the stress sits on **"thought"** while both syllables of
+"about" are unstressed. Do not re-scan these from intuition — the marks are
+Pat's, read off the printed figures.
+
+> A balancing act with built in acceleration.
 
 The chapter frames the same chorus against the five Chorus prescriptions:
 
@@ -640,16 +736,37 @@ Pat's worked example is Buck Ram's "THE GREAT PRETENDER." Chapter 5, verbatim:
 > of section. But one ball is unbalanced. You want to hear a rhyme with
 > "believe:"
 
+Figure `image_rsrc324`, rendered and read — the couplet as the ear predicts it,
+with the rhyme-scheme letters Pat prints in the right margin:
+
+```text
+Too real is this feeling of make believe           a
+Too real when I feel what my heart can't conceive  a
+```
+
+In that figure Pat italicizes only the closing rhyme syllable of "believe" and
+of "conceive", showing the two lines landing on the same sound.
+
 > But what you get is:
+
+Figure `image_rsrc325` — what is actually printed. The rhyme letter changes to
+`b`:
+
+```text
+Too real is this feeling of make believe           a
+Too real when I feel what my heart can't conceal   b
+```
+
+Here the italics move: Pat sets "real", "feel", "real", "feel" and the "ceal"
+of "conceal" in italics — five marked sounds, not two.
 
 > A slick deception that throws you off balance with five "eel" sounds. Since
 > you are a little off balance, the return to familiar territory is a relief. A
 > new and bigger Song System is formed.
 
-<!-- LYRIC-HANDOFF pending: both of Pat's dangling colons above resolve into
-figures — `image_rsrc324` (the rhyme you expect after "believe") and
-`image_rsrc325` (the rhyme you actually get). Neither is transcribed here yet.
-Spine 013 l.302-308. -->
+The five "eel" sounds Pat counts are exactly the five he italicizes in figure
+`image_rsrc325`. The first figure is a hypothetical — "conceive" is the rhyme
+the ear wants and does not get — so do not quote that line as part of the song.
 
 The AABA homecoming paragraph that follows this passage in the chapter, and the
 `( Bridge -> Verse )` figure `image_rsrc327`, are both quoted in
@@ -722,10 +839,82 @@ Ocasek of The Cars is typical." Chapter 5, verbatim:
 > meaning, but the structure is preserved. The tripping effect at the long "i"
 > rhyme at "blind" again sets up the sound of the Title.
 
-<!-- LYRIC-HANDOFF pending: each of Pat's colons above is followed in the
-chapter by the transitional-bridge lines being discussed (spine 013 l.404-428),
-and Song Systems 1 and 2 are figures `image_rsrc32F` / `image_rsrc32G`. None is
-transcribed here yet. -->
+The lines each of those colons points at, in Pat's order. He builds the bridge
+up a phrase at a time. First the couplet whose two lines do not rhyme:
+
+```text
+Just one more time to touch you
+Just one more time to tell you
+```
+
+Then the short third line that unbalances it:
+
+```text
+Just one more time to touch you
+Just one more time to tell you
+You're on my mind
+```
+
+Then the same bridge running into the Chorus, where the imperfect "time/mind"
+rhyme trips the ear and sets up the long "i" of the title:
+
+```text
+Just one more time to touch you
+Just one more time to tell you
+You're on my mind
+WHY CAN'T I HAVE YOU
+You're breaking my heart in two
+You know what I'm going through
+WHY CAN'T I HAVE YOU
+```
+
+All seven lines are printed at this stage — three bridge phrases and the full
+four-line Chorus. Keep the Chorus complete here: the paragraph above turns on
+the chorus "i" sounds being "positioned asymmetrically, so there is no
+resolution until the end of the system", and the evidence for that is the last
+three lines. Quoting only the first Chorus line leaves that claim with nothing
+under it.
+
+Song System 1, read from figure `image_rsrc32F` — the whole system Pat brackets
+on the page, so the transitional bridge can be seen in its place between verse
+and chorus:
+
+```text
+Dreamy lips, set in motion, flashing                 VERSE
+Breathless hush, pounding soft, lasting
+Glossy mouth, taste untamed, moving
+Carousel, up and down
+Just like you
+
+    Just one more time to touch you                  TR. BR.
+    Just one more time to tell you
+    You're on my mind
+
+WHY CAN'T I HAVE YOU                                 CHORUS
+You're breaking my heart in two
+You know what I'm going through
+WHY CAN'T I HAVE YOU
+```
+
+Song System 2, read from figure `image_rsrc32G` — the same transitional bridge
+with only its third phrase changed, which is the point Pat is making:
+
+```text
+Candy smile, all the while, glinting                 VERSE
+Your eyes like mica, lethal pout, hinting
+Felt the pressure tight and warm, softly striking
+I tripped and stumbled, I cling forever
+I go all night
+
+    Just one more time to touch you                  TR. BR.
+    Just one more time to tell you
+    I'm not so blind
+
+WHY CAN'T I HAVE YOU . . .                           CHORUS
+```
+
+The section labels in the right margin (`VERSE`, `TR. BR.`, `CHORUS`) and the
+indentation of the bridge are Pat's, as printed in the figure.
 
 <!-- unaudited: the summary bullets above ("Introduces a pivotal idea…") are a
 restatement of Chapter 5's five numbered points; those are verbatim in

@@ -74,7 +74,8 @@ E. Cliche check at every section boundary (5 minutes per boundary)
 
 F. Stability check (10 minutes)
    - One pass through the draft asking "does the song's motion
-     match its central emotion?" See [stable / unstable](../research/stable-unstable-meta.md).
+     match its central intent, idea, and emotion?" See
+     [stable / unstable](../research/stable-unstable-meta.md).
 
 G. Wrap (10 minutes)
    - Record the demo (rough phone capture is fine).

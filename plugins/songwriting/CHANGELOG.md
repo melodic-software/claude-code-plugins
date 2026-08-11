@@ -3,6 +3,134 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.0]
+
+**Chapter coverage was complete at 0.9.0; file coverage was not.** This release
+audits the five files built from chapters closed in earlier sessions, reads the
+three non-book web sources that eight sessions had treated as unopenable, and —
+for the first time in ten sessions — **tests whether the plugin's output is any
+good.**
+
+Scoreboard, computed from the ledger and unchanged by this release because the
+work was file-level, not chapter-level: **Axis 1 — formally audited, 44 of 44
+units (100%). Axis 2 — fine-grained, 205 of 226 (91%).** The 21 outstanding
+fine-grained units remain *Essential Guide to Rhyming* (2014) front matter
+(spine 0-13) and back matter (spine 132-138) — TOC, preface, afterword, index.
+No craft chapter is unaudited in any of the four books.
+
+### Added — the output test, and what it found
+
+- **The lines are good, and the reason matters.** Running the craft skills on a
+  real brief produced usable verses in common meter and a chorus using Paradigm
+  Three's deceptive closure to spotlight the title. The `object-writer` agent is
+  the strongest component: dispatched blind on the seed "an extension cord",
+  knowing nothing of the brief, it returned "seven turns, always seven, he
+  counted them out loud" for a song about a dead father. The blind dispatch is
+  what produced that, and both writers graded a thin sense channel honestly
+  rather than padding it.
+- **The quality is contingent on the response filter actually running.** Every
+  good line survived because a specific §2 box rejected a worse one; drafting
+  without naming boxes produced the generic default the filter exists to catch.
+  **`response-filter.md` is therefore the highest-leverage file in the plugin**,
+  and the filter is self-administered with no enforcement.
+- Caveat recorded rather than glossed: the installed plugin was 0.8.3 while this
+  branch was 0.9.0, so the *content* was tested by executing the skill bodies
+  directly. **The shipped invocation path is still untested end to end.**
+
+### Fixed — two "duplications" that were not, and one that was
+
+- **`phrasing.md` and `meter.md` were FALSE POSITIVES.** Pat prints the Steely
+  Dan verse at eight phrases, then pulls one out to show seven, then cuts to
+  four — that is his pedagogy. `meter.md`'s two "Mary Had a Little Lamb" blocks
+  differ in line four: a three-stress close for Paradigm One against a
+  four-stress overshoot for Paradigm Three. **Folding either would have
+  destroyed correct Pat text.** Both left alone.
+- **`song-forms.md` was the only genuine one** — a whole "Third-system risk"
+  section restating Chapter 23's worked lyric and Pat's three numbered Options.
+  Folded to a cross-reference; the surviving section verified to lose nothing.
+
+### Fixed — the 1991 figure trap, caught live again
+
+`"She sold the fleece to pay the rent"` returns **zero hits** in the 1991 text
+layer, wrap-safe and by fragment. It is **genuinely printed** in figure
+`image_rsrc30F` with "the rent" in italics. That book argues in figures and its
+text layer under-reports; every cut in `meter.md` was checked against a rendered
+scan first. A verification pass rendered **all 45 Chapter 3 figures** and
+confirmed none prints a mood, a section label, or a "best for" line — so the
+three unsourced comparison rows and the "Teaching move" line were cut correctly.
+
+### Fixed — file-level audits
+
+- **`cliche.md`** — the cliché-phrase list shipped as "a representative slice,
+  in his grouping" and was neither: **43 of Pat's 101 printed cells were
+  missing, and surviving rows were stitched together from different printed
+  rows.** The complete 34-row table is restored from the raw XHTML and verified
+  cell-for-cell, including the duplicate `losing sleep` that Pat really prints
+  twice.
+- **`rhyme-strategy.md`** — the two "Decision matrix" sections were **not**
+  duplicates but different subjects; one had Pat's family/assonance pairing
+  **inverted**. Nine Chapter 9 pairings re-verified in the chapter's own order.
+  The two Strategy 1/2/3 treatments *were* genuine duplication and are merged.
+- **`rhyme-worksheets.md`** — a thirteen-slot seed box was attributed to
+  Exercise 7.2; the page-75 scan shows it inside the Exercise 7.1 grid, between
+  `6. risk` and `7. chance`. A column-order extraction artifact. Also fixed:
+  `flirt / church` mislabelled consonance when Pat's own definition requires
+  differing vowels, and a claim that all eleven seeds came from his page-20
+  sketch when only three do.
+- **`object-writing.md`** — 2009 Chapter 2 prints no exercise at all; an
+  invented count was presented under its provenance. Rusty's collar moves down
+  **two** lines, not one.
+
+### Fixed — non-book sources, all three READ for the first time
+
+- **patpattison.com "Lyric and Melodic Phrases"** — the "maximum meaning" quote
+  is real and had been truncated. Its taxonomy of fixes is **Pat's own and has
+  four options**, not three; a prior pass had demoted it as plugin-authored, and
+  dropping his fourth ("Keep it the way it is, since no one listens to lyrics
+  anyway") is what made the list look invented.
+- **patpattison.com "The Art of Phrasing"** — **`front-heavy` / `back-heavy` are
+  Pat's own coinage**, defined on that page, not plugin shorthand. So is
+  "Phrasing has the power to create emotion. It's the body language of your
+  song." Both had been wrongly marked. **"Not in the four books" and "not Pat's" are
+  different claims** — cite the column, never a chapter.
+- **American Songwriter "Motion Creates E-Motion"** — carries no four-controller
+  framework and never mentions line length, so the "live unresolved conflict"
+  with *Songwriting Without Boundaries* (2011) Challenge 4, Day 13 **does not
+  exist.** Recorded as incomplete, not contradicted.
+
+### Fixed — third-party lyric restorations (all Class A defects cleared)
+
+All five `LYRIC-HANDOFF` markers in `form.md` are resolved — every dangling
+set-up now has its text under it: the four "IT WAS A VERY GOOD YEAR" verses in
+Pat's order, the "Years" chorus and its nine-line verse, both Song Systems from
+figures `image_rsrc32F` / `32G`, and the deceptive-closure rhyme figures.
+Scansion was read off rendered figures rather than re-derived, and **Pat's own
+"thirty-five" / "thirty five" inconsistency is preserved as printed.**
+
+### Fixed — vocabulary and the agent contract
+
+- **`central emotion` (0 corpus hits) replaced with Pat's real phrase**, "the
+  central intent, idea, and emotion of the work" (*Writing Better Lyrics*
+  (2009), Chapter 18), across nine files. It truncated a real three-part phrase,
+  which is why quote sweeps kept missing it.
+- `tone of voice` (0 hits, and not located in any Pat column either) registered
+  as plugin shorthand in `book-references.md`.
+- **The `object-writer` agent's frontmatter promised a return shape its own
+  output contract forbids.** Corrected to match: path, seven graded channels,
+  one sentence.
+- Audit-process vocabulary had leaked into shipped content — a reader hitting
+  "see LYRIC-HANDOFF" had no way to know what that meant. Removed.
+
+### Fixed — Suno platform drift (partial)
+
+The two first-party-contradicted tier rows are corrected: **Free has no stem
+separation at all** (the "2-track stems: Free ✓" row was false), and Split from
+Mix / Auto Split / Advanced Split are three **modes**, not track counts. Voices
+stays Pro / Premier; free plans got a **trial** on 7 August 2026, with an
+unresolved web-versus-mobile caveat recorded rather than guessed — a trial is
+not all-tier entitlement, and the plugin no longer describes it as one. **The remaining Suno remediation items are not
+done** — see the audit's own ordering in `.work/songwriting-plugin-pilot/`.
+
 ## [0.9.0]
 
 **All four Pat Pattison books are now formally audited — 44 of 44 units.** This

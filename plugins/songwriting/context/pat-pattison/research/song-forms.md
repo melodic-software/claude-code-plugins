@@ -837,23 +837,13 @@ though, keep your sections parallel."
 
 ## Limerick principle — home base at section level
 
-*Essential Guide to Lyric Form and Structure* (1991), Chapter 6 names the principle behind A-A-B-A and similar forms:
+*Essential Guide to Lyric Form and Structure* (1991), Chapter 6 names the principle behind A-A-B-A and similar forms. The limerick, the A-A-B-A structure block, and Pat's "home base" quote are printed once above under [Home base principle](#home-base-principle) — this section applies them at section level rather than reprinting them.
 
-> "Repeating the structure of the first statement defines 'home base.' Moving
-> away from home base at the third phrase creates tension — a move to
-> unfamiliar territory. Coming back to familiar territory at phrase four is a
-> resolution, a welcome home party." — Pat (*Essential Guide to Lyric Form and
-> Structure* (1991), Chapter 6)
-
-The limerick is the small-scale model, and Chapter 6 prints it in four
-phrases:
-
-```text
-There once was a student named Esser
-Whose knowledge grew lesser and lesser
-It at last grew so small, he knew nothing at all
-And now he's a college professor
-```
+One detail worth holding, because it looks like an error and is not: Chapter 6
+prints the limerick in **four** phrases, running "It at last grew so small, he
+knew nothing at all" as a single phrase. Chapter 2 prints the *same* limerick in
+**five**, splitting that line in two, because there the point is that the shorter
+third and fourth phrases accelerate into the punchline. Both printings are Pat's.
 
 Phrases 1-2 state and restate, phrase 3 varies (shorter units, different
 rhyme), phrase 4 returns. A song's AABA form runs the same principle at
@@ -924,34 +914,15 @@ draft, so it is a revision procedure too.
 
 The companion failure mode to four-times-verses: a verse-chorus form
 that runs three full systems with no contrast risks flatness on the
-third arrival. Chapter 23 works it on "Love Her or Leave Her to Me,"
-whose chorus is:
+third arrival.
 
-```text
-Love her or leave her to me
-Keep her or let her go free
-Don't go two-timing her
-'Less you're resigning her
-Love her or leave her to me
-```
-
-Three named alternatives:
-
-1. **Bridge before the third verse.** Inserts contrast before the
-   final V/Ch arrival: `v / ch / v / ch / br / v / ch`. Carries its
-   own risk — the song returns to a full verse before the last
-   chorus, so it can still read as long.
-2. **Bridge replacing the third verse.** The bridge carries the turn
-   the third verse would have carried, and the final chorus follows
-   directly: `v / ch / v / ch / br / ch`. There is no third verse.
-3. **AABA verse/refrain conversion.** For the opposite case — when
-   the third idea genuinely needs to stay a verse. AABA thrives on
-   three-idea development, so all three verse ideas survive; the
-   title becomes a refrain inside each verse rather than a separate
-   chorus.
+Chapter 23's worked lyric ("Love Her or Leave Her to Me"), Pat's three
+numbered Options, and his bridge material are all above under
+[Three-System Verse/Chorus Risk](#three-system-versechorus-risk) — that
+section is the canonical treatment and this one no longer restates it.
 
 Diagnose at form-planning: count the systems, name what each is
-supposed to add, choose the alternative if needed.
+supposed to add, choose the Option if needed.
 
 ## Song system
 

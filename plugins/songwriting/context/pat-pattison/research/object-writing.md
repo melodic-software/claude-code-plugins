@@ -97,7 +97,8 @@ The mechanism is not "color" in the abstract. It is a bag of dye:
 > bag of dye. Hang the dye on top of the section and let it drip its colors
 > downward onto the other lines, giving them more interest and depth.
 
-Placement is load-bearing, and Pat proves it by moving the collar down one line:
+Placement is load-bearing, and Pat proves it by moving the collar down two lines,
+from the top of the section to line three:
 
 ```text
 Nothing matters like it did
@@ -166,8 +167,8 @@ Useful coaching questions:
 
 Chapter 2 closes on this, and it is a real, named case, not a general caution.
 Pat prints Gillian Welch's "One More Dollar" and then a deliberately de-specified
-rewrite of it — see LYRIC-HANDOFF, the lyric itself is not reproduced here —
-and reports the verdict:
+rewrite of it. The two lyrics are not reproduced here; the verdict he draws from
+the comparison is:
 
 > Instant bland. David Rawlings, Welch's partner and an ardent student and
 > practitioner of songwriting, called me with this beige version, remarking how
@@ -197,9 +198,9 @@ Lyrics* (2009), Chapter 1, Exercise 1:
 
 *Songwriting Without Boundaries* (2011) prints a shorter list, and reprints it
 as the line the writer lets their eye wander to when they do not know where to
-go next. It stands at the head of the Challenge 1 opener and of all fourteen
-Challenge 1 days, and again on all fourteen Challenge 4 days; the metaphor
-challenges in between do not carry the strip. Pat's framing on Day 1:
+go next. It appears once in the Challenge 1 opener, once on each of the fourteen
+Challenge 1 days, and once again on each of the fourteen Challenge 4 days; the
+metaphor challenges in between do not carry the strip. Pat's framing on Day 1:
 
 > Use the list below as a place to let your eye wander when you're not sure
 > where to go next.
@@ -456,8 +457,8 @@ Pat's second documented demonstration is Cathy Brettell's ten-minute write on
 > — Pat Pattison, *Songwriting Without Boundaries* (2011), Challenge 1
 > opener
 
-Note the ending: "(time!)" and then "soft crystal knob pulls shut" cut off. That
-is the buzzer, printed.
+Note the ending as printed: the write trails off into an ellipsis after "soft
+crystal knob pulls shut", and "(time!)" follows it. That is the buzzer, printed.
 
 Diagnostic when a write reads flat: number the images and name the sense
 carrying each handoff. Handoffs carried by topic ("and also in the elevator
@@ -600,8 +601,8 @@ fourteen-day format, under the heading "Group Writing":
 >
 > — *Songwriting Without Boundaries* (2011), Challenge 1
 
-And his closing push, two paragraphs later: "But do form a group, or at least
-find a partner. It'll keep you on track."
+And his closing push, a little further down the same opener: "But do form a
+group, or at least find a partner. It'll keep you on track."
 
 ## Expanded object writing
 
@@ -732,7 +733,7 @@ underline every verb first and ask which ones got the gig on merit.
 ## Place as action organizer
 
 The "where" days make an important adjustment: place is not scenery. Pat states
-it in four sentences at the end of Day 14:
+it in four sentences on Day 14:
 
 > "Where" is a wonderful tool. Once you decide the place, the rest of your
 > writing can wrap around it or evolve from it. That's why it's useful to imagine
@@ -867,10 +868,10 @@ Exercise 3 - Timed "pepper" session:
 - Push beyond sight into taste, smell, touch, organic, and kinesthetic detail.
 - Stop at the buzzer, then mine the page.
 
-Chapter 2 - Rusty's collar rewrite:
+Rusty's collar rewrite — *this file's own drill; Chapter 2 prints no exercise*:
 
 - Choose one telling line from a lyric draft.
-- List five sensory images that could prove or color the line.
+- List sensory images that could prove or color the line.
 - Put the strongest image before the telling line.
 - Read the pair aloud and decide whether the telling now carries more weight.
 - If the telling is redundant, cut it and let the image do the work.

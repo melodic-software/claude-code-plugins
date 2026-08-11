@@ -5,16 +5,29 @@ Pat Pattison — *patpattison.com* "Lyric and Melodic Phrases" plus
 phrasing. Books bracket the music; this file is the bridge between a lyric's
 natural phrasing and a melody's actual phrasing.
 
-**UNAUDITED — read this before quoting anything below.** The "roadmap" framing
+**Source status — the non-book source has now been READ.** The "roadmap" framing
 is not in the four books. Measured wrap-safe across all four: `roadmap` returns
 **one** hit, in *Essential Guide to Rhyming* (2014) and in a different sense
 ("Rhyme creates a sonic roadmap"); `compatible roadmaps` and `maximum meaning`
-return **zero**. The two `— Pat (patpattison.com)` quotes below are from a
-non-book source nobody here has been able to open, so they are neither confirmed
-nor refuted — treat them as unverified paraphrase, not as quotable Pat, and
-never build a citation on them. The 1991 Chapter 1-2 citation above is sound
-(those chapters are "Number of Phrases" and "Length of Phrases"); it covers the
-phrase material, not the roadmap vocabulary.
+return **zero**.
+
+It is, however, genuinely Pat's, from outside the books. The article
+"Lyric and Melodic Phrases" was fetched and read on 2026-08-11 at
+<https://www.patpattison.com/lyric-and-melodic-phrases>, and it uses "roadmap"
+throughout as its governing metaphor. The "maximum meaning" quote below is
+**confirmed verbatim** against that page, and the three fixes below are **Pat's
+own numbered options**, not this file's invention — see that section.
+
+The `"body language"` quote further down is **also confirmed**, but to a
+different column — "The Art of Phrasing"
+(<https://www.patpattison.com/art-of-phrasing>), not this one. It was briefly
+demoted this session on the mistaken grounds that no source carried it; a
+refuting pass found the page immediately. Its tail "of your song" had been
+truncated and is restored.
+
+The 1991 Chapter 1-2 citation above is sound (those chapters are "Number of
+Phrases" and "Length of Phrases"); it covers the phrase material, not the
+roadmap vocabulary.
 
 Use this when a writer says "the words don't fit the music", "this line
 breaks weird", "the singer is breathing in the middle of a word", "we set
@@ -29,11 +42,13 @@ and end based on breath, cadence, and rest. When the two disagree, the
 listener hears two competing structures and the meaning blurs.
 
 > "Creating compatible roadmaps melodically and lyrically is essential to
-> getting maximum meaning." — Pat (patpattison.com)
+> getting maximum meaning and impact from your song."
+> — Pat Pattison, patpattison.com, "Lyric and Melodic Phrases"
+> (fetched and verified 2026-08-11)
 
 The diagnostic is whether the lyric's phrase boundaries align with the
-melody's phrase boundaries. Three ways out are set out below; they are this
-file's own organisation of the problem, not a taxonomy Pat publishes.
+melody's phrase boundaries. The fixes set out below are **Pat's own numbered
+options** from that article, not this file's organisation of the problem.
 
 ## What a roadmap is
 
@@ -61,13 +76,24 @@ suspension) or a bad one (the listener has to re-parse to catch the meaning).
      word and then claiming he named this state was the fabrication; the
      observation itself is fine, so it is kept, unattributed. -->
 
-## Three ways out — this file's own framing, not Pat's
+## Ways out — Pat's options, with this file's decision aid layered on
 
-*No book names an "alignment fix", numbers them, or supplies the `Use when:` and
-`Risk:` lines below. They are this repo's decision aid. They are still useful;
-they are just not citable to Pat. Do not reintroduce the word "named" here — an
-earlier heading asserted "the three **named** alignment fixes", and a heading
-that keeps claiming a taxonomy is how the claim grows a body back.*
+*Corrected 2026-08-11 after the source article was fetched and read.* Split the
+two things carefully, because an earlier pass got this backwards in both
+directions:
+
+- **Pat's, and citable.** The options themselves are his. "Lyric and Melodic
+  Phrases" lists **four**, and the first three are what this file calls Fix 1,
+  Fix 2 and Fix 3 — change the music to match the lyric's roadmap; change the
+  lyric to match the melodic roadmap; repeat a word from the first line at the
+  beginning of the next line. An earlier pass demoted these as "this file's own
+  framing, not Pat's." That demotion was wrong.
+- **Still this repo's, and NOT citable.** No book or article supplies the
+  `Use when:` and `Risk:` lines below, or the "Fix N" titles. Those are the
+  decision aid and stay unattributed.
+- **Do not write "the three named alignment fixes."** Pat lists his options; he
+  does not name them, and there are four of them, not three. That phrasing was
+  the original fabrication and it is still wrong.
 
 When a roadmap mismatch is breaking the lyric, pick one:
 
@@ -124,6 +150,20 @@ Use when:
      attribution goes. -->
 
 Risk: overuse becomes a tic.
+
+### Pat's fourth option — recorded because leaving it out is what caused the error
+
+The article's list does not stop at three. Its fourth option is:
+
+> "Keep it the way it is, since no one listens to lyrics anyway."
+> — Pat Pattison, patpattison.com, "Lyric and Melodic Phrases"
+> (fetched and verified 2026-08-11)
+
+It is a joke, and it is doing real work: it names the thing a writer is
+actually tempted to do, so that declining to fix a mismatch is a visible
+choice rather than a silent default. Do not present it as a craft
+recommendation — and do not drop it again. Counting his four options as three
+is precisely what made an earlier pass conclude the taxonomy was invented.
 
 ## How to diagnose
 
@@ -198,8 +238,24 @@ Where the lyric phrase begins relative to the bar shapes the roadmap.
 - **Back-heavy** — phrase starts after the downbeat. Feels in motion,
   unstable.
 
-> "Phrasing has the power to create emotion. It's the body language."
-> — Pat (patpattison.com)
+<!-- DEMOTED, THEN RESTORED, both on 2026-08-11. The demotion was WRONG and is
+     recorded here so it is not repeated. This quote was demoted on the grounds
+     that the "Lyric and Melodic Phrases" article does not contain it (true —
+     "body language" does not appear in THAT article) and that no other
+     patpattison.com page carrying it had been located (FALSE). A refuting
+     verification pass found the source on the first search: it is a DIFFERENT
+     column, "The Art of Phrasing". The lesson is that failing to find a source
+     is not evidence it does not exist — search again before demoting. -->
+
+> "Phrasing has the power to create emotion. It's the body language of your
+> song."
+> — Pat Pattison, patpattison.com, "The Art of Phrasing"
+> (<https://www.patpattison.com/art-of-phrasing>, fetched 2026-08-11)
+
+Note the tail: the plugin previously printed this as "It's the body language."
+and stopped. The article reads "the body language **of your song**" — the same
+truncation this file made to the "maximum meaning" quote above. Both are now
+restored in full.
 
 A back-heavy lyric phrase against a front-heavy melodic phrase fights the
 section's body language. The fix is usually to shift the lyric's leading

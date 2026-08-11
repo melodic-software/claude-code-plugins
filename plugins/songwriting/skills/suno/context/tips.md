@@ -164,7 +164,7 @@ Don't change three things at once. Change mood OR instrumentation OR BPM, regene
 
 ### 3. Stem-first workflow for production
 
-Generate full track → export 12-track stems → polish in Logic / Ableton / Pro Tools. Suno is great at the rough mix; external DAW is great at the final 10%.
+Generate full track → Auto Split stem export (up to 12 stems; Pro / Premier) → polish in Logic / Ableton / Pro Tools. Suno is great at the rough mix; external DAW is great at the final 10%.
 
 ### 4. Persona library for cross-project consistency
 

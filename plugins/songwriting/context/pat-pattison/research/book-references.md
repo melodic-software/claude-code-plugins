@@ -91,6 +91,47 @@ Pat Pattison — *What's in a Song* podcast, "Creating Metaphors" episode
 Date when relevant. Citation includes the publication / platform first,
 then the title.
 
+## Vocabulary that is NOT in the four books
+
+**"Not in the books" and "not Pat's" are different claims. Do not collapse
+them** — an earlier version of this table did, and was wrong. Pat teaches
+outside the books too, and terms he coins in a column are still his.
+
+Each corpus count below was measured wrap-safe against the extracted text of all
+four books:
+
+| Term | Corpus hits | Status |
+| --- | --- | --- |
+| `front-heavy` / `back-heavy` | 0 | **Pat's own coinage**, outside the books — see below. Citable to the column, never to a book. |
+| `tone of voice` | 0 | Not located in any Pat source, book or column. Treat as plugin shorthand; never attribute to Pat. |
+| `central emotion` | 0 | **Do not use.** It truncates a real three-part phrase — see below. |
+
+`front-heavy` / `back-heavy` are Pat's, coined in his patpattison.com column
+"The Art of Phrasing" (fetched and read 2026-08-11,
+<https://www.patpattison.com/art-of-phrasing>), which defines both:
+
+> "We'll call phrases that start on the downbeat of a bar, or pick up to the
+> downbeat, front-heavy."
+> "We'll call phrases that start after the downbeat back-heavy."
+
+So the correct caveat on these two is **"not in the four books, cite the
+column"** — not "not Pat's". `phrasing.md` had this right before this table did.
+
+`central emotion` is a distortion rather than an invention, which is why sweeps
+for fabricated quotes kept missing it. Pat's actual sentence is:
+
+> The elements all join together to support the central intent, idea, and emotion
+> of the work. Everything fits. Prosody: the appropriate relationship between
+> elements.
+> — Pat Pattison, *Writing Better Lyrics* (2009), Chapter 18
+
+When the three-part idea is meant, write it in Pat's wording — "the central
+intent, idea, and emotion" — not the shortened "central emotion."
+
+A term being plugin-authored is not a defect and does not have to be removed.
+Presenting one **as Pat's** is the defect. `stable-unstable-meta.md` carries the
+worked example of the correction.
+
 ## Why this convention matters
 
 - Book numbers are unstable references — readers (human or AI) re-order them

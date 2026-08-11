@@ -532,12 +532,19 @@ artifacts; verified against `raw/`. Do not correct them.)
 
 ## Front-heavy and back-heavy phrases
 
-**Unaudited — non-book material.** "Front-heavy," "back-heavy" and "body
-language" return **zero hits across all four books**; the frame comes from
-patpattison.com and seminar material that is not in the corpus. This file
-previously printed two sentences below as block quotations attributed to
-`— Pat`, one of them with no source label at all. Neither can be checked, so
-neither is set as a quotation any more.
+**Non-book material — and the source has now been READ (2026-08-11).**
+"Front-heavy," "back-heavy" and "body language" return **zero hits across all
+four books**. That is because the frame is from Pat's patpattison.com column
+"The Art of Phrasing" (<https://www.patpattison.com/art-of-phrasing>), which
+coins both terms outright:
+
+> "We'll call phrases that start on the downbeat of a bar, or pick up to the
+> downbeat, front-heavy."
+> "We'll call phrases that start after the downbeat back-heavy."
+
+**These are Pat's terms, not this plugin's.** Cite the column; never cite a
+chapter for them. This file was right to keep them and right not to claim a
+book — it was the only file that had this correct.
 
 Where a lyric phrase begins relative to the bar shapes its emotional
 character. Two states:

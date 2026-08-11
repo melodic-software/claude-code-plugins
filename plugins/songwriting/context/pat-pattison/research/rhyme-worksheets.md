@@ -63,11 +63,12 @@ A rhyme worksheet is not a finished lyric, a rhyme dump, or a display of clever
 language. It is a map of possible spotlight words and idea-connected rhyme
 families.
 
-Pat's page 24 summary makes four claims for it, and he ranks them: no dead ends
-("keep from boxing yourself into a corner"), net time saved despite the up-front
-cost, higher quality, and — "more importantly" — rhyme positions that
-"communicate ideas effectively." The last is the one the whole procedure exists
-for. The summary is quoted in full under
+Pat's page 24 summary makes four claims for it, and he ranks them in two tiers:
+no dead ends ("keep from boxing yourself into a corner") and net time saved
+despite the up-front cost, then — "More importantly" — that "it raises quality
+and guarantees that your rhyming position will communicate ideas effectively."
+The second tier covers both quality and communication, not communication alone.
+The summary is quoted in full under
 [English is rhyme-poor](#english-is-rhyme-poor).
 
 Skill behavior: when a user asks for rhymes, first decide whether they need a
@@ -161,7 +162,12 @@ And the selection rule, verbatim:
 Note what the two selection constraints are and are not. They are phonetic —
 mostly masculine, different vowel sounds — not thematic. The theme is already
 handled by where the words come from: "Let the list come from your idea sketch."
-Every one of Pat's eleven is lifted from his own sketch on page 20.
+That is about content, not about copying words across. Only three of Pat's
+eleven — `afraid`, `attention`, `left out` — appear as words in the page 20
+sketch; `risk` and `flirt` appear only in the focus questions above it; and
+`scared`, `chance`, `dull`, `leave`, `ignored`, `gone` are not printed anywhere
+on page 20. Pat's instruction leaves room for both routes: the list comes from
+the sketch, "adding any extra inspiration you have."
 
 "Mostly masculine" is exact rather than loose: ten of the eleven are masculine,
 and `attention` is the one feminine word on the sheet. For the second rule Pat
@@ -568,14 +574,14 @@ sub-column when it overflows. Marks in parentheses are Pat's.
 Perfect Rhymes          Imperfect Rhymes
 
 1. scare                1. scare
-   affair                  compare        stairs
-   unaware                 ensnare        unfair
+   affair                  compare
+   unaware                 ensnare
    care                    repair
    dare                    snared
    despair                 unprepared
    fair                    scarce
-   glare
-   prayer
+   glare                   stairs
+   prayer                  unfair
 
 2. afraid               2. afraid
    charade                 bait           wait
@@ -736,11 +742,14 @@ worksheet focused on application:
   or less finality.
 
 Reading the list against the scale answers Pat's "figure out how I found them"
-challenge. `scare / snared` is additive. `flirt / absurd` is family (`t` to its
-partner `d`). `flirt / church` is consonance. `chance / mask` keeps `s` and
-subtracts. `leave / police` is marked `(Identity)` because the `-lease` sound
-repeats too much of the target. `attention / mend on, etc.` and
-`attention / stretchin', etc.` are mosaics.
+challenge. `scare / snared` is additive — same vowel, an extra consonant on the
+second syllable. `flirt / absurd` is family (`t` traded for its phonetic partner
+`d`). `flirt / church` is assonance, not consonance: the vowel is the same in
+both, and Pat's consonance rhyme requires the vowel sounds to differ.
+`leave / police` is marked `(Identity)` for the reason Pat gives in Chapter 1 —
+the rhyming syllables begin the same way, so the ear hears repetition instead of
+sound; `lease/police` is his own printed example of exactly that.
+`attention / mend on, etc.` and `attention / stretchin', etc.` are mosaics.
 
 Skill behavior: label imperfect candidates by likely relationship where useful,
 but do not overburden the user with a taxonomy lecture. The practical question
@@ -813,20 +822,40 @@ Exercise wording, verbatim:
 > — *Essential Guide to Rhyming* (2014), Chapter 7
 
 Chapter 7 keyword set (the Chapter 3 eleven, plus the two seeds Chapter 3 had
-dropped):
+dropped), laid out exactly like the Chapter 3 sheet: thirteen seeds spread as
+headings across three columns with room to write under each, and the ruled seed
+box reproduced in the middle of the page, now thirteen slots deep.
 
 ```text
-1. scare      6. risk     9. leave
-2. afraid                10. ignored
-3. flirt                 11. gone
-4. attention  7. chance  12. safe
-5. left out   8. dull    13. business
+1. scare       6. risk                  9. leave
+
+               ┌───────────────┐
+2. afraid      │  1. scared    │       10. ignored
+               │  2. afraid    │
+               │  3. flirt     │
+               │  4. attention │
+               │  5. left out  │
+               │  6. risk      │
+3. flirt       │  7. chance    │       11. gone
+               │  8. dull      │
+               │  9. leave     │
+               │ 10. ignored   │
+               │ 11. gone      │
+               │ 12. safe      │
+               │ 13. business  │
+               └───────────────┘
+
+4. attention   7. chance                12. safe
+
+
+5. left out    8. dull                  13. business
 ```
 
 Note the drift between the two printings: the ruled seed box in Chapter 3 and the
-blank sheet in Exercise 7.2 both say `scared`, while the search results and the
-Exercise 7.1 grid say `scare`. That is comment 3 in Chapter 3 taking effect — the
-seed changed mid-search and the printed sheets were never re-synced.
+ruled box on this Exercise 7.1 sheet both say `scared`, while the search-result
+headings and the Exercise 7.1 column headings say `scare`. That is comment 3 in
+Chapter 3 taking effect — the seed changed mid-search and the printed boxes were
+never re-synced.
 
 Skill behavior: when a user asks to continue from a worksheet, ask them to pick
 or approve a short favorite set before drafting. If they do not want to choose,
@@ -843,24 +872,11 @@ Exercise wording, verbatim:
 >
 > — *Essential Guide to Rhyming* (2014), Chapter 7
 
-The exercise then reprints the numbered seed list as a blank worksheet, thirteen
-slots deep:
-
-```text
- 1. scared
- 2. afraid
- 3. flirt
- 4. attention
- 5. left out
- 6. risk
- 7. chance
- 8. dull
- 9. leave
-10. ignored
-11. gone
-12. safe
-13. business
-```
+That single sentence is the whole of Exercise 7.2 on the printed page — an
+instruction and then blank space. The thirteen-slot ruled seed box on the same
+page (page 75) belongs to the Exercise 7.1 sheet above it, not to this exercise;
+the text layer runs the two together because it reads the box out of column
+order.
 
 Exercise pattern to preserve:
 
@@ -899,16 +915,20 @@ Compact output example, using Pat's own `safe` and `business` results:
 
 ```text
 seed: safe
-perfect: faith, chase, race, space
-imperfect: brave, grave, slave, cage, stage, castaway, ricochet, runaway,
-           haste, braced
+perfect: too few to build on — Chapter 3 dropped this seed because it and
+           "business" "don't yield many rhymes" (comment 6)
+imperfect: Pat's page 69 list, printed undifferentiated — faith, chase, race,
+           space, brave, grave, slave, cage, stage, castaway, ricochet,
+           runaway, haste, braced
 watch: over-familiar safety/risk pairs
 idea paths: caution, escape, public performance, locked-in fear
 
 seed: business
-perfect: none strong enough for default closure
-imperfect: collisions, decisions, visions, forgiveness, religious, gifted,
-           shiftless, kisses, ambitious, delicious, suspicious, submissive
+perfect: dropped in Chapter 3 for the same reason as "safe"
+imperfect: Pat's page 69 list, printed undifferentiated — collisions,
+           decisions, visions, forgiveness, frigid, religious, gifted,
+           shiftless, swiftless, kisses, ambitious, delicious, suspicious,
+           submissive, riches, finish, whiz, stiff
 watch: comic corporate tone unless wanted
 idea paths: bad choices, imagined betrayal, forgiveness after risk
 ```
@@ -927,22 +947,26 @@ Exercise wording, verbatim:
 >
 > — *Essential Guide to Rhyming* (2014), Chapter 3
 
-The printed sheet seeds the first three slots from the title and leaves seven
-open:
+The printed sheet has the same two parts as the Chapter 3 and Exercise 7.1
+sheets: title-seeded headings down the left with room to write under each, and a
+ruled seed box beside them whose first three slots are filled from the title and
+whose remaining seven are left open.
 
 ```text
 Idea sketch:
 
- 1. last
- 2. night
- 3. love
- 4.
- 5.
- 6.
- 7.
- 8.
- 9.
-10.
+1. last                 ┌──────────────┐
+                        │  1. last     │
+                        │  2. night    │
+                        │  3. love     │
+                        │  4.          │
+2. night                │  5.          │
+                        │  6.          │
+                        │  7.          │
+                        │  8.          │
+                        │  9.          │
+3. love                 │ 10.          │
+                        └──────────────┘
 ```
 
 This exercise makes the title a generator instead of a fixed burden. If a title

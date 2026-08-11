@@ -74,7 +74,7 @@ If the writer asks which is best, push back:
 
 ```
 The choice depends on:
-- the song's central emotion
+- the song's central intent, idea, and emotion
 - the surrounding section's prosodic shape
 - the melody's pitch contour (if known)
 - the rhyme scheme commitments already made

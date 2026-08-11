@@ -35,7 +35,7 @@ These produce **different outputs**. Order encodes priority.
 Surgical refinement of a single instrument layer without losing the rest:
 
 1. Generate full song
-2. **12-track stem export**
+2. **Auto Split stem export** (up to 12 stems; Pro / Premier)
 3. Upload ONE stem back as Audio Influence at 80%
 4. Prompt narrowly for that element only (`punchy 808 trap drums, no other elements`)
 5. Regenerate
@@ -257,7 +257,7 @@ Enables **album-vocal continuity across genre-diverse tracks** — same vocal ch
 
 ### Studio "Remove Effects" per-stem (v5.5)
 
-In Suno Studio with 12-track stems: right-click an individual stem → `Remove Effects`. Strips processing from JUST that stem (e.g., strip reverb from vocals only) before DAW export.
+In Suno Studio with Auto Split stems: right-click an individual stem → `Remove Effects`. Strips processing from JUST that stem (e.g., strip reverb from vocals only) before DAW export.
 
 Cleaner external mixing; you keep the production on stems you like and dry the ones you'll re-process.
 
