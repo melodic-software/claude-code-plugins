@@ -95,10 +95,11 @@ Three supported routes, in the order most people want them:
 
 1. **Interactively** — Claude Code prompts for declared options when you enable the
    plugin. To change them later: `/plugin configure github`.
-2. **Headless, at install time** — repeat `--config` for each option:
+2. **Headless, at install time** — repeat `--config` for each option. Replace
+   `<marketplace>` with the marketplace you installed this plugin from:
 
    ```shell
-   claude plugin install github@melodic-software --config offer_browser_automation=<value>
+   claude plugin install github@<marketplace> --config offer_browser_automation=<value>
    ```
 
 3. **By hand, in settings** — add the value under `pluginConfigs` in your **user**
@@ -107,7 +108,7 @@ Three supported routes, in the order most people want them:
    ```json
    {
      "pluginConfigs": {
-       "github@melodic-software": {
+       "github@<marketplace>": {
          "options": {
            "offer_browser_automation": <value>
          }

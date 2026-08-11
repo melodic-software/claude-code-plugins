@@ -123,10 +123,11 @@ Three supported routes, in the order most people want them:
 
 1. **Interactively** — Claude Code prompts for declared options when you enable the
    plugin. To change them later: `/plugin configure rate-limit-guard`.
-2. **Headless, at install time** — repeat `--config` for each option:
+2. **Headless, at install time** — repeat `--config` for each option. Replace
+   `<marketplace>` with the marketplace you installed this plugin from:
 
    ```shell
-   claude plugin install rate-limit-guard@melodic-software --config rate_limit_guard_enabled=<value>
+   claude plugin install rate-limit-guard@<marketplace> --config rate_limit_guard_enabled=<value>
    ```
 
 3. **By hand, in settings** — add the value under `pluginConfigs` in your **user**
@@ -135,7 +136,7 @@ Three supported routes, in the order most people want them:
    ```json
    {
      "pluginConfigs": {
-       "rate-limit-guard@melodic-software": {
+       "rate-limit-guard@<marketplace>": {
          "options": {
            "rate_limit_guard_enabled": <value>
          }

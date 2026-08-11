@@ -29,6 +29,12 @@ END = "<!-- END GENERATED: plugin options -->"
 REPO = pathlib.Path(__file__).resolve().parent.parent
 PLUGINS = REPO / "plugins"
 
+# A placeholder, deliberately, not this repository's marketplace name. Plugin-facing docs are
+# marketplace-agnostic: a plugin can be installed from a fork, a mirror, or a private catalog
+# under a different name, and `plugins/github/github.test.sh` enforces that its docs never
+# hardcode one. The reader substitutes whatever they installed from.
+MARKETPLACE = "<marketplace>"
+
 
 def env_var(key: str) -> str:
     """Claude Code exports each declared option as CLAUDE_PLUGIN_OPTION_<KEY>, uppercased."""
@@ -72,7 +78,8 @@ def render(plugin: str, marketplace: str, options: dict) -> str:
         "",
         "1. **Interactively** — Claude Code prompts for declared options when you enable the",
         f"   plugin. To change them later: `/plugin configure {plugin}`.",
-        "2. **Headless, at install time** — repeat `--config` for each option:",
+        f"2. **Headless, at install time** — repeat `--config` for each option. Replace",
+        f"   `{marketplace}` with the marketplace you installed this plugin from:",
         "",
         "   ```shell",
         f"   claude plugin install {plugin}@{marketplace} --config {first}=<value>",
@@ -147,7 +154,7 @@ def main() -> int:
             stale.append(d.name)
             continue
         current = readme.read_text(encoding="utf-8")
-        updated = splice(current, render(d.name, "melodic-software", options))
+        updated = splice(current, render(d.name, MARKETPLACE, options))
         if updated != current:
             if check:
                 stale.append(d.name)

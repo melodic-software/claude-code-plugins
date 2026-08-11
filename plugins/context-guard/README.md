@@ -142,10 +142,11 @@ Three supported routes, in the order most people want them:
 
 1. **Interactively** — Claude Code prompts for declared options when you enable the
    plugin. To change them later: `/plugin configure context-guard`.
-2. **Headless, at install time** — repeat `--config` for each option:
+2. **Headless, at install time** — repeat `--config` for each option. Replace
+   `<marketplace>` with the marketplace you installed this plugin from:
 
    ```shell
-   claude plugin install context-guard@melodic-software --config context_guard_hooks_enabled=<value>
+   claude plugin install context-guard@<marketplace> --config context_guard_hooks_enabled=<value>
    ```
 
 3. **By hand, in settings** — add the value under `pluginConfigs` in your **user**
@@ -154,7 +155,7 @@ Three supported routes, in the order most people want them:
    ```json
    {
      "pluginConfigs": {
-       "context-guard@melodic-software": {
+       "context-guard@<marketplace>": {
          "options": {
            "context_guard_hooks_enabled": <value>
          }

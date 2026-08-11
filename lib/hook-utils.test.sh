@@ -2312,6 +2312,8 @@ ce_probe() {
   shift 2
   local got
   got=$(
+    # shellcheck disable=SC2016  # $0 must NOT expand here: it is the child bash's
+    # own positional, bound to the library path passed after the -c string.
     env -u CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED \
       "$@" bash -c 'source "$0"; hook::check_enabled "RATE_LIMIT_GUARD"; printf RUN' \
       "$HOOK_DIR/hook-utils.sh" 2>/dev/null
@@ -2349,6 +2351,8 @@ ie_probe() {
   shift 2
   local got
   got=$(
+    # shellcheck disable=SC2016  # $0 must NOT expand here: it is the child bash's
+    # own positional, bound to the library path passed after the -c string.
     env -u CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED \
       "$@" bash -c 'source "$0"
         if hook::is_enabled "RATE_LIMIT_GUARD"; then printf ENABLED; else printf DISABLED; fi

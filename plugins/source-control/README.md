@@ -321,10 +321,11 @@ Three supported routes, in the order most people want them:
 
 1. **Interactively** — Claude Code prompts for declared options when you enable the
    plugin. To change them later: `/plugin configure source-control`.
-2. **Headless, at install time** — repeat `--config` for each option:
+2. **Headless, at install time** — repeat `--config` for each option. Replace
+   `<marketplace>` with the marketplace you installed this plugin from:
 
    ```shell
-   claude plugin install source-control@melodic-software --config lane_instance=<value>
+   claude plugin install source-control@<marketplace> --config lane_instance=<value>
    ```
 
 3. **By hand, in settings** — add the value under `pluginConfigs` in your **user**
@@ -333,7 +334,7 @@ Three supported routes, in the order most people want them:
    ```json
    {
      "pluginConfigs": {
-       "source-control@melodic-software": {
+       "source-control@<marketplace>": {
          "options": {
            "lane_instance": <value>
          }
