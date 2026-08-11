@@ -46,22 +46,30 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   | a relative, `$VAR`, `~` or glob target | **blocked** |
   | `python3 -c "open('/tmp/scratch/x','w').write('a')"` — producer axis unchanged | **blocked** |
 
-  Three residuals, all deliberate, all stated in the file and the README, and all pinned by tests.
+  **A quoted or escaped redirect operand is never exempt.** This was caught in review and is the
+  sharpest edge on the whole axis. `strip_literals` keeps a quoted write target but **drops its
+  quotes**, and `normalize_segments` then resolves a `;`, `|`, `&`, newline or space *inside that
+  operand* as syntax — so `echo x > "/tmp/scratch/a;/../../etc/passwd"`, which bash treats as one
+  pathname, reaches the containment check as the safe-looking prefix `/tmp/scratch/a`. Exempting
+  that prefix would be precisely the one-token bypass the `/dev/null` precedent warns about. The
+  only surviving evidence of the truncation is the raw command, so the exemption **fails closed on
+  any quote or backslash after the first redirect operator**. Deliberately conservative: even a
+  benign `> "/tmp/scratch/f"` loses the exemption, and an operator who wants it writes the target
+  unquoted. Quotes *before* the operator (`echo "hello world" > /tmp/scratch/f`) are the ordinary
+  case and keep it. Six tests pin the closed shapes.
+
+  The same truncation reaches the **`/dev/null`** exemption and **predates this change** — measured
+  at `685dd381`, `echo x > "/dev/null;/../../etc/passwd"` is already allowed there. Fixing that half
+  means teaching `strip_literals` to mark a kept operand's internal separators, shared machinery
+  #1680 and #1667 also concern and wider than this row, so it is filed as **#2226** and pinned here
+  by a control test that flips visibly when it is fixed.
+
+  Two further residuals, both deliberate, both stated in the file and the README, both pinned.
   Normalization is lexical, not filesystem resolution: symlinks are not followed, because resolving
   them needs a subprocess per segment on a path this file deliberately keeps fork-free, and the
-  target frequently does not exist yet — naming a root is accepting that root's contents. The
+  target frequently does not exist yet — naming a root is accepting that root's contents. And the
   compare is case-insensitive, because the segment scan runs over the lowercased command; on a
   case-sensitive filesystem a sibling differing from a root only in case is also exempt.
-
-  And a **quoted** redirect operand containing whitespace is judged on its first word only:
-  `echo x > "/tmp/scratch/a ../../etc/pw"` reads as `/tmp/scratch/a`. This one is **inherited from
-  the shared redirect-target extraction and is not introduced here** — `strip_literals` deliberately
-  keeps a quoted write target as literal content, which drops the quotes, and `_redir_scan`'s target
-  class ends at whitespace, so the `/dev/null` exemption has the identical shape. Measured at
-  `685dd381`, before this change: `echo x > "/dev/null ../../etc/pw"` already returns **0 (allowed)**
-  while an unexempted `echo x > "/tmp/scratch/a ../../etc/pw"` returns 2. A control test pins the
-  `/dev/null` half alongside the scratch half, so a future fix to `strip_literals` flips both
-  together and visibly. Filed separately as the extraction defect it is (#2226).
 
   Bash lane only. The PowerShell lane classifies on cmdlet/redirect co-occurrence and never resolves
   a single effective target, so there is no well-defined target to exempt there; its `$null` discard

@@ -534,17 +534,16 @@ set_last_stdout_target() {
 # On a case-sensitive filesystem a sibling directory differing from a configured
 # root only in case is therefore also exempt.
 #
-# SCOPE (documented residual, INHERITED — this axis does not introduce it): a
-# quoted redirect operand containing WHITESPACE is exempted on its first word
-# only. strip_literals deliberately KEEPS a quoted write target as literal
-# content (see `open_keep`), which drops the quotes, and _redir_scan's target
-# class ends at whitespace — so `> "/tmp/scratch/a ../../etc/pw"` is judged on
-# `/tmp/scratch/a`. The `/dev/null` exemption has the same shape and the same
-# behaviour at HEAD (`> "/dev/null ../../etc/pw"` is exempt there too, before
-# this change), so the seam is in the shared target extraction, not here.
-# Recovering it needs strip_literals to mark a kept operand's internal
-# whitespace, which is shared machinery this row does not touch. Both forms are
-# pinned by accepted-floor tests so neither can drift silently. Filed as #2226.
+# A QUOTED OR ESCAPED redirect operand is never exempt — see the fail-closed
+# test at the top of scratch_target_exempt. A quoted operand can carry
+# whitespace, `;`, `|`, `&` or a newline that strip_literals and
+# normalize_segments have already resolved away as syntax, leaving only a
+# safe-looking prefix of the real pathname to compare. The same truncation
+# reaches the `/dev/null` exemption and PREDATES this axis (measured at
+# `685dd381`: `echo x > "/dev/null;/../../etc/passwd"` is allowed there); that
+# half is filed as #2226 and pinned here by a control test, because fixing it
+# means teaching strip_literals to mark a kept operand's internal separators —
+# shared machinery this row does not touch.
 #
 # SCOPE: Bash lane only. The PowerShell lane classifies on cmdlet/redirect
 # CO-OCCURRENCE and never resolves a single effective target, so there is no
@@ -596,6 +595,21 @@ _norm_path() {
 scratch_target_exempt() {
   local target="$1" norm_target root roots
   [[ -n "$_SCRATCH_ROOTS" ]] || return 1
+  # FAIL CLOSED on a QUOTED or ESCAPED redirect operand, before anything else.
+  # By the time LAST_STDOUT_TARGET exists the evidence is gone: strip_literals
+  # KEEPS a quoted write target but drops its quotes, and normalize_segments then
+  # turns a `;`, `|`, `&` or newline inside that operand into a segment boundary
+  # and whitespace into a word boundary — so the operand
+  # `"/tmp/scratch/a;/../../etc/passwd"`, which bash treats as ONE pathname,
+  # reaches the compare as the safe-looking prefix `/tmp/scratch/a`. Exempting
+  # that is precisely the one-token bypass the `/dev/null` precedent warns about.
+  # The only surviving evidence is the RAW command, so refuse the exemption when
+  # any quote or backslash appears after the first redirect operator. Deliberately
+  # conservative — a compound whose LATER segment quotes something also loses the
+  # exemption, and an operator who wants it writes the target unquoted. The same
+  # truncation reaches the `/dev/null` exemption and predates this axis; it is
+  # filed as #2226 and pinned by a control test.
+  [[ "${COMMAND#*>}" == *[\"\'\\]* ]] && return 1
   _norm_path "$target" || return 1
   [[ -n "$_NORM_PATH" ]] || return 1
   norm_target="$_NORM_PATH"

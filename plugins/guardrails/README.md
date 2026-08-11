@@ -107,14 +107,18 @@ out of scope until such a signal exists.
   boundary: `/tmp/scratchevil/f` is not under `/tmp/scratch`, a `..` escape is
   resolved away before the compare, `echo x > /tmp/scratch/f > real.txt` still
   blocks, and a relative, unexpanded (`$VAR`, `~`) or glob target is never
-  exempt. Three residuals, all deliberate and all pinned by tests: normalization
-  is lexical, so symlinks out of a root are not followed; the compare is
-  case-insensitive because the segment scan runs over the lowercased command; and
-  a **quoted** target containing whitespace is judged on its first word only
-  (`echo x > "/tmp/scratch/a ../../etc/pw"` reads as `/tmp/scratch/a`). That last
-  one is **inherited from the shared redirect-target extraction, not introduced by
-  this option** — the `/dev/null` exemption has the same shape and the same
-  behaviour, and a control test pins that (#2226). Naming a root is accepting that root's
+  exempt. A **quoted or escaped** operand is never exempt either, and that one
+  fails closed rather than being documented: the quote strip drops a kept
+  target's quotes and the segment split then reads a `;`, `|`, `&` or space
+  *inside* the operand as syntax, so `> "/tmp/scratch/a;/../../etc/passwd"` —
+  one pathname to bash — would otherwise be judged on `/tmp/scratch/a`. Any
+  quote or backslash after the first redirect operator therefore cancels the
+  exemption; quotes before it (`echo "hi there" > /tmp/scratch/f`) do not. The
+  same truncation reaches the `/dev/null` exemption and predates this option —
+  filed as #2226 and pinned by a control test. Two residuals remain, both
+  deliberate and both pinned: normalization is lexical, so symlinks out of a
+  root are not followed, and the compare is case-insensitive because the segment
+  scan runs over the lowercased command. Naming a root is accepting that root's
   contents.
 - **`flag-commit-pr-skill-bypass` is a nudge, not a gate.** Detection is a
   literal-stripped top-level regex match, not a full argv-grammar parser — it
@@ -299,7 +303,7 @@ reads it from.
 | `block_dangerous_git_allow` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW` | Comma-separated forms block-dangerous-git permits: push-force, push-lease-unsafe, reset-hard, clean-force, checkout-dot, restore-dot, checkout-force; empty blocks all |
 | `block_noncanonical_commit_allow` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_NONCANONICAL_COMMIT_ALLOW` | Comma-separated form tokens to allow (currently: message-flag, which permits `-m` even when the message contains a newline) |
 | `block_no_verify_hook_manager_prefixes` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_HOOK_MANAGER_PREFIXES` | Comma-separated hook-manager env-var name prefixes block-no-verify treats as a bypass when set to 0/false (e.g. lefthook,husky); empty uses the built-in default set (lefthook, husky, pre_commit, simple_git_hooks) |
-| `block_hook_bypass_scratch_roots` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS` | Comma-separated ABSOLUTE directories block-hook-bypass exempts as scratch/temp write targets (e.g. /tmp/scratch,/d/jobtmp/session); empty (the default) exempts nothing and leaves the guard's shipped behaviour unchanged. Matching is on the effective stdout target after lexical normalization, at a path-component boundary — a sibling merely sharing the name prefix, a `..` escape out of a root, and a discard-then-real-file redirect all still block. Symlinks are not followed |
+| `block_hook_bypass_scratch_roots` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS` | Comma-separated ABSOLUTE directories block-hook-bypass exempts as scratch/temp write targets (e.g. /tmp/scratch,/d/jobtmp/session); empty (the default) exempts nothing and leaves the guard's shipped behaviour unchanged. Matching is on the effective stdout target after lexical normalization, at a path-component boundary — a sibling merely sharing the name prefix, a `..` escape out of a root, a quoted or escaped operand, and a discard-then-real-file redirect all still block. Symlinks are not followed |
 | `stdin_read_timeout` | number<br>*min 1* | `2` | `CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT` | Idle bound on reading the hook payload from stdin — how long a silent pipe is tolerated before a blocking guard fails closed |
 
 ### How to set these
