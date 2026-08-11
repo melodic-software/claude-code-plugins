@@ -73,7 +73,7 @@ components are declared in, not a component, so it has no row.
 | Cross-session messaging — `ListAgents`/`SendMessage`, `crossSessionInbound`; not on native Windows | <https://code.claude.com/docs/en/cross-session-messaging> | 2026-08-10 |
 | Manage sessions — resume, branch, transcript storage | <https://code.claude.com/docs/en/sessions> | 2026-08-10 |
 | Checkpointing — what `/rewind` does and does not restore | <https://code.claude.com/docs/en/checkpointing> | 2026-08-10 |
-| Feature availability — per-feature platform, provider, and plan matrix | <https://code.claude.com/docs/en/feature-availability> | 2026-08-10 |
+| Feature availability — per-feature matrix by model provider and subscription plan (not by host surface — see Platforms) | <https://code.claude.com/docs/en/feature-availability> | 2026-08-10 |
 | Platforms and integrations — the host-surface index (CLI, Desktop, IDEs, web, mobile) | <https://code.claude.com/docs/en/platforms> | 2026-08-10 |
 | Ultrareview — human-confirmed, metered cloud review; no programmatic entry point | <https://code.claude.com/docs/en/ultrareview> | 2026-08-10 |
 | Chrome — browser integration delivered as the built-in `claude-in-chrome` skill | <https://code.claude.com/docs/en/chrome> | 2026-08-10 |
