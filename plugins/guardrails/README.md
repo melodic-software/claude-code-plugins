@@ -94,11 +94,12 @@ out of scope until such a signal exists.
   producer is another program (`sort f > out`, `curl … > page.html`, `cat a b >
   c`) is allowed — only a content producer writing a real file
   (`cat > f` consuming stdin, `echo`/`printf > f`, inline `python3 -c` writes,
-  the PowerShell write cmdlets) is blocked. **`tee` / `tee -a` and inline writes
-  via other interpreters (`node -e`, `perl -e`, `ruby -e`, `sed -i`, `dd of=`,
-  `awk >`, …) are accepted residuals** — outside the modeled surface, not
-  oversights. The block message carries this scope so a reader does not credit the
-  guard with coverage it never claimed.
+  the PowerShell write cmdlets, including `Tee-Object` and its `tee` alias on the
+  PowerShell tool) is blocked. On the **Bash** tool, **`tee` / `tee -a` and inline
+  writes via other interpreters (`node -e`, `perl -e`, `ruby -e`, `sed -i`, `dd
+  of=`, `awk >`, …) are accepted residuals** — outside the modeled surface, not
+  oversights. The block message carries a lane-specific scope note so a reader does
+  not credit the guard with coverage it never claimed.
 - **`block-hook-bypass` has one target-scoped exemption beyond `/dev/null`, and
   it is off unless an operator turns it on.** `block_hook_bypass_scratch_roots`
   takes a comma-separated list of absolute directories whose contents are

@@ -741,11 +741,12 @@ assert_contains "bash block names the invoked-script gap" "$scopeout" \
   "inside an invoked script file"
 assert_contains "bash block limits interpreter coverage to python3 -c" "$scopeout" \
   "inline python3 -c only"
-assert_contains "bash block names the tee gap" "$scopeout" "tee"
+assert_contains "bash block names the tee gap" "$scopeout" "POSIX tee"
 assert_contains "bash block names other-interpreter gap" "$scopeout" "node -e"
 psscope=$(bash "$HOOK" <<<"$(pwsh_command_json "Set-Content f.txt 'x'")" 2>&1)
 assert_contains "powershell block states its scope" "$psscope" \
   "only this command string is inspected"
+assert_contains "powershell block names Tee-Object coverage" "$psscope" "Tee-Object"
 
 # The behaviour the scope note describes. A write inside an invoked script is
 # not inspected, and a redirect whose producer is another program is allowed by
@@ -759,7 +760,8 @@ run "tee pipe write (accepted floor — allowed)" 'echo "*" | tee .gitignore' 0
 run "tee -a append (accepted floor — allowed)" 'echo "*" | tee -a .gitignore' 0
 run "node -e write (accepted floor — allowed)" \
   "node -e \"require('fs').writeFileSync('f.txt','a')\"" 0
-run "sed -i in-place write (accepted floor — allowed)" "sed -i 's/a/b/' f.txt" 0
+run "sed -i in-place write (accepted floor — allowed)" \
+  "sed -i 's/a/b/' f.txt" 0 # portability-ok: test fixture command string containing sed -i, not an unsuffixed sed -i invocation
 run "dd of= write (accepted floor — allowed)" "dd of=f.txt <<< x" 0
 
 # --- Scratch-root exemption (block_hook_bypass_scratch_roots) ----------------
