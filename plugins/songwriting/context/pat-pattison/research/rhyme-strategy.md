@@ -554,12 +554,20 @@ Family/family, assonance/assonance and consonance/consonance are not among
 them. The chapter never demonstrates those pairings, so this file does not
 recommend them.
 
-If the section already has strong meter or line-length pressure, the rhyme type
-can be weaker and still read as connected. Chapter 9 makes exactly that point:
-where an assonance rhyme leaves "precious little push" in dominant position, the
-push "would have to come from somewhere else, like e.g., line lengths (something
-like common meter ... which creates the same dominant push as an abab rhyme
-scheme)."
+If the section already has pressure from somewhere else, the rhyme type can be
+weaker and still read as connected. Chapter 9 makes exactly that point: where an
+assonance rhyme leaves "precious little push" in dominant position, the push
+"would have to come from somewhere else, like e.g., line lengths (something like
+common meter ... which creates the same dominant push as an abab rhyme scheme)."
+
+Do not narrow "somewhere else" to meter and line length. Chapter 9's own list of
+what else can carry a section is wider — "melody, harmony, message, line lengths,
+and line rhythms."
+
+The converse holds too, and Chapter 9 states it directly: **if the section has
+little other pressure, a weak rhyme type can read as no structure at all.** Of
+the same assonance-dominant case — "But without a push from somewhere else, our
+arrival at rush is pretty light."
 
 ## Repeated-section problem
 
@@ -734,6 +742,9 @@ Working order at a slot:
 2. Take a candidate type from the index.
 3. Run the worksheet for that type.
 4. If nothing fits the line, move one step down the stability scale.
+5. Sing the result. (This step is this plugin's phrasing, but the discipline is
+   Pat's and he repeats it — "Again, sing them. Trust your ears."
+   *Essential Guide to Rhyming* (2014), Chapter 5.)
 
 Closure type is a separate lever, not a rhyme type. Deceptive and unexpected
 closure are structural moves from *Essential Guide to Lyric Form and Structure*
