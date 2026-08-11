@@ -399,7 +399,7 @@ limerick itself:
 There once was a student named Esser
 Whose knowledge grew lesser and lesser
 It at last grew so small, he knew nothing at all
-And now he’s a college professor
+And now he's a college professor
 ```
 
 ```text
@@ -436,11 +436,11 @@ strongly or a bridge interrupts the pattern.
 Chapter 6 example diagnosis — "This Bottle and Me," verse 1:
 
 ```text
-We’ve been sitting here the whole night long
+We've been sitting here the whole night long
 Pouring out our hearts
 About how loving never ends the way
 We felt it at the start
-And we’ll sit right here till we decide
+And we'll sit right here till we decide
 What the next step ought to be
 We got a lot to talk about
 THIS BOTTLE AND ME
@@ -483,7 +483,7 @@ line. Chapter 6's bridge for "This Bottle and Me":
 
 ```text
 THIS BOTTLE AND ME will do all right
-We’ll just stay right here together
+We'll just stay right here together
 Waste away the night
 Waiting till the morning comes
 And the ache is almost gone
@@ -542,7 +542,7 @@ The wind doth blow today my love
 And a few small drops of rain
 I never had but one true love
 In cold grave she was lain
-                            — From “The Unquiet Grave,” Anonymous
+                            — From "The Unquiet Grave," Anonymous
 ```
 
 ```text
@@ -577,14 +577,14 @@ Used to bring me peace
 But now they only make me cry
 They only make me realize
 
-There’s no SOUTHERN COMFORT           CHORUS
-Unless you’re in my arms
-You’re the only cure
+There's no SOUTHERN COMFORT           CHORUS
+Unless you're in my arms
+You're the only cure
 For this aching in my heart
-I’ve searched everywhere
+I've searched everywhere
 Tried the bedrooms, tried the bars
-But there’s no SOUTHERN COMFORT
-Unless you’re in my arms
+But there's no SOUTHERN COMFORT
+Unless you're in my arms
 ```
 
 ```text
@@ -640,7 +640,7 @@ takes that hint and develops it:
 Bar to bar
 Face to face
 Someone else takes your place
-But no one’s ever new
+But no one's ever new
 I always turn them into you
 ```
 
@@ -694,19 +694,19 @@ He listens as they fight
 Tonight it will be different         VERSE 2
 Leaving while they sleep
 He sneaks into the closed garage
-Tonight he’ll find peace
+Tonight he'll find peace
 
-Crying “Mama won’t you listen!       TRANS BR 1
-Daddy can’t you see!”
+Crying "Mama won't you listen!       TRANS BR 1
+Daddy can't you see!"
 He slides the seat back
 Turns the key
 
-It’s a short ride to the dark side   CHORUS
+It's a short ride to the dark side   CHORUS
 All the love he might have known
 Lost forever, left alone
 No one in the world could hear
 The closing of the door
-TEDDY DOESN’T LIVE HERE ANYMORE
+TEDDY DOESN'T LIVE HERE ANYMORE
 ```
 
 ```text
@@ -746,11 +746,11 @@ Chapter 6's example is "You Never Let Me Down," song system 1:
 ```text
 Turned loose in a company of strangers        VERSE 1
 Getting nowhere, we had nowhere to go
-Bad blues hit you harder when you’re aching
-They never leave you, they’ll never leave you alone
-They get you crawlin’
+Bad blues hit you harder when you're aching
+They never leave you, they'll never leave you alone
+They get you crawlin'
 
-I might’ve fallen                             TRANS BR 1
+I might've fallen                             TRANS BR 1
 But you were always around
 
 YOU NEVER LET ME DOWN                         REFRAIN
@@ -796,7 +796,7 @@ effect: section still closes, but tips forward into transitional bridge
 Tonight it will be different
 Leaving while they sleep
 He sneaks into the closed garage
-Tonight he’ll find peace
+Tonight he'll find peace
 ```
 
 The last phrase puts two stressed syllables in a row, forcing an irregular
@@ -825,7 +825,7 @@ sits immediately before the hook:
 ```text
 No one in the world could hear
 The closing of the door
-TEDDY DOESN’T LIVE HERE ANYMORE
+TEDDY DOESN'T LIVE HERE ANYMORE
 ```
 
 Pat: "I think of the longer phrase as the rubber of a slingshot, stretching to
@@ -850,8 +850,8 @@ effect: faster surface motion without losing structure
 transitional bridge but keeps it in close parallel with the first:
 
 ```text
-He cries, “Baby, it’s so cold here
-Won’t you take me home?”
+He cries, "Baby, it's so cold here
+Won't you take me home?"
 She shivers as she turns away
 Leaves alone
 ```
@@ -1027,8 +1027,8 @@ supposed to add, choose the Option if needed.
 Pat's own definition, and the origin of the term, *Essential Guide to Lyric
 Form and Structure* (1991), Chapter 5:
 
-> Either I made up this name, or my friend Tom Frazee did. I don’t remember
-> which. A “Song System” is a group of sections that work together in larger
+> Either I made up this name, or my friend Tom Frazee did. I don't remember
+> which. A "Song System" is a group of sections that work together in larger
 > movements, or cycles of motion. The idea is especially helpful when looking at
 > a group of contrasting sections. A Song System always has a CENTRAL SECTION
 > and often has one or more DEVELOPMENTAL SECTIONS.
@@ -1045,8 +1045,8 @@ Form and Structure* (1991), Chapter 5:
 > work together. It comes in handy.
 
 > In a lyric where all the sections are the same, and each section contains the
-> CENTRAL IDEA (“IT WAS A VERY GOOD YEAR,” for example), the concept of Song
-> System doesn’t help much. You could talk about “sections” just as easily.
+> CENTRAL IDEA ("IT WAS A VERY GOOD YEAR," for example), the concept of Song
+> System doesn't help much. You could talk about "sections" just as easily.
 
 *Essential Guide to Lyric Form and Structure* (1991), Chapter 7 adds the one
 rule that ties the hook to the Song System:

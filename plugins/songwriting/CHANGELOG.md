@@ -18,10 +18,15 @@ versus curly `’` `“` `”` — are not part of it. This repo is GitHub-flavo
 Markdown and either form is fine.
 
 Much of this session went into normalizing curly punctuation across 470 lines in
-31 files before the owner ruled it out of scope. Those lines are left as they
-stand, because reverting them would spend *more* effort on something that does
-not matter. They carry **no fidelity meaning**, and **no future session should
-measure, sweep, audit, or report on this class again.**
+31 files. The owner ruled it out of scope, and the review gate then found it had
+left **20 paragraphs with mismatched pairs** — a curly opening quote closing
+against a straight one, because the sweep matched line by line and quotations
+wrap. That is worse than what it replaced. **The entire change was reverted**;
+those 31 files are byte-identical to the previous release.
+
+**No future session should measure, sweep, audit, or report on this class.** The
+standing rule now lives at the top of `book-references.md`, where the citation
+convention is read.
 
 The correction that does matter: during that work two earlier receipts (`V1`,
 `V7`) were recorded as "refuted on fidelity". **That was wrong — they were

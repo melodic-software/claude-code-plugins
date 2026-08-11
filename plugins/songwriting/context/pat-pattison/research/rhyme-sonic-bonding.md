@@ -62,15 +62,15 @@ acceleration — Pat's example is the familiar limerick form:
 There once was a student named Esser
 Whose knowledge grew lesser and lesser
 It at last grew so small he knew nothing at all
-So now he’s a college professor
+So now he's a college professor
 ```
 
 You can also place internal rhymes inside *different* lines, symmetrically (in
 parallel rhythmic positions) or asymmetrically:
 
 ```text
-The yard is gone, the weeds need mowin’
-The paint is stripped from hard winds blowin’
+The yard is gone, the weeds need mowin'
+The paint is stripped from hard winds blowin'
 And storms have ripped shingles from the roof…
 ```
 
@@ -130,7 +130,7 @@ Easy lazy days
 Wintertime will soon be ending
 Hillsides rolling green and plenty
 Summertime has come and gone
-But she won’t stay away
+But she won't stay away
 Slip in softly
 Catch me napping
 Spin your magic, let it happen
@@ -339,7 +339,7 @@ Dryden, where `boil'd` and `morn` both contain the long `o` sound, and since
 long `o` contains short `o`, `lobster` completes the line:
 
 ```text
-Like a lobster boil’d, the morn
+Like a lobster boil'd, the morn
 From black to red began to turn
 ```
 
@@ -536,7 +536,7 @@ Pat starts from the dictionary definition: "The occurrence of the same letter
 or sound at the beginning of adjacent or closely connected words." Thus:
 
 ```text
-dark day’s dance
+dark day's dance
 love him or leave him
 friendly fire
 ```
@@ -766,7 +766,7 @@ to juncture."
 the puzzled expression:
 
 ```text
-She can’t take your rent.
+She can't take your rent.
 ```
 
 Two juncture problems — `can't → take` and `your → rent` — because the ending

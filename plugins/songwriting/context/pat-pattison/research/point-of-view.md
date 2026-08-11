@@ -100,14 +100,14 @@ And on where the intimacy comes from:
 > comes from its suggestion of direct address. We expect I to appear from behind
 > the curtain at any moment. It just never happens.
 >
-> Second-person narrative actively forces us to say, “This character could
+> Second-person narrative actively forces us to say, "This character could
 > easily be me."
 
 ## How second-person narrative works
 
 Pat builds it in two moves. First the impersonal pronoun:
 
-> Part of it works like using you as a substitute for one (e.g., “You get what
+> Part of it works like using you as a substitute for one (e.g., "You get what
 > you pay for" is the same as "One gets what one pays for").
 
 Run the Seger couplet that way:
@@ -176,21 +176,21 @@ Pat's one-line gloss:
 Pat first raises this as the reading he has to eliminate for Seger:
 
 > Sometimes you can be used as a substitute for first person. That's the way I
-> sometimes talk to myself: “Come on, Pat, can't you be clear for once?” instead
-> of “I wish I could be clear for once.”
+> sometimes talk to myself: "Come on, Pat, can't you be clear for once?" instead
+> of "I wish I could be clear for once."
 
 Then, at the end of Chapter 12, he comes back to it with a model:
 
 > You can also leave the narrative mode, using second person as a substitute for
-> I, as in, “C'mon, can't you be clear for once?” Or as an internal command:
-> “C'mon, be clear for once!” Leonard Cohen's “Dress Rehearsal Rag” is a good
+> I, as in, "C'mon, can't you be clear for once?" Or as an internal command:
+> "C'mon, be clear for once!" Leonard Cohen's "Dress Rehearsal Rag" is a good
 > example. In it, the character is standing in front of a mirror getting ready
 > to shave
 
 Two lines from Pat's excerpt of the Cohen lyric:
 
 > … Look at your body now, there's nothing much to save
-> And a bitter voice in the mirror cries “Hey, Prince, you need a shave”
+> And a bitter voice in the mirror cries "Hey, Prince, you need a shave"
 
 His verdict, and the reason this belongs in a separate bin from the Seger case:
 
@@ -215,9 +215,9 @@ Pat's pronoun table, as printed — all four rows, both columns:
 | Possessive adjective | his, her, its | their |
 | Possessive predicate | his, hers, its | theirs |
 
-> e.g. Possessive adjective: “That is her responsibility.”
+> e.g. Possessive adjective: "That is her responsibility."
 >
-> Possessive predicate: “The responsibility is hers.”
+> Possessive predicate: "The responsibility is hers."
 
 > In third-person narrative, both the singer and the audience turn together to
 > look at the song's world. The singer functions as storyteller or narrator, and
@@ -325,12 +325,12 @@ person and letting it fall over. On *"I hardly seem to notice as I step across
 the street"*:
 
 > This sounds odd. She's saying external or descriptive things about herself,
-> like “I hardly seem to notice as I step across the street.” Observations like
+> like "I hardly seem to notice as I step across the street." Observations like
 > this are best left to a third-person narrator.
 
 On *"Lost in thought I read his letters"*:
 
-> Again it sounds unnatural for her to say, “Lost in thought I read his letters.”
+> Again it sounds unnatural for her to say, "Lost in thought I read his letters."
 > The language is more appropriate from the mouth of an observer than from the
 > mouth of a participant.
 
@@ -450,7 +450,7 @@ The prosecution opens, and Pat marks the tell:
 
 > "Well, young man, you've had quite a day today, haven't you?" […]
 >
-> “You're eleven years old, and should know better, shouldn't you?”
+> "You're eleven years old, and should know better, shouldn't you?"
 >
 > They always start by telling you how old you are.
 
@@ -534,14 +534,14 @@ Pat prints **two** rewrites of the braids verse, not a list of frames. First:
 > I still remember the Saturday night we met
 > Your hair so pretty, up in braids
 > You blew me away when you said hello
-> And asked me, “What's your name?”
+> And asked me, "What's your name?"
 
 His verdict on both, including the honest disclaimer:
 
 > Both of these versions work because they include the singer's reactions to the
 > facts. Okay, so it's not great writing. Even so, it still sounds more natural,
 > and once you know what approach to take, you can always polish up the
-> language. The second version also includes the old “do you remember” ploy for
+> language. The second version also includes the old "do you remember" ploy for
 > introducing information. Put it in your own bag of tricks.
 
 So the mechanism has a name in Pat's text and it is exactly one thing: **the
@@ -595,7 +595,7 @@ Pat demonstrates this rather than stating it. He first converts "Sentimental
 Lady" to first person by swapping pronouns only, shows it failing, and then
 says:
 
-> If we really were to make sense of “Sentimental Lady” as a first-person
+> If we really were to make sense of "Sentimental Lady" as a first-person
 > narrative, the perspective would have to shift in several places
 
 The lines he actually changes are the tell. *"She hardly seems to notice as she
@@ -616,7 +616,7 @@ behavior. His summary of the whole operation:
 
 This comes out of Pat's second conversion exercise:
 
-> As a further exercise, go back and try changing “Digging for the Line” into a
+> As a further exercise, go back and try changing "Digging for the Line" into a
 > third-person narrative. It's an interesting problem, isn't it? First there's
 > the pronoun problem: you have to make daddy's child she to keep the hes from
 > getting all jumbled together. Instead of:
@@ -636,8 +636,8 @@ Then the principle, with Pat's attribution intact:
 
 > Daddy told me this story is an acceptable premise for a song, but here's a
 > story about someone telling a story seems more remote. The playwright Henrik
-> Ibsen said, “If you put a gun in Act I, it damn well better go off by the end
-> of the play!” This is more than a principle about effective use of props. It
+> Ibsen said, "If you put a gun in Act I, it damn well better go off by the end
+> of the play!" This is more than a principle about effective use of props. It
 > says that you should have a reason for each element in your work. Nothing
 > without its purpose. No duplication of function.
 
@@ -700,8 +700,8 @@ surveillance microphone"*:
 His answer to the obvious first guess:
 
 > No, it probably isn't a duet. Duets need equal characters, both of whom can
-> say the same chorus. Emma Rae is the only one here who can say “Give me
-> wings.” Unless you're writing opera (sung dialogue), you're better off having
+> say the same chorus. Emma Rae is the only one here who can say "Give me
+> wings." Unless you're writing opera (sung dialogue), you're better off having
 > one singer tell us about the conversation, complete with quotes. The real
 > trick is selecting a point of view to set the whole thing up.
 
@@ -720,7 +720,7 @@ each with a one-paragraph gloss.
 >
 > In first-person narrative, the singer tells us about a conversation he/she
 > actually had with some third party. Like someone coming in to work and saying,
-> “Guess who I talked to yesterday. You'll never believe who he was with!” And
+> "Guess who I talked to yesterday. You'll never believe who he was with!" And
 > then telling you the story.
 
 > **2. DIRECT ADDRESS**
@@ -757,7 +757,7 @@ paragraph:
 > first version of first-person narrative shines the spotlight on the wrong
 > person. In order for the male character to sing the song, he'd have to have
 > something important to say about the story at the end, like in the final line
-> of Don Schlitz's “The Gambler”: But in his final words I found an ace that I
+> of Don Schlitz's "The Gambler": But in his final words I found an ace that I
 > could keep. Maybe something like: I gave her her freedom, and we've been great
 > ever since / Soaring together, lovers and friends.
 
@@ -785,7 +785,7 @@ it out, and then:
 > You asked me, "What gifts can I bring you / To prove that my love for you is
 > true?"
 
-> As we saw in chapter eleven, “Second Person and the Hangman,” simply telling
+> As we saw in chapter eleven, "Second Person and the Hangman," simply telling
 > people what they already know doesn't make for credible dialogue.
 
 ## Third-person dialogue
@@ -793,17 +793,17 @@ it out, and then:
 Third person is where the real song landed. Pat introduces it as fact, not
 preference:
 
-> Finally, look at the point of view of the actual lyric of this song, “Give Me
-> Wings,” by Don Schlitz and Rhonda Kye Fleming
+> Finally, look at the point of view of the actual lyric of this song, "Give Me
+> Wings," by Don Schlitz and Rhonda Kye Fleming
 
 Its opening quatrain and the transitional bridge that follows:
 
-> He asked her, “What gifts can I bring you
+> He asked her, "What gifts can I bring you
 > To prove that my love for you is true?
 > I want to make you mine forever
-> There's nothing on this Earth I would not do”
+> There's nothing on this Earth I would not do"
 >
-> She said, “Anything I have wanted
+> She said, "Anything I have wanted
 > You have given willingly
 > So now there's only one more thing I need
 
@@ -912,7 +912,7 @@ above.)
 depends on the question he asks immediately before it, *"Does that mean we should
 always go for intimacy?"*:
 
-> Try rewriting “Sentimental Lady” and “Digging for the Line” in direct address
+> Try rewriting "Sentimental Lady" and "Digging for the Line" in direct address
 > before you answer the question above. Go on, do it.
 
 The chapter also sets an un-numbered companion task under the heading "Back to
@@ -938,7 +938,7 @@ Pat supplies the first line of each translation:
 
 Pat answers his own exercise, and then warns about the exit:
 
-> Which do you like better for “Kid Charlemagne”? Yup. I like second-person
+> Which do you like better for "Kid Charlemagne"? Yup. I like second-person
 > narrative best here too. But a cautionary note: Don't dash out and turn all
 > your third-person narratives into second person. Beware of the hangman: Don't
 > tell facts to someone who should already know them!

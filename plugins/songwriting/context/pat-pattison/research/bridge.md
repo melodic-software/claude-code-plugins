@@ -34,10 +34,10 @@ serve as a bridge:
 > Could #1A be a Bridge? Maybe, but be careful. A Bridge should sound
 > completely different right from its very first phrase. If you used #1A as a
 > Bridge after the Verse/Chorus Song System above, it would sound like a verse
-> for the first three phrases. There would be no contrast, no “release” until
+> for the first three phrases. There would be no contrast, no "release" until
 > too late.
 
-> EXERCISE 29: REWRITE THE “CANDY BAR” SECTION ABOVE AS A BRIDGE SO IT WILL
+> EXERCISE 29: REWRITE THE "CANDY BAR" SECTION ABOVE AS A BRIDGE SO IT WILL
 > CONTRAST WITH THE SONG SYSTEM IT FOLLOWS. YOU MIGHT START BY SHORTENING THE
 > FIRST PHRASE TO MAKE IT SOUND DIFFERENT RIGHT AWAY.
 
@@ -268,7 +268,7 @@ AABA verse / refrain form."
 
 > An AABA song form is effective because it creates a strong sense of
 > resolution when it moves back to the third verse. The first two verses
-> define “home base,” then the bridge takes you away from home — away from the
+> define "home base," then the bridge takes you away from home — away from the
 > familiar structure. When you come back to the third verse, you come back
 > home to familiar territory. It's a real homecoming, seeing the old
 > neighborhood again after a long trip. The tension created by moving away has
@@ -283,7 +283,7 @@ because it names the mechanism ("away from the verse structure"):
 
 > An A A B A song form is effective partly because it creates this sense of
 > resolution when it moves back to the third verse. The structure of the first
-> two verses defines “home base.” Then, the Bridge takes you away from home —
+> two verses defines "home base." Then, the Bridge takes you away from home —
 > away from the verse structure. So when you come back to the third verse, you
 > come back home to familiar territory. It is a real homecoming, like seeing the
 > old neighborhood again after a long trip. The tension created by moving away
@@ -335,12 +335,12 @@ none of these descriptive names quite fit all of them:"
 > 4. It unbalances the Song System by contrasting with the established verse
 >    structure. It makes you want to get to a balanced or CENTRAL section.
 >
-> Thus, 5. It is usually the lyric’s shortest and most unbalanced section.
+> Thus, 5. It is usually the lyric's shortest and most unbalanced section.
 
 **Bridge (full bridge)** — *Essential Guide to Lyric Form and Structure*
 (1991), Chapter 5:
 
-> You won’t use Transitional Bridges too often unless you write dance songs, in
+> You won't use Transitional Bridges too often unless you write dance songs, in
 > R&B and more Pop-oriented rock, where songs rely on a strong dance groove.
 > Both verse and chorus usually have the same groove, so a Transitional Bridge
 > is inserted between them as a “release” — to break the monotony and build

@@ -100,7 +100,7 @@ sentences. The intervening sentence is:
 The opening paragraph then continues:
 
 > "It shows them the way. So many times, rhyme seems like your enemy. Because
-> it’s so hard to use rhyme and still sound natural, most songwriters go through
+> it's so hard to use rhyme and still sound natural, most songwriters go through
 > a 'trying not to rhyme' phase. Too often, rhyme seems to pull you in a wrong
 > direction, either (1) towards something that sounds unnatural, or (2) towards
 > something cliché. Both drain the blood from your lyric."
@@ -231,7 +231,7 @@ that list is from a different book and is not reprinted here.
 ### Why refusing to rhyme is not the escape
 
 > "The problem is, refusing to rhyme hurts a lyric more than it helps it. This
-> isn’t true in poetry, but remember, poetry is for the eye too. Rhymes in a
+> isn't true in poetry, but remember, poetry is for the eye too. Rhymes in a
 > lyric are the ear's road signs, just like *lines* in poetry are the eye's road
 > signs. In the time of the troubadour, when poetry was oral, it always rhymed.
 > It was made for the ear, not the eye."
@@ -247,24 +247,24 @@ in full below.
 **Version 1 (unrhymed):**
 
 ```text
-I’ve got a COLD SPOT in my heart
+I've got a COLD SPOT in my heart
 Just for you
 Just for you
-It doesn’t matter what you try
-Ain’t no fire sneakin’ in
-I’ve got a COLD SPOT in my heart
+It doesn't matter what you try
+Ain't no fire sneakin' in
+I've got a COLD SPOT in my heart
 Just for you
 ```
 
 **Version 2 (rhymed):**
 
 ```text
-I’ve got a COLD SPOT in my heart
+I've got a COLD SPOT in my heart
 Just for you
 Just for you
-It doesn’t matter what you do
-Ain’t no fire sneakin’ through
-I’ve got a COLD SPOT in my heart
+It doesn't matter what you do
+Ain't no fire sneakin' through
+I've got a COLD SPOT in my heart
 Just for you
 ```
 
@@ -987,7 +987,7 @@ Thine eyes, and on thy forehead gaze;
 Two hundred to adore each breast,
 And thirty thousand to the rest; ...
 But at my back I always hear
-Time’s winged chariot hurrying near ...
+Time's winged chariot hurrying near ...
 ```
 
 Marvell's lines are 8-syllable, 4-stress (tetrameter) couplets. Each rhymed

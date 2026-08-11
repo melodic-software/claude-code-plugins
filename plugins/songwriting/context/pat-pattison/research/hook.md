@@ -11,7 +11,7 @@ Pat's opening paragraph, verbatim:
 
 > "Your HOOK is the hero of your lyric. It belongs in the spotlight, the most
 > important place in your lyric. But putting it there is up to you. You have to
-> put it in focus. You can’t just toss your HOOK anywhere and hope the light
+> put it in focus. You can't just toss your HOOK anywhere and hope the light
 > shines on it — you have to choose where and when to turn the spotlight on.
 > You must refuse to let the light shine anyplace else. Here are five useful
 > strategies for putting your HOOK in lights."
@@ -55,7 +55,7 @@ working:
 EIGHTEEN WHEELS AND A DOZEN ROSES
 Ten more miles on his four lane run
 A few more songs from the all night radio
-And he’ll spend the rest of his life
+And he'll spend the rest of his life
 with the one that he loves
 ```
 
@@ -168,11 +168,11 @@ Chapter 7's repetition moves, in the order Pat prints them:
 - **Direct repetition** — simple but effective:
 
 ```text
-TEDDY DOESN’T LIVE HERE ANYMORE
-TEDDY DOESN’T LIVE HERE ANYMORE
+TEDDY DOESN'T LIVE HERE ANYMORE
+TEDDY DOESN'T LIVE HERE ANYMORE
 
-They get you crawlin’
-I might’a fallen
+They get you crawlin'
+I might'a fallen
 But you were always around
 YOU NEVER LET ME DOWN
 YOU NEVER LET ME DOWN
@@ -193,13 +193,13 @@ RIGHT FROM THE START
 - **Beginning-and-ending repetition for frame** — Randy Newman, "TICKLE ME":
 
 ```text
-Why don’t you TICKLE ME
-Gee whiz won’t that be fine
+Why don't you TICKLE ME
+Gee whiz won't that be fine
 What a great idea,
 What a perfect way to kill some time
-Can’t stop to think
+Can't stop to think
 'Cause if we do we'll lose our minds
-Why don’t you TICKLE ME
+Why don't you TICKLE ME
 ```
 
 - **Verse refrain plus chorus hook** when the form can support both — John
@@ -212,7 +212,7 @@ I know what my father went through
 There's only so much you can do
 You're proud when they walk
 Scared when they run
-That’s how it always has been between FATHERS AND SONS
+That's how it always has been between FATHERS AND SONS
 ```
 
 - **Repetition that completes or balances the structure** — see below.
@@ -570,7 +570,7 @@ He restates the five, then:
 
 > "Remember these strategies and try them out. They aren't so hard, and they
 > get even easier with practice. Putting your HOOK in the right place at the
-> right time with the right stuff doesn’t have to be an accident. You just need
+> right time with the right stuff doesn't have to be an accident. You just need
 > to learn to work the switches."
 
 Chapter 7 is the last chapter; the book's AFTERWORD follows it directly.

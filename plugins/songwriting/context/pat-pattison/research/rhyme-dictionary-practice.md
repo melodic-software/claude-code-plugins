@@ -270,7 +270,7 @@ better with practice."
 Chapter 1 does not cover: what to do when the word you looked up is not where you
 expected it. Pat's comment 5 on his own search, verbatim:
 
-> “Ignored” didn’t appear under “ORD,” where I thought it should. But at the end
+> "Ignored" didn't appear under "ORD," where I thought it should. But at the end
 > of the column, I saw "adored, etc." which referred me to *OR*. The reference
 > means to look at the *OR* column and add *D* whenever you can. The Wood book
 > uses this shorthand to avoid unnecessary duplication. So, I went to the *OR*

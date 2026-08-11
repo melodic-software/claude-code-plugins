@@ -42,12 +42,12 @@ The rows are not independent. Pat states the row 4 × row 3 interaction
 directly when he introduces the remote rhyme types
 (*Essential Guide to Rhyming* (2014), Chapter 6):
 
-> Now, let’s look at even more remote rhyme types. They have many of the
-> qualities that you value, plus they can do things for you that we can’t get
+> Now, let's look at even more remote rhyme types. They have many of the
+> qualities that you value, plus they can do things for you that we can't get
 > from most of our friends so far: they can suppress—or at least diminish—the
 > structural effects of your rhyme schemes.
 >
-> They’ll still give you a main rhyming benefit: expressive use of the rhyming
+> They'll still give you a main rhyming benefit: expressive use of the rhyming
 > position. But they give you something extra: a more subtle control of
 > structure, and new ways to affect the *moving* and *stopping* of structures.
 > These new techniques will be useful tools.
@@ -269,8 +269,8 @@ Like you love me?           a
 ```
 
 > So we have two unstable sections (sad lives), moving into a stable section —
-> “our love makes me stable. I wish everyone had this kind of love in their
-> lives.” If the rhyme scheme in the verses were stable, the arrival at a stable
+> "our love makes me stable. I wish everyone had this kind of love in their
+> lives." If the rhyme scheme in the verses were stable, the arrival at a stable
 > section in the chorus wouldn't have the same power.
 
 Pat proves that too, restabilizing both verses to xaxa and reporting the loss:
@@ -336,8 +336,8 @@ demonstration for **row 4**: the rhyme scheme is left alone and only the rhyme
 > Consonance rhyme never works like perfect rhyme. Yet, when it is strong
 > enough, it can work for you. You might use it in a case where you have already
 > committed to a rhyme scheme in an earlier verse, and want to keep it, yet relax
-> the motion in a later verse. In verse 3 of Paul Simon’s “50 Ways to Leave Your
-> Lover,” the end-rhymes are:
+> the motion in a later verse. In verse 3 of Paul Simon's "50 Ways to Leave Your
+> Lover," the end-rhymes are:
 >
 > ```text
 > pain
@@ -347,7 +347,7 @@ demonstration for **row 4**: the rhyme scheme is left alone and only the rhyme
 >
 > His use of the consonance rhyme is pretty. The verses are relaxed, both in
 > attitude and structure. The consonance rhyme in second position dampens the
-> resolving effect of the consecutive rhymes. Try replacing “again” with a
+> resolving effect of the consecutive rhymes. Try replacing "again" with a
 > perfect rhyme and see what happens! The prosody evaporates.
 
 Rows 1, 2, 3 and 5 are untouched; only the type in second position moves, and the

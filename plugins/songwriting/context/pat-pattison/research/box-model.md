@@ -54,12 +54,12 @@ and blackest at the bottom.
 His worked sketch, on the title idea *I'd just like to know* — "Assume you're
 working with the idea 'I'd just like to know.'":
 
-> Box 1: “Hi, it's nice to see you. You're looking good, and you're looking
-> really happy. Are you? I hope you don't mind my asking. I'd just like to know.”
+> Box 1: "Hi, it's nice to see you. You're looking good, and you're looking
+> really happy. Are you? I hope you don't mind my asking. I'd just like to know."
 
 > Let's try to advance the idea and make the second box gain weight.
 
-> Box 2: “When you left, did you already know you were moving in with him? When
+> Box 2: "When you left, did you already know you were moving in with him? When
 > I was out of town, did he come over to your place? Did you hide that picture
 > of us you kept on your dresser? I suppose it doesn't matter now, but I'd just
 > like to know."
@@ -68,10 +68,10 @@ working with the idea 'I'd just like to know.'":
 > box, the meeting, with some history, giving the second box more weight and
 > giving more impact to the title.
 
-> Box 3: “For me, a relationship is all about honesty. I want to be able to say
+> Box 3: "For me, a relationship is all about honesty. I want to be able to say
 > everything to you, and for you to say everything to me. I don't want any
 > secrets, no matter what. You could have told me about him. I wouldn't have
-> tried to stop you. I'd just like to know.”
+> tried to stop you. I'd just like to know."
 
 Each box gets its own drawn box in the print edition, labeled with the angle
 plus the unchanging title line:
@@ -98,7 +98,7 @@ plus the unchanging title line:
 ```
 
 > Box 3 combines or resolves all the information, and delivers the point of the
-> song. It's often the “why” of the song — why I'm saying all this to you. It
+> song. It's often the "why" of the song — why I'm saying all this to you. It
 > weighs the most.
 
 > Now, it's simply a matter of actually writing the song, but writing it knowing
@@ -194,12 +194,12 @@ He then tracks a single chorus line through the three boxes:
 
 > Box 1: The hot July moon saw us down by the river having our first experience.
 
-> Box 2: The hot July moon knew that our love, like so many before (“well-beaten
-> path”), wouldn't last.
+> Box 2: The hot July moon knew that our love, like so many before ("well-beaten
+> path"), wouldn't last.
 
 > Box 3: The hot July moon knew that, over time, we'd become unable to experience
 > the innocence and power of first love — accumulated experiences would create
-> too much awareness — “the fields have grown over now.”
+> too much awareness — "the fields have grown over now."
 
 > The moon grows from an observer to a prophet and predictor of the future. It
 > becomes a bigger and bigger moon, needing bigger and bigger boxes. When you
@@ -253,7 +253,7 @@ Love Love Love
 ```
 
 > But you can see how the boxes gain weight by separating the perspectives. Call
-> it the “you-I-we” formula for lyric development: Each verse focuses from a
+> it the "you-I-we" formula for lyric development: Each verse focuses from a
 > different perspective. It's a nice guideline for dividing your verses' jobs.
 
 The joke is doing real work: the boxes gain weight because each one is *about*
@@ -440,13 +440,13 @@ When a writer is stuck on verse 2, the question is rarely "what's the next
 event?" Pat states the move twice in Chapter 6:
 
 > One more tip: Just because you wrote a verse first doesn't mean it's your
-> first verse. Give yourself two chances. Don't just ask “Where do I go next?”
-> Try asking “What happened before this?”
+> first verse. Give yourself two chances. Don't just ask "Where do I go next?"
+> Try asking "What happened before this?"
 
-> Of course, there are no rules. The solution to the question “Where do I go
-> now?” changes with every song. Sometimes it's even the wrong question. Just
+> Of course, there are no rules. The solution to the question "Where do I go
+> now?" changes with every song. Sometimes it's even the wrong question. Just
 > because you wrote a verse first doesn't mean it's the first verse. Instead of
-> asking “Where do I go now?” it may help to ask “Where did I get here from?”
+> asking "Where do I go now?" it may help to ask "Where did I get here from?"
 > Get used to juggling and trying new things.
 
 What he claims is the reordering itself — the verse you wrote first may not be
@@ -457,7 +457,7 @@ And the stronger version of the same advice runs upstream of the stuck point
 entirely:
 
 > Thinking about boxes from the outset, the minute an idea comes, is by far the
-> best remedy for “second-verse hell” (songwriters' term for “Where do I go
+> best remedy for "second-verse hell" (songwriters' term for "Where do I go
 > next?").
 
 ## Travelogue vs same-color
@@ -572,7 +572,7 @@ the repainting is missing.
 Pat's case is "Between Fathers and Sons" (John Jarvis and Gary Nicholson), in
 Chapter 6. He counts **two** boxes, not three:
 
-> “Between Fathers and Sons” is made up of two boxes. Verses one and two plus
+> "Between Fathers and Sons" is made up of two boxes. Verses one and two plus
 > the first chorus make up box one. Verses three and four plus the second chorus
 > make the second box.
 
@@ -621,7 +621,7 @@ Box 2 then opens with the verse that used to sit in box 1,
 > The father's perspective colors the second chorus. It becomes — for me, at
 > least — more interesting than the first chorus.
 
-> The problem in “Between Fathers and Sons” is that both ideas are in the first
+> The problem in "Between Fathers and Sons" is that both ideas are in the first
 > box, leaving the lyric no place new to go. Separating the ideas into separate
 > boxes makes both choruses fresh.
 

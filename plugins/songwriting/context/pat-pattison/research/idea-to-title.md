@@ -67,9 +67,9 @@ When the seed IS a title, the missing piece is the angle. Pat's own
 worked dialogue for "Risky Business" over the subject of homelessness:
 
 ```text
-“What do you do for a living?”
-“I survive on the streets.”
-“That's a pretty risky business.”
+"What do you do for a living?"
+"I survive on the streets."
+"That's a pretty risky business."
 ```
 
 His instruction: "In each case, it's up to you to find the angle,

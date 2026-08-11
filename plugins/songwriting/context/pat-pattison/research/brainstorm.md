@@ -44,8 +44,8 @@ The single highest-yield brainstorm path. Pat's Challenge 1 (*Songwriting
 Without Boundaries* (2011)) is the template. He states its shape in one
 sentence at the end of the Challenge 1 introduction:
 
-> The first five days are devoted to pure object writing. Let’s call it “what”
-> writing. Then three days each of “who,” “when,” and “where” writing. Have fun.
+> The first five days are devoted to pure object writing. Let's call it "what"
+> writing. Then three days each of "who," "when," and "where" writing. Have fun.
 
 1. **Pick a seed category** — what / who / when / where, in that order. The
    seeds below are Pat's own printed prompts for those days, not substitutes:
@@ -145,13 +145,13 @@ is genuine Pat vocabulary, from *Essential Guide to Rhyming* (2014).
 Pat's own prohibitions, verbatim — this is what he actually forbids during a
 timed object write:
 
-> Don’t worry about story lines or “how it really happened.” No rhyme or rhythm.
+> Don't worry about story lines or "how it really happened." No rhyme or rhythm.
 > Not even full sentences. No one needs to understand where you are or how you
 > got there. Save more focused writing for when you need to be focused.
 
 > Guarantee yourself only the time allotted for each prompt. Set a timer, and
 > stop the second it goes off. I mean the second […] Don't finish the sentence.
-> Don’t even finish the word you’re in the middle of.
+> Don't even finish the word you're in the middle of.
 
 > — *Songwriting Without Boundaries* (2011), Challenge 1
 

@@ -69,8 +69,8 @@ Chapter 18 defines the term through Aristotle:
 
 > Aristotle said that every great work of art contains the same feature: unity.
 > Everything in the work belongs — it all works to support every other element.
-> Another word for unity is prosody, which is the “appropriate relationship
-> between elements, whatever they may be.”
+> Another word for unity is prosody, which is the "appropriate relationship
+> between elements, whatever they may be."
 
 Pat's three examples of what "elements" can mean:
 
@@ -82,8 +82,8 @@ Pat's three examples of what "elements" can mean:
 > are lined up properly, the shape of the melody matches the natural shape of
 > the language.
 >
-> Between rhythm and meaning: Obvious examples like “you gotta stop! … (pause)
-> … look and listen” or writing a song about galloping horses in a triplet
+> Between rhythm and meaning: Obvious examples like "you gotta stop! … (pause)
+> … look and listen" or writing a song about galloping horses in a triplet
 > feel.
 
 > The elements all join together to support the central intent, idea, and
@@ -120,7 +120,7 @@ stiffen a little." The shotguns follow. Pat's point about who noticed:
 > pulling the strings and we, like puppets, react predictably, feeling just what
 > the score makes us feel.
 >
-> That's what's going on in “Can't Be Really Gone,” but this time it's not the
+> That's what's going on in "Can't Be Really Gone," but this time it's not the
 > music that creates the film score. It's the structure of the lyric, acting,
 > just like a film score, on our emotions.
 
@@ -201,8 +201,8 @@ doing emotionally before deciding whether to revise it.
 
 Pat's closing warning about what analysis is for:
 
-> So, did Gary Burr think about all this stuff as he wrote “Can't Be Really
-> Gone”? Maybe, maybe not. The important issue is: You can.
+> So, did Gary Burr think about all this stuff as he wrote "Can't Be Really
+> Gone"? Maybe, maybe not. The important issue is: You can.
 >
 > The point of lyric analysis isn't to discover what a given writer intended to
 > do. That's a fool's errand. Rather, lyric analysis digs into effective songs to
@@ -272,14 +272,14 @@ Use odd line counts when the narrator, scene, or emotional claim should feel
 unsettled. Use even line counts when the lyric should feel trustworthy,
 grounded, or resolved. Pat's two test ideas:
 
-> Let's say you're writing a verse where the idea is something like: “Baby,
+> Let's say you're writing a verse where the idea is something like: "Baby,
 > since you left me I've been feeling lost, odd, off balance, unresolved,
-> incomplete, unstable.” Just theoretically, do you think this verse would be
+> incomplete, unstable." Just theoretically, do you think this verse would be
 > better with an even number of lines or an odd number of lines? Right. An odd
 > number of lines.
 
-> Let's say that your message is something like: “Baby, you're the answer to all
-> my prayers. I'll be with you forever. I'm your rock. You can count on me.” How
+> Let's say that your message is something like: "Baby, you're the answer to all
+> my prayers. I'll be with you forever. I'm your rock. You can count on me." How
 > many lines should you use? Odd or even? Right. Even.
 
 Mismatch can create irony. If a narrator claims stability inside an unstable
@@ -290,8 +290,8 @@ pulls the rug out from under the narrator. It creates irony."
 
 That is the mechanism running under "Can't Be Really Gone" verse one:
 
-> This feels unstable, though the message is: “Look at the evidence — it proves
-> that she'll be coming back.” But the feeling we get from the unstable
+> This feels unstable, though the message is: "Look at the evidence — it proves
+> that she'll be coming back." But the feeling we get from the unstable
 > structure (which is acting like a film score) is that he's wrong and perhaps a
 > bit hysterical or, at least, in denial.
 
@@ -377,7 +377,7 @@ constant and names it:
 
 > What should remain constant between the rhythms of words and musical rhythm is
 > this: Stressed syllables belong with stressed notes. Unstressed syllables
-> belong with unstressed notes. This is called “preserving the natural shape of
+> belong with unstressed notes. This is called "preserving the natural shape of
 > the language."
 
 Pat scans the "Can't Be Really Gone" verse as a duple pattern and prints the
@@ -621,7 +621,7 @@ against a chorus whose title is "For One Smile in a Million":
 > If it were a pre-chorus or bridge, we could maybe use the third line's vowel
 > sound from while (which is asking to be rhymed) to illuminate an important
 > vowel sound in the oncoming section — for example, in an oncoming chorus where
-> the title of the song was something like “For One Smile in a Million.” The
+> the title of the song was something like "For One Smile in a Million." The
 > while in line three, hanging there unrhymed, will emphasize smile in the
 > chorus. Nifty tool, eh?
 
@@ -974,7 +974,7 @@ off it. Pat's five numbered descriptions of Common Meter, verbatim:
 > would end.
 
 > We have just developed what we will call the STRUCTURAL PENTAD (penta =
-> “five”) — five normal characteristics of any structure, be it a rhythmic
+> "five") — five normal characteristics of any structure, be it a rhythmic
 > structure, a rhyme structure, or even a musical structure.
 
 Note the wording gap between the prose and the worksheet: the numbered
@@ -1242,7 +1242,7 @@ the web material. *Songwriting Without Boundaries* (2011), Challenge 4, Day 6,
 on rhyming a secondary stress against a primary one:
 
 > Be careful rhyming secondary stress with primary stress: If you place the
-> secondary stress on a stronger musical beat than the primary stress, you’ll
+> secondary stress on a stronger musical beat than the primary stress, you'll
 > distort the natural shape of the word.
 
 Pat's worked instances there are the rhyme pairs `breeze/harmonies` and
@@ -1280,10 +1280,10 @@ Devil *haunts* my past
 *God* give me peace at last
 ```
 
-> The “greedy” spots would surely get buried or at the very least sound hurried
+> The "greedy" spots would surely get buried or at the very least sound hurried
 > (and lose their emotion) when you set them to the music of the original verse.
 
-> It is equally important to match the original’s important words with equally
+> It is equally important to match the original's important words with equally
 > important words. This one is too cold:
 
 ```text
@@ -1293,7 +1293,7 @@ My weakness is *now* in the *place* of your malice
 And *get* me *out* at last
 ```
 
-> This should be enough to lose anyone’s interest.
+> This should be enough to lose anyone's interest.
 
 > You must resist greed. But you must put your important words in the important
 > positions. This one is just right.
@@ -1351,7 +1351,7 @@ one greedy spot often fixes adjacent ones.
 it and names it in one move:
 
 > Stressed syllables belong with stressed notes. Unstressed syllables belong
-> with unstressed notes. This is called “preserving the natural shape of the
+> with unstressed notes. This is called "preserving the natural shape of the
 > language."
 
 The same chapter gives the melodic consequence: when stressed syllables and
@@ -1436,8 +1436,8 @@ Structure* (1991), Chapter 2. **Correction to an earlier version of this
 note: the 1991 definition was not narrower.** It was already fully general.
 Verbatim:
 
-> “Prosody” means that things fit well with one another. Here, for example, how
-> well meaning fits with structure. Here we’re talking about the way syllables
+> "Prosody" means that things fit well with one another. Here, for example, how
+> well meaning fits with structure. Here we're talking about the way syllables
 > fit with melody in a song. It can also be used in other ways.
 
 What was narrow in 1991 was the *application*, not the meaning: Chapter 2 is a

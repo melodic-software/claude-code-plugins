@@ -107,7 +107,7 @@ Then, on #1A:
 
 > #1A might be a Verse. It closes the way you expect it to, but the added phrase
 > puts space between rhymes, slowing the section down. It delays closure like
-> Verse 2 of “CAN’T FIGHT THIS FEELING,” so 1A might also a be good verse 2.
+> Verse 2 of "CAN'T FIGHT THIS FEELING," so 1A might also a be good verse 2.
 
 (That sentence is as printed. Do not "fix" it.)
 
@@ -247,10 +247,10 @@ EXERCISE 30 follows from this chorus; it is preserved in
 #3. Love me like a candy bar
     Layer after layer
     Let me be your chocolate star
-    Sugar I’m bursting with flavor
+    Sugar I'm bursting with flavor
 ```
 
-> (The phrase length here doesn’t change, practically speaking, since the number
+> (The phrase length here doesn't change, practically speaking, since the number
 > of stressed syllables is the same.)
 
 > Rhythm accelerates in the last phrase of #3 … This has two effects:
@@ -274,28 +274,28 @@ Figure `image_rsrc32S` is that withheld duple figure:
 Love me like a candy bar                   VERSE
 Layer after layer
 Let me be your chocolate star
-Sugar I’m bursting with flavor             (withholding)
+Sugar I'm bursting with flavor             (withholding)
 
     /       u  /  u   /
    YOURS, FOREVER YOURS                    (delivering)   [image_rsrc32T]
 
-You won’t need any more                    CHORUS
-With all I’ve got in store
-I’M YOURS, FOREVER YOURS
+You won't need any more                    CHORUS
+With all I've got in store
+I'M YOURS, FOREVER YOURS
 ```
 
 ### The same trick in "Can't Fight This Feeling"
 
-> Watch how this triplet trick is used in “CAN’T FIGHT THIS FEELING” at the end
+> Watch how this triplet trick is used in "CAN'T FIGHT THIS FEELING" at the end
 > of the TRANSITIONAL BRIDGE.
 
 > Verse 2 sets up a 5-stress duple phrase, then shortens the phrases at the end
 > of the Verse to avoid closing on a five-stress phrase:
 
 ```text
-I tell myself that I can’t hold out forever      VERSE 2
+I tell myself that I can't hold out forever      VERSE 2
 I say there is no reason for my fear             [image_rsrc32U, scanned]
-’Cause I feel so secure when we’re together
+'Cause I feel so secure when we're together
 You give my life direction                       (withholding)   [image_rsrc32V]
 You make everything so clear                     (withholding)   [image_rsrc32V]
 ```
@@ -359,18 +359,18 @@ C. TYPE:   ___ EXPECTED         ___ UNEXPECTED      _x_ DECEPTIVE
 
 > The section is pretty well balanced. It would be useful as a verse, perhaps as
 > a second verse in a Verse/Verse/Chorus Song System. It might be a good Chorus
-> Structure, but again, I’d like to see the spotlighted last phrase used as a
+> Structure, but again, I'd like to see the spotlighted last phrase used as a
 > title spot:
 
 ```text
-Sugar I’m your CANDY BAR
+Sugar I'm your CANDY BAR
 Come on, try my flavors
 Love me like a chocolate star
-I’m your CANDY BAR
+I'm your CANDY BAR
 ```
 
 > But the closing phrase loses some punch, since its 3-stress phrase rhymes with
-> a four-stress phrase. I’d extend the phrase too. Our earlier try at a Chorus
+> a four-stress phrase. I'd extend the phrase too. Our earlier try at a Chorus
 > was better:
 
 ```text

@@ -31,7 +31,7 @@ could have found.
 Pat opens Challenge 1 with an epigraph that states the whole discipline in one
 sentence:
 
-> Don’t tell me the moon is shining; show me the glint of light on broken glass.
+> Don't tell me the moon is shining; show me the glint of light on broken glass.
 >
 > —Anton Chekhov, epigraph to *Songwriting Without Boundaries* (2011),
 > Challenge 1
@@ -44,25 +44,25 @@ questions are the point, because the reader has to supply every answer:
 >
 > Turn down these voices inside my head.
 >
-> “I Can’t Make You Love Me” —Reid/Shamblin
+> "I Can't Make You Love Me" —Reid/Shamblin
 
 > Where do these words take you? Do they make you see something? What kind of
 > bed? Single? Double? What color is the bedspread? The pillows? Where is the
 > light coming from? A table lamp? Above the headboard?
 >
 > When a lyric stimulates and provokes your senses, you draw the images from
-> your own experiences. You fill Mike Reid’s and Alan Shamblin’s words with your
-> stuff. They involve you, so the song becomes about you. That’s the power of
+> your own experiences. You fill Mike Reid's and Alan Shamblin's words with your
+> stuff. They involve you, so the song becomes about you. That's the power of
 > sense-bound writing. It pulls the listener into the song by using his own
-> memories as the song’s material.
+> memories as the song's material.
 
 The second specimen, and the sentence the whole discipline rests on:
 
-> I’ve got sunshine on a cloudy day
+> I've got sunshine on a cloudy day
 >
-> When it’s cold outside, I’ve got the month of May
+> When it's cold outside, I've got the month of May
 >
-> “My Girl” —Smokey Robinson
+> "My Girl" —Smokey Robinson
 
 > Sense-bound writing turns observers into participants. It is one of the most
 > powerful tools a writer has.
@@ -76,7 +76,7 @@ muscle working in poetry. The trailing ellipsis is his:
 > Gleams and is gone; the cliffs of England stand;
 > Glimmering and vast, out in the tranquil bay …
 >
-> “Dover Beach” —Matthew Arnold
+> "Dover Beach" —Matthew Arnold
 
 All three specimens, and the prose between them, are *Songwriting Without
 Boundaries* (2011), Challenge 1. Only after all three does Pat name the
@@ -100,14 +100,14 @@ The rule has a name, and the name comes from the kindergarten story Pat tells to
 get to it. He asked to bring his new puppy Rusty in for Show-and-Tell, was told
 to bring the collar instead, and left the collar on the kitchen table:
 
-> “Can I do Show-and-Tell anyway?”
+> "Can I do Show-and-Tell anyway?"
 >
-> “No, no,” she said gently, shaking her finger (they always shake their
-> fingers). “You can't tell unless you show first.”
+> "No, no," she said gently, shaking her finger (they always shake their
+> fingers). "You can't tell unless you show first."
 >
 > YOU CAN'T TELL UNLESS YOU SHOW FIRST.
 >
-> To this day, I call that the “Sister Mary Elizabeth Rule of Song-writing.”
+> To this day, I call that the "Sister Mary Elizabeth Rule of Song-writing."
 > Show before you tell. Showing makes the telling more powerful because your
 > senses and your mind are both engaged.
 >
@@ -140,7 +140,7 @@ Back when you were mine
 
 The mechanism is not "color" in the abstract. It is a bag of dye:
 
-> Think of Rusty's collar this way: “Hot rod hearts and high school rings” is a
+> Think of Rusty's collar this way: "Hot rod hearts and high school rings" is a
 > bag of dye. Hang the dye on top of the section and let it drip its colors
 > downward onto the other lines, giving them more interest and depth.
 
@@ -220,11 +220,11 @@ the comparison is:
 > Instant bland. David Rawlings, Welch's partner and an ardent student and
 > practitioner of songwriting, called me with this beige version, remarking how
 > he'd just turned the song into a disaster by trading the specific image for a
-> cliché rhyme, city/pretty. “Look how completely it destroys a perfectly good
-> work,” he chuckled.
+> cliché rhyme, city/pretty. "Look how completely it destroys a perfectly good
+> work," he chuckled.
 >
 > When you're writing, it's fine to just let things flow. But always be on the
-> alert for potential “collars.” Don't leave Rusty's collar on the kitchen
+> alert for potential "collars." Don't leave Rusty's collar on the kitchen
 > table, no matter how excited you are to get to school and tell everyone about
 > your new puppy.
 > — *Writing Better Lyrics* (2009), Chapter 2
@@ -249,7 +249,7 @@ go next. It appears once in the Challenge 1 opener, once on each of the fourteen
 Challenge 1 days, and once again on each of the fourteen Challenge 4 days; the
 metaphor challenges in between do not carry the strip. Pat's framing on Day 1:
 
-> Use the list below as a place to let your eye wander when you’re not sure
+> Use the list below as a place to let your eye wander when you're not sure
 > where to go next.
 >
 > — *Songwriting Without Boundaries* (2011), Challenge 1, Day 1
@@ -279,7 +279,7 @@ that the 2009 text does not have:
 
 > Even if it is only visual, remember that visual has at least three
 > aspects — color, shape, and texture. Try isolating each and noticing, for
-> example, only shapes. Look for similar shapes. Then look for texture “rhymes.”
+> example, only shapes. Look for similar shapes. Then look for texture "rhymes."
 > How many colors does the tree really have?
 
 The two extra channels get real definitions. These are Pat's, near-identical in
@@ -416,9 +416,9 @@ Stopping on time matters, and Pat gives the mechanism a name:
 > Soon, during your timed writing, something like this will happen: Your writing
 > will start to roll, diving, plunging, heading directly for the soft pink and
 > blue glow below when, beep! The timer goes off. Just stop. Wherever you are.
-> Stop. Writus interruptus. All day your frustrated writer will grumble, “Boy,
-> what I might have said if you hadn’t stopped me.” Guaranteed, when you sit down
-> the next morning, you will dive deeper faster. You’ll reach the bottom in three
+> Stop. Writus interruptus. All day your frustrated writer will grumble, "Boy,
+> what I might have said if you hadn't stopped me." Guaranteed, when you sit down
+> the next morning, you will dive deeper faster. You'll reach the bottom in three
 > minutes flat. Next time, one minute. Finally, instantly. That is your goal:
 > immediate access—speed and depth. [...] But, of course, speed doesn't count
 > without depth. The ten-minute absolute limit is the key to building both. And
@@ -498,7 +498,7 @@ Pat's second documented demonstration is Cathy Brettell's ten-minute write on
 > Without Boundaries* (2011), Challenge 1
 
 > As you can see from "Elevator," "Breath sucks back into my throat — stomach ball
-> jellies to my toes like an anchor hoisted over ship” took Cathy from an
+> jellies to my toes like an anchor hoisted over ship" took Cathy from an
 > elevator ride to an ocean storm, no permission asked.
 >
 > — Pat Pattison, *Songwriting Without Boundaries* (2011), Challenge 1
@@ -639,7 +639,7 @@ fourteen-day format, under the heading "Group Writing":
 
 > The fourteen-day challenges in this book work great in a group setting. You
 > can expand your experience by asking friends to join you, either at your
-> favorite coffee shop, someone’s home, or even online. It’s fascinating to hear
+> favorite coffee shop, someone's home, or even online. It's fascinating to hear
 > other writers dive and roll off the same prompt. Get some people together, set
 > a timer, and start with the object, person, time, or place—depending on the
 > challenge of the day. When time is up, each person reads. Each of you will have
@@ -678,11 +678,11 @@ under every prompt:
 > Each day of the fourteen-day Object Writing challenge asks the reader to
 > participate in three timed Object Writing exercises of five minutes, ten
 > minutes and 90 seconds for fourteen days. [...] Most of the responses in this
-> first challenge are drawn from an object writing “contest” at
+> first challenge are drawn from an object writing "contest" at
 > objectwriting.com, a site built by Paul Penton in Melbourne, Australia. The
 > contest ran for forty days, each day presenting a new prompt. We chose two,
 > from the 20 to 40 responses we received each day, for inclusion here. This way,
-> you’ll have a group writing experience whether you form your own group or not.
+> you'll have a group writing experience whether you form your own group or not.
 >
 > — *Songwriting Without Boundaries* (2011), Challenge 1
 
@@ -760,7 +760,7 @@ matter more than the exact seed word.
 Day 4 stops mid-challenge to teach one craft lever, and the lever is verbs.
 Pat's commentary on Nick Miller's and Linda M's curbs:
 
-> Check out Nick and Linda’s verbs. Go ahead, underline them. I’ll wait.
+> Check out Nick and Linda's verbs. Go ahead, underline them. I'll wait.
 >
 > Strong verbs are the key to strong writing. Audition your verbs. Let them
 > prance and somersault for you. Verbs based in metaphor or steeped in the senses
@@ -782,12 +782,12 @@ underline every verb first and ask which ones got the gig on merit.
 The "where" days make an important adjustment: place is not scenery. Pat states
 it in four sentences on Day 14:
 
-> “Where” is a wonderful tool. Once you decide the place, the rest of your
-> writing can wrap around it or evolve from it. That’s why it’s useful to imagine
-> a place when you write, whether or not you actually talk about it. “Where”
+> "Where" is a wonderful tool. Once you decide the place, the rest of your
+> writing can wrap around it or evolve from it. That's why it's useful to imagine
+> a place when you write, whether or not you actually talk about it. "Where"
 > organizes action.
 >
-> Abstract, generic writing usually lacks the grounding power of “where.”
+> Abstract, generic writing usually lacks the grounding power of "where."
 >
 > — *Songwriting Without Boundaries* (2011), Challenge 1, Day 14
 
@@ -849,8 +849,8 @@ Pat's own examples, verbatim:
 
 > Use other perspectives. Your object writing can be from the perspective of an
 > airline flight attendant, hurrying to serve drinks on a short flight. Or a
-> volunteer at an animal rescue shelter. A car thief, as in Sting’s “Stolen Car”
-> or his “Tomorrow We’ll See,” from the perspective of a male prostitute.
+> volunteer at an animal rescue shelter. A car thief, as in Sting's "Stolen Car"
+> or his "Tomorrow We'll See," from the perspective of a male prostitute.
 >
 > — *Songwriting Without Boundaries* (2011), Challenge 1, Day 6
 
@@ -980,9 +980,9 @@ The Challenge 1 opener, under the heading "Timed Writing", says it at length and
 this is the version to read to a writer once:
 
 > Guarantee yourself only the time allotted for each prompt. Set a timer, and
-> stop the second it goes off. I mean the second, as you’ll see from some of the
-> examples in this challenge. Be sure you always stop right at the buzzer. Don’t
-> finish the sentence. Don’t even finish the word you’re in the middle of.
+> stop the second it goes off. I mean the second, as you'll see from some of the
+> examples in this challenge. Be sure you always stop right at the buzzer. Don't
+> finish the sentence. Don't even finish the word you're in the middle of.
 >
 > — *Songwriting Without Boundaries* (2011), Challenge 1
 
@@ -1004,9 +1004,9 @@ Destination writing is **not Pat's term** — it is Andrea Stolpe's, and Pat
 credits her for it:
 
 > In her book, *Popular Lyric Writing: 10 Steps to Effective Storytelling*,
-> Andrea Stolpe incorporates some commentary, some “telling,” into her object
-> writing, calling it “destination writing.” She recognizes that good song ideas,
-> especially titles, come just as easily from the “tell” side as the “show” side
+> Andrea Stolpe incorporates some commentary, some "telling," into her object
+> writing, calling it "destination writing." She recognizes that good song ideas,
+> especially titles, come just as easily from the "tell" side as the "show" side
 > of your writing.
 >
 > — *Writing Better Lyrics* (2009), Chapter 1, "Expanded Object Writing"
@@ -1015,14 +1015,14 @@ Pat prints no minute-split for it — do not invent one. What he prints is a sin
 worked instance, and the tell lands as the last line of a sense-bound passage:
 
 > For example, I was tempted to add one more line to the passage I wrote about
-> the yellow slicker for the “Puddle” exercise:
+> the yellow slicker for the "Puddle" exercise:
 >
 > I remember stomping through puddles on Duluth Avenue in St. Paul when I was
 > seven. I had a yellow slicker that smelled like my rubber boots and my boot and
 > buckles jingled when I walked. All the cool guys left their boots open.
 >
 > Even though it isn't sense-bound, I like the last line, especially the tone it
-> takes. It's a comment — a “tell.” It might be a line in a song, maybe a comment
+> takes. It's a comment — a "tell." It might be a line in a song, maybe a comment
 > after a few sense images set it up.
 >
 > — *Writing Better Lyrics* (2009), Chapter 1
@@ -1041,7 +1041,7 @@ The three-item "Use destination writing when:" list that stood here was
 reason it earns its place:
 
 > She recognizes that good song ideas, especially titles, come just as easily
-> from the “tell” side as the “show” side of your writing.
+> from the "tell" side as the "show" side of your writing.
 >
 > — *Writing Better Lyrics* (2009), Chapter 1
 
@@ -1049,7 +1049,7 @@ Pat's own section title for this material is **"Expanded Object Writing"**.
 His one boundary on it is that neither practice is journaling:
 
 > Neither object writing nor destination writing is journaling. In journaling,
-> events, emotions, and “how I really feel” drive the bus. It's usually about
+> events, emotions, and "how I really feel" drive the bus. It's usually about
 > self-exploration, not so much about writing. And that's fine. But object
 > writing and destination writing are about writing. They are a preparation
 > for writing songs. They have a specific purpose.
@@ -1068,8 +1068,8 @@ verbatim:
 
 > I also recommend this kind of storytelling when hanging out with other
 > writers. You might even make a special trip to the mall or the airport to
-> exercise your powers of observation. (I call it the “airport game.”) As
-> somebody passes you, ask your friend a question: “Who did he take to his
+> exercise your powers of observation. (I call it the "airport game.") As
+> somebody passes you, ask your friend a question: "Who did he take to his
 > junior prom?" "Does she get along with her younger sister?" Take turns asking
 > questions.
 >
@@ -1148,7 +1148,7 @@ every single round is the part a summary drops:
 > different way). Read. Then another five minutes to decompress from diving so
 > deep. Read. And a break for munchies and conversation. After the break, they go
 > back for one more ten minutes, then one for ninety seconds, and then one for
-> five minutes before ending their weekly “object writing party.” Welch says that
+> five minutes before ending their weekly "object writing party." Welch says that
 > object writing was one of the most important keys to her success — and she's had
 > seven Grammy nominations, with three wins.
 >
