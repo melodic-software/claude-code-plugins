@@ -2295,6 +2295,78 @@ else
   fail "jq_fields early-return flag: expected 0, got '$HOOK_JQ_FIELDS_NUL'"
 fi
 
+# --- Test 20: hook::is_enabled / hook::check_enabled --------------------------
+# `check_enabled` exits the process when a plugin is gated off, so a case cannot
+# be asserted in-process: each runs in a child bash that sources the lib and
+# prints a sentinel only if the gate let it through. Absence of the sentinel IS
+# the "skipped" signal. Each probe unsets the control variable first so an
+# ambient value in the test runner's own environment cannot mask a regression.
+#
+# Scope note: this gate reads ONLY the plugin's own userConfig mirror. Turning
+# the whole fleet off is Claude Code's job (`--safe-mode`, `disableAllHooks`,
+# `claude plugin disable`), not this library's — a second fleet-wide switch here
+# would be a competing source of truth for the same question.
+ce_probe() {
+  # ce_probe <RUN|SKIP> <description> [VAR=VALUE ...]
+  local want="$1" desc="$2"
+  shift 2
+  local got
+  got=$(
+    env -u CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED \
+      "$@" bash -c 'source "$0"; hook::check_enabled "RATE_LIMIT_GUARD"; printf RUN' \
+      "$HOOK_DIR/hook-utils.sh" 2>/dev/null
+  )
+  got="${got:-SKIP}"
+  if [[ "$got" == "$want" ]]; then
+    ok "check_enabled: $desc"
+  else
+    fail "check_enabled: $desc — got '$got', want '$want'"
+  fi
+}
+
+# The default must not move: every existing installation leaves this unset, so a
+# regression here silently changes behavior for every user of the marketplace.
+ce_probe RUN "unset stays enabled (backward compatibility)"
+ce_probe RUN "explicit true" CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED=true
+ce_probe SKIP "explicit false" CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED=false
+# Anything that is not exactly "true" is off — a typo must not read as enabled.
+ce_probe SKIP "a non-boolean value is not 'true'" CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED=yes
+# An EMPTY value is treated as unset, not as false: `${var:-true}` falls back to
+# the default. This is long-standing behavior, asserted here so a future change
+# to the parameter expansion (`:-` to `-`) can't flip it silently. It matters
+# because Claude Code exports every declared userConfig option to the hook
+# environment, so an option the user never answered arrives as an empty string —
+# and that must mean "default", not "disabled".
+ce_probe RUN "empty value falls back to the default (treated as unset)" \
+  CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED=
+
+# hook::is_enabled is the predicate form: same answer, but it RETURNS instead of
+# exiting. The statusline tee depends on this — it wraps the user's real
+# statusline, so an exit would blank the status line instead of just skipping
+# the tee's own write.
+ie_probe() {
+  local want="$1" desc="$2"
+  shift 2
+  local got
+  got=$(
+    env -u CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED \
+      "$@" bash -c 'source "$0"
+        if hook::is_enabled "RATE_LIMIT_GUARD"; then printf ENABLED; else printf DISABLED; fi
+        printf "+SURVIVED"' "$HOOK_DIR/hook-utils.sh" 2>/dev/null
+  )
+  if [[ "$got" == "$want" ]]; then
+    ok "is_enabled: $desc"
+  else
+    fail "is_enabled: $desc — got '$got', want '$want'"
+  fi
+}
+ie_probe "ENABLED+SURVIVED" "unset returns true and does not exit"
+ie_probe "ENABLED+SURVIVED" "explicit true returns true" \
+  CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED=true
+# The critical one: a disabled answer must NOT terminate the caller.
+ie_probe "DISABLED+SURVIVED" "explicit false returns false WITHOUT exiting" \
+  CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED=false
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]
