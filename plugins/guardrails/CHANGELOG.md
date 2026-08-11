@@ -3,6 +3,36 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.1]
+
+### Changed
+
+- **The scratch-root exemption's quoted-operand fail-close is broader than 0.25.0 described, and
+  every surface now says so (follow-up to #2224 review; root cause #2226).** No behaviour changes;
+  the accuracy of four documents does, and two tests now pin the boundary.
+
+  0.25.0 described the check as refusing "a quoted or escaped **operand**". It is not
+  operand-scoped: it reads the whole raw command tail after the first `>` — not the segment being
+  evaluated, and not the target word. So a quote in an unrelated **later** segment cancels the
+  exemption for an earlier, unambiguous write:
+
+  | command, root `/tmp/scratch` | verdict |
+  | --- | --- |
+  | `echo x > /tmp/scratch/f && grep foo "notes.txt"` | **blocked** |
+  | `echo x > /tmp/scratch/f && grep foo notes.txt` | allowed |
+
+  The breadth is deliberate and stays. It is one-directional — the test can only ever *refuse* an
+  exemption, never grant one — so the failure mode is lost convenience, not a bypass. Narrowing it
+  means knowing which quotes belonged to the operand, which is exactly the association
+  `strip_literals` destroys; that is #2226's root cause rather than a separate fix, and it is
+  deliberately not attempted here.
+
+  What was wrong was the description. The hook comment, 0.25.0's entry below, the README and the
+  manifest's option description all implied operand-scoped precision; all four now state the true
+  scope. Two regression tests pin both sides of the compound-command boundary — the existing
+  cross-segment test did not cover this shape, because it used an unquoted second segment with a
+  genuinely non-exempt target.
+
 ## [0.25.0]
 
 ### Added
@@ -56,10 +86,18 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   pathname, reaches the containment check as the safe-looking prefix `/tmp/scratch/a`. Exempting
   that prefix would be precisely the one-token bypass the `/dev/null` precedent warns about. The
   only surviving evidence of the truncation is the raw command, so the exemption **fails closed on
-  any quote or backslash after the first redirect operator**. Deliberately conservative: even a
-  benign `> "/tmp/scratch/f"` loses the exemption, and an operator who wants it writes the target
-  unquoted. Quotes *before* the operator (`echo "hello world" > /tmp/scratch/f`) are the ordinary
-  case and keep it. Six tests pin the closed shapes.
+  any quote or backslash after the first redirect operator**. Even a benign `> "/tmp/scratch/f"`
+  loses the exemption; an operator who wants it writes the target unquoted.
+
+  **That test is broader than "the operand", and the breadth is deliberate — stated here rather than
+  implied away.** It reads the whole raw tail: not the segment being evaluated, and not the target
+  word. So a quote anywhere in a *later* segment costs an earlier, unambiguous write its exemption —
+  `echo x > /tmp/scratch/f && grep foo "notes.txt"` blocks, while the same compound without the
+  quotes stays exempt. It is one-directional (the test can only ever refuse an exemption, never
+  grant one), but narrowing it means knowing which quotes belonged to the operand, which is exactly
+  the association `strip_literals` has already destroyed — #2226 again. Quotes *before* the operator
+  (`echo "hello world" > /tmp/scratch/f`) are the ordinary case and keep the exemption. Eight tests
+  pin the closed shapes and both sides of the compound-command boundary.
 
   The same truncation reaches the **`/dev/null`** exemption and **predates this change** — measured
   at `685dd381`, `echo x > "/dev/null;/../../etc/passwd"` is already allowed there. Fixing that half

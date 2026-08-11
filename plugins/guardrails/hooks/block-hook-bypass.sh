@@ -604,11 +604,22 @@ scratch_target_exempt() {
   # reaches the compare as the safe-looking prefix `/tmp/scratch/a`. Exempting
   # that is precisely the one-token bypass the `/dev/null` precedent warns about.
   # The only surviving evidence is the RAW command, so refuse the exemption when
-  # any quote or backslash appears after the first redirect operator. Deliberately
-  # conservative — a compound whose LATER segment quotes something also loses the
-  # exemption, and an operator who wants it writes the target unquoted. The same
-  # truncation reaches the `/dev/null` exemption and predates this axis; it is
-  # filed as #2226 and pinned by a control test.
+  # any quote or backslash appears after the first redirect operator.
+  #
+  # STATE THE TRUE SCOPE, because it is broader than "the operand": this tests the
+  # WHOLE raw tail — not the segment being evaluated, and not the target word. A
+  # quote anywhere later in a compound command costs an EARLIER, unambiguous write
+  # its exemption: `echo x > /tmp/scratch/f && grep foo "notes.txt"` blocks, even
+  # though segment 1's target is a plain path. Deliberate, and the safe direction —
+  # this test can only ever REFUSE an exemption, never grant one — but it is
+  # breadth, not precision. Narrowing it means knowing which quotes belonged to the
+  # operand, which is exactly the information strip_literals has already destroyed:
+  # the same root cause as #2226. Pinned by a compound-command regression test so
+  # the breadth cannot silently widen or narrow. An operator who wants the
+  # exemption writes the target unquoted and keeps quotes out of the tail.
+  #
+  # The same truncation reaches the `/dev/null` exemption and predates this axis;
+  # it is filed as #2226 and pinned by a control test.
   [[ "${COMMAND#*>}" == *[\"\'\\]* ]] && return 1
   _norm_path "$target" || return 1
   [[ -n "$_NORM_PATH" ]] || return 1

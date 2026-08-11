@@ -866,9 +866,20 @@ run "scratch: escaped operand is not exempted (blocked)" \
 run "scratch: even a benign quoted target is not exempted (blocked)" \
   "echo x > \"/tmp/scratch/f\"" 2 "$SCRATCH_ENV=/tmp/scratch"
 # Quotes BEFORE the redirect operator are the ordinary case and must not cost
-# the exemption — only the operand side is suspect.
+# the exemption.
 run "scratch: quoted content, unquoted target (allowed)" \
   "echo \"hello world\" > /tmp/scratch/f" 0 "$SCRATCH_ENV=/tmp/scratch"
+# THE BREADTH, pinned rather than left to drift. The check reads the whole RAW
+# tail after the first `>`, not the segment being evaluated and not the target
+# word, so a quote in an unrelated LATER segment also cancels the exemption for
+# an earlier, unambiguous write. Deliberate and one-directional — it can only
+# refuse an exemption, never grant one — but broader than "the operand", so both
+# sides of the boundary are asserted. Narrowing it needs the operand/quote
+# association strip_literals destroys (#2226).
+run "scratch: quote in an unrelated later segment cancels it (blocked)" \
+  "echo x > /tmp/scratch/f && grep foo \"notes.txt\"" 2 "$SCRATCH_ENV=/tmp/scratch"
+run "scratch: the same compound with no quotes keeps it (allowed)" \
+  "echo x > /tmp/scratch/f && grep foo notes.txt" 0 "$SCRATCH_ENV=/tmp/scratch"
 # Control: the SAME truncation reaches the /dev/null exemption and predates this
 # axis, which is why it is filed as #2226 rather than fixed here. Pinned so a
 # future strip_literals fix flips it visibly.
