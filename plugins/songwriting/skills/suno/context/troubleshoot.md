@@ -16,7 +16,7 @@ Most Suno issues are **prompt-side preventable**. The model can't fix audio post
 | ALL-CAPS every word | Effect dilutes to no effect | Loses contrast | Cap only turning-point words |
 | `no drums` in drum-heavy genre alone | Drums still appear | Negative without positive | Pair with positive (`piano only, no drums`) |
 | 5+ exclusions stacked | Conflicting signals, exclusions ignored | Model picks and chooses | Cap at 2-3 negatives |
-| Style prompt > 1000 chars | Trailing tags ignored | Later content may receive less attention; silent truncation is unverified | Front-load critical content |
+| Style prompt > 1000 chars | Trailing tags may be weakly followed or ignored | Later content may receive less attention; silent truncation is unverified | Front-load critical content |
 | Lyrics > 60 lines | Rushed delivery, sections skipped | Time budget exceeded | Trim to 30-40 lines for 3-4min song |
 | Naming artists directly (`like Drake`) | Likely blocked or ignored | Filter | Use sound descriptors (`Toronto trap bounce`, `silk-smooth R&B falsetto`) |
 | Vocal descriptor + active Voice/Custom Model | Conflict, weird vocal artifacts | Cloned identity vs prompted identity | **Drop gender/tone descriptors** from style when Voice/Custom Model active |
@@ -33,7 +33,7 @@ Most Suno issues are **prompt-side preventable**. The model can't fix audio post
 
 1. Add `[Melodic Instrumental]` as the only "lyrics" content
 2. Include `instrumental` in the style prompt
-3. Add `no vocals` to the style prompt; grouping it at the end is an organizational convention only
+3. Add `no vocals` to the style prompt
 4. In Custom mode, ensure the Lyrics field has `[Melodic Instrumental]` tag explicitly
 
 ### "Lyrics are garbled / don't match what I wrote"
@@ -86,11 +86,12 @@ Most Suno issues are **prompt-side preventable**. The model can't fix audio post
 
 **Fix:**
 
-1. Group ALL negatives at the **end** of the style prompt for readability; end-placement is not a verified adherence rule
-2. Pair each negative with a positive (`piano only, no guitar` instead of `no guitar`)
-3. Cap at 2-3 negatives total
-4. Use the **Exclude field** in Custom mode Advanced Options as alternative
-5. Increase specificity (`no electric guitar` not `no guitar`)
+1. Pair each negative with a positive (`piano only, no guitar` instead of `no guitar`)
+2. Cap at 2-3 negatives total
+3. Use the **Exclude field** in Custom mode Advanced Options as alternative
+4. Increase specificity (`no electric guitar` not `no guitar`)
+
+Grouping all negatives at the end of the style prompt is a readability convention, not a verified adherence rule — do it for legibility, but do not expect it to fix an ignored exclusion on its own.
 
 ### "My voice clone sounds wrong"
 

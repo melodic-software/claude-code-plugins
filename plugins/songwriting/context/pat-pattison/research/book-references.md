@@ -4,11 +4,17 @@ Single source of truth for how Pat Pattison's four books are cited
 throughout this skill. Every context file references books by SHORT NAME +
 year. The short name is used inline and in file headers.
 
-**Full titles appear in exactly two places, and both are deliberate — do not
-"normalize" either one to a short name:** this file's bibliographic table below,
-and the buy-the-books list in the plugin `README.md`. That list exists so a
-reader can go and purchase the books, which is the one job a short name does not
-do, so it carries all four full catalogue titles.
+**Two places deliberately carry a title longer than the short name — do not
+"normalize" either one:** this file's bibliographic table below, and the
+buy-the-books list in the plugin `README.md`. That list exists so a reader can go
+and purchase the books, which is the one job a short name does not do.
+
+This only affects the 1991 and 2014 books; the 2009 and 2011 short names *are*
+their full titles, so those two entries look identical everywhere. Note the
+README deliberately stops short of the full catalogue string for 1991: its
+`dc:title` is `Songwriting: Essential Guide to Lyric Form and Structure: Tools
+and Techniques for Writing Better Lyrics (Songwriting Guides)`, and the subtitle
+and series marker are dropped because they are not needed to find the book.
 
 ## Canonical short names
 

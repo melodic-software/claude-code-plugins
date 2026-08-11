@@ -578,13 +578,13 @@ But now they only make me cry
 They only make me realize
 
 There’s no SOUTHERN COMFORT           CHORUS
-Unless you're in my arms
-You're the only cure
+Unless you’re in my arms
+You’re the only cure
 For this aching in my heart
-I've searched everywhere
+I’ve searched everywhere
 Tried the bedrooms, tried the bars
 But there’s no SOUTHERN COMFORT
-Unless you're in my arms
+Unless you’re in my arms
 ```
 
 ```text

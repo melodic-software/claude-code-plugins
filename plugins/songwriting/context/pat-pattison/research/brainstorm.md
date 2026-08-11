@@ -145,7 +145,7 @@ is genuine Pat vocabulary, from *Essential Guide to Rhyming* (2014).
 Pat's own prohibitions, verbatim — this is what he actually forbids during a
 timed object write:
 
-> Don't worry about story lines or “how it really happened.” No rhyme or rhythm.
+> Don’t worry about story lines or “how it really happened.” No rhyme or rhythm.
 > Not even full sentences. No one needs to understand where you are or how you
 > got there. Save more focused writing for when you need to be focused.
 

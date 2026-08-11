@@ -25,11 +25,12 @@ Place each on its own line at the start of the section.
 | `[Interlude]` | Short instrumental connector |
 | `[Outro]` | Closing wind-down |
 | `[End]` | Hard stop (vs gradual fade) |
-| `[Fade Out]` | Volume change at boundary |
-| `[Fade In]` — **unattested**; no source states this tag, unlike `[Fade Out]` | Volume change at boundary (unconfirmed) |
+| `[Fade Out]`, `[Fade In]` | Volume change at boundary |
 | `[Instrumental]`, `[Instrumental Break]`, `[Melodic Instrumental]` | No-vocal sections |
 | `[Guitar Solo]`, `[Piano Solo]`, `[Drum Solo]`, `[Bass Solo]`, `[Saxophone Solo]`, `[Synth Solo]` | Instrument-specific solos |
 | `[Spoken Word]` | Recited rather than sung |
+
+`[Fade Out]` is attested; **`[Fade In]` is not** — no source states it. It is kept because nothing places it outside the recognized set, but do not assume it carries the same backing as `[Fade Out]`.
 
 ## Vocal delivery tags
 

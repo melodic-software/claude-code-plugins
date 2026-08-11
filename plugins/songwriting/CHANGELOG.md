@@ -15,12 +15,13 @@ r/SunoAI thread ever read for this plugin.
 
 - **Printed punctuation restored across 470 lines in 31 corpus files.** Quoted
   source throughout `context/pat-pattison/research/` carried ASCII `U+0027`
-  apostrophes and `U+0022` double quotes where the books print `U+2019`,
-  `U+201C` and `U+201D`. **308 apostrophes and 393 quotation marks** were
-  restored; the git diff is **468 insertions / 468 deletions with zero
-  non-punctuation character changes**, independently recomputed rather than
-  asserted. Worst affected: `form.md` 52 lines, `song-forms-examples.md` 49,
-  `object-writing.md` 45, `rhyme-worksheets.md` 31, `point-of-view.md` 30.
+  apostrophes and `U+0022` double quotes where the citing book prints `U+2019`,
+  `U+201C` and `U+201D`. **308 apostrophes and 396 quotation marks — 704
+  characters** restored; the diff across those 31 files is **470 insertions /
+  470 deletions with zero non-punctuation character changes**, recomputed
+  independently of the script that made them. Worst affected: `form.md` 52 lines,
+  `song-forms-examples.md` 49, `object-writing.md` 45, `rhyme-worksheets.md` 31,
+  `point-of-view.md` 30.
 
   This is the same defect class an earlier refutation pass found and fixed in a
   single place (`rhyme-fundamentals.md:403`) and noted twice more in
@@ -29,13 +30,25 @@ r/SunoAI thread ever read for this plugin.
   because two restorations claimed byte-exactness and did not byte-match.
 
   The fix was applied by a deterministic script with **no model in the loop** —
-  every replacement character was read out of the gated book at that position. A
-  line was changed only when the plugin's form was absent from all four books
-  *and* the curly form was present, which proves both that the line is quoted
-  source and that the fix is the book's own typography. Two lines resolved
-  ambiguously and were **refused rather than guessed**, then settled individually
-  by positional alignment. Known-present control: blockquote lines matching a
-  book byte-for-byte rose from **1,766 to 2,016**.
+  every replacement character was read out of the gated book at that position.
+  Two lines resolved ambiguously and were **refused rather than guessed**, then
+  settled individually. Known-present control: blockquote lines matching a book
+  byte-for-byte rose from **1,766 to 2,016**.
+
+- **Six lines where the first sweep picked the wrong book.** Its test was "is the
+  ASCII form absent from *any* of the four books?", which is not the same
+  question as "does the book this passage cites print it that way?" — and the
+  difference is load-bearing, because **the 2009 book genuinely prints ASCII
+  apostrophes** (2,373 ASCII against 6 curly in its own EPUB) while 1991, 2011
+  and 2014 print curly. Any line Pat reprinted in 2009 therefore got a free pass.
+  Caught by the refuting pass and repaired against the **citing** book:
+  - `song-forms.md:581,582,584,587` — a block that `song-forms.md:567` cites to
+    1991, in a section whose own line 564 **warns that 2009 prints the same lyric
+    differently**. The file documented the trap and the sweep walked into it.
+  - `brainstorm.md:148`, `object-writing.md:420` — the two lines settled by hand;
+    both blocks are cited to 2011, and both were aligned against 2009.
+
+  Each repair is asserted present in its cited book and absent before the change.
 
 - **Six sourced Suno remediations closed.** The `suno-drift` audit recorded
   findings S3, S7, S8, S9, G3 and G7 against sites that a previous session

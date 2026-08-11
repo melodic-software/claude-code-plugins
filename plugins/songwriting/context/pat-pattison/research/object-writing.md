@@ -417,7 +417,7 @@ Stopping on time matters, and Pat gives the mechanism a name:
 > will start to roll, diving, plunging, heading directly for the soft pink and
 > blue glow below when, beep! The timer goes off. Just stop. Wherever you are.
 > Stop. Writus interruptus. All day your frustrated writer will grumble, “Boy,
-> what I might have said if you hadn't stopped me.” Guaranteed, when you sit down
+> what I might have said if you hadn’t stopped me.” Guaranteed, when you sit down
 > the next morning, you will dive deeper faster. You’ll reach the bottom in three
 > minutes flat. Next time, one minute. Finally, instantly. That is your goal:
 > immediate access—speed and depth. [...] But, of course, speed doesn't count
