@@ -99,9 +99,17 @@ gh issue view <N> --json assignees,labels \
 List an item's comments (bare `gh`):
 
 ```bash
-gh api "repos/{owner}/{repo}/issues/<N>/comments" \
-  --jq '[.[] | {id, user: .user.login, created_at, body}] | sort_by(.id)' | tr -d '\r'
+gh api --paginate "repos/{owner}/{repo}/issues/<N>/comments?per_page=100" \
+  | jq -s '[.[][] | {id, user: .user.login, created_at, body}] | sort_by(.id)' | tr -d '\r'
 ```
+
+`--paginate` is load-bearing. The endpoint returns 30 per page oldest-first and reports nothing
+when it truncates, so an unpaginated read silently drops the newest comments — and this repo
+already has long-running telemetry items past that count.
+
+The reduction is slurped rather than passed to `--jq` because `gh` applies `--jq` to each page
+separately: `sort_by` there emits one separately-sorted array per page, never one sorted list.
+`jq -s` collects the pages first, and `.[][]` flattens them.
 
 ## Close item
 

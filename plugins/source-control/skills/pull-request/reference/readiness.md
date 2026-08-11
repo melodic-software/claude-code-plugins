@@ -12,14 +12,14 @@ Monitor must discover and track every actor that participates in PRs. Actors fal
 |----------|----------------|-----------------|--------|
 | **Check-run actors** | `gh pr checks` — status/conclusion fields | Poll `gh pr checks <pr_number>` until all reach terminal state | Deterministic — GitHub triggers them on push |
 | **Check-run + comment actors** | Both a check run AND a PR comment | Poll checks AND comments | Check run arrives first, comment follows |
-| **Comment-only actors** | PR comments only — no check run | Poll `gh api repos/{owner}/{repo}/issues/<pr_number>/comments` | Non-deterministic — arrives at unpredictable time |
+| **Comment-only actors** | PR comments only — no check run | Poll `gh api --paginate "repos/{owner}/{repo}/issues/<pr_number>/comments?per_page=100"` | Non-deterministic — arrives at unpredictable time |
 
 ### Discovery (not hardcoded)
 
 **Don't assume a fixed list of actors.** On each monitoring cycle, discover what's present:
 
 1. **Check runs**: `gh pr checks <pr_number> --json name,state,bucket` — shows ALL check runs and commit statuses. Every entry here must reach terminal state and be classified
-2. **Comments**: `gh api repos/{owner}/{repo}/issues/<pr_number>/comments` — every comment from a `[bot]` account is a PR actor needing evaluation
+2. **Comments**: `gh api --paginate "repos/{owner}/{repo}/issues/<pr_number>/comments?per_page=100"` — every comment from a `[bot]` account is a PR actor needing evaluation. Unpaginated, a bot that commented early on a busy PR is simply absent from the actor list
 3. **Security scans**: any check run containing "security", "guardian", "CodeQL", "Snyk", "Dependabot", or similar in the name is a security actor — these get mandatory triage (see Gate 3)
 
 **Required vs soft heuristic:**
@@ -48,6 +48,25 @@ When a security scanner or reviewer is added, replaced, or removed:
 1. Discovery logic handles it automatically — new check runs appear in `gh pr checks`, new bot comments appear in the comments API
 2. If a new actor is comment-only and critical, consider converting it to a required status check via a GitHub Action
 
+## Reading GitHub list APIs
+
+Every gate below reads a GitHub list endpoint, and every one of those endpoints returns **30 items per page** by default and reports nothing when it truncates. A truncated read is not a visibly short answer — it is a confidently wrong one. Three rules, all absolute:
+
+**1. Paginate every list read.** `--paginate` with `per_page=100`. Without it, "is X present?" answers a silent *no* for anything on a page you never fetched — indistinguishable from X not existing. This repo's own PR heads carry 33–37 check runs, so the unpaginated form dropped `do-not-merge / do-not-merge`, a required status context, on every head it was run against, and a reader concluded the context never attaches. It attached and was green every time.
+
+**2. Never pair a positional index with a list.** `.[-1]` on a truncated list is the 30th-oldest item, not the newest — the read returns a real item, plausibly shaped, and simply wrong. On issue #657 (33 comments) `.[-1]` unpaginated returned a comment 11.5 hours older than the actual latest. Select by the property you actually care about (an id, a SHA, an author, a timestamp) so the query states its own intent and cannot be silently satisfied by the wrong record. **Where the query is a control gate you will act on — "did my write land?" — one property is usually not enough.** Ask what else could satisfy this selector, and constrain that too: a SHA in a comment body proves the SHA was mentioned, not that *you* posted it, so a reviewer quoting it passes the gate while your failed write goes unnoticed. Pin the identity as well.
+
+**3. Never reduce across pages inside `--jq`.** With `--paginate`, `gh` applies `--jq` to **each page separately**, so `length`, `sort_by`, `add`, `max`, `group_by` — anything that folds a whole list — silently answers per page. A count over four pages prints four numbers, none of them the total; a `sort_by` emits four separately-sorted arrays. Element-wise filters (`select`, `map` over `.[]`) are safe, because their results simply concatenate. When the operation folds, drop `--jq` and slurp the page stream with `jq -s`, indexing pages with `.[][]`.
+
+Pagination alone only moves the cliff from 30 to 100, so where an endpoint reports a total, assert against it — slurping per rule 3:
+
+```bash
+gh api --paginate "repos/{owner}/{repo}/commits/<sha>/check-runs?per_page=100" \
+  | jq -s -r '"total_count=\(.[0].total_count) returned=\([.[].check_runs[]] | length)"'
+```
+
+The two numbers must be equal. When they are not, every conclusion drawn from that response is unsound — re-fetch before reasoning. The comments and reviews endpoints report no total, so rule 1 plus a property-based selector is the whole discipline there.
+
 ## The readiness checklist
 
 Run this checklist **twice**: once when monitor declares convergence (3.4), and again immediately before merge execution (4.1). Second run catches late-arriving comments or status changes between monitor completion and merge.
@@ -64,10 +83,13 @@ gh pr checks <pr_number> --json name,state,bucket
 **Gotcha — `codex-review` may show duplicate entries (`SUCCESS` check-run + stuck `PENDING` commit-status).** `gh pr checks` aggregates BOTH workflow check-runs AND external commit-statuses. `codex-review.yml` workflow posts a real check-run that resolves cleanly; the external Codex bot ALSO posts a redundant commit status that may never finalize (sits at `PENDING` indefinitely). When you see two `codex-review` rows — one `pass|SUCCESS` with a `link`, one `pending|PENDING` with no link — treat check-run as authoritative. Verify via:
 
 ```bash
-gh api repos/{owner}/{repo}/commits/<sha>/check-runs --jq '.check_runs[] | select(.name | test("codex"; "i")) | "\(.status) \(.conclusion)"'
+gh api --paginate "repos/{owner}/{repo}/commits/<sha>/check-runs?per_page=100" \
+  --jq '.check_runs[] | select(.name | test("codex"; "i")) | "\(.status) \(.conclusion)"'
 ```
 
 If `completed success`, the stuck commit-status is the redundant external bot — classify as non-blocking, document, and proceed. `mergeStateStatus=UNSTABLE` will reflect the stuck status but does NOT block merge when the repo's required checks are green.
+
+The pagination is not optional and the completeness assertion is not hygiene — see [Reading GitHub list APIs](#reading-github-list-apis). This query is the one that made a required context look like it never attached.
 
 ### Gate 2: All failures evaluated
 
@@ -97,15 +119,15 @@ Identify all security-related actors (check runs with "security", "guardian", "C
 
 ```bash
 # PR reviews (review body — bots like Codex post here)
-gh api --paginate repos/{owner}/{repo}/pulls/<pr_number>/reviews \
+gh api --paginate "repos/{owner}/{repo}/pulls/<pr_number>/reviews?per_page=100" \
   | jq -r '.[] | "\(.user.login): \(.state) — \(.body[:100])"'
 
 # Inline review comments (diff-level)
-gh api --paginate repos/{owner}/{repo}/pulls/<pr_number>/comments \
+gh api --paginate "repos/{owner}/{repo}/pulls/<pr_number>/comments?per_page=100" \
   | jq -r '.[] | "\(.user.login): \(.body[:100])"'
 
 # General PR comments (conversation tab)
-gh api --paginate repos/{owner}/{repo}/issues/<pr_number>/comments \
+gh api --paginate "repos/{owner}/{repo}/issues/<pr_number>/comments?per_page=100" \
   | jq -r '.[] | "\(.user.login): \(.body[:100])"'
 ```
 
@@ -126,9 +148,12 @@ gh api --paginate repos/{owner}/{repo}/issues/<pr_number>/comments \
 
   ```bash
   HEAD_SHA=$(git rev-parse HEAD)
-  gh api repos/{owner}/{repo}/pulls/<pr>/comments \
-    --jq "[.[] | select(.user.login == \"chatgpt-codex-connector[bot]\" and .commit_id == \"$HEAD_SHA\")] | length"
+  gh api --paginate "repos/{owner}/{repo}/pulls/<pr>/comments?per_page=100" \
+    | jq -s --arg sha "$HEAD_SHA" \
+      '[.[][] | select(.user.login == "chatgpt-codex-connector[bot]" and .commit_id == $sha)] | length'
   ```
+
+  Unpaginated this undercounts — the codex comments you are waiting on are the newest, and on a PR with prior review rounds the newest are exactly what page 1 omits. The count is slurped rather than passed to `--jq` for the reason rule 3 gives: a reduction like `length` inside `--jq` runs per page and prints one number per page, never the total.
 
 ### Gate 6: No pending work
 
