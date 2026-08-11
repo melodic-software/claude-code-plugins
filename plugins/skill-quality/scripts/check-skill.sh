@@ -378,6 +378,27 @@ fi
 # char-class below excludes `<` and `>`, so it never enters this loop. A
 # gitignored runtime-output path is auto-skipped (not a tracked supporting file,
 # so skipping cannot mask a real tracked ref).
+#
+# DECIDED, do not re-litigate (#2179 deferred this as "a separate call"; settled
+# here). Narrowing extraction to markdown-link targets only — dropping the
+# backtick branch — was rejected on measurement, not taste. Two premises usually
+# offered for narrowing are both false:
+#
+#   1. "It matches bare paths in prose." It does not. Both generators below are
+#      delimited — backtick-wrapped, or a `](…)` link target — and both are
+#      scoped to the INTERNAL_DIRS allowlist. Naked prose never matches.
+#   2. "The backtick branch is redundant with the link branch." Measured over
+#      the 196-skill corpus: 122 unique backtick-form refs across 39 skills have
+#      no link form anywhere in the same SKILL.md, so narrowing would drop them
+#      from coverage entirely. All 122 resolve to a real file today, i.e. the
+#      backtick branch contributes 122 refs' worth of real coverage at zero
+#      false positives on the current corpus.
+#
+# The false-positive risk that motivated the proposal is real but latent, not
+# observed: a generic path in an illustrative example could collide. That is
+# handled by message wording — every failure below carries `hand-verify the line
+# before fixing, may be an illustrative example` — rather than by deleting
+# coverage of 39 skills. Reopen only if a false positive is actually observed.
 INTERNAL_DIRS='context|templates|scripts|reference|references|actions|evals|lanes|catalog|vendor'
 while IFS= read -r ref; do
   [[ -z "$ref" ]] && continue
@@ -397,7 +418,7 @@ while IFS= read -r ref; do
     # difference between a dead end and a one-line fix.
     #
     # The sibling hit is EVIDENCE, not proof: this check deliberately extracts
-    # prose and inline-code refs, so a generic path (`scripts/run.sh`) can
+    # inline-code refs as well as link targets, so a generic path (`scripts/run.sh`) can
     # collide with an unrelated same-named sibling file. The wording therefore
     # stays conditional and keeps the hand-verify instruction the default
     # message carries — a coincidental name match and an illustrative example
@@ -533,6 +554,21 @@ fi
 
 # --- Check 12: description carries trigger phrasing --------------------------
 
+# The standing 4-skill warning floor is INTENTIONAL, and no dmi carve-out is
+# wanted here (#2181 left them; re-reviewed and confirmed). `discipline:wait-what`,
+# `firecrawl:update`, `playbooks:update`, and `github:setup` are all
+# `disable-model-invocation: true`, and upstream states outright that for that
+# setting the "Description not in context, full skill loads when you invoke"
+# (skills.md frontmatter-behavior table, verified 2026-08-10) — so trigger
+# phrasing on them can never route anything. Each was re-checked for a STRANDED
+# phrase (one a user would type that no model-invocable skill can receive) and
+# none is stranded: the two `update` skills are maintainer-only with
+# consumer-facing siblings that carry the phrases, `github:setup` is a declared
+# slash-command-only contract with `advise`/`audit` model-invocable beside it,
+# and `wait-what` triggers on self-observation the model cannot detect. Adding a
+# dmi exemption branch would suppress a warning that is doing no harm while
+# hiding the kindle-dedrm failure mode (a phrase reachable only from a dmi-true
+# skill), so the warning stays and the exemptions stay documented instead.
 if [[ -n "$CUR_DESC" ]]; then
   if ! grep -qi 'use when' <<<"$CUR_DESC$CUR_WTU"; then
     warn "description has no 'Use when:' trigger phrasing — a description is a trigger spec, not a summary"
