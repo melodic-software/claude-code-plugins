@@ -73,7 +73,20 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   is read at both documented key paths in every scope, since it is not managed-only. Several of these
   also emit a startup warning upstream; the added value is reading every scope at once, before a
   session, and naming the file. Advisory: it exits 0 whenever it ran, and exit 2 means it could not
-  run at all rather than that it found nothing. Every run states the two bounds on the claim: the command-line scope
+  run at all rather than that it found nothing.
+  A fifth lane reads the `autoMode` classifier block — a different surface again, four
+  natural-language sections rather than permission rules. It reports a customized section that omits
+  `"$defaults"` (which **replaces** the built-in list rather than adding to it, so the finding names
+  how many entries are discarded), the same subject appearing in both `allow` and a deny section, and
+  an entry an earlier `hard_deny` already forecloses. `claude auto-mode critique` is surfaced with
+  `--critique` rather than reimplemented — it owns the semantic judgment — but it is wrapped in
+  truncation and empty-output detection, because across three consecutive runs on one unchanged config
+  its output was truncated mid-sentence twice and empty once while exiting 0 every time. This lane
+  needs `python3`, because `claude auto-mode config` emits raw control characters inside JSON string
+  values that `jq` rejects outright and no line-oriented filter can repair; absent it, the lane prints
+  a visible skip notice and exits 0 while every other stage still runs. A capture that produced
+  nothing is reported as unavailable with an explicit "this is NOT a clean bill" — exit status is
+  never consulted, since it is 0 even when nothing came back. Every run states the two bounds on the claim: the command-line scope
   (`--settings`, `--allowedTools`, `--disallowedTools`) outranks the files and has none to read, and
   rules are compared by exact text, so a narrow allow blocked only by a broader deny pattern is still
   reported effective — the error direction is over-reporting allow, never over-reporting blocking.

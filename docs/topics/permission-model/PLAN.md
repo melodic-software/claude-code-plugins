@@ -619,7 +619,35 @@ Acceptance criteria 2, 5, 6.
 emit two separately-labeled findings rather than one merged finding
 (`grep -c '\[C2-autoMode\]'` = 1 and `grep -c '\[C2-defaultMode\]'` = 1).
 
-### Phase 5: `autoMode`-block lane [TODO]
+### Phase 5: `autoMode`-block lane [DONE]
+
+**Completed 2026-08-12.** `automode-block-lint.test.sh` 44/44, `shellcheck -x` clean, portability
+gate clean. Every sanity check the phase names is covered, each against a **checked-in fixture** and
+never against the operator's CLI.
+
+**The raw-control-character fixture is asserted to be invalid, not assumed to be.** The suite runs
+`jq -e .` on it and FAILS if jq parses cleanly — which caught a real defect during construction: the
+fixture had been regenerated through `json.dumps`, which escaped the line feed, so it was valid JSON
+and the headline case was testing nothing. It is now authored as explicit bytes with one raw `\x0a`
+inside a string value; jq exits 5, strict `json.loads` raises, and the shipped reader returns all four
+sections.
+
+**Deviations recorded rather than silent:**
+
+- **`C4-defaults` fires only when built-in entries are actually MISSING**, not merely when
+  `"$defaults"` is absent. The CLI expands the token in its own output, so an expanded section and an
+  omitted one are indistinguishable except by what is gone — the first draft fired on three sections
+  the fixture had never customized. The finding now names how many entries are discarded and the first
+  one by label.
+- **Contradiction and shadowing compare label SUBJECTS, not bodies.** The bodies are prose written for
+  an LLM; no mechanical comparison of prose is defensible, and claiming one would be exactly the
+  judgment the plan reserves for `critique`.
+- **Truncation is detected from the text, not the exit status** — a complete critique ends on
+  sentence-final punctuation. Exit status cannot carry it: measured 0 on all three runs, including the
+  empty one.
+- **The label split at `[` is verified against the real captured shape**, not the plan's description:
+  the measured `defaults` payload carries `Git Destructive [named+specifics **must name:** …]: …`,
+  where a split at the first `:` lands inside the annotation.
 
 Acceptance criteria 4 and 8, plus brainstorm candidates 1, 2, 3.
 

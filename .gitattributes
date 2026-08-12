@@ -59,3 +59,11 @@ packages.lock.json  -diff
 *.woff2  binary
 *.ttf    binary
 *.otf    binary
+
+###############################################################################
+# Byte-exact fixtures. This one reproduces a measured Claude Code defect: a RAW
+# control character inside a JSON string value, which `jq` rejects outright. Any
+# line-ending normalization would rewrite that byte and the fixture would become
+# valid JSON, silently turning its regression case into a test of nothing.
+###############################################################################
+plugins/claude-config/skills/audit-permission-state/evals/fixtures/automode-config-rawctl.json -text

@@ -165,6 +165,35 @@ the checks are written NOT to flag.
 - **Advisory: the lint always exits 0 when it ran.** Exit 2 means it could not run at all, never
   "nothing found".
 
+## Phase 5: The `autoMode` classifier block
+
+A different surface from everything above: four natural-language sections an LLM classifier reads,
+not permission rules the harness matches. Independent of the pipeline — it reads the CLI, not stdin:
+
+```shell
+bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-permission-state/scripts/automode-block-lint.sh" [--critique]
+```
+
+- **`C4-defaults`** — a customized section that omits `"$defaults"`. Customizing **replaces** the
+  built-in list rather than adding to it, so the finding names how many built-in entries are gone.
+- **`C2b-contradiction`** — the same subject in `allow` and in a deny section.
+- **`C3-shadowed`** — an entry an earlier `hard_deny` already forecloses, so it can never fire.
+- **`--critique` surfaces `claude auto-mode critique`, wrapped — never replaced.** It owns the
+  semantic judgment. What this adds is honesty about it: measured across three consecutive runs on one
+  unchanged config, output was truncated mid-sentence twice and empty once, **exiting 0 every time**.
+  A mid-sentence cut is reported as truncated; an empty result says "critique returned nothing; run it
+  yourself" rather than implying your rules are clean.
+
+**This lane is optional, and its prerequisite is nobody else's problem.** It needs `python3` because
+`claude auto-mode config` emits raw control characters inside string values — `jq` rejects the output
+outright, and no line-oriented POSIX filter can repair it, since the offending byte is a raw line feed
+inside a string. Absent `python3` or `claude`, the lane prints a visible skip notice and exits 0; every
+other stage still runs.
+
+**Exit status is never trusted here.** A run that exits 0 having produced nothing is reported
+`status=unavailable` with an explicit "this is NOT a clean bill". The distinction between "your block
+is clean" and "the block was never read" is the whole point.
+
 ## Reading the output honestly
 
 <!-- fresh-eyes-exempt: external-input -- the material judged here is the consumer's own configuration as read by a deterministic script; no step in this skill judges output this skill authored -->

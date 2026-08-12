@@ -181,6 +181,47 @@ does nothing — so the operator believes auto mode is locked out and it is not.
 "nothing found". A findings count of zero is printed as a summary line, so a clean plane is stated
 rather than inferred from silence.
 
+## The `autoMode` block lane
+
+A different surface from the permission plane: four natural-language sections (`environment`,
+`allow`, `soft_deny`, `hard_deny`) that an LLM classifier reads. Only mechanical checks live here —
+prose judgment belongs to `claude auto-mode critique`, which is surfaced rather than reimplemented.
+
+| Check | What it means |
+| --- | --- |
+| `C4-defaults` | a customized section omits `"$defaults"`, which **replaces** the built-in list rather than adding to it. The finding names how many built-in entries are gone, because "you dropped 65 soft_deny rules" is actionable where "missing $defaults" is not |
+| `C2b-contradiction` | the same label subject appears in `allow` and in a deny section |
+| `C3-shadowed` | an entry whose subject is already in `hard_deny`, which cannot be overridden, so the entry can never change an outcome |
+
+Comparison is by **label subject**, never by body text. The bodies are prose written for an LLM, and
+no mechanical comparison of prose is defensible; a shared label across two sections is a mechanical
+signal, and the finding says which two sections to reconcile rather than which one is right.
+
+A section still carrying every built-in entry was **never customized** — the CLI expands `"$defaults"`
+in its own output, so an expanded section and an omitted one differ only in what is missing. Firing on
+the expanded case would report a discard that did not happen.
+
+### The measured defensive contract
+
+Every item below was measured on 2.1.225, not assumed. Each is a way this lane could have reported a
+confident wrong answer.
+
+| Defect | What the reader does |
+| --- | --- |
+| `claude auto-mode config` emits **raw control characters inside JSON string values** — `jq` and strict `json.loads` both reject it, exit status still 0 | parses non-strictly. The offending byte is a raw line feed inside a string, so no line-oriented POSIX filter can distinguish it from the pretty-printer's structural newlines — which is why this lane needs a real parser and why pure POSIX was tested and rejected |
+| `defaults --label <x>` **omits** a non-matching key entirely rather than returning an empty list | tolerates a missing key as "no entries", never as an error |
+| Entry labels carry a bracketed annotation **before** the colon — `Git Destructive [named+specifics …]: …` | splits at the first `[` when one precedes the colon, so the label is not truncated mid-annotation |
+| **Exit status is never trustworthy** — `critique` returned 0 on a run producing no output at all | judges every capture by whether it yielded usable content. A run that produced nothing is `status=unavailable` with an explicit "NOT a clean bill", never success |
+
+### Optional by declaration
+
+`python3` is **required for an optional feature** — this lane only. Absent, the lane prints a visible
+skip notice and exits 0, and every other stage of the skill is unaffected. Node is an equally capable
+host and is deliberately not adopted: a second optional runtime doubles the declaration surface for
+one feature.
+
+`claude auto-mode reset` is never run. It strips the `autoMode` section from user settings.
+
 ## Managed policy, and what it does not buy
 
 > "no other level, including command line arguments, can override a managed permission rule."
