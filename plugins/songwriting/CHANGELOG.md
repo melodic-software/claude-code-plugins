@@ -97,11 +97,22 @@ plugin's scope and was not done.
 ### Still open
 
 - `power-tips.md` "Tag order" (`:7-13`, demoted in 1.1.1) is **still unsourced in
-  either direction.** This release's source pass was scoped to genre fusion and
-  the timing cue; it found nothing bearing on first-tag advantage or middle-tag
-  softening, and did not search for them. #2266 asked that `:7-13` and the fusion
-  claim be taken together — they no longer can be, because the fusion claim is
-  now sourced and the tag-order rule is not.
+  either direction**, and this release did not search for first-tag advantage or
+  middle-tag softening. #2266 asked that `:7-13` and the fusion claim be taken
+  together; they can no longer be resolved on one body of evidence, because the
+  fusion claim is now sourced and the tag-order rule is not.
+
+  **But the fusion pass turned up a first-party lead worth handing on, so it is
+  not lost.** `suno.com/hub/how-to-make-beats`, fetched 2026-08-12, says: *"it
+  reads prompts as structured instructions. A clear hierarchy matters … A strong
+  prompt follows this order: tempo, genre, rhythm style, instruments, and
+  mood."* A community guide echoes the shape — sunopromptpro: *"A practical
+  pattern is primary genre, secondary production influence, vocal direction,
+  rhythm detail, and section structure."* **This is a lead, not evidence.** Both
+  prescribe an ordering of descriptor *categories*, and the hub page is scoped to
+  beat-making; neither says a first tag carries more weight or that middle tags
+  soften, which is what `:7-13` actually claims. A future tag-order audit should
+  start here and must not mistake the two for the same claim.
 - The ledger both #2233 and #2266 cite as authority,
   `.work/songwriting-plugin-pilot/suno-drift/RESEARCH.md`, **does not exist** —
   not in the working tree, not anywhere in git history, and not on disk. Every
