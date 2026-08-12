@@ -227,8 +227,7 @@ WINSHAPE=$(
   printf '%s
 ' "$SURFACES"
   cat <<'EOF'
-rule user settings allow Bash(echo 
- *)
+rule user settings allow Bash(echo \n *)
 rule user settings allow Bash(sed 's/\./_/g' *)
 rule user settings allow Bash(grep 'a	b' *)
 rule user settings allow Read(//c/Users/alice/**)

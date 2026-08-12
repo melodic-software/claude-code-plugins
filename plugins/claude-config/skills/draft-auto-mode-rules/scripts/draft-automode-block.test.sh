@@ -228,10 +228,7 @@ assert_not_contains "the merged stream carries no half-written JSON" "$MERGED" "
 
 # An empty section name is the same class.
 rc=0
-printf 'section 
-label X
-covered y
-' | bash "$SCRIPT" >/dev/null 2>&1 || rc=$?
+printf 'section \nlabel X\ncovered y\n' | bash "$SCRIPT" >/dev/null 2>&1 || rc=$?
 assert_exit "an empty section name also exits 2" 2 "$rc"
 
 # A wholly legal input is unaffected.
