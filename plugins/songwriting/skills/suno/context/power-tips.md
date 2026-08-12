@@ -1,6 +1,8 @@
 # Power-user tips & undocumented techniques
 
-Techniques here are **community-validated through empirical testing**, not Suno-documented. Effects reproducible across multiple users; exact magnitudes vary by prompt.
+Techniques here are community-reported and **not Suno-documented**. Exact magnitudes vary by prompt.
+
+**Confidence is per section, not per file** — read the flag on the section you are using. This file's blanket "community-validated through empirical testing" header was removed in 1.1.2: it asserted validation the file cannot back, while two sections inside it are explicitly flagged unverified. A section carrying no flag has not been audited.
 
 Pair with `tips.md` (lyric-side performance tricks) and `lyrics.md` "Per-section style overrides" (lyrics-as-second-style-channel technique).
 
@@ -12,9 +14,9 @@ Pair with `tips.md` (lyric-side performance tricks) and `lyrics.md` "Per-section
 
 Practical, if the front-loading rule holds: if mood matters more than genre for a specific song, lead with mood. If a single instrument is the song's signature, name it before the genre. Cheap to try, and nothing checked so far argues against it.
 
-## Genre fusion order trick
+## Genre fusion — anchor and accent
 
-50/50 genre fusion rarely produces a balanced result — model picks one and downweights the other. Put the DOMINANT genre first.
+**What is attested is a hierarchy, not a position.** Give one genre the lead and let the second supply texture; do not bill two genres equally. Every source below says this, and none of them supports the older wording this section carried ("Order encodes priority") — one contradicts it outright.
 
 ```
 synth-pop with dream-pop textures
@@ -26,9 +28,19 @@ vs
 dream-pop with synth-pop production
 ```
 
-These produce **different outputs**. Order encodes priority.
+These are expected to produce **different outputs** — but note *what* differs. The lead genre is the noun the track **is**; the accent is a thing the track **has**. Grammatical role, not word position, is what the sources describe as the signal. The rewritten example is not evidence for a positional rule, because it changes both at once.
 
-**Hard cap: 2 genres in a fusion.** 3+ → mush, model averages, output is generic.
+**Three or more genres with no hierarchy degrades the result** — sources describe mush, averaging, and drift. The former "hard cap: 2" was this file's own sharpening; two sources model exactly one anchor plus one accent, a third warns against "three-way competition", and none states a numeric cap. Treat two as the working default and anything beyond as needing an explicit hierarchy, not as a hard limit.
+
+**MEDIUM confidence** — multi-source community consensus, no official Suno doc. Verified 2026-08-12 by live fetch of each page below; bodies arrived whole (character counts are of the extracted text) and each quote is verbatim.
+
+- [sunopromptpro.com/en/guides/suno-genre-combinations](https://www.sunopromptpro.com/en/guides/suno-genre-combinations) (7,086 chars) — *"A genre combination should not give every style equal authority. Start with the lane that should control the song shape"*; and *"Avoid three-way competition. Most hybrid prompts become weaker when they name three or four genres with no hierarchy."*
+- [brahmstorm.com/blog/suno-genre-blending-prompts-that-actually-work](https://brahmstorm.com/blog/suno-genre-blending-prompts-that-actually-work/) (8,741 chars) — *"pick ONE dominant genre as the anchor … then add ONE accent genre"*; and, against the positional reading, *"The cleanest way to signal hierarchy is through sentence structure, not just word order."*
+- [jackrighteous.com — Suno prompt too complicated](https://jackrighteous.com/en-us/blogs/guides-using-suno-ai-music-creation/suno-prompt-too-complicated-clean-workflow) (22,431 chars) — *"Blending Genres Requires a Hierarchy … The problem begins when every genre is treated as an equal foundation."*
+
+**Not officially documented.** `help.suno.com` articles [5782849](https://help.suno.com/en/articles/5782849) (1,177 chars, whole) and [5782977](https://help.suno.com/en/articles/5782977) (805 chars, whole) were read verbatim on 2026-08-12 and neither addresses genre order or fusion; 5782849 points the other way for v4.5+, saying *"In previous models, you would want to prioritize certain genre and style details, but your instructions can now include a more conversational prompt."* That absence is scoped to those two pages, not to Suno's documentation as a whole.
+
+**Recheck trigger:** Suno's help center or blog publishes guidance on style-prompt ordering or genre blending, **or** a read-time re-fetch finds any source above no longer carrying its quoted text. Not a date.
 
 ## Stem-loop refinement (Premier)
 

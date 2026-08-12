@@ -468,7 +468,7 @@ Genres that emerged primarily through SoundCloud, TikTok, YouTube, and Discord c
 
 ## Bonus 1: Fusion patterns
 
-Common AI-music fusion shorthand and how the blend typically works. Suno responds well when one parent is dominant (~60% of descriptor weight) and the other supplies texture or context.
+Common AI-music fusion shorthand and how the blend typically works. Suno responds well when one parent is dominant and the other supplies texture or context. **No numeric weight is stated here** — the former `~60% of descriptor weight` had no recorded basis, and the 2026-08-12 source pass behind `power-tips.md` "Genre fusion — anchor and accent" found the anchor/accent *hierarchy* attested across three community guides while **no source states a percentage split**. The mechanism and its sources, confidence rung, and recheck trigger live in that section; this table is the applied shorthand.
 
 | Fusion | Dominant parent | Supplied by secondary | Suno descriptor sketch |
 |---|---|---|---|

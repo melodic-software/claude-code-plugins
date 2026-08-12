@@ -119,11 +119,22 @@ MEDIUM confidence — works on 5/10 generations. Worth trying, regenerate if mis
 
 ### Timing cues
 
-**Effect:** `[at 0:15 vocals enter]`-style cues nudge timing. Adherence ~70%.
+**Effect:** `[at 0:15 vocals enter]`-style cues are reported to nudge timing. **No magnitude is stated here** — the `~70%` adherence figure this entry carried through 1.1.1 had no recorded basis, and none could be found.
 
 **Use:** for atmospheric intros / outros, not load-bearing.
 
 LOW-MEDIUM confidence. Use structural tags (`[Intro]`, `[Outro]`) as primary control; timing cues as secondary nudge.
+
+**The technique is kept; the number is gone.** Searched 2026-08-12 for a basis and found none:
+
+- **In-repo:** `.work/` and `plugins/songwriting/` for `timing cue`, `at 0:15`, `adherence` — nothing states where the figure came from. First recorded at 1.1.1; re-run and still true.
+- **Official:** `help.suno.com` articles [5782977](https://help.suno.com/en/articles/5782977) (805 chars) and [5782849](https://help.suno.com/en/articles/5782849) (1,177 chars), read verbatim; both bodies arrived whole, and neither mentions timestamp cues in the Lyrics box or any adherence rate. That absence is scoped to those two pages, not to Suno's documentation as a whole.
+- **Community:** two of the largest public meta-tag references — [Jack Righteous' Suno meta tags guide](https://jackrighteous.com/en-us/pages/suno-ai-meta-tags-guide) (22,687 chars) and [Blake Crosley's Suno guide, v5.5](https://blakecrosley.com/guides/suno) (93,464 chars) — carry **zero** occurrences of a `0:1`-style timestamp cue and **zero** occurrences of `70%`. Jack Righteous routes timing problems away from the prompt entirely: *"When timing, balance, cleanup, comping or production precision is the actual problem"* → Studio or DAW.
+- r/SunoAI could not be searched from this environment (the search tool refuses `reddit.com`), so the community corpus above is guides only.
+
+**Do not restore a percentage without a citation.** A bare figure is the most quotable thing in this file and was the least supported.
+
+**Recheck trigger:** a first-party Suno page documents timestamp cues in the Lyrics box, **or** a community source states a measured adherence rate for them together with its method. Not a date.
 
 ## Multilingual lyrics and diacritics
 

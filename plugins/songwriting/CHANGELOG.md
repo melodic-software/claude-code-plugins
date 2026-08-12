@@ -3,6 +3,110 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.2]
+
+Both audit denominators are unchanged: **Axis 1 stays 44 of 44** and **Axis 2
+stays 226 of 226**. No Pattison reading was done and no unit was opened. This
+release closes issue #2266 — the two unaudited Suno claims 1.1.1 left flagged —
+by **sourcing one and deleting the number behind the other**, and sweeps two
+sibling sites of the same claims that #2266 did not name.
+
+**A patch, not a minor.** No technique is added or removed. Every change either
+attaches a source to a claim already here, corrects a stated mechanism, or
+deletes a figure nothing supports.
+
+### ⚠ A FIGURE SHIPPED SINCE BEFORE 1.0.0 HAD NO BASIS — `~70%` timing-cue adherence is deleted
+
+1.1.1 recorded that the timing-cue entry's `~70%` had no basis **in this repo**
+and left it flagged `LOW-MEDIUM` rather than removing it. That was half the
+work: an unsourced figure marked low-confidence is still an unsourced figure,
+and a percentage is the most quotable thing in a file. It was searched
+externally this release and **still has no basis** (corpus below), so it is gone.
+
+**The technique survives; only the magnitude dies.** `[at 0:15 vocals enter]` is
+still offered as a secondary nudge behind structural tags — nothing found
+contradicts it, and #2266's standing rule for unsourced-not-contradicted claims
+is keep-and-mark. What could not be kept is a number pretending to be a
+measurement.
+
+### Fixed
+
+- **`power-tips.md` genre fusion: the mechanism was wrong, not just unsourced.**
+  The section asserted *"Order encodes priority"*. Three community guides,
+  fetched verbatim on 2026-08-12, attest a **hierarchy** — one anchor genre plus
+  one accent, never equal billing — and one of them states the opposite of the
+  positional reading: *"The cleanest way to signal hierarchy is through sentence
+  structure, not just word order."* The section is rewritten as **anchor and
+  accent**, at **MEDIUM** confidence with all three sources quoted, a fetch date,
+  and a recheck trigger. The file's own example never isolated order in the first
+  place — `synth-pop with dream-pop textures` changes grammatical role *and*
+  position at once — and now says so.
+- **The "hard cap: 2 genres" was this file's own sharpening.** Two sources model
+  exactly one anchor plus one accent and a third warns against "three-way
+  competition", but **no source states a numeric cap**. Reworded to two as the
+  working default, with three-or-more needing an explicit hierarchy.
+- **`genre-taxonomy.md:471` carried `~60% of descriptor weight`** for the same
+  fusion claim — a second invented figure, in a file #2266 never named. No source
+  states a percentage split. Deleted; the row now points at the sourced section.
+- **`lyrics.md:208` carried the `~70%` too**, in a technique table. Same
+  treatment as `tips.md`, so the two cannot drift apart again.
+- **`power-tips.md`'s blanket header claimed the file was
+  "community-validated through empirical testing".** Two sections inside it are
+  explicitly flagged unverified, so the header asserted validation the file
+  cannot back — the exact intra-file inconsistency #2266 was filed about.
+  Replaced with a per-section rule: an unflagged section has not been audited.
+  `SKILL.md`'s router row, which still advertised the whole file as MEDIUM-HIGH,
+  is corrected to match.
+
+### The corpus searched, so the next reader need not redo it
+
+Every absence below is **scoped to the pages named** and asserts nothing about
+Suno's documentation as a whole.
+
+- **Official, read verbatim by `curl` (not a summarizing fetch), bodies whole:**
+  `help.suno.com` [5782849](https://help.suno.com/en/articles/5782849) (1,177
+  chars of extracted text) and
+  [5782977](https://help.suno.com/en/articles/5782977) (805 chars). Neither
+  addresses genre order or fusion; neither mentions timestamp cues in the Lyrics
+  box or any adherence rate. 5782849 points *away* from positional prompting for
+  v4.5+: *"In previous models, you would want to prioritize certain genre and
+  style details, but your instructions can now include a more conversational
+  prompt."*
+- **Community, for the timing cue:** the two largest public meta-tag references —
+  Jack Righteous' Suno meta tags guide (22,687 chars) and Blake Crosley's v5.5
+  guide (93,464 chars) — carry **zero** occurrences of a `0:1`-style timestamp
+  cue and **zero** of `70%`. Jack Righteous routes timing problems out of the
+  prompt entirely, to Studio or a DAW.
+- **r/SunoAI could not be searched** — the search tool in this environment
+  refuses `reddit.com`. The community corpus above is therefore guides only, and
+  a Reddit pass remains undone.
+
+### Scope note — `docs/conventions/upstream-drift/` was read and deliberately not adopted
+
+That convention's required parts (claim, basis, as-of date, recheck trigger) are
+what the two sourced records above are shaped on, and it is cited here as the
+precedent. It is **not** claimed as the owner of this class: its fetch-route
+ladder, its `llms.txt` identity check and its drift signal are all specific to
+`code.claude.com`, and none of that transfers to an Intercom-hosted help centre.
+Suno claims stay governed by **the confidence ladder in
+`skills/suno/SKILL.md`**, which already carries source-quality semantics; what it
+lacked, and what this release borrows from the convention, is the **recheck
+trigger**. Adding a row to that convention's adopters table is out of this
+plugin's scope and was not done.
+
+### Still open
+
+- `power-tips.md` "Tag order" (`:7-13`, demoted in 1.1.1) is **still unsourced in
+  either direction.** This release's source pass was scoped to genre fusion and
+  the timing cue; it found nothing bearing on first-tag advantage or middle-tag
+  softening, and did not search for them. #2266 asked that `:7-13` and the fusion
+  claim be taken together — they no longer can be, because the fusion claim is
+  now sourced and the tag-order rule is not.
+- The ledger both #2233 and #2266 cite as authority,
+  `.work/songwriting-plugin-pilot/suno-drift/RESEARCH.md`, **does not exist** —
+  not in the working tree, not anywhere in git history, and not on disk. Every
+  "no audit row covers this" claim resting on it is unfalsifiable as written.
+
 ## [1.1.1]
 
 Both audit denominators are unchanged: **Axis 1 stays 44 of 44** and **Axis 2
