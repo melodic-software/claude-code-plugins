@@ -166,6 +166,21 @@ lands once.
   **unavailable** and the prediction stands — an empty capture is never an empty drop set. Its
   measured cost is stated at the flag rather than discovered afterwards.
 
+  **What the oracle costs, measured** — Claude Code 2.1.225, Windows 11, by checksumming the settings
+  files and taking a file-mtime census of the config directory either side of one
+  `claude --debug-file <scratch> -p` run:
+
+  | Question | Measured answer |
+  | --- | --- |
+  | Are settings files modified? | **No.** `settings.json` and `settings.local.json` byte-identical afterwards |
+  | Is anything under the config root rewritten? | **Yes — `~/.claude.json`.** The harness's own state file; carries no `permissions` key, but it does change |
+  | What new files appear? | A `projects/` entry for the working directory, a `session-env/` entry, per-session `security/` and `subagents/` state, a `backups/` entry |
+  | Does a plain `-p` session emit drop lines? | **Yes — 216 of them, with no mode flag passed.** On a machine whose `defaultMode` may already have been `auto`, so this does **not** establish that drops require auto mode |
+
+  A probe with `CLAUDE_CONFIG_DIR` pointed at a scratch directory **cannot authenticate** —
+  credentials live in the real config root — so a probe of this shape necessarily touches it. That is
+  why the flag enumerates what it leaves behind rather than implying an isolation it cannot have.
+
   The narration `Ignoring dangerous permission <rule> from <path> (bypasses classifier)` delimits
   **neither field**, and both sides may legitimately contain the separator: a rule
   (`Bash(python3 import from x *)`) and a directory (`notes from work`). No fixed choice of first-
@@ -176,7 +191,7 @@ lands once.
 
 ## The permission-plane lint
 
-Eight checks over one question: the operator wrote something believing it takes effect, and it does
+Nine checks over one question: the operator wrote something believing it takes effect, and it does
 not. Several also emit a startup warning upstream; the added value here is reading every scope at
 once, before a session, and naming the file the dead entry is in.
 
@@ -192,6 +207,7 @@ fixed all three.
 | `C5-disableType` | "set `permissions.disableBypassPermissionsMode` or `permissions.disableAutoMode` to `\"disable\"` in any settings file" — the **string**. Checked at both documented key paths, in every scope; it is not managed-only |
 | `C6-winPath` | "On Windows, paths are normalized to POSIX form before matching. `C:\Users\alice` becomes `/c/Users/alice`". Tested on a **single** backslash — the form the reader emits. An earlier revision tested the doubled JSON-source spelling, which `jq -r` decodes away, so the check was dead in the real pipeline while passing a suite whose fixtures bypassed the reader |
 | `C6-contentField` | "You can't match a tool's primary content field this way: `command` for Bash and PowerShell, `file_path` for Read, Edit, and Write, `path` for Grep and Glob, `notebook_path` for NotebookEdit, and `url` for WebFetch… Claude Code ignores it and emits a startup warning" |
+| `C6-allowParam` | "**Deny and ask rules** can match a top-level input parameter on any tool with `Tool(param:value)`… An allow rule for one parameter value wouldn't establish that the call is safe overall, so allow rules continue to use each tool's own specifier syntax." An operator writing one believes they narrowed a grant and has not. Fires only on parameters the page names for tools whose own syntax is a path or a command — `WebFetch(domain:host)` is the documented WebFetch form and `Bash(npm:*)` is a command prefix, so neither is distinguishable from a parameter by shape and neither fires |
 | `C6-uncoveredPath` | "Claude Code checks file permissions against `Edit(path)` and `Read(path)` rules only. If you write a path rule for `Write`, `NotebookEdit`, `Glob`, or the legacy `MultiEdit` tool instead, Claude Code accepts the rule but never consults it, and warns at startup" (v2.1.210+; a `Glob` rule passed in `--allowedTools` is the stated exception) |
 | `C6-colonStar` | "The `:*` form is only recognized at the end of a pattern. In a pattern like `Bash(git:* push)`, the colon is treated as a literal character" |
 

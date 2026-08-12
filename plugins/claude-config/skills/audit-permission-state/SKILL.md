@@ -151,7 +151,7 @@ finding <severity> [<check>] <scope> <detail>
 lint summary findings=<n> checks_run=<n>
 ```
 
-Eight checks: three `C2-*` dead-config gates, `C5-disableType`, and four `C6-*` rules-that-cannot-match.
+Nine checks: three `C2-*` dead-config gates, `C5-disableType`, and five `C6-*` rules-that-cannot-match.
 `reference/criteria.md` maps each to the sentence it follows from and lists the legitimate rule shapes
 the checks are written NOT to flag.
 

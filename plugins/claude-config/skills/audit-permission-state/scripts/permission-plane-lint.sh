@@ -23,10 +23,11 @@
 #   C2-defaultMode   defaultMode:"auto" in project or local settings
 #   C2-planMode      useAutoModeDuringPlan in shared project settings
 #   C5-disableType   disableAutoMode typed as a boolean, not the string "disable"
-#   C6-winPath       a doubled-backslash Windows path in a rule
+#   C6-winPath       a Windows-style path in a rule, which never matches
 #   C6-contentField  a parameter-form rule on a tool's primary content field
 #   C6-uncoveredPath a path rule on a tool whose path rules are never consulted
 #   C6-colonStar     `:*` used anywhere but at the end of a pattern
+#   C6-allowParam    parameter-form matching in an allow rule (deny/ask only)
 #
 # Prerequisites: jq (required for correctness — the conf/settings reads are JSON).
 #
@@ -174,6 +175,16 @@ END {
   content_field["Glob"] = "path";           content_field["NotebookEdit"] = "notebook_path"
   content_field["WebFetch"] = "url"
 
+  # Top-level parameters the page names by example, on tools whose OWN specifier
+  # syntax is something else entirely (a path, or a command). Only these are
+  # unambiguously the parameter form: `WebFetch(domain:host)` is documented as
+  # the WebFetch syntax itself and `Bash(npm:*)` is a command prefix, so neither can
+  # be told apart from a parameter by shape alone and neither is listed here.
+  param_only["Agent" SUBSEP "model"] = 1
+  param_only["Agent" SUBSEP "isolation"] = 1
+  param_only["Bash" SUBSEP "run_in_background"] = 1
+  param_only["PowerShell" SUBSEP "run_in_background"] = 1
+
   # File permissions are checked against Edit(path) and Read(path) rules ONLY.
   # A path rule for one of these is accepted and never consulted.
   split("Write NotebookEdit Glob MultiEdit", uncovered_list, " ")
@@ -210,13 +221,26 @@ END {
     if (cs > 0 && cs + 1 < length(body))
       finding("error", "C6-colonStar", scope, text " — the :* form is only recognized at the END of a pattern; here the colon is treated as a literal character and the rule will not match what it looks like it matches")
 
-    # Parameter form is `Tool(param:value)`. It is only a content-field defect
-    # when the named parameter IS the primary content field for that tool.
+    # Parameter form is `Tool(param:value)`. Two distinct defects live here.
     colon = index(body, ":")
     if (colon > 1) {
       param = substr(body, 1, colon - 1)
+      sub(/[ \t]+$/, "", param)
       if (tool in content_field && param == content_field[tool])
         finding("error", "C6-contentField", scope, text " — a rule cannot match a tool primary content field by parameter (" tool " uses " content_field[tool] "); Claude Code ignores this rule and warns at startup")
+      # "Deny and ask rules can match a top-level input parameter… An allow rule
+      # for one parameter value would not establish that the call is safe
+      # overall, so allow rules continue to use the syntax each tool defines
+      # syntax." So parameter form in an ALLOW rule is not a grant at all --
+      # the operator believes they narrowed a permission and did not.
+      #
+      # A per-tool specifier syntax uses the same `word:` shape for some
+      # tools (`WebFetch(domain:host)` is documented as the WebFetch form, and
+      # `Bash(npm:*)` is a command prefix), so this fires only where the shape
+      # is unambiguously the parameter form: a known top-level parameter name
+      # on a tool whose own syntax is a path or a command.
+      else if (kind == "allow" && (tool SUBSEP param) in param_only)
+        finding("warning", "C6-allowParam", scope, text " — parameter matching is documented for deny and ask rules only; an allow rule uses the specifier syntax its own tool defines, so this grant may not take effect as written")
     }
 
     # A path-shaped rule on a tool whose path rules are never consulted. Only
@@ -226,7 +250,7 @@ END {
       finding("warning", "C6-uncoveredPath", scope, text " — file permissions are checked against Edit(path) and Read(path) rules only, so a path rule for " tool " is accepted but never consulted (warns at startup, v2.1.210+; a Glob rule passed in --allowedTools is the documented exception)")
   }
 
-  print "lint summary findings=" n_findings + 0 " checks_run=8"
+  print "lint summary findings=" n_findings + 0 " checks_run=9"
 }
 ')" || {
   echo "ERROR: no scope records on input — permission-plane-lint.sh will not report a clean plane it never read" >&2

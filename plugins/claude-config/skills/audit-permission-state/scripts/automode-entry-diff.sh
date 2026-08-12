@@ -251,11 +251,11 @@ EOF
   capture="$scratch/capture.log"
   # `--permission-mode auto` is passed so the probe does not depend on the
   # consumer's own defaultMode. What was actually MEASURED is narrower than that
-  # framing suggests, and the difference matters: on 2.1.225 a `-p` run with NO
-  # mode flag emitted 216 drop lines, on a machine whose defaultMode may already
-  # have been auto. So the flag is known-valid (`claude --help` lists `auto`) and
-  # known-harmless, but "drops appear only in auto mode" is NOT established here
-  # — it is a plausible reading of one capture, not a measurement. The zero-drop
+  # framing suggests, and reference/criteria.md carries the measurement: a `-p`
+  # run with NO mode flag emitted 216 drop lines, on a machine whose defaultMode
+  # may already have been auto. So the flag is known-valid (`claude --help`
+  # lists `auto`) and known-harmless, but "drops appear only in auto mode" is
+  # NOT established — it is a plausible reading of one capture. The zero-drop
   # path below degrades to `unavailable` precisely because this is unproven.
   #
   # Exit status is deliberately not consulted — the capture file is the evidence
@@ -273,21 +273,8 @@ if ! grep -q 'Applying permission update' "$capture"; then
 fi
 
 # `Ignoring dangerous permission <rule> from <abs path> (bypasses classifier)`.
-#
-# Neither field is delimited, so the separator has to be found rather than
-# assumed. Two earlier attempts were wrong in opposite directions: cutting at
-# the FIRST " from " truncates a rule containing that word
-# (`Bash(python3 import from x *)`), and cutting at the LAST one truncates the
-# rule when the PATH contains it (`C:\Users\x\notes from work\.claude\…`) --
-# which yielded two false verdicts and a phantom rule, because a directory may
-# be named anything at all.
-#
-# What IS reliable is the path's shape: it is the final whitespace-free run
-# ending in `settings.json` (or a `.json` drop-in). So the tail is anchored on
-# that instead of on the separator -- ` from <no-spaces-then-.json>` at end of
-# string. A path containing a space still defeats this, so a line whose tail
-# does not match is reported rather than silently mis-split: a wrong rule name
-# in a divergence verdict is worse than an admitted gap.
+# This strips the fixed prefix and suffix; splitting rule from path is the
+# block below, which explains how.
 oracle_raw="$(sed -n 's/^.*Ignoring dangerous permission \(.*\) (bypasses classifier).*$/\1/p' "$capture")"
 
 # Neither field is delimited, so a line carrying more than one " from " must be

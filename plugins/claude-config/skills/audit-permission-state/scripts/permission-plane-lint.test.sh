@@ -207,11 +207,47 @@ OUT=$(lint "$C6")
 assert_contains "every finding carries a severity" "$OUT" "finding error ["
 assert_eq "every finding line has a bracketed check id" \
   "$(count_matching "$OUT" '^finding ')" "$(count_matching "$OUT" '^finding [a-z]+ \[C[0-9]')"
-assert_contains "the summary states how many checks ran" "$OUT" "checks_run=8"
+assert_contains "the summary states how many checks ran" "$OUT" "checks_run=9"
 
 # A clean plane is reported as clean, with the check count, not as silence.
 OUT=$(lint "$SURFACES")
 assert_contains "a clean run still reports its summary" "$OUT" "lint summary findings=0"
+
+# --- Parameter matching is deny/ask only -------------------------------------
+# "Deny and ask rules can match a top-level input parameter... An allow rule for
+# one parameter value would not establish that the call is safe overall, so
+# allow rules continue to use each tool own specifier syntax." An operator who
+# writes one believes they narrowed a grant and did not.
+ALLOW_PARAM=$(
+  printf '%s
+' "$SURFACES"
+  cat <<'EOF'
+rule user settings allow Agent(model:opus)
+rule user settings allow Bash(run_in_background:true)
+rule user settings deny Agent(model:opus)
+rule user settings ask Agent(isolation:worktree)
+EOF
+)
+OUT=$(lint "$ALLOW_PARAM")
+assert_eq "only the two allow rules fire" 2 "$(count_matching "$OUT" '\[C6-allowParam\]')"
+assert_contains "the Agent allow fires" "$OUT" "[C6-allowParam] user Agent(model:opus)"
+assert_contains "the Bash parameter allow fires too" "$OUT" "[C6-allowParam] user Bash(run_in_background:true)"
+assert_contains "the finding cites the deny/ask restriction" "$OUT" "documented for deny and ask rules only"
+
+# Shapes that are a tool own syntax, not the parameter form, must stay silent --
+# `WebFetch(domain:host)` is documented as the WebFetch form and `Bash(npm:*)`
+# is a command prefix, so neither is distinguishable from a parameter by shape.
+PARAM_CLEAN=$(
+  printf '%s
+' "$SURFACES"
+  cat <<'EOF'
+rule user settings allow WebFetch(domain:example.com)
+rule user settings allow Bash(npm:*)
+rule user settings allow Bash(git:*)
+EOF
+)
+OUT=$(lint "$PARAM_CLEAN")
+assert_eq "a tool own specifier syntax never fires allowParam" 0 "$(count_matching "$OUT" '\[C6-allowParam\]')"
 
 # --- C6-winPath must fire on what the READER actually emits ------------------
 # It did not. The check tested for a doubled backslash -- the JSON SOURCE
