@@ -5,6 +5,62 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.2]
+
+### Fixed
+
+- **`zone-crossing-inject`: the armed rank now decays on a return to `smart` rather than after a
+  fixed two-rank improvement, because only `dumb` could ever satisfy a two-rank improvement
+  (#2343).** 0.7.0 shipped the hysteresis this plugin needed and then applied it with a rule the
+  ladder cannot express. Ranks are `smart`=0, `acceptable`=1, `dumb`=2, so from an armed rank of
+  `acceptable` the largest available improvement is ONE rank and `armed_rank - new_rank >= 2` is
+  **unsatisfiable**. A session that armed at `acceptable` could therefore never re-arm: it could
+  recover fully to `smart` and relapse to `acceptable` any number of times and stay silent for the
+  rest of its life, unless it first escalated all the way to `dumb`. That is #2220 inverted rather
+  than fixed — the flapping session 0.7.0 set out to quiet became a session that never speaks on
+  the middle band, and `acceptable → smart → acceptable` was silent while the structurally
+  identical `dumb → smart → dumb` re-injected, as 0.7.0's own test proved.
+
+  **The corrected mechanism: a target on the ladder, not a distance along it.** The armed rank now
+  decays when — and only when — the session returns to the BEST band, `smart`. Every band can reach
+  it, so the rule fires uniformly; a fixed delta cannot, on a scale three ranks wide. Raising the
+  constant to one rank was the tempting over-correction and is exactly #2220 again, since
+  `dumb → acceptable → dumb` would re-arm on edge noise.
+
+  **The property this guarantees**, stated so it can be falsified: within one arming cycle each zone
+  is announced at most once, and only a return to `smart` opens a new cycle — so a genuine recovery
+  followed by a relapse re-injects **exactly once for the band it relapses into, from any armed
+  band**, and a flap that never reaches `smart` stays silent however long it oscillates. The
+  `dumb`-band behaviour is bit-for-bit what 0.7.0 shipped: the old predicate was satisfiable only at
+  `armed=dumb, new=smart`, which the new rule also admits, so the sole behavioural delta is
+  `acceptable → smart` re-arming. Every 0.7.0 assertion — the flap, the `dumb → smart → dumb`
+  recovery, the legacy-state seed — still passes unmodified against the new rule, alongside a new
+  `acceptable → smart → acceptable` session that fails against 0.7.0.
+
+  **The residual, stated rather than papered over**: at the `smart`/`acceptable` edge a flap and a
+  full recovery are the SAME observation — `smart` is both the far side of that boundary and the
+  bottom of the ladder — so a session oscillating there re-announces `acceptable` once per down-up
+  cycle (the pre-0.7.0 cadence at that one boundary, and no worse). Rank granularity cannot separate
+  the two: this hook sees one word per observation and never the occupancy behind it, because band
+  logic lives in `scripts/context-zone.sh` and only there. Closing it needs either a numeric deadband
+  below the band edge or a dwell requirement on the improved reading — and a dwell wide enough to
+  absorb the flap would also silence the single-observation recovery this fix exists to restore.
+
+- **`zone-crossing-inject`: the emit gate no longer advances when its companion write fails, so a
+  warning that was never reported cannot be lost (#2343).** 0.7.0 wrote the `.armed` gate FIRST, on
+  the reasoning that a partial write should leave behind the marker that suppresses. That reasoning
+  was wrong: suppression is not the safe side when the notice being suppressed was never delivered.
+  With `.armed` written first, a failed `.zone` write (a transient FS error, or a directory
+  occupying the path) exited without emitting while leaving the gate advanced — and after recovery
+  the next identical observation was suppressed by `new_rank > armed_rank`, permanently losing the
+  first warning of that zone. The order is now label first, gate second, with the label rolled back
+  best-effort if the gate write fails; either failure leaves the gate unmoved, so the session is
+  still owed its injection and the next observation issues it. Fail-open-silently and the
+  `status=error` telemetry are unchanged; the telemetry payload gains a `marker` field naming which
+  write failed. 0.7.0's persistence test created exactly this partial-write state and never retried
+  after clearing the obstruction, so it passed while the defect stood — it now retries, on both
+  markers.
+
 ## [0.7.1]
 
 ### Fixed

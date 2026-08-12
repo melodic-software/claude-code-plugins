@@ -116,20 +116,16 @@ else
   fail "state not updated on improvement"
 fi
 
-# 4. CONTRACT CHANGE, stated rather than slipped in. Before hysteresis this
-# sequence — dumb, then smart, then acceptable — injected on the third step,
-# because the gate compared against the LAST-SEEN zone and smart → acceptable is
-# a worsening. It is now SILENT: the armed rank is still dumb (one better
-# observation is not a sustained improvement), and acceptable is not worse than
-# dumb. The operator was already told this session reached dumb; telling them it
-# is now at a BETTER zone than the one already reported is the noise #2220 is
-# about. The relapse that must still be reported is covered by 4b.
+# 4. Relapse after a FULL recovery (dumb → smart → acceptable) injects again.
+# smart is the bottom of the ladder, so the armed marker decayed and the ladder
+# re-armed. This is the discriminating half of the hysteresis pair: a real
+# recovery must not be silenced by the rule that silences a flap.
 write_snapshot "$H" s1 60
 run "$H" "$D" s1 UserPromptSubmit
-if [[ $RC -eq 0 && -z "$OUT" ]]; then
-  ok "a zone better than the one already reported stays silent (was: injected pre-0.7.0)"
+if [[ $RC -eq 0 && "$OUT" == *additionalContext* && "$OUT" == *acceptable* ]]; then
+  ok "relapse after a two-rank recovery injects again (UserPromptSubmit)"
 else
-  fail "improvement-relative-to-armed wrongly injected: rc=$RC out=$OUT"
+  fail "relapse: rc=$RC out=$OUT"
 fi
 
 # 4a. HYSTERESIS — the flap. A session hovering on the acceptable/dumb boundary
@@ -154,7 +150,7 @@ if [[ $RC -eq 0 && -z "$OUT" ]]; then
 else
   fail "flap dip emitted: rc=$RC out=$OUT"
 fi
-if [[ "$(cut -d' ' -f1 <"$D/state/sflap.armed" 2>/dev/null)" == "dumb" ]]; then
+if [[ "$(cat "$D/state/sflap.armed" 2>/dev/null)" == "dumb" ]]; then
   ok "flap: a one-rank dip does NOT decay the armed rank"
 else
   fail "armed rank decayed on a one-rank dip: $(cat "$D/state/sflap.armed" 2>/dev/null)"
@@ -178,21 +174,18 @@ else
 fi
 
 # 4b. HYSTERESIS — the discriminating opposite, on a session of its own so the
-# two paths cannot share state: a SUSTAINED improvement decays the armed rank
-# and the next worsening is reported normally.
+# two paths cannot share state: dumb → smart → dumb DOES inject twice, because
+# a return to smart is a real state change rather than edge noise.
 write_snapshot "$H" srec 90
 run "$H" "$D" srec
 if [[ "$OUT" == *additionalContext* ]]; then ok "recovery: first dumb injects"; else fail "recovery setup: $OUT"; fi
-for _ in 1 2 3; do
-  write_snapshot "$H" srec 10 # smart, held for REARM_DWELL observations
-  run "$H" "$D" srec
-  [[ -n "$OUT" ]] && fail "recovery: an improvement emitted: $OUT"
-done
-if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "recovery: a held improvement is silent while it holds"; else fail "improvement emitted: $OUT"; fi
-if [[ "$(cut -d' ' -f1 <"$D/state/srec.armed" 2>/dev/null)" == "smart" ]]; then
-  ok "recovery: a sustained improvement decays the armed rank"
+write_snapshot "$H" srec 10 # smart — the bottom of the ladder, re-arms
+run "$H" "$D" srec
+if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "recovery: the improvement itself is silent"; else fail "improvement emitted: $OUT"; fi
+if [[ "$(cat "$D/state/srec.armed" 2>/dev/null)" == "smart" ]]; then
+  ok "recovery: a two-rank improvement decays the armed rank"
 else
-  fail "armed rank did not decay on a sustained recovery: $(cat "$D/state/srec.armed" 2>/dev/null)"
+  fail "armed rank did not decay on a full recovery: $(cat "$D/state/srec.armed" 2>/dev/null)"
 fi
 write_snapshot "$H" srec 90
 run "$H" "$D" srec
@@ -202,43 +195,51 @@ else
   fail "genuine relapse suppressed by hysteresis: rc=$RC out=$OUT"
 fi
 
-# 4d. THE MIDDLE BAND — the case a rank-delta margin got permanently wrong, and
-# the one this suite did not previously cover. `acceptable` is one rung above
-# the floor, so the largest improvement available from it is ONE rank; a rule
-# demanding two could never be satisfied there and the band armed forever.
-# Structurally identical to 4a/4b one rung down, and it must behave identically.
-write_snapshot "$H" smid 60
-run "$H" "$D" smid
+# 4d. HYSTERESIS — the same discriminating pair one band lower, on a session of
+# its own. `acceptable` is the MIDDLE of the ladder, so the only improvement
+# available to it is `smart`: exactly ONE rank. A re-arm rule expressed as a
+# fixed rank DELTA cannot see that — under 0.7.0's `armed_rank - new_rank >= 2`
+# the difference tops out at 1 here, so the marker could never decay and a
+# session that armed at `acceptable` stayed silent through every later relapse
+# for the rest of its life. Structurally this path is 4b's, one band down.
+#
+# It is also the path where a flap and a genuine recovery are the same
+# observation: `smart` is both the bottom of the ladder and the far side of the
+# `smart`/`acceptable` edge. The rule announces it — a re-arm here is deliberate
+# and is the stated residual, not an oversight (see the hook header).
+write_snapshot "$H" sacc 60 # acceptable — first observation, injects
+run "$H" "$D" sacc
 if [[ $RC -eq 0 && "$OUT" == *additionalContext* && "$OUT" == *acceptable* ]]; then
-  ok "middle band: first acceptable injects"
+  ok "middle band: the first acceptable observation injects"
 else
-  fail "middle band setup: rc=$RC out=$OUT"
+  fail "middle band setup did not inject: rc=$RC out=$OUT"
 fi
-write_snapshot "$H" smid 10 # smart — a single better observation
-run "$H" "$D" smid
-if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "middle band: the dip is silent"; else fail "middle band dip emitted: $OUT"; fi
-write_snapshot "$H" smid 60 # back to acceptable — the flap
-run "$H" "$D" smid
+write_snapshot "$H" sacc 10 # smart — a full recovery, one rank from acceptable
+run "$H" "$D" sacc
 if [[ $RC -eq 0 && -z "$OUT" ]]; then
-  ok "middle band: an unsustained dip does NOT re-arm, so the flap stays silent"
+  ok "middle band: the recovery itself is silent"
 else
-  fail "middle band flap re-injected: rc=$RC out=$OUT"
+  fail "middle band recovery emitted: rc=$RC out=$OUT"
 fi
-for _ in 1 2 3; do
-  write_snapshot "$H" smid 10 # smart, now HELD
-  run "$H" "$D" smid
-done
-if [[ "$(cut -d' ' -f1 <"$D/state/smid.armed" 2>/dev/null)" == "smart" ]]; then
-  ok "middle band: a sustained improvement DOES decay the armed rank"
+if [[ "$(cat "$D/state/sacc.armed" 2>/dev/null)" == "smart" ]]; then
+  ok "middle band: a return to smart decays the armed rank"
 else
-  fail "middle band armed rank never decays (permanent suppression): $(cat "$D/state/smid.armed" 2>/dev/null)"
+  fail "armed rank did not decay on a full recovery from acceptable: $(cat "$D/state/sacc.armed" 2>/dev/null)"
 fi
-write_snapshot "$H" smid 60
-run "$H" "$D" smid
+write_snapshot "$H" sacc 60 # relapse — structurally identical to 4b's relapse
+run "$H" "$D" sacc
 if [[ $RC -eq 0 && "$OUT" == *additionalContext* && "$OUT" == *acceptable* ]]; then
-  ok "middle band: relapse after a sustained recovery injects again (no permanent suppression)"
+  ok "middle band: relapse after a genuine recovery injects again"
 else
-  fail "middle band permanently suppressed — the rank-delta defect: rc=$RC out=$OUT"
+  fail "genuine relapse from the middle band suppressed: rc=$RC out=$OUT"
+fi
+# ...and the re-armed ladder latches again exactly as a fresh one does, so the
+# recovery bought exactly ONE re-announcement.
+run "$H" "$D" sacc
+if [[ $RC -eq 0 && -z "$OUT" ]]; then
+  ok "middle band: the re-armed ladder latches again (exactly one re-injection)"
+else
+  fail "middle band re-injected twice for one recovery: rc=$RC out=$OUT"
 fi
 
 # 4c. LEGACY STATE: a session already running when this version lands has a
@@ -255,7 +256,7 @@ if [[ $RC -eq 0 && "$OUT" == *additionalContext* && "$OUT" == *dumb* ]]; then
 else
   fail "legacy state broke the first post-upgrade decision: rc=$RC out=$OUT"
 fi
-if [[ "$(cut -d' ' -f1 <"$D/state/slegacy.armed" 2>/dev/null)" == "dumb" ]]; then
+if [[ "$(cat "$D/state/slegacy.armed" 2>/dev/null)" == "dumb" ]]; then
   ok "legacy state gains an .armed marker on first write (no migration step)"
 else
   fail "armed marker not seeded: $(cat "$D/state/slegacy.armed" 2>/dev/null)"
@@ -369,22 +370,80 @@ else
   fail "telemetry status not error: $(cat "$TEL" 2>/dev/null)"
 fi
 
-# 12a. THE WARNING SURVIVES THE FAILURE. The check above stops at "it stayed
-# silent", which a gate that advanced its armed marker on the way out would also
-# pass — and would then suppress the SAME observation forever once the
-# filesystem recovered, losing the first warning outright. So: clear the
-# obstruction and re-run the identical observation. It must inject.
-if [[ -e "$D/state/spersist.armed" ]]; then
-  fail "the armed gate advanced on a turn that emitted nothing: $(cat "$D/state/spersist.armed" 2>/dev/null)"
+# 12a. PARTIAL WRITE, THEN RECOVERY — the half 12 never checked. Failing open
+# silently is only correct if the notice SURVIVES the failure. If a marker
+# advances while the write that should have accompanied it failed, the hook
+# exits without emitting and the next identical observation is then suppressed
+# by the emit gate — the first warning is lost though it was never reported.
+# So: obstruct, observe the silent failure, confirm NEITHER marker moved, clear
+# the obstruction, and demand the injection the session is still owed.
+write_snapshot "$H" sretryz 90
+mkdir -p "$D/state"
+mkdir -p "$D/state/sretryz.zone" # same portable obstruction as 12
+TELZ="$WORK/tel-retry-zone.json"
+SINKZ="$(make_sink "$TELZ")"
+OUT=$(printf '{"session_id":"sretryz","hook_event_name":"PostToolBatch"}' |
+  HOME="$H" CLAUDE_PLUGIN_DATA="$D" HOOK_TELEMETRY_SINK="$SINKZ" bash "$HOOK" 2>/dev/null)
+RC=$?
+if [[ $RC -eq 0 && -z "$OUT" ]]; then
+  ok "partial write: the blocked observation is silent"
 else
-  ok "state-persist failure leaves the armed gate untouched"
+  fail "partial write not silent: rc=$RC out=${OUT:0:120}"
 fi
-rmdir "$D/state/spersist.zone" 2>/dev/null || rm -rf "$D/state/spersist.zone"
-run "$H" "$D" spersist
-if [[ $RC -eq 0 && "$OUT" == *additionalContext* && "$OUT" == *dumb* ]]; then
-  ok "after the filesystem recovers, the same observation still injects (warning not lost)"
+if [[ ! -e "$D/state/sretryz.armed" ]]; then
+  ok "partial write: the emit gate does NOT advance when its companion write fails"
 else
-  fail "the first warning was permanently lost by a partial write: rc=$RC out=${OUT:0:160}"
+  fail "armed gate advanced on a failed write: $(cat "$D/state/sretryz.armed" 2>/dev/null)"
+fi
+rm -rf "$D/state/sretryz.zone" # the filesystem recovers
+run "$H" "$D" sretryz
+if [[ $RC -eq 0 && "$OUT" == *additionalContext* && "$OUT" == *dumb* ]]; then
+  ok "partial write: the unreported warning survives and injects after recovery"
+else
+  fail "warning lost to a partial write: rc=$RC out=${OUT:0:120}"
+fi
+
+# 12b. The mirror image: the OTHER marker blocked. This one already held under
+# 0.7.0's ordering (the armed write came first and short-circuited before the
+# zone write, so nothing moved) — it is asserted here as a guard on the new
+# ordering, which writes the label first and must roll it back rather than
+# leave the message reporting a previous zone the session never left.
+write_snapshot "$H" sretrya 60 # acceptable — a real first observation
+run "$H" "$D" sretrya
+if [[ "$OUT" == *additionalContext* ]]; then
+  ok "partial write (armed): setup observation injects"
+else
+  fail "partial write (armed) setup: rc=$RC out=${OUT:0:120}"
+fi
+rm -f "$D/state/sretrya.armed"
+mkdir -p "$D/state/sretrya.armed" # now the GATE file is the blocked one
+write_snapshot "$H" sretrya 90    # dumb — a real worsening, owed an injection
+TELA="$WORK/tel-retry-armed.json"
+SINKA="$(make_sink "$TELA")"
+OUT=$(printf '{"session_id":"sretrya","hook_event_name":"PostToolBatch"}' |
+  HOME="$H" CLAUDE_PLUGIN_DATA="$D" HOOK_TELEMETRY_SINK="$SINKA" bash "$HOOK" 2>/dev/null)
+RC=$?
+if [[ $RC -eq 0 && -z "$OUT" ]]; then
+  ok "partial write (armed): the blocked observation is silent"
+else
+  fail "partial write (armed) not silent: rc=$RC out=${OUT:0:120}"
+fi
+if wait_for_sink "$TELA" && [[ "$(jq -r '.status' "$TELA" 2>/dev/null)" == "error" ]]; then
+  ok "partial write (armed): telemetry status=error"
+else
+  fail "partial write (armed) telemetry not error: $(cat "$TELA" 2>/dev/null)"
+fi
+if [[ "$(cat "$D/state/sretrya.zone" 2>/dev/null)" == "acceptable" ]]; then
+  ok "partial write (armed): the label marker still reports the zone the session was really in"
+else
+  fail "label marker moved without its gate: $(cat "$D/state/sretrya.zone" 2>/dev/null)"
+fi
+rm -rf "$D/state/sretrya.armed"
+run "$H" "$D" sretrya
+if [[ $RC -eq 0 && "$OUT" == *additionalContext* && "$OUT" == *"from the acceptable"* ]]; then
+  ok "partial write (armed): the warning survives and names the true previous zone"
+else
+  fail "warning lost or mislabelled after an armed-write failure: rc=$RC out=${OUT:0:200}"
 fi
 
 # No resolvable state root → stay silent rather than key the last-seen zone to
