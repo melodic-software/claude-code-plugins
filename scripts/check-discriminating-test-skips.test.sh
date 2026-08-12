@@ -108,6 +108,38 @@ else
 fi
 rm -f "$tmp_test"
 
+# --- discriminating-skip-required rejects any skip_case reason --------------
+f="$(new_fixture)"
+test_file "$f" alpha/skills/demo/scripts/demo.test.sh \
+  '# discriminating-skip-required: load-bearing branch
+if [[ "$x" == "1" ]]; then :; else skip_case "feature unavailable"; fi'
+if out="$(run_check "$f" 2>&1)"; then
+  fail "discriminating-skip-required skip_case should fail the gate, got success: $out"
+else
+  if echo "$out" | grep -q "discriminating-skip-required branch uses skip_case"; then
+    ok "discriminating-skip-required rejects skip_case regardless of reason"
+  else
+    fail "expected discriminating-skip-required violation, got: $out"
+  fi
+fi
+rm -rf "$f"
+
+# --- single-line if/fi must not corrupt later multi-line block tracking -----
+f="$(new_fixture)"
+test_file "$f" alpha/skills/demo/scripts/demo.test.sh \
+  'if [[ "$x" == "1" ]]; then ok "passed"; else fail "failed"; fi
+if [[ "$x" == "1" ]]; then :; else skip_case "this git did not pair the fixture as a copy"; fi'
+if out="$(run_check "$f" 2>&1)"; then
+  fail "multi-line violation after one-line if/fi should fail, got success: $out"
+else
+  if echo "$out" | grep -q "DISCRIMINATING TEST SKIP: plugins/alpha/skills/demo/scripts/demo.test.sh:2:"; then
+    ok "one-line if/fi does not suppress a later multi-line discriminating skip"
+  else
+    fail "expected line-2 violation after one-line if/fi, got: $out"
+  fi
+fi
+rm -rf "$f"
+
 # --- runtime: optional skip_case still passes --------------------------------
 tmp_test="$(mktemp --suffix=.test.sh)"
 cat >"$tmp_test" <<EOF

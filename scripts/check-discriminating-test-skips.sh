@@ -42,20 +42,32 @@ for test_file in "${test_files[@]}"; do
       return l ~ /skip_case/ &&
         (l ~ /did not pair/ || l ~ /did not produce both/)
     }
+    function is_any_skip(l) {
+      return l ~ /skip_case/
+    }
+    function same_line_if_fi(l) {
+      return l ~ /^[[:space:]]*if[[:space:]]/ &&
+        l ~ /(^|[[:space:];])fi([[:space:]]*(#.*)?)?([[:space:];]|$)/
+    }
     {
       line = $0
 
       if (in_block) {
-        if (line ~ /^[[:space:]]*if[[:space:]]/) depth++
-        if (line ~ /^[[:space:]]*fi([[:space:]]*(#.*)?)?$/) depth--
+        if (!same_line_if_fi(line)) {
+          if (line ~ /^[[:space:]]*if[[:space:]]/) depth++
+          if (line ~ /^[[:space:]]*fi([[:space:]]*(#.*)?)?$/) depth--
+        }
         if (is_annotated(line)) block_annotated = 1
         if (is_required(line)) block_required = 1
         if (is_bad_skip(line) && !is_annotated(line)) block_bad = 1
+        if (block_required && is_any_skip(line) && !is_annotated(line)) block_bad = 1
         if (depth == 0) {
-          if (block_bad && !block_annotated)
-            printf "%d: discriminating skip via skip_case — use fail_discriminating_skip\n", block_start
-          if (block_required && block_bad && !block_annotated)
-            printf "%d: discriminating-skip-required branch uses skip_case\n", block_start
+          if (block_bad && !block_annotated) {
+            if (block_required)
+              printf "%d: discriminating-skip-required branch uses skip_case\n", block_start
+            else
+              printf "%d: discriminating skip via skip_case — use fail_discriminating_skip\n", block_start
+          }
           in_block = 0
         }
         next
@@ -76,6 +88,11 @@ for test_file in "${test_files[@]}"; do
           printf "%d: discriminating skip via skip_case — use fail_discriminating_skip\n", NR
       }
 
+      if (is_any_skip(line) && (is_required(line) || required_above) &&
+          !is_annotated(line) && !annotated_above) {
+        printf "%d: discriminating-skip-required branch uses skip_case\n", NR
+      }
+
       if (is_required(line) && !is_comment(line)) {
         in_block = 1
         depth = 1
@@ -83,6 +100,16 @@ for test_file in "${test_files[@]}"; do
         block_annotated = is_annotated(line)
         block_required = 1
         block_bad = 0
+        next
+      }
+
+      if (same_line_if_fi(line)) {
+        one_annotated = is_annotated(line) || annotated_above
+        one_required = is_required(line) || required_above
+        if (is_bad_skip(line) && !one_annotated)
+          printf "%d: discriminating skip via skip_case — use fail_discriminating_skip\n", NR
+        if (one_required && is_any_skip(line) && !is_annotated(line) && !annotated_above)
+          printf "%d: discriminating-skip-required branch uses skip_case\n", NR
         next
       }
 
@@ -97,8 +124,12 @@ for test_file in "${test_files[@]}"; do
       }
     }
     END {
-      if (in_block && block_bad && !block_annotated)
-        printf "%d: discriminating skip via skip_case — use fail_discriminating_skip\n", block_start
+      if (in_block && block_bad && !block_annotated) {
+        if (block_required)
+          printf "%d: discriminating-skip-required branch uses skip_case\n", block_start
+        else
+          printf "%d: discriminating skip via skip_case — use fail_discriminating_skip\n", block_start
+      }
     }
   ' "$test_file")
 
