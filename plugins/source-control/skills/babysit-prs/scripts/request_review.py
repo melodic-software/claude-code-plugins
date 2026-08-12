@@ -13,7 +13,7 @@ from typing import Any, cast
 
 import babysit_lease as leases
 from babysit_delta import compute_branch_freshness, head_repository_scope
-from babysit_feedback import fetch_current_human_stop
+from babysit_feedback import fetch_current_human_stop, human_stop_blocks_automation
 from babysit_gh import (
     flatten_paginated_items,
     gh_json,
@@ -135,7 +135,7 @@ def validate_current_candidate(
         reaction_signals, expected_head_sha, review_trigger
     )
     human_stop = fetch_current_human_stop(repo, number, current)
-    if human_stop["required"]:
+    if human_stop_blocks_automation(human_stop):
         raise RuntimeError(
             "human review stop is active; refusing to post a review trigger"
         )
@@ -324,7 +324,7 @@ def run_locked(
         raise RuntimeError(
             "snapshot base repository is outside configured owners or archived"
         )
-    if json_object(pr_state.get("human_stop")).get("required"):
+    if human_stop_blocks_automation(json_object(pr_state.get("human_stop"))):
         raise RuntimeError("snapshot has an active human review stop")
     allowed_owners = allowed_owners_from_policy(mutation_policy)
 

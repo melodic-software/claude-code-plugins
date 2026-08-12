@@ -55,6 +55,7 @@ __all__ = [
     "body_text",
     "collect_feedback",
     "fetch_current_human_stop",
+    "human_stop_blocks_automation",
     "has_blocking_severity",
     "has_blocking_text",
     "human_stop_state",
@@ -258,14 +259,27 @@ def human_stop_state(
     pr: dict[str, Any],
     inline_comments: list[dict[str, Any]] | None,
     config: FeedbackConfig = DEFAULT_FEEDBACK_CONFIG,
+    *,
+    self_logins: frozenset[str] | None = None,
 ) -> dict[str, Any]:
     feedback = collect_feedback(pr, inline_comments, config=config)
     human_changes_requested = any(
         item.get("kind") == "review" and item.get("state") == "CHANGES_REQUESTED"
         for item in feedback["human_blocking"]
     )
+    normalized_self = (
+        normalize_self_logins(self_logins) if self_logins is not None else frozenset()
+    )
+    external_blocking = [
+        item
+        for item in feedback["human_blocking"]
+        if not is_self_login(item.get("author"), normalized_self)
+    ]
     return {
         "required": bool(feedback["human_blocking"]),
+        # Self-authored classification replies must not block freshness refresh or
+        # review triggers (#902); merge/triage still consult `required`.
+        "external_required": bool(external_blocking),
         "human_changes_requested": human_changes_requested,
         "human_blocking_count": len(feedback["human_blocking"]),
     }
@@ -276,9 +290,24 @@ def fetch_current_human_stop(
     number: int,
     pr: dict[str, Any],
     config: FeedbackConfig = DEFAULT_FEEDBACK_CONFIG,
+    *,
+    self_logins: frozenset[str] | None = None,
 ) -> dict[str, Any]:
     hydrated = dict(pr)
     hydrated["comments"] = fetch_issue_comments(repo, number)
     rest_hydrate_reviews(hydrated, repo, number)
     inline_comments = fetch_unresolved_review_comments(repo, number)
-    return human_stop_state(hydrated, inline_comments, config)
+    return human_stop_state(
+        hydrated, inline_comments, config, self_logins=self_logins
+    )
+
+
+def human_stop_blocks_automation(human_stop: dict[str, Any]) -> bool:
+    """Return whether automation (refresh, review trigger) must halt.
+
+    Prefer `external_required` when present (#902): self-authored lane replies
+    stay in `required` for merge/triage but must not block freshness refresh.
+    """
+    if "external_required" in human_stop:
+        return bool(human_stop.get("external_required"))
+    return bool(human_stop.get("required"))

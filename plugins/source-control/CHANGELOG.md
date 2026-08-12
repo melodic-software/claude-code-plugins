@@ -3,6 +3,7 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+<<<<<<< HEAD
 ## [0.53.11]
 
 ### Fixed
@@ -10,6 +11,15 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **Finding-extractor reads anchor to the PR worktree cwd (#2454).** Review-discipline
   dispatch text now substitutes `<absolute-worktree-path>` and quotes it in `git -C`
   examples so paths with spaces stay valid.
+=======
+## [0.53.10]
+
+### Fixed
+
+- **Branch refresh and review triggers no longer halt on self-authored human stops (#902).**
+  `human_stop.external_required` excludes configured self-logins from automation gates while
+  `human_stop.required` still blocks merge when the maintainer posts under their own login.
+>>>>>>> a9b3d4b5 (fix(source-control): exclude self-logins from automation human-stop gate)
 
 ## [0.53.9]
 
