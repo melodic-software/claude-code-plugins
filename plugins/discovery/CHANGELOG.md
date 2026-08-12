@@ -1,5 +1,100 @@
 # Changelog — discovery plugin
 
+## [0.15.0]
+
+### Fixed
+
+- **A harness behavior this plugin had never sourced was stated as settled fact in eight places.**
+  Through 0.14.0 the plugin asserted a specific empty-string rendering of `$ARGUMENTS` on the
+  subagent preload path — at `agents/explorer.md`, `agents/researcher.md`, both `SKILL.md` bodies and
+  `skills/research/context/dispatch.md`, in a weaker sixth form at `skills/explore/SKILL.md`, and
+  inside both `evals.json` files where it had become a **grading criterion**. Re-checked against raw
+  markdown on 2026-08-11: the skills page scopes the placeholder to "All arguments passed **when
+  invoking** the skill" and says preload "work[s] differently: the full skill content is injected at
+  startup"; the sub-agents page says only "The full content of each listed skill is injected into the
+  subagent's context at startup". **Neither page covers argument substitution on that path in either
+  direction**, and the nearest documented analogue — the `context: fork` walkthrough, where the
+  subagent "receives the skill content as its prompt" with the placeholder shown escaped — points the
+  other way.
+
+  This is recorded as **unsupported, not false**: nothing establishes that the retired sentence was
+  wrong. What was wrong was asserting an uncovered mechanism as the stated reason. Every copy now
+  states the rule that holds whichever way the harness renders the placeholder — *the scope or topic
+  does not reach a preloaded body by argument substitution, so do not rely on seeing an unfilled
+  slot; a topic that did not arrive in the dispatch prompt is a parent-envelope failure the agent
+  reports rather than repairs* — which is strictly stronger than what it replaced, because it no
+  longer depends on a rendering nobody has verified. The doc status is written down once, in the new
+  `reference/parent-contract.md`.
+
+  **Erratum against 0.14.0.** That entry's closing line, "That older claim is untouched here and is
+  tracked separately," described the claim as merely deferred. It is the claim retired here; the
+  0.14.0 text stands as written and this is its correction.
+
+- **The truncation rule and both recovery ladders prescribed opposite outcomes for one event.** Three
+  sites (`agents/explorer.md`, `agents/researcher.md`, `skills/research/context/dispatch.md`) said
+  the parent "discards the partial slice **rather than** resuming it" on a no-payload or `truncated`
+  return, while both ladders said resume first — and `skills/explore/reference/dispatch.md`
+  back-referenced the discard rule as the justification for its own. Five sites, two rules, one
+  event. The observed incident refutes discard-first: a resume recovered the complete artifact set
+  from retained context, so following the rule as written would have thrown away a finished run and
+  re-dispatched at full cost.
+
+  **Resume first; decide about the slice from what the resume returns.** Sourced against the
+  sub-agents page (raw markdown, 2026-08-11): "Resumed subagents retain their full conversation
+  history … The subagent picks up exactly where it stopped rather than starting fresh," and "A
+  completed subagent that receives a `SendMessage` auto-resumes in the background without a new
+  `Agent` invocation." The discard is not removed — it is **sequenced**, and stays mandatory once the
+  resume is refused, unavailable, or comes back without a usable payload, because that is precisely
+  the state the coverage script cannot grade. `truncated` still means the turn-budget stop and its
+  rung is unchanged, so #2203's `persistence:` axis is not reopened.
+
+- **The pre-dispatch envelope specified six fields and the primary dispatchers delivered a
+  parenthetical.** `skills/research/context/dispatch.md`'s parent-obligation table had five rows and
+  no **Memory root**, while `agents/researcher.md` requires it "as its own field, not left to be
+  derived" and `skills/research-deep/SKILL.md` already ships it as a literal prompt line. The
+  envelope is now one labelled template — reproduced from `research-deep`'s existing block so the two
+  cannot drift — and the table carries the missing row. Memory root is recorded as the one
+  **degradable** field: the agent derives, flags in `open_questions`, and continues, which is the
+  behavior actually observed and is proportionate to a recoverable, visible wrong guess.
+
+  **Capability flags stay one flag, deliberately.** All five statements of the field named nesting
+  and nothing else, and the capability that actually failed in the field was the child's ability to
+  write. The fix is **not** to assert a write flag: there is no pre-dispatch probe for it that does
+  not either lie or corrupt the gate's freshness baseline, and the parent's own `mkdir`/`touch`
+  proves only that the *parent* can write there. All three sites now say so and route the question to
+  `persistence: written | by-value`, which is the mechanism that already answers it after the fact.
+
+- **The pre-dispatch baseline was POSIX-only at three sites, and two pointers were monorepo paths.**
+  `touch` is not a command in PowerShell and the directory flag is a parameter error there, and
+  `shell: bash` does not cover this — its documented scope is inline injection blocks, not prose the
+  parent executes later through its own tool. The command now has exactly one home carrying **both**
+  shell forms, and the three skills point at it. `skills/explore/reference/dispatch.md` and
+  `skills/research/context/dispatch.md` cited `plugins/discovery/agents/<name>.md`, which resolves to
+  nothing from an installed plugin root; both now use the `${CLAUDE_PLUGIN_ROOT}` form every other
+  cross-reference in the plugin already used.
+
+- **Three files stated three different write boundaries, and scratch had no owner.**
+  `reference/artifact-protocol.md` sanctions scratch inside the memory slice, `agents/explorer.md`
+  put it out of bounds ("exactly two permitted destinations"), and `agents/researcher.md` admitted it
+  only incidentally. `reference/topic-docs.md` now carries the single statement — three destinations,
+  a `scratch-` naming prefix so a consumer can tell a working file from a deliverable, and a cleanup
+  owner (the run that created it, falling to the ladder's existing clear-the-slice rung when the run
+  dies). Both agents point at it instead of restating it. The researcher's **session** scratch dir is
+  named as a separate, harness-owned place outside that boundary rather than merged into it — the two
+  were never the same location, and collapsing them would have shipped a new false claim.
+  `reference/artifact-protocol.md` is byte-identical across four plugins and is not edited here.
+
+- **`skills/research/SKILL.md` was the hub and was larger than the spoke it delegates to** — a file
+  preloaded in full into every dispatched `maxTurns: 40` run. Measured at `9b34a82a`: **6,629 words
+  against `context/discipline.md`'s 5,087**, a gap that #2222 had widened by 851 words. The two
+  densest lines (3,105 and 2,108 characters) are where the mechanism depends on exact reading, which
+  argues against compressing them and for moving them: the fetch-log specification is now in
+  `context/artifact-shape.md` beside the sidecar-header schema it belongs with, outcome-gate
+  criterion 9's elaboration folded into `context/discipline.md`'s existing artifact-ladder section,
+  and the Tier-3 scoped exception into that file's "Source tiers". **The hub is now 5,026 words / 232
+  lines**, below the 5,236-word spoke, and a contract test pins the direction so the next edit cannot
+  silently re-invert it.
+
 ## [0.14.1]
 
 ### Fixed

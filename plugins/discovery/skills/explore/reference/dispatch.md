@@ -1,8 +1,16 @@
 # Dispatch contract — the parent's side
 
-`SKILL.md` carries the routing mandate and the acceptance gate's three steps. This file carries why
-each step is shaped the way it is, and what the parent does when one fails. The agent's own side is
-`plugins/discovery/agents/explorer.md`.
+`SKILL.md` carries the routing mandate and the acceptance gate's steps. This file carries why each
+step is shaped the way it is **for exploration**, and what the parent does when one fails. The
+agent's own side is
+[`${CLAUDE_PLUGIN_ROOT}/agents/explorer.md`](${CLAUDE_PLUGIN_ROOT}/agents/explorer.md).
+
+Everything the parent owes that is **identical for exploration and research** — the envelope's six
+fields as a literal template, the pre-dispatch baseline in both shell forms, what is and is not
+documented about argument substitution on the preload path, why the gate ships no permission grant
+and what to do when it cannot run, and the resume-before-discard ordering — is stated once in
+[`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md).
+This file does not restate it.
 
 ## Why the gate reads the slice path, not the payload
 
@@ -39,9 +47,10 @@ sections. The gate would report success and planning would proceed against a sta
 codebase, which is the original failure wearing a different hat.
 
 So the parent creates the slice if it is not there and touches `<slice>/.explore-dispatch`
-immediately before dispatching, then passes that file as `--newer-than`. The `mkdir -p` half is
-load-bearing on a first-time scope: a bare `touch` into a directory that does not exist yet fails,
-and the dispatch either never starts or reaches the gate with no baseline. The index has to be
+immediately before dispatching, then passes that file as `--newer-than` (both shell forms of that
+one command are in the parent contract). Creating the directory is load-bearing on a first-time
+scope: a bare touch into a directory that does not exist yet fails, and the dispatch either never
+starts or reaches the gate with no baseline. The index has to be
 strictly newer than that baseline. A baseline the parent named but that is not on disk exits 2
 rather than quietly reporting `freshness=unchecked`: a check the caller asked for and only appeared
 to get is worse than one it knowingly skipped, which is why every opt-in check reports `unchecked`
@@ -128,9 +137,15 @@ is on disk and only the payload was malformed, the artifact is the source of tru
 for the pointer, and still dispatch the sibling verifier. If the payload comes back naming a refused
 write, you are on the by-value rung above, not this one.
 
-**A refused resume, or exit 1 again after one.** Discard the slice and re-dispatch with the same
-envelope. Do not resume a partial slice: a half-written artifact set cannot be told apart from a
-complete one by reading it, which is why the truncation rule discards rather than resumes.
+**A refused resume, or exit 1 again after one.** *Now* discard the slice and re-dispatch with the
+same envelope. A half-written artifact set cannot be told apart from a complete one by reading it,
+so once the resume has failed there is nothing left that could tell you whether the slice is worth
+keeping. **The discard follows the resume; it does not replace it** — including for a
+`status: truncated` return and for a dispatch that returned no payload at all, which are the two
+cases that most often leave a live agent holding a complete artifact set. The ordering is stated
+once in
+[`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md)
+("Resume first, then decide about the slice").
 
 **Bound the wait either way.** The consuming session whose report produced this gate spent roughly
 eight minutes discovering the resume path by trial. That cost is why the ladder is written down.
