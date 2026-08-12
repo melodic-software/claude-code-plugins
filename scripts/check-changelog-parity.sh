@@ -201,12 +201,6 @@ changelog_versions() {
     grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?([+-][0-9A-Za-z][0-9A-Za-z.-]*)?'
 }
 
-# Bracketed Keep-a-Changelog release headings, one per line, in file order.
-# Only `## [x.y.z]` — the form --check-bump requires for release entries.
-changelog_bracket_headings() {
-  rendered_lines "$1" | grep -E '^## \[[0-9]+\.[0-9]+(\.[0-9]+)?([+-][0-9A-Za-z][0-9A-Za-z.-]*)?\]'
-}
-
 if [[ "$mode" == "--check-order" ]]; then
   changelogs=(plugins/*/CHANGELOG.md docs/conventions/*/CHANGELOG.md)
   misordered=0
@@ -379,6 +373,9 @@ malformed=0
 preexisting=0
 nonmonotonic=0
 absorbed=0
+# Declared once: `declare -A` on an existing associative array preserves its
+# contents, so the reset below must be an assignment, not a re-declaration.
+declare -A head_documents
 for manifest in "${manifests[@]}"; do
   plugin_dir="${manifest%/.claude-plugin/plugin.json}"
   name="${plugin_dir##*/}"
@@ -433,15 +430,36 @@ for manifest in "${manifests[@]}"; do
   # deletes headings without touching the manifest monotonicity checks. Compare
   # against $merge_base, not $base: main may have landed release headings after
   # the fork that this branch has not merged yet.
+  #
+  # Keyed on the VERSION each heading names, through the shared extractor —
+  # never on the rendered heading LINE. A line-level comparison reads every edit
+  # to an existing heading as a deletion, so the two annotations Keep a Changelog
+  # itself prescribes — dating a release (`## [1.0.0] - 2026-01-01`) and marking
+  # a pulled one (`## [1.0.0] - 2014-12-13 [YANKED]`) — red-lined this REQUIRED
+  # gate while PRESERVING the very heading they annotate
+  # (claude-code-plugins#2327). Keying on the version also keeps the check on the
+  # one shared reader the rest of the file uses, per the rendered_lines note
+  # above. A relabel is still caught: renaming `## [0.51.8]` to `## [0.51.9]`
+  # deletes the version 0.51.8 whatever the line around it looks like.
   if [[ -f "$changelog" ]]; then
-    missing_headings="$(
-      comm -23 \
-        <(git show "$merge_base:$changelog" 2>/dev/null | changelog_bracket_headings - | sort) \
-        <(changelog_bracket_headings "$changelog" | sort)
-    )"
+    # Named apart from $head_version / $base_version above: those are MANIFEST
+    # versions the rest of this loop body compares and interpolates, and a
+    # one-character alias between the two would be a silent bug.
+    mapfile -t fork_heading_versions < <(git show "$merge_base:$changelog" 2>/dev/null | changelog_versions -)
+    mapfile -t head_heading_versions < <(changelog_versions "$changelog")
+    head_documents=()
+    if ((${#head_heading_versions[@]} > 0)); then
+      for v in "${head_heading_versions[@]}"; do head_documents["$v"]=1; done
+    fi
+    missing_headings=""
+    for v in ${fork_heading_versions[@]+"${fork_heading_versions[@]}"}; do
+      [[ -z "${head_documents[$v]:-}" ]] || continue
+      head_documents["$v"]=1 # a version repeated at the fork point reports once
+      missing_headings="${missing_headings}## [$v]"$'\n'
+    done
     if [[ -n "$missing_headings" ]]; then
       echo "ABSORBED CHANGELOG HEADING: $name lost release section heading(s) vs the fork point (a merge-forward may have fused two releases into one section):" >&2
-      printf '%s\n' "$missing_headings" >&2
+      printf '%s' "$missing_headings" >&2
       absorbed=$((absorbed + 1))
       continue
     fi
