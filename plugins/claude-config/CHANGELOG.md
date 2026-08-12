@@ -148,6 +148,24 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   corrected mechanism is carried into **#2406** along with what a real loadability model would have
   to distinguish.
 
+## [0.36.2]
+
+### Changed
+
+- **`audit-permission-grants` scan-root override is now `$PERMISSION_HYGIENE_SCAN_ROOT`.**
+  `$PERMISSION_HYGIENE_FIXTURE_DIR` remains accepted as a deprecated alias for tests and
+  existing automation.
+
+## [0.36.1]
+
+### Fixed
+
+- **`audit-permission-grants` flags tilde-user Bash paths and inert substitution tokens.** `Bash(~user/…)`
+  now surfaces as P2 — the portable `~/` anchor for Read/Edit stays exempt. A new P4 check catches
+  `${CLAUDE_PLUGIN_ROOT}`, `%USERPROFILE%`, and `$env:USERPROFILE` grants that never match, with a
+  branched remedy: skill-local files recommend `${CLAUDE_SKILL_DIR}`; other surfaces recommend a bare
+  PATH command instead of plugin `bin/`.
+
 ## [0.36.0]
 
 ### Changed
