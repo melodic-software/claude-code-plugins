@@ -167,6 +167,11 @@ root="$(cd "$REPO_ROOT" 2>/dev/null && pwd)" || root=""
 # Rust binary; no per-repo dependency-manager convention exists for it, unlike
 # ruff's .venv or markdownlint's node_modules).
 TYPOS_BIN="$(command -v typos 2>/dev/null)" || TYPOS_BIN=""
+TYPOS_CONFIG="${CLAUDE_PLUGIN_ROOT}/config/default-typos.toml"
+TYPOS_CONFIG_ARGS=()
+if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -f "$TYPOS_CONFIG" ]]; then
+  TYPOS_CONFIG_ARGS=(-c "$TYPOS_CONFIG")
+fi
 
 # No binary available → visible once-per-session skip notice, not a silent gap
 # (dim-9 doctrine).
@@ -227,7 +232,7 @@ MAX_REPORT=10
 # noise — same rationale as ruff-format.sh's identical flag. Verified against
 # typos-cli 1.44.0: exit 0 = clean (or excluded); exit 2 = findings; any other
 # code = typos itself failed (bad config, internal error) — not a judgment.
-SCAN_OUTPUT=$(cd "$RUN_DIR" && "$TYPOS_BIN" --force-exclude --format json "$TYPOS_ARG" 2>&1)
+SCAN_OUTPUT=$(cd "$RUN_DIR" && "$TYPOS_BIN" "${TYPOS_CONFIG_ARGS[@]}" --force-exclude --format json "$TYPOS_ARG" 2>&1)
 SCAN_RC=$?
 
 # Emit the tool-break diagnostic for $1 and exit. typos broke for non-lint
@@ -270,7 +275,7 @@ fi
 # if that judgment changes in a future typos release.
 RESIDUAL_OUTPUT="$SCAN_OUTPUT"
 if [[ "$WRITE_CHANGES" == "true" ]]; then
-  WRITE_OUTPUT=$(cd "$RUN_DIR" && "$TYPOS_BIN" --write-changes --force-exclude --format json "$TYPOS_ARG" 2>&1)
+  WRITE_OUTPUT=$(cd "$RUN_DIR" && "$TYPOS_BIN" "${TYPOS_CONFIG_ARGS[@]}" --write-changes --force-exclude --format json "$TYPOS_ARG" 2>&1)
   WRITE_RC=$?
   # The write pass is guarded exactly as the scan pass is, and for a sharper
   # reason: an exit 2 with no output is a typos break mid-write, and reading it
