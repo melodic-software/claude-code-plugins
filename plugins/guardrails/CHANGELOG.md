@@ -3,6 +3,20 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.19]
+
+### Fixed
+
+- **`stale-path-verify` admits deleted root-level paths when the basename is
+  referentially unambiguous (#1446).** Root-level inline-code tokens no longer
+  require a `/` before provenance is consulted. The discriminator is explicit:
+  enumerated semantically-generic root filenames (`README.md`, `package.json`,
+  …) and any basename carried by more than one tracked file are still rejected;
+  unambiguous names such as `CONTRIBUTING.md` or `old-config.json` now reach the
+  deleted-path oracle. Widens candidate extraction only on that narrow class; a
+  full-corpus re-measure against the 0.20%/50% baseline from #1432 is still
+  warranted before treating the envelope as unchanged.
+
 ## [0.28.18]
 
 ### Fixed

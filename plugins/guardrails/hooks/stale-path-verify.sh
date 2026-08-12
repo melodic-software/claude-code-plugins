@@ -123,6 +123,39 @@ emit_tokens() {
     sed -E 's/^`+//; s/`+$//'
 }
 
+# Tracked-file list, read at most once per run and reused by root-basename
+# ambiguity and moved-file hint enrichment.
+TRACKED_FILES=""
+TRACKED_BUILT=0
+ensure_tracked_files() {
+  if ((TRACKED_BUILT == 0)); then
+    local out
+    if out=$(git -C "$REPO_ROOT" ls-files 2>/dev/null); then
+      TRACKED_FILES=${out//$'\r'/}
+      TRACKED_BUILT=1
+    fi
+  fi
+}
+
+# Root-level inline-code tokens (no '/') are admitted only when the basename is
+# referentially unambiguous — not when it names a class of file every repo has.
+# The discriminator is two-part, not a length or extension heuristic:
+#   (1) an enumerated set of semantically-generic root filenames that prose cites
+#       by kind rather than by location (`README.md`, `package.json`, …), and
+#   (2) more than one tracked file in this repo carrying the same basename, which
+#       makes a bare `` `name` `` referentially opaque even inside a code span.
+# Returns 0 (ambiguous → reject) or 1 (unambiguous → admit).
+root_basename_is_ambiguous() {
+  local base="$1" count
+  case "$base" in
+  README.md | README | package.json | package-lock.json | LICENSE | LICENCE | CHANGELOG.md | Makefile | GNUmakefile | .gitignore | .gitattributes | .editorconfig) return 0 ;;
+  esac
+  ensure_tracked_files
+  [[ -n "$TRACKED_FILES" ]] || return 1
+  count=$(printf '%s\n' "$TRACKED_FILES" | awk -F/ -v b="$base" '$NF == b { c++ } END { print c + 0 }')
+  ((count > 1))
+}
+
 # Reduce a raw token to a repo-relative path candidate, or nothing.
 # Prints the candidate on success; prints nothing when the token is not one.
 normalize_candidate() {
@@ -151,8 +184,8 @@ normalize_candidate() {
   # Leading ./ is the same path.
   t="${t#./}"
 
-  # Must look like a path at all.
-  [[ "$t" == */* ]] || return 0
+  local is_root=0
+  [[ "$t" == */* ]] || is_root=1
 
   # Reject anything that is not a literal repo-relative path.
   case "$t" in
@@ -173,19 +206,28 @@ normalize_candidate() {
   *) ;;
   esac
 
-  # A bare directory reference with no extension and no trailing slash is
-  # ambiguous with a namespace, a module path, or a URL path fragment.
-  #
-  # A TRAILING SLASH clears that ambiguity but buys no finding: git records file
-  # deletions, never directory ones, so no DELETED key can ever carry a slash and
-  # the exact provenance lookup below can never match `docs/old/`. An absent
-  # directory citation therefore only ever reaches ABSENT — enough to trip the
-  # shallow-clone and failed-walk notices, never enough to emit a STALE_PATH.
-  # Directory citations are OUT OF SCOPE for adjudication; making them work means
-  # deriving deleted ancestors from the file entries, tracked in #1452.
   local last="${t##*/}"
-  if [[ "$t" != */ && "$last" != *.* ]]; then
-    return 0
+  if ((is_root)); then
+    # Deleted root-level paths such as `CONTRIBUTING.md` are valid repo-relative
+    # citations; admit them only when root_basename_is_ambiguous says the token is
+    # referentially unambiguous. Generic root names and multiply-occurring basenames
+    # stay out — see #1446.
+    root_basename_is_ambiguous "$t" && return 0
+    [[ "$last" == *.* ]] || return 0
+  else
+    # A bare directory reference with no extension and no trailing slash is
+    # ambiguous with a namespace, a module path, or a URL path fragment.
+    #
+    # A TRAILING SLASH clears that ambiguity but buys no finding: git records file
+    # deletions, never directory ones, so no DELETED key can ever carry a slash and
+    # the exact provenance lookup below can never match `docs/old/`. An absent
+    # directory citation therefore only ever reaches ABSENT — enough to trip the
+    # shallow-clone and failed-walk notices, never enough to emit a STALE_PATH.
+    # Directory citations are OUT OF SCOPE for adjudication; making them work means
+    # deriving deleted ancestors from the file entries, tracked in #1452.
+    if [[ "$t" != */ && "$last" != *.* ]]; then
+      return 0
+    fi
   fi
 
   printf '%s' "$t"
@@ -382,21 +424,9 @@ build_deleted_set() {
 # too weak to trigger on — `README.md` and `SKILL.md` match hundreds of paths —
 # but once history has established the path was removed, a UNIQUE surviving
 # basename is very likely where it went.
-#
-# The tracked-file list is read at most once per run and reused for every
-# finding: it is identical for all of them, and re-listing a large repo per
-# finding is the one place this guard's rare path re-does whole-repo I/O.
-TRACKED_FILES=""
-TRACKED_BUILT=0
 moved_hint() {
   local base="${1##*/}" matches=()
-  if ((TRACKED_BUILT == 0)); then
-    local out
-    if out=$(git -C "$REPO_ROOT" ls-files 2>/dev/null); then
-      TRACKED_FILES=${out//$'\r'/}
-      TRACKED_BUILT=1
-    fi
-  fi
+  ensure_tracked_files
   [[ -n "$TRACKED_FILES" ]] || return 1
   mapfile -t matches < <(printf '%s\n' "$TRACKED_FILES" | awk -F/ -v b="$base" '$NF == b')
   ((${#matches[@]} == 1)) && printf '%s' "${matches[0]}"
