@@ -1856,6 +1856,15 @@ else
 fi
 rm -f "$f"
 
+# --- backslash-escaped command name is still a command position (#1551 class 3) ---
+f="$(tmpsh '\mktemp -p /tmp')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "backslash-escaped mktemp must still be flagged: expected failure, got success"
+else
+  ok "backslash-escaped mktemp -p is flagged"
+fi
+rm -f "$f"
+
 # --- operator-terminated sed -Ei / --in-place forms are active in the
 # SHIPPED list too (#1545): both tokens end at a control operator, redirection
 # or subshell close, and -- like the `sort -V` / `grep -P` / `echo -e` classes
