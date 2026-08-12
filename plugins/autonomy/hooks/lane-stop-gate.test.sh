@@ -813,6 +813,7 @@ else
 FIFO_INPUT=$(build_input Stop "no token" false "" "sess-fifo")
 FIFO_OUT="$WORK/fifo-out"
 FIFO_RC=0
+# shellcheck disable=SC2016 # bash -c program is single-quoted; \$1..\$4 expand in the child
 if timeout 5 bash -c '
   cd "$1" && printf "%s" "$2" |
     env -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED \
