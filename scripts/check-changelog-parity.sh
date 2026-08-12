@@ -204,7 +204,7 @@ changelog_versions() {
 # Bracketed Keep-a-Changelog release headings, one per line, in file order.
 # Only `## [x.y.z]` — the form --check-bump requires for release entries.
 changelog_bracket_headings() {
-  rendered_lines "$1" | grep -E '^## \['
+  rendered_lines "$1" | grep -E '^## \[[0-9]+\.[0-9]+(\.[0-9]+)?([+-][0-9A-Za-z][0-9A-Za-z.-]*)?\]'
 }
 
 if [[ "$mode" == "--check-order" ]]; then
