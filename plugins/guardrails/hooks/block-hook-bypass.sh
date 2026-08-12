@@ -115,6 +115,67 @@ emit_tel() {
   hook::emit_telemetry "block-hook-bypass" "PreToolUse" "$1" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
 }
 
+# --- Redirect-operand literal marking (#2226) --------------------------------
+#
+# Both exemptions below are decided on the redirect TARGET, so the target must be
+# the whole operand bash would use — not a prefix of it. strip_literals KEEPS a
+# quoted write target (dropping its quotes) so the write still reads as a write,
+# but the kept text then flows into machinery that reads shell SYNTAX: the
+# segment split treats `;`, `|`, `&`, `(`, `)` and a newline as boundaries, and
+# _redir_scan's target class ends at whitespace, `>` and `|`. A quoted operand
+# carrying any of those therefore reached the exemption tests as its first
+# fragment — `echo x > "/dev/null ../../etc/pw"` was judged on the word
+# `/dev/null` and exempted, while nothing named `/dev/null` is the destination.
+#
+# Two sentinel bytes carry the association the strip would otherwise destroy:
+#
+#   \x03 OPAQUE — stands in for one character of operand LITERAL content whose
+#        own value would read as syntax downstream, or whose text this strip
+#        cannot reproduce faithfully (a backslash escape). It is inert to every
+#        scan in this file, so the operand survives as ONE token; its presence
+#        means the operand's exact pathname is NOT recoverable here, and NO
+#        exemption of any kind may be granted.
+#   \x04 QUOTED — emitted once where a kept quoted span opens. It records that
+#        the operand was quoted at all without hiding the text: the `/dev/null`
+#        discard compare strips it (a quoted `> "/dev/null"` is still a discard),
+#        while the scratch-root axis keeps its shipped floor of never exempting a
+#        quoted operand.
+#
+# A raw \x01-\x04 byte arriving in the command text is mapped to OPAQUE as well,
+# so a forged sentinel can only ever COST an exemption, never manufacture one.
+_MARK_OPAQUE=$'\x03'
+_MARK_QUOTE=$'\x04'
+
+# True when the character about to be consumed belongs to a REDIRECT OPERAND —
+# the word being emitted began right after a `>`. Strip the current trailing
+# operand word (back to the last whitespace or shell metachar), then the
+# whitespace before it, and test for `>`.
+#
+# Gating every mark on this is what keeps normalize_segments, _producer_head,
+# _cat_redir and every whitespace trim in this file byte-for-byte as shipped:
+# nothing outside an operand is marked, so an escaped separator between commands
+# (`echo x \; > f`) still travels the unchanged `\x02`-to-space path, and a
+# backslash in a command WORD (`/c/Python313/python3.exe -c`) is untouched.
+_in_redirect_operand() {
+  local tail="$1"
+  tail="${tail%"${tail##*[[:space:]<>|&\;()]}"}"
+  tail="${tail%"${tail##*[![:space:]]}"}"
+  [[ "${tail: -1}" == ">" ]]
+}
+
+# One character of KEPT operand content, into _KEEP_CHAR: itself, or the opaque
+# marker when its literal value would read as syntax downstream. Single-sourced
+# so the two kept-span emit sites cannot drift apart.
+_KEEP_CHAR=""
+_keep_char() {
+  case "$1" in
+  [[:space:]] | ';' | '|' | '&' | '(' | ')' | '<' | '>' | $'\x01' | $'\x02' | $'\x03' | $'\x04')
+    _KEEP_CHAR="$_MARK_OPAQUE"
+    ;;
+  *) _KEEP_CHAR="$1" ;;
+  esac
+}
+
 # Strip single- and double-quoted literal spans so the executable-token scan
 # sees only shell syntax, not payload text. Heredoc bodies are dropped wholesale
 # (their content is data, not a command). The quote strip carries an OPEN quote
@@ -130,7 +191,10 @@ strip_literals() {
   # carries, alongside it, whether that span is a REDIRECT OPERAND (a quoted
   # target: the char before the opening quote is `>`) — those are kept as literal
   # content instead of dropped, so a quoted write target survives the strip.
-  local open_quote="" open_keep="" out i n c prev tail
+  # `op_cont` is set when a line ends with a backslash INSIDE a redirect operand:
+  # bash removes the backslash-newline entirely, so the operand continues on the
+  # next line with no separator and the joining newline must not be emitted.
+  local open_quote="" open_keep="" out i n c prev nxt op_cont
   # `(^|[^<])` before `<<` excludes a here-string `<<<` — matching `<<` inside
   # `<<<` would capture a bogus delimiter and strand the stripper in-heredoc,
   # swallowing every later line (a here-string bypass). The delimiter body
@@ -178,6 +242,7 @@ strip_literals() {
     out=""
     i=0
     n=${#line}
+    op_cont=0
     while ((i < n)); do
       c="${line:i:1}"
       if [[ "$open_quote" == "'" ]]; then
@@ -185,21 +250,26 @@ strip_literals() {
           open_quote=""
           open_keep=""
         elif [[ -n "$open_keep" ]]; then
-          out+="$c"
+          _keep_char "$c"
+          out+="$_KEEP_CHAR"
         fi
         ((i += 1))
       elif [[ "$open_quote" == '"' ]]; then
         if [[ "$c" == $'\\' ]]; then
-          # Inside double quotes a backslash escapes the next char; when this span
-          # is a kept redirect operand, keep that escaped char literally.
-          [[ -n "$open_keep" ]] && out+="${line:i+1:1}"
+          # Inside double quotes a backslash escapes the next char. In a kept
+          # redirect operand this strip cannot reproduce the result faithfully —
+          # bash RETAINS the backslash unless the escaped char is one of
+          # `$` `` ` `` `"` `\` or a newline — so the pair is marked OPAQUE
+          # rather than guessed at, and the operand loses its exemption.
+          [[ -n "$open_keep" ]] && out+="$_MARK_OPAQUE"
           ((i += 2))
         else
           if [[ "$c" == '"' ]]; then
             open_quote=""
             open_keep=""
           elif [[ -n "$open_keep" ]]; then
-            out+="$c"
+            _keep_char "$c"
+            out+="$_KEEP_CHAR"
           fi
           ((i += 1))
         fi
@@ -212,13 +282,17 @@ strip_literals() {
           # target (`echo x > "$out"` -> `echo x > $out`, still a detectable write;
           # partial `echo x > /dev/"null"` -> `echo x > /dev/null`, still exempt),
           # while a quoted span anywhere else (prose, `--body "..."`, a quoted echo
-          # argument) is dropped as before so its tokens stay inert. Boundary: strip
-          # the current trailing operand word (chars up to the last whitespace or
-          # shell metachar), then the whitespace before it, and test for `>`.
+          # argument) is dropped as before so its tokens stay inert. Boundary:
+          # _in_redirect_operand. A kept span also emits the QUOTED marker, so the
+          # exemptions downstream can tell a quoted operand from a bare one
+          # instead of inferring it from quotes anywhere in the raw command.
           open_quote="$c"
-          tail="${out%"${out##*[[:space:]<>|&\;()]}"}"
-          tail="${tail%"${tail##*[![:space:]]}"}"
-          [[ "${tail: -1}" == ">" ]] && open_keep=1 || open_keep=""
+          if _in_redirect_operand "$out"; then
+            open_keep=1
+            out+="$_MARK_QUOTE"
+          else
+            open_keep=""
+          fi
           ((i += 1))
           ;;
         '#')
@@ -244,17 +318,53 @@ strip_literals() {
           ((i += 1))
           ;;
         $'\\')
-          out+="${line:i:2}"
-          ((i += 2))
+          nxt="${line:i+1:1}"
+          if ! _in_redirect_operand "$out"; then
+            # Outside an operand the pair is left exactly as it was:
+            # normalize_segments still needs `\<sep>` to reach its escaped-
+            # separator sentinel, and a backslash in a command word is path text.
+            out+="${line:i:2}"
+            ((i += 2))
+          elif [[ -z "$nxt" ]]; then
+            # Backslash at end of line INSIDE an operand: bash removes the
+            # backslash-newline outright, so the operand continues on the next
+            # line. Mark it and suppress the joining newline below.
+            out+="$_MARK_OPAQUE"
+            op_cont=1
+            ((i += 1))
+          else
+            # An escaped character in an operand is LITERAL content. Its own value
+            # is dropped when it would read as syntax; otherwise it is kept behind
+            # the marker, because the escape means the written text is not the
+            # pathname (`D:\jobtmp\scratch\f` is `D:jobtmpscratchf` to bash).
+            _keep_char "$nxt"
+            [[ "$_KEEP_CHAR" == "$_MARK_OPAQUE" ]] && out+="$_MARK_OPAQUE" ||
+              out+="$_MARK_OPAQUE$nxt"
+            ((i += 2))
+          fi
           ;;
         *)
-          out+="$c"
+          # A raw sentinel byte in the command text is treated as opaque literal
+          # content, so it can never be mistaken for a mark this strip emitted.
+          case "$c" in
+          $'\x01' | $'\x02' | $'\x03' | $'\x04') out+="$_MARK_OPAQUE" ;;
+          *) out+="$c" ;;
+          esac
           ((i += 1))
           ;;
         esac
       fi
     done
-    result+="${out}"$'\n'
+    # A newline INSIDE a kept operand is literal content, not a separator — a
+    # quoted target may span physical lines, and a backslash-newline inside one
+    # is removed by bash outright. Either way the operand must stay one token.
+    if [[ -n "$open_quote" && -n "$open_keep" ]]; then
+      result+="${out}${_MARK_OPAQUE}"
+    elif ((op_cont)); then
+      result+="$out"
+    else
+      result+="${out}"$'\n'
+    fi
   done < <(printf '%s\n' "$cmd") # not <<<: a >=64KiB here-string deadlocks (see hardcoded-path-patterns.sh)
   printf '%s' "${result%$'\n'}"
 }
@@ -295,6 +405,10 @@ _cat_redir='(^|[[:space:];|&()]+)cat([[:space:]]*>|[[:space:]]+1>)'
 # target class excludes `&`, so an fd dup (`>&1`) is not mistaken for a file.
 # Used by set_last_stdout_target, never matched alone: the PRESENCE of a
 # `/dev/null` redirect proves nothing (see below).
+# The operand marks `\x03`/`\x04` are deliberately ADMITTED by the target class
+# where the normalization sentinels `\x01`/`\x02` are excluded: their whole point
+# is that a marked operand reaches this scan as ONE word (see the marking block
+# above strip_literals). resolve_target_marks reads them off the captured target.
 _redir_scan=$'(^|[^0-9&])1?>>?[[:space:]]*([^|&>[:space:]\x01\x02]+)'
 # A simple-command segment whose command token is `echo` or `printf` — the
 # content producers a `> file` redirect turns into a Write/Edit bypass. Anchored
@@ -487,6 +601,31 @@ set_last_stdout_target() {
   done
 }
 
+# Resolve the operand marks strip_literals attached to the effective target (see
+# the marking block above it) into the three things the exemptions need: whether
+# the operand's pathname is recoverable at all (TARGET_OPAQUE), whether it was
+# quoted (TARGET_QUOTED), and the text itself with the quote marks removed.
+# Globals, not an echo, for the same no-fork reason as set_last_stdout_target.
+TARGET_TEXT=""
+TARGET_OPAQUE=0
+TARGET_QUOTED=0
+resolve_target_marks() {
+  local t="$1"
+  TARGET_OPAQUE=0
+  TARGET_QUOTED=0
+  [[ "$t" == *"$_MARK_OPAQUE"* ]] && TARGET_OPAQUE=1
+  [[ "$t" == *"$_MARK_QUOTE"* ]] && TARGET_QUOTED=1
+  TARGET_TEXT="${t//"$_MARK_QUOTE"/}"
+}
+
+# 0 when the effective target is the stdout DISCARD. Quoting is transparent here
+# — `> "/dev/null"` and `> /dev/"null"` are the same discard — but an OPAQUE
+# operand is not: `> "/dev/null ../../etc/pw"` is one pathname to bash and it is
+# not `/dev/null`, which is exactly the bypass #2226 reported.
+devnull_target_exempt() {
+  ((TARGET_OPAQUE == 0)) && [[ "$TARGET_TEXT" == "/dev/null" ]]
+}
+
 # --- Scratch-root exemption (opt-in; TARGET-PATH axis) ------------------------
 #
 # This guard is PRODUCER-scoped: it fires on echo/printf/cat/python3 -c as the
@@ -535,15 +674,14 @@ set_last_stdout_target() {
 # root only in case is therefore also exempt.
 #
 # A QUOTED OR ESCAPED redirect operand is never exempt — see the fail-closed
-# test at the top of scratch_target_exempt. A quoted operand can carry
-# whitespace, `;`, `|`, `&` or a newline that strip_literals and
-# normalize_segments have already resolved away as syntax, leaving only a
-# safe-looking prefix of the real pathname to compare. The same truncation
-# reaches the `/dev/null` exemption and PREDATES this axis (measured at
-# `685dd381`: `echo x > "/dev/null;/../../etc/passwd"` is allowed there); that
-# half is filed as #2226 and pinned here by a control test, because fixing it
-# means teaching strip_literals to mark a kept operand's internal separators —
-# shared machinery this row does not touch.
+# tests at the top of scratch_target_exempt. Since 0.26.0 that decision is made
+# on the OPERAND, from the marks strip_literals attaches to it, not on the raw
+# command: an operand carrying whitespace, `;`, `|`, `&`, `(`, `)`, a newline or
+# a backslash escape is OPAQUE and exempts nothing, and a merely quoted one is
+# refused by this axis on its shipped floor. The truncation that made those
+# operands compare as a safe-looking prefix of themselves also reached the
+# `/dev/null` exemption and predated this axis (#2226); both are closed by the
+# same marking, and devnull_target_exempt is where the discard half decides.
 #
 # SCOPE: Bash lane only. The PowerShell lane classifies on cmdlet/redirect
 # CO-OCCURRENCE and never resolves a single effective target, so there is no
@@ -595,44 +733,38 @@ _norm_path() {
 scratch_target_exempt() {
   local target="$1" norm_target root roots
   [[ -n "$_SCRATCH_ROOTS" ]] || return 1
-  # FAIL CLOSED on a QUOTED or ESCAPED redirect operand, before anything else.
-  # By the time LAST_STDOUT_TARGET exists the evidence is gone: strip_literals
-  # KEEPS a quoted write target but drops its quotes, and normalize_segments then
-  # turns a `;`, `|`, `&` or newline inside that operand into a segment boundary
-  # and whitespace into a word boundary — so the operand
-  # `"/tmp/scratch/a;/../../etc/passwd"`, which bash treats as ONE pathname,
-  # reaches the compare as the safe-looking prefix `/tmp/scratch/a`. Exempting
-  # that is precisely the one-token bypass the `/dev/null` precedent warns about.
-  # The only surviving evidence is the RAW command, so refuse the exemption when
-  # any quote or backslash appears after the first `>` in it.
+  # FAIL CLOSED on an operand whose pathname is not dependably what reaches the
+  # compare, before anything else. All three tests are keyed on the OPERAND, via
+  # the marks strip_literals attached to it (see the marking block above
+  # strip_literals) — not on the raw command.
   #
-  # STATE THE TRUE SCOPE — it is broader than "the operand" in TWO ways, and both
-  # are easy to describe more precisely than they behave:
+  #   OPAQUE  — the operand carries literal content whose value would read as
+  #             syntax, or a backslash escape this strip cannot reproduce. The
+  #             pathname is not recoverable, so no exemption may be granted:
+  #             `> "/tmp/scratch/a;/../../etc/passwd"` is ONE pathname to bash and
+  #             exempting its `/tmp/scratch/a` prefix is precisely the one-token
+  #             bypass the `/dev/null` precedent warns about.
+  #   QUOTED  — the operand was quoted at all. Its text IS recoverable here, and
+  #             this axis still refuses it: the shipped floor since 0.25.0 is that
+  #             a quoted operand is never scratch-exempt, and keeping it holds the
+  #             grant surface of this change to targets proven bare.
+  #   `\`     — a residual belt. Nothing reaching here should still carry a raw
+  #             backslash (an in-operand escape is marked OPAQUE, a single-quoted
+  #             one is marked QUOTED), and _norm_path folds `\` to `/`, so refuse
+  #             rather than compare a path that folding invented.
   #
-  #   1. NOT segment-scoped. This reads the WHOLE raw tail, not the segment being
-  #      evaluated and not the target word, so a quote anywhere later in a compound
-  #      command costs an EARLIER, unambiguous write its exemption:
-  #      `echo x > /tmp/scratch/f && grep foo "notes.txt"` blocks, even though
-  #      segment 1's target is a plain path.
-  #   2. NOT keyed on the redirect OPERATOR. `${COMMAND#*>}` splits at the first
-  #      literal `>` CHARACTER and never decides whether it is an operator, so a
-  #      `>` inside quoted CONTENT starts the tail early and that content's own
-  #      closing quote lands inside it: `echo "a > b" > /tmp/scratch/f` blocks.
-  #      Quotes before the redirect are otherwise fine — `echo "hi there" > …` is
-  #      exempt — but only while the quoted content holds no `>`.
-  #
-  # Both are deliberate and both are the safe direction: this test can only ever
-  # REFUSE an exemption, never grant one, so the failure mode is lost convenience,
-  # never a bypass. Fixing either one needs the same thing — knowing which `>` and
-  # which quotes are SYNTAX rather than CONTENT — and that is exactly the
-  # association strip_literals destroys before this code runs. Same root cause as
-  # #2226; not attempted here. Four regression tests pin these boundaries so the
-  # breadth cannot silently widen or narrow. An operator who wants the exemption
-  # keeps quotes, backslashes and `>` out of the command after the target.
-  #
-  # The same truncation reaches the `/dev/null` exemption and predates this axis;
-  # it is filed as #2226 and pinned by a control test.
-  [[ "${COMMAND#*>}" == *[\"\'\\]* ]] && return 1
+  # 0.25.0 could do none of this and read `${COMMAND#*>}` instead — any quote or
+  # backslash after the first `>` CHARACTER, anywhere in the command. That was
+  # blunt in two directions (#2236): it was not segment-scoped, so a quote in an
+  # unrelated later segment cost an earlier unambiguous write its exemption, and
+  # it was not keyed on the redirect OPERATOR, so a `>` inside quoted content
+  # started the scanned tail early. Both are gone; both narrowings GRANT the
+  # exemption where it was refused, and both land only on a target the marks prove
+  # was bare — `echo x > /tmp/scratch/f && grep foo "notes.txt"` and
+  # `echo "a > b" > /tmp/scratch/f` are exempt again.
+  ((TARGET_OPAQUE)) && return 1
+  ((TARGET_QUOTED)) && return 1
+  [[ "$target" == *\\* ]] && return 1
   _norm_path "$target" || return 1
   [[ -n "$_NORM_PATH" ]] || return 1
   norm_target="$_NORM_PATH"
@@ -668,10 +800,11 @@ cat_redirect_bypass() {
     # write. Checked before the /dev/null test so an empty value cannot fall
     # through to `return 0`.
     [[ -n "$LAST_STDOUT_TARGET" ]] || continue
-    [[ "$LAST_STDOUT_TARGET" == "/dev/null" ]] && continue
+    resolve_target_marks "$LAST_STDOUT_TARGET"
+    devnull_target_exempt && continue
     # Same left-to-right rule as the discard above: the exemption is decided on
     # the EFFECTIVE target, so `cat > /allowed/tmp/f > real.txt` still blocks.
-    scratch_target_exempt "$LAST_STDOUT_TARGET" && continue
+    scratch_target_exempt "$TARGET_TEXT" && continue
     return 0
   done < <(printf '%s\n' "$NORMALIZED_SEGMENTS") # not <<<: a >=64KiB here-string deadlocks (see hardcoded-path-patterns.sh)
   return 1
@@ -740,10 +873,11 @@ producer_redirect_bypass() {
     # file operand, nothing to block" rather than re-blocking a dup if the two
     # target classes ever drift apart again.
     [[ -n "$LAST_STDOUT_TARGET" ]] || continue
-    [[ "$LAST_STDOUT_TARGET" == "/dev/null" ]] && continue
+    resolve_target_marks "$LAST_STDOUT_TARGET"
+    devnull_target_exempt && continue
     # Mirror of the cat lane, and for the same reason: decided on the EFFECTIVE
     # target, so `echo x > /allowed/tmp/f > real.txt` still blocks.
-    scratch_target_exempt "$LAST_STDOUT_TARGET" && continue
+    scratch_target_exempt "$TARGET_TEXT" && continue
     return 0
   done < <(printf '%s\n' "$NORMALIZED_SEGMENTS") # not <<<: a >=64KiB here-string deadlocks (see hardcoded-path-patterns.sh)
   return 1
