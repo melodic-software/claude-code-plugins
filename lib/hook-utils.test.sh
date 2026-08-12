@@ -1947,26 +1947,29 @@ fragmented)
 esac
 rm -f "$bs_probe_file" "$bs_payload_file" "$bs_rc_file" "$bs_out_file"
 
-# Load-independent stall-slicing engagement: the unsliced override reaches
-# slice_count after one idle slice; default slicing must idle more times before
-# declaring stall. Count json_complete probes (each idle slice) — not wall clock.
-bs_stall_idle_file="$(mktemp)"
-bs_stall_idle_override='hook::json_complete() {
-  printf "%s\n" "${idle_slices-?}" >>"'"$bs_stall_idle_file"'"
-  return 1
+# Load-independent stall-slicing engagement: after the partial payload lands,
+# default slicing (slice_count=4) loops through more empty-slice reads before
+# declaring stall than the unsliced override (slice_count=1). hook::json_complete
+# fires only on the first empty slice of a quiet period, so counting its probes
+# cannot distinguish the arms — count read invocations instead.
+bs_stall_read_file="$(mktemp)"
+# shellcheck disable=SC2016 # read() shadows the builtin inside the stall subshell
+bs_stall_read_override='read() {
+  printf "x\n" >>"'"$bs_stall_read_file"'"
+  builtin read "$@"
 }'
-: >"$bs_stall_idle_file"
-bs_time_stall "$bs_stall_idle_override" >/dev/null
-bs_sliced_idle=$(wc -l <"$bs_stall_idle_file" | tr -d ' ')
-: >"$bs_stall_idle_file"
-bs_time_stall "$bs_unsliced; $bs_stall_idle_override" >/dev/null
-bs_unsliced_idle=$(wc -l <"$bs_stall_idle_file" | tr -d ' ')
-if ((bs_sliced_idle > bs_unsliced_idle)); then
-  ok "buffer_stdin: sliced stall path exercises more idle slices than unsliced ($bs_sliced_idle vs $bs_unsliced_idle)"
+: >"$bs_stall_read_file"
+bs_time_stall "$bs_stall_read_override" >/dev/null
+bs_sliced_reads=$(wc -l <"$bs_stall_read_file" | tr -d ' ')
+: >"$bs_stall_read_file"
+bs_time_stall "$bs_unsliced; $bs_stall_read_override" >/dev/null
+bs_unsliced_reads=$(wc -l <"$bs_stall_read_file" | tr -d ' ')
+if ((bs_sliced_reads > bs_unsliced_reads)); then
+  ok "buffer_stdin: sliced stall path issues more reads than unsliced ($bs_sliced_reads vs $bs_unsliced_reads)"
 else
-  fail "buffer_stdin stall idle-slice engagement: sliced=$bs_sliced_idle unsliced=$bs_unsliced_idle (expected sliced > unsliced)"
+  fail "buffer_stdin stall read engagement: sliced=$bs_sliced_reads unsliced=$bs_unsliced_reads (expected sliced > unsliced)"
 fi
-rm -f "$bs_stall_idle_file"
+rm -f "$bs_stall_read_file"
 
 # Stall overshoot is load-sensitive when asserted as an absolute wall-clock gap
 # (#2105, #2080). The idle-slice probe above is the load-independent guard; this
@@ -1989,7 +1992,7 @@ if bs_samples 6 bs_time_stall "" "$bs_unsliced"; then
   elif ((bs_rel_neg > 0 && bs_rel_pos == 0)); then
     fail "buffer_stdin: unsliced did not exceed sliced in any interleaved pair ($bs_rel_detail) — slicing regression"
   else
-    ok "buffer_stdin: stall timing inconclusive under load ($bs_rel_detail); idle-slice probe is the regression guard (#2105)"
+    ok "buffer_stdin: stall timing inconclusive under load ($bs_rel_detail); read-count probe is the regression guard (#2105)"
   fi
 elif [[ -n "${EPOCHREALTIME:-}" ]]; then
   fail "stall timing harness produced no measurement"
@@ -2209,17 +2212,13 @@ else
 fi
 
 # A payload jq cannot parse yields no values at all — never a partial set the
-# caller could mistake for a complete read. Return code 2 (not 1) when jq is
-# present but rejects the payload — blocking guards fail closed on that path
-# (#2157).
-hook::jq_fields 'not json at all' '.tool_name' '.session_id'
-rc=$?
-if ((rc == 2 && ${#HOOK_JQ_FIELDS[@]} == 0)); then
-  ok "jq_fields: an unparsable payload returns 2 and leaves no values"
-elif ((rc == 0)); then
+# caller could mistake for a complete read.
+if hook::jq_fields 'not json at all' '.tool_name' '.session_id'; then
   fail "jq_fields accepted an unparsable payload"
+elif ((${#HOOK_JQ_FIELDS[@]} == 0)); then
+  ok "jq_fields: an unparsable payload returns non-zero and leaves no values"
 else
-  fail "jq_fields left ${#HOOK_JQ_FIELDS[@]} values after an unparsable payload (rc=$rc)"
+  fail "jq_fields left ${#HOOK_JQ_FIELDS[@]} values after an unparsable payload"
 fi
 
 if hook::jq_fields "$jf_input"; then
