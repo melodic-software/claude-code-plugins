@@ -3,14 +3,14 @@
   "evals": [
     {
       "id": 1,
-      "name": "hunts-logic-not-style",
+      "name": "defers-dangerous-trigger-to-zizmor-skips-style",
       "prompt": "/review:security-review\n\nREPO: acme/app\nPR NUMBER: 44\nHEAD SHA: dddddddddddddddddddddddddddddddddddddddd\n\nThe PR renames a helper for style and also adds a pull_request_target workflow that runs untrusted PR code with secrets.",
-      "expected_output": "Reports the dangerous pull_request_target + secrets pattern as a security finding and does not comment on the rename/style change.",
+      "expected_output": "Defers the dangerous pull_request_target + secrets pattern to zizmor (already covered statically) and does not comment on the rename/style change; reports no duplicate Actions-trigger finding.",
       "files": [],
       "expectations": [
-        "Reports the dangerous Actions trigger / secrets pattern",
+        "Defers dangerous trigger / static Actions coverage to zizmor",
         "Does not report style or rename-only changes",
-        "Tags the finding with a severity"
+        "Does not duplicate zizmor's dangerous-trigger finding"
       ]
     },
     {
