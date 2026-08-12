@@ -56,6 +56,15 @@ log_has_execution_evidence() {
   grep -qE "$EVIDENCE_PATTERN" "$1" 2>/dev/null
 }
 
+# Kept byte-identical to the guard's own pattern. Anchored to runner annotation
+# lines so the lane's echoed github-script SOURCE — which contains both phrases
+# as string literals — cannot be mistaken for a real skip.
+SKIP_ANNOTATION_PATTERN='##\[(warning|error)\].*(workflow-validation skip|class=skipped-validation)'
+
+log_shows_validation_skip() {
+  grep -qE "$SKIP_ANNOTATION_PATTERN" "$1" 2>/dev/null
+}
+
 would_reject_fast_success() {
   local duration="$1"
   local has_execution_evidence="$2"
@@ -107,6 +116,37 @@ if would_reject_fast_success 20 0; then
   fail "20s without evidence accepted (above floor)" "unexpected rejection"
 else
   pass "20s without evidence accepted (above floor)"
+fi
+
+# Regression: the echoed github-script source of the lane's `Report review
+# outcome` step, verbatim from run 31630114303 lines 1435 and 1437. The old
+# unanchored pattern matched these and failed every successful in-scope PR.
+printf '%s\n' \
+  '    `${lane} concluded: ${outcome} class=skipped-validation with no ` +' \
+  '      "(workflow-validation skip: the caller'"'"'s workflow file must " +' \
+  >"$tmp_log"
+if log_shows_validation_skip "$tmp_log"; then
+  fail "echoed action source is not a validation skip" "unexpected match (#2337 false positive)"
+else
+  pass "echoed action source is not a validation skip"
+fi
+
+# True positive: the runner's rendered annotation for a real self-skip.
+printf '%s\n' \
+  '2026-08-12T18:46:14.6127175Z ##[warning]Claude security review concluded: success class=skipped-validation with no execution evidence — the action skipped itself before running (workflow-validation skip: the caller'"'"'s workflow file must match the default branch'"'"'s copy). Nothing was reviewed.' \
+  >"$tmp_log"
+if log_shows_validation_skip "$tmp_log"; then
+  pass "annotated validation skip is detected"
+else
+  fail "annotated validation skip is detected" "expected match"
+fi
+
+# A clean run carries neither shape.
+printf '%s\n' 'Installing @anthropic-ai/claude-agent-sdk' 'Claude Code action completed' >"$tmp_log"
+if log_shows_validation_skip "$tmp_log"; then
+  fail "clean lane log shows no validation skip" "unexpected match"
+else
+  pass "clean lane log shows no validation skip"
 fi
 
 if [[ "$FAILED" -eq 0 ]]; then
