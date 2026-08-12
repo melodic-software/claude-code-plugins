@@ -19,6 +19,15 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   functions, which is what #2146 asked for: previously each call site asserted a posture in a
   comment and nothing where the decision is made explained it. Synced from `lib/hook-utils.sh`.
 
+### Fixed
+
+- **`lane-launcher` preflight validation jq queries now fail closed on query errors.** The duplicate-name,
+  path-safety, and field-typing checks in `resolve_config` ran their jq filters in command
+  substitutions and treated empty output as "no problem" without checking whether jq succeeded. A
+  malformed config that slipped past the sibling type gate could make a query error vacuously pass.
+  Each substitution now checks jq's exit status and rejects the config when the validation query
+  itself fails.
+
 ## [0.29.0]
 
 ### Added
