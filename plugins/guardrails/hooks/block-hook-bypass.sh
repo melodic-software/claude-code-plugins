@@ -176,6 +176,24 @@ _keep_char() {
   esac
 }
 
+# True when a dropped quoted span's body should leave an OPAQUE mark on close.
+# Newline-only bodies vanish in bash the way an empty span does; any other
+# dropped content must not splice the command-word sides into a false producer.
+_drop_body_needs_opaque() {
+  local body="$1"
+  [[ -z "$body" ]] && return 1
+  local stripped="${body//$'\n'/}"
+  [[ -n "$stripped" ]]
+}
+
+# True when a quote opens inside a command WORD (not a separate argument).
+_open_quote_in_word() {
+  local out="$1"
+  [[ -z "$out" ]] && return 0
+  local prev="${out: -1}"
+  [[ "$prev" != [[:space:]] && "$prev" != ">" ]]
+}
+
 # Strip single- and double-quoted literal spans so the executable-token scan
 # sees only shell syntax, not payload text. Heredoc bodies are dropped wholesale
 # (their content is data, not a command). The quote strip carries an OPEN quote
@@ -194,7 +212,10 @@ strip_literals() {
   # `op_cont` is set when a line ends with a backslash INSIDE a redirect operand:
   # bash removes the backslash-newline entirely, so the operand continues on the
   # next line with no separator and the joining newline must not be emitted.
-  local open_quote="" open_keep="" out i n c prev nxt op_cont
+  # `open_drop_body` accumulates characters dropped from a non-kept quoted span;
+  # on close, a body containing any non-newline character is replaced by an
+  # OPAQUE mark so command-word sides cannot splice into a false producer (#2385).
+  local open_quote="" open_keep="" open_drop_body="" open_drop_word=0 out i n c prev nxt op_cont
   # `(^|[^<])` before `<<` excludes a here-string `<<<` — matching `<<` inside
   # `<<<` would capture a bogus delimiter and strand the stripper in-heredoc,
   # swallowing every later line (a here-string bypass). The delimiter body
@@ -247,11 +268,18 @@ strip_literals() {
       c="${line:i:1}"
       if [[ "$open_quote" == "'" ]]; then
         if [[ "$c" == "'" ]]; then
+          if [[ -z "$open_keep" ]] && ((open_drop_word)) && _drop_body_needs_opaque "$open_drop_body"; then
+            out+="$_MARK_OPAQUE"
+          fi
           open_quote=""
           open_keep=""
+          open_drop_body=""
+          open_drop_word=0
         elif [[ -n "$open_keep" ]]; then
           _keep_char "$c"
           out+="$_KEEP_CHAR"
+        elif ((open_drop_word)); then
+          open_drop_body+="$c"
         fi
         ((i += 1))
       elif [[ "$open_quote" == '"' ]]; then
@@ -261,15 +289,29 @@ strip_literals() {
           # bash RETAINS the backslash unless the escaped char is one of
           # `$` `` ` `` `"` `\` or a newline — so the pair is marked OPAQUE
           # rather than guessed at, and the operand loses its exemption.
-          [[ -n "$open_keep" ]] && out+="$_MARK_OPAQUE"
-          ((i += 2))
+          if [[ -n "$open_keep" ]]; then
+            out+="$_MARK_OPAQUE"
+            ((i += 2))
+          elif ((open_drop_word)); then
+            open_drop_body+="${line:i:2}"
+            ((i += 2))
+          else
+            ((i += 2))
+          fi
         else
           if [[ "$c" == '"' ]]; then
+            if [[ -z "$open_keep" ]] && ((open_drop_word)) && _drop_body_needs_opaque "$open_drop_body"; then
+              out+="$_MARK_OPAQUE"
+            fi
             open_quote=""
             open_keep=""
+            open_drop_body=""
+            open_drop_word=0
           elif [[ -n "$open_keep" ]]; then
             _keep_char "$c"
             out+="$_KEEP_CHAR"
+          elif ((open_drop_word)); then
+            open_drop_body+="$c"
           fi
           ((i += 1))
         fi
@@ -290,8 +332,15 @@ strip_literals() {
           if _in_redirect_operand "$out"; then
             open_keep=1
             out+="$_MARK_QUOTE"
+            open_drop_word=0
+          elif _open_quote_in_word "$out"; then
+            open_keep=""
+            open_drop_body=""
+            open_drop_word=1
           else
             open_keep=""
+            open_drop_body=""
+            open_drop_word=0
           fi
           ((i += 1))
           ;;

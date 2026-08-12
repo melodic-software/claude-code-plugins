@@ -1091,6 +1091,12 @@ run "#2217: control — the same write with an escaped newline (blocked)" \
 # assertion fails — which is why the shipped fix does not use one.
 PY_NL_SPLICE=$(printf 'ec"\n"ho x > f')
 run "#2217: quote span splicing a command word (blocked)" "$PY_NL_SPLICE" 2
+run "#2385: non-empty quote splice inside command word (allowed)" \
+  'ec"xy"ho hello > out.txt' 0
+run "#2385: empty quote splice still blocks as echo" 'ec""ho x > f' 2
+PY_NL_XY_SPLICE=$(printf 'ec"x\ny"ho hello > out.txt')
+run "#2385: multi-line non-empty quote splice inside command word (allowed)" \
+  "$PY_NL_XY_SPLICE" 0
 
 # THE MULTI-LINE PROSE FLOOR. The whole point of carrying an open quote across
 # lines is that a `--body`/`-m` payload merely MENTIONING a write stays inert.

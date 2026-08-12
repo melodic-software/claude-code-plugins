@@ -3,6 +3,14 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.5]
+
+### Fixed
+
+- **`strip_literals` no longer splices a non-empty dropped quote span inside a command word into a
+  false `echo`/`printf` producer** (#2385). Newline-only bodies inside a word still vanish the way
+  bash does; separate arguments are unchanged.
+
 ## [0.28.4]
 
 ### Fixed
