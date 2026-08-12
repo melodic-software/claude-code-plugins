@@ -177,6 +177,12 @@ run_split "$REPO_SHA1" "$REPO_SHA256" "payload cwd is the SHA-1 repo, 64-hex exp
 # the same misprobe one recursion level down.
 run_split "$REPO_SHA1" "$REPO_SHA1" "git -C <sha256-repo> -c alias.y='!git push --force-with-lease=main:<40-hex>' y (the body runs in the SHA-256 repo, blocked)" "git -C $REPO_SHA256 -c alias.y='!git push --force-with-lease=main:$SHA1_OID origin main' y" 2
 run_split "$REPO_SHA256" "$REPO_SHA256" "git -C <sha1-repo> -c alias.y='!git push --force-with-lease=main:<40-hex>' y (the body runs in the SHA-1 repo, allowed)" "git -C $REPO_SHA1 -c alias.y='!git push --force-with-lease=main:$SHA1_OID origin main' y" 0
+# #2151: an explicit --git-dir/--work-tree is inherited by a `!` body via GIT_DIR,
+# not relocated like -C. Without replaying those globals into the reparse, a
+# 40-hex lease is judged against the payload cwd while git pushes from the
+# inherited repository.
+run_split "$REPO_SHA1" "$REPO_SHA1" "git --git-dir=<sha256>/.git --work-tree=<sha256> -c alias.y='!git push --force-with-lease=main:<40-hex>' y (inherited GIT_DIR, blocked)" "git --git-dir=$REPO_SHA256/.git --work-tree=$REPO_SHA256 -c alias.y='!git push --force-with-lease=main:$SHA1_OID origin main' y" 2
+run_split "$REPO_SHA256" "$REPO_SHA1" "git --git-dir=<sha1>/.git --work-tree=<sha1> -c alias.y='!git push --force-with-lease=main:<40-hex>' y (40-hex is object id in inherited repo, allowed)" "git --git-dir=$REPO_SHA1/.git --work-tree=$REPO_SHA1 -c alias.y='!git push --force-with-lease=main:$SHA1_OID origin main' y" 0
 # The re-expansion MEMO must key on the effective base. A verdict is now a function
 # of the base, so one alias STRING reached under two bases is two analyses — and a
 # key blind to the base skips the second. Ordered sha1-then-sha256 deliberately:
