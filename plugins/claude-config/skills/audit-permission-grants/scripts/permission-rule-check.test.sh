@@ -54,9 +54,9 @@ fi
 # and its rules would pollute every case's finding count.
 ISOLATED_HOME="$TEST_TMPDIR/empty-home"
 mkdir -p "$ISOLATED_HOME"
-run() { env -u CLAUDE_CONFIG_DIR HOME="$ISOLATED_HOME" PERMISSION_HYGIENE_FIXTURE_DIR="$1" bash "$SCRIPT" "${2:-}"; }
-run_with_home() { env -u CLAUDE_CONFIG_DIR HOME="$2" PERMISSION_HYGIENE_FIXTURE_DIR="$1" bash "$SCRIPT" "${3:-}"; }
-run_with_config_dir() { env CLAUDE_CONFIG_DIR="$2" HOME="$3" PERMISSION_HYGIENE_FIXTURE_DIR="$1" bash "$SCRIPT" "${4:-}"; }
+run() { env -u CLAUDE_CONFIG_DIR -u PERMISSION_HYGIENE_SCAN_ROOT HOME="$ISOLATED_HOME" PERMISSION_HYGIENE_FIXTURE_DIR="$1" bash "$SCRIPT" "${2:-}"; }
+run_with_home() { env -u CLAUDE_CONFIG_DIR -u PERMISSION_HYGIENE_SCAN_ROOT HOME="$2" PERMISSION_HYGIENE_FIXTURE_DIR="$1" bash "$SCRIPT" "${3:-}"; }
+run_with_config_dir() { env -u PERMISSION_HYGIENE_SCAN_ROOT CLAUDE_CONFIG_DIR="$2" HOME="$3" PERMISSION_HYGIENE_FIXTURE_DIR="$1" bash "$SCRIPT" "${4:-}"; }
 
 # Runtime-assembled machine paths (no contiguous path literal in source).
 SL='/'
@@ -305,25 +305,32 @@ assert_not_contains "ignores \$HOME once CLAUDE_CONFIG_DIR is set" "$OUT" "Bash(
 assert_eq "relocated config root produces exactly one finding" "1" \
   "$(run_with_config_dir "$D8C" "$RELOCATED" "$FAKE_HOME" --count)"
 
+# --- Case 8e: an unresolvable user scope is announced, never silently skipped --
+# With neither CLAUDE_CONFIG_DIR nor HOME set there is no user scope to read. A
+# silent skip would let "No fragile permission grants found." rest on a scope
+# that was never opened.
+err_out=$(env -u CLAUDE_CONFIG_DIR -u HOME -u PERMISSION_HYGIENE_SCAN_ROOT PERMISSION_HYGIENE_FIXTURE_DIR="$D8C" bash "$SCRIPT" 2>&1 >/dev/null)
+assert_contains "unresolvable user scope is announced" "$err_out" "user-global scope not scanned"
+
 # --- Case 8f: #2283 A11 — operator-facing scan-root override name ----------------
 D_SCAN="$TEST_TMPDIR/scan-root-alias"
 mkdir -p "$D_SCAN/.claude"
 jq -n '{permissions:{allow:["Bash(npm test)"]}}' >"$D_SCAN/.claude/settings.json"
 assert_eq "PERMISSION_HYGIENE_SCAN_ROOT resolves the scan root" "0" \
-  "$(env -u CLAUDE_CONFIG_DIR HOME="$ISOLATED_HOME" PERMISSION_HYGIENE_SCAN_ROOT="$D_SCAN" bash "$SCRIPT" --count)"
+  "$(env -u CLAUDE_CONFIG_DIR -u PERMISSION_HYGIENE_FIXTURE_DIR HOME="$ISOLATED_HOME" PERMISSION_HYGIENE_SCAN_ROOT="$D_SCAN" bash "$SCRIPT" --count)"
 
-# --- Case 8e: an unresolvable user scope is announced, never silently skipped --
-# With neither CLAUDE_CONFIG_DIR nor HOME set there is no user scope to read. A
-# silent skip would let "No fragile permission grants found." rest on a scope
-# that was never opened.
-err_out=$(env -u CLAUDE_CONFIG_DIR -u HOME PERMISSION_HYGIENE_FIXTURE_DIR="$D8C" bash "$SCRIPT" 2>&1 >/dev/null)
-assert_contains "unresolvable user scope is announced" "$err_out" "user-global scope not scanned"
+D_FIXTURE="$TEST_TMPDIR/fixture-root-alias"
+mkdir -p "$D_FIXTURE/.claude"
+jq -n '{permissions:{allow:["Bash(python*)"]}}' >"$D_FIXTURE/.claude/settings.json"
+assert_eq "PERMISSION_HYGIENE_SCAN_ROOT wins over deprecated fixture dir" "0" \
+  "$(env -u CLAUDE_CONFIG_DIR HOME="$ISOLATED_HOME" PERMISSION_HYGIENE_SCAN_ROOT="$D_SCAN" PERMISSION_HYGIENE_FIXTURE_DIR="$D_FIXTURE" bash "$SCRIPT" --count)"
 
 # --- Case 9b: unresolvable scan root refuses instead of sweeping -------------
-# The root ladder is $PERMISSION_HYGIENE_FIXTURE_DIR -> git toplevel ->
-# $CLAUDE_PROJECT_DIR, with NO fallback to the cwd. Run from a non-repo directory
-# with every rung unset: the scan must refuse (exit 2, the environment-gap channel)
-# rather than walk whatever the cwd happens to be and report a clean bill.
+# The root ladder is $PERMISSION_HYGIENE_SCAN_ROOT (or the deprecated
+# $PERMISSION_HYGIENE_FIXTURE_DIR) -> git toplevel -> $CLAUDE_PROJECT_DIR, with
+# NO fallback to the cwd. Run from a non-repo directory with every rung unset:
+# the scan must refuse (exit 2, the environment-gap channel) rather than walk
+# whatever the cwd happens to be and report a clean bill.
 #
 # CLAUDE_PROJECT_DIR is unset explicitly as well as the fixture var — an outer
 # session that exports it would otherwise resolve the root and hide the regression.
@@ -331,14 +338,14 @@ nonrepo="$TEST_TMPDIR/not-a-repo"
 mkdir -p "$nonrepo"
 
 rc=0
-root_err=$(cd "$nonrepo" && env -u PERMISSION_HYGIENE_FIXTURE_DIR -u CLAUDE_PROJECT_DIR \
+root_err=$(cd "$nonrepo" && env -u PERMISSION_HYGIENE_SCAN_ROOT -u PERMISSION_HYGIENE_FIXTURE_DIR -u CLAUDE_PROJECT_DIR \
   GIT_CEILING_DIRECTORIES="$TEST_TMPDIR" bash "$SCRIPT" 2>&1) || rc=$?
 assert_exit "unresolvable root exits 2, not 0" 2 "$rc"
 assert_contains "refusal names the failure" "$root_err" "no scan root resolved"
 assert_not_contains "refusal is not a clean bill" "$root_err" "No fragile permission grants found."
 
 rc=0
-count_err=$(cd "$nonrepo" && env -u PERMISSION_HYGIENE_FIXTURE_DIR -u CLAUDE_PROJECT_DIR \
+count_err=$(cd "$nonrepo" && env -u PERMISSION_HYGIENE_SCAN_ROOT -u PERMISSION_HYGIENE_FIXTURE_DIR -u CLAUDE_PROJECT_DIR \
   GIT_CEILING_DIRECTORIES="$TEST_TMPDIR" bash "$SCRIPT" --count 2>&1) || rc=$?
 assert_exit "--count also refuses rather than printing 0" 2 "$rc"
 assert_not_contains "--count prints no count on a refusal" "$count_err" "0
