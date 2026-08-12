@@ -293,8 +293,8 @@ existing "Frozen historical records" rule already excludes. See `triage.md`
 ## Form 14: Document title / declared name
 
 ```regex
-^#{1,6}\s+`?<old>`?\s*(#+\s*)?$
-^`?<old>`?\s*$\n^(=+|-+)\s*$
+(?i)^#{1,6}\s+`?<old>`?\s*(#+\s*)?$
+(?i)^`?<old>`?\s*$\n^(=+|-+)\s*$
 ^\s*(name|title|id):\s*("<old>"|'<old>'|<old>)(\s+#.*)?\s*$
 (^|[{,])\s*"(name|title|id)"\s*:\s*"<old>"\s*(,|}|$)
 ^\s*"?(name|title|id)"?\s*=\s*("<old>"|'<old>')\s*(#.*)?$
@@ -302,6 +302,10 @@ existing "Frozen historical records" rule already excludes. See `triage.md`
 ```
 
 - **Triage default:** Certain
+- **Case on title shapes only:** the ATX and Setext alternatives carry a `(?i)` flag — a
+  title-cased heading (`# Re-Anchor` for a container named `re-anchor`) is the same reference as
+  a lowercase one and keeps Form 14's scope rule. Declaration alternatives stay case-sensitive:
+  manifest and catalog registrations are exact identifiers (#1394).
 - **Catches:** an ATX heading whose ENTIRE content is the renamed token — the README H1 that
   names the thing — a `name` / `title` / `id` declaration in YAML frontmatter, a JSON manifest or
   catalog, or a TOML manifest — and a catalog entry KEYED by the container rather than declaring
