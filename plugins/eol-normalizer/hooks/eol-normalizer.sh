@@ -102,14 +102,37 @@ build_data_json() {
 
 # The lib mutates the file in place (side effect persists past the subshell) and
 # echoes the action taken: lf | crlf | skip.
+_eol_tmp="$(mktemp "${TMPDIR:-/tmp}/eol-normalizer.XXXXXX")"
+cp -p "$FILE" "$_eol_tmp"
 ACTION=$(normalize_eol_file "$REPO_ROOT" "$FILE")
+if cmp -s "$FILE" "$_eol_tmp"; then
+  EFFECTIVE_ACTION="skip"
+else
+  EFFECTIVE_ACTION="$ACTION"
+fi
+rm -f "$_eol_tmp"
 
 # status "ok" when the file was actually normalized (lf/crlf); "skipped" when the
-# attr was unspecified, the path is -text, or content sniffed binary.
-case "$ACTION" in
+# attr was unspecified, the path is -text, content sniffed binary, or idempotent.
+case "$EFFECTIVE_ACTION" in
 lf | crlf) status="ok" ;;
 *) status="skipped" ;;
 esac
 
 emit_tel "$status" "$ACTION"
+
+# Content-mutation disclosure (#1596): line-ending normalization is a structural
+# rewrite the user did not request. Name what changed on the user channel; stay
+# silent on skip/no-op paths.
+case "$EFFECTIVE_ACTION" in
+lf)
+  hook::emit_system_message "eol-normalizer: normalized line endings to LF in $(basename "$FILE")."
+  ;;
+crlf)
+  hook::emit_system_message "eol-normalizer: normalized line endings to CRLF in $(basename "$FILE")."
+  ;;
+*)
+  ;;
+esac
+
 exit 0

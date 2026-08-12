@@ -3,6 +3,13 @@
 All notable changes to the `eol-normalizer` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.8]
+
+### Added
+
+- **Line-ending rewrites are disclosed on the user channel** when the hook normalizes
+  CRLF/LF mismatches, so agents see the mutation instead of silently rewriting (#1256).
+
 ## [0.6.10]
 
 ### Changed
