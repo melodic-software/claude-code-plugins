@@ -891,9 +891,10 @@ fi
 # spec for authors: skills/check/reference/fresh-eyes-declarations.md.
 # Scan surface excludes vendor/ (byte-frozen per check 8 — findings would be
 # permanently unclearable) and evals/ (fixtures contain arbitrary prose).
-# Fenced blocks and inline code spans are ignored by both detectors so docs
-# can show literal examples (self-reference guard); a trailing \r is tolerated
-# per line (third-party checkouts without eol=lf normalization).
+# Fenced code blocks are ignored by both detectors so docs can show literal
+# examples (self-reference guard); lines with backtick runs or backslash-escaped
+# `<` are structurally ambiguous and skipped per the parsing contract. A
+# trailing \r is tolerated per line (third-party checkouts without eol=lf normalization).
 FRESH_EYES_PROXIMITY_LINES=8
 # Lowercase POSIX ERE (matched against the lowercased, span-stripped line).
 # Seeded from the phrasing of the audited skills and their exempted steps;
@@ -949,25 +950,13 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
   done < <(awk -v P="$FRESH_EYES_PROXIMITY_LINES" -v JR="$FRESH_EYES_JUDGE_RE" '
     # Start of file counts as a paragraph break, so an indented block opening on
     # line one is recognized as one.
-    BEGIN { fe_blank = 1 }
+    BEGIN { fe_blank = 1; cm_in_comment = 0 }
     # Blockquote nesting depth of a raw line: the number of leading `>` markers,
     # each optionally followed by one space, under the three-space indent cap.
     function fe_depth_of(s,   d) {
       d = 0
       while (match(s, /^ {0,3}> ?/)) { d++; s = substr(s, RSTART + RLENGTH) }
       return d
-    }
-    # Position in s of the first backtick run of EXACTLY n characters, or 0.
-    # Escapes are deliberately ignored: a code span is literal, so a backslash
-    # inside one is content and cannot suppress the closer.
-    function fe_span_close(s, n,   base) {
-      base = 0
-      while (match(s, /`+/)) {
-        if (RLENGTH == n) return base + RSTART
-        base += RSTART + RLENGTH - 1
-        s = substr(s, RSTART + RLENGTH)
-      }
-      return 0
     }
     { sub(/\r$/, "") }
     # YAML frontmatter is not markdown, so nothing in it is a fence, a span, or a
@@ -979,7 +968,7 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
     fe_fm {
       if (/^---[ \t]*$/) {
         fe_fm = 0
-        fe_fence = 0; fe_open_pre = 0; sp_open = 0; fe_icode = 0; fe_blank = 1
+        fe_fence = 0; fe_open_pre = 0; fe_icode = 0; fe_blank = 1; cm_in_comment = 0
       }
       next
     }
@@ -1050,11 +1039,7 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
       # such a line is ordinary prose, so it falls through to the scanners
       # instead of opening a fence.
       if (!(fe_char == "`" && index(fe_info, "`"))) {
-        # A fence interrupts the paragraph, so any code span still waiting for
-        # its closer expires here rather than blinding the first paragraph
-        # after the fence closes.
-        fe_fence = 1; fe_open_char = fe_char; fe_open_len = fe_len; sp_open = 0
-        fe_open_pre = fe_stripped; fe_open_depth = fe_bq_depth
+        fe_fence = 1; fe_open_char = fe_char; fe_open_len = fe_len; fe_open_pre = fe_stripped; fe_open_depth = fe_bq_depth
         fe_open_bq = (fe_bq_depth > 0); fe_open_ind = fe_strip_len
         next
       }
@@ -1062,62 +1047,6 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
     fe_fence { next }
     {
       line = $0
-      # A code span lives inside one paragraph, so a blank line expires a span
-      # still waiting for its closer — otherwise one stray backtick would blind
-      # the detectors for the rest of the file.
-      if (line ~ /^[ \t]*$/) sp_open = 0
-      # Escapes and code spans resolve in ONE left-to-right pass because
-      # CommonMark couples them: escapes apply only outside a span, and a span is
-      # literal inside. Two independent passes cannot express that — either pass
-      # order breaks one of the two rules.
-      sp_keep = ""
-      # A span opened on an earlier line: spans may cross a newline, so scan for
-      # the closer first. With no run of exactly the opener length, the whole
-      # line is span content and never reaches the detectors.
-      if (sp_open) {
-        sp_at = fe_span_close(line, sp_open)
-        if (!sp_at) next
-        line = substr(line, sp_at + sp_open)
-        sp_keep = " "
-        sp_open = 0
-      }
-      while (1) {
-        if (!match(line, /[\\`]/)) { sp_keep = sp_keep line; break }
-        sp_p = RSTART
-        sp_keep = sp_keep substr(line, 1, sp_p - 1)
-        if (substr(line, sp_p, 1) == "\\") {
-          # Only the three characters this scanner keys on need escape handling,
-          # which makes the set complete for it. Any other backslash is ordinary
-          # text and must survive, or prose like a Windows path would lose the
-          # character after it.
-          sp_next = substr(line, sp_p + 1, 1)
-          if (sp_next == "`" || sp_next == "<" || sp_next == "\\") {
-            sp_keep = sp_keep "  "
-            line = substr(line, sp_p + 2)
-          } else {
-            sp_keep = sp_keep "\\"
-            line = substr(line, sp_p + 1)
-          }
-          continue
-        }
-        # An opening backtick run pairs with the next run of EXACTLY the same
-        # length; a shorter or longer run inside is span content, so a naive
-        # /`[^`]*`/ would split a ``…`` span and expose its content.
-        sp_len = 0
-        while (substr(line, sp_p + sp_len, 1) == "`") sp_len++
-        line = substr(line, sp_p + sp_len)
-        sp_at = fe_span_close(line, sp_len)
-        # No closer on this line: the span may continue on the next one, so carry
-        # the opener length forward and drop the remainder as span content. The
-        # carry is optimistic — a run that never closes before the paragraph ends
-        # masks content CommonMark would call literal — but the tradeoff is
-        # deliberate: masking risks missing a declaration, whereas scanning risks
-        # a blocking failure on legitimate code-span text.
-        if (!sp_at) { sp_open = sp_len; break }
-        sp_keep = sp_keep " "
-        line = substr(line, sp_at + sp_len)
-      }
-      line = sp_keep
       # Structural ambiguity: a four-space-indented line here is either an
       # indented code block or a list-item continuation, and telling those
       # apart needs a block parser this scanner does not have. Rather than
@@ -1132,6 +1061,12 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
         fe_icode = (fe_ind2 >= 4 && (fe_icode || fe_blank))
         fe_blank = 0
       }
+      # Inline code spans and backslash escapes are not reconstructed — a line
+      # that carries either is ambiguous for directive hard verdicts and is
+      # skipped by the Form 1 and judgment detectors. See the parsing contract.
+      fe_bt_ambig = (index(line, "`") > 0)
+      fe_esc_ambig = (line ~ /\\</)
+      fe_line_ambig = (fe_icode || fe_bt_ambig || fe_esc_ambig)
       # Classify each directive on the line independently, bounded at its own
       # `-->`. Testing the whole line let a valid directive elsewhere on it lend
       # its class and reason to a malformed neighbour, so an unknown-class
@@ -1147,7 +1082,7 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
         if (dir_end) dir_one = substr(dir_one, 1, dir_end + 2)
         dir_n++
         d[dir_n] = NR
-        damb[dir_n] = fe_icode
+        damb[dir_n] = fe_line_ambig
         if (dir_one ~ /<!--[ \t]*fresh-eyes-exempt:[ \t]*(deterministic-gate|external-input|deferred)[ \t]+--[ \t]+[^ \t].*-->/) {
           dt[dir_n] = "valid"
         } else if (dir_one ~ /<!--[ \t]*fresh-eyes-exempt:[ \t]*(deterministic-gate|external-input|deferred)[ \t]*(--[ \t]*)?-->/) {
@@ -1160,18 +1095,28 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
       # a hidden `<!-- dispatch this to a fresh-context agent -->` would be exactly
       # the parallel marker Form 1 exists to rule out, and it was satisfying the
       # delegation detector. Comments come off only AFTER the directives above are
-      # classified, since a directive IS a comment. An unterminated `<!--` drops
-      # the rest of its own line and no further — carrying comment state across
-      # lines would let one stray opener blind the detectors for the whole file.
+      # classified, since a directive IS a comment. Comment state carries across
+      # lines until the closing `-->`, so delegation wording split across a
+      # multi-line comment does not satisfy Form 1.
+      if (cm_in_comment) {
+        cm_e = index(line, "-->")
+        if (cm_e) {
+          line = substr(line, cm_e + 3)
+          cm_in_comment = 0
+        } else {
+          line = ""
+        }
+      }
       cm_keep = ""
       while ((cm_p = index(line, "<!--")) > 0) {
         cm_keep = cm_keep substr(line, 1, cm_p - 1) " "
         line = substr(line, cm_p + 4)
         cm_e = index(line, "-->")
-        if (!cm_e) { line = ""; break }
+        if (!cm_e) { cm_in_comment = 1; line = ""; break }
         line = substr(line, cm_e + 3)
       }
       line = cm_keep line
+      if (fe_bt_ambig || fe_esc_ambig) next
       low = tolower(line)
       # Delegation wording needs a worker actually named on the line — bare
       # "in a fresh context" prose assigns no one and does not declare. Both

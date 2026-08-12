@@ -1532,8 +1532,8 @@ else
   fail "info-string fence line should not desync the fence guard (rc=$rc): $out"
 fi
 
-# 37c. Check 21: a multi-backtick inline span hides its content (CommonMark
-#      exact-length pairing — a naive single-backtick stripper would expose it).
+# 37c. Check 21: a line with backtick runs is structurally ambiguous — literal
+#      directive examples in inline code yield no hard verdict.
 make_skill fe-span-double '---
 name: fe-span-double
 description: "Fresh-eyes fixture. Use when: '"'"'fe span double fixture'"'"'."
@@ -1550,9 +1550,9 @@ None known.
 out="$(run fe-span-double 2>&1)"
 rc=$?
 if [[ $rc -eq 0 ]] && ! grep -q 'fresh-eyes-exempt directive' <<<"$out"; then
-  pass "double-backtick span content is not scanned (check 21)"
+  pass "backtick-bearing line declines directive hard verdicts (check 21)"
 else
-  fail "double-backtick span should hide the literal directive (rc=$rc): $out"
+  fail "backtick-bearing line should not FAIL on a literal directive (rc=$rc): $out"
 fi
 
 # 37d. Check 21: bare fresh-context wording naming no worker does not declare —
@@ -1678,8 +1678,8 @@ else
   fail "agentless stem should not satisfy check 21 (rc=$rc): $out"
 fi
 
-# 37i. Check 21: a code span that crosses a newline keeps masking its content on
-#      the following line — a literal directive inside it must not be parsed.
+# 37i. Check 21: a line with a backtick run is structurally ambiguous — a
+#      directive fragment on the same line yields no hard verdict.
 make_skill fe-span-crossline '---
 name: fe-span-crossline
 description: "Fresh-eyes fixture. Use when: '"'"'fe crossline span fixture'"'"'."
@@ -1697,13 +1697,13 @@ None known.
 out="$(run fe-span-crossline 2>&1)"
 rc=$?
 if [[ $rc -eq 0 ]] && ! grep -q 'malformed fresh-eyes-exempt directive' <<<"$out"; then
-  pass "code span crossing a line boundary still masks its content (check 21)"
+  pass "backtick-bearing line declines directive hard verdicts (check 21)"
 else
-  fail "cross-line span content should not be parsed as a directive (rc=$rc): $out"
+  fail "backtick-bearing line should not FAIL on a literal directive (rc=$rc): $out"
 fi
 
-# 37j. Check 21: the cross-line carry expires at the paragraph break, so one
-#      stray unclosed backtick cannot blind the scanner for the rest of the file.
+# 37j. Check 21: a stray backtick on one line does not blind later lines — the
+#      scanner no longer carries span state across lines.
 make_skill fe-span-stray '---
 name: fe-span-stray
 description: "Fresh-eyes fixture. Use when: '"'"'fe stray backtick fixture'"'"'."
@@ -1722,9 +1722,9 @@ None known.
 out="$(run fe-span-stray 2>&1)"
 rc=$?
 if [[ $rc -ne 0 ]] && grep -q 'malformed fresh-eyes-exempt directive' <<<"$out"; then
-  pass "stray-backtick span carry expires at the paragraph break (check 21)"
+  pass "directive on a later line still FAILs after a stray backtick (check 21)"
 else
-  fail "directive after a stray-backtick paragraph should still FAIL (rc=$rc): $out"
+  fail "directive after a stray-backtick line should still FAIL (rc=$rc): $out"
 fi
 
 # 37k. Check 21: a fence nested in a blockquote is still a fence — its literal
@@ -1757,8 +1757,9 @@ else
   fail "directive inside a blockquoted fence should not be parsed (rc=$rc): $out"
 fi
 
-# 37l. Check 21: backslash-escaped backticks render literally, so they open no
-#      code span and the directive between them is a real malformed directive.
+# 37l. Check 21: a line with backtick runs is structurally ambiguous — the
+#      scanner does not pair spans or resolve escapes, so a directive shown
+#      between escaped backticks yields no hard verdict rather than a FAIL.
 make_skill fe-escaped-span '---
 name: fe-escaped-span
 description: "Fresh-eyes fixture. Use when: '"'"'fe escaped span fixture'"'"'."
@@ -1774,10 +1775,10 @@ None known.
 '
 out="$(run fe-escaped-span 2>&1)"
 rc=$?
-if [[ $rc -ne 0 ]] && grep -q 'malformed fresh-eyes-exempt directive' <<<"$out"; then
-  pass "escaped backticks open no code span (check 21)"
+if [[ $rc -eq 0 ]] && ! grep -q 'malformed fresh-eyes-exempt directive' <<<"$out"; then
+  pass "backtick-bearing line declines directive hard verdicts (check 21)"
 else
-  fail "directive between escaped backticks should FAIL (rc=$rc): $out"
+  fail "backtick-bearing line should not FAIL on a literal directive (rc=$rc): $out"
 fi
 
 # 37m. Check 21: each directive on a shared line is classified on its own, so a
@@ -1949,9 +1950,9 @@ else
   fail "list fence body should be suppressed and the line-14 directive FAIL (rc=$rc): $out"
 fi
 
-# 37s. Check 21: escapes are not processed inside a code span, so a literal
-#      backslash before the closing run does not stop the run from closing —
-#      the directive AFTER the span is real and still blocks.
+# 37s. Check 21: a line with a backtick run is structurally ambiguous — the
+#      scanner does not pair spans, so a directive after an inline-code
+#      fragment on the same line yields no hard verdict.
 make_skill fe-span-literal-backslash '---
 name: fe-span-literal-backslash
 description: "Fresh-eyes fixture. Use when: '"'"'fe span literal backslash fixture'"'"'."
@@ -1967,10 +1968,10 @@ None known.
 '
 out="$(run fe-span-literal-backslash 2>&1)"
 rc=$?
-if [[ $rc -ne 0 ]] && grep -q 'malformed fresh-eyes-exempt directive' <<<"$out"; then
-  pass "a literal backslash does not suppress a span closer (check 21)"
+if [[ $rc -eq 0 ]] && ! grep -q 'malformed fresh-eyes-exempt directive' <<<"$out"; then
+  pass "backtick-bearing line declines directive hard verdicts (check 21)"
 else
-  fail "directive after a backslash-ending span should FAIL (rc=$rc): $out"
+  fail "backtick-bearing line should not FAIL on a literal directive (rc=$rc): $out"
 fi
 
 # 37v. Check 21: a directive at four-space indent is structurally ambiguous —
@@ -2054,6 +2055,33 @@ if [[ $rc -eq 0 ]] && grep -q 'same-context judgment language with no' <<<"$out"
   pass "delegation wording in an HTML comment does not declare (check 21)"
 else
   fail "commented wording should not satisfy check 21 (rc=$rc): $out"
+fi
+
+# 37u2. Check 21: multi-line HTML comment state carries until the closing
+#       `-->`, so delegation wording on a middle line does not satisfy Form 1.
+make_skill fe-comment-multiline '---
+name: fe-comment-multiline
+description: "Fresh-eyes fixture. Use when: '"'"'fe comment multiline fixture'"'"'."
+---
+
+## Steps
+
+<!--
+dispatch this to a fresh-context agent
+-->
+
+Self-review your own work.
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-comment-multiline 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'same-context judgment language with no' <<<"$out"; then
+  pass "delegation wording in a multi-line HTML comment does not declare (check 21)"
+else
+  fail "multi-line commented wording should not satisfy check 21 (rc=$rc): $out"
 fi
 
 # 37w. Check 21: the directive name needs a terminator. An ordinary comment about
