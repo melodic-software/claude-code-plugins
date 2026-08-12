@@ -150,9 +150,8 @@ _sl='/'
 # shellcheck disable=SC1003  # _bs is a literal single backslash, not an escape
 _bs='\'
 _seg="[^${_sl}${_bs}*<>\${}~ ]"
-P2_ERE="${_sl}Users${_sl}${_seg}"                                    # macOS + POSIX-normalized Windows (/c/Users/…)
-P2_ERE="${P2_ERE}|${_sl}home${_sl}${_seg}"                           # Linux
-P2_ERE="${P2_ERE}|[A-Za-z]:[${_sl}${_bs}]Users[${_sl}${_bs}]${_seg}" # raw Windows drive
+_p2_path="${_sl}Users${_sl}${_seg}|${_sl}home${_sl}${_seg}|[A-Za-z]:[${_sl}${_bs}]Users[${_sl}${_bs}]${_seg}"
+P2_RULE_ERE="(Read|Edit|Write|Bash|PowerShell)\\([^)]*(${_p2_path})[^)]*\\)"
 
 findings=()
 
@@ -168,8 +167,11 @@ scan_rule() {
     [[ -n "$m" ]] && emit warning P1 "$src" "'$m' is an interpreter/runner-led grant, not the portable bare-name pattern; Claude Code drops the broad forms of this shape (blanket, package-manager runners, and wildcarded/globbed-target interpreters) on entering auto mode. Expose the guarded script as a bare PATH command and allow that, e.g. Bash(babysit_merge.sh:*)."
   done < <(printf '%s\n' "$text" | grep -oE "$P1_ERE" 2>/dev/null | sort -u)
   while IFS= read -r m; do
-    [[ -n "$m" ]] && emit error P2 "$src" "hardcoded machine path in '$m' — the rule names a concrete user home, so it breaks on other machines and usernames and leaks a username into source control. Portable forms: \${CLAUDE_SKILL_DIR} for a skill's own bundled script (substituted in allowed-tools Bash rules), a bare-name command on PATH, or the ~/ home anchor for Read/Edit rules."
-  done < <(printf '%s\n' "$text" | grep -oE "$P2_ERE" 2>/dev/null | sort -u)
+    [[ -z "$m" ]] && continue
+    # `//…` is a portable root anchor (criteria.md); only concrete `/Users/…` paths flag.
+    [[ "$m" == *"(//"* ]] && continue
+    emit error P2 "$src" "hardcoded machine path in '$m' — the rule names a concrete user home, so it breaks on other machines and usernames and leaks a username into source control. Portable forms: \${CLAUDE_SKILL_DIR} for a skill's own bundled script (substituted in allowed-tools Bash rules), a bare-name command on PATH, or the ~/ home anchor for Read/Edit rules."
+  done < <(printf '%s\n' "$text" | grep -oE "$P2_RULE_ERE" 2>/dev/null | sort -u)
 }
 
 top_level_tokens() {

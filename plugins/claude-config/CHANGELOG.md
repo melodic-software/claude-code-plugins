@@ -3,6 +3,15 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.3]
+
+### Fixed
+
+- **`audit-permission-grants` permission-rule-check P2/P1 precision (#2282, rows A2/A3/A19).**
+  `//Users` portable root anchors are no longer flagged; P2 findings report the full offending
+  rule instead of an eight-character fragment; `Bash(npm view … version*)` is no longer treated
+  as a bare package-manager wildcard when only the last token carries a trailing `*`.
+
 ## [0.35.2]
 
 ### Fixed

@@ -57,7 +57,7 @@ CCPERM_SCRIPT_BODY='py|sh|rb|js|ts|mjs|cjs|pl|php'
 # driver reports the full offending rule, not a substring truncated at the *.
 CCPERM_P1_ERE="(Bash|PowerShell)\\(\\*\\)"
 CCPERM_P1_ERE="${CCPERM_P1_ERE}|(Bash|PowerShell)\\([\"' ]*([^)\"' ]*[/\\\\])?(${CCPERM_INTERP_BODY})([\"' :][^)]*)?\\*[^)]*\\)"
-CCPERM_P1_ERE="${CCPERM_P1_ERE}|(Bash|PowerShell)\\([\"' ]*(${CCPERM_RUNNER_BODY})([\"' :][^)]*)?\\*[^)]*\\)"
+CCPERM_P1_ERE="${CCPERM_P1_ERE}|(Bash|PowerShell)\\([\"' ]*(${CCPERM_RUNNER_BODY})([\"' :][^)]*)?([\"' :])\\*[^)]*\\)"
 CCPERM_P1_ERE="${CCPERM_P1_ERE}|(Bash|PowerShell)\\([\"' ]*\\*[^)]*\\.(${CCPERM_SCRIPT_BODY})[^)]*\\)"
 
 # Splits rule text into top-level `Tool` / `Tool(...)` tokens. The greedy

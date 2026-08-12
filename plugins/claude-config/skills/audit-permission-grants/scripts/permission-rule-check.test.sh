@@ -353,6 +353,22 @@ rc=0
 PERMISSION_HYGIENE_FIXTURE_DIR="$TEST_TMPDIR/does-not-exist" bash "$SCRIPT" --count >/dev/null 2>&1 || rc=$?
 assert_exit "--count refuses a nonexistent root too" 2 "$rc"
 
+# --- Case 8b: #2282 P2 // exemption, full-rule reporting; P1 pinned npm view ----
+D8B="$TEST_TMPDIR/issue-2282"
+mkdir -p "$D8B/.claude"
+jq -n --arg posix "Bash(${POSIX_MP}:*)" \
+  '{permissions:{allow:[
+    "Read(//Users/alice/secrets/**)",
+    "Bash(npm view ctx7 version*)",
+    $posix
+  ]}}' >"$D8B/.claude/settings.json"
+OUT_2282=$(run "$D8B")
+assert_not_contains "//Users portable root anchor is not flagged" "$OUT_2282" "//Users"
+assert_not_contains "//Users portable root anchor is not flagged" "$OUT_2282" "alice/secrets"
+assert_contains "P2 reports the full offending Bash rule" "$OUT_2282" "Bash(${POSIX_MP}:*)"
+assert_not_contains "fully-pinned npm view rule is not flagged as P1" "$OUT_2282" "npm view ctx7 version"
+assert_eq "only the real machine-path rule is flagged" "1" "$(run "$D8B" --count)"
+
 # --- Case 9: missing jq exits 2 ---------------------------------------------
 real_bash=$(command -v bash)
 empty_path_dir="$TEST_TMPDIR/empty-path"
