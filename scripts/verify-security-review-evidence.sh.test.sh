@@ -193,7 +193,7 @@ GUARD_SCRIPT="$SCRIPT_DIR/verify-security-review-evidence.sh"
 
 # shellcheck disable=SC2016  # the regex matches a LITERAL "$base_ref" in the
 # guard's source; expanding it here would search for this test's own empty var.
-if grep -qE '^\s*pr_touches_security_paths "\$base_ref"( \|\| .*)?\s*$' "$GUARD_SCRIPT"; then
+if grep -qE '^[[:space:]]*pr_touches_security_paths "\$base_ref"( \|\| .*)?[[:space:]]*$' "$GUARD_SCRIPT"; then
   fail "scope check is consumed as a stdout verdict, not a bare or ||-suppressed call" \
     "found a bare or ||-suppressed call; a crashed scope check would then read as out-of-scope and fail OPEN"
 else
