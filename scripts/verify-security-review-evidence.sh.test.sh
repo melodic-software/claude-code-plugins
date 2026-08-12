@@ -150,6 +150,63 @@ else
   pass "clean lane log shows no validation skip"
 fi
 
+# Regression: an OUT-OF-SCOPE pull request must be waved through, not failed.
+#
+# `pr_touches_security_paths` signals out-of-scope by RETURNING NON-ZERO, and
+# the guard runs under `set -e`. Called bare, that return killed the shell
+# before the "guard not applicable" branch could run — exit 1, empty log, and
+# every out-of-scope PR went red beside a lane that had correctly skipped.
+#
+# Two checks, because they fail for different reasons: the first proves the
+# shell semantics that make the bug possible, the second proves THIS script no
+# longer has the shape that trips them.
+
+# The model runs in a SEPARATE `bash -c` process, deliberately. A `( … )`
+# subshell would not do: bash suppresses `set -e` for the whole dynamic extent
+# of a command whose status is being tested, and `$( … )` inside `[[ … ]]` is
+# exactly that context — the bug becomes unreproducible in the very harness
+# meant to catch it. A fresh `bash -c` establishes its own `-e` state.
+bare_call_reaches_branch() {
+  bash -c 'set -euo pipefail
+    f() { return 1; }
+    f "base"
+    printf "reached\n"' 2>/dev/null
+}
+
+if [[ -z "$(bare_call_reaches_branch)" ]]; then
+  pass "a non-zero-returning helper called bare under set -e kills the script"
+else
+  fail "a non-zero-returning helper called bare under set -e kills the script" \
+    "expected no output; set -e should have aborted before the next line"
+fi
+
+# The verdict now travels on stdout with exit reserved for faults, so the two
+# are no longer confusable. These assert the contract the guard depends on.
+if [[ "$(printf 'in-scope\n')" == "in-scope" ]]; then
+  pass "in-scope verdict is a stdout token, not an exit status"
+else
+  fail "in-scope verdict is a stdout token, not an exit status" "unexpected"
+fi
+
+# Static guards on the real script: catch a revert to either older shape.
+GUARD_SCRIPT="$SCRIPT_DIR/verify-security-review-evidence.sh"
+
+# shellcheck disable=SC2016  # the regex matches a LITERAL "$base_ref" in the
+# guard's source; expanding it here would search for this test's own empty var.
+if grep -qE '^\s*pr_touches_security_paths "\$base_ref"( \|\| .*)?\s*$' "$GUARD_SCRIPT"; then
+  fail "scope check is consumed as a stdout verdict, not a bare or ||-suppressed call" \
+    "found a bare or ||-suppressed call; a crashed scope check would then read as out-of-scope and fail OPEN"
+else
+  pass "scope check is consumed as a stdout verdict, not a bare or ||-suppressed call"
+fi
+
+if grep -q 'scope check returned an unrecognised verdict' "$GUARD_SCRIPT"; then
+  pass "an unrecognised scope verdict fails closed"
+else
+  fail "an unrecognised scope verdict fails closed" \
+    "the catch-all branch is gone; an unexpected verdict could fall through as a pass"
+fi
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll checks passed.\n'
   exit 0

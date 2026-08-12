@@ -44,9 +44,24 @@ or finished below the absolute duration floor with no execution evidence (#2337)
 EOF
 }
 
+# pr_touches_security_paths <base-ref>
+#
+# Prints the VERDICT on stdout — `in-scope` or `out-of-scope` — and reserves a
+# non-zero EXIT for a genuine fault (missing python3, an unreadable paths file,
+# an interpreter traceback). The two channels are separate on purpose.
+#
+# The earlier contract signalled out-of-scope by returning 1, which collided
+# with "the check itself broke" on the one status a crashing `python3` also
+# returns. Under `set -e` a bare call then killed the script with no message —
+# every out-of-scope pull request went red beside a lane that had correctly
+# skipped. Consuming that return with `||` fixes the red check but keeps the
+# collision, and turns it fail-OPEN: a crashed scope check reads as
+# out-of-scope and waves the pull request past a security guard. ShellCheck
+# names this trap directly (SC2310, enabled on purpose in this repo's
+# `.shellcheckrc`). Separating verdict from status closes both.
 pr_touches_security_paths() {
   local base_ref="$1"
-  [[ -f "$PATHS_FILE" ]] || return 0
+  [[ -f "$PATHS_FILE" ]] || { printf 'in-scope\n'; return 0; }
   python3 - "$PATHS_FILE" "$base_ref" <<'PY'
 import fnmatch
 import re
@@ -88,8 +103,10 @@ changed = [line for line in diff.stdout.splitlines() if line]
 for path in changed:
     for pat in patterns:
         if pattern_matches(path, pat):
+            print("in-scope")
             sys.exit(0)
-sys.exit(1)
+print("out-of-scope")
+sys.exit(0)
 PY
 }
 
@@ -133,12 +150,25 @@ main() {
 
   local base_ref="${GITHUB_BASE_REF:-main}"
   git fetch origin "$base_ref" --depth=1 >/dev/null 2>&1 || true
-  pr_touches_security_paths "$base_ref"
-  local in_scope=$?
-  if (( in_scope != 0 )); then
-    echo "diff does not touch security-relevant paths — guard not applicable"
-    exit 0
-  fi
+  # A command substitution keeps `set -e` live for the helper (no `||`
+  # suppression), so a genuine fault inside it still aborts the guard — while
+  # the in-scope decision travels on stdout, where it cannot be confused with
+  # one. An unrecognised verdict is treated as a fault, never as a pass: this
+  # is a security guard, and the only safe default when it cannot tell whether
+  # a pull request is in scope is to fail loudly.
+  local scope_verdict
+  scope_verdict="$(pr_touches_security_paths "$base_ref")"
+  case "$scope_verdict" in
+    in-scope) ;;
+    out-of-scope)
+      echo "diff does not touch security-relevant paths — guard not applicable"
+      exit 0
+      ;;
+    *)
+      echo "ERROR: scope check returned an unrecognised verdict: ${scope_verdict}" >&2
+      exit 1
+      ;;
+  esac
 
   local jobs_json
   jobs_json="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs" --paginate)"
