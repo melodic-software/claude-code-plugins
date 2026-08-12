@@ -78,7 +78,9 @@ Records: "entry-diff dropped class=<class> scopes=<a,b> <rule>",
 "entry-diff kept scopes=<a,b> <rule>", a closing "entry-diff summary" count line,
 and with --oracle one "oracle AGREES <rule>" or "oracle DIVERGES ..." per compared rule.
 
-Reads only; writes nothing except the oracle's scratch capture. Exits 2 when the
+Writes no settings file. Without --oracle it writes nothing at all; with it, the
+capture goes to a scratch path AND the spawned session leaves its own state
+under your config directory — the cost notice enumerates that. Exits 2 when the
 input carries no records at all.
 EOF
 }

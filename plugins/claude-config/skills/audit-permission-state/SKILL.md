@@ -30,7 +30,11 @@ could actually open, and what each one holds.
 
 ## Report-only, permanently
 
-This skill writes nothing, in any scope, under any flag. Managed policy is read-only by
+**This skill writes no settings file, in any scope, under any flag** — that is the contract, and it
+holds including under `--oracle`. It is not the same as writing nothing at all: `--oracle` spawns a
+real `claude -p` session, and a session rewrites `~/.claude.json` and adds project, session-env,
+security, subagent and backup state under your config directory. The flag prints that before it
+spawns anything. Every other action writes nothing anywhere. Managed policy is read-only by
 construction — those are admin-write OS locations or a claude.ai Owner role, so a plugin could not
 author them even if it wanted to.
 

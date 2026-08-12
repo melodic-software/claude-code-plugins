@@ -138,6 +138,33 @@ assert_contains "missing settings reported as absent" "$OUT_BAD" "user settings 
 assert_contains "missing managed file reported as absent" "$OUT_BAD" "managed file absent"
 assert_eq "a malformed file contributes no rules" "0" "$(count_matching "$OUT_BAD" '^rule project ')"
 
+# --- A STRUCTURALLY VALID file with the wrong shape is invalid-json ----------
+# Case 8 above feeds a SYNTACTICALLY broken file, which `jq empty` rejects on its
+# own -- so that assertion passes even with the shape check deleted, and it did:
+# a merge resolution dropped the stage and the suite stayed green. These two
+# files parse cleanly and are still not settings files.
+SHAPE="$TEST_TMPDIR/shape"
+mkdir -p "$SHAPE/proj/.claude" "$SHAPE/home/.claude" "$SHAPE/pol" "$SHAPE/sd/.claude"
+jq -n '{}' >"$SHAPE/pol/managed-settings.json"
+printf '["Bash(danger)"]
+' >"$SHAPE/proj/.claude/settings.json"
+printf '{"permissions":{"allow":"Bash(*)","deny":{"x":"y"}}}
+' >"$SHAPE/home/.claude/settings.json"
+OUT_SHAPE=$(env -u CLAUDE_CONFIG_DIR HOME="$SHAPE/home"   PERMISSION_STATE_FIXTURE_DIR="$SHAPE/proj"   PERMISSION_STATE_STARTDIR="$SHAPE/sd"   PERMISSION_STATE_MANAGED_PATH="$SHAPE/pol/managed-settings.json"   PERMISSION_STATE_REGISTRY_KEYS=""   PERMISSION_STATE_PLIST_DOMAIN=""   bash "$SCRIPT")
+assert_contains "a top-level array is invalid-json, not present" "$OUT_SHAPE" "project settings invalid-json"
+assert_contains "a string-valued permissions key is invalid-json too" "$OUT_SHAPE" "user settings invalid-json"
+assert_eq "and neither contributes rules" 0 "$(count_matching "$OUT_SHAPE" '^rule (user|project) ')"
+
+# A legitimately empty settings file, and one with a null permissions key, are
+# both PRESENT -- the shape check must not reject the ordinary shapes.
+printf '{}
+' >"$SHAPE/proj/.claude/settings.json"
+printf '{"permissions":null}
+' >"$SHAPE/home/.claude/settings.json"
+OUT_OKSHAPE=$(env -u CLAUDE_CONFIG_DIR HOME="$SHAPE/home"   PERMISSION_STATE_FIXTURE_DIR="$SHAPE/proj"   PERMISSION_STATE_STARTDIR="$SHAPE/sd"   PERMISSION_STATE_MANAGED_PATH="$SHAPE/pol/managed-settings.json"   PERMISSION_STATE_REGISTRY_KEYS=""   PERMISSION_STATE_PLIST_DOMAIN=""   bash "$SCRIPT")
+assert_contains "an empty object is present" "$OUT_OKSHAPE" "project settings present"
+assert_contains "a null permissions key is present" "$OUT_OKSHAPE" "user settings present"
+
 # --- Case 9: the start-directory copy is never double-counted ----------------
 # When the session starts at the repository root the two paths are the same file.
 # Reporting it twice would claim two live rule sources where there is one.

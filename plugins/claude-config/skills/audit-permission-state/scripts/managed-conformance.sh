@@ -78,6 +78,11 @@ function text_of(start,   i, s) {
   return s
 }
 
+# The tool token: everything before the first "(". A rule that IS its own token
+# is the whole-tool form and reaches every call of that tool. Same definition
+# the merge uses, so the two stages agree about what beats what.
+function tool_of(t,   p) { p = index(t, "("); return p ? substr(t, 1, p - 1) : t }
+
 $1 == "rule" {
   if ($2 == "managed") {
     key = $4 SUBSEP text_of(5)
@@ -156,15 +161,30 @@ END {
       # scope. So a lower-scope deny changes the outcome without overriding the
       # managed rule at all -- a distinction an administrator reading "managed is
       # highest" would not expect.
-      beaten = ""
+      # A lower scope beats this rule either by carrying the SAME TEXT in an
+      # earlier-evaluated kind, or by carrying a WHOLE-TOOL rule for its tool --
+      # `deny Bash` reaches every Bash call, so it beats `allow Bash(npm test)`
+      # without sharing a character of its text.
+      #
+      # Testing exact text alone made this stage contradict the merge on the
+      # same records: the merge reported `inert allow … removed_by=deny@Bash`
+      # while this reported `enforced allow`. Of the two, the administrator-
+      # facing one over-claimed, which is the direction that matters.
+      tk = tool_of(text)
+      beaten = ""; beaten_key = ""
       if (kind == "allow") {
-        if ((("deny") SUBSEP text) in lower) beaten = "deny"
-        else if ((("ask") SUBSEP text) in lower) beaten = "ask"
+        if ((("deny") SUBSEP text) in lower) { beaten = "deny"; beaten_key = ("deny") SUBSEP text }
+        else if (tk != text && (("deny") SUBSEP tk) in lower) { beaten = "deny"; beaten_key = ("deny") SUBSEP tk }
+        else if ((("ask") SUBSEP text) in lower) { beaten = "ask"; beaten_key = ("ask") SUBSEP text }
+        else if (tk != text && (("ask") SUBSEP tk) in lower) { beaten = "ask"; beaten_key = ("ask") SUBSEP tk }
       } else if (kind == "ask") {
-        if ((("deny") SUBSEP text) in lower) beaten = "deny"
+        if ((("deny") SUBSEP text) in lower) { beaten = "deny"; beaten_key = ("deny") SUBSEP text }
+        else if (tk != text && (("deny") SUBSEP tk) in lower) { beaten = "deny"; beaten_key = ("deny") SUBSEP tk }
       }
       if (beaten != "") {
-        print "managed loosenable rule the managed " kind " rule " text " is outranked by a " beaten " rule in scope(s) " lower[beaten SUBSEP text] " — evaluation order (deny, then ask, then allow) applies from any scope, so a lower scope changes the outcome without overriding the managed rule"
+        split(beaten_key, bk, SUBSEP)
+        whole = (bk[2] == tk && tk != text) ? " whole-tool" : ""
+        print "managed loosenable rule the managed " kind " rule " text " is outranked by a" whole " " beaten " rule (" bk[2] ") in scope(s) " lower[beaten_key] " — evaluation order (deny, then ask, then allow) applies from any scope, so a lower scope changes the outcome without overriding the managed rule"
         n_loosenable++
       } else {
         print "managed enforced " kind " " text

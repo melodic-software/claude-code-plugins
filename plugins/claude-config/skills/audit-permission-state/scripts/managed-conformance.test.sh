@@ -151,6 +151,46 @@ OUT=$(report "$DENY_CHALLENGED")
 assert_contains "a managed deny stays enforced against a lower allow" "$OUT" "managed enforced deny Read(./.env)"
 assert_eq "and nothing about it is called loosenable" 0 "$(count_matching "$OUT" 'loosenable rule.*Read')"
 
+# --- A WHOLE-TOOL rule beneath a managed rule beats it -----------------------
+# `lower[]` keyed on exact text alone made this stage contradict the merge on
+# the same records: the merge said `inert allow … removed_by=deny@Bash`, this
+# said `enforced allow`. The administrator-facing one over-claimed.
+WHOLE_TOOL=$(
+  cat <<'EOF'
+managed file present /policy/managed-settings.json
+user settings present /fx/home/.claude/settings.json
+rule managed file allow Bash(npm test)
+rule user settings deny Bash
+EOF
+)
+OUT=$(report "$WHOLE_TOOL")
+assert_contains "a whole-tool deny beneath a managed allow makes it loosenable" "$OUT" "managed loosenable rule the managed allow rule Bash(npm test)"
+assert_contains "and the finding names it as whole-tool" "$OUT" "whole-tool deny rule (Bash)"
+assert_not_contains "it is never also reported enforced" "$OUT" "managed enforced allow Bash(npm test)"
+
+WHOLE_ASK=$(
+  cat <<'EOF'
+managed file present /policy/managed-settings.json
+user settings present /fx/home/.claude/settings.json
+rule managed file allow WebFetch(domain:example.com)
+rule user settings ask WebFetch
+EOF
+)
+OUT=$(report "$WHOLE_ASK")
+assert_contains "a whole-tool ask does the same" "$OUT" "whole-tool ask rule (WebFetch)"
+
+# An unrelated whole-tool rule must not beat a managed rule for another tool.
+UNRELATED=$(
+  cat <<'EOF'
+managed file present /policy/managed-settings.json
+user settings present /fx/home/.claude/settings.json
+rule managed file allow Bash(git status)
+rule user settings deny WebFetch
+EOF
+)
+OUT=$(report "$UNRELATED")
+assert_contains "a whole-tool deny for another tool changes nothing" "$OUT" "managed enforced allow Bash(git status)"
+
 # --- The lock-out switch, at both key paths ----------------------------------
 LOCKED=$(
   cat <<'EOF'

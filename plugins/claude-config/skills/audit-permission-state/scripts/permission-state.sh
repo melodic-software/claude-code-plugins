@@ -212,6 +212,27 @@ classify_json_file() {
     printf 'invalid-json\n'
     return 0
   }
+  # Parsing is not enough: the file must also have the SHAPE a settings file
+  # has. `["Bash(x)"]` and `{"permissions":{"allow":"Bash(*)"}}` are both valid
+  # JSON and neither is a settings file, and reporting them `present` says a
+  # malformed scope is a healthy empty one -- the exact thing SKILL.md's status
+  # vocabulary exists to prevent.
+  #
+  # This stage came from main and my merge resolution deleted it. The suite did
+  # not catch that: its malformed fixture is SYNTACTICALLY broken, which the
+  # `jq empty` above rejects on its own, so the assertion passed with the stage
+  # gone. A structurally-valid malformed fixture now covers it.
+  crlf_strip <"$path" | jq -e '
+    (.permissions | type) as $pt
+    | if $pt == "null" then true
+      elif $pt == "object" then
+        (.permissions | to_entries[] | .value | type) as $kt
+        | ($kt == "null" or $kt == "array")
+      else false end
+  ' >/dev/null 2>&1 || {
+    printf 'invalid-json\n'
+    return 0
+  }
   printf 'present\n'
 }
 
@@ -327,7 +348,10 @@ fi
 # portable core above is never affected — that is the contract an optional
 # platform integration owes.
 
-registry_keys="${PERMISSION_STATE_REGISTRY_KEYS:-$(mscope::registry_keys)}"
+# `-`, not `:-`: an explicitly EMPTY value must mean "no registry surface", and
+# `:-` treats set-but-empty as unset, so every test passing "" was silently
+# probing the operator's REAL registry instead of the seam it asked for.
+registry_keys="${PERMISSION_STATE_REGISTRY_KEYS-$(mscope::registry_keys)}"
 if [[ -z "$registry_keys" ]]; then
   emit managed registry not-applicable "-"
 elif ! command -v reg >/dev/null 2>&1; then
@@ -395,7 +419,8 @@ else
   fi
 fi
 
-plist_domain="${PERMISSION_STATE_PLIST_DOMAIN:-$(mscope::plist_domain)}"
+# `-` for the same reason as the registry seam above.
+plist_domain="${PERMISSION_STATE_PLIST_DOMAIN-$(mscope::plist_domain)}"
 if [[ -z "$plist_domain" ]]; then
   emit managed plist not-applicable "-"
 elif ! command -v defaults >/dev/null 2>&1; then
