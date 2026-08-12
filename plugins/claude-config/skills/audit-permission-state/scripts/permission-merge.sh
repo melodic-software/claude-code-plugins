@@ -91,10 +91,15 @@ fi
 # error, never an empty merge — and the output is held until that is known, so a
 # failed run never emits a half-written merge section ahead of its own error.
 merged="$(printf '%s\n' "$records" | awk -v passthrough="$passthrough" '
-function text_of(start,   i, s) {
-  s = $start
-  for (i = start + 1; i <= NF; i++) s = s " " $i
-  return s
+function rule_text(line,   i, start) {
+  start = 1
+  for (i = 1; i <= 4; i++) {
+    if (match(substr(line, start), /^[^ ]+/)) {
+      start += RLENGTH
+      while (substr(line, start, 1) == " ") start++
+    } else return ""
+  }
+  return substr(line, start)
 }
 
 # The tool token is everything before the first "(" — "Bash(rm *)" is a rule
@@ -108,7 +113,7 @@ function tool_of(t,   p) { p = index(t, "("); return p ? substr(t, 1, p - 1) : t
 $1 == "rule" {
   kind = $4
   scope = $2
-  text = text_of(5)
+  text = rule_text($0)
   if (!(text in text_seen)) { text_seen[text] = 1; text_order[++n_texts] = text }
   tool[text] = tool_of(text)
   if (text == tool[text]) {

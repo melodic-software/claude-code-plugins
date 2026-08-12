@@ -218,6 +218,19 @@ EOF
 OUT=$(merge "$SPACED")
 assert_contains "spaces inside a rule are preserved" "$OUT" "precedence_basis=uncontested Bash(git commit -m *)"
 
+# Internal whitespace is significant: collapsing it would treat distinct rules as one.
+DOUBLE_SPACE=$(
+  cat <<'EOF'
+user settings present <user>/.claude/settings.json
+project settings present /proj/.claude/settings.json
+rule user settings allow Bash(echo  hi)
+rule project settings deny Bash(echo hi)
+EOF
+)
+OUT=$(merge "$DOUBLE_SPACE")
+assert_eq "double-space allow and single-space deny stay distinct rules" 2 "$(count_matching "$OUT" '^effective ')"
+assert_contains "the allow is not falsely inert against a different-text deny" "$OUT" "effective allow scopes=user precedence_basis=uncontested Bash(echo  hi)"
+
 # --- Case 6: unread surfaces bound the claim; empty ones do not ---------------
 STATUSES=$(
   cat <<'EOF'
