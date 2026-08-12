@@ -228,5 +228,32 @@ one feature.
 
 A managed rule cannot be removed by a lower scope. It does **not** follow that managed rules win every
 contest: a deny at any scope still beats an allow at managed, because deny is evaluated first
-everywhere. Conformance of managed intent against what is deployed is a separate question and belongs
-to the managed-policy report, not to this merge.
+everywhere.
+
+### The conformance report
+
+Two claims are both true and their interaction is what an administrator does not expect: managed
+settings are the highest **scope**, and evaluation order (deny, then ask, then allow) applies **from
+any scope**. So a lower-scope deny changes the outcome of a managed allow without overriding it.
+
+| Verdict | What it rests on |
+| --- | --- |
+| `enforced deny` | "If a tool is denied at any level, no other level can allow it." The strongest thing an administrator can write |
+| `enforced allow` / `enforced ask` | the managed rule is highest and nothing beneath it outranks its kind |
+| `loosenable rule` | a lower scope carries an earlier-evaluated kind for the same rule text |
+| `loosenable autoMode` | "A developer can extend `environment`, `allow`, `soft_deny`, and `hard_deny` with personal entries but can't remove entries that managed settings provide… a developer-added `allow` entry can override an organization `soft_deny` entry: the combination is additive, not a hard policy boundary." Permissions, hooks, MCP, sandbox-filesystem and sandbox-network each have an exclusivity lock; auto mode has none |
+| `enforced` / `loosenable lockout` | `disableAutoMode` is a real lock only when it carries the documented string `"disable"` |
+
+The remedy the `autoMode` finding names is the page's own: "For actions that must never run regardless
+of user intent or classifier configuration, use `permissions.deny` in managed settings, which… can't
+be overridden."
+
+**The report prescribes nothing.** It says what the consumer's policy does and does not achieve, and
+every rule string it prints came from a file it read — a property the suite asserts positively rather
+than by checking that some recommendation marker is absent. It ships no security floor of its own,
+which keeps it neutral by construction rather than by restraint.
+
+**Completeness bounds every claim.** Server-managed settings have no local path, so `managed` means
+the local surfaces; a `skipped` or `unreadable` surface gets its own note stating that it is not
+evidence no policy is deployed there. An administrator reading silence as "no policy" is the failure
+this report exists to prevent.

@@ -690,7 +690,34 @@ Acceptance criteria 4 and 8, plus brainstorm candidates 1, 2, 3.
 - With Python unreachable, the skill exits 0, prints a visible skip notice naming the lane, and still
   emits Phase 2 merge output — assert both the notice string and the merge rows in one run.
 
-### Phase 6: Managed-policy conformance report [TODO]
+### Phase 6: Managed-policy conformance report [DONE]
+
+**Completed 2026-08-12.** `managed-conformance.test.sh` 28/28, `shellcheck -x` clean, portability
+gate clean. The phase's sanity check holds on its own fixture: the `permissions.deny` rule is reported
+enforced and the `autoMode` rule loosenable.
+
+**The caveat this phase was told to carry has been discharged, not merely narrowed.** The plan
+required the "no `allowManagedAutoModeRulesOnly`" claim to ship caveated because it originated in an
+unverified research slice. Phase 0 re-confirmed it from the governing page — and affirmatively, not
+just by absence: the page states the additive combination and names `permissions.deny` in managed
+settings as the thing that cannot be overridden. The finding now quotes that wording and names the
+page's own remedy, so nothing here rests on the slice.
+
+**Lane neutrality is asserted as a positive property**, exactly as the phase requires: the suite walks
+every rule the report printed and fails if any string is absent from the input. The plan explicitly
+warned against `grep -c 'RECOMMEND ADD' = 0`, which passes unconditionally.
+
+**Deviations recorded rather than silent:**
+
+- **A second loosenable class emerged from the merge mechanics and is reported.** "Managed is highest"
+  and "deny before ask before allow, from any scope" are both true, so a **lower-scope deny beats a
+  managed allow without overriding it**. An administrator reading only the precedence table would not
+  expect that, and it is exactly the report's remit. Not in the phase as written.
+- **`disableAutoMode` at managed scope is classified here too**, because it is the one auto-mode lever
+  that IS a lock — and only when it carries the documented string. A mistyped one is reported
+  loosenable rather than enforced.
+- **No local policy is a stated status (`status=no-local-policy`), not an empty report.** Silence
+  would read as "nothing to worry about" on a machine whose policy simply could not be reached.
 
 Brainstorm candidate 6 — the highest-value residue of the ecosystem sweep.
 

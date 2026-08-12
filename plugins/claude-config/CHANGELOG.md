@@ -86,7 +86,19 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   values that `jq` rejects outright and no line-oriented filter can repair; absent it, the lane prints
   a visible skip notice and exits 0 while every other stage still runs. A capture that produced
   nothing is reported as unavailable with an explicit "this is NOT a clean bill" — exit status is
-  never consulted, since it is 0 even when nothing came back. Every run states the two bounds on the claim: the command-line scope
+  never consulted, since it is 0 even when nothing came back.
+  A sixth lane reports which managed intents are actually enforced and which a developer can loosen.
+  A managed `permissions.deny` is the strongest thing an administrator can write and is reported
+  enforced; a managed `autoMode` section is **additive, not a policy boundary** — a developer cannot
+  remove entries it provides, but a developer-added `allow` can override an organization `soft_deny`,
+  because permissions, hooks, MCP, sandbox-filesystem and sandbox-network each have an exclusivity
+  lock and auto mode has none. The report also surfaces an interaction the precedence table alone does
+  not suggest: managed settings are the highest scope, but evaluation order applies from any scope, so
+  a lower-scope deny beats a managed allow without ever overriding it. It prescribes nothing — every
+  rule string it prints came from a file it read, and it ships no security floor of its own. Every run
+  bounds its own completeness: server-managed settings have no local path, and a managed surface that
+  could not be read is reported as such rather than left silent, since an administrator reading
+  silence as "no policy deployed" is the failure the report exists to prevent. Every run states the two bounds on the claim: the command-line scope
   (`--settings`, `--allowedTools`, `--disallowedTools`) outranks the files and has none to read, and
   rules are compared by exact text, so a narrow allow blocked only by a broader deny pattern is still
   reported effective — the error direction is over-reporting allow, never over-reporting blocking.

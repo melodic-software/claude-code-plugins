@@ -194,6 +194,36 @@ other stage still runs.
 `status=unavailable` with an explicit "this is NOT a clean bill". The distinction between "your block
 is clean" and "the block was never read" is the whole point.
 
+## Phase 6: What managed policy actually enforces
+
+An administrator deploys managed policy believing it is policy. Some of it is; some is not, and
+nothing surfaces which:
+
+```shell
+bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-permission-state/scripts/permission-state.sh" |
+  bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-permission-state/scripts/managed-conformance.sh"
+```
+
+- **`managed enforced deny <rule>`** — the strongest thing an administrator can write. No level,
+  command line included, can override a managed permission rule, and a tool denied at any level
+  cannot be allowed at another.
+- **`managed loosenable rule …`** — the interaction that surprises people. "Managed is highest" and
+  "deny before ask before allow, **from any scope**" are both true: a lower-scope deny beats a managed
+  allow without ever overriding it.
+- **`managed loosenable autoMode`** — a managed `autoMode` section is **additive, not a policy
+  boundary**. A developer cannot remove entries it provides, but a developer-added `allow` can
+  override an organization `soft_deny`. Permissions, hooks, MCP, sandbox-filesystem and
+  sandbox-network each got an exclusivity lock; auto mode did not.
+- **`managed loosenable lockout`** — `disableAutoMode` set to anything but the string `"disable"`.
+
+**This report never prescribes.** It says what the consumer's own policy does and does not achieve;
+every rule string it prints came from a file it read. It ships no security floor of its own.
+
+**Completeness is bounded on every run.** Server-managed settings are delivered at sign-in and have no
+local path, so "managed" means the local surfaces only; a surface that could not be read gets its own
+note saying so, because an administrator reading silence as "no policy deployed" is the failure this
+report exists to prevent.
+
 ## Reading the output honestly
 
 <!-- fresh-eyes-exempt: external-input -- the material judged here is the consumer's own configuration as read by a deterministic script; no step in this skill judges output this skill authored -->
