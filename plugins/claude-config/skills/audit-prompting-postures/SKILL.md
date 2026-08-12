@@ -75,6 +75,17 @@ Dispatch one fresh-context, non-fork verifier per surface batch, prompted to ref
 addition: "argue this component's purpose does not need this posture, or that it already carries
 it." Findings a verifier refutes are dropped or demoted to `info`.
 
+### When dispatch is unavailable
+
+Phase D **requires** fresh-context, non-fork verifier dispatch. When the Agent tool is blocked,
+unavailable, or the session cannot spawn subagents:
+
+1. **Disclose in the report header** that Phase D did not run and why.
+2. **Mark unverified proposals.** Every proposed addition that did not receive an independent
+   verifier MUST carry an `(unverified)` marker and MUST NOT be presented as a confident finding.
+3. **Add a verifier attestation line** to the report tail — components verified, verified inline,
+   or skipped — alongside the existing coverage and Sources lines.
+
 Persist the report to
 `${CLAUDE_PLUGIN_DATA}/audit-prompting-postures/<state-key>/last-audit.md`.
 
@@ -122,7 +133,9 @@ Then summarize in chat:
 
 Verdicts: `MISSING` (finding, with proposed addition as a fenced diff), `PRESENT` (where it is),
 `NOT-APPLICABLE` (with the failed predicate). End with a coverage line — components inventoried,
-classified, unclassified — and a Sources line citing the pages fetched this run with dates.
+classified, unclassified — and a Sources line citing the pages fetched this run with dates. When
+Phase D ran, end with a verifier attestation line — surface batches verified, verified inline, or
+skipped.
 
 ## Gotchas
 
