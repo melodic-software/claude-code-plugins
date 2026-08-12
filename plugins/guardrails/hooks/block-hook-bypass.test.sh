@@ -897,13 +897,15 @@ run "scratch: even a benign quoted target is not exempted (blocked)" \
 run "scratch: quoted content, unquoted target (allowed)" \
   "echo \"hello world\" > /tmp/scratch/f" 0 "$SCRATCH_ENV=/tmp/scratch"
 # THE BREADTH THAT WAS, still pinned on both sides — but the verdicts moved in
-# 0.26.0 and these four assertions are where that is visible. 0.25.x could not
-# tell operand quotes from content quotes, so it read `${COMMAND#*>}` and refused
-# the exemption on ANY quote or backslash after the first `>` CHARACTER anywhere
-# in the command (#2236). The operand marks supply that association, so the test
-# is keyed on the target word instead and both shapes below are exempt again.
-# Each is a GRANT, and each lands only on a target the marks prove was bare — no
-# quote mark, no opaque mark, no backslash.
+# 0.26.0 and these four cases are where that is visible. 0.25.x could not tell
+# operand quotes from content quotes, so it read `${COMMAND#*>}` and refused the
+# exemption on ANY quote or backslash after the first `>` CHARACTER anywhere in
+# the command (#2236). The operand marks supply that association, so the test is
+# keyed on the target word instead and both shapes below are exempt again.
+# FOUR of the five assertions here are GRANTS — blocked at 0.25.3, allowed now —
+# and they are the ENTIRE grant surface of the #2226 fix. Each lands only on a
+# target the marks prove was bare: no quote mark, no opaque mark, no backslash.
+# The fifth (the unquoted compound) was already allowed and is the control.
 #
 # (1) Segment-scoped now: a quote in an unrelated LATER segment is that segment's
 #     business. Segment 1's target is a plain path strictly under the root.

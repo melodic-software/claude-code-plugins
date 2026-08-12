@@ -71,17 +71,31 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   | `echo x > "/tmp/scratch/a;/../../etc/passwd"` | blocked | blocked |
 
   **Grade every verdict this release moves on the direction that matters:** refusing an exemption is
-  friction, granting one is a bypass. Nineteen shapes move from GRANTED to REFUSED — the whole
-  `/dev/null` family above, plus a multi-line quoted operand, an operand continued by a
-  backslash-newline, an empty quoted target, and a forged sentinel byte. **Three move the other
-  way** — the first three rows of that table — and each lands on a target the marks prove was bare:
-  no quote mark, no opaque mark, no backslash. That is the entire grant surface of this release.
-  The scratch axis's own floor is deliberately *not* widened even though the operand is now known
-  precisely: a quoted operand stays non-exempt, and 0.25.0's assertion saying so is untouched.
+  friction, granting one is a bypass. Counted from the new suite run against 0.25.3's hook, which
+  reports 19 failures split 15/4 by direction:
+
+  - **15 move from GRANTED to REFUSED.** The `/dev/null` family above in its quoted, single-quoted,
+    partially-quoted, escaped, fd-numbered (`1>`), `cat`-lane and real-file-then-operand spellings,
+    plus a multi-line quoted operand, an operand continued by a backslash-newline, and an empty
+    quoted target (`> ""`).
+  - **4 move from REFUSED to GRANTED** — the first four rows of the table above. That is the entire
+    grant surface of this release, and each one lands on a target the marks *prove* was bare: no
+    quote mark, no opaque mark, no backslash.
+
+  A forged sentinel byte and an escaped-space operand are **not** in either set: both already blocked
+  at 0.25.3 and are pinned here as regression guards, not flips. The scratch axis's own floor is
+  deliberately *not* widened even though the operand is now known precisely: a quoted operand stays
+  non-exempt, and 0.25.0's assertion saying so is untouched.
 
   0.25.1's entry below says the breadth "stays" and that narrowing it needs #2226. Both were true
   when written; #2226 is now fixed and this entry is that entry's erratum. Per Keep a Changelog the
   0.25.x entries are left as they shipped.
+
+  One assertion 0.25.0 shipped is **retired** rather than kept: `control: /dev/null still shows the
+  inherited truncation (#2226, allowed)`, which 0.25.0's own PR wrote so that it "flips visibly when
+  this issue is fixed". It is replaced by six `/dev/null` assertions covering the whole family, not
+  just its `;` spelling. Every other 0.25.0 and 0.25.1 assertion still passes unmodified except the
+  four graded above.
 
 ## [0.26.1]
 
