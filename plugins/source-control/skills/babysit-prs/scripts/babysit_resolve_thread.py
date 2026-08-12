@@ -199,20 +199,27 @@ from babysit_util import configure_stdio, dig, is_json_object
 # thread to interactive judgment.
 # Structured P0/P1 markers only — shields badge (/badge/P0- or /badge/P1-) or
 # bracketed [P0]/[P1] — not bare prose mentions such as "P1/P4 defect" in a P2
-# thread's body (#1939). Vetted `--resolve --thread-id` mode applies no severity
-# screen; it trusts the calling agent's vetting. That asymmetry is intentional.
-FORBIDDEN_P01_BADGE_RE = re.compile(r"/badge/P[01]-")
-FORBIDDEN_P01_BRACKET_RE = re.compile(r"\[P[01]\]")
+# thread's body (#1939). Line-leading `P1:` / `P0:` declarations and explicit
+# `P1 must fix` forms remain blocking — bots emit them as severity labels.
+# Vetted `--resolve --thread-id` mode applies no severity screen; it trusts the
+# calling agent's vetting. That asymmetry is intentional.
+FORBIDDEN_P01_BADGE_RE = re.compile(r"/badge/P[01]-", re.IGNORECASE)
+FORBIDDEN_P01_BRACKET_RE = re.compile(r"\[P[01]\]", re.IGNORECASE)
+FORBIDDEN_P01_PREFIX_RE = re.compile(r"(?:^|[\s\n])P[01]\s*:", re.IGNORECASE)
+FORBIDDEN_P01_MUST_FIX_RE = re.compile(r"\bP[01]\s+must\s+fix\b", re.IGNORECASE)
 SEVERITY_BLOCK_WORD_RE = re.compile(r"\bCRITICAL\b")
 SECURITY_TEXT_RE = re.compile(r"security", re.IGNORECASE)
 
 
 def _has_severity_marker(body: str) -> bool:
-    """True for the forbidden class only: structured P0/P1 markers (badge or
-    bracket), the word CRITICAL, or the word "security"."""
+    """True for the forbidden class only: structured P0/P1 markers (badge,
+    bracket, or declaration prefix), the word CRITICAL, or the word
+    "security"."""
     return (
         bool(FORBIDDEN_P01_BADGE_RE.search(body))
         or bool(FORBIDDEN_P01_BRACKET_RE.search(body))
+        or bool(FORBIDDEN_P01_PREFIX_RE.search(body))
+        or bool(FORBIDDEN_P01_MUST_FIX_RE.search(body))
         or bool(SEVERITY_BLOCK_WORD_RE.search(body))
         or bool(SECURITY_TEXT_RE.search(body))
     )

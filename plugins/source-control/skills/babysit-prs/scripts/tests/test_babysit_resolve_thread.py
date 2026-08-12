@@ -617,20 +617,23 @@ class SeverityProjection(unittest.TestCase):
         self.assertTrue(rt.project_thread(record)["severityFlagged"])
 
     def test_bare_p1_prose_does_not_flag(self) -> None:
+        record = self._record(["Discussing a P1/P4 defect class in prose"])
+        self.assertFalse(rt.project_thread(record)["severityFlagged"])
+
+    def test_p1_prefix_declarations_flag(self) -> None:
         for body in (
             "P1: this is a blocking regression",
             "P1 must fix",
             "p1: blocking regression",
-            "Discussing a P1/P4 defect class in prose",
         ):
             record = self._record([body])
-            self.assertFalse(
+            self.assertTrue(
                 rt.project_thread(record)["severityFlagged"], body
             )
 
-    def test_lowercase_bracketed_p1_does_not_flag(self) -> None:
+    def test_lowercase_bracketed_p1_flags(self) -> None:
         record = self._record(["[p1] lowercase marker"])
-        self.assertFalse(rt.project_thread(record)["severityFlagged"])
+        self.assertTrue(rt.project_thread(record)["severityFlagged"])
 
     def test_advisory_p2_marker_does_not_flag(self) -> None:
         # The forbidden class is security/P0/P1 only: advisory P2/P3 threads
