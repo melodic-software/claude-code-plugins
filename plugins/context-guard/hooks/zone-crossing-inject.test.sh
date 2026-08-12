@@ -241,6 +241,33 @@ if [[ $RC -eq 0 && -z "$OUT" ]]; then
 else
   fail "middle band re-injected twice for one recovery: rc=$RC out=$OUT"
 fi
+# A second down-up cycle buys a second announcement and no more. This is the
+# stated residual at the `smart`/`acceptable` edge — where a flap and a full
+# recovery are the same observation — pinned as an assertion rather than left as
+# prose: the cadence is ONE announcement per down-up cycle, bounded rather than
+# runaway. 0.7.2's entry additionally called that "the pre-0.7.0 cadence, and no
+# worse"; that comparative was never executed against 0.6.6 and is withdrawn in
+# 0.7.3. What is asserted here is only what this suite runs.
+write_snapshot "$H" sacc 10 # smart — a second full recovery
+run "$H" "$D" sacc
+if [[ $RC -eq 0 && -z "$OUT" ]]; then
+  ok "middle band: the second recovery is silent too"
+else
+  fail "middle band second recovery emitted: rc=$RC out=$OUT"
+fi
+write_snapshot "$H" sacc 60
+run "$H" "$D" sacc
+if [[ $RC -eq 0 && "$OUT" == *additionalContext* && "$OUT" == *acceptable* ]]; then
+  ok "middle band: the second down-up cycle announces exactly once more"
+else
+  fail "second cycle suppressed: rc=$RC out=$OUT"
+fi
+run "$H" "$D" sacc
+if [[ $RC -eq 0 && -z "$OUT" ]]; then
+  ok "middle band: one announcement per down-up cycle, bounded not runaway"
+else
+  fail "middle band announced twice in one cycle: rc=$RC out=$OUT"
+fi
 
 # 4c. LEGACY STATE: a session already running when this version lands has a
 # `.zone` file and no `.armed` file. The armed rank seeds from the last-seen
@@ -260,6 +287,50 @@ if [[ "$(cat "$D/state/slegacy.armed" 2>/dev/null)" == "dumb" ]]; then
   ok "legacy state gains an .armed marker on first write (no migration step)"
 else
   fail "armed marker not seeded: $(cat "$D/state/slegacy.armed" 2>/dev/null)"
+fi
+
+# 4e. CROSS-VERSION STATE: 0.7.1 shipped a dwell whose `.armed` marker carried
+# TWO fields — "<zone> <streak>", e.g. "dumb 0" — for one version before 0.7.2
+# replaced the rule with a return-to-`smart` target and went back to one word. A
+# session that started under 0.7.1 and continued under 0.7.2 still has the
+# two-field marker on disk, and the reader must resolve it to the ZONE rather
+# than to a fresh baseline, so an already-reported zone stays suppressed instead
+# of being announced a second time. Asserted as an outcome on both marker
+# shapes; the reader's internals are its own business, and this case pins what
+# the next edit to them may not break.
+mkdir -p "$D/state"
+printf 'dumb 0\n' >"$D/state/sdwell.armed"
+printf 'dumb\n' >"$D/state/sdwell.zone"
+write_snapshot "$H" sdwell 90 # dumb again — already reported under 0.7.1
+run "$H" "$D" sdwell
+if [[ $RC -eq 0 && -z "$OUT" ]]; then
+  ok "a 0.7.1 two-field .armed marker still suppresses an already-reported zone"
+else
+  fail "0.7.1-format marker misread as a fresh baseline: rc=$RC out=${OUT:0:120}"
+fi
+if [[ "$(cat "$D/state/sdwell.armed" 2>/dev/null)" == "dumb" ]]; then
+  ok "a 0.7.1 two-field .armed marker is rewritten in the one-word format"
+else
+  fail "0.7.1-format marker not normalized: $(cat "$D/state/sdwell.armed" 2>/dev/null)"
+fi
+# Second shape, so the case rests on more than one string: a mid-ladder marker
+# with a non-zero streak. `acceptable` armed, `acceptable` observed → silent,
+# and a worsening to `dumb` from that same marker must still be announced.
+printf 'acceptable 1\n' >"$D/state/sdwell2.armed"
+printf 'acceptable\n' >"$D/state/sdwell2.zone"
+write_snapshot "$H" sdwell2 60
+run "$H" "$D" sdwell2
+if [[ $RC -eq 0 && -z "$OUT" ]]; then
+  ok "a 0.7.1 marker with a non-zero streak resolves to its zone, not a baseline"
+else
+  fail "streak-bearing marker misread as a fresh baseline: rc=$RC out=${OUT:0:120}"
+fi
+write_snapshot "$H" sdwell2 90
+run "$H" "$D" sdwell2
+if [[ $RC -eq 0 && "$OUT" == *additionalContext* && "$OUT" == *dumb* ]]; then
+  ok "a worsening past a 0.7.1-format marker is still announced"
+else
+  fail "worsening suppressed by a 0.7.1-format marker: rc=$RC out=${OUT:0:120}"
 fi
 
 # 5. Unknown zone (no snapshot) → silent, state untouched.
