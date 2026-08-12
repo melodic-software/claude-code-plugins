@@ -28,9 +28,9 @@ one — the default verdict per posture is NOT-APPLICABLE, not MISSING.
 `disallowed-tools: Edit, NotebookEdit` narrows the surface, nothing more: `Write` stays for Phase D's
 persist and Phase B has already read every audited component, so it can overwrite one; `Bash` stays
 for the state key, and a shell mutates files too. That closes the likeliest accidental path, not the
-capability — and a skill whose subject is auditing assurance must not overstate its own.
-(<https://code.claude.com/docs/en/skills>, frontmatter reference, fetched 2026-08-12; the restriction
-clears on the human's next message, so whoever accepts a proposal can apply it.)
+capability — and a skill auditing assurance must not overstate its own.
+(<https://code.claude.com/docs/en/skills>, fetched 2026-08-12; the restriction clears on the human's
+next message, so whoever accepts a proposal can apply it.)
 
 ## Scope boundary (route out)
 
@@ -59,8 +59,8 @@ sibling takes on its own single input (`audit-instructions/SKILL.md`, "Fail loud
 predicate actually matched points at one, not once per catalog row, since a row names its subpage
 statically whether or not anything in scope matches. A failed subpage fetch degrades only the
 postures citing it: mark those `wording-unverified`, carry the pointer instead of wording, never
-invent text. One page is fatal; the rest are local. "Before judging anything" is not a requirement to
-hold every page at once.
+invent text. One page is fatal; the rest are local, and "before judging anything" is not a
+requirement to hold every page at once.
 
 ## Phase B — Inventory and classify
 
@@ -81,8 +81,8 @@ PRESENCE, which can only turn a MISSING into a PRESENT, never add a finding on a
 
 For each component, classify its purpose from its own description and body — the classification
 vocabulary and its tie to each posture's predicate live in the catalog. A component can match several
-purposes or none; none is the common case, and unclassified components are reported in the coverage
-line, not force-fitted.
+purposes or none; none is the common case, and unclassified components go in the coverage line rather
+than being force-fitted.
 
 ## Phase C — Judge postures
 
@@ -109,7 +109,8 @@ absence on a component whose purpose clearly needs it becomes a finding. Three s
 
 Dispatch one fresh-context, non-fork verifier per surface batch, prompted to refute each proposed
 addition: "argue this component's purpose does not need this posture, or that it already carries
-it." Findings a verifier refutes are dropped or demoted to `info`.
+it." A refuted finding is **demoted to `info` and kept, never dropped** — it stays a row carrying its
+refutation, because deleting it erases the evidence that Phase D ran and disagreed.
 
 ### When dispatch is unavailable
 
@@ -153,8 +154,7 @@ cosmetic one. Two worktrees of one repository differ in the discriminator, which
 
 Run it and use the result. Do **not** express the path as a condition over `${CLAUDE_PROJECT_DIR}`
 "when set": that placeholder is substituted inline before this file reaches you, so the literal token
-is never visible and the condition is not yours to evaluate. Derive the key from a command you
-actually run.
+is never visible and the condition is not yours to evaluate. Derive the key from a command you run.
 
 **Open the report with a three-line header**, so a file that does survive is self-describing rather
 than merely un-overwritten:
@@ -170,9 +170,9 @@ Then summarize in chat:
 | # | Posture | Component | Verdict | Proposed addition or pointer |
 |---|---------|-----------|---------|------------------------------|
 
-Verdicts — the closed set, four tokens: `MISSING` (finding, with proposed addition as a fenced
-diff), `PRESENT` (where it is), `NOT-APPLICABLE` (with the failed predicate), `info` (a finding a
-Phase D verifier refuted — kept for the record, never a proposal to apply). Two markers are
+Verdicts — the closed set, four tokens: `MISSING` (finding, with proposed addition as a fenced diff),
+`PRESENT` (where it is), `NOT-APPLICABLE` (with the failed predicate), `info` (a Phase D verifier
+refuted it — always kept as a row, never dropped, never a proposal to apply). Two markers are
 orthogonal and ride **alongside** a verdict, never in place of one: `wording-unverified` (a subpage
 fetch failed in Phase C — the fifth column then carries the guide POINTER, which is what that column
 is named for, and a pointer is never dressed up as guide wording) and `(unverified)` (Phase D could

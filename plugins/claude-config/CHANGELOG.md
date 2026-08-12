@@ -41,6 +41,16 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   fires, so the guarantee cannot rot into a check that can no longer fail. Extraction stderr now
   joins the walk's rather than escaping to the terminal, and a run that audited nothing *and* failed
   to open its own inputs says so in a distinct message rather than reporting an empty tree.
+
+  **And the denominator's unit is now one rule across all three axes**, after review found the
+  formula counting "produced a finding" on two axes and "examined successfully" on the third — the
+  fourth spelling of the same defect. A `SKILL.md` carrying no `allowed-tools`, and a
+  `settings.json` that parses with an empty `allow` array, were both examined and found to grant
+  nothing, exactly as a parsed plugin `settings.json` declaring no `permissions` always was; only
+  the last of the three counted. A root of such files printed `NOTHING TO AUDIT` directly above a
+  coverage block reporting the candidate files it had just read — reproduced before the fix, not
+  inferred. The rule is now stated once in the code and printed on every run: **the unit on every
+  axis is an input successfully read and examined, never an input that produced something.**
   (#2283, A5)
 - **The one lever that scopes the scan is named for operators.** `$PERMISSION_HYGIENE_SCAN_ROOT` is
   now the sanctioned name and the documented remedy for the exit-2 refusal #2249 added.
@@ -85,7 +95,12 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   - The published verdict schema was closed at three tokens while the body mandated two more. It now
     carries four verdicts including `info`, and names `wording-unverified` / `(unverified)` as
     markers that ride alongside a verdict rather than replacing one. The fifth column is renamed to
-    "Proposed addition or pointer", which is what it already carried. (CC-F5)
+    "Proposed addition or pointer", which is what it already carried. Phase D's own wording is
+    reconciled with it: it said refuted findings are "dropped **or** demoted to `info`", which
+    contradicts `info` being kept for the record and left the choice uncriteria'd. A refuted finding
+    is now always demoted and kept as a row carrying the refutation — dropping it would erase the
+    evidence that Phase D ran and disagreed. Caught in review as a residual instance of this issue's
+    own defect class, introduced by its fix. (CC-F5)
   - The surface set is named in this skill instead of inherited by reference from a sibling that
     versions independently — the coupling that let `output-styles` become inventoried here and
     unnameable by this skill's own filter. `output-styles` is now a scope token. (CC-F6)

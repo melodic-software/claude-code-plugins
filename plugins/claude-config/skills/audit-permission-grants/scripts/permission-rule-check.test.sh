@@ -407,6 +407,26 @@ assert_contains "a clean P3-only root is a clean bill" "$OUT" "No fragile permis
 assert_not_contains "a clean P3-only root is NOT a scan of nothing" "$OUT" "NOTHING TO AUDIT"
 assert_contains "coverage counts the plugin settings it parsed" "$OUT" "2 settings.json parsed"
 
+# 10bf: the denominator's unit is "examined", not "produced a finding" — on ALL
+# THREE axes, not just P3's. Frontmatter files with no allowed-tools block, and a
+# settings.json that parses with an empty allow array, were all examined and found
+# to grant nothing. That is a clean bill, exactly as a parsed plugin settings.json
+# declaring no `permissions` always was. Counting only the productive inputs is
+# "a denominator that counts only successes" — the defect this block exists to
+# remove — and it survived three earlier revisions of the formula.
+D10BF="$TEST_TMPDIR/examined-not-productive"
+mkdir -p "$D10BF/skills/a" "$D10BF/skills/b" "$D10BF/.claude"
+printf -- '---\nname: a\n---\nbody\n' >"$D10BF/skills/a/SKILL.md"
+printf -- '---\nname: b\n---\nbody\n' >"$D10BF/skills/b/SKILL.md"
+jq -n '{permissions:{allow:[]}}' >"$D10BF/.claude/settings.json"
+OUT=$(run "$D10BF")
+assert_contains "examined-but-unproductive inputs are a clean bill" "$OUT" \
+  "No fragile permission grants found."
+assert_not_contains "examined-but-unproductive inputs are NOT a scan of nothing" "$OUT" \
+  "NOTHING TO AUDIT"
+assert_contains "the denominator names its per-axis units" "$OUT" \
+  "DENOMINATOR = 3 input(s) successfully examined: 2 frontmatter file(s) + 1 settings scope(s) + 0 plugin settings.json"
+
 # 10bc: the completeness invariant. Every enumerated frontmatter candidate must
 # land in exactly one bucket, and the script reconciles the buckets against the
 # enumeration itself rather than trusting each `continue` site.

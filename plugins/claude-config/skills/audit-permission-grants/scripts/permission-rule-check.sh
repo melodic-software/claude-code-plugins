@@ -466,14 +466,27 @@ done < <(find "$ROOT" -type f -path '*/.claude-plugin/plugin.json' 2>>"$WALK_ERR
 walk_errors="$(awk 'NF{n++} END{print n+0}' "$WALK_ERR" 2>/dev/null)"
 [[ -n "$walk_errors" ]] || walk_errors=0
 
-# The denominator: every unit this run could have produced a finding about. All
-# THREE axes count, including P3's — a plugin settings.json that parsed is a
-# surface the run examined, so a root holding only clean plugin settings has a
-# denominator and gets a clean bill. Folding P3 in is not cosmetic: leaving it out
-# made a run that examined two plugin settings files report "this run has no
-# denominator" two lines above the count of the files it examined, which is the
-# exact defect this block exists to remove, in a new spelling.
-audited=$((fm_with_block + allow_rules_read + plugin_settings_parsed))
+# The denominator. ONE RULE, applied identically to all three axes:
+#
+#   the unit is an input SUCCESSFULLY READ AND EXAMINED — never an input that
+#   happened to produce something.
+#
+# State it once and every axis follows, which is the whole point: this formula
+# has now been wrong three separate times, each time because one axis silently
+# used "produced a finding" as its unit while the others used "examined". A
+# frontmatter file with no `allowed-tools` was examined and found to grant
+# nothing — exactly as informative as a plugin settings.json that parsed and
+# declared no `permissions`, which always counted. A settings file that parsed
+# with an empty `allow` array is the same case again. Counting only the
+# productive ones is "a denominator that counts only successes", i.e. the defect
+# this entire block exists to remove, wearing its fourth spelling.
+#
+# `allow_rules_read` is deliberately NOT the settings unit: it counts rules,
+# while the other two axes count files. `scopes_read` is the parallel unit and
+# is what makes the three commensurable. Rule counts stay in the coverage text,
+# where they inform without deciding.
+fm_examined=$((fm_no_block + fm_with_block))
+audited=$((fm_examined + scopes_read + plugin_settings_parsed))
 
 # Inputs the run could not read at all. These are NOT audited and are NOT clean
 # — they are the holes in the denominator, and they exist so that "0 findings"
@@ -508,6 +521,8 @@ coverage_block() {
   [[ -n "$joined" ]] || joined="(no settings scope was attempted)"
   printf '\nScan coverage (the denominator — what this run actually read):\n'
   printf '  root: %s (resolved from %s)\n' "$ROOT" "$ROOT_SOURCE"
+  printf '  DENOMINATOR = %d input(s) successfully examined: %d frontmatter file(s) + %d settings scope(s) + %d plugin settings.json. The unit on every axis is "read and examined", never "produced a finding".\n' \
+    "$audited" "$fm_examined" "$scopes_read" "$plugin_settings_parsed"
   printf '  frontmatter: %d allowed-tools block(s) parsed from %d candidate file(s); %d excluded under a vendor/ path segment as non-loadable\n' \
     "$fm_with_block" "$fm_candidates" "$fm_excluded_vendor"
   reconcile_frontmatter
@@ -541,9 +556,9 @@ if [[ "${#findings[@]}" -eq 0 ]]; then
     # nothing here to find them in" were the same string; they are now different
     # strings, because only one of them is a statement about the grants.
     if [[ "$blocked" -gt 0 ]]; then
-      printf 'NOTHING TO AUDIT, AND %d INPUT(S) COULD NOT BE READ: 0 allowed-tools block(s), 0 allow rule(s) and 0 plugin settings.json were audited, and the run failed to open or parse %d of its own inputs. This is neither a clean bill nor an empty tree — it is a scan whose inputs were unavailable. See the coverage block below.\n' "$blocked" "$blocked"
+      printf 'NOTHING TO AUDIT, AND %d INPUT(S) COULD NOT BE READ: nothing was successfully examined on any of the three axes, and the run failed to open or parse %d of its own inputs. This is neither a clean bill nor an empty tree — it is a scan whose inputs were unavailable. See the coverage block below.\n' "$blocked" "$blocked"
     else
-      echo "NOTHING TO AUDIT: 0 allowed-tools block(s), 0 allow rule(s) and 0 plugin settings.json were read under this root, so this run has no denominator on any of the three axes. That is a scan of nothing, not a clean bill — do not report it as one. See the coverage block below for what was and was not read."
+      echo "NOTHING TO AUDIT: 0 frontmatter file(s), 0 settings scope(s) and 0 plugin settings.json were successfully read under this root, so this run has no denominator on any of the three axes. That is a scan of nothing, not a clean bill — do not report it as one. See the coverage block below for what was and was not read."
     fi
   else
     echo "No fragile permission grants found."
