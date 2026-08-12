@@ -3,6 +3,14 @@
 All notable changes to the `powershell-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.8]
+
+### Fixed
+
+- **PSScriptAnalyzer trust scan treats `Invoke-Command -FilePath` and `Start-Job -FilePath`
+  with computed paths as unpinnable loaders (#1490).** Constant `-FilePath` arguments
+  remain pinned; non-constant ones are refused like other named loaders.
+
 ## [0.7.7]
 
 ### Changed
