@@ -1245,6 +1245,11 @@ psout=$(bash "$HOOK" <<<"$(pwsh_command_json "$(printf '%s\n%s\n%s' "git commit 
 assert_contains "PS block message shows the here-string form" "$psout" "'@ | git commit -F -"
 assert_absent "PS block message omits the Bash heredoc" "$psout" "<<'EOF'"
 
+# --- NUL in payload must fail closed (#2136) ----------------------------------
+nul_rc=0
+bash "$HOOK" <<<"$(jq -n '{tool_name:"Bash",tool_input:{command:("git commit -m ok" + ([0]|implode))}}')" >/dev/null 2>&1 || nul_rc=$?
+assert_exit "NUL in command (blocked)" 2 "$nul_rc"
+
 echo
 echo "passed: $PASS   failed: $FAIL"
 ((FAIL == 0))

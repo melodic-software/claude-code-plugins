@@ -3,6 +3,15 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.5]
+
+### Fixed
+
+- **Five verdict-owning hooks now consult `HOOK_JQ_FIELDS_NUL` and refuse on a NUL byte** (#2136):
+  `block-convention-violation`, `block-hook-bypass`, `block-noncanonical-commit`,
+  `secret-pattern-detection`, and `hardcoded-path-check`. `block-dangerous-git` and
+  `block-no-verify` already did.
+
 ## [0.28.4]
 
 ### Fixed
