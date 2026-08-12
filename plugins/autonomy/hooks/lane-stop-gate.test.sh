@@ -696,7 +696,10 @@ if [[ "$OUT" == *'LANE-STOP-OK'* ]]; then ok "the nudge names the default token,
 # The claim-ownership cases below assert the exit code alongside the decision.
 # A Stop hook that starts exiting non-zero — 127 for a helper that stopped
 # resolving — is a regression a stdout-only assertion passes over in silence.
-rc0() { [[ "$1" -eq 0 ]] || fail "$2 exited $1"; }
+rc0() {
+  [[ -n "${1:-}" ]] || fail "$2 had no exit code to check"
+  [[ "$1" -eq 0 ]] || fail "$2 exited $1"
+}
 
 # --- Case 41: the PERSISTED owner decides, not the presenting session --------
 # Case 32 proves a sequential replay is refused; that passes whether the claim
@@ -801,30 +804,38 @@ if is_block "$OUT"; then ok "an ownerless claim still honors the arm (fail direc
 ARM_ID_10="fedcba9876543210"
 bash "$ARM" --id "$ARM_ID_10" --cwd "$WORK" 2>/dev/null
 rm -f "$SETTINGS"
-mkfifo "$DATA_DIR/lane-arms/$ARM_ID_10.claim"
+if ! mkfifo "$DATA_DIR/lane-arms/$ARM_ID_10.claim" 2>/dev/null; then
+  ok "mkfifo unavailable; skip non-regular claim path hang case"
+elif ! command -v timeout >/dev/null 2>&1 ||
+  ! timeout --help 2>&1 | grep -Fq -- '--kill-after'; then
+  ok "GNU timeout unavailable; skip non-regular claim path hang case"
+else
+FIFO_INPUT=$(build_input Stop "no token" false "" "sess-fifo")
 FIFO_OUT="$WORK/fifo-out"
-(cd "$UNRELATED" && printf '%s' "$(build_input Stop "no token" false "" "sess-fifo")" |
-  env -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED \
-    -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL \
-    -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER \
-    -u CLAUDE_PLUGIN_DATA \
-    CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_ENABLED=false \
-    CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID="$ARM_ID_10" \
-    bash "$HOOK" 2>/dev/null >"$FIFO_OUT") &
-FIFO_PID=$!
-for _ in $(seq 1 60); do
-  kill -0 "$FIFO_PID" 2>/dev/null || break
-  sleep 0.25
-done
-if kill -0 "$FIFO_PID" 2>/dev/null; then
-  kill -9 "$FIFO_PID" 2>/dev/null
+FIFO_RC=0
+# shellcheck disable=SC2016 # bash -c program is single-quoted; \$1..\$4 expand in the child
+if timeout 5 bash -c '
+  cd "$1" && printf "%s" "$2" |
+    env -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED \
+      -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL \
+      -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER \
+      -u CLAUDE_PLUGIN_DATA \
+      CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_ENABLED=false \
+      CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID="$3" \
+      bash "$4" 2>/dev/null
+' _ "$UNRELATED" "$FIFO_INPUT" "$ARM_ID_10" "$HOOK" >"$FIFO_OUT" 2>/dev/null; then
+  FIFO_RC=0
+else
+  FIFO_RC=$?
+fi
+if [[ "$FIFO_RC" -eq 124 ]]; then
   fail "a planted FIFO at the claim path hung the Stop hook"
 elif is_block "$(cat "$FIFO_OUT" 2>/dev/null)"; then
   ok "a non-regular file at the claim path neither hangs the hook nor loses the gate"
 else
   fail "a planted FIFO at the claim path left the lane ungated"
 fi
-wait "$FIFO_PID" 2>/dev/null
+fi
 
 echo
 echo "PASS=$PASS FAIL=$FAIL"
