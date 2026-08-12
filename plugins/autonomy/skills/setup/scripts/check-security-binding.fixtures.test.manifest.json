@@ -968,6 +968,19 @@
       "exit": 0,
       "findings_substrings": [],
       "credential_roots": "/home/runner"
+    },
+    "auto-merge-advisory-checkers.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "merge_policy.C2: \"auto\" with verification_blocking.ai-review.C2 \"advisory\"",
+        "merge_policy.C3: \"auto\" with verification_blocking.ai-review.C3 \"advisory\""
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "auto-merge-blocking-checkers.json": {
+      "exit": 0,
+      "findings_substrings": [],
+      "credential_roots": "/home/runner"
     }
   },
   "quarantined": {},

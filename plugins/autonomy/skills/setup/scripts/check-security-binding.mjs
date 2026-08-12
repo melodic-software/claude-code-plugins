@@ -397,7 +397,14 @@ const PROMOTABLE_CELLS = new Set(["C2-auto-merge", "C3-auto-merge", "C3-ai-revie
 // (>= 20 autonomous C2 merges with 0 demotion events), so contrary evidence
 // against the prerequisite cell invalidates the dependent cell too — a failed
 // trust signal never leaves a promotion that was earned on it standing.
-const PROMOTION_DEPENDENCIES = { "C3-auto-merge": ["C2-auto-merge"] };
+// APPEND, never prepend: `failed` is built in dependency-array order and a
+// fixture pins the C2 cell as the named prerequisite, so reordering breaks that
+// pin the moment both fail. C3 auto-merge's automatic transition is gated on the
+// C3 AI-review cell being blocking — an advisory review layer gives a dissenting
+// checker no force — so a demotion of that cell must lower auto-merge with it.
+// Reached dynamically otherwise: the review cell resolves back to its advisory
+// floor on contrary evidence while auto-merge stays effective-promoted.
+const PROMOTION_DEPENDENCIES = { "C3-auto-merge": ["C2-auto-merge", "C3-ai-review-blocking"] };
 
 // Admission shipped defaults per work class (the admission-policy leaf), and
 // the leaf's permissiveness order: autonomous-eligible > human-gated >
@@ -1930,6 +1937,57 @@ function checkSemantics(binding, probeRoot, egressAllowList, credentialRoots) {
           );
         }
       }
+    }
+  }
+
+  // Unanimity join. A class bound auto-merge takes its transition without a
+  // human, and the topology leaf's unanimity invariant requires every checker
+  // the class declares to agree first. The topology floor supplies the checker
+  // POPULATION; the security-review knob supplies its FORCE — unanimity needs
+  // both, and only force is configurable into absence, because floors are
+  // tighten-only. Two ways a binding removes it: an advisory layer, where the
+  // checker dissents and the transition proceeds anyway; and a not-required
+  // layer with model-adjudicated checkers DECLARED for the class, where the
+  // layer they judge in never runs, so their agreement can never be obtained.
+  // A class declaring no model-adjudicated checker is exempt from the second:
+  // its floor is seated by a deterministic slot, whose force is its own layer.
+  // Vendor-hosted is exempt entirely — the cap above already rejects every auto
+  // cell there, the same carve-out the promotion-ratification checks make. A
+  // missing or malformed knob already produced its structural finding;
+  // re-reporting it here would double-name one root cause.
+  if (
+    isPlainObject(binding.merge_policy) &&
+    isPlainObject(binding.verification_blocking) &&
+    binding.executor_class !== "vendor-hosted"
+  ) {
+    for (const workClass of WORK_CLASSES) {
+      if (binding.merge_policy[workClass] !== "auto") continue;
+      for (const layer of LAYERS) {
+        const perClass = binding.verification_blocking[layer];
+        if (!isPlainObject(perClass) || perClass[workClass] !== "advisory") continue;
+        findings.push(
+          `merge_policy.${workClass}: "auto" with verification_blocking.${layer}.${workClass} "advisory" — an automatic transition requires unanimous agreement among every checker the class declares, and an advisory layer records a checker's dissent without withholding the transition; set verification_blocking.${layer}.${workClass} to "blocking" (ratifying its promotion_state cell where the cell is promotable) or bind merge_policy.${workClass} to "human"`,
+        );
+      }
+      const aiReview = binding.verification_blocking["ai-review"];
+      if (!isPlainObject(aiReview) || aiReview[workClass] !== "not-required") continue;
+      const topology = isPlainObject(binding.verification_topology)
+        ? binding.verification_topology[workClass]
+        : null;
+      if (!isPlainObject(topology) || !Array.isArray(topology.roles)) continue;
+      const declaredModelCheckers = topology.roles
+        .filter(
+          (role) =>
+            isPlainObject(role) &&
+            CHECKER_TYPED_ROLES.has(role.role) &&
+            isNonEmptyString(role.name) &&
+            !isNonEmptyString(role.scanner_class),
+        )
+        .map((role) => JSON.stringify(role.name));
+      if (declaredModelCheckers.length === 0) continue;
+      findings.push(
+        `verification_topology.${workClass}.roles: model-adjudicated checkers [${declaredModelCheckers.join(", ")}] declared while merge_policy.${workClass} is "auto" and verification_blocking.ai-review.${workClass} is "not-required" — the layer those checkers judge in never runs, so their agreement can never be obtained and unanimity over them is vacuous while the merge proceeds automatically; set verification_blocking.ai-review.${workClass} to "blocking", drop the model-adjudicated roles and let the class's deterministic slot seat its floor, or bind merge_policy.${workClass} to "human"`,
+      );
     }
   }
 

@@ -70,6 +70,15 @@ per-action prompts remain the control; at `L2` and above the whole-process bound
 control, replacing per-action prompts. The [isolation-ladder](guardrails/isolation-ladder.md)
 leaf carries this note in context.
 
+## Automatic transitions
+
+Unanimity is not a matrix column: every transition a run takes without a human — merge and
+every stage before it — requires unanimous agreement among the checkers the class declares,
+and one dissent hands the item to the human gate and raises `verification-divergence` below.
+It is a fixed invariant, not a knob, so no cell above can express it. The
+[verification-topology](guardrails/verification-topology.md) leaf carries it in context,
+including what is enforced at binding-validity time today and what is deferred.
+
 ## Escalation
 
 Six escalation event classes:

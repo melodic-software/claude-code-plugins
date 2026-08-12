@@ -146,3 +146,53 @@ reading as if it meant more.
 human — not merge alone — requires every checker the class declares to agree. One dissent withholds
 the automatic transition and hands the item to the human gate; divergence routing is owned by the
 matrix's escalation contract.
+
+## How unanimity is enforced today
+
+Unanimity needs a checker POPULATION and FORCE behind its verdicts. This leaf's floors supply the
+population; the [security-review leaf](security-review.md)'s per-class blocking knob supplies the
+force. Only force is configurable into absence — floors are tighten-only, so no floor value can
+describe a topology that cannot be unanimous, while a knob left below `blocking` lets a dissent be
+recorded and the transition proceed anyway.
+
+**Binding-validity rule.** A class whose merge disposition is bound `auto` is INVALID, rejected at
+check time, when either holds:
+
+- any verification layer for that class is bound `advisory` — the checker runs, dissents, and the
+  transition proceeds regardless; or
+- the class declares a model-adjudicated checker slot while its model-adjudicated layer is bound
+  `not-required` — the layer that slot judges in never runs, so its agreement can never be obtained
+  and unanimity over it is vacuous.
+
+A class declaring no model-adjudicated slot is not caught by the second case: its floor is seated by
+a deterministic slot, whose force is its own layer. The rule is a JOIN across two axes, never a floor
+on either — each axis alone at a legal value can still combine into an automatic transition no
+checker can withhold.
+
+**Dissent routes on the existing channel.** A withheld transition files on the bound route for the
+matrix's `verification-divergence` event class, whose definition already covers checker
+disagreement. No token and no channel is added here; the one-channel invariant binds unchanged.
+
+**Consumers resolve both.** A consumer resolving a class's merge disposition must resolve its
+checker layers in the same step, against live promotion-evidence telemetry: automatic merge is
+unavailable whenever a checker layer resolves below `blocking`, including where a human-ratified
+`blocking` has been lowered by automatic demotion. Reading the bound merge disposition alone is
+non-conforming.
+
+**Why the check is merge-scoped while the obligation is not.** The obligation covers every
+transition a run takes without a human. Merge is the only such transition a binding can express:
+intermediate pipeline transitions are runner-owned, and no runner exists. Autonomous ADMISSION is
+not a second hole — admission precedes the artifact, so there is no checker verdict to be unanimous
+about at that point.
+
+**Two limits, stated rather than hidden.** Neither is verified anywhere today.
+
+- **Per-run aggregation is not asserted.** Unanimous pass, single dissent, checker timeout, and
+  duplicate checker identity at run time are verdict-aggregation obligations on the runner seam,
+  deferred to the runner's build trigger. What ships is the contract obligation and the
+  binding-validity rule above: a configuration that could auto-proceed with no force behind its
+  checkers is rejected; a RUN that does so is not yet detectable.
+- **Force is checked; RESOLVED distinctness is not.** The slot rule above is stated over the binding
+  because a binding is what a check can read. Two slots held distinct by declared constraints can
+  still resolve to one instance at run time, and no static check sees that — it is the same
+  runner-seam obligation.

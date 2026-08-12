@@ -60,6 +60,12 @@ per the [telemetry contract](../telemetry.md) are the evidence base.
 - **Demotion is automatic and fail-closed.** Contrary evidence lowers the cell's effective
   state immediately, without waiting for human action; the cell re-earns promotion from
   there through the same evidence predicate.
+- **Promotion never overrides unanimity.** A promoted `C2`/`C3` auto-merge cell still does not
+  auto-proceed on checker dissent: the promoted state is a ceiling, and dissent withholds the
+  automatic transition the same way contrary evidence lowers the cell — the same mechanism, not
+  a second one beside it. Requiring unanimous checker agreement is a
+  [verification-topology](verification-topology.md) invariant, never a promotable knob; that
+  leaf states what is checked at binding-validity time and what awaits the runner.
 
 ## Suggested default predicates
 
@@ -76,4 +82,6 @@ org binds (org-bindable values):
 **Demotion evidence set** (one event suffices): any post-merge gate failure, any
 human-reverted merge, any verification divergence. Demotion cascades along
 predicate dependencies: `C3` auto-merge is earned on the `C2` auto-merge track
-record, so contrary evidence against `C2` auto-merge demotes both cells.
+record, and its automatic transition is gated on the `C3` AI-review cell being
+blocking, so contrary evidence against either prerequisite demotes `C3`
+auto-merge with it.

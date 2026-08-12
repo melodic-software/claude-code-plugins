@@ -35,8 +35,8 @@
     },
     "ai-review": {
       "C1": "not-required",
-      "C2": "not-required",
-      "C3": "blocking",
+      "C2": "advisory",
+      "C3": "advisory",
       "C4": "blocking",
       "C5": "blocking"
     }
@@ -97,9 +97,9 @@
   "promotion_state": {
     "C2-auto-merge": {
       "state": "promoted",
-      "ratified_by_change": "change/2026-07-20-c2-auto-merge-reearn",
+      "ratified_by_change": "change/2026-06-30-c2-auto-merge",
       "evidence_window": "2026-06-01..2026-06-28",
-      "ratified_at": "2026-07-20T00:00:00Z"
+      "ratified_at": "2026-06-30T00:00:00Z"
     },
     "C3-auto-merge": {
       "state": "promoted",
