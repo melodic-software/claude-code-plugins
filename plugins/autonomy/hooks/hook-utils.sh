@@ -455,6 +455,10 @@ hook::read_file_path() {
     if ! hook::in_git_working_tree "$(dirname "$file_physical")"; then
       return 1
     fi
+  else
+    # No project dir and no git: fail closed rather than revert to unscoped
+    # pre-#1091 behavior (#1091).
+    return 1
   fi
   printf '%s' "$file"
 }

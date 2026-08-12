@@ -623,6 +623,24 @@ else
   ok "read_file_path: git worktree scope SKIPPED (git not on PATH)"
 fi
 
+# --- Test 12f: read_file_path — git absent with project dir unset fails closed
+EMPTY_GIT_BIN="$(mktemp -d)"
+scratch12f=$(mktemp)
+echo scratch >"$scratch12f"
+got_no_git=$(
+  unset CLAUDE_PROJECT_DIR
+  PATH="$EMPTY_GIT_BIN" \
+    printf '%s' "{\"tool_input\":{\"file_path\":\"$scratch12f\"}}" |
+    hook::read_file_path
+) || got_no_git=""
+rmdir "$EMPTY_GIT_BIN" 2>/dev/null || true
+rm -f "$scratch12f"
+if [[ -z "$got_no_git" ]]; then
+  ok "read_file_path: git absent with CLAUDE_PROJECT_DIR unset rejects file"
+else
+  fail "read_file_path: git absent admitted file (got '$got_no_git')"
+fi
+
 # --- Test 12d: under_temp_root — the filesystem root as a temp candidate ------
 # A candidate of `/` contains every absolute path. Trimming its trailing slash
 # empties the string, and an empty candidate is discarded — so `TMPDIR=/` used
