@@ -201,6 +201,12 @@ changelog_versions() {
     grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?([+-][0-9A-Za-z][0-9A-Za-z.-]*)?'
 }
 
+# Bracketed Keep-a-Changelog release headings, one per line, in file order.
+# Only `## [x.y.z]` — the form --check-bump requires for release entries.
+changelog_bracket_headings() {
+  rendered_lines "$1" | grep -E '^## \[[0-9]+\.[0-9]+(\.[0-9]+)?([+-][0-9A-Za-z][0-9A-Za-z.-]*)?\]'
+}
+
 if [[ "$mode" == "--check-order" ]]; then
   changelogs=(plugins/*/CHANGELOG.md docs/conventions/*/CHANGELOG.md)
   misordered=0
@@ -372,6 +378,7 @@ undocumented=0
 malformed=0
 preexisting=0
 nonmonotonic=0
+absorbed=0
 for manifest in "${manifests[@]}"; do
   plugin_dir="${manifest%/.claude-plugin/plugin.json}"
   name="${plugin_dir##*/}"
@@ -419,6 +426,25 @@ for manifest in "${manifests[@]}"; do
     fi
     nonmonotonic=$((nonmonotonic + 1))
     continue
+  fi
+
+  # Every released `## [x]` heading at the fork point must still exist at head. A
+  # merge-forward that absorbs the predecessor section into the new release
+  # deletes headings without touching the manifest monotonicity checks. Compare
+  # against $merge_base, not $base: main may have landed release headings after
+  # the fork that this branch has not merged yet.
+  if [[ -f "$changelog" ]]; then
+    missing_headings="$(
+      comm -23 \
+        <(git show "$merge_base:$changelog" 2>/dev/null | changelog_bracket_headings - | sort) \
+        <(changelog_bracket_headings "$changelog" | sort)
+    )"
+    if [[ -n "$missing_headings" ]]; then
+      echo "ABSORBED CHANGELOG HEADING: $name lost release section heading(s) vs the fork point (a merge-forward may have fused two releases into one section):" >&2
+      printf '%s\n' "$missing_headings" >&2
+      absorbed=$((absorbed + 1))
+      continue
+    fi
   fi
 
   # Require the bumped version's own entry at head, not merely that the file
@@ -474,11 +500,12 @@ for manifest in "${manifests[@]}"; do
   fi
 done
 
-if ((undocumented > 0 || malformed > 0 || preexisting > 0 || nonmonotonic > 0)); then
+if ((undocumented > 0 || malformed > 0 || preexisting > 0 || nonmonotonic > 0 || absorbed > 0)); then
   ((undocumented > 0)) && echo "Add a '## [<version>]' entry for every plugin whose version changed." >&2
   ((malformed > 0)) && echo "Convert unbracketed changelog headings to the '## [<version>]' Keep-a-Changelog form." >&2
   ((preexisting > 0)) && echo "Add the bumped version's '## [<version>]' entry in this change set; it must be absent from the base changelog, not merely present at head." >&2
   ((nonmonotonic > 0)) && echo "Renumber every bumped version strictly above the base ref's CURRENT version, not the version the branch was cut from." >&2
+  ((absorbed > 0)) && echo "Restore every '## [<version>]' heading that existed at the fork point; release notes must not be relabelled or absorbed into a newer section." >&2
   exit 1
 fi
 echo "Every plugin whose version changed vs $base has a '## [<version>]' CHANGELOG.md entry."
