@@ -69,6 +69,15 @@ All imported unchanged; each is enforced by its owning contract, cited never res
   autonomous/human-gated classes. The runner is a claiming surface, so the
   [one-entrypoint invariant](trigger-dispatch.md#dispatch) and its scope boundary bind it
   directly; the audit trail that funnelling produces is the trust loop.
+- Checker verdicts are aggregated per the
+  [verification-topology leaf](guardrails/verification-topology.md), which enforces at
+  binding-validity time what no static check can reach at run time. **Three obligations land on
+  this seam when the build trigger fires**, and each is a hole until it does: aggregating verdicts
+  under the unanimity invariant, including the checker-timeout and no-verdict cases a static check
+  never sees; refusing to count two checkers the binding held distinct that RESOLVE to one
+  instance; and drawing lenses per that leaf's draw rule. A binding cannot express a topology that
+  auto-proceeds with no force behind its checkers — the runner is what makes the same true of a
+  RUN.
 
 ## Anti-goals
 
