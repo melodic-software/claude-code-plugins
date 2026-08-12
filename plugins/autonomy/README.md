@@ -29,8 +29,8 @@ state and records that binding.
   crossed with six enforcement columns — isolation floor, verification layers, verification
   topology, merge policy, cost tier, escalation — as one progressive-disclosure hub with
   on-demand leaves (isolation ladder, work classes, security review, verification topology,
-  admission policy), human-ratified promotion with
-  automatic fail-closed demotion, and a two-surface binding split by governance sensitivity
+  admission policy), human-ratified promotion with automatic fail-closed demotion, and a
+  two-surface binding split by governance sensitivity
   (security axes on the settings-as-code home outside agent blast radius; non-security remaps
   repo-local) — plus the contract-owned security-binding schema and its semantic check, and the
   setup guardrail slice that detects substrates per surface, live-validates isolation with an

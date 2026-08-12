@@ -15,7 +15,7 @@ policy — only the binding that resolves a role to an instance.
 |---|---|
 | `generator` | produces the artifact under verification |
 | `checker` | judges that artifact, in isolation from every other checker |
-| `cross_vendor_checker` | a `checker` additionally constrained to a vendor shared with no other checker and not the `generator`'s |
+| `cross_vendor_checker` | the role a class uses to require vendor disjointness where its own floor does not — under `cross_vendor_required`, every model-adjudicated slot already carries it |
 | `ranker` | orders candidates or findings relative to each other rather than scoring one absolutely |
 
 ## Checker slots
@@ -25,12 +25,23 @@ layer or a MODEL-ADJUDICATED role. The distinction is load-bearing: a determinis
 model or vendor identity, so the relational constraints and predicates below bind only
 model-adjudicated slots and are never required of a deterministic one.
 
-**Distinctness is implied on every slot — it is not something a binding opts into.** Two slots are
-distinct only where they cannot share a failure mode: deterministic slots are distinguished by
-scanner class, model-adjudicated slots by resolved model identity. **Two slots that resolve
-identically declare ONE checker**, and a binding whose distinct-slot count falls below its class
-floor is invalid. The rule is stated over the BINDING rather than over runs, because a binding is
-what a check can read.
+**Distinctness is REQUIRED on every slot and cannot be opted out of.** Two slots are distinct only
+where they cannot share a failure mode: deterministic slots are distinguished by scanner class,
+model-adjudicated slots by resolved model identity. **Two slots that resolve identically declare ONE
+checker**, and a binding whose distinct-slot count falls below its class floor is invalid.
+
+A slot NAME tells a validator nothing about what the slot resolves to, so distinctness that is only
+intended is not distinctness. **The binding establishes it explicitly**: every model-adjudicated
+checker slot declares `distinct_model_from` against the `generator` AND against every other checker
+slot in its class. A binding that leaves it undeclared has not established it and is invalid — an
+undeclared constraint is the unevaluable case, which is the same failure as declaring none.
+
+Identity equality is the FLOOR of that test, not the whole of it. Two identifiers can name one
+underlying model — an alias, a route through a reseller, adjacent versions of one family — and those
+share every failure mode while comparing unequal. **A binding declaring two slots it knows resolve
+to the same underlying model has declared one checker.** A check cannot see that, so the contract
+states the requirement and a check enforces the part it can read; the gap is recorded here rather
+than implied away.
 
 The human review the matrix makes mandatory for `C4` is NOT a checker slot. It is the merge gate.
 
@@ -40,7 +51,7 @@ A constraint binds a role by its relationship to another role, never by naming a
 
 | Constraint | Resolves via | Why |
 |---|---|---|
-| `distinct_model_from: <role>` | model identity at run time | a model judging its own output measures its own preference, not the artifact |
+| `distinct_model_from: <role>` | the model identity the binding declares — static, because a check reads a binding | a model judging its own output measures its own preference, not the artifact |
 | `distinct_vendor_from: <role>` | vendor identity | disjoint model families fail independently; same-vendor checkers share failure modes, so agreement between them is weaker evidence than its count suggests. `cross_vendor_required` therefore obliges vendor disjointness AMONG the model-adjudicated slots as well as from the `generator` — a class whose checkers all share one vendor satisfies neither the constraint nor the reason for it |
 | `not_weaker_than: <role>` | an ordering source the binding declares | PRESENT BUT NOT DEFAULTED — no cross-vendor capability ordering exists to evaluate it against, so no shipped default uses it. A binding may state it only where it also declares its own ordering source |
 
@@ -86,22 +97,32 @@ leaf and on the issue it closes, deliberately outside the contract surface.
 
 ## Shipped floors
 
-| Class | `min_checkers` | `cross_vendor_required` |
-|---|---|---|
-| `C1` | 1 | no |
-| `C2` | 1 | no |
-| `C3` | 2 | no |
-| `C4` | 3 | yes |
-| `C5` | 3 | yes |
+| Class | `min_checkers` | `min_model_checkers` | `cross_vendor_required` |
+|---|---|---|---|
+| `C1` | 1 | 0 | no |
+| `C2` | 1 | 0 | no |
+| `C3` | 2 | 1 | no |
+| `C4` | 3 | 2 | yes |
+| `C5` | 3 | 2 | yes |
 
 `min_checkers` counts DISTINCT slots per the rule above. It is a coverage floor, never a list
 length: a class declaring its floor count of slots that resolve identically has declared one
 checker, and its binding is invalid.
 
-The floors compose with the [security-review layers](security-review.md) rather than duplicating
-them — `C1`'s single slot is its output-shape check and `C2`'s is the deterministic scanner layer,
-so neither class is obliged a model judge its verification cell does not require; `C3` adds one
-model-adjudicated slot; `C4` and `C5` add two, vendor-disjoint.
+**`min_model_checkers` exists because a total count cannot express which KIND of coverage is
+owed.** Without it, a class meets its floor with deterministic slots alone and never faces a model
+judge — and `cross_vendor_required` then binds an empty set and is satisfied by declaring nothing.
+So it is never vacuously satisfied: **`cross_vendor_required: yes` requires at least two
+model-adjudicated slots, pairwise vendor-disjoint and disjoint from the `generator`**, and a class
+asserting it with fewer is invalid rather than trivially conforming.
+
+Each class's composition is absolute, stated against the
+[security-review layers](security-review.md) it must not contradict:
+
+- `C1` — one slot: the output-shape check.
+- `C2` — one slot: the deterministic scanner layer.
+- `C3` — two slots: one deterministic layer and one model judge.
+- `C4` and `C5` — three slots: one deterministic layer and two model judges, vendor-disjoint.
 
 Shipped values are FLOORS: a binding may tighten any cell but never weaken one below its shipped
 value. The weakening-is-invalid rule is the security-review knobs' own; this leaf adds that no
@@ -116,10 +137,10 @@ Neither is a knob, and no binding may relax either.
 
 **Independent aggregation, never deliberation.** Checkers run isolated: no checker sees another
 checker's verdict or reasoning, and verdicts are combined mechanically. Deliberation between
-checkers is RECORDED AS REJECTED — falsified: agreement reached by discussion is correlation, not
-corroboration, so a deliberating panel converges toward whichever verdict is stated most
-persuasively rather than toward the one the artifact supports, and the count of agreeing checkers
-stops measuring independent confirmation the moment they can hear each other.
+checkers is RECORDED AS REJECTED: agreement reached by discussion is correlation, not corroboration
+— the count of agreeing checkers stops measuring independent confirmation the moment they can hear
+each other, so a deliberating panel's unanimity means strictly less than an isolated panel's while
+reading as if it meant more.
 
 **Unanimous checker agreement for anything auto-proceeding.** Every transition a run takes without a
 human — not merge alone — requires every checker the class declares to agree. One dissent withholds
