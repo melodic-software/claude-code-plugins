@@ -2,9 +2,9 @@
 
 Validation rules organized by category. Each check has a severity, what to look for, and how to verify.
 
-Category G (skill-listing budget) has no table here — its checks are procedural and live in
-[context/validation-categories.md](../context/validation-categories.md), which carries every
-category's criteria.
+Every Phase 2 category has a table here. What *governs* a category — the reasoning and the ordering a
+table row cannot carry — lives alongside it in
+[context/validation-categories.md](../context/validation-categories.md).
 
 ## A. Schema & Structure
 
@@ -117,6 +117,40 @@ taken, the finding is stated conditionally, not asserted.
 | No secrets in settings.json (tokens, keys, passwords) | error | Scan for patterns: `ghp_`, `eyJ`, `sk-`, `AKIA`, common token prefixes |
 | Secrets are in settings.local.json only | error | settings.local.json is gitignored |
 | Path-based env vars use forward slashes | info | Windows compatibility |
+
+## G. Skill-listing budget
+
+Unlike every other category here, G's inputs are not in a settings file this skill already opened —
+they are the listing the running harness assembled. So the first two rows are about *taking a
+measurement at all*, and the rest only apply once one exists.
+
+| Check | Severity | How to verify |
+| --- | --- | --- |
+| Overflow was measured by a route that works in this run's mode | warning | **Interactive**: `/doctor` reports the listing's cost and its biggest contributors, and needs a TTY — prompt the user to run it and paste the output. **Headless** (`-p`, spawned agent, background job): re-launch with `--debug` and look for the budget warning Claude Code writes to the debug log ([skills](https://code.claude.com/docs/en/skills), "Skill descriptions are cut short"). `/context`'s Skills row is a second *interactive* reading only. Name the route in the finding |
+| No measurement is reported as "not measured", never as "no overflow" | error | An unmeasured category that reports clean is the failure mode this row exists to block — the same defect as a passing check that never ran |
+| Any overflow finding names the budget constant it was measured against | warning | `skillListingBudgetFraction` (**default `0.01`**) × context window × ~4 chars/token, or `SLASH_COMMAND_TOOL_CHAR_BUDGET` when set (**documented fallback 8,000 chars**). Confirm both in Phase 3.1 against [settings](https://code.claude.com/docs/en/settings) and [env-vars](https://code.claude.com/docs/en/env-vars) — they are upstream-owned. Without the constant the report cannot say *how far* over |
+| Roster composition counted before any lever is recommended | warning | Count listing entries by origin: plugin skills, project skills (`.claude/skills/`), user skills (`${CLAUDE_CONFIG_DIR:-~/.claude}/skills/`). This decides which levers exist |
+| Every recommended lever is reachable for the origin it targets | error | `skillOverrides` reaches project and user skills only — *"Does not apply to plugin skills, which are managed through `/plugin`"* ([settings](https://code.claude.com/docs/en/settings)). On a plugin-heavy roster the levers are `/plugin` and upstream description trimming. Recommending `skillOverrides` for a plugin skill is a lever the operator cannot pull |
+| Per-entry text within the per-skill cap | warning | Combined `description` + `when_to_use` ≤ `skillListingMaxDescChars` (**default `1536`**). This is a per-entry cap, independent of the shared budget above |
+
+### Measuring it in a repository (in-repo proxy, not the real population)
+
+Where the audited target is a repository that *publishes* skills, this marketplace already ships the
+aggregate measurement: `bash plugins/skill-quality/scripts/check-listing-budget.sh <skills-root> ...`,
+surfaced as `skill-quality:check`'s `listing-budget` action. Use it — and state plainly what it is and
+is not:
+
+- **It measures a different population.** The script walks *skills roots in a repository*. Category G
+  is asking about *the listing the consumer's running session assembled*, which is the installed
+  plugin cache plus that machine's project and user skills. A repository's own roots are a **proxy**
+  for that, useful when the audited repo is the publisher, and not a substitute for `/doctor` or
+  `--debug` on the consumer's machine. Never present its number as the consumer's listing size.
+- **It is slow enough to matter for how you call it.** Measured on this Windows machine:
+  `check-listing-budget.sh plugins/claude-config/skills` → 8 skills in **5.98s real**. It scales
+  per-skill, so a marketplace-wide `plugins/*/skills` run is minutes, not seconds, and will exceed a
+  default Bash tool timeout (tracked in #2216). Scope it to the roots you need, or run it in the
+  background — do not make a Category G step depend on a marketplace-wide invocation completing
+  inline.
 
 ## H. Model and effort settings
 

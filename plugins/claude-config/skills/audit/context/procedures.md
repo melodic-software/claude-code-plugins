@@ -65,8 +65,11 @@ added, and neither is mechanical:
    baseline", whose three preconditions govern: installed and enabled is not enough (`disableAllHooks`
    and the managed `allowManagedHooksOnly` / `strictPluginOnlyCustomization` levers switch hooks off),
    a `Bash` hook does not cover the `Read`-pattern family, and one command family's coverage says
-   nothing about another's. The audit reads settings-declared hooks only and cannot enumerate a
-   plugin's `hooks/hooks.json`, so this is a question to answer, not a lookup.
+   nothing about another's. **The inventory half is now a lookup**: Phase 1.0's
+   `scripts/check-hook-coverage.sh` enumerates settings-declared *and* plugin-declared hooks,
+   resolving each enabled plugin through the installed-plugin registry. What stays a judgment is
+   whether an enumerated hook covers *this* family — and where that script exited 1, the sources it
+   names as unenumerated remain a question, not an absence.
 2. **Would the addition suppress a gate the project built on purpose?** Deny and ask rules are
    evaluated regardless of what a `PreToolUse` hook returns, so adding a deny over a family a project
    hook escalates to an *ask* replaces the prompt with an outright block and the human loses the

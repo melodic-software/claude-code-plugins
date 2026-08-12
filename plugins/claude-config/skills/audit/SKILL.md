@@ -89,6 +89,31 @@ Record the installed Claude Code version (`claude --version`) — Phase 3.2 comp
 against it. Then run `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/check-structure.sh"`
 before the table below.
 
+### 1.0 Hook inventory
+
+Run `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/check-hook-coverage.sh"` and keep its output for
+the rest of the run. It enumerates settings-declared hooks **and** the hooks shipped by every enabled
+plugin — resolved through the installed-plugin registry, so no version-directory guessing is
+involved — plus the levers (`disableAllHooks`, `allowManagedHooksOnly`,
+`strictPluginOnlyCustomization`) that switch hooks off wholesale.
+
+Two categories depend on it and neither could take this inventory before:
+
+- **Category D** writes rules for `${CLAUDE_PLUGIN_ROOT}` / `${CLAUDE_PLUGIN_DATA}` placeholders, which
+  only ever appear in a plugin-provided hook.
+- **Category B's third narrowing** demotes a missing baseline deny to `info` when a *live* `PreToolUse`
+  hook already blocks the family. That narrowing is only takeable against a real inventory.
+
+**Read the exit code, not just the table.** `0` means the inventory is complete. `1` means it is
+**partial** — some enabled plugin did not resolve, or a hook config did not parse — and the "Not
+enumerated" block names which. For anything a partial inventory could not see, keep the conditional
+posture in [required-permissions.md](reference/required-permissions.md) "Fail open where the inventory
+is incomplete". `2` is fatal (no readable settings scope, or `jq` missing); treat it as no inventory at
+all rather than as an empty one.
+
+The script never runs a hook and never decides whether a hook *covers* a family — that judgment stays
+with Category B, against the three preconditions in "Narrowing the baseline".
+
 ### 1.1 JSON validity
 
 `Valid JSON: no` blocks further analysis.
@@ -126,7 +151,7 @@ Nine categories — names + the question each answers below; **full per-check cr
 - **D — Hooks**: paths resolve + readable, `timeout` in seconds and sane, valid matchers, quoted path placeholders in shell form, exec-form `command` resolvable on Windows, no duplicates, valid events
 - **E — Plugins**: static checks (marketplace membership) + live upstream drift detection (`scripts/check-plugin-drift.sh` — ORPHAN/NEW/RENAME modes, auto-fix policy table in the context file)
 - **F — Environment Variables**: documented/justified vars, secrets in `settings.local.json` only, forward-slash paths
-- **G — Skill-listing budget**: `/doctor` overflow check and trim levers (description trimming, `skillOverrides`, budget settings)
+- **G — Skill-listing budget**: overflow check by a route this run can actually take (`/doctor` interactively, `--debug` headless), the budget constant it was measured against, and trim levers scoped to the roster's composition (`skillOverrides` reaches project and user skills; plugin skills are managed through `/plugin`)
 - **H — Model and effort settings**: `effortLevel`, `fallbackModel`, `availableModels`, `enforceAvailableModels` — values the harness accepts into the file but does not apply as written
 - **I — Deep-link registration**: `disableDeepLinkRegistration` — the one documented value that takes effect, and a visible attempt at an enforcement requirement lodged in a scope that cannot enforce it
 
@@ -135,6 +160,15 @@ Nine categories — names + the question each answers below; **full per-check cr
 ## Phase 3: Research & Recheck
 
 External verification against current documentation.
+
+**Read every page in this phase verbatim, not through a summarizer.** These pages are long — `settings`
+and `env-vars` are hundreds of KB — and a summarizing fetch truncates, then reports the rows past the
+cutoff as *absent*. That false negative has already been observed on the `settings` page: three keys
+reported NOT FOUND that raw `curl` + `grep` found. So for each fetch below,
+`curl https://code.claude.com/docs/en/<page>.md` to a file and grep the file, per the
+[fetch route](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#reading-the-basis--the-fetch-route).
+**A truncated read supports NO finding** — say so and move on, in either direction: neither "the key is
+gone" nor "the key is unchanged" is reportable from a read that may have been cut.
 
 ### 3.1 Official docs check
 

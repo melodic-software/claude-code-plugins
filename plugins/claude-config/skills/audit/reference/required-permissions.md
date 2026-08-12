@@ -84,11 +84,19 @@ Windows is not supported, and the PowerShell tool lists "On Windows, sandboxing 
 among its preview limitations. On a native-Windows workstation the OS-level remedy is unavailable, so
 do not offer it there as the fix.
 
-**A `PreToolUse` hook on `Bash|PowerShell` is a speed bump, not a boundary.** It can inspect the
-command string and deny the call, and a hook exiting 2 blocks a call an *allow* rule would otherwise
-have permitted. A decision it returns cannot loosen a deny — see "Interaction with hook-based gates"
-below for the precise ordering. But it inspects that same command string, so it inherits the evasion surface of a
-Bash deny glob. Rank it below the sandbox and never describe it as protection.
+**A `PreToolUse` hook on `Bash|PowerShell` is a speed bump, not a boundary — *against this threat
+model*.** It can inspect the command string and deny the call, and a hook exiting 2 blocks a call an
+*allow* rule would otherwise have permitted. A decision it returns cannot loosen a deny — see
+"Interaction with hook-based gates" below for the precise ordering. But it inspects that same command
+string, so it inherits the evasion surface of a Bash deny glob. Rank it below the sandbox and never
+describe it as protection.
+
+**The ranking is scoped to secret exfiltration; it does not carry to destructive-bash-deny.** It holds
+here because an OS-level boundary for *reading a file* exists, so something strictly better than the
+hook is on the table. Nothing equivalent exists for a destructive git argument: the sandbox's
+vocabulary is `filesystem.*` paths and `network.*` hosts, with no expression for a command's
+*arguments*, so it cannot separate `git push` from `git push --force` to the same remote. Do not
+carry "rank it below the sandbox" into a destructive-git finding — see that section's own note.
 
 **Residual risk, stated plainly.** Where no OS-level boundary is available, a deny glob cannot keep a
 secret from a session that has shell execution. **Directory location is not a boundary**: a
@@ -122,6 +130,30 @@ Bash deny patterns for destructive git operations — the universal baseline.
 | `Bash(git reset --hard)` | Hard reset without args |
 | `Bash(git clean -f *)` | Force clean |
 | `Bash(git clean -fd *)` | Force clean with directories |
+
+**Report this baseline with its fragility, the same way the Read deny table is reported with its
+scope.** Every pattern above constrains a command's *arguments*, and the permissions page's own
+warning is that *"Bash permission patterns that try to constrain command arguments are fragile"*
+([permissions](https://code.claude.com/docs/en/permissions)). A finding that recommends these without
+saying so ships the false confidence the `sensitive-file-deny` section refuses to ship.
+
+**The concrete hole is prefix anchoring, and it is worth stating in the finding.** Matching is
+prefix-based: *"`Bash(npm run test *)` matches Bash commands starting with `npm run test`"*, and a
+trailing `*` with a space before it *"enforces a word boundary"* (same page). So
+`Bash(git push --force *)` matches `git push --force origin main` and does **not** match
+`git push origin main --force`, which is the ordinary spelling. Flag-position variants, `--force-with-lease`,
+`-f` bundled into another short-flag cluster, and `git push` aliases all pass the same way. These
+patterns raise the cost of an accidental force push; they do not bound a determined one.
+
+**What the ranking is here, and what it is not.** Do not import the Read-deny section's "rank the hook
+below the sandbox": the sandbox constrains filesystem paths and network hosts and has no expression
+for a command's arguments, so it does not bound `git push --force` at all. Against destructive git
+the available controls are the deny globs above and a `PreToolUse` hook, and the honest ordering is
+that a hook can parse the command rather than prefix-match it, while inheriting the same
+command-string evasion surface. Upstream supports the fragility claim generally; its *"use PreToolUse
+hooks"* recommendation on that page is scoped to URL filtering, so do not cite upstream as ranking
+the hook above the glob for destructive commands — that reach is ours to argue, not theirs to have
+said.
 
 ## ask-rules (Bash ask)
 
@@ -160,11 +192,12 @@ or from an installed plugin; a plugin-provided hook is no weaker a block than a 
   turns every hook off, and a managed `allowManagedHooksOnly` or `strictPluginOnlyCustomization`
   suppresses non-exempt hooks outright. A hook a setting has already switched off blocks nothing, so
   under any of those the narrowing does not apply at all and the finding stands at its unnarrowed
-  severity. Category D reads and reports all three, so take the reading from there; where that reading
-  was not taken, the narrowing is **unavailable** rather than assumed clear — an unread lever is not an
-  unset one. Category D runs *after* Category B, so pull the reading forward or defer the downgrade and
-  revise the severity once Category D has run; on a scope-filtered run that never reaches Category D
-  (`/audit permissions`), the narrowing is unavailable unless the operator supplies the state.
+  severity. **Phase 1.0's `check-hook-coverage.sh` reports all three**, in every scope it could read,
+  so the reading is available before Category B runs and on a scope-filtered `/audit permissions` run
+  as well — the ordering problem this bullet used to carry is gone. Where the reading was not taken at
+  all, the narrowing is **unavailable** rather than assumed clear: an unread lever is not an unset one.
+  Note the script reads the scopes it can open; a managed-settings layer it cannot read leaves
+  `allowManagedHooksOnly` unknown, which is a partial reading, not a clear one.
 - **The hook is on the tool surface the pattern defends.** `destructive-bash-deny` and `ask-rules` are
   Bash-command families, so a `PreToolUse` hook on `Bash`/`PowerShell` can cover them.
   `sensitive-file-deny` is a `Read`-pattern family, and a Read deny covers the built-in file tools as
@@ -181,11 +214,21 @@ ends if the providing plugin is disabled or uninstalled, that it is narrowable b
 the hook exposes, and that it is suppressible later by `disableAllHooks`, `allowManagedHooksOnly`, or
 `strictPluginOnlyCustomization` even where none of them is set today.
 
-**Fail open where no hook inventory was taken.** The audit has no enumeration path over a plugin's
-`hooks/hooks.json` (it reads settings-declared hooks only), so on most runs you will not know what is
-installed. Do not resolve that by assuming absence. Where no inventory was taken, state the finding as
-conditional — "if a `PreToolUse` hook on `Bash` already blocks this family, this finding is void" —
-rather than as an assertion, and say which inventory would settle it.
+**Take the inventory; fail open only where it is incomplete.** Phase 1.0 runs
+`scripts/check-hook-coverage.sh`, which enumerates settings-declared hooks **and** every enabled
+plugin's hook config, resolved through the installed-plugin registry. Read its **exit code**, because
+that is what tells you which posture you are in:
+
+- **`0` — complete.** Every enabled plugin resolved. Narrowing 3 is decidable: an absent pattern whose
+  family no enumerated hook blocks is a genuine finding at full severity, and one a live hook does
+  block drops to `info` with the residual named. State that the inventory was taken.
+- **`1` — partial.** The script's "Not enumerated" block names what it could not read. For families
+  those sources could plausibly cover, do **not** assume absence: state the finding as conditional —
+  "if a `PreToolUse` hook on `Bash` already blocks this family, this finding is void" — and name the
+  specific unresolved plugin or unparsed file that would settle it. Everything the run *did* enumerate
+  is still decidable; partial is not a blanket licence to hedge.
+- **`2` or not run — no inventory.** Treat as partial for every family, and say so. "Could not look" is
+  never reportable as "looked and found nothing".
 
 ## Interaction with hook-based gates
 

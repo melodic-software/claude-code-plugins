@@ -3,6 +3,78 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.34.0]
+
+### Added
+
+- **`audit` can now enumerate the hooks an enabled plugin ships.** It read settings-declared hooks
+  only, and three of its own surfaces said so in prose — `context/procedures.md` called the hook
+  question "a question to answer, not a lookup", and `reference/required-permissions.md` carried a
+  "Fail open where no hook inventory was taken" clause that, on most runs, resolved to hedging every
+  Category B finding. That gap was load-bearing in two places: Category D writes rules for
+  `${CLAUDE_PLUGIN_ROOT}` / `${CLAUDE_PLUGIN_DATA}` placeholders that only ever appear in a
+  plugin-provided hook, and Category B's third baseline narrowing turns on whether such a hook is
+  live. New `scripts/check-hook-coverage.sh` (with `.test.sh`) resolves each enabled plugin through
+  the installed-plugin registry — so no version-directory ordering is inferred — and reads its hook
+  config in all four documented shapes: `hooks/hooks.json`, a `hooks` path, an array of paths, and an
+  inline object in `plugin.json`. It also reports `disableAllHooks`, `allowManagedHooksOnly`, and
+  `strictPluginOnlyCustomization`, because a hook a setting has already switched off is not coverage.
+  The exit code is the contract: `0` complete, `1` partial with the unenumerated sources named, `2`
+  no inventory. The fail-open posture survives, narrowed to what a partial run could not read —
+  "could not look" is still never reportable as "looked and found nothing". Read-only: it never runs
+  a hook, and it never decides whether a hook *covers* a family, which stays Category B's judgment
+  against its three preconditions.
+- **Two positive Category G evals.** The category had no positive case at all — its only two mentions
+  in `evals.json` were negative assertions inside the scope-filter case. One case now exercises the
+  headless overflow route, the other the lever-matches-the-roster rule.
+
+### Changed
+
+- **Category G is executable now, from either kind of session.** Its only overflow detector was
+  `/doctor`, which needs an interactive TTY, so the whole category yielded nothing in the harness's
+  own headless mode while the documented headless route went unmentioned. It now names `--debug` —
+  *"When the listing exceeds its budget, Claude Code also writes a warning to the debug log"* — as
+  the headless route, and `/context`'s Skills row as what it actually is: a second *interactive*
+  reading, not a substitute. A run that could measure nothing reports "not measured", never "no
+  overflow".
+- **Category G states the budget it measures against.** The category named the per-entry cap and both
+  scaling settings and gave no budget value and no formula, so "overflowed, and by how much?" was
+  unanswerable by hand. It now carries `skillListingBudgetFraction` default `0.01`,
+  `SLASH_COMMAND_TOOL_CHAR_BUDGET`'s documented 8,000-character fallback,
+  `skillListingMaxDescChars` default `1536`, and the `200,000 × 4 × 0.01 = 8,000` arithmetic that
+  reconciles the first two.
+- **Category G's lever list no longer recommends a lever the operator cannot pull.** The ordered
+  "cheapest first" list put `skillOverrides` second while carrying the caveat that it does not apply
+  to plugin skills, and never named the substitute upstream prescribes — so on a plugin-heavy roster
+  the list degenerated to the entry it labels "last resort". Levers are now split by roster origin,
+  `/plugin` is named for plugin skills, and a roster-composition count is required *before* any lever
+  is recommended. No per-skill `name-only` state is promised for `/plugin`; no page documents one.
+- **Category G has a checklist table, like every other Phase 2 category.** It was the only letter
+  missing from `audit-checklist.md`, whose heading sequence ran A–F, H, I. The table also points at
+  `plugins/skill-quality/scripts/check-listing-budget.sh` — the aggregate measurement this
+  marketplace already ships — as an explicit **in-repo proxy**, with the population difference said
+  out loud: that script walks a repository's skills roots, while Category G asks about the listing a
+  consumer's session assembled. Measured cost is stated too (8 skills in 5.98s on Windows), because a
+  marketplace-wide invocation will not finish inside a default Bash tool timeout.
+- **The `destructive-bash-deny` baseline is reported with its fragility, the way the Read deny table
+  already is.** Eight argument-constraining globs shipped rated `error` when absent with no caveat,
+  in a file that quotes the permissions page's *"Bash permission patterns that try to constrain
+  command arguments are fragile"* warning one section earlier against a different table. The concrete
+  hole is now stated: matching is prefix-anchored, so `Bash(git push --force *)` does not match
+  `git push origin main --force`. The patterns stay in the baseline — they raise the cost of an
+  accidental force push — but a finding no longer implies they bound a determined one.
+- **The "a `PreToolUse` hook is a speed bump, not a boundary" ranking is scoped to the threat model it
+  was written for.** It is right for secret exfiltration, where an OS-level boundary exists and the
+  hook is strictly worse than it. It was stated unscoped, so it also governed destructive git — where
+  the sandbox's vocabulary is `filesystem.*` paths and `network.*` hosts, with no expression for a
+  command's arguments, so it does not separate `git push` from `git push --force` to the same remote.
+  Scoped, not deleted.
+- **The read-it-verbatim guard now covers all of Phase 3, not one checklist row.** It was attached to
+  the Category F env-vars row while Phase 3.1 and Phase 3.4 fetched `settings` and `permissions` with
+  no such instruction — and `settings` is the page on which a summarizing fetch already reported three
+  present keys as absent. The guard now also says explicitly that a truncated read supports no finding
+  in *either* direction.
+
 ## [0.33.1]
 
 ### Fixed
