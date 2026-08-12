@@ -1,5 +1,5 @@
 ---
-description: "Create a git commit with a subject matching the resolved convention (layered `source-control.md` config → project convention → Conventional Commits default), a Claude Co-Authored-By trailer, and surgical staging (never `git add -A`), feeding the message to git via Bash heredoc. Use when: 'commit this', 'make a commit', 'commit with message <hint>' — not for push, branch creation, or PR creation (use /pull-request)."
+description: "Create a git commit with a subject matching the resolved convention (layered `source-control.md` config → project convention → Conventional Commits default), a Claude Co-authored-by trailer, and surgical staging (never `git add -A`), feeding the message to git via Bash heredoc. Use when: 'commit this', 'make a commit', 'commit with message <hint>' — not for push, branch creation, or PR creation (use /pull-request)."
 argument-hint: "[message-hint]"
 user-invocable: true
 disable-model-invocation: false
@@ -108,7 +108,7 @@ commands, not remembered facts — steps 3–5 are the ones a long session silen
 ## Purpose
 
 Encapsulates the canonical mechanic for building a commit message that honors a subject convention,
-appending a `Co-Authored-By:` trailer, and feeding the result to `git commit` via stdin — without
+appending a `Co-authored-by:` trailer, and feeding the result to `git commit` via stdin — without
 these failure modes:
 
 - **PowerShell here-string syntax (`@'...'@`) inside a Bash tool call** produces `unexpected EOF` and
@@ -208,7 +208,7 @@ platforms (Git Bash, Linux, macOS).
 # (default: yes). trailer_policy "none" -> drop the --trailer line entirely.
 # trailer_policy naming a different template -> substitute that template's text.
 git commit -F - --cleanup=verbatim \
-  --trailer "<Co-Authored-By trailer, placeholders filled>" \
+  --trailer "<Co-authored-by trailer, placeholders filled>" \
   <<'EOF'
 <subject — shaped to satisfy the active subject convention>
 
@@ -259,7 +259,7 @@ actionable error rather than an opaque hook failure.
 The default template is:
 
 ```text
-Co-Authored-By: Claude <model> <noreply@anthropic.com>
+Co-authored-by: Claude <model> <noreply@anthropic.com>
 ```
 
 **The `<model>` placeholder is filled from your own knowledge of the running session** (e.g.
@@ -267,7 +267,7 @@ Co-Authored-By: Claude <model> <noreply@anthropic.com>
 environment variable that auto-fills it — the trailer is part of the message body sent to
 `git commit`, not git config.
 
-**An optional context clause** — `Co-Authored-By: Claude <model> (<context>) <noreply@anthropic.com>`,
+**An optional context clause** — `Co-authored-by: Claude <model> (<context>) <noreply@anthropic.com>`,
 e.g. `(1M context)` — may be added when the context window is a genuinely distinguishing fact about
 the session and is known with confidence. It is **not** required, and its absence is not a defect.
 Earlier versions of this skill mandated it; the mandate was removed because it matched neither the
@@ -297,11 +297,16 @@ Rung 3 is the rung earlier versions of this skill omitted entirely: the harness 
 config layer nor a project convention, so a session receiving both it and this skill had no stated
 tiebreak and silently followed whichever it saw last.
 
-**Key spelling.** This skill emits `Co-Authored-By`. Git preserves a trailer key's case verbatim
-(`git interpret-trailers` does not normalize it, and no `trailer.*` config here changes that), so
-both `Co-Authored-By` and the also-common `Co-authored-by` persist exactly as written. This skill
-does not rewrite an existing repository's spelling; whether to standardize on one is a consumer
-convention question, expressible as a `trailer_policy` template.
+**Key spelling.** This skill emits `Co-authored-by` — the spelling GitHub's own documentation uses
+exclusively and the one GitHub itself writes when it appends co-author trailers to a squash-merge
+message. GitHub's attribution is not case-sensitive in practice (verified empirically: a commit
+carrying a `Co-Authored-By:` trailer resolves its co-author in the GraphQL `Commit.authors`
+connection just the same — the docs do not state case sensitivity either way), so this is a
+consistency choice, not a correctness one: branch commits and the forge-written squash merges now
+agree. Git preserves a trailer key's case verbatim (`git interpret-trailers` does not normalize it,
+and no `trailer.*` config here changes that), so existing history keeps whatever spelling it was
+written with — this skill never rewrites it. A consumer who wants a different spelling expresses it
+as a `trailer_policy` template. Decision recorded in #1604.
 
 ## Unrelated uncommitted changes
 

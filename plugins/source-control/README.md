@@ -14,7 +14,7 @@ convention — the layered `source-control.md` config (written by
 `/source-control:setup`) → the consuming project's own
 `CLAUDE.md`/rules/commit-msg hook → Conventional Commits (11-type vocabulary)
 as the default — pre-checks it against the
-pattern before git runs, appends a `Co-Authored-By: Claude …` trailer, and
+pattern before git runs, appends a `Co-authored-by: Claude …` trailer, and
 feeds the message via Bash heredoc (`git commit -F - --cleanup=verbatim`) —
 never PowerShell here-strings, never scratch files in `.git/`. Stages
 surgically (`git add <path>`, never `-A`), and supports pathspec-limited
