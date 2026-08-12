@@ -3,6 +3,13 @@
 All notable changes to the `biome-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.8]
+
+### Added
+
+- **Content-mutation disclosure on Biome rewrites (#1596).** When Biome auto-fixes a file,
+  the hook emits a `systemMessage` naming the path.
+
 ## [0.6.7]
 
 ### Changed
