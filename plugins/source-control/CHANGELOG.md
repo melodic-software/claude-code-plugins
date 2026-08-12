@@ -3,6 +3,14 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.53.12]
+
+### Fixed
+
+- **`fetch_pull_request_commits` fails closed when GitHub's 250-commit API cap truncates the walk
+  (#2387).** Compares the walked count to the PR's `commits` field and raises when the endpoint
+  cannot return the full list, preserving the over-report-only invariant for signature enforcement.
+
 ## [0.53.11]
 
 ### Fixed
@@ -42,12 +50,6 @@ All notable changes to the `source-control` plugin are documented here. Format f
   abbreviation probe vacuously.
 
 ## [0.53.6]
-
-### Fixed
-
-- **`fetch_pull_request_commits` fails closed when GitHub's 250-commit API cap truncates the walk
-  (#2387).** Compares the walked count to the PR's `commits` field and raises when the endpoint
-  cannot return the full list, preserving the over-report-only invariant for signature enforcement.
 
 ## [0.53.5]
 
