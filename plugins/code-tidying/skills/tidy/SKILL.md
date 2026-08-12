@@ -68,6 +68,8 @@ When the project layer is absent, resolution is the bundled lane alone. When it 
 
 Lane files are project-specific **by design** — the bundled lanes cover surfaces that look the same in most repos, and the bundled templates scaffold the ones that don't. To define a project lane, copy the closest template from `${CLAUDE_PLUGIN_ROOT}/skills/tidy/templates/` into `.claude/tidy-lanes/<lane>.md` and fill in the scope globs and watch-for patterns for your stack. The catalog is the union of both locations — list `.claude/tidy-lanes/*.md` (if the directory exists) plus the bundled lanes when printing `help`.
 
+**Declared deviation — no user-global or `*.local.*` overlay (#723).** Per the [config-cascade contract](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/config-cascade/README.md), this surface resolves only the team layer (`.claude/tidy-lanes/<lane>.md`) over the bundled lane — not the contract's user-global or gitignored overlay rungs. Lane scope globs, verification commands, and watch-for patterns are anchored to *this repo's* layout, CI, and stack; a `~/.claude/tidy-lanes/<lane>.md` user-global file would either duplicate the bundled generic lane or be wrong in most repos, and the bundled lane is already the portable cross-repo baseline. Personal variation uses a gitignored team-path lane file (the whole `.claude/tidy-lanes/<lane>.md`, not a `*.local.*` sibling) so rotation and catalog discovery stay on one filename per lane; setup documents that escape hatch. This is a declared deviation on the layering axis only — merge granularity within the team+bundled pair is unchanged.
+
 Bundled lanes:
 
 | Lane | File | Covers |

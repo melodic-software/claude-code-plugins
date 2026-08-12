@@ -36,7 +36,10 @@ by dropping files into **`.claude/tidy-lanes/<lane>.md`**, which take
 precedence over bundled lanes of the same name. Copy the closest scaffold from
 the plugin's `skills/tidy/templates/` (dependency-root, host-wiring, apps,
 polyglot-services patterns) and fill in your scope globs, watch-for patterns,
-exclusions, and verification commands.
+exclusions, and verification commands. This surface does not resolve user-global
+or `*.local.*` overlay layers — the bundled lane is the portable baseline, and
+personal variation uses a gitignored team-path lane file (see `setup` and the
+[config-cascade contract](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/config-cascade/README.md)).
 
 ## Safety model
 

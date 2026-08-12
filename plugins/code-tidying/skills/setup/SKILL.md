@@ -123,12 +123,11 @@ only where a lane's scope genuinely needs the user's call.
    the matching pattern and offer to fix `.gitignore` before reporting success, since these lanes are
    team-shared and must be committed to take effect. `/code-tidying:tidy` resolves a lane only from
    `.claude/tidy-lanes/<lane>.md` (then the bundled lane of that name), and its catalog lists
-   `.claude/tidy-lanes/*.md` — there is no personal/local-overlay resolution. Every scaffolded lane is a
-   tracked, team-shared file; do not point developers at a `*.local.*` variant the tidy skill would never
-   load. A developer who wants a private lane keeps a normal `.claude/tidy-lanes/<lane>.md` and gitignores
-   that one path, accepting it stays local-only. This single-layer gap (no user-global or gitignored
-   `*.local.*` overlay, diverging from the consumer-config layering contract's three-layer shape) is a
-   distinct axis from lane merge granularity and is tracked in TODO(#723).
+   `.claude/tidy-lanes/*.md` — there is no user-global or `*.local.*` overlay resolution (declared
+   deviation per the config-cascade contract, #723). Every scaffolded lane is a tracked, team-shared file;
+   do not point developers at a `*.local.*` variant the tidy skill would never load. A developer who
+   wants a private lane keeps a normal `.claude/tidy-lanes/<lane>.md` and gitignores that one path,
+   accepting it stays local-only.
 
 Re-running `apply` after everything passes changes nothing and reports "already configured".
 
