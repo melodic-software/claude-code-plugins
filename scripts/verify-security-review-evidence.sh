@@ -178,8 +178,32 @@ main() {
     sleep 5
   done
 
-  if grep -qE 'workflow-validation skip|class=skipped-validation|review-ran.*false' "$log_file" 2>/dev/null; then
-    echo "ERROR: security-review reported success but logs show a validation skip or review-ran=false (#2337)" >&2
+  # Match only the runner's own ANNOTATION lines, never bare log text. The
+  # lane's `Report review outcome` step is an inline github-script whose SOURCE
+  # is echoed into this same log, and that source contains both phrases as
+  # string literals:
+  #
+  #     `${lane} concluded: ${outcome} class=skipped-validation with no ` +
+  #       "(workflow-validation skip: the caller's workflow file must " +
+  #
+  # An unanchored grep therefore matched EVERY successful in-scope run — the
+  # guard reddened exactly the pull requests it exists to approve. It stayed
+  # invisible while a separate bug (the lane rejecting `cursor[bot]` for want
+  # of an `allowed_bots` entry) made the lane job itself fail, because a
+  # non-success conclusion returns above without reaching this line.
+  #
+  # A real skip is emitted through `core.warning`, which the runner renders as
+  # a `##[warning]` line, so requiring that prefix keeps the true positive and
+  # drops the source-text match. Verified against run 31630114303, whose log
+  # contains exactly two matches for the old pattern, both source (lines 1435
+  # and 1437), while its `Rule on an in-scope non-run` step is `skipped` and
+  # its review ran 3m07s.
+  #
+  # `review-ran.*false` is deliberately not carried forward: the output key is
+  # `review_ran` with an underscore, so that alternative never matched a real
+  # signal — only, once again, the echoed source.
+  if grep -qE '##\[(warning|error)\].*(workflow-validation skip|class=skipped-validation)' "$log_file" 2>/dev/null; then
+    echo "ERROR: security-review reported success but its annotations show a validation skip (#2337)" >&2
     exit 1
   fi
 

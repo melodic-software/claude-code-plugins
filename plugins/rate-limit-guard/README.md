@@ -171,6 +171,37 @@ hands a configured value to a hook process; the value comes from the routes abov
 
 <!-- END GENERATED: plugin options -->
 
+## Tuning: `RLG_TEE_ASYNC`
+
+Not a plugin option — a plain environment variable the statusline tee reads directly, so it sits
+outside the generated block above: Claude Code does not prompt for it and no settings scope
+carries it.
+
+| Variable | Default | Effect |
+| --- | --- | --- |
+| `RLG_TEE_ASYNC` | `0` (off) | `1` detaches the snapshot write from the render, so the status line does not wait for it |
+
+The snapshot is a side effect: nothing the status line prints depends on it, and the
+[reader contract](reference/reader-contract.md) budgets ten minutes of staleness. Detaching skips
+no work — every refresh still takes the lock and writes — it only stops the render waiting.
+
+**Whether that helps depends on how many sessions you keep open, not on your refresh interval.**
+MSYS has no native `fork()`, so forking a bash subshell holding the payload costs 75–200 ms on
+Windows, against ~24 ms to exec a small binary. Detaching does not make the work cheaper; it buys
+back the render's critical path by paying a fork more expensive than the execs it steps around,
+and it lets successive refreshes overlap instead of serialise. Measured on Windows, 24 cores,
+status line + tee:
+
+| | sync (default) | async |
+| --- | --- | --- |
+| One session, refreshes 1 s apart | 660 ms | **222 ms** |
+| Ten sessions at 1 Hz, median | **2265 ms** | 4476 ms |
+| Ten sessions, peak `bash` processes | **50** | 71 |
+
+Turn it on if you work in one or two windows. Leave it off if you run many — at ten sessions it
+roughly doubles both latency and process count. On Linux and macOS, where `fork()` is cheap, the
+crossover sits much further out; the numbers above are the Windows worst case.
+
 ## License
 
 MIT (SPDX-License-Identifier: MIT).
