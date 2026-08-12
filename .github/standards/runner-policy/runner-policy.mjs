@@ -113,7 +113,7 @@ function validateStructure(value, validator, location) {
   throw new ConfigurationError(`${errorLocation} ${error.message}`);
 }
 
-function validatePolicy(value) {
+export function validatePolicy(value) {
   validateStructure(value, validatePolicyStructure, "policy");
 
   const approvedHostedRunnerLabels = new Set(value.approvedHostedRunnerLabels);
@@ -169,6 +169,66 @@ function validatePolicy(value) {
       scopedSelectorOwnersByReference.set(reference, owners);
     }
     approvedSelectorReferencesByRepositoryOwner.set(owner, new Set(references));
+  }
+
+  const canonicalInputNames = new Set(Object.keys(value.canonicalSelectorInputs));
+  for (const name of Object.keys(value.optionalCanonicalSelectorInputs)) {
+    if (canonicalInputNames.has(name)) {
+      throw new ConfigurationError(
+        `policy optional selector input ${name} duplicates a required canonical input`,
+      );
+    }
+  }
+  const optionalStringInputNames = new Set(Object.keys(value.optionalCanonicalSelectorInputs));
+  const optionalBooleanInputNames = new Set(Object.keys(value.optionalBooleanSelectorInputs));
+  for (const name of optionalBooleanInputNames) {
+    if (canonicalInputNames.has(name) || optionalStringInputNames.has(name)) {
+      throw new ConfigurationError(
+        `policy optional boolean selector input ${name} duplicates another selector input`,
+      );
+    }
+  }
+  const knownOptionalSelectorInputNames = new Set([
+    ...optionalStringInputNames,
+    ...optionalBooleanInputNames,
+  ]);
+
+  const approvedSelectorInputContracts = new Map();
+  for (const [reference, contract] of Object.entries(value.approvedSelectorInputContracts)) {
+    validateSelectorReference(reference, "policy.approvedSelectorInputContracts");
+    const unknownInputs = contract.allowedInputs.filter(
+      (name) => !knownOptionalSelectorInputNames.has(name),
+    );
+    if (unknownInputs.length > 0) {
+      throw new ConfigurationError(
+        `selector input contract ${reference}.allowedInputs has unregistered optional inputs: ${unknownInputs.join(", ")}`,
+      );
+    }
+    approvedSelectorInputContracts.set(reference, {
+      allowedInputs: new Set(contract.allowedInputs),
+      allowedInputNames: new Set([...canonicalInputNames, ...contract.allowedInputs]),
+    });
+  }
+
+  const approvedSelectorReferences = new Set([
+    ...value.approvedSelectorReferences,
+    ...[...approvedSelectorReferencesByRepositoryOwner.values()].flatMap((references) => [
+      ...references,
+    ]),
+  ]);
+  for (const reference of approvedSelectorReferences) {
+    if (!approvedSelectorInputContracts.has(reference)) {
+      throw new ConfigurationError(
+        `approved selector reference ${JSON.stringify(reference)} is missing an approvedSelectorInputContracts entry`,
+      );
+    }
+  }
+  for (const reference of approvedSelectorInputContracts.keys()) {
+    if (!approvedSelectorReferences.has(reference)) {
+      throw new ConfigurationError(
+        `selector input contract ${JSON.stringify(reference)} is not an approved selector reference`,
+      );
+    }
   }
 
   const approvedReusableWorkflowContracts = new Map();
@@ -264,23 +324,6 @@ function validatePolicy(value) {
     });
   }
 
-  const canonicalInputNames = new Set(Object.keys(value.canonicalSelectorInputs));
-  for (const name of Object.keys(value.optionalCanonicalSelectorInputs)) {
-    if (canonicalInputNames.has(name)) {
-      throw new ConfigurationError(
-        `policy optional selector input ${name} duplicates a required canonical input`,
-      );
-    }
-  }
-  const optionalStringInputNames = new Set(Object.keys(value.optionalCanonicalSelectorInputs));
-  for (const name of Object.keys(value.optionalBooleanSelectorInputs)) {
-    if (canonicalInputNames.has(name) || optionalStringInputNames.has(name)) {
-      throw new ConfigurationError(
-        `policy optional boolean selector input ${name} duplicates another selector input`,
-      );
-    }
-  }
-
   if (!approvedHostedRunnerLabels.has(value.governedReusableRunnerInput.default)) {
     throw new ConfigurationError(
       "policy.governedReusableRunnerInput.default must be an approved hosted runner label",
@@ -328,12 +371,8 @@ function validatePolicy(value) {
     approvedSelectorReferences: new Set(value.approvedSelectorReferences),
     approvedSelectorReferencesByRepositoryOwner,
     scopedSelectorOwnersByReference,
+    approvedSelectorInputContracts,
     approvedReusableWorkflowContracts,
-    canonicalSelectorInputNames: new Set([
-      ...Object.keys(value.canonicalSelectorInputs),
-      ...Object.keys(value.optionalCanonicalSelectorInputs),
-      ...Object.keys(value.optionalBooleanSelectorInputs),
-    ]),
     canonicalSelectorSecretNames: new Set(Object.keys(value.canonicalSelectorSecrets)),
     approvedHostedRunnerLabels,
     hostedMatrixAxes,
@@ -939,6 +978,23 @@ function selectorStatus(job, policy) {
       reason: secretError,
     };
   }
+  const inputContract = policy.approvedSelectorInputContracts.get(job.uses);
+  if (!inputContract) {
+    return {
+      approved: false,
+      isSelector: true,
+      reason: "the selector path@SHA has no reviewed input contract",
+    };
+  }
+  const optionalCanonicalSelectorInputs = {};
+  const optionalBooleanSelectorInputs = {};
+  for (const name of inputContract.allowedInputs) {
+    if (Object.hasOwn(policy.optionalCanonicalSelectorInputs, name)) {
+      optionalCanonicalSelectorInputs[name] = policy.optionalCanonicalSelectorInputs[name];
+    } else if (Object.hasOwn(policy.optionalBooleanSelectorInputs, name)) {
+      optionalBooleanSelectorInputs[name] = policy.optionalBooleanSelectorInputs[name];
+    }
+  }
   // Boolean opt-in inputs share the optional exact-match contract: present or
   // absent, and when present the caller's parsed value must equal the reviewed
   // literal (true). Merging them into the optional map reuses that fail-closed
@@ -947,8 +1003,8 @@ function selectorStatus(job, policy) {
   const inputError = exactCanonicalMap(
     job.with,
     policy.canonicalSelectorInputs,
-    { ...policy.optionalCanonicalSelectorInputs, ...policy.optionalBooleanSelectorInputs },
-    policy.canonicalSelectorInputNames,
+    { ...optionalCanonicalSelectorInputs, ...optionalBooleanSelectorInputs },
+    inputContract.allowedInputNames,
     "selector inputs",
   );
   if (inputError) {
@@ -1536,6 +1592,61 @@ function securitySurfaceDiffField(basis, candidate) {
     }
   }
   return undefined;
+}
+
+function assertReusableWorkflowDiffable(workflow, revisionLabel) {
+  const malformedJobs = malformedJobIds(workflow);
+  if (malformedJobs.length > 0) {
+    throw new ConfigurationError(
+      `${revisionLabel} revision job ${malformedJobs[0]} is malformed; jobs.${malformedJobs[0]} must be a mapping`,
+    );
+  }
+  const dynamicRoutingJobs = dynamicRoutingReferenceJobIds(workflow);
+  if (dynamicRoutingJobs.length > 0) {
+    throw new ConfigurationError(
+      `${revisionLabel} revision job ${dynamicRoutingJobs[0]} references needs in a routing-relevant field, which cannot be safely diffed for auto-approval`,
+    );
+  }
+  const localReferenceJobs = localReferenceJobIds(workflow);
+  if (localReferenceJobs.length > 0) {
+    throw new ConfigurationError(
+      `${revisionLabel} revision job ${localReferenceJobs[0]} uses a repository-local action or reusable workflow, which resolves from the bumped commit and cannot be safely diffed for auto-approval`,
+    );
+  }
+}
+
+// Shared by auditRepository auto-approval and claude-lanes repin lockstep: the
+// same bounded security surface comparison documented in README.md.
+export function reusableWorkflowSecuritySurfacesMatch({
+  oldSource,
+  newSource,
+  workflowPath,
+  policy,
+}) {
+  const oldWorkflow = parseWorkflow(oldSource, workflowPath);
+  const newWorkflow = parseWorkflow(newSource, workflowPath);
+  assertReusableWorkflowDiffable(oldWorkflow, "old");
+  assertReusableWorkflowDiffable(newWorkflow, "new");
+
+  const oldSurface = reusableWorkflowSecuritySurface(oldWorkflow, policy);
+  const newSurface = reusableWorkflowSecuritySurface(newWorkflow, policy);
+  for (const [revisionLabel, surface] of [
+    ["old", oldSurface],
+    ["new", newSurface],
+  ]) {
+    const malformedField = malformedWorkflowCallMappingField(surface);
+    if (malformedField) {
+      throw new ConfigurationError(
+        `${revisionLabel} revision ${malformedField} declaration is malformed; on.workflow_call.${malformedField} must be a mapping when declared`,
+      );
+    }
+  }
+
+  const diffField = securitySurfaceDiffField(oldSurface, newSurface);
+  if (diffField) {
+    return { unchanged: false, diffField };
+  }
+  return { unchanged: true };
 }
 
 // Every field here is a human-reviewed contract term that this module's
