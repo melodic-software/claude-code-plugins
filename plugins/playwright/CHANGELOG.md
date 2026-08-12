@@ -3,6 +3,14 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.1]
+
+### Changed
+
+- Synced vendored `@playwright/cli` baseline metadata to upstream v0.1.18 via
+  `skills/playwright/scripts/update.sh --apply`. Upstream skill content is
+  byte-identical to v0.1.17; no distilled `reference/*.md` integration required.
+
 ## [0.6.0]
 
 ### Fixed
