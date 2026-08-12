@@ -99,6 +99,12 @@ diff = subprocess.run(
     capture_output=True,
     text=True,
 )
+if diff.returncode != 0:
+    sys.stderr.write(
+        diff.stderr
+        or f"git diff --name-only origin/{base_ref}...HEAD failed (exit {diff.returncode})\n"
+    )
+    sys.exit(1)
 changed = [line for line in diff.stdout.splitlines() if line]
 for path in changed:
     for pat in patterns:
