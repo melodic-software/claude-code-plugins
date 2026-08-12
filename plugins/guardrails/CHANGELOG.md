@@ -3,6 +3,14 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.1]
+
+### Fixed
+
+- **`stale-path-verify.test.sh` comment now matches the shipped `[Ss]` exemption.** The
+  assume-unchanged case comment claimed only uppercase `S` was exempt; the hook and the test
+  nine lines below both treat lowercase `s` as skip-worktree too. (#1555)
+
 ## [0.27.0]
 
 ### Fixed
