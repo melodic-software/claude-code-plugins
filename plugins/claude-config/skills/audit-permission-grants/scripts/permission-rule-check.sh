@@ -326,6 +326,7 @@ while IFS= read -r file; do
       fm_excluded_vendor=$((fm_excluded_vendor + 1))
       continue
       ;;
+    *) ;; # not excluded — fall through to the allowed-tools parse below
   esac
   at="$(extract_allowed_tools "$file")"
   [[ -n "${at//[[:space:]]/}" ]] || continue
@@ -466,7 +467,12 @@ coverage_block() {
   printf '  NOT read: %d path(s) the walk could not open; %d settings file(s) and %d plugin settings.json present but not valid JSON\n' \
     "$walk_errors" "$unparsable_settings" "$plugin_settings_unparsable"
   printf '  never in scope here: managed-policy and enterprise settings, a --settings flag file, and the pre-v2.1.211 start-directory copy. Which scopes exist and what each holds is audit-permission-state, not this detector.\n'
-  printf '  exemptions applied by consumer declaration: none (this detector reads no consumer declaration; see the skill body, which requires every one it applies to be named in the report).\n'
+  # Deliberately NOT phrased as "exemptions applied: none". This detector never
+  # reads a consumer declaration, so a count of zero here is a statement about
+  # the detector's inputs, not an answer about the run — and a reader who copied
+  # it into a report as "no exemptions were applied" would be asserting exactly
+  # what A15 requires the skill to establish for itself.
+  printf '  consumer declarations: NOT READ by this detector, ever — so this line is not the answer to "were any exemptions applied?". The skill body owns that question and requires every declaration it reads to be named in the report.\n'
 }
 
 if [[ "$mode" == "count" ]]; then
