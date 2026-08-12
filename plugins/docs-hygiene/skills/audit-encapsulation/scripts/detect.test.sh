@@ -190,6 +190,22 @@ code=$?
 assert_exit "self-citation filtered legal → exit 0" 0 "$code"
 assert_contains "summary counts self-citation as legal" "$err" "raw=1 legal=1 illegal=0"
 
+plugin_skill_root="plugins/my-plugin/skills"
+
+# Positive control: marketplace monorepo layout must not scan vacuously (#1889).
+plugin_repo="$(fixture_repo "docs/guide.md" \
+  "see ${plugin_skill_root}/foo/context/notes.md for detail")"
+out="$(cd "$plugin_repo" && bash "$SCRIPT" 2>/dev/null)"
+assert_exit "plugin private-subdir cite → exit 1" 1 "$?"
+expected_plugin_row="$(printf 'docs/guide.md\t1\t%s/foo/context/' "$plugin_skill_root")"
+assert_contains "plugin violation row emitted" "$out" "$expected_plugin_row"
+
+plugin_scripts_repo="$(fixture_repo "docs/guide.md" \
+  "run ${plugin_skill_root}/alpha/scripts/foo.sh")"
+out="$(cd "$plugin_scripts_repo" && bash "$SCRIPT" 2>/dev/null)"
+assert_exit "plugin scripts/ entry cite → exit 0 (carve-out)" 0 "$?"
+assert_silent "plugin scripts/ cite emits nothing" "$out"
+
 if [[ "$FAILED" -ne 0 ]]; then
   exit 1
 fi
