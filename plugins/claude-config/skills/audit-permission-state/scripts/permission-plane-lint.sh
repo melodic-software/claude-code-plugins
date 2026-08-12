@@ -273,10 +273,17 @@ END {
     # operator is denied something they thought they had), a dead DENY fails
     # OPEN (they believe they blocked `git push` and did not). The space is a
     # property of the grammar, so it does not reintroduce the name allowlist.
+    #
+    # In an ALLOW rule the same shape is exempted for a different reason: it is
+    # already reported by C6-allowParam, which explains it correctly (an allow
+    # rule cannot use the parameter form at all). Letting colonStar fire too
+    # gave one rule two findings with two mechanics, and for a tool that takes
+    # no command prefixes -- `Agent` -- the colonStar explanation is simply
+    # wrong. The rule is dead either way; only one of the two says why.
     cs = index(body, ":*")
-    param_form = (kind != "allow") &&
-      (prefix_of(body) ~ /^[A-Za-z_][A-Za-z0-9_]*$/) &&
-      (value_of(body) !~ /[ \t]/)
+    is_param_shape = (prefix_of(body) ~ /^[A-Za-z_][A-Za-z0-9_]*$/) && (value_of(body) !~ /[ \t]/)
+    param_form = (kind != "allow") ? is_param_shape \
+      : (is_param_shape && (tool SUBSEP prefix_of(body)) in param_only)
     if (cs > 0 && cs + 1 < length(body) && !param_form && !((tool SUBSEP prefix_of(body)) in documented_param))
       finding("error", "C6-colonStar", scope, text " — the :* form is only recognized at the END of a pattern; here the colon is treated as a literal character and the rule will not match what it looks like it matches")
 

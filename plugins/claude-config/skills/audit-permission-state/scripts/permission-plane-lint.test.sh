@@ -323,6 +323,33 @@ EOF
 OUT=$(lint "$PARAM_KINDS")
 assert_eq "no parameter form fires, in any kind" 0 "$(count_matching "$OUT" '\[C6-colonStar\]')"
 
+# --- One rule, one explanation -----------------------------------------------
+# `allow Agent(model:*-haiku)` drew BOTH colonStar and allowParam, with two
+# different mechanics -- and colonStar explains it as a dead Bash COMMAND
+# PREFIX, which Agent does not take. The rule is dead either way; only one of
+# the two findings says why.
+DOUBLE=$(
+  printf '%s
+' "$SURFACES"
+  printf 'rule user settings allow Agent(model:*-haiku)
+'
+)
+OUT=$(lint "$DOUBLE")
+assert_eq "the parameter-form allow draws exactly one finding" 1 "$(count_matching "$OUT" '^finding ')"
+assert_contains "and it is the one that explains it correctly" "$OUT" "[C6-allowParam]"
+assert_not_contains "not a command-prefix explanation for a tool with no command prefixes" "$OUT" "[C6-colonStar]"
+
+# Suppression is scoped to the parameter shape: a real dead command prefix in an
+# allow rule still fires colonStar.
+NOT_SUPPRESSED=$(
+  printf '%s
+' "$SURFACES"
+  printf 'rule user settings allow Bash(git:* push)
+'
+)
+OUT=$(lint "$NOT_SUPPRESSED")
+assert_contains "an allow-rule command prefix still fires colonStar" "$OUT" "[C6-colonStar]"
+
 # --- Parameter matching is deny/ask only -------------------------------------
 # "Deny and ask rules can match a top-level input parameter... An allow rule for
 # one parameter value would not establish that the call is safe overall, so
