@@ -53,8 +53,14 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-permission-grants/scripts/permission-ru
 
 It scans frontmatter `allowed-tools` and settings `permissions.allow` across the consuming repo and
 the user-global settings file (`${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json`), and prints one
-finding per fragile grant (`<severity> [<check>] <source>: <detail>`). `--count` prints the count. It
-requires `jq`; a missing `jq` exits 2 (report the environment gap rather than a clean bill).
+finding per fragile grant (`<severity> [<check>] <source>: <detail>`). `--count` prints the count.
+**Exit 2 is the environment-gap channel — report the gap rather than a clean bill.** Three things
+raise it: a missing `jq`, a scan root that resolves to neither a git toplevel nor
+`$CLAUDE_PROJECT_DIR`, and an unresolvable user scope when the user-global scan cannot locate
+`${CLAUDE_CONFIG_DIR:-$HOME/.claude}`. On an unresolvable project root, say the scan did not run and
+give the fix — run from inside the repository you mean to scan, or set
+`$PERMISSION_HYGIENE_FIXTURE_DIR` explicitly. Never report "no fragile permission grants found" on
+an exit 2.
 `settings.local.json` is parsed for its `permissions.allow` array only — never echoed wholesale.
 
 A user-global finding is reported the same as any other, but its remediation is the operator's: a
