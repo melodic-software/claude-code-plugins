@@ -542,13 +542,18 @@ git -C "$WT_BISECT" bisect reset >/dev/null 2>&1
 # landed=yes must NOT outrank a mid-flight operation: consumers read `landed`
 # as safe-to-remove, and removal mid-operation kills the operation's transient
 # state even when every commit is durable. Fixture holds both signals at once —
-# the branch's one commit is cherry-picked onto the pushed base (landed=yes by
-# patch-id), then a merge is left open with --no-commit (MERGE_HEAD present).
+# the branch's one commit matches the base by patch-id via a different SHA on
+# origin/main (not a cherry-pick, which would reuse the same object and leave
+# unpushed=0), then a merge is left open with --no-commit (MERGE_HEAD present).
 W="$(mkfixture)"
 WT_OP="$TEST_TMPDIR/wt-inprog-landed"
 git -C "$W" worktree add -q -b feat-inprog "$WT_OP" main >/dev/null 2>&1
 commit_in "$WT_OP" ip.txt "landed content" "add ip.txt"
-git -C "$W" cherry-pick "$(git -C "$WT_OP" rev-parse HEAD)" >/dev/null 2>&1
+commit_in "$W" unrelated.txt "unrelated" "unrelated on main"
+git -C "$W" push -q origin main >/dev/null 2>&1
+commit_in "$W" ip.txt "landed content" "add ip.txt on main"
+git -C "$W" push -q origin main >/dev/null 2>&1
+commit_in "$W" extra.txt "extra" "extra on main"
 git -C "$W" push -q origin main >/dev/null 2>&1
 git -C "$WT_OP" fetch -q origin >/dev/null 2>&1
 git -C "$WT_OP" merge --no-ff --no-commit origin/main >/dev/null 2>&1

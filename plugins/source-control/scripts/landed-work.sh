@@ -791,7 +791,7 @@ while [[ $idx -lt ${#T_PATH[@]} ]]; do
     reason="${reason:+$reason; }status-unreadable: the working tree was not inspected"
   fi
   if [[ "$inprog" != "none" ]]; then
-    reason="${reason:+$reason; }$inprog-in-progress: the operation's transient state (staged result, sequencer position) dies with the directory"
+    reason="${reason:+$reason; }$inprog-in-progress: the operation's transient state (staged result recomputable from base, sequencer position) dies with the directory"
   fi
   R_REASON+=("$reason")
   idx=$((idx + 1))

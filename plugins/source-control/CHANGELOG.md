@@ -3,6 +3,27 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.51.16]
+
+### Fixed
+
+- **A lane's worktree is locked at creation, and an in-flight operation outranks `landed` in
+  `landed-work.sh` (#2257).** `git worktree remove` deletes a worktree whose `status --porcelain`
+  is empty even while an interactive rebase paused at a `break` is mid-flight — cleanliness cannot
+  carry liveness. `worktree-create.sh` now arms `git worktree lock` the moment the worktree exists,
+  with a reason naming the helper, host, and start time; the cleanup skill already honored a
+  `locked` flag, but nothing in this repo ever set one, so that input was structurally always
+  absent. `landed-work.sh` adds `BISECT_LOG` to the in-progress probe (a bisect leaves porcelain
+  completely clean) and ranks `in-progress` above `landed`: consumers read `landed` as
+  safe-to-remove, and removal mid-operation destroys sequencer state and conflict resolutions even
+  when every commit is durable — the stranded family still outranks it, data loss being the
+  stronger stop. `cleanup.md` gains the locked and in-progress candidate rows (a locked worktree is
+  disarmed with `git worktree unlock` after explicit owner confirmation, never bypassed with
+  `--force --force`) and `create.md` documents the lock and its interaction with
+  `git worktree move`. New tests pin the lock (armed at creation, reason names the helper, plain
+  removal refuses and the tree survives) and the ranking (bisect probed; in-progress outranks
+  landed); all fail against the pre-#2257 scripts.
+
 ## [0.51.15]
 
 ### Fixed
