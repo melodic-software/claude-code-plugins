@@ -12,6 +12,19 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   stringified `"true"` / `"false"` values the jq filter produces; any other shape skips
   verification rather than proceeding on the permissive branch.
 
+### Changed
+
+- **Eight prose references still named 0.26.0 as the release that made `block-hook-bypass`'s
+  exemptions operand-keyed. It is 0.27.0.** No behaviour changes, no assertions moved. The #2226 work
+  was written against 0.26.0 and renumbered when `main` took that version for the
+  `block-dangerous-git` / `block-no-verify` `jq` fail-closed change (#2146) while the branch was
+  open. The renumber reached the CHANGELOG heading, the manifest version and the entry's own
+  comparison table; it did not reach the narrative around them, so the README caveat paragraph (2),
+  the note above `scratch_target_exempt` (1), three comments in the contract test, and the erratum
+  inside the 0.25.1 entry (2) each pointed a reader at a release that documents something else
+  entirely. 0.26.0's own heading and entry are untouched — that is the one 0.26.0 reference in this
+  plugin that is correct.
+
 ## [0.27.1]
 
 ### Fixed
