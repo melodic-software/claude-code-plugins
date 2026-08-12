@@ -70,6 +70,15 @@ project-keyed path instead of one fixed name.
   cannot evaluate "when set" — the originally filed fix sketch would have introduced that defect while
   removing this one.
 
+  **A remote URL is arbitrary text that becomes directory components here, so it is validated before
+  use.** Only the shape the scheme means is accepted — path segments of `[a-z0-9._-]` each starting
+  alphanumeric. Everything else keys by hash instead, still deterministically. Without that check a
+  relative filesystem remote (`git remote add origin ../central.git`) yields the identity `../central`
+  and the report lands *outside* this skill's directory; absolute-local and Windows-path remotes fail
+  the same way. And the remote is read from **the first configured remote** — `git remote | head -1` —
+  not from one named `origin`, because a repo whose only remote is `upstream` has a remote and must not
+  drop to the local rung. Both were found in review against the first draft, which did exactly that.
+
 ### Added
 
 - Evals 4 and 5 for `audit-prompting-postures`: two roots must produce two surviving reports keyed by

@@ -88,14 +88,26 @@ reused rather than reinvented: `<repo-identity>/<worktree-discriminator>`, per
 # sha256sum is absent on stock macOS; shasum -a 256 is the portable partner.
 sha256() { if command -v sha256sum >/dev/null 2>&1; then sha256sum; else shasum -a 256; fi; }
 
-remote=$(git config --get remote.origin.url 2>/dev/null || true)
-root=$(git rev-parse --show-toplevel 2>/dev/null || true)
+# "the FIRST configured remote" — not necessarily one named `origin`. A repo whose only
+# remote is `upstream` still has a remote, and must not fall through to the local rung.
+remote_name=$(git remote 2>/dev/null | head -1)
+remote=$(git config --get "remote.${remote_name}.url" 2>/dev/null || true)
+# tr -d '\r': Git on Windows can return a CRLF-terminated path.
+root=$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r' || true)
 
 # repo-identity
 if [ -n "$remote" ]; then
   identity=$(printf '%s' "$remote" \
     | sed -e 's#^[a-z+]*://##' -e 's#^[^@/]*@##' -e 's#:#/#' -e 's#\.git$##' \
     | tr '[:upper:]' '[:lower:]')
+  # A remote URL is arbitrary text and becomes DIRECTORY COMPONENTS here, so accept it
+  # only in the shape the scheme means — segments of [a-z0-9._-] each starting
+  # alphanumeric. That rejects `../central` (a relative filesystem remote, which would
+  # otherwise write outside this skill's namespace), absolute local paths, and
+  # backslashes. Anything rejected still keys deterministically, by hash.
+  if ! printf '%s' "$identity" | grep -qE '^[a-z0-9][a-z0-9._-]*(/[a-z0-9][a-z0-9._-]*)*$'; then
+    identity="remote/$(printf '%s' "$remote" | sha256 | cut -c1-12)"
+  fi
 elif [ -n "$root" ]; then
   identity="local/$(printf '%s' "$root" | sha256 | cut -c1-12)"
 else
@@ -110,10 +122,12 @@ discriminator=$(printf '%s' "${root:-$PWD}" | sha256 | cut -c1-8)
 state_key="$identity/$discriminator"
 ```
 
-Executed against this repository the three rungs give, respectively,
-`github.com/melodic-software/claude-code-plugins/8163d6b9`, `local/<12>/<8>`, and `nonrepo/<12>/<8>`;
-two worktrees of one repository differ in the discriminator (`8163d6b9` vs `009628cd`), which is the
-property it exists for.
+Executed, not merely written: an https remote and its scp-style ssh equivalent normalize to the same
+`github.com/<owner>/<repo>`; a repo whose only remote is `upstream` keys by that remote rather than
+dropping to the local rung; a repo with no remote gives `local/<12>`; a non-repo root gives
+`nonrepo/<12>`; and relative (`../central.git`), absolute-local, and Windows-path remotes all key by
+hash and stay inside this skill's directory. Two worktrees of one repository differ in the
+discriminator, which is the property it exists for.
 
 Run those and use the result. Do **not** express the path as a condition over `${CLAUDE_PROJECT_DIR}`
 "when set": that placeholder is substituted inline before this file reaches you, so the literal token
