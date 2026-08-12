@@ -70,6 +70,19 @@ out of scope until such a signal exists.
   **These are friction guards against accidental/casual bypass, not a
   sandbox.** (A command longer than 16 KB is not parsed and is blocked
   fail-closed.)
+- **`block-dangerous-git` scope boundaries (not bypasses).** Three cases are
+  often filed together; only one is a live bypass (#2151 item A — inherited
+  `--git-dir`/`--work-tree` in a `!` alias body). The other two are
+  **documented limits** of static argv matching:
+  - **Shell `cd` relocation** — `cd <other-repo> && git push …` runs the
+    push from a directory no `-C`/`--git-dir` names. Evaluating it requires
+    arbitrary shell word expansion, which this guard deliberately does not
+    do.
+  - **False block from a non-repository base** — when the session root is
+    not itself a repository, a shell `cd` into a repo and a pinned
+    `--force-with-lease` can be blocked because the width probe cannot
+    resolve a repository at the guard's computed base. That is fail-closed
+    scope, not a bypass.
 - **A NUL byte in the payload blocks, whatever the command says.**
   `block-no-verify` and `block-dangerous-git` refuse any payload whose read
   fields carry a NUL, before they look at the command at all — including one
