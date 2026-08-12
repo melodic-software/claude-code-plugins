@@ -5,7 +5,54 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.3]
+
+### Fixed
+
+- **The 0.7.1/0.7.2 collision is now on the record, and one claim that was never executed is
+  withdrawn (#2355).** Two PRs fixed the same defect in parallel and both landed: #2344 shipped
+  **0.7.1**, re-arming on a **dwell** (three consecutive strictly-better observations), and #2345
+  shipped **0.7.2**, re-arming on a **return to `smart`**, replacing the dwell implementation
+  wholesale. The behaviour on `main` is 0.7.2's and it is tested — but the record of the swap was
+  lost in the collision, so this release repairs the record. Documentation and tests only: **no
+  behaviour change**, and nothing here alters what the suite demands of the hook's logic.
+
+  - **`reference/reader-contract.md` credited the wrong version.** It read "the marker decays only
+    when the session returns to `smart` (**since 0.7.1**)". The return-to-`smart` rule is **0.7.2**;
+    0.7.1 is the dwell. The sentence was written while the change was still numbered 0.7.1 and the
+    reference did not move with the bump. Corrected, and it now names the dwell it replaced.
+
+  - **0.7.2's entry argued only against 0.7.0 and never against the 0.7.1 it superseded.** Read
+    top-down, the file installed a dwell in 0.7.1 and then described a different mechanism one
+    version later as though the dwell had never existed. The difference is load-bearing, not
+    stylistic: under a three-observation dwell, `acceptable → smart → acceptable` — a genuine
+    recovery observed **once** — does not re-inject, which is the exact sequence 0.7.2 exists to
+    make re-inject. A dwell wide enough to absorb a band-edge flap cannot also honour a
+    single-observation recovery; 0.7.2 chose the recovery and accepted the residual flap at the
+    `smart`/`acceptable` edge. That trade is now stated where the two versions meet.
+
+  - **An unverified comparative is withdrawn.** 0.7.2's residual paragraph said the edge cadence was
+    "the pre-0.7.0 cadence at that one boundary, and no worse". 0.6.6's hook was never run to
+    measure that, so the comparative was reasoned rather than executed, and it is retracted here
+    rather than left standing. What replaces it is measured: the cadence is **one announcement per
+    down-up cycle**, now pinned by assertions (a second recovery buys a second announcement and no
+    more), so "bounded rather than runaway" no longer rests on reading the code.
+
+  - **Cross-version state compatibility is pinned.** 0.7.1 wrote `.armed` with TWO fields
+    (`<zone> <streak>`, e.g. `dumb 0`); 0.7.2 writes one word and reads with `tr -cd '[:lower:]'`,
+    which strips the digit and the separator. A session that started under 0.7.1 and continued under
+    0.7.2 therefore reads back correctly and stays suppressed rather than re-announcing a zone it
+    has already reported. That held by construction and now holds by assertion — no migration step,
+    exactly as with the 0.6.6 → 0.7.0 legacy-state seed.
+
 ## [0.7.2]
+
+**Erratum (0.7.3):** two claims below need correction. The residual paragraph's "(the pre-0.7.0
+cadence at that one boundary, and no worse)" was never executed against 0.6.6 and is **withdrawn**;
+the measured statement is one announcement per down-up cycle, now pinned by tests. And this entry
+argues only against 0.7.0's two-rank delta, while the version it actually replaced in the working
+tree was **0.7.1's dwell** — that trade is recorded in 0.7.3 above. Everything else here, including
+the property, the residual itself, and the write-ordering fix, stands as written and is tested.
 
 ### Fixed
 
