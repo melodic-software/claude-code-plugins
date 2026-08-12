@@ -3,19 +3,10 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.31.7]
+## [0.31.8]
 
 ### Fixed
 
-- **`skills/plugins` predicted the wrong settings-write behavior for `converge`.** `converge.md`
-  Step 5 said `uninstall -s project` "can remove an `enabledPlugins` entry" from committed settings,
-  which reads as "a clean tree means nothing was written". It always writes: verified on Claude Code
-  2.1.228 with single calls against a clean tracked `.claude/settings.json`, it empties the map to
-  `"enabledPlugins": {}` rather than deleting the key, writes the key even into a file that never had
-  one, and rewrites the file in Claude Code's key order so unrelated sibling keys move. Step 5 now
-  checks every touched project unconditionally and classifies the diff as inert (empty map plus
-  reorder — recommend discarding, so a team-shared file carries no churn) or substantive (an entry
-  actually removed — the user decides).
 - **`scope-semantics.md` claimed `converge` was the only action that surfaces a settings diff.**
   False by its own new evidence: `sync`'s Step 5 issues `enable <id> -s <that scope>`, and
   `enable -s project` writes the committed file the same way `install` does. The update exemption is
@@ -40,6 +31,30 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   `currentProject`, never updates, and never appears in a divergence row, while still loading in
   that subtree. The same mechanism is why two `git worktree` checkouts of one repo pin
   independently, which `converge` Step 2 now states directly.
+
+## [0.31.7]
+
+### Fixed
+
+- **`skills/plugins` predicted the wrong settings-write behavior for `converge`.** `converge.md`
+  Step 5 said `uninstall -s project` "can remove an `enabledPlugins` entry" from committed settings,
+  which reads as "a clean tree means nothing was written". It always writes: verified on Claude Code
+  2.1.228 with single calls against a clean tracked `.claude/settings.json`, it empties the map to
+  `"enabledPlugins": {}` rather than deleting the key, writes the key even into a file that never had
+  one, and rewrites the file in Claude Code's key order so unrelated sibling keys move. Step 5 now
+  checks every touched project unconditionally and classifies the diff as inert (empty map plus
+  reorder — recommend discarding, so a team-shared file carries no churn) or substantive (an entry
+  actually removed — the user decides). `scope-semantics.md` records install's and uninstall's
+  behavior as a section beside the update exemption, which was re-verified on the same version and
+  still holds.
+
+### Added
+
+- **`skills/plugins` records that project scope keys on the working directory, not the repository.**
+  Verified by uninstalling one id in a repo's main checkout and watching its `git worktree`'s record
+  for the same id survive. Two checkouts of one repo share a `.git` and a tracked
+  `.claude/settings.json` yet pin independently, so `converge` must keep them as separate rows with
+  separate `cd` targets — converging one never clears the other.
 - **`sync.md` records one observation on `installed_plugins.json` write timing.** A 63-plugin
   user-scope sweep on 2.1.228 had all 21 CLI-reported updates already visible to a post-sweep
   re-read. Logged as a single data point that does not retire the `<new>` fallback, since it shows
