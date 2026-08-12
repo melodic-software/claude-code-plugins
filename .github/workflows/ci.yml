@@ -337,6 +337,44 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: scripts/sync-parse-concern-value.sh --check-bump "origin/$BASE_REF"
 
+  managed-scope-sync:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Verify managed-scope cluster matches canonical
+        run: scripts/sync-managed-scope.sh --check
+      - name: Run managed-scope tests
+        run: bash plugins/claude-config/lib/managed-scope.test.sh
+      - name: Verify carrying plugins bumped when canonical changed
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: scripts/sync-managed-scope.sh --check-bump "origin/$BASE_REF"
+
+  state-key-sync:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Verify state-key cluster matches canonical
+        run: scripts/sync-state-key.sh --check
+      - name: Run state-key tests
+        run: bash plugins/claude-config/lib/state-key.test.sh
+      - name: Verify carrying plugins bumped when canonical changed
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: scripts/sync-state-key.sh --check-bump "origin/$BASE_REF"
+
   resolve-convention-pattern-sync:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
