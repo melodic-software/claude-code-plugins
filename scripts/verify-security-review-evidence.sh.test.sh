@@ -121,6 +121,7 @@ fi
 # Regression: the echoed github-script source of the lane's `Report review
 # outcome` step, verbatim from run 31630114303 lines 1435 and 1437. The old
 # unanchored pattern matched these and failed every successful in-scope PR.
+# shellcheck disable=SC2016  # fixture is literal github-script source; ${lane} must not expand
 printf '%s\n' \
   '    `${lane} concluded: ${outcome} class=skipped-validation with no ` +' \
   '      "(workflow-validation skip: the caller'"'"'s workflow file must " +' \
