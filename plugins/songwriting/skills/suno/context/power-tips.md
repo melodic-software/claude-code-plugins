@@ -8,7 +8,7 @@ Pair with `tips.md` (lyric-side performance tricks) and `lyrics.md` "Per-section
 
 ## Tag order
 
-**The two halves of this rule now have different standing.** The r/SunoAI pass that 1.1.3 said could not run **did run**, via the browser route, on 2026-08-12. It settles one half and leaves the other exactly where it was.
+**The two halves of this rule now have different standing.** The r/SunoAI pass that 1.1.3 said could not run **did run**, via the browser route, on 2026-08-12. It sources one half at the bottom rung and leaves the other exactly where it was.
 
 - **Front-loading — now community-attested at LOW-MEDIUM.** An upvoted r/SunoAI guide post, [*"Expanded Insight and Guidance on Suno Style Prompt Writing"*](https://www.reddit.com/r/SunoAI/comments/1h4zc7e/expanded_insight_and_guidance_on_suno_style/) (13 votes, 28 comments), leads with **"Key Insight 1: Order Matters"** and states that Suno assigns importance by order, that the first descriptors set the stage while later ones add flavor, and that you should put the most crucial element first. It gives a paired optimized/less-effective example differing **only** in which half leads. Read by eye from the rendered page on 2026-08-12.
 
@@ -44,7 +44,7 @@ vs
 dream-pop with synth-pop production
 ```
 
-These are expected to produce **different outputs** — but note *what* differs. The lead genre is the noun the track **is**; the accent is a thing the track **has**. Grammatical role is the signal the guides describe explicitly, and word order moves with it here. **This example cannot separate the two**, because it changes both at once — so use it as an illustration of anchor/accent. For evidence about position specifically, the comma-swap report above is the isolating case; this is not.
+These are expected to produce **different outputs** — but note *what* differs. The lead genre is the noun the track **is**; the accent is a thing the track **has**. Grammatical role is the signal the guides describe explicitly, and word order moves with it here. **This example cannot separate the two**, because it changes both at once — so use it as an illustration of anchor/accent, never as evidence about position. The comma-swap report above varies position alone but, as noted, has no power behind it, so **no source here isolates position with evidence**.
 
 **Three or more genres with no hierarchy degrades the result** — sources describe mush, averaging, and drift. The former "hard cap: 2" was this file's own sharpening; two sources model exactly one anchor plus one accent, a third warns against "three-way competition", and none states a numeric cap. Treat two as the working default and anything beyond as needing an explicit hierarchy, not as a hard limit.
 
