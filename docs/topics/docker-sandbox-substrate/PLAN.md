@@ -345,7 +345,28 @@ Criterion 3. Delivers the Q20 resolution above.
 - A re-probe transcript exists under `.work/docker-sandbox-substrate/` recording the new
   `transport_outcome` and `workspace_host_write_contained` blocks from a live run.
 
-#### Phase 2: Verification-topology contract leaf + matrix column [TODO]
+#### Phase 2: Verification-topology contract leaf + matrix column [DONE]
+
+**SHIPPED** as `f7d96afc`, then repaired twice under independent audit (`0c75e0a9`, `8172ab67`).
+
+**Both repair rounds found the SAME defect shape the phase before it did — a count that does not
+guarantee the coverage it exists for.** Round 1: `min_checkers` counted role TYPES, so a class
+declaring `[A, A, B]` satisfied a floor of 3. Round 2, inside the repair itself: relations and
+predicates bind only model-adjudicated slots, so three DETERMINISTIC slots met `C4`'s floor while
+`cross_vendor_required` bound the empty set of model slots and was vacuously satisfied — a binding
+valid with no model judge at all, against a matrix cell that mandates AI review. **Three occurrences
+across two phases makes this the effort's signature failure, not an incident.** The generalization
+worth carrying: whenever a rule counts things, ask what it would accept if every counted thing were
+identical.
+
+Other findings the audit closed: distinctness stated as "implied", which a validator cannot act on
+because a slot NAME says nothing about what it resolves to; a budget ceiling written as invalidating,
+which would have made this leaf the single enforcing exception to the matrix's own out-of-scope
+statement on cost; three pointers citing support no file carried; and a deliberation clause resting
+on an uncited measurement — replaced by the argument that is actually analytic, with the measurement
+and its confidence grade moved to issue #2110.
+
+#### Phase 2 (original brief)
 
 Review: architecture
 
@@ -379,7 +400,24 @@ Criterion 4, and the vocabulary Phases 3–5 cite. Documentation only — no sch
   the glance-layer table contains a row pointing at `guardrails/verification-topology.md`.
 - Every plugin-internal link in the new leaf resolves (`skill-reference-verify` hook passes).
 
-#### Phase 3: Per-class verification floors on the security binding [TODO]
+#### Phase 3: Per-class verification floors on the security binding [DONE]
+
+**SHIPPED** as `16a50974`. 522 checks / 148 fixtures, manifest diff purely additive (16 added, 0
+removed, 0 pre-existing `findings_substrings` modified — verified semantically, not by eye).
+
+**The floor table gained a fourth axis the brief did not name.** `min_model_checkers`
+(`C1` 0 · `C2` 0 · `C3` 1 · `C4` 2 · `C5` 2) exists because a total count cannot express which KIND
+of coverage is owed. Without it the `C4` all-deterministic binding above is valid.
+`cross_vendor_required` is now never vacuously satisfiable, and vendor disjointness holds among the
+model slots rather than only against the generator.
+
+**One contradiction surfaced only by running it:** the pairwise-distinctness check demanded a
+relational constraint between every checker pair, while the deterministic/model split rejects those
+same constraints on deterministic slots — so a conforming binding was unrepresentable. Scoped to
+model slots, since a cross-kind pair is distinct by construction. **A rule pair can be individually
+sound and jointly unsatisfiable; only executing it shows that.**
+
+#### Phase 3 (original brief)
 
 Review: security
 
@@ -648,6 +686,10 @@ explicitly not assumed to have fired.** Wording is for review.
 Each is recorded as DEFERRED WITH A TRIGGER, never as rejected — the ladder's own "Rejected axis"
 section is reserved for what was deliberately not chosen, which these are not.
 
+**Wording RATIFIED 2026-08-11 as drafted.** The three triggers stand verbatim; the review the user
+reserved is closed. Nothing downstream depends on the phrasing, so a later revision costs a wording
+commit and no rework.
+
 #### Q23 — event-triggered re-verification, with a staleness bound as backstop
 
 **Decision: re-verify on events that could change the probed property; cap evidence age separately.
@@ -770,9 +812,9 @@ slice that would delegate cleanly.
 
 ### Open questions
 
-- OPEN DECISION 1 (floor values) must resolve before Phase 3 starts. Nothing else is blocked.
-- Q21, Q22, Q23 remain USER-RESERVED. No phase depends on any of them, and Phase 1's multi-target
-  egress leg deliberately strengthens the probe without deciding Q21.
+- OPEN DECISION 1 (floor values) resolved 2026-08-11; Phase 3 shipped against it.
+- Q21, Q22, Q23 were USER-RESERVED and are RESOLVED 2026-08-11 — see the resolutions below. Earlier
+  USER-RESERVED markers in this document predate that and are stale where they conflict.
 
 ### Handoff to implementation
 
