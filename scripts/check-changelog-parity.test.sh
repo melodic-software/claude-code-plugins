@@ -233,6 +233,96 @@ rc=$?
 if [[ $rc -ne 0 && "$out" == *"ABSORBED CHANGELOG HEADING"*"alpha"* && "$out" == *"## [0.51.8]"* ]]; then ok "absorbed predecessor release heading fails --check-bump"; else fail "absorbed heading not caught: rc=$rc out='$out'"; fi
 rm -rf "$repo"
 
+# RELABELLED, NOT DELETED: the same bad resolution renames the predecessor's
+# heading to the new version instead of adding one. That IS a deletion of the
+# predecessor version, and must read as one however the line is written.
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 0.51.8 yes
+printf '# Changelog\n\n## [0.51.8]\n\n- eight\n\n## [0.51.7]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+base="$(git -C "$repo" rev-parse HEAD)"
+printf '{ "name": "alpha", "version": "0.51.9" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
+printf '# Changelog\n\n## [0.51.9]\n\n- eight\n\n## [0.51.7]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm relabel
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
+rc=$?
+if [[ $rc -ne 0 && "$out" == *"ABSORBED CHANGELOG HEADING"*"## [0.51.8]"* ]]; then ok "a relabelled predecessor heading still fails --check-bump"; else fail "relabelled heading not caught: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
+# ANNOTATING A HEADING IS NOT DELETING IT (#2327). The comparison keys on the
+# VERSION a heading names, never on the rendered LINE: a line-level diff reads
+# every edit to an existing heading as a removal, so both annotations Keep a
+# Changelog itself prescribes red-lined this required gate while PRESERVING the
+# heading they annotate. Two cases, because they arrive by different routes —
+# dating is routine housekeeping, `[YANKED]` is the spec's own treatment of a
+# pulled release (`## [0.0.5] - 2014-12-13 [YANKED]`).
+
+# a release DATE added to an existing heading -> passes
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 1.0.0 yes
+printf '# Changelog\n\n## [1.0.0]\n\n- one\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+base="$(git -C "$repo" rev-parse HEAD)"
+printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
+printf '# Changelog\n\n## [1.1.0] - 2026-02-01\n\n- one one\n\n## [1.0.0] - 2026-01-01\n\n- one\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'bump and date the headings'
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]]; then ok "dating an existing heading is not an absorbed heading"; else fail "dated heading wrongly flagged: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
+# a release marked [YANKED] keeps its heading -> passes
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 1.0.0 yes
+printf '# Changelog\n\n## [1.0.0]\n\n- one\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+base="$(git -C "$repo" rev-parse HEAD)"
+printf '{ "name": "alpha", "version": "1.0.1" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
+printf '# Changelog\n\n## [1.0.1]\n\n- revert\n\n## [1.0.0] - 2026-01-01 [YANKED]\n\n- one\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'yank 1.0.0 per Keep a Changelog'
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]]; then ok "marking a release '[YANKED]' preserves its heading and passes --check-bump"; else fail "yanked-release marking wrongly flagged: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
+# REFORMATTED HEADING: bracketed -> unbracketed names the same version, so it is
+# not a deletion — the format of a release entry is CHANGELOG FORMAT's concern.
+# Pins the other direction of keying on the version: the shared extractor reads
+# the unbracketed form too, so such a heading is now PROTECTED where a
+# bracketed-only matcher could not see it at all.
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 1.0.0 yes
+printf '# Changelog\n\n## [1.0.0]\n\n- one\n\n## 0.9.0 — 2025-12-01\n\n- nine\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+base="$(git -C "$repo" rev-parse HEAD)"
+printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
+printf '# Changelog\n\n## [1.1.0]\n\n- one one\n\n## 1.0.0 — 2026-01-01\n\n- one\n\n## 0.9.0 — 2025-12-01\n\n- nine\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'bump, reformatting 1.0.0 to the unbracketed form'
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]]; then ok "reformatting a heading between the two accepted forms is not an absorbed heading"; else fail "heading reformat wrongly flagged: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
+# ...and dropping an UNBRACKETED heading IS a deletion. A bracketed-only matcher
+# could not see these headings, so removing one was invisible.
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 1.0.0 yes
+printf '# Changelog\n\n## [1.0.0]\n\n- one\n\n## 0.9.0 — 2025-12-01\n\n- nine\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+base="$(git -C "$repo" rev-parse HEAD)"
+printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
+printf '# Changelog\n\n## [1.1.0]\n\n- one one\n\n## [1.0.0]\n\n- one\n- nine\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'bump, absorbing the unbracketed 0.9.0 section'
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
+rc=$?
+if [[ $rc -ne 0 && "$out" == *"ABSORBED CHANGELOG HEADING"*"## [0.9.0]"* ]]; then ok "absorbing an unbracketed release section is caught"; else fail "unbracketed absorption missed: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
 # LARGE CHANGELOG (SIGPIPE regression, #2130): the new entry sits near the top
 # of a changelog far larger than the pipe buffer — the shape every mature
 # changelog has. A has_heading reader that exits on first match kills
