@@ -26,13 +26,14 @@ loop-lane convention (`docs/conventions/loop-lane/README.md` §6 in the marketpl
 ## Tee file shape
 
 One JSON object, rewritten atomically on a **drain cadence** rather than on every refresh (temp file
-+ rename — a reader never sees torn JSON; the file is **last-writer-wins** across all sessions on the
-machine). Each refresh records its observation to a private per-session spool file with no external
-process at all, and one elected refresh per cadence flushes the batch into this file, so the snapshot
-trails the newest refresh on the machine by **at most 30 seconds**. That is well inside the
-10-minute staleness budget below, and the operable floor values are unchanged. `captured_at` is the
-**observation time of the record the drain chose** — when those windows were seen — not the time the
-file was written:
+
+- rename — a reader never sees torn JSON; the file is **last-writer-wins** across all sessions on the
+  machine). Each refresh records its observation to a private per-session spool file with no external
+  process at all, and one elected refresh per cadence flushes the batch into this file, so the snapshot
+  trails the newest refresh on the machine by **at most 30 seconds**. That is well inside the
+  10-minute staleness budget below, and the operable floor values are unchanged. `captured_at` is the
+  **observation time of the record the drain chose** — when those windows were seen — not the time the
+  file was written:
 
 ```json
 {
@@ -73,12 +74,12 @@ file was written:
 Windows may be unobservable (API-key and enterprise auth carry limits but expose no
 `rate_limits`). A consumer classifies its guard mode before every pause decision:
 
-| Observation | Scope | Mode |
-|---|---|---|
-| Fresh snapshot with plausible `rate_limits` | whole guard | **proactive** — apply the operable floor |
-| Tee file absent, stale, or missing `rate_limits` | whole guard | **unknown → reactive-only** |
-| Absurd `used_percentage` or `resets_at` | that window | that window **unknown**; the floor still applies to every window still plausible |
-| No window plausible | whole guard | **unknown → reactive-only** |
+| Observation                                      | Scope       | Mode                                                                             |
+| ------------------------------------------------ | ----------- | -------------------------------------------------------------------------------- |
+| Fresh snapshot with plausible `rate_limits`      | whole guard | **proactive** — apply the operable floor                                         |
+| Tee file absent, stale, or missing `rate_limits` | whole guard | **unknown → reactive-only**                                                      |
+| Absurd `used_percentage` or `resets_at`          | that window | that window **unknown**; the floor still applies to every window still plausible |
+| No window plausible                              | whole guard | **unknown → reactive-only**                                                      |
 
 The scope column is load-bearing: only the whole-guard rows drop the guard to reactive-only. Absurd
 values fail open, never closed: a `used_percentage` outside 0–100 or non-numeric, or a `resets_at`
@@ -100,7 +101,12 @@ proactive.
 appended by the hook:
 
 ```json
-{"detected_at":"2026-07-23T17:41:02Z","hook_event_name":"StopFailure","matcher":"rate_limit","session_id":"abc123"}
+{
+  "detected_at": "2026-07-23T17:41:02Z",
+  "hook_event_name": "StopFailure",
+  "matcher": "rate_limit",
+  "session_id": "abc123"
+}
 ```
 
 The hook is side-effect-only (the harness ignores StopFailure output and exit codes) and the

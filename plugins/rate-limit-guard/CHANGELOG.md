@@ -164,11 +164,11 @@ All notable changes to the `rate-limit-guard` plugin are documented here. Format
   by paying a fork more expensive than the execs it steps around, and it lets successive refreshes
   overlap instead of serialise. Measured (Windows, 24 cores, statusline + tee):
 
-  | | sync (default) | async |
-  |---|---|---|
-  | one session, refreshes 1 s apart | 660 ms | **222 ms** |
-  | ten sessions at 1 Hz, median | **2265 ms** | 4476 ms |
-  | ten sessions, peak bash processes | **50** | 71 |
+  |                                   | sync (default) | async      |
+  | --------------------------------- | -------------- | ---------- |
+  | one session, refreshes 1 s apart  | 660 ms         | **222 ms** |
+  | ten sessions at 1 Hz, median      | **2265 ms**    | 4476 ms    |
+  | ten sessions, peak bash processes | **50**         | 71         |
 
   Sessions, not refresh rate, is the variable that decides. Turn it on if you run one or two
   windows; leave it off if you run many. The durable fix removes the cost instead of moving it —
@@ -184,7 +184,7 @@ All notable changes to the `rate-limit-guard` plugin are documented here. Format
 - **Four assertions covering the detached path** (75 total, up from 71): stdout carries only the
   wrapped command's output, the snapshot still lands, it carries the session's windows, and a
   reader consuming stdout to EOF is not made to wait on the child. The suite runs the default
-  synchronous path everywhere else, so assertions that a snapshot was *not* written keep their
+  synchronous path everywhere else, so assertions that a snapshot was _not_ written keep their
   meaning instead of passing vacuously against a race.
 
 ## [0.5.10]
@@ -210,7 +210,7 @@ All notable changes to the `rate-limit-guard` plugin are documented here. Format
   second named function that denies the tool call instead, for the narrow class of guards whose job
   is blocking an irreversible operation (today only two, both in `guardrails`). A sibling function
   rather than a parameter, because a flag's omitted value would default to fail-open and a guard
-  whose flag someone forgot would then fail open *silently* — the exact defect #2146 reports,
+  whose flag someone forgot would then fail open _silently_ — the exact defect #2146 reports,
   reintroduced at the API. The two postures are now argued together in one block above both
   functions, which is what #2146 asked for: previously each call site asserted a posture in a
   comment and nothing where the decision is made explained it. Synced from `lib/hook-utils.sh`.
@@ -241,7 +241,7 @@ All notable changes to the `rate-limit-guard` plugin are documented here. Format
 
   **Precedence is now managed → user settings → environment**, highest first. Managed wins because
   a gate a user or a repository can out-vote is not a policy control. The environment channel also
-  moved *below* user settings, which is a second behaviour change and deliberate: it is retained
+  moved _below_ user settings, which is a second behaviour change and deliberate: it is retained
   only in case `CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED` is ever delivered to a `statusLine`
   process, and for an unconfigured key a repository `.claude/settings.json` `env` block populates it
   freely with no provenance (same convention, fact 4), so it must not out-vote a value a real
@@ -252,7 +252,7 @@ All notable changes to the `rate-limit-guard` plugin are documented here. Format
   exact value this gate exists to detect — using `tostring` plus an explicit `length == 0` emptiness
   test instead.
 
-  **Residuals (accepted, unchanged by this release).** The *user* settings file is still located
+  **Residuals (accepted, unchanged by this release).** The _user_ settings file is still located
   from `${CLAUDE_CONFIG_DIR:-$HOME/.claude}` rather than channel F's install-cache anchor, so a
   repository `env` block that redirects `CLAUDE_CONFIG_DIR` can still hide a user-scope `false`;
   and a value supplied only through a session `--settings` file is invisible to any on-disk read
@@ -267,7 +267,7 @@ All notable changes to the `rate-limit-guard` plugin are documented here. Format
   file, and a file with no `pluginConfigs`), user `false` and user `true`, a `false` under a
   different marketplace suffix (the prefix match), another plugin's identically-named option and a
   prefix-colliding plugin name, malformed JSON and a missing `jq` (both fail open), and managed
-  `false` over user `true` *and* managed `true` over user `false` — the mirror case is what
+  `false` over user `true` _and_ managed `true` over user `false` — the mirror case is what
   distinguishes real precedence from an or-of-falses. Every case also asserts that the wrapped
   statusline's stdout is unchanged, because a gate that blanked the status line would be worse than
   the bug it closes; one unstubbed end-to-end case exercises the script exactly as `settings.json`
