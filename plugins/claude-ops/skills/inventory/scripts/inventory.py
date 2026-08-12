@@ -590,7 +590,12 @@ def check_integrity(
     advisories: list[str] = []
 
     version = detect_cli_version(src)
-    if version and version != VALIDATED_AGAINST:
+    if version is None and len(src) > 10_000:
+        advisories.append(
+            "cli version could not be detected; counts are believed, not verified against "
+            f"{VALIDATED_AGAINST}"
+        )
+    elif version and version != VALIDATED_AGAINST:
         advisories.append(
             f"cli {version} differs from the last validated build {VALIDATED_AGAINST}; "
             "counts are believed, not verified - re-run the skill's evals to revalidate"
@@ -665,34 +670,114 @@ def _load_json(path: Path) -> Any | None:
         return None
 
 
-def scan_disk(root: Path) -> dict[str, Any]:
+def _merge_enabled_plugins(*maps: dict[str, Any] | None) -> dict[str, bool]:
+    """Merge enabledPlugins maps with later scopes overriding earlier ones."""
+    merged: dict[str, bool] = {}
+    for m in maps:
+        if not isinstance(m, dict):
+            continue
+        for key, val in m.items():
+            merged[str(key)] = bool(val)
+    return merged
+
+
+def _scope_rank(scope: str) -> int:
+    return {"user": 1, "project": 2, "local": 3}.get(scope, 0)
+
+
+def _pick_install_record(
+    records: list[dict[str, Any]], project_path: Path | None
+) -> dict[str, Any] | None:
+    """Choose the install record for this project with local > project > user precedence."""
+    project_norm = str(project_path).replace("\\", "/").rstrip("/") if project_path else ""
+    candidates: list[dict[str, Any]] = []
+    for rec in records:
+        if not isinstance(rec, dict) or not rec.get("installPath"):
+            continue
+        rec_project = str(rec.get("projectPath") or "").replace("\\", "/").rstrip("/")
+        if rec_project:
+            if not project_norm:
+                continue
+            if rec_project != project_norm and not project_norm.startswith(rec_project + "/"):
+                continue
+        candidates.append(rec)
+    if not candidates:
+        return None
+    return max(candidates, key=lambda r: _scope_rank(str(r.get("scope") or "user")))
+
+
+def _manifest_component_path(root: Path, manifest: dict[str, Any], spec: dict[str, str]) -> Path | None:
+    """Resolve a component location from plugin.json, falling back to the default layout."""
+    manifest_key = spec.get("manifest") or ""
+    declared = manifest
+    for part in manifest_key.split("."):
+        if not part:
+            continue
+        if not isinstance(declared, dict):
+            declared = {}
+            break
+        declared = declared.get(part)
+    if isinstance(declared, str) and declared.strip():
+        rel = declared.strip().lstrip("./")
+        return root / rel
+    if spec["kind"] == "file":
+        return root / spec["file"] if spec.get("file") else None
+    return root / spec["dir"] if spec.get("dir") else None
+
+
+def scan_disk(root: Path, project_root: Path | None = None) -> dict[str, Any]:
     """Enumerate installed plugins, their components, and config-scope surfaces."""
     out: dict[str, Any] = {"config_dir": str(root), "exists": root.is_dir()}
 
-    settings = _load_json(root / "settings.json") or {}
-    enabled = settings.get("enabledPlugins")
-    if isinstance(enabled, dict):
-        out["enabled_plugins"] = {
-            "total_entries": len(enabled),
-            "enabled": sorted(k for k, v in enabled.items() if v),
-            "disabled": sorted(k for k, v in enabled.items() if not v),
-        }
-    else:
-        out["enabled_plugins"] = {"total_entries": 0, "enabled": [], "disabled": []}
-        out["enabled_plugins_note"] = "no enabledPlugins map in settings.json"
+    user_settings = _load_json(root / "settings.json") or {}
+    project_settings: dict[str, Any] = {}
+    local_settings: dict[str, Any] = {}
+    if project_root is not None:
+        project_claude = project_root / ".claude"
+        project_settings = _load_json(project_claude / "settings.json") or {}
+        local_settings = _load_json(project_claude / "settings.local.json") or {}
+        out["project_root"] = str(project_root)
 
-    known = _load_json(root / "plugins" / "known_marketplaces.json") or {}
+    enabled_map = _merge_enabled_plugins(
+        user_settings.get("enabledPlugins") if isinstance(user_settings.get("enabledPlugins"), dict) else None,
+        project_settings.get("enabledPlugins") if isinstance(project_settings.get("enabledPlugins"), dict) else None,
+        local_settings.get("enabledPlugins") if isinstance(local_settings.get("enabledPlugins"), dict) else None,
+    )
+    out["enabled_plugins"] = {
+        "total_entries": len(enabled_map),
+        "enabled": sorted(k for k, v in enabled_map.items() if v),
+        "disabled": sorted(k for k, v in enabled_map.items() if not v),
+    }
+
+    installed = _load_json(root / "plugins" / "installed_plugins.json") or {}
+    plugin_index = installed.get("plugins") if isinstance(installed, dict) else {}
     marketplaces: dict[str, Any] = {}
-    for name, meta in known.items() if isinstance(known, dict) else []:
-        loc = (meta or {}).get("installLocation")
-        marketplaces[name] = {
-            "install_location": loc,
-            "last_updated": (meta or {}).get("lastUpdated"),
-            "plugins": scan_marketplace(Path(loc)) if loc else {},
+    for key, enabled in sorted(enabled_map.items()):
+        if not enabled:
+            continue
+        records = plugin_index.get(key) if isinstance(plugin_index, dict) else None
+        if not isinstance(records, list):
+            records = []
+        rec = _pick_install_record(records, project_root)
+        if rec is None:
+            market = key.split("@")[-1] if "@" in key else "unknown"
+            marketplaces.setdefault(market, {"plugins": {}})["plugins"][key] = {
+                "status": "unresolved",
+                "note": "no installPath in installed_plugins.json for this project",
+            }
+            continue
+        install_path = Path(str(rec["installPath"]))
+        market = key.split("@")[-1] if "@" in key else "unknown"
+        marketplaces.setdefault(market, {"plugins": {}})["plugins"][key] = scan_plugin(install_path) | {
+            "install_path": str(install_path),
+            "install_scope": rec.get("scope"),
+            "install_version": rec.get("version"),
         }
-    out["marketplaces"] = marketplaces
 
+    out["marketplaces"] = marketplaces
     out["config_scope_components"] = scan_config_scope(root)
+    if project_root is not None:
+        out["project_scope_components"] = scan_project_scope(project_root)
     return out
 
 
@@ -723,20 +808,22 @@ def scan_plugin(root: Path) -> dict[str, Any]:
         info["dependencies"] = manifest["dependencies"]
 
     for comp, spec in PLUGIN_COMPONENTS.items():
-        names = _scan_component(root, spec)
+        names = _scan_component(root, spec, manifest)
         if names:
             info["components"][comp] = names
     return info
 
 
-def _scan_component(root: Path, spec: dict[str, str]) -> list[str]:
+def _scan_component(root: Path, spec: dict[str, str], manifest: dict[str, Any] | None = None) -> list[str]:
+    manifest = manifest or {}
     kind = spec["kind"]
     if kind == "file":
-        target = root / spec["file"]
-        return [spec["file"]] if target.is_file() else []
+        target = _manifest_component_path(root, manifest, spec) or (root / spec["file"])
+        rel = target.relative_to(root).as_posix() if target.is_file() else spec["file"]
+        return [rel] if target.is_file() else []
 
-    directory = root / spec["dir"]
-    if not directory.is_dir():
+    directory = _manifest_component_path(root, manifest, spec)
+    if directory is None or not directory.is_dir():
         return []
     out: list[str] = []
     if kind == "dir-of-dirs":
@@ -748,6 +835,40 @@ def _scan_component(root: Path, spec: dict[str, str]) -> list[str]:
             if entry.is_file() and not entry.name.startswith("."):
                 out.append(entry.name)
     return out
+
+
+def scan_project_scope(project_root: Path) -> dict[str, Any]:
+    """Project-scoped invocable surfaces outside the user config dir."""
+    claude = project_root / ".claude"
+    out: dict[str, Any] = {}
+    skills = claude / "skills"
+    if skills.is_dir():
+        out["skills"] = sorted(
+            e.name for e in skills.iterdir() if e.is_dir() and (e / "SKILL.md").is_file()
+        )
+    for name, sub in (("agents", "agents"), ("commands", "commands")):
+        d = claude / sub
+        if d.is_dir():
+            out[name] = sorted(e.name for e in d.iterdir() if e.is_file())
+    for label, fname in (("project", "settings.json"), ("local", "settings.local.json")):
+        settings = _load_json(claude / fname) or {}
+        if isinstance(settings.get("hooks"), dict):
+            out.setdefault("hooks_events", {})[label] = sorted(settings["hooks"].keys())
+        enabled = settings.get("enabledPlugins")
+        if isinstance(enabled, dict):
+            out.setdefault("enabled_plugins", {})[label] = {
+                "enabled": sorted(k for k, v in enabled.items() if v),
+                "disabled": sorted(k for k, v in enabled.items() if not v),
+            }
+    mcp = _load_json(project_root / ".mcp.json")
+    if isinstance(mcp, dict) and isinstance(mcp.get("mcpServers"), dict):
+        out["mcp_servers"] = sorted(mcp["mcpServers"].keys())
+    return out
+
+
+def project_root_from_env() -> Path | None:
+    env = os.environ.get("CLAUDE_PROJECT_DIR")
+    return Path(env) if env else None
 
 
 def scan_config_scope(root: Path) -> dict[str, Any]:
@@ -824,7 +945,11 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
 
     if not args.binary_only:
         report["sources"]["disk"] = {"available": True}
-        report["disk"] = scan_disk(Path(args.config_dir) if args.config_dir else config_dir())
+        project = Path(args.project_dir) if args.project_dir else project_root_from_env()
+        report["disk"] = scan_disk(
+            Path(args.config_dir) if args.config_dir else config_dir(),
+            project,
+        )
 
     return report
 
@@ -843,6 +968,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     ap.add_argument("--binary", help="path to the claude executable (default: auto-detect)")
     ap.add_argument("--config-dir", help="config dir (default: $CLAUDE_CONFIG_DIR or ~/.claude)")
+    ap.add_argument("--project-dir", help="project root (default: $CLAUDE_PROJECT_DIR when set)")
     ap.add_argument("--binary-only", action="store_true", help="skip the disk scan")
     ap.add_argument("--disk-only", action="store_true", help="skip reading the binary")
     ap.add_argument("--out", help="write JSON here instead of stdout")
