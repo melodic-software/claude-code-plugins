@@ -21,13 +21,15 @@ policy — only the binding that resolves a role to an instance.
 ## Checker slots
 
 A class's topology declares a list of checker SLOTS, and a slot is filled by either a DETERMINISTIC
-layer or a MODEL-ADJUDICATED role. The distinction is load-bearing: a deterministic layer has no
-model or vendor identity, so the relational constraints and predicates below bind only
-model-adjudicated slots and are never required of a deterministic one.
+layer or a MODEL-ADJUDICATED role. A slot declares which it is: a `scanner_class` naming the
+deterministic layer that fills it marks the slot deterministic, and a slot without one is
+model-adjudicated. The distinction is load-bearing: a deterministic layer has no model or vendor
+identity, so the relational constraints and predicates below bind only model-adjudicated slots and
+are rejected on a deterministic one rather than ignored.
 
 **Distinctness is REQUIRED on every slot and cannot be opted out of.** Two slots are distinct only
-where they cannot share a failure mode: deterministic slots are distinguished by scanner class,
-model-adjudicated slots by resolved model identity. **Two slots that resolve identically declare ONE
+where they cannot share a failure mode: deterministic slots are distinguished by their
+`scanner_class`, model-adjudicated slots by resolved model identity. **Two slots that resolve identically declare ONE
 checker**, and a binding whose distinct-slot count falls below its class floor is invalid.
 
 A slot NAME tells a validator nothing about what the slot resolves to, so distinctness that is only
