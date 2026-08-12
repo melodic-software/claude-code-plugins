@@ -166,7 +166,7 @@ For tier 1 and tier 4 (recurring candidates), cross-reference against open items
 
 **Last-resort recurring tiers (`last-resort: true` AND `where: 'next_due > today'`):** by design the consuming repo's recurring-issues automation typically creates items only when `next_due <= today`, so there is usually no open item to hold. Since picking early shifts the cadence, **skip last-resort candidates that have no open item and advance to the next candidate**. Only hold/claim a last-resort item when an open one already exists. If every last-resort candidate is skipped for lack of an item, report "no actionable work" rather than forcing one into existence.
 
-**Standing-item preconditions (tiers 1 and 4).** After a recurring candidate is identified and before cross-reference/claim, evaluate any `precondition` on its schedule row ([`reference/standing-item-preconditions.md`](${CLAUDE_PLUGIN_ROOT}/reference/standing-item-preconditions.md)):
+**Standing-item preconditions (tiers 1 and 4).** After a recurring candidate is identified and before cross-reference/claim, evaluate any `precondition` on its schedule row ([`${CLAUDE_PLUGIN_ROOT}/reference/standing-item-preconditions.md`](${CLAUDE_PLUGIN_ROOT}/reference/standing-item-preconditions.md)):
 
 ```bash
 SCHEDULE="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.github/recurring-schedule.json"

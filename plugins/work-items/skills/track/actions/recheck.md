@@ -29,7 +29,7 @@ fi
 
 If multiple matches, present them and ask the user to clarify.
 
-1. **Evaluate any `precondition` on the matched row** before mutating dates or closing the issue ([`reference/standing-item-preconditions.md`](${CLAUDE_PLUGIN_ROOT}/reference/standing-item-preconditions.md)):
+1. **Evaluate any `precondition` on the matched row** before mutating dates or closing the issue ([`${CLAUDE_PLUGIN_ROOT}/reference/standing-item-preconditions.md`](${CLAUDE_PLUGIN_ROOT}/reference/standing-item-preconditions.md)):
 
 ```bash
 EVAL="${CLAUDE_PLUGIN_ROOT}/scripts/evaluate-schedule-precondition.sh"
