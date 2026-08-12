@@ -3,6 +3,18 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.53.8]
+
+### Changed
+
+- **The co-author trailer key is now spelled `Co-authored-by` (#1604).** GitHub's documentation uses
+  that spelling exclusively, and GitHub itself writes it when appending co-author trailers to a
+  squash-merge message, so the skill's branch commits and the forge-written merges now agree.
+  Attribution was verified to succeed for the previous `Co-Authored-By` spelling too (GraphQL
+  `Commit.authors` resolves the co-author either way), so this is a consistency change: existing
+  history is never rewritten, and the `trailer_policy` template remains the escape hatch for
+  consumers who want a different spelling.
+
 ## [0.53.7]
 
 ### Fixed
