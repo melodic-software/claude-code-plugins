@@ -2066,16 +2066,17 @@ rm -f "$tel19" "$sink19"
 tel19b="$(mktemp)"
 sink19b="$(make_sink "$tel19b")"
 driver19b="$(mktemp)"
+blob19b="$(mktemp)"
+printf 'x%.0s' {1..35000} >"$blob19b"
 cat >"$driver19b" <<DRIVER
 # shellcheck source=hook-utils.sh
 source "$HOOK_DIR/hook-utils.sh"
-large_blob=\$(printf 'x%.0s' {1..35000})
-data_json=\$(jq -cn --arg blob "\$large_blob" \
+data_json=\$(jq -cn --rawfile blob "$blob19b" \
   '{tool:"Write",file:"src/big.py",findings:[\$blob]}')
 HOOK_TELEMETRY_SINK="$sink19b" hook::emit_telemetry \
   "sample-hook" "PostToolUse" "ok" "\$EPOCHREALTIME" "\$data_json" 2>/dev/null
 DRIVER
-SINK="$sink19b" bash "$driver19b"
+bash "$driver19b"
 wait_for_sink "$tel19b"
 unset HOOK_TELEMETRY_SINK
 if [[ -s "$tel19b" ]]; then
@@ -2088,7 +2089,7 @@ if [[ -s "$tel19b" ]]; then
 else
   fail "emit_telemetry large payload: sink empty (telemetry dropped)"
 fi
-rm -f "$tel19b" "$sink19b" "$driver19b"
+rm -f "$tel19b" "$sink19b" "$driver19b" "$blob19b"
 
 # --- hook::extract_bash_subject: privacy-safe subject reduction --------------
 # The subject is emitted verbatim into hook-events.jsonl and any wired
