@@ -3,6 +3,33 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.1]
+
+### Fixed
+
+- **`block-hook-bypass`'s own scope message told the operator it covers `inline python3 -c only`,
+  which 0.28.0 had just made false (#2217).** Both emitted notes — Bash and PowerShell — are the
+  guard's contract with whoever it just blocked, so understating the enforced surface is not a
+  cosmetic slip: it is the same false-account defect in the opposite direction, and it invites the
+  contortion the note's own preamble warns about (an agent routing to a form it is told the guard
+  cannot see). 0.28.0 widened the python lane from the literal `python3 -c` to the interpreter family
+  plus a `python3 - <<PY` stdin heredoc and left both notes unchanged. Emitted now, verified by
+  invoking the hook:
+
+  ```
+  Scope: only this command string is inspected — known shell file-write forms plus inline python
+  code (python/python3/py/pypy with -c, or a program read from stdin as python3 - <<PY) only. POSIX
+  tee pipe writes, other inline-interpreter writes (e.g. node -e, sed -i), a stdin heredoc with no -
+  argument (python3 <<PY), writes inside an invoked script file or a program's own opaque code, and
+  redirects produced by another program, are not seen.
+  ```
+
+  The contract test is the part that should have caught this and did not: its assertion pinned the
+  literal string `inline python3 -c only`, so it kept passing while the claim went stale. It now
+  pins the family, the stdin form **and** the no-dash residual, so the note cannot drift from the
+  detector without a failure. Found by the automated reviewer on the 0.28.0 PR, after that PR had
+  already merged. No detector behaviour changes: 0 granted → refused, 0 refused → granted.
+
 ## [0.28.0]
 
 ### Fixed

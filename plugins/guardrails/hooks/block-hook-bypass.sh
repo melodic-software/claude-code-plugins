@@ -904,16 +904,25 @@ producer_redirect_bypass() {
 # ordinary data-processing redirects (`sort f > out`, `curl … > page.html`) and
 # other unmodeled Bash write utilities (POSIX `tee`, inline `node -e`, …) are
 # allowed by design too, not only writes inside an invoked script.
+# These notes state the ENFORCED surface to the operator, so they are part of the
+# detector's contract, not commentary: understating it invites the "guard says it
+# cannot see this" contortion the paragraph above describes, and overstating it is
+# the false-assurance failure. #2217 widened the python lane from the literal
+# `python3 -c` to the interpreter family plus a stdin heredoc, and left both notes
+# saying `inline python3 -c only` — materially wrong about a safety guard's own
+# reach. Restated at the shipped width, with the residuals named at theirs.
 _BYPASS_SCOPE_NOTE_BASH="Scope: only this command string is inspected — known shell \
-file-write forms plus inline python3 -c only. POSIX tee pipe writes, other \
-inline-interpreter writes (e.g. node -e, sed -i), writes inside an invoked \
-script file or a program's own opaque code, and redirects produced by another \
-program, are not seen."
+file-write forms plus inline python code (python/python3/py/pypy with -c, or a \
+program read from stdin as python3 - <<PY) only. POSIX tee pipe writes, other \
+inline-interpreter writes (e.g. node -e, sed -i), a stdin heredoc with no - \
+argument (python3 <<PY), writes inside an invoked script file or a program's own \
+opaque code, and redirects produced by another program, are not seen."
 _BYPASS_SCOPE_NOTE_PWSH="Scope: only this command string is inspected — known PowerShell \
 file-write cmdlets and content-producer redirects (including Tee-Object and the \
-tee alias) plus inline python3 -c only. Other inline-interpreter writes (e.g. \
-node -e), writes inside an invoked script file or a program's own opaque code, \
-and redirects produced by another program, are not seen."
+tee alias) plus inline python code (python/python3/py/pypy with -c) only. Other \
+inline-interpreter writes (e.g. node -e), writes inside an invoked script file or \
+a program's own opaque code, and redirects produced by another program, are not \
+seen."
 
 block_bypass() {
   local form="$1" reason="$2"
