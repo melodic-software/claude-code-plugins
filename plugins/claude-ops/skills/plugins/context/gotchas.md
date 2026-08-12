@@ -50,7 +50,7 @@ the **literal cwd** — verified on Claude Code 2.1.228, where installing from
 root** instead.
 
 So a plugin installed at project scope from anywhere below the checkout root gets a `projectPath`
-that `fleet-state.sh` will never match for `currentProject`: `currentProject` stays `null`, so
+that `fleet-state.sh` will never match for `currentProject`: `currentProject` stays `false`, so
 `sync`'s Step 2 never updates it — while `converge` can still target a divergence row for the same
 id when another scope record exists, because `fleet-state.sh` groups every installed record by id
 without filtering on `currentProject`. The subtree install still loads for anyone working there. The
