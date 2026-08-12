@@ -87,13 +87,18 @@
 - **`skills/research/SKILL.md` was the hub and was larger than the spoke it delegates to** — a file
   preloaded in full into every dispatched `maxTurns: 40` run. Measured at `9b34a82a`: **6,629 words
   against `context/discipline.md`'s 5,087**, a gap that #2222 had widened by 851 words. The two
-  densest lines (3,105 and 2,108 characters) are where the mechanism depends on exact reading, which
-  argues against compressing them and for moving them: the fetch-log specification is now in
-  `context/artifact-shape.md` beside the sidecar-header schema it belongs with, outcome-gate
-  criterion 9's elaboration folded into `context/discipline.md`'s existing artifact-ladder section,
-  and the Tier-3 scoped exception into that file's "Source tiers". **The hub is now 5,026 words / 232
-  lines**, below the 5,236-word spoke, and a contract test pins the direction so the next edit cannot
-  silently re-invert it.
+  densest lines (3,105 and 2,108 characters) are where the mechanism depends on exact reading, so
+  neither was compressed in place. **Three distinct operations, stated as three:** the fetch-log
+  specification **moved** to `context/artifact-shape.md` beside the sidecar-header schema it belongs
+  with (+644 words there); the Tier-3 scoped exception **moved** to `context/discipline.md`'s "Source
+  tiers" (+149 words there, the only content this release adds to that file); and outcome-gate
+  criterion 9's cell was **compressed to a pointer, because `discipline.md` already carried the
+  elaboration** — "A probe locates a rung; it does not grade one", the exhaustive-surface rule, and
+  the `unresolved` default have been in its "Primary-source-first protocol" all along, so the hub was
+  restating a spoke rather than owning anything. The remaining reduction is ordinary compression of
+  rationale the two dispatch spokes already carry. **The hub is now 5,026 words / 232 lines**, below
+  the 5,236-word spoke, and a contract test pins the direction so the next edit cannot silently
+  re-invert it.
 
   Its `description` also gained the boundary clause it lacked: `research-deep` already routed back to
   `research` and nothing routed the other way, so auto-discovery could send a small lookup into the
@@ -121,7 +126,7 @@
 
 - `plugins/discovery/scripts/contract.test.sh` — a grep-level contract test over the plugin's shipped
   documents, alongside the two script suites. It pins every defect above: no file asserts the
-  unsupported preload mechanism (8 hits before), no monorepo agent pointer (2 before), the baseline
+  unsupported preload mechanism (10 hits before, over 7 files), no monorepo agent pointer (2 before), the baseline
   command has exactly one home and that home states a PowerShell form, no file prescribes
   discard-instead-of-resume (4 before), the envelope table carries its Memory root row,
   `explorer maxTurns >= researcher maxTurns`, and `research/SKILL.md` stays smaller than

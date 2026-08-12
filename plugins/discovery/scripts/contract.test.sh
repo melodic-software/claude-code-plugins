@@ -88,6 +88,8 @@ assert_absent 'no evals entry grades against "empty under preload"' \
   'is empty under preload'
 assert_absent 'no file asserts $ARGUMENTS is empty under dispatch' \
   '\$ARGUMENTS. is empty'
+assert_absent 'no evals criterion asserts what does or does not reach a preloaded skill' \
+  'reaches a preloaded skill'
 
 # ---------------------------------------------------------------------------
 # 2. Cross-file pointers resolve from an install root, not from this monorepo
