@@ -7,10 +7,13 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 ### Added
 
-- **`lib/state-key.sh`** — the `<repo-identity>/<worktree-discriminator>` derivation, previously
-  specified in `audit-pass`'s `reference/run-state-and-resumability.md` §3 and copied as a ~40-line
-  shell block into `audit-prompting-postures`, now an executable with a 23-case suite. The third
-  adopter would have been a third copy. It ships byte-identical in `claude-memory` and is registered
+- **`lib/state-key.sh`** — the `<repo-identity>/<worktree-discriminator>` derivation, specified in
+  `audit-pass`'s `reference/run-state-and-resumability.md` §3 and until now *copied* as a ~40-line
+  shell block into `audit-prompting-postures`, becomes one executable with a 23-case suite. The third
+  adopter would have been the third copy, so `audit-prompting-postures` is migrated onto it in the
+  same change rather than left as a second implementation of one scheme inside one plugin — the drift
+  the accompanying convention exists to forbid. Its verified properties are still stated there; what
+  is gone is the restated algorithm. It ships byte-identical in `claude-memory` and is registered
   in `scripts/cross-plugin-source-registry.txt`, so the copies cannot drift silently. The suite pins
   the properties the prose asserted and nothing checked: an https remote and its scp-style ssh
   equivalent key identically; a repo whose only remote is `upstream` keys by that remote rather than
