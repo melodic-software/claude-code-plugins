@@ -478,10 +478,15 @@ declare -A _persisted_alias=()
 HOOK_PERSISTED_ALIAS=""
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 persisted_alias() {
-  local dir="$1" sub="$2" key
+  local dir="$1" sub="$2" key val
   key="$dir"$'\n'"$sub"
-  [[ -n "${_persisted_alias[$key]+x}" ]] ||
-    _persisted_alias["$key"]=$(git -C "$dir" config --get "alias.$sub" 2>/dev/null)
+  if [[ -z "${_persisted_alias[$key]+x}" ]]; then
+    val=$(git -C "$dir" config --get "alias.$sub" 2>/dev/null)
+    if [[ -z "$val" ]]; then
+      val=$(git -C "$dir" config --get "alias.$sub.command" 2>/dev/null)
+    fi
+    _persisted_alias["$key"]="$val"
+  fi
   HOOK_PERSISTED_ALIAS="${_persisted_alias[$key]}"
 }
 
