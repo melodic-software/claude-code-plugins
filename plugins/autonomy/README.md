@@ -26,10 +26,11 @@ state and records that binding.
   lease) — plus the setup trigger/dispatch slice, its adapter and acknowledgment templates,
   and the signal-envelope conformance check.
 - **Guardrail matrix** (`reference/guardrails.md`): five semantic work classes (`C1`–`C5`)
-  crossed with five enforcement columns — isolation floor, verification layers, merge policy,
-  cost tier, escalation — as one progressive-disclosure hub with on-demand leaves (isolation
-  ladder, work classes, security review, admission policy), human-ratified promotion with
-  automatic fail-closed demotion, and a two-surface binding split by governance sensitivity
+  crossed with six enforcement columns — isolation floor, verification layers, verification
+  topology, merge policy, cost tier, escalation — as one progressive-disclosure hub with
+  on-demand leaves (isolation ladder, work classes, security review, verification topology,
+  admission policy), human-ratified promotion with automatic fail-closed demotion, and a
+  two-surface binding split by governance sensitivity
   (security axes on the settings-as-code home outside agent blast radius; non-security remaps
   repo-local) — plus the contract-owned security-binding schema and its semantic check, and the
   setup guardrail slice that detects substrates per surface, live-validates isolation with an
@@ -192,6 +193,8 @@ reads it from.
 | `lane_notify_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_ENABLED` | Master switch for the operator alert fired when a lane stops without signaling completion. |
 | `lane_notify_os_toast_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_OS_TOAST_ENABLED` | OS-native desktop toast (macOS/Linux) for the lane-stop alert. |
 | `lane_notify_terminal_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_TERMINAL_ENABLED` | Audible bell + OSC 9 notification written to the controlling terminal for the lane-stop alert. |
+| `verification_lens_pool` | string | `"specification,adversarial,contract,regression,evidence"` | `CLAUDE_PLUGIN_OPTION_VERIFICATION_LENS_POOL` | Ordered, comma-separated pool of verification lenses the model-adjudicated checker slots draw from — one distinct lens per slot, in pool order. Tokens come from the closed vocabulary in the verification-topology contract leaf; an unrecognized token is recorded as unresolved and draws no lens, and a pool shorter than a class's model-adjudicated slot count leaves the remaining slots unlensed rather than repeating a lens. The pool contributes to no count: how many checkers a class runs, how they must differ, and whether one must be cross-vendor are floors on the org's security binding, outside this setting's reach. |
+| `visual_narration_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_VISUAL_NARRATION_ENABLED` | Run the advisory visual narration lane: strictly downstream of deterministic detection, it writes a plain-language account of a difference the deterministic layer already found and attaches it to the run record for the human gate. Advisory only — it emits no verdict, fills no checker slot, is counted by no floor, and never gates a transition; no cell anywhere names it as authority. Default OFF: it is inert without an upstream deterministic comparator, and each narrated artifact is a metered vision-model call. |
 
 ### How to set these
 

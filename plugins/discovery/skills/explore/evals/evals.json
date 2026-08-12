@@ -66,11 +66,11 @@
       "id": 6,
       "name": "dispatch-by-default-and-open-question-handback",
       "prompt": "Explore how the payments module resolves currency conversion before I change the rounding rule.",
-      "expected_output": "Dispatches the discovery:explorer subagent rather than running the six dimensions in the main conversation, so the main conversation gains a bounded summary and a file pointer rather than the file reads. The dispatch prompt carries the resolved scope and the memory-slice path, because $ARGUMENTS is empty under preload and a non-fork subagent sees no conversation. The agent loads path-scoped project rules explicitly, writes EXPLORE.md as an index with sidecars, echoes the preload token, and returns open questions as payload entries for the parent to surface.",
+      "expected_output": "Dispatches the discovery:explorer subagent rather than running the six dimensions in the main conversation, so the main conversation gains a bounded summary and a file pointer rather than the file reads. The dispatch prompt carries the resolved scope and the memory-slice path, because a preloaded body is not where a dispatched run gets its scope and a non-fork subagent sees no conversation. The agent loads path-scoped project rules explicitly, writes EXPLORE.md as an index with sidecars, echoes the preload token, and returns open questions as payload entries for the parent to surface.",
       "files": [],
       "expectations": [
         "Dispatches the discovery:explorer agent by default rather than running the six dimensions inline in the main conversation",
-        "Passes the resolved scope and the memory-slice path in the dispatch prompt rather than relying on $ARGUMENTS or conversation context, neither of which reaches a preloaded skill in a non-fork subagent; an absent scope is reported as a parent-envelope failure rather than replaced with a general repository sweep",
+        "Passes the resolved scope and the memory-slice path in the dispatch prompt rather than relying on $ARGUMENTS or conversation context, neither of which a dispatched run may depend on; an absent scope is reported as a parent-envelope failure rather than replaced with a general repository sweep",
         "The dispatched run explicitly Reads the consuming project's path-scoped rule files relevant to the scope, since a subagent does not auto-load them, and skips any that do not exist rather than inventing paths",
         "The main conversation receives an artifact pointer and a 3-5 sentence summary, NOT the seven-section report or the underlying file reads",
         "The returned payload echoes the preload token discovery-explore-preload-8e2b7d verbatim as preload_token; a missing or mismatched token is a hard failure that discards the run",
@@ -88,7 +88,7 @@
       "expectations": [
         "The completed status is NOT accepted as evidence of a finished exploration; the missing preload_token and the missing artifact pointer each independently mark the dispatch failed",
         "Verification runs scripts/check-dispatch-artifact.sh with --index-name EXPLORE.md against the memory-slice path the parent resolved pre-dispatch, rather than a path read out of the payload, and cites its exit status rather than eyeballing the directory",
-        "The freshness baseline is established BEFORE the dispatch (mkdir -p <slice> then touch <slice>/.explore-dispatch, so a first-time scope whose slice does not exist yet does not fail on the touch) and passed as --newer-than, so an artifact an earlier run left in the same slice cannot be accepted as evidence that this dispatch succeeded",
+        "The freshness baseline is established BEFORE the dispatch (the slice is created first, so a first-time scope whose slice does not exist yet does not fail on the touch) and passed as --newer-than, so an artifact an earlier run left in the same slice cannot be accepted as evidence that this dispatch succeeded",
         "Flags whose values the payload never supplied are dropped rather than guessed at; a malformed payload carries no sidecars: count and no artifact: pointer, so the bare form is run",
         "A non-zero exit halts the workflow and is reported; the run does NOT proceed to research, planning, or an edit on the strength of an exploration that did not happen",
         "Recovery resumes the existing agent by agent ID with SendMessage rather than immediately re-dispatching, and falls back to discarding the slice and re-dispatching with the same envelope when the resume is refused"

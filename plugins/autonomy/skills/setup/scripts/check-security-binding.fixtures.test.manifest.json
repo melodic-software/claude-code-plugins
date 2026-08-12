@@ -830,6 +830,157 @@
       "exit": 0,
       "findings_substrings": [],
       "credential_roots": "/home/runner"
+    },
+    "topology-all-deterministic-c4.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "verification_topology.C4.min_model_checkers: 0 weakens the shipped floor 2",
+        "verification_topology.C4: cross_vendor_required true with 0 model-adjudicated checker slots"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "topology-checker-count-below-min.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "verification_topology.C3.roles: declares 2 distinct checker roles against min_checkers 3"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "topology-cross-vendor-decorative.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "verification_topology.C3: cross_vendor_required true but no declared checker is vendor-distinct from the generator"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "topology-cross-vendor-dropped.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "verification_topology.C5.cross_vendor_required: false weakens the shipped floor true — floors may be tightened, never weakened"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "topology-cross-vendor-no-generator.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "verification_topology.C3.roles[\"reviewer-a\"]: role cross_vendor_checker with no generator declared in this class"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "topology-cross-vendor-vacuous.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "verification_topology.C3: cross_vendor_required true with 1 model-adjudicated checker slot"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "topology-duplicate-modality.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "verification_topology.C3.roles[1].requires_modality: [\"text\",\"text\"] repeats a token"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "topology-duplicate-relation-target.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "verification_topology.C3.roles[2].distinct_model_from: [\"author\",\"author\"] repeats a target"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "topology-duplicate-role-name.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "verification_topology.C3.roles: \"reviewer-a\" is declared more than once",
+        "declares 1 distinct checker role against min_checkers 2"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "topology-min-checkers-weakened.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "verification_topology.C4.min_checkers: 2 weakens the shipped floor 3 — floors may be tightened, never weakened"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "topology-non-class-key.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "verification_topology: unknown key \"C6\" (additionalProperties: false)"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "topology-self-reference.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "verification_topology.C3.roles[\"reviewer-b\"].distinct_model_from: names its own role"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "topology-tightened-valid.json": {
+      "exit": 0,
+      "findings_substrings": [],
+      "credential_roots": "/home/runner"
+    },
+    "topology-unconstrained-checker-pair.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "verification_topology.C3.roles: checker roles \"reviewer-a\" and \"reviewer-b\" carry no distinct_model_from/distinct_vendor_from relation between them"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "topology-undeclared-role.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "verification_topology.C3.roles[\"reviewer-b\"].distinct_vendor_from: \"reviewer-x\" names a role this class does not declare"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "topology-unknown-predicate.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "verification_topology.C3.roles[1]: unknown key \"max_latency_ms\" (additionalProperties: false)"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "probe-evidence-component-reach-uncovered.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "leaving ratified component_reachable_hosts api.example.net, cdn.example.net unprobed"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "probe-evidence-component-reach-partial.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "leaving ratified component_reachable_hosts api.example.net unprobed"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "probe-evidence-component-reach-unratified.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "the level binding ratifies no component_reachable_hosts"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "component-reach-empty-valid.json": {
+      "exit": 0,
+      "findings_substrings": [],
+      "credential_roots": "/home/runner"
+    },
+    "auto-merge-advisory-checkers.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "merge_policy.C2: \"auto\" with verification_blocking.ai-review.C2 \"advisory\"",
+        "merge_policy.C3: \"auto\" with verification_blocking.ai-review.C3 \"advisory\""
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "auto-merge-blocking-checkers.json": {
+      "exit": 0,
+      "findings_substrings": [],
+      "credential_roots": "/home/runner"
     }
   },
   "quarantined": {},

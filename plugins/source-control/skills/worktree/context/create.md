@@ -60,13 +60,13 @@ Optional renames after creation:
 - **Session history**: Claude Code's `~/.claude/projects/` directory is keyed by worktree filesystem path. Moving the directory orphans the old project key — `--resume`/`--continue` from a new session won't find the old transcript. Auto-memory and project config are shared at repo level and are NOT affected.
 - **Windows**: works on Git Bash/NTFS with no known issues. Use forward slashes or quote paths with spaces.
 - **Cannot move**: the main worktree, or worktrees containing submodules.
-- **Locked worktrees**: require `--force --force` (twice).
+- **Locked worktrees**: `git worktree move` refuses them, and every helper-created worktree is locked at creation (the liveness guard). `git worktree unlock <path>` before the move, then re-lock with `git worktree lock --reason "<why>" <new-path>` after; `move --force --force` is the blunt alternative that discards the claim.
 
 ## Create the worktree
 
 Two steps — the helper creates and places the worktree; `EnterWorktree(path:)` enters it.
 
-1. **Run the shared helper** (it computes the external path, runs `git worktree add`, and copies `.worktreeinclude` files). Add `--base-ref head` only when the effective Claude `worktree.baseRef` setting is `head` (see [Base branch](#base-branch)); otherwise omit it.
+1. **Run the shared helper** (it computes the external path, runs `git worktree add`, arms the `git worktree lock` liveness guard — reason naming the helper, host, and start time, so a cleanup sweep sees the worktree as claimed and plain `git worktree remove` refuses it — and copies `.worktreeinclude` files). Add `--base-ref head` only when the effective Claude `worktree.baseRef` setting is `head` (see [Base branch](#base-branch)); otherwise omit it.
 
    `${user_config.worktree_root}` substitution into skill content is **raw text substitution, not shell-escaped** (Claude Code docs, [plugins-reference § User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration)) — a configured value containing a single quote (e.g. `~/worktrees/O'Connor`), `$`, or a backtick breaks out of any shell literal we write around it, and **no heredoc delimiter is safe either**: a value whose own body contains a line equal to the delimiter ends the heredoc early and the shell parses the remainder as commands. The value must therefore never reach a shell parser at all. Write it with the **`Write` tool** — the content travels as a JSON string parameter, so every byte lands verbatim and no delimiter, quote, or metacharacter can terminate anything — then hand the file to `--root-file`. Never inline the substitution in a `--root` shell literal or a heredoc body.
 

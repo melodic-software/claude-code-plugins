@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Find external citations into private skill internals (.claude/skills/<X>/...).
+# Find external citations into private skill internals (.claude/skills/<X>/... and
+# plugins/<plugin>/skills/<X>/... in marketplace monorepos).
 #
 # Contract this detector encodes: ../context/public-surface-contract.md
 # (bundled with this skill).
@@ -59,7 +60,7 @@ for d in .claude/*/; do
   fi
   SCOPE_DIRS+=("$d")
 done
-for d in .github docs .lefthook; do
+for d in .github docs .lefthook plugins; do
   [[ -d "$d" ]] && SCOPE_DIRS+=("$d")
 done
 
@@ -85,7 +86,10 @@ fi
 # excludes `SKILL.md` (uppercase) so bare `<skill>/SKILL.md` path cites
 # pass (discouraged-but-legal). Does NOT match plain-JSON data files at
 # skill root (`<skill>/catalog.json`) per the data-file carve-out.
-PATTERN='\.claude/skills/[a-z][a-z0-9-]\+/[a-z][a-z0-9_-]\+/\|\.claude/skills/[a-z][a-z0-9-]\+/SKILL\.md#\|\.claude/skills/[a-z][a-z0-9-]\+/[^/]\+\.schema\.json'
+# Two skill-root layouts share one detector:
+#   - consumer-installed: `.claude/skills/<skill>/...`
+#   - marketplace monorepo: `plugins/<plugin>/skills/<skill>/...`
+PATTERN='\.claude/skills/[a-z][a-z0-9-]\+/[a-z][a-z0-9_-]\+/\|\.claude/skills/[a-z][a-z0-9-]\+/SKILL\.md#\|\.claude/skills/[a-z][a-z0-9-]\+/[^/]\+\.schema\.json\|plugins/[a-z][a-z0-9-]\+/skills/[a-z][a-z0-9-]\+/[a-z][a-z0-9_-]\+/\|plugins/[a-z][a-z0-9-]\+/skills/[a-z][a-z0-9-]\+/SKILL\.md#\|plugins/[a-z][a-z0-9-]\+/skills/[a-z][a-z0-9-]\+/[^/]\+\.schema\.json'
 
 # scripts/ entry-surface carve-out: a skill's `scripts/` is its declared ENTRY
 # surface — harness / CI / hooks / workflow registries MAY path-cite it. Like
@@ -99,7 +103,7 @@ PATTERN='\.claude/skills/[a-z][a-z0-9-]\+/[a-z][a-z0-9_-]\+/\|\.claude/skills/[a
 # line. The skill-to-skill half of the asymmetry (a sibling SKILL.md citing
 # another skill's scripts/ stays slash-only) is out of this inbound audit's
 # scope — see the contract file.
-SCRIPTS_RE='\.claude/skills/[a-z][a-z0-9-]+/scripts/'
+SCRIPTS_RE='(\.claude/skills/[a-z][a-z0-9-]+/scripts/|plugins/[a-z][a-z0-9-]+/skills/[a-z][a-z0-9-]+/scripts/)'
 
 HITS_FILE="$(mktemp)"
 trap 'rm -f "$HITS_FILE"' EXIT
@@ -144,6 +148,9 @@ while IFS= read -r line; do
     legal=0
     if [[ "$file" =~ ^\.claude/skills/([^/]+)/ ]] &&
       [[ "$text" == *".claude/skills/${BASH_REMATCH[1]}/"* ]]; then
+      legal=1
+    elif [[ "$file" =~ ^plugins/[^/]+/skills/([^/]+)/ ]] &&
+      [[ "$text" == *"/skills/${BASH_REMATCH[1]}/"* ]]; then
       legal=1
     elif [[ "$text" == *"plugins/cache/"* ]]; then
       legal=1

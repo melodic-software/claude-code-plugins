@@ -473,6 +473,35 @@ def fetch_issue_comments(repo: str, number: int) -> list[dict[str, Any]]:
     ]
 
 
+def fetch_pull_request_commits(repo: str, number: int) -> list[dict[str, Any]]:
+    """Every commit on the PR with its signature-verification verdict.
+
+    Reads `.commit.verification` per commit -- `verified` plus GitHub's
+    `reason` string (`valid`, `unsigned`, `no_user`, `unknown_key`, ...). A row
+    whose verification block is missing is reported unverified with reason
+    `unreadable` rather than skipped: the caller enforcing a signature rule may
+    only ever over-report.
+    """
+    rows = fetch_paginated_api(
+        f"repos/{repo}/pulls/{number}/commits?per_page=100",
+        f"{repo}#{number} commits",
+    )
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        commit = row.get("commit")
+        verification = commit.get("verification") if is_json_object(commit) else None
+        if is_json_object(verification):
+            verified = verification.get("verified") is True
+            reason = str(verification.get("reason") or "unreadable")
+        else:
+            verified = False
+            reason = "unreadable"
+        out.append(
+            {"sha": str(row.get("sha") or ""), "verified": verified, "reason": reason}
+        )
+    return out
+
+
 def fetch_pull_request_reviews(repo: str, number: int) -> list[dict[str, Any]]:
     rows = fetch_paginated_api(
         f"repos/{repo}/pulls/{number}/reviews?per_page=100",

@@ -10,7 +10,10 @@
         "runtime_markers": {
           "runner-pool": "ci-pool-a",
           "region": "us-east"
-        }
+        },
+        "component_reachable_hosts": [
+          "example.com"
+        ]
       }
     }
   },
@@ -56,11 +59,36 @@
       }
     },
     "rules": [
-      { "signal_class": "*", "provenance": "*", "work_class": "C1", "disposition": "autonomous-eligible" },
-      { "signal_class": "*", "provenance": "*", "work_class": "C2", "disposition": "autonomous-eligible" },
-      { "signal_class": "*", "provenance": "*", "work_class": "C3", "disposition": "human-gated" },
-      { "signal_class": "*", "provenance": "*", "work_class": "C4", "disposition": "human-gated" },
-      { "signal_class": "*", "provenance": "*", "work_class": "C5", "disposition": "human-gated" }
+      {
+        "signal_class": "*",
+        "provenance": "*",
+        "work_class": "C1",
+        "disposition": "autonomous-eligible"
+      },
+      {
+        "signal_class": "*",
+        "provenance": "*",
+        "work_class": "C2",
+        "disposition": "autonomous-eligible"
+      },
+      {
+        "signal_class": "*",
+        "provenance": "*",
+        "work_class": "C3",
+        "disposition": "human-gated"
+      },
+      {
+        "signal_class": "*",
+        "provenance": "*",
+        "work_class": "C4",
+        "disposition": "human-gated"
+      },
+      {
+        "signal_class": "*",
+        "provenance": "*",
+        "work_class": "C5",
+        "disposition": "human-gated"
+      }
     ],
     "autonomous_concurrency": 1,
     "items_per_run": 3

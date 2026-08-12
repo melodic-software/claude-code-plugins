@@ -416,7 +416,8 @@ assert_contains "unstaged deletion is not a sparse exemption → fires" "$OUT" \
 # working-tree disappearance — the same shape as the unstaged deletion above.
 # Exempting `h` would reinstate the suppression this change removes, for a
 # narrower set. #1509's acceptance text names the variant alongside
-# skip-worktree; only `S` earns the exemption, and this case pins that.
+# skip-worktree; only the skip-worktree letter (`S` or `s`) earns the exemption,
+# and this case pins that assume-unchanged alone does not.
 git -C "$SPARSE" update-index --assume-unchanged docs/restored.md >/dev/null 2>&1
 OUT=$(CLAUDE_PROJECT_DIR="$SPARSE" bash "$HOOK" \
   <<<"$(write_json "$SPARSE_TARGET" 'Read `docs/restored.md` first.')" 2>&1)

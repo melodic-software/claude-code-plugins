@@ -4,6 +4,40 @@ Notable changes to the upstream-drift contract (SemVer). Changing a required par
 name, or an enforceability verdict is a major bump; additive guidance is a minor bump; docs-only
 clarification is a patch.
 
+## 1.4.0 — 2026-08-12
+
+Closes the **adoption** gap rather than a design one: the contract already owned verification
+stamps, recheck triggers, and the rule that the name binds on touch, but plugins restating upstream
+harness facts in bare prose had no route into the Adopters table and nothing made a stale claim
+surface ([#2273](https://github.com/melodic-software/claude-code-plugins/issues/2273)). Additive
+guidance; no required part, canonical name, or enforceability verdict changed.
+
+- **The Adopters table now says how a post-1.0.0 row gets there, and what disqualifies one.** The
+  preamble read "Migrated at this contract's 1.0.0", which any appended row would have quietly
+  falsified. It now separates the migrated rows from later on-touch adoptions and requires each
+  later row to name the release that added it. It also states the bar the third column already
+  implied but never wrote down: **a surface is tabled only once it conforms**, so a carrier known to
+  be unstamped is a tracked issue rather than a row. That column is a promise to a reader, and
+  tabling an unstamped surface would assert exactly what the reader would then not get.
+- **The fleet's open carriers are recorded where that rule sends them.** A sweep of `plugins/**` for
+  surfaces stating an upstream harness behaviour with no source, date, or trigger found 12 carriers
+  across 11 plugins, filed with quoted lines at
+  [#2297](https://github.com/melodic-software/claude-code-plugins/issues/2297) — along with the
+  files checked and found *conforming*, and the sweep's own limitation (a file-level citation gate
+  under-represents mixed files, so the list is a lower bound and says so). None is tabled here.
+- **An adoption CI gate is deferred, recorded as a decision with its own trigger.** The
+  load-bearing finding is that the check §Enforceability already names — flag a `Verified <date>`
+  with no trigger — **would not have caught the case that prompted the question**
+  ([#2207](https://github.com/melodic-software/claude-code-plugins/issues/2207)): that surface
+  carried no stamp at all, so a stamp-anchored grep had nothing to match. The named check is shaped
+  for a half-conforming record; the failure that ships is the zero-part one, and separating an
+  upstream restatement from an in-repo fact is a judgment about meaning — reasoning-only under the
+  tiers doc. A harness-vocabulary grep fires on every correct citation too, and a gate that forces
+  routine suppression trains authors to bypass it. Recorded with a basis and an event trigger — a
+  third unstamped carrier reaching `main`, or a demonstrated detector needing no suppression list —
+  so the deferral expires on evidence rather than on a date. The existing named-not-built check and
+  its own build trigger are unchanged.
+
 ## 1.3.0 — 2026-08-11
 
 Closes two holes in [§Reading the basis — the fetch route](README.md#reading-the-basis--the-fetch-route)

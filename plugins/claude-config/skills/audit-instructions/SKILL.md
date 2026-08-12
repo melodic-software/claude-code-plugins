@@ -365,13 +365,40 @@ gate fails, dropped for that named reason.
 
 ## Phase D — Report
 
-Persist the report to `${CLAUDE_PLUGIN_DATA}/audit-instructions/last-audit.md` and summarize it in
-chat. The report header carries a **cost line**: how many checks ran per surface (naming any added
-by a catalog version bump), the model-scoped rows skipped for the resolved target, and the
-estimated per-surface token delta versus the previous catalog version — and it confirms the run
-added zero new interactive gates (report-only contract unchanged; the target-model fail-loud stop
-is an invocation-time validation abort, not an interactive gate — it prompts nobody and blocks
-nothing mid-run). Present findings as a table:
+Persist the report to `${CLAUDE_PLUGIN_DATA}/audit-instructions/<state-key>/last-audit.md`.
+
+**Derive `<state-key>` by running this:**
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/lib/state-key.sh"
+```
+
+It prints `<repo-identity>/<worktree-discriminator>` — `audit-pass`'s scheme, per
+[its run-state reference](../audit-pass/reference/run-state-and-resumability.md) §3, which
+`audit-prompting-postures` also uses. Run it and use the result. Do **not** express the path as a
+condition over `${CLAUDE_PROJECT_DIR}` "when set": that placeholder is substituted inline before this
+file reaches you, so the literal token is never visible and the condition is not yours to evaluate.
+
+**Why the key is load-bearing in this skill specifically.** `${CLAUDE_PLUGIN_DATA}` resolves to
+`~/.claude/plugins/data/{id}/`, keyed to the plugin identifier and nothing else
+([plugins reference](https://code.claude.com/docs/en/plugins-reference), § Persistent data directory).
+Under a fixed filename every run from every project on the machine overwrites the last — and the cost
+line below then computes its **per-surface token delta against a prior report belonging to a different
+project's surface set**, printing a number rather than declining. The lost artifact is the smaller
+half; a silently wrong figure in the report header is the larger one.
+
+**Two absent-prior cases, and they are not the same.** With no report at the derived key, say so and
+omit the delta — "first run for this project; no prior catalog version to compare" — rather than
+reaching for another file. An unkeyed `audit-instructions/last-audit.md` left by an earlier version
+has no project segment and is therefore unattributable: name its path to the user as a leftover, and
+do not compute a delta from it.
+
+Then summarize in chat. The report header carries a **cost line**: how many checks ran per surface
+(naming any added by a catalog version bump), the model-scoped rows skipped for the resolved target,
+and the estimated per-surface token delta versus the previous catalog version **for this project** —
+and it confirms the run added zero new interactive gates (report-only contract unchanged; the
+target-model fail-loud stop is an invocation-time validation abort, not an interactive gate — it
+prompts nobody and blocks nothing mid-run). Present findings as a table:
 
 | # | Check | Surface:Line | Severity | Tier | Authority | Finding | Proposed change |
 |---|-------|--------------|----------|------|-----------|---------|-----------------|

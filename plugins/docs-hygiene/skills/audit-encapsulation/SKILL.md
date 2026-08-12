@@ -1,5 +1,5 @@
 ---
-description: "Audit and remediate skill-encapsulation violations — external citations reaching into private surfaces inside `.claude/skills/<X>/` beyond the slash invocation. Use when: 'audit encapsulation', 'find skill leaks', 'skill boundary violation', 'who is reaching into <skill>', 'check skill boundaries', 'public API drift', or before refactoring a skill."
+description: "Audit and remediate skill-encapsulation violations — external citations reaching into private surfaces inside `.claude/skills/<X>/` or `plugins/<plugin>/skills/<X>/` (marketplace monorepos) beyond the slash invocation. Use when: 'audit encapsulation', 'find skill leaks', 'skill boundary violation', 'who is reaching into <skill>', 'check skill boundaries', 'public API drift', or before refactoring a skill."
 argument-hint: "[detect|fix|file-issues]"
 user-invocable: true
 disable-model-invocation: false
@@ -18,7 +18,7 @@ This skill provides the detection + classification + remediation discipline that
 
 ## Public surface matrix
 
-The **Skill** surface — public = frontmatter + documented actions + args/flags + `/skill-name` slash invocation + the `scripts/` entry surface; private = everything else inside `.claude/skills/<X>/` (any OTHER subdirectory, all `*.schema.json` at any depth, all heading anchors) — is defined by `context/public-surface-contract.md`, including the data-file and scripts/ entry-surface carve-outs and the rip-and-paste-portability rationale. This skill audits cites against two more authoring surfaces the contract file does not enumerate:
+The **Skill** surface — public = frontmatter + documented actions + args/flags + `/skill-name` slash invocation + the `scripts/` entry surface; private = everything else inside `.claude/skills/<X>/` or `plugins/<plugin>/skills/<X>/` (any OTHER subdirectory, all `*.schema.json` at any depth, all heading anchors) — is defined by `context/public-surface-contract.md`, including the data-file and scripts/ entry-surface carve-outs and the rip-and-paste-portability rationale. This skill audits cites against two more authoring surfaces the contract file does not enumerate:
 
 | Surface | Public (cite externally) | Private |
 |---------|--------------------------|---------|

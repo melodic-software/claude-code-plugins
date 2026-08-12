@@ -25,3 +25,11 @@ reference/standards-contract.md
 # where the managed scope is read and audited; claude-memory only reports the
 # locations). Fix a drift by copying that file over the others.
 lib/managed-scope.sh
+
+# No dedicated check — enforced by this script's own --check.
+# Canonical copy: plugins/claude-config/lib/state-key.sh (claude-config owns the
+# scheme: audit-pass defines it in reference/run-state-and-resumability.md §3 and
+# three of its skills key by it; claude-memory adopts it). The test suite lives
+# beside the canonical copy as lib/state-key.test.sh and covers both. Fix a drift
+# by copying the canonical file over the others.
+lib/state-key.sh

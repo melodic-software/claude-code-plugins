@@ -106,9 +106,9 @@ the rest — not a gate presented as if it covered all seven.
 ## Provenance
 
 The clause set is this repository's own wording of guidance published in a model vendor's prompting
-guide for its frontier model. It is authored here rather than reproduced, per this repository's rule
-against hand-copying upstream content — so it is a locally-owned artifact that cannot silently drift
-out of sync with a copy, while the guide stays the thing to read when the upstream advice changes.
+guide. It is authored here rather than reproduced, per this repository's rule against hand-copying
+upstream content — so it is a locally-owned artifact that cannot silently drift out of sync with a
+copy, while the guide stays the thing to read when the upstream advice changes.
 
 **The citation, the exact section, and the recheck trigger live in the plugin
 [`README.md`](../README.md), not here.** These `reference/` contracts are written in surface classes

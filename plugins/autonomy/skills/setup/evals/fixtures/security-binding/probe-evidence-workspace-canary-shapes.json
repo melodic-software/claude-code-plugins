@@ -7,6 +7,9 @@
       "L2": {
         "substrate": "egress-denied-container-pool",
         "substrate_class": "container",
+        "component_reachable_hosts": [
+          "example.com"
+        ],
         "probe_evidence": "probe-transcripts/ci-pool-a-l2-workspace-canary-shapes.json",
         "runtime_markers": {
           "runner-pool": "ci-pool-a",

@@ -3,6 +3,52 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.3]
+
+### Fixed
+
+- **`check-listing-budget.sh` measures in ONE `awk` pass, so the command the quarterly routine tells
+  an operator to run can actually finish (#2216).** `bash check-listing-budget.sh plugins/*/skills`
+  took **289s** on Windows (Git Bash) and, run in the foreground by an agent, was **killed at 180s
+  with exit 143 and zero output**. Re-measured at this branch's merge base before the port: **232s**
+  for the same command. The cause was process-spawn cost, not the machine — the per-file loop spent
+  at least **eleven forked subshells and five external process execs** (4x `awk`, 1x `tr`) on every
+  one of the repo's ~200 `SKILL.md` files, on the order of 2,000 spawns. Process creation costs
+  roughly two orders of magnitude more on Windows than on Linux, which is why CI (`ubuntu-24.04`)
+  never surfaced it. That command is verbatim what #2023's procedure and
+  `.github/recurring-schedule.json`'s `listing-budget-watch` row instruct, so on the one machine
+  where the routine is actually driven, a report-only drift watch silently produced nothing.
+
+  The same run now takes **2.2s** — and the output is **byte-identical**, which is the point rather
+  than a hope. Both implementations were run over the same tree and their per-file contribution rows
+  diffed, not just their reports: **144/144 rows identical**, aggregate 94,468 identical, top-10
+  ordering identical. Per-file rows are the load-bearing comparison — two files with offsetting
+  extraction errors produce a matching aggregate and a clean report diff while the parser is broken.
+
+  This is a **port, not a rewrite**: the awk program reimplements, behaviour for behaviour, the four
+  helpers the loop shelled out to — `skill_frontmatter::extract`, `::field` (block-scalar unfolding
+  for `|` and `>`, and the quote-aware trailing-comment strip including the doubled-single-quote
+  case), `::strip_quotes` (one outer layer, double OR single, never both), and
+  `normalize_bool`/`trim_ws`. Two behaviours the old pipeline got free from command substitution are
+  reproduced explicitly and commented as such: trailing newlines stripped from the extracted
+  frontmatter (so a trailing blank line cannot add a separator inside a block scalar, and an
+  all-blank block counts as no frontmatter), and trailing newlines stripped from each field's value.
+  Because corpus equivalence is not parser equivalence, four new fixtures pin the shapes most likely
+  to diverge: a literal `|` block with a trailing blank, a single-quoted scalar with a doubled quote
+  plus a trailing comment, and a multibyte description asserted **as an equivalence against the
+  shell's own `${#var}`** rather than a hardcoded count — awk `length()` and `${#var}` can disagree
+  where awk counts bytes and the shell counts characters, and a fixed number would encode one
+  environment's answer and fail elsewhere for the wrong reason.
+
+  A fifth case bounds the wall clock over a 200-file corpus at **30s**. The bound is deliberately
+  very loose against a ~1s target: this runs in required CI, and a tight timing assertion is a flaky
+  gate — worse than the defect it guards. It fails only on a return to per-file process spawning,
+  which is two orders of magnitude away.
+
+  `skill-frontmatter.sh` is no longer sourced here (its helpers are the per-call execs that caused
+  this); the library file is unchanged and `check-skill.sh` remains its consumer. No flag, no
+  option, and no output format changed.
+
 ## [0.15.2]
 
 ### Changed

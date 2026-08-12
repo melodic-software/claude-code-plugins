@@ -5,6 +5,54 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0]
+
+### Changed
+
+- **`zone-crossing-inject`: the injection gate is now the worst zone this session has already
+  REPORTED, not the zone it last SAW — zone bands had no hysteresis, so a session flapping across a
+  boundary re-injected on every crossing (#2220).** The bands are hard thresholds and occupancy does
+  not climb monotonically: tool results land and are released, so a session sitting near a boundary
+  crosses it repeatedly. The old latch compared each observation against the last-seen zone and
+  persisted state in both directions, which made every re-crossing a fresh transition — the ~1KB
+  (~250 token) guidance block re-emitted each time, with an *improvement* of any size silently
+  re-arming the injection and nothing counting or capping the flap.
+
+  A second per-session marker (`<session>.armed`) now holds the worst zone already reported, and the
+  emit gate compares against it. It decays only on an improvement of at least **two ranks** — the
+  full width of the `smart`/`acceptable`/`dumb` ladder. The margin is a declared judgment default on
+  exactly the same footing as the bands themselves (`reference/reader-contract.md` records their
+  provenance); nothing here is doc- or benchmark-derived, and the reasoning is stated rather than
+  asserted: a one-rank dip at a band edge is the oscillation described above and says nothing new,
+  while `dumb → smart` cannot be edge noise. A `/clear` needs no margin — it starts a new session
+  id, hence a fresh state file and a fresh baseline.
+
+  Net effect: a zone is announced at most once per session unless the session genuinely recovers,
+  after which the ladder re-arms and the next worsening is reported normally. `dumb → acceptable →
+  dumb` now injects **once**; `dumb → smart → dumb` still injects **twice**. Both are pinned by
+  tests, on separate sessions so the two paths cannot share state.
+
+  A sibling file rather than a second line in the existing one: the state reader is
+  `tr -cd '[:lower:]'`, which strips the newline, so two lines would fuse into `dumbacceptable` and
+  rank as `smart`. Sessions already running when this version lands have a `.zone` file and no
+  `.armed` file; the armed rank seeds from the last-seen zone, so the first call after the upgrade
+  decides exactly as 0.6.6 would have and latches from there — no migration step, no state-format
+  version. The armed marker is written **first** of the two, so a partial write failure can never
+  leave the gate open against a marker that already moved.
+
+  **Not the recurring 10s-timeout defect, and not a duplicate of it.** That one
+  (`20260730-182801-context-guard-zone-crossing-hook-times-out-100-percent`) was four `hooks.json`
+  registrations declaring `timeout: 10` against measured 10.6–21.4s runtimes, so the hook **died
+  rather than ran**; it was fixed in 0.4.8 via PR #2001 by raising all four to 60. This release is
+  about how often the hook injects **when it does run**. A triager reaching for that item should
+  stop here.
+
+  Deliberately preserved, because they are load-bearing and easy to refactor away: the two-channel
+  split with the continuation menu kept out of model context, the hook's refusal to claim an
+  operator is present, the inert default posture, the worsening-only latch itself, and
+  `zone-gate.sh`'s structural no-deadlock exemptions. No blocking behaviour, no permission, and no
+  external read or write changes; the plugin's trust surface is untouched.
+
 ## [0.6.6]
 
 ### Changed
