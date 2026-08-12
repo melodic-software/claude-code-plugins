@@ -409,6 +409,39 @@ mkdir -p "$D8E/.claude"
 jq -n --arg l "Read(${LAUNDER_MP})" '{permissions:{allow:[$l]}}' >"$D8E/.claude/settings.json"
 assert_eq "a // prefix does not exempt a user home later in the rule" "1" "$(run "$D8E" --count)"
 
+# --- Case 8f: #2397 A12 — tilde-user Bash paths leak a username ----------------
+D8F="$TEST_TMPDIR/issue-2397-tilde-user"
+mkdir -p "$D8F/.claude"
+jq -n '{permissions:{allow:["Bash(~kyle/scripts/x.sh:*)"]}}' >"$D8F/.claude/settings.json"
+OUT_TILDE=$(run "$D8F")
+assert_contains "flags tilde-user Bash path" "$OUT_TILDE" "~kyle"
+assert_contains "tilde-user finding is P2" "$OUT_TILDE" "[P2]"
+assert_eq "portable ~/ anchor in Read is not flagged" "0" \
+  "$(jq -n '{permissions:{allow:["Read(~/notes.md)"]}}' >"$D8F/.claude/settings.json" && run "$D8F" --count)"
+
+# --- Case 8g: #2397 A7b — inert substitution tokens in allowed-tools ----------
+D8G="$TEST_TMPDIR/issue-2397-inert"
+mkdir -p "$D8G/.claude/skills/demo"
+cat >"$D8G/.claude/skills/demo/SKILL.md" <<'EOF'
+---
+name: demo
+allowed-tools: Bash(${CLAUDE_PLUGIN_ROOT}/scripts/x.sh:*)
+---
+body
+EOF
+OUT_INERT=$(run "$D8G")
+assert_contains "flags inert CLAUDE_PLUGIN_ROOT grant" "$OUT_INERT" "[P4]"
+assert_contains "skill-local remedy recommends CLAUDE_SKILL_DIR" "$OUT_INERT" "CLAUDE_SKILL_DIR"
+
+D8G2="$TEST_TMPDIR/issue-2397-inert-settings"
+mkdir -p "$D8G2/.claude"
+jq -n '{permissions:{allow:["Bash(%USERPROFILE%/scripts/x.sh:*)","Bash($env:USERPROFILE\\scripts\\x.sh:*)"]}}' \
+  >"$D8G2/.claude/settings.json"
+OUT_ENV=$(run "$D8G2")
+assert_contains "flags %USERPROFILE% inert grant" "$OUT_ENV" "%USERPROFILE%"
+assert_contains "flags PowerShell env inert grant" "$OUT_ENV" "\$env:USERPROFILE"
+assert_contains "settings-scope remedy does not prescribe plugin bin" "$OUT_ENV" "bare command on PATH"
+
 # --- Case 9: missing jq exits 2 ---------------------------------------------
 real_bash=$(command -v bash)
 empty_path_dir="$TEST_TMPDIR/empty-path"
