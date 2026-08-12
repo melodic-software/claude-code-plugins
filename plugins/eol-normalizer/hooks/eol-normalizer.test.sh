@@ -226,7 +226,9 @@ fi
 rm -f "$TEL"
 
 # --- Normalized .sh -> systemMessage names the target ending (#1596) ----------
-OUT_LF=$(run_hook_env "$REPO/tel2.sh" CLAUDE_PLUGIN_OPTION_EOL_NORMALIZER_ENABLED=true)
+# Fresh file: tel2.sh was already normalized in the telemetry stub-sink case above.
+printf 'echo r\r\n' >"$REPO/tel2b.sh"
+OUT_LF=$(run_hook_env "$REPO/tel2b.sh" CLAUDE_PLUGIN_OPTION_EOL_NORMALIZER_ENABLED=true)
 if [[ "$OUT_LF" == *'"systemMessage"'* && "$OUT_LF" == *'normalized line endings to LF'* ]]; then
   ok "mutation disclosure: LF normalization names target ending"
 else
