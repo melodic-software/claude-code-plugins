@@ -288,6 +288,26 @@ assert_not_contains "--count prints no count on a refusal" "$count_err" "0
 # A resolvable root still works, so the refusal did not break the normal path.
 assert_eq "explicit fixture root still scans" "0" "$(run "$TEST_TMPDIR/p2-exempt" --count)"
 
+# A root that resolved but does not exist — or is not a directory — is the same class
+# of environment gap and takes the same channel. Without this, `find` would print
+# nothing to a discarded stderr and the run would still report a clean bill.
+rc=0
+missing_err=$(PERMISSION_HYGIENE_FIXTURE_DIR="$TEST_TMPDIR/does-not-exist" bash "$SCRIPT" 2>&1) || rc=$?
+assert_exit "fixture root that does not exist refuses" 2 "$rc"
+assert_contains "refusal names the bad path" "$missing_err" "does not exist or is not a directory"
+assert_not_contains "missing root is not a clean bill" "$missing_err" "No fragile permission grants found."
+
+not_a_dir="$TEST_TMPDIR/regular-file"
+: >"$not_a_dir"
+rc=0
+notdir_err=$(PERMISSION_HYGIENE_FIXTURE_DIR="$not_a_dir" bash "$SCRIPT" 2>&1) || rc=$?
+assert_exit "fixture root that is a regular file refuses" 2 "$rc"
+assert_contains "regular-file refusal names the same reason" "$notdir_err" "not a directory"
+
+rc=0
+PERMISSION_HYGIENE_FIXTURE_DIR="$TEST_TMPDIR/does-not-exist" bash "$SCRIPT" --count >/dev/null 2>&1 || rc=$?
+assert_exit "--count refuses a nonexistent root too" 2 "$rc"
+
 # --- Case 9: missing jq exits 2 ---------------------------------------------
 real_bash=$(command -v bash)
 empty_path_dir="$TEST_TMPDIR/empty-path"
