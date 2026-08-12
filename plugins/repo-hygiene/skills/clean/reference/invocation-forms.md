@@ -34,7 +34,7 @@ skill's markdown content" without saying bundled context files loaded later coun
 already leans toward the broader reading: `docs/conventions/permission-rule-hygiene/README.md`
 states the same substitution scope for `${CLAUDE_SKILL_DIR}` in "the skill's markdown content"
 without carving out bundled files loaded on demand, so the two repo docs are in tension until
-#2237 settles it empirically. `${CLAUDE_PLUGIN_ROOT}` is documented more broadly
+issue #2237 settles it empirically. `${CLAUDE_PLUGIN_ROOT}` is documented more broadly
 (plugins-reference: "Skill and agent content | Anywhere the placeholder appears"), so it is the
 safe token for copy-paste examples the model may run from a context file.
 
