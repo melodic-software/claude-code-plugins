@@ -192,7 +192,7 @@ After each push, run this loop until convergence (**every** check in a terminal 
 
 1. **Mergeable pre-check (MANDATORY before polling)** — `gh pr view <N> --json mergeable,mergeStateStatus` FIRST. If `mergeable == "CONFLICTING"`, GitHub will NOT trigger workflows — integrate the default branch, resolve conflicts, force-push with lease, and restart the loop. Only proceed to CI polling when `mergeable == "MERGEABLE"`. **Never blame the platform for missing CI runs before checking this.**
 2. **Poll CI** — `gh pr checks <N>` every 30s (the standard monitor cadence), max 15 minutes per cycle. **Wait for ALL checks to reach a terminal state** (pass/fail/skipped) before suggesting merge — no exceptions, regardless of PR type. Never merge while any check is still pending or in_progress
-3. **Check for new comments** — on each poll, also fetch new review comments (`gh api repos/<owner>/<repo>/pulls/<N>/comments --paginate`)
+3. **Check for new comments** — on each poll, also fetch new review comments (`gh api --paginate "repos/<owner>/<repo>/pulls/<N>/comments?per_page=100"`)
 4. **Process comments immediately** — if a bot comments while CI is still running, start evaluating/researching that comment now. Don't wait for CI
 5. **On CI failure** — route to 3.2 (research-driven fix)
 6. **On new comment** — route to 3.3 (evaluate + respond)
