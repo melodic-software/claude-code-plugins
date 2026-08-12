@@ -12,19 +12,18 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
   - The `strip_trailing_nl` wrapping the `disable-model-invocation` read was dead weight on every
     scanned file. `normalize_bool` opens with `trim_ws`, whose trailing `sub` uses `[[:space:]]` —
     a class that matches a newline — so the strip removed a strict subset of what the very next
-    call removed. Confirmed by running both compositions over `"  True
-
-"`: identical output,
-    and `[[:space:]]+$` strips a bare newline on its own.
+    call removed. Confirmed by running both compositions over a value ending in newline plus
+    spaces: identical output, and `[[:space:]]+$` strips a bare newline on its own.
 
     It is deliberately **not** removed from the `description` and `when_to_use` reads, where it runs
     before `strip_quotes`, which trims nothing: a value still ending in a newline has that newline
     as its last character, so the closing quote never matches and the quote marks would survive into
     the measured length. The asymmetry now carries a comment saying so, since it otherwise reads as
-    an oversight worth "fixing".
-  - `"check 2 own FAIL"` was an apostrophe dropped to avoid closing the enclosing single-quoted awk
-    program, and read as a typo. Rephrased to `"the FAIL check 2 already raises"` rather than
-    escaped — one apostrophe does not justify a `'"'"'` sequence inside an awk program.
+    an oversight worth fixing.
+  - The FAIL check 2 message was an apostrophe dropped to avoid closing the enclosing
+    single-quoted awk program, and read as a typo. Rephrased to refer to check 2 without
+    an apostrophe rather than escaped — one apostrophe does not justify a `'"'"'` sequence
+    inside an awk program.
 
   Whitespace handling is exactly where a "free" edit silently moves a number, so byte-identity was
   re-established rather than presumed: the per-file contribution rows were re-diffed against the
