@@ -111,9 +111,13 @@ class SkillContractTests(unittest.TestCase):
 
     def test_worker_push_path_pins_the_post_push_head_command(self) -> None:
         # Worker tier has no merge tier, so its push paragraph still spells the
-        # full pinned merge command inline.
+        # full pinned merge command inline. Step 6 lives in the runbook spoke
+        # after the line-cap extraction (#2424).
+        runbook = (SKILL.parent / "reference" / "runbook-cycle.md").read_text(
+            encoding="utf-8"
+        )
         paragraph = _paragraph_containing(
-            self.skill_text, "In worker mode, after a worker's fix"
+            runbook, "In worker mode, after a worker's fix"
         )
         self.assertIn("--merge --expected-head <post-push-head-sha>", paragraph)
         self.assertIn("fresh post-push snapshot", paragraph)
