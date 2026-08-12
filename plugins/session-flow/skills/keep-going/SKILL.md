@@ -95,6 +95,24 @@ itself the thing this skill removes.
 6. **Report.** One list: recovered, restarted, still-running, and lost /
    unrecoverable.
 
+## Zone input (presence-gated, conservative)
+
+Step 5 continues the main task in **this** session, and that is only right
+when this session's context is still fit for the work. When the
+`context-guard` plugin is installed, resolve this session's zone word per
+its reader contract before continuing (the contract owns the snapshot
+path, staleness rule, and bands — read them there; this skill consumes
+only the resulting word and inlines no band values). Never substitute
+your own estimate of the remaining window for the instrument's reading —
+a resumed session's sense of its own budget is exactly the guess the
+instrument exists to replace. Absent plugin, absent snapshot, or
+`unknown` → judge from response quality alone, conservatively. A degraded
+zone — or context-guard's evidence-degraded marker for this session — does
+not stop the recovery (steps 1-4 are reads and evidence-gated actions
+either way); it changes where the *continuation* goes: prefer routing the
+remaining work through `/session-flow:handoff` over pushing a long or
+judgment-heavy task through a degraded window.
+
 ## Active-verification protocol — evidence before action
 
 For any "is it stuck / check the monitor / poke it":
