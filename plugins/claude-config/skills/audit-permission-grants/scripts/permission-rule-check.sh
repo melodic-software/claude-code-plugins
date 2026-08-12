@@ -76,6 +76,15 @@ case "${1:-}" in
   *) ;;
 esac
 
+canonical_path() {
+  local p="$1"
+  if [[ -e "$p" ]]; then
+    printf '%s/%s' "$(cd "$(dirname "$p")" && pwd -P)" "$(basename "$p")"
+  else
+    printf '%s' "$p"
+  fi
+}
+
 if ! command -v jq >/dev/null 2>&1; then
   echo "ERROR: jq required" >&2
   exit 2
@@ -281,7 +290,13 @@ else
   USER_CONFIG_ROOT=""
 fi
 if [[ -n "$USER_CONFIG_ROOT" ]]; then
-  scan_settings_allow "$USER_CONFIG_ROOT/settings.json" "$USER_CONFIG_ROOT/settings.json permissions.allow"
+  user_settings="$USER_CONFIG_ROOT/settings.json"
+  project_settings="$ROOT/.claude/settings.json"
+  user_canonical="$(canonical_path "$user_settings")"
+  project_canonical="$(canonical_path "$project_settings")"
+  if [[ "$user_canonical" != "$project_canonical" ]]; then
+    scan_settings_allow "$user_settings" "$user_settings permissions.allow"
+  fi
 else
   # An unresolvable user scope is a skipped check, not a clean one. Silence here
   # would let a report claiming "no fragile grants" rest on a scope never read.

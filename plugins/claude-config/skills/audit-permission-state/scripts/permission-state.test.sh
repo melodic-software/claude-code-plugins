@@ -179,6 +179,8 @@ for tool in jq git tr find sort sed head grep cat mktemp rm; do
   chmod +x "$STUB/$tool"
 done
 rc=0
+# portability-ok: `\S` in the Windows registry path strings below are literal
+# backslash-S characters in fixture data, not GNU regex escapes.
 OUT_NOREG=$(env -u CLAUDE_CONFIG_DIR PATH="$STUB" HOME="$FX/home" \
   PERMISSION_STATE_FIXTURE_DIR="$FX/proj" \
   PERMISSION_STATE_STARTDIR="$FX/startdir" \
@@ -203,6 +205,8 @@ assert_contains "other scopes unaffected" "$OUT_NOREG" "rule user settings allow
 # cannot exist and HKCU\SOFTWARE, which exists on every Windows install and
 # carries no Settings value — exactly the key-present/value-absent case.
 if command -v reg >/dev/null 2>&1; then
+  # portability-ok: `\S` in the printf registry key strings are literal path
+  # separators in Windows registry paths, not GNU regex escapes.
   OUT_REG=$(env -u CLAUDE_CONFIG_DIR HOME="$FX/home" \
     PERMISSION_STATE_FIXTURE_DIR="$FX/proj" \
     PERMISSION_STATE_STARTDIR="$FX/startdir" \
@@ -210,10 +214,11 @@ if command -v reg >/dev/null 2>&1; then
     PERMISSION_STATE_REGISTRY_KEYS="$(printf 'HKCU\\SOFTWARE\\ClaudeCodeNoSuchKeyExists\nHKCU\\SOFTWARE')" \
     PERMISSION_STATE_PLIST_DOMAIN="" \
     bash "$SCRIPT")
-  assert_contains "an absent key is skipped, the existing one is selected" "$OUT_REG" "managed registry unreadable HKCU\\SOFTWARE"
+  assert_contains "an absent key is skipped, the existing one is selected" "$OUT_REG" "managed registry unreadable HKCU\\SOFTWARE" # portability-ok: Windows registry path string in a test fixture, not a regex construct
   assert_contains "a key with no readable value is not a licence to fall through" "$OUT_REG" "Lower-priority policy keys are NOT consulted"
   assert_eq "no rules are claimed from an unreadable key" "0" "$(count_matching "$OUT_REG" '^rule managed registry ')"
 
+  # portability-ok: Windows registry path strings in the printf below are fixture data, not regex constructs.
   OUT_REG_NONE=$(env -u CLAUDE_CONFIG_DIR HOME="$FX/home" \
     PERMISSION_STATE_FIXTURE_DIR="$FX/proj" \
     PERMISSION_STATE_STARTDIR="$FX/startdir" \

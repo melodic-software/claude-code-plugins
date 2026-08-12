@@ -186,6 +186,17 @@ classify_json_file() {
     printf 'invalid-json\n'
     return 0
   }
+  tr -d '\r' <"$path" | jq -e '
+    (.permissions | type) as $pt
+    | if $pt == "null" then true
+      elif $pt == "object" then
+        (.permissions | to_entries[] | .value | type) as $kt
+        | ($kt == "null" or $kt == "array")
+      else false end
+  ' >/dev/null 2>&1 || {
+    printf 'invalid-json\n'
+    return 0
+  }
   printf 'present\n'
 }
 
@@ -277,7 +288,7 @@ else
     # line; cut at the type token rather than by field count, because the JSON
     # payload contains spaces.
     reg_json="$(reg_cmd query "$registry_path" /v Settings 2>/dev/null | tr -d '\r' |
-      sed -n 's/.*REG_\(EXPAND_\)\{0,1\}SZ[[:space:]]*//p' | head -1)"
+      sed -n 's/^[[:space:]]*Settings[[:space:]]*REG_\(EXPAND_\)\{0,1\}SZ[[:space:]]*//p' | head -1)"
     if [[ -z "$reg_json" ]] || ! printf '%s' "$reg_json" | jq empty 2>/dev/null; then
       note "Windows managed policy key $registry_path carries a Settings value that did not parse as JSON — reporting it as unread rather than as empty."
     else

@@ -73,13 +73,13 @@ assert_eq "override relocates the drop-in dir with it" \
 
 # --- Non-file surfaces, emitted only where they exist -------------------------
 win_keys="$(OSTYPE=msys bash -c "source '$LIB'; mscope::registry_keys")"
-# portability-ok: the `\S` below is the literal first character of SOFTWARE in a
-# single-quoted Windows registry path, not a GNU regex escape. The assertions are
+# portability-ok: the `\S` below are literal first characters of SOFTWARE in
+# single-quoted Windows registry paths, not GNU regex escapes. The assertions are
 # shell string comparisons; no regex engine sees these values.
 assert_contains "Windows emits the admin-level policy key" "$win_keys" 'HKLM\SOFTWARE\Policies\ClaudeCode'
-assert_contains "Windows emits the user-level policy key" "$win_keys" 'HKCU\SOFTWARE\Policies\ClaudeCode'
+assert_contains "Windows emits the user-level policy key" "$win_keys" 'HKCU\SOFTWARE\Policies\ClaudeCode' # portability-ok: Windows registry path string in a test fixture, not a regex construct
 assert_eq "HKLM is listed first (HKCU is lowest policy priority)" \
-  'HKLM\SOFTWARE\Policies\ClaudeCode' "$(printf '%s\n' "$win_keys" | head -1)"
+  'HKLM\SOFTWARE\Policies\ClaudeCode' "$(printf '%s\n' "$win_keys" | head -1)" # portability-ok: Windows registry path string in a test fixture, not a regex construct
 assert_eq "no registry keys off Windows" "" \
   "$(OSTYPE=linux-gnu bash -c "source '$LIB'; mscope::registry_keys")"
 assert_eq "macOS preferences domain" "com.anthropic.claudecode" \

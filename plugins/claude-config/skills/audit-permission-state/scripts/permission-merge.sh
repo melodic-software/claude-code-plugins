@@ -18,6 +18,8 @@
 #   CAVEAT: <text>                                                what bounds the claim
 #   effective <kind> scopes=<a,b> precedence_basis=<token> <rule> one per live rule
 #   inert <kind> scopes=<a,b> outranked_by=<kind> <rule>          one per beaten entry
+#   inert <kind> scopes=<a,b> removed_by=deny@<tool> <rule>       whole-tool deny removal
+#   inert <kind> scopes=<a,b> outranked_by=ask@<tool> <rule>      whole-tool ask removal
 #
 #   token  uncontested | merged-across-scopes | evaluation-order
 #          | evaluation-order+merged-across-scopes
@@ -47,7 +49,9 @@ Usage: permission-state.sh | permission-merge.sh [--merge-only]
   --help        this message
 
 Records: "effective <kind> scopes=<a,b> precedence_basis=<token> <rule text>",
-"inert <kind> scopes=<a,b> outranked_by=<kind> <rule text>", and "CAVEAT: <text>".
+"inert <kind> scopes=<a,b> outranked_by=<kind> <rule text>",
+"inert <kind> scopes=<a,b> removed_by=deny@<tool> <rule text>",
+"inert <kind> scopes=<a,b> outranked_by=ask@<tool> <rule text>", and "CAVEAT: <text>".
 
 With --merge-only the reader's own NOTE records are dropped, including the one
 stating that server-managed settings have no local path. Read both sections when
