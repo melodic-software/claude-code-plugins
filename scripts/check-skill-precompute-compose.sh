@@ -75,6 +75,7 @@ scan_skill() {
   fi
   line_count=0
   while IFS= read -r line || [[ -n "$line" ]]; do
+    # shellcheck disable=SC2016  # ERE matches literal backticks around precompute injections
     if grep -qE '!`[^`]+`' <<<"$line"; then
       line_count=$((line_count + 1))
       if line_has_git "$line"; then
