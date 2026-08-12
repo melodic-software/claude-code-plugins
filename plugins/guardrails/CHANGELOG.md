@@ -3,6 +3,14 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.2]
+
+### Fixed
+
+- **Fleet `hook-utils`: refuse sub-minimum `stdin_read_timeout` values (#1883).** Values below
+  0.00001 s silently disabled every hook using `hook::buffer_stdin`; they now degrade to the
+  default like exact zero. Synced across all carrying plugins.
+
 ## [0.28.1]
 
 ### Fixed

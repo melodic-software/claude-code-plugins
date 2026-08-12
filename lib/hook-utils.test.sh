@@ -1612,6 +1612,38 @@ for bs_bad in "abc" "0" "-1" "1e3" ""; do
   rm -f "$bs_rc_file" "$bs_out_file" "$bs_err_file"
 done
 
+# Sub-minimum positive values are a silent disable — same class as exact zero (#1883).
+for bs_submin in "0.0000001" "0.000001"; do
+  bs_rc_file="$(mktemp)"
+  bs_out_file="$(mktemp)"
+  bs_err_file="$(mktemp)"
+  printf '{"ok":true}' | {
+    CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT="$bs_submin" hook::buffer_stdin \
+      >"$bs_out_file" 2>"$bs_err_file"
+    echo "$?" >"$bs_rc_file"
+  }
+  bs_rc=$(cat "$bs_rc_file")
+  if [[ "$bs_rc" == "0" ]] && [[ "$(cat "$bs_out_file")" == '{"ok":true}' ]] &&
+    [[ ! -s "$bs_err_file" ]]; then
+    ok "buffer_stdin: sub-minimum stdin_read_timeout '$bs_submin' → default"
+  else
+    fail "buffer_stdin sub-minimum timeout '$bs_submin': rc=$bs_rc"
+  fi
+  rm -f "$bs_rc_file" "$bs_out_file" "$bs_err_file"
+done
+resolved=$(CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=0.00001 hook::resolve_read_timeout)
+if [[ "$resolved" == "0.00001" ]]; then
+  ok "resolve_read_timeout: floor value 0.00001 is honored"
+else
+  fail "resolve_read_timeout floor: got '$resolved' (expected 0.00001)"
+fi
+resolved=$(CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=0.0000001 hook::resolve_read_timeout)
+if [[ "$resolved" == "2" ]]; then
+  ok "resolve_read_timeout: below-floor value degrades to default"
+else
+  fail "resolve_read_timeout below floor: got '$resolved' (expected 2)"
+fi
+
 # A VALID non-default value must still be honored — the guard must not collapse
 # every setting to the default. 0.5 s against a producer that holds the pipe until
 # the verdict is in, so the stall cannot lose a race with EOF.
