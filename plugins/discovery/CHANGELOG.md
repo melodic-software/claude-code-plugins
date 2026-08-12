@@ -6,7 +6,7 @@
 
 - **`research` description now routes away from `research-deep`.** Auto-discovery reads the
   description, not the body; `research-deep` already pointed small lookups at `research`, but the
-  reverse boundary was missing and could mis-route deep work into the lighter skill. (#2271)
+  reverse boundary was missing and could route deep work into the lighter skill incorrectly. (#2271)
 
 ## [0.14.0]
 
