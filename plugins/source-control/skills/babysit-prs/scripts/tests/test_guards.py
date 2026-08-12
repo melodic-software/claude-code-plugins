@@ -387,6 +387,32 @@ class NoParserResolvesAnAbbreviation(unittest.TestCase):
 
     ABBREVIATION_PROBE = "--hel"  # spellchecker:disable-line
 
+    def test_every_catalogued_entry_point_exposes_help(self) -> None:
+        """The abbreviation probe assumes `--help` is registered on every parser.
+
+        `add_help=False` makes the universal `--hel` probe vacuous: the flag is
+        unrecognized whatever `allow_abbrev` is, so the entry point would pass
+        the abbreviation gate while proving nothing about abbreviation policy.
+        """
+        catalogued = [
+            entry.path for entry in contract.ENTRY_POINTS if entry.path.endswith(".py")
+        ]
+        self.assertTrue(catalogued, "no Python entry points catalogued")
+        for path in catalogued:
+            with self.subTest(entry_point=path):
+                proc = subprocess.run(
+                    [sys.executable, str(contract.plugin_path(path)), "--help"],
+                    capture_output=True,
+                    text=True,
+                    cwd=tempfile.gettempdir(),
+                )
+                self.assertEqual(
+                    proc.returncode,
+                    0,
+                    f"`{path}` did not expose `--help` (exit {proc.returncode});"
+                    " the abbreviation probe's premise is false",
+                )
+
     def test_every_python_entry_point_refuses_an_abbreviated_flag(self) -> None:
         catalogued = [
             entry.path for entry in contract.ENTRY_POINTS if entry.path.endswith(".py")

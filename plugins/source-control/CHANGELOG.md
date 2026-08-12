@@ -3,6 +3,14 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.53.7]
+
+### Fixed
+
+- **Abbreviation gate now asserts every catalogued Python entry point exposes `--help`.**
+  Without that premise, a parser built with `add_help=False` would pass the universal `--hel`
+  probe vacuously.
+
 ## [0.53.6]
 
 ### Fixed
