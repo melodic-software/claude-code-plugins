@@ -73,12 +73,13 @@
     "governedReusableRunnerInput": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["name", "expression", "default", "failureSentinel"],
+      "required": ["name", "expression", "default", "failureSentinel", "failureSentinelMarker"],
       "properties": {
         "name": { "$ref": "#/$defs/nonWhitespaceString" },
         "expression": { "$ref": "#/$defs/nonWhitespaceString" },
         "default": { "$ref": "#/$defs/nonWhitespaceString" },
-        "failureSentinel": { "const": "ci-runner-selection-failed" }
+        "failureSentinel": { "const": "ubuntu-24.04" },
+        "failureSentinelMarker": { "const": "ci-runner-selection-failed" }
       }
     },
     "fallbackLabelAllowlist": { "$ref": "#/$defs/nonEmptyUniqueStringArray" },

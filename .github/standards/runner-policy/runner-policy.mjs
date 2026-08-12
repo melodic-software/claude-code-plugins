@@ -346,17 +346,22 @@ export function validatePolicy(value) {
       );
     }
   }
+  if (!approvedHostedRunnerLabels.has(value.governedReusableRunnerInput.failureSentinel)) {
+    throw new ConfigurationError(
+      "policy.governedReusableRunnerInput.failureSentinel must be an approved hosted runner label",
+    );
+  }
   if (
-    approvedHostedRunnerLabels.has(value.governedReusableRunnerInput.failureSentinel) ||
+    approvedHostedRunnerLabels.has(value.governedReusableRunnerInput.failureSentinelMarker) ||
     forbiddenHostedRunnerLabels.has(
-      value.governedReusableRunnerInput.failureSentinel.toLowerCase(),
+      value.governedReusableRunnerInput.failureSentinelMarker.toLowerCase(),
     ) ||
     managedLabelRegexes.some((pattern) =>
-      pattern.test(value.governedReusableRunnerInput.failureSentinel),
+      pattern.test(value.governedReusableRunnerInput.failureSentinelMarker),
     )
   ) {
     throw new ConfigurationError(
-      "policy.governedReusableRunnerInput.failureSentinel must remain outside every hosted and managed runner label set",
+      "policy.governedReusableRunnerInput.failureSentinelMarker must remain outside every hosted and managed runner label set",
     );
   }
   const hostedMatrixAxes = new Map();
@@ -2000,15 +2005,52 @@ function selfHostedSelectorConditionStatus(job, selectorId) {
   return { approved: true };
 }
 
-function unroutableFailureStatus(jobId, target, job, jobs, policy) {
-  if (target !== policy.governedReusableRunnerInput.failureSentinel) {
+function selectorFailureSentinelStepShape(step, policy, { requireMarkerName }) {
+  const stepKeys = isMapping(step) ? Object.keys(step) : [];
+  const allowedStepKeys = new Set(["name", "run", "shell"]);
+  const lines = typeof step?.run === "string" ? step.run.trim().split(/\r?\n/) : [];
+  if (
+    stepKeys.some((key) => !allowedStepKeys.has(key)) ||
+    typeof step?.name !== "string" ||
+    step.name.trim() === "" ||
+    (requireMarkerName && step.name !== policy.governedReusableRunnerInput.failureSentinelMarker) ||
+    (requireMarkerName && step.shell !== "bash") ||
+    (Object.hasOwn(step, "shell") && step.shell !== "bash") ||
+    lines.length !== 2 ||
+    !/^echo "::error::[A-Za-z0-9][A-Za-z0-9 .:_-]*"$/.test(lines[0].trim()) ||
+    lines[1].trim() !== "exit 1"
+  ) {
+    return {
+      approved: false,
+      reason: requireMarkerName
+        ? "the selector failure sentinel step must use the declared marker name, pin shell: bash, emit a static error annotation, and exit 1"
+        : "the legacy selector failure sentinel step must only emit a static error annotation and exit 1",
+    };
+  }
+  return { approved: true };
+}
+
+function selectorFailureSentinelStatus(jobId, target, job, jobs, policy) {
+  const { failureSentinel, failureSentinelMarker } = policy.governedReusableRunnerInput;
+  const legacySentinel = target === failureSentinelMarker;
+  const hostedSentinel = target === failureSentinel;
+  if (!legacySentinel && !hostedSentinel) {
     return undefined;
   }
   const prerequisites = normalizeNeeds(job.needs);
+  if (hostedSentinel) {
+    const steps = Array.isArray(job.steps) ? job.steps : [];
+    const [step] = steps;
+    const hasMarkerStep =
+      steps.length === 1 && isMapping(step) && step.name === failureSentinelMarker;
+    if (!hasMarkerStep) {
+      return undefined;
+    }
+  }
   if (prerequisites.length !== 1) {
     return {
       approved: false,
-      reason: `${jobId} must declare exactly one selector job in needs to use the unroutable failure sentinel`,
+      reason: `${jobId} must declare exactly one selector job in needs to use the selector failure sentinel`,
     };
   }
   const [selectorId] = prerequisites;
@@ -2029,7 +2071,7 @@ function unroutableFailureStatus(jobId, target, job, jobs, policy) {
     return {
       approved: false,
       reason:
-        "the unroutable failure sentinel requires the exact complement of a successful governed self-hosted selector route",
+        "the selector failure sentinel requires the exact complement of a successful governed self-hosted selector route",
     };
   }
   const allowedJobKeys = new Set([
@@ -2045,7 +2087,7 @@ function unroutableFailureStatus(jobId, target, job, jobs, policy) {
   if (extraJobKeys.length > 0) {
     return {
       approved: false,
-      reason: `the unroutable failure sentinel job has forbidden keys: ${extraJobKeys.join(", ")}`,
+      reason: `the selector failure sentinel job has forbidden keys: ${extraJobKeys.join(", ")}`,
     };
   }
   if (
@@ -2055,33 +2097,23 @@ function unroutableFailureStatus(jobId, target, job, jobs, policy) {
   ) {
     return {
       approved: false,
-      reason: "the unroutable failure sentinel job requires timeout-minutes: 1 and permissions: {}",
+      reason: "the selector failure sentinel job requires timeout-minutes: 1 and permissions: {}",
     };
   }
   if (!Array.isArray(job.steps) || job.steps.length !== 1) {
     return {
       approved: false,
-      reason: "the unroutable failure sentinel job requires exactly one rejecting shell step",
+      reason: "the selector failure sentinel job requires exactly one rejecting shell step",
     };
   }
   const [step] = job.steps;
-  const stepKeys = isMapping(step) ? Object.keys(step) : [];
-  const lines = typeof step?.run === "string" ? step.run.trim().split(/\r?\n/) : [];
-  if (
-    stepKeys.some((key) => key !== "name" && key !== "run") ||
-    typeof step?.name !== "string" ||
-    step.name.trim() === "" ||
-    lines.length !== 2 ||
-    !/^echo "::error::[A-Za-z0-9][A-Za-z0-9 .:_-]*"$/.test(lines[0].trim()) ||
-    lines[1].trim() !== "exit 1"
-  ) {
-    return {
-      approved: false,
-      reason:
-        "the unroutable failure sentinel step must only emit a static error annotation and exit 1",
-    };
+  const stepShape = selectorFailureSentinelStepShape(step, policy, {
+    requireMarkerName: hostedSentinel,
+  });
+  if (!stepShape.approved) {
+    return stepShape;
   }
-  return { approved: true, selectorId };
+  return { approved: true, selectorId, legacy: legacySentinel };
 }
 
 function routeStatus(jobId, target, job, jobs, policy, reusableContract, localRunnerInputMode) {
@@ -2366,13 +2398,14 @@ function runnerTargetStatus(jobId, job, jobs, workflow, policy, file, workflowIn
     };
   }
 
-  const unroutableFailure = unroutableFailureStatus(jobId, target, job, jobs, policy);
-  if (unroutableFailure) {
+  const selectorFailureSentinel = selectorFailureSentinelStatus(jobId, target, job, jobs, policy);
+  if (selectorFailureSentinel) {
     return {
-      approved: unroutableFailure.approved,
-      kind: unroutableFailure.approved ? "unroutable-failure" : "invalid",
-      route: { attempted: true, selectorId: unroutableFailure.selectorId },
-      ...(unroutableFailure.reason ? { reason: unroutableFailure.reason } : {}),
+      approved: selectorFailureSentinel.approved,
+      kind: selectorFailureSentinel.approved ? "selector-failure-sentinel" : "invalid",
+      route: { attempted: true, selectorId: selectorFailureSentinel.selectorId },
+      ...(selectorFailureSentinel.legacy ? { legacySentinel: true } : {}),
+      ...(selectorFailureSentinel.reason ? { reason: selectorFailureSentinel.reason } : {}),
     };
   }
 
@@ -3375,10 +3408,20 @@ export async function auditRepository({
         callers.push(jobId);
         requiredNoDefaultCallers.set(target.route.selectorId, callers);
       }
-      if (routingEnabled && target?.kind === "unroutable-failure" && target.approved) {
+      if (routingEnabled && target?.kind === "selector-failure-sentinel" && target.approved) {
         const sentinels = approvedFailureSentinels.get(target.route.selectorId) ?? [];
         sentinels.push(jobId);
         approvedFailureSentinels.set(target.route.selectorId, sentinels);
+        if (target.legacySentinel) {
+          findings.push(
+            finding(
+              "selector-failure-sentinel-legacy",
+              file,
+              jobId,
+              "the legacy unroutable runs-on sentinel shape is accepted during migration; migrate to the hosted failureSentinel label with the declared failureSentinelMarker step",
+            ),
+          );
+        }
       }
       const seedLocalPermissionFlow =
         !isWorkflowCallExclusive(workflow) || !localIncomingFiles.has(file);
@@ -3597,7 +3640,7 @@ export async function auditRepository({
         continue;
       }
 
-      if (target?.kind === "unroutable-failure" && target.approved) {
+      if (target?.kind === "selector-failure-sentinel" && target.approved) {
         continue;
       }
       if (target?.kind === "selector-output" && target.approved) {
@@ -3655,7 +3698,7 @@ export async function auditRepository({
             "selector-failure-sentinel-required",
             file,
             jobId,
-            `required no-default local runner calls using ${selectorId} require exactly one approved ${policy.governedReusableRunnerInput.failureSentinel} rejection job for the same selector in this workflow; found ${sentinelIds.length}`,
+            `required no-default local runner calls using ${selectorId} require exactly one approved selector failure sentinel for the same selector in this workflow; found ${sentinelIds.length}`,
           ),
         );
       }
