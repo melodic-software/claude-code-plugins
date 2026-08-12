@@ -3,6 +3,13 @@
 All notable changes to the `go-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.8]
+
+### Added
+
+- **Content-mutation disclosure on goimports rewrites (#1596).** When goimports changes a file,
+  the hook emits a `systemMessage` naming the path.
+
 ## [0.3.7]
 
 ### Changed
