@@ -3,6 +3,17 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.52.1]
+
+### Fixed
+
+- **Worktree nesting-invariant prose corrected against measured 2.1.224 behavior**
+  (`skills/worktree/SKILL.md`; #2268). The control-arms paragraph misstated the hook
+  `args`-array reproduction shape, overstated #16600 as covering path-scoped rules when
+  memory traversal did not leak in the same fixture, and dated the hooks doc fetch
+  incorrectly. Each claim now matches the InstructionsLoaded trace basis recorded in
+  the skill.
+
 ## [0.52.0]
 
 ### Changed
