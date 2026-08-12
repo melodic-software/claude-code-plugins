@@ -135,7 +135,11 @@ no reclamation test consults.
   direction that is unsafe, because it lets `--resume` adopt a live run's artifact. Longer only ever
   costs an operator a wait, and the `released` tombstone below removes that cost from every clean
   exit. A run that knows its lanes are short may commit to a shorter threshold via `--stale-after`;
-  the classifier will honor whatever the lease records.
+  the classifier honors whatever the lease records, with one floor — **`--stale-after 0` is refused**,
+  because a lease recording a zero window satisfies the staleness test the moment it is written and is
+  therefore born abandoned, adoptable by `--resume` out from under the run that just wrote it. It is
+  refused rather than clamped: a clamp would hand a caller a window it did not choose and then report
+  on it.
 - **A run that exits cleanly writes a `released` state into its lease** — a tombstone — rather than
   leaving its last heartbeat to age out. Without it, a run that finished normally while deliberately
   leaving a lane incomplete (the `/doctor` handoff is exactly this) looks live for the full five

@@ -147,6 +147,25 @@ assert_contains "the lease records the staleness threshold its writer committed 
 assert_contains "the lease records its skew grace" "$LEASE" "skew_grace_s=60"
 assert_eq "a freshly acquired lease classifies live" "live" "$(run lease classify --run-dir "$RUN_DIR")"
 
+# A threshold of 0 does not merely shorten the window, it inverts the mechanism:
+# `delta >= 0` fires on the first classify, so the lease is born abandoned and
+# `--resume` would adopt it out from under the run that just wrote it. §3 now
+# documents `--stale-after` as an operator lever, so its zero value has to refuse
+# rather than quietly produce a lease no run could keep.
+rc=0
+OUT=$(run lease acquire --run-dir "$DATA/runs/demo/zero" --run-id zero --stale-after 0 2>&1) || rc=$?
+assert_exit "--stale-after 0 is refused rather than writing a lease born abandoned" 2 "$rc"
+assert_contains "the refusal says what 0 would do" "$OUT" "classify stale the moment it is written"
+rc=0
+run lease acquire --run-dir "$DATA/runs/demo/zeroe" --run-id zeroe --epoch 0 >/dev/null 2>&1 || rc=$?
+assert_exit "--epoch 0 is refused" 2 "$rc"
+# Zero forward tolerance is a coherent choice and inverts nothing, so it stays legal.
+rc=0
+run lease acquire --run-dir "$DATA/runs/demo/zerosk" --run-id zerosk --skew-grace 0 >/dev/null 2>&1 || rc=$?
+assert_exit "--skew-grace 0 stays legal" 0 "$rc"
+assert_eq "and that lease is live when it is written" \
+  "live" "$(run lease classify --run-dir "$DATA/runs/demo/zerosk")"
+
 assert_eq "classify on a directory with no lease says missing, and does not error" \
   "missing" "$(run lease classify --run-dir "$DATA/runs/demo/absent" 2>/dev/null)"
 rc=0

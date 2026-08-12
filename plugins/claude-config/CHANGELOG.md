@@ -33,6 +33,14 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   and both id checks guard the same door `lib/state-key.sh` documents defending on the remote-URL
   side. (#2280, F3)
 
+  Review of this change caught one more of the same class before it shipped: because §3 now documents
+  `--stale-after` as an operator lever, a value of **0** would have been accepted, and a lease
+  recording a zero window satisfies the staleness test the moment it is written — born abandoned, and
+  adoptable by `--resume` out from under the run that just wrote it. It is refused rather than
+  clamped (a clamp hands a caller a window it did not choose and then reports on it), with an
+  assertion. `--skew-grace 0` stays legal: "tolerate no forward clock jump" is a coherent choice and
+  inverts nothing.
+
 ### Changed
 
 - **The lease's refresh contract now describes something a skill-driven run can keep.** §3 specified

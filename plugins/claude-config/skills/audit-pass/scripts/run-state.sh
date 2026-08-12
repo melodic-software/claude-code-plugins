@@ -25,6 +25,12 @@
 # Claiming otherwise would put the same "reads as enforced" defect back one layer
 # down.
 #
+# `lease acquire --epoch <n>` is the seam that boundary leaves behind, and it is
+# named here so it does not read as a feature: an ADOPTING run passes the epoch
+# it won, and `partial append` then writes to that epoch's file — which is what
+# gives a fenced writer its own superseded file. The compare-and-set that decides
+# who won is §3's, performed by the run. A fresh run omits the flag and gets 1.
+#
 # SCOPE OF WRITES. Everything this script writes goes under the run directory it
 # derives, which is `<plugin-data>/runs/<state-key>/<run-id>/`. It never writes
 # into a target repository, so it does not widen the skill's report-only contract
@@ -107,6 +113,11 @@ run-state.sh — run directory, lease, and append-only partial for audit-pass.
 
 `classify` prints live | stale | released | missing on stdout and exits 0.
 Exit 2 is a usage error, a rejected argument, or a missing prerequisite.
+
+`--stale-after` and `--epoch` must be >= 1; `--skew-grace` may be 0. A
+stale_after_s of 0 would make the lease classify stale the moment it is written.
+`--epoch` is for an ADOPTING run to record the epoch it won — the compare-and-set
+that decides who won is the run's, not this script's (see §3).
 EOF
 }
 
@@ -132,10 +143,27 @@ validate_run_id() {
   esac
 }
 
-require_positive_int() {
+require_non_negative_int() {
   local name="$1" value="$2"
   if [[ ! "$value" =~ ^[0-9]+$ ]]; then
     die "$name must be a non-negative integer: $value"
+  fi
+}
+
+# `--stale-after 0` and `--epoch 0` are not merely odd values, they invert the
+# mechanism. A lease carrying stale_after_s=0 satisfies `delta >= stale_after`
+# on the very first classify, so it is born abandoned: acquire it and `--resume`
+# will adopt it out from under the live run that just wrote it. Zero has to be
+# refused rather than clamped, because a clamp would silently give the caller a
+# threshold it did not ask for and `classify` would then report a window nobody
+# chose — the shape of defect this script exists to remove. `--skew-grace 0` is
+# left legal: it means "tolerate no forward clock jump", which is a coherent
+# choice and inverts nothing.
+require_int_at_least_one() {
+  local name="$1" value="$2"
+  require_non_negative_int "$name" "$value"
+  if [[ "$value" -lt 1 ]]; then
+    die "$name must be at least 1: $value (0 would make the lease classify stale the moment it is written)"
   fi
 }
 
@@ -262,9 +290,9 @@ cmd_lease_acquire() {
   done
 
   validate_run_id "$run_id"
-  require_positive_int "--stale-after" "$stale_after"
-  require_positive_int "--skew-grace" "$skew_grace"
-  require_positive_int "--epoch" "$epoch"
+  require_int_at_least_one "--stale-after" "$stale_after"
+  require_non_negative_int "--skew-grace" "$skew_grace"
+  require_int_at_least_one "--epoch" "$epoch"
   if [[ -z "$run_dir" ]]; then
     die "--run-dir is required"
   fi
