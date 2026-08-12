@@ -40,11 +40,6 @@ show a validation skip (#2337).
 EOF
 }
 
-actor_is_skipped() {
-  local actor="$1" list=",${SKIP_ACTORS},"
-  [[ "$list" == *",$actor,"* ]]
-}
-
 pr_touches_security_paths() {
   local base_ref="$1"
   [[ -f "$PATHS_FILE" ]] || return 0
@@ -99,14 +94,15 @@ job_duration_seconds() {
   started="$1"
   completed="$2"
   local s c
-  s=$(date -u -d "$started" +%s)
-  c=$(date -u -d "$completed" +%s)
+  s=$(date -u -d "$started" +%s) # portability-ok: GNU date -d for GitHub Actions ISO timestamps; CI runs on ubuntu only
+  c=$(date -u -d "$completed" +%s) # portability-ok: GNU date -d for GitHub Actions ISO timestamps; CI runs on ubuntu only
   echo $((c - s))
 }
 
 main() {
   case "${1:-}" in
     -h | --help) usage; exit 0 ;;
+    *) ;;
   esac
 
   [[ "${GITHUB_EVENT_NAME:-}" == "pull_request" ]] || {
@@ -126,14 +122,16 @@ main() {
     exit 1
   }
 
-  if actor_is_skipped "${GITHUB_ACTOR:-}"; then
+  if [[ ",${SKIP_ACTORS}," == *",${GITHUB_ACTOR:-},"* ]]; then
     echo "actor ${GITHUB_ACTOR} is skip-listed — guard not applicable"
     exit 0
   fi
 
   local base_ref="${GITHUB_BASE_REF:-main}"
   git fetch origin "$base_ref" --depth=1 >/dev/null 2>&1 || true
-  if ! pr_touches_security_paths "$base_ref"; then
+  pr_touches_security_paths "$base_ref"
+  local in_scope=$?
+  if (( in_scope != 0 )); then
     echo "diff does not touch security-relevant paths — guard not applicable"
     exit 0
   fi
