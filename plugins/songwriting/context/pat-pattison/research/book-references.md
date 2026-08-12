@@ -107,7 +107,8 @@ content as absent from the text layer, search **every book's every spine file**
 — not just the spine that holds the figure — and search **line by line**. Fig
 `34F`'s lyric was recorded as image-only for two releases because the search was
 scoped to the chapter containing the figure while the same verse is printed as
-prose two chapters earlier. One line of it still returns nothing, because the
+prose six chapters earlier — Chapter 1, against the figure in Chapter 7. One
+line of it still returns nothing, because the
 text layer misspells a word: **a single line that fails to match when its
 neighbours match means "look for a typo", not "absent".**
 
