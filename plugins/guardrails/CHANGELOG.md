@@ -3,6 +3,13 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+
+## [0.28.10]
+
+### Fixed
+
+- Improve stale-path-verify deletion history walk.
+
 ## [0.28.9]
 
 ### Fixed
