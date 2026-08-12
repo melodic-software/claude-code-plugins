@@ -50,9 +50,29 @@ probe — never from `list`/`details` text.
 **Empirically verified** (hash-compared a real repo's `.claude/settings.json` and
 `.claude/settings.local.json` before and after): `claude plugin update <id> -s project` updates only
 the machine-local `installed_plugins.json` record. `enabledPlugins` carries no version — the
-committed settings files are untouched by an update. `sync`'s in-repo update step is safe to run
-without a settings-diff review; `converge`'s scope-*consolidation* is the one action that can add or
-remove an `enabledPlugins` entry, and only that action surfaces a settings diff.
+committed settings files are untouched by an update. Re-verified on Claude Code 2.1.228 under the
+hardest available conditions: a tracked `.claude/settings.json` that a sibling `install -s project`
+had just rewritten, reverted to clean, then updated — the update left it clean. `sync`'s in-repo
+update step is therefore safe to run without a settings-diff review, and `converge` is the only
+action this skill runs that surfaces a settings diff.
+
+## `plugin install|uninstall -s project` DO write committed settings
+
+**Empirically verified on Claude Code 2.1.228** — one call each, against a clean tracked
+`.claude/settings.json`, git-diffed after every step:
+
+- `claude plugin install <id> -s project` adds the id to `enabledPlugins` (value `true`) in the
+  committed file.
+- `claude plugin uninstall <id> -s project` removes that entry but leaves `"enabledPlugins": {}`
+  behind — it empties the map rather than deleting the key, and it writes the key even into a
+  committed file that never had one.
+- Both rewrite the whole file in Claude Code's own key order, so sibling keys unrelated to plugins
+  can move. The reorder is a serialization artifact of the write, not a semantic change.
+
+Consequence for `converge`: an `uninstall -s project` against a project whose committed settings
+carry no `enabledPlugins` entry still dirties the tracked file, with a diff that changes no
+behavior — an empty map plus a key reorder. Expect that diff; it is not evidence an entry was
+removed. [converge.md](converge.md) Step 5 classifies it.
 
 ## `/reload-plugins` — bare by default, `--force` for the MCP-cache-invalidation case
 
