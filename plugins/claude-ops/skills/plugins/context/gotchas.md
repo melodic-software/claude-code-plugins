@@ -50,10 +50,12 @@ the **literal cwd** — verified on Claude Code 2.1.228, where installing from
 root** instead.
 
 So a plugin installed at project scope from anywhere below the checkout root gets a `projectPath`
-that `fleet-state.sh` will never match: `currentProject` stays `null`, `sync`'s Step 2 never updates
-it, and it never appears in a divergence row — while it still loads for anyone working in that
-subtree. The failure is silent in the same way the spelling mismatch is, and the same report still
-gets produced.
+that `fleet-state.sh` will never match for `currentProject`: `currentProject` stays `null`, so
+`sync`'s Step 2 never updates it — while `converge` can still target a divergence row for the same
+id when another scope record exists, because `fleet-state.sh` groups every installed record by id
+without filtering on `currentProject`. The subtree install still loads for anyone working there. The
+failure is silent for sync/update in the same way the spelling mismatch is, and the same report
+still gets produced.
 
 This is a genuine gap, not a parser bug to fix by widening the comparison: matching a record against
 every ancestor of the checkout root would claim project state the skill has not established is

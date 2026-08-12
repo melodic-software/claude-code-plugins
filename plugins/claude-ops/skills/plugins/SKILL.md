@@ -33,8 +33,10 @@ per-scope `enabledPlugins`) against the *local* marketplace catalog — a differ
 completeness, not settings-vs-upstream drift).
 
 **Never silently fixes drift it finds.** `sync` mutates only via the documented CLI actions below;
-`converge` is the one action that can touch a committed `.claude/settings.json`, and only after an
-explicit per-plugin confirm.
+`sync` can also write a committed `.claude/settings.json` when Step 5 issues `enable -s project`
+(see [context/scope-semantics.md](context/scope-semantics.md)); `converge` is the action that
+consolidates cross-scope divergence and can touch committed settings after an explicit per-plugin
+confirm.
 
 ## Action Router
 
@@ -49,7 +51,7 @@ ordering, and their failure handling live only in the linked file.
 |---|---|---|---|
 | `sync` (default) | Yes — CLI only | Marketplace, install, and enable-state maintenance for the effective fleet | [context/sync.md](context/sync.md) |
 | `audit` | No | Same algorithm as `sync`, every mutating step replaced with a prediction; issues zero mutating CLI calls | "Action: audit" below |
-| `converge` | Yes — the one action that can touch committed settings | Cross-scope divergence reconciliation, preview- and confirm-gated | [context/converge.md](context/converge.md) |
+| `converge` | Yes — can rewrite committed settings after confirm | Cross-scope divergence reconciliation, preview- and confirm-gated | [context/converge.md](context/converge.md) |
 
 Bare invocation (no arguments) → `sync` against the default marketplace. `help` or an unrecognized
 action → show this table.

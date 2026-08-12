@@ -1,8 +1,10 @@
 # Converge — explicit scope consolidation
 
-`converge` is the **only** action that can touch a committed `.claude/settings.json`. It never runs
-implicitly from `sync` — `sync`'s report only names the `converge` command; the user runs it
-explicitly.
+`converge` is the action that consolidates cross-scope divergence and can rewrite a committed
+`.claude/settings.json` after explicit per-plugin confirm. It never runs implicitly from `sync` —
+`sync` can also write committed settings when Step 5 issues `enable -s project` (see
+[scope-semantics.md](scope-semantics.md)), but `sync`'s report only names the `converge` command for
+divergence; the user runs `converge` explicitly.
 
 ## Autonomous-session abort (run this check FIRST, before any preview work)
 
