@@ -142,15 +142,18 @@ is what makes this phase a mechanism rather than a description of one:
 
 ```bash
 S="${CLAUDE_PLUGIN_ROOT}/skills/audit-pass/scripts/run-state.sh"
-bash "$S" paths --plugin-data "${CLAUDE_PLUGIN_DATA}" --run-id "<run-id>"
-bash "$S" lease acquire --run-dir "<run-dir>" --run-id "<run-id>"
+D="${CLAUDE_PLUGIN_DATA}"
+bash "$S" paths --plugin-data "$D" --run-id "<run-id>"
+bash "$S" lease acquire --run-dir "<run-dir>" --run-id "<run-id>" --plugin-data "$D"
 ```
 
 `paths` derives `<plugin-data>/runs/<state-key>/<run-id>` through the plugin's own `lib/state-key.sh`
 — the library whose header records the keying scheme as *this skill's*, and which until now three
 other skills called and this one did not. Pass `--plugin-data` explicitly: `${CLAUDE_PLUGIN_DATA}`
 substitutes in this text but is **not** exported to the Bash tool's environment, so a shell cannot
-expand it.
+expand it. `acquire` takes it too, and refuses a `--run-dir` that is not under
+`<plugin-data>/runs/` — it is the only command that *creates* a directory, so it is where the write
+tree is pinned; a wrong or invented run dir would otherwise be created and written into.
 
 **`--resume` never attaches to a run that is still going.** Concurrent read-only runs are safe
 because each owns its own partial artifact; resume is the one operation that reaches into *another*
@@ -314,10 +317,17 @@ lanes. Route it out (`skill-quality:check` when installed).
 Persist each lane's findings to the partial artifact **as that lane completes**, never buffered to
 the end — a lane is complete when its terminating record is in the partial, and every record carries
 its attempt id so an abandoned re-attempt is discardable rather than merely older. The write is one
-call per record — `bash "$S" partial append --run-dir "<run-dir>" --record '<json-line>'` — and the
-lease is refreshed at the same boundary. The partial is named `findings.partial.<owner_epoch>.jsonl`
-after the epoch the lease holds, so it cannot be written without a lease to classify it: a record
-resume could not attribute to a live-or-abandoned run is worse than no record.
+call per record — `bash "$S" partial append --run-dir "<run-dir>" --record '<json-line>' --epoch
+"<held>"` — and the lease is refreshed at the same boundary. A lease must exist, so a record resume
+could not attribute to a live-or-abandoned run is never written. **Pass the epoch you hold**: the
+filename is the writer's epoch, not whatever the lease now carries, which keeps a fenced writer's rows
+out of its adopter's file. The record is validated as well-formed single-line JSON rather than sniffed
+by its first character — a malformed row here is permanent, and resume is its only reader.
+
+**Exit 3 means FENCED: stop this run.** The record was written safely to your own epoch file, but the
+lease has moved on and another run has adopted the artifact, so continuing dispatches lanes whose
+output nothing will assemble. Stop and report the run as superseded. Never retry the append, and never
+read that exit as transient.
 
 **The lane count is bounded by the delegated interfaces, not chosen here** — one per scope value the
 instruction catalog accepts, plus one for the memory layer — so it is a handful, and a per-run

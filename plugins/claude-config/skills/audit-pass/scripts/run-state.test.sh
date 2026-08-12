@@ -136,7 +136,7 @@ fi
 # --- Case 3: the lease, acquire through classify ----------------------------
 
 RUN_DIR="$DATA/runs/demo/run-0001"
-LEASE_OUT=$(run lease acquire --run-dir "$RUN_DIR" --run-id run-0001 2>&1)
+LEASE_OUT=$(run lease acquire --run-dir "$RUN_DIR" --run-id run-0001 --plugin-data "$DATA" 2>&1)
 assert_contains "acquire prints the lease path" "$LEASE_OUT" "$RUN_DIR/lease"
 assert_file "acquire writes the lease" "$RUN_DIR/lease"
 LEASE=$(cat "$RUN_DIR/lease")
@@ -153,15 +153,15 @@ assert_eq "a freshly acquired lease classifies live" "live" "$(run lease classif
 # documents `--stale-after` as an operator lever, so its zero value has to refuse
 # rather than quietly produce a lease no run could keep.
 rc=0
-OUT=$(run lease acquire --run-dir "$DATA/runs/demo/zero" --run-id zero --stale-after 0 2>&1) || rc=$?
+OUT=$(run lease acquire --run-dir "$DATA/runs/demo/zero" --run-id zero --stale-after 0 --plugin-data "$DATA" 2>&1) || rc=$?
 assert_exit "--stale-after 0 is refused rather than writing a lease born abandoned" 2 "$rc"
 assert_contains "the refusal says what 0 would do" "$OUT" "classify stale the moment it is written"
 rc=0
-run lease acquire --run-dir "$DATA/runs/demo/zeroe" --run-id zeroe --epoch 0 >/dev/null 2>&1 || rc=$?
+run lease acquire --run-dir "$DATA/runs/demo/zeroe" --run-id zeroe --epoch 0 --plugin-data "$DATA" >/dev/null 2>&1 || rc=$?
 assert_exit "--epoch 0 is refused" 2 "$rc"
 # Zero forward tolerance is a coherent choice and inverts nothing, so it stays legal.
 rc=0
-run lease acquire --run-dir "$DATA/runs/demo/zerosk" --run-id zerosk --skew-grace 0 >/dev/null 2>&1 || rc=$?
+run lease acquire --run-dir "$DATA/runs/demo/zerosk" --run-id zerosk --skew-grace 0 --plugin-data "$DATA" >/dev/null 2>&1 || rc=$?
 assert_exit "--skew-grace 0 stays legal" 0 "$rc"
 assert_eq "and that lease is live when it is written" \
   "live" "$(run lease classify --run-dir "$DATA/runs/demo/zerosk")"
@@ -174,7 +174,7 @@ assert_exit "a missing lease is a classification, not a failure" 0 "$rc"
 
 # A backdated heartbeat past the recorded threshold is stale.
 STALE_DIR="$DATA/runs/demo/run-stale"
-run lease acquire --run-dir "$STALE_DIR" --run-id run-stale --stale-after 30 >/dev/null 2>&1
+run lease acquire --run-dir "$STALE_DIR" --run-id run-stale --stale-after 30 --plugin-data "$DATA" >/dev/null 2>&1
 NOW=$(date -u +%s)
 {
   printf 'run_id=run-stale\npid=1\nstate=active\nowner_epoch=1\n'
@@ -243,7 +243,7 @@ fi
 # --- Case 5: heartbeat and the released tombstone ---------------------------
 
 HB_DIR="$DATA/runs/demo/run-hb"
-run lease acquire --run-dir "$HB_DIR" --run-id run-hb >/dev/null 2>&1
+run lease acquire --run-dir "$HB_DIR" --run-id run-hb --plugin-data "$DATA" >/dev/null 2>&1
 {
   printf 'run_id=run-hb\npid=1\nstate=active\nowner_epoch=2\n'
   printf 'started_at=x\nheartbeat_at=%s\nheartbeat_at_iso=x\n' "$((NOW - 600))"
@@ -265,7 +265,7 @@ FUTURE=$((NOW + 7200))
 assert_eq "a refresh does not move heartbeat_at backwards" "$FUTURE" \
   "$(run lease heartbeat --run-dir "$HB_DIR")"
 
-run lease acquire --run-dir "$HB_DIR" --run-id run-hb >/dev/null 2>&1
+run lease acquire --run-dir "$HB_DIR" --run-id run-hb --plugin-data "$DATA" >/dev/null 2>&1
 assert_eq "release prints the tombstone state" "released" "$(run lease release --run-dir "$HB_DIR")"
 assert_eq "a released lease classifies released, not live" \
   "released" "$(run lease classify --run-dir "$HB_DIR")"
@@ -276,10 +276,80 @@ rc=0
 run lease heartbeat --run-dir "$DATA/runs/demo/absent" >/dev/null 2>&1 || rc=$?
 assert_exit "heartbeat on a directory that does not exist exits 2" 2 "$rc"
 
+# --- Case 5b: acquire is where the write tree is pinned ---------------------
+#
+# acquire is the only command that CREATES a directory, so a wrong or invented
+# --run-dir would otherwise get that directory created and a lease written into
+# it. The skill keeps Bash specifically for state writes while promising a bare
+# audit writes nothing into the target, so a run dir outside the plugin's own
+# tree has to be refused rather than created.
+
+OUTSIDE="$TEST_TMPDIR/target-repo/.claude"
+rc=0
+OUT=$(run lease acquire --run-dir "$OUTSIDE" --run-id run-x --plugin-data "$DATA" 2>&1) || rc=$?
+assert_exit "a run dir outside <plugin-data>/runs/ is refused" 2 "$rc"
+assert_contains "the refusal says it will not write outside the plugin tree" "$OUT" \
+  "refusing to write outside"
+if [[ -d "$OUTSIDE" ]]; then
+  fail "the refused run dir must not be created" "$OUTSIDE exists"
+else
+  pass "the refused run dir was not created"
+fi
+
+rc=0
+run lease acquire --run-dir "$DATA/runs/demo/../../escape" --run-id run-y --plugin-data "$DATA" >/dev/null 2>&1 || rc=$?
+assert_exit "a run dir containing '..' is refused" 2 "$rc"
+
+rc=0
+OUT=$(env -u CLAUDE_PLUGIN_DATA bash "$SCRIPT" lease acquire --run-dir "$DATA/runs/demo/z" --run-id run-z 2>&1) || rc=$?
+assert_exit "acquire without --plugin-data has nothing to check containment against, and refuses" 2 "$rc"
+
+# A lexical prefix check is not containment while symlinks exist: with
+# runs/link -> /tmp/outside, `<plugin-data>/runs/link/run` passes a string
+# comparison and then mkdir and the lease write follow the link straight out of
+# the plugin tree. The guarantee would hold on the string and fail on the disk.
+# THE FIRST RUN OF ALL. On a fresh install the plugin data directory does not
+# exist yet, and a containment check that resolves it with `pwd -P` before
+# creating it fails for exactly the run that has never succeeded before. A
+# fixture that pre-makes the directory — every other case in this file — cannot
+# see that.
+FRESH="$TEST_TMPDIR/never-used/data"
+rc=0
+OUT=$(run lease acquire --run-dir "$FRESH/runs/demo/first" --run-id first --plugin-data "$FRESH" 2>&1) || rc=$?
+assert_exit "acquire works on a plugin data directory that does not exist yet" 0 "$rc"
+assert_file "and the lease is written under it" "$FRESH/runs/demo/first/lease"
+
+ESCAPE_TARGET="$TEST_TMPDIR/escaped"
+mkdir -p "$ESCAPE_TARGET" "$DATA/runs"
+if ln -s "$ESCAPE_TARGET" "$DATA/runs/link" 2>/dev/null && [[ -L "$DATA/runs/link" ]]; then
+  rc=0
+  OUT=$(run lease acquire --run-dir "$DATA/runs/link/run" --run-id run-s --plugin-data "$DATA" 2>&1) || rc=$?
+  assert_exit "a run dir reached through a symlink out of the tree is refused" 2 "$rc"
+  assert_contains "the refusal names the resolved destination" "$OUT" "symlinked component"
+  if [[ -e "$ESCAPE_TARGET/run/lease" ]]; then
+    fail "the symlinked escape must not be written" "$ESCAPE_TARGET/run/lease exists"
+  else
+    pass "no lease was written through the symlink"
+  fi
+  # A symlink that stays INSIDE the tree is not an escape and must still work.
+  mkdir -p "$DATA/runs/real"
+  if ln -s "$DATA/runs/real" "$DATA/runs/inside" 2>/dev/null; then
+    rc=0
+    run lease acquire --run-dir "$DATA/runs/inside/run" --run-id run-i --plugin-data "$DATA" >/dev/null 2>&1 || rc=$?
+    assert_exit "a symlink resolving back inside the tree is still accepted" 0 "$rc"
+  fi
+else
+  # ANNOUNCED, never silent: symlink creation needs privilege or developer mode
+  # on Windows. The escape arm is exercised on POSIX CI.
+  printf 'SKIP: symlink-containment arm not exercised — this platform refused ln -s. Exercised on POSIX CI.\n' >&2
+  assert_exit "the lexical containment check still refuses an outside path here" 2 \
+    "$(rc=0; run lease acquire --run-dir "$TEST_TMPDIR/outside2" --run-id run-s2 --plugin-data "$DATA" >/dev/null 2>&1 || rc=$?; echo "$rc")"
+fi
+
 # --- Case 6: the append-only partial ----------------------------------------
 
 P_DIR="$DATA/runs/demo/run-partial"
-run lease acquire --run-dir "$P_DIR" --run-id run-partial --epoch 3 >/dev/null 2>&1
+run lease acquire --run-dir "$P_DIR" --run-id run-partial --epoch 3 --plugin-data "$DATA" >/dev/null 2>&1
 OUT=$(run partial append --run-dir "$P_DIR" --record '{"lane":"skills","attempt":1,"type":"start"}')
 assert_eq "the partial is named for the epoch the lease holds" \
   "$P_DIR/findings.partial.3.jsonl" "$OUT"
@@ -300,6 +370,90 @@ OUT=$(run partial append --run-dir "$P_DIR" --record '{"a":1}
 {"b":2}' 2>&1) || rc=$?
 assert_exit "a record spanning two lines is refused" 2 "$rc"
 assert_contains "the refusal says why one line matters" "$OUT" "single line"
+
+# A record that balances and ends in `}` but is not JSON must still be refused:
+# a malformed row in an append-only artifact is permanent, and resume and
+# assembly are its only readers.
+rc=0
+OUT=$(run partial append --run-dir "$P_DIR" --record '{bad json}' 2>&1) || rc=$?
+assert_exit "a balanced-but-malformed record is refused, not appended" 2 "$rc"
+rc=0
+OUT=$(run partial append --run-dir "$P_DIR" --record '{"a":1' 2>&1) || rc=$?
+assert_exit "a truncated record is refused" 2 "$rc"
+rc=0
+OUT=$(run partial append --run-dir "$P_DIR" --record '{"a":"}"}' 2>&1) || rc=$?
+assert_exit "a brace inside a string does not fool the check" 0 "$rc"
+assert_eq "and the malformed records left the artifact untouched" "3" \
+  "$(wc -l <"$P_DIR/findings.partial.3.jsonl" | tr -d ' ')"
+
+# The no-jq rung has to catch the same cases, since jq is optional here on
+# purpose: failing the run's state-persistence path closed on a missing optional
+# tool would cost the artifact the check exists to protect. Exercised by running
+# with a PATH that has bash and nothing else, so the fallback is what answers.
+REAL_BASH=$(command -v bash)
+EMPTY_PATH="$TEST_TMPDIR/empty-path"
+mkdir -p "$EMPTY_PATH"
+nojq() { PATH="$EMPTY_PATH" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" "$REAL_BASH" "$SCRIPT" "$@"; }
+rc=0
+nojq partial append --run-dir "$P_DIR" --record '{bad json}' >/dev/null 2>&1 || rc=$?
+assert_exit "without jq, a balanced-but-malformed record is still refused" 2 "$rc"
+rc=0
+nojq partial append --run-dir "$P_DIR" --record '{"a":1' >/dev/null 2>&1 || rc=$?
+assert_exit "without jq, a truncated record is still refused" 2 "$rc"
+rc=0
+nojq partial append --run-dir "$P_DIR" --record '{"a":"}"}' >/dev/null 2>&1 || rc=$?
+assert_exit "without jq, a brace inside a string does not fool the fallback" 0 "$rc"
+rc=0
+nojq partial append --run-dir "$P_DIR" --record '{}' >/dev/null 2>&1 || rc=$?
+assert_exit "without jq, an empty object is accepted" 0 "$rc"
+# python3 is the second definitive rung, so the no-jq path is still a real parse
+# where it exists — `{"a" garbage}` balances and opens with a quoted key, and no
+# non-parser catches it.
+if command -v python3 >/dev/null 2>&1; then
+  rc=0
+  nojq2() { PATH="$EMPTY_PATH:$(dirname "$(command -v python3)")" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" "$REAL_BASH" "$SCRIPT" "$@"; }
+  nojq2 partial append --run-dir "$P_DIR" --record '{"a" garbage}' >/dev/null 2>&1 || rc=$?
+  assert_exit "without jq but with python3, a balanced object-shaped non-JSON string is refused" 2 "$rc"
+else
+  printf 'SKIP: python3 rung not exercised — python3 absent here. Exercised on CI.\n' >&2
+fi
+# With NEITHER parser the structural rung cannot catch that case, so it says so
+# rather than passing for the real thing.
+assert_contains "with neither parser the weaker check announces its own limit" \
+  "$(nojq partial append --run-dir "$P_DIR" --record '{"a":1}' 2>&1 >/dev/null)" \
+  "checked structurally only"
+
+# The epoch in the filename is the WRITER's, not whatever the lease now carries.
+# A stale holder that wakes after an adopter incremented the epoch would
+# otherwise read the adopter's value and append into the adopter's file — two
+# writers interleaved under one attempt ordinal, the one failure the attempt
+# machinery cannot absorb.
+{
+  printf 'run_id=run-partial\npid=1\nstate=active\nowner_epoch=9\n'
+  printf 'started_at=x\nheartbeat_at=%s\nheartbeat_at_iso=x\n' "$(date -u +%s)"
+  printf 'stale_after_s=1800\nskew_grace_s=60\n'
+} >"$P_DIR/lease"
+rc=0
+OUT=$(run partial append --run-dir "$P_DIR" --record '{"lane":"fenced"}' --epoch 3 2>/dev/null) || rc=$?
+assert_eq "a fenced writer appends to its own epoch file, not the adopter's" \
+  "$P_DIR/findings.partial.3.jsonl" "$OUT"
+# The abort must be ENFORCED, not announced. A stderr string saying "this run
+# must stop" while the command still exits 0 is a control reporting a state it
+# never established — it depends on the caller noticing a substring, and it is
+# indistinguishable in form from any other diagnostic. `classify` already puts
+# its machine-actionable answer where a caller cannot miss it.
+assert_exit "a fenced append exits 3 — the abort is in the exit code, not only the message" 3 "$rc"
+assert_contains "and the fence is still said in words" \
+  "$(run partial append --run-dir "$P_DIR" --record '{"lane":"fenced2"}' --epoch 3 2>&1 >/dev/null)" \
+  "FENCED"
+rc=0
+run partial append --run-dir "$P_DIR" --record '{"lane":"same"}' --epoch 9 >/dev/null 2>&1 || rc=$?
+assert_exit "an append whose --epoch matches the lease is not fenced and exits 0" 0 "$rc"
+rc=0
+OUT=$(run partial append --run-dir "$P_DIR" --record '{"lane":"adopter"}' 2>/dev/null) || rc=$?
+assert_eq "omitting --epoch still falls back to the lease's current epoch" \
+  "$P_DIR/findings.partial.9.jsonl" "$OUT"
+assert_exit "and that fallback is not treated as a fence" 0 "$rc"
 
 NO_LEASE="$DATA/runs/demo/run-noleash"
 mkdir -p "$NO_LEASE"

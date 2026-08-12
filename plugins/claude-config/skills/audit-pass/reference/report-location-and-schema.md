@@ -86,12 +86,24 @@ completes. Append-only is what makes §5 real: a single JSON document would be r
 every append, which is exactly the operation an interrupted run leaves half-done. A lane's final
 record is its terminating record.
 
-**The append is `scripts/run-state.sh partial append`, not a hand-rolled redirection.** It takes the
-epoch from the lease — so the partial cannot exist without the lease `--resume` reads first — refuses
-a record that is not a single-line JSON object, and returns the file it appended to. §5 states which
-clauses of the run-state contract that script enforces and which remain the run's own discipline;
-**assembly is among the latter**, so the selection rules below are performed by the run, not by an
-executable.
+**The append is `scripts/run-state.sh partial append`, not a hand-rolled redirection**, and its full
+form carries the writer's epoch:
+
+```
+run-state.sh partial append --run-dir <run-dir> --record '<json-line>' --epoch <held>
+```
+
+**`--epoch` is not optional in practice.** The file is named for the epoch **the writer holds**, never
+whatever the lease currently carries: omit it after an adoption and the fallback selects the
+*adopter's* epoch, putting a superseded writer's rows into the adopter's file — exactly the
+cross-writer interleaving §3's fencing exists to prevent. Where the two differ the command writes to
+the writer's own file, says `FENCED`, and **exits 3**: the record is safe, and the run that wrote it
+is superseded and must stop. A lease must exist either way, so the partial cannot outlive the thing
+that classifies it, and a record that is not a well-formed single-line JSON object is refused.
+
+§5 also states which clauses of the run-state contract that script enforces and which remain the run's
+own discipline; **assembly is among the latter**, so the selection rules below are performed by the
+run, not by an executable.
 
 **Completion is read from the terminator's state, not from its presence.** A terminator lets
 assembly render the lane; whether the lane is *done* is a separate question, and conflating them

@@ -87,7 +87,7 @@ write and the verdict:
 bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-pass/scripts/run-state.sh" paths \
   --plugin-data "${CLAUDE_PLUGIN_DATA}" --run-id <run-id>
 bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-pass/scripts/run-state.sh" lease acquire \
-  --run-dir <run-dir> --run-id <run-id>
+  --run-dir <run-dir> --run-id <run-id> --plugin-data "${CLAUDE_PLUGIN_DATA}"
 bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-pass/scripts/run-state.sh" lease heartbeat --run-dir <run-dir>
 bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-pass/scripts/run-state.sh" lease classify  --run-dir <run-dir>
 bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-pass/scripts/run-state.sh" lease release   --run-dir <run-dir>
@@ -97,6 +97,20 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-pass/scripts/run-state.sh" lease releas
 a `live` lease is the caller's move, not the script's. Pass `--plugin-data` explicitly: the
 `${CLAUDE_PLUGIN_DATA}` placeholder substitutes in *this text* but is not exported to the Bash tool's
 environment (§2), so a shell cannot expand it.
+
+**`acquire` requires `--plugin-data` because it is the only command that creates a directory**, and
+that is where the write tree is pinned: a run directory not under `<plugin-data>/runs/` is refused
+rather than created. Without the check, a wrong or invented `--run-dir` — the target root, say —
+would get created and a lease written into it, and this skill keeps Bash specifically for state
+writes while promising that a bare audit writes nothing into the target. Every later command operates
+on a run directory `acquire` already validated.
+
+**Containment is checked on the resolved path, not on the string.** A lexical prefix test is not
+containment while symlinks exist: with `runs/link -> /elsewhere`, the path `<plugin-data>/runs/link/run`
+passes the comparison and then the write follows the link out of the tree, so the guarantee holds on
+the string and fails on the filesystem. Both sides are canonicalized with `pwd -P` before they are
+compared — `--run-dir` through its deepest *existing* ancestor, since it usually does not exist yet
+and that is the only part a symlink can be in.
 
 **What is executable here, and what is not.** Everything below through the two-sided liveness test is
 enforced by that script and covered by `run-state.test.sh`, negative tests included. Two clauses are
@@ -220,11 +234,31 @@ A pass over a large corpus plus three scopes can be interrupted by compaction, a
 crash. Restarting from zero wastes the run and tempts an operator to narrow the scan.
 
 - Findings persist **incrementally, per lane**, as each lane completes — never buffered to the end.
-  The write is `scripts/run-state.sh partial append --run-dir <run-dir> --record '<json-line>'`, which
-  appends one line to `findings.partial.<owner_epoch>.jsonl` — the epoch taken from the lease, so the
-  partial cannot exist without the lease that classifies it. The script refuses a record that is not a
-  single-line JSON object, because a record carrying a newline splits into two rows and the second is
-  unparsable.
+  The write is
+  `scripts/run-state.sh partial append --run-dir <run-dir> --record '<json-line>' --epoch <held>`,
+  which appends one line to `findings.partial.<epoch>.jsonl`. A lease must exist, so the partial
+  cannot outlive the thing that classifies it.
+
+  **Pass the epoch you hold.** The filename is the *writer's* epoch, never whatever the lease
+  currently carries: a stale holder that wakes after an adopter incremented it would otherwise read
+  the adopter's value and append into the adopter's file, so two writers interleave under one attempt
+  ordinal — the one failure the attempt machinery cannot absorb. Where the two differ the script
+  writes to the writer's own file, says `FENCED`, and **exits 3**. The abort is in the exit code, not
+  only in the message: a diagnostic reading "this run must stop" while the command exits 0 is a
+  control announcing a state it never establishes, since it depends on the caller noticing a
+  substring — the same shape as the rest of §3 before it had a script. Omitting `--epoch` falls back
+  to the lease's current value, correct only for a run whose epoch nothing has moved.
+
+  **A record is validated, not merely sniffed.** A malformed row in an append-only artifact is
+  permanent, and resume and assembly are its only readers, so a quoting slip in the caller would cost
+  the run's persisted state rather than one record. The script refuses anything that is not a
+  well-formed single-line JSON object. `jq` answers definitively where it is installed and `python3`
+  where it is not; on a host with neither, a scan tracking string context and escapes still rejects
+  `{bad json}`, a truncated row and an unbalanced one — but **not** every malformed object, since
+  `{"a" garbage}` balances and opens with a quoted key and no non-parser catches it. That rung
+  therefore **announces itself** rather than passing for the real thing. Neither parser is a hard
+  requirement: failing the state path closed on a missing optional tool would cost the artifact the
+  check exists to protect, so the residual is disclosed instead of hidden.
 - **The run manifest is the partial's own lane records, not a second file.** A lane's start record
   carries the lane id and its **input digest**; its terminating record carries the completion state.
   §7 already requires that `--resume` read the partial "so completion state is derivable from the

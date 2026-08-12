@@ -25,11 +25,19 @@
 # Claiming otherwise would put the same "reads as enforced" defect back one layer
 # down.
 #
-# `lease acquire --epoch <n>` is the seam that boundary leaves behind, and it is
-# named here so it does not read as a feature: an ADOPTING run passes the epoch
-# it won, and `partial append` then writes to that epoch's file — which is what
-# gives a fenced writer its own superseded file. The compare-and-set that decides
-# who won is §3's, performed by the run. A fresh run omits the flag and gets 1.
+# `--epoch <n>` is the seam that boundary leaves behind, and it is named here so
+# it does not read as a feature. On `lease acquire`, an ADOPTING run records the
+# epoch it won; a fresh run omits it and gets 1. On `partial append`, a writer
+# passes the epoch IT HOLDS, and the record lands in that epoch's file no matter
+# what the lease now says — which is what gives a fenced writer its own
+# superseded file instead of letting it interleave into the adopter's. Omitting
+# it there falls back to the lease's current epoch, correct only for a run whose
+# epoch nothing has moved. The compare-and-set that decides who won is §3's,
+# performed by the run, not by this script.
+#
+# `lease acquire` also requires `--plugin-data`: it is the only command that
+# CREATES a directory, so it is where the write tree is pinned. A run dir outside
+# `<plugin-data>/runs/` is refused rather than created.
 #
 # SCOPE OF WRITES. Everything this script writes goes under the run directory it
 # derives, which is `<plugin-data>/runs/<state-key>/<run-id>/`. It never writes
@@ -65,6 +73,11 @@
 # Exit codes:
 #   0  the operation succeeded (for `classify`, the verdict is on stdout)
 #   2  usage error, rejected argument, or a missing environment prerequisite
+#   3  `partial append` only — FENCED. The record WAS written, to the writer's own
+#      epoch file so nothing interleaves, but the lease has moved on: this run has
+#      been superseded and must stop dispatching. Carried in the exit code rather
+#      than only in a stderr string, because a control that announces an abort
+#      nobody enforces is the defect this file exists to remove.
 #
 # `classify` prints one of `live`, `stale`, `released`, `missing` and exits 0 —
 # a classification is an answer, not a failure. Acting on it (refusing `--resume`
@@ -73,6 +86,11 @@
 set -uo pipefail
 
 PROG="run-state.sh"
+
+# A fenced append is neither success nor a usage error, so it gets its own code:
+# the record was written (to the writer's own epoch file), and the run that wrote
+# it has been superseded and must stop.
+EXIT_FENCED=3
 
 # Defaults for the liveness window. Stated here rather than left to the caller
 # because "live or abandoned" is a classification two implementations must reach
@@ -104,12 +122,12 @@ usage() {
 run-state.sh — run directory, lease, and append-only partial for audit-pass.
 
   run-state.sh paths           --plugin-data <dir> --run-id <id> [--root <path>]
-  run-state.sh lease acquire   --run-dir <dir> --run-id <id> [--stale-after <s>]
-                               [--skew-grace <s>] [--epoch <n>]
+  run-state.sh lease acquire   --run-dir <dir> --run-id <id> --plugin-data <dir>
+                               [--stale-after <s>] [--skew-grace <s>] [--epoch <n>]
   run-state.sh lease heartbeat --run-dir <dir>
   run-state.sh lease release   --run-dir <dir>
   run-state.sh lease classify  --run-dir <dir>
-  run-state.sh partial append  --run-dir <dir> --record <json-line>
+  run-state.sh partial append  --run-dir <dir> --record <json-line> [--epoch <n>]
 
 `classify` prints live | stale | released | missing on stdout and exits 0.
 Exit 2 is a usage error, a rejected argument, or a missing prerequisite.
@@ -143,6 +161,37 @@ validate_run_id() {
   esac
 }
 
+# Physical (symlink-resolved) form of a directory that exists. `pwd -P` is the
+# portable resolver; `readlink -f` is GNU-only and this must run on BSD userland.
+physical_path() {
+  (cd "$1" 2>/dev/null && pwd -P) || return 1
+}
+
+# Physical form of the deepest existing ancestor of a path, which is the only
+# part of it a symlink can be in before the path is created.
+physical_existing_prefix() {
+  local p="$1" guard=0
+  while [[ ! -d "$p" ]]; do
+    p="${p%/*}"
+    if [[ -z "$p" ]]; then
+      p="/"
+    fi
+    guard=$((guard + 1))
+    if [[ "$guard" -gt 64 ]]; then
+      return 1
+    fi
+  done
+  physical_path "$p"
+}
+
+require_absolute_path() {
+  local name="$1" value="$2"
+  case "$value" in
+  /* | ?:[\\/]*) : ;;
+  *) die "$name must be an absolute path: $value" ;;
+  esac
+}
+
 require_non_negative_int() {
   local name="$1" value="$2"
   if [[ ! "$value" =~ ^[0-9]+$ ]]; then
@@ -159,12 +208,105 @@ require_non_negative_int() {
 # chose — the shape of defect this script exists to remove. `--skew-grace 0` is
 # left legal: it means "tolerate no forward clock jump", which is a coherent
 # choice and inverts nothing.
+# `--epoch 0` is refused for a different reason — epochs start at 1, so 0 names no
+# writer's file — which is why the reason travels as an argument rather than being
+# hardcoded to the staleness case.
 require_int_at_least_one() {
-  local name="$1" value="$2"
+  local name="$1" value="$2" why="${3:-}"
   require_non_negative_int "$name" "$value"
   if [[ "$value" -lt 1 ]]; then
-    die "$name must be at least 1: $value (0 would make the lease classify stale the moment it is written)"
+    if [[ -n "$why" ]]; then
+      die "$name must be at least 1: $value ($why)"
+    fi
+    die "$name must be at least 1: $value"
   fi
+}
+
+# Is this string one well-formed single-line JSON object?
+#
+# `case "$record" in '{'*)` was not enough: it accepts `{bad json}`, and a
+# malformed row in an append-only artifact is permanent — resume and assembly
+# then cannot parse the record stream they are the only readers of, so a
+# serialization slip in the caller costs the run's persisted state rather than
+# one record. The check has to fire on construction errors, not just on obviously
+# non-JSON input.
+#
+# THREE RUNGS, AND THE WEAKEST ONE SAYS SO. `jq` answers definitively where it is
+# installed; `python3` answers definitively where it is not (and this plugin
+# already depends on it elsewhere), so the structural rung is reached only on a
+# host with neither. That rung tracks string context and escapes to verify
+# brace/bracket balance, string termination, and that the object opens with a
+# quoted key or closes empty — which rejects `{bad json}`, truncated rows and
+# unbalanced ones, but NOT every malformed object: `{"a" garbage}` balances and
+# opens with a quoted key, and no non-parser catches it. So the structural rung
+# ANNOUNCES itself on stderr rather than passing for the real thing. A check that
+# claims more than it verifies is the defect this whole file exists to remove.
+#
+# Neither parser is made a hard requirement: this is the run's state-persistence
+# path, and failing it closed on a missing optional tool would cost the artifact
+# the check exists to protect. The residual is disclosed instead of hidden.
+record_is_json_object() {
+  local s="$1"
+  case "$s" in
+  '{'*) : ;;
+  *) return 1 ;;
+  esac
+  case "$s" in
+  *'}') : ;;
+  *) return 1 ;;
+  esac
+
+  if command -v jq >/dev/null 2>&1; then
+    printf '%s' "$s" | jq -e 'type == "object"' >/dev/null 2>&1
+    return
+  fi
+  if command -v python3 >/dev/null 2>&1; then
+    printf '%s' "$s" |
+      python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if isinstance(d,dict) else 1)' \
+        >/dev/null 2>&1
+    return
+  fi
+  printf '%s: no jq or python3 on PATH — the record was checked structurally only; a string that balances but is not JSON (%s) can pass\n' \
+    "$PROG" '{"a" garbage}' >&2
+
+  local i ch in_str=0 esc=0 depth=0 len=${#s}
+  for ((i = 0; i < len; i++)); do
+    ch="${s:i:1}"
+    if [[ "$in_str" -eq 1 ]]; then
+      if [[ "$esc" -eq 1 ]]; then
+        esc=0
+      elif [[ "$ch" == "\\" ]]; then
+        esc=1
+      elif [[ "$ch" == '"' ]]; then
+        in_str=0
+      fi
+      continue
+    fi
+    case "$ch" in
+    '"') in_str=1 ;;
+    '{' | '[') depth=$((depth + 1)) ;;
+    '}' | ']')
+      depth=$((depth - 1))
+      if [[ "$depth" -lt 0 ]]; then
+        return 1
+      fi
+      ;;
+    *) : ;;
+    esac
+  done
+  if [[ "$in_str" -eq 1 ]] || [[ "$depth" -ne 0 ]]; then
+    return 1
+  fi
+
+  # After the opening brace, the first non-space character must open a quoted key
+  # or close an empty object. `{bad json}` fails here even though it balances.
+  local rest="${s:1}"
+  rest="${rest#"${rest%%[![:space:]]*}"}"
+  case "$rest" in
+  '"'*) return 0 ;;
+  '}') return 0 ;;
+  *) return 1 ;;
+  esac
 }
 
 # Read one key=value field out of a lease file. Prints the value, or nothing.
@@ -227,10 +369,7 @@ cmd_paths() {
   if [[ -z "$plugin_data" ]]; then
     die "--plugin-data is required: \${CLAUDE_PLUGIN_DATA} is not exported to the Bash tool, so pass the path substituted into the skill text"
   fi
-  case "$plugin_data" in
-  /* | ?:[\\/]*) : ;;
-  *) die "--plugin-data must be an absolute path: $plugin_data" ;;
-  esac
+  require_absolute_path "--plugin-data" "$plugin_data"
 
   validate_run_id "$run_id"
 
@@ -257,12 +396,17 @@ cmd_paths() {
 
 cmd_lease_acquire() {
   local run_dir="" run_id="" stale_after="$DEFAULT_STALE_AFTER_S"
-  local skew_grace="$DEFAULT_SKEW_GRACE_S" epoch=1
+  local skew_grace="$DEFAULT_SKEW_GRACE_S" epoch=1 plugin_data=""
   while [[ $# -gt 0 ]]; do
     case "$1" in
     --run-dir)
       [[ $# -ge 2 ]] || die "--run-dir needs a path"
       run_dir="$2"
+      shift 2
+      ;;
+    --plugin-data)
+      [[ $# -ge 2 ]] || die "--plugin-data needs a path"
+      plugin_data="$2"
       shift 2
       ;;
     --run-id)
@@ -290,12 +434,75 @@ cmd_lease_acquire() {
   done
 
   validate_run_id "$run_id"
-  require_int_at_least_one "--stale-after" "$stale_after"
+  require_int_at_least_one "--stale-after" "$stale_after" \
+    "0 would make the lease classify stale the moment it is written"
   require_non_negative_int "--skew-grace" "$skew_grace"
-  require_int_at_least_one "--epoch" "$epoch"
+  require_int_at_least_one "--epoch" "$epoch" "epochs start at 1"
   if [[ -z "$run_dir" ]]; then
     die "--run-dir is required"
   fi
+
+  # ACQUIRE IS THE ONLY COMMAND THAT CREATES A DIRECTORY, so it is where
+  # containment is established — every later command operates on a run dir this
+  # one already validated. Without the check, a caller that hands over a wrong or
+  # invented `--run-dir` gets that directory created and a `lease` written into
+  # it, and the skill keeps Bash specifically for state writes while promising a
+  # bare audit writes nothing into the target: passing the target root here would
+  # have broken that promise silently. So the run directory must lie under
+  # `<plugin-data>/runs/`, which is the only tree this script may write.
+  if [[ -z "$plugin_data" ]]; then
+    plugin_data="${CLAUDE_PLUGIN_DATA:-}"
+  fi
+  if [[ -z "$plugin_data" ]]; then
+    die "--plugin-data is required so --run-dir can be checked for containment; pass the same value given to 'paths'"
+  fi
+  require_absolute_path "--plugin-data" "$plugin_data"
+  require_absolute_path "--run-dir" "$run_dir"
+  case "$run_dir" in
+  *..*) die "--run-dir must not contain '..': $run_dir" ;;
+  *) : ;;
+  esac
+  case "$run_dir" in
+  "$plugin_data"/runs/*) : ;;
+  *) die "--run-dir is not under \$plugin-data/runs/ — refusing to write outside the plugin's own tree: $run_dir" ;;
+  esac
+
+  # A LEXICAL PREFIX CHECK IS NOT CONTAINMENT WHILE SYMLINKS EXIST. With
+  # `runs/link -> /tmp/outside`, the path `<plugin-data>/runs/link/run` passes the
+  # comparison above and then `mkdir` and the lease write follow the link straight
+  # out of the plugin tree — the guarantee would hold on the string and fail on
+  # the filesystem. So both sides are canonicalized physically before they are
+  # compared: `pwd -P` resolves every symlink in a path that exists, and
+  # `readlink -f` is not used because it is GNU-only.
+  #
+  # `--run-dir` usually does not exist yet, which is the point of `mkdir` below,
+  # so its deepest EXISTING ancestor is what gets resolved — the only part a
+  # symlink can be in.
+  #
+  # DISCLOSED RESIDUAL: this is check-then-act, so a symlink planted between the
+  # resolution and the `mkdir` is not covered. Closing that needs an atomic
+  # create-and-verify no portable shell offers, and the attacker would already
+  # need write access inside the plugin's own data directory — at which point they
+  # can write the lease themselves and the guard is moot. Recorded rather than
+  # implied, because a guard whose limits are unstated reads as one without any.
+  # THE PLUGIN DATA ROOT IS CREATED FIRST, because on a plugin's very first run it
+  # does not exist yet and `pwd -P` cannot resolve a directory that is not there —
+  # resolving before creating would have made `acquire` fail for exactly the run
+  # that has never succeeded before, which no test with a pre-made fixture would
+  # ever catch. Creating the plugin's OWN data root is inside this script's
+  # mandate and is not a target write; it is the tree everything below is then
+  # confined to.
+  mkdir -p "$plugin_data" || die "cannot create the plugin data directory: $plugin_data"
+
+  local real_plugin_data real_prefix
+  real_plugin_data=$(physical_path "$plugin_data") ||
+    die "--plugin-data cannot be resolved: $plugin_data"
+  real_prefix=$(physical_existing_prefix "$run_dir") ||
+    die "--run-dir cannot be resolved: $run_dir"
+  case "$real_prefix" in
+  "$real_plugin_data" | "$real_plugin_data"/*) : ;;
+  *) die "--run-dir resolves outside the plugin's own tree (symlinked component): $run_dir -> $real_prefix" ;;
+  esac
 
   mkdir -p "$run_dir" || die "cannot create run directory: $run_dir"
 
@@ -475,7 +682,7 @@ cmd_lease_classify() {
 }
 
 cmd_partial_append() {
-  local run_dir="" record=""
+  local run_dir="" record="" held_epoch=""
   while [[ $# -gt 0 ]]; do
     case "$1" in
     --run-dir)
@@ -486,6 +693,11 @@ cmd_partial_append() {
     --record)
       [[ $# -ge 2 ]] || die "--record needs a JSON line"
       record="$2"
+      shift 2
+      ;;
+    --epoch)
+      [[ $# -ge 2 ]] || die "--epoch needs an integer"
+      held_epoch="$2"
       shift 2
       ;;
     *) die "unknown argument to partial append: $1" ;;
@@ -511,15 +723,33 @@ cmd_partial_append() {
   *$'\n'*) die "--record must be a single line" ;;
   *) : ;;
   esac
-  case "$record" in
-  '{'*) : ;;
-  *) die "--record must be a JSON object beginning with '{'" ;;
-  esac
+  if ! record_is_json_object "$record"; then
+    die "--record must be a well-formed single-line JSON object: $record"
+  fi
 
   local epoch file
   epoch=$(lease_field "$run_dir/lease" owner_epoch)
   if [[ ! "$epoch" =~ ^[0-9]+$ ]]; then
     die "lease carries no usable owner_epoch at: $run_dir/lease"
+  fi
+
+  # THE EPOCH IN THE FILENAME IS THE WRITER'S, NEVER THE LEASE'S CURRENT ONE.
+  # Reading it from the lease at append time is what defeats the isolation §3
+  # describes: a stale holder that wakes after an adopter incremented the epoch
+  # would read the adopter's value and append into the adopter's file, so two
+  # writers interleave under one attempt ordinal — the one failure the attempt
+  # machinery cannot absorb. A writer that knows the epoch it holds passes it,
+  # and it lands in its OWN superseded file no matter what the lease now says.
+  # Omitting the flag is only correct for a run whose epoch nothing has moved.
+  local fenced=0
+  if [[ -n "$held_epoch" ]]; then
+    require_int_at_least_one "--epoch" "$held_epoch" "epochs start at 1"
+    if [[ "$held_epoch" != "$epoch" ]]; then
+      fenced=1
+      printf '%s: FENCED — lease owner_epoch is %s but this writer holds %s; the record lands in the writer'"'"'s own epoch file and this run must stop (exit %s)\n' \
+        "$PROG" "$epoch" "$held_epoch" "$EXIT_FENCED" >&2
+    fi
+    epoch="$held_epoch"
   fi
   file="$run_dir/findings.partial.$epoch.jsonl"
 
@@ -528,6 +758,18 @@ cmd_partial_append() {
   # half-done.
   printf '%s\n' "$record" >>"$file" || die "cannot append to: $file"
   printf '%s\n' "$file"
+
+  # THE FENCE IS ENFORCED BY THE EXIT CODE, NOT BY THE MESSAGE. A diagnostic on
+  # stderr saying "this run must abort" is a control announcing a state it never
+  # establishes: it depends on the caller noticing a substring, and it is
+  # indistinguishable in form from any other diagnostic. `classify` already puts
+  # its machine-actionable answer on stdout for exactly that reason. So a fenced
+  # append exits EXIT_FENCED — the record IS written (to the writer's own file,
+  # so nothing interleaves) and the caller is told, in the one channel it cannot
+  # miss, that it has been superseded and must stop dispatching.
+  if [[ "$fenced" -eq 1 ]]; then
+    return "$EXIT_FENCED"
+  fi
 }
 
 dispatch_lease() {
