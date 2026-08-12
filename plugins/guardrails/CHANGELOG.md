@@ -56,12 +56,27 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
      string the hook reads, not in an opaque script file. The acceptance comment is updated in both
      `block-hook-bypass.sh` and `lib/powershell/ps-command.sh` rather than contradicted.
 
-  **Direction of every change: 24 allowed → blocked, 0 blocked → allowed.** The zero is the load-
-  bearing number and it is pinned by assertions, not asserted: the name-anchor floor, the
-  `#1601`/`#2148` over-block floor re-run for each new spelling, the multi-line prose/`--body` floor,
-  the `/dev/null` discard floor, and the stdin floor all keep their `rc=0`. The shipped suite went
-  from `PASS=345 FAIL=0` to `PASS=392 FAIL=0`, and the new suite run against the PRE-change hook
-  fails on exactly the blocked-direction rows and nothing else.
+  **Direction of every change: 23 granted → refused, 1 refused → granted.** Measured, not asserted:
+  the new assertions were run against the PRE-change hook and the failures enumerated
+  (`PASS=377 FAIL=15`, every one `expected 2, got 0`), then adversarial probes written afterwards
+  specifically to hunt the other direction turned up eight more rows, now assertions as well.
+
+  The **one** in the other direction is `foo "a<newline>" echo x > f`, and it is a false positive
+  being removed rather than a new exemption. Fusing the two sides of a span back into one segment
+  also puts whatever preceded the span at the segment start: there bash's command word is `foo` and
+  `echo` is one of its *arguments*, so the redirect's producer is another program and this guard is
+  producer-scoped by design. The newline previously split it into a bogus `echo x > f` segment. The
+  single-line spelling `foo "a" echo x > f` was already allowed, so this makes the multi-line form
+  agree with shipped behaviour; both are asserted, as is the mirror case (`echo "a<newline>" x > f`,
+  where the command word really is the producer) which moves the other way.
+
+  It is one row and not a class, verified rather than reasoned: every command PREFIX the file already
+  models — env assignments, `env`, `if…then`, `!`, `exec -a NAME`, a leading redirect — was probed in
+  front of a multi-line span against both hooks, and all still block, because `_cmd_prefix` /
+  `_modifier_opt_arg` / `_leading_redir` peel on the fused segment. Each is pinned with its
+  single-line control. Every remaining floor keeps its `rc=0`: the name anchor, the `#1601`/`#2148`
+  over-block repros re-run for each new spelling, the multi-line prose/`--body` floor, the
+  `/dev/null` discard floor, and the stdin floor.
 
   **Accepted residual, restated at its narrowed width:** `python3 <<PY … PY` — stdin with **no** `-`
   argument — stays uncovered. Matching a bare trailing interpreter token would flip

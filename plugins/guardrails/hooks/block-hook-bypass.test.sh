@@ -1102,6 +1102,61 @@ run "#2217: unterminated quote at end of command (allowed)" "$PY_NL_DANGLE" 0
 PY_NL_THEN=$(printf 'grep "a\nb" f ; echo x > out.txt')
 run "#2217: multi-line span then a real producer+redirect (blocked)" "$PY_NL_THEN" 2
 
+# THE ONE ROW THAT MOVES THE OTHER WAY, pinned deliberately. Fusing the two
+# sides of the span back into one segment can also put a NON-producer at the
+# segment start, and that is the correct reading: in `foo "a<newline>" echo x > f`
+# bash's command word is `foo` and `echo` is one of its ARGUMENTS, so the
+# redirect's producer is another program and this guard is producer-scoped by
+# design. Before the change the newline split it into a bogus `echo x > f`
+# segment and it blocked — a false positive. The single-line spelling of the
+# same command is the control: it has always been allowed on `main`, so this
+# makes the multi-line form agree with the shipped single-line behavior rather
+# than inventing a new exemption. Both are asserted so the agreement is pinned.
+PY_NL_ARGECHO=$(printf 'foo "a\n" echo x > f')
+run "#2217: producer is foo, echo is its argument (allowed)" "$PY_NL_ARGECHO" 0
+run "#2217: control — same command on one line (allowed)" "foo \"a\" echo x > f" 0
+# The mirror image, and the reason the row above is not a hole: when the command
+# word really IS the producer, fusing the segment is what reveals the write.
+PY_NL_REALECHO=$(printf 'echo "a\n" x > f')
+run "#2217: producer is echo, span is its argument (blocked)" "$PY_NL_REALECHO" 2
+run "#2217: control — same command on one line (blocked)" "echo \"a\" x > f" 2
+# Same fusion on the cat lane, with its own single-line control.
+PY_NL_CAT=$(printf 'cat "a\n" > f')
+run "#2217: cat with a multi-line quoted arg then a redirect (blocked)" "$PY_NL_CAT" 2
+run "#2217: control — same command on one line (blocked)" "cat \"a\" > f" 2
+# A span that closes and re-opens across lines fuses at both joins.
+PY_NL_TWO=$(printf 'echo "a\nb" "c\nd" > f')
+run "#2217: two multi-line spans, one producer+redirect (blocked)" "$PY_NL_TWO" 2
+# THE BOUNDARY OF THE ROW ABOVE, and the reason it is one row and not a class.
+# Fusion puts whatever preceded the span at the segment start, so the question is
+# whether a LEGITIMATE command prefix in front of a multi-line span can hide a
+# real producer from `_producer_head`'s `^` anchor. It cannot: `_cmd_prefix`,
+# `_modifier_opt_arg` and `_leading_redir` peel exactly these, and the peel runs
+# on the fused segment. Each is paired with the single-line control that already
+# blocked on `main`, so a regression in the peel shows up as a pair splitting.
+PY_NL_ENVASSIGN=$(printf 'FOO="a\nb" echo x > f')
+run "#2217: env-assignment prefix before a multi-line span (blocked)" "$PY_NL_ENVASSIGN" 2
+run "#2217: control — same command on one line (blocked)" "FOO=\"ab\" echo x > f" 2
+PY_NL_ENV=$(printf 'env FOO="a\nb" echo x > f')
+run "#2217: env modifier before a multi-line span (blocked)" "$PY_NL_ENV" 2
+run "#2217: control — same command on one line (blocked)" "env FOO=\"ab\" echo x > f" 2
+PY_NL_IF=$(printf 'if true ; then echo "a\nb" > f ; fi')
+run "#2217: compound-command header before a multi-line span (blocked)" "$PY_NL_IF" 2
+PY_NL_NEG=$(printf '! echo "a\nb" > f')
+run "#2217: pipeline negation before a multi-line span (blocked)" "$PY_NL_NEG" 2
+PY_NL_EXECA=$(printf 'exec -a n echo "a\nb" > f')
+run "#2217: exec -a NAME before a multi-line span (blocked)" "$PY_NL_EXECA" 2
+PY_NL_LEADREDIR=$(printf '> f echo "a\nb"')
+run "#2217: leading redirect before a multi-line span (blocked)" "$PY_NL_LEADREDIR" 2
+run "#2217: control — same command on one line (blocked)" "> f echo \"ab\"" 2
+PY_NL_PRINTF=$(printf 'FOO=1 printf "a\nb" > f')
+run "#2217: env-assignment prefix, printf producer (blocked)" "$PY_NL_PRINTF" 2
+# The cat lane keeps its own shape: `cat FILE x > f` is a copy, not a stdin
+# consume, and `_cat_redir` needs `cat` immediately before the redirect. Fusion
+# leaves the argument words in place, so this stays allowed — before and after.
+PY_NL_CATARG=$(printf 'cat "a\nb" x > f')
+run "#2217: cat with args between it and the redirect (allowed)" "$PY_NL_CATARG" 0
+
 # (3) THE REOPENED ACCEPTED RESIDUAL. `python3 - <<PY … PY` (no `-c`) was
 # documented as uncovered and accepted in the PowerShell lane's comment. Reopened
 # on new reachability evidence: this repo's own session record shows an agent
