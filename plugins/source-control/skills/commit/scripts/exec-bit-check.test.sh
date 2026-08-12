@@ -19,6 +19,8 @@ source "$SCRIPT_DIR/../../../scripts/test-helpers.sh"
 command -v git >/dev/null 2>&1 || skip_suite "git not available"
 [[ -f "$HELPER" ]] || skip_suite "exec-bit-check.sh not found at $HELPER"
 
+printf 'SUITE: exec-bit-check.test.sh on %s\n' "$(git --version 2>/dev/null || printf 'git unknown')"
+
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
@@ -472,7 +474,7 @@ if [[ "$copy_status" == "1" ]]; then
   bash "$HELPER" --repo-dir "$repo16" --fix -- dup.sh >/dev/null 2>&1
   assert_eq "--fix corrects a copy destination" "100755" "$(staged_mode "$repo16" dup.sh)"
 else
-  skip_case "this git did not pair the fixture as a copy"
+  fail_discriminating_skip "copy-arm fixture unpaired on $(git --version 2>/dev/null): git diff --cached --name-status has ${copy_status:-0} C record(s), expected 1 — copy-arm discriminating coverage did not run"
 fi
 
 # A pathspec that names only the SOURCE side breaks the pairing back into D/M,
@@ -652,7 +654,7 @@ else
   # The skip reports WHAT IT SAW, not just that it gave up. A silent skip is
   # indistinguishable from a fixture that never built, and this suite has been
   # bitten by exactly that.
-  skip_case "this git did not produce both a D+A and an R pairing for the disagreement fixture (renames=false saw: ${dis_off_status:-<empty>} | renames=true saw: ${dis_on_status:-<empty>})"
+  fail_discriminating_skip "this git did not produce both a D+A and an R pairing for the disagreement fixture (renames=false saw: ${dis_off_status:-<empty>} | renames=true saw: ${dis_on_status:-<empty>})"
 fi
 
 # The COPY arm is the OPPOSITE of repo19 above, and this case pins that
@@ -706,7 +708,7 @@ if [[ "$nonexec_copy_status" == "1" ]]; then
   assert_eq "the copy SOURCE is not itself admitted by the copy arm" \
     "100644" "$(staged_mode "$repo21" tpl.sh)"
 else
-  skip_case "this git did not pair the non-executable fixture as a copy"
+  fail_discriminating_skip "non-executable copy fixture unpaired on $(git --version 2>/dev/null): git diff --cached --name-status has ${nonexec_copy_status:-0} C record(s), expected 1 — copy-arm discriminating coverage did not run"
 fi
 
 # --- Case group 21b: the two diff.renames configurations AGREE ----------------
@@ -769,7 +771,7 @@ if [[ "$agree_off_status" == "1" ]] && [[ "$agree_on_status" == "1" ]]; then
   assert_eq "the two diff.renames configurations AGREE on identical staged content" \
     "$agree_off" "$agree_on"
 else
-  skip_case "this git did not produce both an A and a C pairing for the agreement fixture"
+  fail_discriminating_skip "agreement fixture unpaired on $(git --version 2>/dev/null): diff.renames=false A copy.sh=${agree_off_status:-0}, diff.renames=copies C=${agree_on_status:-0} (expected 1 each) — copy-arm discriminating coverage did not run"
 fi
 
 # The pair branch reads THREE fields per record, so a space in either path is
@@ -831,8 +833,9 @@ if [[ "$spaced_copy_status" == "1" ]]; then
   assert_eq "a copy destination is reported when BOTH paths contain spaces" \
     "tpl copy.sh" "$(bash "$HELPER" --repo-dir "$repo23" --list 2>/dev/null)"
 else
-  skip_case "this git did not pair the spaced fixture as a copy"
+  fail_discriminating_skip "spaced copy fixture unpaired on $(git --version 2>/dev/null): git diff --cached --name-status has ${spaced_copy_status:-0} C record(s), expected 1 — copy-arm discriminating coverage did not run"
 fi
 
-printf '\n%d case(s), %d failure(s)\n' "$CASE_NUM" "$FAILED"
+printf '\n%d case(s), %d failure(s), %d optional skip(s), %d discriminating skip(s)\n' \
+  "$CASE_NUM" "$FAILED" "$SKIP_CASES" "$DISCRIMINATING_SKIP_CASES"
 [[ $FAILED -eq 0 ]] || exit 1
