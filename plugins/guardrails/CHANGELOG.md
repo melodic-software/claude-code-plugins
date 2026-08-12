@@ -3,25 +3,38 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.12]
+
+### Fixed
+
+- **`stale-path-verify` history walk uses `core.quotePath=false` and `-m` (#1452).**
+  Non-ASCII deleted paths match citations literally, and deletions made while
+  resolving a merge enter the deleted-path set.
+
+
+### Fixed
+
+- **`stale-path-verify` partial-Edit reconstruction (#1455).** Lowered the token floor to two
+  characters so minimal extension swaps (`md`, `js`) are not skipped, and single-word anchors now
+  use word-boundary matching so a bare fragment like `docs` cannot over-recover an untouched
+  citation on another line.
 
 ## [0.28.10]
 
 ### Fixed
 
-- Improve stale-path-verify deletion history walk.
+- **`block-noncanonical-commit` replays locating globals on persisted-alias lookup (#1501).**
+  `git config --get alias.<name>` now receives the invocation's `--git-dir` /
+  `--work-tree` / `--namespace` sequence, matching the identity probe. A
+  multi-line `-m` reached via an alias chain from outside the work tree is
+  blocked instead of allowed.
 
 ## [0.28.9]
 
 ### Fixed
 
-<<<<<<< HEAD
 - **`block-noncanonical-commit`:** resolve persisted `alias.<sub>.command` subkeys, not only
   `alias.<sub>` (#1022).
-=======
-- **`stale-path-verify` history walk uses `core.quotePath=false` and `-m` (#1452).**
-  Non-ASCII deleted paths match citations literally, and deletions made while
-  resolving a merge enter the deleted-path set.
->>>>>>> df272de7 (fix(guardrails): improve stale-path-verify deletion history walk)
 
 ## [0.28.8]
 

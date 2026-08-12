@@ -479,12 +479,18 @@ declare -A _persisted_alias_command=()
 HOOK_PERSISTED_ALIAS_EXPS=()
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 persisted_alias_expansions() {
-  local dir="$1" sub="$2" key plain cmd
-  key="$dir"$'\n'"$sub"
+  local dir="$1" sub="$2" key plain cmd q a
+  shift 2
+  printf -v q '%q' "$dir"
+  key="$q"$'\n'"$sub"
+  for a in "$@"; do
+    printf -v q '%q' "$a"
+    key+=$'\n'"$q"
+  done
   if [[ -z "${_persisted_alias_plain[$key]+x}" ]]; then
-    _persisted_alias_plain["$key"]=$(git -C "$dir" config --get "alias.$sub" 2>/dev/null)
+    _persisted_alias_plain["$key"]=$(git -C "$dir" "$@" config --get "alias.$sub" 2>/dev/null)
     if [[ -z "${_persisted_alias_plain[$key]}" ]]; then
-      _persisted_alias_command["$key"]=$(git -C "$dir" config --get "alias.$sub.command" 2>/dev/null)
+      _persisted_alias_command["$key"]=$(git -C "$dir" "$@" config --get "alias.$sub.command" 2>/dev/null)
     else
       _persisted_alias_command["$key"]=""
     fi
@@ -712,7 +718,8 @@ check_segment() {
     if ((inline_alias_handled == 0)) && [[ "$sub" != "commit" ]]; then
       local pexp
       [[ -n "$seg_dir" ]] || seg_dir="$(effective_dir ${wrapper_cd[@]+"${wrapper_cd[@]}"} "${w[@]:gi:sub_idx-gi}")"
-      persisted_alias_expansions "$seg_dir" "$sub"
+      collect_locating_globals "${w[@]:gi:sub_idx-gi}"
+      persisted_alias_expansions "$seg_dir" "$sub" ${locating_globals[@]+"${locating_globals[@]}"}
       for pexp in ${HOOK_PERSISTED_ALIAS_EXPS[@]+"${HOOK_PERSISTED_ALIAS_EXPS[@]}"}; do
         [[ -n "$pexp" ]] || continue
         if [[ "$pexp" == '!'* ]]; then

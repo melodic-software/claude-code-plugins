@@ -202,10 +202,20 @@ Well-attested across community guides and Reddit but not officially documented. 
 | **Ellipsis** | `and then... I realized` | Natural pause / breath (≈ 0.5-2 sec) |
 | **Hyphenation** | `l-i-v-e the moment` | Staccato letter-by-letter delivery — good for rap or EDM emphasis |
 | **Parenthetical cue** | `In the shadows (whispered)` | Inline performance directive. Keep 1-3 words; longer phrases get sung |
-| **Line breaks** | One idea per line | Forces melodic separation; phrases on one line tend to run together |
+| **Line breaks** | One idea per line | Forces melodic separation; phrases on one line tend to run together. **A default, not a floor** — stacks of very short lines buy excess separation; see "Line breaks cut both ways" below |
 | **Manual repetition** | Write the line twice with a tweak | `(x2)` notation is largely ignored — literal repetition with minor variation is more reliable |
 | **Inline backing** | `I love you [ahhs rising]` | Adds layered backing vocals / inline FX |
 | **Timing cue** | `[at 0:15 vocals enter]` | Reported to nudge timing; **no adherence rate is stated** — the old `~70%` had no basis. Less reliable than structure tags. LOW-MEDIUM; see `tips.md` "Timing cues" |
+
+### Line breaks cut both ways — the short-line edge
+
+"One idea per line" is the default because Suno phrases at every line break (row above). The same mechanism has a failure edge: **separation is what the break buys, so short lines buy too much of it.** A stack of clipped fragments can return with a pause after each one and a delivery that reads as choppy rather than sung. One mechanism, two directions.
+
+**There is no established line-length floor**, and none is invented here — no source states a number. Judge it instead by whether each line is a phrase someone would sing in one breath: a clause holds, a fragment over-instructs. The one case observed here was a five-line bridge whose lines were fragments rather than clauses.
+
+**The fix lives at the prompt layer, not in the lyric.** Join the lines that should sing as one phrase in the **Suno lyrics field**; the page lyric keeps its artistic lineation. These are two artifacts — the song, and the Suno input — and only the second one changes. Nothing here asks a writer to un-write a line.
+
+**Basis.** The line-break mechanism carries this section's MEDIUM rung and is not rated down. The failure edge and the join fix are `writer-observed, single session (2026-08-12), n=1 — not externally corroborated` — one v5.5 session, one section, fixed on regeneration. What would settle it: the same section joined and un-joined across several generations each, plus one external report of the same edge. Diagnosis and fix steps: [troubleshoot.md](troubleshoot.md) "There's too much pause between lines".
 
 ## Hallucinated-lyrics prevention
 
@@ -222,6 +232,6 @@ Suno can't fix lyrics post-generation — prevention only. Apply these BEFORE ge
 
 - Keep total lyrics to **30-40 lines for a 3-4 min song** — past ~60 lines, delivery rushes or sections get skipped
 - Match section count to song length: **2 verses + 2 choruses + 1 bridge** is safe default
-- **One idea per line** — Suno breaks phrases at line endings
-- Reuse the **chorus verbatim** (or near-verbatim) — repetition makes a hook stick
+- **One idea per line** — Suno breaks phrases at line endings. A default, not a floor: see "Line breaks cut both ways" for the short-line edge where it backfires and the prompt-layer join that fixes it
+- Reuse the **chorus verbatim** (or near-verbatim) — repetition makes a hook stick. Write it out under **every** `[Chorus]`: a bare tag with no lyrics under it is not a reliable repeat instruction — see [troubleshoot.md](troubleshoot.md) "My bridge is missing / another section sang its lyrics"
 - For multilingual songs: write the section in the target language; section tags themselves stay English

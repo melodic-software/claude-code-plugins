@@ -218,12 +218,12 @@ reconstruct_partial_edit() {
   local residue
   # shellcheck disable=SC2016  # backticks are literal ERE data, not expansions
   residue=$(printf '%s' "$SCAN_CONTENT" | sed -E 's/`[^`]*`//g')
-  # Minimum token length. A substring match on a very short token matches almost
-  # any path segment, so below 4 characters the token carries no filtering power.
+  # Minimum token length is two characters. A single-character token carries no
+  # filtering power; below two characters the token floor short-circuits (#1455).
   # Path separators are deliberately NOT in the token charset: a prose fragment
   # like `and/or` would then match far more candidates than a bare word does.
   local -a toks=()
-  mapfile -t toks < <(printf '%s' "$residue" | grep -oE '[A-Za-z0-9][A-Za-z0-9._-]{3,}' 2>/dev/null | sort -u)
+  mapfile -t toks < <(printf '%s' "$residue" | grep -oE '[A-Za-z0-9][A-Za-z0-9._-]{1,}' 2>/dev/null | sort -u)
   ((${#toks[@]})) || return 0
   # Lines are located by the hunk's own lines, never by its tokens. Every line of
   # new_string is on disk verbatim, so it matches the line the edit landed in; a
@@ -250,7 +250,13 @@ reconstruct_partial_edit() {
   local anchor occ ctx=""
   local -a hits=()
   for anchor in "${anchors[@]}"; do
-    mapfile -t hits < <(grep -F -- "$anchor" "$FILE" 2>/dev/null)
+    # Single-word anchors use word-boundary matching so a bare fragment like
+    # `docs` does not substring-match inside `docs/gone.md` on an untouched line (#1455).
+    if [[ "$anchor" != *' '* && "$anchor" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+      mapfile -t hits < <(grep -w -F -- "$anchor" "$FILE" 2>/dev/null)
+    else
+      mapfile -t hits < <(grep -F -- "$anchor" "$FILE" 2>/dev/null)
+    fi
     ((${#hits[@]})) || continue
     # replace_all is the one case where repetition is expected rather than
     # ambiguous: every occurrence is a place THIS call edited, so all of them are
@@ -271,10 +277,31 @@ reconstruct_partial_edit() {
     # The anchor crosses into awk via the environment, not `-v`: `-v` processes
     # escape sequences in the value, so an anchor containing a backslash would
     # be silently transformed before the comparison.
-    occ=$(HOOK_ANCHOR="$anchor" awk '
-      BEGIN { a = ENVIRON["HOOK_ANCHOR"]; n = 0 }
-      { p = 1; while ((i = index(substr($0, p), a)) > 0) { n++; p = p + i } }
-      END { print n }
+    occ=$(HOOK_ANCHOR="$anchor" HOOK_ANCHOR_WORD="${anchor// /}" awk '
+      BEGIN {
+        n = 0
+        a = ENVIRON["HOOK_ANCHOR"]
+        word = (index(a, " ") == 0 && a ~ /^[A-Za-z0-9][A-Za-z0-9._-]*$/)
+      }
+      {
+        p = 1
+        while (p <= length($0)) {
+          if (word) {
+            if (substr($0, p, 1) !~ /[A-Za-z0-9_]/) { p++; continue }
+            if (p > 1 && substr($0, p - 1, 1) ~ /[A-Za-z0-9_]/) { p++; continue }
+            end = p
+            while (end <= length($0) && substr($0, end, 1) ~ /[A-Za-z0-9_]/) end++
+            if (substr($0, p, end - p) == a) { n++; p = end; continue }
+            p++
+          } else {
+            i = index(substr($0, p), a)
+            if (i == 0) break
+            n++
+            p = p + i
+          }
+        }
+      }
+      END { print n + 0 }
     ' "$FILE" 2>/dev/null)
     ((occ == 1)) || continue
     ctx+="${hits[0]}"$'\n'

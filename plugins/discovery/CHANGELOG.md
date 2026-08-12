@@ -1,5 +1,13 @@
 # Changelog — discovery plugin
 
+## [0.15.3]
+
+### Fixed
+
+- **Fork availability wording in setup check.** Reconcile setup skill prose with discipline
+  `sweep-all` preflight: report `CLAUDE_CODE_FORK_SUBAGENT` as a control and defer availability to a
+  live inheritance probe instead of claiming forks are unconditionally on.
+
 ## [0.15.2]
 
 ### Fixed

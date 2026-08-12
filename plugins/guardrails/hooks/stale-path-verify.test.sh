@@ -181,6 +181,16 @@ RC=$?
 assert_exit "bare-fragment hunk → exit 0" 0 "$RC"
 assert_silent "bare-fragment hunk does not adjudicate an untouched citation" "$OUT"
 
+# Face A (#1455): below the old four-character token floor, reconstruction returned
+# immediately and missed a stale citation from a minimal extension swap.
+SHORTFRAG="$REPO/shortfrag.md"
+printf 'See `docs/gone.md` here.\n' >"$SHORTFRAG"
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$SHORTFRAG" 'md')" 2>&1)
+RC=$?
+assert_exit "two-character partial-edit anchor → exit 0" 0 "$RC"
+assert_contains "two-character partial-edit anchor → stale citation recovered" "$OUT" \
+  "STALE_PATH: docs/gone.md"
+
 # Occurrences, not matching lines. Two occurrences on ONE physical line are a
 # single grep hit, so a line-uniqueness gate would call this unique and adjudicate
 # a citation sharing the line. The anchor cannot say which occurrence the edit

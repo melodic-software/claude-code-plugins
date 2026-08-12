@@ -13,11 +13,13 @@ Most Suno issues are **prompt-side preventable**. The model can't fix audio post
 | BPM as descriptor (`fast`) | ±20 BPM drift from intent | Descriptor → wide range | Use numeric (`128 BPM`) — ~90% adherence in v5.5 |
 | Long sentences with internal rhymes | Hallucinated / garbled lyrics | Model confused by complex structure | Break into shorter lines, simpler rhyme scheme |
 | `(x2)` after a lyric line | Repeat is ignored | Notation not parsed | Write the line twice with minor variation |
+| Tag-only section as repeat shorthand (bare `[Chorus]`, no lyrics under it) | Adjacent section absorbed — its lyrics sang in the empty slot, and that section is missing | Observed once; adjacency is the correlate, mechanism not established | Write full lyrics under every repeated section — see "My bridge is missing / another section sang its lyrics" |
 | ALL-CAPS every word | Effect dilutes to no effect | Loses contrast | Cap only turning-point words |
 | `no drums` in drum-heavy genre alone | Drums still appear | Negative without positive | Pair with positive (`piano only, no drums`) |
 | 5+ exclusions stacked | Conflicting signals, exclusions ignored | Model picks and chooses | Cap at 2-3 negatives |
 | Style prompt > 1000 chars | Trailing tags may be weakly followed or ignored | Later content may receive less attention; silent truncation is unverified | Front-load critical content |
 | Lyrics > 60 lines | Rushed delivery, sections skipped | Time budget exceeded | Trim to 30-40 lines for 3-4min song |
+| Short-line stacks (clipped fragments) | Excess pauses between lines, choppy delivery | Suno phrases at every line break — separation is what the break buys | Join lines in the Suno lyrics field only, leaving the page lyric unchanged — see "There's too much pause between lines" |
 | Naming artists directly (`like Drake`) | Likely blocked or ignored | Filter | Use sound descriptors (`Toronto trap bounce`, `silk-smooth R&B falsetto`) |
 | Vocal descriptor + active Voice/Custom Model | Conflict, weird vocal artifacts | Cloned identity vs prompted identity | **Drop gender/tone descriptors** from style when Voice/Custom Model active |
 | Same prompt regenerated 3+ times | Diminishing returns, repetitive output | Cached patterns | Rotate synonyms (`gritty → raw → visceral → unpolished`) |
@@ -47,6 +49,20 @@ Most Suno issues are **prompt-side preventable**. The model can't fix audio post
 3. Break long sentences across lines
 4. Simplify rhyme scheme — internal multi-syllable rhymes confuse the model
 5. Verify total char count — paste into a counter; if > 3,000 chars, trim (quality threshold; the 5,000 hard cap is not the problem)
+
+### "There's too much pause between lines / the delivery is choppy"
+
+**Why:** Suno phrases at every line break — the same mechanism that makes "one idea per line" good default advice. Separation is what a break buys, so a stack of short clipped lines buys too much of it: the model sets a phrase boundary after each fragment and the section returns as a run of pauses rather than a sung line. The words are not the problem; the line endings are being read as phrasing instructions. This is the entry above turned too far — "break long sentences across lines" has an edge past which it backfires.
+
+**Fix:**
+
+1. Find the section with the shortest lines — a bridge or pre-chorus written as clipped fragments is the usual culprit
+2. In the **Suno lyrics field only**, join the lines that should sing as one phrase onto one line
+3. **Leave the page lyric alone** — the join is an input transformation for Suno, not an edit to the song. Keep two artifacts: the lyric as written, and the Suno-input form
+4. Join no more than the phrasing needs, then regenerate and compare against the version without the joins — every join gives up a melodic boundary you may have wanted
+5. Do not "fix" this by cutting words or shortening the section
+
+**Evidence:** the line-break mechanism is established at MEDIUM and is not in question. The **failure edge** — that short-line stacks over-separate, and that joining at the prompt layer fixes it — is `writer-observed, single session (2026-08-12), n=1 — not externally corroborated`: one five-line clipped bridge on v5.5, fixed on regeneration by joining lines in the Suno field while the page lyric kept its lineation. See [SKILL.md](../SKILL.md) on where first-hand observations sit relative to the confidence ladder. Full mechanism statement: [lyrics.md](lyrics.md) "Line breaks cut both ways".
 
 ### "BPM is off by 20+"
 
@@ -126,6 +142,22 @@ Expected — the title has minimal or no known effect on musical output; communi
 
 1. Always put `[Verse]`, `[Chorus]`, etc. on their **own line**
 2. Inline cues use `(parentheses)` not square brackets: `In the shadows (whispered)` not `In the shadows [whispered]`
+
+### "My bridge is missing / another section sang its lyrics"
+
+**Why:** An empty `[Chorus]` tag — the tag alone on its line with no lyrics under it, used as "repeat the chorus" shorthand — sat immediately above a `[Bridge]` that did carry lyrics. Suno sang the bridge's lyrics in the chorus slot and dropped the bridge entirely. Observed once, 2026-08-12, on Suno v5.5.
+
+**Fix:**
+
+1. Write **full lyrics under every repeated section** — paste the chorus text out again under each `[Chorus]` rather than leaving the tag bare. It costs only characters, and `lyrics.md` already recommends reusing the chorus verbatim so the hook sticks
+2. Count that repeated text against the lyrics budget — writing three choruses out adds real lines, and the 30-40-line / ~3,000-char guidance still holds. Trim elsewhere rather than going back to bare tags
+3. If you keep a bare tag anyway, treat the shape as unverified: generate 4+ versions and check the section order in every one. Variance is high, so one clean generation is not evidence the shape is safe
+
+The observed correlate is a **tag-only section directly adjacent to a lyric-bearing section**. That adjacency is what was seen — a candidate cause, not a demonstrated mechanism. One run cannot show that tag-only repeats always fail, only that they can, which is why this is recorded as a failure mode rather than rated on the confidence ladder.
+
+**Evidence:** `writer-observed, single session (2026-08-12), n=1 — not externally corroborated`. See [SKILL.md](../SKILL.md) on where first-hand observations sit relative to the ladder.
+
+**Untested:** whether a tag-only section is safe as the *final* section before `[Outro]`/`[End]`, with no lyric-bearing section after it. Neither endorsed nor ruled out — check the output if you try it. Distinct from the `Lyrics > 60 lines` row above, which is a length failure; this was observed at normal length.
 
 ## Regeneration strategy
 
