@@ -3,13 +3,27 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.28.12]
+## [0.28.14]
 
 ### Fixed
 
 - **`stale-path-verify` history walk uses `core.quotePath=false` and `-m` (#1452).**
   Non-ASCII deleted paths match citations literally, and deletions made while
   resolving a merge enter the deleted-path set.
+
+## [0.28.13]
+
+### Changed
+
+- **Synced `hook-utils.sh`:** write `emit_telemetry`'s `data` payload to a temp file instead of passing it via `--argjson`, so payloads above the Windows command-line cap are not dropped (#1595).
+
+## [0.28.12]
+
+### Fixed
+
+- **`hook::git_resolve_index` sudo cluster peel (#1811).** Peel documented valueless sudo
+  short options off clustered tokens so `sudo -bD <dir> git …` records the chdir; widen the
+  peel set to cover all documented valueless shorts while keeping `-h` value-taking.
 
 ## [0.28.11]
 

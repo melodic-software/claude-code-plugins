@@ -3,6 +3,38 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.53.16]
+
+### Changed
+
+- **Synced `hook-utils.sh`:** write `emit_telemetry`'s `data` payload to a temp file instead of passing it via `--argjson`, so payloads above the Windows command-line cap are not dropped (#1595).
+
+## [0.53.15]
+
+### Changed
+
+- **Synced `hook-utils.sh`:** peel sudo clustered short options for chdir resolution (#1811); widen the valueless-short peel set and keep `-h` value-taking.
+
+## [0.53.14]
+
+### Changed
+
+- **Stale-branch recovery defaults to merge-forward, not rebase + force-push (#1436).** `monitor.md`'s
+  conflict and stale-branch paths prescribed "force-push with lease", which auto-mode permission
+  classifiers commonly deny — the observed cost was a fresh branch + fresh PR per rebase, with every
+  review thread re-opened. Merging the default branch *into* the PR branch pushes fast-forward with
+  no force-push, and under a squash-only default branch the merge commits collapse on merge, so
+  linear-history requirements stay satisfied. Rebase remains the exception for projects that require
+  a linear PR branch and where force-push is actually available.
+
+### Added
+
+- **`statusCheckRollup` running-check pitfall documented (#1436).** An unfinished check reports
+  `conclusion: ""` (empty string), not `null`, so complement-shaped failure filters
+  (`conclusion != null and != "SUCCESS"`) count still-running checks as failures. `monitor.md`'s
+  multi-PR scan now carries the correct value-positive jq selectors for "failed" and "still
+  running".
+
 ## [0.53.11]
 
 ### Fixed

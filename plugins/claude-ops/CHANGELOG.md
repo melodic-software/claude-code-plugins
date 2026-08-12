@@ -3,6 +3,24 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.6]
+
+### Changed
+
+- **Synced `hook-utils.sh`:** write `emit_telemetry`'s `data` payload to a temp file instead of passing it via `--argjson`, so payloads above the Windows command-line cap are not dropped (#1595).
+
+## [0.31.5]
+
+### Changed
+
+- **Synced `hook-utils.sh`:** peel sudo clustered short options for chdir resolution (#1811); widen the valueless-short peel set and keep `-h` value-taking.
+
+## [0.31.4]
+
+### Changed
+
+- **Synced `hook-utils.sh`:** peel sudo clustered short options for chdir resolution (#1811).
+
 ## [0.31.3]
 
 ### Changed

@@ -147,6 +147,95 @@ VARIATION 6 — [axis: tone-of-voice shift, controlled → raw]
 If the writer chose ONE axis in Step 1, do not span 6 axes. Generate 4-6
 variations within that axis.
 
+## Presenting the candidates — chat vs file (writer-requested, 2026-08-12)
+
+*This file's own additions, not book claims:* everything in this section is
+the writer's own stated convention, requested 2026-08-12 after the candidates
+he was shown could not be judged for singability. The `►` marker and the 3-4
+chat-menu cap are HIS notation and HIS number, not Pat's — no book claim is
+made for either, and none of it carries a citation. The craft it protects
+(the writer's sing-check as the final test) is cited where it lives, in
+[audit-checklist.md](audit-checklist.md) and
+[response-filter.md](response-filter.md) §2.
+
+The Step 2 format block above is the **file** shape: every candidate with its
+full metadata (vowel, stress count, POV, rhyme position) plus its
+per-candidate craft notes, persisted per the "Artifact pattern" section below.
+It is NOT the chat shape. A bare one-line candidate in a table forces the
+writer to re-embed it in the section by hand before he can sing it — and the
+singing is where the judgement actually happens.
+
+### Dump vs menu — the distinction the word "inline" is about
+
+[artifact-persistence.md](artifact-persistence.md) and the co-write skill both
+forbid an "inline dump." That prohibition is about the DUMP — the whole generated
+set pasted into chat, unlabeled and untrimmed. It is not a prohibition on
+candidates appearing in chat at all. The MENU is the opposite thing: 3-4 curated
+candidates, each rendered as a complete singable passage. The dump goes to the
+file. The menu goes to chat, and it is required — a variations response with
+nothing singable in it has not been delivered.
+
+### The chat shape
+
+- **Always show candidates IN CONTEXT** — render the full section, or the
+  changed lines plus at least the neighboring line on each side. When the
+  edit sits at a section boundary, include the last line of the previous
+  section or the first line of the next.
+- **Mark changed lines** with a leading `►` so the eye finds the diff
+  instantly; unchanged context lines render plain.
+- **One block per variation**, labeled (A/B/C...), so versions compare as
+  complete singable passages — never as bare one-line fragments in a table.
+- **Keep the chat menu to 3-4 candidates.** Full analysis — scansion maps,
+  rubric results, rhyme-type labels — lives in the `variations/` file, not
+  inline.
+- **Scansion / slot detail appears in chat only when the discussion IS the
+  meter**; otherwise reference the worksheet file.
+
+### Worked example — the shape
+
+Placeholder content, invented here for the shape only:
+
+```
+A. (image axis — what she counts)
+  the porch light gave up around ten
+► she counted the cars in the drive
+  and nobody turned in
+
+B. (image axis — the cars pass instead)
+  the porch light gave up around ten
+► she counted the cars that went by
+  and nobody turned in
+```
+
+Two blocks, one changed line each, marked; the writer sings both against the
+same neighbors. Which one wins is his call — Step 4 below still holds.
+
+### The cap is a display cap, not a generation cap
+
+Three different moments, three different numbers, no contradiction:
+
+| Moment | Volume | Where it lands |
+|---|---|---|
+| [line-brainstorm.md](line-brainstorm.md) dump | its own "30-50+ across 5 columns" | the song's `variations/` or `worksheets/` file |
+| Variations generated per axis, per Step 2 above | 4-6 | the `variations/<section>-<line>.md` menu |
+| Candidates SHOWN in one chat menu | 3-4 | the chat, as full-context blocks |
+
+Generate wide, record everything, show few. [line-brainstorm.md](line-brainstorm.md)
+is unchanged by this section: it still dumps every column, and those columns
+still go to the file. When the writer wants candidates he can sing, the
+3-4-block menu is what reaches him. Trim to it by naming the craft reason
+each survivor was kept for, and leave the rest in the file where he can walk
+them later.
+
+### Scope of this section
+
+This governs only the SHAPE of what is shown. Whether a candidate is *ready*
+to be shown is [line-edit-rubric.md](line-edit-rubric.md) — the per-edit cycle the
+writer requested in the same 2026-08-12 breath, whose pass 1 must be clean before
+anything reaches the menu, and whose closing sing-check is always the final gate.
+Do not read this section as authorizing emission of a line that has not been
+through it.
+
 ## Step 3 — Highlight the trade-offs
 
 For each variation, name what the variation gains AND what it loses
@@ -215,3 +304,9 @@ same file rather than deleting them. They may help later songs.
 - `prosody.md` — tone-of-voice axis source
 - `audit-checklist.md` — per-line evaluation across variations
 - `rhyme-generation.md` — vowel-shift rhyme implications
+- `line-brainstorm.md` — the high-volume dump that feeds this menu; its
+  volume and this file's 3-4 chat cap are different moments
+- `line-edit-rubric.md` — the per-candidate cycle a variation clears BEFORE it
+  reaches the menu this file shapes
+- `artifact-persistence.md` — where the `variations/` file lives, and the
+  "don't dump options inline" wording this file qualifies

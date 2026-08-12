@@ -26,7 +26,8 @@ Paste what you're varying.
 
 ## Step 2 — Generate 4-6 labeled variations (model-side)
 
-Format for output to writer:
+Format for the RECORDED menu — the `variations/<section>-<line>.md` file that
+Step 5 archives. This is not the chat shape; see Step 2b below.
 
 ```
 **ORIGINAL:** <the line / section>
@@ -58,6 +59,22 @@ Format for output to writer:
 If the writer chose ONE axis in Step 1, all variations share that axis
 (internal variety within the axis). If they chose "all", spread across
 2-4 axes.
+
+## Step 2b — Chat shape: 3-4 full-context blocks (writer-requested, 2026-08-12)
+
+The block above is what the FILE holds. What reaches the writer in chat is a
+menu of 3-4 candidates, each rendered as a full section block — the changed
+lines marked with a leading `►`, the neighboring lines shown plain, one
+labeled block per variation (A/B/C...). Metadata lines (vowel / stress / POV /
+rhyme position) and scansion maps stay in the file unless the discussion IS
+the meter.
+
+Generate 4-6 per Step 2; show 3-4. The rest are archived, not discarded —
+Step 5 already does that.
+
+Shape and worked example:
+[variations.md](../research/variations.md) "Presenting the candidates — chat
+vs file". This is the writer's own convention, not a book claim.
 
 ## Step 3 — Highlight trade-offs (model-side)
 

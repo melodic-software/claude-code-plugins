@@ -3,6 +3,13 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.4]
+
+### Fixed
+
+- **Guard-launch detector scans transcript head plus tail (#1514).** Guard failures that fall
+  outside the 2 MB tail window are no longer lost when a later turn appends a large record.
+
 ## [0.17.3]
 
 ### Fixed

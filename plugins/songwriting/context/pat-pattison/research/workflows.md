@@ -76,6 +76,27 @@ first three steps are non-negotiable for "from scratch".
 Trigger phrases: "this isn't landing", "second verse is weak", "my chorus
 doesn't lift", "feels generic", "doesn't sound finished", "review my draft".
 
+**Melody-locked precondition — compose this scenario with Scenario 4.** When the
+song already exists as a *recording* with the melody sung — a demo, a cover, an
+AI-generated track — a line-level revision is not only a revision: every
+replacement line has to land on notes that already exist, and the chain below
+never checks that. Extra trigger phrases for this case: "revise this demo",
+"replace a line in the track", "rewrite the lyric over this cover", "the words
+are wrong but the melody stays".
+
+Route to **both** scenarios:
+
+- Run Scenario 4 below, and with it [meter](meter.md) "fitting a replacement line
+  to an already-sung melody" — build the written positional template for each
+  line being replaced.
+- Then run the chain below on the diagnosis, with those templates in hand.
+
+The fitting pass runs **before** step 1 of the chain, not after it. Diagnosing
+first and fitting afterwards is what failed in production (2026-08-12): the
+router picked this scenario alone, Scenario 4 never loaded, the two never
+composed, and replacement lines were written to a stress *count* instead of the
+sung line's stress *positions*.
+
 Default chain:
 
 1. **Diagnose section-by-section** — use the
@@ -185,6 +206,16 @@ Default chain:
 
 Coach posture: preserve natural word stress unless distortion is a deliberate
 choice for emotional effect (rare).
+
+**Sub-case — replacing a line inside an already-sung section.** The chain above
+assumes no words have been set to this melody yet. Once they have — a demo, a
+cover, an AI-generated track — the melody is not merely a constraint on stress:
+it is a template with numbered positions, and matching the sung line's stress
+*count* does not seat a replacement on it. Run [meter](meter.md) "fitting a
+replacement line to an already-sung melody" per replaced line before drafting,
+then rejoin this chain at step 8 (sing every line). A revision request that
+arrives this way also belongs to Scenario 2 — see its melody-locked precondition
+for the order the two scenarios run in.
 
 ## Scenario 5 — Co-write session start
 
@@ -383,6 +414,9 @@ secondaries briefly, do not fix them. (Plugin-authored coaching posture —
   - "fix" / "review" / "not landing" / full draft attached → Scenario 2 or 6
   - "title" word in prompt → Scenario 3
   - "melody" / "music" / "tune" / "co-writer wrote" → Scenario 4
+  - "cover" / "demo" / "already recorded" / "replace a line in the track" /
+    "the melody stays" → Scenario 2 **and** Scenario 4, composed, with the
+    fitting pass first (see Scenario 2's melody-locked precondition)
   - "co-write" / "session" / "writing partner" → Scenario 5
   - "what's wrong" / "honest" / no rewrite asked → Scenario 6
   - "daily" / "every day" / "habit" / "practice plan" → Scenario 7

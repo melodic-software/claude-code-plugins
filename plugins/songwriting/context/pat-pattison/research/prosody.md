@@ -371,6 +371,34 @@ Prosody checks:
 - Does the line-length pattern expose denial, longing, or imbalance beneath the
   surface statement?
 
+### Length envelope for a section written without a fixed paradigm
+
+**Plugin-authored rule, writer-derived from the Sofía sessions (2026-08-12).**
+A section written with no paradigm chosen and no line length matched to a sibling
+is still heard against the lengths the rest of the song established, because
+[phrasing](phrasing.md) "phrase length controls speed" only works by contrast — a
+phrase is long or short relative to the pace already set. The freedom is from a
+paradigm, not from an envelope.
+
+The rule: **before writing a section without a fixed paradigm, measure the
+stress-length range of the song's other sections and write inside it.** The
+envelope is that measured range and nothing brought in from outside; a line that
+leaves it is a deliberate spotlight and gets named as one, per the traffic-cop
+ranking above — line length is the captain.
+
+Measure it in stressed syllables, per the rule at the head of this section. Raw
+syllable counts are recorded alongside only as note counts, never as lengths.
+Observed 2026-08-12: a bridge written free of any paradigm ran to 13- and
+14-syllable lines and read as prose beside the song's other sections, and no
+check caught it, because nothing in the method had yet asked what the other
+sections measured.
+
+"Free meter" is workspace shorthand, not a Pat category — the phrase returns zero
+hits across the four books. Pat supplies the measurement and the ranking; the
+envelope discipline is the plugin's. Pass 5 of
+[line-edit-rubric](line-edit-rubric.md) is where a candidate is checked against
+the envelope.
+
 ## Rhythm of lines
 
 Lyric rhythm and musical rhythm are not identical, but important stressed
