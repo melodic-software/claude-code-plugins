@@ -9,6 +9,7 @@ different question about the same surface:
 | `/claude-config:audit` | Are the configuration FILES (`settings.json`, `settings.local.json`, `.mcp.json`, hooks, plugins, permissions) correct against upstream truth? |
 | `/claude-config:audit-automation-gaps` | Is the configured automation SET the right set — are there genuine gaps, judged against the enforcement hierarchy? |
 | `/claude-config:audit-permission-grants` | Are the permission GRANTS (`allowed-tools`, `permissions.allow`) portable and durable — do they survive auto mode, work across machines, and live where they can take effect? |
+| `/claude-config:audit-permission-state` | Which permission rules are actually IN EFFECT, and where does each one come from — across managed policy, user-global, project, local, and the pre-v2.1.211 start-directory copy? |
 | `/claude-config:audit-instructions` | Are the INSTRUCTIONS you wrote (CLAUDE.md, rules, skill bodies, agents, hooks, output styles) still earning their context cost against current model capability, or is prior-model scar tissue holding the model back? |
 | `/claude-config:audit-pass` | Can all of that run as ONE ordered, resumable pass over a named target — every scope inventoried before any check, one reconciled findings artifact, one human gate — instead of several separate runs whose results nobody reconciles? |
 | `/claude-config:unhobble` | What does the CURRENT MODEL actually still need — measured, not reasoned: reversibly strip the project's standing instructions to a bare baseline, log real stumbles, and re-add only what the evidence earns back? |
@@ -59,8 +60,11 @@ Audits permission GRANTS (not file correctness — that is `audit`) for the fail
 make a grant silently do nothing: interpreter-wildcard / blanket rules that Claude Code drops on
 entering auto mode, hardcoded absolute machine/user paths (Bash rules match literally, no expansion),
 and inert plugin self-grants. A deterministic detector scans skill/command/agent frontmatter
-`allowed-tools` and `settings.json` / `settings.local.json` `permissions.allow`, and recommends the
-bare-command-on-PATH pattern. The principle and citations live in the marketplace
+`allowed-tools` and the project, local, and user-global `permissions.allow` arrays, and recommends the
+bare-command-on-PATH pattern. The user-global file
+(`${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json`) is where Claude Code's own "Always allow" path
+writes, so on a long-lived machine expect it to carry most of the findings — and their remediation is
+the operator's, since no skill can write that file. The principle and citations live in the marketplace
 [permission-rule-hygiene convention](../../docs/conventions/permission-rule-hygiene/README.md).
 Report-only.
 
@@ -68,6 +72,26 @@ Report-only.
 /claude-config:audit-permission-grants              # full grant audit
 /claude-config:audit-permission-grants frontmatter  # allowed-tools only
 /claude-config:audit-permission-grants settings     # permissions.allow only
+```
+
+### audit-permission-state
+
+Reports the permission state actually in effect. Claude Code exposes no `claude permissions`
+subcommand and no machine-readable export, so "where is this rule coming from" has meant reading five
+files in five places and hoping you knew all five. A deterministic reader discovers every settings
+scope — managed policy, user-global, project, local, and any pre-v2.1.211 copy left in the session's
+start directory — and inventories each one's `allow` / `ask` / `deny` rules with its source named.
+
+The status vocabulary is the point: `absent` means looked and found nothing, `skipped` means could not
+look. The managed scope is four surfaces per OS, not one file; the Windows policy registry keys and
+the macOS managed-preferences domain are optional platform integrations that degrade visibly while the
+portable core (the JSON file and its `managed-settings.d/` drop-ins) still reads. Server-managed
+settings have no local path and are disclosed as invisible rather than assumed empty. Report-only —
+it writes nothing in any scope, and managed policy is read-only by construction.
+
+```shell
+/claude-config:audit-permission-state           # scopes + rule inventory
+/claude-config:audit-permission-state --scopes  # which scopes exist and which were readable
 ```
 
 ### audit-instructions

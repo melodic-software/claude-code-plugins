@@ -25,8 +25,8 @@
 # whether or not it found anything. Environment gaps are the exception and exit 2 —
 # missing jq, and an unresolvable scan root (below).
 #
-# Root resolution: $PERMISSION_HYGIENE_FIXTURE_DIR, else the cwd's git toplevel, else
-# $CLAUDE_PROJECT_DIR. Never the plugin's own dir, and NEVER $PWD.
+# Project-root resolution: $PERMISSION_HYGIENE_FIXTURE_DIR, else the cwd's git
+# toplevel, else $CLAUDE_PROJECT_DIR. Never the plugin's own dir, and NEVER $PWD.
 #
 # Why there is no $PWD fallback: outside a git repository $PWD is whatever directory
 # the session happens to stand in, which on a developer machine is typically the user
@@ -35,6 +35,8 @@
 # user's home that still exited 0 — a timeout or a swallowed permission error was
 # indistinguishable from a clean bill. An unresolvable root is an environment gap, so
 # it is reported as one (exit 2) rather than scanned on a guess.
+#
+# User-scope resolution: $CLAUDE_CONFIG_DIR, else $HOME/.claude.
 #
 # Usage:
 #   permission-rule-check.sh            # human-readable findings, one per line
@@ -54,7 +56,8 @@ Usage: permission-rule-check.sh [--count|--help]
   --help     this message
 
 Scans skill/command/agent frontmatter `allowed-tools` and the `permissions.allow`
-arrays of .claude/settings.json and .claude/settings.local.json for P1 (auto-mode
+arrays of .claude/settings.json, .claude/settings.local.json, and the user-global
+settings file (${CLAUDE_CONFIG_DIR:-~/.claude}/settings.json) for P1 (auto-mode
 -dropped interpreter/blanket rules), P2 (hardcoded machine paths), and plugin
 settings.json for P3 (unsupported self-granted `permissions`).
 
@@ -72,6 +75,15 @@ case "${1:-}" in
     ;;
   *) ;;
 esac
+
+canonical_path() {
+  local p="$1"
+  if [[ -e "$p" ]]; then
+    printf '%s/%s' "$(cd "$(dirname "$p")" && pwd -P)" "$(basename "$p")"
+  else
+    printf '%s' "$p"
+  fi
+}
 
 if ! command -v jq >/dev/null 2>&1; then
   echo "ERROR: jq required" >&2
@@ -113,36 +125,20 @@ fi
 
 # --- Detection patterns -------------------------------------------------------
 #
-# P1 — one ERE, case-sensitive on the tool name. Each alternative requires a
-# wildcard so an exact narrow rule (Bash(npm test)) never matches:
-#   1. blanket Bash(*) / PowerShell(*)
-#   2. an interpreter at the command position followed (eventually) by a * —
-#      the interpreter may carry a path prefix (Bash(.venv/bin/python *),
-#      Bash(/usr/bin/python3 *)): a wildcarded interpreter-led grant is the
-#      same arbitrary-code shape regardless of how the interpreter is addressed.
-#      What follows the name must be a * or a real separator (space, quote, :)
-#      so a hyphenated bare PATH command that merely starts with an interpreter
-#      or runner name (Bash(node-gyp:*), Bash(npm-check-updates:*)) — the very
-#      shape the convention recommends — is not flagged
-#   3. a package-manager run/exec command followed by a * — both the run/exec
-#      subcommand forms (npx, pnpm dlx, uv run, …) and a bare package manager
-#      wildcard (Bash(npm:*), Bash(npm *)), which grants arbitrary execution
-#      via npm exec / lifecycle scripts. A bare package-manager name subsumes
-#      its own run wildcard (npm matches `npm run *`), so `npm run` etc. are not
-#      listed separately. A fixed subcommand (Bash(npm test), Bash(npm run
-#      build)) carries no * and is not matched.
-#   4. a leading-glob command that resolves to a script (Bash(*.py:*))
-# python accepts version suffixes (python3, python3.11, python2.7): pinned
-# minor-version binaries are the same interpreter-led grant shape.
-_interp='python[0-9.]*|node|deno|bun|ruby|perl|php|bash|sh|zsh|pwsh|osascript|Rscript'
-_runner='npx|bunx|uvx|pnpm dlx|yarn dlx|pipx run|uv run|npm|pnpm|yarn'
-_script='py|sh|rb|js|ts|mjs|cjs|pl|php'
-# Each alternative captures the whole Tool(...) spec (trailing [^)]*\) ) so a
-# finding reports the full offending rule, not a substring truncated at the *.
-P1_ERE="(Bash|PowerShell)\\(\\*\\)"
-P1_ERE="${P1_ERE}|(Bash|PowerShell)\\([\"' ]*([^)\"' ]*[/\\\\])?(${_interp})([\"' :][^)]*)?\\*[^)]*\\)"
-P1_ERE="${P1_ERE}|(Bash|PowerShell)\\([\"' ]*(${_runner})([\"' :][^)]*)?\\*[^)]*\\)"
-P1_ERE="${P1_ERE}|(Bash|PowerShell)\\([\"' ]*\\*[^)]*\\.(${_script})[^)]*\\)"
+# P1's auto-mode drop vocabulary is shared with audit-permission-state's entry
+# diff, so it lives in a define-only library rather than here. Resolve the plugin
+# root the way every other component in this marketplace does: Claude Code sets
+# CLAUDE_PLUGIN_ROOT in plugin form, and the BASH_SOURCE fallback keeps a direct
+# invocation (the test harness, a developer running the script) working.
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "${BASH_SOURCE[0]%/*}/../../.." && pwd)}"
+PATTERNS_LIB="$PLUGIN_ROOT/lib/permission-patterns.sh"
+if [[ ! -r "$PATTERNS_LIB" ]]; then
+  echo "ERROR: cannot read $PATTERNS_LIB — the plugin's shared permission-pattern library is missing" >&2
+  exit 2
+fi
+# shellcheck source=../../../lib/permission-patterns.sh
+source "$PATTERNS_LIB"
+P1_ERE="$CCPERM_P1_ERE"
 
 # P2 — machine home-path shapes, ASSEMBLED FROM FRAGMENTS so no contiguous
 # home-path literal appears in this file's source bytes and trips the repo's
@@ -178,14 +174,9 @@ scan_rule() {
 
 top_level_tokens() {
   # top_level_tokens <text> — split rule text into top-level `Tool` /
-  # `Tool(...)` tokens, one per line. The greedy `(\(...\))?` consumes a tool's
-  # whole parenthesized payload as one token, so a tool name inside another
-  # rule's payload (e.g. Bash(echo Agent), Bash(grep PowerShell *)) never
-  # surfaces as its own token. The payload accepts one level of nested
-  # parentheses (Bash(echo $(date) Agent), Bash(node -e "log()" PowerShell))
-  # so an inner `)` does not end the token early; ERE cannot balance
-  # arbitrary depth, and rule payloads realistically nest at most once.
-  printf '%s\n' "$1" | grep -oE '[A-Za-z_][A-Za-z0-9_]*(\(([^()]|\([^()]*\))*\))?' 2>/dev/null
+  # `Tool(...)` tokens, one per line. The token grammar is shared vocabulary;
+  # this wrapper is the driver's own I/O around it.
+  printf '%s\n' "$1" | grep -oE "$CCPERM_TOOL_TOKEN_ERE" 2>/dev/null
 }
 
 scan_bare_tool() {
@@ -279,6 +270,38 @@ scan_settings_allow() {
 
 scan_settings_allow "$ROOT/.claude/settings.json" ".claude/settings.json permissions.allow"
 scan_settings_allow "$ROOT/.claude/settings.local.json" ".claude/settings.local.json permissions.allow"
+
+# User-global scope. A project-only scan cannot see it, yet it is where Claude
+# Code's own "Always allow" path writes, so it is the scope most likely to
+# accumulate the broad rules auto mode drops. CLAUDE_CONFIG_DIR relocates the
+# whole ~/.claude tree when set (official .claude-directory doc), so it wins over
+# $HOME; with neither resolvable there is no user scope to scan. The label is the
+# resolved absolute path — reporting "~/.claude/settings.json" would name the
+# wrong file whenever CLAUDE_CONFIG_DIR has moved the tree.
+#
+# This resolution IS the fixture seam: a test points $HOME at a fixture home and
+# unsets CLAUDE_CONFIG_DIR, the same seam claude-memory's resolver already uses.
+# No test may read the operator's real ~/.claude.
+if [[ -n "${CLAUDE_CONFIG_DIR:-}" ]]; then
+  USER_CONFIG_ROOT="$CLAUDE_CONFIG_DIR"
+elif [[ -n "${HOME:-}" ]]; then
+  USER_CONFIG_ROOT="$HOME/.claude"
+else
+  USER_CONFIG_ROOT=""
+fi
+if [[ -n "$USER_CONFIG_ROOT" ]]; then
+  user_settings="$USER_CONFIG_ROOT/settings.json"
+  project_settings="$ROOT/.claude/settings.json"
+  user_canonical="$(canonical_path "$user_settings")"
+  project_canonical="$(canonical_path "$project_settings")"
+  if [[ "$user_canonical" != "$project_canonical" ]]; then
+    scan_settings_allow "$user_settings" "$user_settings permissions.allow"
+  fi
+else
+  # An unresolvable user scope is a skipped check, not a clean one. Silence here
+  # would let a report claiming "no fragile grants" rest on a scope never read.
+  echo "NOTE: user-global scope not scanned — neither CLAUDE_CONFIG_DIR nor HOME is set, so ~/.claude could not be resolved." >&2
+fi
 
 # --- Plugin self-grant scan (P3) ---------------------------------------------
 # A settings.json sitting at a plugin root (sibling .claude-plugin/plugin.json)

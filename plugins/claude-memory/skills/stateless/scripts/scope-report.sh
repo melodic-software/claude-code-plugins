@@ -48,15 +48,19 @@ resolver="$script_dir/../../audit/scripts/resolve-memory-dir.sh"
 config_root="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 
 exists() { [[ -f "$1" ]] && echo "PRESENT" || echo "absent"; }
+dir_exists() { [[ -d "$1" ]] && echo "PRESENT" || echo "absent"; }
 
-# Managed/policy settings location is OS-specific. Report the path for this OS so the
-# workflow knows where to look; on Windows it may instead be in the registry.
-case "$(uname -s 2>/dev/null || echo unknown)" in
-Darwin) managed="/Library/Application Support/ClaudeCode/managed-settings.json" ;;
-Linux) managed="/etc/claude-code/managed-settings.json" ;;
-MINGW* | MSYS* | CYGWIN*) managed="C:/Program Files/ClaudeCode/managed-settings.json (or Windows registry: HKLM/HKCU\\SOFTWARE\\Policies\\ClaudeCode)" ;;
-*) managed="(unknown OS — see settings doc for managed-settings.json location)" ;;
-esac
+# Managed/policy settings locations are OS-specific and are shared vocabulary
+# (lib/managed-scope.sh) rather than this script's to restate — a hand-kept copy
+# here had already fallen behind the drop-in directory the settings doc adds.
+# This report stays presence-only: it names the non-file surfaces (registry,
+# preferences domain) without reading them, so an absent JSON file is never
+# mistaken for "no managed policy deployed".
+plugin_root="${CLAUDE_PLUGIN_ROOT:-$(cd "$script_dir/../../.." && pwd)}"
+# shellcheck source=../../../lib/managed-scope.sh
+source "$plugin_root/lib/managed-scope.sh"
+managed="$(mscope::base_file)"
+managed_dropin="$(mscope::dropin_dir)"
 
 user_settings="$config_root/settings.json"
 
@@ -67,8 +71,13 @@ project_settings="$base/.claude/settings.json"
 local_settings="$base/.claude/settings.local.json"
 
 echo "=== Settings scopes (precedence: managed > local > project > user) ==="
-managed_file="${managed%% (*}"
-printf '%-10s %-8s %s\n' "managed" "$(exists "$managed_file")" "$managed"
+printf '%-10s %-8s %s\n' "managed" "$(exists "$managed")" "$managed"
+printf '%-10s %-8s %s\n' "managed.d" "$(dir_exists "$managed_dropin")" "$managed_dropin"
+while IFS= read -r policy_key; do
+  [[ -n "$policy_key" ]] && printf '%-10s %-8s %s\n' "managed" "not read" "$policy_key"
+done < <(mscope::registry_keys)
+plist_domain="$(mscope::plist_domain)"
+[[ -n "$plist_domain" ]] && printf '%-10s %-8s %s\n' "managed" "not read" "$plist_domain (managed preferences domain)"
 printf '%-10s %-8s %s\n' "user" "$(exists "$user_settings")" "$user_settings"
 printf '%-10s %-8s %s\n' "project" "$(exists "$project_settings")" "$project_settings"
 printf '%-10s %-8s %s\n' "local" "$(exists "$local_settings")" "$local_settings"

@@ -14,8 +14,13 @@ never depends on fetching the convention.
 The deterministic spine is
 `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-permission-grants/scripts/permission-rule-check.sh"` — it scans
 skill/command/agent frontmatter `allowed-tools` and the `permissions.allow` arrays of
-`.claude/settings.json` and `.claude/settings.local.json`, plus any plugin `settings.json`, and emits
-one finding per fragile grant. Frontmatter files under a `vendor/` path segment are skipped: they are
+`.claude/settings.json`, `.claude/settings.local.json`, and the user-global settings file, plus any
+plugin `settings.json`, and emits one finding per fragile grant. The user-global file resolves as
+`${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json` — that scope is where Claude Code's own "Always
+allow" path writes, so it accumulates exactly the broad rules auto mode drops, and a project-only
+scan could not see any of them. A user-global finding names the resolved absolute path, because
+reporting `~/.claude/settings.json` would name the wrong file whenever `CLAUDE_CONFIG_DIR` has moved
+the config root. Frontmatter files under a `vendor/` path segment are skipped: they are
 vendored upstream references, not loadable skills/agents/commands, so their `allowed-tools` never take
 effect and a finding on them would be a false positive. Findings are advisory and never fail the run,
 so a completed scan exits 0 in either mode; `--count` prints the finding count. **An environment gap
@@ -128,7 +133,7 @@ rule. When a request is about baseline security patterns, deprecated syntax, or 
 ## Permission Hygiene Report — {date}
 
 ### Summary
-- Grants scanned: frontmatter allowed-tools + settings.json/settings.local.json permissions.allow
+- Grants scanned: frontmatter allowed-tools + project, local, and user-global permissions.allow
 - error: X findings (P2)
 - warning: X findings (P1, P3)
 

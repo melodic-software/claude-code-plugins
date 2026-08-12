@@ -54,7 +54,9 @@ Parse `$ARGUMENTS` for:
 | `.claude/settings.local.json` | `jq` via Bash only | Commonly deny-listed for the Read tool because it holds tokens. Parse structure/key counts only. **Never echo secret values** |
 | `.mcp.json` | Read tool or `jq` | Project-level MCP server definitions |
 | `~/.claude/settings.json` | Read tool | User-level defaults (optional — check if exists) |
+| start-directory `.claude/settings.local.json` | `check-structure.sh` (structure only) | Only when the session's start directory is not the repository root AND a copy is there. A pre-v2.1.211 Claude Code wrote the file to the start directory and the current one still reads what it left; the repository-root copy wins on a shared key, but **permission rules from both files stay in effect** |
 | `managed-settings.json` + `managed-settings.d/` | `check-structure.sh` (structure only) | Machine-scope managed policy, the highest-precedence layer. OS-specific path resolved by the script (macOS `/Library/Application Support/ClaudeCode/`, Linux/WSL `/etc/claude-code/`, Windows `%ProgramFiles%\ClaudeCode\`). Findings on it are report-only routing — managed policy is the administrator's, never edited by `--fix` |
+| managed policy outside the filesystem | not read | The Windows `HKLM`/`HKCU\SOFTWARE\Policies\ClaudeCode` policy keys and the macOS `com.anthropic.claudecode` managed-preferences domain. `check-structure.sh` names them so an absent `managed-settings.json` is never read as "no managed policy deployed", but it does not read them |
 
 ### Reading settings.local.json safely
 

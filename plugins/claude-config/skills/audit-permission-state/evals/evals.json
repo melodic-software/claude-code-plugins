@@ -1,0 +1,52 @@
+{
+  "skill_name": "audit-permission-state",
+  "evals": [
+    {
+      "id": 1,
+      "name": "inventory-happy-path",
+      "prompt": "What Claude Code permission rules are actually in effect here, and which file is each one coming from?",
+      "expected_output": "Runs the deterministic permission-state reader, then reports every settings scope it discovered — managed policy, user-global, project, local, and any pre-v2.1.211 start-directory copy — with each scope's status and its allow/ask/deny rules attributed to the surface they came from.",
+      "files": [],
+      "expectations": [
+        "Output runs permission-state.sh rather than reading settings files ad hoc",
+        "Output names all five scopes, including the start-directory copy and the managed scope",
+        "Output attributes each rule to the scope and surface it was read from"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "skipped-is-not-absent",
+      "prompt": "Do I have any managed policy deployed on this machine?",
+      "expected_output": "Distinguishes a managed surface that was read and found empty from one that could not be read at all, reports any skipped surface as unread with its reason, and states that server-managed settings have no local path and are invisible to a local reader.",
+      "expectations": [
+        "Output does not report a skipped surface as 'no managed policy'",
+        "Output names which managed surfaces were read and which were not",
+        "Output discloses that server-managed settings cannot be seen locally"
+      ],
+      "files": []
+    },
+    {
+      "id": 3,
+      "name": "scope-boundary-routes-out",
+      "prompt": "Show me what permissions are in effect, and also tell me whether my allow rules will survive auto mode and whether my settings files are correct.",
+      "expected_output": "Reports the effective scope inventory it owns, and routes auto-mode grant durability to claude-config:audit-permission-grants and settings-file correctness to claude-config:audit rather than answering them here.",
+      "expectations": [
+        "Output reports the scope inventory itself",
+        "Output routes auto-mode grant durability to audit-permission-grants",
+        "Output routes settings-file correctness to the audit skill"
+      ],
+      "files": []
+    },
+    {
+      "id": 4,
+      "name": "missing-jq-is-an-environment-gap",
+      "prompt": "Run the permission state audit.",
+      "expected_output": "When jq is absent the reader exits 2 with 'ERROR: jq required'; the skill reports the environment gap and explicitly does not present a clean result.",
+      "expectations": [
+        "Output reports the missing prerequisite rather than an empty or clean inventory",
+        "Output does not claim any scope was checked"
+      ],
+      "files": []
+    }
+  ]
+}

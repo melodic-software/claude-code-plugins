@@ -48,7 +48,15 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 0
 fi
 
-run() { PERMISSION_HYGIENE_FIXTURE_DIR="$1" bash "$SCRIPT" "${2:-}"; }
+# Every run gets an isolated, EMPTY user home with CLAUDE_CONFIG_DIR unset. The
+# user-global scan resolves ${CLAUDE_CONFIG_DIR:-$HOME/.claude}, so an inherited
+# environment would read the operator's real ~/.claude — which no test may do —
+# and its rules would pollute every case's finding count.
+ISOLATED_HOME="$TEST_TMPDIR/empty-home"
+mkdir -p "$ISOLATED_HOME"
+run() { env -u CLAUDE_CONFIG_DIR HOME="$ISOLATED_HOME" PERMISSION_HYGIENE_FIXTURE_DIR="$1" bash "$SCRIPT" "${2:-}"; }
+run_with_home() { env -u CLAUDE_CONFIG_DIR HOME="$2" PERMISSION_HYGIENE_FIXTURE_DIR="$1" bash "$SCRIPT" "${3:-}"; }
+run_with_config_dir() { env CLAUDE_CONFIG_DIR="$2" HOME="$3" PERMISSION_HYGIENE_FIXTURE_DIR="$1" bash "$SCRIPT" "${4:-}"; }
 
 # Runtime-assembled machine paths (no contiguous path literal in source).
 SL='/'
@@ -259,6 +267,43 @@ jq -n '{permissions:{allow:["Bash(python*)"]}}' >"$D8B/.claude/settings.local.js
 OUT=$(run "$D8B")
 assert_contains "flags P1 grant in settings.local.json" "$OUT" "Bash(python*)"
 assert_contains "finding names the local settings file" "$OUT" "settings.local.json"
+
+# --- Case 8c: user-global settings scanned (scope widening) ------------------
+# A user-global interpreter-wildcard rule was invisible to a project-only scan,
+# yet user scope is where Claude Code's own "Always allow" path writes.
+D8C="$TEST_TMPDIR/user-global-project"
+mkdir -p "$D8C/.claude"
+jq -n '{permissions:{allow:["Bash(git status)"]}}' >"$D8C/.claude/settings.json"
+FAKE_HOME="$TEST_TMPDIR/fake-home"
+mkdir -p "$FAKE_HOME/.claude"
+jq -n '{permissions:{allow:["Bash(python*)"]}}' >"$FAKE_HOME/.claude/settings.json"
+OUT=$(run_with_home "$D8C" "$FAKE_HOME")
+assert_contains "flags P1 grant in user-global settings" "$OUT" "Bash(python*)"
+assert_contains "user-global finding names the resolved file" "$OUT" "$FAKE_HOME/.claude/settings.json"
+assert_eq "user-global grant produces exactly one finding" "1" "$(run_with_home "$D8C" "$FAKE_HOME" --count)"
+
+# The same project against an EMPTY home must report nothing — proving the
+# fixture home, not an inherited real one, produced the finding above.
+assert_eq "empty user home contributes no findings" "0" "$(run "$D8C" --count)"
+
+# --- Case 8d: CLAUDE_CONFIG_DIR relocates the user scope ---------------------
+# Per the official .claude-directory doc it moves the whole ~/.claude tree, so a
+# reader keyed on $HOME alone would audit a file that is not in effect.
+RELOCATED="$TEST_TMPDIR/relocated-config"
+mkdir -p "$RELOCATED"
+jq -n '{permissions:{allow:["Bash(npx *)"]}}' >"$RELOCATED/settings.json"
+OUT=$(run_with_config_dir "$D8C" "$RELOCATED" "$FAKE_HOME")
+assert_contains "reads the relocated config root" "$OUT" "Bash(npx *)"
+assert_not_contains "ignores \$HOME once CLAUDE_CONFIG_DIR is set" "$OUT" "Bash(python*)"
+assert_eq "relocated config root produces exactly one finding" "1" \
+  "$(run_with_config_dir "$D8C" "$RELOCATED" "$FAKE_HOME" --count)"
+
+# --- Case 8e: an unresolvable user scope is announced, never silently skipped --
+# With neither CLAUDE_CONFIG_DIR nor HOME set there is no user scope to read. A
+# silent skip would let "No fragile permission grants found." rest on a scope
+# that was never opened.
+err_out=$(env -u CLAUDE_CONFIG_DIR -u HOME PERMISSION_HYGIENE_FIXTURE_DIR="$D8C" bash "$SCRIPT" 2>&1 >/dev/null)
+assert_contains "unresolvable user scope is announced" "$err_out" "user-global scope not scanned"
 
 # --- Case 9b: unresolvable scan root refuses instead of sweeping -------------
 # The root ladder is $PERMISSION_HYGIENE_FIXTURE_DIR -> git toplevel ->

@@ -172,6 +172,50 @@ assert_exit "case 8: exit 0" 0 "$rc"
 assert_contains "case 8: managed absence reported" "$out" "managed-settings.json (machine scope)"
 assert_contains "case 8: drop-in absence reported" "$out" "Managed drop-in dir: absent"
 
+# --- Case 9: start-directory settings.local.json left by a pre-v2.1.211 CC ------
+# Its permission rules stay in effect alongside the repository-root copy, so a
+# repository-root-only scan misses live configuration.
+fixture_dir="$TEST_TMPDIR/startdir-present"
+startdir="$TEST_TMPDIR/startdir-present-cwd"
+mkdir -p "$fixture_dir/.claude" "$startdir/.claude"
+printf '%s\n' '{}' >"$fixture_dir/.claude/settings.json"
+printf '%s\n' '{"permissions":{"allow":["Bash(git status)","Bash(ls)"]}}' >"$startdir/.claude/settings.local.json"
+rc=0
+out=$(
+  SETTINGS_AUDIT_STRUCTURE_FIXTURE_DIR="$fixture_dir" \
+    SETTINGS_AUDIT_STARTDIR_FIXTURE_DIR="$startdir" \
+    bash "$SCRIPT" 2>/dev/null
+) || rc=$?
+assert_exit "case 9: exit 0" 0 "$rc"
+assert_contains "case 9: start-directory copy reported" "$out" "start-directory copy, pre-v2.1.211"
+assert_contains "case 9: names the leftover file" "$out" "$startdir/.claude/settings.local.json"
+assert_contains "case 9: its allow rules counted" "$out" "Allow count: 2"
+assert_contains "case 9: both-files note emitted" "$out" "permission rules from BOTH files stay in effect"
+
+# --- Case 10: no start-directory copy — no row, so the check cannot pass by
+# always emitting one -----------------------------------------------------------
+fixture_dir="$TEST_TMPDIR/startdir-absent"
+startdir="$TEST_TMPDIR/startdir-absent-cwd"
+mkdir -p "$fixture_dir/.claude" "$startdir"
+printf '%s\n' '{}' >"$fixture_dir/.claude/settings.json"
+rc=0
+out=$(
+  SETTINGS_AUDIT_STRUCTURE_FIXTURE_DIR="$fixture_dir" \
+    SETTINGS_AUDIT_STARTDIR_FIXTURE_DIR="$startdir" \
+    bash "$SCRIPT" 2>/dev/null
+) || rc=$?
+assert_exit "case 10: exit 0" 0 "$rc"
+assert_not_contains "case 10: no start-directory row" "$out" "start-directory copy"
+
+# --- Case 11: start directory IS the project root — never reported twice --------
+rc=0
+out=$(
+  SETTINGS_AUDIT_STRUCTURE_FIXTURE_DIR="$fixture_dir" \
+    bash "$SCRIPT" 2>/dev/null
+) || rc=$?
+assert_exit "case 11: exit 0" 0 "$rc"
+assert_not_contains "case 11: same directory is not a second source" "$out" "start-directory copy"
+
 # --- Case 3: missing jq exits 2 -------------------------------------------------
 # Run the script under an EMPTY PATH so its `command -v jq` resolves nothing. The
 # script exits at the jq gate before invoking any external tool, so an empty PATH

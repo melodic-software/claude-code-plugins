@@ -3,6 +3,64 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.33.0]
+
+### Changed
+
+- **`audit-permission-grants` check P1 now sees user-global allow rules.** It scanned project and
+  local settings only, so an interpreter-wildcard rule in
+  `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json` was invisible to it — and that is the scope
+  Claude Code's own "Always allow" path writes to, so it is where the broad rules auto mode drops
+  actually accumulate. Expect new findings on a repository whose own configuration did not change.
+  The user scope resolves through `CLAUDE_CONFIG_DIR` before `$HOME`, and a finding names the
+  resolved absolute path rather than `~/.claude/settings.json`, which would name the wrong file
+  whenever the config root has been relocated.
+- **`audit`'s structure check now reports a start-directory `settings.local.json`.** A pre-v2.1.211
+  Claude Code wrote the file to the directory the session started in, and the current one still
+  reads what an earlier version left there: the repository-root copy wins on a shared key, but
+  permission rules from **both** files stay in effect. The row appears only when the start directory
+  genuinely differs from the project root and a copy is there, so the same file is never counted as
+  two rule sources.
+- **`audit`'s structure check names the managed surfaces it does not read.** On Windows the
+  `HKLM`/`HKCU\SOFTWARE\Policies\ClaudeCode` policy keys, on macOS the `com.anthropic.claudecode`
+  managed-preferences domain. A file-only reader that stays silent about them lets an absent
+  `managed-settings.json` read as "no managed policy deployed" while a policy is in force.
+
+### Added
+
+- **`audit-permission-state`** — a new skill reporting which permission rules are actually in effect
+  and where each comes from. `/permissions` lists your rules and the file each came from, but it does
+  not resolve which of two conflicting rules wins, cannot distinguish a scope that was empty from one
+  it could not read, and exists only inside a live session — there is no `claude permissions`
+  subcommand and no machine-readable export. The reader discovers managed policy, user-global,
+  project, local, and any
+  pre-v2.1.211 start-directory copy, and inventories each scope's `allow`/`ask`/`deny` rules with its
+  source named. Every scope and every managed surface emits a record on every OS, so a surface that
+  was never attempted can never be mistaken for one that is genuinely empty: `absent` means looked and
+  found nothing, `skipped` means could not look. Server-managed settings are disclosed as having no
+  local path rather than assumed absent. Report-only, and managed policy is read-only by construction.
+  A second pass merges those scopes into the set actually in force, each rule naming every scope that
+  contributes it and the documented mechanic that put it there. Permission rules merge across scopes
+  rather than override, so a rule written at two scopes has no winner and is never reported as one;
+  what a rule can lose is its kind, because deny is evaluated before ask and ask before allow from any
+  scope in either direction — a user-level deny blocks a project-level allow just as the reverse. The
+  beaten entry is reported as inert alongside the rule that beat it, which is the answer to "why is my
+  allow rule ignored". A rule that is a bare tool name reaches every call of that tool: a whole-tool
+  deny removes the tool from context entirely, so every other rule naming it is inert — including
+  other denies, which are moot rather than weakened — and a whole-tool ask prompts for every call, so
+  no scoped allow for that tool applies. `EndConversation` is exempt from removal, as documented. Every run states the two bounds on the claim: the command-line scope
+  (`--settings`, `--allowedTools`, `--disallowedTools`) outranks the files and has none to read, and
+  rules are compared by exact text, so a narrow allow blocked only by a broader deny pattern is still
+  reported effective — the error direction is over-reporting allow, never over-reporting blocking.
+- **`lib/permission-patterns.sh`** — the auto-mode drop vocabulary (blanket, wildcarded-interpreter,
+  package-manager-runner, and script-glob rule shapes, plus the top-level tool-token grammar) as a
+  define-only library. It was inline in the P1 detector, which self-executes and cannot be sourced,
+  so a second consumer had no way to reuse it without copying.
+- **`lib/managed-scope.sh`** — the per-OS managed-policy surface enumeration (base JSON file,
+  `managed-settings.d/` drop-in directory, Windows policy registry keys, macOS preferences domain).
+  `claude-memory` carries a byte-identical copy, registered as a cross-plugin shared-source cluster
+  so the two cannot drift.
+
 ## [0.32.0]
 
 Two behavior changes, hence the minor: `permission-rule-check.sh` refuses an unresolvable scan root
