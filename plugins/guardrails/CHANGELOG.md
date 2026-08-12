@@ -244,9 +244,9 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 ### Changed
 
 > **Erratum:** the second bullet below states that the fail-close's breadth stays, because narrowing
-> it needs #2226. #2226 is fixed in 0.26.0 and the breadth is gone — the check is keyed on the
+> it needs #2226. #2226 is fixed in 0.27.0 and the breadth is gone — the check is keyed on the
 > redirect operand now. The mechanism this entry corrects for 0.25.0 was accurate for 0.25.x; see
-> 0.26.0 above for what replaced it. Everything else in this entry is unchanged.
+> 0.27.0 above for what replaced it. Everything else in this entry is unchanged.
 
 - **`block-hook-bypass`'s scope note now names `tee` and other inline-interpreter
   write families it does not model (#2218).** No behaviour changes — lane-specific

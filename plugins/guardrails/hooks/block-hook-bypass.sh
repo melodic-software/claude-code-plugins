@@ -674,7 +674,7 @@ devnull_target_exempt() {
 # root only in case is therefore also exempt.
 #
 # A QUOTED OR ESCAPED redirect operand is never exempt — see the fail-closed
-# tests at the top of scratch_target_exempt. Since 0.26.0 that decision is made
+# tests at the top of scratch_target_exempt. Since 0.27.0 that decision is made
 # on the OPERAND, from the marks strip_literals attaches to it, not on the raw
 # command: an operand carrying whitespace, `;`, `|`, `&`, `(`, `)`, a newline or
 # a backslash escape is OPAQUE and exempts nothing, and a merely quoted one is
