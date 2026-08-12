@@ -29,6 +29,10 @@ fail() {
   echo "FAIL: $*" >&2
   FAIL=$((FAIL + 1))
 }
+
+has_format_disclosure() {
+  printf '%s' "$1" | jq -e '.systemMessage | contains("reformatted") and contains("Invoke-Formatter")' >/dev/null 2>&1
+}
 ok() {
   echo "ok: $*"
   PASS=$((PASS + 1))
@@ -419,7 +423,7 @@ fi
 mkdir -p "$CRP_MARKER"
 OUT_GATE_3=$(run_hook_env "$REPO_CRP/crp.ps1" CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true)
 RC_GATE_3=$?
-if [[ $RC_GATE_3 -eq 0 && -z "$OUT_GATE_3" ]]; then ok "approved CustomRulePath -> exit 0, no tool break, no notice"; else fail "approved CustomRulePath (rc=$RC_GATE_3 out=$OUT_GATE_3)"; fi
+if [[ $RC_GATE_3 -eq 0 ]] && has_format_disclosure "$OUT_GATE_3"; then ok "approved CustomRulePath -> exit 0 with mutation disclosure"; else fail "approved CustomRulePath (rc=$RC_GATE_3 out=$OUT_GATE_3)"; fi
 if grep -q 'Get-ChildItem' "$REPO_CRP/crp.ps1"; then
   ok "approved CustomRulePath -> relative rule path resolved, formatter ran"
 else
@@ -446,7 +450,7 @@ CRP_MARKER_2="$(printf '%s' "$OUT_GATE_4" | jq -r '.systemMessage' | sed -n "s/.
 mkdir -p "$CRP_MARKER_2"
 printf "%s\n" "get-childitem -Path '.'" >"$REPO_CRP/crp2b.ps1"
 OUT_GATE_M1=$(run_hook_env "$REPO_CRP/crp2b.ps1" CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true)
-if [[ -z "$OUT_GATE_M1" ]] && grep -q 'Get-ChildItem' "$REPO_CRP/crp2b.ps1"; then
+if has_format_disclosure "$OUT_GATE_M1" && grep -q 'Get-ChildItem' "$REPO_CRP/crp2b.ps1"; then
   ok "re-approved settings+module state analyzes again"
 else
   fail "re-approved settings+module state did not analyze: $OUT_GATE_M1 $(cat "$REPO_CRP/crp2b.ps1")"
@@ -473,7 +477,7 @@ OUT_GATE_T1=$(run_hook_env "$REPO_CRP/crp4.ps1" CLAUDE_PLUGIN_DATA="$CRP_DATA" C
 T_MARKER="$(printf '%s' "$OUT_GATE_T1" | jq -r '.systemMessage' | sed -n "s/.*mkdir -p '\([^']*\)'.*/\1/p")"
 mkdir -p "$T_MARKER"
 OUT_GATE_T2=$(run_hook_env "$REPO_CRP/crp4.ps1" CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true)
-if [[ -n "$T_MARKER" && -z "$OUT_GATE_T2" ]] && grep -q 'Get-ChildItem' "$REPO_CRP/crp4.ps1"; then
+if [[ -n "$T_MARKER" ]] && has_format_disclosure "$OUT_GATE_T2" && grep -q 'Get-ChildItem' "$REPO_CRP/crp4.ps1"; then
   ok "approved state including transitive helper analyzes"
 else
   fail "approved transitive state did not analyze: m=$T_MARKER out=$OUT_GATE_T2 $(cat "$REPO_CRP/crp4.ps1")"
@@ -500,7 +504,7 @@ OUT_GATE_P1=$(run_hook_env "$REPO_CRP/crp6.ps1" CLAUDE_PLUGIN_DATA="$CRP_DATA" C
 P_MARKER="$(printf '%s' "$OUT_GATE_P1" | jq -r '.systemMessage' | sed -n "s/.*mkdir -p '\([^']*\)'.*/\1/p")"
 mkdir -p "$P_MARKER"
 OUT_GATE_P2=$(run_hook_env "$REPO_CRP/crp6.ps1" CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true)
-if [[ -n "$P_MARKER" && -z "$OUT_GATE_P2" ]] && grep -q 'Get-ChildItem' "$REPO_CRP/crp6.ps1"; then
+if [[ -n "$P_MARKER" ]] && has_format_disclosure "$OUT_GATE_P2" && grep -q 'Get-ChildItem' "$REPO_CRP/crp6.ps1"; then
   ok "approved state including PSScriptRoot-relative helper analyzes"
 else
   fail "approved PSScriptRoot-relative state did not analyze: m=$P_MARKER out=$OUT_GATE_P2 $(cat "$REPO_CRP/crp6.ps1")"
