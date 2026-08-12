@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# PreToolUse hook: block irreversible git operations on Bash tool calls.
+# PreToolUse hook: block irreversible git operations on Bash and PowerShell tool calls.
 #
 # Default block-list is irreversible-only (form tokens):
 #   push-force     — git push --force / -f / +refspec / --mirror
