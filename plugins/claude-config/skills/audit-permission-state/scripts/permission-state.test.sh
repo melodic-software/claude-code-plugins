@@ -138,6 +138,33 @@ assert_contains "missing settings reported as absent" "$OUT_BAD" "user settings 
 assert_contains "missing managed file reported as absent" "$OUT_BAD" "managed file absent"
 assert_eq "a malformed file contributes no rules" "0" "$(count_matching "$OUT_BAD" '^rule project ')"
 
+# --- A STRUCTURALLY VALID file with the wrong shape is invalid-json ----------
+# Case 8 above feeds a SYNTACTICALLY broken file, which `jq empty` rejects on its
+# own -- so that assertion passes even with the shape check deleted, and it did:
+# a merge resolution dropped the stage and the suite stayed green. These two
+# files parse cleanly and are still not settings files.
+SHAPE="$TEST_TMPDIR/shape"
+mkdir -p "$SHAPE/proj/.claude" "$SHAPE/home/.claude" "$SHAPE/pol" "$SHAPE/sd/.claude"
+jq -n '{}' >"$SHAPE/pol/managed-settings.json"
+printf '["Bash(danger)"]
+' >"$SHAPE/proj/.claude/settings.json"
+printf '{"permissions":{"allow":"Bash(*)","deny":{"x":"y"}}}
+' >"$SHAPE/home/.claude/settings.json"
+OUT_SHAPE=$(env -u CLAUDE_CONFIG_DIR HOME="$SHAPE/home"   PERMISSION_STATE_FIXTURE_DIR="$SHAPE/proj"   PERMISSION_STATE_STARTDIR="$SHAPE/sd"   PERMISSION_STATE_MANAGED_PATH="$SHAPE/pol/managed-settings.json"   PERMISSION_STATE_REGISTRY_KEYS=""   PERMISSION_STATE_PLIST_DOMAIN=""   bash "$SCRIPT")
+assert_contains "a top-level array is invalid-json, not present" "$OUT_SHAPE" "project settings invalid-json"
+assert_contains "a string-valued permissions key is invalid-json too" "$OUT_SHAPE" "user settings invalid-json"
+assert_eq "and neither contributes rules" 0 "$(count_matching "$OUT_SHAPE" '^rule (user|project) ')"
+
+# A legitimately empty settings file, and one with a null permissions key, are
+# both PRESENT -- the shape check must not reject the ordinary shapes.
+printf '{}
+' >"$SHAPE/proj/.claude/settings.json"
+printf '{"permissions":null}
+' >"$SHAPE/home/.claude/settings.json"
+OUT_OKSHAPE=$(env -u CLAUDE_CONFIG_DIR HOME="$SHAPE/home"   PERMISSION_STATE_FIXTURE_DIR="$SHAPE/proj"   PERMISSION_STATE_STARTDIR="$SHAPE/sd"   PERMISSION_STATE_MANAGED_PATH="$SHAPE/pol/managed-settings.json"   PERMISSION_STATE_REGISTRY_KEYS=""   PERMISSION_STATE_PLIST_DOMAIN=""   bash "$SCRIPT")
+assert_contains "an empty object is present" "$OUT_OKSHAPE" "project settings present"
+assert_contains "a null permissions key is present" "$OUT_OKSHAPE" "user settings present"
+
 # --- Case 9: the start-directory copy is never double-counted ----------------
 # When the session starts at the repository root the two paths are the same file.
 # Reporting it twice would claim two live rule sources where there is one.
@@ -179,13 +206,12 @@ for tool in jq git tr find sort sed head grep cat mktemp rm; do
   chmod +x "$STUB/$tool"
 done
 rc=0
-# portability-ok: `\S` in the Windows registry path strings below are literal
-# backslash-S characters in fixture data, not GNU regex escapes.
+ADMIN_POLICY_KEY='HKLM\SOFTWARE\Policies\ClaudeCode' # portability-ok: a Windows registry key path, passed through as a literal; no regex engine sees it
 OUT_NOREG=$(env -u CLAUDE_CONFIG_DIR PATH="$STUB" HOME="$FX/home" \
   PERMISSION_STATE_FIXTURE_DIR="$FX/proj" \
   PERMISSION_STATE_STARTDIR="$FX/startdir" \
   PERMISSION_STATE_MANAGED_PATH="$FX/policy/managed-settings.json" \
-  PERMISSION_STATE_REGISTRY_KEYS='HKLM\SOFTWARE\Policies\ClaudeCode' \
+  PERMISSION_STATE_REGISTRY_KEYS="$ADMIN_POLICY_KEY" \
   PERMISSION_STATE_PLIST_DOMAIN="" \
   "$real_bash" "$SCRIPT" 2>&1) || rc=$?
 assert_exit "missing optional tool does not fail the run" 0 "$rc"
@@ -205,25 +231,31 @@ assert_contains "other scopes unaffected" "$OUT_NOREG" "rule user settings allow
 # cannot exist and HKCU\SOFTWARE, which exists on every Windows install and
 # carries no Settings value — exactly the key-present/value-absent case.
 if command -v reg >/dev/null 2>&1; then
-  # portability-ok: `\S` in the printf registry key strings are literal path
-  # separators in Windows registry paths, not GNU regex escapes.
+  # Registry key paths, passed through as literals and compared as strings.
+  EXISTING_KEY='HKCU\SOFTWARE'                                  # portability-ok: a Windows registry key path, not a regex
+  ABSENT_KEY='HKCU\SOFTWARE\ClaudeCodeNoSuchKeyExists'          # portability-ok: a Windows registry key path, not a regex
+  SECOND_ABSENT_KEY='HKCU\SOFTWARE\ClaudeCodeAlsoAbsent'        # portability-ok: a Windows registry key path, not a regex
+  ABSENT_THEN_PRESENT_KEYS="$ABSENT_KEY
+$EXISTING_KEY"
+  BOTH_ABSENT_KEYS="$ABSENT_KEY
+$SECOND_ABSENT_KEY"
+
   OUT_REG=$(env -u CLAUDE_CONFIG_DIR HOME="$FX/home" \
     PERMISSION_STATE_FIXTURE_DIR="$FX/proj" \
     PERMISSION_STATE_STARTDIR="$FX/startdir" \
     PERMISSION_STATE_MANAGED_PATH="$FX/policy/managed-settings.json" \
-    PERMISSION_STATE_REGISTRY_KEYS="$(printf 'HKCU\\SOFTWARE\\ClaudeCodeNoSuchKeyExists\nHKCU\\SOFTWARE')" \
+    PERMISSION_STATE_REGISTRY_KEYS="$ABSENT_THEN_PRESENT_KEYS" \
     PERMISSION_STATE_PLIST_DOMAIN="" \
     bash "$SCRIPT")
-  assert_contains "an absent key is skipped, the existing one is selected" "$OUT_REG" "managed registry unreadable HKCU\\SOFTWARE" # portability-ok: Windows registry path string in a test fixture, not a regex construct
+  assert_contains "an absent key is skipped, the existing one is selected" "$OUT_REG" "managed registry unreadable $EXISTING_KEY"
   assert_contains "a key with no readable value is not a licence to fall through" "$OUT_REG" "Lower-priority policy keys are NOT consulted"
   assert_eq "no rules are claimed from an unreadable key" "0" "$(count_matching "$OUT_REG" '^rule managed registry ')"
 
-  # portability-ok: Windows registry path strings in the printf below are fixture data, not regex constructs.
   OUT_REG_NONE=$(env -u CLAUDE_CONFIG_DIR HOME="$FX/home" \
     PERMISSION_STATE_FIXTURE_DIR="$FX/proj" \
     PERMISSION_STATE_STARTDIR="$FX/startdir" \
     PERMISSION_STATE_MANAGED_PATH="$FX/policy/managed-settings.json" \
-    PERMISSION_STATE_REGISTRY_KEYS="$(printf 'HKCU\\SOFTWARE\\ClaudeCodeNoSuchKeyExists\nHKCU\\SOFTWARE\\ClaudeCodeAlsoAbsent')" \
+    PERMISSION_STATE_REGISTRY_KEYS="$BOTH_ABSENT_KEYS" \
     PERMISSION_STATE_PLIST_DOMAIN="" \
     bash "$SCRIPT")
   assert_contains "no policy keys at all reports absent" "$OUT_REG_NONE" "managed registry absent"
@@ -231,6 +263,54 @@ else
   pass "registry key selection (skipped — reg not on PATH)"
   pass "registry absence reporting (skipped — reg not on PATH)"
 fi
+
+# --- A rule containing a literal newline is reported, never split ------------
+# These records are line-oriented, so such a rule cannot be represented in one.
+# Reading it line by line turned ONE rule into TWO records, each a rule string
+# that appears in no settings file -- and both would flow downstream into the
+# merge and the entry diff as if they were real grants. Reachable through an
+# ordinary settings file, not only through debug narration.
+NLFX="$TEST_TMPDIR/nlfx"
+mkdir -p "$NLFX/proj/.claude" "$NLFX/home/.claude" "$NLFX/pol" "$NLFX/sd/.claude"
+jq -n '{}' >"$NLFX/proj/.claude/settings.json"
+jq -n '{}' >"$NLFX/pol/managed-settings.json"
+jq -n '{permissions:{allow:["Bash(echo hi\nthere *)","Bash(npm test)"]}}' >"$NLFX/home/.claude/settings.json"
+OUT_NL=$(env -u CLAUDE_CONFIG_DIR HOME="$NLFX/home" \
+  PERMISSION_STATE_FIXTURE_DIR="$NLFX/proj" \
+  PERMISSION_STATE_STARTDIR="$NLFX/sd" \
+  PERMISSION_STATE_MANAGED_PATH="$NLFX/pol/managed-settings.json" \
+  PERMISSION_STATE_REGISTRY_KEYS="" \
+  PERMISSION_STATE_PLIST_DOMAIN="" \
+  bash "$SCRIPT")
+assert_eq "the multi-line rule yields no rule record" 0 "$(count_matching "$OUT_NL" '^rule user settings allow Bash\(echo')"
+assert_eq "and no fragment record either" 0 "$(count_matching "$OUT_NL" '^rule user settings allow there')"
+assert_contains "it is reported as unrepresentable" "$OUT_NL" "cannot be represented as one record"
+assert_contains "with the rule text rendered on one line" "$OUT_NL" "Bash(echo hi there *)"
+assert_contains "the well-formed sibling rule is unaffected" "$OUT_NL" "rule user settings allow Bash(npm test)"
+
+# A CARRIAGE RETURN is the same class and was the worse case: the newline fix
+# announced LF while the CRLF line-ending strip silently DELETED an in-string
+# CR, turning a rule into "Bash(ab *)" -- text present in no settings file,
+# flowing downstream as a real grant. That strip is load-bearing (jq emits CRLF
+# on Windows), so the in-string CR is caught BEFORE it reaches the strip rather
+# than by weakening it.
+CRFX="$TEST_TMPDIR/crfx"
+mkdir -p "$CRFX/proj/.claude" "$CRFX/home/.claude" "$CRFX/pol" "$CRFX/sd/.claude"
+jq -n '{}' >"$CRFX/proj/.claude/settings.json"
+jq -n '{}' >"$CRFX/pol/managed-settings.json"
+# The CR reaches the file as a JSON backslash-r escape, which is how a real settings
+# file would carry one.
+jq -n '{permissions:{allow:["Bash(a\rb *)","Bash(npm test)"]}}' >"$CRFX/home/.claude/settings.json"
+OUT_CR=$(env -u CLAUDE_CONFIG_DIR HOME="$CRFX/home" \
+  PERMISSION_STATE_FIXTURE_DIR="$CRFX/proj" \
+  PERMISSION_STATE_STARTDIR="$CRFX/sd" \
+  PERMISSION_STATE_MANAGED_PATH="$CRFX/pol/managed-settings.json" \
+  PERMISSION_STATE_REGISTRY_KEYS="" \
+  PERMISSION_STATE_PLIST_DOMAIN="" \
+  bash "$SCRIPT")
+assert_eq "a CR-carrying rule yields no rule record" 0 "$(count_matching "$OUT_CR" '^rule user settings allow Bash.a')"
+assert_contains "it is reported rather than silently stripped" "$OUT_CR" "carriage return"
+assert_contains "the sibling rule is unaffected by the CR case" "$OUT_CR" "rule user settings allow Bash(npm test)"
 
 # --- Case 13: jq is required for correctness ---------------------------------
 # The jq gate runs before any external tool, so an EMPTY stub dir is enough here;

@@ -3,7 +3,7 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.36.0]
+## [0.37.0]
 
 ### Changed
 
@@ -106,6 +106,127 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   grant. The disclosure half — every exclusion reports its own count — ships above instead, and the
   corrected mechanism is carried into **#2406** along with what a real loadability model would have
   to distinguish.
+
+## [0.36.0]
+
+### Changed
+
+- **`audit-permission-grants` check P1 now sees user-global allow rules.** It scanned project and
+  local settings only, so an interpreter-wildcard rule in
+  `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json` was invisible to it — and that is the scope
+  Claude Code's own "Always allow" path writes to, so it is where the broad rules auto mode drops
+  actually accumulate. Expect new findings on a repository whose own configuration did not change.
+  The user scope resolves through `CLAUDE_CONFIG_DIR` before `$HOME`, and a finding names the
+  resolved absolute path rather than `~/.claude/settings.json`, which would name the wrong file
+  whenever the config root has been relocated.
+- **`audit`'s structure check now reports a start-directory `settings.local.json`.** A pre-v2.1.211
+  Claude Code wrote the file to the directory the session started in, and the current one still
+  reads what an earlier version left there: the repository-root copy wins on a shared key, but
+  permission rules from **both** files stay in effect. The row appears only when the start directory
+  genuinely differs from the project root and a copy is there, so the same file is never counted as
+  two rule sources.
+- **`audit`'s structure check names the managed surfaces it does not read.** On Windows the
+  `HKLM`/`HKCU\SOFTWARE\Policies\ClaudeCode` policy keys, on macOS the `com.anthropic.claudecode`
+  managed-preferences domain. A file-only reader that stays silent about them lets an absent
+  `managed-settings.json` read as "no managed policy deployed" while a policy is in force.
+
+### Added
+
+- **`audit-permission-state`** — a new skill reporting which permission rules are actually in effect
+  and where each comes from. `/permissions` lists your rules and the file each came from, but it does
+  not resolve which of two conflicting rules wins, cannot distinguish a scope that was empty from one
+  it could not read, and exists only inside a live session — there is no `claude permissions`
+  subcommand and no machine-readable export. The reader discovers managed policy, user-global,
+  project, local, and any
+  pre-v2.1.211 start-directory copy, and inventories each scope's `allow`/`ask`/`deny` rules with its
+  source named. Every scope and every managed surface emits a record on every OS, so a surface that
+  was never attempted can never be mistaken for one that is genuinely empty: `absent` means looked and
+  found nothing, `skipped` means could not look. Server-managed settings are disclosed as having no
+  local path rather than assumed absent. Report-only, and managed policy is read-only by construction.
+  A second pass merges those scopes into the set actually in force, each rule naming every scope that
+  contributes it and the documented mechanic that put it there. Permission rules merge across scopes
+  rather than override, so a rule written at two scopes has no winner and is never reported as one;
+  what a rule can lose is its kind, because deny is evaluated before ask and ask before allow from any
+  scope in either direction — a user-level deny blocks a project-level allow just as the reverse. The
+  beaten entry is reported as inert alongside the rule that beat it, which is the answer to "why is my
+  allow rule ignored". A rule that is a bare tool name reaches every call of that tool: a whole-tool
+  deny removes the tool from context entirely, so every other rule naming it is inert — including
+  other denies, which are moot rather than weakened — and a whole-tool ask prompts for every call, so
+  no scoped allow for that tool applies. `EndConversation` is exempt from removal, as documented.
+  A third pass answers what entering auto mode does to that set — which became urgent when auto mode
+  turned on by default for new sessions. Every effective allow rule is classified as dropped (with the
+  documented reason named: blanket, wildcarded interpreter, package-manager run, or `Agent`) or as
+  carried over, using the same shared pattern vocabulary `audit-permission-grants` check P1 scans
+  with. `autoMode.classifyAllShell` is read too, because when it is on it suspends every Bash and
+  PowerShell allow rule and a diff blind to it can be exactly wrong — and it is resolved only from the
+  scopes the classifier actually reads, so a project-scope copy is reported inert rather than obeyed.
+  An opt-in `--oracle` flag corroborates the prediction against the harness's own drop narration by
+  spawning a real `claude -p` session; it never fires without the flag, prints what it will leave
+  behind before spawning anything, and reports an empty capture as unavailable rather than as an
+  empty drop set.
+  A fourth pass lints the permission plane for configuration that is written but never read. Eight
+  checks: an `autoMode` section in a scope the classifier does not read, `defaultMode: "auto"` in
+  project or local settings, `useAutoModeDuringPlan` in shared project settings, `disableAutoMode`
+  typed as a boolean instead of the string `"disable"`, and four rule shapes that cannot match —
+  doubled-backslash Windows paths, parameter-form rules on a tool's primary content field, path rules
+  on a tool whose path rules are never consulted, and `:*` used anywhere but at the end of a pattern.
+  The three dead-config gates stay separate findings because they cover different scope sets and carry
+  different version histories; merging them would let an operator fix one and believe they had fixed
+  all three. The `disableAutoMode` check is the highest-consequence one — a boolean is valid JSON, is
+  accepted, and does nothing, so the operator believes auto mode is locked out when it is not — and it
+  is read at both documented key paths in every scope, since it is not managed-only. Several of these
+  also emit a startup warning upstream; the added value is reading every scope at once, before a
+  session, and naming the file. Advisory: it exits 0 whenever it ran, and exit 2 means it could not
+  run at all rather than that it found nothing.
+  A fifth lane reads the `autoMode` classifier block — a different surface again, four
+  natural-language sections rather than permission rules. It reports a customized section that omits
+  `"$defaults"` (which **replaces** the built-in list rather than adding to it, so the finding names
+  how many entries are discarded), the same subject appearing in both `allow` and a deny section, and
+  an entry an earlier `hard_deny` already forecloses. `claude auto-mode critique` is surfaced with
+  `--critique` rather than reimplemented — it owns the semantic judgment — but it is wrapped in
+  truncation and empty-output detection, because across three consecutive runs on one unchanged config
+  its output was truncated mid-sentence twice and empty once while exiting 0 every time. This lane
+  needs `python3`, because `claude auto-mode config` emits raw control characters inside JSON string
+  values that `jq` rejects outright and no line-oriented filter can repair; absent it, the lane prints
+  a visible skip notice and exits 0 while every other stage still runs. A capture that produced
+  nothing is reported as unavailable with an explicit "this is NOT a clean bill" — exit status is
+  never consulted, since it is 0 even when nothing came back.
+  A sixth lane reports which managed intents are actually enforced and which a developer can loosen.
+  A managed `permissions.deny` is the strongest thing an administrator can write and is reported
+  enforced; a managed `autoMode` section is **additive, not a policy boundary** — a developer cannot
+  remove entries it provides, but a developer-added `allow` can override an organization `soft_deny`,
+  because permissions, hooks, MCP, sandbox-filesystem and sandbox-network each have an exclusivity
+  lock and auto mode has none. The report also surfaces an interaction the precedence table alone does
+  not suggest: managed settings are the highest scope, but evaluation order applies from any scope, so
+  a lower-scope deny beats a managed allow without ever overriding it. It prescribes nothing — every
+  rule string it prints came from a file it read, and it ships no security floor of its own. Every run
+  bounds its own completeness: server-managed settings have no local path, and a managed surface that
+  could not be read is reported as such rather than left silent, since an administrator reading
+  silence as "no policy deployed" is the failure the report exists to prevent. Every run states the two bounds on the claim: the command-line scope
+  (`--settings`, `--allowedTools`, `--disallowedTools`) outranks the files and has none to read, and
+  rules are compared by exact text, so a narrow allow blocked only by a broader deny pattern is still
+  reported effective — the error direction is over-reporting allow, never over-reporting blocking.
+- **`draft-auto-mode-rules`** — a second new skill, the authoring counterpart. It interviews you about
+  what should and should not be auto-approved, then prints a paste-ready `autoMode` block to stdout.
+  The entry shape is `claude auto-mode critique`'s own recommendation applied at authoring time rather
+  than reported afterwards: run against a real 66 KB hand-authored block, it found the classifier is
+  "an LLM doing a single pass under a 'default is ALLOW' instruction", so conditions buried in a
+  paragraph are missed at a materially higher rate than conditions in a bullet list. Entries are
+  therefore a label, bulleted COVERED / NOT COVERED, and one line of rationale. The interview pushes
+  back on conditions the classifier cannot evaluate from the command text — the same critique named
+  those the biggest weakness, since the classifier either allows blindly or blocks entirely with no
+  stated disposition. Every emitted section opens with `"$defaults"`, because customizing a section
+  replaces the built-in rule list rather than adding to it. It **writes nothing, in any scope, under
+  any flag** — editing a consumer's settings file would be making a permission decision on their
+  behalf, which is the one thing this plugin exists not to do.
+- **`lib/permission-patterns.sh`** — the auto-mode drop vocabulary (blanket, wildcarded-interpreter,
+  package-manager-runner, and script-glob rule shapes, plus the top-level tool-token grammar) as a
+  define-only library. It was inline in the P1 detector, which self-executes and cannot be sourced,
+  so a second consumer had no way to reuse it without copying.
+- **`lib/managed-scope.sh`** — the per-OS managed-policy surface enumeration (base JSON file,
+  `managed-settings.d/` drop-in directory, Windows policy registry keys, macOS preferences domain).
+  `claude-memory` carries a byte-identical copy, registered as a cross-plugin shared-source cluster
+  so the two cannot drift.
 
 ## [0.35.4]
 
