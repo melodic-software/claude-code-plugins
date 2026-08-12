@@ -138,7 +138,7 @@ SURFACE_JSON=""
 fetch_surface() {
   local endpoint="$1" projection="$2" raw
   SURFACE_JSON=""
-  raw=$(gh api --paginate "repos/$OWNER/$REPO/$endpoint" 2>/dev/null) || {
+  raw=$(gh api --paginate "repos/$OWNER/$REPO/$endpoint?per_page=100" 2>/dev/null) || {
     printf 'fetch-all-pr-comments: gh api %s failed\n' "$endpoint" >&2
     exit 2
   }

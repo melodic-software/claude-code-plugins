@@ -3,6 +3,33 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.51.12]
+
+### Fixed
+
+- **D6's verify-commit-pushed gate checks branch reachability, not repo-wide presence or the branch
+  tip** (`reference/review-discipline.md`, `skills/pull-request/SKILL.md`; #2244). The published
+  form — `commits?sha=<branch>&per_page=1` with `--jq '.[0].sha'` — asked "is my fix commit on the
+  remote?" but read only the branch tip, so any later push made it report the fix missing while it
+  was present: a false negative on a control gate, and a positional index on a list. A
+  repository-scoped `commits/<fix-sha>` lookup fixed the tip-read false negative but still answered
+  "does this object exist anywhere in the repo?" — satisfied by a force-pushed-off commit or an
+  identical commit on another branch. The gate now fetches the PR branch and runs
+  `git merge-base --is-ancestor <fix-sha> origin/<branch>` (exit 0 when the fix commit is on the
+  remote PR branch), matching the reachability primitive `babysit-prs` already uses in
+  `verify_fix_commit`.
+- **Every remaining `--paginate` list read carries `per_page=100`**, conforming to rule 1 as
+  `readiness.md` publishes it (#2246): `skills/pull-request/reference/merge.md` (three
+  comment-source re-checks), `skills/pull-request/SKILL.md` (C1–C3),
+  `skills/pull-request/reference/monitor.md` (poll-loop comment fetch),
+  `scripts/fetch-all-pr-comments.sh` (the shared surface pager), and
+  `skills/babysit-loop/reference/telemetry-upsert.md` (sentinel LOOKUP). Not truncation defects —
+  `--paginate` alone fetches every page — but the default 30-per-page form costs 3.3x the
+  requests and diverges from the rule the same skill states as absolute.
+  `skills/babysit-prs/scripts/babysit_gh.py` and `scripts/request_review.py` were reported in the
+  #2246 sweep but were already conformant: their `per_page=100` sits in the endpoint URL on the
+  line adjacent to the `--paginate` flag the line-based sweep matched.
+
 ## [0.51.11]
 
 ### Changed

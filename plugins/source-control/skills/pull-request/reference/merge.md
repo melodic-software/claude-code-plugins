@@ -11,9 +11,9 @@ Resolve `<pr_number>` via `gh pr view --json number -q '.number'`. Pass it expli
 gh pr checks <pr_number> --json name,state,bucket
 
 # 2. Re-check for new comments since monitoring completed (all 3 sources, paginated)
-gh api --paginate repos/{owner}/{repo}/pulls/<pr_number>/reviews | jq -r '.[].user.login'
-gh api --paginate repos/{owner}/{repo}/pulls/<pr_number>/comments | jq -r '.[].user.login'
-gh api --paginate repos/{owner}/{repo}/issues/<pr_number>/comments | jq -r '.[].user.login'
+gh api --paginate "repos/{owner}/{repo}/pulls/<pr_number>/reviews?per_page=100" | jq -r '.[].user.login'
+gh api --paginate "repos/{owner}/{repo}/pulls/<pr_number>/comments?per_page=100" | jq -r '.[].user.login'
+gh api --paginate "repos/{owner}/{repo}/issues/<pr_number>/comments?per_page=100" | jq -r '.[].user.login'
 ```
 
 **If any readiness gate fails on re-verification:**
