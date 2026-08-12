@@ -422,7 +422,11 @@ a `<STAGE>-<scope>.md` sidecar.
    updates ride the same commit as its source changes.
 2. At PR time the approved `PLAN.md` and the verification summary are
    pasted into the PR description inside `<details>` blocks (bodies cap
-   near 64 KB — paste the contract, reference the rest).
+   near 64 KB — paste the contract, reference the rest). When the
+   contract exceeds the cap, paste the summary and verification digest in
+   the body and **name the pruning commit** (or the PR number plus the
+   path) for everything else — a pointer without a followable ref is not a
+   preservation.
 3. Before merge, durable outcomes graduate: architectural decisions and
    specs through the **knowledge-vault seam** (default: history-preserving
    `git mv` into `docs/adr/` / `docs/specs/`; remote vault backends
@@ -431,7 +435,24 @@ a `<STAGE>-<scope>.md` sidecar.
 4. A final commit prunes the contract slice `<contract_dir>/<slug>/`
    (default `docs/topics/`), leaving context pointers (the PR body and
    the promoted-doc / tracker locations) in its place.
-5. Enforcement: a required check that the net PR diff
+5. **Retrieving a pruned slice after merge.** The task branch is deleted on
+   merge and GitHub's three-dot PR diff drops pruned files, so
+   `docs/topics/<slug>/…` on `main` will not resolve. The pruned content
+   remains reachable through the merge commit **immediately before** the
+   pruning commit:
+
+   ```bash
+   # pruning commit = the merge commit whose message prunes the slice
+   gh api "repos/{owner}/{repo}/contents/docs/topics/<slug>/PLAN.md?ref=<pruning-commit>^" --jq .size
+   ```
+
+   Given only a merged PR number, list its commits and take the pruning
+   commit from that list; use `<sha>^` as `ref`. `git fetch origin
+   refs/pull/<N>/head` may be denied by a consumer permission layer — the
+   Contents API form above works after the branch is gone. Step 2's
+   "reference the rest" pointer should name that pruning commit (or the PR
+   number plus path) so the reference is followable without archaeology.
+6. Enforcement: a required check that the net PR diff
    (`git diff --name-only base...head`) contains no path under the
    resolved `<contract_dir>/**` (default `docs/topics/**`). GitHub's PR
    view is the three-dot diff, so pruned files also vanish from the

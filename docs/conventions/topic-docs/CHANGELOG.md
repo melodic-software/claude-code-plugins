@@ -1,5 +1,12 @@
 # Changelog — topic-docs convention
 
+## 2.4.2 — 2026-08-12
+
+Docs-only: the contract-slice lifecycle now documents how to retrieve a
+pruned slice after merge (`gh api …/contents/<path>?ref=<pruning-commit>^`)
+and requires step 2's "reference the rest" pointer to name a followable
+ref. (#1461)
+
 ## 2.4.1 — 2026-07-29
 
 Docs-only, no tier, key, slug, or visibility change: the no-hoisting decision's "What would
