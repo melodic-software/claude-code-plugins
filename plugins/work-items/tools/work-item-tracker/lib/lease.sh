@@ -55,13 +55,23 @@ wit_select_active_lease() {
   export WIT_ACTIVE_LEASE_ID WIT_ACTIVE_LEASE_JSON
 }
 
+# wit_lease_ttl_seconds <lease-json> — echo total TTL in seconds from ttl_hours and
+# optional ttl_minutes. Returns 1 when ttl_hours is missing or non-numeric.
+wit_lease_ttl_seconds() {
+  local lease="$1" hours minutes
+  hours="$(jq -r '.ttl_hours // empty' <<<"$lease")"
+  minutes="$(jq -r '.ttl_minutes // 0' <<<"$lease")"
+  [[ "$hours" =~ ^[0-9]+$ && "$minutes" =~ ^[0-9]+$ ]] || return 1
+  echo $((hours * 3600 + minutes * 60))
+}
+
 # wit_lease_is_live <lease-json> <now-epoch> — 0 when no superseded_at and not expired.
 wit_lease_is_live() {
-  local lease="$1" now_epoch="$2" renewed ttl renewed_epoch
+  local lease="$1" now_epoch="$2" renewed ttl_seconds renewed_epoch
   [[ "$(jq -r '.superseded_at // empty' <<<"$lease")" == "" ]] || return 1
   renewed="$(jq -r '.renewed_at // empty' <<<"$lease")"
-  ttl="$(jq -r '.ttl_hours // empty' <<<"$lease")"
-  [[ -n "$renewed" && "$ttl" =~ ^[0-9]+$ ]] || return 1
+  ttl_seconds="$(wit_lease_ttl_seconds "$lease")" || return 1
+  ((ttl_seconds > 0)) || return 1
   renewed_epoch="$(wit_iso_to_epoch "$renewed")" || return 1
-  ((now_epoch < renewed_epoch + ttl * 3600))
+  ((now_epoch < renewed_epoch + ttl_seconds))
 }

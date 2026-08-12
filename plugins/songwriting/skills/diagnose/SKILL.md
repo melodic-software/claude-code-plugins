@@ -14,6 +14,20 @@ when producing rewritten lines). NAME each box's pass / fail / skip-with-reason 
 reasoning); correct before emission. Skips are valid; silent skips are not — list-and-leave
 critique is the default this filter catches.
 
+`variations` and `rewrite` EMIT lines, and §2 has not been run until the files on its own
+**Reference:** line have been read: [meter](../../context/pat-pattison/research/meter.md) and
+[phrasing](../../context/pat-pattison/research/phrasing.md) before the first candidate is written,
+plus [metaphor](../../context/pat-pattison/research/metaphor.md) when the fix calls for an image or
+a figure. The Action Router's `Load` column below is a routing hint; this is a precondition of
+emission — a candidate table written before those files were opened has run on model priors, which
+is the failure §2 exists to catch, and naming the §2 boxes does not undo it. On top of that, §2's
+boxes are cycled inside
+[line-edit-rubric](../../context/pat-pattison/research/line-edit-rubric.md): run the full cycle per
+candidate before it is shown. Auditing a line the writer already HAS is the other direction — that
+stays [audit-checklist](../../context/pat-pattison/research/audit-checklist.md) (pre-lock). Line
+emission is `/songwriting:co-write`'s, and its input gate travels with the lines: same gate,
+checked here. *(Plugin-authored, writer-derived from the Sofía sessions, 2026-08-12.)*
+
 ## Purpose
 
 The review-and-revise layer: name the dominant problem, offer one focused revision, run the pre-lock
@@ -33,8 +47,8 @@ No action → route on completion stage (partway draft → `demo`; near-complete
 | `diagnose` (default) | "what's wrong with my song", "review my draft" (near-complete) | [five-compositional-elements](../../context/pat-pattison/research/five-compositional-elements.md), [stable-unstable-meta](../../context/pat-pattison/research/stable-unstable-meta.md), [prosody](../../context/pat-pattison/research/prosody.md) |
 | `demo` | "review this demo", "where do I take this", "lyric is partway done" | [demo-review](../../context/pat-pattison/research/demo-review.md), [templates/demo-review-prompt](../../context/pat-pattison/templates/demo-review-prompt.md) |
 | `audit` | "line-by-line review", "pre-lock checklist", "should this lock" | [audit-checklist](../../context/pat-pattison/research/audit-checklist.md), [templates/audit-checklist-prompt](../../context/pat-pattison/templates/audit-checklist-prompt.md), [templates/diagnose-section-prompt](../../context/pat-pattison/templates/diagnose-section-prompt.md) |
-| `variations` | "give me 5 versions of this line", "different POV / image / vowel", "alternate this" | [variations](../../context/pat-pattison/research/variations.md), [templates/variations-prompt](../../context/pat-pattison/templates/variations-prompt.md) |
-| `rewrite` | a lyric critique or rewrite using Pat's checklist | [stable-unstable-meta](../../context/pat-pattison/research/stable-unstable-meta.md), [five-compositional-elements](../../context/pat-pattison/research/five-compositional-elements.md), [prosody](../../context/pat-pattison/research/prosody.md), [object-writing](../../context/pat-pattison/research/object-writing.md), [rhyme-strategy](../../context/pat-pattison/research/rhyme-strategy.md), [cliche](../../context/pat-pattison/research/cliche.md) |
+| `variations` | "give me 5 versions of this line", "different POV / image / vowel", "alternate this" | [variations](../../context/pat-pattison/research/variations.md), [templates/variations-prompt](../../context/pat-pattison/templates/variations-prompt.md), [line-edit-rubric](../../context/pat-pattison/research/line-edit-rubric.md), [meter](../../context/pat-pattison/research/meter.md), [phrasing](../../context/pat-pattison/research/phrasing.md) |
+| `rewrite` | a lyric critique or rewrite using Pat's checklist | [stable-unstable-meta](../../context/pat-pattison/research/stable-unstable-meta.md), [five-compositional-elements](../../context/pat-pattison/research/five-compositional-elements.md), [prosody](../../context/pat-pattison/research/prosody.md), [meter](../../context/pat-pattison/research/meter.md), [phrasing](../../context/pat-pattison/research/phrasing.md), [line-edit-rubric](../../context/pat-pattison/research/line-edit-rubric.md), [object-writing](../../context/pat-pattison/research/object-writing.md), [rhyme-strategy](../../context/pat-pattison/research/rhyme-strategy.md), [cliche](../../context/pat-pattison/research/cliche.md) |
 
 ## Handlers
 
@@ -42,6 +56,20 @@ No action → route on completion stage (partway draft → `demo`; near-complete
 - Name the dominant problem; offer one focused revision. Do not list every issue.
 - Audit boxes are tools, not gates: present each as a deliberate choice point, pass/fail/skip — a
   writer may skip any box, but a skip names a reason; silent skips are not OK.
+- Unlike the audit boxes above, the rubric's passes are **not** skippable — they are the AI's
+  self-check, not choice points offered to the writer. Rewrites and variation sets are line
+  emission: cycle [line-edit-rubric](../../context/pat-pattison/research/line-edit-rubric.md) in
+  full on every candidate, pass 1 clean, and DROP any candidate a pass flagged rather than
+  presenting it flagged. Two rejected executions in one slot ends generation for that slot — hand
+  the concept back per `/songwriting:co-write` Handlers.
+- `variations` output reaches the writer as full section blocks IN CONTEXT — changed lines marked
+  `►`, one labeled block per variation, 3-4 per chat menu; scansion maps and per-candidate craft
+  notes go to the `variations/` file. Never a bare one-line candidate in a table. Writer-requested,
+  2026-08-12 — see [variations](../../context/pat-pattison/research/variations.md) "Presenting the
+  candidates — chat vs file".
+- `variations` and `audit` judge candidates against the WRITER's register, not genre and not
+  taste — load [voiceprint](../../context/pat-pattison/research/voiceprint.md); if none exists,
+  name that as a skipped gate instead of ruling on register anyway.
 - If the user pastes an incomplete fragment/idea/half-song, this is the wrong skill — route to
   `/songwriting:workflow` (`fragment` / `idea`), not `diagnose`.
 

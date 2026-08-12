@@ -40,6 +40,7 @@ The filter sections are organized by WHAT the AI is about to output:
 |---|---|
 | Rhyme list (the writer asked for rhymes) | §1 Rhyme suggestion filter |
 | Line rewrite / new line / variation | §2 Line-writing filter |
+| Candidate lyric line about to be SHOWN to the writer | §2, cycled inside [line-edit-rubric.md](line-edit-rubric.md) |
 | Critique / diagnosis of an existing lyric | §3 Critique filter |
 | Scansion verdict, stability call, phrasing judgement | §3 Critique filter |
 | Coaching / step-by-step guidance | §4 Coaching posture filter |
@@ -65,6 +66,16 @@ to propose a rhyme partner anywhere in output.
 skip+reason):**
 
 - [ ] **Stressed vowel anchored** before any candidate listed
+- [ ] **Vowel FIELD walked, not just the source word's coda** — the source word's
+      own post-vowel consonant is ONE row of the field. Walk the other coda
+      columns on the same stressed vowel per
+      [rhyme-generation.md](rhyme-generation.md) Step 1b BEFORE listing
+      candidates. Anchoring the vowel and then searching the source's own rime is
+      what this box used to permit, and it shipped a column sweep in production
+      (2026-08-12). Pat runs the walk himself in *Essential Guide to Rhyming*
+      (2014), Chapter 7: keyword `risk`'s Perfect Rhymes column is two lines
+      (`disc` / `(oops!)`) while the Imperfect column beside it crosses roughly
+      fifteen codas on the one vowel
 - [ ] **Identity check** on every candidate — pre-vowel consonants DIFFER
       from the source word (e.g., `time / sometime` = identity, REJECTED;
       `time / rhyme` = rhyme, accepted). Identity check applies ACROSS
@@ -140,6 +151,23 @@ content. The LLM default is search-and-find-phrases-with-source-word;
 the filter must catch this. See [mosaic-rhyme.md](mosaic-rhyme.md)
 "Mosaic risk register" → "Phrase-containing-source-word default" row.
 
+**Fail signature 3 — column sweep dressed as a tier walk:** the about-to-emit list
+for source `forget` reads [`regret` perfect, `duet` perfect, `cassette` perfect,
+`thread` family, `instead` family, `bled` family, `they get it` mosaic, `let it set`
+mosaic]. Tier-labeled, mosaic present, ≥8 candidates, no identity, no cliche pair —
+every box above is nameable as a pass, and signatures 1 and 2 both clear it. It is
+still a COLUMN SWEEP: every entry sits on `et` or on `et`'s immediate phonetic
+relative `ed`, and the rest of the ĕ field was never searched. The tell is what is
+ABSENT, not what is present — `es` (`dress`, `confess`), `est` (`chest`, `arrest`),
+`esk` (`picturesque`, `grotesque`), `elt` (`felt`, `melt`) are all live rows on the
+same stressed vowel. Writer-caught in production, 2026-08-12, on this exact vowel:
+`chest / dress / picturesque / forget` spans four codas (`st` / `s` / `sk` / `t`) on
+one ĕ, and all four pass the identity check because their pre-vowel consonants
+(`ch` / `dr` / `r` / `g`) differ. STOP and run the walk in
+[rhyme-generation.md](rhyme-generation.md) Step 1b. This is a SEARCH-SPACE failure,
+not a rhyme-type failure — the tier labels can all be correct and the field still
+unsearched.
+
 **Anchor quote:**
 
 > "Never stop listening. If your ear says a sound is wrong, find another
@@ -159,7 +187,24 @@ any prose lyric line.
 
 **Reference:** [object-writing.md](object-writing.md),
 [cliche.md](cliche.md), [phrasing.md](phrasing.md), [meter.md](meter.md),
-[hook.md](hook.md), [variations.md](variations.md).
+[hook.md](hook.md), [variations.md](variations.md),
+[voiceprint.md](voiceprint.md).
+
+**This Reference line is a load list, not a bibliography.** §2 has not been run
+until these files have been READ this session. Naming the boxes below while
+`meter.md` and `phrasing.md` were never opened attests to the filter instead of
+applying it, and that attestation is what let the production failures through
+(2026-08-12): the miscounted stresses and the plain description labeled a metaphor
+both came out of a §2 that was named, not loaded.
+
+**When the output is a candidate line about to be SHOWN to the writer, this
+section's boxes are cycled inside pass 6 of
+[line-edit-rubric.md](line-edit-rubric.md) — not run twice.** That file is the
+pre-emission cycle; §2 remains the OWNER of the boxes below and is what its pass 6
+loads. For every other §2 trigger — a line inside a critique, a rewritten fragment
+in prose — run §2 here, as printed. A full pre-emission cycle cannot live inline in
+a gate held to the `## Recheck triggers` ~10s budget at the bottom of this file;
+that is why it is a separate file rather than more of this section.
 
 **Pre-flight checklist:**
 
@@ -195,6 +240,14 @@ any prose lyric line.
       `road-life-path`)
 - [ ] **Friendly cliche test** — if a cliche is used: is it reframed by
       context so it earns its place? If no → REWRITE
+- [ ] **Rewrite stays in the common stock** — a cliche flag is answered by
+      reframing (the box above), not by reaching for a rarer word. Order of
+      generation: [line-brainstorm.md](line-brainstorm.md) "Discipline" —
+      common stock first, reframe second. Whether a candidate is SAYABLE at
+      all is a separate check with its own grounding (pass 8 of
+      [line-edit-rubric.md](line-edit-rubric.md)); it is NOT an extension of
+      the `Tone-of-voice` box below, which is plugin shorthand with zero
+      corpus hits. Writer-derived, Sofía sessions (2026-08-12)
 - [ ] **Identity ≠ rhyme** if line sits in a rhyme position — pre-vowel
       consonants on the rhyme word DIFFER from any prior rhyme partner
 - [ ] **Pronoun consistent** with section's established speaker / audience
@@ -279,7 +332,11 @@ or a closure call.
       predicted, a delayed payoff, a section outrunning the established bar
       count), NAME the content sitting there. A marked position holding
       filler is a finding, not a flourish; a spotlight turned on to be cute
-      is a fail (*Writing Better Lyrics* (2009), Chapters 14-15)
+      is a fail (*Writing Better Lyrics* (2009), Chapters 14-15). This box
+      reads a draft whose marks already exist; when the output is instead a
+      CANDIDATE line about to be shown for a slot whose brightness is already
+      known, that check is pass 10 of
+      [line-edit-rubric.md](line-edit-rubric.md), not a re-run of this box
 - [ ] **Line length ruled out before a rhyme prescription** — when a finding
       about a section's motion is about to prescribe a rhyme change, the
       arrangement of LINE LENGTHS is checked first, because line length moves a
@@ -343,9 +400,17 @@ deliver any step-by-step process.
       ACKNOWLEDGE the writer's authority, name what they're trading off,
       proceed with their choice
 - [ ] **Coach toward writer's voice** — the AI does NOT impose its
-      preference; surfaces options and supports the writer's pick
+      preference; surfaces options and supports the writer's pick. What the
+      writer's voice IS gets BUILT from their accepted lines, not guessed —
+      [voiceprint.md](voiceprint.md). Without it, "don't impose mine"
+      collapses into a guess on a fancy-plain dial
 - [ ] **Stop conditions named** — when does this phase end? what's the
-      sanity check?
+      sanity check? Line generation carries one more: after the writer
+      rejects the EXECUTION in a single slot **twice**, generation stops
+      and the concept goes back to the writer — his own threshold, Sofía
+      sessions 2026-08-12. Rules in
+      [line-edit-rubric.md](line-edit-rubric.md); the handoff's contents in
+      the `co-write` skill's Handlers
 - [ ] **Hand off to next scenario or action** when the current phase's
       output unlocks a different workflow
 
@@ -504,6 +569,12 @@ checklist), [variations.md](variations.md).
       writer's choice
 - [ ] **Identity drift** — did a rhyme suggestion later in the response
       slip past the identity check? Re-verify
+- [ ] **Own-flag drift** — did a candidate the AI itself flagged as failing
+      a rubric or filter box reach the menu anyway, with the flag attached
+      as a caveat? Remove it. A disclosed failure is still a failure shown
+- [ ] **Self-run drift** — was a pass named as run with no marked artifact
+      behind it (a positional template, a stress map, a named repetition
+      radius)? Re-run it and show the artifact, or say it did not run
 
 ## Filter posture — quick reference
 
@@ -511,7 +582,7 @@ checklist), [variations.md](variations.md).
 |---|---|---|
 | Voice | The writer's voice | The AI's preferred voice |
 | Decisions | The writer chooses | The AI chooses |
-| Options | 3-15 surfaced with labels | 1 winner imposed |
+| Options | 3-15 generated and recorded with labels; 3-4 shown per chat menu | 1 winner imposed |
 | Diagnoses | 1 dominant + secondaries deferred | 10 scattered |
 | Cliches | Friendly (reframed) or none | Stock (unreframed) |
 | Rhymes | All 5 stability tiers in play | All perfect |
@@ -519,9 +590,22 @@ checklist), [variations.md](variations.md).
 | Coaching | One question, then wait | 14-step plan no input |
 | Identity | Rejected as not-rhyme | Slipped in as rhyme |
 
+*Options row, reconciled (writer-requested, 2026-08-12):* the 3-15 is what gets
+GENERATED and RECORDED with labels — §1's ≥8-candidate floor and every per-tier
+count above it stand unchanged. What reaches the writer in ONE chat menu is 3-4
+candidates rendered as full-context blocks with changed lines marked, per
+[variations.md](variations.md) "Presenting the candidates — chat vs file"; the
+rest stay in the song's `variations/` file. Volume and menu size are different
+numbers for different moments, not a conflict. Nothing here licenses a single
+winner: 3-4 is still a menu.
+
 ## Cross-references
 
 - [audit-checklist.md](audit-checklist.md) — pre-lock checklist Pat-organized
+- [line-edit-rubric.md](line-edit-rubric.md) — the pre-emission cycle §2's boxes
+  are run inside when a candidate line is about to be shown
+- [voiceprint.md](voiceprint.md) — the mechanism behind §4's "coach toward
+  writer's voice"
 - [rhyme-generation.md](rhyme-generation.md) — internal rhyme discipline
 - [cliche.md](cliche.md) — full cliche taxonomy
 - [object-writing.md](object-writing.md) — sense-bound writing

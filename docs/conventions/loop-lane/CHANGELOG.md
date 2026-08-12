@@ -5,6 +5,26 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## 9.0.0 — 2026-08-12
+
+Major — §2 gains a **Cross-lane PR hold** subsection, a change to the escalation contract
+(#1409). Tracker-item escalation and PR holding were one undifferentiated act; the 2026-07-25
+incident showed the difference is load-bearing. An escalating lane decided a PR must not merge,
+drafted its explanation first, and applied `do-not-merge` ~30 minutes later — 3m20s **after** the
+merge. The server-side enforcement (org-ruleset-required `do-not-merge` status check,
+re-evaluated on `labeled`/`unlabeled`, no bypass actors) worked correctly on both sides of the
+boundary; what no convention defined was when to engage it. The escalation ladder's softer rung
+failed the same night from the same gap: a "do not merge this PR as written" PR comment held
+nothing, because no gate reads comments.
+
+- **`do-not-merge` is the only cross-lane hold; a PR comment is never one.** The label flips a
+  SHA-bound required check; a comment obliges nothing.
+- **Hold-then-explain, never explain-then-hold.** The label goes on the moment the hold is
+  decided, before the escalation comment is drafted — drafting time is exactly the window a
+  merge-capable lane needs.
+- **Freshness re-read before any hold action** — a hold decision drafted against a stale
+  snapshot can target an already-merged PR and announce state that is minutes out of date.
+
 ## 8.1.0 — 2026-08-12
 
 Additive, minor — §3 gains a **Current alias binding** subsection recording the capability-tier

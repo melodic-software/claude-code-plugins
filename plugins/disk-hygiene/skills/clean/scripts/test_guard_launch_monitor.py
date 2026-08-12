@@ -380,6 +380,17 @@ class GuardLaunchMonitorTests(unittest.TestCase):
         self.assertIn("exitCode: 9", message)
         self.assertIn("durationMs: 4242", message)
 
+    def test_head_region_failure_survives_later_oversized_append(self) -> None:
+        """#1514: a guard failure more than _MAX_TAIL_BYTES from EOF must still warn."""
+        failure = _record(exit_code=2, duration_ms=99, stderr="head failure")
+        pad = _filler_line(monitor._MAX_TAIL_BYTES + 100_000)
+        self.write_transcript([failure, pad])
+        self.assertGreater(self.transcript_path.stat().st_size, monitor._MAX_TAIL_BYTES)
+        message = self.run_monitor()
+        self.assertIsNotNone(message)
+        self.assertIn("exitCode: 2", message)
+        self.assertIn("head failure", message)
+
     def test_non_attachment_records_are_ignored(self) -> None:
         self.write_transcript(
             [
