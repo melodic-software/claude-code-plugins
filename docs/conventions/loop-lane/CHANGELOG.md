@@ -5,6 +5,27 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## 8.1.0 — 2026-08-12
+
+Additive, minor — §3 gains a **Current alias binding** subsection recording the capability-tier
+re-audit for the Opus 5 / Fable 5 lineup (#1293). This is the §Versioning "new model release
+re-audits the capability-tier table" trigger firing: both models shipped with no re-audit entry
+here. The tier vocabulary, the fixed rules, and every invariant are unchanged; what lands is the
+dated resolution the trigger exists to re-derive, expressed as aliases and never dated model IDs.
+
+- **frontier → `best`, strong → `opus`, fast → `sonnet`; `haiku` admissible nowhere.** Sourced from
+  live fetches of the model-config and models-overview pages on 2026-08-12. The two decisions the
+  obvious binding would have gotten wrong: frontier binds the `best` alias rather than `fable`
+  because `best` self-heals across Fable 5's availability preconditions while meaning exactly
+  "most capable available"; and strong stays on `opus` despite Fable 5 outranking it, because
+  Opus 5's reliable knowledge cutoff (May 2026) is four months fresher than Fable 5's (Jan 2026)
+  and the implementer tier is where harness-knowledge freshness pays. Haiku 4.5 (200k context,
+  Feb 2025 cutoff) fails the reviewer-never-weaker floor in every reachable pairing.
+- **Two Fable 5 known gaps recorded with the binding:** safety-classifier automatic model fallback
+  (most often in cybersecurity domains — the very work frontier unconditionally receives) is
+  undetected by any lane today; and non-interactive Fable 5 requests bill usage credits without a
+  consent prompt, the shape unattended lanes run in.
+
 ## 8.0.1 — 2026-08-05
 
 Corrective, no topology, escalation, tier, or invariant change — §"Out-of-band notification seam"

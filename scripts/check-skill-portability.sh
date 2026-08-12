@@ -151,7 +151,13 @@ scan_file() {
   # #1513), not a bare substring match anywhere in the file: an unanchored
   # search would also match this very sentence (a doc-block comment merely
   # explaining the mechanism) or a mention inside prose/a string literal.
-  if grep -qE '^[[:space:]]*(#|<!--)[[:space:]]*portability-scope:' -- "$file"; then
+  # The `<!--` alternative also admits a block comment nested inside Markdown
+  # list/blockquote containers (`- <!--`, `> <!--`, `1. <!--`, nested
+  # combinations) — the opener is still the first content of its container, so
+  # it is a genuine dedicated comment line, not the #611 mid-sentence case.
+  # Each container marker must be followed by whitespace, so prose that merely
+  # contains a dash or digit before an inline `<!--` stays rejected. See #1342.
+  if grep -qE '^[[:space:]]*(#|((>|[-*+]|[0-9]+[.)])[[:space:]]+)*<!--)[[:space:]]*portability-scope:' -- "$file"; then
     return 0
   fi
   # awk operand disambiguation: a bare relative operand shaped like
@@ -167,13 +173,23 @@ scan_file() {
   *) awk_file="./$awk_file" ;;
   esac
   awk '
-    function is_annotated(l) { return l ~ /portability-ok:/ }
+    function is_annotated(l) { return l ~ /portability-ok:[[:space:]]*[^[:space:]#<\-]/ }
     # Block-level only: a content line that merely happens to carry an inline
     # HTML comment marker (e.g. prose with `<!-- note -->` mid-line) must NOT
     # count as a comment line for pending_annot carry-forward purposes — only a
     # line whose `<!--` opens at the start (after optional whitespace) is a
     # genuine dedicated comment line. See #611.
-    function is_comment(l) { return l ~ /^[[:space:]]*#/ || l ~ /^[[:space:]]*<!--/ }
+    #
+    # A block comment nested inside Markdown list/blockquote containers
+    # (`- <!--`, `> <!--`, `1. <!--`, nested combinations like `> - <!--`)
+    # still qualifies: the opener is the first content of its container, so the
+    # line is dedicated to the comment. Each container marker must be followed
+    # by whitespace, which keeps the #611 mid-sentence shape (any real prose
+    # before the `<!--`) rejected. See #1342.
+    function is_comment(l) {
+      return l ~ /^[[:space:]]*#/ ||
+        l ~ /^[[:space:]]*((>|[-*+]|[0-9]+[.)])[[:space:]]+)*<!--/
+    }
     # Guard markers for the active branch class: branch-detection evidence ONLY
     # — a symbolic-ref / merge-base / origin/HEAD / PR-baseRefName resolution
     # command (or a `-> origin/` symbolic-ref target) co-located on the hit line.

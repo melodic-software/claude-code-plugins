@@ -26,6 +26,12 @@
 #                                                         entry it carried at the
 #                                                         fork point
 #
+# Released-entry body edits (--check-preserved watches headings only):
+#   Declared in-place corrections inside an already-released `## [<v>]` section
+#   are sanctioned when the correcting PR names each edit in its body AND in the
+#   new release entry (#2388). Heading preservation stays mechanical via
+#   --check-preserved; body fidelity is review discipline, not an automated gate.
+#
 # Three complementary gaps the same audit surfaced:
 #   * --check is the static repo-wide invariant: a plugins/<name>/.claude-plugin/
 #     plugin.json carrying a `version` must ship a plugins/<name>/CHANGELOG.md.

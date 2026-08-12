@@ -332,6 +332,41 @@ pairings are valid, and a fast orchestrator paired with an advisor at or above t
 recommended shape); a reviewer or verifier is never weaker than the implementer; a security-surface
 work class routes to the frontier tier unconditionally.
 
+### Current alias binding (re-audited 2026-08-12)
+
+The dated resolution of the ordered tiers to live aliases — the artifact the "new model release"
+recheck trigger re-derives. Sourced from live fetches of
+<https://code.claude.com/docs/en/model-config> and
+<https://platform.claude.com/docs/en/about-claude/models/overview> on 2026-08-12 (#1293):
+
+| Tier | Alias | Resolves to today |
+|---|---|---|
+| frontier | `best` | Fable 5 where the organization has access, else the latest Opus |
+| strong | `opus` | Opus 5 |
+| fast | `sonnet` | Sonnet 5 |
+
+- **frontier binds `best`, not `fable`.** `best` is the docs' live handle for exactly the frontier
+  tier's meaning — "Fable 5 where your organization has access to it, otherwise the latest Opus" —
+  so a frontier dispatch self-heals where Fable 5 is unavailable (it requires organization access
+  and Claude Code v2.1.170+, and can bill to usage credits) instead of failing or silently running
+  a stale pin. Two Fable 5 caveats ride along as **known gaps**: its safety classifiers can trigger
+  automatic model fallback "most often in cybersecurity and biology domains", and frontier is the
+  tier every security-surface work class routes to — no lane detects that fallback today; and in
+  non-interactive mode a Fable 5 request that would bill usage credits bills them without a consent
+  prompt, which is the shape every unattended lane runs in.
+- **strong binds `opus`.** The docs' own starting recommendation "for complex agentic coding and
+  enterprise work" — and Opus 5's reliable knowledge cutoff (May 2026) is four months *fresher*
+  than Fable 5's (Jan 2026). For lanes whose subject matter is fast-moving harness behavior, the
+  implementer tier benefits most from the fresher model, so raw capability order (Fable above
+  Opus) deliberately does not decide this binding alone.
+- **fast binds `sonnet`.** "Best combination of speed and intelligence", native 1M context, Jan
+  2026 reliable cutoff — enough headroom to orchestrate and to review mechanical items without
+  breaching the reviewer floor.
+- **`haiku` is admissible nowhere in these lanes today.** Its 200k context sits against 1M
+  everywhere else, and its Feb 2025 reliable cutoff predates the harness surfaces these lanes
+  operate on; since the fast tier also covers reviewers and the implementer is always
+  sonnet-or-above, binding `haiku` anywhere would breach the reviewer-never-weaker floor.
+
 **Independence, where a dispatch stands in for human ratification.** The one dispatch that resolves
 a blocker in place of a human decision — the explicit-`autopilot` merge-authority exception (above)
 — additionally requires the frontier-tier subagent to be a **fresh context sharing no conversation
