@@ -147,6 +147,23 @@ add_scope "$PROJECT_ROOT/.claude/settings.json" "project"
 add_scope "$PROJECT_ROOT/.claude/settings.local.json" "local"
 [[ -n "$USER_DIR" ]] && add_scope "$USER_DIR/settings.json" "user"
 
+PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+MANAGED_SCOPE_LIB="$PLUGIN_ROOT/lib/managed-scope.sh"
+MANAGED_NOTE=""
+if [[ -r "$MANAGED_SCOPE_LIB" ]]; then
+  # shellcheck source=../../../lib/managed-scope.sh
+  # shellcheck disable=SC1091
+  source "$MANAGED_SCOPE_LIB"
+  MANAGED_FILE="$(mscope::base_file "${HOOK_COVERAGE_MANAGED_JSON:-}")"
+  if [[ -f "$MANAGED_FILE" ]]; then
+    add_scope "$MANAGED_FILE" "managed"
+  else
+    MANAGED_NOTE="Managed-settings JSON not present at ${MANAGED_FILE}; registry/plist managed policy is not read."
+  fi
+else
+  MANAGED_NOTE="Managed-scope library missing; managed hook-suppression levers were not read."
+fi
+
 if [[ ${#SCOPES[@]} -eq 0 ]]; then
   echo "ERROR: no readable settings scope found (looked under $PROJECT_ROOT/.claude and ${USER_DIR:-<no user dir>})" >&2
   for u in ${UNREADABLE+"${UNREADABLE[@]}"}; do echo "  unreadable: $u" >&2; done
@@ -226,36 +243,53 @@ while [[ $i -lt ${#SCOPES[@]} ]]; do
   i=$((i + 1))
 done
 
-# --- Enabled plugins ---------------------------------------------------------
+# --- Enabled plugins (local > project > user) --------------------------------
 
+declare -A ENABLED_STATE=()
+merge_enabled_plugins() {
+  local label="$1" i=0
+  while [[ $i -lt ${#SCOPE_LABELS[@]} ]]; do
+    if [[ "${SCOPE_LABELS[$i]}" == "$label" ]]; then
+      while IFS=$'\t' read -r pk pv; do
+        [[ -z "$pk" ]] && continue
+        ENABLED_STATE[$pk]="$pv"
+      done < <(jqs -r '(.enabledPlugins // {}) | to_entries[] | [.key, (.value | tostring)] | @tsv' "${SCOPES[$i]}")
+      return 0
+    fi
+    i=$((i + 1))
+  done
+}
+for label in user project local; do
+  merge_enabled_plugins "$label"
+done
 ENABLED=()
-i=0
-while [[ $i -lt ${#SCOPES[@]} ]]; do
-  while IFS= read -r p; do
-    [[ -z "$p" ]] && continue
-    case " ${ENABLED[*]-} " in
-    *" $p "*) ;;
-    *) ENABLED+=("$p") ;;
-    esac
-  done < <(jqs -r '(.enabledPlugins // {}) | to_entries[] | select(.value == true) | .key' "${SCOPES[$i]}")
-  i=$((i + 1))
+for pk in "${!ENABLED_STATE[@]}"; do
+  [[ "${ENABLED_STATE[$pk]}" == "true" ]] && ENABLED+=("$pk")
 done
 
 PLUGIN_STATUS=()
 
 resolve_install_path() {
   # resolve_install_path <plugin-key> — echo the install directory, or nothing.
-  # installed_plugins.json maps "<plugin>@<marketplace>" to an array of install
-  # records each carrying an already-resolved, version-pinned `installPath`, so
-  # no version-directory ordering is inferred here.
+  # installed_plugins.json maps "<plugin>@<marketplace>" to install records each
+  # carrying a version-pinned installPath and a scope; when several records exist,
+  # pick the one for this project with local > project > user precedence.
   [[ -f "$INSTALLED_JSON" ]] || return 1
-  # shellcheck disable=SC2016  # $k is a jq --arg binding, not a shell variable
-  jqs -r --arg k "$1" '
+  local project_norm="${PROJECT_ROOT//\\//}"
+  project_norm="${project_norm%/}"
+  # shellcheck disable=SC2016  # $k/$project are jq --arg bindings, not shell variables
+  jqs -r --arg k "$1" --arg project "$project_norm" '
+    def rank($s): if $s == "local" then 3 elif $s == "project" then 2 elif $s == "user" then 1 else 0 end;
     (.plugins // {})[$k] // []
     | if type == "array" then . else [] end
     | map(select(.installPath != null))
-    | last // {}
-    | .installPath // empty
+    | map(. + {scope: (.scope // "user"), projectPath: ((.projectPath // "") | gsub("\\\\"; "/") | rtrimstr("/"))})
+    | map(select(
+        .projectPath == "" or .projectPath == $project
+        or ($project | startswith(.projectPath + "/"))
+      ))
+    | sort_by(-(rank(.scope)))
+    | .[0].installPath // empty
   ' "$INSTALLED_JSON"
 }
 
@@ -430,7 +464,8 @@ EOF
     echo
   fi
   if [[ $PARTIAL -eq 0 ]]; then
-    echo "INVENTORY: complete — every enabled plugin resolved and every hook source parsed."
+    echo "INVENTORY: complete — every enabled plugin resolved and every hook source parsed in the scopes read (${SCOPE_LABELS[*]})."
+    [[ -n "$MANAGED_NOTE" ]] && echo "  Managed caveat: $MANAGED_NOTE"
   else
     echo "INVENTORY: partial — see 'Not enumerated' above. Narrowing 3 stays conditional for anything those sources could cover."
   fi

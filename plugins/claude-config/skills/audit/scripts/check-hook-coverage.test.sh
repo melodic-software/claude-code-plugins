@@ -52,11 +52,12 @@ make_machine() {
 }
 
 reg() {
-  # reg <root> <plugin-key> <install-path> — append one registry entry
-  local root="$1" key="$2" path="$3" f="$1/registry.json"
+  # reg <root> <plugin-key> <install-path> [scope] [project-path]
+  local root="$1" key="$2" path="$3" scope="${4:-user}" project="${5:-}"
+  local f="$1/registry.json"
   [[ -f "$f" ]] || printf '{"plugins":{}}\n' >"$f"
-  jq --arg k "$key" --arg p "$path" \
-    '.plugins[$k] = [{"scope":"user","installPath":$p,"version":"1.0.0"}]' \
+  jq --arg k "$key" --arg p "$path" --arg s "$scope" --arg proj "$project" \
+    '.plugins[$k] += [{"scope":$s,"installPath":$p,"version":"1.0.0","projectPath":$proj}]' \
     "$f" >"$f.tmp" && mv "$f.tmp" "$f"
 }
 
@@ -219,6 +220,35 @@ rc=0
 err_out=$(PATH="$empty_path_dir" "$real_bash" "$SCRIPT" 2>&1) || rc=$?
 assert_exit "case 11: exit 2 when jq missing" 2 "$rc"
 assert_contains "case 11: jq required message" "$err_out" "jq required"
+
+# --- Case 12: local scope disables a plugin enabled in user scope ----------
+m="$(make_machine scope-precedence)"
+printf '{"enabledPlugins":{"guard@mkt":true}}\n' >"$m/user/settings.json"
+printf '{"enabledPlugins":{"guard@mkt":false}}\n' >"$m/project/.claude/settings.local.json"
+mkdir -p "$m/plugins/guard/hooks"
+printf '%s\n' '{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"should-not-run.sh"}]}]}}' \
+  >"$m/plugins/guard/hooks/hooks.json"
+reg "$m" "guard@mkt" "$m/plugins/guard"
+rc=0
+out=$(run "$m" 2>&1) || rc=$?
+assert_exit "case 12: exit 0" 0 "$rc"
+assert_not_contains "case 12: locally disabled plugin not enumerated" "$out" "should-not-run.sh"
+
+# --- Case 13: project-scoped install record wins over user -------------------
+m="$(make_machine install-scope)"
+printf '{"enabledPlugins":{"guard@mkt":true}}\n' >"$m/project/.claude/settings.json"
+mkdir -p "$m/plugins/guard-user/hooks" "$m/plugins/guard-project/hooks"
+printf '%s\n' '{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"user-hook.sh"}]}]}}' \
+  >"$m/plugins/guard-user/hooks/hooks.json"
+printf '%s\n' '{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"project-hook.sh"}]}]}}' \
+  >"$m/plugins/guard-project/hooks/hooks.json"
+reg "$m" "guard@mkt" "$m/plugins/guard-user" "user" ""
+reg "$m" "guard@mkt" "$m/plugins/guard-project" "project" "$m/project"
+rc=0
+out=$(run "$m" 2>&1) || rc=$?
+assert_exit "case 13: exit 0" 0 "$rc"
+assert_contains "case 13: project install record used" "$out" "project-hook.sh"
+assert_not_contains "case 13: user install record not used" "$out" "user-hook.sh"
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
