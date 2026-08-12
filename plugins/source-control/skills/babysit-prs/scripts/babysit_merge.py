@@ -341,7 +341,7 @@ def evaluate_required_signatures(
     """Enforce a `required_signatures` rule against the PR's actual commits.
 
     `branch_rules` has always computed `requireSignatures` and, before #2265,
-    nothing consumed it: a head held only by an unsigned or mis-authored commit
+    nothing consumed it: a head held only by an unsigned or misattributed commit
     reported the generic `mergeStateStatus` line, whose enumeration named four
     other causes and omitted the real one. Called only when the rule is
     present, so an ungoverned base pays no extra request; a fetch failure holds

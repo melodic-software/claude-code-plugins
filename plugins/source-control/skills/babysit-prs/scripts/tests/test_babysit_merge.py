@@ -815,7 +815,7 @@ class SelfAuthoredUnprotectedBaseTests(unittest.TestCase):
 class RequiredSignaturesEnforcement(unittest.TestCase):
     """#2265: `requireSignatures` is enforced, not merely reported.
 
-    Before this gate, a head held only by an unsigned or mis-authored commit
+    Before this gate, a head held only by an unsigned or misattributed commit
     produced the generic `mergeStateStatus` line naming four other causes; the
     real one was absent from every blocker. Reasons carry distinct remedies:
     `no_user` is a VALID signature whose author email is unlinked (#2162's
