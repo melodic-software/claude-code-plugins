@@ -501,8 +501,16 @@ def build_const_map(src: str) -> dict[str, str]:
     return {k: next(iter(v)) for k, v in seen.items() if len(v) == 1}
 
 
-def extract_bundled_skills(src: str) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
-    """Bundled skills, keyed by name, plus notes about resolution."""
+def extract_bundled_skills(
+    src: str, braces: BraceMap
+) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
+    """Bundled skills, keyed by name, plus notes about resolution.
+
+    Each registration's fields are bound to its own `{...}` via the brace map,
+    for the same reason command extraction is: registrations sit flush against
+    one another, so a fixed-width window around one silently adopts the next
+    one's description or aliases whenever a field is absent.
+    """
     notes: dict[str, Any] = {}
     fn = discover_registrar(src, "registerBundledSkill")
     notes["registrar"] = fn
@@ -513,10 +521,20 @@ def extract_bundled_skills(src: str) -> tuple[dict[str, dict[str, Any]], dict[st
     consts = build_const_map(src)
     out: dict[str, dict[str, Any]] = {}
     unresolved: list[str] = []
+    unbounded = 0
+    seen = 0
 
     for m in re.finditer(re.escape(fn) + r"\(\{", src):
-        window = src[m.start() : m.start() + 4000]
-        nm = re.search(r"name:(?:" + _STR + r"|([A-Za-z_$][A-Za-z0-9_$]{0,8}))", window)
+        seen += 1
+        open_i = m.end() - 1  # the '{' captured by the pattern
+        close_i = braces.pairs.get(open_i)
+        if close_i is None:
+            # An unmatched brace means the tokenizer desynced; skipping is the
+            # honest response, and the count difference surfaces it.
+            unbounded += 1
+            continue
+        body = src[open_i : close_i + 1]
+        nm = re.search(r"name:(?:" + _STR + r"|([A-Za-z_$][A-Za-z0-9_$]{0,8}))", body)
         if not nm:
             continue
         if nm.group(1) is not None:
@@ -527,20 +545,22 @@ def extract_bundled_skills(src: str) -> tuple[dict[str, dict[str, Any]], dict[st
                 unresolved.append(ident)
                 continue
             name = consts[ident]
-        desc = _MENUDESC_RE.search(window)
+        desc = _MENUDESC_RE.search(body)
         out[name] = {
             "name": name,
             "source": "bundled-skill",
             "description": _unescape(desc.group(1)) if desc else "",
-            "aliases": _read_aliases(window[:1500]),
-            "gated": "isEnabled" in window[:1500],
-            "hidden": "isHidden" in window[:1500],
+            "aliases": _read_aliases(body),
+            "gated": "isEnabled" in body,
+            "hidden": "isHidden" in body,
         }
 
-    notes["registrations_seen"] = len(re.findall(re.escape(fn) + r"\(\{", src))
+    notes["registrations_seen"] = seen
     notes["resolved"] = len(out)
     if unresolved:
         notes["unresolved_dynamic_names"] = sorted(set(unresolved))
+    if unbounded:
+        notes["unbounded_registrations"] = unbounded
     return out, notes
 
 
@@ -590,12 +610,12 @@ def check_integrity(
     advisories: list[str] = []
 
     version = detect_cli_version(src)
-    if version is None and len(src) > 10_000:
+    if version is None:
         advisories.append(
-            "cli version could not be detected; counts are believed, not verified against "
-            f"{VALIDATED_AGAINST}"
+            "could not read a CLI version from the bundle; drift against the last "
+            f"validated build {VALIDATED_AGAINST} cannot be checked"
         )
-    elif version and version != VALIDATED_AGAINST:
+    elif version != VALIDATED_AGAINST:
         advisories.append(
             f"cli {version} differs from the last validated build {VALIDATED_AGAINST}; "
             "counts are believed, not verified - re-run the skill's evals to revalidate"
@@ -670,114 +690,61 @@ def _load_json(path: Path) -> Any | None:
         return None
 
 
-def _merge_enabled_plugins(*maps: dict[str, Any] | None) -> dict[str, bool]:
-    """Merge enabledPlugins maps with later scopes overriding earlier ones."""
-    merged: dict[str, bool] = {}
-    for m in maps:
-        if not isinstance(m, dict):
-            continue
-        for key, val in m.items():
-            merged[str(key)] = bool(val)
-    return merged
-
-
-def _scope_rank(scope: str) -> int:
-    return {"user": 1, "project": 2, "local": 3}.get(scope, 0)
-
-
-def _pick_install_record(
-    records: list[dict[str, Any]], project_path: Path | None
-) -> dict[str, Any] | None:
-    """Choose the install record for this project with local > project > user precedence."""
-    project_norm = str(project_path).replace("\\", "/").rstrip("/") if project_path else ""
-    candidates: list[dict[str, Any]] = []
-    for rec in records:
-        if not isinstance(rec, dict) or not rec.get("installPath"):
-            continue
-        rec_project = str(rec.get("projectPath") or "").replace("\\", "/").rstrip("/")
-        if rec_project:
-            if not project_norm:
-                continue
-            if rec_project != project_norm and not project_norm.startswith(rec_project + "/"):
-                continue
-        candidates.append(rec)
-    if not candidates:
-        return None
-    return max(candidates, key=lambda r: _scope_rank(str(r.get("scope") or "user")))
-
-
-def _manifest_component_path(root: Path, manifest: dict[str, Any], spec: dict[str, str]) -> Path | None:
-    """Resolve a component location from plugin.json, falling back to the default layout."""
-    manifest_key = spec.get("manifest") or ""
-    declared = manifest
-    for part in manifest_key.split("."):
-        if not part:
-            continue
-        if not isinstance(declared, dict):
-            declared = {}
-            break
-        declared = declared.get(part)
-    if isinstance(declared, str) and declared.strip():
-        rel = declared.strip().lstrip("./")
-        return root / rel
-    if spec["kind"] == "file":
-        return root / spec["file"] if spec.get("file") else None
-    return root / spec["dir"] if spec.get("dir") else None
-
-
-def scan_disk(root: Path, project_root: Path | None = None) -> dict[str, Any]:
+def scan_disk(root: Path) -> dict[str, Any]:
     """Enumerate installed plugins, their components, and config-scope surfaces."""
     out: dict[str, Any] = {"config_dir": str(root), "exists": root.is_dir()}
 
-    user_settings = _load_json(root / "settings.json") or {}
-    project_settings: dict[str, Any] = {}
-    local_settings: dict[str, Any] = {}
-    if project_root is not None:
-        project_claude = project_root / ".claude"
-        project_settings = _load_json(project_claude / "settings.json") or {}
-        local_settings = _load_json(project_claude / "settings.local.json") or {}
-        out["project_root"] = str(project_root)
-
-    enabled_map = _merge_enabled_plugins(
-        user_settings.get("enabledPlugins") if isinstance(user_settings.get("enabledPlugins"), dict) else None,
-        project_settings.get("enabledPlugins") if isinstance(project_settings.get("enabledPlugins"), dict) else None,
-        local_settings.get("enabledPlugins") if isinstance(local_settings.get("enabledPlugins"), dict) else None,
-    )
-    out["enabled_plugins"] = {
-        "total_entries": len(enabled_map),
-        "enabled": sorted(k for k, v in enabled_map.items() if v),
-        "disabled": sorted(k for k, v in enabled_map.items() if not v),
-    }
-
-    installed = _load_json(root / "plugins" / "installed_plugins.json") or {}
-    plugin_index = installed.get("plugins") if isinstance(installed, dict) else {}
-    marketplaces: dict[str, Any] = {}
-    for key, enabled in sorted(enabled_map.items()):
-        if not enabled:
-            continue
-        records = plugin_index.get(key) if isinstance(plugin_index, dict) else None
-        if not isinstance(records, list):
-            records = []
-        rec = _pick_install_record(records, project_root)
-        if rec is None:
-            market = key.split("@")[-1] if "@" in key else "unknown"
-            marketplaces.setdefault(market, {"plugins": {}})["plugins"][key] = {
-                "status": "unresolved",
-                "note": "no installPath in installed_plugins.json for this project",
-            }
-            continue
-        install_path = Path(str(rec["installPath"]))
-        market = key.split("@")[-1] if "@" in key else "unknown"
-        marketplaces.setdefault(market, {"plugins": {}})["plugins"][key] = scan_plugin(install_path) | {
-            "install_path": str(install_path),
-            "install_scope": rec.get("scope"),
-            "install_version": rec.get("version"),
+    settings = _load_json(root / "settings.json") or {}
+    enabled = settings.get("enabledPlugins")
+    if isinstance(enabled, dict):
+        out["enabled_plugins"] = {
+            "total_entries": len(enabled),
+            "enabled": sorted(k for k, v in enabled.items() if v),
+            "disabled": sorted(k for k, v in enabled.items() if not v),
         }
+    else:
+        out["enabled_plugins"] = {"total_entries": 0, "enabled": [], "disabled": []}
+        out["enabled_plugins_note"] = "no enabledPlugins map in settings.json"
 
+    known = _load_json(root / "plugins" / "known_marketplaces.json") or {}
+    marketplaces: dict[str, Any] = {}
+    for name, meta in known.items() if isinstance(known, dict) else []:
+        loc = (meta or {}).get("installLocation")
+        marketplaces[name] = {
+            "install_location": loc,
+            "last_updated": (meta or {}).get("lastUpdated"),
+            "plugins": scan_marketplace(Path(loc)) if loc else {},
+        }
     out["marketplaces"] = marketplaces
+
+    out["installed_plugins"] = scan_installed(root)
     out["config_scope_components"] = scan_config_scope(root)
-    if project_root is not None:
-        out["project_scope_components"] = scan_project_scope(project_root)
+    return out
+
+
+def scan_installed(root: Path) -> dict[str, Any]:
+    """Plugins actually installed under the config dir's plugin cache.
+
+    A marketplace checkout is a catalog of what is *available*; this is what is
+    present locally. The two can disagree — a plugin can be installed from a
+    marketplace that is no longer cached — so neither substitutes for the other.
+    """
+    cache = root / "plugins" / "cache"
+    out: dict[str, Any] = {}
+    if not cache.is_dir():
+        return out
+    for marketplace in sorted(p for p in cache.iterdir() if p.is_dir()):
+        plugins: dict[str, Any] = {}
+        for entry in sorted(p for p in marketplace.iterdir() if p.is_dir()):
+            # Installs may nest one version directory below the plugin name.
+            candidate = entry
+            if not (entry / ".claude-plugin").is_dir() and not (entry / "skills").is_dir():
+                subdirs = [d for d in sorted(entry.iterdir()) if d.is_dir()]
+                if len(subdirs) == 1:
+                    candidate = subdirs[0]
+            plugins[entry.name] = scan_plugin(candidate)
+        if plugins:
+            out[marketplace.name] = plugins
     return out
 
 
@@ -814,61 +781,58 @@ def scan_plugin(root: Path) -> dict[str, Any]:
     return info
 
 
-def _scan_component(root: Path, spec: dict[str, str], manifest: dict[str, Any] | None = None) -> list[str]:
-    manifest = manifest or {}
+def _manifest_paths(manifest: dict[str, Any], key: str) -> list[str] | None:
+    """Component locations a manifest declares, or None if it declares none.
+
+    A declared path *replaces* the default directory rather than adding to it,
+    so scanning the default tree regardless would report components a plugin
+    does not actually ship. Dotted keys address the `experimental` block.
+    """
+    if not key:
+        return None
+    node: Any = manifest
+    for part in key.split("."):
+        if not isinstance(node, dict) or part not in node:
+            return None
+        node = node[part]
+    if isinstance(node, str):
+        return [node]
+    if isinstance(node, list):
+        return [p for p in node if isinstance(p, str)]
+    return None
+
+
+def _scan_component(root: Path, spec: dict[str, str], manifest: dict[str, Any]) -> list[str]:
+    declared = _manifest_paths(manifest, spec.get("manifest", ""))
     kind = spec["kind"]
+
     if kind == "file":
-        target = _manifest_component_path(root, manifest, spec) or (root / spec["file"])
-        rel = target.relative_to(root).as_posix() if target.is_file() else spec["file"]
-        return [rel] if target.is_file() else []
+        if declared:
+            return [d for d in declared if (root / d).is_file()]
+        target = root / spec["file"]
+        return [spec["file"]] if target.is_file() else []
 
-    directory = _manifest_component_path(root, manifest, spec)
-    if directory is None or not directory.is_dir():
-        return []
-    out: list[str] = []
-    if kind == "dir-of-dirs":
-        for entry in sorted(directory.iterdir()):
-            if entry.is_dir() and (entry / "SKILL.md").is_file():
-                out.append(entry.name)
+    targets: list[Path]
+    if declared:
+        targets = [root / d for d in declared]
     else:
-        for entry in sorted(directory.iterdir()):
-            if entry.is_file() and not entry.name.startswith("."):
+        targets = [root / spec["dir"]]
+
+    out: list[str] = []
+    for target in targets:
+        # A declared entry may point at a single file rather than a directory.
+        if target.is_file():
+            out.append(target.name)
+            continue
+        if not target.is_dir():
+            continue
+        for entry in sorted(target.iterdir()):
+            if kind == "dir-of-dirs":
+                if entry.is_dir() and (entry / "SKILL.md").is_file():
+                    out.append(entry.name)
+            elif entry.is_file() and not entry.name.startswith("."):
                 out.append(entry.name)
-    return out
-
-
-def scan_project_scope(project_root: Path) -> dict[str, Any]:
-    """Project-scoped invocable surfaces outside the user config dir."""
-    claude = project_root / ".claude"
-    out: dict[str, Any] = {}
-    skills = claude / "skills"
-    if skills.is_dir():
-        out["skills"] = sorted(
-            e.name for e in skills.iterdir() if e.is_dir() and (e / "SKILL.md").is_file()
-        )
-    for name, sub in (("agents", "agents"), ("commands", "commands")):
-        d = claude / sub
-        if d.is_dir():
-            out[name] = sorted(e.name for e in d.iterdir() if e.is_file())
-    for label, fname in (("project", "settings.json"), ("local", "settings.local.json")):
-        settings = _load_json(claude / fname) or {}
-        if isinstance(settings.get("hooks"), dict):
-            out.setdefault("hooks_events", {})[label] = sorted(settings["hooks"].keys())
-        enabled = settings.get("enabledPlugins")
-        if isinstance(enabled, dict):
-            out.setdefault("enabled_plugins", {})[label] = {
-                "enabled": sorted(k for k, v in enabled.items() if v),
-                "disabled": sorted(k for k, v in enabled.items() if not v),
-            }
-    mcp = _load_json(project_root / ".mcp.json")
-    if isinstance(mcp, dict) and isinstance(mcp.get("mcpServers"), dict):
-        out["mcp_servers"] = sorted(mcp["mcpServers"].keys())
-    return out
-
-
-def project_root_from_env() -> Path | None:
-    env = os.environ.get("CLAUDE_PROJECT_DIR")
-    return Path(env) if env else None
+    return sorted(set(out))
 
 
 def scan_config_scope(root: Path) -> dict[str, Any]:
@@ -920,7 +884,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
                 braces = build_brace_map(src)
                 meta["brace_pairs"] = len(braces.pairs)
                 commands = extract_builtin_commands(src, braces)
-                skills, skill_notes = extract_bundled_skills(src)
+                skills, skill_notes = extract_bundled_skills(src, braces)
                 plugin_backed = extract_plugin_backed(src)
 
                 for name, plugin in plugin_backed.items():
@@ -945,11 +909,18 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
 
     if not args.binary_only:
         report["sources"]["disk"] = {"available": True}
-        project = Path(args.project_dir) if args.project_dir else project_root_from_env()
-        report["disk"] = scan_disk(
-            Path(args.config_dir) if args.config_dir else config_dir(),
-            project,
-        )
+        report["disk"] = scan_disk(Path(args.config_dir) if args.config_dir else config_dir())
+
+        # Project scope is a third place components come from, and it is the one
+        # that changes as you move between repos: a project's .claude tree adds
+        # skills, agents, and hooks that no machine-scope scan would ever see.
+        project_root = Path(args.project_dir) if args.project_dir else Path.cwd()
+        project_claude = project_root / ".claude"
+        report["project"] = {
+            "root": str(project_root),
+            "present": project_claude.is_dir(),
+            "components": scan_config_scope(project_claude) if project_claude.is_dir() else {},
+        }
 
     return report
 
@@ -968,7 +939,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     ap.add_argument("--binary", help="path to the claude executable (default: auto-detect)")
     ap.add_argument("--config-dir", help="config dir (default: $CLAUDE_CONFIG_DIR or ~/.claude)")
-    ap.add_argument("--project-dir", help="project root (default: $CLAUDE_PROJECT_DIR when set)")
+    ap.add_argument(
+        "--project-dir", help="project root whose .claude tree to scan (default: cwd)"
+    )
     ap.add_argument("--binary-only", action="store_true", help="skip the disk scan")
     ap.add_argument("--disk-only", action="store_true", help="skip reading the binary")
     ap.add_argument("--out", help="write JSON here instead of stdout")
@@ -993,8 +966,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.self_check:
         integrity = report.get("integrity")
         if integrity is None:
-            reason = report.get("sources", {}).get("binary", {}).get(
-                "error", "binary source unavailable"
+            binsrc = report.get("sources", {}).get("binary", {})
+            reason = (
+                binsrc.get("error")
+                or binsrc.get("reason")
+                or "binary source unavailable"
             )
             print(f"BROKEN: {reason}")
             return 1

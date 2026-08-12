@@ -11,6 +11,7 @@ Run: python3 test_inventory.py
 
 from __future__ import annotations
 
+import pathlib
 import unittest
 
 import inventory as inv
@@ -120,7 +121,7 @@ class TestBundledSkills(unittest.TestCase):
     def test_constant_names_resolve(self) -> None:
         # The failure this guards: a literal-only scan silently drops roughly a
         # third of the bundled skills, including code-review and dataviz.
-        skills, notes = inv.extract_bundled_skills(self.BUNDLE)
+        skills, notes = inv.extract_bundled_skills(self.BUNDLE, inv.build_brace_map(self.BUNDLE))
         self.assertEqual(notes["registrar"], "xu")
         self.assertIn("code-review", skills)
         self.assertIn("dataviz", skills)
@@ -131,14 +132,18 @@ class TestBundledSkills(unittest.TestCase):
         # An identifier bound to two different strings cannot be resolved
         # safely, so it must be reported rather than guessed.
         src = self.BUNDLE + 'var zz="a-one";var zz="a-two";xu({name:zz});'
-        _, notes = inv.extract_bundled_skills(src)
+        _, notes = inv.extract_bundled_skills(src, inv.build_brace_map(src))
         self.assertGreater(notes["registrations_seen"], notes["resolved"])
 
 
 class TestIntegrity(unittest.TestCase):
     def _src(self, extra: str = "") -> str:
+        # The version literal has to repeat: detect_cli_version deliberately
+        # ignores a version mentioned only once, since that is a dependency's
+        # version rather than the build's.
         return (
             'pt(Q,{registerBundledSkill:()=>xu});'
+            + f'"{inv.VALIDATED_AGAINST}"' * 30
             + "".join(f'x{i}={{type:"local",name:"{n}",description:"d"}};'
                       for i, n in enumerate(inv.CANARY_COMMANDS))
             + extra
@@ -212,6 +217,71 @@ class TestPluginBacked(unittest.TestCase):
             'pluginName:"security-review",pluginCommand:"security-review"};'
         )
         self.assertEqual(inv.extract_plugin_backed(src), {"security-review": "security-review"})
+
+
+class TestBundledSkillFieldBinding(unittest.TestCase):
+    """A registration missing a field must not adopt the next one's."""
+
+    BLEED = (
+        'pt(Q,{registerBundledSkill:()=>xu});'
+        'xu({name:"first"});'
+        'xu({name:"second",aliases:["s"],menuDescription:"Second description"});'
+    )
+
+    def test_missing_description_does_not_bleed_forward(self) -> None:
+        skills, _ = inv.extract_bundled_skills(self.BLEED, inv.build_brace_map(self.BLEED))
+        self.assertEqual(skills["first"]["description"], "")
+        self.assertEqual(skills["first"]["aliases"], [])
+        self.assertEqual(skills["second"]["description"], "Second description")
+
+
+class TestManifestComponentPaths(unittest.TestCase):
+    """A declared path replaces the default directory rather than adding to it."""
+
+    def test_dotted_key_resolves(self) -> None:
+        m = {"experimental": {"themes": "./custom-themes/"}}
+        self.assertEqual(inv._manifest_paths(m, "experimental.themes"), ["./custom-themes/"])
+
+    def test_absent_key_is_none(self) -> None:
+        self.assertIsNone(inv._manifest_paths({}, "agents"))
+        self.assertIsNone(inv._manifest_paths({"experimental": {}}, "experimental.themes"))
+
+    def test_array_form(self) -> None:
+        self.assertEqual(
+            inv._manifest_paths({"commands": ["./a/", "./b/"]}, "commands"), ["./a/", "./b/"]
+        )
+
+    def test_declared_dir_replaces_default(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as td:
+            root = pathlib.Path(td)
+            (root / "agents").mkdir()
+            (root / "agents" / "default.md").write_text("x", encoding="utf-8")
+            (root / "custom").mkdir()
+            (root / "custom" / "declared.md").write_text("x", encoding="utf-8")
+            spec = {"dir": "agents", "manifest": "agents", "kind": "dir-of-files"}
+            self.assertEqual(
+                inv._scan_component(root, spec, {"agents": ["./custom/"]}), ["declared.md"]
+            )
+            self.assertEqual(inv._scan_component(root, spec, {}), ["default.md"])
+
+
+class TestSelfCheckDiagnostic(unittest.TestCase):
+    def test_unknown_version_is_an_advisory(self) -> None:
+        src = (
+            'pt(Q,{registerBundledSkill:()=>xu});'
+            + "".join(f'x{i}={{type:"local",name:"{n}",description:"d"}};'
+                      for i, n in enumerate(inv.CANARY_COMMANDS))
+        )
+        got = inv.check_integrity(
+            src,
+            inv.extract_builtin_commands(src, inv.build_brace_map(src)),
+            {"a": {}},
+            {"registrations_seen": 1, "resolved": 1},
+        )
+        self.assertEqual(got["status"], "degraded")
+        self.assertTrue(any("could not read a CLI version" in a for a in got["advisories"]))
 
 
 if __name__ == "__main__":
