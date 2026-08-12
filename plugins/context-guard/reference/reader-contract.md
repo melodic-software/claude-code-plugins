@@ -186,10 +186,16 @@ not validation.
 
 Since 0.4.0 the plugin itself ships hooks over its own seam — the first shipped consumer:
 
-- **Advisory injection** (`PostToolBatch` + `UserPromptSubmit`): once per transition into a worse
-  zone, inject continuation guidance (a minimal generic continuation tree plus a presence-gated
-  pointer to `session-flow:workflow`'s router). Silent while the zone is unchanged, improving, or
-  `unknown`.
+- **Advisory injection** (`PostToolBatch` + `UserPromptSubmit`): on a transition into a zone worse
+  than any this session has already reported, inject continuation guidance (a minimal generic
+  continuation tree plus a presence-gated pointer to `session-flow:workflow`'s router). Silent
+  while the zone is unchanged, improving, or `unknown`. **Hysteresis** (since 0.7.0): the gate is
+  the worst zone already *reported*, not the zone last *seen*, and that marker decays only on an
+  improvement of at least two ranks — the full width of the ladder. Occupancy does not climb
+  monotonically, so a session sitting on a band edge crosses it repeatedly; without the margin each
+  re-crossing read as a fresh transition and re-injected the guidance block. A `/clear` needs no
+  margin: it starts a new session id, hence a fresh baseline. The margin is a declared judgment
+  default, on the same footing as the bands above and with the same provenance status.
 - **Blocking gate** (`PreToolUse`, only when the `zone_hook_mode` userConfig option is
   `blocking`): denies new `Write|Edit|NotebookEdit|Agent|Workflow` calls on a **fresh dumb-zone
   snapshot** past a small grace budget. Fail-open on `unknown`; handoff-path writes, read-only
