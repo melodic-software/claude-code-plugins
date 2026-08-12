@@ -278,6 +278,51 @@ assert_eq "only the command-prefix rule fires" 1 "$(count_matching "$OUT" '\[C6-
 assert_contains "and it is the Bash one" "$OUT" "Bash(git:* push)"
 assert_not_contains "a documented domain wildcard is not called broken" "$OUT" "WebFetch(domain:*.example.com)"
 
+# --- A dead command prefix fires in EVERY kind, not just allow ---------------
+# The gap that let a fail-open defect through: no case here covered a
+# mid-pattern `:*` in a DENY rule, so exempting the parameter form by grammar
+# silenced `deny Bash(git:* push)` -- the dead-rule example the page itself
+# gives -- and the suite stayed 58/58.
+#
+# The direction matters. A dead ALLOW fails closed: the operator is denied
+# something they thought they had, and finds out. A dead DENY fails OPEN: they
+# believe they blocked `git push` and did not, and nothing says so.
+#
+# The discriminator is the SPACE. "Each rule names one parameter" and its value
+# is one scalar, so a parameter value never carries space-separated trailing
+# words; a dead command prefix is precisely a prefix followed by more words.
+DEAD_PREFIX=$(
+  printf '%s
+' "$SURFACES"
+  cat <<'EOF'
+rule user settings deny Bash(git:* push)
+rule user settings deny Bash(npm:* run build)
+rule user settings deny Bash(docker:* rm -f)
+rule user settings ask PowerShell(Get:* -Force)
+rule user settings allow Bash(git:* push)
+EOF
+)
+OUT=$(lint "$DEAD_PREFIX")
+assert_eq "every dead command prefix fires, whatever its kind" 5 "$(count_matching "$OUT" '\[C6-colonStar\]')"
+assert_contains "including the deny form of the page's own example" "$OUT" "[C6-colonStar] user Bash(git:* push)"
+assert_contains "and an ask on PowerShell" "$OUT" "PowerShell(Get:* -Force)"
+
+# The parameter forms stay exempt in the same kinds -- the space predicate must
+# not undo the grammar exemption it refines.
+PARAM_KINDS=$(
+  printf '%s
+' "$SURFACES"
+  cat <<'EOF'
+rule user settings deny Agent(model:*-haiku)
+rule user settings ask Agent(isolation:*)
+rule user settings deny Bash(run_in_background:*)
+rule user settings deny Agent(model:opus*)
+rule user settings allow WebFetch(domain:*.example.com)
+EOF
+)
+OUT=$(lint "$PARAM_KINDS")
+assert_eq "no parameter form fires, in any kind" 0 "$(count_matching "$OUT" '\[C6-colonStar\]')"
+
 # --- Parameter matching is deny/ask only -------------------------------------
 # "Deny and ask rules can match a top-level input parameter... An allow rule for
 # one parameter value would not establish that the call is safe overall, so

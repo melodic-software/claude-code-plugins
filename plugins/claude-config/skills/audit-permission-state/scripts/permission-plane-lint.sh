@@ -101,6 +101,11 @@ function prefix_of(b,   c, p) {
   sub(/[ \t]+$/, "", p)
   return p
 }
+# Everything after the first colon -- the value half of `word:value`.
+function value_of(b,   c) {
+  c = index(b, ":")
+  return c ? substr(b, c + 1) : ""
+}
 
 $1 == "rule" {
   rules[++n_rules] = $2 SUBSEP $4 SUBSEP text_of(5)
@@ -257,8 +262,21 @@ END {
     # cannot be the parameter form at all -- an allow rule uses the specifier
     # syntax its own tool defines -- so a command-prefix reading is the only one
     # and the check still applies.
+    # ...and the value must carry NO SPACE. "Each rule names one parameter" and
+    # its value is a single scalar, so a parameter value never has
+    # space-separated trailing words -- while the dead form is precisely a
+    # command prefix FOLLOWED BY MORE WORDS.
+    #
+    # Without this, `git` parses as an identifier and `deny Bash(git:* push)` --
+    # the OWN dead-rule example the page gives -- went silent. That is worse
+    # than the false positive it replaced: a dead ALLOW fails closed (the
+    # operator is denied something they thought they had), a dead DENY fails
+    # OPEN (they believe they blocked `git push` and did not). The space is a
+    # property of the grammar, so it does not reintroduce the name allowlist.
     cs = index(body, ":*")
-    param_form = (kind != "allow") && (prefix_of(body) ~ /^[A-Za-z_][A-Za-z0-9_]*$/)
+    param_form = (kind != "allow") &&
+      (prefix_of(body) ~ /^[A-Za-z_][A-Za-z0-9_]*$/) &&
+      (value_of(body) !~ /[ \t]/)
     if (cs > 0 && cs + 1 < length(body) && !param_form && !((tool SUBSEP prefix_of(body)) in documented_param))
       finding("error", "C6-colonStar", scope, text " — the :* form is only recognized at the END of a pattern; here the colon is treated as a literal character and the rule will not match what it looks like it matches")
 
