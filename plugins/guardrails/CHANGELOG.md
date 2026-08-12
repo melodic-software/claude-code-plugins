@@ -3,6 +3,13 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.9]
+
+### Fixed
+
+- **`block-noncanonical-commit`:** resolve persisted `alias.<sub>.command` subkeys, not only
+  `alias.<sub>` (#1022).
+
 ## [0.28.8]
 
 ### Changed
