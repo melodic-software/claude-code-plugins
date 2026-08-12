@@ -3,6 +3,16 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.37.1]
+
+### Changed
+
+- **`audit-permission-grants` no longer prescribes an unreachable bare-name-on-PATH fix.** P1
+  remediation and Phase 2 reporting now distinguish platforms where plugin `bin/` is reliably on the
+  Bash tool's PATH from the measured Windows/Git Bash gap recorded in the permission-rule-hygiene
+  convention — bundled-path grants and operator-setup notes replace the unconditional bare-name
+  prescription where that end state is not yet reachable.
+
 ## [0.37.0]
 
 ### Changed
