@@ -3,6 +3,24 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.53.1]
+
+### Fixed
+
+- **The paused-merge case pins both halves of the in-progress reason, and the landed+in-progress
+  fixture's comment states the real cherry-pick hazard (#2257).** 0.51.16 rewrote the in-progress
+  reason to "…(staged result recomputable from base, sequencer position) dies with the directory",
+  but the suite asserted only "recomputable" — the clause carried over from the old wording — so
+  the #2257 half (the transient state is LOST with the directory, close to the opposite claim)
+  could regress silently; a second assertion now pins it. The fixture comment also claimed a
+  cherry-pick "would reuse the same object", which is not the mechanism: a cherry-pick creates a
+  new commit, but with parent == HEAD it reproduces tree, parent, author, and message, and —
+  within the same second — the committer timestamp, minting the identical SHA, so the branch
+  commit is literally on the base and the fixture collapses (unpushed 0, landed n/a, nothing to
+  diverge). Reproduced on CI while local runs straddled second boundaries and passed, which is
+  exactly why the comment must warn the local-green reader off "simplifying" the twin back into a
+  cherry-pick.
+
 ## [0.53.0]
 
 ### Changed
