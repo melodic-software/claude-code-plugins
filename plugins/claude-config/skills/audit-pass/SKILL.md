@@ -3,6 +3,7 @@ description: "Run ONE coordinated, ordered, resumable pass over a named target r
 argument-hint: "[target] [--fix] [--opinion] [--resume] [--report-to <path>]"
 user-invocable: true
 disable-model-invocation: false
+disallowed-tools: Edit, NotebookEdit
 metadata:
   workflow-stage: anytime
   summary: Run one coordinated, resumable audit pass over a repo with a single human gate
@@ -26,6 +27,11 @@ Bare invocation reads and reports. `--fix` is the only mutation path, and it is 
 | Managed policy | **Never remediated.** Read-only in every mode. A finding here reports "conflicts with org policy at `<path>`" and proposes no edit to either side — seeking a policy exception is an organizational decision, not a linting one. |
 | User | **Routed as a recommendation, never edited in place.** A user-scope tree is commonly managed by a dotfiles manager, so an in-place edit is drift the operator's own sync path will fight. |
 | Project | The only editable scope, per-finding confirmed. |
+
+The frontmatter carries it mechanically too: `disallowed-tools: Edit, NotebookEdit` removes both
+editing tools from the pool while this skill is active, so the report-only contract is a property of
+the tool set, not of model obedience. `Write` is kept — run state and the report persist under
+`${CLAUDE_PLUGIN_DATA}`.
 
 ## Scope boundary (route out)
 
