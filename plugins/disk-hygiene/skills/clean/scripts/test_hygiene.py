@@ -4851,6 +4851,27 @@ class GuardTests(unittest.TestCase):
         self.assertNotEqual(120, proc.returncode)
         self.assertIn("could not be written to stdout", stderr)
 
+    def test_discard_stream_does_not_leak_when_fileno_raises(self) -> None:
+        """fileno() failure must not open null_fd and leak it (#2088).
+
+        ``_ClosedPipeStderr`` (a ``StringIO`` stand-in) is the in-process shape:
+        ``fileno()`` raises ``UnsupportedOperation``. Resolving ``target_fd``
+        after ``os.open`` leaves an opened null fd whose ``finally`` never runs
+        ``os.close`` because ``target_fd`` stays unbound.
+        """
+
+        class _NoFdStream:
+            def fileno(self) -> int:
+                raise io.UnsupportedOperation("fileno")
+
+        with (
+            mock.patch.object(guard.os, "open") as open_mock,
+            mock.patch.object(guard.os, "close") as close_mock,
+        ):
+            guard._discard_stream(_NoFdStream())
+        open_mock.assert_not_called()
+        close_mock.assert_not_called()
+
     def test_discard_stream_keeps_closed_stderr_fd_open(self) -> None:
         """When fd 2 is closed outright, _discard_stream must repair it, not re-close it.
 

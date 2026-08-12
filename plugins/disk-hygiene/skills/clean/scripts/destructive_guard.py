@@ -1145,9 +1145,9 @@ def _discard_stream(stream: object) -> None:
     stream), and there is nowhere left to report a failure to report.
     """
     with contextlib.suppress(BaseException):
+        target_fd = stream.fileno()
         null_fd = os.open(os.devnull, os.O_WRONLY)
         try:
-            target_fd = stream.fileno()
             os.dup2(null_fd, target_fd)
         finally:
             if null_fd != target_fd:
