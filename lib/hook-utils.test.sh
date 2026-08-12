@@ -2163,6 +2163,8 @@ fi
 resolve_dirs_are "sudo -D DIR reports the chdir" "other" sudo -D other git commit
 resolve_dirs_are "sudo --chdir=DIR reports the chdir" "other" sudo --chdir=other git commit
 resolve_dirs_are "sudo -C fd is not a chdir" "" sudo -C 3 git commit
+resolve_dirs_are "sudo -bD DIR peels the valueless short and reports the chdir" "other" sudo -bDother git commit
+resolve_dirs_are "sudo -nD DIR peels -n and reports the chdir" "other" sudo -nDother git commit
 # Nested wrappers each contribute, in execution order, for the caller to compose.
 resolve_dirs_are "nested wrappers report both chdirs in order" "a|b" env -C a sudo -D b git commit
 # `-S` exists so a shebang line can pass OPTIONS to env (`#!/usr/bin/env -S -i
