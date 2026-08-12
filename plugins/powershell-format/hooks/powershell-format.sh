@@ -366,7 +366,8 @@ PSSA_OUTPUT=$(PSSA_FILE="$PSSA_FILE_ARG" PSSA_SETTINGS="$PSSA_SETTINGS_ARG" \
                 # forms need no name match: InvocationOperator identifies them,
                 # and their element 0 IS the target, so it is checked too.
                 $loaders = @("Import-Module", "ipmo", "Add-Type", "New-Module",
-                    "Invoke-Expression", "iex", "Import-PowerShellDataFile")
+                    "Invoke-Expression", "iex", "Import-PowerShellDataFile",
+                    "Invoke-Command", "Start-Job")
                 $cmdAsts = $fileAst.FindAll({
                         param($n) $n -is [System.Management.Automation.Language.CommandAst]
                     }, $true)
