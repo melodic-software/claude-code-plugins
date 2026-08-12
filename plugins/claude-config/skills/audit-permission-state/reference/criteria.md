@@ -119,6 +119,11 @@ Neither is a limitation to apologise for; both change what a finding means.
   `Bash(aws s3 ls)`." This merge does not evaluate pattern subsumption, so a narrow allow that a
   broader deny blocks is still reported effective. It over-reports allow; it never over-reports
   blocking.
+- **A rule containing a literal newline is reported, never split.** The records are line-oriented, so
+  such a rule cannot be represented in one — and reading it line by line produced two records, each a
+  rule string present in no settings file, both of which would flow downstream as if they were real
+  grants. It is reachable through an ordinary settings file, so the reader names it as
+  unrepresentable and emits no rule record for it.
 - **A surface that could not be read bounds the result.** `skipped`, `unreadable` and `invalid-json`
   each raise a caveat naming the surface. `absent` and `not-applicable` raise none — the reader looked
   and there was nothing, which is a complete answer.

@@ -110,6 +110,11 @@ fi
 # shellcheck source=../../../lib/managed-scope.sh
 source "$MANAGED_SCOPE_LIB"
 
+# Marks a rule that carried a literal newline, so the reader can report it
+# instead of letting a line-oriented read split one rule into two. Chosen to be
+# something no real rule text contains.
+NL_SENTINEL=$'\x01MULTILINE\x01'
+
 emit() { printf '%s %s %s %s\n' "$1" "$2" "$3" "${4:--}"; }
 note() { printf 'NOTE: %s\n' "$1"; }
 
@@ -204,9 +209,27 @@ emit_file_rules() {
   local scope="$1" surface="$2" path="$3" kind
   for kind in allow ask deny; do
     while IFS= read -r rule; do
-      [[ -n "$rule" ]] && printf 'rule %s %s %s %s\n' "$scope" "$surface" "$kind" "$rule"
+      [[ -n "$rule" ]] || continue
+      # These records are line-oriented, so a rule carrying a literal newline
+      # cannot be represented in one -- and reading it line by line silently
+      # turned ONE rule into two bogus records, each a rule string that is not
+      # in any settings file. A rule the reader cannot represent is reported as
+      # unrepresentable; inventing two is strictly worse than admitting one.
+      # `@json` makes the newline visible as \n rather than splitting the line.
+      case "$rule" in
+      *"$NL_SENTINEL"*)
+        printf 'NOTE: %s %s %s rule contains a literal newline and cannot be represented as one record; reported here rather than split into fragments that match no rule in the file: %s\n' \
+          "$scope" "$surface" "$kind" "${rule#"$NL_SENTINEL"}"
+        ;;
+      *) printf 'rule %s %s %s %s\n' "$scope" "$surface" "$kind" "$rule" ;;
+      esac
       # jq emits CRLF on Windows; a trailing \r would corrupt every rule string.
-    done < <(tr -d '\r' <"$path" | jq -r --arg k "$kind" '.permissions[$k] // [] | .[]' 2>/dev/null | tr -d '\r')
+      # Reading with @json keeps a multi-line rule on ONE line so the loop sees
+      # it whole; the sentinel below marks the ones that needed it.
+    done < <(tr -d '\r' <"$path" |
+      jq -r --arg k "$kind" --arg nl "$NL_SENTINEL" \
+        '.permissions[$k] // [] | .[] | if test("\n") then $nl + (. | gsub("\n"; " ")) else . end' 2>/dev/null |
+      tr -d '\r')
   done
 }
 
@@ -337,10 +360,23 @@ else
     if [[ -z "$reg_json" ]] || ! printf '%s' "$reg_json" | jq empty 2>/dev/null; then
       note "Windows managed policy key $registry_path carries a Settings value that did not parse as JSON — reporting it as unread rather than as empty."
     else
+      # Same multi-line handling as the file path: managed policy is the scope
+      # where a phantom rule would do the most damage, so it gets the same
+      # treatment rather than the older splitting read.
       for kind in allow ask deny; do
         while IFS= read -r rule; do
-          [[ -n "$rule" ]] && printf 'rule managed registry %s %s\n' "$kind" "$rule"
-        done < <(printf '%s' "$reg_json" | jq -r --arg k "$kind" '.permissions[$k] // [] | .[]' 2>/dev/null | tr -d '\r')
+          [[ -n "$rule" ]] || continue
+          case "$rule" in
+          *"$NL_SENTINEL"*)
+            printf 'NOTE: managed registry %s rule contains a literal newline and cannot be represented as one record; reported here rather than split into fragments that match no rule in the policy: %s\n' \
+              "$kind" "${rule#"$NL_SENTINEL"}"
+            ;;
+          *) printf 'rule managed registry %s %s\n' "$kind" "$rule" ;;
+          esac
+        done < <(printf '%s' "$reg_json" |
+          jq -r --arg k "$kind" --arg nl "$NL_SENTINEL" \
+            '.permissions[$k] // [] | .[] | if test("\n") then $nl + (. | gsub("\n"; " ")) else . end' 2>/dev/null |
+          tr -d '\r')
       done
       emit_file_conf managed registry < <(printf '%s' "$reg_json")
     fi

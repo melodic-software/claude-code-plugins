@@ -237,6 +237,30 @@ else
   pass "registry absence reporting (skipped — reg not on PATH)"
 fi
 
+# --- A rule containing a literal newline is reported, never split ------------
+# These records are line-oriented, so such a rule cannot be represented in one.
+# Reading it line by line turned ONE rule into TWO records, each a rule string
+# that appears in no settings file -- and both would flow downstream into the
+# merge and the entry diff as if they were real grants. Reachable through an
+# ordinary settings file, not only through debug narration.
+NLFX="$TEST_TMPDIR/nlfx"
+mkdir -p "$NLFX/proj/.claude" "$NLFX/home/.claude" "$NLFX/pol" "$NLFX/sd/.claude"
+jq -n '{}' >"$NLFX/proj/.claude/settings.json"
+jq -n '{}' >"$NLFX/pol/managed-settings.json"
+jq -n '{permissions:{allow:["Bash(echo hi\nthere *)","Bash(npm test)"]}}' >"$NLFX/home/.claude/settings.json"
+OUT_NL=$(env -u CLAUDE_CONFIG_DIR HOME="$NLFX/home" \
+  PERMISSION_STATE_FIXTURE_DIR="$NLFX/proj" \
+  PERMISSION_STATE_STARTDIR="$NLFX/sd" \
+  PERMISSION_STATE_MANAGED_PATH="$NLFX/pol/managed-settings.json" \
+  PERMISSION_STATE_REGISTRY_KEYS="" \
+  PERMISSION_STATE_PLIST_DOMAIN="" \
+  bash "$SCRIPT")
+assert_eq "the multi-line rule yields no rule record" 0 "$(count_matching "$OUT_NL" '^rule user settings allow Bash\(echo')"
+assert_eq "and no fragment record either" 0 "$(count_matching "$OUT_NL" '^rule user settings allow there')"
+assert_contains "it is reported as unrepresentable" "$OUT_NL" "contains a literal newline and cannot be represented"
+assert_contains "with the rule text rendered on one line" "$OUT_NL" "Bash(echo hi there *)"
+assert_contains "the well-formed sibling rule is unaffected" "$OUT_NL" "rule user settings allow Bash(npm test)"
+
 # --- Case 13: jq is required for correctness ---------------------------------
 # The jq gate runs before any external tool, so an EMPTY stub dir is enough here;
 # bash is invoked by absolute path so the empty PATH cannot hide the interpreter.
