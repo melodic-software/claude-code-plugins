@@ -40,6 +40,8 @@ concerns its siblings already cover — route rather than re-answer:
 - Token brevity for its own sake is `docs-hygiene:compress`.
 - Config-file mechanics (settings.json, .mcp.json, hooks wiring) is `claude-config:audit`; grant
   portability is `claude-config:audit-permission-grants`.
+- Missing posture guidance the prompting guide says a component's purpose needs (the additive lane)
+  is `claude-config:audit-prompting-postures`.
 - The empirical bare-baseline experiment — strip the surfaces, observe the bare model, re-add on
   repeated stumble evidence — is `unhobble` (same plugin): this skill judges instruction *text*
   against doctrine; unhobble measures the *model*.

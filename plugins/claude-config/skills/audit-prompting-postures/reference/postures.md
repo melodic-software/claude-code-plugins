@@ -81,6 +81,10 @@ Classify each component by what its body has the model DO (multiple or none):
 ### P8 — Context-budget reassurance
 
 - **Predicate:** context-surfacing.
+- **Model condition:** applies only on models the guide names as context-aware (currently Claude
+  Sonnet 5, Claude Sonnet 4.6, Claude Sonnet 4.5, and Claude Haiku 4.5 per the guide's context-
+  awareness section on platform.claude.com). Proposals for other models must be NOT-APPLICABLE or
+  carry the same condition explicitly.
 - **Present when:** the surfaced figure is accompanied by do-not-wrap-up-early framing (or the
   component deliberately avoids surfacing raw countdowns at all — the stronger form).
 - **Pointer:** main page, "Context awareness and multiwindow workflows"; Fable 5 subpage, "Rare

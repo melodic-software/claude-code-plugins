@@ -1,8 +1,9 @@
 ---
 description: "Audit locally-owned instruction components — skill bodies, agent definitions, hook instruction text, CLAUDE.md, rules — for MISSING posture guidance the official prompting guide says their purpose needs: delegation criteria/caps in orchestration components, minimal-scope and anti-test-gaming guardrails in code-changing components, investigate-before-answering grounding, progress-claim grounding on long runs, autonomy vs checkpoint posture, destructive-action confirmation, context-budget reassurance, multi-window state guidance, parallel-tool-call steering. The additive complement to audit-instructions (which finds text that is present and wrong; this finds text that is absent and needed). Report-only: emits proposed additions sourced from a live fetch of the guide, gated to the human, never auto-applied. Use when: 'posture audit', 'audit prompting postures', 'is my skill missing guardrails', 'missing delegation criteria', 'should this component confirm destructive actions', 'align my components with the prompting guide', after authoring a new skill or agent, or as the additive lane of a prompting-guide alignment pass. Not for removing or rewriting existing instructions (audit-instructions), structural skill lint (skill-quality:check), or brevity (docs-hygiene:compress)."
-argument-hint: "[scope] — scope: skills|agents|hooks|claude-md|rules|all (default: all)"
+argument-hint: "[scope] — scope: skills|agents|hooks|claude-md|rules|all (default: all; output-styles are out of scope — use audit-instructions)"
 user-invocable: true
 disable-model-invocation: false
+disallowed-tools: Edit, NotebookEdit
 metadata:
   workflow-stage: anytime
   summary: Find posture guidance the prompting guide says a component needs but does not carry
@@ -37,20 +38,26 @@ one — the default verdict per posture is NOT-APPLICABLE, not MISSING.
 
 The posture catalog in [reference/postures.md](reference/postures.md) carries, per posture, an
 applicability predicate and a POINTER to the guide section that states the recommended wording.
-It deliberately carries no copied sample text. Before judging anything, WebFetch the pages the
-catalog names (the best-practices page always; a model-specific subpage only when a posture row
-names it) and hold the current wording. If a fetch fails, mark that posture's findings
-`wording-unverified` and cite the pointer rather than inventing text.
+It deliberately carries no copied sample text. Fetch the best-practices page before Phase C.
+Fetch a model-specific subpage only when Phase C finds an applicable posture row that names it —
+do not prefetch every subpage named anywhere in the catalog up front. Hold the current wording
+from each page you fetch. If the best-practices page is unreachable, **abort the run** with an
+error naming the URL — do not emit posture findings from memory. If a named subpage fetch fails,
+mark that posture's findings `wording-unverified` and cite the pointer rather than inventing text.
 
 ## Phase B — Inventory and classify
 
 Parse `$ARGUMENTS` for an optional scope filter (`skills`, `agents`, `hooks`, `claude-md`,
 `rules`, or `all`, the default). The filter narrows which surfaces may produce findings, never
-which pages Phase A fetches.
+which pages Phase A fetches. **`output-styles` is intentionally out of scope** — that surface
+belongs to `audit-instructions`; this skill does not inherit it.
 
 Enumerate locally-owned instruction components in scope (same surface set and liveness rules as
 `audit-instructions` Phase A — resolve `${CLAUDE_CONFIG_DIR:-~/.claude}`, project `.claude/`,
-CLAUDE.md files, hook instruction text of both kinds). For each component, classify its purpose
+CLAUDE.md files, hook instruction text of both kinds). For **P7 (destructive-action confirmation)**,
+also inspect hook scripts registered in `hooks.json` and `permissions.deny` / `permissions.ask`
+entries in settings files — a deny-by-default hook or script gate counts as presence even when
+no prose says so. For each component, classify its purpose
 from its own description and body — the classification vocabulary and its tie to each posture's
 predicate live in the catalog. A component can match several purposes or none; none is the common
 case, and unclassified components are reported in the coverage line, not force-fitted.
@@ -132,7 +139,10 @@ Then summarize in chat:
 |---|---------|-----------|---------|-------------------|
 
 Verdicts: `MISSING` (finding, with proposed addition as a fenced diff), `PRESENT` (where it is),
-`NOT-APPLICABLE` (with the failed predicate). End with a coverage line — components inventoried,
+`NOT-APPLICABLE` (with the failed predicate), `wording-unverified` (guide fetch failed for this
+posture — cite the pointer, do not invent text), and `info` (verifier-demoted or informational,
+not a finding). The Proposed addition column may carry a URL when the verdict is
+`wording-unverified`. End with a coverage line — components inventoried,
 classified, unclassified — and a Sources line citing the pages fetched this run with dates. When
 Phase D ran, end with a verifier attestation line — surface batches verified, verified inline, or
 skipped.

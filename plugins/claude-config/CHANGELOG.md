@@ -3,6 +3,17 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.5]
+
+### Fixed
+
+- **`audit-prompting-postures` contract coherence pass.** Verdict vocabulary now includes
+  `wording-unverified` and `info`; Phase A defers model-specific fetches until an applicable row
+  needs them and aborts when the best-practices page is unreachable; Phase B inventories hook
+  scripts and settings deny/ask for P7 presence; `output-styles` is documented as out of scope;
+  P8 carries an explicit model condition; `disallowed-tools: Edit, NotebookEdit` enforces the
+  read-only contract mechanically. `audit-instructions` now routes the additive posture lane here.
+
 ## [0.35.4]
 
 ### Fixed
