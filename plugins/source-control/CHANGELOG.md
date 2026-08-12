@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.53.19]
+
+### Fixed
+
+- **hook-utils:** scope `read_file_path` to git worktrees when project dir unset (#1091).
+
 ## [0.53.18]
 
 ### Fixed

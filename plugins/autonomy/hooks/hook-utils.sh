@@ -393,6 +393,18 @@ hook::under_temp_root() {
   return 1
 }
 
+# True when <dir> sits inside a git working tree. Unsets locating globals so an
+# inherited GIT_DIR cannot make an out-of-tree directory look in-tree — the same
+# discipline markdown-format adopted for #972.
+#   hook::in_git_working_tree "$(dirname "$file")" && ...
+hook::in_git_working_tree() {
+  (
+    unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_CEILING_DIRECTORIES \
+      GIT_DISCOVERY_ACROSS_FILESYSTEM
+    git -C "$1" rev-parse --show-toplevel
+  ) >/dev/null 2>&1
+}
+
 # Parse file_path from PostToolUse JSON on stdin; validate existence and (when
 # CLAUDE_PROJECT_DIR is set) project membership. Both sides of the membership
 # comparison are canonicalized (symlinks resolved) first, so neither an
@@ -429,6 +441,18 @@ hook::read_file_path() {
     # the branch must not fire. Only a temp-tree file reached from a project
     # root OUTSIDE the temp tree is scratch.
     if hook::under_temp_root "$norm_file" && ! hook::under_temp_root "$norm_project"; then
+      return 1
+    fi
+  elif command -v git >/dev/null 2>&1; then
+    # When CLAUDE_PROJECT_DIR is unset, scope to git-working-tree membership so
+    # scratch files outside any repository are not mutated by formatter hooks
+    # (#1091 / #972).
+    local file_physical
+    file_physical=$(hook::physical_path "$file")
+    if [[ -L "$file" && "$file_physical" == "$file" ]]; then
+      return 1
+    fi
+    if ! hook::in_git_working_tree "$(dirname "$file_physical")"; then
       return 1
     fi
   fi

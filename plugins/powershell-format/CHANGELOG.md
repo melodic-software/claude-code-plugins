@@ -3,6 +3,12 @@
 All notable changes to the `powershell-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.12]
+
+### Fixed
+
+- **hook-utils:** scope `read_file_path` to git worktrees when project dir unset (#1091).
+
 ## [0.7.11]
 
 ### Changed
