@@ -7,8 +7,14 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 
 ### Fixed
 
+<<<<<<< HEAD
 - **`block-noncanonical-commit`:** resolve persisted `alias.<sub>.command` subkeys, not only
   `alias.<sub>` (#1022).
+=======
+- **`stale-path-verify` history walk uses `core.quotePath=false` and `-m` (#1452).**
+  Non-ASCII deleted paths match citations literally, and deletions made while
+  resolving a merge enter the deleted-path set.
+>>>>>>> df272de7 (fix(guardrails): improve stale-path-verify deletion history walk)
 
 ## [0.28.8]
 

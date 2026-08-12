@@ -597,6 +597,20 @@ HOOK_SRC=$(cat "$HOOK")
 
 # Runtime jq-removal is not portably simulable — an isolated bin dir without jq
 # cannot host bash + coreutils across Git Bash and Linux, the same constraint
+# --- non-ASCII deleted paths: core.quotePath=false on the history walk (#1452) -
+UNI_REPO="$TEST_TMPDIR/uni-repo"
+mkdir -p "$UNI_REPO/docs"
+git -C "$UNI_REPO" init -q
+printf 'x\n' >"$UNI_REPO/docs/café.md"
+git_c "$UNI_REPO" add docs/café.md >/dev/null 2>&1
+git_c "$UNI_REPO" commit -qm add >/dev/null 2>&1
+git_c "$UNI_REPO" rm -q docs/café.md >/dev/null 2>&1
+git_c "$UNI_REPO" commit -qm del >/dev/null 2>&1
+UNI_TARGET="$UNI_REPO/notes.md"
+: >"$UNI_TARGET"
+out=$(CLAUDE_PROJECT_DIR="$UNI_REPO" bash "$HOOK" <<<"$(write_json "$UNI_TARGET" 'See `docs/café.md`.')" 2>&1)
+assert_contains "non-ASCII deleted path fires" "$out" "STALE_PATH: docs/café.md"
+
 # secret-pattern-detection.test.sh and require-jq-notice-isolation.test.sh both
 # document. Assert the fail-open guard is present; require_jq's own behavior is
 # covered by lib/hook-utils.test.sh and the notice key's plugin-wide uniqueness
@@ -611,7 +625,9 @@ assert_contains "repo root is file-anchored" "$HOOK_SRC" 'hook::repo_root "$(dir
 # The behavioral rename case above is the real proof, but pin the flags too: a
 # refactor that drops either one changes the guard's meaning silently.
 assert_contains "history walk passes --no-renames" "$HOOK_SRC" '--no-renames'
-assert_contains "history walk is scoped to HEAD, not --all" "$HOOK_SRC" 'log HEAD --no-renames'
+assert_contains "history walk uses core.quotePath=false" "$HOOK_SRC" 'core.quotePath=false'
+assert_contains "history walk includes merge commits" "$HOOK_SRC" 'log HEAD -m'
+assert_contains "history walk is scoped to HEAD, not --all" "$HOOK_SRC" 'log HEAD'
 assert_absent "history walk does not read --all" "$HOOK_SRC" 'log --all'
 
 # ============================ TELEMETRY =====================================

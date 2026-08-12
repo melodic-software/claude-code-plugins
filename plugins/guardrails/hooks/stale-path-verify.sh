@@ -337,7 +337,7 @@ build_deleted_set() {
   # healthy while adjudicating against a fraction of history. Same failure mode
   # as a shallow clone, so it takes the same announced degradation.
   local walk walk_status=0
-  walk=$(git -C "$REPO_ROOT" log HEAD --no-renames --diff-filter=D --name-only --pretty=format: 2>/dev/null) ||
+  walk=$(git -C "$REPO_ROOT" -c core.quotePath=false log HEAD -m --no-renames --diff-filter=D --name-only --pretty=format: 2>/dev/null) ||
     walk_status=$?
   if ((walk_status != 0)); then
     WALK_FAILED=1
