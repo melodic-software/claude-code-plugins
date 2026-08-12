@@ -3,11 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+
 ## [0.35.8]
 
 ### Fixed
 
-- Harden triage intake against priority-axis stacking and blocked-by relabel races.
+- Add sub-hour lease TTL via ttl_minutes.
 
 ## [0.35.7]
 
