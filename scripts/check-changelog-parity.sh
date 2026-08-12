@@ -19,8 +19,14 @@
 #                                                         or the new version is
 #                                                         not strictly greater
 #                                                         than the one at <ref>
+#   scripts/check-changelog-parity.sh --check-preserved <ref>
+#                                                         fail if a changelog
+#                                                         this change set touched
+#                                                         DROPS a `## [<v>]`
+#                                                         entry it carried at the
+#                                                         fork point
 #
-# Two complementary gaps the same audit surfaced:
+# Three complementary gaps the same audit surfaced:
 #   * --check is the static repo-wide invariant: a plugins/<name>/.claude-plugin/
 #     plugin.json carrying a `version` must ship a plugins/<name>/CHANGELOG.md.
 #     It catches a plugin that has bumped versions but never kept a changelog at
@@ -50,6 +56,30 @@
 #     regress a version main has already moved past nor collide on a number
 #     another change set claimed first (see the VERSION REGRESSION / VERSION
 #     COLLISION checks below).
+#   * --check-preserved is the other half of that PR discipline: the bump gate
+#     polices what a change set ADDS and never what it REMOVES, so a released
+#     section could be deleted — its notes absorbed into the new release — with
+#     all three other modes green (claude-code-plugins#2264). --check-bump asks
+#     only about the bumped version, --check-order reads a gap in the sequence as
+#     correctly ordered, and --check compares the manifest against the changelog
+#     MAXIMUM. The live producer is a concurrent bump: when two change sets bump
+#     one plugin, git's conflict region tends to open BELOW the newest heading,
+#     so a plausible merge-forward resolution writes both releases under a single
+#     heading — or RELABELS the older heading to the new version — and leaves no
+#     conflict marker behind to catch it. Deletion is never the correct treatment
+#     of a yanked release either: Keep a Changelog keeps the heading and marks it
+#     `## [0.0.5] - 2014-12-13 [YANKED]`, which this gate reads as preserved.
+#     There is deliberately no exemption list. Both removals an author might
+#     reach for have a legal non-deleting form: mark a yanked release [YANKED],
+#     and ANNOTATE a note written against a version the manifest then skipped
+#     rather than folding it into the release that shipped — the manifest cannot
+#     be bumped back down onto the skipped number, which --check-bump would read
+#     as a VERSION REGRESSION. The one deletion in this repo's recent history —
+#     04822fc4 folding docs-hygiene's never-released `## [0.9.7]` into
+#     `## [0.10.0]` while closing #2131 — is that second shape, and in the diff
+#     it is indistinguishable from the absorption this gate exists to catch.
+#     That is precisely why the remedy is to annotate the section rather than to
+#     hand a required gate an off switch.
 #
 # Existing "versioned but changelog-less" debt is grandfathered by plugin NAME in
 # scripts/changelog-parity-baseline.txt (same stale-guarded idiom as
@@ -68,9 +98,9 @@ BASELINE="${CHANGELOG_PARITY_BASELINE:-scripts/changelog-parity-baseline.txt}"
 
 mode="${1:-}"
 case "$mode" in
---check | --check-bump | --check-order) ;;
+--check | --check-bump | --check-order | --check-preserved) ;;
 *)
-  echo "usage: $(basename "$0") [--check | --check-bump <base-ref> | --check-order]" >&2
+  echo "usage: $(basename "$0") [--check | --check-bump <base-ref> | --check-order | --check-preserved <base-ref>]" >&2
   exit 2
   ;;
 esac
@@ -305,9 +335,13 @@ if [[ "$mode" == "--check" ]]; then
   exit 0
 fi
 
-# --check-bump mode
+# ===================== the two diff modes: shared prologue ==================
+# --check-bump and --check-preserved both reason about what THIS change set did
+# to a file, so both need the same three things resolved the same way: the base
+# ref, the fork point, and the change set's own touched paths. Resolved once so
+# the two modes cannot drift into reading the diff differently.
 if [[ -z "${2:-}" ]]; then
-  echo "usage: $(basename "$0") --check-bump <base-ref>" >&2
+  echo "usage: $(basename "$0") $mode <base-ref>" >&2
   exit 2
 fi
 base="$2"
@@ -329,6 +363,10 @@ fi
 # plugin-root scoping) a cosmetic touch elsewhere under the plugin dir cannot pull
 # a main-only advance back into scope.
 declare -A bumped_candidate
+# The changelogs this change set touched, in `git diff` order, for
+# --check-preserved. Same two roots --check-order sweeps.
+touched_changelogs=()
+declare -A seen_changelog
 # Read the change set's touched paths via COMMAND substitution, not process
 # substitution: this gate is a required CI merge check, and a git failure here
 # must fail loud, never silently pass. Process substitution swallows git's exit
@@ -364,10 +402,118 @@ while IFS= read -r path; do
     rest="${path#plugins/}"
     bumped_candidate["${rest%%/*}"]=1
     ;;
+  plugins/*/CHANGELOG.md | docs/conventions/*/CHANGELOG.md)
+    # A `case` glob's `*` spans `/`, so the depth is re-checked explicitly: only
+    # a changelog exactly one directory below a root is in scope, never one
+    # nested deeper inside a plugin.
+    rest="${path#plugins/}"
+    rest="${rest#docs/conventions/}"
+    if [[ "$rest" == "${rest%%/*}/CHANGELOG.md" && -z "${seen_changelog[$path]:-}" ]]; then
+      seen_changelog["$path"]=1
+      touched_changelogs+=("$path")
+    fi
+    ;;
   *) ;;
   esac
 done <<<"$diff_paths"
 
+# ============================ --check-preserved =============================
+# Every version heading a touched changelog carried at the FORK POINT must still
+# be there at head. Compared against the fork point, never the base TIP: a branch
+# that has not integrated main would read every heading main added after the fork
+# as "deleted" — a false positive on a required gate. The two semantics coincide
+# in the scenario this catches, because absorbing a section requires having
+# merged main forward in the first place (that is what opens the conflict
+# region), and once the base is an ancestor of head the fork point IS the base
+# tip.
+#
+# Matching is on the VERSION the heading names, via the shared extractor, so a
+# heading reformatted between the `## [1.2.3]` and `## 1.2.3 — date` forms still
+# reads as preserved (that is --check-bump's FORMAT concern, not a deletion), and
+# a yanked release marked `## [0.0.5] - 2014-12-13 [YANKED]` keeps its version in
+# the list exactly as Keep a Changelog intends.
+#
+# Reading discipline: a git read is COMMAND substitution with its status checked
+# (a failed git read must never read as "nothing to preserve" and pass), while
+# the heading extraction's status is deliberately ignored — `grep -oE` exits 1 on
+# a changelog with no version headings at all, which is not an error. No reader
+# in this path exits early on its input, so no writer can take SIGPIPE under
+# pipefail (see the has_heading note in --check-bump).
+if [[ "$mode" == "--check-preserved" ]]; then
+  deleted=0
+  compared=0
+  declare -A head_seen
+  for changelog in "${touched_changelogs[@]}"; do
+    # Absent at the fork point => added by this change set; nothing to preserve.
+    # `git ls-tree` is the probe that separates that from a git invocation which
+    # genuinely FAILED: a path missing from the tree is exit 0 with EMPTY output,
+    # an unusable rev is a non-zero exit. (`git cat-file -e` cannot make that
+    # distinction — it exits 128 for both, so a change set ADDING a changelog
+    # would fail the gate.) A failure must never read as "nothing to preserve".
+    if ! base_listing="$(git ls-tree -r --name-only "$merge_base" -- "$changelog")"; then
+      echo "check-changelog-parity: 'git ls-tree -r --name-only $merge_base -- $changelog' failed; refusing to pass without checking." >&2
+      exit 2
+    fi
+    [[ -n "$base_listing" ]] || continue
+    if ! base_body="$(git show "$merge_base:$changelog")"; then
+      echo "check-changelog-parity: 'git show $merge_base:$changelog' failed; refusing to pass without checking." >&2
+      exit 2
+    fi
+    mapfile -t base_versions < <(printf '%s\n' "$base_body" | changelog_versions -)
+    ((${#base_versions[@]} > 0)) || continue
+
+    head_versions=()
+    if [[ -f "$changelog" ]]; then
+      mapfile -t head_versions < <(changelog_versions "$changelog")
+    elif [[ ! -d "${changelog%/CHANGELOG.md}" ]]; then
+      # The whole plugin/convention directory went with it — a removal, not an
+      # absorbed section. A rename lands here too: the old path's directory is
+      # gone, and the new path is new at the fork point (skipped above). A
+      # directory rename can therefore carry an absorption past this gate — a
+      # known boundary, not an oversight: renaming a plugin is a reviewed
+      # identity change, and --check-bump's manifest scoping has the same
+      # property. `--no-renames` would not close it, since the old path would
+      # still land in this branch.
+      continue
+    fi
+
+    head_seen=()
+    if ((${#head_versions[@]} > 0)); then
+      for v in "${head_versions[@]}"; do head_seen["$v"]=1; done
+    fi
+    missing=""
+    for v in "${base_versions[@]}"; do
+      [[ -n "${head_seen[$v]:-}" ]] && continue
+      head_seen["$v"]=1 # a version repeated at base is reported once
+      missing="${missing}${missing:+ }$v"
+    done
+    compared=$((compared + ${#base_versions[@]}))
+
+    if [[ -n "$missing" ]]; then
+      echo "DELETED CHANGELOG ENTRY: $changelog documented $missing at the fork point but no longer does." >&2
+      # Two different failures reach one counter, and they need different
+      # remediation: telling an author whose whole file is gone to restore a
+      # heading "above the entry that replaced it" names an entry that does not
+      # exist.
+      if [[ -f "$changelog" ]]; then
+        echo "  A released section's heading vanished. The usual cause is a CHANGELOG merge-forward resolved by writing the new release under the PREVIOUS release's heading — absorbing it — or by RELABELLING that heading to the new version; git leaves no conflict marker behind for either. Restore the heading with its own notes above the entry that replaced it." >&2
+      else
+        echo "  The changelog itself was deleted while its directory survived. Restore $changelog with every release note it carried at $merge_base." >&2
+      fi
+      echo "  Neither removal an author might intend needs a deletion. A yanked release keeps its heading, marked '## [<version>] - <date> [YANKED]' (Keep a Changelog). A note written against a version the manifest then SKIPPED keeps its heading too — say so in the section body rather than folding the notes into the release that shipped; the manifest cannot be bumped back down onto the skipped number, which --check-bump reads as a VERSION REGRESSION." >&2
+      deleted=$((deleted + 1))
+    fi
+  done
+
+  if ((deleted > 0)); then
+    echo "A released '## [<version>]' entry may never be dropped by a change set; every heading present at the fork point must still be present at head." >&2
+    exit 1
+  fi
+  echo "All ${#touched_changelogs[@]} changed changelog(s) preserve every version heading they carried at $merge_base ($compared heading(s) compared)."
+  exit 0
+fi
+
+# ============================== --check-bump ================================
 undocumented=0
 malformed=0
 preexisting=0

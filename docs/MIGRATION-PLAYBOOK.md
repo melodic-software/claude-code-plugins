@@ -177,6 +177,7 @@ Prefer them in this order; the earlier ones are simplest and least surprising.
 | `${CLAUDE_PROJECT_DIR}` | Path to the consumer's project root, substituted in hook/MCP/monitor commands and exported to subprocesses | Referencing project-local scripts/config |
 | `userConfig` → `${user_config.KEY}` | Values Claude Code prompts for at enable time (typed: string/number/boolean/directory/file, optional sensitive). Substitutes as `${user_config.KEY}` in MCP/LSP configs and exec-form hook commands; non-sensitive values also substitute into skill/agent content. Shell-form hook commands, monitor commands, and MCP `headersHelper` reject this substitution. Hook processes receive every value as `CLAUDE_PLUGIN_OPTION_<KEY>`; a Bash tool call made by a skill does not (see the [smoke-test record](extensibility-contract-smoke-tests.md)). Non-sensitive values are stored under `pluginConfigs[<id>].options` in user settings and read from user, `--settings`, or managed settings; project/local entries are ignored. Sensitive values use the macOS Keychain or `~/.claude/.credentials.json` where no supported keychain exists | Endpoints, toggles, tokens — personal or administrator-supplied config without editing the plugin |
 | `${CLAUDE_PLUGIN_ROOT}` | Path to the plugin's own installed directory | Referencing bundled scripts/assets (mandatory under cache isolation) |
+| `${CLAUDE_SKILL_DIR}` | Path to the current skill's subdirectory within the plugin (not the plugin root); substituted in skill and agent content per the [skills reference](https://code.claude.com/docs/en/skills#available-string-substitutions) | Pre-compute blocks and `allowed-tools` paths that must resolve to skill-local scripts without hardcoding the plugin root |
 | `${CLAUDE_PLUGIN_DATA}` | Persistent per-plugin directory that survives updates (`~/.claude/plugins/data/<id>/`) | Installed deps, caches, generated state |
 | `hooks/hooks.json` | Event handlers the plugin ships | Behavior consumers opt into by enabling the plugin |
 
@@ -587,9 +588,16 @@ Catalog these per migration; they are the usual failures when an in-repo skill b
   update them.
 - **Agent shadowing.** Project/user `.claude/agents/` override same-named plugin agents. A leftover
   in-repo copy masks the plugin version until removed from the source repo.
-- **Headless registration.** `extraKnownMarketplaces` auto-registration requires the interactive trust
-  dialog; CI/headless/cloud must run `claude plugin marketplace add` explicitly or pre-seed via
-  `CLAUDE_CODE_PLUGIN_SEED_DIR`.
+- **Headless registration.** Distinguish the marketplace **source** from the session shape:
+  - **Remote or git-sourced catalogs** (GitHub repo, URL, npm, …) in CI or other non-interactive
+    runs: no interactive trust dialog — run `claude plugin marketplace add` explicitly or pre-seed via
+    `CLAUDE_CODE_PLUGIN_SEED_DIR` ([Plugin marketplaces — Pre-populate plugins for containers](https://code.claude.com/docs/en/plugin-marketplaces#pre-populate-plugins-for-containers),
+    fetched 2026-08-12).
+  - **`directory` / `file` source with a relative path in checked-in project `.claude/settings.json`:**
+    the path [resolves against the repository checkout](https://code.claude.com/docs/en/plugin-marketplaces#relative-paths),
+    including cloud sessions that install from the clone at session start — no separate
+    `marketplace add` step. Local collaborators still see the interactive trust prompt once they
+    trust the folder. See [`docs/CLOUD-SESSIONS.md`](CLOUD-SESSIONS.md) "Plugins in sessions on this repo".
 
 ## Per-plugin migration gate
 
@@ -1292,13 +1300,16 @@ surface to a published plugin for a single consumer's low-value nicety.
 
 1. Register the marketplace in the consumer's `extraKnownMarketplaces` and enable the plugin in
    `enabledPlugins` (project `settings.json`, so clones inherit it on trust — the interactive trust prompt
-   both registers and installs the enabled plugin). Headless/CI has no such prompt, and registering a
+   both registers and installs the enabled plugin for **local** collaborators). **Headless CI** and other
+   non-interactive runs with **remote/git-sourced** catalogs have no such prompt, and registering a
    marketplace does not install its plugins, so do both explicitly at project scope: `claude plugin
    marketplace add <repo> --scope project` then `claude plugin install <plugin>@<marketplace> --scope
    project --config KEY=VALUE …`, seeding every
    non-default `userConfig` toggle on that install command — `--config` applies only on a fresh install and
    is ignored once the plugin is already installed (smoke-test C), so a headless reconfiguration later
-   means uninstall/reinstall. Otherwise the marketplace is known but the plugin is absent, and step 3's
+   means uninstall/reinstall. **Exception:** a `directory`/`file` relative-path entry in checked-in
+   project settings resolves against the repo checkout (cloud sessions included) — see
+   [`docs/CLOUD-SESSIONS.md`](CLOUD-SESSIONS.md). Otherwise the marketplace is known but the plugin is absent, and step 3's
    verify edit would run with no plugin hook.
 2. Interactively, `/plugin configure` adjusts `userConfig` toggles at any time; keep the
    `HOOK_TELEMETRY_SINK` wiring and the sink script (the bridge), adapting the sink for any

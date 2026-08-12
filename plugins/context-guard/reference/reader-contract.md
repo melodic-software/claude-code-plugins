@@ -186,10 +186,26 @@ not validation.
 
 Since 0.4.0 the plugin itself ships hooks over its own seam — the first shipped consumer:
 
-- **Advisory injection** (`PostToolBatch` + `UserPromptSubmit`): once per transition into a worse
-  zone, inject continuation guidance (a minimal generic continuation tree plus a presence-gated
-  pointer to `session-flow:workflow`'s router). Silent while the zone is unchanged, improving, or
-  `unknown`.
+- **Advisory injection** (`PostToolBatch` + `UserPromptSubmit`): on a transition into a zone worse
+  than any this session has already reported, inject continuation guidance (a minimal generic
+  continuation tree plus a presence-gated pointer to `session-flow:workflow`'s router). Silent
+  while the zone is unchanged, improving, or `unknown`. **Hysteresis** (since 0.7.0): the gate is
+  the worst zone already *reported*, not the zone last *seen*. That marker decays only when the
+  session returns to `smart` — the bottom of the ladder (**since 0.7.2**; 0.7.0 asked instead for an
+  improvement of at least two ranks, which no band but `dumb` could ever satisfy, so a session that
+  armed at `acceptable` could never re-arm, and 0.7.1 replaced that delta with a three-observation
+  dwell for one version — see the CHANGELOG for why the dwell did not survive). Occupancy does not
+  climb monotonically, so a session
+  sitting on a band edge crosses it repeatedly; without the rule each re-crossing read as a fresh
+  transition and re-injected the guidance block. A `/clear` needs no rule: it starts a new session
+  id, hence a fresh baseline. The rule is a declared judgment default, on the same footing as the
+  bands above and with the same provenance status. **The property**: within one arming cycle each
+  zone is announced at most once, and only a return to `smart` opens a new cycle — so a genuine
+  recovery followed by a relapse re-injects exactly once for the band it relapses into, from any
+  armed band. **The residual**: at the `smart`/`acceptable` edge a flap and a full recovery are the
+  same observation, so a session oscillating there re-announces `acceptable` once per down-up cycle;
+  the hook sees one word per observation, never the occupancy behind it, and separating those two
+  cases needs a numeric deadband or a dwell the single-observation recovery could not survive.
 - **Blocking gate** (`PreToolUse`, only when the `zone_hook_mode` userConfig option is
   `blocking`): denies new `Write|Edit|NotebookEdit|Agent|Workflow` calls on a **fresh dumb-zone
   snapshot** past a small grace budget. Fail-open on `unknown`; handoff-path writes, read-only

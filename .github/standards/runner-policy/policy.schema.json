@@ -9,6 +9,7 @@
     "selectorWorkflowPaths",
     "approvedSelectorReferences",
     "approvedSelectorReferencesByRepositoryOwner",
+    "approvedSelectorInputContracts",
     "approvedReusableWorkflowContracts",
     "canonicalSelectorInputs",
     "optionalCanonicalSelectorInputs",
@@ -51,6 +52,11 @@
       "propertyNames": { "$ref": "#/$defs/reusableWorkflowReference" },
       "additionalProperties": { "$ref": "#/$defs/reusableWorkflowContract" }
     },
+    "approvedSelectorInputContracts": {
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/reusableWorkflowReference" },
+      "additionalProperties": { "$ref": "#/$defs/selectorInputContract" }
+    },
     "canonicalSelectorInputs": { "$ref": "#/$defs/canonicalSelectorInputMap" },
     "optionalCanonicalSelectorInputs": { "$ref": "#/$defs/stringMap" },
     "optionalBooleanSelectorInputs": { "$ref": "#/$defs/booleanTrueMap" },
@@ -67,12 +73,13 @@
     "governedReusableRunnerInput": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["name", "expression", "default", "failureSentinel"],
+      "required": ["name", "expression", "default", "failureSentinel", "failureSentinelMarker"],
       "properties": {
         "name": { "$ref": "#/$defs/nonWhitespaceString" },
         "expression": { "$ref": "#/$defs/nonWhitespaceString" },
         "default": { "$ref": "#/$defs/nonWhitespaceString" },
-        "failureSentinel": { "const": "ci-runner-selection-failed" }
+        "failureSentinel": { "const": "ubuntu-24.04" },
+        "failureSentinelMarker": { "const": "ci-runner-selection-failed" }
       }
     },
     "fallbackLabelAllowlist": { "$ref": "#/$defs/nonEmptyUniqueStringArray" },
@@ -217,6 +224,14 @@
           "type": "string",
           "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$"
         }
+      }
+    },
+    "selectorInputContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allowedInputs"],
+      "properties": {
+        "allowedInputs": { "$ref": "#/$defs/uniqueStringArray" }
       }
     }
   }

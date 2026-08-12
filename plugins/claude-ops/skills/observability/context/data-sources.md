@@ -106,6 +106,33 @@ jq -s --arg since "$SINCE_ISO" '
 
 Empty: `"hook log empty — wire HOOK_TELEMETRY_SINK to your sink script and re-run after hooks fire"`.
 
+## 3. Tool call decisions — which calls were denied, and why
+
+**Not in hook-events.jsonl or session transcripts.** Permission and policy outcomes are
+emitted as OTEL log events (`claude_code.tool_decision`, stored as `event_name='tool_decision'`
+in the DuckDB store). Query the OTEL store — do not grep `history.jsonl`, session JSON, or
+`~/.claude/sessions/*.json`.
+
+**What it answers:** for each tool invocation, whether it was accepted or rejected and what
+mechanism drove the decision.
+
+| Field (promoted column) | Values | Meaning |
+|---|---|---|
+| `decision` | `accept` / `reject` | Outcome |
+| `source` | `config`, … | Bucket for the deciding mechanism — see [Claude Code monitoring docs](https://code.claude.com/docs/en/monitoring-usage) |
+
+**Column mapping:** the OTEL attribute on `tool_decision` events is `source` (official name).
+`tool_result` events emit `decision_source` for the same bucket; the DuckDB projection
+(`cc-otel.sql`) coalesces both into the promoted `source` column.
+
+A `reject` with `source='config'` is a configuration-driven denial (settings,
+allow/deny rules, managed policy, `--allowedTools`/`--disallowedTools`, permission mode,
+session grants, inherently-safe tools, etc.). **Attribution caveat:** `config` is one bucket
+over many mechanisms — a `reject`+`config` count is an **upper bound** on deny-rule firings
+and cannot be pinned to an individual rule. Per-rule attribution is upstream.
+
+DuckDB queries: [otel-queries.md](otel-queries.md) § "Tool decisions".
+
 ## 4. Recurring tool-call patterns
 
 n-gram over `(event, hook)` sequences in hook event log. Flag any 3-gram appearing 5+ times in window.

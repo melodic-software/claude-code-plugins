@@ -22,6 +22,8 @@ unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_
 
 : "${FAILED:=0}"
 : "${CASE_NUM:=0}"
+: "${SKIP_CASES:=0}"
+: "${DISCRIMINATING_SKIP_CASES:=0}"
 
 # pass <label>
 pass() {
@@ -43,9 +45,23 @@ skip_suite() {
   exit 0
 }
 
-# skip_case <reason> — skip one case without exiting.
+# skip_case <reason> — skip one optional case without exiting. Platform or
+# toolchain gaps that intentionally vacate a nice-to-have assertion use this;
+# it must never swallow the only discriminating coverage for a case group.
 skip_case() {
+  SKIP_CASES=$((SKIP_CASES + 1))
   printf 'SKIP: %s\n' "$1" >&2
+}
+
+# fail_discriminating_skip <reason> — a skip that would vacate the only
+# discriminating assertions in a case group. Counts as a failure and prints a
+# distinct marker so CI aggregate output can distinguish "coverage ran" from
+# "coverage silently skipped".
+fail_discriminating_skip() {
+  DISCRIMINATING_SKIP_CASES=$((DISCRIMINATING_SKIP_CASES + 1))
+  CASE_NUM=$((CASE_NUM + 1))
+  printf 'DISCRIMINATING SKIP: [%d] %s\n' "$CASE_NUM" "$1" >&2
+  FAILED=$((FAILED + 1))
 }
 
 # assert_eq <label> <expected> <actual>

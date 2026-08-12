@@ -16,6 +16,14 @@
 # and therefore dropped the bit. See the candidate-set comment further down for
 # why `R` and `C` are judged differently.
 #
+# WHAT IT DOES NOT CLAIM: content-determinism is not a property of the whole
+# tool. It holds for the `A` and `C` classes only. The rename arm's
+# `100755`-source gate deliberately makes a `git mv` of a `100644` shebang file
+# answer differently under `diff.renames=false` (reported, as `A`) and under the
+# DEFAULT `diff.renames=true` (not reported, as `R`) — same index, same HEAD.
+# That is a decided trade, kept in #2141; the candidate-set comment carries the
+# reasoning and `repo19` in the test file carries the false positive it buys.
+#
 # Deliberate scope limits, each matching the skill's documented reasoning:
 #   - Newly-added paths only. An already-tracked file that was already
 #     executable needs no action, and a full-repo sweep is not this check's job.
@@ -91,6 +99,11 @@ Reports paths staged at a NEW index entry whose staged blob starts with '#!' but
 whose staged mode is 100644. A new entry is not just status 'A': a copy
 destination counts, as does a rename destination whose source was 100755.
 Symlinks and already-executable entries are skipped.
+
+Scope note: a rename off a 100644 source is deliberately NOT reported, so for
+that one case the answer depends on your diff.renames setting (reported as an
+add when off, skipped as a rename when on). Decided trade — see
+reference/exec-bit.md.
 EOF
 }
 
@@ -205,7 +218,10 @@ fi
 # it on -- `git diff -h` documents `-M`/`-C` as "detect renames"/"detect copies",
 # rename detection is on by default (`diff.renames`), and copy detection turns on
 # with `diff.renames=copies`. Keying on `A` would make the check fail open on the
-# consumer's diff configuration rather than on the staged content.
+# consumer's diff configuration rather than on the staged content -- for the `A`
+# and `C` classes, which is exactly as far as that property goes. It is NOT a
+# property of the whole tool: the rename arm below deliberately does not have it,
+# and the `R` paragraph states why and on whose authority.
 #
 # `--raw` rather than `--name-status` because a RENAME needs BOTH modes to
 # judge: its record is `:<srcmode> <dstmode> <srcsha> <dstsha> <status>`, and
@@ -218,6 +234,29 @@ fi
 #        non-executable tracked file merely being moved, and reporting it would
 #        flip a mode nobody changed -- squarely outside this check's
 #        newly-added-only scope. So the rename arm gates on a `100755` source.
+#
+#        THE ACCEPTED TRADE (#2141) -- recorded at the gate, not only at the
+#        test that pins it. This gate makes the RENAME arm's answer a function
+#        of `diff.renames`, and it splits on the DEFAULT config rather than an
+#        opt-in one. `git mv` of a `100644` shebang file reads as `D`+`A` under
+#        `diff.renames=false` and IS reported through the `A` branch; the SAME
+#        index and the SAME HEAD read as `R100` under the default
+#        `diff.renames=true` and are NOT. Only the config differs.
+#
+#        That residual is decided, not overlooked. #2141 weighed three policies
+#        -- keep the gate, drop it for renames too, or make the `A` branch skip
+#        a rename-as-add -- and settled on KEEPING it, with no behaviour change.
+#        The false positive the gate prevents is real and is pinned by `repo19`
+#        in exec-bit-check.test.sh: a deliberately non-executable sourced
+#        library or template must not be flipped to `100755` because someone
+#        moved it. Dropping the gate buys config-agreement by shipping that
+#        false positive on every consumer; making the `A` branch match buys it
+#        by reporting LESS, which risks silencing genuinely new files. Neither
+#        trade was judged worth the agreement.
+#
+#        So: do NOT "repair" this arm into agreement with the `A` branch on the
+#        theory that the disagreement is the same defect class as #2118. It is
+#        the same SHAPE and a different verdict. Reopen #2141 first.
 #
 #   C -- the destination is a path that did NOT previously exist. It is newly
 #        added no matter what the source's mode was, which puts it squarely

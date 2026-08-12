@@ -94,10 +94,10 @@ emit_file_facts() {
     return 0
   fi
   printf 'Present: yes\n'
-  # A read that fails is NOT invalid JSON. A Read deny rule, a sandbox denyRead
-  # path, or plain filesystem permissions all make open() fail here, and
-  # reporting that as malformed config would be a false finding. Distinguish it
-  # and report the file as not inspectable instead.
+  # A read that fails is NOT invalid JSON. Sandbox denyRead — including a Read
+  # deny merged into the sandbox boundary — or plain filesystem permissions all
+  # make open() fail here, and reporting that as malformed config would be a
+  # false finding. Distinguish it and report the file as not inspectable instead.
   #
   # `: <"$path"` opens the file and discards it — an open() probe that never
   # reads a byte. Deliberately not `content=$(…)`: holding the file in a shell
@@ -107,7 +107,7 @@ emit_file_facts() {
     printf 'Readable: no\n'
     printf 'Valid JSON: n/a\n'
     printf 'Top-level keys: n/a\n'
-    printf 'Note: present but unreadable — not inspectable (deny rule, sandbox denyRead, or filesystem permissions). Not a malformed-config finding.\n'
+    printf 'Note: present but unreadable — not inspectable (sandbox denyRead — including a Read deny merged into the sandbox boundary — or filesystem permissions). Not a malformed-config finding.\n'
     return 0
   fi
   if ! tr -d '\r' <"$path" | jq empty 2>/dev/null; then

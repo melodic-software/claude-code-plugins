@@ -1,13 +1,19 @@
 # Fix Workflow
 
-Apply fixes for audit findings. Requires a prior audit — reads findings from
-`${CLAUDE_PLUGIN_DATA}/audit/last-audit.md` (checking the pre-rename
-`${CLAUDE_PLUGIN_DATA}/health/` location first when the new path is absent, per the
-migration note in SKILL.md "Report mode").
+Apply fixes for audit findings. Requires a prior audit — reads findings from **the path SKILL.md
+resolves in "Report location"**, `audit/<state-key>/last-audit.md` under the plugin data directory.
+Derive the key there; do not restate a path here.
 
 ## Prerequisites
 
-Read the last-audit report. If missing, inform the user and suggest running the audit first.
+Read the last-audit report **from this project's derived path**. If it is absent, say that no audit
+has been run for this project and suggest running one.
+
+**This mode proposes edits to real instruction files, so an unattributable report is not usable
+input.** Do not fall back to an unkeyed location: a machine-global `audit/last-audit.md` or a
+pre-rename `health/last-audit.md` carries no project segment, so findings in it may describe a
+different repository's memory layer entirely. Name such a file to the user as a leftover and run a
+fresh audit instead of acting on it.
 
 ## Fix strategy
 

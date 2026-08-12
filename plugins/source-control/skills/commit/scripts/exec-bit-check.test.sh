@@ -19,6 +19,8 @@ source "$SCRIPT_DIR/../../../scripts/test-helpers.sh"
 command -v git >/dev/null 2>&1 || skip_suite "git not available"
 [[ -f "$HELPER" ]] || skip_suite "exec-bit-check.sh not found at $HELPER"
 
+printf 'SUITE: exec-bit-check.test.sh on %s\n' "$(git --version 2>/dev/null || printf 'git unknown')"
+
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
@@ -472,7 +474,7 @@ if [[ "$copy_status" == "1" ]]; then
   bash "$HELPER" --repo-dir "$repo16" --fix -- dup.sh >/dev/null 2>&1
   assert_eq "--fix corrects a copy destination" "100755" "$(staged_mode "$repo16" dup.sh)"
 else
-  skip_case "this git did not pair the fixture as a copy"
+  fail_discriminating_skip "copy-arm fixture unpaired on $(git --version 2>/dev/null): git diff --cached --name-status has ${copy_status:-0} C record(s), expected 1 — copy-arm discriminating coverage did not run"
 fi
 
 # A pathspec that names only the SOURCE side breaks the pairing back into D/M,
@@ -520,6 +522,25 @@ assert_eq "a rename that preserved the exec bit is NOT reported" \
 # file is already tracked, and flipping it to 100755 would change a mode nobody
 # touched. Only a 100755 source can have dropped the bit — a candidate set that
 # ignores the source mode reports this one.
+#
+# THIS IS THE CASE THAT BUYS THE TRADE IN #2141, and the reasoning belongs here
+# rather than only at the gate. The rename arm deliberately does NOT have the
+# content-determinism property the copy arm has (case group 21b): the very same
+# staged content this fixture builds is REPORTED under `diff.renames=false`,
+# where it arrives as `D`+`A`, and is NOT reported under the default
+# `diff.renames=true`, where it arrives as `R100`. Case group 19b directly below
+# pins both halves of that disagreement, on one repo, with the index and HEAD
+# asserted identical across the two runs.
+#
+# #2141 weighed three policies — keep the gate, drop it for renames too, or make
+# the `A` branch skip a rename-as-add — and KEPT the gate with no behaviour
+# change, because THIS fixture is a real false positive and not a hypothetical:
+# a deliberately non-executable sourced library or template must not be flipped
+# to `100755` because someone moved it. Dropping the gate would buy
+# config-agreement by shipping that false positive to every consumer; making the
+# `A` branch match would buy it by reporting less, risking silence on genuinely
+# new files. If a future change makes this case report, it has adopted a policy
+# #2141 rejected — reopen that issue rather than deleting the assertion.
 repo19="$(mkrepo)"
 (
   cd "$repo19" || exit 1
@@ -536,6 +557,105 @@ assert_eq "the fixture's destination really is 100644 with a shebang" \
   "100644" "$(staged_mode "$repo19" lib-moved.sh)"
 assert_eq "a rename whose SOURCE was never executable is NOT reported" \
   "" "$(bash "$HELPER" --repo-dir "$repo19" --list 2>/dev/null)"
+
+# --- Case group 19b: the two diff.renames configurations DISAGREE, deliberately
+#
+# The rename-arm counterpart of case group 21b, and the direct analogue of the
+# table in #2141. Same shape as 21b — ONE fixture repo, run twice with nothing
+# changing between the runs but the single `diff.renames` key — but the asserted
+# outcome is INVERTED: for a rename off a `100644` shebang source the two
+# configurations must NOT agree, because the `100755`-source gate is kept
+# (repo19 above says why, and the candidate-set comment in exec-bit-check.sh
+# says it again at the gate).
+#
+# This is a decision record in executable form, not a defect report. It is
+# ALSO the discriminator against the two policies #2141 rejected:
+#   * drop the rename gate  -> the `diff.renames=true` run starts reporting
+#                              `dis-lib-moved.sh` and the `renames_on` assertion fails;
+#   * skip a rename-as-add on the `A` branch
+#                           -> the `diff.renames=false` run stops reporting it
+#                              and the `renames_off` assertion fails.
+# Neither half can pass under a policy other than the one that shipped.
+#
+# WHAT MAKES THE COMPARISON HONEST: the index tree and HEAD tree are captured on
+# both runs and asserted EQUAL to each other. That is what turns "two different
+# answers" into "two different answers for identical staged content" — without
+# it the case would prove only that two different repositories differ. The raw
+# status letters are asserted on both runs as well, so a git that declines to
+# pair the rename skips the case rather than silently passing it through the `A`
+# branch twice and "agreeing".
+#
+# `zz-dis-extra.sh` is an unrelated newly-added shebang file sorting AFTER
+# `dis-lib-moved.sh`, so its record follows the rename pair in the NUL stream.
+# Asserting the EXACT output pins that the `R*` arm consumed BOTH of its path
+# fields: an arm that reads short desynchronizes every record behind it, and a
+# rename arm that skips its candidate is exactly the arm most likely to look
+# correct while having read short.
+#
+# PATH NAMES ARE PREFIXED `dis-` ON PURPOSE. `mkrepo` increments REPO_SEQ inside
+# a command substitution, so the increment never reaches the caller and every
+# fixture in this suite is handed the SAME repository path. Each fixture's own
+# unqualified `git commit` clears the previous one's staged set, which is why
+# that has gone unnoticed — but file NAMES persist, and a fixture reusing an
+# earlier one's name gets `fatal: destination exists` from `git mv`, silently,
+# inside the `>/dev/null 2>&1` subshell. This group hit exactly that against
+# `repo19`'s `lib.sh`: it passed standalone and skipped in the full suite. The
+# diagnostic skip below is what surfaced it.
+repo24="$(mkrepo)"
+(
+  cd "$repo24" || exit 1
+  git config core.filemode false
+  printf '#!/usr/bin/env bash\necho sourced\n' >dis-lib.sh
+  git add dis-lib.sh
+  git commit -qm "seed the disagreement fixture's non-executable source"
+  git mv dis-lib.sh dis-lib-moved.sh
+  printf '#!/usr/bin/env bash\necho unrelated\n' >zz-dis-extra.sh
+  git add zz-dis-extra.sh
+) >/dev/null 2>&1
+
+# `false` and `true` are asserted explicitly rather than leaning on the ambient
+# default, but `true` IS git's default — which is why #2141 called this the
+# configuration most consumers actually run.
+(cd "$repo24" && git config diff.renames false) >/dev/null 2>&1
+dis_off_status="$(cd "$repo24" && git diff --cached --name-status | tr '\t' ' ' | tr '\n' ';')"
+dis_off_head="$(cd "$repo24" && git rev-parse 'HEAD^{tree}' 2>/dev/null)"
+dis_off_index="$(cd "$repo24" && git write-tree 2>/dev/null)"
+dis_off="$(bash "$HELPER" --repo-dir "$repo24" --list 2>/dev/null | sort | tr '\n' ' ')"
+
+(cd "$repo24" && git config diff.renames true) >/dev/null 2>&1
+dis_on_status="$(cd "$repo24" && git diff --cached --name-status | tr '\t' ' ' | tr '\n' ';')"
+dis_on_raw="$(cd "$repo24" && git diff --cached --raw | grep 'dis-lib-moved\.sh')"
+dis_on_head="$(cd "$repo24" && git rev-parse 'HEAD^{tree}' 2>/dev/null)"
+dis_on_index="$(cd "$repo24" && git write-tree 2>/dev/null)"
+dis_on="$(bash "$HELPER" --repo-dir "$repo24" --list 2>/dev/null | sort | tr '\n' ' ')"
+
+if [[ "$dis_off_status" == *"A dis-lib-moved.sh;"* ]] && [[ "$dis_off_status" == *"D dis-lib.sh;"* ]] &&
+  [[ "$dis_on_status" == *"R"*"dis-lib.sh dis-lib-moved.sh;"* ]]; then
+  # The premise first: nothing but the config key differs between the two runs.
+  assert_eq "HEAD is identical across the two diff.renames runs" \
+    "$dis_off_head" "$dis_on_head"
+  assert_eq "the INDEX is identical across the two diff.renames runs" \
+    "$dis_off_index" "$dis_on_index"
+  assert_contains "the diff.renames=true run really pairs it as a rename off a 100644 source" \
+    "$dis_on_raw" ":100644 100644"
+  # Both sides against the EXPECTED set, never merely against each other.
+  assert_eq "diff.renames=false REPORTS the moved 100644 shebang file (as an add)" \
+    "dis-lib-moved.sh zz-dis-extra.sh " "$dis_off"
+  assert_eq "diff.renames=true does NOT report it (the kept #2141 gate)" \
+    "zz-dis-extra.sh " "$dis_on"
+  # The shape itself, stated as a verdict so it reads as an intended property
+  # rather than as two assertions that happen to differ. (assert_eq over a
+  # derived verdict rather than a new assert_ne helper: one call site does not
+  # earn a second comparison primitive in the shared harness.)
+  dis_verdict="$([[ "$dis_off" == "$dis_on" ]] && printf 'AGREE' || printf 'DISAGREE')"
+  assert_eq "the two diff.renames configurations DISAGREE on identical staged content — deliberate, kept in #2141" \
+    "DISAGREE" "$dis_verdict"
+else
+  # The skip reports WHAT IT SAW, not just that it gave up. A silent skip is
+  # indistinguishable from a fixture that never built, and this suite has been
+  # bitten by exactly that.
+  fail_discriminating_skip "this git did not produce both a D+A and an R pairing for the disagreement fixture (renames=false saw: ${dis_off_status:-<empty>} | renames=true saw: ${dis_on_status:-<empty>})"
+fi
 
 # The COPY arm is the OPPOSITE of repo19 above, and this case pins that
 # asymmetry (#2118). A rename destination is the same tracked file at a new
@@ -588,7 +708,7 @@ if [[ "$nonexec_copy_status" == "1" ]]; then
   assert_eq "the copy SOURCE is not itself admitted by the copy arm" \
     "100644" "$(staged_mode "$repo21" tpl.sh)"
 else
-  skip_case "this git did not pair the non-executable fixture as a copy"
+  fail_discriminating_skip "non-executable copy fixture unpaired on $(git --version 2>/dev/null): git diff --cached --name-status has ${nonexec_copy_status:-0} C record(s), expected 1 — copy-arm discriminating coverage did not run"
 fi
 
 # --- Case group 21b: the two diff.renames configurations AGREE ----------------
@@ -651,7 +771,7 @@ if [[ "$agree_off_status" == "1" ]] && [[ "$agree_on_status" == "1" ]]; then
   assert_eq "the two diff.renames configurations AGREE on identical staged content" \
     "$agree_off" "$agree_on"
 else
-  skip_case "this git did not produce both an A and a C pairing for the agreement fixture"
+  fail_discriminating_skip "agreement fixture unpaired on $(git --version 2>/dev/null): diff.renames=false A copy.sh=${agree_off_status:-0}, diff.renames=copies C=${agree_on_status:-0} (expected 1 each) — copy-arm discriminating coverage did not run"
 fi
 
 # The pair branch reads THREE fields per record, so a space in either path is
@@ -713,8 +833,9 @@ if [[ "$spaced_copy_status" == "1" ]]; then
   assert_eq "a copy destination is reported when BOTH paths contain spaces" \
     "tpl copy.sh" "$(bash "$HELPER" --repo-dir "$repo23" --list 2>/dev/null)"
 else
-  skip_case "this git did not pair the spaced fixture as a copy"
+  fail_discriminating_skip "spaced copy fixture unpaired on $(git --version 2>/dev/null): git diff --cached --name-status has ${spaced_copy_status:-0} C record(s), expected 1 — copy-arm discriminating coverage did not run"
 fi
 
-printf '\n%d case(s), %d failure(s)\n' "$CASE_NUM" "$FAILED"
+printf '\n%d case(s), %d failure(s), %d optional skip(s), %d discriminating skip(s)\n' \
+  "$CASE_NUM" "$FAILED" "$SKIP_CASES" "$DISCRIMINATING_SKIP_CASES"
 [[ $FAILED -eq 0 ]] || exit 1

@@ -3,6 +3,327 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.53.2]
+
+### Fixed
+
+- **Canonical `gh pr create` now passes `--head` explicitly (#1900).** The §2.4.3 worktree path already
+  did; the on-branch canonical path did not. Once dotfiles#375's amended auto-mode grant lands, `gh pr
+  create` is covered only when the head branch is named — so the canonical lane must match the
+  sibling spelling. Detached HEAD is refused rather than emitting `--head ""`.
+- **`babysit_resolve_thread` severity guard reads structured P0/P1 markers only (#1939).** The
+  `--autonomous` and `--independent-resolver` paths refused any thread whose body contained a
+  word-bounded `P1` token, so a P2 thread discussing P1 properties in prose became
+  `skipped-severity-marked`. The scan now keys on shields badges, bracketed `[P0]`/`[P1]`, and
+  explicit `P1:`/`P0:` declaration prefixes — not incidental prose mentions. Vetted
+  `--resolve --thread-id` still applies no severity screen — documented as intentional.
+
+## [0.53.1]
+
+### Fixed
+
+- **The paused-merge case pins both halves of the in-progress reason, and the landed+in-progress
+  fixture's comment corrects the cherry-pick rationale (#2257).** 0.51.16 rewrote the in-progress
+  reason to "…(staged result recomputable from base, sequencer position) dies with the directory",
+  but the suite asserted only "recomputable" — the clause carried over from the old wording — so
+  the #2257 half (the transient state is LOST with the directory, close to the opposite claim)
+  could regress silently; a second assertion now pins it. The fixture comment also claimed a
+  cherry-pick "would reuse the same object", which is wrong on two counts: cherry-pick mints a new
+  commit, and with this fixture's ordering (`unrelated on main` lands before the twin) a
+  cherry-pick would not have parent == HEAD at the branch tip and would carry `unrelated.txt` in the
+  tree — different parent, tree, and SHA even within the same second. The twin-with-different-subject
+  sequence below is deliberate; do not replace it with a cherry-pick.
+
+## [0.53.0]
+
+### Changed
+
+- **The nesting-invariant claim has one owner and twelve pointers, instead of 13 undated copies**
+  (`skills/worktree/SKILL.md`, `skills/worktree/context/create.md`, `scripts/worktree-create.sh`,
+  `hooks/worktree-create-gate.sh`, `.claude-plugin/plugin.json`, `README.md`; #2213). The mechanism
+  claim justifying a machine-wide placement rule enforced by a fail-closed hook was restated as an
+  **undated absolute at 13 sites** against exactly two dated statements — and the one site asserting
+  freshness ("It is the live constraint, not a historical one") was itself undated, so a pointer
+  landed the reader precisely there. `SKILL.md` now carries the claim under an explicit
+  `### The nesting invariant, verified` heading and everything else points at it. Not thirteen
+  updated copies: one owner, and a test (`skills/worktree/nesting-invariant-ssot.test.sh`) that
+  fails when a second site states the mechanism, so the next person to explain it in place has to
+  point instead.
+  - **Deviation from the filed fix direction, stated so it is not read as an oversight.** The issue
+    asks pointers to restate the as-of at each pointer site. They do not: twelve restated dates are
+    twelve drift sites, which is the defect being removed. Pointers instead say the claim is dated
+    and measured, and name the section that carries the stamp.
+  - **The two exit-3 heredocs keep a short restatement** alongside their pointer. They are read at
+    the moment creation fails, when the reader cannot go follow a link; a pointer-only refusal there
+    would be a regression. Both restatements are deliberately non-causal ("can pick up") rather than
+    the absolute the rest of the sweep removed.
+- **The nesting invariant now carries an unconditional expiry, because both of its event triggers
+  were structurally unable to fire** (`skills/worktree/SKILL.md`; #2213). The triggers were "a
+  release note naming worktree rule-file loading" and "upstream #16600 changing state". #16600 has
+  not changed state since well before the 2026-08-07 as-of date, and an opaque release stanza
+  ("Bug fixes and reliability improvements", 2.1.226) cannot fire an event-keyed trigger at all — so
+  the most consequential claim in this plugin was guarded by two triggers that could not go off. The
+  stamp now adds **2.1.244 or 2026-11-07, whichever comes first**, composed with
+  `docs/conventions/upstream-drift/` rather than inventing a parallel mechanism.
+- **The `SKILL.md` ownership claim is no longer a false absolute, and it gained a back-channel**
+  (`skills/worktree/SKILL.md`; #2213). "This skill is the canonical owner … — no external prose doc"
+  was untrue: a consumer doc outside this repository defers mechanism to this skill *and* is more
+  current than it. Ownership is now scoped to this plugin fleet, and states how a consumer who
+  measures something contradicting the owner gets that correction back into the owner. Canonical
+  ownership with no inbound channel makes the owner the last to know.
+
+### Fixed
+
+- **The nesting-invariant measurement is downgraded to the modality it actually has, and its fixture
+  is now recorded** (`skills/worktree/SKILL.md`, `skills/worktree/fixtures/`; #2212). The 2.1.224
+  leak measurement was **disputed, not refuted** — a 2.1.227 counter-reproduction did not observe
+  it — and *neither run recorded its fixture*, so the two results could not be compared and the
+  claim was not adjudicable. It read as settled anyway. The section now names the dispute, carries
+  an arm-by-arm status table so a fix to one arm cannot silently weaken another (the
+  **nested-in-an-unrelated-repo** arm is untested by anyone and **not** refuted — the dispute does
+  not reach it), and ships `fixtures/nesting-invariant-probe.sh`, which pins every discriminator
+  neither original run disclosed: creation mechanism, launch mode, the exact `paths:` glob and its
+  anchoring root, whether the parent's rule file was committed, and the three placements as separate
+  arms. **The probe is written and has NOT been run** — that is stated at the top of the script and
+  in `fixtures/README.md`, and nothing is claimed on its authority. It converts a recheck *trigger*
+  into a recheck *procedure*.
+- **The reproduction guidance no longer contradicts the hooks docs** (`skills/worktree/SKILL.md`;
+  #2212). It claimed the single-string command shape "silently never fires". That is not what
+  <https://code.claude.com/docs/en/hooks> says (raw markdown, fetched 2026-08-11): both command
+  forms are documented with no event-specific carve-out, and the documented rule is narrower — "Set
+  `args` whenever the hook references a path placeholder, since each element is passed as one
+  argument with no quoting." This plugin's own `hooks/hooks.json` registers all three of its hooks
+  in the single-string form and they fire. The guidance now states the documented rule, and the
+  genuinely unknown part is named as unknown: whether the single-string form fires for an
+  `InstructionsLoaded` hook supplied via `claude -p --settings <file>` is **unprobed by anyone**.
+- **The 2.1.224 version basis no longer reads as a release fact** (`skills/worktree/SKILL.md`;
+  #2212). "which 2.1.224 already handles correctly" sat several sentences from the only "Basis:"
+  clause and had already been misread as a version fact by two independent readers. The basis is now
+  inlined at the claim: it is a **null result from the same trace**, not a release note, and the
+  changelog scan behind it is packet-sourced and has not been re-run. Supersedes the in-place
+  correction shipped in 0.52.1 (#2332), which fixed the same two rows (`D-F1`, `D-F6`) inside the
+  old single-paragraph shape; both of its corrections are preserved here, restated inside the
+  restructured owner section, and `D-F2` — the missing fixture that #2332 left open — is what
+  this release adds.
+
+## [0.52.1]
+
+### Fixed
+
+- **Worktree nesting-invariant prose corrected against measured 2.1.224 behavior**
+  (`skills/worktree/SKILL.md`; #2268). The control-arms paragraph misstated the hook
+  `args`-array reproduction shape, overstated #16600 as covering path-scoped rules when
+  memory traversal did not leak in the same fixture, and dated the hooks doc fetch
+  incorrectly. Each claim now matches the InstructionsLoaded trace basis recorded in
+  the skill.
+
+## [0.52.0]
+
+### Changed
+
+- **`worktree_create_gate_enabled=false` now refuses out loud instead of exiting 0 silently**
+  (`hooks/worktree-create-gate.sh`, `.claude-plugin/plugin.json`, `README.md`; #2211). The option's
+  documented meaning — "let Claude Code use its own default", implemented as exit 0 with an empty
+  stdout — was **false**, and the suite asserted it. Measured on Claude Code **2.1.228**: a
+  `WorktreeCreate` hook that exits 0 without printing a path fails the creation with
+  `hook succeeded but returned no worktree path`, and nothing is created. So the old exit-0 path
+  produced the *same* outcome as a refusal while suppressing every explanation, because an exit-0
+  hook's stderr is dropped — the probe's stderr marker was absent from the harness output on exit 0
+  and present, in full, on exit 3. The option only became reachable at 0.51.7 (#2193 declared it in
+  `userConfig`), so this is the first release in which anyone could hit it. Disabled now exits
+  non-zero with a message naming the real stand-downs: `worktree.bgIsolation: "none"`, or disabling
+  the plugin. The docs agree at the current revision and are quoted in the fixture: "Hook failure or
+  missing path fails creation."
+- **The `WorktreeCreate` contract is now a recorded, runnable fixture** (`skills/worktree/fixtures/`;
+  #2211). `worktree-create-hook-probe.sh` runs the four arms — control, exit-0-no-path,
+  exit-3-with-stderr, path-without-directory — and `README.md` carries the outcome, the verbatim
+  harness strings, corroborating doc quotes, an as-of stamp (2026-08-11, 2.1.228) and a recheck
+  trigger, per the upstream-drift convention. A recheck is one command instead of a re-derivation
+  from memory.
+
+### Fixed
+
+- **The worktree-create gate's failure output reported a constant exit status, discarded the
+  helper's exit taxonomy, and named no remedy** (`hooks/worktree-create-gate.sh`,
+  `scripts/worktree-create.sh`; #2209). `status=$?` sat inside the body of `if ! path="$(…)"`, where
+  `$?` is the status of the *negated compound* — 0 exactly when the command failed — so every
+  failure reported `exited 0`. That constant is what produced, and cost a verification pass to
+  unwind, the theory that a hook had exited 0 while failing. The assignment now stands alone, and
+  the helper's documented `0/2/3/4` taxonomy is translated into distinct messages, so "not a
+  repository", "no `worktree_root` configured" and "illegal branch name" are no longer one
+  indistinguishable line. Every refusal leads with a **remedy** and follows with the diagnosis.
+  **Corrected mechanism:** the issue was filed on the premise that the transcript surfaces only the
+  *first* stderr line; measured on 2.1.228, a failing hook's stderr is surfaced **in full** inside
+  the harness's own error text. Remedy-first still holds — it is the line a reader acts on — but it
+  is a readability argument, not a truncation one. The helper's non-repository refusal gained the
+  same treatment.
+- **An empty or unbufferable stdin payload was reported as the wrong cause**
+  (`hooks/worktree-create-gate.sh`; #2209). `hook::buffer_stdin`'s status was ignored, so a payload
+  that never arrived surfaced as "the WorktreeCreate payload carried no `.name`" — sending readers
+  after a field in a document the hook had never received. The two are now separate messages. The
+  jq-absent fail-open path through the `sed` fallback is untouched.
+- **Both worktree suites were unrunnable on any machine with `commit.gpgsign=true`**
+  (`hooks/worktree-create-gate.test.sh`, `scripts/worktree-create.test.sh`). Their repo fixtures set
+  a throwaway identity but not `commit.gpgsign false`, so every fixture commit failed for want of a
+  secret key for that identity — and the suites then reported their *creation* cases as failures
+  while their refusal cases still passed, a shape that reads as a real regression rather than an
+  unrunnable fixture. Repo-local on a just-`mktemp`'d repo, the same line the sibling suites
+  (`scripts/landed-work.test.sh`, `skills/commit/scripts/exec-bit-check.test.sh`) already carry.
+  `worktree-create.test.sh` goes from 94/154 to 154/154 on such a machine.
+
+## [0.51.17]
+
+### Fixed
+
+- **`babysit_merge` enforces `requireSignatures` instead of only reporting it (#2265).**
+  `branch_rules` computed the flag and nothing consumed it: on a base whose ruleset requires signed
+  commits, a head held only by an unsigned or misattributed commit reported the generic
+  `mergeStateStatus` line naming four other causes — none of them the real one — and the operator
+  went re-reading checks, approvals, and threads that were already fine. New
+  `fetch_pull_request_commits` (`babysit_gh.py`) reads `.commit.verification` per PR commit,
+  paginated `per_page=100`; a missing verification block reports reason `unreadable` rather than
+  being skipped. `evaluate()` walks the commits only when the rule is present (an ungoverned base
+  pays no extra request), in the read-only pass — a signature hold discovered only under `--merge`
+  would defeat the wrapper's report-readiness purpose — and emits one blocker per verification
+  reason naming every offending commit. `unsigned`, `no_user`, and `unknown_key` carry distinct
+  remedies: `no_user` states that the signature IS valid and the author/committer email is
+  unlinked (#2162's recurring product, needing `--reset-author` or a linked email, not a key). A
+  fetch failure holds with its own "could not be read" blocker (fail closed, never a fabricated
+  reason). The generic `mergeStateStatus` enumeration now names signatures, and
+  `requiredSignatures` `{required, checked, unverified}` joins the JSON report. New tests pin
+  every reason message, the distinct-blockers property, the no-rule-no-request invariant, the
+  fail-closed fetch failure, and the fetcher's projection; all fail against the pre-#2265 modules.
+
+## [0.51.16]
+
+### Fixed
+
+- **A lane's worktree is locked at creation, and an in-flight operation outranks `landed` in
+  `landed-work.sh` (#2257).** `git worktree remove` deletes a worktree whose `status --porcelain`
+  is empty even while an interactive rebase paused at a `break` is mid-flight — cleanliness cannot
+  carry liveness. `worktree-create.sh` now arms `git worktree lock` the moment the worktree exists,
+  with a reason naming the helper, host, and start time; the cleanup skill already honored a
+  `locked` flag, but nothing in this repo ever set one, so that input was structurally always
+  absent. `landed-work.sh` adds `BISECT_LOG` to the in-progress probe (a bisect leaves porcelain
+  completely clean) and ranks `in-progress` above `landed`: consumers read `landed` as
+  safe-to-remove, and removal mid-operation destroys sequencer state and conflict resolutions even
+  when every commit is durable — the stranded family still outranks it, data loss being the
+  stronger stop. `cleanup.md` gains the locked and in-progress candidate rows (a locked worktree is
+  disarmed with `git worktree unlock` after explicit owner confirmation, never bypassed with
+  `--force --force`) and `create.md` documents the lock and its interaction with
+  `git worktree move`. New tests pin the lock (armed at creation, reason names the helper, plain
+  removal refuses and the tree survives) and the ranking (bisect probed; in-progress outranks
+  landed); all fail against the pre-#2257 scripts.
+
+## [0.51.15]
+
+### Fixed
+
+- **D6's reachability gate resolves the push remote instead of hardcoding `origin`**
+  (`reference/review-discipline.md`, `skills/pull-request/SKILL.md`; #2310). 0.51.12 replaced the
+  tip read with `git fetch origin <branch> && git merge-base --is-ancestor <fix-sha>
+  origin/<branch>` — a hardcoded remote that release itself introduced, while the same skill pushes
+  through `push-branch.sh` / `resolve-remote.sh --push` (pushRemote, pushDefault, non-`origin`
+  tracking, triangular forks). On such a checkout a successful push is followed by a fetch of the
+  wrong remote — a false D6 failure that blocks D7 and thread resolution — and an `origin` base
+  repo carrying a same-named branch can verify the wrong ref entirely (Codex P1 on #2262). Both
+  gates now resolve the remote through the existing `resolve-remote.sh --push` and compare against
+  `FETCH_HEAD`, exactly what the resolved remote just served. Verified live in both directions: a
+  non-tip fix commit on its branch exits 0 where the old tip read reported it missing, a commit
+  from a sibling branch exits 1 where the repo-presence lookup returns 200, and a deleted remote
+  branch fails the fetch loudly rather than passing.
+- **The 0.51.12 entry's two overstated claims are corrected in place.** "Matching the reachability
+  *primitive* `verify_fix_commit` uses" now claims the matching *guarantee*: that helper proves the
+  same ancestor property via the clone-free, fork-aware compare API
+  (`repos/{owner}/{repo}/compare/{sha}...{head_oid}`), not `git merge-base`. And `babysit_gh.py`'s
+  `per_page=100` sits at `fetch_paginated_api`'s call sites, not adjacent to the `--paginate` flag
+  the line-based #2246 sweep matched.
+
+## [0.51.14]
+
+### Fixed
+
+- **Rule 3 no longer lists bare `select(f)` as element-wise-safe.** Bare `select(f)` applied to a
+  paginated page (an array) errors in jq rather than filtering elements; only `.[] | select(f)` is
+  safe. Qualified alongside the existing `map(f)` carve-out fix from 0.51.13.
+
+## [0.51.13]
+
+### Fixed
+
+- **Rule 3 no longer lists bare `map(f)` as element-wise-safe (#2245).** `map(f)` is `[.[] | f]` — it
+  builds an array per page, so `--paginate` emits one array document per page unless a trailing
+  `| .[]` re-flattens. The carve-out now names `.[] | select(f)` and `.[] | f` as safe and calls out
+  `map(f) | .[]` as the safe `map` form.
+
+## [0.51.12]
+
+### Fixed
+
+- **D6's verify-commit-pushed gate checks branch reachability, not repo-wide presence or the branch
+  tip** (`reference/review-discipline.md`, `skills/pull-request/SKILL.md`; #2244). The published
+  form — `commits?sha=<branch>&per_page=1` with `--jq '.[0].sha'` — asked "is my fix commit on the
+  remote?" but read only the branch tip, so any later push made it report the fix missing while it
+  was present: a false negative on a control gate, and a positional index on a list. A
+  repository-scoped `commits/<fix-sha>` lookup fixed the tip-read false negative but still answered
+  "does this object exist anywhere in the repo?" — satisfied by a force-pushed-off commit or an
+  identical commit on another branch. The gate now fetches the PR branch and runs
+  `git merge-base --is-ancestor <fix-sha> origin/<branch>` (exit 0 when the fix commit is on the
+  remote PR branch; 0.51.15 replaces the hardcoded `origin` with the resolved push remote),
+  matching the reachability *guarantee* of `babysit-prs`'s `verify_fix_commit` — the same
+  is-ancestor-of-the-live-head property — not its mechanism, which is the clone-free, fork-aware
+  compare API (`repos/{owner}/{repo}/compare/{sha}...{head_oid}`) against the PR's own head
+  repository.
+- **Every remaining `--paginate` list read carries `per_page=100`**, conforming to rule 1 as
+  `readiness.md` publishes it (#2246): `skills/pull-request/reference/merge.md` (three
+  comment-source re-checks), `skills/pull-request/SKILL.md` (C1–C3),
+  `skills/pull-request/reference/monitor.md` (poll-loop comment fetch),
+  `scripts/fetch-all-pr-comments.sh` (the shared surface pager), and
+  `skills/babysit-loop/reference/telemetry-upsert.md` (sentinel LOOKUP). Not truncation defects —
+  `--paginate` alone fetches every page — but the default 30-per-page form costs 3.3x the
+  requests and diverges from the rule the same skill states as absolute.
+  `skills/babysit-prs/scripts/babysit_gh.py` and `scripts/request_review.py` were reported in the
+  #2246 sweep but were already conformant: each passes `per_page=100` inside the endpoint URL —
+  adjacent to the `--paginate` flag in `request_review.py`, and at `fetch_paginated_api`'s four
+  call sites in `babysit_gh.py` — so the line-based sweep matched the flag without seeing the
+  parameter.
+
+## [0.51.11]
+
+### Changed
+
+- **Shared `hook-utils.sh`: the jq gate now has a fail-CLOSED sibling, and the posture reasoning
+  lives at the helper (#2146).** `hook::require_jq` is unchanged and still fails OPEN — one visible
+  skip notice per session, then exit 0 — which is the correct posture for every hook in this plugin,
+  so **nothing in this plugin's behaviour changes**. What is new is `hook::require_jq_blocking`, a
+  second named function that denies the tool call instead, for the narrow class of guards whose job
+  is blocking an irreversible operation (today only two, both in `guardrails`). A sibling function
+  rather than a parameter, because a flag's omitted value would default to fail-open and a guard
+  whose flag someone forgot would then fail open *silently* — the exact defect #2146 reports,
+  reintroduced at the API. The two postures are now argued together in one block above both
+  functions, which is what #2146 asked for: previously each call site asserted a posture in a
+  comment and nothing where the decision is made explained it. Synced from `lib/hook-utils.sh`.
+
+## [0.51.10]
+
+### Documentation
+
+- **`exec-bit-check.sh`'s rename arm is `diff.renames`-dependent on the DEFAULT config, and that
+  trade is now recorded where the gate is (#2141).** `git mv` of a `100644` shebang file reads as
+  `D`+`A` under `diff.renames=false` and IS reported through the `A` branch; the same index and the
+  same HEAD read as `R100` under the default `diff.renames=true` and are NOT. Only the config
+  differs. **No behaviour change** — the `R*` arm keeps its `100755`-source gate. #2141 weighed
+  dropping the gate for renames and making the `A` branch skip a rename-as-add, and kept the gate:
+  the false positive it prevents is real and pinned by `repo19` in `exec-bit-check.test.sh` — a
+  deliberately non-executable sourced library or template must not be flipped to `100755` because
+  someone moved it. Dropping the gate would buy config-agreement by shipping that false positive to
+  every consumer; making the `A` branch match would buy it by reporting *less*, risking silence on
+  genuinely new files. What changes is the prose: content-determinism is stated as a property of the
+  `A` and `C` classes only — never of the whole tool — at the script header, at the candidate-set
+  gate, in `--help`, in `reference/exec-bit.md`, and next to `repo19`. New case group **19b** pins
+  both halves of the disagreement on one fixture repo, with HEAD and the index asserted identical
+  across the two runs, so the decision is executable rather than only written down.
+
 ## [0.51.9]
 
 ### Fixed

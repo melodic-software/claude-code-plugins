@@ -1,0 +1,138 @@
+# Worktree fixtures — recorded probes of harness behavior
+
+Every measured claim this plugin makes about how Claude Code treats worktrees is recorded here with
+the script that produced it, so a recheck is one command rather than a re-derivation. Stamps follow
+[the upstream-drift convention](../../../../../docs/conventions/upstream-drift/README.md): claim,
+basis, as-of date, recheck trigger.
+
+A record whose script cannot be re-run is not a fixture — it is a memory. If you change a probe,
+re-run it and update the outcome in the same commit.
+
+## `worktree-create-hook-probe.sh` — the `WorktreeCreate` hook contract
+
+**Claim.** A `WorktreeCreate` command hook has no "not applicable" channel: both failure shapes fail
+creation. It must create the directory it names. Its stderr reaches the user on a non-zero exit —
+all of it — and is dropped on exit 0.
+
+**Basis.** Four arms of `claude -p "…" --worktree <name> [--settings <file>]` in throwaway git
+repositories, plus <https://code.claude.com/docs/en/hooks> read as raw markdown (`hooks.md`) per the
+convention's [rung 1 fetch route](../../../../../docs/conventions/upstream-drift/README.md#the-rungs).
+
+**As-of.** 2026-08-11, Claude Code **2.1.228**, Windows (Git Bash).
+
+**Recheck trigger.** A Claude Code release note naming `WorktreeCreate`, worktree isolation, or hook
+stderr surfacing; or the hooks page's "WorktreeCreate output" section changing what a hook must
+return.
+
+### Recorded outcome
+
+| Arm | Hook | Result |
+|---|---|---|
+| 1 | *(none — control)* | Worktree created at `<repo>/.claude/worktrees/probe0`, on branch `worktree-probe0`, and **locked** with reason `claude session probe0 (pid 29884)` |
+| 2 | `exit 0`, no stdout | **Creation FAILS**, CLI exit 1, nothing created |
+| 3 | `exit 3`, two stderr lines | Creation fails; **both** stderr lines surfaced, prefixed with the hook command |
+| 4 | prints a path it did not create | Creation fails — the harness requires the directory to exist |
+
+Verbatim harness output, arm 2:
+
+```text
+Error creating worktree: WorktreeCreate hook failed: hook succeeded but returned no worktree path
+(command: echo the path to stdout; http/callback: return hookSpecificOutput.worktreePath)
+```
+
+Arm 3 — note that the *second* line is present, so a failing hook is not limited to one surfaced
+line:
+
+```text
+Error creating worktree: WorktreeCreate hook failed: bash "…/fail-hook.sh": FIRST-STDERR-LINE
+SECOND-STDERR-LINE
+```
+
+Arm 4:
+
+```text
+Error: worktree directory …/extroot/probe4 does not exist or is not a directory. The path came from
+a WorktreeCreate hook — the hook must print the directory it created as the last line of its stdout.
+```
+
+Arm 2's hook also wrote `PROBE-STDERR-MARKER` to stderr. That string is **absent** from the harness
+output, while arm 3's two lines are present — which is how the exit-0-stderr-is-dropped half is
+established empirically rather than inferred.
+
+### Corroborating doc quotes
+
+All from `https://code.claude.com/docs/en/hooks.md`, fetched 2026-08-11:
+
+- "Command hook prints path on stdout; HTTP hook returns `hookSpecificOutput.worktreePath`. **Hook
+  failure or missing path fails creation**"
+- "If the hook fails or produces no path, worktree creation fails with an error."
+- "**Command hooks** (`type: "command"`): print the path as the **last non-empty line** of stdout.
+  Claude Code strips ANSI escape codes before reading that line… Redirect any other hook output to
+  stderr."
+- "Any non-zero exit code causes worktree creation to fail."
+- "A `WorktreeCreate` command hook can't return JSON, because Claude Code reads its stdout as the
+  worktree path."
+
+An earlier audit recorded that no "missing path" sentence was reachable on this page. At the current
+revision it is reachable, quoted above, and it agrees with the measurement — recorded here so the
+absence claim is not carried forward.
+
+### What this settles in the plugin
+
+- `hooks/worktree-create-gate.sh`'s disabled path exits **non-zero**. The exit-0 shape it used to
+  take produced the identical outcome (creation fails) while suppressing every explanation.
+- `worktree_create_gate_enabled=false` cannot hand placement back to Claude Code. The harness-side
+  stand-downs are `worktree.bgIsolation: "none"` and disabling the plugin.
+- Every refusal message leads with a remedy, because a failing hook's stderr is what the user reads.
+
+## `nesting-invariant-probe.sh` — the nesting invariant's disputed arm
+
+**Status: WRITTEN, NOT YET RUN.** Nothing below is claimed on this script's authority. It is the
+recheck *procedure* for the claim
+[`SKILL.md § The nesting invariant, verified`](../SKILL.md#the-nesting-invariant-verified) owns;
+running it is what would convert that section's disputed arm into a settled one.
+
+**Claim under test.** From a session inside a worktree nested in a checkout, a read matching a
+path-scoped rule's glob also loads the enclosing checkout's copy of that rule.
+
+**Why it is not settled.** Measured once on 2.1.224 and not reproduced on 2.1.227 — and **neither
+run recorded its fixture**, so the two results cannot be compared. That is the whole problem: the
+outcome depends on discriminators neither run disclosed, and a null result from a fixture that
+differs anywhere is not a refutation.
+
+The discriminators this script pins, none of which the original runs recorded:
+
+| Discriminator | Why it changes the answer |
+|---|---|
+| How the worktree was **created** (`claude --worktree` / `EnterWorktree` / plain `git worktree add`) | The harness's worktree-aware behavior attaches to a session it *recognizes* as a worktree session. `worktrees.md` (fetched 2026-08-11) frames it as "whether you started it with `--worktree`, Claude entered one with `EnterWorktree`, or you resumed a worktree session" — a bare `cd` into a `git worktree add` directory is not obviously any of those. |
+| How the session was **launched** into it | Same reason. |
+| The exact `paths:` glob **and its anchoring root** | A glob anchored at the worktree root and one anchored at the parent are different tests. |
+| Whether the parent's rule file was **committed** | An untracked rule file in a worktree's parent is a different fixture from a tracked one. |
+| **Placement**: dot-prefixed `.claude/worktrees/` vs a plain subdirectory vs an **unrelated** repository | These are three separate claims, and one arm's null refutes none of the others. |
+
+**Arms.** dot-nested, plain-nested, external (control — must show zero), and unrelated-nested. The
+unrelated-nested arm is the one claimed *worse* (all three surfaces, not just scoped rules) and is
+**untested by anyone**; the dispute above does not reach it, so a result there settles nothing about
+arm A and vice versa.
+
+**Instrument.** An `InstructionsLoaded` hook, which names the files loaded rather than inferring
+them from token deltas. Registered in **exec (`args`-array) form** per
+<https://code.claude.com/docs/en/hooks> (raw markdown, fetched 2026-08-11): "Set `args` whenever the
+hook references a path placeholder, since each element is passed as one argument with no quoting."
+Delivered with `claude -p --settings <file>`, because a project-scope hook in an unapproved
+`settings.json` does not run headlessly.
+
+**A trap the script guards.** Zero trace events means *the hook did not fire* — a fixture failure,
+not evidence of absence. The script says so rather than printing a null. Mistaking one for the other
+is the most likely way this dispute arose in the first place.
+
+**Doc status of the claim.** `worktrees.md` (fetched 2026-08-11) documents the default
+`.claude/worktrees/<name>/` placement, the isolation checks, the non-suppressible `EnterWorktree`
+approval outside `.claude/worktrees/`, and what a worktree shares with the main checkout — and says
+**nothing** about whether a nested worktree's session discovers the parent checkout's
+`.claude/rules/`. The claim is doc-*unaddressed*, not doc-contradicted, which is exactly why
+measurement is the only adjudicator and why an undisclosed fixture was fatal.
+
+**When you run it:** record the outcome here — *including a null, which is a finding* — and refresh
+the as-of stamp in `SKILL.md` with the verdict, per the upstream-drift convention's
+"when a trigger fires" procedure.

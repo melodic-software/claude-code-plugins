@@ -5,6 +5,270 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.3]
+
+### Fixed
+
+- **The 0.7.1/0.7.2 collision is now on the record, and one claim that was never executed is
+  withdrawn (#2355).** Two PRs fixed the same defect in parallel and both landed: #2344 shipped
+  **0.7.1**, re-arming on a **dwell** (three consecutive strictly-better observations), and #2345
+  shipped **0.7.2**, re-arming on a **return to `smart`**, replacing the dwell implementation
+  wholesale. The behaviour on `main` is 0.7.2's and it is tested — but the record of the swap was
+  lost in the collision, so this release repairs the record. Documentation and tests only: **no
+  behaviour change**, and nothing here alters what the suite demands of the hook's logic.
+
+  - **`reference/reader-contract.md` credited the wrong version.** It read "the marker decays only
+    when the session returns to `smart` (**since 0.7.1**)". The return-to-`smart` rule is **0.7.2**;
+    0.7.1 is the dwell. The sentence was written while the change was still numbered 0.7.1 and the
+    reference did not move with the bump. Corrected, and it now names the dwell it replaced.
+
+  - **0.7.2's entry argued only against 0.7.0 and never against the 0.7.1 it superseded — and two
+    of its claims are false relative to the version it actually followed.** It was written with
+    0.7.0 as the parent, so "the sole behavioural delta is `acceptable → smart` re-arming" and
+    "every 0.7.0 assertion still passes unmodified" were verified against 0.7.0 and quietly became
+    misleading when 0.7.1 landed first: against 0.7.1's dwell the delta is the whole re-arm rule and
+    **13 assertions of this suite differ**, measured against `f57fb788`. Both are scoped in an
+    erratum on that entry rather than rewritten. The underlying difference is load-bearing, not
+    stylistic: under a three-observation dwell, `acceptable → smart → acceptable` — a genuine
+    recovery observed **once** — does not re-inject, which is the exact sequence 0.7.2 exists to
+    make re-inject. A dwell wide enough to absorb a band-edge flap cannot also honour a
+    single-observation recovery; 0.7.2 chose the recovery and accepted the residual flap at the
+    `smart`/`acceptable` edge. That trade is now stated where the two versions meet.
+
+  - **An unverified comparative is withdrawn.** 0.7.2's residual paragraph said the edge cadence was
+    "the pre-0.7.0 cadence at that one boundary, and no worse". 0.6.6's hook was never run to
+    measure that, so the comparative was reasoned rather than executed, and it is retracted here
+    rather than left standing. What replaces it is measured: the cadence is **one announcement per
+    down-up cycle**, now pinned by assertions (a second recovery buys a second announcement and no
+    more), so "bounded rather than runaway" no longer rests on reading the code.
+
+  - **Cross-version state compatibility is pinned.** 0.7.1 wrote `.armed` with TWO fields
+    (`<zone> <streak>`, e.g. `dumb 0`); 0.7.2 writes one word and reads with `tr -cd '[:lower:]'`,
+    which strips the digit and the separator. A session that started under 0.7.1 and continued under
+    0.7.2 therefore reads back correctly and stays suppressed rather than re-announcing a zone it
+    has already reported. That held by construction and now holds by assertion — no migration step,
+    exactly as with the 0.6.6 → 0.7.0 legacy-state seed.
+
+## [0.7.2]
+
+**Erratum (0.7.3):** three corrections, and the first two turn on *which version this entry was
+written against*. It was authored with **0.7.0** as the parent; by the time it merged the parent was
+**0.7.1's dwell**, and two of its sentences are true only of the former:
+
+- "the sole behavioural delta is `acceptable → smart` re-arming" — true against 0.7.0. Against
+  0.7.1 the delta is the entire re-arm rule.
+- "Every 0.7.0 assertion … still passes unmodified against the new rule" — true, and still true, of
+  0.7.0's assertions. It is not a statement about 0.7.1: this suite reports **13 failures** against
+  0.7.1's hook (measured against `f57fb788`; the run is in #2364).
+
+Third, the residual paragraph's "(the pre-0.7.0 cadence at that one boundary, and no worse)" was
+never executed against 0.6.6 and is **withdrawn**; the measured statement is one announcement per
+down-up cycle, now pinned by tests. The rest of this entry — the property, the residual itself, the
+corrected mechanism, and the write-ordering fix — stands as written and is tested against the code
+on `main`.
+
+### Fixed
+
+- **`zone-crossing-inject`: the armed rank now decays on a return to `smart` rather than after a
+  fixed two-rank improvement, because only `dumb` could ever satisfy a two-rank improvement
+  (#2343).** 0.7.0 shipped the hysteresis this plugin needed and then applied it with a rule the
+  ladder cannot express. Ranks are `smart`=0, `acceptable`=1, `dumb`=2, so from an armed rank of
+  `acceptable` the largest available improvement is ONE rank and `armed_rank - new_rank >= 2` is
+  **unsatisfiable**. A session that armed at `acceptable` could therefore never re-arm: it could
+  recover fully to `smart` and relapse to `acceptable` any number of times and stay silent for the
+  rest of its life, unless it first escalated all the way to `dumb`. That is #2220 inverted rather
+  than fixed — the flapping session 0.7.0 set out to quiet became a session that never speaks on
+  the middle band, and `acceptable → smart → acceptable` was silent while the structurally
+  identical `dumb → smart → dumb` re-injected, as 0.7.0's own test proved.
+
+  **The corrected mechanism: a target on the ladder, not a distance along it.** The armed rank now
+  decays when — and only when — the session returns to the BEST band, `smart`. Every band can reach
+  it, so the rule fires uniformly; a fixed delta cannot, on a scale three ranks wide. Raising the
+  constant to one rank was the tempting over-correction and is exactly #2220 again, since
+  `dumb → acceptable → dumb` would re-arm on edge noise.
+
+  **The property this guarantees**, stated so it can be falsified: within one arming cycle each zone
+  is announced at most once, and only a return to `smart` opens a new cycle — so a genuine recovery
+  followed by a relapse re-injects **exactly once for the band it relapses into, from any armed
+  band**, and a flap that never reaches `smart` stays silent however long it oscillates. The
+  `dumb`-band behaviour is bit-for-bit what 0.7.0 shipped: the old predicate was satisfiable only at
+  `armed=dumb, new=smart`, which the new rule also admits, so the sole behavioural delta is
+  `acceptable → smart` re-arming. Every 0.7.0 assertion — the flap, the `dumb → smart → dumb`
+  recovery, the legacy-state seed — still passes unmodified against the new rule, alongside a new
+  `acceptable → smart → acceptable` session that fails against 0.7.0.
+
+  **The residual, stated rather than papered over**: at the `smart`/`acceptable` edge a flap and a
+  full recovery are the SAME observation — `smart` is both the far side of that boundary and the
+  bottom of the ladder — so a session oscillating there re-announces `acceptable` once per down-up
+  cycle (the pre-0.7.0 cadence at that one boundary, and no worse). Rank granularity cannot separate
+  the two: this hook sees one word per observation and never the occupancy behind it, because band
+  logic lives in `scripts/context-zone.sh` and only there. Closing it needs either a numeric deadband
+  below the band edge or a dwell requirement on the improved reading — and a dwell wide enough to
+  absorb the flap would also silence the single-observation recovery this fix exists to restore.
+
+- **`zone-crossing-inject`: the emit gate no longer advances when its companion write fails, so a
+  warning that was never reported cannot be lost (#2343).** 0.7.0 wrote the `.armed` gate FIRST, on
+  the reasoning that a partial write should leave behind the marker that suppresses. That reasoning
+  was wrong: suppression is not the safe side when the notice being suppressed was never delivered.
+  With `.armed` written first, a failed `.zone` write (a transient FS error, or a directory
+  occupying the path) exited without emitting while leaving the gate advanced — and after recovery
+  the next identical observation was suppressed by `new_rank > armed_rank`, permanently losing the
+  first warning of that zone. The order is now label first, gate second, with the label rolled back
+  best-effort if the gate write fails; either failure leaves the gate unmoved, so the session is
+  still owed its injection and the next observation issues it. Fail-open-silently and the
+  `status=error` telemetry are unchanged; the telemetry payload gains a `marker` field naming which
+  write failed. 0.7.0's persistence test created exactly this partial-write state and never retried
+  after clearing the obstruction, so it passed while the defect stood — it now retries, on both
+  markers.
+
+## [0.7.1]
+
+### Fixed
+
+- **The 0.7.0 re-arm rule permanently silenced the middle band; it now decays on a DWELL rather than
+  a rank distance (#2220).** `REARM_MARGIN=2` is satisfiable only from `dumb`: the largest
+  improvement available from `acceptable` is one rank, so `armed_rank - new_rank >= 2` could never
+  hold there. A session that armed at `acceptable` could never decay again — a full recovery to
+  `smart` followed by a relapse stayed silent for the rest of the session, however many times it
+  happened, unless the session first escalated all the way to `dumb`. Reproduced against the shipped
+  hook side by side with the structurally identical `dumb` sequence, which did re-inject:
+
+  ```
+  acceptable -> INJECTED   armed=acceptable        dumb  -> INJECTED   armed=dumb
+  smart      -> silent     armed=acceptable        smart -> silent     armed=smart
+  acceptable -> silent     armed=acceptable        dumb  -> INJECTED   armed=dumb
+  smart      -> silent     armed=acceptable
+  acceptable -> silent     armed=acceptable
+  ```
+
+  This was **0.7.0's own defect inverted** — never re-inject instead of always re-inject — so the
+  fix is not a smaller constant: a delta of 1 simply restores the flap 0.7.0 set out to remove. The
+  rule now counts **time instead of distance**. Any observation strictly better than the armed rank
+  extends a streak, returning to the armed rank breaks it, and **three consecutive better
+  observations** decay the armed rank. A streak is expressible from every rung of a three-rung
+  ladder while a two-rank drop is not, so every band now behaves identically: an unsustained dip
+  never re-arms, and a sustained one always does — from `acceptable` exactly as from `dumb`.
+
+  The dwell is a declared judgment default on the same footing as the bands themselves
+  (`reference/reader-contract.md` records their provenance); nothing here is doc- or
+  benchmark-derived. A band-edge oscillation resolves within a single observation as one batch's
+  results land and are released, so one better observation is precisely what noise looks like; three
+  span more than a full PostToolBatch/UserPromptSubmit cycle, which a session alternating across the
+  edge turn by turn never accumulates.
+
+- **The armed gate no longer advances on a turn that emitted nothing, which could lose a warning
+  permanently.** 0.7.0 wrote the markers gate-first, on the reasoning that a stale gate merely
+  withholds a repeat. That was backwards. If `.armed` landed and the companion `.zone` write then
+  failed (a transient full or read-only filesystem, or a directory occupying the path), the hook
+  exited without emitting while leaving the gate advanced — so once the filesystem recovered, the
+  next identical observation was no longer worse than the armed rank and the **first** warning was
+  never delivered at all. Losing the first warning is strictly worse than the repeat the ordering
+  was protecting against.
+
+  `.zone` is now written first and `.armed` installed afterwards, all-or-nothing: if either step
+  fails the gate is left exactly where it was and the same observation is free to emit on a later
+  call. `.armed` is installed by **rename** rather than written in place, because `>` truncates
+  before it writes — a failure partway through would otherwise leave an empty marker, which parses
+  as no marker, which seeds from a `.zone` already updated to the current zone, suppressing the very
+  warning the ordering exists to protect.
+
+### Changed
+
+- **A transition into a zone BETTER than the worst already reported is now silent.** 0.7.0 still
+  injected on `dumb` → `smart` → `acceptable`, because a single `smart` observation re-armed the
+  ladder outright and `acceptable` was then worse than the armed `smart`. Under the dwell it is
+  silent: one observation is not a sustained improvement, so the armed rank is still `dumb` and
+  `acceptable` is not worse than `dumb`. The operator has already been told this session reached
+  `dumb`; announcing a better zone afterwards is the noise #2220 is about. The pre-existing test
+  that asserted the old behaviour was updated rather than deleted, and says so at its site.
+
+### Notes
+
+- **Erratum, not a rewrite — the 0.7.0 entry below keeps the wording it shipped with.** Its
+  description of the re-arm rule ("an improvement of at least **two ranks**") is accurate about what
+  0.7.0 did; what it does not say is that the rule was unsatisfiable from `acceptable`. The claim it
+  makes about `dumb → acceptable → dumb` injecting once remains true. Read it as superseded by this
+  entry rather than as wrong (`docs/conventions/upstream-drift/README.md` §Adopters: history is
+  never rewritten).
+- **The test gap that allowed this is closed at the same time.** 0.7.0's suite exercised only
+  `dumb → smart → dumb`, which the rank-delta rule happened to get right; the
+  `acceptable → smart → acceptable` path — the one it got permanently wrong — had no case. Case 4d
+  now covers that band's flap and its sustained-recovery half on a session of its own. The
+  persistence test likewise now clears the obstruction and re-runs the identical observation, which
+  is what makes it discriminating; previously it stopped at "it stayed silent", a state a gate that
+  had advanced would also have passed.
+- `.armed` now holds `"<zone-word> <streak>"` and is parsed field-wise, with both fields validated
+  against their own vocabulary so a truncated or hand-edited marker falls back to seeding rather
+  than silently disarming the gate. A 0.7.0 marker holds a bare zone word: the streak parses as 0,
+  which is exactly the right starting point, so no migration step and no state-format version are
+  needed.
+- No blocking behaviour, no permission, no new hook registration, and no external read or write
+  changes; the plugin's trust surface is untouched.
+
+## [0.7.0]
+
+### Changed
+
+- **`zone-crossing-inject`: the injection gate is now the worst zone this session has already
+  REPORTED, not the zone it last SAW — zone bands had no hysteresis, so a session flapping across a
+  boundary re-injected on every crossing (#2220).** The bands are hard thresholds and occupancy does
+  not climb monotonically: tool results land and are released, so a session sitting near a boundary
+  crosses it repeatedly. The old latch compared each observation against the last-seen zone and
+  persisted state in both directions, which made every re-crossing a fresh transition — the ~1KB
+  (~250 token) guidance block re-emitted each time, with an *improvement* of any size silently
+  re-arming the injection and nothing counting or capping the flap.
+
+  A second per-session marker (`<session>.armed`) now holds the worst zone already reported, and the
+  emit gate compares against it. It decays only on an improvement of at least **two ranks** — the
+  full width of the `smart`/`acceptable`/`dumb` ladder. The margin is a declared judgment default on
+  exactly the same footing as the bands themselves (`reference/reader-contract.md` records their
+  provenance); nothing here is doc- or benchmark-derived, and the reasoning is stated rather than
+  asserted: a one-rank dip at a band edge is the oscillation described above and says nothing new,
+  while `dumb → smart` cannot be edge noise. A `/clear` needs no margin — it starts a new session
+  id, hence a fresh state file and a fresh baseline.
+
+  Net effect: a zone is announced at most once per session unless the session genuinely recovers,
+  after which the ladder re-arms and the next worsening is reported normally. `dumb → acceptable →
+  dumb` now injects **once**; `dumb → smart → dumb` still injects **twice**. Both are pinned by
+  tests, on separate sessions so the two paths cannot share state.
+
+  A sibling file rather than a second line in the existing one: the state reader is
+  `tr -cd '[:lower:]'`, which strips the newline, so two lines would fuse into `dumbacceptable` and
+  rank as `smart`. Sessions already running when this version lands have a `.zone` file and no
+  `.armed` file; the armed rank seeds from the last-seen zone, so the first call after the upgrade
+  decides exactly as 0.6.6 would have and latches from there — no migration step, no state-format
+  version. The armed marker is written **first** of the two, so a partial write failure can never
+  leave the gate open against a marker that already moved.
+
+  **Not the recurring 10s-timeout defect, and not a duplicate of it.** That one
+  (`20260730-182801-context-guard-zone-crossing-hook-times-out-100-percent`) was four `hooks.json`
+  registrations declaring `timeout: 10` against measured 10.6–21.4s runtimes, so the hook **died
+  rather than ran**; it was fixed in 0.4.8 via PR #2001 by raising all four to 60. This release is
+  about how often the hook injects **when it does run**. A triager reaching for that item should
+  stop here.
+
+  Deliberately preserved, because they are load-bearing and easy to refactor away: the two-channel
+  split with the continuation menu kept out of model context, the hook's refusal to claim an
+  operator is present, the inert default posture, the worsening-only latch itself, and
+  `zone-gate.sh`'s structural no-deadlock exemptions. No blocking behaviour, no permission, and no
+  external read or write changes; the plugin's trust surface is untouched.
+
+## [0.6.6]
+
+### Changed
+
+- **Shared `hook-utils.sh`: the jq gate now has a fail-CLOSED sibling, and the posture reasoning
+  lives at the helper (#2146).** `hook::require_jq` is unchanged and still fails OPEN — one visible
+  skip notice per session, then exit 0 — which is the correct posture for every hook in this plugin,
+  so **nothing in this plugin's behaviour changes**. What is new is `hook::require_jq_blocking`, a
+  second named function that denies the tool call instead, for the narrow class of guards whose job
+  is blocking an irreversible operation (today only two, both in `guardrails`). A sibling function
+  rather than a parameter, because a flag's omitted value would default to fail-open and a guard
+  whose flag someone forgot would then fail open *silently* — the exact defect #2146 reports,
+  reintroduced at the API. The two postures are now argued together in one block above both
+  functions, which is what #2146 asked for: previously each call site asserted a posture in a
+  comment and nothing where the decision is made explained it. Synced from `lib/hook-utils.sh`.
+
 ## [0.6.5]
 
 ### Changed

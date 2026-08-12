@@ -22,6 +22,73 @@
       "melodic-software/ci-workflows/.github/workflows/select-runner.yml@734158c4cb6e67b0b99fd703045ac0f7f9f042d5"
     ]
   },
+  "approvedSelectorInputContracts": {
+    "melodic-software/ci-workflows/.github/workflows/select-runner.yml@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c": {
+      "allowedInputs": ["self-hosted-labels-json"]
+    },
+    "melodic-software/ci-workflows/.github/workflows/select-runner.yml@029a1c37a9b86f8200ef03f6f0c54fb1e7e6cdb1": {
+      "allowedInputs": ["self-hosted-labels-json"]
+    },
+    "melodic-software/ci-workflows/.github/workflows/select-runner.yml@3cb83c9502da0b210c335785e250023508c4b8e3": {
+      "allowedInputs": ["self-hosted-labels-json"]
+    },
+    "melodic-software/ci-workflows/.github/workflows/select-runner.yml@de50a08b6093d231519ee7a4c9371db76c0a7e1e": {
+      "allowedInputs": ["self-hosted-labels-json"]
+    },
+    "melodic-software/ci-workflows/.github/workflows/select-runner.yml@3415de3ff2fafee40e4d087eb6073d2f6952b595": {
+      "allowedInputs": ["self-hosted-labels-json"]
+    },
+    "melodic-software/ci-workflows/.github/workflows/select-runner.yml@f2d5e06757201f2fce187096a2c6fa805836c3d2": {
+      "allowedInputs": ["self-hosted-labels-json"]
+    },
+    "melodic-software/ci-workflows/.github/workflows/select-runner.yml@3931f91ccba9bfe97500196091ae2cc039672952": {
+      "allowedInputs": ["self-hosted-labels-json"]
+    },
+    "melodic-software/ci-workflows/.github/workflows/select-runner.yml@cdc5917c15aade1995bd810b60d818cadc635b52": {
+      "allowedInputs": ["self-hosted-labels-json"]
+    },
+    "melodic-software/ci-workflows/.github/workflows/select-runner.yml@ec91c3433a8c3c0a7ebbdd239286e5a6a25eeec5": {
+      "allowedInputs": ["self-hosted-labels-json"]
+    },
+    "melodic-software/ci-workflows/.github/workflows/select-runner.yml@90f1c54935203fa31b5b3d1f41531228be2c2b7f": {
+      "allowedInputs": ["self-hosted-labels-json"]
+    },
+    "melodic-software/ci-workflows/.github/workflows/select-runner.yml@e77f0126b474144708719f99795e44d0ffe2541d": {
+      "allowedInputs": [
+        "self-hosted-labels-json",
+        "admits-ancillary-events",
+        "admits-comment-events"
+      ]
+    },
+    "melodic-software/ci-workflows/.github/workflows/select-runner.yml@c136b27f404dd32ce3873f39a6f3443891d1c16e": {
+      "allowedInputs": [
+        "self-hosted-labels-json",
+        "admits-ancillary-events",
+        "admits-comment-events"
+      ]
+    },
+    "melodic-software/ci-workflows/.github/workflows/select-runner.yml@e94438746c300b02385a7f8a2a2dcd19a7f4ad4a": {
+      "allowedInputs": [
+        "self-hosted-labels-json",
+        "admits-ancillary-events",
+        "admits-comment-events"
+      ]
+    },
+    "melodic-software/ci-workflows/.github/workflows/select-runner.yml@ee96bd28a43eebfa06b61aee8b518cc5b1b195b3": {
+      "allowedInputs": [
+        "self-hosted-labels-json",
+        "admits-ancillary-events",
+        "admits-comment-events"
+      ]
+    },
+    "melodic-software/ci-workflows/.github/workflows/select-runner.yml@734158c4cb6e67b0b99fd703045ac0f7f9f042d5": {
+      "allowedInputs": [
+        "self-hosted-labels-json",
+        "admits-ancillary-events",
+        "admits-comment-events"
+      ]
+    }
+  },
   "approvedReusableWorkflowContracts": {
     "melodic-software/ci-workflows/.github/workflows/claude-review.yml@1d3762c2ace413db0f347048307946c46850161c": {
       "routing": "hosted-only",
@@ -682,7 +749,8 @@
     "name": "runner",
     "expression": "${{ inputs.runner }}",
     "default": "ubuntu-24.04",
-    "failureSentinel": "ci-runner-selection-failed"
+    "failureSentinel": "ubuntu-24.04",
+    "failureSentinelMarker": "ci-runner-selection-failed"
   },
   "fallbackLabelAllowlist": ["ubuntu-24.04", "melodic-ubuntu-24.04-x64"],
   "forbiddenHostedRunnerLabels": ["macos-latest", "ubuntu-latest", "windows-latest"],

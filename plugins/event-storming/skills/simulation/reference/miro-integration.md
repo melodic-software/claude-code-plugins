@@ -275,4 +275,4 @@ The `miro` plugin's server supports bulk creation (up to 20 items per batch) via
 - [Miro Developer Docs — MCP Intro](https://developers.miro.com/docs/mcp-intro)
 - [Miro Developer Docs — Connecting to Claude Code](https://developers.miro.com/docs/connecting-miro-mcp-to-ai-coding-tools)
 - [Miro REST API — Sticky Note Style](https://miroapp.github.io/api-clients/python/miro_api/models/sticky_note_style.html)
-- [Miro REST API — Create Sticky Note](https://developers.miro.com/reference/create-sticky-note-item)
+- [Miro REST API — Create Sticky Note](https://developers.miro.com/reference/create-sticky-note-item-1)

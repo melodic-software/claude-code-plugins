@@ -142,8 +142,9 @@ if [[ "$url" == */issues/comments/* ]]; then
 fi
 # List comments (GET, --paginate): serve the fixture verbatim. Logged like every
 # other call so a pre-write rejection can assert an EMPTY log — proving zero API
-# calls, not merely zero mutations.
-if [[ "$url" == */comments ]]; then
+# calls, not merely zero mutations. The query string is matched explicitly rather
+# than with a bare `?` glob, which would also swallow `/commentsX`.
+if [[ "$url" == */comments || "$url" == */comments'?'* ]]; then
   printf 'CALL method=GET url=%s\n' "$url" >>"$STUB_LOG"
   cat "${STUB_COMMENTS_FILE:-/dev/null}"
   exit 0
@@ -293,7 +294,9 @@ assert_eq "instance-suffixed marker is a valid --marker" 0 "$rc"
 
 # ============================================================================
 # pagination — sentinel comment on a SECOND page is still found (no duplicate)
-# --paginate concatenates one array per page; the script slurps them.
+# Real `gh --paginate` merges array pages into one array, but the script's
+# `jq -s 'add'` is correct under either shape, so the fixture feeds it the
+# harder one: a page-per-document stream.
 # ============================================================================
 cat >"$TMP/paged.json" <<JSON
 [

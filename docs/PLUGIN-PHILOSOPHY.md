@@ -478,6 +478,7 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Hook precision (false-positive discipline) | [`docs/conventions/hook-precision/`](conventions/hook-precision/README.md) |
 | Hook config delivery (userConfig→hook channel matrix) | [`docs/conventions/hook-config-delivery/`](conventions/hook-config-delivery/README.md) |
 | Permission-rule hygiene | [`docs/conventions/permission-rule-hygiene/`](conventions/permission-rule-hygiene/README.md) |
+| Plugin-data report keying, retention, and overwrite | [`docs/conventions/plugin-data-report-keying/`](conventions/plugin-data-report-keying/README.md) |
 | Repository standards index | [`docs/conventions/standards/`](conventions/standards/README.md) |
 | Skill layout contract and evals schema | `skill-quality` plugin (contract gate + bundled schema) |
 | Review severity vocabulary | `review` plugin (`context/severity.md`) |
@@ -883,7 +884,7 @@ name is not the same underlying value across models):
   only if Claude's triggering still doesn't match your needs at that level" — and gives the
   rationale that lowering effort "is usually the better first lever, since it is a calibrated
   control rather than a wording-sensitive instruction"
-  ([steering thinking: steering how often Claude thinks](https://platform.claude.com/docs/en/build-with-claude/thinking-steering-and-cost#steering-how-often-claude-thinks),
+  ([steering thinking: effort levels](https://platform.claude.com/docs/en/build-with-claude/thinking-steering-and-cost#effort-levels),
   verified 2026-08-03). Both directions: shallow output from a pinned-`low` lane raises the lane's
   effort rather than prompting around it, and a lane thinking more than the work needs lowers the
   pin before any prose telling the model to think less — upstream states that reduce direction

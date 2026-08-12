@@ -3,9 +3,400 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.1]
+
+### Fixed
+
+- **`block-hook-bypass`'s own scope message told the operator it covers `inline python3 -c only`,
+  which 0.28.0 had just made false (#2217).** Both emitted notes — Bash and PowerShell — are the
+  guard's contract with whoever it just blocked, so understating the enforced surface is not a
+  cosmetic slip: it is the same false-account defect in the opposite direction, and it invites the
+  contortion the note's own preamble warns about (an agent routing to a form it is told the guard
+  cannot see). 0.28.0 widened the python lane from the literal `python3 -c` to the interpreter family
+  plus a `python3 - <<PY` stdin heredoc and left both notes unchanged. Emitted now, verified by
+  invoking the hook:
+
+  ```
+  Scope: only this command string is inspected — known shell file-write forms plus inline python
+  code (python/python3/py/pypy with -c, or a program read from stdin as python3 - <<PY) only. POSIX
+  tee pipe writes, other inline-interpreter writes (e.g. node -e, sed -i), a stdin heredoc with no -
+  argument (python3 <<PY), writes inside an invoked script file or a program's own opaque code, and
+  redirects produced by another program, are not seen.
+  ```
+
+  The contract test is the part that should have caught this and did not: its assertion pinned the
+  literal string `inline python3 -c only`, so it kept passing while the claim went stale. It now
+  pins the family, the stdin form **and** the no-dash residual, so the note cannot drift from the
+  detector without a failure. Found by the automated reviewer on the 0.28.0 PR, after that PR had
+  already merged. No detector behaviour changes: 0 granted → refused, 0 refused → granted.
+
+## [0.28.0]
+
+### Fixed
+
+- **`block-hook-bypass` missed three inline-write forms that reach a real file, one of them a
+  residual the file itself recorded as accepted (#2217).** Measured against `4c90b454` (0.27.2),
+  hook invoked as a decision function on a `PreToolUse` Bash payload — `rc=2` blocked, `rc=0`
+  allowed:
+
+  ```
+  rc=0 :: python -c "open('f','w').write('x')"
+  rc=0 :: py -c "open('f','w').write('x')"
+  rc=0 :: python3.11 -c "open('f','w').write('x')"
+  rc=0 :: printf 'a<newline>b<newline>' > notes.md
+  rc=0 :: python3 - <<'PY' … open('f','w').write('x') … PY
+  rc=2 :: python3 -c "open('f','w').write('x')"   # the one spelling that matched
+  rc=2 :: printf "a\nb\n" > notes.md              # the same write, escaped newline
+  ```
+
+  Three separate causes, all in the direction of letting a write through:
+
+  1. **The interpreter detector was a spelling floor, not a rule.** Both lanes required the literal
+     `python3` — the Bash lane's `EXEC_LC` scan and the PowerShell lane's
+     `ps::might_write_via_python3` token test — so `python -c`, `py -c`, `py3 -c`, `python2 -c` and
+     `python3.11 -c` ran the identical inline write unseen. The guard's own scope message advertised
+     `python -c` as its example, naming the one spelling the regex did not match. The command word is
+     now the python family (`py`/`python`/`pypy` plus an optional version suffix and `.exe`), still
+     separator-anchored, so `notpython3`, `mypython3`, `mypy`, `spy`, `happy` and `pytest` stay
+     inert. `py -3 -c` is admitted because a `-<digits>` token cannot be a script path; no other gap
+     between interpreter and flag is, so `python3 build.py` and `python3 -m tool …` are still not
+     blocked.
+
+  2. **A physical newline inside a quoted span split a producer from its own redirect.** A newline
+     reached with a quote still OPEN is not a separator — bash is inside a quoted word, so the text
+     either side of the span is ONE word — but `strip_literals` re-emitted it, `normalize_segments`
+     split there, and `producer_redirect_bypass` requires producer and redirect in one segment. The
+     join is now empty rather than a newline. **Empty, not a space:** `ec"<newline>"ho x > f` is
+     `echo x > f` to bash, and a space join leaves `ec ho`, which `_producer_head` does not match —
+     the fix ships with that case as an assertion. Joining empty cannot manufacture a token bash does
+     not also form, because an open quote is what makes the two sides one word. The kept-operand and
+     backslash-newline joins are unchanged; the multi-line `--body`/`-m` prose floor is unchanged
+     because a dropped span's content is dropped either way.
+
+  3. **REOPENED ACCEPTED RESIDUAL** — a stdin heredoc (`python3 - <<PY … PY`, no `-c`) was recorded
+     as uncovered and accepted in the PowerShell lane's comment. It is reopened here on new
+     reachability evidence rather than treated as an oversight: this repo's own session record shows
+     an agent reaching for exactly that form to patch a file
+     (`.work/handoffs/20260809T082720Z-handoff-post-2008-followups.md:211`, `python - <<'PY'`), and
+     widening the `-c` arm raises the pressure toward it, since a refused `python -c` write reroutes
+     most naturally to the heredoc. The `-` is what makes it inline: the code sits in the command
+     string the hook reads, not in an opaque script file. The acceptance comment is updated in both
+     `block-hook-bypass.sh` and `lib/powershell/ps-command.sh` rather than contradicted.
+
+  **Direction of every change: 23 granted → refused, 1 refused → granted.** Measured, not asserted:
+  the new assertions were run against the PRE-change hook and the failures enumerated
+  (`PASS=377 FAIL=15`, every one `expected 2, got 0`), then adversarial probes written afterwards
+  specifically to hunt the other direction turned up eight more rows, now assertions as well.
+
+  The **one** in the other direction is `foo "a<newline>" echo x > f`, and it is a false positive
+  being removed rather than a new exemption. Fusing the two sides of a span back into one segment
+  also puts whatever preceded the span at the segment start: there bash's command word is `foo` and
+  `echo` is one of its *arguments*, so the redirect's producer is another program and this guard is
+  producer-scoped by design. The newline previously split it into a bogus `echo x > f` segment. The
+  single-line spelling `foo "a" echo x > f` was already allowed, so this makes the multi-line form
+  agree with shipped behaviour; both are asserted, as is the mirror case (`echo "a<newline>" x > f`,
+  where the command word really is the producer) which moves the other way.
+
+  It is one row and not a class, verified rather than reasoned: every command PREFIX the file already
+  models — env assignments, `env`, `if…then`, `!`, `exec -a NAME`, a leading redirect — was probed in
+  front of a multi-line span against both hooks, and all still block, because `_cmd_prefix` /
+  `_modifier_opt_arg` / `_leading_redir` peel on the fused segment. Each is pinned with its
+  single-line control. Every remaining floor keeps its `rc=0`: the name anchor, the `#1601`/`#2148`
+  over-block repros re-run for each new spelling, the multi-line prose/`--body` floor, the
+  `/dev/null` discard floor, and the stdin floor.
+
+  **Accepted residual, restated at its narrowed width:** `python3 <<PY … PY` — stdin with **no** `-`
+  argument — stays uncovered. Matching a bare trailing interpreter token would flip
+  `echo "pathlib" | python3` and `cat script.py | python3` to blocked, so that exemption costs this
+  one spelling; both floors are asserted. Same discipline as the `-c` arm: no gap is allowed between
+  the interpreter and its flag beyond a `-<digits>` version selector, so `python3 -O - <<PY` is
+  uncovered too — admitting an arbitrary option-shaped token is what would let a *script path*
+  through as one. Inline writes via other interpreters (`node -e`, `perl -e`, `ruby -e`, `sed -i`)
+  remain out of scope, unchanged.
+
+## [0.27.2]
+
+### Fixed
+
+- **`skill-reference-verify` and `stale-path-verify` treated a malformed `replace_all`
+  extraction like a legitimate `false` (#2126).** Both hooks now accept only the
+  stringified `"true"` / `"false"` values the jq filter produces; any other shape skips
+  verification rather than proceeding on the permissive branch.
+
+### Changed
+
+- **Eight prose references still named 0.26.0 as the release that made `block-hook-bypass`'s
+  exemptions operand-keyed. It is 0.27.0.** No behaviour changes, no assertions moved. The #2226 work
+  was written against 0.26.0 and renumbered when `main` took that version for the
+  `block-dangerous-git` / `block-no-verify` `jq` fail-closed change (#2146) while the branch was
+  open. The renumber reached the CHANGELOG heading, the manifest version and the entry's own
+  comparison table; it did not reach the narrative around them, so the README caveat paragraph (2),
+  the note above `scratch_target_exempt` (1), three comments in the contract test, and the erratum
+  inside the 0.25.1 entry (2) each pointed a reader at a release that documents something else
+  entirely. 0.26.0's own heading and entry are untouched — that is the one 0.26.0 reference in this
+  plugin that is correct.
+
+## [0.27.1]
+
+### Fixed
+
+- **`stale-path-verify.test.sh` comment now matches the shipped `[Ss]` exemption.** The
+  assume-unchanged case comment claimed only uppercase `S` was exempt; the hook and the test
+  nine lines below both treat lowercase `s` as skip-worktree too. (#1555)
+
+## [0.27.0]
+
+### Fixed
+
+- **`block-hook-bypass` exempted a quoted redirect target on its first word, so a write whose real
+  destination was somewhere else entirely was waved through as a `/dev/null` discard (#2226).**
+  A quoted redirect operand is ONE pathname to bash. This guard decided its target-based exemptions
+  on the operand's first whitespace- or separator-delimited fragment, because the machinery either
+  side of that decision disagreed about what a kept operand is: `strip_literals` **keeps** a quoted
+  write target as literal content — dropping the quotes so a quoted target still reads as a write —
+  while `normalize_segments` then read a `;`, `|`, `&`, `(`, `)` or newline *inside* it as a segment
+  boundary and `_redir_scan`'s target class ended at whitespace.
+
+  Measured at `56f5cd21` (0.25.3), hook invoked as a decision function on a `PreToolUse` Bash
+  payload — `rc=2` blocked, `rc=0` allowed:
+
+  ```
+  rc=0 :: echo x > "/dev/null ../../etc/pw"        # exempted on the word /dev/null
+  rc=0 :: echo x > "/dev/null;/../../etc/passwd"
+  rc=0 :: echo x > '/dev/null ../../etc/pw'
+  rc=0 :: echo x > /dev/"null ../../etc/pw"
+  rc=0 :: echo x > /dev/null\;/../../etc/passwd    # the unquoted escaped spelling
+  rc=0 :: cat > "/dev/null ../../etc/pw"           # and the cat lane
+  ```
+
+  Nothing named `/dev/null` is the destination in any of them. Reaching a *chosen* file this way
+  needs a directory whose name ends in the whitespace-bearing fragment to already exist, so this is
+  correctness and defence-in-depth rather than a demonstrated escape — but it is the exact assumption
+  every target-based exemption rests on, and this guard now has two.
+
+  `strip_literals` marks a kept operand's literal content with two sentinels. `\x03` **OPAQUE**
+  stands in for one character whose literal value would read as syntax downstream, or for a backslash
+  escape this strip cannot reproduce faithfully (inside double quotes bash *retains* the backslash
+  unless it escapes `$`, `` ` ``, `"`, `\` or a newline). It is inert to every scan, so the operand
+  survives as one token, and its presence means the pathname is not recoverable here — no exemption
+  of any kind may be granted. `\x04` **QUOTED** is emitted where a kept span opens; the discard
+  compare strips it, so `> "/dev/null"` is still a discard, while the scratch-root axis keeps its
+  shipped floor of never exempting a quoted operand. A raw `\x01`-`\x04` byte arriving in the command
+  text is mapped to OPAQUE, so a forged sentinel can only ever *cost* an exemption.
+
+  Every mark is gated on "this word began right after a `>`" — the same test the quoted-operand keep
+  already used, now factored out and applied to the unquoted backslash branch too. **That gating is
+  load-bearing, not tidiness:** `normalize_segments`, `_producer_head`, `_cat_redir` and every
+  whitespace trim in the file are byte-for-byte as shipped, so an escaped separator *between*
+  commands (`echo x \; > f`) still travels the unchanged `\x02`-to-space path, and a backslash in a
+  command word (`/c/Python313/python3.exe -c`) is untouched. #1680 and #1667 read this same
+  normalization; their shapes (`echo x >&2`, `printf … >&2`, `echo x &>file`, `1>&2`, `2>&1`,
+  `>&2>file`, `cat 1>&2`, `cat 1>&-`) carry no quotes and no backslashes, emit no mark, and were
+  measured before and after with **no delta**. Neither issue moves.
+
+### Changed
+
+- **The scratch-root exemption's fail-close is keyed on the redirect operand instead of the whole
+  raw command, retiring both blunt edges 0.25.1 documented (#2236).** With the operand/quote
+  association restored above, `scratch_target_exempt` no longer has to infer it from
+  `${COMMAND#*>}`. It reads the operand's own marks, so the two frictions 0.25.1 recorded as
+  unfixable-without-#2226 are gone:
+
+  | command, root `/tmp/scratch` | 0.25.3 | 0.27.0 |
+  | --- | --- | --- |
+  | `echo x > /tmp/scratch/f && grep foo "notes.txt"` | blocked | **allowed** |
+  | `echo x > /tmp/scratch/f; cat "notes.txt"` | blocked | **allowed** |
+  | `echo "a > b" > /tmp/scratch/f` | blocked | **allowed** |
+  | `echo 'x > y' > /tmp/scratch/f` | blocked | **allowed** |
+  | `echo x > "/tmp/scratch/f"` — a merely quoted operand | blocked | blocked |
+  | `echo x > "/tmp/scratch/a;/../../etc/passwd"` | blocked | blocked |
+
+  **Grade every verdict this release moves on the direction that matters:** refusing an exemption is
+  friction, granting one is a bypass. Counted from the new suite run against 0.25.3's hook, which
+  reports 19 failures split 15/4 by direction:
+
+  - **15 move from GRANTED to REFUSED.** The `/dev/null` family above in its quoted, single-quoted,
+    partially-quoted, escaped, fd-numbered (`1>`), `cat`-lane and real-file-then-operand spellings,
+    plus a multi-line quoted operand, an operand continued by a backslash-newline, and an empty
+    quoted target (`> ""`).
+  - **4 move from REFUSED to GRANTED** — the first four rows of the table above. That is the entire
+    grant surface of this release, and each one lands on a target the marks *prove* was bare: no
+    quote mark, no opaque mark, no backslash.
+
+  A forged sentinel byte and an escaped-space operand are **not** in either set: both already blocked
+  at 0.25.3 and are pinned here as regression guards, not flips. The scratch axis's own floor is
+  deliberately *not* widened even though the operand is now known precisely: a quoted operand stays
+  non-exempt, and 0.25.0's assertion saying so is untouched.
+
+  0.25.1's entry below says the breadth "stays" and that narrowing it needs #2226. Both were true
+  when written; #2226 is now fixed and this entry is that entry's erratum. Per Keep a Changelog the
+  0.25.x entries are left as they shipped.
+
+  One assertion 0.25.0 shipped is **retired** rather than kept: `control: /dev/null still shows the
+  inherited truncation (#2226, allowed)`, which 0.25.0's own PR wrote so that it "flips visibly when
+  this issue is fixed". It is replaced by six `/dev/null` assertions covering the whole family, not
+  just its `;` spelling. Every other 0.25.0 and 0.25.1 assertion still passes unmodified except the
+  four graded above.
+
+## [0.26.1]
+
+### Fixed
+
+- **`block-dangerous-git` `repo_oid_width` no longer caches a width-0 failure or misdiagnoses it as a movable lease (#2227).** When `git rev-parse --show-object-format` fails, the guard now surfaces the git error, refuses to cache the failure for the rest of the invocation, and blocks with a distinct message from the abbreviation/wrong-width case — so a literal full-width SHA is not blamed on the operator when the repository's hash format could not be read.
+- **`--no-force-with-lease` now clears unknown-width lease state.** A trailing negation that cancels every preceding `--force-with-lease` also resets `lease_width_unknown` and `_lease_oid_width_unknown`, so a pinned lease whose width probe failed is not incorrectly blocked after the negation.
+
+## [0.26.0]
+
+### Changed
+
+- **`block-dangerous-git` and `block-no-verify` now FAIL CLOSED when `jq` is missing (#2146).**
+  `hook::require_jq` skipped the whole hook and exited 0 after one notice per session, so on a
+  machine without `jq` the guard was off: measured, `git push --force origin main` was **allowed**.
+  The same two scripts already fail *closed* on the other input they cannot parse — a command above
+  `MAX_COMMAND_LEN` is treated as obfuscation and blocked — so one script held two opposite postures
+  toward "I cannot read this input", and an author who could not fit a dangerous command under
+  16384 characters could simply be somewhere without `jq`. These two now deny instead, naming `jq`
+  as the missing prerequisite and pointing at the same install route the skip notice used.
+- **BREAKING for a `jq`-less machine, and stated plainly:** these guards run on every Bash and
+  PowerShell tool call, and without `jq` they cannot read the command at all — so they cannot tell a
+  dangerous one from a safe one and deny **both**. Every matched tool call is blocked until `jq` is
+  installed or the guard's own `block_dangerous_git_enabled` / `block_no_verify_enabled` option is
+  set to false. That is the hard dependency the fail-closed decision accepted; a `jq`-free substring
+  pre-check was considered and rejected for manufacturing a false sense of coverage. The kill switch
+  still bypasses the guard on a `jq`-less machine — `hook::check_enabled` runs before the gate.
+- **Every other guardrails hook is unchanged and still fails OPEN.** Membership in the fail-closed
+  class is mechanical, not a taste judgement about severity: a hook qualifies iff it *already* fails
+  closed on another unparsable-input condition (today, a `MAX_COMMAND_LEN` ceiling). Exactly two do.
+  `block-hook-bypass` and `block-noncanonical-commit` were considered and deliberately left
+  fail-open — they guard a reversible file write or a message shape, and neither holds the internal
+  contradiction. New `require-jq-posture.test.sh` pins the membership so the class cannot drift, and
+  measures the four-cell ALLOW/DENY grid with `jq` genuinely unreachable (hidden by overriding the
+  *lookup*, never by touching `PATH`, which would also remove `git` and produce the same answer for
+  an unrelated reason), with the `jq`-present column as the discrimination control and an advisory
+  hook as the posture control.
+
+## [0.25.3]
+
+### Fixed
+
+- **`skill-reference-verify` reported an untouched, pre-existing reference when an Edit carried
+  `replace_all: true`.** Partial-edit reconstruction separates an occurrence the call wrote from a
+  coincidental one by requiring the anchor to occur exactly once — and `replace_all` is precisely
+  where that rule is suspended, because there every occurrence is supposed to be the edit's own
+  footprint. It is not: after `ghost` replaces `setup` everywhere, the `ghost` inside a pre-existing
+  `ghost-old` matches the anchor too, and the guard named a reference the call never touched.
+
+  The issue this closes proposed it might be unfixable, on the ground that nothing in the payload
+  separates the two. That holds for `tool_input` and fails for `tool_response`, which carries the
+  Edit tool's structured output: `structuredPatch` marks the lines the call actually wrote with a
+  leading `+`. Under `replace_all` only, an occurrence is now kept just when its physical line is
+  one the patch reports as written. The suspended uniqueness rule gets an external witness instead
+  of nothing.
+
+  Both halves of that were confirmed against pages fetched 2026-08-10 rather than recall:
+  `PostToolUse` input carries `tool_response`, "the result it returned", and that field is "the
+  tool's structured `Output` object" ([Hooks reference](https://code.claude.com/docs/en/hooks));
+  `Output` for Edit is `FileEditOutput`, whose `structuredPatch` is `Array<{oldStart, oldLines,
+  newStart, newLines, lines: string[]}>` ([Agent SDK TypeScript
+  reference](https://code.claude.com/docs/en/agent-sdk/typescript), "Edit").
+
+  Matched by line TEXT, not line number, for two reasons: numbers are wrong the moment another
+  PostToolUse hook reformats the file between the write and this read — the case the reconstruction
+  fallback already exists for — and mapping a character offset back to a line number costs a
+  whole-prefix scan per occurrence, reintroducing the quadratic term 0.21.0 removed. The residual
+  imprecision runs in the safe direction: an untouched line whose text duplicates an edited one is
+  kept, and two references sharing one physical line stand or fall together.
+
+  Gate 3 may only ever REMOVE an occurrence when it can positively identify at least one the call
+  wrote. Found in review: comparing the on-disk line to the patch's line verbatim undid the
+  reformatting tolerance the per-line fallback exists to provide. An earlier-ordered PostToolUse hook
+  that reflows whitespace leaves the anchor locatable — a literal substring search does not care what
+  surrounds it — while changing the physical line, so a genuinely written reference was silently
+  dropped. Two corrections: comparison is whitespace-normalized, covering the reflow formatters
+  actually perform; and if the witness recognizes no occurrence at all it **abstains**, leaving the
+  unfiltered set, because a witness matching nothing is stale rather than discriminating. Without the
+  abstain, a formatter that rewrote more than spacing turned this gate from a filter into a silent
+  mute. Both residuals now run in the same direction: over-reporting, never under-reporting.
+
+  Deliberately inert outside its one case. A multi-line `new_string` is not filtered — its anchor
+  extent spans several lines, matches no single patch line, and filtering would erase every finding
+  rather than narrow them. A payload with no `tool_response`, and every non-`replace_all` Edit,
+  behaves exactly as before. Field supply is **observed, not merely documented**: an independent
+  reviewer captured a live PostToolUse payload on `claude 2.1.225`, in which `tool_response` arrives
+  as an object carrying `structuredPatch` (complete, not truncated, at 42 replacement sites in a
+  300-line file). The read is shape-tolerant regardless — a non-object `tool_response` yields an
+  empty witness and leaves the filter inert, rather than erroring the payload parse and silencing the
+  whole guard.
+
+  Scope worth stating plainly, since it is broader than "fixes one false positive": under
+  `replace_all`, a genuine reference sitting on a line the patch reports as CONTEXT is no longer
+  reported. That is the gate working as designed — a context line is one the call did not write — but
+  it does narrow what this guard says about a `replace_all` edit.
+
+## [0.25.2]
+
+### Fixed
+
+- **`block-convention-violation` read the wrong repository's git config, so a commit whose
+  subject violates the team convention passed unblocked.** Its `effective_dir` scanned EVERY word of
+  the command for `-C` — no `[git, subcommand)` slice and no wrapper replay, the shape the shared
+  parser from #1785 replaced, and that #2100 removed from `block-dangerous-git`. It failed
+  in the opposite direction from that sibling: not blind to a chdir, but inventing chdirs that were
+  never there. In `env -u -C git <alias> …`, GNU env's `-u NAME` consumes `-C` as the variable to
+  unset, so git never moves — yet the every-word scan composed `<cwd>/git` and looked for the alias
+  there. The consumer that matters is the gitconfig alias lookup, which has neither a stdin-form
+  gate nor an exemption gate and fails OPEN: reading the wrong repository's config silently misses
+  the expansion, the guard never learns the real subcommand is `commit`, and the convention goes
+  unenforced. `effective_dir` now takes git's own globals only — the slice from the resolved git
+  token to the subcommand — preceded by any genuine wrapper chdir replayed from
+  `HOOK_GIT_RESOLVED_WRAPPER_DIRS`, which is the one parser that can tell a real `env -C <dir>`
+  from the `-C` in `env -u -C git`. The sequencer probe at the same call site is corrected with it.
+
+  A post-subcommand `-C` is `--reuse-message`, not a directory, and the distinction is purely
+  positional. Note that `git commit -C HEAD` cannot itself demonstrate this: `-C` sets the
+  reuse-message exemption and the hook returns before `effective_dir` is ever called, so that
+  invocation answered "allowed" both before and after and would read as already fixed. The
+  positional case is covered through the alias lookup instead, where no exemption applies.
+
+  **Acceptance behavior changes** (hence a minor bump): a wrapped alias invocation whose expansion
+  is `commit` is now content-gated where it was waved through, and one whose alias exists only in
+  an unrelated directory the scan used to compose is no longer blocked on an expansion git would
+  never perform.
+
+- **A `!` shell alias lost the directory its invocation resolved to, so a prepared merge commit was
+  blocked instead of exempted.** Found in review of the above. A `!` alias body re-parses as a NEW
+  top-level command, and that fresh argv carries neither the wrapper that moved git nor git's own
+  globals — so `env -C <dir> git <alias>` resolved the alias in `<dir>` and then evaluated the alias
+  body's sequencer probe against the payload cwd. With a merge in progress in `<dir>`, the commit
+  git was about to make carries a prepared message and the guard documents an exemption for exactly
+  that; it was gated instead. `effective_dir` now falls back to `HOOK_EFFECTIVE_BASE`, which the
+  caller sets to the resolved directory around each `!` reparse and restores after — the mechanism
+  `block-noncanonical-commit.sh` already uses. Pre-existing, not introduced by the scoping fix above;
+  the fix simply made the path reachable enough to demonstrate.
+
+  What this composes is the caller's directory, where the sibling asks git for the alias's real
+  launch directory (git starts a `!` body at the work tree's top level). For this guard's two
+  consumers the two agree — `config --get` and `rev-parse --absolute-git-dir` answer identically from
+  anywhere inside one repository. They diverge only when a separate repository is nested below the
+  composed path, which is deliberately not modelled here.
+
 ## [0.25.1]
 
 ### Changed
+
+> **Erratum:** the second bullet below states that the fail-close's breadth stays, because narrowing
+> it needs #2226. #2226 is fixed in 0.26.0 and the breadth is gone — the check is keyed on the
+> redirect operand now. The mechanism this entry corrects for 0.25.0 was accurate for 0.25.x; see
+> 0.26.0 above for what replaced it. Everything else in this entry is unchanged.
+
+- **`block-hook-bypass`'s scope note now names `tee` and other inline-interpreter
+  write families it does not model (#2218).** No behaviour changes — lane-specific
+  `_BYPASS_SCOPE_NOTE_BASH` / `_BYPASS_SCOPE_NOTE_PWSH`, two `SCOPE (documented
+  residual)` blocks, the README residuals section, and five accepted-floor tests
+  now move together so a reader does not credit the guard with POSIX `tee` or
+  general interpreter coverage from the old "recognized inline interpreter code"
+  wording — and a PowerShell block no longer claims `tee` is unseen when Tee-Object
+  and its alias are modeled.
 
 - **0.25.0 described the scratch-root exemption's fail-close inaccurately on every surface, twice
   over. Corrected, and pinned (#2236; root cause #2226).** No behaviour changes — four documents

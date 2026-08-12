@@ -230,8 +230,17 @@ D1–D7 cycles. Exploration and validation must run on the PR's head branch.
     since these endpoints return 30 per page oldest-first and your reply is the newest item
 - [ ] D6 — Fix if VALID (fix now) → edit, `git add <specific-files>` (never `-A` or `.`),
   commit, push
-  - [ ] **verify commit pushed:** `gh api "repos/{owner}/{repo}/commits?sha=<branch>&per_page=1"
-    --jq '.[0].sha'` — confirm the fix commit SHA on the remote
+  - [ ] **verify commit pushed:** `REMOTE=$(bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/resolve-remote.sh" --push <branch>) &&
+    git fetch "$REMOTE" <branch> && git merge-base --is-ancestor <fix-sha> FETCH_HEAD` — exit 0
+    means the fix commit is on the PR branch as just fetched from the resolved push remote;
+    non-zero means it is not. Resolve the push remote (the same resolver `push-branch.sh` pushed
+    through), never a hardcoded `origin`: a triangular/fork checkout pushes elsewhere, so `origin`
+    false-fails a successful push or verifies a same-named branch on the wrong repository. A
+    reachability check after fetch (`FETCH_HEAD` is exactly what the resolved remote just served),
+    never the branch-tip read (`commits?sha=<branch>&per_page=1` + `.[0]`), which any later push
+    turns into a false "missing", and never a repository-scoped `commits/<fix-sha>` lookup alone,
+    which answers "does this object exist anywhere in the repo?" and can pass when the commit was
+    force-pushed off the PR branch
 - [ ] D7 — Post a follow-up reply citing the fix commit SHA
   - [ ] **verify follow-up reply posted — same surface routing as D5:** inline thread →
     `pulls/<pr>/comments` filtered by `in_reply_to_id`; issue-level → `gh api --paginate

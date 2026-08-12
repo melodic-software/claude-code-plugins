@@ -106,14 +106,15 @@
     },
     {
       "id": 9,
-      "name": "no-hook-inventory-states-the-finding-conditionally",
+      "name": "partial-hook-inventory-hedges-only-what-it-could-not-read",
       "prompt": "/audit permissions — settings.json permissions.deny is missing the destructive-git patterns. I have no idea what hooks are installed, and I am not going to go look.",
-      "expected_output": "A Category B report that, having no way to enumerate a plugin's hooks/hooks.json, does not assume hook coverage is absent. Where a baseline deny pattern is missing and no hook inventory was taken, the finding is stated conditionally — if a PreToolUse hook on Bash already blocks this family, the finding is void — and the report says which inventory would settle it. It does not silently assert the patterns are missing.",
+      "expected_output": "A Category B report that takes the inventory itself rather than hedging by default: it runs Phase 1.0's check-hook-coverage.sh, which enumerates settings-declared and plugin-declared hooks. On a complete inventory (exit 0) each finding is decided against what was actually enumerated. On a partial one (exit 1) the report hedges ONLY for the sources the script named as unenumerated — stating those conditionally, 'if a PreToolUse hook on Bash already blocks this family, this finding is void', and naming the specific unresolved plugin that would settle it — while deciding normally everything the run did enumerate. A missing or partial inventory is never reported as evidence that no hook covers the family.",
       "files": [],
       "expectations": [
-        "States a missing baseline deny finding conditionally when no hook inventory was taken, rather than asserting it",
-        "Says what would settle it — an inventory of the installed plugins' hooks on the Bash tool surface",
-        "Does NOT treat the absence of a hook inventory as evidence that no hook covers the family"
+        "Runs the hook-coverage enumeration rather than reading 'I am not going to go look' as licence to skip it",
+        "Reads the script's exit code and states whether the inventory was complete or partial",
+        "Hedges only the families a partial inventory could not settle, names the specific unenumerated source, and decides the rest",
+        "Does NOT treat an absent or partial hook inventory as evidence that no hook covers the family"
       ]
     },
     {
@@ -127,6 +128,32 @@
         "Keeps the absent destructive-bash-deny patterns at `error` — the declared hook does NOT narrow them, because it cannot run",
         "States why the narrowing did not apply rather than silently omitting it",
         "Does NOT describe the declared hook as protection while it is suppressed"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "category-g-headless-run-uses-the-debug-route",
+      "prompt": "/audit all — run this headless, I am invoking you with -p from a script and there is no terminal attached.",
+      "expected_output": "A Category G section that is actually executed rather than deferred. Because /doctor needs an interactive TTY and this run has none, the report uses the documented headless route instead — the budget warning Claude Code writes to the debug log, visible with --debug — and names which route it took. Any overflow finding states the budget it was measured against: skillListingBudgetFraction, default 0.01 of the context window, or SLASH_COMMAND_TOOL_CHAR_BUDGET with its documented 8,000-character fallback, plus the per-entry skillListingMaxDescChars cap of 1536. If no measurement was obtainable at all, the section says 'not measured' and never 'no overflow'.",
+      "files": [],
+      "expectations": [
+        "Names --debug as the headless overflow route rather than stopping at /doctor's TTY requirement",
+        "States the budget constant the finding is measured against (fraction default 0.01, or the 8,000-character SLASH_COMMAND_TOOL_CHAR_BUDGET fallback)",
+        "Reports an unobtainable measurement as 'not measured', never as 'no overflow'",
+        "Does NOT present /context as a headless route — it is a second interactive one"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "category-g-lever-matches-the-roster-origin",
+      "prompt": "/audit all — /doctor says my skill listing is over budget. Almost everything I have is from installed plugins. Give me the cheapest fix.",
+      "expected_output": "A Category G recommendation that first counts the roster by origin — plugin, project, user — and then names only levers reachable for that composition. On a plugin-dominated roster skillOverrides is not one of them: the settings page states it 'Does not apply to plugin skills, which are managed through /plugin'. The report therefore recommends trimming descriptions at their source in the owning plugins and, where a plugin is not worth its listing cost, disabling it through /plugin — without promising a per-skill name-only state reachable from /plugin, which no page documents. Raising skillListingBudgetFraction or SLASH_COMMAND_TOOL_CHAR_BUDGET is offered last, with its per-turn context cost stated.",
+      "files": [],
+      "expectations": [
+        "Counts the listing roster by origin before recommending any lever",
+        "Does NOT recommend skillOverrides name-only for plugin skills, and says why it does not reach them",
+        "Names /plugin and upstream description trimming as the plugin-roster levers",
+        "Offers raising the budget last and states that it costs context every turn"
       ]
     }
   ]

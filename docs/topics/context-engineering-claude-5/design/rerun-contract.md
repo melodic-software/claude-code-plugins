@@ -12,6 +12,10 @@ checks are delegated but the run semantics are not*. If this document lands as p
 argument has nothing behind it. So every property below is written as a condition a test could
 assert, with the assertion named.
 
+> **Reconciled 2026-08-12 (#1940).** Where this design doc disagrees with the shipped contract under
+> `plugins/claude-config/skills/audit-pass/reference/`, the **shipped contract wins**. The four
+> contradictions filed in #1940 are annotated in place below.
+
 Terms used throughout: a **run** is one invocation of the sweep against one **target**; the **scan
 set** is the set of files a run reads; a **lane** is a unit of dispatch and resume, keyed one of two
 ways according to what the check declares:
@@ -276,9 +280,11 @@ exactly one of: matched to an applied fix; matched to a successor by partial mat
 an **unexplained disappearance that fails the run's self-check**, the way a P4a tolerance breach
 does.
 
-- **Assertion 1.5** — every finding present in `R1` and absent from `R2` carries one of the three
-  accounted dispositions. An unaccounted **derived** closure fails the run's self-check; an
-  unaccounted **judged** closure is counted in P4's instability metric.
+- **Assertion 1.5** — every finding present in `R1` and absent from `R2` carries one of the **four**
+  accounted dispositions in the shipped contract (`suppression.md`, matching table). An unaccounted
+  **derived** closure fails the run's self-check; an unaccounted **judged** closure is counted in P4's
+  instability metric. *(This design draft said three; the shipped contract added `retired with its
+  check` as a fourth — see `suppression.md` row 4.)*
 
   **The two-tier split in this assertion is new, and the unscoped form was inconsistent with P4.**
   Raised by the cross-vendor review. A judged finding can disappear over an unchanged tree purely
@@ -312,7 +318,9 @@ not unchanged and the idempotence property is unfalsifiable by construction.
   path, and the two runs' derived-tier identity sets are still equal.
 - **Assertion 2.3** — a redirect naming an existing file, or naming a path in the run's own scan set,
   exits non-zero and writes nothing. Test: point the redirect at the target's own `CLAUDE.md`; the
-  file is byte-identical afterward.
+  file is byte-identical afterward. *(Shipped refinement: `report-location-and-schema.md` accepts only
+  an `audit-pass`-owned report path or a new path outside the scan set — same refusal shape, stricter
+  name-based criteria.)*
 
 ## 3. Run state, keying, and concurrency
 
@@ -341,7 +349,11 @@ contract's own machinery, proportionality-tested per mechanism".
 *repository*, not about a checkout, so they are shared across worktrees and, where the target is a
 repository the operator owns, committed to it.
 
-**Concurrency.**
+**Concurrency.** Shipped lock reclamation, lease heartbeat, boot-identity fallback, and the
+no-start-identity hard ceiling are authoritative in
+`plugins/claude-config/skills/audit-pass/reference/run-state-and-resumability.md` (#1940). The
+bullets below are the design draft; where they disagree — especially age-only reclamation and the
+heartbeat shape — follow the shipped file.
 
 - A read-only run takes **no lock against another read-only run**. Concurrent read-only runs are safe
   and are not serialized.
@@ -427,9 +439,14 @@ inequality could mean a defect or could mean the tree moved, and the run cannot 
 
 ## 4. Suppression, per target class
 
+> **Superseded on inline markers (#1940).** This section originally permitted inline markers where the
+> pass may write. The shipped contract (`suppression.md`) records that form as **withdrawn**:
+> suppression is always central, keyed by constituents. The table below is retained as design history;
+> implement only the shipped contract.
+
 A deliberately-kept finding must not resurface. But "its site" differs by class, and one mechanism
-does not fit all four. **The governing rule: an inline marker is permitted only where the pass may
-write; everywhere else suppression is central and keyed by `finding_id`.**
+does not fit all four. **The governing rule in this design draft was: an inline marker is permitted only where the pass may
+write; everywhere else suppression is central and keyed by `finding_id`.** The shipped contract rejects inline markers entirely.
 
 | Target class | Suppression site | Why |
 |---|---|---|
@@ -491,7 +508,8 @@ Rationale, including the injection path this closes:
 - **Assertion 4.1** — a suppressed finding does not appear in the next run's report, and appears in a
   `suppressed` section with its reason, so suppression is visible rather than silent.
 - **Assertion 4.2** — a suppression entry is resolved against the current finding set into **exactly
-  one of three states**, and each has a distinct disposition:
+  one of four states** (shipped: `suppression.md` "four dispositions" table), and each has a distinct
+  disposition:
   - **EXACT** — every stored constituent matches a current finding. The suppression applies
     silently, per the tiered table's first row.
   - **PARTIAL** — exactly one anchor differs and the other anchor and `(check, claim, both

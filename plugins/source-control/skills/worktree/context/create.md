@@ -2,7 +2,7 @@
 
 Full detail for the `/source-control:worktree create [name]` action. SKILL.md carries the headline plus the shared-helper safety invariant; this file carries the pre-flight guards, name validation, base-ref selection, the explain-before-create block, the directory-rename caveats, and the post-create setup checks.
 
-`create` does **not** call `EnterWorktree(name:)` (which lands in the in-repo `.claude/worktrees/`, where a read matching a path-scoped rule's glob also loads the parent checkout's copy of that rule — see SKILL.md's nesting-invariant paragraph for the measurement and the current upstream issue state). It routes through the shared helper `${CLAUDE_PLUGIN_ROOT}/scripts/worktree-create.sh`, which places the worktree at an **external root** (`<root>/<owner>-<repo>-<slug>`), copies `.worktreeinclude` files, and prints the path; the skill then calls `EnterWorktree(path:)` on that path.
+`create` does **not** call `EnterWorktree(name:)`, which lands in the in-repo `.claude/worktrees/` — the nested placement [SKILL.md § The nesting invariant, verified](../SKILL.md#the-nesting-invariant-verified) exists to avoid. That section owns the mechanism, its measurement, its disputed arms and its expiry; do not restate them here. It routes through the shared helper `${CLAUDE_PLUGIN_ROOT}/scripts/worktree-create.sh`, which places the worktree at an **external root** (`<root>/<owner>-<repo>-<slug>`), copies `.worktreeinclude` files, and prints the path; the skill then calls `EnterWorktree(path:)` on that path.
 
 Create a new worktree with guided naming and setup verification.
 
@@ -40,7 +40,7 @@ To start from a different, specific branch, create manually instead: `git worktr
 Before creating, tell the user:
 
 ```text
-Creating worktree (shared helper — external root, so no parent checkout's path-scoped rules load):
+Creating worktree (shared helper — external root, outside every repository):
   Directory: <root>/<owner>-<repo>-<slug>   (root = the worktree_root config key)
   Branch: <name>                            (kept verbatim; slug derived for the dir)
   Local files: .worktreeinclude matches copied in (gitignored ones only)
@@ -60,13 +60,13 @@ Optional renames after creation:
 - **Session history**: Claude Code's `~/.claude/projects/` directory is keyed by worktree filesystem path. Moving the directory orphans the old project key — `--resume`/`--continue` from a new session won't find the old transcript. Auto-memory and project config are shared at repo level and are NOT affected.
 - **Windows**: works on Git Bash/NTFS with no known issues. Use forward slashes or quote paths with spaces.
 - **Cannot move**: the main worktree, or worktrees containing submodules.
-- **Locked worktrees**: require `--force --force` (twice).
+- **Locked worktrees**: `git worktree move` refuses them, and every helper-created worktree is locked at creation (the liveness guard). `git worktree unlock <path>` before the move, then re-lock with `git worktree lock --reason "<why>" <new-path>` after; `move --force --force` is the blunt alternative that discards the claim.
 
 ## Create the worktree
 
 Two steps — the helper creates and places the worktree; `EnterWorktree(path:)` enters it.
 
-1. **Run the shared helper** (it computes the external path, runs `git worktree add`, and copies `.worktreeinclude` files). Add `--base-ref head` only when the effective Claude `worktree.baseRef` setting is `head` (see [Base branch](#base-branch)); otherwise omit it.
+1. **Run the shared helper** (it computes the external path, runs `git worktree add`, arms the `git worktree lock` liveness guard — reason naming the helper, host, and start time, so a cleanup sweep sees the worktree as claimed and plain `git worktree remove` refuses it — and copies `.worktreeinclude` files). Add `--base-ref head` only when the effective Claude `worktree.baseRef` setting is `head` (see [Base branch](#base-branch)); otherwise omit it.
 
    `${user_config.worktree_root}` substitution into skill content is **raw text substitution, not shell-escaped** (Claude Code docs, [plugins-reference § User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration)) — a configured value containing a single quote (e.g. `~/worktrees/O'Connor`), `$`, or a backtick breaks out of any shell literal we write around it, and **no heredoc delimiter is safe either**: a value whose own body contains a line equal to the delimiter ends the heredoc early and the shell parses the remainder as commands. The value must therefore never reach a shell parser at all. Write it with the **`Write` tool** — the content travels as a JSON string parameter, so every byte lands verbatim and no delimiter, quote, or metacharacter can terminate anything — then hand the file to `--root-file`. Never inline the substitution in a `--root` shell literal or a heredoc body.
 
@@ -96,7 +96,7 @@ Two steps — the helper creates and places the worktree; `EnterWorktree(path:)`
 
    The helper prints the created worktree path as its **sole stdout line**; capture it. When `worktree_root` is unset, Claude leaves the literal `${user_config.worktree_root}` token — `Write` puts that token in the file verbatim, the helper reads it as "unconfigured", and the root resolves from the data-root file instead (`<data-dir>/worktrees`, announced on stderr, exit 0). Only when BOTH are unusable does it refuse. A value carrying a newline byte anywhere — including a trailing one — is rejected loudly by the helper (exit 2); a path with a newline in it is malformed configuration, not a root to silently trim.
 
-2. **On a non-zero exit, STOP — do not create anything else, and never fall back to `EnterWorktree(name:)`** (that would re-create the in-repo `.claude/worktrees/` path, where the parent checkout's path-scoped rules load too). An unset `worktree_root` is NOT an error: the helper falls back to `<data-dir>/worktrees` and notes it on stderr while still exiting 0 — pass that note along, do not treat it as a failure. **Exit 3** means no usable root at all — neither configured nor supplied, or one the containment guard rejects for landing inside a repository: surface the helper's guidance verbatim — the user needs to set `worktree_root` (run the worktree setup skill, or `/plugin` configure) — then stop. Other non-zero exits (2 usage, 4 environment — e.g. the branch already exists) surface the helper's stderr and stop likewise.
+2. **On a non-zero exit, STOP — do not create anything else, and never fall back to `EnterWorktree(name:)`** (that would re-create the in-repo `.claude/worktrees/` path the nesting invariant forbids — [SKILL.md § The nesting invariant, verified](../SKILL.md#the-nesting-invariant-verified)). An unset `worktree_root` is NOT an error: the helper falls back to `<data-dir>/worktrees` and notes it on stderr while still exiting 0 — pass that note along, do not treat it as a failure. **Exit 3** means no usable root at all — neither configured nor supplied, or one the containment guard rejects for landing inside a repository: surface the helper's guidance verbatim — the user needs to set `worktree_root` (run the worktree setup skill, or `/plugin` configure) — then stop. Other non-zero exits (2 usage, 4 environment — e.g. the branch already exists) surface the helper's stderr and stop likewise.
 
 3. **Enter the worktree** — call `EnterWorktree(path: "<printed-path>")` as the **final action**. Nothing may execute after it: the working directory changes and session state transitions. Because the path is outside `.claude/worktrees/`, Claude Code prompts for approval first (see the explain block); if the user **declines**, the worktree already exists on disk but the session did not enter it — tell them they can retry (approve the prompt) or `cd` into `<printed-path>` in a new session.
 

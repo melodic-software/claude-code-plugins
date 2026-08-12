@@ -3,6 +3,161 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.1]
+
+### Fixed
+
+- **`skills/inventory` bundled-skill fields could bleed from the next registration.** The extractor
+  read each registration through a fixed 4000-character window — the failure mode `build_brace_map`
+  exists to prevent for commands, and the one `reference/extraction.md` names as the thing not to
+  do. A registration omitting a description adopted the following one's. Fields are now bound to
+  their own literal via the brace map, and an unmatched brace is counted and surfaced rather than
+  silently skipped.
+- **Manifest-declared component paths were ignored.** `PLUGIN_COMPONENTS` carried a manifest key per
+  component and a comment claiming the manifest is read before the tree; nothing read it. A declared
+  path replaces the default directory, so scanning defaults regardless reported components a plugin
+  does not ship. Dotted keys resolve the `experimental` block.
+- **`--self-check` lost its diagnostic when no binary was found.** `pick_binary` stores its
+  explanation under `reason`; the self-check path read only `error` and printed a generic message.
+- **An unreadable CLI version passed silently.** It is itself a drift signal, so it now degrades the
+  verdict instead of skipping the comparison.
+- **`--self-check` degraded and an argparse usage error both exited 2.** A CI gate treating 2 as
+  "degraded, warn" would silently swallow a mistyped flag. Degraded is now 3, leaving 2 to argparse:
+  0 ok, 1 broken, 2 usage error, 3 degraded.
+
+### Added
+
+- **`skills/inventory` reads installed plugins and project scope.** Only marketplace catalogs were
+  scanned, so a plugin installed from a marketplace that is no longer cached was invisible;
+  `disk.installed_plugins` now walks the plugin cache, and catalog, installed, and enabled are
+  reported as three distinct sets. A project's `.claude` tree contributes skills, agents, and wired
+  hook events that no machine-scope scan sees — `--project-dir` defaults to the working directory.
+  Wired hook events are reported, never hook scripts on disk, which would repeat the
+  present-versus-active error the skill warns about.
+
+## [0.31.0]
+
+### Added
+
+- **`audit-performance`: a read-only slowness-diagnostic capture, run at the moment the machine or
+  a session feels slow — before anyone restarts or deletes anything.** The failure mode it replaces
+  is the folk remedy: "it was slow, so I nuked `~/.claude` and reinstalled" destroys the evidence
+  and permanently confounds the fix, because a reinstall also crosses version upgrades (v2.1.216
+  fixed a quadratic long-session slowdown; v2.1.208 cut per-tool-call MCP overhead up to 7x;
+  v2.1.207 fixed keystroke lag — all within weeks of each other). One engine pass
+  (`audit_performance.py`, Python 3.11+ stdlib only) captures the evidence to separate the three
+  documented suspects: **accumulated install-tree state** (retention-sweep health including the
+  silent unparsable-settings pause, plus a timed stat-walk of the whole tree whose duration
+  approximates what the product's own daily sweep costs on that volume right now), **version
+  regression** (CLI version, probed with its own latency recorded — a ten-second `--version` is
+  itself a finding), and **component bloat** (plugin-fleet and process censuses, with the verdict
+  routed to `/claude-ops:plugins audit`). Phase timings are first-class evidence throughout: on a
+  struggling machine the audit itself runs slow, and that is signal, not failure.
+
+- **A bundled known-performance-issues reference** (`reference/known-performance-issues.md`,
+  compiled 2026-08-12 under the upstream-drift stamp discipline) carrying the 2.1.2xx performance
+  fixes with dates, the source-level accumulated-state mechanisms confirmed against v2.1.228 (the
+  daily whole-tree sweep walk; the unparsable-`settings.json` silent sweep pause; `history.jsonl`
+  and home-root `~/.claude.json` as the two never-swept growth files; uncapped resumed-transcript
+  render cost), the weak evidence base behind the nuke-the-directory remedy, and the
+  Windows-specific amplifiers (Defender per-file taxation, hidden non-elevated exclusion reads,
+  Desktop-vs-CLI surface discipline). `/claude-ops:known-issues` remains the live-search
+  complement.
+
+- **Hard read boundaries.** The engine mutates nothing anywhere, never elevates (Defender guidance
+  is advisory text for the operator's own elevated shell), and its content-read allowlist is two
+  files — `settings.json` and `.last-cleanup`; `~/.claude.json` values and `history.jsonl`
+  contents are stat-only line items, never opened. The skill reports and routes: deletion belongs
+  to `/disk-hygiene:clean`, per-project shedding to `claude project purge`, deep inventory to
+  `/claude-ops:audit-install-state`, and settings repair to `/claude-config:audit`.
+
+## [0.30.0]
+
+### Added
+
+- **`skills/inventory` — read-only enumeration of the complete invocable surface.**
+  Answers "what can this machine actually invoke, and where did each thing come from" in one
+  report: built-in CLI commands with aliases and hidden/gated markers, bundled skills, and every
+  component of every installed plugin across all marketplaces. Built-in and bundled surfaces are
+  read from the shipped binary because upstream publishes no built-in command list —
+  `docs/en/slash-commands` and `docs/en/skills` return byte-identical markdown since commands were
+  merged into skills — so no documentation source is complete for them. Filters accept either a
+  flag (`--builtin`, `--plugins`, `--marketplace <name>`, `--agents`, `--hooks`, `--diff`) or the
+  equivalent sentence; one extraction feeds every view.
+
+  The extraction survives ordinary releases by resolving at runtime what changes between them:
+  registrar names come from the bundle's export maps (`registerBundledSkill:()=>xu`) rather than a
+  hardcoded minified identifier, the bundle is located by export-name anchor rather than section
+  layout, and each command's fields are read by brace depth rather than a text window — adjacent
+  minified literals otherwise bleed into one another. `scripts/inventory.py` needs only Python
+  3.11+; no `strings`, `jq`, or PowerShell, so it behaves the same on all three platforms.
+
+  Every run carries an integrity verdict (`ok` / `degraded` / `broken`) because the failure that
+  matters is not a crash but a clean-looking short list. Canary commands, a minimum resolved-to-
+  registration-token ratio, a sweep for unrecognised registrar-shaped exports, and the
+  resolved-versus-seen gap on bundled skills each convert a quiet shortfall into a stated one; a
+  `degraded` run reports counts as floors rather than totals. `--self-check` prints one verdict
+  line and exits 0/1/2 for use as a CI gate or scheduled drift check, with `/claude-ops:changelog`
+  as the natural trigger. `VALIDATED_AGAINST` records the last human-verified build, so a consumer
+  running an older plugin against a newer CLI is told its counts are believed rather than verified
+  instead of being handed a wrong answer.
+
+## [0.29.3]
+
+### Fixed
+
+- **`morning-brief --help` now lists `--stranded-days`.** The flag was parsed and documented in
+  `SKILL.md` but missing from the script header that `--help` prints, so operators following
+  #1938's `--stranded-days 6` instruction could not confirm it from `--help`. (#1969)
+
+## [0.29.2]
+
+### Changed
+
+- **`skills/lanes/scripts` `--paginate` reads now carry `per_page=100`.**
+  `restart-consumer.sh`'s telemetry-comment read and `telemetry-upsert.sh`'s comment listing
+  paginated without a page size — complete, but non-conformant with the published pagination rule
+  and 3.3x the requests at the 30-item default. No behavior change: both folds are page-shape
+  agnostic. `telemetry-upsert.test.sh`'s `gh` stub matched the list endpoint with an exact `*/comments`
+  suffix, which the query string would have fallen through silently; it now matches the query form
+  explicitly.
+
+### Fixed
+
+- **`telemetry-upsert.sh`'s slurp rationale no longer misdescribes `gh --paginate`.** The comment
+  above the comment listing claimed `--paginate` "concatenates one JSON array per page". It does
+  not: with no `--jq`, `gh` merges array-shaped pages into ONE array, so `jq -s 'add'` unwraps a
+  one-element slurp rather than concatenating. `--paginate` is still load-bearing (it is what makes
+  a page-2 comment visible at all) and `add` is still correct — but for a different reason than the
+  comment gave, and a reader trusting it would mispredict the next endpoint's shape. Same correction
+  applied to the pagination fixture's header comment in `telemetry-upsert.test.sh`. Measured against
+  `gh` 2.95.0.
+
+## [0.29.1]
+
+### Changed
+
+- **Shared `hook-utils.sh`: the jq gate now has a fail-CLOSED sibling, and the posture reasoning
+  lives at the helper (#2146).** `hook::require_jq` is unchanged and still fails OPEN — one visible
+  skip notice per session, then exit 0 — which is the correct posture for every hook in this plugin,
+  so **nothing in this plugin's behaviour changes**. What is new is `hook::require_jq_blocking`, a
+  second named function that denies the tool call instead, for the narrow class of guards whose job
+  is blocking an irreversible operation (today only two, both in `guardrails`). A sibling function
+  rather than a parameter, because a flag's omitted value would default to fail-open and a guard
+  whose flag someone forgot would then fail open *silently* — the exact defect #2146 reports,
+  reintroduced at the API. The two postures are now argued together in one block above both
+  functions, which is what #2146 asked for: previously each call site asserted a posture in a
+  comment and nothing where the decision is made explained it. Synced from `lib/hook-utils.sh`.
+
+### Fixed
+
+- **`lane-launcher` preflight validation jq queries now fail closed on query errors.** The duplicate-name,
+  path-safety, and field-typing checks in `resolve_config` ran their jq filters in command
+  substitutions and treated empty output as "no problem" without checking whether jq succeeded. A
+  malformed config that slipped past the sibling type gate could make a query error vacuously pass.
+  Each substitution now checks jq's exit status and rejects the config when the validation query
+  itself fails.
+
 ## [0.29.0]
 
 ### Added

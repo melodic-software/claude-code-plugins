@@ -56,6 +56,67 @@ and series marker are dropped because they are not needed to find the book.
 name + year carries the same disambiguation with zero risk of off-by-one
 ordering arguments and zero risk of a reader guessing which book is which.
 
+### `Challenge #N` vs `Challenge N` — the hash boundary
+
+**The 2011 book prints the hash.** Its chapter titles are `Challenge #1: Object
+Writing`, `Challenge #2: Metaphor`, and Pat uses the hash in running prose too
+("You'll become very familiar with this process in Challenge #3"). Our citation
+convention drops it, as the table above shows. Both are deliberate, and the
+boundary is by **role, not by file**:
+
+| Role | Form | Why |
+|---|---|---|
+| **Our citation apparatus** — attribution lines, file headers, source lists, in-prose anchors | `Challenge 4` | Matches `Chapter N` for the other three books, so one citation grammar covers all four |
+| **Verbatim reproduction** — anything inside a quotation, and any place reproducing the book's own chapter title as printed | `Challenge #3` | It is quoted source. Altering transcribed text to match a house convention is the fabrication this project exists to prevent |
+
+`metaphor.md` shows both in the same section and is the worked example: its
+citation reads `Challenge 3 ("Object Writing with Metaphor")`, and Pat's quoted
+sentence four lines later keeps `Challenge #3`. **That is not an inconsistency
+— do not "normalize" it.** The same rule is why the 1991 book's chapter titles
+are quoted as printed while its citations read `Chapter 3`.
+
+**A citation that glosses the title is still a citation.**
+`audit-checklist.md:178` reads `Challenge 4 "Writing in Rhythm & Rhyme"` — no
+hash — and that is correct, even though the book's own chapter title is
+`Challenge #4: Writing in Rhythm & Rhyme`. The line is citing the challenge and
+naming it for the reader, in the same shape as the 1991 citation beside it
+(`Chapter 3 "Rhythm: Setting Up, Shutting Down"`). **Do not read it as a title
+reproduction and re-add the hash.** The verbatim branch applies only where the
+title is being reproduced *as printed text* — inside a quotation, a transcribed
+figure, or a heading that reproduces the book's own.
+
+## Image-only figure content — render, read, transcribe
+
+**Some content in these books exists only inside a scanned figure**, with no
+counterpart in the EPUB text layer. Transcribing it from a rendered page image
+is **permitted and expected**, under these conditions:
+
+- **Render the figure and read it by eye. OCR is forbidden**, always, with no
+  exception — a misread stress mark or a swallowed word is indistinguishable
+  from a fabrication once it is in the file.
+- **A named PNG stands behind every transcription.** Name the figure in the
+  file (`fig image_rsrc34F`) so any later reader can re-render and re-check it.
+- **Crop one row at a time and magnify.** Scansion marks are unreadable at
+  whole-figure zoom; 12x or better on a single row is the working threshold.
+- This covers **lyrics too**, not just tables and answer keys. `hook.md`
+  transcribes figs `34F` and `34G`; `cliche.md` reads a full page inventory
+  figure; `bridge.md` restores a list that is printed only in `image_rsrc32E`.
+
+**Do not conclude "image-only" from a failed search.** Before recording any
+content as absent from the text layer, search **every book's every spine file**
+— not just the spine that holds the figure — and search **line by line**. Fig
+`34F`'s lyric was recorded as image-only for two releases because the search was
+scoped to the chapter containing the figure while the same verse is printed as
+prose six chapters earlier — Chapter 1, against the figure in Chapter 7. One
+line of it still returns nothing, because the
+text layer misspells a word: **a single line that fails to match when its
+neighbours match means "look for a typo", not "absent".**
+
+**When the scan and the text layer disagree, say so and stop.** Figures are
+photographs of the printed page; the text layer is a reflow of it, and it can
+carry defects the scan does not. Record both readings and which witness is
+which. Never edit one to agree with the other.
+
 ## File-header attribution template
 
 Every `context/*.md` file MUST have a header attributing source books:

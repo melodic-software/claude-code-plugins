@@ -270,6 +270,59 @@ class FetchReviewThreadsTests(unittest.TestCase):
             gh.fetch_review_threads("owner/repo", 1, comments_first=101)
 
 
+class FetchPullRequestCommitsTests(unittest.TestCase):
+    """`fetch_pull_request_commits` (#2265): the signature-verification read
+    behind the required-signatures merge blocker. A commit whose verification
+    block is missing must surface as unverified (`unreadable`), never be
+    skipped -- the consumer may only ever over-report.
+    """
+
+    def test_verification_is_projected_per_commit(self) -> None:
+        rows = [
+            {
+                "sha": "a" * 40,
+                "commit": {"verification": {"verified": True, "reason": "valid"}},
+            },
+            {
+                "sha": "b" * 40,
+                "commit": {"verification": {"verified": False, "reason": "no_user"}},
+            },
+        ]
+        with mock.patch.object(gh, "gh_json", return_value=rows) as gh_json:
+            out = gh.fetch_pull_request_commits("owner/repo", 5)
+        self.assertEqual(
+            out,
+            [
+                {"sha": "a" * 40, "verified": True, "reason": "valid"},
+                {"sha": "b" * 40, "verified": False, "reason": "no_user"},
+            ],
+        )
+        [call] = gh_json.call_args_list
+        endpoint = call.args[0][1]
+        self.assertIn("repos/owner/repo/pulls/5/commits", endpoint)
+        self.assertIn("per_page=100", endpoint)
+        self.assertIn("--paginate", call.args[0])
+
+    def test_missing_verification_reads_unverified_unreadable(self) -> None:
+        rows = [
+            {"sha": "c" * 40, "commit": {}},
+            {"sha": "d" * 40},
+            {"sha": "e" * 40, "commit": {"verification": {"verified": True}}},
+        ]
+        with mock.patch.object(gh, "gh_json", return_value=rows):
+            out = gh.fetch_pull_request_commits("owner/repo", 5)
+        self.assertEqual(
+            out,
+            [
+                {"sha": "c" * 40, "verified": False, "reason": "unreadable"},
+                {"sha": "d" * 40, "verified": False, "reason": "unreadable"},
+                # verified without a reason string: verified wins, reason
+                # falls back rather than fabricating a value.
+                {"sha": "e" * 40, "verified": True, "reason": "unreadable"},
+            ],
+        )
+
+
 class RestHydrateReviewsTests(unittest.TestCase):
     """`rest_hydrate_reviews` (#683): the untyped `latestReviews` `gh pr view
     --json` supplies must not survive hydration once the fully-typed REST

@@ -480,7 +480,12 @@ out of the gated content:
 # Title shape: whatever the resolved subject/title convention requires
 # (Conventional Commits default shown; a custom resolved pr_title_pattern
 # or the project's own convention overrides this).
-PR_URL=$(gh pr create --title "<type>: <description>" --body "$BODY")
+BRANCH=$(git branch --show-current)
+if [[ -z "$BRANCH" ]]; then
+  echo "Cannot create PR: not on a named branch (detached HEAD?)." >&2
+  exit 1
+fi
+PR_URL=$(gh pr create --head "$BRANCH" --title "<type>: <description>" --body "$BODY")
 
 # Extract PR number from URL (gh pr create outputs the URL on success).
 # This number is the source of truth for the rest of this phase — pass it

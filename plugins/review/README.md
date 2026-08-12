@@ -24,7 +24,7 @@ codebase's patterns across sessions without dirtying the consumer repo's tracked
 "read-only" means the reviewed code; agent memory is the one documented write path.
 Invoke via `@review:<agent>` or let Claude delegate.
 
-### Skills (two)
+### Skills
 
 - **`/review:quality-gate [mode]`** — the single-lens checkpoint between "code works"
   and "code is ready". Modes: `self` (fresh-context self-review), `code`, `architecture`,
@@ -34,6 +34,12 @@ Invoke via `@review:<agent>` or let Claude delegate.
   orchestrator review plugins, then normalizes everything into one ranked findings report.
   Modes: default (auto-scales to diff size), `run-everything` (full roster), `fix` (applies
   a persisted findings file — the only mutating mode).
+- **`/review:code-review`** — CI code-review lane command for
+  `melodic-software/ci-workflows` `claude-review.yml` (correctness /
+  maintainability; security scoped out when a security lane exists).
+- **`/review:security-review`** — CI security-review lane command for
+  `claude-security-review.yml` (org-authored; built-in `/security-review`
+  is unusable under Actions checkout).
 
 ## Requirements
 

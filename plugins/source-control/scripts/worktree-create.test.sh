@@ -79,6 +79,12 @@ mkrepo() {
     git -C "$repo" init -q -b main
     git -C "$repo" config user.email t@t.t
     git -C "$repo" config user.name t
+    # Repo-local, on a repo this helper just mktemp'd. A machine with global
+    # commit.gpgsign=true has no secret key for the fixture identity, so without
+    # this every commit below fails and the suite reports its ~60 creation cases
+    # as failures while its refusal cases still pass — a shape that reads as a
+    # real regression rather than an unrunnable fixture.
+    git -C "$repo" config commit.gpgsign false
     printf 'seed\n' > "$repo/README.md"
     git -C "$repo" add README.md
     git -C "$repo" commit -qm init
@@ -176,6 +182,7 @@ disc_repo="$discovery_root/github.com/acme/widget"
   git init -q -b main "$disc_repo"
   git -C "$disc_repo" config user.email t@t.t
   git -C "$disc_repo" config user.name t
+  git -C "$disc_repo" config commit.gpgsign false
   printf 'seed\n' > "$disc_repo/README.md"
   git -C "$disc_repo" add README.md
   git -C "$disc_repo" commit -qm init
@@ -749,5 +756,33 @@ assert_exit "--root-file NUL byte is a usage error (exit 2)" 2 "$?"
 assert_contains "--root-file NUL error names the NUL byte" "$err" "NUL"
 assert_file_absent "--root-file NUL-collapsed path never materialized" \
   "$TEST_TMPDIR/wtroot17-nulsuffix/acme-widget-feat-nul/README.md"
+
+# --- Case: the created worktree is LOCKED, with a reason naming the creator ---
+# The lock is the liveness guard the cleanup skill honors: without it, plain
+# `git worktree remove` deletes a clean worktree whose operation is mid-flight
+# (an interactive rebase paused at `break` leaves `status --porcelain` empty),
+# and before the helper armed it no lane ever ran `git worktree lock` (#2257).
+# Asserted from `worktree list --porcelain` — the surface cleanup reads — and
+# then behaviorally: plain removal must refuse while the lock is armed.
+# The fixture branch deliberately avoids the word "locked": the worktree PATH
+# appears in the porcelain stanza, so a name containing it would satisfy the
+# substring assertions below even with no lock armed at all.
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+root_file="$TEST_TMPDIR/rootfile-lock"
+printf '%s' "$TEST_TMPDIR/wtroot18-lock" > "$root_file"
+out=$(bash "$HELPER" --name feat/liveness --root-file "$root_file" --repo-dir "$repo" 2>/dev/null)
+assert_exit "lock case: creation succeeds (exit 0)" 0 "$?"
+stanza=$(git -C "$repo" worktree list --porcelain | awk -v RS= -v p="acme-widget-feat-liveness" 'index($0, p)')
+assert_contains "the new worktree is locked at creation" "$stanza" "locked"
+assert_contains "the lock reason names the arming helper" "$stanza" "worktree-create.sh"
+err=$(git -C "$repo" worktree remove "$out" 2>&1 >/dev/null)
+rc=$?
+assert_contains "plain removal refuses and names the lock" "$err" "locked"
+if [[ "$rc" -ne 0 ]]; then
+  pass "plain removal exits non-zero while the lock is armed"
+else
+  fail "plain removal exits non-zero while the lock is armed" "non-zero" "0"
+fi
+assert_file_exists "the locked worktree survives the removal attempt" "$out/README.md"
 
 [[ $FAILED -eq 0 ]] || exit 1

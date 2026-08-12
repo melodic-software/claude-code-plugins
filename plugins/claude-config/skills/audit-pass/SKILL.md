@@ -318,6 +318,18 @@ and the finding it claims to resolve — the artifact, not this run's reasoning 
 advisor when one is installed and set up (the OpenAI Codex plugin, say, invoked per its own docs),
 with a **fresh-context (non-fork) subagent** as the stated fallback.
 
+### When dispatch is unavailable
+
+The apply-verify step and delegated lanes that mandate subagent dispatch **require** that dispatch.
+When the Agent tool is blocked, unavailable, or the session cannot spawn subagents:
+
+1. **Record per-lane verification mode** in the run manifest and assembled report (`verified` |
+   `inline` | `skipped`) for every lane that mandates independent verification.
+2. **Mark unverified findings.** Proposals or applied fixes that did not receive an independent
+   verifier MUST carry an `(unverified)` marker and MUST NOT be presented as resolved.
+3. **Do not silently complete.** The `skipped` section and report header MUST name dispatch
+   unavailability when it prevented a mandated verification phase.
+
 ## Phase 6 — Report
 
 Two artifacts, because incremental persistence and a sectioned report want different shapes: an

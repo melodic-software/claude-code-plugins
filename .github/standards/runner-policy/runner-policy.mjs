@@ -71,6 +71,15 @@ const EXACT_GITHUB_TOKEN_EXPRESSIONS = new Set([
   `\${{ secrets.GITHUB_TOKEN }}`,
   `\${{ github.token }}`,
 ]);
+const VISIBILITY_SCOPED_REUSABLE_WORKFLOW_PATHS = new Set([
+  "melodic-software/ci-workflows/.github/workflows/claude-review.yml",
+  "melodic-software/ci-workflows/.github/workflows/claude-security-review.yml",
+]);
+const PUBLIC_REPOSITORY_DENYLISTED_REUSABLE_INPUTS = new Set(["standards-ref"]);
+const PUBLIC_REPOSITORY_DENYLISTED_REUSABLE_SECRETS = new Set([
+  "STANDARDS_REVIEW_APP_ID",
+  "STANDARDS_REVIEW_APP_PRIVATE_KEY",
+]);
 
 // The shared object-shape check behind every "must be a mapping" decision in
 // this analyzer. It admits any non-null, non-array object, which under the
@@ -104,7 +113,7 @@ function validateStructure(value, validator, location) {
   throw new ConfigurationError(`${errorLocation} ${error.message}`);
 }
 
-function validatePolicy(value) {
+export function validatePolicy(value) {
   validateStructure(value, validatePolicyStructure, "policy");
 
   const approvedHostedRunnerLabels = new Set(value.approvedHostedRunnerLabels);
@@ -160,6 +169,66 @@ function validatePolicy(value) {
       scopedSelectorOwnersByReference.set(reference, owners);
     }
     approvedSelectorReferencesByRepositoryOwner.set(owner, new Set(references));
+  }
+
+  const canonicalInputNames = new Set(Object.keys(value.canonicalSelectorInputs));
+  for (const name of Object.keys(value.optionalCanonicalSelectorInputs)) {
+    if (canonicalInputNames.has(name)) {
+      throw new ConfigurationError(
+        `policy optional selector input ${name} duplicates a required canonical input`,
+      );
+    }
+  }
+  const optionalStringInputNames = new Set(Object.keys(value.optionalCanonicalSelectorInputs));
+  const optionalBooleanInputNames = new Set(Object.keys(value.optionalBooleanSelectorInputs));
+  for (const name of optionalBooleanInputNames) {
+    if (canonicalInputNames.has(name) || optionalStringInputNames.has(name)) {
+      throw new ConfigurationError(
+        `policy optional boolean selector input ${name} duplicates another selector input`,
+      );
+    }
+  }
+  const knownOptionalSelectorInputNames = new Set([
+    ...optionalStringInputNames,
+    ...optionalBooleanInputNames,
+  ]);
+
+  const approvedSelectorInputContracts = new Map();
+  for (const [reference, contract] of Object.entries(value.approvedSelectorInputContracts)) {
+    validateSelectorReference(reference, "policy.approvedSelectorInputContracts");
+    const unknownInputs = contract.allowedInputs.filter(
+      (name) => !knownOptionalSelectorInputNames.has(name),
+    );
+    if (unknownInputs.length > 0) {
+      throw new ConfigurationError(
+        `selector input contract ${reference}.allowedInputs has unregistered optional inputs: ${unknownInputs.join(", ")}`,
+      );
+    }
+    approvedSelectorInputContracts.set(reference, {
+      allowedInputs: new Set(contract.allowedInputs),
+      allowedInputNames: new Set([...canonicalInputNames, ...contract.allowedInputs]),
+    });
+  }
+
+  const approvedSelectorReferences = new Set([
+    ...value.approvedSelectorReferences,
+    ...[...approvedSelectorReferencesByRepositoryOwner.values()].flatMap((references) => [
+      ...references,
+    ]),
+  ]);
+  for (const reference of approvedSelectorReferences) {
+    if (!approvedSelectorInputContracts.has(reference)) {
+      throw new ConfigurationError(
+        `approved selector reference ${JSON.stringify(reference)} is missing an approvedSelectorInputContracts entry`,
+      );
+    }
+  }
+  for (const reference of approvedSelectorInputContracts.keys()) {
+    if (!approvedSelectorReferences.has(reference)) {
+      throw new ConfigurationError(
+        `selector input contract ${JSON.stringify(reference)} is not an approved selector reference`,
+      );
+    }
   }
 
   const approvedReusableWorkflowContracts = new Map();
@@ -255,23 +324,6 @@ function validatePolicy(value) {
     });
   }
 
-  const canonicalInputNames = new Set(Object.keys(value.canonicalSelectorInputs));
-  for (const name of Object.keys(value.optionalCanonicalSelectorInputs)) {
-    if (canonicalInputNames.has(name)) {
-      throw new ConfigurationError(
-        `policy optional selector input ${name} duplicates a required canonical input`,
-      );
-    }
-  }
-  const optionalStringInputNames = new Set(Object.keys(value.optionalCanonicalSelectorInputs));
-  for (const name of Object.keys(value.optionalBooleanSelectorInputs)) {
-    if (canonicalInputNames.has(name) || optionalStringInputNames.has(name)) {
-      throw new ConfigurationError(
-        `policy optional boolean selector input ${name} duplicates another selector input`,
-      );
-    }
-  }
-
   if (!approvedHostedRunnerLabels.has(value.governedReusableRunnerInput.default)) {
     throw new ConfigurationError(
       "policy.governedReusableRunnerInput.default must be an approved hosted runner label",
@@ -294,17 +346,22 @@ function validatePolicy(value) {
       );
     }
   }
+  if (!approvedHostedRunnerLabels.has(value.governedReusableRunnerInput.failureSentinel)) {
+    throw new ConfigurationError(
+      "policy.governedReusableRunnerInput.failureSentinel must be an approved hosted runner label",
+    );
+  }
   if (
-    approvedHostedRunnerLabels.has(value.governedReusableRunnerInput.failureSentinel) ||
+    approvedHostedRunnerLabels.has(value.governedReusableRunnerInput.failureSentinelMarker) ||
     forbiddenHostedRunnerLabels.has(
-      value.governedReusableRunnerInput.failureSentinel.toLowerCase(),
+      value.governedReusableRunnerInput.failureSentinelMarker.toLowerCase(),
     ) ||
     managedLabelRegexes.some((pattern) =>
-      pattern.test(value.governedReusableRunnerInput.failureSentinel),
+      pattern.test(value.governedReusableRunnerInput.failureSentinelMarker),
     )
   ) {
     throw new ConfigurationError(
-      "policy.governedReusableRunnerInput.failureSentinel must remain outside every hosted and managed runner label set",
+      "policy.governedReusableRunnerInput.failureSentinelMarker must remain outside every hosted and managed runner label set",
     );
   }
   const hostedMatrixAxes = new Map();
@@ -319,12 +376,8 @@ function validatePolicy(value) {
     approvedSelectorReferences: new Set(value.approvedSelectorReferences),
     approvedSelectorReferencesByRepositoryOwner,
     scopedSelectorOwnersByReference,
+    approvedSelectorInputContracts,
     approvedReusableWorkflowContracts,
-    canonicalSelectorInputNames: new Set([
-      ...Object.keys(value.canonicalSelectorInputs),
-      ...Object.keys(value.optionalCanonicalSelectorInputs),
-      ...Object.keys(value.optionalBooleanSelectorInputs),
-    ]),
     canonicalSelectorSecretNames: new Set(Object.keys(value.canonicalSelectorSecrets)),
     approvedHostedRunnerLabels,
     hostedMatrixAxes,
@@ -392,7 +445,12 @@ function validateRepositoryConfig(value, policy) {
     localRoutingGrants.set(key, grant);
   }
 
-  return { ...value, exceptions, localRoutingGrants };
+  const requiredReusableCallInputs = new Map();
+  for (const [key, entry] of Object.entries(value.requiredReusableCallInputs ?? {})) {
+    requiredReusableCallInputs.set(key, entry);
+  }
+
+  return { ...value, exceptions, localRoutingGrants, requiredReusableCallInputs };
 }
 
 async function readJson(filePath, location) {
@@ -925,6 +983,23 @@ function selectorStatus(job, policy) {
       reason: secretError,
     };
   }
+  const inputContract = policy.approvedSelectorInputContracts.get(job.uses);
+  if (!inputContract) {
+    return {
+      approved: false,
+      isSelector: true,
+      reason: "the selector path@SHA has no reviewed input contract",
+    };
+  }
+  const optionalCanonicalSelectorInputs = {};
+  const optionalBooleanSelectorInputs = {};
+  for (const name of inputContract.allowedInputs) {
+    if (Object.hasOwn(policy.optionalCanonicalSelectorInputs, name)) {
+      optionalCanonicalSelectorInputs[name] = policy.optionalCanonicalSelectorInputs[name];
+    } else if (Object.hasOwn(policy.optionalBooleanSelectorInputs, name)) {
+      optionalBooleanSelectorInputs[name] = policy.optionalBooleanSelectorInputs[name];
+    }
+  }
   // Boolean opt-in inputs share the optional exact-match contract: present or
   // absent, and when present the caller's parsed value must equal the reviewed
   // literal (true). Merging them into the optional map reuses that fail-closed
@@ -933,8 +1008,8 @@ function selectorStatus(job, policy) {
   const inputError = exactCanonicalMap(
     job.with,
     policy.canonicalSelectorInputs,
-    { ...policy.optionalCanonicalSelectorInputs, ...policy.optionalBooleanSelectorInputs },
-    policy.canonicalSelectorInputNames,
+    { ...optionalCanonicalSelectorInputs, ...optionalBooleanSelectorInputs },
+    inputContract.allowedInputNames,
     "selector inputs",
   );
   if (inputError) {
@@ -1524,6 +1599,61 @@ function securitySurfaceDiffField(basis, candidate) {
   return undefined;
 }
 
+function assertReusableWorkflowDiffable(workflow, revisionLabel) {
+  const malformedJobs = malformedJobIds(workflow);
+  if (malformedJobs.length > 0) {
+    throw new ConfigurationError(
+      `${revisionLabel} revision job ${malformedJobs[0]} is malformed; jobs.${malformedJobs[0]} must be a mapping`,
+    );
+  }
+  const dynamicRoutingJobs = dynamicRoutingReferenceJobIds(workflow);
+  if (dynamicRoutingJobs.length > 0) {
+    throw new ConfigurationError(
+      `${revisionLabel} revision job ${dynamicRoutingJobs[0]} references needs in a routing-relevant field, which cannot be safely diffed for auto-approval`,
+    );
+  }
+  const localReferenceJobs = localReferenceJobIds(workflow);
+  if (localReferenceJobs.length > 0) {
+    throw new ConfigurationError(
+      `${revisionLabel} revision job ${localReferenceJobs[0]} uses a repository-local action or reusable workflow, which resolves from the bumped commit and cannot be safely diffed for auto-approval`,
+    );
+  }
+}
+
+// Shared by auditRepository auto-approval and claude-lanes repin lockstep: the
+// same bounded security surface comparison documented in README.md.
+export function reusableWorkflowSecuritySurfacesMatch({
+  oldSource,
+  newSource,
+  workflowPath,
+  policy,
+}) {
+  const oldWorkflow = parseWorkflow(oldSource, workflowPath);
+  const newWorkflow = parseWorkflow(newSource, workflowPath);
+  assertReusableWorkflowDiffable(oldWorkflow, "old");
+  assertReusableWorkflowDiffable(newWorkflow, "new");
+
+  const oldSurface = reusableWorkflowSecuritySurface(oldWorkflow, policy);
+  const newSurface = reusableWorkflowSecuritySurface(newWorkflow, policy);
+  for (const [revisionLabel, surface] of [
+    ["old", oldSurface],
+    ["new", newSurface],
+  ]) {
+    const malformedField = malformedWorkflowCallMappingField(surface);
+    if (malformedField) {
+      throw new ConfigurationError(
+        `${revisionLabel} revision ${malformedField} declaration is malformed; on.workflow_call.${malformedField} must be a mapping when declared`,
+      );
+    }
+  }
+
+  const diffField = securitySurfaceDiffField(oldSurface, newSurface);
+  if (diffField) {
+    return { unchanged: false, diffField };
+  }
+  return { unchanged: true };
+}
+
 // Every field here is a human-reviewed contract term that this module's
 // surface diff cannot re-derive from the fetched workflow bytes alone, so
 // two matching reviewed revisions could otherwise disagree on it without
@@ -1875,15 +2005,52 @@ function selfHostedSelectorConditionStatus(job, selectorId) {
   return { approved: true };
 }
 
-function unroutableFailureStatus(jobId, target, job, jobs, policy) {
-  if (target !== policy.governedReusableRunnerInput.failureSentinel) {
+function selectorFailureSentinelStepShape(step, policy, { requireMarkerName }) {
+  const stepKeys = isMapping(step) ? Object.keys(step) : [];
+  const allowedStepKeys = new Set(["name", "run", "shell"]);
+  const lines = typeof step?.run === "string" ? step.run.trim().split(/\r?\n/) : [];
+  if (
+    stepKeys.some((key) => !allowedStepKeys.has(key)) ||
+    typeof step?.name !== "string" ||
+    step.name.trim() === "" ||
+    (requireMarkerName && step.name !== policy.governedReusableRunnerInput.failureSentinelMarker) ||
+    (requireMarkerName && step.shell !== "bash") ||
+    (Object.hasOwn(step, "shell") && step.shell !== "bash") ||
+    lines.length !== 2 ||
+    !/^echo "::error::[A-Za-z0-9][A-Za-z0-9 .:_-]*"$/.test(lines[0].trim()) ||
+    lines[1].trim() !== "exit 1"
+  ) {
+    return {
+      approved: false,
+      reason: requireMarkerName
+        ? "the selector failure sentinel step must use the declared marker name, pin shell: bash, emit a static error annotation, and exit 1"
+        : "the legacy selector failure sentinel step must only emit a static error annotation and exit 1",
+    };
+  }
+  return { approved: true };
+}
+
+function selectorFailureSentinelStatus(jobId, target, job, jobs, policy) {
+  const { failureSentinel, failureSentinelMarker } = policy.governedReusableRunnerInput;
+  const legacySentinel = target === failureSentinelMarker;
+  const hostedSentinel = target === failureSentinel;
+  if (!legacySentinel && !hostedSentinel) {
     return undefined;
   }
   const prerequisites = normalizeNeeds(job.needs);
+  if (hostedSentinel) {
+    const steps = Array.isArray(job.steps) ? job.steps : [];
+    const [step] = steps;
+    const hasMarkerStep =
+      steps.length === 1 && isMapping(step) && step.name === failureSentinelMarker;
+    if (!hasMarkerStep) {
+      return undefined;
+    }
+  }
   if (prerequisites.length !== 1) {
     return {
       approved: false,
-      reason: `${jobId} must declare exactly one selector job in needs to use the unroutable failure sentinel`,
+      reason: `${jobId} must declare exactly one selector job in needs to use the selector failure sentinel`,
     };
   }
   const [selectorId] = prerequisites;
@@ -1904,7 +2071,7 @@ function unroutableFailureStatus(jobId, target, job, jobs, policy) {
     return {
       approved: false,
       reason:
-        "the unroutable failure sentinel requires the exact complement of a successful governed self-hosted selector route",
+        "the selector failure sentinel requires the exact complement of a successful governed self-hosted selector route",
     };
   }
   const allowedJobKeys = new Set([
@@ -1920,7 +2087,7 @@ function unroutableFailureStatus(jobId, target, job, jobs, policy) {
   if (extraJobKeys.length > 0) {
     return {
       approved: false,
-      reason: `the unroutable failure sentinel job has forbidden keys: ${extraJobKeys.join(", ")}`,
+      reason: `the selector failure sentinel job has forbidden keys: ${extraJobKeys.join(", ")}`,
     };
   }
   if (
@@ -1930,33 +2097,23 @@ function unroutableFailureStatus(jobId, target, job, jobs, policy) {
   ) {
     return {
       approved: false,
-      reason: "the unroutable failure sentinel job requires timeout-minutes: 1 and permissions: {}",
+      reason: "the selector failure sentinel job requires timeout-minutes: 1 and permissions: {}",
     };
   }
   if (!Array.isArray(job.steps) || job.steps.length !== 1) {
     return {
       approved: false,
-      reason: "the unroutable failure sentinel job requires exactly one rejecting shell step",
+      reason: "the selector failure sentinel job requires exactly one rejecting shell step",
     };
   }
   const [step] = job.steps;
-  const stepKeys = isMapping(step) ? Object.keys(step) : [];
-  const lines = typeof step?.run === "string" ? step.run.trim().split(/\r?\n/) : [];
-  if (
-    stepKeys.some((key) => key !== "name" && key !== "run") ||
-    typeof step?.name !== "string" ||
-    step.name.trim() === "" ||
-    lines.length !== 2 ||
-    !/^echo "::error::[A-Za-z0-9][A-Za-z0-9 .:_-]*"$/.test(lines[0].trim()) ||
-    lines[1].trim() !== "exit 1"
-  ) {
-    return {
-      approved: false,
-      reason:
-        "the unroutable failure sentinel step must only emit a static error annotation and exit 1",
-    };
+  const stepShape = selectorFailureSentinelStepShape(step, policy, {
+    requireMarkerName: hostedSentinel,
+  });
+  if (!stepShape.approved) {
+    return stepShape;
   }
-  return { approved: true, selectorId };
+  return { approved: true, selectorId, legacy: legacySentinel };
 }
 
 function routeStatus(jobId, target, job, jobs, policy, reusableContract, localRunnerInputMode) {
@@ -2241,13 +2398,14 @@ function runnerTargetStatus(jobId, job, jobs, workflow, policy, file, workflowIn
     };
   }
 
-  const unroutableFailure = unroutableFailureStatus(jobId, target, job, jobs, policy);
-  if (unroutableFailure) {
+  const selectorFailureSentinel = selectorFailureSentinelStatus(jobId, target, job, jobs, policy);
+  if (selectorFailureSentinel) {
     return {
-      approved: unroutableFailure.approved,
-      kind: unroutableFailure.approved ? "unroutable-failure" : "invalid",
-      route: { attempted: true, selectorId: unroutableFailure.selectorId },
-      ...(unroutableFailure.reason ? { reason: unroutableFailure.reason } : {}),
+      approved: selectorFailureSentinel.approved,
+      kind: selectorFailureSentinel.approved ? "selector-failure-sentinel" : "invalid",
+      route: { attempted: true, selectorId: selectorFailureSentinel.selectorId },
+      ...(selectorFailureSentinel.legacy ? { legacySentinel: true } : {}),
+      ...(selectorFailureSentinel.reason ? { reason: selectorFailureSentinel.reason } : {}),
     };
   }
 
@@ -2921,6 +3079,61 @@ function finding(rule, file, job, message) {
   return { rule, file, ...(job ? { job } : {}), message };
 }
 
+function visibilityScopedReusableContractFindings(
+  contracts,
+  { visibility, repositoryVisibility, policyFile },
+) {
+  const findings = [];
+  for (const [reference, contract] of contracts) {
+    const parsed = parseReusableWorkflowReference(reference);
+    if (!parsed || !VISIBILITY_SCOPED_REUSABLE_WORKFLOW_PATHS.has(parsed.workflow)) {
+      continue;
+    }
+    const denylistedInputs = [...contract.allowedInputs].filter((name) =>
+      PUBLIC_REPOSITORY_DENYLISTED_REUSABLE_INPUTS.has(name),
+    );
+    const denylistedSecrets = new Set(
+      [...contract.allowedSecretNames].filter((name) =>
+        PUBLIC_REPOSITORY_DENYLISTED_REUSABLE_SECRETS.has(name),
+      ),
+    );
+    for (const expression of Object.values(contract.allowedSecrets)) {
+      const match = EXACT_NAMED_SECRET_EXPRESSION.exec(expression);
+      if (match !== null && PUBLIC_REPOSITORY_DENYLISTED_REUSABLE_SECRETS.has(match[1])) {
+        denylistedSecrets.add(match[1]);
+      }
+    }
+    if (denylistedInputs.length === 0 && denylistedSecrets.size === 0) {
+      continue;
+    }
+    const listed = [...denylistedInputs, ...denylistedSecrets]
+      .sort((left, right) => left.localeCompare(right))
+      .join(", ");
+    if (!repositoryVisibility) {
+      findings.push(
+        finding(
+          "visibility-evidence-required",
+          policyFile,
+          undefined,
+          `reusable workflow contract ${reference} lists visibility-scoped surface (${listed}); CI_REPOSITORY_VISIBILITY is required`,
+        ),
+      );
+      continue;
+    }
+    if (visibility === "public") {
+      findings.push(
+        finding(
+          "visibility-scoped-reusable-contract",
+          policyFile,
+          undefined,
+          `reusable workflow contract ${reference} lists visibility-scoped surface (${listed}) while this repository is public; shared contracts cannot enable sensitive inputs for private consumers only`,
+        ),
+      );
+    }
+  }
+  return findings;
+}
+
 const COMMENT_HEX_TOKENS = /(?<=^|[^0-9a-f])[0-9a-f]{7,40}(?=[^0-9a-f]|$)/giu;
 
 // A hex run reads as a short-SHA claim only when it mixes digits and letters
@@ -3117,6 +3330,7 @@ export async function auditRepository({
   const findings = [];
   const consumedExceptions = new Set();
   const consumedLocalRoutingGrants = new Set();
+  const consumedRequiredReusableCallInputs = new Set();
   const workflowIndex = await repositoryWorkflowIndex(resolvedRoot);
   if (!disableAutoApproval) {
     const autoApproval = await resolveAutoApprovedContracts({ policy, workflowIndex, fetchImpl });
@@ -3128,6 +3342,13 @@ export async function auditRepository({
     }
     policy.autoApprovalDiagnostics = autoApproval.diagnostics;
   }
+  findings.push(
+    ...visibilityScopedReusableContractFindings(policy.approvedReusableWorkflowContracts, {
+      visibility: config.visibility,
+      repositoryVisibility,
+      policyFile: path.relative(resolvedRoot, resolvedPolicy) || path.basename(resolvedPolicy),
+    }),
+  );
   const localPermissionVisits = new Set();
   const localIncomingFiles = new Set();
   for (const record of workflowIndex.values()) {
@@ -3162,10 +3383,14 @@ export async function auditRepository({
       const key = `${file}#${jobId}`;
       const exception = config.exceptions.get(key);
       const grant = config.localRoutingGrants.get(key);
+      const requiredCallInputs = config.requiredReusableCallInputs.get(key);
       const selector = selectorStatus(job, policy);
       const localCall = selector.isSelector
         ? undefined
         : localReusableWorkflowStatus(file, job, policy, workflowIndex);
+      const reusable = selector.isSelector
+        ? undefined
+        : reusableWorkflowStatus(job, policy, workflow);
       const target = selector.isSelector
         ? undefined
         : runnerTargetStatus(jobId, job, workflow.jobs, workflow, policy, file, workflowIndex);
@@ -3183,10 +3408,20 @@ export async function auditRepository({
         callers.push(jobId);
         requiredNoDefaultCallers.set(target.route.selectorId, callers);
       }
-      if (routingEnabled && target?.kind === "unroutable-failure" && target.approved) {
+      if (routingEnabled && target?.kind === "selector-failure-sentinel" && target.approved) {
         const sentinels = approvedFailureSentinels.get(target.route.selectorId) ?? [];
         sentinels.push(jobId);
         approvedFailureSentinels.set(target.route.selectorId, sentinels);
+        if (target.legacySentinel) {
+          findings.push(
+            finding(
+              "selector-failure-sentinel-legacy",
+              file,
+              jobId,
+              "the legacy unroutable runs-on sentinel shape is accepted during migration; migrate to the hosted failureSentinel label with the declared failureSentinelMarker step",
+            ),
+          );
+        }
       }
       const seedLocalPermissionFlow =
         !isWorkflowCallExclusive(workflow) || !localIncomingFiles.has(file);
@@ -3297,6 +3532,50 @@ export async function auditRepository({
         findings.push(finding("runner-target-contract", file, jobId, target.reason));
       }
 
+      if (requiredCallInputs) {
+        // Required inputs govern the cross-repository contract call only. A
+        // repository-local wrapper may accept the named input without
+        // forwarding it to the reviewed external workflow.
+        if (reusable?.isReusable && !localCall?.isLocal) {
+          consumedRequiredReusableCallInputs.add(key);
+          const contract = policy.approvedReusableWorkflowContracts.get(job.uses);
+          if (contract) {
+            for (const name of requiredCallInputs.requiredInputs) {
+              if (!contract.allowedInputs.has(name)) {
+                throw new ConfigurationError(
+                  `requiredReusableCallInputs ${key} names input ${name}, which is not in the reviewed contract for ${job.uses}`,
+                );
+              }
+            }
+          }
+          const inputs = job.with === undefined ? {} : job.with;
+          if (!isMapping(inputs)) {
+            findings.push(
+              finding(
+                "required-reusable-call-input",
+                file,
+                jobId,
+                `the reusable workflow call omits repository-required inputs: ${requiredCallInputs.requiredInputs.join(", ")} (configured at ${key})`,
+              ),
+            );
+          } else {
+            const missingInputs = requiredCallInputs.requiredInputs.filter(
+              (name) => !Object.hasOwn(inputs, name),
+            );
+            if (missingInputs.length > 0) {
+              findings.push(
+                finding(
+                  "required-reusable-call-input",
+                  file,
+                  jobId,
+                  `the reusable workflow call omits repository-required inputs: ${missingInputs.join(", ")} (configured at ${key})`,
+                ),
+              );
+            }
+          }
+        }
+      }
+
       if (hostedRequirement) {
         if (!exception) {
           findings.push(
@@ -3361,7 +3640,7 @@ export async function auditRepository({
         continue;
       }
 
-      if (target?.kind === "unroutable-failure" && target.approved) {
+      if (target?.kind === "selector-failure-sentinel" && target.approved) {
         continue;
       }
       if (target?.kind === "selector-output" && target.approved) {
@@ -3419,7 +3698,7 @@ export async function auditRepository({
             "selector-failure-sentinel-required",
             file,
             jobId,
-            `required no-default local runner calls using ${selectorId} require exactly one approved ${policy.governedReusableRunnerInput.failureSentinel} rejection job for the same selector in this workflow; found ${sentinelIds.length}`,
+            `required no-default local runner calls using ${selectorId} require exactly one approved selector failure sentinel for the same selector in this workflow; found ${sentinelIds.length}`,
           ),
         );
       }
@@ -3447,6 +3726,19 @@ export async function auditRepository({
           key.split("#", 1)[0],
           key.includes("#") ? key.slice(key.indexOf("#") + 1) : undefined,
           `configured local-routing grant ${key} is unused; remove or correct it`,
+        ),
+      );
+    }
+  }
+
+  for (const key of config.requiredReusableCallInputs.keys()) {
+    if (!consumedRequiredReusableCallInputs.has(key)) {
+      findings.push(
+        finding(
+          "required-reusable-call-input-drift",
+          key.split("#", 1)[0],
+          key.includes("#") ? key.slice(key.indexOf("#") + 1) : undefined,
+          `configured requiredReusableCallInputs entry ${key} is unused; remove or correct it`,
         ),
       );
     }

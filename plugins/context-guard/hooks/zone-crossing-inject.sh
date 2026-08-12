@@ -32,10 +32,58 @@
 # own snapshot seam via scripts/context-zone.sh (the single band/combination
 # authority — this hook never re-implements band logic). The last-seen zone
 # is kept per session in a private state file; injection fires only when the
-# rank worsens (smart → acceptable/dumb, acceptable → dumb, or a first
-# observation already past smart). `unknown` is always silent and never
-# updates state — no data is not a transition. Improvements update state
-# silently so a later relapse injects again.
+# rank worsens past the highest rank already REPORTED this session (smart →
+# acceptable/dumb, acceptable → dumb, or a first observation already past
+# smart). `unknown` is always silent and never updates state — no data is not
+# a transition.
+#
+# HYSTERESIS (the armed rank). The bands are hard thresholds, and occupancy
+# does not climb monotonically: tool results land and are released, so a
+# session sitting near a boundary crosses it repeatedly. Comparing only
+# against the LAST-SEEN zone made every re-crossing a fresh transition, so
+# the ~1KB guidance block re-injected on each one, and an improvement in any
+# amount silently re-armed the injection with nothing counting or capping the
+# flap. A second marker — the ARMED rank, the worst zone this session has
+# already reported — now gates the emit, and it decays only when the session
+# returns to the BEST band (`smart`).
+#
+# A TARGET, NOT A DISTANCE. 0.7.0 expressed that decay as a fixed rank delta
+# (an improvement of at least two ranks) and shipped a rule that could only
+# ever fire from one band. The ladder is three ranks wide, so from
+# `acceptable` the largest available improvement is ONE rank: the delta was
+# unsatisfiable there, and a session that armed at `acceptable` could never
+# re-arm — it stayed silent through every later relapse for the rest of its
+# life, which is the #2220 defect inverted rather than fixed. A delta cannot
+# work uniformly on a scale this short. The re-arm target is therefore a place
+# on the ladder — its bottom — which every band can reach.
+#
+# The rule is a declared judgment default, like the bands themselves
+# (reference/reader-contract.md records their provenance): reaching `smart`
+# means the window genuinely emptied, while a dip that lands short of it is
+# the edge oscillation described above and says nothing new. A `/clear` needs
+# no rule at all: it starts a new session id, hence a new state file and a
+# fresh baseline.
+#
+# THE PROPERTY THIS GUARANTEES: within one arming cycle each zone is announced
+# at most once, and only a return to `smart` opens a new cycle — so a genuine
+# recovery followed by a relapse re-injects exactly once for the band it
+# relapses into, from ANY armed band, and a flap that never reaches `smart`
+# stays silent however long it oscillates.
+#
+# THE RESIDUAL, STATED: at the `smart`/`acceptable` edge a flap and a full
+# recovery are the SAME observation — `smart` is both the far side of that
+# boundary and the bottom of the ladder — so a session oscillating there
+# re-announces `acceptable` once per down-up cycle. Rank granularity cannot
+# separate the two cases: this hook sees one word per observation, never the
+# occupancy behind it (the resolver's contract is exactly one word, and band
+# logic lives there and only there). Suppressing that residual needs either a
+# numeric deadband below the band edge or a dwell requirement on the improved
+# reading, and a dwell wide enough to absorb the flap would also silence the
+# single-observation recovery this rule exists to honor.
+#
+# The last-seen zone is still tracked, separately: it is what the message and
+# the recovery telemetry report as the previous zone, and it is not the emit
+# gate.
 #
 # ADVISORY-ONLY: this hook only ever exits 0 and only ever emits context and a
 # user-visible message. The blocking posture lives in the separate PreToolUse
@@ -108,8 +156,19 @@ else
   exit 0
 fi
 STATE_FILE="$STATE_DIR/$SESSION.zone"
+ARMED_FILE="$STATE_DIR/$SESSION.armed"
 last=""
 [[ -r "$STATE_FILE" ]] && last=$(tr -cd '[:lower:]' <"$STATE_FILE" 2>/dev/null | head -c 16)
+armed=""
+[[ -r "$ARMED_FILE" ]] && armed=$(tr -cd '[:lower:]' <"$ARMED_FILE" 2>/dev/null | head -c 16)
+# A SIBLING file, not a second line in the existing one: `last` is read with
+# `tr -cd '[:lower:]'`, which strips the newline too, so a two-line state file
+# would fuse into "dumbacceptable" and rank as smart. Sessions already running
+# when this version lands have a `.zone` file and no `.armed` file; seeding the
+# armed rank from the last-seen zone reproduces the pre-hysteresis decision for
+# exactly one call, after which the marker latches normally. No migration step
+# and no state-format version are needed for that.
+[[ -n "$armed" ]] || armed="$last"
 
 rank() {
   case "$1" in
@@ -118,31 +177,75 @@ rank() {
   *) printf '0' ;; # smart, or no prior observation (baseline)
   esac
 }
+unrank() {
+  case "$1" in
+  2) printf 'dumb' ;;
+  1) printf 'acceptable' ;;
+  *) printf 'smart' ;;
+  esac
+}
 new_rank=$(rank "$zone")
-last_rank=$(rank "$last")
+armed_rank=$(rank "$armed")
 
-# Persist the current zone regardless of direction (improvements update
-# silently) — owner-only, atomic enough for a single-writer-per-session file.
-# A write failure (full or newly read-only filesystem) must fail OPEN
-# SILENTLY: proceeding past it would compare this turn's zone against the
-# same stale `last` again on the next call, re-emitting the ~1KB guidance
-# block every subsequent PostToolBatch/UserPromptSubmit instead of once per
-# transition. "Silent" means neither channel emits — the failure
-# itself is still surfaced to operators as telemetry, never swallowed twice.
+# See the header. The armed rank rises to whatever this observation reports, and
+# decays only on a return to the BEST band — a target on the ladder, not a
+# distance along it.
+BEST_RANK=0 # smart
+next_armed_rank=$armed_rank
+if ((new_rank > armed_rank || new_rank == BEST_RANK)); then
+  next_armed_rank=$new_rank
+fi
+
+# Persist both markers regardless of direction — owner-only, atomic enough for
+# a single-writer-per-session file. A write failure (full or newly read-only
+# filesystem) must fail OPEN SILENTLY: proceeding past it would compare this
+# turn's zone against the same stale markers again on the next call, re-emitting
+# the ~1KB guidance block every subsequent PostToolBatch/UserPromptSubmit
+# instead of once per transition — which is the very defect the armed rank
+# exists to bound. "Silent" means neither channel emits — the failure itself is
+# still surfaced to operators as telemetry, never swallowed twice.
+#
+# THE GATE MOVES LAST, AND NEVER WITHOUT ITS COMPANION. Failing open silently is
+# only safe while the notice SURVIVES the failure. `.armed` is the emit gate, so
+# advancing it while the accompanying `.zone` write failed would exit without
+# emitting AND suppress the next identical observation — the first warning lost
+# though it was never reported. That is 0.7.0's ordering, and it was wrong: a
+# stale gate is not the "safe survivor" when the notice it suppresses was never
+# delivered. So `.zone` is written first and `.armed` only after it lands; if
+# either fails, the gate has not moved and the session is still owed its
+# injection, which the next observation issues.
 umask 077
 mkdir -p "$STATE_DIR" 2>/dev/null || exit 0
+persist_failed=""
 if ! printf '%s\n' "$zone" >"$STATE_FILE" 2>/dev/null; then
+  persist_failed="zone"
+elif ! printf '%s\n' "$(unrank "$next_armed_rank")" >"$ARMED_FILE" 2>/dev/null; then
+  persist_failed="armed"
+  # Roll the label back to what it said before, so the message the next
+  # successful call emits names the zone the session was really in rather than
+  # the one it is in now. Best-effort: if the rollback itself fails the label is
+  # stale, which mislabels one message — never a lost or repeated notice,
+  # because the gate did not move either way.
+  if [[ -n "$last" ]]; then
+    printf '%s\n' "$last" >"$STATE_FILE" 2>/dev/null || :
+  else
+    rm -f "$STATE_FILE" 2>/dev/null || :
+  fi
+fi
+if [[ -n "$persist_failed" ]]; then
   hook::emit_telemetry "zone-crossing-inject" "$EVENT" "error" "$START_EPOCH" \
-    '{"zone":"'"$zone"'","previous":"'"${last:-}"'","reason":"state_persist_failed"}'
+    '{"zone":"'"$zone"'","previous":"'"${last:-}"'","marker":"'"$persist_failed"'","reason":"state_persist_failed"}'
   exit 0
 fi
 
-((new_rank > last_rank)) || {
-  # No worsening. A recovery (rank drop) is still a meaningful outcome for
-  # telemetry; an unchanged zone is not.
+((new_rank > armed_rank)) || {
+  # Nothing worse than this session has already reported. Three shapes reach
+  # here and only the first two are worth telemetry: a genuine recovery (rank
+  # drop), a re-crossing the armed rank suppressed (the flap this gate exists
+  # for), and an unchanged zone, which is not an event.
   if [[ -n "$last" && "$zone" != "$last" ]]; then
     hook::emit_telemetry "zone-crossing-inject" "$EVENT" "ok" "$START_EPOCH" \
-      '{"zone":"'"$zone"'","previous":"'"$last"'","injected":false}'
+      '{"zone":"'"$zone"'","previous":"'"$last"'","armed":"'"$armed"'","injected":false}'
   fi
   exit 0
 }
@@ -164,5 +267,5 @@ operator="context-guard: this session crossed from the ${prev_label} into the ${
 
 hook::emit_channels "$EVENT" "$guidance" "$operator"
 hook::emit_telemetry "zone-crossing-inject" "$EVENT" "ok" "$START_EPOCH" \
-  '{"zone":"'"$zone"'","previous":"'"${last:-}"'","injected":true}'
+  '{"zone":"'"$zone"'","previous":"'"${last:-}"'","armed":"'"${armed:-}"'","injected":true}'
 exit 0

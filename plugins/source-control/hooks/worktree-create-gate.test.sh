@@ -31,6 +31,13 @@ mkrepo() {
     git -C "$repo" init -q -b main
     git -C "$repo" config user.email t@t.t
     git -C "$repo" config user.name t
+    # Repo-local, on a throwaway repo this function just created. A machine with
+    # commit.gpgsign=true globally has no secret key for the fixture identity, so
+    # without this every `git commit` below fails and the suite reports its
+    # SUCCESS cases as failures while its refusal cases still pass — a shape that
+    # reads as a real regression. Same line the sibling suites already carry
+    # (scripts/landed-work.test.sh, skills/commit/scripts/exec-bit-check.test.sh).
+    git -C "$repo" config commit.gpgsign false
     printf 'seed\n' >"$repo/README.md"
     git -C "$repo" add README.md
     git -C "$repo" commit -qm init
@@ -120,6 +127,26 @@ assert_silent "an illegal name prints no path" "$OUT"
 
 # --------------------------------------------------------------------------
 # Disabled
+#
+# The previous contract asserted here — "exit 0 so Claude Code uses its own
+# default" — is FALSE, measured on Claude Code 2.1.228. A WorktreeCreate hook
+# that exits 0 without printing a path fails the creation:
+#
+#   $ claude -p '…' --worktree probe1 --settings <hook: exit 0, no stdout>
+#   Error creating worktree: WorktreeCreate hook failed: hook succeeded but
+#   returned no worktree path (command: echo the path to stdout; http/callback:
+#   return hookSpecificOutput.worktreePath)
+#   # exit 1, and `git worktree list` shows nothing was created
+#
+# Confirmed verbatim at <https://code.claude.com/docs/en/hooks> (raw markdown,
+# fetched 2026-08-11): "Hook failure or missing path fails creation", and "If the
+# hook fails or produces no path, worktree creation fails with an error."
+#
+# So the exit-0 path produced the SAME outcome as a refusal — creation fails —
+# while suppressing every explanation, because an exit-0 hook's stderr is dropped
+# (measured: the probe marker was absent from harness output on exit 0 and
+# present, in full, on exit 3). Disabled therefore refuses out loud instead.
+# Full four-arm probe: skills/worktree/fixtures/README.md.
 # --------------------------------------------------------------------------
 
 REPO6="$(mkrepo)"
@@ -127,16 +154,69 @@ OUT="$(payload "feat/gate-off" "$REPO6" |
   CLAUDE_PLUGIN_OPTION_WORKTREE_CREATE_GATE_ENABLED=false \
     CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT="$ROOT" bash "$HOOK" 2>/dev/null)"
 STATUS=$?
-assert_exit "disabled exits 0 so Claude Code uses its own default" 0 "$STATUS"
-assert_silent "disabled prints no path — an empty stdout is what yields the default" "$OUT"
+assert_exit "disabled refuses non-zero, because exit 0 without a path fails creation anyway" 1 "$STATUS"
+assert_silent "a refusal prints no path" "$OUT"
 assert_eq "disabled creates nothing" "1" \
   "$(git -C "$REPO6" worktree list | grep -c .)"
 
 ERR="$(payload "feat/gate-off" "$REPO6" |
   CLAUDE_PLUGIN_OPTION_WORKTREE_CREATE_GATE_ENABLED=false \
     CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT="$ROOT" bash "$HOOK" 2>&1 >/dev/null)"
-assert_contains "disabled says so on stderr, the only channel that cannot corrupt the path" \
-  "$ERR" "disabled"
+assert_contains "disabled names the option that caused it" "$ERR" "worktree_create_gate_enabled=false"
+assert_contains "disabled names the real harness-side stand-down" "$ERR" 'worktree.bgIsolation'
+assert_contains "disabled states plainly that the option cannot hand placement back" \
+  "$ERR" "cannot hand placement back"
+assert_eq "the remedy leads — a reader acts on the first line, so it must not be the diagnosis" \
+  "1" "$(printf '%s\n' "$ERR" | grep -n 'bgIsolation' | head -n 1 | cut -d: -f1)"
+
+# --------------------------------------------------------------------------
+# The failure message: taxonomy, real exit status, and a remedy on every line 1
+#
+# Every refusal fails the creation identically (any non-zero exit does), so the
+# exit code is not a channel and the TEXT is the whole product. These cases lock
+# in that the three helper failure modes are distinguishable and that each leads
+# with something the reader can do.
+# --------------------------------------------------------------------------
+
+# exit 4 — not a git repository. The old message reported a constant "exited 0".
+NOTREPO="$(mktemp -d "$TEST_TMPDIR/notrepoXXXXXX")"
+ERR="$(payload "feat/gate-nonrepo" "$NOTREPO" |
+  CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT="$ROOT" bash "$HOOK" 2>&1 >/dev/null)"
+assert_contains "a non-repository is named as such, not as an opaque exit code" \
+  "$ERR" "not a git repository"
+assert_contains "a non-repository names the harness-side stand-down as the remedy" \
+  "$ERR" 'worktree.bgIsolation'
+assert_not_contains "the constant-zero exit status is gone" "$ERR" "exited 0"
+
+# exit 3 — no usable root. Distinguishable from exit 4 above and exit 2 below.
+REPO8="$(mkrepo)"
+ERR="$(payload "feat/gate-noroot2" "$REPO8" | env -u CLAUDE_PLUGIN_DATA bash "$HOOK" 2>&1 >/dev/null)"
+assert_contains "a missing root names worktree_root as the remedy" "$ERR" "worktree_root"
+assert_not_contains "a missing root is not reported as a non-repository" \
+  "$ERR" "not a git repository"
+
+# exit 2 — a name git rejects as a branch.
+REPO9="$(mkrepo)"
+ERR="$(payload "feat/bad..name" "$REPO9" |
+  CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT="$ROOT" bash "$HOOK" 2>&1 >/dev/null)"
+assert_contains "an illegal branch name is reported as a name problem" "$ERR" "worktree name git accepts"
+assert_not_contains "an illegal name is not reported as a missing root" \
+  "$ERR" "found no usable external root"
+
+# An empty payload is its own cause, not "carried no .name".
+ERR="$(printf '' | CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT="$ROOT" bash "$HOOK" 2>&1 >/dev/null)"
+STATUS=$?
+assert_exit "an empty payload refuses" 1 "$STATUS"
+assert_contains "an empty payload is reported as an empty payload" \
+  "$ERR" "empty or could not be buffered"
+assert_not_contains "an empty payload is NOT misreported as a missing .name field" \
+  "$ERR" "parsed but carried no .name"
+
+# A payload that parses but lacks .name keeps its own distinct message.
+ERR="$(printf '{"session_id":"s1","cwd":"%s","hook_event_name":"WorktreeCreate"}' "$REPO9" |
+  CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT="$ROOT" bash "$HOOK" 2>&1 >/dev/null)"
+assert_contains "a nameless payload is reported as a nameless payload" \
+  "$ERR" "parsed but carried no .name"
 
 # --------------------------------------------------------------------------
 # The payload reader

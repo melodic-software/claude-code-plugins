@@ -12,7 +12,7 @@ Each guard is independently toggleable, so you run exactly the subset you want.
 | **hardcoded-path-check** | PreToolUse · Write \| Edit \| NotebookEdit | **Blocks** (exit 2) | Hardcoded machine-specific paths — Windows drive-letter homes, macOS/Linux user homes, machine-specific repo checkout roots. |
 | **block-no-verify** | PreToolUse · Bash \| PowerShell | **Blocks** (exit 2) | Git hook-bypass attempts on `git commit` / `git push`: `--no-verify` / `-n`, `core.hooksPath=` assignment, and hook-manager disable env vars — a configurable prefix set defaulting to `lefthook`, `husky`, `pre_commit`, `simple_git_hooks` (e.g. `LEFTHOOK=0`, `HUSKY=0`, `PRE_COMMIT_*=false`), tunable via `block_no_verify_hook_manager_prefixes`, including inside compound `cd … && …` commands. |
 | **block-dangerous-git** | PreToolUse · Bash \| PowerShell | **Blocks** (exit 2) | Irreversible git operations: `push --force`/`-f` plus the equivalent leading-`+` refspec and `--mirror` forms, and the unsafe `--force-with-lease` spellings, in the two kinds git itself treats differently. **No expected value** (bare `--force-with-lease` or `=<refname>`) leases against the remote-tracking ref, which git documents as "trivially defeated" by a background fetch — blocked unless `--force-if-includes` is present, which git documents as the mitigation for exactly this form. **A movable `=<refname>:<expect>`** — `origin/main`, `HEAD`, a tag, an *abbreviated* object id, or hex of the wrong width for this repository's hash format, all of which git resolves at push time, and gitrevisions resolves a short hex word as a ref before trying it as an object-id prefix — is blocked unconditionally, because git declares `--force-if-includes` a no-op alongside an explicit `:<expect>`. A lease passes only when `<expect>` is immutable: a **literal** object id of the pushed repository's own hash width (detection never evaluates substitutions, so resolve it with `git rev-parse` as a separate step and pass the result) (40 hex under SHA-1, 64 under SHA-256, read from `git rev-parse --show-object-format` with the command's own `-C`/`--git-dir`/`--work-tree`/`--namespace` replayed onto it; undeterminable fails closed) or the empty string asserting the ref must not exist. The other width is a ref name there, not an object id — git ignores a ref whose name is full-width hex for its own format, but resolves one of the other width like any name. git scopes a pin to its own ref, so a bare fallback alongside a pinned entry still governs every other ref being updated; where the same ref carries several lease entries, git consults the first, and so does this guard. A trailing `--no-force-with-lease` cancels every previous lease, and a push dry-run disarms the check. Also blocked: `reset --hard`, `clean` with a force flag (any dry-run flag disarms), worktree-wide `checkout`/`restore` pathspecs (`.`, `:/`, `:(top…)` — path-scoped forms and `restore --staged .` pass), and forced `checkout -f` / `switch --discard-changes`. Accepted unique-prefix abbreviations of the blocked long options match too. `branch -D` is deliberately not blocked (reflog-recoverable; sanctioned skill flows issue it). Per-repo/per-user allow-list via the `block_dangerous_git_allow` userConfig option (comma list, any subset of `push-force,push-lease-unsafe,reset-hard,clean-force,checkout-dot,restore-dot,checkout-force`). |
-| **block-hook-bypass** | PreToolUse · Bash \| PowerShell | **Blocks** (exit 2) | Bash file-write workarounds that circumvent the Write/Edit hook gates — `cat > file`, `echo … > file`, and `python3 -c` with file-write indicators. Executable-token detection ignores quoted prose/commit text that merely mentions the pattern. |
+| **block-hook-bypass** | PreToolUse · Bash \| PowerShell | **Blocks** (exit 2) | Bash file-write workarounds that circumvent the Write/Edit hook gates — `cat > file`, `echo … > file`, and inline python code with file-write indicators (`python`/`python3`/`py`/`pypy`, with `-c` or reading the program from stdin as `python3 - <<PY`). Executable-token detection ignores quoted prose/commit text that merely mentions the pattern. |
 | **cli-flag-verify** | PostToolUse · Write \| Edit | **Advisory** (exit 0) | Hallucinated CLI flags — a `--flag` written as a command that does not exist in the binary's actual `--help` output. Surfaces via `additionalContext`, never blocks. |
 | **workflow-resilience-check** | PreToolUse · Workflow | **Advisory** (exit 0) | Un-throttled Workflow fan-out — a script calling `parallel()` / `pipeline()` with no wave-cap throttle (`inWaves` / `inWavesPipeline`) and no retry wrapper (`agentRetry`), which risks a burst 529 under wide Opus fan-out. Surfaces a resilience checklist via `additionalContext`, never blocks. **Opt-in — default off since 0.20.0** (behavioral-class injector config-disabled per #2021; set `workflow_resilience_check_enabled=true` to enable). |
 | **block-noncanonical-commit** | PreToolUse · Bash \| PowerShell | **Blocks** (exit 2) | `git commit -m` whose message actually contains a newline — a multi-line `-m` flattens newlines unpredictably across shells; pipe it via `-F -` / `--file -` instead (narrowed in 0.20.0 per #2021: single-line `-m`, bare `git commit`, and repeated single-line `-m` paragraphs all pass). On the PowerShell tool a here-string `-m` value blocks too — its content is uninspectable and multi-line by construction of the form. Exempt: `--amend`, `-C`/`-c`/`--reuse-message`/`--reedit-message`, `--fixup`/`--squash`, `-F <path>`, and any commit taken while a merge/rebase/cherry-pick/revert is in progress. Resolves `bash -lc` wrappers and git aliases (inline `-c` and persisted config alike). |
@@ -70,6 +70,19 @@ out of scope until such a signal exists.
   **These are friction guards against accidental/casual bypass, not a
   sandbox.** (A command longer than 16 KB is not parsed and is blocked
   fail-closed.)
+- **`block-dangerous-git` scope boundaries (not bypasses).** Three cases are
+  often filed together; only one is a live bypass (#2151 item A — inherited
+  `--git-dir`/`--work-tree` in a `!` alias body). The other two are
+  **documented limits** of static argv matching:
+  - **Shell `cd` relocation** — `cd <other-repo> && git push …` runs the
+    push from a directory no `-C`/`--git-dir` names. Evaluating it requires
+    arbitrary shell word expansion, which this guard deliberately does not
+    do.
+  - **False block from a non-repository base** — when the session root is
+    not itself a repository, a shell `cd` into a repo and a pinned
+    `--force-with-lease` can be blocked because the width probe cannot
+    resolve a repository at the guard's computed base. That is fail-closed
+    scope, not a bypass.
 - **A NUL byte in the payload blocks, whatever the command says.**
   `block-no-verify` and `block-dangerous-git` refuse any payload whose read
   fields carry a NUL, before they look at the command at all — including one
@@ -93,9 +106,18 @@ out of scope until such a signal exists.
   `build.sh` performs. It is also producer-scoped by design, so a redirect whose
   producer is another program (`sort f > out`, `curl … > page.html`, `cat a b >
   c`) is allowed — only a content producer writing a real file
-  (`cat > f` consuming stdin, `echo`/`printf > f`, inline `python3 -c` writes,
-  the PowerShell write cmdlets) is blocked. The block message carries this scope
-  so a reader does not credit the guard with coverage it never claimed.
+  (`cat > f` consuming stdin, `echo`/`printf > f`, inline python writes,
+  the PowerShell write cmdlets, including `Tee-Object` and its `tee` alias on the
+  PowerShell tool) is blocked. The python lane matches the interpreter FAMILY
+  (`py`, `python`, `pypy`, with an optional version suffix — `py -c`, `python -c`,
+  `python3.11 -c` are the same write as `python3 -c`), and since **0.28.0** it also
+  covers a program read from stdin with an explicit `-` (`python3 - <<PY … PY`);
+  `python3 <<PY` with **no** `-` is an accepted residual, because matching a bare
+  trailing interpreter token would block `cat script.py | python3`. On the **Bash**
+  tool, **`tee` / `tee -a` and inline writes via other interpreters (`node -e`,
+  `perl -e`, `ruby -e`, `sed -i`, `dd of=`, `awk >`, …) are accepted residuals** —
+  outside the modeled surface, not oversights. The block message carries a lane-specific scope note so a reader does
+  not credit the guard with coverage it never claimed.
 - **`block-hook-bypass` has one target-scoped exemption beyond `/dev/null`, and
   it is off unless an operator turns it on.** `block_hook_bypass_scratch_roots`
   takes a comma-separated list of absolute directories whose contents are
@@ -109,23 +131,22 @@ out of scope until such a signal exists.
   blocks, and a relative, unexpanded (`$VAR`, `~`) or glob target is never
   exempt. A **quoted or escaped** operand is never exempt either, and that one
   fails closed rather than being documented: the quote strip drops a kept
-  target's quotes and the segment split then reads a `;`, `|`, `&` or space
+  target's quotes, and the segment split would then read a `;`, `|`, `&` or space
   *inside* the operand as syntax, so `> "/tmp/scratch/a;/../../etc/passwd"` —
-  one pathname to bash — would otherwise be judged on `/tmp/scratch/a`. The rule
-  is therefore blunt, and blunt in two directions worth stating exactly: **any
-  quote or backslash after the first `>` character in the command — operator or
-  not — cancels the exemption.** It is not scoped to the segment being evaluated,
-  so a quote in an unrelated later segment cancels it too
-  (`echo x > /tmp/scratch/f && grep foo "notes.txt"` blocks; the same compound
-  without quotes does not). And it is not keyed on the redirect *operator*, so a
-  `>` inside quoted content starts the scan early and that content's own closing
-  quote falls inside it — `echo "hi there" > /tmp/scratch/f` is exempt, but
-  `echo "a > b" > /tmp/scratch/f` is **not**. Both are the safe direction: the
-  check can only ever refuse an exemption, never grant one. Making it precise
-  needs the same thing in both cases — knowing which `>` and which quotes are
-  syntax rather than content — which is exactly what the quote strip destroys
-  before this code runs. The same root cause reaches the `/dev/null` exemption and
-  predates this option — filed as #2226 and pinned by a control test. Two residuals remain, both
+  one pathname to bash — would be judged on `/tmp/scratch/a`. Since **0.27.0**
+  the operand is **marked** wherever that would happen, so it reaches the compare
+  as one word and the decision is made on the whole thing: an operand carrying
+  whitespace, `;`, `|`, `&`, `(`, `)`, a newline or a backslash escape exempts
+  nothing, and a merely quoted operand is refused by this axis on its shipped
+  floor. **Quotes and backslashes elsewhere in the command no longer matter.**
+  Before 0.27.0 this test read the whole raw command tail after the first `>`
+  *character*, so a quote in an unrelated later segment, or a `>` inside quoted
+  content, cancelled the exemption for an earlier plain write. Both were friction
+  rather than protection and both are gone — `echo x > /tmp/scratch/f && grep foo
+  "notes.txt"` and `echo "a > b" > /tmp/scratch/f` are exempt again. The same
+  truncation reached the `/dev/null` discard and predated this option (#2226);
+  the same marking closes it, so a quoted `/dev/null` operand carrying a second
+  fragment now **blocks** where it was allowed. Two residuals remain, both
   deliberate and both pinned: normalization is lexical, so symlinks out of a
   root are not followed, and the compare is case-insensitive because the segment
   scan runs over the lowercased command. Naming a root is accepting that root's
@@ -313,7 +334,7 @@ reads it from.
 | `block_dangerous_git_allow` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW` | Comma-separated forms block-dangerous-git permits: push-force, push-lease-unsafe, reset-hard, clean-force, checkout-dot, restore-dot, checkout-force; empty blocks all |
 | `block_noncanonical_commit_allow` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_NONCANONICAL_COMMIT_ALLOW` | Comma-separated form tokens to allow (currently: message-flag, which permits `-m` even when the message contains a newline) |
 | `block_no_verify_hook_manager_prefixes` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_HOOK_MANAGER_PREFIXES` | Comma-separated hook-manager env-var name prefixes block-no-verify treats as a bypass when set to 0/false (e.g. lefthook,husky); empty uses the built-in default set (lefthook, husky, pre_commit, simple_git_hooks) |
-| `block_hook_bypass_scratch_roots` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS` | Comma-separated ABSOLUTE directories block-hook-bypass exempts as scratch/temp write targets (e.g. /tmp/scratch,/d/jobtmp/session); empty (the default) exempts nothing and leaves the guard's shipped behaviour unchanged. Matching is on the effective stdout target after lexical normalization, at a path-component boundary — a sibling merely sharing the name prefix, a `..` escape out of a root, and a discard-then-real-file redirect all still block. Any quote or backslash after the first `>` CHARACTER in the command (operator or not) cancels the exemption for the whole command — so a quote in a later segment, or a `>` inside quoted content, also cancels it. Symlinks are not followed |
+| `block_hook_bypass_scratch_roots` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS` | Comma-separated ABSOLUTE directories block-hook-bypass exempts as scratch/temp write targets (e.g. /tmp/scratch,/d/jobtmp/session); empty (the default) exempts nothing and leaves the guard's shipped behaviour unchanged. Matching is on the effective stdout target after lexical normalization, at a path-component boundary — a sibling merely sharing the name prefix, a `..` escape out of a root, and a discard-then-real-file redirect all still block. A quoted or escaped OPERAND is never exempt: the operand is marked so it survives the quote strip and the segment split as one word, and an operand carrying whitespace, `;`, `\|`, `&`, `(`, `)`, a newline or a backslash escape exempts nothing. Quotes elsewhere in the command no longer matter. Symlinks are not followed |
 | `stdin_read_timeout` | number<br>*min 1* | `2` | `CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT` | Idle bound on reading the hook payload from stdin — how long a silent pipe is tolerated before a blocking guard fails closed |
 
 ### How to set these

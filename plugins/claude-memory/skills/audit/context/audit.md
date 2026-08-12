@@ -101,12 +101,17 @@ After per-file checks, cross-reference:
 
 ## Step 4: Generate report
 
-Use the output format from criteria.md. Save to `${CLAUDE_PLUGIN_DATA}/audit/last-audit.md`
-(create the directory if absent — audit output stays contributor-local because it covers personal
-auto-memory; see SKILL.md "Report mode"). Pre-rename state migration: if
-`${CLAUDE_PLUGIN_DATA}/health/` exists and `${CLAUDE_PLUGIN_DATA}/audit/` does not, move the old
-directory to the new name first (the skill was previously named `health` and wrote there) so
-prior reports survive the upgrade.
+Use the output format from criteria.md. Save to **the path SKILL.md resolves in "Report location"** —
+`audit/<state-key>/last-audit.md` under the plugin data directory, with `<state-key>` produced by the
+resolver SKILL.md names. Derive it there rather than restating a path here, so the writer and the two
+readers (`report` and `fix`) cannot drift apart. Create the directory if absent; audit output stays
+contributor-local because it covers personal auto-memory.
+
+**No migration from the pre-rename `health/` layout, deliberately.** Both older layouts wrote a
+machine-global file with no project segment, so nothing records which repository produced it, and it
+cannot be adopted into a project's key without inventing that attribution — the exact defect the key
+removes. Where one is present, name its path to the user as a leftover they may delete. See SKILL.md
+"Report location".
 
 Present the report to the user with:
 

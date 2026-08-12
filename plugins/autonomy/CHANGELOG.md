@@ -6,6 +6,100 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 Versions 0.1.0–0.7.0 predate this file (introduced with 0.7.1); their history lives in the
 merged work-package PRs (#333, #343, #356, #372, #377, #600, #676).
 
+## [0.16.3]
+
+### Fixed
+
+- **The runner charter now records the three obligations the verification-topology work deferred
+  to it.** That work states plainly that per-run verdict aggregation and resolved-instance
+  distinctness ship unverified because no runner exists to carry them — but it recorded the
+  deferral only on the leaf making it, and a deferral the receiving seam does not name is
+  indistinguishable from an obligation nobody owns. The runner's inherited-constraints section
+  now carries all three (verdict aggregation under the unanimity invariant including the
+  timeout and no-verdict cases, refusing to count two checkers that resolve to one instance, and
+  lens drawing), each stated as a hole until the build trigger fires.
+- **`lane-stop-gate.test.sh` test-hygiene fixes from the #2065 verification pass (#2086).** The FIFO
+  hang case now fails closed when `mkfifo` is unavailable, uses `timeout` instead of `kill -9` on a
+  subshell that can orphan a grandchild, and `rc0` rejects an empty exit-code argument. The hook
+  comment records that `umask 077` is advisory on MSYS and documents the mid-lane downgrade over-gate
+  window.
+
+## [0.16.2]
+
+### Fixed
+
+- **The verification-topology leaf now names `scanner_class`, the field that decides whether a slot
+  is deterministic or model-adjudicated.** The schema and the checker both key the whole
+  deterministic/model split on it — which constraints are legal, which floor a slot counts toward,
+  how distinctness is judged — while the normative leaf described the split only in prose. A binding
+  author reading the contract could not tell how to declare a deterministic slot, and the contract
+  is the surface that is supposed to answer that.
+
+## [0.16.1]
+
+### Fixed
+
+- **Guardrail matrix names the per-invocation `c3-this-run` widening.** The babysit-loop typed-pair
+  exception is now acknowledged in `reference/guardrails.md` with a route to the
+  `source-control` config-resolution contract. (#2087)
+
+## [0.16.0]
+
+### Changed — ACTION REQUIRED for anyone with an existing `L2`/`L3` binding, or auto-merge bound
+
+- **Every `L2`/`L3` level binding now carries `component_reachable_hosts`, and a level without it
+  is UNPROVEN.** Target selection is what makes the egress assertion mean anything: a probe that
+  samples only hosts the surface's installed components never request certifies a boundary that is
+  in fact open. Measured, not theorized — 201,961 bytes of origin data crossed a global
+  default-deny through a component-installed allow rule. The field is the human-ratified set of
+  destinations those components may request, and the probe must cover it in FULL, since each
+  destination is a separate policy decision. **The empty list is a valid and meaningful value:** it
+  is the explicit claim that the surface installs nothing carrying policy rules of its own. **To
+  restore dispatch: ratify the list (or the empty list) on the level entry and re-probe so the
+  transcript covers it.**
+- **A class bound `auto` merge with a verification layer below `blocking` is now an INVALID
+  binding.** An automatic transition requires unanimous agreement among the checkers the class
+  declares, and an advisory layer records a dissent without withholding the transition — so the
+  configuration promised a gate it could not deliver. Bindings that encoded this are rejected with
+  a finding naming the remedy. **To restore: set the layer to `blocking` (ratifying its promotion
+  cell where promotable), or bind the class to `human` merge.** Demotion now cascades from the
+  `C3` AI-review cell to `C3` auto-merge for the same reason.
+
+### Added
+
+- **Verification topology** (`reference/guardrails/verification-topology.md` + a sixth guardrail
+  matrix column): who verifies a change, how those verifiers must differ, and the per-class floor
+  for how many there are — expressed as pipeline roles, relational constraints, and predicates a
+  binding can actually evaluate, with no capability label anywhere in the contract. Floors ship as
+  `min_checkers` and `min_model_checkers` per class, both tighten-only on the agent-unwritable
+  security binding. `cross_vendor_required` is never vacuously satisfiable, and vendor disjointness
+  holds among the model-adjudicated slots rather than only against the generator.
+- **`verification_topology`** as an optional top-level security-binding key modeling all three axes.
+  Absent is not a hole — the shipped floors apply, as `escalation_severity` already does — so
+  `schema_version` stays `"1.0"` and every existing binding keeps validating.
+- **Two `userConfig` options:** `verification_lens_pool` (what angle each model-adjudicated checker
+  is asked to take) and `visual_narration_enabled` (an advisory narration lane, default off). Both
+  live on the operator surface rather than the security binding because neither counts anything —
+  the pool seats no slot and the lane has no binding cell at all, so neither can weaken a floor.
+  The lane is structurally incapable of gating: no cell exists anywhere through which authority
+  could be granted to it.
+
+## [0.15.1]
+
+### Changed
+
+- **Shared `hook-utils.sh`: the jq gate now has a fail-CLOSED sibling, and the posture reasoning
+  lives at the helper (#2146).** `hook::require_jq` is unchanged and still fails OPEN — one visible
+  skip notice per session, then exit 0 — which is the correct posture for every hook in this plugin,
+  so **nothing in this plugin's behaviour changes**. What is new is `hook::require_jq_blocking`, a
+  second named function that denies the tool call instead, for the narrow class of guards whose job
+  is blocking an irreversible operation (today only two, both in `guardrails`). A sibling function
+  rather than a parameter, because a flag's omitted value would default to fail-open and a guard
+  whose flag someone forgot would then fail open *silently* — the exact defect #2146 reports,
+  reintroduced at the API. The two postures are now argued together in one block above both
+  functions, which is what #2146 asked for: previously each call site asserted a posture in a
+  comment and nothing where the decision is made explained it. Synced from `lib/hook-utils.sh`.
+
 ## [0.15.0]
 
 ### Changed — ACTION REQUIRED for anyone with an existing `L2`/`L3` binding

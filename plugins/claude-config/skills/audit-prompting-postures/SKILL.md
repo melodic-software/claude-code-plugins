@@ -75,15 +75,67 @@ Dispatch one fresh-context, non-fork verifier per surface batch, prompted to ref
 addition: "argue this component's purpose does not need this posture, or that it already carries
 it." Findings a verifier refutes are dropped or demoted to `info`.
 
-Persist the report to `${CLAUDE_PLUGIN_DATA}/audit-prompting-postures/last-audit.md` and summarize
-in chat:
+### When dispatch is unavailable
+
+Phase D **requires** fresh-context, non-fork verifier dispatch. When the Agent tool is blocked,
+unavailable, or the session cannot spawn subagents:
+
+1. **Disclose in the report header** that Phase D did not run and why.
+2. **Mark unverified proposals.** Every proposed addition that did not receive an independent
+   verifier MUST carry an `(unverified)` marker and MUST NOT be presented as a confident finding.
+3. **Add a verifier attestation line** to the report tail — components verified, verified inline,
+   or skipped — alongside the existing coverage and Sources lines.
+
+Persist the report to
+`${CLAUDE_PLUGIN_DATA}/audit-prompting-postures/<state-key>/last-audit.md`.
+
+**Derive `<state-key>` by running this:**
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/lib/state-key.sh"
+```
+
+`${CLAUDE_PLUGIN_DATA}` is machine-global, not per-project, so a fixed `last-audit.md` is silently
+overwritten by the next run from any other root — this skill's only durable deliverable, destroyed by
+ordinary use of it. The scheme is `audit-pass`'s, reused rather than reinvented:
+`<repo-identity>/<worktree-discriminator>`, per
+[audit-pass's run-state reference](../audit-pass/reference/run-state-and-resumability.md) §3, and it
+lives in one executable rather than being restated per skill —
+[`lib/state-key.sh`](../../lib/state-key.sh), with `lib/state-key.test.sh` beside it. Pass `--explain`
+when the report should say which rung produced the key.
+
+What that suite pins, so this file does not have to restate the derivation to be trusted: an https
+remote and its scp-style ssh equivalent normalize to the same `github.com/<owner>/<repo>`; a repo whose
+only remote is `upstream` keys by that remote rather than dropping to the local rung; a repo with no
+remote gives `local/<12>`; a non-repo root gives `nonrepo/<12>`; and relative (`../central.git`),
+absolute-local, and Windows-path remotes all key by hash, with no `..` and no backslash surviving into
+a path segment — the identity becomes directory components, so that is a security property, not a
+cosmetic one. Two worktrees of one repository differ in the discriminator, which is what it exists for.
+
+Run it and use the result. Do **not** express the path as a condition over `${CLAUDE_PROJECT_DIR}`
+"when set": that placeholder is substituted inline before this file reaches you, so the literal token
+is never visible and the condition is not yours to evaluate. Derive the key from a command you
+actually run.
+
+**Open the report with a three-line header**, so a file that does survive is self-describing rather
+than merely un-overwritten:
+
+```
+Resolved root: <absolute path audited>
+Scope filter:  <the scope argument this run used, or "all">
+Run (UTC):     <ISO-8601 timestamp>
+```
+
+Then summarize in chat:
 
 | # | Posture | Component | Verdict | Proposed addition |
 |---|---------|-----------|---------|-------------------|
 
 Verdicts: `MISSING` (finding, with proposed addition as a fenced diff), `PRESENT` (where it is),
 `NOT-APPLICABLE` (with the failed predicate). End with a coverage line — components inventoried,
-classified, unclassified — and a Sources line citing the pages fetched this run with dates.
+classified, unclassified — and a Sources line citing the pages fetched this run with dates. When
+Phase D ran, end with a verifier attestation line — surface batches verified, verified inline, or
+skipped.
 
 ## Gotchas
 

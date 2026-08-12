@@ -65,12 +65,13 @@
       "id": 6,
       "name": "report-without-prior-audit",
       "prompt": "Show me the memory health report — I want to see the last results.",
-      "expected_output": "The report action reads the most recent saved audit. When none exists, it informs the user that no audit has been run yet and suggests running the audit, rather than fabricating results.",
+      "expected_output": "The report action reads the saved audit at THIS project's derived path — audit/<state-key>/last-audit.md under the plugin data directory, with the state key produced by running the resolver SKILL.md names. When nothing is there it says no audit has been run for this project and suggests running one, rather than fabricating results or reaching for another file.",
       "files": [],
       "expectations": [
-        "Output attempts to read the most recent saved audit report",
-        "When no prior audit exists, output states that none has been run and suggests running the audit",
-        "Output does not fabricate or invent audit results"
+        "Reads the report at the per-project derived path rather than a fixed machine-global filename",
+        "Derives the state key by running the resolver, not by evaluating whether a placeholder is set",
+        "When no prior audit exists for this project, states that and suggests running the audit",
+        "Does not fabricate audit results, and does not fall back to an unkeyed location to find some"
       ]
     },
     {
@@ -95,6 +96,33 @@
         "FAILs the `pnpm run compile` command because package.json does not define that script",
         "Does NOT report build/test commands as absent, because step 0 finds them on another loaded surface (auto memory) and routes location to C3",
         "Reports the wrong command once under C9 and does not double-report it under C7"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "two-repos-do-not-share-one-report",
+      "prompt": "I ran this audit in my work repo this morning. I am now in a completely different repo on the same laptop. If I run `report`, whose findings do I get — and if I run the audit here, does it clobber this morning's?",
+      "expected_output": "Neither crosses over. The report path carries a per-project state key — <repo-identity>/<worktree-discriminator>, the scheme claude-config:audit-pass defines — derived by RUNNING the resolver, so the two projects write and read under different directories beneath the plugin data directory. `report` in this repo serves this repo's report or says none has been run here; it never serves the work repo's. Running the audit here does not clobber this morning's. The answer names the reason: ${CLAUDE_PLUGIN_DATA} is keyed to the plugin identifier alone, with no project, checkout, worktree, or session segment, so an unkeyed filename is one file per machine — and because this skill READS the file back, the consequence is a wrong answer served, not merely a lost artifact. Two worktrees of one repository also key apart, via the discriminator.",
+      "files": [],
+      "expectations": [
+        "States that the second project neither reads nor overwrites the first project's report, and names a distinct path for each",
+        "Derives the state key by running the resolver rather than by evaluating whether a placeholder is set",
+        "Reuses audit-pass's <repo-identity>/<worktree-discriminator> scheme instead of inventing a second one",
+        "Explains that the read-back path is why keying is required and an append-only history alone would not be sufficient",
+        "States that two worktrees of one repository also key apart"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "legacy-unkeyed-report-is-not-served-or-adopted",
+      "prompt": "Show me the memory health report. I know I have run this before — I can see a last-audit.md sitting in the plugin's data directory from an older version.",
+      "expected_output": "The report action looks at THIS project's derived path and finds nothing there. It does not serve the older unkeyed file and does not migrate it into this project's key: a machine-global last-audit.md — including the pre-rename health/ layout — carries no project segment, so nothing records which repository produced it, and adopting it would invent an attribution. The answer names the leftover file's path as something the user may delete, states that no audit has been run for this project, and offers to run one.",
+      "files": [],
+      "expectations": [
+        "Does NOT present the unkeyed legacy report as this project's findings",
+        "Does NOT migrate or copy the legacy file into this project's keyed path",
+        "Names the leftover path to the user and explains it cannot be attributed to a project",
+        "Offers to run a fresh audit for this project"
       ]
     }
   ]

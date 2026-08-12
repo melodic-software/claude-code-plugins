@@ -21,11 +21,18 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 # shellcheck source=guardrails-test-helpers.sh
 source "$HOOK_DIR/guardrails-test-helpers.sh"
 
-# Every hook whose source CALLS hook::require_jq — discovered, not
+# Every hook whose source CALLS the FAIL-OPEN hook::require_jq — discovered, not
 # hand-enumerated, so a future 10th jq-consuming hook is covered automatically.
 # Excludes hook-utils.sh (the function's own definition, not a call site) and
 # *.test.sh (which reference the name in assertions/comments, not calls) —
 # same exclusion shape as scripts/check-silent-skips.sh.
+#
+# The match is anchored so it does NOT catch hook::require_jq_blocking (#2146),
+# the fail-CLOSED sibling. That gate emits no once-per-session notice at all — it
+# denies the call and says why every time — so it has no notice_once key to
+# collide, and this test's whole subject does not apply to it. Its own contract
+# (which hooks may use it, and the four-cell behaviour) is
+# require-jq-posture.test.sh.
 mapfile -t JQ_HOOKS < <(
   for f in "$HOOK_DIR"/*.sh; do
     base="${f##*/}"
@@ -33,12 +40,12 @@ mapfile -t JQ_HOOKS < <(
     hook-utils.sh | *.test.sh) continue ;;
     *) ;;
     esac
-    grep -l 'hook::require_jq' "$f" 2>/dev/null || true
+    grep -lE 'hook::require_jq[[:space:]]' "$f" 2>/dev/null || true
   done | sort
 )
 
 if ((${#JQ_HOOKS[@]} < 2)); then
-  bad "expected at least 2 guardrails hooks calling hook::require_jq, found ${#JQ_HOOKS[@]} — this test needs >=2 to prove cross-hook isolation"
+  bad "expected at least 2 guardrails hooks calling the fail-open hook::require_jq, found ${#JQ_HOOKS[@]} — this test needs >=2 to prove cross-hook isolation"
 fi
 
 # --- Every hook's require_jq key is unique -----------------------------------
@@ -49,7 +56,8 @@ dup_found=0
 for h in "${JQ_HOOKS[@]}"; do
   key=""
   while IFS= read -r line; do
-    if [[ "$line" =~ hook::require_jq[[:space:]]+\"[^\"]*\"[[:space:]]+\"([^\"]+)\" ]]; then
+    if [[ "$line" =~ hook::require_jq[[:space:]]+\"[^\"]*\"[[:space:]]+\"([^\"]+)\" ]] &&
+      [[ "$line" != *"hook::require_jq_blocking"* ]]; then
       key="${BASH_REMATCH[1]}"
       break
     fi

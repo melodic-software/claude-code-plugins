@@ -4851,6 +4851,49 @@ class GuardTests(unittest.TestCase):
         self.assertNotEqual(120, proc.returncode)
         self.assertIn("could not be written to stdout", stderr)
 
+    def test_discard_stream_does_not_leak_when_fileno_raises(self) -> None:
+        """fileno() failure must not open null_fd and leak it (#2088).
+
+        ``_ClosedPipeStderr`` (a ``StringIO`` stand-in) is the in-process shape:
+        ``fileno()`` raises ``UnsupportedOperation``. Resolving ``target_fd``
+        after ``os.open`` leaves an opened null fd whose ``finally`` never runs
+        ``os.close`` because ``target_fd`` stays unbound.
+        """
+
+        class _NoFdStream:
+            def fileno(self) -> int:
+                raise io.UnsupportedOperation("fileno")
+
+        with (
+            mock.patch.object(guard.os, "open") as open_mock,
+            mock.patch.object(guard.os, "close") as close_mock,
+        ):
+            guard._discard_stream(_NoFdStream())
+        open_mock.assert_not_called()
+        close_mock.assert_not_called()
+
+    def test_discard_stream_keeps_closed_stderr_fd_open(self) -> None:
+        """When fd 2 is closed outright, _discard_stream must repair it, not re-close it.
+
+        POSIX allocates the lowest free descriptor, so ``os.open(os.devnull)``
+        can return fd 2 when stderr's fd was closed. ``dup2(2, 2)`` is then a
+        no-op; closing ``null_fd`` without checking the target re-closes fd 2
+        and defeats the repair (#1526, #2088).
+        """
+        saved = os.dup(2)
+        try:
+            os.close(2)
+
+            class _ClosedFdStream:
+                def fileno(self) -> int:
+                    return 2
+
+            guard._discard_stream(_ClosedFdStream())
+            os.write(2, b"")
+        finally:
+            os.dup2(saved, 2)
+            os.close(saved)
+
     def test_stderr_fd_closed_outright_still_denies_at_exit_2_in_a_real_process(
         self,
     ) -> None:
@@ -4860,22 +4903,20 @@ class GuardTests(unittest.TestCase):
         device and `dup2`s it onto the broken fd. When fd 2 is closed
         outright rather than left open with a dead reader, `os.open` can
         return fd 2 itself (POSIX allocates the lowest free descriptor),
-        making the `dup2` a no-op -- and the `finally: os.close(null_fd)`
-        that follows then re-closes fd 2, undoing the very repair it just
-        made. Against the pre-#1524 module tail (`raise SystemExit(main())`),
+        making the `dup2` a no-op -- and the `finally: os.close(null_fd)` that
+        followed then re-closed fd 2, undoing the very repair it just made.
+        `_discard_stream` now skips that close when `null_fd` is the target fd
+        (#2088). Against the pre-#1524 module tail (`raise SystemExit(main())`),
         the interpreter's own shutdown flush then hits that closed fd and
         CPython rewrites the exit status to 120: non-blocking under
         PreToolUse, so the destructive command would run even though the
         guard had decided to deny it (#1526, reproduced against merged
         `efb6c271`).
 
-        This module's tail no longer depends on `_discard_stream` actually
-        repairing the fd for the exit code to survive: every path now ends in
-        `os._exit`, which skips the interpreter's normal shutdown flush --
-        the mechanism `120` comes from -- entirely. So the #1526 trigger is
-        closed as a structural side effect of the #1524 fix, not by touching
-        `_discard_stream` itself (which still has the self-undoing dup2/close
-        pattern described above; nothing downstream depends on it working).
+        This module's tail ends in `os._exit`, which skips the interpreter's
+        normal shutdown flush -- the mechanism `120` comes from -- so the exit
+        code no longer depends on `_discard_stream` working; the subprocess
+        case below still guards both the deny path and the fd repair.
         """
         env = dict(os.environ)
         script = str(SCRIPT_DIR / "destructive_guard.py")

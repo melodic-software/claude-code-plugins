@@ -3,8 +3,9 @@
 #
 # Single owner of worktree creation for this plugin: external-root path
 # computation `<root>/<owner>-<repo>-<slug>`, slug sanitization, base-ref
-# resolution (`worktree.baseRef` fresh|head), `git worktree add`, and the
-# `.worktreeinclude` local-file copy. The copy Claude Code performs for its
+# resolution (`worktree.baseRef` fresh|head), `git worktree add`, arming the
+# `git worktree lock` liveness guard (#2257), and the `.worktreeinclude`
+# local-file copy. The copy Claude Code performs for its
 # native worktrees (EnterWorktree / --worktree) is bypassed when a worktree is
 # created with `git worktree add` directly, so this helper reimplements it.
 #
@@ -19,9 +20,11 @@
 # Root-resolution contract: a configured root (--root/--root-file) wins; absent one,
 # the plugin data directory supplied via --data-root-file yields <data-dir>/worktrees;
 # absent both, the helper refuses (exit 3). It never falls back to Claude Code's
-# in-repo `.claude/worktrees/`: from a worktree nested inside a checkout, a read
-# matching a path-scoped rule's glob also loads the PARENT checkout's copy of that
-# rule. The data dir is never read from the environment — see the resolution block.
+# in-repo `.claude/worktrees/`, whose nested placement is what the nesting
+# invariant forbids. That claim is owned, measured and dated in exactly one place
+# and is not restated here: skills/worktree/SKILL.md § "The nesting invariant,
+# verified". The data dir is never read from the environment — see the resolution
+# block.
 #
 # Output contract: on success the created worktree path is the SOLE stdout line
 # (machine-parseable); all diagnostics go to stderr.
@@ -58,8 +61,8 @@ Options:
                       re-quoting of the value happens on that path). An empty
                       value or an unexpanded \${user_config.*} token falls
                       through to --data-root-file — never to the in-repo
-                      .claude/worktrees/ default, whose nested placement makes a
-                      read load the parent checkout's path-scoped rules as well.
+                      .claude/worktrees/ default, whose nested placement the
+                      nesting invariant forbids (skills/worktree/SKILL.md).
                       Mutually exclusive with --root-file.
   --data-root-file <path>
                       Read the plugin's data directory from <path>, used as the
@@ -256,7 +259,12 @@ fi
 
 # Resolve the source repository top level.
 if ! toplevel=$(git -C "$repo_dir" rev-parse --show-toplevel 2>/dev/null); then
-  printf '%s: --repo-dir is not inside a git repository: %s\n' "$PROG" "$repo_dir" >&2
+  # Remedy first: this line is surfaced verbatim to a user whose worktree
+  # creation just failed, and a bare diagnosis leaves them nothing to do. There
+  # is no worktree to create outside a repository, so the actionable answer is
+  # the harness-side stand-down, not a flag of this script's.
+  printf '%s: run this from inside a git repository, or pass --repo-dir pointing at one; for a Claude Code session at a non-repository directory, set worktree.bgIsolation to "none" in settings so it edits in place instead of isolating\n' "$PROG" >&2
+  printf '%s:   --repo-dir is not inside a git repository: %s\n' "$PROG" "$repo_dir" >&2
   exit 4
 fi
 
@@ -305,9 +313,10 @@ Set the source-control plugin's \`worktree_root\` directory key to an external
 root (a path OUTSIDE every repository), then retry. Run the worktree setup
 skill, or configure it via \`/plugin\`.
 
-Not falling back to the in-repo .claude/worktrees/ default: from a worktree
-nested inside a checkout, a read matching a path-scoped rule's glob also loads
-the PARENT checkout's copy of that rule.
+Not falling back to the in-repo .claude/worktrees/ default: a worktree nested
+inside a checkout can pick up that checkout's path-scoped rules as well as its
+own. Measurement, disputed arms and expiry:
+skills/worktree/SKILL.md "The nesting invariant, verified".
 EOF
     exit 3
   fi
@@ -470,10 +479,10 @@ worktree_path=$(normalize_path "$worktree_path")
 
 # Reject placement inside any git repository — a working tree, a normal repo's
 # .git directory, or a bare clone. Keeping worktrees OUT of every repository is
-# the helper's core purpose: from a worktree nested inside a working tree, a read
-# matching a path-scoped rule's glob also loads the ancestor checkout's copy of
-# that rule, and one dropped inside a .git or bare directory mixes the checkout
-# into git metadata. The root resolution above does not catch a root explicitly
+# the helper's core purpose — see skills/worktree/SKILL.md § "The nesting
+# invariant, verified" for the measured claim, and note that a worktree dropped
+# inside a .git or bare directory additionally mixes the checkout into git
+# metadata, which is a separate and undisputed reason to refuse. The root resolution above does not catch a root explicitly
 # pointed inside a repository (e.g. the old .claude/worktrees/ path, a root under
 # a sibling clone, or a path beneath a .git directory), so ask git about the
 # target's location: walk up from the target's parent to the nearest existing
@@ -516,9 +525,10 @@ Set the source-control plugin's \`worktree_root\` directory key to an external
 root (a path OUTSIDE every repository, on the same drive as the repo on Windows),
 then retry.
 
-Not creating inside a checkout or a git directory: from there a read matching a
-path-scoped rule's glob also loads the enclosing checkout's copy of that rule,
-and a git-directory placement mixes the worktree into git metadata.
+Not creating inside a checkout or a git directory: from there a worktree can
+pick up the enclosing checkout's path-scoped rules as well as its own, and a
+git-directory placement mixes the worktree into git metadata. Measurement and
+expiry: skills/worktree/SKILL.md "The nesting invariant, verified".
 EOF
     exit 3
   fi
@@ -643,6 +653,20 @@ esac
 if ! git -C "$toplevel" worktree add -b "$name" "$worktree_path" "$base_commit" >&2; then
   printf '%s: git worktree add failed (branch %q may already exist)\n' "$PROG" "$name" >&2
   exit 4
+fi
+
+# Arm the removal guard the moment the worktree exists: a locked worktree makes
+# `git worktree remove` refuse (a single --force included) and its record
+# survives `git worktree prune`, so another session's cleanup sweep cannot
+# delete a lane's worktree mid-operation. `git status --porcelain` cannot carry
+# this signal — an interactive rebase paused at a `break` leaves it completely
+# empty — and before this helper armed it, no lane ever ran `git worktree lock`,
+# so the `locked` flag the cleanup skill already honors was structurally always
+# absent (#2257). The owning lane (or cleanup, after explicit confirmation)
+# disarms with `git worktree unlock <path>`.
+lock_reason="worktree-create.sh: lane active on ${HOSTNAME:-$(hostname 2>/dev/null || printf 'unknown-host')} since $(date -u +%Y-%m-%dT%H:%M:%SZ); unlock when the owning lane is done"
+if ! git -C "$toplevel" worktree lock --reason "$lock_reason" "$worktree_path" >&2; then
+  printf '%s: warning: could not lock the new worktree — cleanup sweeps will not see it as claimed\n' "$PROG" >&2
 fi
 
 # Reimplement Claude Code's .worktreeinclude copy: files that match a

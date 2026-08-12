@@ -41,6 +41,8 @@ Return the repo toward a known-good state. **Selective tiers** (`scan`, `caches`
 
 Bare invocation never mutates silently: resolve intent → dry-run → user confirmation → `--apply`. Full menu, aliases, and confirmation matrix: [context/action-router.md](context/action-router.md).
 
+Bundled-script invocation uses two deliberate forms — paired `${CLAUDE_SKILL_DIR}` in this file (matches `allowed-tools`) and interpreter-led `${CLAUDE_PLUGIN_ROOT}` in routed `context/*.md` detail files. Rationale and decide-lane verdict: [reference/invocation-forms.md](reference/invocation-forms.md).
+
 ## Arguments
 
 `$ARGUMENTS` — cleanup action or alias. Resolve first:
@@ -90,7 +92,7 @@ Protected-path enforcement gates `scan`, `caches`, `build`, `git`, AND `tree` (`
 
 ## Confirmation gate
 
-**Question surface — every question this skill asks.** Prefer `AskUserQuestion`: its answer is the user's own and cannot be fabricated. It is not always in the pool — permission mode `dontAsk` denies it unconditionally, and a bare-name `permissions.deny` rule or a `disallowed-tools` entry removes it — so when it is absent, ask the same question inline as a numbered choice and wait for the reply. The surface varies; nothing below it does.
+**Question surface — every question this skill asks.** Prefer `AskUserQuestion`: its answer is the user's own and cannot be fabricated. It is not always usable, in two distinct ways — a bare-name `permissions.deny` rule or a `disallowed-tools` entry removes it from context entirely, while permission mode `dontAsk` denies it even when an allow rule names it, leaving it visible and every call failing. Fall back to the same question asked inline as a numbered choice whenever the tool is absent, denied, **or otherwise unusable** — including a denial discovered only by calling it; a denied call is an unanswered question, never an answer. Then wait for the reply. The surface varies; nothing below it does.
 
 **Destructive confirmation — every `--apply`, branch deletion, and stash drop.** Show the dry-run first, then take the user's own affirmative answer, given in this interactive session, naming exactly the set just shown. A prior general request, an alias, a flag, "clean everything", approval of a different set, or silence is not confirmation — never supply or infer the answer yourself. Autonomous sessions abort here rather than ask.
 

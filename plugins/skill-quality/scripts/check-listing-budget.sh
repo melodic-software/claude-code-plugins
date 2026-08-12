@@ -109,8 +109,6 @@
 # in the issue this script closes.
 set -uo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
 # The header comment block above IS the --help text. Print from line 2 to the
 # last consecutive `#` line rather than a hardcoded range, so editing the
 # header can never again silently clip or overrun the help output.
@@ -129,30 +127,11 @@ if [[ -z "$REPO_ROOT" || ! -d "$REPO_ROOT" ]]; then
   exit 2
 fi
 
-# shellcheck source=./skill-frontmatter.sh
-source "$SCRIPT_DIR/skill-frontmatter.sh"
-
-# Fold a frontmatter boolean to a bare lowercase token before comparing it.
-# `skill_frontmatter::field` returns the scalar with any trailing YAML comment
-# already cut, so what remains to fold is surrounding whitespace and quoted or
-# differently-cased forms — an exact-string compare against "true" misses those
-# and silently re-counts a skill whose description the harness keeps out of
-# context.
-# Deliberately NOT folded: YAML 1.1's `yes` / `on` aliases — the docs only ever
-# spell this field `true`, and treating a bare `yes` as the boolean risks
-# dropping a skill over a value the harness may read as a plain string.
-# A pragmatic normalizer for one known field, not a YAML parser.
-trim_ws() {
-  local v="$1"
-  v="${v#"${v%%[![:space:]]*}"}"
-  printf '%s' "${v%"${v##*[![:space:]]}"}"
-}
-
-normalize_bool() {
-  local v
-  v="$(trim_ws "$(skill_frontmatter::strip_quotes "$(trim_ws "$1")")")"
-  printf '%s' "$(tr '[:upper:]' '[:lower:]' <<<"$v")"
-}
+# `skill-frontmatter.sh` is deliberately NOT sourced any more. Its helpers are
+# per-call `awk`/`tr` execs, which is what made the pooled run unrunnable (see
+# the measurement scan below); their behaviour is ported into that scan's single
+# awk program instead. `check-skill.sh` remains the library's consumer, so the
+# file itself is unchanged and still shared.
 
 # Reject a nonnumeric override up front. Without this, `awk` coerces a typo to
 # 0 and the report exits 0 announcing a zero-character budget and a bogus
@@ -240,12 +219,14 @@ fi
 
 # --- Collect every skill under every root -----------------------------------
 
-TOTAL=0
-ENTRY_COUNT=0
 CONTRIB_FILE="$(mktemp)"
-trap 'rm -f "$CONTRIB_FILE"' EXIT
+FILE_LIST="$(mktemp)"
+trap 'rm -f "$CONTRIB_FILE" "$FILE_LIST"' EXIT
 
+# Enumerate first, measure once. The bash half below only globs and stats — no
+# subshell, no exec — and the whole measurement is ONE awk process.
 FOUND_ROOTS=0
+SKILL_ENTRIES=()
 for root in "${ROOTS[@]}"; do
   if [[ ! -d "$root" ]]; then
     # An EXPLICIT root that does not exist is an environment error: silently
@@ -261,32 +242,191 @@ for root in "${ROOTS[@]}"; do
   FOUND_ROOTS=$((FOUND_ROOTS + 1))
   for skill_md in "$root"/*/SKILL.md; do
     [[ -f "$skill_md" ]] || continue
-    skill_name="${skill_md%/SKILL.md}"
-    skill_name="${skill_name##*/}"
-    fm="$(skill_frontmatter::extract <"$skill_md")"
-    [[ -n "$fm" ]] || continue
-    # `disable-model-invocation: true` keeps this skill's description out of
-    # the model-visible listing entirely, so it spends none of the shared
-    # budget — counting it would overstate the aggregate. See the header.
-    dmi="$(normalize_bool "$(skill_frontmatter::field disable-model-invocation <<<"$fm")")"
-    [[ "$dmi" == "true" ]] && continue
-    desc="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field description <<<"$fm")")"
-    wtu="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field when_to_use <<<"$fm")")"
-    desc_len=${#desc}
-    wtu_len=${#wtu}
-    joiner=0
-    ((wtu_len > 0)) && joiner=$JOINER_CHARS
-    entry_len=$((desc_len + joiner + wtu_len))
-    # The harness truncates each entry to the per-skill cap BEFORE the shared
-    # budget ever sees it — mirror that here so an already-oversized single
-    # entry (check 2's own FAIL) does not inflate this aggregate beyond what
-    # Claude Code would actually load.
-    ((entry_len > MAX_DESC_CHARS)) && entry_len=$MAX_DESC_CHARS
-    TOTAL=$((TOTAL + entry_len))
-    ENTRY_COUNT=$((ENTRY_COUNT + 1))
-    printf '%d\t%s\t%s\n' "$entry_len" "$skill_name" "$root" >>"$CONTRIB_FILE"
+    # Root and path travel together rather than the root being re-derived from
+    # the path: the report prints the root STRING the caller passed, and a
+    # derivation would have to reproduce its exact spelling (trailing slash,
+    # relative vs absolute) to stay byte-identical.
+    SKILL_ENTRIES+=("$root"$'\t'"$skill_md")
   done
 done
+if ((${#SKILL_ENTRIES[@]} > 0)); then
+  printf '%s\n' "${SKILL_ENTRIES[@]}" >"$FILE_LIST"
+fi
+
+# --- One awk pass over every SKILL.md ---------------------------------------
+#
+# WHY THIS IS ONE PROCESS. The previous shape was a bash loop that spent at
+# least eleven forked subshells and five external process execs (4x awk, 1x tr)
+# on EVERY SKILL.md — on the order of 2,000 spawns for this repo's ~200 skills.
+# Process creation costs roughly two orders of magnitude more on Windows than on
+# Linux, so `check-listing-budget.sh plugins/*/skills` took 289s there and was
+# KILLED at the 180s foreground limit with zero output, while CI (ubuntu-24.04)
+# never surfaced it. That command is verbatim what #2023's procedure and
+# .github/recurring-schedule.json instruct an operator to run each cycle, so a
+# report-only drift watch silently produced nothing on the one machine where the
+# routine is actually driven (#2216).
+#
+# THIS IS A PORT, NOT A REWRITE. The program below reimplements, behaviour for
+# behaviour, the four helpers the loop used to shell out to:
+# `skill_frontmatter::extract`, `::field` (including block-scalar unfolding for
+# `|` and `>`, and the quote-aware trailing-comment strip with its
+# doubled-single-quote case), `::strip_quotes` (ONE outer layer, double OR
+# single, never both), and `normalize_bool`/`trim_ws`. Output is byte-identical
+# to the pre-port script over this repo's tree — aggregate, entry count, every
+# per-file contribution row, and the report text — which is the property the
+# test suite pins.
+#
+# Two command-substitution behaviours the old pipeline got for free are
+# reproduced EXPLICITLY here, because they were load-bearing rather than
+# incidental:
+#   - `fm="$(skill_frontmatter::extract ...)"` stripped trailing NEWLINES from
+#     the extracted frontmatter, so trailing blank lines could never append a
+#     separator inside a block scalar. Hence the trailing-empty-line drop after
+#     collection, and hence an all-blank block counting as no frontmatter.
+#   - `"$(skill_frontmatter::field ...)"` stripped trailing newlines from the
+#     FIELD's value. Hence strip_trailing_nl() on each result. A folded (`>`)
+#     scalar joins with SPACES, which command substitution does not strip, so
+#     only newlines are removed — not whitespace generally.
+#
+# The file list arrives on awk's input rather than as operands: awk treats an
+# operand containing `=` as a variable assignment, so a path with `=` in it
+# would be silently swallowed instead of read.
+#
+# `disable-model-invocation: true` keeps a skill's description out of the
+# model-visible listing entirely, so it spends none of the shared budget —
+# counting it would overstate the aggregate. See the header. Deliberately NOT
+# folded, exactly as before: YAML 1.1's `yes` / `on` aliases, because the docs
+# only ever spell this field `true` and treating a bare `yes` as the boolean
+# risks dropping a skill over a value the harness may read as a plain string.
+# A pragmatic normalizer for one known field, not a YAML parser.
+if ! AWK_RESULT="$(awk -F'\t' \
+  -v max="$MAX_DESC_CHARS" -v joiner_chars="$JOINER_CHARS" -v out="$CONTRIB_FILE" '
+  function trim_ws(v) {
+    sub(/^[[:space:]]+/, "", v)
+    sub(/[[:space:]]+$/, "", v)
+    return v
+  }
+  # ONE outer quote layer, double OR single, not both — and never a lone quote
+  # character, which the shell pattern `"*"` could not match either.
+  function strip_quotes(s,   n, q) {
+    n = length(s)
+    if (n < 2) return s
+    q = substr(s, 1, 1)
+    if ((q == "\"" || q == "\047") && substr(s, n, 1) == q) return substr(s, 2, n - 2)
+    return s
+  }
+  function normalize_bool(v) { return tolower(trim_ws(strip_quotes(trim_ws(v)))) }
+  function strip_trailing_nl(v) { sub(/\n+$/, "", v); return v }
+  # Cut a trailing YAML comment from a plain or flow scalar. A quoted scalar
+  # ends at its closing quote and anything after it is comment; a plain scalar
+  # ends at the first whitespace-preceded `#`. An unterminated quote is left
+  # whole, because malformed YAML is not for this helper to guess at.
+  # \047 is a single quote: the program is single-quoted by the shell, so
+  # spelling the character out would end it mid-expression.
+  function fm_strip_comment(v,   n, q, i, ch) {
+    n = length(v)
+    if (n == 0) return v
+    q = substr(v, 1, 1)
+    if (q == "\"" || q == "\047") {
+      i = 2
+      while (i <= n) {
+        ch = substr(v, i, 1)
+        if (q == "\"" && ch == "\\") { i += 2; continue }
+        if (ch == q) {
+          # A single-quoted YAML scalar escapes one quote by doubling it.
+          if (q == "\047" && substr(v, i + 1, 1) == "\047") { i += 2; continue }
+          return substr(v, 1, i)
+        }
+        i++
+      }
+      return v
+    }
+    # A value that opens with `#` is all comment: the scalar is empty.
+    if (q == "#") return ""
+    if (match(v, /[[:space:]]+#/)) return substr(v, 1, RSTART - 1)
+    return v
+  }
+  # Text capture for the budget count, not a full YAML parser: a frontmatter key
+  # sits at column 0, so every indented line is block content and the first
+  # column-0 line is the next key. Collecting on that boundary ignores the
+  # indent indicator entirely, so an explicit indent smaller than the first
+  # content line cannot drop later lines. Leading indent is stripped per line
+  # (irrelevant to a character count). Literal (`|`) joins with newlines,
+  # folded (`>`) with spaces.
+  function fm_field(k,   i, val, fold, acc, started, ln, j) {
+    for (i = 1; i <= FN; i++) {
+      if (FM[i] ~ "^" k ":[[:space:]]*") {
+        val = FM[i]
+        sub("^" k ":[[:space:]]*", "", val)
+        if (val ~ /^[|>]([0-9][+-]?|[+-][0-9]?)?[[:space:]]*(#.*)?$/) {
+          fold = (val ~ /^>/)
+          acc = ""; started = 0
+          for (j = i + 1; j <= FN; j++) {
+            ln = FM[j]
+            if (ln ~ /^[[:space:]]*$/) { if (started) acc = acc (fold ? " " : "\n"); continue }
+            if (ln !~ /^[[:space:]]/) break
+            sub(/^[[:space:]]+/, "", ln)
+            if (started) acc = acc (fold ? " " : "\n")
+            acc = acc ln
+            started = 1
+          }
+          return acc
+        }
+        return fm_strip_comment(val)
+      }
+    }
+    return ""
+  }
+  {
+    root = $1; path = $2
+    # Frontmatter: the opening fence MUST be line 1 — content before it is not
+    # frontmatter, so a stray `---` further down cannot be mistaken for the
+    # block start. FM is only ever read up to FN, so stale entries from a
+    # previous, longer file are unreachable and need no delete.
+    FN = 0; nr = 0; fence = 0
+    while ((getline ln < path) > 0) {
+      nr++
+      if (nr == 1 && ln !~ /^---[[:space:]]*$/) break
+      if (ln ~ /^---[[:space:]]*$/) {
+        fence++
+        if (fence == 1) continue
+        break
+      }
+      if (fence == 1) FM[++FN] = ln
+    }
+    close(path)
+    while (FN > 0 && FM[FN] == "") FN--
+    if (FN == 0) next
+    # No strip_trailing_nl on this one, and the asymmetry with the next two
+    # lines is deliberate rather than an oversight: normalize_bool opens with
+    # trim_ws, whose trailing sub uses [[:space:]] — which matches a newline —
+    # so it already subsumes the strip. The description and when_to_use lines DO
+    # need it, because strip_quotes trims nothing: a value still ending in a
+    # newline has that newline as its last character, so the closing quote never
+    # matches and the quote marks survive into the measured length.
+    if (normalize_bool(fm_field("disable-model-invocation")) == "true") next
+    desc = strip_quotes(strip_trailing_nl(fm_field("description")))
+    wtu = strip_quotes(strip_trailing_nl(fm_field("when_to_use")))
+    desc_len = length(desc); wtu_len = length(wtu)
+    entry_len = desc_len + (wtu_len > 0 ? joiner_chars : 0) + wtu_len
+    # The harness truncates each entry to the per-skill cap BEFORE the shared
+    # budget ever sees it — mirror that here so an already-oversized single
+    # entry — the FAIL check 2 already raises — does not inflate this aggregate
+    # beyond what Claude Code would actually load.
+    if (entry_len > max) entry_len = max
+    total += entry_len; count++
+    name = path
+    sub(/\/SKILL\.md$/, "", name)
+    sub(/^.*\//, "", name)
+    printf "%d\t%s\t%s\n", entry_len, name, root > out
+  }
+  END { close(out); printf "%d %d\n", total, count }
+  ' "$FILE_LIST")"; then
+  printf 'Error: the single-pass frontmatter scan failed; refusing to report a partial aggregate\n' >&2
+  exit 2
+fi
+TOTAL="${AWK_RESULT%% *}"
+ENTRY_COUNT="${AWK_RESULT##* }"
 
 if ((FOUND_ROOTS == 0)); then
   printf 'Error: no skills root found among: %s\n' "${ROOTS[*]}" >&2

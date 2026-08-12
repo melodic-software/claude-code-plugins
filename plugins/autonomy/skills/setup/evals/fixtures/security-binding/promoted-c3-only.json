@@ -7,6 +7,9 @@
       "L2": {
         "substrate": "egress-denied-container-pool",
         "substrate_class": "container",
+        "component_reachable_hosts": [
+          "example.com"
+        ],
         "probe_evidence": "probe-transcripts/ci-pool-a-l2.json",
         "runtime_markers": {
           "runner-pool": "ci-pool-a",
@@ -33,7 +36,7 @@
     "ai-review": {
       "C1": "not-required",
       "C2": "not-required",
-      "C3": "advisory",
+      "C3": "blocking",
       "C4": "blocking",
       "C5": "blocking"
     }
@@ -97,6 +100,12 @@
       "ratified_by_change": "change/2026-07-01-c3-auto-merge",
       "evidence_window": "2026-06-01..2026-06-28",
       "ratified_at": "2026-07-01T00:00:00Z"
+    },
+    "C3-ai-review-blocking": {
+      "state": "promoted",
+      "ratified_by_change": "change/2026-06-29-c3-ai-review-blocking",
+      "evidence_window": "2026-06-01..2026-06-28",
+      "ratified_at": "2026-06-29T00:00:00Z"
     }
   }
 }

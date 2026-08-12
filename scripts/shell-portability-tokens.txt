@@ -253,7 +253,21 @@ sort[^;&|\n]*[[:space:]]['"]?--sort['"]?(=|[[:space:]]+)['"]?version([[:space:]|
 # shape needs real parsing, which this grep-level tripwire does not attempt.
 # It is a false NEGATIVE on a rare shape, the direction this gate already
 # accepts everywhere else.
-(^|[^[:alnum:]_])sed([[:space:]]([^;&|()`\n]|[<>]\([^)]*\))*)?[[:space:]]-[bEnrsuz]*i([[:space:]|&;()<>]|$)
+#
+# The command word may carry quote runs between its letters and an optional
+# closing quote after `d`, exactly as the `date -d` / `stat -c` tokens below
+# (#2091): `"sed" -i` and `s"e"d -ni` invoke GNU sed after quote removal and
+# were admitted while the name was spelled as one literal `sed`. Letter-by-letter
+# spelling with `(\$?['"]|\\)*` between letters is what the other command-word
+# tokens use — not a widened `s["'\\]*e["'\\]*d` substring that would flag prose.
+# The leading boundary excludes quote/backslash characters so a quoted suffix of a
+# longer shell word (`x"sed" -i` → `xsed`) is not read as a `sed` command; an
+# opening quote run may follow a real boundary only (`"sed" -i`, `;s"e"d -i`).
+# Attached redirections after the name (`sed&>/dev/null -i`) are not admitted here
+# the way `date -d` / `stat -c` do (#1544): sed's gap already owns the
+# whitespace before the option cluster, and splitting that out broke process-
+# substitution shapes (`sed -f <(gen) -i`) during #2091.
+(^|[^[:alnum:]_"'\\])(\$?['"]|\\)*s(\$?['"]|\\)*e(\$?['"]|\\)*d(\$?['"]|\\)*([[:space:]]([^;&|()`\n]|[<>]\([^)]*\))*)?[[:space:]]+(\$?['"]|\\)*-[bEnrsuz]*i([[:space:]|&;()<>]|$)
 
 # `sed --in-place[=SUFFIX]` (GNU long-form spelling of `-i`) — BSD sed has no
 # long options at all, so this flags suffixed or not (unlike short `-i`, where
@@ -274,7 +288,9 @@ sort[^;&|\n]*[[:space:]]['"]?--sort['"]?(=|[[:space:]]+)['"]?version([[:space:]|
 # tool --in-place x` was reported as a GNU sed call even though the option
 # belongs to `tool` — and at a bare paren, while still admitting a process
 # substitution, so `sed -f <(gen) --in-place "$f"` stays detected.
-(^|[^[:alnum:]_])sed([[:space:]]([^;&|()`\n]|[<>]\([^)]*\))*)?[[:space:]]--in-place([[:space:]|&;()<>]|=|$)
+# Same quote-spliced command word as the cluster token above (#2091); same
+# quote-excluding leading boundary so `u"sed" --in-place` is not a false hit.
+(^|[^[:alnum:]_"'\\])(\$?['"]|\\)*s(\$?['"]|\\)*e(\$?['"]|\\)*d(\$?['"]|\\)*([[:space:]]([^;&|()`\n]|[<>]\([^)]*\))*)?[[:space:]]+(\$?['"]|\\)*--(\$?['"]|\\)*i(\$?['"]|\\)*n(\$?['"]|\\)*-(\$?['"]|\\)*p(\$?['"]|\\)*l(\$?['"]|\\)*a(\$?['"]|\\)*c(\$?['"]|\\)*e(\$?['"]|\\)*([[:space:]|&;()<>]|=|$)
 
 # `readlink -f` (canonicalize) — a GNU coreutils extension; BSD/macOS readlink
 # has no `-f`/`--canonicalize`. Auto-guarded when a `realpath` attempt is

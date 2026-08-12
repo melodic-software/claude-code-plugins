@@ -194,6 +194,19 @@
         "Resolves blockability from the handler's own event row in the upstream per-event exit-2 table before applying the gate abstraction, rather than from a fixed list of blocking and non-blocking events, and takes the paired content from what that row states is prevented",
         "States that the same handler on a blockable event such as PreToolUse would enter the comparison set as the act it blocks, so the non-blocking case is a scoped exclusion rather than a blanket exemption for exit-2 hooks"
       ]
+    },
+    {
+      "id": 17,
+      "name": "second-project-neither-overwrites-nor-borrows-a-delta",
+      "prompt": "/claude-config:audit-instructions — I ran this in my other repo yesterday on this same laptop. Where does today's report land, and what does the cost line's per-surface token delta compare against?",
+      "expected_output": "Today's report lands under a per-project state key — <repo-identity>/<worktree-discriminator>, audit-pass's scheme, derived by RUNNING the resolver — so it neither overwrites nor is compared against yesterday's report from the other repo. Because no prior report exists at THIS project's key, the cost line omits the per-surface token delta and says why (first run for this project; no prior catalog version to compare) rather than printing a number computed against an unrelated surface set. The answer names the mechanism: ${CLAUDE_PLUGIN_DATA} resolves to ~/.claude/plugins/data/{id}/ and is keyed to the plugin identifier alone, with no project segment, so a fixed last-audit.md is one file per machine — and the silently wrong delta is the worse half of that, not the lost file.",
+      "files": [],
+      "expectations": [
+        "Names a per-project keyed report path and states that the other repo's report is neither overwritten nor read",
+        "Derives the state key by running the resolver rather than by evaluating whether ${CLAUDE_PROJECT_DIR} is set",
+        "Omits the per-surface token delta and says why, instead of computing one against another project's prior report",
+        "Reuses audit-pass's <repo-identity>/<worktree-discriminator> scheme rather than inventing a second one"
+      ]
     }
   ]
 }

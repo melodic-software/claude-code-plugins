@@ -454,6 +454,11 @@ assert_eq "the conflicted files are counted apart from the staged tree" \
   "1" "$(col "$R" $C_CONFLICTED)"
 assert_contains "the reason says the staged tree is recomputable" \
   "$(col "$R" $C_REASON)" "recomputable"
+# Pins the #2257 half of the reason as well: "recomputable" alone survived the
+# rewrite that added it, so only this clause proves the reason still says the
+# transient state is LOST with the directory — close to the opposite claim.
+assert_contains "the reason says the operation's transient state dies with the directory" \
+  "$(col "$R" $C_REASON)" "dies with the directory"
 
 # --------------------------------------------------------------------------
 # A truncated pass fails loudly
@@ -520,5 +525,51 @@ assert_not_contains "no field is empty" "	$R	" "		"
 EXPECTED_ROWS="$(git -C "$W" worktree list --porcelain | grep -c '^worktree ')"
 ACTUAL_ROWS="$(printf '%s\n' "$OUT" | tail -n +2 | grep -c .)"
 assert_eq "one row per registered worktree" "$EXPECTED_ROWS" "$ACTUAL_ROWS"
+
+# --------------------------------------------------------------------------
+# Liveness: an in-flight operation is never classified disposable (#2257)
+# --------------------------------------------------------------------------
+
+# A bisect in progress leaves `status --porcelain` completely clean, so before
+# the BISECT_LOG probe the row read `ok` — the exact shape a cleanup sweep
+# removes without even needing --force.
+W="$(mkfixture)"
+WT_BISECT="$TEST_TMPDIR/wt-bisect"
+git -C "$W" worktree add -q -b feat-bisect "$WT_BISECT" main >/dev/null 2>&1
+git -C "$WT_BISECT" bisect start >/dev/null 2>&1
+OUT="$(bash "$ENGINE" --repo-dir "$W" --no-peers)"
+R="$(row "$OUT" "wt-bisect")"
+assert_eq "a bisect in progress is probed" "bisect" "$(col "$R" $C_INPROGRESS)"
+assert_eq "a bisect in progress is risk=in-progress, never ok" \
+  "in-progress" "$(col "$R" $C_RISK)"
+git -C "$WT_BISECT" bisect reset >/dev/null 2>&1
+
+# landed=yes must NOT outrank a mid-flight operation: consumers read `landed`
+# as safe-to-remove, and removal mid-operation kills the operation's transient
+# state even when every commit is durable. Fixture holds both signals at once —
+# the branch's one commit matches the base by patch-id via a different SHA on
+# origin/main, then a merge is left open with --no-commit (MERGE_HEAD present).
+# The twin is committed with a different subject on main (never cherry-picked):
+# unrelated lands on main before the twin, so a cherry-pick would not have
+# parent == HEAD at the branch tip and would carry unrelated.txt in the tree —
+# different parent, tree, and SHA even within the same second. The sequence
+# below is deliberate; do not replace the twin with a cherry-pick.
+W="$(mkfixture)"
+WT_OP="$TEST_TMPDIR/wt-inprog-landed"
+git -C "$W" worktree add -q -b feat-inprog "$WT_OP" main >/dev/null 2>&1
+commit_in "$WT_OP" ip.txt "landed content" "add ip.txt"
+commit_in "$W" unrelated.txt "unrelated" "unrelated on main"
+git -C "$W" push -q origin main >/dev/null 2>&1
+commit_in "$W" ip.txt "landed content" "add ip.txt on main"
+git -C "$W" push -q origin main >/dev/null 2>&1
+commit_in "$W" extra.txt "extra" "extra on main"
+git -C "$W" push -q origin main >/dev/null 2>&1
+git -C "$WT_OP" fetch -q origin >/dev/null 2>&1
+git -C "$WT_OP" merge --no-ff --no-commit origin/main >/dev/null 2>&1
+OUT="$(bash "$ENGINE" --repo-dir "$W" --no-peers)"
+R="$(row "$OUT" "wt-inprog-landed")"
+assert_eq "fixture sanity: the unpushed commit is landed" "yes" "$(col "$R" $C_LANDED)"
+assert_eq "fixture sanity: a merge is mid-flight" "merge" "$(col "$R" $C_INPROGRESS)"
+assert_eq "in-progress outranks landed" "in-progress" "$(col "$R" $C_RISK)"
 
 [[ $FAILED -eq 0 ]] || exit 1

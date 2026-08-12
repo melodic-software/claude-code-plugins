@@ -3,6 +3,16 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.2]
+
+### Fixed
+
+- **`_discard_stream` no longer re-closes the fd it just repaired.** When stderr's fd was closed
+  outright, `os.open(os.devnull)` could return that same fd number; `dup2` was then a no-op and the
+  unconditional `close(null_fd)` left fd 2 closed again, defeating the null-device redirect. The
+  guard now skips closing `null_fd` when it is the target fd. Covered by a unit test that closes fd
+  2 before calling `_discard_stream`.
+
 ## [0.17.1]
 
 ### Changed

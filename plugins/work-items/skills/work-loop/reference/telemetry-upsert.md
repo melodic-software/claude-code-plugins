@@ -40,7 +40,7 @@ that cannot produce a conforming id stops the lane rather than yielding a marker
 ```bash
 MARKER="work-items:work-loop@$INSTANCE"
 SENT="<!-- claude-ops:lane-telemetry marker=$MARKER -->"   # $BODY_FILE MUST open with this line
-LOOKUP() { gh api --paginate "repos/$REPO/issues/$ISSUE/comments" \
+LOOKUP() { gh api --paginate "repos/$REPO/issues/$ISSUE/comments?per_page=100" \
   --jq ".[] | select(.body | startswith(\"$SENT\")) | .id"; }
 SENTINEL_OK() { # $1 = text; true iff line 1 is exactly $SENT and >=16 payload bytes follow
   [ "$(printf '%s' "$1" | head -c ${#SENT})" = "$SENT" ] &&

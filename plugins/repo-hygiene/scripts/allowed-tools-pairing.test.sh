@@ -15,6 +15,14 @@
 # `allowed-tools`; `${CLAUDE_PLUGIN_ROOT}` stays a literal string there and the
 # grant is inert.
 #
+# Two-form split (decide-lane #2237, DEFER): `SKILL.md` uses the paired
+# `${CLAUDE_SKILL_DIR}/scripts/…` form that matches its grants; bundled
+# `context/*.md` files keep the interpreter-led
+# `bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/…` form because substitution
+# of `${CLAUDE_SKILL_DIR}` into on-demand context files is unverified — a wrong
+# conversion expands to `/scripts/…` and fails silently. See
+# `skills/clean/reference/invocation-forms.md`.
+#
 # SC2016 is disabled file-wide on purpose. Every single-quoted `${…}` here is a
 # fixed string searched for VERBATIM in markdown and frontmatter, where those
 # placeholders are substituted by Claude Code at load time. Letting the shell
@@ -83,6 +91,29 @@ for skill in "${SKILLS[@]}"; do
     fi
     if grep -qF '"${CLAUDE_SKILL_DIR}/scripts/' "$f"; then
       fail "$f: body quotes the bundled-script path — an unquoted rule will not match it"
+    fi
+    # Bundled context files must stay on `${CLAUDE_PLUGIN_ROOT}` until substitution
+    # scope for on-demand context is verified (#2237). Direct
+    # `${CLAUDE_SKILL_DIR}/scripts/…` there would look paired but expand to
+    # `/scripts/…` if the placeholder is not substituted.
+    if [[ "$f" == skills/*/context/* ]]; then
+      if grep -qF '${CLAUDE_SKILL_DIR}/scripts/' "$f"; then
+        fail "$f: context file must not use \${CLAUDE_SKILL_DIR}/scripts/ — keep \${CLAUDE_PLUGIN_ROOT} form (#2237)"
+      fi
+      # Every bundled-script reference must retain the interpreter-led PLUGIN_ROOT
+      # prefix — banning SKILL_DIR alone still passes if a command is rerouted to
+      # another invalid path such as bash /wrong/preflight.sh.
+      required='bash ${CLAUDE_PLUGIN_ROOT}/skills/'"$skill"'/scripts/'
+      while IFS= read -r line; do
+        if [[ "$line" != *"$required"* ]]; then
+          fail "$f: context script invocation must use bash \${CLAUDE_PLUGIN_ROOT}/skills/$skill/scripts/… — got: ${line%%$'\n'}"
+        fi
+      done < <(grep -F 'skills/'"$skill"'/scripts/' "$f" || true)
+      if grep -qF 'skills/'"$skill"'/scripts/' "$f"; then
+        pass "$f: context script invocations use interpreter-led \${CLAUDE_PLUGIN_ROOT} form"
+      else
+        pass "$f: context file has no bundled-script invocations to pin"
+      fi
     fi
   done
 

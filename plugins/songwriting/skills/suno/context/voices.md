@@ -8,8 +8,16 @@ Voices clones YOUR singing identity. v5.5 only. 18+, geographically gated.
 
 - Captures vocal timbre, register, breathiness, accent characteristics from your acapella recording
 - Applies that voice to any generated song where you select it
-- Account-locked: only you can create with your voice profile (privacy + anti-impersonation)
+- Account-locked: only you can create with your voice profile (privacy + anti-impersonation) — **but a community report says the "make this voice public" toggle is ON by default when you create a voice; see "Voice privacy" immediately below before you rely on this line**
 - Layers cleanly with Custom Models (your sound × your voice)
+
+## Voice privacy — the "make this voice public" toggle
+
+**⚠ Applies to EVERY voice you create, on any route through this file — including the two-stage bootstrap below, which creates two voices and so needs the check at both creation steps.**
+
+**The poster of the r/SunoAI thread cited here states the "make this voice public" toggle is ON by default when creating a voice — turn it off before finishing.** Source: [r/SunoAI, "Another useful trick to use your own voice in Suno, even if you cannot sing well"](https://www.reddit.com/r/SunoAI/comments/1ujzbqj/another_useful_trick_to_use_your_own_voice_in/) (u/Physical-Dress8460, posted 2026-06-30), read 2026-08-11. LOW-MEDIUM confidence — a single post plus its own comment thread, not multi-source consensus. Unverified against Suno's documentation; asked about in the thread and **re-affirmed by the poster, contradicted by nobody**.
+
+**This conflicts with the "account-locked" line above, and the conflict is unresolved.** One says the voice profile is yours alone; the other says a newly created voice is public unless you turn a toggle off. Nothing in hand reconciles them, and nothing here should be read as reconciling them. **Take the conservative reading: assume a voice you create may be visible to others until you have checked the toggle yourself.**
 
 ## Recording requirements
 
@@ -62,7 +70,7 @@ The rule at the top of this section gives a reason: the model learns your *sung*
 
 **Reported failure mode:** the stage-2 test generation usually arrives with a beat or backing behind the vocal. The poster reports the voice-creation step filters to the vocal anyway, that selecting only the cleanest sung span works better, and that the backing can also be pushed back via Excluded Styles or the style field.
 
-**⚠ The poster states the "make this voice public" toggle is ON by default when creating a voice — turn it off before finishing.** This applies to **every** voice you create, not only to this technique. Unverified against Suno's documentation; asked about in the thread and re-affirmed by the poster, not contradicted. Note it also sits awkwardly beside this file's "account-locked" line above, which nobody has reconciled. **Check the toggle yourself.**
+**⚠ The public-toggle warning comes from this same thread, and it applies here twice** — this technique creates two voices. It is not repeated here because it governs every voice creation, not this technique: see the "Voice privacy" section near the top of this file.
 
 ## Verification phrase
 
@@ -74,6 +82,8 @@ Anti-impersonation guard. After upload:
 4. Match → voice approved
 
 This blocks: cloning a public figure's voice from YouTube, cloning a friend / collaborator without consent. The verification recording proves the same person produced both samples.
+
+Before you finish this flow, check the "make this voice public" toggle — see the "Voice privacy" section near the top of this file.
 
 ## Activating a Voice in generation
 

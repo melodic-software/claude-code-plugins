@@ -3,6 +3,369 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.2.0]
+
+Both audit denominators are unchanged: **Axis 1 stays 44 of 44** and **Axis 2
+stays 226 of 226.** No Pattison reading.
+
+**A minor, not a patch.** A confidence rung changes, which changes how callers
+are told to surface the technique, and `SKILL.md` gains a new standing
+instruction (the browser route to Reddit). Both are behavior, not wording.
+
+**The r/SunoAI pass that three releases called impossible was run.** 1.1.2 and
+1.1.3 both recorded the Reddit corpus as unreachable — "the search tool refuses `reddit.com`" — and rated claims down
+accordingly. A reviewer on PR #2366 pointed at this plugin's **own**
+`context/workflow-recipes.md`, which has said since 1.1.0 that *"r/SunoAI is no
+longer unreachable"* and that a **browser session** reaches it where search and
+direct fetch fail. The route worked on the first try.
+
+**The corpus was never closed. The note saying so was never read.** That is the
+finding worth keeping: an absence recorded as "cannot be checked" is only as good
+as the search for a way to check, and the way was already written down in this
+skill.
+
+### One claim moves up a rung; the other does not, and that is the more useful result
+
+- **Tag-order front-loading (`power-tips.md` "Tag order") is no longer
+  unsourced.** 1.1.1 demoted it as *"never been checked against a source in
+  either direction"* and 1.1.2-1.1.3 left it there. An upvoted r/SunoAI guide
+  post (13 votes, 28 comments,
+  [`1h4zc7e`](https://www.reddit.com/r/SunoAI/comments/1h4zc7e/expanded_insight_and_guidance_on_suno_style/))
+  leads with **"Key Insight 1: Order Matters"** and states that Suno assigns
+  importance by order, first descriptors setting the stage and later ones adding
+  flavor, with a paired example differing only in which half leads. Now
+  **LOW-MEDIUM** — the ladder defines that rung as *"at most a single community
+  post"*, and one post is what this is. Not MEDIUM.
+- **Bare genre order is still unestablished, and now we know what would settle
+  it.** In
+  [`1g5qzes`](https://www.reddit.com/r/SunoAI/comments/1g5qzes/style_order/) a
+  user reports `progressive metal, jazz` and `jazz, progressive metal` giving
+  different results. A draft of this release called that **isolating**, because a
+  comma swap moves order and nothing else. **A reviewer showed it is not** — and
+  the refutation came from this plugin's own `tips.md`: *"Variance is high. First
+  generation is rarely best."* Against a stochastic generator, one run per
+  ordering leaves run-to-run variance uncontrolled; two different outputs are
+  what you would expect from the **same** prompt twice. Recorded as an anecdote
+  and as the shape a real test would take — repeated or seed-controlled — not as
+  evidence.
+
+**"Order encodes priority" is still not restored.** Its defect was certainty and
+mechanism, and none of this supplies either.
+
+### Fixed
+
+- **Genre fusion stays between LOW-MEDIUM and MEDIUM — but now on evidence.**
+  `SKILL.md` requires multiple guides **plus** Reddit consensus. Three guides
+  give the first half; the pass found **one** corroborating post and one split
+  thread, which is corroboration, not consensus. The rung is unchanged from
+  1.1.3; what changed is that 1.1.3 rated it down for an **untried** corpus —
+  wrong twice over, since the corpus was reachable and now says something
+  specific.
+- **An era caveat is attached to front-loading, and it is load-bearing.** The
+  cited post is from 2024 (v3/v4). `help.suno.com` 5782849 says of v4.5 that
+  *"In previous models, you would want to prioritize certain genre and style
+  details, but your instructions can now include a more conversational prompt."*
+  First-party guidance is moving **away** from the terse prioritized-token style
+  the rule describes. So front-loading is attested for terse comma-separated
+  prompts and **unverified for the v5.5 conversational prompts this skill
+  targets**. Rating it without that split would have shipped a v3-era finding as
+  current advice.
+- **Middle-tag softening (roughly 4-7) stays unsourced**, explicitly. The post
+  that sources the first half says nothing about middle positions, and the entry
+  now warns against letting one half carry the other.
+- **`SKILL.md`'s MEDIUM rung records the browser route to Reddit**, so the next
+  reader does not rate a third claim down for a corpus that is open.
+
+## [1.1.3]
+
+Both audit denominators are unchanged: **Axis 1 stays 44 of 44** and **Axis 2
+stays 226 of 226.** No reading, no new unit, no new technique.
+
+**This release repairs 1.1.2, which shipped with two review findings
+outstanding.** Both were raised on PR #2351 and both were correct; the PR was
+merged before the fixes were pushed, so they land here instead. Nothing in the
+1.1.2 entry is rewritten — it records what shipped, including what was wrong
+with it.
+
+### ⚠ 1.1.2 REPLACED AN OVERCLAIM WITH AN OPPOSITE OVERCLAIM
+
+1.1.2 correctly removed *"Order encodes priority"* from `power-tips.md`. It then
+asserted the negative: *"Grammatical role, not word position, is what the sources
+describe as the signal."* **The evidence does not carry that either.** The one
+source that addresses order says word order matters *"not just"* on its own —
+which treats position as a **contributing** signal, qualifying the positional
+rule rather than refuting it. The other two speak only to hierarchy and say
+nothing about position at all.
+
+**Position is not ruled out. It is unestablished.** The section now says exactly
+that. This is worth stating loudly because the failure is subtle and repeatable:
+an audit that correctly finds a claim unsupported is *not* thereby licensed to
+assert its opposite. Both directions need evidence, and a confidently-worded
+demotion reads as researched while carrying the same defect the demotion was
+meant to fix.
+
+### Fixed
+
+- **The genre-fusion section no longer claims MEDIUM confidence**, because it
+  never met this skill's own bar. `SKILL.md`'s ladder defines MEDIUM as multiple
+  community guides **plus** Reddit consensus — and 1.1.2 recorded in the same
+  breath that the Reddit pass could not run (the search tool available refuses
+  `reddit.com`). So 1.1.2 routed callers to a confidence level its evidence had
+  not earned, using the very ladder that release proposed as the governing home
+  for Suno claims. The section now states that it sits **between LOW-MEDIUM and
+  MEDIUM**: three independent guides clearly exceed LOW-MEDIUM's "at most a
+  single community post", and the Reddit half of MEDIUM is unmet and untried.
+  **No new rung was invented** to make the claim fit — the gap is named instead.
+  `SKILL.md`'s router row matches.
+- **An r/SunoAI pass is added to the genre-fusion recheck trigger**, since it is
+  now the specific event that would settle the rung in either direction.
+- **`tips.md` stated the same conclusion twice within six lines.** The `Effect:`
+  line and the corpus block both explained that the `~70%` had no basis; the
+  `Effect:` line now points down to the corpus instead of restating it.
+- **`SKILL.md`'s LOW-MEDIUM bullet had grown to a ~150-word sentence-run**
+  covering two unrelated items (the `voices.md` caveats and the timing-cue
+  history). Split into two sub-bullets under the same rung.
+
+### Process note worth keeping
+
+The two findings above were posted as review threads on #2351 and the PR merged
+before they were addressed. **A merged PR is not evidence its review was
+resolved** — check the thread state, not the merge state, and when a merge
+outruns a fix, ship the fix as its own release rather than editing the shipped
+entry to hide the gap.
+
+## [1.1.2]
+
+Both audit denominators are unchanged: **Axis 1 stays 44 of 44** and **Axis 2
+stays 226 of 226**. No Pattison reading was done and no unit was opened. This
+release closes issue #2266 — the two unaudited Suno claims 1.1.1 left flagged —
+by **sourcing one and deleting the number behind the other**, and sweeps two
+sibling sites of the same claims that #2266 did not name.
+
+**A patch, not a minor.** No technique is added or removed. Every change either
+attaches a source to a claim already here, corrects a stated mechanism, or
+deletes a figure nothing supports.
+
+### ⚠ A FIGURE SHIPPED SINCE BEFORE 1.0.0 HAD NO BASIS — `~70%` timing-cue adherence is deleted
+
+1.1.1 recorded that the timing-cue entry's `~70%` had no basis **in this repo**
+and left it flagged `LOW-MEDIUM` rather than removing it. That was half the
+work: an unsourced figure marked low-confidence is still an unsourced figure,
+and a percentage is the most quotable thing in a file. It was searched
+externally this release and **still has no basis** (corpus below), so it is gone.
+
+**The technique survives; only the magnitude dies.** `[at 0:15 vocals enter]` is
+still offered as a secondary nudge behind structural tags — nothing found
+contradicts it, and #2266's standing rule for unsourced-not-contradicted claims
+is keep-and-mark. What could not be kept is a number pretending to be a
+measurement.
+
+### Fixed
+
+- **`power-tips.md` genre fusion: the mechanism was wrong, not just unsourced.**
+  The section asserted *"Order encodes priority"*. Three community guides,
+  fetched verbatim on 2026-08-12, attest a **hierarchy** — one anchor genre plus
+  one accent, never equal billing — and one of them states the opposite of the
+  positional reading: *"The cleanest way to signal hierarchy is through sentence
+  structure, not just word order."* The section is rewritten as **anchor and
+  accent**, at **MEDIUM** confidence with all three sources quoted, a fetch date,
+  and a recheck trigger. The file's own example never isolated order in the first
+  place — `synth-pop with dream-pop textures` changes grammatical role *and*
+  position at once — and now says so.
+- **The "hard cap: 2 genres" was this file's own sharpening.** Two sources model
+  exactly one anchor plus one accent and a third warns against "three-way
+  competition", but **no source states a numeric cap**. Reworded to two as the
+  working default, with three-or-more needing an explicit hierarchy.
+- **`genre-taxonomy.md:471` carried `~60% of descriptor weight`** for the same
+  fusion claim — a second invented figure, in a file #2266 never named. No source
+  states a percentage split. Deleted; the row now points at the sourced section.
+- **`lyrics.md:208` carried the `~70%` too**, in a technique table. Same
+  treatment as `tips.md`, so the two cannot drift apart again.
+- **`power-tips.md`'s blanket header claimed the file was
+  "community-validated through empirical testing".** Two sections inside it are
+  explicitly flagged unverified, so the header asserted validation the file
+  cannot back — the exact intra-file inconsistency #2266 was filed about.
+  Replaced with a per-section rule: an unflagged section has not been audited.
+  `SKILL.md`'s router row, which still advertised the whole file as MEDIUM-HIGH,
+  is corrected to match.
+
+### The corpus searched, so the next reader need not redo it
+
+Every absence below is **scoped to the pages named** and asserts nothing about
+Suno's documentation as a whole.
+
+- **Official, read verbatim by `curl` (not a summarizing fetch), bodies whole:**
+  `help.suno.com` [5782849](https://help.suno.com/en/articles/5782849) (1,177
+  chars of extracted text) and
+  [5782977](https://help.suno.com/en/articles/5782977) (805 chars). Neither
+  addresses genre order or fusion; neither mentions timestamp cues in the Lyrics
+  box or any adherence rate. 5782849 points *away* from positional prompting for
+  v4.5+: *"In previous models, you would want to prioritize certain genre and
+  style details, but your instructions can now include a more conversational
+  prompt."*
+- **Community, for the timing cue:** the two largest public meta-tag references —
+  Jack Righteous' Suno meta tags guide (22,687 chars) and Blake Crosley's v5.5
+  guide (93,464 chars) — carry **zero** occurrences of a `0:1`-style timestamp
+  cue and **zero** of `70%`. Jack Righteous routes timing problems out of the
+  prompt entirely, to Studio or a DAW.
+- **r/SunoAI could not be searched** — the search tool in this environment
+  refuses `reddit.com`. The community corpus above is therefore guides only, and
+  a Reddit pass remains undone.
+
+### Scope note — `docs/conventions/upstream-drift/` was read and deliberately not adopted
+
+That convention's required parts (claim, basis, as-of date, recheck trigger) are
+what the two sourced records above are shaped on, and it is cited here as the
+precedent. It is **not** claimed as the owner of this class: its fetch-route
+ladder, its `llms.txt` identity check and its drift signal are all specific to
+`code.claude.com`, and none of that transfers to an Intercom-hosted help centre.
+Suno claims stay governed by **the confidence ladder in
+`skills/suno/SKILL.md`**, which already carries source-quality semantics; what it
+lacked, and what this release borrows from the convention, is the **recheck
+trigger**. Adding a row to that convention's adopters table is out of this
+plugin's scope and was not done.
+
+### Still open
+
+- `power-tips.md` "Tag order" (`:7-13`, demoted in 1.1.1) is **still unsourced in
+  either direction**, and this release did not search for first-tag advantage or
+  middle-tag softening. #2266 asked that `:7-13` and the fusion claim be taken
+  together; they can no longer be resolved on one body of evidence, because the
+  fusion claim is now sourced and the tag-order rule is not.
+
+  **But the fusion pass turned up a first-party lead worth handing on, so it is
+  not lost.** `suno.com/hub/how-to-make-beats`, fetched 2026-08-12, says: *"it
+  reads prompts as structured instructions. A clear hierarchy matters … A strong
+  prompt follows this order: tempo, genre, rhythm style, instruments, and
+  mood."* A community guide echoes the shape — sunopromptpro: *"A practical
+  pattern is primary genre, secondary production influence, vocal direction,
+  rhythm detail, and section structure."* **This is a lead, not evidence.** Both
+  prescribe an ordering of descriptor *categories*, and the hub page is scoped to
+  beat-making; neither says a first tag carries more weight or that middle tags
+  soften, which is what `:7-13` actually claims. A future tag-order audit should
+  start here and must not mistake the two for the same claim.
+- The ledger both #2233 and #2266 cite as authority,
+  `.work/songwriting-plugin-pilot/suno-drift/RESEARCH.md`, **does not exist** —
+  not in the working tree, not anywhere in git history, and not on disk. Every
+  "no audit row covers this" claim resting on it is unfalsifiable as written.
+
+## [1.1.1]
+
+Both audit denominators are unchanged: **Axis 1 stays 44 of 44** and **Axis 2
+stays 226 of 226**, read from the ledger rather than inherited. Nothing here
+opens a new unit — no new reading was done. This release closes the six
+follow-ups tracked in issue #2233.
+
+**A patch, not a minor.** The one piece of new content is a lyric this project
+had itself recorded as a deliberate omission, so restoring it is a fix rather
+than an addition.
+
+### ⚠ A CLAIM SHIPPED IN 1.1.0 WAS FALSE — figure `34F` is NOT image-only
+
+1.1.0 recorded, under "Known and deliberate omissions", that fig
+`image_rsrc34F`'s five-line lyric was *"image-only — absent from the gated 1991
+text layer, confirmed against a known-present control"*. **It is not.** The same
+verse is printed as prose in the 1991 spine, in **Chapter 1** — six chapters
+before the figure, which is in Chapter 7. The original search was scoped to the
+spine file holding the figure and never asked whether another chapter printed
+it.
+
+**The control could not have caught this, and that is the lesson.** A grep for
+line five — `make everything so clear` — returns **zero across all four books**,
+because the 1991 text layer prints `averything`. A known-present control proves
+your *search* works; it can never prove your *target* is absent. One line failing
+where its neighbours match means "look for a typo", not "absent".
+
+### Added
+
+- **Fig `image_rsrc34F`'s five-line lyric is transcribed** in `hook.md`, with
+  its scansion. Every row was read one row at a time at **12-13x**, by eye,
+  **no OCR**, from named PNG files. Rows 1-4 carry 5, 5, 5 and 3 slash marks;
+  row 5's
+  doubled mark is recorded exactly as printed, still without deciding whether it
+  denotes two stresses or is a printing anomaly.
+- **A standing rule for image-only figure content**, in `book-references.md`:
+  render, read by eye, name the PNG, **OCR forbidden**, crop one row at a time.
+  This is not a new practice — it is what `hook.md` (fig `34G`), `cliche.md` and
+  `bridge.md` already do. Fig `34G` proves it: the figure prints `ANYMORE`, the
+  prose prints `ANY MORE`, and `hook.md` correctly prints the figure's form.
+- **The `Challenge #N` boundary**, in `book-references.md`, as a role table.
+
+### Fixed
+
+- **50 bare `Chapter N` / `Challenge N` citations now name their book.** Each
+  book was resolved by matching the introduced block against the four spines,
+  under a control that fails the run if matching breaks. **One site was genuinely
+  ambiguous** — the `wind = yelping dog` drill is printed in *both* the 2009 and
+  2011 books — where the previous measurement had reported none; only the chapter
+  number settles it, since the 2011 book has Challenges and Days, never chapters.
+  The last **3** of the 50 came from re-running the scan with a deliberately
+  looser pattern and diffing it against the tight one: the tight scan required
+  the intro line to end in a colon and the block to be quoted or fenced, and so
+  was blind to indented blocks and to intros that trail into the next sentence.
+  Loose found 9 more sites, **6 false positives** — four inside HTML comments,
+  one a sentence of this release's own new prose, one a plugin-authored example
+  inside a fence — and **3 real ones**, now fixed.
+- **`rhyme-types.md` attributed the wrong chapter.** The `travel` family search
+  is printed twice: Chapter 4 annotates `glass full (mosaic)`, and Chapter 6
+  recalls the search and drops the annotation. The reproduced block is
+  **Chapter 6's** printing, followed by Chapter 6's "Add partial rhyme" move,
+  while the line cited Chapter 4. Found by a second check that verified cited
+  chapter *numbers* against all 266 spine headings — the resolver itself only
+  ever proved the *book*, and would have passed 47 correct book names sitting on
+  wrong chapter numbers.
+- **10 citation-role `Challenge #N` sites normalized** to `Challenge N`. Exactly
+  one hash site remains in the research corpus — `metaphor.md`, inside a
+  quotation, verified verbatim against the 2011 spine. The other occurrences in
+  the plugin are the new rule in `book-references.md` and this changelog, both
+  of which quote the form in order to describe it.
+- **`lyrics.md` no longer claims first-party support it does not have.** The
+  cited Suno article is "How to Use: Song Editor" and contains no bracket-tag
+  content. The false clause was deleted and **no citation was substituted for
+  it** — the surviving `HIGH` is re-anchored to the community attestation that
+  actually carries it.
+- **`advanced.md`'s `Wrong (silently ignored)`** is now `Off-convention`. No
+  source shows negation phrases failing; the bare-noun form is the attested one,
+  which is a different claim.
+- **`power-tips.md`'s positional tag weighting** moved out of instruction bullets
+  into prose marked never-checked. **No audit row has ever examined this claim
+  class**, so it is kept and marked rather than deleted — unsourced is not
+  contradicted.
+- **`voices.md`'s privacy warning now governs every voice creation**, not just
+  the subsection for writers who cannot sing. A competent singer never read it
+  before.
+- **`SKILL.md`'s confidence ladder gained the `LOW-MEDIUM` rung** that two files
+  were already using without it being defined.
+
+### Recorded, deliberately not resolved
+
+- **Fig `34F` against the prose printings.** The figure drops the `that` in line
+  one; Chapters 4 and 6 keep it. Figs `34F` and `32V` print `everything`; the
+  Chapter 1 text layer prints `averything` — the only occurrence in the corpus,
+  confirmed genuine to the EPUB. Two photographs of the printed page against one
+  reflowed text run, so **the text layer carries the defect**. This is the one
+  site where a figure adjudicates the spine. `phrasing.md` carries a note so a
+  future spine-matching sweep cannot "restore" it.
+- **`voices.md`'s account-locked line versus the reported default-public
+  toggle.** Both are stated, the conflict is stated, and the conservative reading
+  governs. No reconciliation was invented, and the warning is **not** described
+  as disputed — the poster re-affirmed it and nobody rebutted it.
+
+### Still open
+
+<!-- spellchecker:off -->
+
+- **`melodic-software/standards#349` is MERGED**, but `_typos.toml` here has not
+  synced — `DUM` is still absent. The 56 inline `<!-- spellchecker:off/on -->`
+  guards stay until it does.
+
+<!-- spellchecker:on -->
+
+- `power-tips.md:29` ("Order encodes priority") is the same never-audited claim
+  class as the rule demoted above, in the same file, and no audit row covers it.
+- The `tips.md` timing-cue entry's `~70%` figure has no basis recorded anywhere
+  in this repo. Flagged `LOW-MEDIUM` and left flagged.
+
 ## [1.1.0]
 
 Both audit denominators are unchanged: **Axis 1 stays 44 of 44** and **Axis 2

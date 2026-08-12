@@ -3,6 +3,28 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.4]
+
+### Fixed
+
+- **`triage` disambiguates "standing rules" from `re-anchor`'s homonym and
+  names when a general lane mandate satisfies the direction gate.** (#570)
+
+## [0.35.3]
+
+### Changed
+
+- **Every `--paginate` list read now carries `per_page=100`.** `skills/attend-queue/SKILL.md`,
+  `skills/work-loop/reference/telemetry-upsert.md`,
+  `tools/work-item-tracker/adapters/github/common.sh` (`wit_list_lease_comments`), and
+  `tools/work-item-tracker/adapters/github/reclaim.sh` (comment activity and timeline
+  cross-references) paginated without a page size. These were not truncation defects — `--paginate`
+  fetches every page regardless — but they were non-conformant with the pagination rule
+  `source-control:pull-request`'s readiness reference publishes, and at the 30-item default they
+  cost 3.3x the requests. No behavior change: each site's downstream fold (`jq -s 'add // []'` /
+  `'add // 0'`) sums or concatenates per-page results, and `gh` applies `--jq` per page under either
+  page size, so the same value is produced from fewer pages.
+
 ## [0.35.2]
 
 ### Fixed

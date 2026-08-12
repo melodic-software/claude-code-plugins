@@ -7,6 +7,9 @@
       "L2": {
         "substrate": "egress-denied-container-pool",
         "substrate_class": "container",
+        "component_reachable_hosts": [
+          "example.com"
+        ],
         "probe_evidence": "probe-transcripts/ci-pool-a-l2.json",
         "runtime_markers": {
           "runner-pool": "ci-pool-a",
@@ -70,11 +73,36 @@
       }
     },
     "rules": [
-      { "signal_class": "*", "provenance": "*", "work_class": "C1", "disposition": "autonomous-eligible" },
-      { "signal_class": "*", "provenance": "*", "work_class": "C2", "disposition": "autonomous-eligible" },
-      { "signal_class": "*", "provenance": "*", "work_class": "C3", "disposition": "human-gated" },
-      { "signal_class": "*", "provenance": "*", "work_class": "C4", "disposition": "human-gated" },
-      { "signal_class": "*", "provenance": "*", "work_class": "C5", "disposition": "human-gated" }
+      {
+        "signal_class": "*",
+        "provenance": "*",
+        "work_class": "C1",
+        "disposition": "autonomous-eligible"
+      },
+      {
+        "signal_class": "*",
+        "provenance": "*",
+        "work_class": "C2",
+        "disposition": "autonomous-eligible"
+      },
+      {
+        "signal_class": "*",
+        "provenance": "*",
+        "work_class": "C3",
+        "disposition": "human-gated"
+      },
+      {
+        "signal_class": "*",
+        "provenance": "*",
+        "work_class": "C4",
+        "disposition": "human-gated"
+      },
+      {
+        "signal_class": "*",
+        "provenance": "*",
+        "work_class": "C5",
+        "disposition": "human-gated"
+      }
     ],
     "autonomous_concurrency": 1,
     "items_per_run": 3

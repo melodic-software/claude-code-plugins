@@ -15,7 +15,7 @@ Three checks, run inside the boundary, all expected to FAIL:
 
 | Assertion | Runs | Expected result |
 |---|---|---|
-| Denied egress | a TLS fetch of two `<well-known-external-host>` targets under different operators | no origin peer answered — NON-zero exit, and no in-boundary peer identity matching the outer context's |
+| Denied egress | a TLS fetch of two `<well-known-external-host>` targets under different operators, plus every destination the level binding ratifies as component-reachable | no origin peer answered — NON-zero exit, and no in-boundary peer identity matching the outer context's |
 | Absent host credentials | a read of `<host-credential-path>` | file absent, or read denied — NON-zero exit |
 | Contained workspace host-writes | randomized canary writes into the workspace mount, re-checked on the host after teardown | every canary still absent on the host, and the VCS control-plane digest unchanged |
 
@@ -51,7 +51,7 @@ trusted-root values bind per the deployment's secret-binding classification.
 
 ## Egress-denial probe shape
 
-Three properties have to hold together, because each one alone is satisfiable by a boundary that is
+Four properties have to hold together, because each one alone is satisfiable by a boundary that is
 not `L2`.
 
 **The client must be shown to run.** A boundary with no working fetch tool denies nothing, yet a
@@ -59,12 +59,36 @@ missing tool is indistinguishable from a sealed network by exit code alone — s
 boundary would otherwise score best. Prove the client runs before believing anything it reports.
 
 **At least two targets, under different operators.** One denied destination is fully consistent with
-a policy that allows others; a kit installed on top of a global deny-all can add its own allow rule.
+a policy that allows others; a component installed on top of a global deny-all can add its own allow
+rule.
 
 **Each target must be reachable from the OUTER context first.** A target that fails everywhere — an
 unregistered name, a dead host — "fails" inside too and proves nothing. This is why the targets are
 well-known hosts rather than unguessable ones: unguessability and outer-reachability cannot both hold
 over DNS, and outer-reachability is what makes the inner failure mean something.
+
+**Every destination the level binding ratifies as component-reachable must be among the targets.**
+Two targets under different operators sample only what the BASE policy denies. Where the surface
+carries an additive policy layer, the destinations its installed components request are the exact
+places the boundary may already have been widened, so a probe drawn from anywhere else certifies a
+boundary open at the one place it never looked. Which destinations those are is an outer-world fact
+no capture can establish, so the set is HUMAN-RATIFIED on the level binding's
+`component_reachable_hosts` — the agent-unwritable surface `substrate_class` already sits on — and
+the probe covers it in FULL, since covering one ratified destination says nothing about the rest.
+An empty ratified list is the explicit claim that this surface installs nothing carrying policy
+rules of its own; an ABSENT one leaves the level unproven, fail-closed. Ratify only destinations
+the outer context can itself reach: a component-reachable destination on a private or internal
+network fails the outer-reachability property above and is outside what this probe settles. Probe
+in the configuration the run will ACTUALLY use, those components installed.
+
+What this settles and what it does not. A transcript can prove that the probe covered every
+destination the human ratified, and the egress assertion then proves each one was denied. It cannot
+prove the ratified set is COMPLETE — a component requesting a destination nobody ratified is
+invisible to every capture — and it cannot prove the probe ran with those components installed at
+all. The first is where the human takes responsibility by ratifying on the agent-unwritable surface;
+nothing takes responsibility for the second, and a component-reachable destination on a private or
+internal network is outside the probe's reach entirely, since a non-external target cannot evidence
+external egress denial. These are RECORDED, not implied.
 
 ```sh
 # readiness (inside the boundary): the client itself must work — record as client_ready

@@ -3,6 +3,34 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.0]
+
+### Added
+
+- **`/review:code-review` and `/review:security-review` CI lane skills
+  (ci-workflows#258).** Thin org-owned slash commands the
+  `claude-review` / `claude-security-review` reusable workflows invoke via
+  claude-code-action `plugins` + `plugin_marketplaces`. They carry the
+  lane criteria, skip-gate, high-signal bar, and adversarial-validation
+  target; the workflow wrapper still owns checkout, MCP install via
+  `claude_args`, and reporting mechanics. Skills (not legacy `commands/`)
+  per marketplace PLUGIN-PHILOSOPHY.
+
+## [0.18.4]
+
+### Fixed
+
+- **`agents/ci-log-auditor.md`'s `add` rationale no longer misdescribes `gh --paginate`.** Finding
+  6 told the reader that `/annotations` pages are "concatenated" arrays combined with `add`. They
+  are not concatenated: with no `--jq`, `gh` merges array-shaped responses into ONE JSON array and
+  emits a document per page only for object envelopes like `check-runs`, so `jq -s` there yields a
+  one-element slurp that `add` unwraps. The published command was already correct — only the
+  mechanism claim was wrong, in a file whose whole subject is being factually right about
+  pagination, so a reader who believed it would mispredict the shape of the next endpoint. The
+  prose now states both branches and names the condition that selects between them (`--jq`
+  suppresses the merge), which also reconciles it with the per-page `--jq` caveat stated nine lines
+  above it. Measured against `gh` 2.95.0.
+
 ## [0.18.3]
 
 ### Fixed

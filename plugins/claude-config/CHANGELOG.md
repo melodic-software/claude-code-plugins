@@ -3,7 +3,7 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.32.0]
+## [0.36.0]
 
 ### Changed
 
@@ -123,6 +123,279 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   `managed-settings.d/` drop-in directory, Windows policy registry keys, macOS preferences domain).
   `claude-memory` carries a byte-identical copy, registered as a cross-plugin shared-source cluster
   so the two cannot drift.
+
+## [0.35.2]
+
+### Fixed
+
+- **`audit-permission-grants` criteria synced to permission-rule-hygiene 1.2.** Bumped the pinned
+  version stamp, added a convention commit handshake, and disclosed the bare package-manager wildcard
+  extension in P1. (#2284, A14 and A18)
+
+## [0.35.1]
+
+### Fixed
+
+- **Audit skills declare a posture when subagent dispatch is unavailable.** `audit-instructions`,
+  `audit-prompting-postures`, and `audit-pass` now require disclosure, `(unverified)` marking, and
+  per-lane verification attestation when mandated fresh-context dispatch cannot run, so a skipped
+  verify phase is structurally distinguishable from a fully verified report. (#2279)
+
+## [0.35.0]
+
+### Added
+
+- **`lib/state-key.sh`** — the `<repo-identity>/<worktree-discriminator>` derivation, specified in
+  `audit-pass`'s `reference/run-state-and-resumability.md` §3 and until now *copied* as a ~40-line
+  shell block into `audit-prompting-postures`, becomes one executable with a 23-case suite. The third
+  adopter would have been the third copy, so `audit-prompting-postures` is migrated onto it in the
+  same change rather than left as a second implementation of one scheme inside one plugin — the drift
+  the accompanying convention exists to forbid. Its verified properties are still stated there; what
+  is gone is the restated algorithm. It ships byte-identical in `claude-memory` and is registered
+  in `scripts/cross-plugin-source-registry.txt`, so the copies cannot drift silently. The suite pins
+  the properties the prose asserted and nothing checked: an https remote and its scp-style ssh
+  equivalent key identically; a repo whose only remote is `upstream` keys by that remote rather than
+  dropping to the local rung; two worktrees of one repository key apart; and — the security
+  property — a remote that would become directory components outside the namespace (`../../../etc`,
+  an absolute local path, a Windows path) is hashed instead, with no `..` and no backslash surviving
+  into a key.
+
+### Changed
+
+- **`audit-instructions` no longer computes a token delta against another project's report.** It
+  persisted to a fixed `${CLAUDE_PLUGIN_DATA}/audit-instructions/last-audit.md`, and that directory
+  is keyed to the plugin identifier and nothing else — no project, checkout, worktree, or session
+  segment — so every run from every project on the machine overwrote the last. The lost artifact was
+  the smaller half. The same Phase D block requires the report header to carry a per-surface token
+  delta "versus the previous catalog version": under collision that prior file exists but belongs to
+  a *different project's* surface set, so the skill computed and printed a number instead of
+  declining. The report path now carries a state key, and the two absent-prior cases are separated —
+  no report at this project's key means the delta is omitted with a reason, while an unkeyed leftover
+  from an earlier version is named to the operator and never used as a baseline. It was the last
+  writer in this plugin on a fixed path; `audit-pass` has keyed since it shipped and #2250 moved
+  `audit-prompting-postures`.
+- **An eval pins the property**, which had none: a second project neither overwrites the first's
+  report nor borrows its delta.
+
+## [0.34.0]
+
+### Added
+
+- **`audit` can now enumerate the hooks an enabled plugin ships.** It read settings-declared hooks
+  only, and three of its own surfaces said so in prose — `context/procedures.md` called the hook
+  question "a question to answer, not a lookup", and `reference/required-permissions.md` carried a
+  "Fail open where no hook inventory was taken" clause that, on most runs, resolved to hedging every
+  Category B finding. That gap was load-bearing in two places: Category D writes rules for
+  `${CLAUDE_PLUGIN_ROOT}` / `${CLAUDE_PLUGIN_DATA}` placeholders that only ever appear in a
+  plugin-provided hook, and Category B's third baseline narrowing turns on whether such a hook is
+  live. New `scripts/check-hook-coverage.sh` (with `.test.sh`) resolves each enabled plugin through
+  the installed-plugin registry — so no version-directory ordering is inferred — and reads its hook
+  config in all four documented shapes: `hooks/hooks.json`, a `hooks` path, an array of paths, and an
+  inline object in `plugin.json`. It also reports `disableAllHooks`, `allowManagedHooksOnly`, and
+  `strictPluginOnlyCustomization`, because a hook a setting has already switched off is not coverage.
+  The exit code is the contract: `0` complete, `1` partial with the unenumerated sources named, `2`
+  no inventory. The fail-open posture survives, narrowed to what a partial run could not read —
+  "could not look" is still never reportable as "looked and found nothing". Read-only: it never runs
+  a hook, and it never decides whether a hook *covers* a family, which stays Category B's judgment
+  against its three preconditions.
+- **Two positive Category G evals.** The category had no positive case at all — its only two mentions
+  in `evals.json` were negative assertions inside the scope-filter case. One case now exercises the
+  headless overflow route, the other the lever-matches-the-roster rule.
+
+### Changed
+
+- **Category G is executable now, from either kind of session.** Its only overflow detector was
+  `/doctor`, which needs an interactive TTY, so the whole category yielded nothing in the harness's
+  own headless mode while the documented headless route went unmentioned. It now names `--debug` —
+  *"When the listing exceeds its budget, Claude Code also writes a warning to the debug log"* — as
+  the headless route, and `/context`'s Skills row as what it actually is: a second *interactive*
+  reading, not a substitute. A run that could measure nothing reports "not measured", never "no
+  overflow".
+- **Category G states the budget it measures against.** The category named the per-entry cap and both
+  scaling settings and gave no budget value and no formula, so "overflowed, and by how much?" was
+  unanswerable by hand. It now carries `skillListingBudgetFraction` default `0.01`,
+  `SLASH_COMMAND_TOOL_CHAR_BUDGET`'s documented 8,000-character fallback,
+  `skillListingMaxDescChars` default `1536`, and the `200,000 × 4 × 0.01 = 8,000` arithmetic that
+  reconciles the first two.
+- **Category G's lever list no longer recommends a lever the operator cannot pull.** The ordered
+  "cheapest first" list put `skillOverrides` second while carrying the caveat that it does not apply
+  to plugin skills, and never named the substitute upstream prescribes — so on a plugin-heavy roster
+  the list degenerated to the entry it labels "last resort". Levers are now split by roster origin,
+  `/plugin` is named for plugin skills, and a roster-composition count is required *before* any lever
+  is recommended. No per-skill `name-only` state is promised for `/plugin`; no page documents one.
+- **Category G has a checklist table, like every other Phase 2 category.** It was the only letter
+  missing from `audit-checklist.md`, whose heading sequence ran A–F, H, I. The table also points at
+  `plugins/skill-quality/scripts/check-listing-budget.sh` — the aggregate measurement this
+  marketplace already ships — as an explicit **in-repo proxy**, with the population difference said
+  out loud: that script walks a repository's skills roots, while Category G asks about the listing a
+  consumer's session assembled. Measured cost is stated too (8 skills in 5.98s on Windows), because a
+  marketplace-wide invocation will not finish inside a default Bash tool timeout.
+- **The `destructive-bash-deny` baseline is reported with its fragility, the way the Read deny table
+  already is.** Eight argument-constraining globs shipped rated `error` when absent with no caveat,
+  in a file that quotes the permissions page's *"Bash permission patterns that try to constrain
+  command arguments are fragile"* warning one section earlier against a different table. The concrete
+  hole is now stated: matching is prefix-anchored, so `Bash(git push --force *)` does not match
+  `git push origin main --force`. The patterns stay in the baseline — they raise the cost of an
+  accidental force push — but a finding no longer implies they bound a determined one.
+- **The "a `PreToolUse` hook is a speed bump, not a boundary" ranking is scoped to the threat model it
+  was written for.** It is right for secret exfiltration, where an OS-level boundary exists and the
+  hook is strictly worse than it. It was stated unscoped, so it also governed destructive git — where
+  the sandbox's vocabulary is `filesystem.*` paths and `network.*` hosts, with no expression for a
+  command's arguments, so it does not separate `git push` from `git push --force` to the same remote.
+  Scoped, not deleted.
+- **The read-it-verbatim guard now covers all of Phase 3, not one checklist row.** It was attached to
+  the Category F env-vars row while Phase 3.1 and Phase 3.4 fetched `settings` and `permissions` with
+  no such instruction — and `settings` is the page on which a summarizing fetch already reported three
+  present keys as absent. The guard now also says explicitly that a truncated read supports no finding
+  in *either* direction.
+
+## [0.33.1]
+
+### Fixed
+
+- **`check-structure.sh` unreadable note no longer overstates a bare Read deny.** The note now
+  matches `context/procedures.md` and `SKILL.md`: a `Read(...)` deny alone cannot make `open()`
+  fail inside this script; sandbox `denyRead` — including a Read deny merged into the sandbox
+  boundary — or filesystem permissions can. (#1607)
+
+## [0.33.0]
+
+### Changed
+
+- **`audit-permission-grants` check P1 now sees user-global allow rules.** It scanned project and
+  local settings only, so an interpreter-wildcard rule in
+  `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json` was invisible to it — and that is the scope
+  Claude Code's own "Always allow" path writes to, so it is where the broad rules auto mode drops
+  actually accumulate. Expect new findings on a repository whose own configuration did not change.
+  The user scope resolves through `CLAUDE_CONFIG_DIR` before `$HOME`, and a finding names the
+  resolved absolute path rather than `~/.claude/settings.json`, which would name the wrong file
+  whenever the config root has been relocated.
+- **`audit`'s structure check now reports a start-directory `settings.local.json`.** A pre-v2.1.211
+  Claude Code wrote the file to the directory the session started in, and the current one still
+  reads what an earlier version left there: the repository-root copy wins on a shared key, but
+  permission rules from **both** files stay in effect. The row appears only when the start directory
+  genuinely differs from the project root and a copy is there, so the same file is never counted as
+  two rule sources.
+- **`audit`'s structure check names the managed surfaces it does not read.** On Windows the
+  `HKLM`/`HKCU\SOFTWARE\Policies\ClaudeCode` policy keys, on macOS the `com.anthropic.claudecode`
+  managed-preferences domain. A file-only reader that stays silent about them lets an absent
+  `managed-settings.json` read as "no managed policy deployed" while a policy is in force.
+
+### Added
+
+- **`audit-permission-state`** — a new skill reporting which permission rules are actually in effect
+  and where each comes from. `/permissions` lists your rules and the file each came from, but it does
+  not resolve which of two conflicting rules wins, cannot distinguish a scope that was empty from one
+  it could not read, and exists only inside a live session — there is no `claude permissions`
+  subcommand and no machine-readable export. The reader discovers managed policy, user-global,
+  project, local, and any
+  pre-v2.1.211 start-directory copy, and inventories each scope's `allow`/`ask`/`deny` rules with its
+  source named. Every scope and every managed surface emits a record on every OS, so a surface that
+  was never attempted can never be mistaken for one that is genuinely empty: `absent` means looked and
+  found nothing, `skipped` means could not look. Server-managed settings are disclosed as having no
+  local path rather than assumed absent. Report-only, and managed policy is read-only by construction.
+  A second pass merges those scopes into the set actually in force, each rule naming every scope that
+  contributes it and the documented mechanic that put it there. Permission rules merge across scopes
+  rather than override, so a rule written at two scopes has no winner and is never reported as one;
+  what a rule can lose is its kind, because deny is evaluated before ask and ask before allow from any
+  scope in either direction — a user-level deny blocks a project-level allow just as the reverse. The
+  beaten entry is reported as inert alongside the rule that beat it, which is the answer to "why is my
+  allow rule ignored". A rule that is a bare tool name reaches every call of that tool: a whole-tool
+  deny removes the tool from context entirely, so every other rule naming it is inert — including
+  other denies, which are moot rather than weakened — and a whole-tool ask prompts for every call, so
+  no scoped allow for that tool applies. `EndConversation` is exempt from removal, as documented. Every run states the two bounds on the claim: the command-line scope
+  (`--settings`, `--allowedTools`, `--disallowedTools`) outranks the files and has none to read, and
+  rules are compared by exact text, so a narrow allow blocked only by a broader deny pattern is still
+  reported effective — the error direction is over-reporting allow, never over-reporting blocking.
+- **`lib/permission-patterns.sh`** — the auto-mode drop vocabulary (blanket, wildcarded-interpreter,
+  package-manager-runner, and script-glob rule shapes, plus the top-level tool-token grammar) as a
+  define-only library. It was inline in the P1 detector, which self-executes and cannot be sourced,
+  so a second consumer had no way to reuse it without copying.
+- **`lib/managed-scope.sh`** — the per-OS managed-policy surface enumeration (base JSON file,
+  `managed-settings.d/` drop-in directory, Windows policy registry keys, macOS preferences domain).
+  `claude-memory` carries a byte-identical copy, registered as a cross-plugin shared-source cluster
+  so the two cannot drift.
+
+## [0.32.0]
+
+Two behavior changes, hence the minor: `permission-rule-check.sh` refuses an unresolvable scan root
+instead of sweeping the user profile, and `audit-prompting-postures` writes its report to a
+project-keyed path instead of one fixed name.
+
+### Fixed
+
+- **`audit-permission-grants` P2 stated a rule the docs do not contain, and emitted it on rule classes
+  it is false for.** The check's **Why** read "Bash rules match literally with no `~`/`$HOME`/env
+  expansion". Grepping the complete raw markdown of both
+  [permissions](https://code.claude.com/docs/en/permissions) and
+  [skills](https://code.claude.com/docs/en/skills) (fetched with `curl` to a file, 2026-08-11) finds no
+  such sentence on either page — the claim is **unsupported**, not merely over-broad — and two
+  documented behaviors contradict it. Claude Code substitutes `${CLAUDE_SKILL_DIR}` and
+  `${CLAUDE_PROJECT_DIR}` in Bash rules in `allowed-tools`, which the skills page presents as *the* way
+  to run a bundled script without a prompt; and a leading assignment of certain known-safe environment
+  variables is stripped, so `Bash(npm test *)` matches `NODE_ENV=test npm test`. The skill was telling
+  authors to remove the documented zero-prompt pattern.
+- **And the same sentence was emitted on `Read` and `Edit` findings, where it is false twice over.**
+  Probing the shipped detector confirms P2 fires on a `Read(<home>/notes.md)` or
+  `Edit(<home>/src/**)` rule carrying the Bash-scoped message — but those classes use gitignore
+  pattern syntax and **do** resolve `~/`: the permissions page's own example has
+  `Read(~/Documents/*.pdf)` matching `<home>/Documents/*.pdf`. One message string serves every class,
+  so it now carries only what is true of all of them — the portability break — and names the portable
+  form per class. The mechanism
+  detail moves into `criteria.md` as a per-rule-class table, syncing down from the
+  `permission-rule-hygiene` convention, which already held the corrected doctrine including the
+  `${CLAUDE_PROJECT_DIR}` v2.1.196 substitution floor and the fact that `${CLAUDE_PLUGIN_ROOT}` is not
+  substituted at all. The wrong text was pinned by a passing assertion, so the test moved with it.
+
+### Changed
+
+- **`permission-rule-check.sh` refuses an unresolvable scan root instead of falling through to `$PWD`.**
+  Outside a git repository `$PWD` is whatever directory the session happens to stand in — on a
+  developer machine, usually the user profile — and both scans walk the root with `find` with no depth
+  bound and stderr discarded, then exit 0. A timeout or a swallowed permission error was
+  indistinguishable from a clean bill, on a skill that is model-invocable
+  (`disable-model-invocation: false`). The ladder is now fixture dir → git toplevel →
+  `${CLAUDE_PROJECT_DIR}` and nothing after it; an unresolvable root exits **2**, reusing the
+  environment-gap channel the contract already documents for a missing `jq` rather than minting a new
+  code, so the advisory exit-0-for-findings contract is untouched. **`--count` refuses too** — a `0`
+  printed by a scan that never resolved a root reads exactly like a clean bill. The refusal names what
+  it tried and how to fix it.
+- All five "always exits 0" statements moved together — `reference/criteria.md`, and the script's
+  header comment, usage block, and `--help` text — since a refusal branch contradicts each. `SKILL.md`
+  carried no such claim to update: `grep` finds none there, and its exit-related line documents the jq
+  exit 2.
+- **`audit-prompting-postures` keys its report per project.** It persisted to a single
+  `${CLAUDE_PLUGIN_DATA}/audit-prompting-postures/last-audit.md`, and `${CLAUDE_PLUGIN_DATA}` resolves
+  to `~/.claude/plugins/data/{id}/` where `{id}` is the *plugin* identifier, never the project. The
+  skill's only durable deliverable was therefore overwritten by the next run from any other root — the
+  audit artifact destroyed by ordinary use of the skill. The path now carries a `<state-key>`, and the
+  report opens with a three-line header (resolved root, scope filter, UTC timestamp) so a surviving file
+  is self-describing rather than merely un-overwritten.
+
+  **The scheme is `audit-pass`'s, reused rather than reinvented** —
+  `<repo-identity>/<worktree-discriminator>` from its run-state reference — because a second scheme for
+  one concern is the drift this batch exists to remove. One rung is added: that ladder has
+  git-with-remote and git-without-remote and no non-repo rung, which `audit-pass` does not need because
+  it refuses non-git targets, while this skill is report-only and audits them.
+
+  **The derivation is written as commands to run, never as a condition over `${CLAUDE_PROJECT_DIR}`.**
+  That placeholder substitutes inline in skill content, so the model never sees the literal token and
+  cannot evaluate "when set" — the originally filed fix sketch would have introduced that defect while
+  removing this one.
+
+  **A remote URL is arbitrary text that becomes directory components here, so it is validated before
+  use.** Only the shape the scheme means is accepted — path segments of `[a-z0-9._-]` each starting
+  alphanumeric. Everything else keys by hash instead, still deterministically. Without that check a
+  relative filesystem remote (`git remote add origin ../central.git`) yields the identity `../central`
+  and the report lands *outside* this skill's directory; absolute-local and Windows-path remotes fail
+  the same way. And the remote is read from **the first configured remote** — `git remote | head -1` —
+  not from one named `origin`, because a repo whose only remote is `upstream` has a remote and must not
+  drop to the local rung. Both were found in review against the first draft, which did exactly that.
+
+### Added
+
+- Evals 4 and 5 for `audit-prompting-postures`: two roots must produce two surviving reports keyed by
+  the reused scheme, and a non-repo root must still key and still self-describe.
 
 ## [0.31.0]
 

@@ -145,11 +145,76 @@ hook::raw_file_path() {
   printf '%s' "${BASH_REMATCH[1]}"
 }
 
-# jq gate for hooks whose input parsing cannot proceed without it. When jq is
-# absent: one visible skip notice per session, then exit 0 — an advisory hook
-# never blocks the tool over a missing prerequisite. Place after
-# hook::check_enabled (and after any jq-free applicability pre-filter), passing
-# the buffered stdin for session scoping.
+# ============================================================================
+# THE jq GATE — TWO POSTURES, AND WHY THERE ARE TWO (#2146)
+# ============================================================================
+#
+# A hook that cannot parse its payload has exactly two honest moves: let the
+# tool call through (fail OPEN) or deny it (fail CLOSED). This library offers
+# both, as two named functions, and the choice belongs to the CALLING hook. The
+# reasoning lives HERE, at the decision point, not only at the call sites —
+# before #2146 every call site asserted a posture in a comment and nothing where
+# the posture is actually implemented explained it.
+#
+# hook::require_jq          fails OPEN  — the default, and correct for most hooks
+# hook::require_jq_blocking fails CLOSED — for a guard that blocks an
+#                                          irreversible operation
+#
+# WHY FAIL OPEN IS THE DEFAULT. Most hooks in this marketplace are advisory or
+# cosmetic: a formatter, a lint pass, a context injector, a detect-then-judge
+# oracle. Their finding is a prompt, not a verdict. Blocking a user's tool call
+# because an OPTIONAL formatting hook could not find an OPTIONAL dependency
+# inverts the cost: the guard's job is worth less than the work it would stop.
+# The once-per-session notice is what keeps that degradation honest rather than
+# silent — the user and the agent are both told the hook is off.
+#
+# WHY A MINORITY MUST FAIL CLOSED. A guard whose job is to stop an IRREVERSIBLE
+# operation cannot be a suggestion. Its whole value is that it is there when
+# nobody is watching, and "somewhere without jq" is not an exotic state — it is
+# the default state of a machine that has not installed one dependency. A guard
+# that a missing dependency silently switches off is not a guard; it is a guard
+# on machines that happen to be configured for it. #2146 measured this: with jq
+# unreachable, `git push --force origin main` was ALLOWED by block-dangerous-git,
+# after one notice, for the rest of the session.
+#
+# WHICH HOOKS ARE IN THAT MINORITY — the criterion is mechanical, and it is
+# INTERNAL CONSISTENCY, not a taste judgement about severity. A hook belongs in
+# the fail-closed class iff it ALREADY fails closed on some other
+# "I cannot parse this input" condition. Today exactly two do, both via a
+# MAX_COMMAND_LEN ceiling above which an unparsable command is denied unread:
+#
+#     plugins/guardrails/hooks/block-dangerous-git.sh
+#     plugins/guardrails/hooks/block-no-verify.sh
+#
+# Those two scripts held two opposite postures toward the same question — an
+# over-long command is hostile and blocked; a missing jq is fine and skipped —
+# which meant an author who could not fit a dangerous command under 16384
+# characters could simply be on a machine without jq. That contradiction is what
+# #2146 reports, and resolving it is all this class is for.
+# plugins/guardrails/hooks/require-jq-posture.test.sh pins the membership so the
+# two cannot drift apart again.
+#
+# DELIBERATELY NOT WIDENED. block-hook-bypass and block-noncanonical-commit also
+# exit 2, and block-hook-bypass carries the same "the only supported deliberate
+# bypass is the kill switch" sentence. They stay fail-open: they guard a FILE
+# WRITE or a message shape, both trivially reversible, and neither holds the
+# internal contradiction above. Severity is a slope; "already fails closed
+# elsewhere in the same script" is a line. If one of them grows a length ceiling
+# it joins the class, and the posture test will say so.
+#
+# WHY TWO FUNCTIONS RATHER THAN ONE WITH A FLAG. A parameter's OMITTED value has
+# to default to something, and the safe-looking default (fail open, matching
+# today's behaviour) means a guard that should fail closed but whose flag someone
+# forgot fails open SILENTLY — which is the exact defect class #2146 reports,
+# reintroduced at the API. Two names make the posture greppable, make the
+# fail-closed path impossible to reach by accident, and make omission a visible
+# choice instead of an invisible default.
+
+# Fail-OPEN jq gate — the default. For hooks whose input parsing cannot proceed
+# without jq and whose finding is advisory. When jq is absent: one visible skip
+# notice per session, then exit 0. Place after hook::check_enabled (and after any
+# jq-free applicability pre-filter), passing the buffered stdin for session
+# scoping. See the posture block above for when this is the WRONG choice.
 #   hook::require_jq PostToolUse my-plugin "$INPUT"
 hook::require_jq() {
   command -v jq >/dev/null 2>&1 && return 0
@@ -159,6 +224,45 @@ hook::require_jq() {
       "$plugin: jq not found on PATH — hook skipped for this session. Install jq (https://jqlang.org/download/) to enable it."
   fi
   exit 0
+}
+
+# Fail-CLOSED jq gate (#2146) — for a guard that blocks an irreversible
+# operation, per the membership criterion in the posture block above. When jq is
+# absent the tool call is DENIED (exit 2) with jq named as the missing
+# prerequisite and the same install route the fail-open notice uses.
+#
+# No notice_once here, and that is deliberate: this message is not a
+# once-per-session heads-up about a degraded hook, it is THIS tool call's denial
+# reason. Suppressing the repeat would leave a later denial unexplained. It also
+# goes to stderr rather than through hook::emit_channels, because stderr is the
+# channel a PreToolUse exit 2 feeds back to the agent.
+#
+# The kill switch stays the only supported deliberate bypass: a consumer who
+# genuinely wants the operation unguarded on a jq-less machine sets the guard's
+# own *_enabled userConfig option to false, which hook::check_enabled honours
+# BEFORE this gate is ever reached.
+# DISCLOSED COST, because it is not small: this guard runs on EVERY Bash and
+# PowerShell tool call, and without jq it cannot read the command at all — so it
+# cannot tell a dangerous one from a safe one and denies both. On a machine
+# without jq every such tool call is blocked until jq is installed or the kill
+# switch is set. That is the hard dependency #2146 accepted when it chose this
+# posture over a jq-free substring pre-check, which was rejected for
+# manufacturing a false sense of coverage.
+#
+# $1 = the hook's own id (for the message), $2 = the user-facing *_enabled
+# userConfig option name that turns this guard off.
+#   hook::require_jq_blocking guardrails-block-dangerous-git block_dangerous_git_enabled
+hook::require_jq_blocking() {
+  command -v jq >/dev/null 2>&1 && return 0
+  local hook_id="$1" option="${2:-}"
+  echo "BLOCKED: $hook_id cannot read the tool payload — the required prerequisite \`jq\` is not on PATH." >&2
+  echo "This guard blocks irreversible operations, so a missing prerequisite denies the call rather than silently skipping the guard (#2146)." >&2
+  if [[ -n "$option" ]]; then
+    echo "Install jq (https://jqlang.org/download/), or set the \`$option\` plugin option to false (/plugin configure) to bypass this guard." >&2
+  else
+    echo "Install jq (https://jqlang.org/download/) to restore the guard." >&2
+  fi
+  exit 2
 }
 
 # Normalize a path for the membership comparison below: backslashes → forward
