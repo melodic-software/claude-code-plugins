@@ -87,7 +87,7 @@ write and the verdict:
 bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-pass/scripts/run-state.sh" paths \
   --plugin-data "${CLAUDE_PLUGIN_DATA}" --run-id <run-id>
 bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-pass/scripts/run-state.sh" lease acquire \
-  --run-dir <run-dir> --run-id <run-id>
+  --run-dir <run-dir> --run-id <run-id> --plugin-data "${CLAUDE_PLUGIN_DATA}"
 bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-pass/scripts/run-state.sh" lease heartbeat --run-dir <run-dir>
 bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-pass/scripts/run-state.sh" lease classify  --run-dir <run-dir>
 bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-pass/scripts/run-state.sh" lease release   --run-dir <run-dir>
@@ -97,6 +97,13 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-pass/scripts/run-state.sh" lease releas
 a `live` lease is the caller's move, not the script's. Pass `--plugin-data` explicitly: the
 `${CLAUDE_PLUGIN_DATA}` placeholder substitutes in *this text* but is not exported to the Bash tool's
 environment (§2), so a shell cannot expand it.
+
+**`acquire` requires `--plugin-data` because it is the only command that creates a directory**, and
+that is where the write tree is pinned: a run directory not under `<plugin-data>/runs/` is refused
+rather than created. Without the check, a wrong or invented `--run-dir` — the target root, say —
+would get created and a lease written into it, and this skill keeps Bash specifically for state
+writes while promising that a bare audit writes nothing into the target. Every later command operates
+on a run directory `acquire` already validated.
 
 **What is executable here, and what is not.** Everything below through the two-sided liveness test is
 enforced by that script and covered by `run-state.test.sh`, negative tests included. Two clauses are
@@ -220,11 +227,26 @@ A pass over a large corpus plus three scopes can be interrupted by compaction, a
 crash. Restarting from zero wastes the run and tempts an operator to narrow the scan.
 
 - Findings persist **incrementally, per lane**, as each lane completes — never buffered to the end.
-  The write is `scripts/run-state.sh partial append --run-dir <run-dir> --record '<json-line>'`, which
-  appends one line to `findings.partial.<owner_epoch>.jsonl` — the epoch taken from the lease, so the
-  partial cannot exist without the lease that classifies it. The script refuses a record that is not a
-  single-line JSON object, because a record carrying a newline splits into two rows and the second is
-  unparsable.
+  The write is
+  `scripts/run-state.sh partial append --run-dir <run-dir> --record '<json-line>' --epoch <held>`,
+  which appends one line to `findings.partial.<epoch>.jsonl`. A lease must exist, so the partial
+  cannot outlive the thing that classifies it.
+
+  **Pass the epoch you hold.** The filename is the *writer's* epoch, never whatever the lease
+  currently carries: a stale holder that wakes after an adopter incremented it would otherwise read
+  the adopter's value and append into the adopter's file, so two writers interleave under one attempt
+  ordinal — the one failure the attempt machinery cannot absorb. When the two differ the script says
+  `FENCED` on stderr and writes to the writer's own file; the run aborts on that signal. Omitting
+  `--epoch` falls back to the lease's current value, correct only for a run whose epoch nothing has
+  moved.
+
+  **A record is validated, not merely sniffed.** A malformed row in an append-only artifact is
+  permanent, and resume and assembly are its only readers, so a quoting slip in the caller would cost
+  the run's persisted state rather than one record. The script refuses anything that is not a
+  well-formed single-line JSON object — `jq` decides where it is installed, and a scan that tracks
+  string context and escapes decides where it is not, which still rejects `{bad json}`, a truncated
+  row, and an unbalanced one. `jq` is deliberately not a hard requirement here: failing the state
+  path closed on a missing optional tool would cost the artifact the check exists to protect.
 - **The run manifest is the partial's own lane records, not a second file.** A lane's start record
   carries the lane id and its **input digest**; its terminating record carries the completion state.
   §7 already requires that `--resume` read the partial "so completion state is derivable from the

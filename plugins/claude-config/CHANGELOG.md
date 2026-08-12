@@ -3,6 +3,39 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.38.1]
+
+### Fixed
+
+Three defects in the `audit-pass` script `scripts/run-state.sh`, all one family — a control that does not
+enforce what its surface claims. They were found by review on #2441 and are shipped separately
+because that PR merged before the fixes were pushed; **0.38.0 carries all three**, so this is the
+version to be on.
+
+- **The partial's filename now takes the *writer's* epoch, not the lease's current one.** `partial
+  append` read `owner_epoch` from the lease at append time, which defeats exactly the isolation §3
+  describes: a stale holder waking after an adopter incremented the epoch would read the adopter's
+  value and append into the **adopter's** file, so two writers interleave under one attempt ordinal —
+  by §3's own account "the one failure the attempt machinery cannot absorb". `partial append --epoch
+  <held>` now names the writer's own file whatever the lease says, and reports `FENCED` on stderr
+  when the two differ so the run aborts on the signal rather than silently corrupting the artifact.
+- **A record is validated rather than sniffed.** The check accepted any string beginning with `{`,
+  so a construction slip such as `{bad json}` was appended permanently to an artifact whose only
+  readers are `--resume` and assembly — costing the run's persisted state rather than one record.
+  Records are now verified as well-formed single-line JSON objects: `jq` decides where it is
+  installed, and where it is not, a scan tracking string context and escape sequences still rejects
+  `{bad json}`, a truncated row, and an unbalanced one. `jq` is deliberately **not** made a hard
+  requirement — failing the state-persistence path closed on a missing optional tool would cost the
+  artifact the check exists to protect. Both rungs are asserted; the second runs with a `PATH`
+  holding only `bash`.
+- **`lease acquire` pins the write tree.** It created whatever `--run-dir` it was handed and wrote a
+  lease into it, so a wrong or invented run directory — the target root, say — was created and
+  written to, against this skill's promise that a bare audit writes nothing into the target and while
+  it keeps Bash specifically for state writes. `acquire` is the only command that *creates* a
+  directory, so it now requires `--plugin-data` and refuses any run directory outside
+  `<plugin-data>/runs/`; every later command operates on a directory `acquire` already validated. A
+  test asserts the refused directory is not created. (#2280, F3, F5)
+
 ## [0.38.0]
 
 ### Added
