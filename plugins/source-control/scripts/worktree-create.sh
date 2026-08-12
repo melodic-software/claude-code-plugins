@@ -665,8 +665,11 @@ fi
 # absent (#2257). The owning lane (or cleanup, after explicit confirmation)
 # disarms with `git worktree unlock <path>`.
 lock_reason="worktree-create.sh: lane active on ${HOSTNAME:-$(hostname 2>/dev/null || printf 'unknown-host')} since $(date -u +%Y-%m-%dT%H:%M:%SZ); unlock when the owning lane is done"
+lock_failed=0
 if ! git -C "$toplevel" worktree lock --reason "$lock_reason" "$worktree_path" >&2; then
+  lock_failed=1
   printf '%s: warning: could not lock the new worktree — cleanup sweeps will not see it as claimed\n' "$PROG" >&2
+  printf '%s: lock_failed=1\n' "$PROG" >&2
 fi
 
 # Reimplement Claude Code's .worktreeinclude copy: files that match a
@@ -703,3 +706,6 @@ fi
 
 printf '%s: created worktree on branch %q (base %s)\n' "$PROG" "$name" "$base_ref" >&2
 printf '%s\n' "$worktree_path"
+if ((lock_failed)); then
+  exit 5
+fi
