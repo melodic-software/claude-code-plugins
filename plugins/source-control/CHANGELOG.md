@@ -8,18 +8,16 @@ All notable changes to the `source-control` plugin are documented here. Format f
 ### Fixed
 
 - **The paused-merge case pins both halves of the in-progress reason, and the landed+in-progress
-  fixture's comment states the real cherry-pick hazard (#2257).** 0.51.16 rewrote the in-progress
+  fixture's comment corrects the cherry-pick rationale (#2257).** 0.51.16 rewrote the in-progress
   reason to "…(staged result recomputable from base, sequencer position) dies with the directory",
   but the suite asserted only "recomputable" — the clause carried over from the old wording — so
   the #2257 half (the transient state is LOST with the directory, close to the opposite claim)
   could regress silently; a second assertion now pins it. The fixture comment also claimed a
-  cherry-pick "would reuse the same object", which is not the mechanism: a cherry-pick creates a
-  new commit, but with parent == HEAD it reproduces tree, parent, author, and message, and —
-  within the same second — the committer timestamp, minting the identical SHA, so the branch
-  commit is literally on the base and the fixture collapses (unpushed 0, landed n/a, nothing to
-  diverge). Reproduced on CI while local runs straddled second boundaries and passed, which is
-  exactly why the comment must warn the local-green reader off "simplifying" the twin back into a
-  cherry-pick.
+  cherry-pick "would reuse the same object", which is wrong on two counts: cherry-pick mints a new
+  commit, and with this fixture's ordering (`unrelated on main` lands before the twin) a
+  cherry-pick would not have parent == HEAD at the branch tip and would carry `unrelated.txt` in the
+  tree — different parent, tree, and SHA even within the same second. The twin-with-different-subject
+  sequence below is deliberate; do not replace it with a cherry-pick.
 
 ## [0.53.0]
 

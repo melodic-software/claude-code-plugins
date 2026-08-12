@@ -549,13 +549,11 @@ git -C "$WT_BISECT" bisect reset >/dev/null 2>&1
 # state even when every commit is durable. Fixture holds both signals at once —
 # the branch's one commit matches the base by patch-id via a different SHA on
 # origin/main, then a merge is left open with --no-commit (MERGE_HEAD present).
-# The twin is committed with a DIFFERENT subject, never cherry-picked: a
-# cherry-pick creates a new commit, but when its parent is HEAD it reproduces
-# tree, parent, author, message — and, within the same second, the committer
-# timestamp — minting the identical SHA. The branch commit is then literally on
-# the base, unpushed reads 0, landed degrades to n/a, and the merge has nothing
-# to diverge from (reproduced on CI; the local runs straddled second
-# boundaries and passed).
+# The twin is committed with a different subject on main (never cherry-picked):
+# unrelated lands on main before the twin, so a cherry-pick would not have
+# parent == HEAD at the branch tip and would carry unrelated.txt in the tree —
+# different parent, tree, and SHA even within the same second. The sequence
+# below is deliberate; do not replace the twin with a cherry-pick.
 W="$(mkfixture)"
 WT_OP="$TEST_TMPDIR/wt-inprog-landed"
 git -C "$W" worktree add -q -b feat-inprog "$WT_OP" main >/dev/null 2>&1
