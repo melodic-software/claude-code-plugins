@@ -44,7 +44,13 @@ iso_utc_now() {
 }
 
 epoch_seconds() {
-  date -u -d "$1" +%s 2>/dev/null || date -u -j -f "%Y-%m-%dT%H:%M:%SZ" "$1" +%s
+  local ts="$1" out
+  # portability-ok: GNU date -d with BSD date -j fallback; dual-path epoch parsing per #1709
+  if out=$(date -u -d "$ts" +%s 2>/dev/null); then
+    printf '%s\n' "$out"
+  else
+    date -u -j -f "%Y-%m-%dT%H:%M:%SZ" "$ts" +%s
+  fi
 }
 
 lease_classify_state() {
@@ -116,6 +122,11 @@ cmd_acquire() {
       ;;
     released)
       echo "ERROR: lease is released — adopt or choose a new run id/path" >&2
+      return 1
+      ;;
+    stale | missing) ;;
+    *)
+      echo "ERROR: unexpected lease state: $class" >&2
       return 1
       ;;
   esac
@@ -237,6 +248,15 @@ cmd_adopt() {
     missing)
       echo "ERROR: no lease to adopt" >&2
       return 3
+      ;;
+    stale) ;;
+    released)
+      echo "ERROR: cannot adopt a released lease" >&2
+      return 1
+      ;;
+    *)
+      echo "ERROR: unexpected lease state: $class" >&2
+      return 1
       ;;
   esac
   on_disk="$(tr -d '\r' <"$path" | jq -r '.owner_epoch // 0')"
