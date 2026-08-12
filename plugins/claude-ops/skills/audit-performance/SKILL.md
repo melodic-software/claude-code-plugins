@@ -6,8 +6,8 @@ disable-model-invocation: false
 shell: bash
 metadata:
   workflow-stage: operator
-  summary: "Capture slowness evidence while it happens: version, sweep health, timed tree walk, sessions, fleet"
-  cadence: on-symptom
+  summary: Capture slowness evidence while slow — version, sweep health, tree walk, sessions, fleet
+  cadence: continuous
 ---
 
 ## Purpose
