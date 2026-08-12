@@ -3,6 +3,15 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.2]
+
+### Fixed
+
+- **`skill-reference-verify` and `stale-path-verify` treated a malformed `replace_all`
+  extraction like a legitimate `false` (#2126).** Both hooks now accept only the
+  stringified `"true"` / `"false"` values the jq filter produces; any other shape skips
+  verification rather than proceeding on the permissive branch.
+
 ## [0.27.1]
 
 ### Fixed
