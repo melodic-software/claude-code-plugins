@@ -509,6 +509,7 @@ lease_refs_equivalent() {
   return 1
 }
 
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 lease_ref_claimed() {
   local seen="$1" ref="$2" r
   while IFS= read -r r; do
