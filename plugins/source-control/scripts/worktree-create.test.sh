@@ -444,6 +444,16 @@ assert_file_exists "worktreeinclude: matched+ignored env copied" "$out/secrets.e
 assert_file_absent "worktreeinclude: gitignored-but-unmatched skipped" "$out/.work/task1/OTHER.md"
 assert_file_absent "worktreeinclude: unignored file never copied" "$out/loose.txt"
 
+# --- Case: settings.local.json copied from the git common dir (#2119) ---
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+mkdir -p "$repo/.claude"
+printf '{"env":{"DISK_HYGIENE_GUARD_WATCHDOG_SECONDS":"50"}}\n' > "$repo/.claude/settings.local.json"
+git -C "$repo" add .claude/settings.local.json
+git -C "$repo" commit -qm "local settings"
+root="$TEST_TMPDIR/wtroot-settings"
+out=$(bash "$HELPER" --name feat/settings --root "$root" --repo-dir "$repo" 2>/dev/null)
+assert_file_exists "settings.local.json copied into the worktree" "$out/.claude/settings.local.json"
+
 # --- Case: a value-taking flag as the last token errors, does not hang (exit 2) ---
 # Regression guard: a failed `shift 2` on a lone positional once spun forever.
 for flag in --name --root --base-ref --repo-dir; do
