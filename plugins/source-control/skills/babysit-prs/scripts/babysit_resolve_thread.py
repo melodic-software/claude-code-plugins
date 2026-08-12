@@ -63,6 +63,12 @@ Deterministic guards encoded here:
   thread whose comment page is truncated cannot prove the absence of a marker
   and is refused the same way. Interactive modes are unaffected -- severity
   judgment there stays with the evaluating agent.
+- `--autonomous` and `--independent-resolver` refuse when the PR author is a
+  configured self login (`--self-logins`, including `@me`). Resolving threads on
+  the caller's own PR is the same actor signing its own permission slip the
+  unattended guards exist to prevent; there is no autonomous override (mirroring
+  the merge gate's human-only `--allow-unprotected` pattern). Interactive modes
+  are unaffected.
 - `--independent-resolver` is a THIRD mode, parallel to `--autonomous` and not a
   relaxation of it. `--autonomous`'s `isOutdated` requirement is right about the
   merging worker, but `isOutdated` means "the referenced code moved" -- on a prose
@@ -182,6 +188,7 @@ from babysit_classify import (
 from babysit_gh import (
     GITHUB_OWNER_RE,
     GITHUB_REPOSITORY_RE,
+    fetch_pull_request_author,
     fetch_review_threads,
     gh_capture,
     parse_repo_number,
@@ -1139,6 +1146,33 @@ def main() -> int:
             for token in (args.self_logins or "").split(",")
             if token.strip().casefold() != "@me"
         )
+
+    if args.autonomous or args.independent_resolver:
+        try:
+            pr_author = fetch_pull_request_author(repo, number)
+        except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
+            print(json.dumps({"pr": args.pr, "error": f"{type(exc).__name__}: {exc}"}))
+            return 2
+        if is_self_login(pr_author, self_logins):
+            print(
+                json.dumps(
+                    {
+                        "pr": args.pr,
+                        "prAuthor": pr_author,
+                        "skippedOwnPr": True,
+                        "eligibleCount": 0,
+                        "humanThreadsActed": 0,
+                        "threads": [],
+                        "error": (
+                            "refused: PR author is a configured self login; "
+                            "--autonomous and --independent-resolver do not "
+                            "resolve threads on own PRs"
+                        ),
+                    },
+                    indent=2,
+                )
+            )
+            return 2 if args.resolve else 0
 
     try:
         threads = fetch_threads(
