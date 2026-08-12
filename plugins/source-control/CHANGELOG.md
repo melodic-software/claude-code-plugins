@@ -3,6 +3,15 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.53.2]
+
+### Fixed
+
+- **Canonical `gh pr create` now passes `--head` explicitly (#1900).** The §2.4.3 worktree path already
+  did; the on-branch canonical path did not. Once dotfiles#375's amended auto-mode grant lands, `gh pr
+  create` is covered only when the head branch is named — so the canonical lane must match the
+  sibling spelling. Detached HEAD is refused rather than emitting `--head ""`.
+
 ## [0.53.1]
 
 ### Fixed
