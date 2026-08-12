@@ -162,10 +162,12 @@ syl:  1      2   [3]   4      5    [6]      7    [8]   9     10   [11]  12   [13
 - [ ] **Meaning-carriers on the strong slots.** Not filler that merely avoids
       greed — this is the too-cold half, and it is a separate check
 - [ ] **No road-sign word on a strong slot** — preposition, article, auxiliary,
-      conjunction. Pat gives the melody-setting instruction directly: "when you
-      set lyric to melody, you will remember to relegate prepositions to secondary
-      rhythmic positions in the bar." (*Songwriting Without Boundaries* (2011),
-      Challenge 4)
+      conjunction — unless the sung original already places that road-sign on that
+      slot; a candidate that merely reproduces the original's shape there is not a
+      pass-1 failure (see [meter.md](meter.md) step 8). Pat gives the melody-setting
+      instruction directly: "when you set lyric to melody, you will remember to relegate
+      prepositions to secondary rhythmic positions in the bar." (*Songwriting Without
+      Boundaries* (2011), Challenge 4)
 - [ ] **Compound-word stress** on the first syllable — "In English, the primary
       stress in compound words is almost always on the first syllable." (same
       challenge)

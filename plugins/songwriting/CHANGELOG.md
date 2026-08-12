@@ -3,6 +3,15 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.4.1]
+
+### Fixed
+
+- **Object-writing fleet model tier** — fan-out dispatches use Sonnet, reserving Opus for judge
+  or verifier stages.
+- **Line-edit rubric pass 1** — road-sign on a strong slot is not a failure when the sung
+  original already places that road-sign there (reconciles with `meter.md` step 8).
+
 ## [1.4.0]
 
 Both audit denominators are unchanged: **Axis 1 stays 44 of 44** and **Axis 2

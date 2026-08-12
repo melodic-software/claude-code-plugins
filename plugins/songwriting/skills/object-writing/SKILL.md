@@ -73,10 +73,10 @@ Dispatch rules:
 6. **Set the model on each agent call — do not let the fleet inherit the session's.** The
    `object-writer` agent's frontmatter is `model: inherit`, so a dispatch that leaves the model
    unset runs the whole fleet on whatever the session runs on. Writer directive (Sofía sessions,
-   2026-08-12): creative fan-out fleets run on Opus — the writer wrote it as `opts.model: 'opus'`
-   per agent call — reserving the expensive model for the judge or verifier stage at most. That
-   directive came from the writer's own observation of the same session: agents that inherited the
-   session model spent ~383k subagent tokens at top-tier pricing for a batch the writer rejected.
+   2026-08-12): creative fan-out fleets run on Sonnet — the writer wrote it as
+   `opts.model: 'sonnet'` per agent call — reserving Opus for the judge or verifier stage at most.
+   That directive came from the writer's own observation of the same session: agents that inherited
+   the session model spent ~383k subagent tokens at top-tier pricing for a batch the writer rejected.
    The fleet loses nothing — rule 2 above names isolation, not model tier, as the mechanism that
    produces the divergence. Any creative fan-out this plugin adds later inherits the directive.
 
