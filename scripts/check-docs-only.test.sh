@@ -10,6 +10,8 @@ set -uo pipefail
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SELF_DIR/check-docs-only.sh"
 ALLOWLIST="$SELF_DIR/docs-only-paths.txt"
+# shellcheck source=test-git-helpers.sh
+. "$SELF_DIR/test-git-helpers.sh"
 
 PASS=0
 FAIL=0
@@ -25,11 +27,7 @@ ok() {
 mk_repo() {
   local dir
   dir="$(mktemp -d)"
-  git -C "$dir" init -q
-  git -C "$dir" config user.email t@t.test
-  git -C "$dir" config user.name test
-  git -C "$dir" config commit.gpgsign false
-  git -C "$dir" config core.autocrlf false
+  git_init_safe "$dir"
   mkdir -p "$dir/scripts"
   cp "$SCRIPT" "$dir/scripts/check-docs-only.sh"
   cp "$ALLOWLIST" "$dir/scripts/docs-only-paths.txt"
@@ -45,8 +43,8 @@ mk_repo() {
   printf 'seed\n' >"$dir/plugins/miro/index.ts"
   printf 'seed\n' >"$dir/.github/workflows/ci.yml"
   printf 'seed\n' >"$dir/package-lock.json"
-  git -C "$dir" add -A >/dev/null
-  git -C "$dir" commit -qm base
+  git_test_config "$dir" add -A >/dev/null
+  git_test_config "$dir" commit -qm base
   printf '%s' "$dir"
 }
 
@@ -63,8 +61,8 @@ assert_flag() {
     mkdir -p "$repo/$(dirname "$p")"
     printf 'changed %s\n' "$RANDOM" >"$repo/$p"
   done
-  git -C "$repo" add -A >/dev/null
-  git -C "$repo" commit -qm change >/dev/null
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm change >/dev/null
   out="$(cd "$repo" && bash scripts/check-docs-only.sh "$base" 2>/dev/null)"
   if [[ "$out" == "docs_only=$expected" ]]; then
     ok "$label -> $expected"
@@ -118,7 +116,7 @@ repo="$(mk_repo)"
 base="$(git -C "$repo" rev-parse HEAD)"
 : >"$repo/empty-allowlist.txt"
 printf 'changed\n' >"$repo/docs/topics/example/PLAN.md"
-git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm change >/dev/null
+git_test_config "$repo" add -A >/dev/null && git_test_config "$repo" commit -qm change >/dev/null
 out="$(cd "$repo" && DOCS_ONLY_ALLOWLIST=empty-allowlist.txt bash scripts/check-docs-only.sh "$base" 2>/dev/null)"
 if [[ "$out" == "docs_only=false" ]]; then
   ok "empty allowlist -> false (fail-closed)"
@@ -131,7 +129,7 @@ rm -rf "$repo"
 repo="$(mk_repo)"
 base="$(git -C "$repo" rev-parse HEAD)"
 printf 'changed\n' >"$repo/docs/topics/example/PLAN.md"
-git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm change >/dev/null
+git_test_config "$repo" add -A >/dev/null && git_test_config "$repo" commit -qm change >/dev/null
 gho="$(mktemp)"
 (cd "$repo" && GITHUB_OUTPUT="$gho" bash scripts/check-docs-only.sh "$base" >/dev/null 2>&1)
 if grep -qx 'docs_only=true' "$gho"; then
