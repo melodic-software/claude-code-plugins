@@ -2,7 +2,7 @@
 
 `SKILL.md` carries the routing mandate. This file carries what the **parent** owes around a
 dispatched run, and why each obligation exists. The agent's own side is
-`plugins/discovery/agents/researcher.md`.
+`${CLAUDE_PLUGIN_ROOT}/agents/researcher.md`.
 
 ## The orchestration boundary
 

@@ -1,5 +1,13 @@
 # Changelog — discovery plugin
 
+## [0.14.2]
+
+### Fixed
+
+- **Dispatch spokes cite install-root agent paths.** `skills/explore/reference/dispatch.md` and
+  `skills/research/context/dispatch.md` pointed at monorepo-only `plugins/discovery/agents/…` paths;
+  both now use `${CLAUDE_PLUGIN_ROOT}/agents/…`, matching the rest of the plugin. (#2269)
+
 ## [0.14.1]
 
 ### Fixed

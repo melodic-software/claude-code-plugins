@@ -2,7 +2,7 @@
 
 `SKILL.md` carries the routing mandate and the acceptance gate's three steps. This file carries why
 each step is shaped the way it is, and what the parent does when one fails. The agent's own side is
-`plugins/discovery/agents/explorer.md`.
+`${CLAUDE_PLUGIN_ROOT}/agents/explorer.md`.
 
 ## Why the gate reads the slice path, not the payload
 
