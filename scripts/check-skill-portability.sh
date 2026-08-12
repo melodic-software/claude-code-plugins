@@ -167,7 +167,7 @@ scan_file() {
   *) awk_file="./$awk_file" ;;
   esac
   awk '
-    function is_annotated(l) { return l ~ /portability-ok:/ }
+    function is_annotated(l) { return l ~ /portability-ok:[[:space:]]*[^[:space:]#<\-]/ }
     # Block-level only: a content line that merely happens to carry an inline
     # HTML comment marker (e.g. prose with `<!-- note -->` mid-line) must NOT
     # count as a comment line for pending_annot carry-forward purposes — only a

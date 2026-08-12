@@ -160,6 +160,17 @@ else
 fi
 rm -f "$f"
 
+# --- empty portability-ok does not exempt (#624 finding 2) ------------------
+f="$(tmpfile 'reset --hard origin/main <!-- portability-ok: -->')"
+if out="$(scan_paths "$f" 2>&1)"; then
+  fail "empty portability-ok should not exempt the hit, got success: $out"
+elif echo "$out" | grep -q "COUPLING:"; then
+  ok "empty portability-ok does not exempt"
+else
+  fail "expected COUPLING for empty portability-ok, got: $out"
+fi
+rm -f "$f"
+
 # --- portability-ok in the comment block above passes ----------------------
 f="$(tmpfile '<!-- portability-ok: this reference is intentionally pinned -->
 The base branch is origin/main here.')"
