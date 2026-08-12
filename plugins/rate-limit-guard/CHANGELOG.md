@@ -3,6 +3,78 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.0]
+
+### Changed
+
+- **The statusline refresh no longer writes the snapshot; it records to a spool and one
+  elected refresh per 30 seconds flushes the batch.** Measured same-window here
+  (Windows/MSYS, n=9): `render.sh` alone 234.4 ms, `render.sh` behind this wrapper
+  1047.1 ms. The wrapper dominated, and the dominant term inside it was process
+  creation — a cost MSYS has no cheap primitive for, on a path that fires on every
+  assistant message AND every `refreshInterval` tick, once per open session. 0.6.x
+  made that work cheaper (nine spawns to four); this release takes it off the render
+  path instead. The common refresh now runs **zero external processes and zero
+  subshells**, asserted by an `xtrace` of a non-elected render rather than by reading
+  the code.
+
+  What a refresh does now: extract `session_id` by parameter expansion, strip CR/LF
+  (a JSON string cannot contain either, so this is lossless), stamp the epoch with
+  `printf -v '%(%s)T'`, and overwrite `~/.claude/rate-limit-guard/spool/<session>.json`
+  with one line. All builtins.
+
+  **Per-session files, not a shared append spool.** POSIX specifies atomicity for
+  concurrent writes to pipes up to `PIPE_BUF` and explicitly leaves regular-file
+  behaviour unspecified; through Cygwin/MSYS the observed no-interleave bound on
+  appends is around a kilobyte while statusline payloads are multiple kilobytes, and
+  bash's buffered builtin output can split one large record across syscalls anyway.
+  Atomicity therefore comes from **file disjointness** — no two writers ever share a
+  file, each record is one line written with a truncating `>` — instead of from an
+  argument about write sizes. A record torn by a kill mid-write fails `fromjson` in
+  the drain and is dropped, which is covered by a test.
+
+  **The filename is a shard key, never trusted data.** `session_id` arrives in the
+  harness payload; it must match `^[A-Za-z0-9._-]{1,64}$` and not begin with a dot, or
+  it shards to the literal name `misc`. Traversal attempts, embedded quotes,
+  200-character values and JSON nulls are all covered.
+
+  **Election is stamp-based, and the elected refresh drains in-process.** There is no
+  timer to hang this on: Claude Code hooks are strictly event-driven and none fires on
+  a schedule (<https://code.claude.com/docs/en/hooks.md>), an OS scheduler would mean
+  three mechanisms across three platforms, and a resident lock-holder would have to be
+  forked off a render — the exact cost being removed — and would be killed with it,
+  since Claude Code cancels in-flight statusline scripts. So the renders are the clock:
+  whichever finds `spool/.last-drain` older than the cadence takes `spool/.drain.lock`,
+  re-reads the stamp under it (a herd collapses for one failed `mkdir`), and flushes.
+  The drain uses its OWN lock rather than the snapshot lock, so `tee_snapshot` keeps
+  the concurrent-writer lock, the atomic temp-then-rename and the windowless-writer
+  preservation check exactly as they were.
+
+  **The snapshot body is byte-identical apart from `captured_at`**, proven by
+  `diff <(jq -S 'del(.captured_at)' pristine) <(jq -S 'del(.captured_at)' patched)`.
+  The body projection is now one shared jq function called by both the live probe and
+  the drain, so the two cannot drift. `captured_at` is the **observation time of the
+  chosen record**, never the flush time — which is what lets a windowless refresh
+  flush a window-bearing sibling's record without faking freshness.
+
+  **Reader-visible change, inside the existing contract:** the contract file now trails
+  the newest refresh on the machine by up to 30 seconds instead of being rewritten on
+  every refresh. The reader contract budgets ten minutes of staleness and its operable
+  floor values are unchanged; `reference/reader-contract.md` documents the cadence,
+  the `spool/` inventory and the `.tee-disabled` marker.
+
+  **The enablement gate still gates the write**, but it cannot be evaluated on the
+  render path — reading settings costs a `jq`. A drain that reads
+  `rate_limit_guard_enabled: false` writes an epoch-stamped `.tee-disabled` marker and
+  drops the spool; refreshes then stop recording on one builtin test. The marker
+  expires, so a re-enabled plugin recovers on its own without a restart.
+
+  Bash 4.2 is the floor (`%(%s)T` is a 4.2 builtin). Below it — macOS bash 3.2, where
+  `fork` is cheap and this problem does not arise — the previous synchronous path runs
+  untouched, and `RLG_TEE_ASYNC=1` keeps its current behaviour on every version.
+
+  All 75 pre-existing assertions pass unmodified; the suite is now 96.
+
 ## [0.6.3]
 
 ### Changed
@@ -92,11 +164,11 @@ All notable changes to the `rate-limit-guard` plugin are documented here. Format
   by paying a fork more expensive than the execs it steps around, and it lets successive refreshes
   overlap instead of serialise. Measured (Windows, 24 cores, statusline + tee):
 
-  | | sync (default) | async |
-  |---|---|---|
-  | one session, refreshes 1 s apart | 660 ms | **222 ms** |
-  | ten sessions at 1 Hz, median | **2265 ms** | 4476 ms |
-  | ten sessions, peak bash processes | **50** | 71 |
+  |                                   | sync (default) | async      |
+  | --------------------------------- | -------------- | ---------- |
+  | one session, refreshes 1 s apart  | 660 ms         | **222 ms** |
+  | ten sessions at 1 Hz, median      | **2265 ms**    | 4476 ms    |
+  | ten sessions, peak bash processes | **50**         | 71         |
 
   Sessions, not refresh rate, is the variable that decides. Turn it on if you run one or two
   windows; leave it off if you run many. The durable fix removes the cost instead of moving it —
