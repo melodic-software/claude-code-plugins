@@ -753,14 +753,25 @@ assert_contains "bash block states its scope" "$scopeout" \
   "only this command string is inspected"
 assert_contains "bash block names the invoked-script gap" "$scopeout" \
   "inside an invoked script file"
-assert_contains "bash block limits interpreter coverage to python3 -c" "$scopeout" \
-  "inline python3 -c only"
+# The note states the ENFORCED surface, so it is pinned at the shipped width, not
+# at a remembered one. #2217 widened the python lane past the literal `python3 -c`
+# and this assertion went on pinning the obsolete claim — the assertion is what
+# should have caught the drift, so it now names both the family and the stdin form.
+assert_contains "bash block names the interpreter family it covers" "$scopeout" \
+  "python/python3/py/pypy with -c"
+assert_contains "bash block names the stdin form it covers" "$scopeout" \
+  "python3 - <<PY"
+assert_contains "bash block names the no-dash stdin residual" "$scopeout" \
+  "python3 <<PY"
+assert_contains "bash block still limits interpreter coverage" "$scopeout" "only"
 assert_contains "bash block names the tee gap" "$scopeout" "POSIX tee"
 assert_contains "bash block names other-interpreter gap" "$scopeout" "node -e"
 psscope=$(bash "$HOOK" <<<"$(pwsh_command_json "Set-Content f.txt 'x'")" 2>&1)
 assert_contains "powershell block states its scope" "$psscope" \
   "only this command string is inspected"
 assert_contains "powershell block names Tee-Object coverage" "$psscope" "Tee-Object"
+assert_contains "powershell block names the interpreter family it covers" "$psscope" \
+  "python/python3/py/pypy with -c"
 
 # The behaviour the scope note describes. A write inside an invoked script is
 # not inspected, and a redirect whose producer is another program is allowed by
