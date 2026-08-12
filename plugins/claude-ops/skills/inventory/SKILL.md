@@ -187,8 +187,9 @@ exports the script does not know about, and the resolved-versus-seen gap on bund
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/inventory/scripts/inventory.py" --self-check
 ```
 
-It prints one verdict line and exits `0` ok, `1` broken, `2` degraded — so it works as a CI gate, a
-loop-lane step, or a post-update check without parsing JSON. The natural trigger is a CLI release:
+It prints one verdict line and exits `0` ok, `1` broken, `3` degraded — so it works as a CI gate, a
+loop-lane step, or a post-update check without parsing JSON. `2` is left to argparse for a usage
+error, so a mistyped flag can never be mistaken for a degraded run. The natural trigger is a CLI release:
 `/claude-ops:changelog` already ingests those, and this is the check to run when it reports one.
 
 **What a maintainer actually updates.** Most releases need no change — registrar names are

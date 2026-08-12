@@ -3,6 +3,38 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.1]
+
+### Fixed
+
+- **`skills/inventory` bundled-skill fields could bleed from the next registration.** The extractor
+  read each registration through a fixed 4000-character window — the failure mode `build_brace_map`
+  exists to prevent for commands, and the one `reference/extraction.md` names as the thing not to
+  do. A registration omitting a description adopted the following one's. Fields are now bound to
+  their own literal via the brace map, and an unmatched brace is counted and surfaced rather than
+  silently skipped.
+- **Manifest-declared component paths were ignored.** `PLUGIN_COMPONENTS` carried a manifest key per
+  component and a comment claiming the manifest is read before the tree; nothing read it. A declared
+  path replaces the default directory, so scanning defaults regardless reported components a plugin
+  does not ship. Dotted keys resolve the `experimental` block.
+- **`--self-check` lost its diagnostic when no binary was found.** `pick_binary` stores its
+  explanation under `reason`; the self-check path read only `error` and printed a generic message.
+- **An unreadable CLI version passed silently.** It is itself a drift signal, so it now degrades the
+  verdict instead of skipping the comparison.
+- **`--self-check` degraded and an argparse usage error both exited 2.** A CI gate treating 2 as
+  "degraded, warn" would silently swallow a mistyped flag. Degraded is now 3, leaving 2 to argparse:
+  0 ok, 1 broken, 2 usage error, 3 degraded.
+
+### Added
+
+- **`skills/inventory` reads installed plugins and project scope.** Only marketplace catalogs were
+  scanned, so a plugin installed from a marketplace that is no longer cached was invisible;
+  `disk.installed_plugins` now walks the plugin cache, and catalog, installed, and enabled are
+  reported as three distinct sets. A project's `.claude` tree contributes skills, agents, and wired
+  hook events that no machine-scope scan sees — `--project-dir` defaults to the working directory.
+  Wired hook events are reported, never hook scripts on disk, which would repeat the
+  present-versus-active error the skill warns about.
+
 ## [0.31.0]
 
 ### Added

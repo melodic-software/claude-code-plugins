@@ -948,8 +948,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument(
         "--self-check",
         action="store_true",
-        help="print only the integrity verdict; exit 1 if extraction is broken, "
-        "2 if it is degraded. For CI and scheduled drift checks.",
+        help="print only the integrity verdict; exit 0 ok, 1 broken, 3 degraded "
+        "(2 stays argparse's usage error). For CI and scheduled drift checks.",
     )
     args = ap.parse_args(argv)
 
@@ -980,7 +980,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  problem:  {p}")
         for a in integrity["advisories"]:
             print(f"  advisory: {a}")
-        return {"ok": 0, "broken": 1, "degraded": 2}[integrity["status"]]
+        return {"ok": 0, "broken": 1, "degraded": 3}[integrity["status"]]
 
     text = json.dumps(report, indent=1, sort_keys=True)
     if args.out:
