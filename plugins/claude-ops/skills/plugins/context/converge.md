@@ -60,12 +60,13 @@ rows a bulk report collapses) — never construct the proposed command as a bare
 running the bare form for a row whose `projectPath` isn't the current directory would silently
 mutate — or fail against — the wrong repo's settings.
 
-Project scope keys on the **working directory**, not the repository — verified on Claude Code
-2.1.228 by uninstalling one id in a repo's main checkout and observing its git worktree's record for
-the same id survive untouched. Two checkouts of one repo (a `git worktree`, sharing one `.git` and
-one tracked `.claude/settings.json`) therefore hold independent `projectPath` records and pin
-independently. Never collapse them into one row, and never assume converging one clears the other:
-each needs its own `cd`.
+Two `git worktree` checkouts of one repository pin independently — verified on Claude Code 2.1.228
+by uninstalling one id in a repo's main checkout and observing the worktree's record for the same id
+survive untouched. They share one `.git` and one tracked `.claude/settings.json` yet hold separate
+`projectPath` records, so never collapse them into one row and never assume converging one clears
+the other: each needs its own `cd`. Per [scope-semantics.md](scope-semantics.md), the CLI keys
+`projectPath` on the literal cwd while `fleet-state.sh` matches on the checkout root — that gap is a
+blind spot in its own right, recorded in [gotchas.md](gotchas.md).
 
 Present every plugin's proposed strategy and exact CLI command(s) before running anything — do not
 batch-apply. Per Brief Decision 6 (V1): confirm **every** pin individually, even when many plugins

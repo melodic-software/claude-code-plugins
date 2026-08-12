@@ -15,17 +15,31 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   one, and rewrites the file in Claude Code's key order so unrelated sibling keys move. Step 5 now
   checks every touched project unconditionally and classifies the diff as inert (empty map plus
   reorder — recommend discarding, so a team-shared file carries no churn) or substantive (an entry
-  actually removed — the user decides). `scope-semantics.md` records install's and uninstall's
-  behavior as a section beside the update exemption, which was re-verified on the same version and
-  still holds.
+  actually removed — the user decides).
+- **`scope-semantics.md` claimed `converge` was the only action that surfaces a settings diff.**
+  False by its own new evidence: `sync`'s Step 5 issues `enable <id> -s <that scope>`, and
+  `enable -s project` writes the committed file the same way `install` does. The update exemption is
+  re-verified and still holds, but it is now documented as the exception rather than the rule.
 
 ### Added
 
-- **`skills/plugins` records that project scope keys on the working directory, not the repository.**
-  Verified by uninstalling one id in a repo's main checkout and watching its `git worktree`'s record
-  for the same id survive. Two checkouts of one repo share a `.git` and a tracked
-  `.claude/settings.json` yet pin independently, so `converge` must keep them as separate rows with
-  separate `cd` targets — converging one never clears the other.
+- **`scope-semantics.md` gains a verified write-behavior table for project scope.** `install`,
+  `uninstall`, `enable`, and `disable` at `-s project` all write the committed
+  `.claude/settings.json`; `update` does not; `-s local` writes the gitignored
+  `.claude/settings.local.json` instead. Also recorded: `enable -s project` gates on the *merged
+  effective* value, so enabling an id that is `true` only at user scope fails rather than writing a
+  project entry.
+- **`sync.md` Step 5 names its own exposure.** A `-s project` enable can leave a team-shared tracked
+  file modified with no diff surfaced — the failure class `converge` Step 5 prevents, in the default
+  action. Flagged with instructions to name it in the report; the diff-surfacing remediation is
+  tracked separately.
+- **`gotchas.md` records that a subdirectory install is invisible to the skill.** The CLI keys
+  `projectPath` on the literal cwd — installing from `<checkout>/nested/subdir` recorded that
+  subdirectory and created its own `.claude/settings.json` — while `fleet-state.sh` resolves the
+  checkout root. A plugin installed below the checkout root therefore never matches
+  `currentProject`, never updates, and never appears in a divergence row, while still loading in
+  that subtree. The same mechanism is why two `git worktree` checkouts of one repo pin
+  independently, which `converge` Step 2 now states directly.
 - **`sync.md` records one observation on `installed_plugins.json` write timing.** A 63-plugin
   user-scope sweep on 2.1.228 had all 21 CLI-reported updates already visible to a post-sweep
   re-read. Logged as a single data point that does not retire the `<new>` fallback, since it shows
