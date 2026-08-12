@@ -1,5 +1,13 @@
 # Changelog — discovery plugin
 
+## [0.14.1]
+
+### Fixed
+
+- **Dispatch spokes now cite agent definitions with `${CLAUDE_PLUGIN_ROOT}` paths.** The explore and
+  research dispatch contracts pointed at `plugins/discovery/agents/<name>.md`, which does not resolve
+  from an installed plugin root. (#2269)
+
 ## [0.14.0]
 
 ### Fixed
