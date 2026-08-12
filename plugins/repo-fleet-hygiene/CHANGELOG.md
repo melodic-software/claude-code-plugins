@@ -3,6 +3,19 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.1]
+
+### Fixed
+
+- **`merge-evidence-privacy-gated` handoff no longer prescribes impossible remedies (#1796).** The
+  aggregate handoff had told operators to push or re-fetch pruned branches to "restore remote
+  evidence" — but for the dominant population (merged heads auto-deleted on GitHub, then pruned
+  locally) re-fetch cannot restore a ref that no longer exists upstream, and the skill boundary
+  forbids suggesting `git fetch` inline. The handoff now distinguishes never-pushed locals (push,
+  then rerun) from auto-deleted merged heads (verify merge state with
+  `gh pr list --state merged --head <branch>` per named branch; merged PRs stay queryable after head
+  deletion). Matching prose updates in `SKILL.md`, `confidence-model.md`, and eval expectations.
+
 ## [0.12.0]
 
 ### Fixed

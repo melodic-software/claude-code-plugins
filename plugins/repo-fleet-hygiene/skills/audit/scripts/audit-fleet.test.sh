@@ -544,6 +544,12 @@ if grep -A3 -F "Finding: merge-evidence-privacy-gated" "$output" | grep -Fq "Tar
 else
   printf 'PASS: failed remote inventory not double-reported as privacy gap\n'
 fi
+assert_not_contains "privacy-gated handoff does not suggest re-fetch" \
+  "re-fetch the branch to restore remote evidence"
+assert_contains "privacy-gated handoff names PR lookup for auto-deleted heads" \
+  "gh pr list --repo github.com/"
+assert_contains "privacy-gated handoff distinguishes never-pushed locals" \
+  "Never-pushed locals: push to publish the branch name, then rerun"
 
 # Drift push-state evidence: stale/changed has a same-named remote-tracking ref at the SAME OID
 # (pushed); stale/gone has a drift-batch row but NO remote-tracking ref (may be unpushed).
