@@ -3,6 +3,14 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.36.2]
+
+### Changed
+
+- **`audit-permission-grants` scan-root override is now `$PERMISSION_HYGIENE_SCAN_ROOT`.**
+  `$PERMISSION_HYGIENE_FIXTURE_DIR` remains accepted as a deprecated alias for tests and
+  existing automation.
+
 ## [0.36.1]
 
 ### Fixed
