@@ -5,6 +5,12 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.12.5]
+
+### Fixed
+
+- Surface fork dependency in sweep-all listing description.
+
 ## [0.12.4]
 
 ### Changed
