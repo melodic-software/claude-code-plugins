@@ -1947,23 +1947,49 @@ fragmented)
 esac
 rm -f "$bs_probe_file" "$bs_payload_file" "$bs_rc_file" "$bs_out_file"
 
+# Load-independent stall-slicing engagement: the unsliced override reaches
+# slice_count after one idle slice; default slicing must idle more times before
+# declaring stall. Count json_complete probes (each idle slice) — not wall clock.
+bs_stall_idle_file="$(mktemp)"
+bs_stall_idle_override='hook::json_complete() {
+  printf "%s\n" "${idle_slices-?}" >>"'"$bs_stall_idle_file"'"
+  return 1
+}'
+: >"$bs_stall_idle_file"
+bs_time_stall "$bs_stall_idle_override" >/dev/null
+bs_sliced_idle=$(wc -l <"$bs_stall_idle_file" | tr -d ' ')
+: >"$bs_stall_idle_file"
+bs_time_stall "$bs_unsliced; $bs_stall_idle_override" >/dev/null
+bs_unsliced_idle=$(wc -l <"$bs_stall_idle_file" | tr -d ' ')
+if ((bs_sliced_idle > bs_unsliced_idle)); then
+  ok "buffer_stdin: sliced stall path exercises more idle slices than unsliced ($bs_sliced_idle vs $bs_unsliced_idle)"
+else
+  fail "buffer_stdin stall idle-slice engagement: sliced=$bs_sliced_idle unsliced=$bs_unsliced_idle (expected sliced > unsliced)"
+fi
+rm -f "$bs_stall_idle_file"
+
 # Stall overshoot is load-sensitive when asserted as an absolute wall-clock gap
-# (#2105, #2080). The load-independent guard is the slice-resolution assertion
-# above: 0.900 x 4 reads vs a forced 3.6 x 1. Re-run the relative check only
-# when every sample is timed and EVERY interleaved pair shows unsliced slower
-# than sliced — no fixed slack, so a loaded host cannot pass on a shrunk gap.
+# (#2105, #2080). The idle-slice probe above is the load-independent guard; this
+# relative check is advisory — fail only when every timed pair contradicts slicing.
 if bs_samples 6 bs_time_stall "" "$bs_unsliced"; then
   bs_rel_ok=1
   bs_rel_detail="deltas ${bs_deltas_a_first[*]} | ${bs_deltas_b_first[*]}"
+  bs_rel_neg=0
+  bs_rel_pos=0
   for bs_rel_d in "${bs_deltas_a_first[@]}" "${bs_deltas_b_first[@]}"; do
     if ((bs_rel_d <= 0)); then
       bs_rel_ok=0
+      ((bs_rel_neg++))
+    else
+      ((bs_rel_pos++))
     fi
   done
   if ((bs_rel_ok)); then
     ok "buffer_stdin: unsliced stall exceeds sliced in every interleaved pair ($bs_rel_detail)"
+  elif ((bs_rel_neg > 0 && bs_rel_pos == 0)); then
+    fail "buffer_stdin: unsliced did not exceed sliced in any interleaved pair ($bs_rel_detail) — slicing regression"
   else
-    ok "buffer_stdin: stall timing inconclusive under load ($bs_rel_detail); slice split is the regression guard (#2105)"
+    ok "buffer_stdin: stall timing inconclusive under load ($bs_rel_detail); idle-slice probe is the regression guard (#2105)"
   fi
 elif [[ -n "${EPOCHREALTIME:-}" ]]; then
   fail "stall timing harness produced no measurement"
