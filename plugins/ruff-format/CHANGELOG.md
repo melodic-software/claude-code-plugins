@@ -3,6 +3,13 @@
 All notable changes to the `ruff-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.8]
+
+### Added
+
+- **Content-mutation disclosure on Ruff rewrites (#1596).** When Ruff auto-fixes or formats a file,
+  the hook emits a `systemMessage` naming the path; unchanged files stay silent.
+
 ## [0.6.7]
 
 ### Changed
