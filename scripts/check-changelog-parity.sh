@@ -405,7 +405,6 @@ fi
 # plugin-root scoping) a cosmetic touch elsewhere under the plugin dir cannot pull
 # a main-only advance back into scope.
 declare -A bumped_candidate
-declare -A plugin_changed
 declare -A shipped_changed
 # The changelogs this change set touched, in `git diff` order, for
 # --check-preserved. Same two roots --check-order sweeps.
@@ -448,15 +447,15 @@ while IFS= read -r path; do
     ;;
   plugins/*/CHANGELOG.md)
     rest="${path#plugins/}"
-    plugin_changed["${rest%%/*}"]=1
-    if [[ -z "${seen_changelog[$path]:-}" ]]; then
+    # A `case` glob's `*` spans `/`, so re-check depth: only the plugin-root
+    # changelog is in scope, never one nested deeper (e.g. plugins/alpha/docs/…).
+    if [[ "$rest" == "${rest%%/*}/CHANGELOG.md" && -z "${seen_changelog[$path]:-}" ]]; then
       seen_changelog["$path"]=1
       touched_changelogs+=("$path")
     fi
     ;;
   plugins/*/*)
     rest="${path#plugins/}"
-    plugin_changed["${rest%%/*}"]=1
     shipped_changed["${rest%%/*}"]=1
     ;;
   docs/conventions/*/CHANGELOG.md)
@@ -600,17 +599,25 @@ for manifest in "${manifests[@]}"; do
   changelog="$plugin_dir/CHANGELOG.md"
 
   base_version="$(git show "$base:$manifest" 2>/dev/null | jq -r '.version // empty' 2>/dev/null || true)"
+  # Absent at base => new plugin in this change set; the static --check owns
+  # whether its initial CHANGELOG.md exists, not the bump gate.
   [[ -n "$base_version" ]] || continue
   head_version="$(version_of "$manifest")"
+  fork_version="$(git show "$merge_base:$manifest" 2>/dev/null | jq -r '.version // empty' 2>/dev/null || true)"
 
   # A branch that changes shipped plugin files but leaves the manifest version
-  # byte-identical to the base tip reuses a published version number (#1559).
-  # Changelog-only edits and manifest bumps are out of scope here — the former
-  # is --check-preserved / review discipline; the latter is collision/preexisting.
-  if [[ -n "${shipped_changed[$name]:-}" && -z "${bumped_candidate[$name]:-}" && "$head_version" == "$base_version" ]]; then
-    echo "PUBLISHED VERSION REUSE: $name still carries $head_version while this change set modifies files under plugins/$name/ — bump the manifest and add a new '## [$head_version]' release entry instead of editing in place." >&2
-    published_reuse=$((published_reuse + 1))
-    continue
+  # unchanged vs the fork point reuses a published version number (#1559). Two
+  # cases: (1) manifest untouched and head still matches the base tip — reuse;
+  # (2) manifest touched cosmetically (path in diff, .version unchanged) while
+  # shipped files also changed — the old bumped_candidate guard let this evade
+  # detection. A stale branch whose base advanced without integrating stays out
+  # of scope when the manifest was never touched (manifest-scoping).
+  if [[ -n "${shipped_changed[$name]:-}" && "$head_version" == "$fork_version" ]]; then
+    if [[ -n "${bumped_candidate[$name]:-}" || "$head_version" == "$base_version" ]]; then
+      echo "PUBLISHED VERSION REUSE: $name still carries $head_version while this change set modifies files under plugins/$name/ — bump the manifest and add a new '## [$head_version]' release entry instead of editing in place." >&2
+      published_reuse=$((published_reuse + 1))
+      continue
+    fi
   fi
 
   # Only plugins whose manifest this change set touched are in scope (see the
@@ -618,17 +625,12 @@ for manifest in "${manifests[@]}"; do
   # touched is not the PR's to document.
   [[ -n "${bumped_candidate[$name]:-}" ]] || continue
 
-  # Absent at base => new plugin in this change set; the static --check owns
-  # whether its initial CHANGELOG.md exists, not the bump gate.
-  head_version="$(version_of "$manifest")"
-
   # "Did this branch bump?" is head vs the FORK POINT, never vs the base tip:
   # once the base ref advances past the fork, the tip comparison misreads both
   # directions — head==tip despite a real bump (two branches claimed the same
   # number: a collision that must FAIL, not read as not-bumped), and head!=tip
   # despite no bump at all (a cosmetic manifest edit on a stale branch, which
   # must stay out of scope rather than red-line as a regression).
-  fork_version="$(git show "$merge_base:$manifest" 2>/dev/null | jq -r '.version // empty' 2>/dev/null || true)"
   [[ "$head_version" != "$fork_version" ]] || continue
 
   # Monotonicity: the bumped version must land strictly ABOVE what the base ref

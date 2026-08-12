@@ -484,6 +484,20 @@ rc=$?
 if [[ $rc -ne 0 && "$out" == *"PUBLISHED VERSION REUSE"*"alpha"* ]]; then ok "unchanged version with plugin file edits fails --check-bump"; else fail "published version reuse not caught: rc=$rc out='$out'"; fi
 rm -rf "$repo"
 
+# cosmetic manifest touch (no version change) + shipped file edit -> fails (#1559 gap)
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 1.0.0 yes
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+base="$(git -C "$repo" rev-parse HEAD)"
+printf '{ "name": "alpha", "version": "1.0.0", "description": "touched" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
+printf 'shipped\n' >"$repo/plugins/alpha/shipped.txt"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm noop
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
+rc=$?
+if [[ $rc -ne 0 && "$out" == *"PUBLISHED VERSION REUSE"*"alpha"* ]]; then ok "cosmetic manifest touch with shipped file edits fails --check-bump"; else fail "cosmetic manifest reuse not caught: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
 # version unchanged and no plugin file edits -> passes
 repo="$(mk_repo)"
 git_init "$repo"
