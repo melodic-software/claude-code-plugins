@@ -110,4 +110,14 @@ write_binding "$BINDING" '{"schema_version":"1.0","provider":"github","config":{
 wit_read_binding "$BINDING"
 assert_eq "human-gated label honors configured remap" "do-not-auto-pick" "$WIT_HUMAN_GATED_LABEL"
 
+write_binding "$BINDING" '{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24}}'
+wit_read_binding "$BINDING"
+assert_eq "autonomous-eligible label defaults to agent-ready when unset" "agent-ready" "$WIT_AUTONOMOUS_ELIGIBLE_LABEL"
+assert_eq "recurring-maintenance label defaults to recurring when unset" "recurring" "$WIT_RECURRING_MAINTENANCE_LABEL"
+
+write_binding "$BINDING" '{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24,"role_labels":{"autonomous-eligible":"ready-bot","recurring-maintenance":"maint"}}}'
+wit_read_binding "$BINDING"
+assert_eq "autonomous-eligible label honors configured remap" "ready-bot" "$WIT_AUTONOMOUS_ELIGIBLE_LABEL"
+assert_eq "recurring-maintenance label honors configured remap" "maint" "$WIT_RECURRING_MAINTENANCE_LABEL"
+
 [[ $FAILED -eq 0 ]] || exit 1

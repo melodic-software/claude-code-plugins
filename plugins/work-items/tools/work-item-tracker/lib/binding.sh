@@ -28,11 +28,12 @@ wit_find_binding() {
 }
 
 # wit_read_binding <path> — validate shape and export WIT_PROVIDER,
-# WIT_LEASE_TTL_HOURS, WIT_STORAGE_DIR, WIT_HUMAN_GATED_LABEL. lease_ttl_hours is
+# WIT_LEASE_TTL_HOURS, WIT_STORAGE_DIR, WIT_HUMAN_GATED_LABEL,
+# WIT_AUTONOMOUS_ELIGIBLE_LABEL, WIT_RECURRING_MAINTENANCE_LABEL. lease_ttl_hours is
 # REQUIRED (all defaults live in the binding, never in code). storage_dir is
 # required only for provider local-markdown.
 wit_read_binding() {
-  local path="$1" version provider ttl storage human_gated
+  local path="$1" version provider ttl storage human_gated autonomous_eligible recurring_maintenance
   jq -e . "$path" >/dev/null 2>&1 || return 1
   version="$(jq -r '.schema_version // empty' "$path")"
   [[ "$version" == 1.* ]] || return 1
@@ -55,14 +56,20 @@ wit_read_binding() {
   if [[ -n "$storage" && "$storage" != /* ]]; then
     storage="$(cd "$(dirname "$path")" && pwd)/$storage"
   fi
-  # Canonical role "human-gated" (label-taxonomy.md); config.role_labels lets a
-  # repo remap the literal label string. Absent key or entry falls back to the
-  # shipped default so an unmigrated binding keeps today's behavior.
+  # Canonical roles (label-taxonomy.md); config.role_labels lets a repo remap the
+  # literal label strings. Absent keys fall back to shipped defaults.
   human_gated="$(jq -r '.config.role_labels["human-gated"] // empty' "$path")"
   [[ -n "$human_gated" ]] || human_gated="needs-human"
+  autonomous_eligible="$(jq -r '.config.role_labels["autonomous-eligible"] // empty' "$path")"
+  [[ -n "$autonomous_eligible" ]] || autonomous_eligible="agent-ready"
+  recurring_maintenance="$(jq -r '.config.role_labels["recurring-maintenance"] // empty' "$path")"
+  [[ -n "$recurring_maintenance" ]] || recurring_maintenance="recurring"
   WIT_PROVIDER="$provider"
   WIT_LEASE_TTL_HOURS="$ttl"
   WIT_STORAGE_DIR="$storage"
   WIT_HUMAN_GATED_LABEL="$human_gated"
-  export WIT_PROVIDER WIT_LEASE_TTL_HOURS WIT_STORAGE_DIR WIT_HUMAN_GATED_LABEL
+  WIT_AUTONOMOUS_ELIGIBLE_LABEL="$autonomous_eligible"
+  WIT_RECURRING_MAINTENANCE_LABEL="$recurring_maintenance"
+  export WIT_PROVIDER WIT_LEASE_TTL_HOURS WIT_STORAGE_DIR WIT_HUMAN_GATED_LABEL \
+    WIT_AUTONOMOUS_ELIGIBLE_LABEL WIT_RECURRING_MAINTENANCE_LABEL
 }
