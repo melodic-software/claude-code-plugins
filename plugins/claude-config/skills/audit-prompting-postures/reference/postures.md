@@ -80,8 +80,10 @@ Classify each component by what its body has the model DO (multiple or none):
 - **Present when:** hard-to-reverse, shared-system, or destructive actions require confirmation or
   an equivalent mechanical gate, and obstacles must not be shortcut destructively. A deny-by-
   default hook or script gate satisfies this without any prose — which is evidence Phase B's
-  instruction-text inventory cannot hold, so SKILL.md Phase C requires looking for the gate in the
-  settings and hook configuration before this row may be judged MISSING. This is the only row whose
+  instruction-text inventory cannot hold, so SKILL.md Phase C requires looking in three places before
+  this row may be judged MISSING: settings rules, hook configuration, and **the script the component
+  delegates the destructive step to**, followed and read. The script gate is the one most easily
+  missed, because nothing in the component's own text announces it. This is the only row whose
   presence evidence is allowed to live outside the inventory.
 - **Pointer:** main page, "Balancing autonomy and safety".
 

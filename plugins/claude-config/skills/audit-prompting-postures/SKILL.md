@@ -24,11 +24,13 @@ Report-only. No `--fix`: every proposed addition is applied by the human (or exp
 afterward). A clean audit is a valid outcome, and with well-authored components it is the expected
 one — the default verdict per posture is NOT-APPLICABLE, not MISSING.
 
-The frontmatter carries it mechanically too: `disallowed-tools: Edit, NotebookEdit` removes both
-editing tools from the pool while this skill is active, so "never edits a component" is a property of
-the tool set, not of model obedience. `Write` is kept — Phase D's persist needs it. The restriction
-clears on the human's next message (<https://code.claude.com/docs/en/skills>, frontmatter reference,
-fetched 2026-08-12): the audit cannot edit, the human who accepts a proposal can.
+**Instruction-held, not tool-enforced — never tell an operator this skill *cannot* edit their files.**
+`disallowed-tools: Edit, NotebookEdit` narrows the surface, nothing more: `Write` stays for Phase D's
+persist and Phase B has already read every audited component, so it can overwrite one; `Bash` stays
+for the state key, and a shell mutates files too. That closes the likeliest accidental path, not the
+capability — and a skill whose subject is auditing assurance must not overstate its own.
+(<https://code.claude.com/docs/en/skills>, frontmatter reference, fetched 2026-08-12; the restriction
+clears on the human's next message, so whoever accepts a proposal can apply it.)
 
 ## Scope boundary (route out)
 
@@ -57,8 +59,8 @@ sibling takes on its own single input (`audit-instructions/SKILL.md`, "Fail loud
 predicate actually matched points at one, not once per catalog row, since a row names its subpage
 statically whether or not anything in scope matches. A failed subpage fetch degrades only the
 postures citing it: mark those `wording-unverified`, carry the pointer instead of wording, never
-invent text. One page is fatal; the rest are local. Do not read "before judging anything" as a
-requirement to hold every page at once.
+invent text. One page is fatal; the rest are local. "Before judging anything" is not a requirement to
+hold every page at once.
 
 ## Phase B — Inventory and classify
 
@@ -73,10 +75,9 @@ upstream-ownership exclusions. The set, one entry per scope token above: skill b
 context/reference files a skill instructs the model to read), agent definition markdown, hook
 instruction text of both kinds, output-style markdown, CLAUDE.md / CLAUDE.local.md, `.claude/rules/`.
 Inheriting it by reference from a sibling that versions independently is how `output-styles` came to
-be inventoried here and unnameable by this skill's own filter. **The inventory bounds what may
-produce a finding, not what counts as evidence** — Phase C's mechanical-gate rule reads outside it to
-establish PRESENCE, which can only turn a MISSING into a PRESENT, never add a finding on a surface
-the filter excluded.
+be inventoried here and unnameable by this skill's own filter. **The inventory bounds what may produce
+a finding, not what counts as evidence** — Phase C's mechanical-gate rule reads outside it to establish
+PRESENCE, which can only turn a MISSING into a PRESENT, never add a finding on an excluded surface.
 
 For each component, classify its purpose from its own description and body — the classification
 vocabulary and its tie to each posture's predicate live in the catalog. A component can match several
@@ -93,11 +94,13 @@ absence on a component whose purpose clearly needs it becomes a finding. Three s
 - **Do not manufacture.** The predicate must match the component's actual purpose, not a
   conceivable use. When in doubt, NOT-APPLICABLE.
 - **Mechanical gates are presence evidence and do not live in the inventory.** P7 — and only P7 —
-  blesses a deny-by-default hook or script gate "without any prose", while Phase B inventories
+  blesses a deny-by-default hook **or script** gate "without any prose", while Phase B inventories
   instruction *text*, so those gates sit outside that set by construction. Before judging a
-  `destructive-capable` component MISSING on P7, look for the gate in the settings scopes Phase B
-  resolved (`permissions.deny` / `ask`) and in the hook config registering a PreToolUse matcher over
-  the destructive action; one found there is PRESENT, cited by file and rule.
+  `destructive-capable` component MISSING on P7, look in all three: settings scopes Phase B resolved
+  (`permissions.deny` / `ask`), hook config registering a PreToolUse matcher over the action, and
+  **the script the component delegates the action to** — follow the invocation and read it, since a
+  component whose destructive step runs through a script that performs the approval check is gated.
+  Any one of the three is PRESENT, cited by file and rule, or by script and line.
 - **Repo conventions win on wording.** The proposal adapts the guide's substance to the
   component's own voice and the repo's terseness conventions; it never pastes a guide block
   verbatim into a proposal without trimming to what the component needs.
@@ -119,8 +122,7 @@ unavailable, or the session cannot spawn subagents:
 3. **Add a verifier attestation line** to the report tail — components verified, verified inline,
    or skipped — alongside the existing coverage and Sources lines.
 
-Persist the report to
-`${CLAUDE_PLUGIN_DATA}/audit-prompting-postures/<state-key>/last-audit.md`.
+Persist the report to `${CLAUDE_PLUGIN_DATA}/audit-prompting-postures/<state-key>/last-audit.md`.
 
 **Derive `<state-key>` by running this:**
 
@@ -193,8 +195,8 @@ inline, or skipped.
 
 ## What this skill does NOT do
 
-- Never edits a component and never auto-applies a proposal — enforced by the frontmatter's
-  `disallowed-tools: Edit, NotebookEdit`, not by this sentence alone.
+- Never edits a component and never auto-applies a proposal — held by instruction, since
+  `disallowed-tools` narrows the surface but `Write` and `Bash` remain and both can mutate a file.
 - Never copies guide text into its own catalog — wording comes from the run's live fetch.
 - Does not judge existing text (that is `audit-instructions`), lint structure
   (`skill-quality:check`), or compress prose (`docs-hygiene:compress`).

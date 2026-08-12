@@ -407,6 +407,72 @@ assert_contains "a clean P3-only root is a clean bill" "$OUT" "No fragile permis
 assert_not_contains "a clean P3-only root is NOT a scan of nothing" "$OUT" "NOTHING TO AUDIT"
 assert_contains "coverage counts the plugin settings it parsed" "$OUT" "2 settings.json parsed"
 
+# 10bc: the completeness invariant. Every enumerated frontmatter candidate must
+# land in exactly one bucket, and the script reconciles the buckets against the
+# enumeration itself rather than trusting each `continue` site.
+D10BC="$TEST_TMPDIR/reconcile"
+mkdir -p "$D10BC/skills/a" "$D10BC/skills/b" "$D10BC/skills/c/vendor"
+printf -- '---\nname: a\nallowed-tools: Bash(npm test)\n---\nbody\n' >"$D10BC/skills/a/SKILL.md"
+printf -- '---\nname: b\n---\nbody\n' >"$D10BC/skills/b/SKILL.md"
+printf -- '---\nname: v\nallowed-tools: Bash(npm:*)\n---\nbody\n' >"$D10BC/skills/c/vendor/SKILL.md"
+OUT=$(run "$D10BC")
+assert_contains "coverage reconciles candidates against buckets" "$OUT" "reconciled: 3 candidate(s)"
+assert_contains "reconciliation names each bucket" "$OUT" \
+  "1 vendor-excluded + 0 unreadable + 1 without an allowed-tools block + 1 parsed"
+assert_not_contains "no candidate escaped a bucket" "$OUT" "DENOMINATOR BUG"
+
+# 10bd: NEGATIVE — the invariant must actually discriminate. Drop one bucket
+# increment from a copy of the script; the reconciliation must catch it. A check
+# that cannot fail is not a check, and "a real surface examined and counted
+# nowhere" has already produced two instances inside this one change.
+BROKEN="$TEST_TMPDIR/broken-check.sh"
+# shellcheck disable=SC2016  # single quotes are required: the $((...)) here is the
+# literal source text being matched in the script, not an expression to evaluate.
+sed 's/^    fm_no_block=$((fm_no_block + 1))$/    : # bucket increment deliberately removed/' \
+  "$SCRIPT" >"$BROKEN"
+if grep -q 'bucket increment deliberately removed' "$BROKEN"; then
+  # CLAUDE_PLUGIN_ROOT must be passed explicitly: the copy lives outside the
+  # plugin tree, so its BASH_SOURCE fallback would resolve the shared pattern
+  # library to a bogus path and exit 2 before ever reaching the reconciliation.
+  broken_out=$(env -u CLAUDE_CONFIG_DIR -u PERMISSION_HYGIENE_SCAN_ROOT HOME="$ISOLATED_HOME" \
+    CLAUDE_PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)" \
+    PERMISSION_HYGIENE_FIXTURE_DIR="$D10BC" bash "$BROKEN" 2>&1)
+  assert_contains "a candidate escaping every bucket is caught, not absorbed" "$broken_out" "DENOMINATOR BUG"
+  assert_contains "the bug report names it as a defect in the script" "$broken_out" \
+    "defect in permission-rule-check.sh"
+else
+  fail "negative reconciliation case could not be constructed" \
+    "the sed target no longer matches permission-rule-check.sh — the invariant is UNVERIFIED by this run"
+fi
+
+# 10be: a candidate `find` can enumerate but the process cannot read. `find`
+# needs only directory-traversal permission to report a file as -type f; it does
+# not need read permission on the file. Before the readability gate such a file
+# reached awk, failed there, wrote to the real stderr and was counted in NO
+# bucket — while the coverage block claimed to disclose unread inputs.
+D10BE="$TEST_TMPDIR/unreadable"
+mkdir -p "$D10BE"
+printf -- '---\nname: u\nallowed-tools: Bash(python*)\n---\nbody\n' >"$D10BE/SKILL.md"
+chmod 000 "$D10BE/SKILL.md" 2>/dev/null
+if [[ -r "$D10BE/SKILL.md" ]]; then
+  # ANNOUNCED, never silent: on Windows/Git Bash, and as root, mode 000 does not
+  # deny the owner a read, so the fixture cannot be built here. The invariant is
+  # still asserted; only the unreadable arm goes unexercised, and it runs on CI.
+  printf 'SKIP: unreadable-candidate arm not exercised — this platform still grants read after chmod 000 (owner/ACL/filesystem). Exercised on POSIX CI.\n' >&2
+  assert_contains "invariant still reconciles where the arm cannot be built" "$(run "$D10BE")" \
+    "reconciled: 1 candidate(s)"
+else
+  OUT=$(run "$D10BE")
+  assert_contains "an unreadable candidate is counted, not dropped" "$OUT" \
+    "1 frontmatter candidate(s) enumerated but unopenable"
+  assert_contains "the unreadable candidate reconciles into its bucket" "$OUT" \
+    "0 vendor-excluded + 1 unreadable + 0 without an allowed-tools block + 0 parsed"
+  assert_not_contains "an unreadable-only root is not a plain clean bill" "$OUT" \
+    "No fragile permission grants found."
+  assert_contains "an unreadable-only root names the blocked inputs" "$OUT" "COULD NOT BE READ"
+fi
+chmod u+rw "$D10BE/SKILL.md" 2>/dev/null
+
 # 10c: a settings file that is present but not valid JSON was skipped in silence,
 # so its rules were never read and the run still printed a clean bill. The skip
 # is now named — an unparsable rules file is exactly where a fragile grant would

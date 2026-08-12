@@ -25,7 +25,23 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   swallowed permission error was indistinguishable from a clean bill"); unreadable paths are now
   captured and counted. The `vendor/` exclusion moved out of the `find` predicate into the loop so
   the run can say how many files it removed — same predicate, same result set, but an exclusion
-  whose count is printed cannot suppress silently. (#2283, A5)
+  whose count is printed cannot suppress silently.
+
+  **The completeness guarantee is now structural rather than per-site.** Review found a third
+  instance of the same shape: `find` needs only directory-traversal permission to report a file as
+  `-type f`, so a frontmatter candidate that exists but cannot be *read* (mode 000, a restrictive
+  ACL, a mount that denies reads) was enumerated, failed inside `awk`, wrote its error to the real
+  stderr, and was counted in **no bucket at all** — while the coverage block promised to disclose
+  exactly that input. Two instances had already been caught the same way (the P3 axis, and this).
+  Asserting the invariant at each `continue` is what allowed three; it is now derived once. Every
+  enumerated candidate lands in exactly one of four buckets — vendor-excluded, unreadable, no
+  `allowed-tools` block, parsed — and `reconcile_frontmatter` checks the buckets sum to the
+  enumeration on every run, printing `DENOMINATOR BUG` and naming itself as the defect when they do
+  not. A negative test deletes a bucket increment from a copy of the script and asserts the check
+  fires, so the guarantee cannot rot into a check that can no longer fail. Extraction stderr now
+  joins the walk's rather than escaping to the terminal, and a run that audited nothing *and* failed
+  to open its own inputs says so in a distinct message rather than reporting an empty tree.
+  (#2283, A5)
 - **The one lever that scopes the scan is named for operators.** `$PERMISSION_HYGIENE_SCAN_ROOT` is
   now the sanctioned name and the documented remedy for the exit-2 refusal #2249 added.
   `$PERMISSION_HYGIENE_FIXTURE_DIR` keeps working as a back-compatible alias, and the new name wins
@@ -52,7 +68,11 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   - P7 blesses a deny-by-default hook or script gate as presence evidence while Phase B inventories
     instruction *text* — so the one evidence form P7 names was the one form Phase B could not see,
     on the posture whose false MISSING is most expensive. The inventory now bounds what may produce
-    a finding, not what counts as evidence, and Phase C looks for the gate before judging P7.
+    a finding, not what counts as evidence, and Phase C looks for the gate in all three places the
+    catalog blesses before judging P7: settings rules, hook configuration, and — added after review,
+    which found the procedure searching only the first two — **the script the component delegates
+    the destructive step to**, followed and read. A component whose destructive action runs through
+    a script performing the approval check is gated, and nothing in its own text announces it.
     `destructive-capable` is tightened from "can delete, reset, force-push" — which matches every
     component with a shell — to what the body has the model DO, per the classification section's own
     opening line. (CC-F3)
@@ -72,8 +92,14 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   - P8 carries the model condition the skill's own gotcha mandates. The section it points at scopes
     context awareness to Claude Sonnet 5, Sonnet 4.6, Sonnet 4.5 and Haiku 4.5 — re-fetched
     2026-08-12, a leg the issue explicitly marked unverified. (CC-F7)
-  - `disallowed-tools: Edit, NotebookEdit` makes "never edits a component" a property of the tool
-    set rather than of model obedience. `Write` stays, because the mandated persist needs it.
+  - `disallowed-tools: Edit, NotebookEdit` narrows the read-only contract's accident surface. **It
+    does not enforce the contract, and the skill now says so.** An earlier draft of this change
+    claimed the contract had become "a property of the tool set"; review caught that as false and it
+    never shipped. `Write` is retained for the mandated persist and `Bash` for the state key, and
+    either can mutate a component Phase B has already read — so the contract remains instruction-held
+    with a narrowed surface. A skill whose subject is auditing assurance must not make a false
+    assurance claim about itself; both this skill and `audit-instructions` carry the honest posture,
+    and both are explicit that an operator must never be told the skill *cannot* edit their files.
     (CC-F4)
   - `audit-instructions` routes back: its Scope boundary now names this skill as the additive lane.
     **The filed mechanism was wrong** — the issue says the token appears nowhere in the sibling, and

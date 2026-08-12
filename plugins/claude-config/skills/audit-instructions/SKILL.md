@@ -32,12 +32,14 @@ This skill is report-only. There is no `--fix`: instruction files are the operat
 every change is applied by the human (or explicitly delegated afterward), never by this skill.
 Diffs are proposed artifacts. A clean audit is a valid outcome.
 
-`disallowed-tools: Edit, NotebookEdit` in the frontmatter makes that mechanical rather than a matter
-of obedience; `Write` stays for the Phase D persist, and the restriction clears on the operator's
-next message (<https://code.claude.com/docs/en/skills>, frontmatter reference, fetched 2026-08-12) —
-so the audit cannot edit and the human who accepts a diff can. `audit-prompting-postures` carries the
-identical declaration, because the two state the same contract and drifting on it is the shape of
-defect this pair keeps producing.
+`disallowed-tools: Edit, NotebookEdit` narrows the surface; it does **not** make the contract
+mechanical. `Write` stays for the Phase D persist and `Bash` for the pre-scans, and either can mutate
+a file this skill has already read — so this is an instruction-held contract with a narrowed accident
+surface, not an enforced one. Never describe it to an operator as a guarantee. The restriction clears
+on their next message (<https://code.claude.com/docs/en/skills>, frontmatter reference, fetched
+2026-08-12), so whoever accepts a diff can apply it. `audit-prompting-postures` carries the identical
+declaration and the identical caveat, because the two state the same contract and drifting on it is
+the shape of defect this pair keeps producing.
 
 ## Scope boundary (route out)
 

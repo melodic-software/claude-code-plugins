@@ -207,9 +207,15 @@ findings=()
 # What the coverage block reports. Successes and non-successes are counted
 # separately on purpose: the point of the block is that a reader can tell a clean
 # bill from a scan that read nothing, or from one whose inputs it could not open.
+# The four frontmatter buckets are exhaustive and mutually exclusive by
+# construction, and `reconcile_frontmatter` asserts it: every enumerated
+# candidate is excluded, unreadable, block-free, or parsed. Nothing may fall
+# out of the walk without landing in one of them.
 fm_candidates=0        # frontmatter files the walk returned
-fm_excluded_vendor=0   # …of those, removed by the vendor/ exclusion
-fm_with_block=0        # …of the rest, carrying a non-empty allowed-tools block
+fm_excluded_vendor=0   # …removed by the vendor/ exclusion
+fm_unreadable=0        # …enumerated but not openable (or gone) — NOT audited
+fm_no_block=0          # …read fine, carried no allowed-tools block
+fm_with_block=0        # …read fine, carried a non-empty allowed-tools block
 allow_rules_read=0     # allow rules actually parsed, across all settings scopes
 scopes_read=0          # settings scopes successfully read
 unparsable_settings=0  # settings files present but not valid JSON — SKIPPED, not clean
@@ -318,18 +324,41 @@ extract_allowed_tools() {
 # invisible exclusion is indistinguishable from a tree that had nothing in it —
 # the same confusion the coverage block exists to remove. Same predicate, same
 # result set; only the accounting changed.
+#
+# EVERY path out of this loop increments exactly one bucket, and
+# `reconcile_frontmatter` below checks that the buckets sum to the enumeration.
+# The invariant is derived in one place rather than trusted at each `continue`,
+# because a per-site convention is what let two surfaces already be examined and
+# counted nowhere in this very change.
 while IFS= read -r file; do
-  [[ -f "$file" ]] || continue
+  [[ -n "$file" ]] || continue
   fm_candidates=$((fm_candidates + 1))
   case "$file" in
     */vendor/*)
       fm_excluded_vendor=$((fm_excluded_vendor + 1))
       continue
       ;;
-    *) ;; # not excluded — fall through to the allowed-tools parse below
+    *) ;; # not excluded — fall through to the readability gate below
   esac
-  at="$(extract_allowed_tools "$file")"
-  [[ -n "${at//[[:space:]]/}" ]] || continue
+  # `find` needs only directory-traversal permission to report a file as
+  # `-type f`; it does NOT need read permission on the file. So an existing but
+  # unreadable candidate (mode 000, a restrictive ACL, a mount that denies
+  # reads) is enumerated here, and before this gate it fell through to `awk`,
+  # which wrote its own error to the real stderr and returned nothing — leaving
+  # the file counted in no bucket at all while the coverage block promised to
+  # disclose exactly that input. `-f` is rechecked alongside `-r` so a candidate
+  # that vanished between the walk and this line lands here too, not nowhere.
+  if [[ ! -f "$file" || ! -r "$file" ]]; then
+    fm_unreadable=$((fm_unreadable + 1))
+    continue
+  fi
+  # Extraction stderr joins the walk's, so a parse-time failure on a readable
+  # file is disclosed rather than escaping to the caller's terminal.
+  at="$(extract_allowed_tools "$file" 2>>"$WALK_ERR")"
+  if [[ -z "${at//[[:space:]]/}" ]]; then
+    fm_no_block=$((fm_no_block + 1))
+    continue
+  fi
   fm_with_block=$((fm_with_block + 1))
   rel="${file#"$ROOT"/}"
   scan_rule "$at" "$rel allowed-tools"
@@ -446,6 +475,27 @@ walk_errors="$(awk 'NF{n++} END{print n+0}' "$WALK_ERR" 2>/dev/null)"
 # exact defect this block exists to remove, in a new spelling.
 audited=$((fm_with_block + allow_rules_read + plugin_settings_parsed))
 
+# Inputs the run could not read at all. These are NOT audited and are NOT clean
+# — they are the holes in the denominator, and they exist so that "0 findings"
+# can never be read as "0 problems" when the run could not open its own inputs.
+blocked=$((fm_unreadable + unparsable_settings + plugin_settings_unparsable + walk_errors))
+
+reconcile_frontmatter() {
+  # The completeness invariant, checked ONCE rather than trusted per `continue`.
+  # A candidate that lands in no bucket is a defect in THIS SCRIPT, and it is the
+  # defect class this whole change exists to remove — so it is reported as a bug
+  # in the tool, in the tool's own voice, not silently absorbed.
+  local sum=$((fm_excluded_vendor + fm_unreadable + fm_no_block + fm_with_block))
+  if [[ "$sum" -ne "$fm_candidates" ]]; then
+    printf '  DENOMINATOR BUG: %d candidate(s) enumerated but %d accounted for (vendor=%d unreadable=%d no-block=%d parsed=%d). A candidate escaped every bucket: this is a defect in permission-rule-check.sh, not a property of the scanned tree, and the coverage above is incomplete. Do not report this run as clean.\n' \
+      "$fm_candidates" "$sum" "$fm_excluded_vendor" "$fm_unreadable" "$fm_no_block" "$fm_with_block"
+    return 1
+  fi
+  printf '  reconciled: %d candidate(s) = %d vendor-excluded + %d unreadable + %d without an allowed-tools block + %d parsed\n' \
+    "$fm_candidates" "$fm_excluded_vendor" "$fm_unreadable" "$fm_no_block" "$fm_with_block"
+  return 0
+}
+
 coverage_block() {
   local s joined=""
   # Guarded: under `set -u` an empty array must not be expanded at all.
@@ -460,12 +510,13 @@ coverage_block() {
   printf '  root: %s (resolved from %s)\n' "$ROOT" "$ROOT_SOURCE"
   printf '  frontmatter: %d allowed-tools block(s) parsed from %d candidate file(s); %d excluded under a vendor/ path segment as non-loadable\n' \
     "$fm_with_block" "$fm_candidates" "$fm_excluded_vendor"
+  reconcile_frontmatter
   printf '  settings: %d allow rule(s) from %d scope(s) read — %s\n' \
     "$allow_rules_read" "$scopes_read" "$joined"
   printf '  plugins: %d manifest(s); %d settings.json parsed\n' \
     "$plugin_manifests" "$plugin_settings_parsed"
-  printf '  NOT read: %d path(s) the walk could not open; %d settings file(s) and %d plugin settings.json present but not valid JSON\n' \
-    "$walk_errors" "$unparsable_settings" "$plugin_settings_unparsable"
+  printf '  NOT read: %d frontmatter candidate(s) enumerated but unopenable; %d error line(s) from the walk/extraction; %d settings file(s) and %d plugin settings.json present but not valid JSON\n' \
+    "$fm_unreadable" "$walk_errors" "$unparsable_settings" "$plugin_settings_unparsable"
   printf '  never in scope here: managed-policy and enterprise settings, a --settings flag file, and the pre-v2.1.211 start-directory copy. Which scopes exist and what each holds is audit-permission-state, not this detector.\n'
   # Deliberately NOT phrased as "exemptions applied: none". This detector never
   # reads a consumer declaration, so a count of zero here is a statement about
@@ -489,7 +540,11 @@ if [[ "${#findings[@]}" -eq 0 ]]; then
     # NOT a clean bill. "No fragile permission grants found." and "there was
     # nothing here to find them in" were the same string; they are now different
     # strings, because only one of them is a statement about the grants.
-    echo "NOTHING TO AUDIT: 0 allowed-tools block(s), 0 allow rule(s) and 0 plugin settings.json were read under this root, so this run has no denominator on any of the three axes. That is a scan of nothing, not a clean bill — do not report it as one. See the coverage block below for what was and was not read."
+    if [[ "$blocked" -gt 0 ]]; then
+      printf 'NOTHING TO AUDIT, AND %d INPUT(S) COULD NOT BE READ: 0 allowed-tools block(s), 0 allow rule(s) and 0 plugin settings.json were audited, and the run failed to open or parse %d of its own inputs. This is neither a clean bill nor an empty tree — it is a scan whose inputs were unavailable. See the coverage block below.\n' "$blocked" "$blocked"
+    else
+      echo "NOTHING TO AUDIT: 0 allowed-tools block(s), 0 allow rule(s) and 0 plugin settings.json were read under this root, so this run has no denominator on any of the three axes. That is a scan of nothing, not a clean bill — do not report it as one. See the coverage block below for what was and was not read."
+    fi
   else
     echo "No fragile permission grants found."
   fi
