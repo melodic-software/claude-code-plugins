@@ -4,6 +4,13 @@ All notable changes to the `source-control` plugin are documented here. Format f
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
 <<<<<<< HEAD
+
+## [0.53.13]
+
+### Fixed
+
+- Exclude self-logins from automation human-stop gate.
+
 ## [0.53.11]
 
 ### Fixed
