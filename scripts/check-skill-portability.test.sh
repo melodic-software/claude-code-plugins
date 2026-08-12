@@ -204,6 +204,46 @@ else
 fi
 rm -f "$f"
 
+# --- container-nested block comments still count as comment lines (#1342) --
+# A `<!--` opener that is the first content of a Markdown list item or
+# blockquote is a dedicated comment line, so a portability-ok annotation
+# written in that style must set/carry pending_annot to the line it precedes.
+for prefix in '- ' '> ' '* ' '+ ' '1. ' '2) ' '> - '; do
+  f="$(tmpfile "${prefix}<!-- portability-ok: container-nested annotation -->
+The base branch is origin/main here.")"
+  if scan_paths "$f" >/dev/null 2>&1; then
+    ok "container-nested annotation comment (\`${prefix}<!--\`) carries to the next line"
+  else
+    fail "container-nested annotation comment (\`${prefix}<!--\`) should exempt the next line"
+  fi
+  rm -f "$f"
+done
+
+# --- a list-item CONTENT line with an inline comment is still not a comment --
+# line (#1342 must not reopen #611): the marker is followed by prose, not by
+# the `<!--` opener, so pending_annot must reset and line 3 must flag.
+f="$(tmpfile '<!-- portability-ok: covers only line 2 -->
+- diff against origin/main here <!-- inline note, not an annotation -->
+- diff against origin/main again, unannotated')"
+if out="$(scan_paths "$f" 2>&1)"; then
+  fail "list-item content line with inline comment must not carry annotation to line 3, got success: $out"
+elif echo "$out" | grep -q ":3:" && ! echo "$out" | grep -q ":2:"; then
+  ok "list-item content line with inline HTML comment does not extend pending_annot"
+else
+  fail "expected line 3 flagged and line 2 excused (annotated above), got: $out"
+fi
+rm -f "$f"
+
+# --- blockquote-nested whole-file portability-scope declaration passes ------
+f="$(tmpfile '> <!-- portability-scope: forge=github — inherent, declared boundary -->
+This skill diffs origin/main and pushes with origin/master.')"
+if scan_paths "$f" >/dev/null 2>&1; then
+  ok "blockquote-nested portability-scope declaration exempts the file"
+else
+  fail "blockquote-nested portability-scope declaration should exempt the file"
+fi
+rm -f "$f"
+
 # --- whole-file portability-scope declaration passes -----------------------
 f="$(tmpfile '<!-- portability-scope: forge=github — inherent, declared boundary -->
 This skill diffs origin/main and pushes with origin/master.')"
