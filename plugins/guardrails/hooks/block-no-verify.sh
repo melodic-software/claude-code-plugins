@@ -59,8 +59,7 @@ start=${EPOCHREALTIME:-}
 # call, and a silent skip would pass exactly the traffic this guard exists to
 # stop. buffer_stdin already printed the BLOCKED reason to stderr. Buffering
 # does not require jq (hook::buffer_stdin's own JSON-completeness check is
-# jq-optional), so it runs before the jq gate below — hook::require_jq needs
-# the buffered input for its once-per-session notice scoping.
+# jq-optional), so it runs before the jq gate below.
 INPUT=$(hook::buffer_stdin) || {
   rc=$?
   ((rc == 2)) && exit 2
