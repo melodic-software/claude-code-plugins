@@ -813,6 +813,8 @@ check_segment() {
         if abbrev_match "force-with-lease" "--${x#--no-}" 7; then
           lease_tracking=0
           lease_movable=0
+          lease_width_unknown=0
+          _lease_oid_width_unknown=0
           lease_seen=""
         fi
         # Consume the word here. Falling through would let
