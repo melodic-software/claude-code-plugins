@@ -4,6 +4,13 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.8.4]
+
+### Fixed
+
+- **Repaired GitHub Actions skills anchor in Fable 5 verification context (#2137).** The
+  `#using-skills` fragment no longer exists on the target page; updated to `#run-a-skill`.
+
 ## [0.8.3]
 
 ### Changed
