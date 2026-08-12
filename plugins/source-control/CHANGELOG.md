@@ -11,6 +11,12 @@ All notable changes to the `source-control` plugin are documented here. Format f
   did; the on-branch canonical path did not. Once dotfiles#375's amended auto-mode grant lands, `gh pr
   create` is covered only when the head branch is named — so the canonical lane must match the
   sibling spelling. Detached HEAD is refused rather than emitting `--head ""`.
+- **`babysit_resolve_thread` severity guard reads structured P0/P1 markers only (#1939).** The
+  `--autonomous` and `--independent-resolver` paths refused any thread whose body contained a
+  word-bounded `P1` token, so a P2 thread discussing P1 properties in prose became
+  `skipped-severity-marked`. The scan now keys on shields badges, bracketed `[P0]`/`[P1]`, and
+  explicit `P1:`/`P0:` declaration prefixes — not incidental prose mentions. Vetted
+  `--resolve --thread-id` still applies no severity screen — documented as intentional.
 
 ## [0.53.1]
 
