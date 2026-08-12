@@ -119,13 +119,13 @@ MEDIUM confidence — works on 5/10 generations. Worth trying, regenerate if mis
 
 ### Timing cues
 
-**Effect:** `[at 0:15 vocals enter]`-style cues are reported to nudge timing. **No magnitude is stated here** — the `~70%` adherence figure this entry carried through 1.1.1 had no recorded basis, and none could be found.
+**Effect:** `[at 0:15 vocals enter]`-style cues are reported to nudge timing. **No magnitude is stated here** — see the corpus below for why.
 
 **Use:** for atmospheric intros / outros, not load-bearing.
 
 LOW-MEDIUM confidence. Use structural tags (`[Intro]`, `[Outro]`) as primary control; timing cues as secondary nudge.
 
-**The technique is kept; the number is gone.** Searched 2026-08-12 for a basis and found none:
+**The technique is kept; the number is gone.** This entry carried a `~70%` adherence figure through 1.1.1. It had no recorded basis, and a 2026-08-12 search for one found nothing:
 
 - **In-repo:** `.work/` and `plugins/songwriting/` for `timing cue`, `at 0:15`, `adherence` — nothing states where the figure came from. First recorded at 1.1.1; re-run and still true.
 - **Official:** `help.suno.com` articles [5782977](https://help.suno.com/en/articles/5782977) (805 chars) and [5782849](https://help.suno.com/en/articles/5782849) (1,177 chars), read verbatim; both bodies arrived whole, and neither mentions timestamp cues in the Lyrics box or any adherence rate. That absence is scoped to those two pages, not to Suno's documentation as a whole.
