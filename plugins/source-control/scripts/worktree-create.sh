@@ -257,6 +257,14 @@ if [[ "$root" == *\\* && ("$OSTYPE" == msys || "$OSTYPE" == cygwin) ]]; then
   root="${root//"$bslash"/"$fwd"}"
 fi
 
+# Reject drive-relative roots (`C:foo` with no separator after the colon). Git for
+# Windows resolves them against the drive's per-directory CWD, which bypasses the
+# containment ancestor walk (#962).
+if [[ "$root" =~ ^[A-Za-z]:[^/] ]]; then
+  printf '%s: --root %q is drive-relative; pass an absolute path (e.g. C:/worktrees)\n' "$PROG" "$root" >&2
+  exit 2
+fi
+
 # Resolve the source repository top level.
 if ! toplevel=$(git -C "$repo_dir" rev-parse --show-toplevel 2>/dev/null); then
   # Remedy first: this line is surfaced verbatim to a user whose worktree
@@ -467,7 +475,9 @@ worktree_path="${root%/}/${dirname}"
 # top level, so a relative root (e.g. `worktrees`) always lands inside the repo.
 # Anchor it to $toplevel up front so the containment check below sees the real
 # target rather than an unrooted string whose ancestor walk never reaches the repo.
-[[ "$worktree_path" != /* && "$worktree_path" != ?:* ]] && worktree_path="$toplevel/$worktree_path"
+# A drive-letter path counts as absolute only when the colon is followed by a
+# separator (`C:/foo`); `C:foo` is drive-relative and is refused above (#962).
+[[ "$worktree_path" != /* && ! "$worktree_path" =~ ^[A-Za-z]:/ ]] && worktree_path="$toplevel/$worktree_path"
 
 # Collapse `.`/`..` before the containment walk. A root with `..` after a
 # nonexistent component (e.g. `<root>/missing/../<repo>/.claude/worktrees`) would
