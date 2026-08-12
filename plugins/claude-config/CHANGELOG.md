@@ -15,6 +15,13 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   agents/commands locations) and reports how many candidates it excluded as non-loadable. Installed
   versus orphaned plugin-cache copies still need an `installed_plugins.json` oracle and remain out of
   scope.
+- **`fix-plugin-drift.sh` uses the portable `mktemp` form (#1709).** The two `mktemp -t
+  <name>-XXXXXX.json` scratch files move to the positional absolute template with trailing Xs
+  (`mktemp "${TMPDIR:-/tmp}/<name>-XXXXXX"`), the one form GNU and BSD accept identically —
+  verified by execution on both (GNU coreutils 9.4 and macOS 26.5). GNU marks `-t` deprecated,
+  BSD `-t` treats the argument as a prefix rather than a template, and BSD substitutes only
+  trailing Xs, so a template carrying a `.json` suffix is created verbatim on macOS with no
+  randomness at all.
 
 ## [0.37.1]
 
