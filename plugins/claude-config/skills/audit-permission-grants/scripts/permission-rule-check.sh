@@ -151,7 +151,17 @@ _sl='/'
 _bs='\'
 _seg="[^${_sl}${_bs}*<>\${}~ ]"
 _p2_path="${_sl}Users${_sl}${_seg}|${_sl}home${_sl}${_seg}|[A-Za-z]:[${_sl}${_bs}]Users[${_sl}${_bs}]${_seg}"
-P2_RULE_ERE="(Read|Edit|Write|Bash|PowerShell)\\([^)]*(${_p2_path})[^)]*\\)"
+# Capture the WHOLE `Tool(...)` spec so a finding reports the offending rule rather
+# than an eight-character path fragment — the intent already stated for P1 above.
+#
+# The tool name is the OPEN grammar, not an enumerated list. `(Read|Edit|Write|Bash
+# |PowerShell)` would silently stop flagging a hardcoded path in a `WebFetch(...)`,
+# `Glob(...)`, `NotebookEdit(...)`, `mcp__server__tool(...)` or `Agent(...)` rule —
+# and this file has a dedicated `scan_agent()`, so `Agent` is unambiguously in
+# scope. Narrowing an `error`-tier check's reach is not a reporting-format change.
+# The leading `[A-Za-z_][A-Za-z0-9_]*` is `CCPERM_TOOL_TOKEN_ERE`'s own tool-name
+# grammar, kept consistent with the library #2260 extracted.
+P2_RULE_ERE="[A-Za-z_][A-Za-z0-9_]*\\([^)]*(${_p2_path})[^)]*\\)"
 
 findings=()
 
@@ -168,8 +178,12 @@ scan_rule() {
   done < <(printf '%s\n' "$text" | grep -oE "$P1_ERE" 2>/dev/null | sort -u)
   while IFS= read -r m; do
     [[ -z "$m" ]] && continue
-    # `//…` is a portable root anchor (criteria.md); only concrete `/Users/…` paths flag.
-    [[ "$m" == *"(//"* ]] && continue
+    # No `//…` carve-out. `//` is the ABSOLUTE anchor, not a portable one: the
+    # permissions page's own row is `//path` = "Absolute path from filesystem
+    # root", with `Read(//Users/alice/secrets/**)` -> `/Users/alice/secrets/**`.
+    # So `//Users/<name>/…` names a concrete user home and leaks the username,
+    # exactly like `/Users/<name>/…`. `~/…` and `${CLAUDE_PROJECT_DIR}/…` are the
+    # genuinely portable forms and are already excluded by `_seg` above.
     emit error P2 "$src" "hardcoded machine path in '$m' — the rule names a concrete user home, so it breaks on other machines and usernames and leaks a username into source control. Portable forms: \${CLAUDE_SKILL_DIR} for a skill's own bundled script (substituted in allowed-tools Bash rules), a bare-name command on PATH, or the ~/ home anchor for Read/Edit rules."
   done < <(printf '%s\n' "$text" | grep -oE "$P2_RULE_ERE" 2>/dev/null | sort -u)
 }
