@@ -209,11 +209,18 @@ if [[ -z "$capture" ]]; then
   cat >&2 <<'EOF'
 ORACLE COST NOTICE — nothing has been spawned yet.
   --oracle starts a real `claude -p` session on this machine to capture the
-  harness's own drop narration. That costs API tokens, and the session leaves
-  state behind like any -p session: a transcript and project entry under your
-  Claude config directory (~/.claude by default) and updated internal state
-  files there. It does NOT modify any settings file. The debug capture itself
-  goes to a scratch path, never to ~/.claude/debug/.
+  harness's own drop narration. That costs API tokens, and the session writes
+  outside the scratch capture path. Measured on 2.1.225 / Windows 11 by
+  checksumming before and after a probe run:
+    - Your settings files are NOT modified: ~/.claude/settings.json and
+      ~/.claude/settings.local.json were byte-identical afterwards.
+    - ~/.claude.json IS rewritten. It is the harness's own state file, not a
+      settings file, and it carries no permission rules -- but it does change.
+    - New files appear under your config directory: a project entry for the
+      session's working directory, a session-env entry, per-session security
+      and subagent state, and a backup entry.
+  The debug capture itself goes to a scratch path, never to ~/.claude/debug/.
+  Run it from a directory you do not mind appearing in your project list.
 EOF
   if ! command -v claude >/dev/null 2>&1; then
     echo "oracle UNAVAILABLE: 'claude' is not on PATH — the prediction above stands, uncorroborated."

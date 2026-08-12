@@ -5,6 +5,14 @@
 # use a fixture capture (ENTRY_DIFF_ORACLE_CAPTURE) or a recording stub claude
 # on PATH — no case ever spawns a real session, and no test reads the
 # operator's real ~/.claude.
+#
+# portability-scope: the oracle fixture reproduces Claude Code's own [DEBUG]
+# narration byte for byte, and that narration prints Windows settings paths in
+# native form (C:\Users\...\.claude\settings.json — see the recorded capture in
+# the permission-model research corpus). The backslash runs the gate reads as
+# regex escapes are those paths inside heredoc DATA, not shell code. Rewriting
+# them to POSIX form would make the fixture stop matching what the parser must
+# survive on the plugin's primary platform, which is the whole point of the case.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -55,7 +63,7 @@ diff_only() { printf '%s\n' "$1" | bash "$SCRIPT" --diff-only; }
 # like Bash(npm test) carry over."
 FOUR_CLASSES=$(
   cat <<'EOF'
-user settings present /home/.claude/settings.json
+user settings present /fx/home/.claude/settings.json
 effective allow scopes=user precedence_basis=uncontested Bash(*)
 effective allow scopes=user precedence_basis=uncontested Bash(python3 *)
 effective allow scopes=user precedence_basis=uncontested Bash(npx *)
@@ -76,7 +84,7 @@ assert_contains "the summary reconciles" "$OUT" "entry-diff summary allow_before
 # categorically, unlike Bash where narrow rules survive.
 SCOPED_AGENT=$(
   cat <<'EOF'
-user settings present /home/.claude/settings.json
+user settings present /fx/home/.claude/settings.json
 effective allow scopes=user precedence_basis=uncontested Agent(model:haiku)
 EOF
 )
@@ -87,7 +95,7 @@ assert_contains "a scoped Agent allow rule is dropped like a bare one" "$OUT" "e
 # entry diff must not touch them.
 DENY_ASK=$(
   cat <<'EOF'
-user settings present /home/.claude/settings.json
+user settings present /fx/home/.claude/settings.json
 effective deny scopes=user precedence_basis=uncontested Bash(*)
 effective ask scopes=user precedence_basis=uncontested Agent
 EOF
@@ -100,7 +108,7 @@ assert_contains "the summary shows an empty allow set, not a missing one" "$OUT"
 # "suspend[s] every Bash and PowerShell allow rule while auto mode is active."
 CAS_ON=$(
   cat <<'EOF'
-user settings present /home/.claude/settings.json
+user settings present /fx/home/.claude/settings.json
 conf user settings classifyAllShell true
 effective allow scopes=user precedence_basis=uncontested Bash(git status)
 effective allow scopes=user precedence_basis=uncontested PowerShell(Get-ChildItem *)
@@ -119,7 +127,7 @@ assert_contains "the inversion is announced with its version gate" "$OUT" "v2.1.
 CAS_MANAGED=$(
   cat <<'EOF'
 managed file present /policy/managed-settings.json
-user settings present /home/.claude/settings.json
+user settings present /fx/home/.claude/settings.json
 conf managed file classifyAllShell false
 conf user settings classifyAllShell true
 effective allow scopes=user precedence_basis=uncontested Bash(git status)
@@ -145,7 +153,7 @@ assert_contains "the ignored scope is named, not silently honored" "$OUT" "scope
 # A string "true" is not the documented boolean and must not activate.
 CAS_STRING=$(
   cat <<'EOF'
-user settings present /home/.claude/settings.json
+user settings present /fx/home/.claude/settings.json
 conf user settings classifyAllShell "true"
 effective allow scopes=user precedence_basis=uncontested Bash(git status)
 EOF
@@ -157,7 +165,7 @@ assert_contains "the type mismatch is called out" "$OUT" "not the documented boo
 # --- Case 3: pass-through default, --diff-only suppression --------------------
 PASS_IN=$(
   cat <<'EOF'
-user settings present /home/.claude/settings.json
+user settings present /fx/home/.claude/settings.json
 NOTE: something the operator must know
 effective allow scopes=user precedence_basis=uncontested Bash(git status)
 EOF
@@ -260,7 +268,7 @@ cat >"$CAPTURE_FROM" <<'EOF'
 EOF
 FROM_IN=$(
   cat <<'EOF'
-user settings present /home/.claude/settings.json
+user settings present /fx/home/.claude/settings.json
 effective allow scopes=user precedence_basis=uncontested Bash(python3 import from x *)
 EOF
 )

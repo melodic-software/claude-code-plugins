@@ -155,7 +155,61 @@ Consequences carried into the plan:
   scope that was empty from one that could not be read, and is not scriptable. The skill's framing is
   narrowed to that difference rather than claiming there is no way to see rules at all.
 
+## Addendum — 2026-08-11, the two unstated constants and criterion 6's fourth item
+
+Probed before Phase 4, per the execution brief. Channel: the raw-markdown endpoints
+(`https://code.claude.com/docs/en/<page>.md`), fetched 2026-08-11 and grepped verbatim — not
+WebFetch summaries. Copies in the session scratchpad. Both "Not stated" items above are
+**superseded**: the pages now state them.
+
+| Fact | Source | Wording |
+|---|---|---|
+| The `v2.1.142` gate **is** documented | permission-modes §If auto mode is on but the session starts in default mode; settings §Available settings (`defaultMode` row) | "Claude Code v2.1.142 and later ignore `auto` from those files so a repository cannot grant itself auto mode." / "`auto` is ignored when set in project or local settings… Before v2.1.142, project settings could set `auto`." |
+| `useAutoModeDuringPlan` scope restriction **is** documented | settings §Available settings | "**Default**: `true`. Whether plan mode uses auto mode semantics when auto mode is available. **Not read from shared project settings.**" |
+| Parameter-form rules on a primary content field | permissions §Match by input parameter | "You can't match a tool's primary content field this way: `command` for Bash and PowerShell, `file_path` for Read, Edit, and Write, `path` for Grep and Glob, `notebook_path` for NotebookEdit, and `url` for WebFetch. A rule like `Bash(command:rm *)` would be bypassable by a compound command, so Claude Code ignores it and emits a startup warning." |
+| Path rules on uncovered file tools | permissions §Read and Edit | "Claude Code checks file permissions against `Edit(path)` and `Read(path)` rules only. If you write a path rule for `Write`, `NotebookEdit`, `Glob`, or the legacy `MultiEdit` tool instead, Claude Code accepts the rule but never consults it, and warns at startup, except for a `Glob` rule passed in `--allowedTools`… Claude Code doesn't warn about a tool-name rule with no path, such as a deny rule for `Write`; it matches that rule at the tool level everywhere. Requires Claude Code v2.1.210 or later." |
+| Windows rule paths are POSIX-form | permissions §Read and Edit | "On Windows, paths are normalized to POSIX form before matching. `C:\Users\alice` becomes `/c/Users/alice`, so use `//c/**/.env` to match `.env` files anywhere on that drive." |
+| Single leading slash is not absolute | permissions §Read and Edit | "A pattern like `/Users/alice/file` isn't an absolute path. The single leading slash anchors at the settings source, not the filesystem root." |
+| `disableAutoMode` lives at **two** key paths | settings §Available settings + §Permission settings | Top-level `disableAutoMode` and `permissions.disableAutoMode` — "Also accepted under `permissions` as `permissions.disableAutoMode`" — a scan of only one key path misses half the surface |
+
+Consequences:
+
+- **Criterion 2 ships whole and uncaveated.** The `defaultMode: "auto"` gate carries `v2.1.142`,
+  cited. The `useAutoModeDuringPlan` item fires on **shared project settings only** — the page's
+  restriction names exactly that scope, so a local-settings occurrence is not claimed dead.
+- **Criterion 6's fourth item is re-derived into two separately-cited checks**: the parameter-form
+  content-field rule (`Write(file_path:…)`, `Bash(command:…)` — ignored, startup warning) and the
+  path-shaped rule on an uncovered file tool (`Write(docs/**)` — accepted but never consulted,
+  startup warning v2.1.210+, `Glob` via `--allowedTools` excepted). A **bare tool-name rule with no
+  path is legitimate at the tool level** and must never be flagged by either check.
+- **Criterion 5's check reads both key paths**, top-level and under `permissions`.
+- The startup warning exists upstream at session start; the lint's added value is a pre-session,
+  scriptable read over every scope at once — stated in the criteria file rather than implying the
+  harness is silent.
+
+## Addendum — 2026-08-12, what the oracle probe actually costs (measured, not inferred)
+
+Phase 3's plan required this before the `--oracle` flag shipped: a `-p` session's writes outside its
+scratch path had never been measured, only guessed at. Measured on **Claude Code 2.1.225, Windows
+11**, by checksumming the settings files and taking a file-mtime census of `~/.claude` either side of
+one `claude --debug-file <scratch> -p` run from a scratch working directory.
+
+| Question | Measured answer |
+|---|---|
+| Are settings files modified? | **No.** `~/.claude/settings.json` and `~/.claude/settings.local.json` were byte-identical afterwards. Criterion 9 holds. |
+| Is anything under the config root rewritten? | **Yes — `~/.claude.json` changes.** It is the harness's own state file, not a settings file, and it carries no `permissions` key. The earlier notice's flat "does not modify any settings file" was true but incomplete; the flag now states this. |
+| What new files appear? | A `projects/` entry for the session's working directory, a `session-env/` entry, per-session `security/` and `subagents/` state, a `backups/` entry. The probe's own working directory became a project-list entry — hence the notice's advice to run it from a directory you do not mind appearing there. |
+| Does a plain `-p` session emit drop lines at all? | **Yes.** 216 `Ignoring dangerous permission … (bypasses classifier)` lines and 6 `Applying permission update` lines, with **no mode flag passed**. The differential capture the plan held in reserve was not needed. |
+
+Both of the phase's open questions are closed by this run. A third fact fell out of it: an isolated
+probe with `CLAUDE_CONFIG_DIR` pointed at a scratch directory **cannot authenticate** — it exits with
+`Not logged in · Please run /login`, because credentials live in the real config root. Copying
+credentials into a scratch root to work around that was rejected rather than attempted. So a probe of
+this shape necessarily touches the operator's real config directory, which is precisely why the cost
+notice must enumerate what it leaves behind rather than implying isolation it cannot have.
+
 ## Version constants cleared for use
 
 `v2.1.75`, `v2.1.193`, `v2.1.198`, `v2.1.200`, `v2.1.203`, `v2.1.207`, `v2.1.208`, `v2.1.211`,
-`v2.1.212` — each appears verbatim on a page fetched above. **`v2.1.142` is not cleared.**
+`v2.1.212` — each appears verbatim on a page fetched above. `v2.1.142` and `v2.1.210` were cleared
+by the 2026-08-11 addendum.

@@ -495,7 +495,41 @@ Acceptance criterion 1.
 exactly one winner and that `grep -c 'precedence_basis'` equals the merged-rule count (no rule
 without a basis).
 
-### Phase 3: Auto-mode drop classification and entry diff [TODO]
+### Phase 3: Auto-mode drop classification and entry diff [DONE]
+
+**Completed 2026-08-12.** `automode-entry-diff.test.sh` 49/49, `shellcheck -x` clean, every sibling
+suite still green (`permission-state` 42/42, `permission-merge` 49/49, `managed-scope` 16/16).
+`scripts/automode-entry-diff.sh` classifies every effective allow rule; `SKILL.md` gained the Phase 3
+stage and the two new flags; `reference/criteria.md` gained the entry-diff section.
+
+**Both of the phase's open questions were measured, not inferred** — recorded as the 2026-08-12
+addendum in `phase0-fresh-docs.md`:
+
+- **What a `-p` oracle session writes outside its scratch path.** Settings files are byte-identical
+  afterwards, so criterion 9 holds. But `~/.claude.json` **is** rewritten, and project, session-env,
+  security, subagent and backup state appear under the config root. The cost notice as first written
+  said only "does NOT modify any settings file" — true, and incomplete in a way that mattered. It now
+  enumerates the measured writes.
+- **What governs whether a `-p` probe session is in auto mode.** Moot: a plain `-p` run with no mode
+  flag emitted 216 drop lines. The differential capture held in reserve was never needed.
+- **A third fact fell out of the probe:** an isolated run with `CLAUDE_CONFIG_DIR` pointed at scratch
+  **cannot authenticate** (`Not logged in`), because credentials live in the real config root.
+  Copying credentials into a scratch root was rejected rather than attempted, so a probe of this shape
+  necessarily touches the operator's real config directory — which is exactly why the notice must
+  enumerate rather than imply isolation.
+
+**Deviations recorded rather than silent:**
+
+- **The oracle's rule-text parse was wrong on rules containing the word `from`.** The comment claimed
+  the rule text ran to the LAST ` from `, but the `sed` was leftmost-matching and truncated at the
+  first, so `Bash(python3 import from x *)` parsed as `Bash(python3 import`. Fixed by anchoring a
+  greedy prefix (`s/^\(.*\) from [^ ].*$/\1/`); the regression case that caught it ships.
+- **`permission-state.sh` gained a `conf` record type** for `autoMode.classifyAllShell`, emitted as
+  JSON so a boolean `true` and the string `"true"` stay distinguishable. `permission-merge.sh` passes
+  `conf` records through untouched — they are configuration inventory, not rules.
+- **`lib/permission-patterns.sh` now exposes its four alternatives individually** as well as the
+  union, so a driver that must NAME the class tests them one at a time. The union is composed from
+  them, never written twice.
 
 Acceptance criterion 3, plus brainstorm candidate 4.
 

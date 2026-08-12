@@ -1,11 +1,11 @@
 ---
-description: "Report the Claude Code permission state actually in effect — discovers every settings scope (managed policy, user-global, project, local, and the pre-v2.1.211 start-directory copy) and inventories each one's allow/ask/deny rules with its source named. Use when: 'what permissions are actually in effect', 'which settings file is my rule coming from', 'why is my allow rule ignored', 'show me my effective permissions', 'is my managed policy being read', 'what scopes did you check', or before changing a permission rule you cannot locate. Report-only — never writes any settings file."
-argument-hint: "[--scopes] — surface records only, no rule inventory"
+description: "Report the Claude Code permission state actually in effect — discovers every settings scope (managed policy, user-global, project, local, and the pre-v2.1.211 start-directory copy), merges them into the effective allow/ask/deny set with each rule's source and precedence mechanic named, and classifies which allow rules auto mode drops on entry. Use when: 'what permissions are actually in effect', 'which settings file is my rule coming from', 'why is my allow rule ignored', 'show me my effective permissions', 'what does auto mode drop', 'which of my rules survive auto mode', 'is my managed policy being read', 'what scopes did you check', or before changing a permission rule you cannot locate. Report-only — never writes any settings file."
+argument-hint: "[--scopes] surfaces only | [--entry-diff] what auto mode drops"
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: anytime
-  summary: Report which permission scopes exist and what rules each one holds
+  summary: Report the permission rules actually in effect and what auto mode drops
 ---
 
 ## Purpose
@@ -40,7 +40,11 @@ Parse `$ARGUMENTS`:
 
 - `--scopes` — surface records only, no rule inventory. Use when the question is "which scopes exist
   and which could you read", not "what is in them".
-- (no argument) — surfaces plus one record per allow/ask/deny rule.
+- `--entry-diff` — run the full pipeline through to the auto-mode entry diff (Phase 3 below).
+- `--oracle` — with `--entry-diff`, cross-check the prediction against the harness's own drop
+  narration. **Spawns a real `claude -p` session**; never fires without this flag. See its cost
+  notice, which the run prints before anything is spawned.
+- (no argument) — surfaces plus one record per allow/ask/deny rule, then the merge.
 
 ## Phase 1: Discover and inventory
 
@@ -102,6 +106,40 @@ Two mechanics decide those records, and conflating them produces confident wrong
 states the two standing bounds the run prints — the command-line scope has no file to read, and rules
 are compared by exact text, so a narrow allow blocked only by a broader deny **pattern** is still
 reported effective. The error direction is over-reporting allow.
+
+## Phase 3: What entering auto mode drops
+
+Auto mode became the default permission mode for new sessions on 2026-08-14, and on entry it
+**silently drops** broad allow rules. This stage says which of yours survive:
+
+```shell
+bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-permission-state/scripts/permission-state.sh" |
+  bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-permission-state/scripts/permission-merge.sh" |
+  bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-permission-state/scripts/automode-entry-diff.sh"
+```
+
+```text
+DIFF-NOTE: <text>                                     classifyAllShell state, bounds
+entry-diff dropped class=<class> scopes=<a,b> <rule>  dropped on entry
+entry-diff suspended reason=classifyAllShell ...      suspended while auto mode is active
+entry-diff kept scopes=<a,b> <rule>                   carries over
+entry-diff summary allow_before=<n> dropped=<n> suspended=<n> kept=<n>
+```
+
+- **Only allow rules change on entry.** Deny and ask are evaluated before the classifier in every
+  mode, so they are not part of this diff — do not report them as "surviving".
+- **`class` names the documented reason**: `blanket`, `interpreter-wildcard`, `package-manager-run`,
+  or `agent`. The classes come from `lib/permission-patterns.sh`, the same vocabulary
+  `audit-permission-grants` check P1 scans with — one definition, two consumers.
+- **`autoMode.classifyAllShell` inverts the answer wholesale.** When true it suspends *every* Bash and
+  PowerShell allow rule, so narrow rules do **not** carry over. The classifier reads `autoMode` from
+  user settings, managed settings, and inline `--settings`/SDK JSON only, so a project- or
+  local-scope `classifyAllShell` changes nothing and the run says so rather than silently obeying it.
+- **`--oracle` is opt-in and priced.** It spawns a real `claude -p` session to capture the harness's
+  own drop narration. Measured cost: it does not touch your settings files, but it does rewrite
+  `~/.claude.json` and add project, session-env, security and subagent state under your config
+  directory. The prediction is the read path; the oracle only corroborates it, and a capture that
+  yields nothing is reported as **unavailable**, never as an empty drop set.
 
 ## Reading the output honestly
 

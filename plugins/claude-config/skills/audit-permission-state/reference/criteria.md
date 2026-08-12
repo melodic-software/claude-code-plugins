@@ -95,6 +95,33 @@ Neither is a limitation to apologise for; both change what a finding means.
   each raise a caveat naming the surface. `absent` and `not-applicable` raise none — the reader looked
   and there was nothing, which is a complete answer.
 
+## The auto-mode entry diff
+
+> "On entering auto mode, broad allow rules that grant arbitrary code execution are dropped: Blanket
+> `Bash(*)` or `PowerShell(*)`; Wildcarded interpreters like `Bash(python*)`; Package-manager run
+> commands; `Agent` allow rules… Narrow rules like `Bash(npm test)` carry over. Dropped rules are
+> restored when you leave auto mode."
+
+Four documented classes, and every dropped rule is reported as exactly one of them: `blanket`,
+`interpreter-wildcard`, `package-manager-run`, `agent`. The patterns are not defined here — they live
+in `lib/permission-patterns.sh`, shared with `audit-permission-grants` check P1, so a class change
+lands once.
+
+- **Only allow rules are in scope.** Deny and ask are evaluated before the classifier in every mode.
+- **`autoMode.classifyAllShell` (v2.1.193+) inverts the carry-over answer.** When true it "suspend[s]
+  every Bash and PowerShell allow rule while auto mode is active", so a narrow `Bash(npm test)` does
+  **not** carry over. A diff that cannot see this key can be exactly wrong, which is why the reader
+  inventories it as a `conf` record.
+- **The key is resolved only from scopes the classifier reads** — user settings, managed settings, and
+  inline `--settings`/SDK JSON. "The classifier doesn't read `autoMode` from project settings in
+  `.claude/settings.json` or `.claude/settings.local.json`." A project- or local-scope occurrence is
+  reported as having no effect, never obeyed.
+- **The oracle is corroboration, not the read path.** `--oracle` spawns a real session to capture the
+  harness's own `Ignoring dangerous permission … (bypasses classifier)` narration. Those are
+  undocumented `[DEBUG]` strings with no stability contract, so a capture that yields nothing is
+  **unavailable** and the prediction stands — an empty capture is never an empty drop set. Its
+  measured cost is stated at the flag rather than discovered afterwards.
+
 ## Managed policy, and what it does not buy
 
 > "no other level, including command line arguments, can override a managed permission rule."

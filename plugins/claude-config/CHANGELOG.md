@@ -48,7 +48,18 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   allow rule ignored". A rule that is a bare tool name reaches every call of that tool: a whole-tool
   deny removes the tool from context entirely, so every other rule naming it is inert — including
   other denies, which are moot rather than weakened — and a whole-tool ask prompts for every call, so
-  no scoped allow for that tool applies. `EndConversation` is exempt from removal, as documented. Every run states the two bounds on the claim: the command-line scope
+  no scoped allow for that tool applies. `EndConversation` is exempt from removal, as documented.
+  A third pass answers what entering auto mode does to that set — which became urgent when auto mode
+  turned on by default for new sessions. Every effective allow rule is classified as dropped (with the
+  documented reason named: blanket, wildcarded interpreter, package-manager run, or `Agent`) or as
+  carried over, using the same shared pattern vocabulary `audit-permission-grants` check P1 scans
+  with. `autoMode.classifyAllShell` is read too, because when it is on it suspends every Bash and
+  PowerShell allow rule and a diff blind to it can be exactly wrong — and it is resolved only from the
+  scopes the classifier actually reads, so a project-scope copy is reported inert rather than obeyed.
+  An opt-in `--oracle` flag corroborates the prediction against the harness's own drop narration by
+  spawning a real `claude -p` session; it never fires without the flag, prints what it will leave
+  behind before spawning anything, and reports an empty capture as unavailable rather than as an
+  empty drop set. Every run states the two bounds on the claim: the command-line scope
   (`--settings`, `--allowedTools`, `--disallowedTools`) outranks the files and has none to read, and
   rules are compared by exact text, so a narrow allow blocked only by a broader deny pattern is still
   reported effective — the error direction is over-reporting allow, never over-reporting blocking.
