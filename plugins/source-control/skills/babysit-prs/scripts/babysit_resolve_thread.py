@@ -165,8 +165,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any, cast
 
 from babysit_classify import (
@@ -185,6 +188,31 @@ from babysit_gh import (
     resolve_authors,
 )
 from babysit_util import configure_stdio, dig, is_json_object
+
+
+def resolve_thread_audit_log_path() -> Path:
+    """Append-only audit trail for guarded wrapper resolutions (#2139)."""
+    override = os.environ.get("SOURCE_CONTROL_RESOLVE_THREAD_AUDIT_LOG")
+    if override:
+        return Path(override).expanduser()
+    plugin_data = os.environ.get("CLAUDE_PLUGIN_DATA")
+    if plugin_data:
+        return Path(plugin_data) / "source-control" / "resolve-thread-audit.jsonl"
+    home = os.environ.get("HOME")
+    if home:
+        return Path(home) / ".claude" / "source-control" / "resolve-thread-audit.jsonl"
+    return Path("/tmp/resolve-thread-audit.jsonl")
+
+
+def append_resolve_thread_audit(record: dict[str, object]) -> None:
+    path = resolve_thread_audit_log_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    stamped = {
+        "recorded_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+        **record,
+    }
+    with path.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(stamped, separators=(",", ":"), sort_keys=True) + "\n")
 
 
 # Deterministic proxies for "a security or P1 thread" — deliberately NARROWER
@@ -1193,6 +1221,27 @@ def main() -> int:
             entry["action"] = "resolved" if ok else "resolve-failed"
             if err:
                 entry["error"] = err
+            if ok:
+                append_resolve_thread_audit(
+                    {
+                        "route": "source-control-babysit-resolve-thread",
+                        "pr": f"{repo}#{number}",
+                        "thread_id": thread["id"],
+                        "path": thread.get("path"),
+                        "mode": (
+                            "autonomous"
+                            if args.autonomous
+                            else "independent-resolver"
+                            if args.independent_resolver
+                            else "explicit"
+                        ),
+                        "disposition": args.disposition,
+                        "expected_comment_count": args.expected_comment_count,
+                        "expected_last_updated": args.expected_last_updated,
+                        "is_outdated": thread.get("isOutdated"),
+                        "severity_flagged": thread.get("severityFlagged"),
+                    }
+                )
         results.append(entry)
 
     resolved_count = len([r for r in results if r["action"] == "resolved"])

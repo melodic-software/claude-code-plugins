@@ -3,6 +3,16 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.53.9]
+
+### Added
+
+- **Guarded resolve-thread wrapper now appends an audit record (#2139).** Every successful
+  `source-control-babysit-resolve-thread --resolve` mutation writes one JSONL line (pins, mode,
+  disposition, thread metadata) to `resolve-thread-audit.jsonl` under plugin data or
+  `~/.claude/source-control/`. Override with `SOURCE_CONTROL_RESOLVE_THREAD_AUDIT_LOG`. Webhook
+  capture and permission-layer bypass closure remain open on #2139.
+
 ## [0.53.8]
 
 ### Changed
