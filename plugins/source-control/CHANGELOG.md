@@ -3,6 +3,50 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.51.17]
+
+### Fixed
+
+- **`babysit_merge` enforces `requireSignatures` instead of only reporting it (#2265).**
+  `branch_rules` computed the flag and nothing consumed it: on a base whose ruleset requires signed
+  commits, a head held only by an unsigned or misattributed commit reported the generic
+  `mergeStateStatus` line naming four other causes — none of them the real one — and the operator
+  went re-reading checks, approvals, and threads that were already fine. New
+  `fetch_pull_request_commits` (`babysit_gh.py`) reads `.commit.verification` per PR commit,
+  paginated `per_page=100`; a missing verification block reports reason `unreadable` rather than
+  being skipped. `evaluate()` walks the commits only when the rule is present (an ungoverned base
+  pays no extra request), in the read-only pass — a signature hold discovered only under `--merge`
+  would defeat the wrapper's report-readiness purpose — and emits one blocker per verification
+  reason naming every offending commit. `unsigned`, `no_user`, and `unknown_key` carry distinct
+  remedies: `no_user` states that the signature IS valid and the author/committer email is
+  unlinked (#2162's recurring product, needing `--reset-author` or a linked email, not a key). A
+  fetch failure holds with its own "could not be read" blocker (fail closed, never a fabricated
+  reason). The generic `mergeStateStatus` enumeration now names signatures, and
+  `requiredSignatures` `{required, checked, unverified}` joins the JSON report. New tests pin
+  every reason message, the distinct-blockers property, the no-rule-no-request invariant, the
+  fail-closed fetch failure, and the fetcher's projection; all fail against the pre-#2265 modules.
+
+## [0.51.16]
+
+### Fixed
+
+- **A lane's worktree is locked at creation, and an in-flight operation outranks `landed` in
+  `landed-work.sh` (#2257).** `git worktree remove` deletes a worktree whose `status --porcelain`
+  is empty even while an interactive rebase paused at a `break` is mid-flight — cleanliness cannot
+  carry liveness. `worktree-create.sh` now arms `git worktree lock` the moment the worktree exists,
+  with a reason naming the helper, host, and start time; the cleanup skill already honored a
+  `locked` flag, but nothing in this repo ever set one, so that input was structurally always
+  absent. `landed-work.sh` adds `BISECT_LOG` to the in-progress probe (a bisect leaves porcelain
+  completely clean) and ranks `in-progress` above `landed`: consumers read `landed` as
+  safe-to-remove, and removal mid-operation destroys sequencer state and conflict resolutions even
+  when every commit is durable — the stranded family still outranks it, data loss being the
+  stronger stop. `cleanup.md` gains the locked and in-progress candidate rows (a locked worktree is
+  disarmed with `git worktree unlock` after explicit owner confirmation, never bypassed with
+  `--force --force`) and `create.md` documents the lock and its interaction with
+  `git worktree move`. New tests pin the lock (armed at creation, reason names the helper, plain
+  removal refuses and the tree survives) and the ranking (bisect probed; in-progress outranks
+  landed); all fail against the pre-#2257 scripts.
+
 ## [0.51.15]
 
 ### Fixed

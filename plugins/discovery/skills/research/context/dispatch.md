@@ -1,8 +1,15 @@
 # Dispatch contract — the parent's side
 
 `SKILL.md` carries the routing mandate. This file carries what the **parent** owes around a
-dispatched run, and why each obligation exists. The agent's own side is
-`plugins/discovery/agents/researcher.md`.
+dispatched run **that is specific to research**, and why each obligation exists. The agent's own side
+is [`${CLAUDE_PLUGIN_ROOT}/agents/researcher.md`](${CLAUDE_PLUGIN_ROOT}/agents/researcher.md).
+
+Everything the parent owes that is **identical for exploration and research** — the envelope's six
+fields as a literal template, the pre-dispatch baseline in both shell forms, what is and is not
+documented about argument substitution on the preload path, why the gate ships no permission grant
+and what to do when it cannot run, and the resume-before-discard ordering — is stated once in
+[`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md).
+This file does not restate it.
 
 ## The orchestration boundary
 
@@ -12,17 +19,21 @@ that surrounds the reading, and the failures worth guarding against are all at t
 **The parent owns the pre-dispatch envelope** — everything that must be resolved in main context
 before the agent starts, because the agent cannot resolve it once started:
 
+The literal envelope template is in the parent contract. All six fields are owed; this table says
+why each is the parent's to supply.
+
 | Field | Why the agent cannot supply it |
 |---|---|
-| Resolved topic | `$ARGUMENTS` substitutes to the **empty string** on the preload path, and a non-fork subagent sees no conversation to infer from. The preloaded body reaches the agent reading `Research the following topic:` with nothing after the colon — silence, not a visibly unfilled slot |
+| Resolved topic | A non-fork subagent sees no conversation to infer from, and the topic does not reach a preloaded body by argument substitution — so the agent must not rely on seeing an unfilled slot after `Research the following topic:`. Silence there is a missing topic, not an empty one |
 | Reason the topic is being researched — the decision it feeds and who the output is for | Same blindness as the topic, with a worse failure mode: a missing topic is silence the agent can report, while a missing reason is invisible. The agent researches the topic as written, returns something well-formed, and neither side learns it answered the wrong question. Intent is what decides which of several defensible readings of a topic is the one wanted |
 | Memory-slice path | Resolved against the consuming repo's topic-docs binding, which is a parent-side lookup |
+| Memory root | **Not derivable from the slice path.** On a fan-out the slice is a sub-slice, and no one can tell from the path alone which ancestor is the configured root — but the root is where the self-ignoring `.gitignore` guard belongs. It is owed as its own labelled line. It is also the one field whose absence is **degradable**: the agent derives, flags in `open_questions`, and continues, rather than stopping |
 | Budget | How much depth was authorized is the caller's decision, never the worker's |
-| Capability flags | Whether nested spawning is available is a session property the parent probed |
+| Capability flags | Whether nested spawning is available is a session property the parent probed. It is the only flag — the agent's own **write** capability is not probeable before dispatch, and the parent's `mkdir`/baseline proves only that the parent can write there. That question is answered afterwards by `persistence:` in the payload |
 
-The agent **refuses to guess** any of these rather than inventing one, so an unresolved envelope
-surfaces as a failed dispatch instead of a confident answer to a question nobody asked. That refusal
-is the reason the envelope is safe to make mandatory.
+The agent **refuses to guess** any of these rather than inventing one — memory root excepted above —
+so an unresolved envelope surfaces as a failed dispatch instead of a confident answer to a question
+nobody asked. That refusal is the reason the envelope is safe to make mandatory.
 
 **The parent owns the post-dispatch boundary** — the acceptance gate below, and then four obligations,
 none delegable (the gate runs first: every one of them acts on an artifact, so all four are worthless
@@ -231,10 +242,21 @@ the subagent stops. Because the ledger and sidecars are written incrementally, a
 would otherwise leave a half-marked ledger, orphan sidecars, and an index naming files that were
 never written — with no payload at all, so the parent never learns the run died.
 
-Hence: the agent writes `status: truncated` with a partial payload **before** its budget is
-exhausted, and a dispatch that returns no payload is treated as truncated-without-warning. In both
-cases **the parent discards the partial slice rather than resuming it**, because a half-run ledger
-cannot be distinguished from a complete one by the coverage script alone.
+Hence: the agent emits its payload block early and keeps it current, marked `status: truncated`
+until the run finishes, and a dispatch that returns no payload is treated as
+truncated-without-warning.
+
+**In both cases the parent takes the ladder above in order: resume first where the agent is still
+live, then decide about the slice from what the resume returns.** The resume is what tells you
+whether the slice is worth keeping — a half-run ledger cannot be distinguished from a complete one
+by the coverage script alone, but a resumed agent can say which rows it actually marked, and has
+recovered a complete artifact set from retained context. **Discarding the partial slice is what
+happens when the resume is refused, unavailable, or comes back without a usable payload** — and
+there it is mandatory, with the clear-the-slice rule above, because that is exactly the state the
+coverage script cannot grade. The ordering, and the harness guarantees it rests on, are stated once
+in
+[`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md)
+("Resume first, then decide about the slice").
 
 ## What dispatch does and does not buy
 

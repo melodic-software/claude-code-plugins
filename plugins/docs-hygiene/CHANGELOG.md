@@ -1,5 +1,24 @@
 # Changelog — docs-hygiene plugin
 
+## [0.11.2]
+
+### Fixed
+
+- **`rename-references` Form 14 missed title-cased ATX headings (#1394).** The ATX and Setext
+  title alternatives now carry `(?i)` so `# Re-Anchor` matches a container named `re-anchor`
+  instead of falling through to bare Form 2. Declaration alternatives stay case-sensitive;
+  `audit.md` warns against global `-i`.
+
+## [0.11.1]
+
+### Fixed
+
+- **`audit-encapsulation/detect.sh` scanned vacuously in marketplace monorepos (#1889).** The
+  private-surface pattern anchored only on `.claude/skills/`; this repository authors skills under
+  `plugins/<plugin>/skills/`. The detector now matches both layouts, includes `plugins/` in the scan
+  scope, applies the scripts/ carve-out and self-citation filter to plugin paths, and ships a
+  positive-control fixture test so a future pattern regression cannot return a silent empty again.
+
 ## [0.11.0]
 
 ### Fixed

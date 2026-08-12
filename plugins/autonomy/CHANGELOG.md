@@ -6,6 +6,47 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 Versions 0.1.0–0.7.0 predate this file (introduced with 0.7.1); their history lives in the
 merged work-package PRs (#333, #343, #356, #372, #377, #600, #676).
 
+## [0.16.0]
+
+### Changed — ACTION REQUIRED for anyone with an existing `L2`/`L3` binding, or auto-merge bound
+
+- **Every `L2`/`L3` level binding now carries `component_reachable_hosts`, and a level without it
+  is UNPROVEN.** Target selection is what makes the egress assertion mean anything: a probe that
+  samples only hosts the surface's installed components never request certifies a boundary that is
+  in fact open. Measured, not theorized — 201,961 bytes of origin data crossed a global
+  default-deny through a component-installed allow rule. The field is the human-ratified set of
+  destinations those components may request, and the probe must cover it in FULL, since each
+  destination is a separate policy decision. **The empty list is a valid and meaningful value:** it
+  is the explicit claim that the surface installs nothing carrying policy rules of its own. **To
+  restore dispatch: ratify the list (or the empty list) on the level entry and re-probe so the
+  transcript covers it.**
+- **A class bound `auto` merge with a verification layer below `blocking` is now an INVALID
+  binding.** An automatic transition requires unanimous agreement among the checkers the class
+  declares, and an advisory layer records a dissent without withholding the transition — so the
+  configuration promised a gate it could not deliver. Bindings that encoded this are rejected with
+  a finding naming the remedy. **To restore: set the layer to `blocking` (ratifying its promotion
+  cell where promotable), or bind the class to `human` merge.** Demotion now cascades from the
+  `C3` AI-review cell to `C3` auto-merge for the same reason.
+
+### Added
+
+- **Verification topology** (`reference/guardrails/verification-topology.md` + a sixth guardrail
+  matrix column): who verifies a change, how those verifiers must differ, and the per-class floor
+  for how many there are — expressed as pipeline roles, relational constraints, and predicates a
+  binding can actually evaluate, with no capability label anywhere in the contract. Floors ship as
+  `min_checkers` and `min_model_checkers` per class, both tighten-only on the agent-unwritable
+  security binding. `cross_vendor_required` is never vacuously satisfiable, and vendor disjointness
+  holds among the model-adjudicated slots rather than only against the generator.
+- **`verification_topology`** as an optional top-level security-binding key modeling all three axes.
+  Absent is not a hole — the shipped floors apply, as `escalation_severity` already does — so
+  `schema_version` stays `"1.0"` and every existing binding keeps validating.
+- **Two `userConfig` options:** `verification_lens_pool` (what angle each model-adjudicated checker
+  is asked to take) and `visual_narration_enabled` (an advisory narration lane, default off). Both
+  live on the operator surface rather than the security binding because neither counts anything —
+  the pool seats no slot and the lane has no binding cell at all, so neither can weaken a floor.
+  The lane is structurally incapable of gating: no cell exists anywhere through which authority
+  could be granted to it.
+
 ## [0.15.1]
 
 ### Changed

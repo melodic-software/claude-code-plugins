@@ -96,6 +96,15 @@ case "$TOOL" in
 Edit)
   SCAN_CONTENT="${HOOK_JQ_FIELDS[1]}"
   REPLACE_ALL="${HOOK_JQ_FIELDS[3]}"
+  case "$REPLACE_ALL" in
+  true | false) ;;
+  *)
+    # Advisory guard: a malformed replace_all extraction must not wear the permissive
+    # "false" branch. Well-formed payloads always stringify to true/false; anything
+    # else is an unreadable field — skip verification rather than guess.
+    exit 0
+    ;;
+  esac
   ;;
 Write) SCAN_CONTENT="${HOOK_JQ_FIELDS[2]}" ;;
 *) exit 0 ;;

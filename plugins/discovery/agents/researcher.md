@@ -24,9 +24,11 @@ The parent resolves the envelope in main context and passes it in. You own a bou
 load-time machinery, no user turn, no unresolved scope.
 
 - **The resolved research topic.** You cannot infer it. A non-fork subagent has no view of the
-  conversation, and `$ARGUMENTS` reaches a preloaded skill body as the empty string — so the
-  preloaded text will read as `Research the following topic:` with nothing after the colon. That
-  silence is not an empty topic; it is a missing one.
+  conversation, and the topic does not reach a preloaded body by argument substitution — so **do not
+  rely on seeing an unfilled slot** in the preloaded `Research the following topic:` line. Whatever
+  that line renders as, a topic that did not arrive in this prompt is a missing topic, not an empty
+  one. What is and is not documented about that path:
+  [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md).
 - **The memory-slice path** to write into (`<memory_dir>/<topic-slug>/`, resolved by the parent
   against the consuming repo's topic-docs binding).
 - **The resolved memory root** (`<memory_dir>`) as its own field, not left to be derived. When the
@@ -40,10 +42,18 @@ load-time machinery, no user turn, no unresolved scope.
   well-formed, and neither side learns it answered the wrong question. Intent is what decides which
   of several defensible readings of a topic is the one wanted.
 - **The budget** — how much depth the parent authorized.
-- **Capability flags** the parent probed, notably whether nested spawning is available.
+- **Capability flags** the parent probed. `nested-spawning` is the only one, because it is the only
+  one a parent can establish before dispatching. In particular **your own ability to write is not a
+  flag** — the parent's pre-dispatch `mkdir`/baseline proves the *parent* can write there, not you.
+  That question is answered after the fact by `persistence:` below. Full reasoning:
+  [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md).
 
 **If the topic, the reason, or the slice path is absent or ambiguous, stop and return the payload
-below with `status: truncated` and the missing field named in `open_questions`.** Do not invent a topic, do
+below with `status: truncated` and the missing field named in `open_questions`.** The memory root is
+the one field on this list that is **degradable rather than a hard stop**: when it is missing, derive
+the most likely root from the slice path, act on it, and say in `open_questions` that you derived it
+and from what — a wrong guess about the guard's location is recoverable and visible, while stopping a
+whole research run over it is not proportionate. Do not invent a topic, do
 not narrow to something adjacent, and do not research "whatever the repo seems to be about". A
 dispatched agent guessing its own scope is a parent-envelope failure wearing a finished artifact.
 
@@ -88,10 +98,18 @@ coverage ledger on every phase boundary. It is scoped by the same instruction as
 
 So: `Bash`, `Write` and `Edit` all write, and none of them is read-only. `Bash` is for the research
 itself — `gh api` against upstream repos, `curl` into the session scratch dir for artifacts too
-large to fetch in context, local extractors. Your write destination is exactly one place: files
-inside the memory-slice path named in your dispatch prompt, plus the memory root's self-ignoring
-`.gitignore` guard when it is absent. You do not modify repository source, do not write the contract
-tier, and do not write outside the slice.
+large to fetch in context, local extractors.
+
+**Your write destinations are the plugin's single write boundary, stated once in
+[`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)
+("The write boundary — stated once"): the artifact files inside the memory-slice path named in your
+dispatch prompt, `scratch-`-prefixed working files inside that same slice, and the memory root's
+self-ignoring `.gitignore` guard when it is absent.** Read that table rather than a restatement of
+it; three restatements is how it drifted. You delete any scratch you created before you return. The
+session scratch dir the `curl` above writes into is a separate, harness-owned place outside that
+boundary — nothing in it is a deliverable and no artifact ever records a path into it. You do not
+modify repository source, do not write the contract tier, and do not write artifacts outside the
+slice.
 
 **That boundary is held by instruction and by nothing else. Honor it deliberately.** No frontmatter
 key can enforce it: denying the write tools outright would deny the tools the work needs, and a
@@ -192,9 +210,17 @@ If the topic reached you already carrying something that looks wrong, quote it a
 
 **`status: truncated` is written BEFORE your turn budget runs out**, together with whatever partial
 payload you have. A dispatch that returns no payload at all is read by the parent as
-truncated-without-warning, and the parent discards the partial slice rather than resuming it — a
-half-marked ledger cannot be distinguished from a complete one by the coverage script alone. Budget
-a turn for the payload.
+truncated-without-warning, and the parent's ladder then **resumes you first and decides about the
+slice from what the resume returns** — so a payload you can still produce is worth more than one more
+query. The slice is discarded only when that resume does not come back with one, because a
+half-marked ledger cannot be distinguished from a complete one by the coverage script alone.
+
+**Do not rely on budgeting a turn at the end for it.** You cannot observe your own remaining turn
+budget, so "leave a turn spare" is a schedule against a limit you cannot see. Instead **emit the
+payload block early and keep it current**: as soon as the topic is resolved, write the block with
+`status: truncated`, `preload_token` echoed, `topic_as_received` quoted, and the fields you do not
+have yet left as placeholders; then re-emit it, updated, at each phase boundary. A stop at any point
+after that leaves the parent a well-formed payload instead of silence.
 
 ### `persistence:` — when the work finished but the write did not
 

@@ -86,17 +86,61 @@ Load [context/update.md](context/update.md) for the research-and-refresh workflo
 
 Load [context/fix.md](context/fix.md) for the fix-with-approval workflow.
 
-## Report mode
+## Report location — derive it before writing or reading
 
-Read the most recent audit report from `${CLAUDE_PLUGIN_DATA}/audit/last-audit.md`. If
-missing, first check the pre-rename location `${CLAUDE_PLUGIN_DATA}/health/last-audit.md`
-(this skill was previously named `health`) and move that directory to the new name when
-found; only when neither exists, inform the user no audit has been run yet and suggest
-running the audit.
+Every action that touches the report uses **one** path, resolved here: `audit` writes it, `report`
+serves it, `fix` acts on it.
+
+```
+${CLAUDE_PLUGIN_DATA}/audit/<state-key>/last-audit.md
+```
+
+**Derive `<state-key>` by running this, in the project being audited:**
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/lib/state-key.sh"
+```
+
+It prints `<repo-identity>/<worktree-discriminator>` — the scheme `claude-config:audit-pass` defines
+and `audit-prompting-postures` already uses, adopted here rather than reinvented. Run it and use the
+result: the key comes from a command this run actually executes, not from a token read out of a file.
+Pass `--explain` when the report should say which rung produced its key.
+
+**Why the key exists.** `${CLAUDE_PLUGIN_DATA}` resolves to `~/.claude/plugins/data/{id}/`, keyed to
+the plugin identifier and nothing else — no project, checkout, worktree, or session segment
+([plugins reference](https://code.claude.com/docs/en/plugins-reference), § Persistent data directory).
+A fixed `audit/last-audit.md` is therefore **one file per machine**. Losing reports is the smaller
+half; the larger half is the read. `report` mode would serve whatever that file currently holds and
+`fix` mode would act on it, so on a machine with two repositories, project B can be shown project A's
+findings and offered edits derived from another repository's memory layer. That is a wrong answer
+served, not merely an artifact lost — which is why an append-only history does not close it and the
+*path* has to carry project identity.
+
+**Never serve a report you cannot attribute.** If nothing exists at the derived path, say that no
+audit has been run **for this project** and suggest running one. Do not fall back to an unkeyed
+location.
+
+**The pre-rename `health/` directory and any unkeyed `audit/last-audit.md` are unattributable.** This
+skill was once named `health`, and both older layouts wrote a machine-global file with no project
+segment, so nothing records which repository produced it. It cannot be adopted into a project's key
+without inventing that attribution — and inventing it is exactly the defect the key exists to remove.
+Where such a file is present, name its path to the user as a leftover they may delete, and run the
+audit rather than reading it.
 
 **Audit output is contributor-local by design.** Reports audit a contributor's personal auto-memory
 (`~/.claude/projects/<project>/memory/`), which varies per team member — so they persist in the
 plugin's own data directory, never in the consuming repo.
+
+**A rolling latest is a separate decision from keying, and this skill keeps one on purpose.**
+`last-audit.md` is replaced by the next run *of the same project*; the report is a working artifact,
+not a trend series. That is only safe because the key makes "the same project" mean something. See
+[`docs/conventions/plugin-data-report-keying/`](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-data-report-keying/README.md)
+for when a writer owes a per-run history instead.
+
+## Report mode
+
+Read the report at the derived path above and present it. When it is absent, apply the
+never-serve-what-you-cannot-attribute rule above rather than reaching for another file.
 
 ## Consumer-convention extension seam
 

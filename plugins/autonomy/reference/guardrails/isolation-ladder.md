@@ -13,7 +13,8 @@ document names substrate CLASSES as marked examples only, never an instance list
   tools, hooks, and protocol-connected tool surfaces still execute on the host. An attended
   ergonomics tier — NOT an autonomy tier.
 - **`L2` — whole-process OS-enforced boundary with default-deny egress, credential
-  protection, and contained workspace host-writes.** The MINIMUM for any unattended run.
+  protection, contained workspace host-writes, and policy nothing the run can install may
+  widen.** The MINIMUM for any unattended run.
   Free-path substrate classes (marked examples, not an instance list): a whole-process
   OS-sandbox wrap; a container with a default-deny egress firewall.
 
@@ -23,6 +24,16 @@ document names substrate CLASSES as marked examples only, never an instance list
   host later executes — a version-control config file is a command key ring, and one of its keys
   fires on a read-only-looking status call. Scope is deliberately WRITE containment: read
   exposure is not covered at this level, and a copy-on-read workspace leaves reads fully open.
+
+  The widening clause names a DIRECTION, because that is what generalizes. An additive policy
+  layer — one whose installed components carry rules of their own, in the sense of extension
+  permissions, admission control, or any engine that composes its rules from parts — meets `L2`
+  only where a component's rules can subtract reachability and never add it. A surface where an
+  installed component can add an allow rule the base policy denies is not `L2` however strict that
+  base policy reads, because the run manufactures its own exception at install time; the failure is
+  measured, not hypothetical — a component installed while the environment was being created
+  carried egress past a global default-deny and origin data flowed. Until governance is configured
+  so component rules can only narrow, the surface is not `L2`-capable.
 - **`L3` — kernel-separated ephemeral environment.** Substrate classes (marked examples): a
   VM or microVM; a hosted ephemeral executor surface. Required where policy demands kernel
   separation — untrusted-provenance (`C5`) work.

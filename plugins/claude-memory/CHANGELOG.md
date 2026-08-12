@@ -3,6 +3,47 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.0]
+
+### Added
+
+- **`lib/state-key.sh`** — the per-project state key for anything written under
+  `${CLAUDE_PLUGIN_DATA}`. Prints `<repo-identity>/<worktree-discriminator>`, the scheme
+  `claude-config:audit-pass` defines and `audit-prompting-postures` already uses, adopted here rather
+  than reinvented. Byte-identical to the `claude-config` copy and registered in
+  `scripts/cross-plugin-source-registry.txt`, so the two cannot drift apart silently. A remote URL
+  becomes directory components in the resulting path, so an identity outside the accepted segment
+  shape — a relative remote like `../central.git`, an absolute local path, a Windows path — is hashed
+  rather than embedded; the suite asserts no `..` and no backslash survives into a key.
+
+### Changed
+
+- **`audit` no longer serves one project's findings as another's.** It wrote its report to a fixed
+  `${CLAUDE_PLUGIN_DATA}/audit/last-audit.md` — machine-global, since that directory is keyed to the
+  plugin identifier and nothing else — and then **read it back**: `report` mode served whatever the
+  file held and `fix` mode acted on it. On a machine with two repositories, `report` in project B
+  could present project A's findings as project B's, and `fix` could propose edits derived from
+  another repository's memory layer. A wrong answer served, not merely a lost artifact — which is why
+  an append-only history would not have closed it. All four sites now resolve one path,
+  `audit/<state-key>/last-audit.md`: the write in `context/audit.md`, its restatement in
+  `reference/criteria.md`, and the two reads in `SKILL.md` and `context/fix.md`. The path is derived
+  once in `SKILL.md` and referred to by the spokes rather than restated, and the key comes from
+  running the resolver, never from testing whether a placeholder is set.
+- **A report that cannot be attributed to a project is no longer served or migrated.** The pre-rename
+  `health/` layout and any unkeyed `audit/last-audit.md` carry no project segment, so nothing records
+  which repository produced them, and adopting one into a project's key would invent that attribution.
+  The previous behavior moved `health/` to `audit/` and read it. Both read paths now decline, name the
+  leftover file's path as something the operator may delete, and offer a fresh audit. **This is a
+  behavior change on upgrade**: an operator holding a report under the old layout is told to re-run
+  rather than shown the old one.
+- **`fix` mode states why an unattributable report is unusable input** rather than treating a missing
+  report as the only failure case — it proposes edits to real instruction files, so acting on another
+  repository's findings is the expensive error.
+- **Two evals pin the property**, which had no coverage at all: two repositories neither share nor
+  overwrite one report, and a legacy unkeyed report is neither served nor adopted. The
+  `report-without-prior-audit` case now asserts the per-project derived path rather than "the most
+  recent saved audit".
+
 ## [0.8.1]
 
 ### Changed

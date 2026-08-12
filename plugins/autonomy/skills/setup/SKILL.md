@@ -156,7 +156,8 @@ splits policy into. This section owns resolution; the [guardrail slice below](#g
 this order resolves.
 
 **Two-surface split.** Security-sensitive guardrail axes — isolation bindings with their
-runtime markers, merge policy, verification blocking knobs, promotion state, escalation
+runtime markers, merge policy, verification blocking knobs, per-class verification
+topology, promotion state, escalation
 routes, admission rules and caps — bind ONLY in the security binding document in the
 settings-as-code home, outside the blast radius of the agents it governs. Its schema is
 contract-owned and ships at
@@ -168,6 +169,16 @@ source — the bound state is a ceiling contrary evidence lowers without writing
 binding. Non-security axes remap in the additive `guardrails` section of the repo-local
 binding: class→label strings (which local label means which work class) and
 cost-tier→model names — vocabulary remaps only, never policy content.
+
+**A third home that is not a governance surface.** Two axes of the
+[verification-topology leaf](${CLAUDE_PLUGIN_ROOT}/reference/guardrails/verification-topology.md)
+bind in this plugin's `userConfig` rather than either governance surface: the verification lens
+pool, and whether the advisory visual narration lane runs. Neither counts anything — the pool
+contributes to no floor, and the narration lane has no security-binding cell at all — so neither can
+weaken a floor, which is what lets them sit on an operator surface. Plugin options resolve from
+user, `--settings`, and managed settings only; a watched repository's own `.claude/settings.json` is
+not read for them, so a repo cannot dial its own verification. The slice proposes neither as a
+binding field.
 
 **Layered resolution order.** Org-policy-home defaults → settings-as-code per-repo
 security binding → repo-local non-security remaps. Later layers refine earlier ones for
@@ -229,11 +240,17 @@ depends on the binding until that human-landed change exists.
    pre-existing surface is authoritative input to reconcile against, not a blank field to fill.
 3. **Live-validate BEFORE recording** — the empirical probe per substrate class (recipe in
    [`templates/isolation-probe.md`](templates/isolation-probe.md)). A candidate `L2`/`L3`
-   substrate is validated by running, INSIDE the boundary, two probes that MUST both fail:
-   - a **denied-egress smoke test** — a network fetch to a well-known external host MUST fail
-     (a boundary that lets egress through is not an `L2` boundary);
+   substrate is validated by running, INSIDE the boundary, three probes that MUST all fail:
+   - a **denied-egress smoke test** — a network fetch MUST fail against two well-known external
+     hosts under different operators AND against every destination the level binding ratifies as
+     component-reachable (a boundary that lets egress through is not an `L2` boundary, and a probe
+     that samples only what the base policy denies never looks where an installed component may
+     already have widened it);
    - a **host-credential-path read attempt** — a read of a host credential path MUST be absent or
-     denied (a boundary that leaks host secrets is not an `L2` boundary).
+     denied (a boundary that leaks host secrets is not an `L2` boundary);
+   - a **workspace host-write containment check** — randomized canaries written inside MUST all be
+     absent on the host after teardown (a boundary the host later executes writes from is not an
+     `L2` boundary).
 
    The checker resolves no DNS and reads no remote host, so it validates the probe's targets against
    operator-configured seams. The egress target checks against `--egress-hosts <host,...>` (a
@@ -256,13 +273,17 @@ depends on the binding until that human-landed change exists.
    lands ahead of the probe that proves its boundary.
 4. **Bind level → substrate per surface** — record each validated substrate under its surface in
    `isolation_bindings` (surface id → level token → substrate instance + the human-ratified
-   `substrate_class` + `probe_evidence` + the non-forgeable `runtime_markers` the dispatch seam
-   attests against), plus the merge policy,
-   verification-blocking knobs, escalation routes, and admission rules and caps — all on the
+   `substrate_class` and `component_reachable_hosts` + `probe_evidence` + the non-forgeable
+   `runtime_markers` the dispatch seam attests against), plus the merge policy,
+   verification-blocking knobs, each class's `verification_topology`, escalation routes, and
+   admission rules and caps — all on the
    prepared security-binding change, validated by
    [`scripts/check-security-binding.mjs`](scripts/check-security-binding.mjs) against
    [`schemas/guardrails-security-binding.schema.json`](schemas/guardrails-security-binding.schema.json)
    before it is proposed.
+   The lens pool and the advisory visual narration lane are NOT binding fields — they resolve from
+   plugin `userConfig` per the [third home above](#guardrail-binding-resolution), and proposing
+   either here is invalid.
 5. **Security-review wiring folds in here (no separate capability)** — the security-review policy
    is one part of this single guardrail slice, never a near-duplicate setup capability. Wire the
    [security-review leaf's](${CLAUDE_PLUGIN_ROOT}/reference/guardrails/security-review.md) two
