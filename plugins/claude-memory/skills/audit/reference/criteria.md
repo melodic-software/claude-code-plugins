@@ -415,5 +415,7 @@ Present findings as a deterministic report:
 |---|-------|------|---------|
 ```
 
-Save the report to `${CLAUDE_PLUGIN_DATA}/audit/last-audit.md` for the `report` action to
-retrieve.
+Save the report to the path SKILL.md resolves in "Report location" —
+`audit/<state-key>/last-audit.md` under the plugin data directory — so the `report` and `fix` actions
+retrieve **this project's** report rather than whichever one was written last on this machine. The
+key is derived by the resolver SKILL.md names; this file states the format, not the path.
