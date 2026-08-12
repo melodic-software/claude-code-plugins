@@ -3,6 +3,15 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.6]
+
+### Fixed
+
+- **Concrete credential paths with dot-traversal segments now fail the expansion-coherence
+  check explicitly (#949).** A path like `/configured-root/subdir/../.ssh/id_rsa` that
+  repeats verbatim in `host_expanded` no longer passes coherence only to be denied later
+  by containment normalization; operators see the canonical-path remediation instead.
+
 ## [0.16.5]
 
 ### Changed
