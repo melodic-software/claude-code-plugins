@@ -3,6 +3,15 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.33.1]
+
+### Fixed
+
+- **`check-structure.sh` unreadable note no longer overstates a bare Read deny.** The note now
+  matches `context/procedures.md` and `SKILL.md`: a `Read(...)` deny alone cannot make `open()`
+  fail inside this script; sandbox `denyRead` — including a Read deny merged into the sandbox
+  boundary — or filesystem permissions can. (#1607)
+
 ## [0.33.0]
 
 ### Changed
