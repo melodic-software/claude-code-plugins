@@ -237,6 +237,32 @@ rc=$?
 if [[ $rc -ne 0 && "$out" == *"ABSORBED CHANGELOG HEADING"*"alpha"* && "$out" == *"## [0.51.8]"* ]]; then ok "absorbed predecessor release heading fails --check-bump"; else fail "absorbed heading not caught: rc=$rc out='$out'"; fi
 rm -rf "$repo"
 
+# ABSORBED HEADING + GIT SHOW FAILURE: a fork-point read that genuinely fails
+# must fail loud, never read as "nothing to preserve" and pass (#2324).
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 0.51.8 yes
+printf '# Changelog\n\n## [0.51.8]\n\n- eight\n\n## [0.51.7]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+base="$(git -C "$repo" rev-parse HEAD)"
+printf '{ "name": "alpha", "version": "0.51.9" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
+printf '# Changelog\n\n## [0.51.9]\n\n- eight\n\n## [0.51.7]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm bump
+shim_dir="$(mktemp -d)"
+cat >"$shim_dir/git" <<'SHIM'
+#!/usr/bin/env bash
+if [[ "${1:-}" == show && "${2:-}" == *CHANGELOG.md ]]; then
+  echo "simulated object-store failure" >&2
+  exit 128
+fi
+exec /usr/bin/git "$@"
+SHIM
+chmod +x "$shim_dir/git"
+out="$(cd "$repo" && PATH="$shim_dir:$PATH" bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
+rc=$?
+rm -rf "$shim_dir" "$repo"
+if [[ $rc -eq 2 && "$out" == *"git show"* && "$out" == *"failed"* ]]; then ok "absorbed-heading check fails loud when git show CHANGELOG fails"; else fail "absorbed-heading git failure not loud: rc=$rc out='$out'"; fi
+
 # RELABELLED, NOT DELETED: the same bad resolution renames the predecessor's
 # heading to the new version instead of adding one. That IS a deletion of the
 # predecessor version, and must read as one however the line is written.

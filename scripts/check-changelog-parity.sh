@@ -445,7 +445,28 @@ for manifest in "${manifests[@]}"; do
     # Named apart from $head_version / $base_version above: those are MANIFEST
     # versions the rest of this loop body compares and interpolates, and a
     # one-character alias between the two would be a silent bug.
-    mapfile -t fork_heading_versions < <(git show "$merge_base:$changelog" 2>/dev/null | changelog_versions -)
+    #
+    # Read the fork-point changelog via COMMAND substitution with status
+    # checked — never process substitution, which swallows git's exit status and
+    # turns a failed read into an empty heading list (fail-open, #2324). Probe
+    # with git ls-tree first: a path absent from the tree is exit 0 with empty
+    # output; an unusable rev is non-zero. (git cat-file -e cannot distinguish
+    # the two — it exits 128 for both — so a change set ADDING a changelog would
+    # fail the gate.)
+    fork_heading_versions=()
+    if base_listing="$(git ls-tree -r --name-only "$merge_base" -- "$changelog")"; then
+      if [[ -n "$base_listing" ]]; then
+        base_body=""
+        if ! base_body="$(git show "$merge_base:$changelog")"; then
+          echo "check-changelog-parity: 'git show $merge_base:$changelog' failed; refusing to pass without checking." >&2
+          exit 2
+        fi
+        mapfile -t fork_heading_versions < <(printf '%s\n' "$base_body" | changelog_versions -)
+      fi
+    else
+      echo "check-changelog-parity: 'git ls-tree -r --name-only $merge_base -- $changelog' failed; refusing to pass without checking." >&2
+      exit 2
+    fi
     mapfile -t head_heading_versions < <(changelog_versions "$changelog")
     head_documents=()
     if ((${#head_heading_versions[@]} > 0)); then
