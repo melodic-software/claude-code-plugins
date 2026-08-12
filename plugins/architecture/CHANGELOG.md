@@ -3,6 +3,18 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.1]
+
+### Fixed
+
+- **The `improve` Gotcha no longer asserts `${CLAUDE_PLUGIN_DATA}` cannot substitute in skill content
+  (#2207).** The plugins reference puts skill and agent content in the "anywhere the placeholder
+  appears" row (<https://code.claude.com/docs/en/plugins-reference>, Environment variables, fetched
+  2026-08-12). The operative rule is unchanged — never store the durable candidate artifact there;
+  even resolved it is plugin-global and collides per-codebase candidates across projects. The 0.3.6
+  changelog entry's wording is preserved per
+  [upstream-drift](../../docs/conventions/upstream-drift/README.md).
+
 ## [0.5.0]
 
 ### Removed
