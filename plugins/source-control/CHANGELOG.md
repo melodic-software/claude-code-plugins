@@ -12,6 +12,15 @@ All notable changes to the `source-control` plugin are documented here. Format f
   disposition, thread metadata) to `resolve-thread-audit.jsonl` under plugin data or
   `~/.claude/source-control/`. Override with `SOURCE_CONTROL_RESOLVE_THREAD_AUDIT_LOG`. Webhook
   capture and permission-layer bypass closure remain open on #2139.
+### Changed
+
+- **The co-author trailer key is now spelled `Co-authored-by` (#1604).** GitHub's documentation uses
+  that spelling exclusively, and GitHub itself writes it when appending co-author trailers to a
+  squash-merge message, so the skill's branch commits and the forge-written merges now agree.
+  Attribution was verified to succeed for the previous `Co-Authored-By` spelling too (GraphQL
+  `Commit.authors` resolves the co-author either way), so this is a consistency change: existing
+  history is never rewritten, and the `trailer_policy` template remains the escape hatch for
+  consumers who want a different spelling.
 
 ## [0.53.7]
 

@@ -1589,9 +1589,9 @@ seam on an in-doc citation is a follow-up, not asserted here as already-true.
 
 **The limitation, stated precisely — two provenance layers, only one collapses.** Distinguish:
 
-- **Git commit metadata** (author, committer, `Co-Authored-By` trailers) **does** carry a distinct
+- **Git commit metadata** (author, committer, `Co-authored-by` trailers) **does** carry a distinct
   identity — this very record's commit is authored by `Codex <codex@openai.com>`; other agents commit
-  under their own identity (e.g. a `Co-Authored-By: Claude …` trailer). So at the commit layer, agent
+  under their own identity (e.g. a `Co-authored-by: Claude …` trailer). So at the commit layer, agent
   work is often *visible*. But it is **soft, not proof**: an agent can set its git author to anything,
   so absence of an agent identity does not prove a human authored it.
 - **GitHub gh-account actions** — PR author, PR review, merge, and the account a commit is *attributed
