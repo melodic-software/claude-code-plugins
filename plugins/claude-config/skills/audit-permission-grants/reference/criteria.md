@@ -29,11 +29,38 @@ so a completed scan exits 0 in either mode; `--count` prints the finding count. 
 exits 2 instead of reporting a clean bill** — a missing `jq`, or a scan root that resolves to neither a
 git toplevel nor `$CLAUDE_PROJECT_DIR`. There is no fallback to the current directory, because outside
 a repository that is usually the user profile and scanning it would walk the whole home tree and still
-exit 0.
+exit 0. To scan an explicit directory, set **`$PERMISSION_HYGIENE_SCAN_ROOT`** — a sanctioned
+operator lever and the documented remedy for that exit 2, not a test-only seam. Its predecessor
+`$PERMISSION_HYGIENE_FIXTURE_DIR` still resolves as a back-compatible alias; the new name wins when
+both are set. The old name is what made an operator check whether using it in production was allowed,
+which is the friction the rename removes.
+
 `settings.local.json` is parsed for its `permissions.allow` array only — never read or echoed wholesale
 (it may hold tokens).
 
 Findings are printed as `<severity> [<check>] <source>: <detail>`.
+
+## The denominator, and the limits of the exclusion set
+
+Every run ends with a **coverage block**: `allowed-tools` blocks parsed and candidate files walked,
+allow rules read per settings scope (with `absent` and `NOT VALID JSON` reported distinctly, because
+an unparsable rules file is skipped entirely and is the likeliest place for an unexamined grant),
+plugin manifests and plugin `settings.json` files parsed, paths the walk could not open, and files
+an exclusion rule removed. `No fragile permission grants found.` is printed only against a non-zero
+denominator; a run that parsed nothing prints `NOTHING TO AUDIT` and must not be relayed as clean.
+
+**The exclusion set is disclosed rather than extended, and here is why.** `vendor/` is the only path
+exclusion, and its rationale — not loadable, so the grant never takes effect — does *not* generalize
+to `node_modules/`, worktrees, or marketplace mirrors the way it appears to. Nested skills load:
+"Skills also load from nested `.claude/skills/` directories below your working directory. When Claude
+reads or edits a file in a subdirectory, skills from that subdirectory's `.claude/skills/` become
+available." (<https://code.claude.com/docs/en/skills>, fetched 2026-08-12.) So a
+`node_modules/<pkg>/.claude/skills/<name>/SKILL.md` **is** loadable the moment Claude touches a file
+under that package, and excluding the directory would make an `error`-tier check silently blind to a
+live grant. Filtering to *installed* plugin versions needs an `installed_plugins.json` oracle this
+detector does not consult. Until a loadability model exists that distinguishes those cases, the
+exclusion set stays at one rule and every run reports how many files it removed — an exclusion whose
+count is printed cannot suppress anything silently, which is the property that matters.
 
 ---
 
@@ -182,11 +209,23 @@ rule. When a request is about baseline security patterns, deprecated syntax, or 
 ## Permission Hygiene Report — {date}
 
 ### Summary
-- Grants scanned: frontmatter allowed-tools + project, local, and user-global permissions.allow
+- Scan root: {resolved root} (resolved from {rung})
+- Denominator: {N} allowed-tools block(s) from {M} candidate file(s); {R} allow rule(s) across
+  {S} settings scope(s) — {per-scope breakdown}; {P} plugin manifest(s)
+- Not read: {W} unopenable path(s); {J} settings file(s) not valid JSON; {X} file(s) excluded
+- Scopes out of this detector's reach: managed policy, enterprise, --settings file,
+  pre-v2.1.211 start-directory copy (see audit-permission-state)
+- Consumer declarations read: {file(s), and what each changed — or "none"}
 - error: X findings (P2)
 - warning: X findings (P1, P3)
+- exempted by consumer declaration: X (still listed below; never removed)
 
 ### Findings
-| # | Check | Severity | Source | Finding | Recommended |
-|---|-------|----------|--------|---------|-------------|
+| # | Check | Severity | Source | Finding | Recommended | Exempt? |
+|---|-------|----------|--------|---------|-------------|---------|
 ```
+
+The Summary's first four lines are the denominator, and they are not optional. Without them
+"0 findings" carries no information: it reads identically whether the run parsed forty grants and
+found them healthy or parsed none at all. A run whose denominator is zero reports `NOTHING TO AUDIT`
+and does not print a clean bill. An exemption fills the last column and never empties a row.

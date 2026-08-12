@@ -3,6 +3,151 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.37.0]
+
+### Changed
+
+- **`audit-permission-grants` reports a denominator, so a clean bill is separable from a scan of
+  nothing.** `No fragile permission grants found.` printed identically whether the run parsed forty
+  `allowed-tools` blocks and found them healthy or parsed none at all — and `SKILL.md` told the
+  operator to take that string at face value. Every run now ends with a coverage block: blocks
+  parsed against candidate files walked, allow rules read per settings scope, plugin manifests seen,
+  and — the half that matters — what was **not** read. A scan whose denominator is zero prints
+  `NOTHING TO AUDIT` and no longer claims health it never established. `--count` keeps the bare
+  integer on stdout and puts the block on stderr, so the machine contract is unchanged while a `0`
+  from an empty tree stops reading like a `0` from a healthy one.
+
+  Two fail-open paths were found while instrumenting this and are folded in, because a denominator
+  that counts only successes is the same defect in a new spelling. A settings file present but not
+  valid JSON was skipped by a silent `|| return 0`, so its rules were never read and the run still
+  printed a clean bill; it is now reported per scope as `NOT VALID JSON — its rules were not read`.
+  And both `find` walks discarded stderr, which this file's own header already argued against ("a
+  swallowed permission error was indistinguishable from a clean bill"); unreadable paths are now
+  captured and counted. The `vendor/` exclusion moved out of the `find` predicate into the loop so
+  the run can say how many files it removed — same predicate, same result set, but an exclusion
+  whose count is printed cannot suppress silently.
+
+  **The completeness guarantee is now structural rather than per-site.** Review found a third
+  instance of the same shape: `find` needs only directory-traversal permission to report a file as
+  `-type f`, so a frontmatter candidate that exists but cannot be *read* (mode 000, a restrictive
+  ACL, a mount that denies reads) was enumerated, failed inside `awk`, wrote its error to the real
+  stderr, and was counted in **no bucket at all** — while the coverage block promised to disclose
+  exactly that input. Two instances had already been caught the same way (the P3 axis, and this).
+  Asserting the invariant at each `continue` is what allowed three; it is now derived once. Every
+  enumerated candidate lands in exactly one of four buckets — vendor-excluded, unreadable, no
+  `allowed-tools` block, parsed — and `reconcile_frontmatter` checks the buckets sum to the
+  enumeration on every run, printing `DENOMINATOR BUG` and naming itself as the defect when they do
+  not. A negative test deletes a bucket increment from a copy of the script and asserts the check
+  fires, so the guarantee cannot rot into a check that can no longer fail. Extraction stderr now
+  joins the walk's rather than escaping to the terminal, and a run that audited nothing *and* failed
+  to open its own inputs says so in a distinct message rather than reporting an empty tree.
+
+  **And the denominator's unit is now one rule across all three axes**, after review found the
+  formula counting "produced a finding" on two axes and "examined successfully" on the third — the
+  fourth spelling of the same defect. A `SKILL.md` carrying no `allowed-tools`, and a
+  `settings.json` that parses with an empty `allow` array, were both examined and found to grant
+  nothing, exactly as a parsed plugin `settings.json` declaring no `permissions` always was; only
+  the last of the three counted. A root of such files printed `NOTHING TO AUDIT` directly above a
+  coverage block reporting the candidate files it had just read — reproduced before the fix, not
+  inferred. The rule is now stated once in the code and printed on every run: **the unit on every
+  axis is an input successfully read and examined, never an input that produced something.**
+  (#2283, A5)
+- **The one lever that scopes the scan is named for operators.** `$PERMISSION_HYGIENE_SCAN_ROOT` is
+  now the sanctioned name and the documented remedy for the exit-2 refusal #2249 added.
+  `$PERMISSION_HYGIENE_FIXTURE_DIR` keeps working as a back-compatible alias, and the new name wins
+  when both are set. The old name told an operator it was a test seam while `SKILL.md` and `--help`
+  were telling them to set it in production; `reference/criteria.md`, which never mentioned it at
+  all, now sanctions it in as many words. (#2283, A11)
+- **Consumer-declared exemptions must disclose themselves, and may widen but never silence.** The
+  audited repo authors those declarations — the threat model the skills page names directly
+  ("Review project skills before trusting a repository, since a skill can grant itself broad tool
+  access", fetched 2026-08-12) — and combined with the identical clean/empty string, a suppressed
+  report was indistinguishable from a clean one. Three constraints now bind: every declaration read
+  is named in the report with its source; an exemption downgrades and annotates a finding but never
+  deletes one; and a run where every finding is exempted says so instead of printing a clean bill.
+  The report schema grows an `Exempt?` column and a declarations line to hold it. (#2283, A15)
+- **The scope filter says what it is.** `frontmatter|settings|plugins|all` narrows which checks may
+  produce findings, never what the detector scans — which `SKILL.md` already implemented and did not
+  say plainly. The filed remedy (detector flags) is **declined, with its measurement**: since #2249
+  the root is a git toplevel, `$CLAUDE_PROJECT_DIR`, or an explicitly named directory, and the two
+  `find` walks over this repository measure 0.49 s and 0.41 s — so the cost the row was filed
+  against no longer exists, and flags would only add a second place for scope to be defined. The
+  wording adopted is the one both sibling audit skills already use. (#2283, A16)
+- **`audit-prompting-postures`' contract stops disagreeing with itself**, in eight places that were
+  one defect wearing eight hats. (#2281)
+  - P7 blesses a deny-by-default hook or script gate as presence evidence while Phase B inventories
+    instruction *text* — so the one evidence form P7 names was the one form Phase B could not see,
+    on the posture whose false MISSING is most expensive. The inventory now bounds what may produce
+    a finding, not what counts as evidence, and Phase C looks for the gate in all three places the
+    catalog blesses before judging P7: settings rules, hook configuration, and — added after review,
+    which found the procedure searching only the first two — **the script the component delegates
+    the destructive step to**, followed and read. A component whose destructive action runs through
+    a script performing the approval check is gated, and nothing in its own text announces it.
+    `destructive-capable` is tightened from "can delete, reset, force-push" — which matches every
+    component with a shell — to what the body has the model DO, per the classification section's own
+    opening line. (CC-F3)
+  - Phase A's fetch contract is rewritten once rather than twice, because both rows that touch it
+    move the same seam. The best-practices page is fetched every run and its failure **aborts** — it
+    is the single non-negotiable input, and ten `wording-unverified` postures is a report shaped
+    like an audit that audited nothing. Model subpages are fetched lazily in Phase C per applicable
+    row and fail locally, which is what the observed run already did and the wording forbade.
+    (CC-F5, CC-F10)
+  - The published verdict schema was closed at three tokens while the body mandated two more. It now
+    carries four verdicts including `info`, and names `wording-unverified` / `(unverified)` as
+    markers that ride alongside a verdict rather than replacing one. The fifth column is renamed to
+    "Proposed addition or pointer", which is what it already carried. Phase D's own wording is
+    reconciled with it: it said refuted findings are "dropped **or** demoted to `info`", which
+    contradicts `info` being kept for the record and left the choice uncriteria'd. A refuted finding
+    is now always demoted and kept as a row carrying the refutation — dropping it would erase the
+    evidence that Phase D ran and disagreed. Caught in review as a residual instance of this issue's
+    own defect class, introduced by its fix. (CC-F5)
+  - The surface set is named in this skill instead of inherited by reference from a sibling that
+    versions independently — the coupling that let `output-styles` become inventoried here and
+    unnameable by this skill's own filter. `output-styles` is now a scope token. (CC-F6)
+  - P8 carries the model condition the skill's own gotcha mandates. The section it points at scopes
+    context awareness to Claude Sonnet 5, Sonnet 4.6, Sonnet 4.5 and Haiku 4.5 — re-fetched
+    2026-08-12, a leg the issue explicitly marked unverified. (CC-F7)
+  - `disallowed-tools: Edit, NotebookEdit` narrows the read-only contract's accident surface. **It
+    does not enforce the contract, and the skill now says so.** An earlier draft of this change
+    claimed the contract had become "a property of the tool set"; review caught that as false and it
+    never shipped. `Write` is retained for the mandated persist and `Bash` for the state key, and
+    either can mutate a component Phase B has already read — so the contract remains instruction-held
+    with a narrowed surface. A skill whose subject is auditing assurance must not make a false
+    assurance claim about itself; both this skill and `audit-instructions` carry the honest posture,
+    and both are explicit that an operator must never be told the skill *cannot* edit their files.
+    (CC-F4)
+  - `audit-instructions` routes back: its Scope boundary now names this skill as the additive lane.
+    **The filed mechanism was wrong** — the issue says the token appears nowhere in the sibling, and
+    at HEAD it appears once, in a state-key aside. The grep claim is false; the routing claim holds,
+    because a mention in an aside is not a route-out. Two evals are added: one whose prompt carries
+    no slash invocation, so description-driven selection is exercised for the first time, and one
+    pinning the P7 mechanical-gate rule. (CC-F8)
+  - The state key stops overwrites, not reaping — the uninstall sentence is quoted with
+    `--keep-data`, re-fetched 2026-08-12. **Only the uninstall half of CC-F11 is actioned**: the
+    row's other two observations are recorded, not fixed. `when_to_use` is still unused, and the
+    description grew from 1,290 to **1,305** of its 1,536-char cap to carry `output-styles` for
+    CC-F6 — the opposite direction from the row's headroom note, and the trade is deliberate.
+- **`audit-instructions` gets the same `disallowed-tools` declaration**, in the same change rather
+  than after it. It states the identical report-only contract ("never by this skill") and names
+  neither `Edit` nor `Write` anywhere in its body, so declaring it on only one of the pair would
+  have opened a fresh instance of exactly the sibling divergence CC-F6 is about — in the release
+  that fixes CC-F6. `audit-pass` states the contract too and is **not** touched here: PR #2403 owns
+  that file right now. Tracked in #2415.
+
+### Not taken
+
+- **#2283 row A8** (generalize the loadability filter beyond `vendor/`) is declined on its rationale.
+  It reasons from the `vendor/` exclusion's own justification — not loadable, so the grant never
+  takes effect — to `node_modules/`, worktrees and marketplace mirrors. That step is false: "Skills
+  also load from nested `.claude/skills/` directories below your working directory. When Claude reads
+  or edits a file in a subdirectory, skills from that subdirectory's `.claude/skills/` become
+  available." (<https://code.claude.com/docs/en/skills>, fetched 2026-08-12.) So
+  `node_modules/<pkg>/.claude/skills/<name>/SKILL.md` is loadable the moment Claude touches a file
+  in that package, and the exclusion would make an `error`-tier check silently blind to a live
+  grant. The disclosure half — every exclusion reports its own count — ships above instead, and the
+  corrected mechanism is carried into **#2406** along with what a real loadability model would have
+  to distinguish.
+
 ## [0.36.2]
 
 ### Changed
