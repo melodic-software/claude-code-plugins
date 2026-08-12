@@ -3,18 +3,38 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-
-## [0.35.9]
+## [0.35.12]
 
 ### Fixed
 
 - Reconcile role_labels docs and resolve all three roles at the seam.
+
+## [0.35.11]
+
+### Changed
+
+- **Escalation-marker grammar has one canonical source (#1672).** `reference/escalation-marker.md`
+  now defines the marker comment prefix, kind enum, author-match suppression rule, and
+  label-plus-comment pairing; `work-loop` and `attend-queue` cite it instead of restating the
+  grammar in prose.
+
+## [0.35.10]
+
+### Added
+
+- **Unattended recurring-schedule seeding via --accept-recommended** in setup skill.
+
+## [0.35.9]
+
+### Added
+
+- **Lane-neutral AI disclaimer SSOT** in work-items reference docs.
 
 ## [0.35.8]
 
 ### Fixed
 
-- Reconcile role_labels docs and resolve all three roles at the seam.
+- Harden triage intake against priority-axis stacking and blocked-by relabel races.
 
 ## [0.35.7]
 

@@ -88,6 +88,8 @@ Good: I walked the streets last night
       Looking at me
 ```
 
+**Limit:** the separation a break buys can be too much of a good thing — stacks of very short lines can return with a pause after each one. The fix is a prompt-layer join, applied in the Suno lyrics field only. Bound and evidence: `lyrics.md` "Line breaks cut both ways".
+
 ### Manual repetition (vs `(x2)` notation)
 
 **Effect:** `(x2)` after a line is largely ignored. Writing the line twice produces actual repetition.
