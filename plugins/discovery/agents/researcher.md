@@ -24,7 +24,7 @@ The parent resolves the envelope in main context and passes it in. You own a bou
 load-time machinery, no user turn, no unresolved scope.
 
 - **The resolved research topic.** You cannot infer it. A non-fork subagent has no view of the
-  conversation, and `$ARGUMENTS` reaches a preloaded skill body as the empty string — so the
+  conversation, and argument substitution does not carry the topic into a preloaded body — so the
   preloaded text will read as `Research the following topic:` with nothing after the colon. That
   silence is not an empty topic; it is a missing one.
 - **The memory-slice path** to write into (`<memory_dir>/<topic-slug>/`, resolved by the parent

@@ -82,7 +82,7 @@ Local counterpart to `/discovery:research` (external sources). Together: `/disco
 
 Explore the following: $ARGUMENTS
 
-**A dispatched run does not read that line.** `$ARGUMENTS` substitutes to the empty string on the preload path, and a non-fork subagent has no view of the conversation to fall back on — so for a dispatched run the scope arrives in the dispatch prompt, and its absence is a parent-envelope failure the agent reports rather than repairs. There is no unscoped orientation mode under dispatch: a general repository sweep would hand back a plausible artifact answering a question nobody asked. Running **inline** with no scope supplied above, infer it from the current conversation context — identify what area of the codebase is relevant to the task at hand and explore that.
+**A dispatched run does not read that line.** Argument substitution does not carry scope into a preloaded body (official docs are silent on preload substitution), and a non-fork subagent has no view of the conversation to fall back on — do not rely on seeing an unfilled slot — so for a dispatched run the scope arrives in the dispatch prompt, and its absence is a parent-envelope failure the agent reports rather than repairs. There is no unscoped orientation mode under dispatch: a general repository sweep would hand back a plausible artifact answering a question nobody asked. Running **inline** with no scope supplied above, infer it from the current conversation context — identify what area of the codebase is relevant to the task at hand and explore that.
 
 **Caveat — a `${CLAUDE_…}`-shaped token in a scope may not arrive as you typed it.** This is about the **inline** path above and about the scope text the parent writes into a dispatch prompt. It is a **different question** from what the paragraph above says about `$ARGUMENTS` on the preload path, and it is not evidence for or against it: one is about a placeholder the plugin's own body carries, the other about placeholder-shaped text a caller supplies. Stated as what was observed and what is documented, because the mechanism is neither:
 
@@ -158,7 +158,7 @@ When the task involves tooling, MCP servers, or infrastructure:
 
 ## Exploration modes
 
-The resolved scope shapes the exploration focus — read from `$ARGUMENTS` inline, and from the dispatch prompt under dispatch, where `$ARGUMENTS` is empty:
+The resolved scope shapes the exploration focus — read from `$ARGUMENTS` inline, and from the dispatch prompt under dispatch, where argument substitution does not reach the preloaded body:
 
 | Argument | Focus | Key actions |
 |----------|-------|-------------|

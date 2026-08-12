@@ -14,7 +14,7 @@ before the agent starts, because the agent cannot resolve it once started:
 
 | Field | Why the agent cannot supply it |
 |---|---|
-| Resolved topic | `$ARGUMENTS` substitutes to the **empty string** on the preload path, and a non-fork subagent sees no conversation to infer from. The preloaded body reaches the agent reading `Research the following topic:` with nothing after the colon — silence, not a visibly unfilled slot |
+| Resolved topic | Argument substitution does not carry the topic into a preloaded body (official docs are silent on preload substitution), and a non-fork subagent sees no conversation to infer from — do not rely on seeing an unfilled slot. The preloaded body may reach the agent reading `Research the following topic:` with nothing after the colon |
 | Reason the topic is being researched — the decision it feeds and who the output is for | Same blindness as the topic, with a worse failure mode: a missing topic is silence the agent can report, while a missing reason is invisible. The agent researches the topic as written, returns something well-formed, and neither side learns it answered the wrong question. Intent is what decides which of several defensible readings of a topic is the one wanted |
 | Memory-slice path | Resolved against the consuming repo's topic-docs binding, which is a parent-side lookup |
 | Budget | How much depth was authorized is the caller's decision, never the worker's |

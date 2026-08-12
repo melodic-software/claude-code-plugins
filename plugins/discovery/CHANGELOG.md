@@ -1,5 +1,14 @@
 # Changelog — discovery plugin
 
+## [0.14.1]
+
+### Fixed
+
+- **Softened the unsupported `$ARGUMENTS`-on-preload claim at six sites.** Official docs are silent
+  on whether argument substitution runs on the preload path; the operational conclusion is unchanged
+  (scope/topic must arrive in the dispatch prompt) but the stated reason no longer asserts an
+  undocumented harness behavior. (#2270)
+
 ## [0.14.0]
 
 ### Fixed
