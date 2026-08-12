@@ -1444,16 +1444,17 @@ hook::git_resolve_index() {
     sudo)
       # sudo's own chdir is -D/--chdir (its -C is close-from, -R is --chroot).
       # GNU sudo clusters short options, so `-bD dir` carries a chdir that no
-      # exact `-D` match sees. Peel the documented valueless shorts (-b/-E/-H/-K/-k
-      # -n/-s/-v, per `sudo --help`) off a single-dash token so the value-taking
-      # tail (-D/--chdir, -u/-g/-h/-p/-C/-R/-T) reaches its own branch.
+      # exact `-D` match sees. Peel the documented valueless shorts (-A/-B/-b/-e/-E
+      # -H/-K/-k/-l/-n/-P/-s/-S/-v/-V, per `sudo --help`) off a single-dash token
+      # so the value-taking tail (-D/--chdir, -u/-g/-h/-p/-C/-R/-T) reaches its own
+      # branch. `-h` is value-taking (`-h host` / `--host=`) and must not be peeled.
       # `-i` relocates to the target user's home without naming a directory at all.
       ((i++))
       local sudo_ci=-1 stok
       while ((i < n)) && [[ "${w[i]}" == -* ]]; do
         stok="${w[i]}"
         if [[ "$stok" == -[!-]* ]]; then
-          while [[ "$stok" =~ ^-[bnEhHkKsSv](.+)$ ]]; do stok="-${BASH_REMATCH[1]}"; done
+          while [[ "$stok" =~ ^-[ABbeEHKklnPsSvV](.+)$ ]]; do stok="-${BASH_REMATCH[1]}"; done
         fi
         case "$stok" in
         -D | --chdir)

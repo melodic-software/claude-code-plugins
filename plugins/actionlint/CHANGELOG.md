@@ -4,6 +4,12 @@ All notable changes to the `actionlint` plugin are documented here. Format follo
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
 
+## [0.8.9]
+
+### Changed
+
+- **Synced `hook-utils.sh`:** peel sudo clustered short options for chdir resolution (#1811); widen the valueless-short peel set and keep `-h` value-taking.
+
 ## [0.8.8]
 
 ### Changed
