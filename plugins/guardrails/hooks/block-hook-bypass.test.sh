@@ -873,11 +873,13 @@ run "scratch: case-insensitive compare (documented residual, allowed)" \
   "echo hello > /tmp/SCRATCH/f" 0 "$SCRATCH_ENV=/tmp/scratch"
 
 # TRUNCATED-OPERAND FAIL-CLOSED. strip_literals keeps a quoted write target but
-# drops its quotes, and normalize_segments then resolves a `;`, `|`, `&`,
-# newline or space inside that operand as SYNTAX — so a quoted pathname reaches
-# the compare as a safe-looking prefix of itself. bash treats the whole quoted
-# word as one pathname, so exempting the prefix would be a one-token bypass.
-# The scratch axis therefore refuses to exempt any quoted or escaped operand.
+# drops its quotes, and before 0.26.0 normalize_segments then resolved a `;`,
+# `|`, `&`, newline or space inside that operand as SYNTAX — so a quoted pathname
+# reached the compare as a safe-looking prefix of itself. bash treats the whole
+# quoted word as one pathname, so exempting the prefix would be a one-token
+# bypass. The operand now carries an OPAQUE mark over each such character and
+# survives as one token (#2226); this axis refuses any operand that is opaque,
+# and — its shipped floor, unchanged — any operand that was quoted at all.
 run "scratch: quoted operand with ; is not exempted (blocked)" \
   "echo x > \"/tmp/scratch/a;/../../etc/passwd\"" 2 "$SCRATCH_ENV=/tmp/scratch"
 run "scratch: quoted operand with | is not exempted (blocked)" \
@@ -894,32 +896,114 @@ run "scratch: even a benign quoted target is not exempted (blocked)" \
 # exemption — as long as the quoted content holds no `>`; see the pair below.
 run "scratch: quoted content, unquoted target (allowed)" \
   "echo \"hello world\" > /tmp/scratch/f" 0 "$SCRATCH_ENV=/tmp/scratch"
-# THE BREADTH, pinned rather than left to drift. It is blunt in TWO directions
-# and both sides of each boundary are asserted, so a later change cannot quietly
-# widen or narrow either. Both are one-directional — the check can only refuse an
-# exemption, never grant one — and making either precise needs to know which `>`
-# and which quotes are syntax rather than content, which is exactly what
-# strip_literals destroys before this runs (#2226).
+# THE BREADTH THAT WAS, still pinned on both sides — but the verdicts moved in
+# 0.26.0 and these four cases are where that is visible. 0.25.x could not tell
+# operand quotes from content quotes, so it read `${COMMAND#*>}` and refused the
+# exemption on ANY quote or backslash after the first `>` CHARACTER anywhere in
+# the command (#2236). The operand marks supply that association, so the test is
+# keyed on the target word instead and both shapes below are exempt again.
+# FOUR of the five assertions here are GRANTS — blocked at 0.25.3, allowed now —
+# and they are the ENTIRE grant surface of the #2226 fix. Each lands only on a
+# target the marks prove was bare: no quote mark, no opaque mark, no backslash.
+# The fifth (the unquoted compound) was already allowed and is the control.
 #
-# (1) NOT segment-scoped: a quote in an unrelated LATER segment cancels the
-#     exemption for an earlier, unambiguous write.
-run "scratch: quote in an unrelated later segment cancels it (blocked)" \
-  "echo x > /tmp/scratch/f && grep foo \"notes.txt\"" 2 "$SCRATCH_ENV=/tmp/scratch"
+# (1) Segment-scoped now: a quote in an unrelated LATER segment is that segment's
+#     business. Segment 1's target is a plain path strictly under the root.
+run "scratch: quote in an unrelated later segment keeps it (allowed)" \
+  "echo x > /tmp/scratch/f && grep foo \"notes.txt\"" 0 "$SCRATCH_ENV=/tmp/scratch"
 run "scratch: the same compound with no quotes keeps it (allowed)" \
   "echo x > /tmp/scratch/f && grep foo notes.txt" 0 "$SCRATCH_ENV=/tmp/scratch"
-# (2) NOT keyed on the redirect OPERATOR: `${COMMAND#*>}` splits at the first `>`
-#     CHARACTER, so a `>` inside quoted CONTENT starts the tail early and that
-#     content's own closing quote lands inside it. This is the case the 0.25.0
-#     text got backwards by promising that quotes before the redirect are safe.
-run "scratch: > inside double-quoted content cancels it (blocked)" \
-  "echo \"a > b\" > /tmp/scratch/f" 2 "$SCRATCH_ENV=/tmp/scratch"
-run "scratch: > inside single-quoted content cancels it (blocked)" \
-  "echo 'x > y' > /tmp/scratch/f" 2 "$SCRATCH_ENV=/tmp/scratch"
-# Control: the SAME truncation reaches the /dev/null exemption and predates this
-# axis, which is why it is filed as #2226 rather than fixed here. Pinned so a
-# future strip_literals fix flips it visibly.
-run "control: /dev/null still shows the inherited truncation (#2226, allowed)" \
-  "echo x > \"/dev/null;/../../etc/passwd\"" 0
+run "scratch: quote in a later ;-segment keeps it (allowed)" \
+  "echo x > /tmp/scratch/f; cat \"notes.txt\"" 0 "$SCRATCH_ENV=/tmp/scratch"
+# (2) Keyed on the redirect OPERAND now: a `>` inside quoted CONTENT is content,
+#     and that content's quotes are the content's own. strip_literals drops the
+#     whole span — the same quote tracking every other lane of this guard already
+#     relies on to keep quoted prose inert.
+run "scratch: > inside double-quoted content keeps it (allowed)" \
+  "echo \"a > b\" > /tmp/scratch/f" 0 "$SCRATCH_ENV=/tmp/scratch"
+run "scratch: > inside single-quoted content keeps it (allowed)" \
+  "echo 'x > y' > /tmp/scratch/f" 0 "$SCRATCH_ENV=/tmp/scratch"
+# --- Redirect-operand marking (#2226) ---------------------------------------
+# THE REPORTED BYPASS AND ITS FAMILY. A quoted redirect operand is one pathname
+# to bash. Until 0.26.0 the exemptions were decided on its first whitespace- or
+# separator-delimited fragment, so `> "/dev/null ../../etc/pw"` was exempted on
+# the word `/dev/null` while nothing named `/dev/null` was the destination. The
+# operand now carries an opaque mark over every character whose literal value
+# would read as syntax, and survives the strip and the segment split as ONE
+# token, so no fragment of it can stand in for the whole.
+#
+# The DISCARD lane. Every one of these is allowed at 0.25.3 unless noted.
+run "#2226: quoted /dev/null + space fragment (blocked)" \
+  "echo x > \"/dev/null ../../etc/pw\"" 2
+run "#2226: quoted /dev/null + ; fragment (blocked)" \
+  "echo x > \"/dev/null;/../../etc/passwd\"" 2
+run "#2226: quoted /dev/null + | fragment (blocked)" \
+  "echo x > \"/dev/null|/../../etc/passwd\"" 2
+run "#2226: quoted /dev/null + & fragment (blocked)" \
+  "echo x > \"/dev/null&/../../etc/passwd\"" 2
+run "#2226: quoted /dev/null + parens (blocked)" \
+  "echo x > \"/dev/null(a)/../../etc/pw\"" 2
+# A backslash inside a DOUBLE-quoted operand: bash keeps the backslash here, this
+# strip cannot, so the pair is opaque rather than guessed at.
+run "#2226: double-quoted /dev/null + backslash escape (blocked)" \
+  "echo x > \"/dev/null\\ ../../etc/pw\"" 2
+run "#2226: single-quoted /dev/null + space fragment (blocked)" \
+  "echo x > '/dev/null ../../etc/pw'" 2
+run "#2226: partially-quoted /dev/null + space fragment (blocked)" \
+  "echo x > /dev/\"null ../../etc/pw\"" 2
+# The same truncation via an UNQUOTED escape. `\;` reached normalize_segments'
+# escaped-separator sentinel and was restored to a space, cutting the operand.
+run "#2226: unquoted escaped ; in a /dev/null operand (blocked)" \
+  "echo x > /dev/null\\;/../../etc/passwd" 2
+run "#2226: unquoted escaped space in a /dev/null operand (blocked)" \
+  "echo x > /dev/null\\ ../../etc/pw" 2
+# fd-numbered stdout spelling, the cat lane, and redirect ordering all reach the
+# same decision, so all three carry the shape.
+run "#2226: 1> fd-numbered quoted operand (blocked)" \
+  "echo x 1>\"/dev/null ../../etc/pw\"" 2
+run "#2226: cat lane, quoted operand (blocked)" \
+  "cat > \"/dev/null ../../etc/pw\"" 2
+run "#2226: quoted operand then real file (blocked)" \
+  "echo x > \"/dev/null ../x\" > real.txt" 2
+run "#2226: real file then quoted operand (blocked)" \
+  "echo x > real.txt > \"/dev/null ../x\"" 2
+# A quoted operand spanning physical lines, and an operand continued by a
+# backslash-newline: bash keeps both as one word, so the mark must too.
+DEVNULL_MULTILINE=$(printf 'echo x > "/dev/null\n../../etc/pw"')
+run "#2226: multi-line quoted operand (blocked)" "$DEVNULL_MULTILINE" 2
+DEVNULL_CONTINUED=$(printf 'echo x > /dev/null\\\n../../etc/pw')
+run "#2226: operand continued by backslash-newline (blocked)" "$DEVNULL_CONTINUED" 2
+# A raw sentinel byte in the command text must never pass for a mark this strip
+# emitted — the quote mark is stripped before the discard compare, so a forged
+# one would otherwise make `/dev/<EOT>null` compare equal to `/dev/null`.
+DEVNULL_FORGED=$(printf 'echo x > /dev/\x04null')
+run "#2226: forged quote-mark byte in the target (blocked)" "$DEVNULL_FORGED" 2
+DEVNULL_FORGED_OPAQUE=$(printf 'echo x > /dev/\x03null')
+run "#2226: forged opaque-mark byte in the target (blocked)" "$DEVNULL_FORGED_OPAQUE" 2
+# An empty quoted operand is not a discard and is not a path; it blocks.
+run "#2226: empty quoted target (blocked)" "echo x > \"\"" 2
+# THE FRICTION FLOOR. An unambiguous quoted or partially-quoted discard is still
+# a discard — the quote mark is transparent to this compare, deliberately, so
+# the fix costs no ordinary /dev/null usage. (Also pinned above, kept adjacent
+# here because it is the boundary the marking must not cross.)
+run "#2226: unambiguous quoted /dev/null stays a discard (allowed)" \
+  "echo x > \"/dev/null\"" 0
+run "#2226: unambiguous partially-quoted /dev/null stays a discard (allowed)" \
+  "cat > /dev/\"null\"" 0
+# The stderr/fd lanes never resolved a stdout target and must not start now.
+run "#2226: 2> quoted operand is not a stdout write (allowed)" \
+  "echo x 2>\"/dev/null a\"" 0
+
+# THE SCRATCH LANE, same shapes. These already blocked at 0.25.3 via the
+# whole-command fail-close; they must keep blocking on the operand-keyed rule
+# that replaced it, otherwise the narrowing below traded a bypass for a fix.
+run "#2226: scratch, quoted operand with > inside (blocked)" \
+  "echo x > \"/tmp/scratch/a>real.txt\"" 2 "$SCRATCH_ENV=/tmp/scratch"
+run "#2226: scratch, unquoted escaped ; in the operand (blocked)" \
+  "echo x > /tmp/scratch/a\\;/../../etc/passwd" 2 "$SCRATCH_ENV=/tmp/scratch"
+SCRATCH_CONTINUED=$(printf 'echo x > /tmp/scratch/a\\\n../../etc/passwd')
+run "#2226: scratch, operand continued by backslash-newline (blocked)" \
+  "$SCRATCH_CONTINUED" 2 "$SCRATCH_ENV=/tmp/scratch"
 
 # The exemption is target-scoped only — it must not relax the producer axis.
 run "scratch: python3 -c write into an exempt root still blocks" \

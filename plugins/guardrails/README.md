@@ -113,23 +113,22 @@ out of scope until such a signal exists.
   blocks, and a relative, unexpanded (`$VAR`, `~`) or glob target is never
   exempt. A **quoted or escaped** operand is never exempt either, and that one
   fails closed rather than being documented: the quote strip drops a kept
-  target's quotes and the segment split then reads a `;`, `|`, `&` or space
+  target's quotes, and the segment split would then read a `;`, `|`, `&` or space
   *inside* the operand as syntax, so `> "/tmp/scratch/a;/../../etc/passwd"` —
-  one pathname to bash — would otherwise be judged on `/tmp/scratch/a`. The rule
-  is therefore blunt, and blunt in two directions worth stating exactly: **any
-  quote or backslash after the first `>` character in the command — operator or
-  not — cancels the exemption.** It is not scoped to the segment being evaluated,
-  so a quote in an unrelated later segment cancels it too
-  (`echo x > /tmp/scratch/f && grep foo "notes.txt"` blocks; the same compound
-  without quotes does not). And it is not keyed on the redirect *operator*, so a
-  `>` inside quoted content starts the scan early and that content's own closing
-  quote falls inside it — `echo "hi there" > /tmp/scratch/f` is exempt, but
-  `echo "a > b" > /tmp/scratch/f` is **not**. Both are the safe direction: the
-  check can only ever refuse an exemption, never grant one. Making it precise
-  needs the same thing in both cases — knowing which `>` and which quotes are
-  syntax rather than content — which is exactly what the quote strip destroys
-  before this code runs. The same root cause reaches the `/dev/null` exemption and
-  predates this option — filed as #2226 and pinned by a control test. Two residuals remain, both
+  one pathname to bash — would be judged on `/tmp/scratch/a`. Since **0.26.0**
+  the operand is **marked** wherever that would happen, so it reaches the compare
+  as one word and the decision is made on the whole thing: an operand carrying
+  whitespace, `;`, `|`, `&`, `(`, `)`, a newline or a backslash escape exempts
+  nothing, and a merely quoted operand is refused by this axis on its shipped
+  floor. **Quotes and backslashes elsewhere in the command no longer matter.**
+  Before 0.26.0 this test read the whole raw command tail after the first `>`
+  *character*, so a quote in an unrelated later segment, or a `>` inside quoted
+  content, cancelled the exemption for an earlier plain write. Both were friction
+  rather than protection and both are gone — `echo x > /tmp/scratch/f && grep foo
+  "notes.txt"` and `echo "a > b" > /tmp/scratch/f` are exempt again. The same
+  truncation reached the `/dev/null` discard and predated this option (#2226);
+  the same marking closes it, so a quoted `/dev/null` operand carrying a second
+  fragment now **blocks** where it was allowed. Two residuals remain, both
   deliberate and both pinned: normalization is lexical, so symlinks out of a
   root are not followed, and the compare is case-insensitive because the segment
   scan runs over the lowercased command. Naming a root is accepting that root's
@@ -317,7 +316,7 @@ reads it from.
 | `block_dangerous_git_allow` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW` | Comma-separated forms block-dangerous-git permits: push-force, push-lease-unsafe, reset-hard, clean-force, checkout-dot, restore-dot, checkout-force; empty blocks all |
 | `block_noncanonical_commit_allow` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_NONCANONICAL_COMMIT_ALLOW` | Comma-separated form tokens to allow (currently: message-flag, which permits `-m` even when the message contains a newline) |
 | `block_no_verify_hook_manager_prefixes` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_HOOK_MANAGER_PREFIXES` | Comma-separated hook-manager env-var name prefixes block-no-verify treats as a bypass when set to 0/false (e.g. lefthook,husky); empty uses the built-in default set (lefthook, husky, pre_commit, simple_git_hooks) |
-| `block_hook_bypass_scratch_roots` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS` | Comma-separated ABSOLUTE directories block-hook-bypass exempts as scratch/temp write targets (e.g. /tmp/scratch,/d/jobtmp/session); empty (the default) exempts nothing and leaves the guard's shipped behaviour unchanged. Matching is on the effective stdout target after lexical normalization, at a path-component boundary — a sibling merely sharing the name prefix, a `..` escape out of a root, and a discard-then-real-file redirect all still block. Any quote or backslash after the first `>` CHARACTER in the command (operator or not) cancels the exemption for the whole command — so a quote in a later segment, or a `>` inside quoted content, also cancels it. Symlinks are not followed |
+| `block_hook_bypass_scratch_roots` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS` | Comma-separated ABSOLUTE directories block-hook-bypass exempts as scratch/temp write targets (e.g. /tmp/scratch,/d/jobtmp/session); empty (the default) exempts nothing and leaves the guard's shipped behaviour unchanged. Matching is on the effective stdout target after lexical normalization, at a path-component boundary — a sibling merely sharing the name prefix, a `..` escape out of a root, and a discard-then-real-file redirect all still block. A quoted or escaped OPERAND is never exempt: the operand is marked so it survives the quote strip and the segment split as one word, and an operand carrying whitespace, `;`, `\|`, `&`, `(`, `)`, a newline or a backslash escape exempts nothing. Quotes elsewhere in the command no longer matter. Symlinks are not followed |
 | `stdin_read_timeout` | number<br>*min 1* | `2` | `CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT` | Idle bound on reading the hook payload from stdin — how long a silent pipe is tolerated before a blocking guard fails closed |
 
 ### How to set these
