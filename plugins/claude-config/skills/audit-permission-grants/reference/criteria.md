@@ -150,6 +150,36 @@ anti-pattern 2.
 **Recommend**: replace with a portable form — `${CLAUDE_SKILL_DIR}` for a skill's own bundled script, a
 bare-name command on PATH, or for `Read`/`Edit` rules the `~/` home anchor.
 
+### P2b: Tilde-user path in a `Bash(...)` rule [error]
+
+**What**: A `Bash(...)` allow rule whose payload begins a path with `~username/` (not the portable
+`~/` home anchor). Bash rules match literally and do not expand tilde-user forms.
+
+**How to check**: run the detector. `Read(~/notes.md)` and other `~/` anchors are not flagged. A URL
+user-directory segment such as `Bash(curl https://example.com/~alice/index.html)` is not flagged —
+only a tilde-user path that begins a shell word inside the `Bash(...)` payload.
+
+**Why**: the rule names a specific account, leaks a username into version control, and breaks on other
+machines. The portable fixes are the same as P2 for Bash rules: `${CLAUDE_SKILL_DIR}`, a bare-name
+command on PATH, or for `Read`/`Edit` rules the `~/` home anchor.
+
+## P4: Inert substitution token in a `Bash(...)` rule [error]
+
+**What**: A `Bash(...)` allow rule containing `${CLAUDE_PLUGIN_ROOT}`, `%USERPROFILE%`, or
+`$env:USERPROFILE`. Only the two documented substitutions — `${CLAUDE_SKILL_DIR}` and
+`${CLAUDE_PROJECT_DIR}` — expand in allowed-tools Bash rules; these tokens stay literal and the grant
+never matches at runtime.
+
+**How to check**: run the detector. Each offending `Bash(...)` token is reported separately. Non-Bash
+rules containing similar spellings are out of scope for this check.
+
+**Why**: the grant looks configured but is a no-op, so operators believe a helper is pre-approved when
+it is not.
+
+**Recommend**: in skill `allowed-tools`, replace with `${CLAUDE_SKILL_DIR}` for a bundled script. In
+settings or other scopes, relocate the helper to a stable bare command on PATH and allow that name
+narrowly.
+
 ## P3: Plugin self-granted permissions [warning]
 
 **What**: A plugin `settings.json` (a `settings.json` beside a `.claude-plugin/plugin.json`) that

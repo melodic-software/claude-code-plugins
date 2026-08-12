@@ -1100,5 +1100,64 @@ if [[ $? -eq 2 ]]; then ok "--check-preserved without a base ref -> exit 2"; els
 if [[ $? -eq 2 ]]; then ok "--check-preserved with an unresolvable base ref -> exit 2"; else fail "--check-preserved bad base ref did not exit 2"; fi
 rm -rf "$repo"
 
+# ===================== inline-linked headings (#2392) ======================
+# changelog_versions must accept `(` after `]` so linked Keep a Changelog headings
+# are visible to --check, --check-order, and --check-preserved.
+
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 1.0.0 yes
+printf '# Changelog\n\n## [1.0.0](https://github.com/o/r/releases/tag/v1.0.0) - 2026-01-01\n\n- one\n' \
+  >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+if (cd "$repo" && bash scripts/check-changelog-parity.sh --check >/dev/null 2>&1); then
+  ok "inline-linked heading passes --check when it matches the manifest"
+else
+  fail "inline-linked heading wrongly failed --check"
+fi
+if (cd "$repo" && bash scripts/check-changelog-parity.sh --check-order >/dev/null 2>&1); then
+  ok "single inline-linked heading passes --check-order"
+else
+  fail "inline-linked heading wrongly failed --check-order"
+fi
+rm -rf "$repo"
+
+# Absorbed linked heading must fail --check-preserved.
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 1.0.0 yes
+printf '# Changelog\n\n## [1.0.0](https://github.com/o/r/releases/tag/v1.0.0)\n\n- one\n\n## [0.9.0]\n\n- nine\n' \
+  >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+base="$(git -C "$repo" rev-parse HEAD)"
+printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
+printf '# Changelog\n\n## [1.1.0]\n\n- eleven\n\n## [0.9.0]\n\n- nine\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm absorb
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-preserved "$base" 2>&1)"
+rc=$?
+if [[ $rc -eq 1 && "$out" == *"DELETED CHANGELOG ENTRY"* && "$out" == *"1.0.0"* ]]; then
+  ok "absorbed inline-linked heading fails --check-preserved"
+else
+  fail "absorbed inline-linked heading not caught: rc=$rc out='$out'"
+fi
+rm -rf "$repo"
+
+# Plain -> linked reformat must pass --check-preserved (not a deletion).
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 1.0.0 yes
+printf '# Changelog\n\n## [1.0.0]\n\n- one\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+base="$(git -C "$repo" rev-parse HEAD)"
+printf '# Changelog\n\n## [1.0.0](https://github.com/o/r/releases/tag/v1.0.0) - 2026-01-01\n\n- one\n' \
+  >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm link
+if (cd "$repo" && bash scripts/check-changelog-parity.sh --check-preserved "$base" >/dev/null 2>&1); then
+  ok "plain-to-linked heading reformat passes --check-preserved"
+else
+  fail "plain-to-linked reformat wrongly failed --check-preserved"
+fi
+rm -rf "$repo"
+
 printf '\nPASS=%d FAIL=%d\n' "$PASS" "$FAIL"
 ((FAIL == 0))

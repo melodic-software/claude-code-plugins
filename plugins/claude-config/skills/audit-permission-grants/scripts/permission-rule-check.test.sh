@@ -312,14 +312,28 @@ assert_eq "relocated config root produces exactly one finding" "1" \
 # With neither CLAUDE_CONFIG_DIR nor HOME set there is no user scope to read. A
 # silent skip would let "No fragile permission grants found." rest on a scope
 # that was never opened.
-err_out=$(env -u CLAUDE_CONFIG_DIR -u HOME PERMISSION_HYGIENE_FIXTURE_DIR="$D8C" bash "$SCRIPT" 2>&1 >/dev/null)
+err_out=$(env -u CLAUDE_CONFIG_DIR -u HOME -u PERMISSION_HYGIENE_SCAN_ROOT PERMISSION_HYGIENE_FIXTURE_DIR="$D8C" bash "$SCRIPT" 2>&1 >/dev/null)
 assert_contains "unresolvable user scope is announced" "$err_out" "user-global scope not scanned"
 
+# --- Case 8f: #2283 A11 — operator-facing scan-root override name ----------------
+D_SCAN="$TEST_TMPDIR/scan-root-alias"
+mkdir -p "$D_SCAN/.claude"
+jq -n '{permissions:{allow:["Bash(npm test)"]}}' >"$D_SCAN/.claude/settings.json"
+assert_eq "PERMISSION_HYGIENE_SCAN_ROOT resolves the scan root" "0" \
+  "$(env -u CLAUDE_CONFIG_DIR -u PERMISSION_HYGIENE_FIXTURE_DIR HOME="$ISOLATED_HOME" PERMISSION_HYGIENE_SCAN_ROOT="$D_SCAN" bash "$SCRIPT" --count)"
+
+D_FIXTURE="$TEST_TMPDIR/fixture-root-alias"
+mkdir -p "$D_FIXTURE/.claude"
+jq -n '{permissions:{allow:["Bash(python*)"]}}' >"$D_FIXTURE/.claude/settings.json"
+assert_eq "PERMISSION_HYGIENE_SCAN_ROOT wins over deprecated fixture dir" "0" \
+  "$(env -u CLAUDE_CONFIG_DIR HOME="$ISOLATED_HOME" PERMISSION_HYGIENE_SCAN_ROOT="$D_SCAN" PERMISSION_HYGIENE_FIXTURE_DIR="$D_FIXTURE" bash "$SCRIPT" --count)"
+
 # --- Case 9b: unresolvable scan root refuses instead of sweeping -------------
-# The root ladder is $PERMISSION_HYGIENE_FIXTURE_DIR -> git toplevel ->
-# $CLAUDE_PROJECT_DIR, with NO fallback to the cwd. Run from a non-repo directory
-# with every rung unset: the scan must refuse (exit 2, the environment-gap channel)
-# rather than walk whatever the cwd happens to be and report a clean bill.
+# The root ladder is $PERMISSION_HYGIENE_SCAN_ROOT (or the deprecated
+# $PERMISSION_HYGIENE_FIXTURE_DIR) -> git toplevel -> $CLAUDE_PROJECT_DIR, with
+# NO fallback to the cwd. Run from a non-repo directory with every rung unset:
+# the scan must refuse (exit 2, the environment-gap channel) rather than walk
+# whatever the cwd happens to be and report a clean bill.
 #
 # CLAUDE_PROJECT_DIR is unset explicitly as well as the fixture var — an outer
 # session that exports it would otherwise resolve the root and hide the regression.
@@ -587,6 +601,74 @@ D8E="$TEST_TMPDIR/issue-2282-traversal"
 mkdir -p "$D8E/.claude"
 jq -n --arg l "Read(${LAUNDER_MP})" '{permissions:{allow:[$l]}}' >"$D8E/.claude/settings.json"
 assert_eq "a // prefix does not exempt a user home later in the rule" "1" "$(run "$D8E" --count)"
+
+# --- Case 8f: #2397 A12 — tilde-user Bash paths leak a username ----------------
+D8F="$TEST_TMPDIR/issue-2397-tilde-user"
+mkdir -p "$D8F/.claude"
+jq -n '{permissions:{allow:["Bash(~kyle/scripts/x.sh:*)"]}}' >"$D8F/.claude/settings.json"
+OUT_TILDE=$(run "$D8F")
+assert_contains "flags tilde-user Bash path" "$OUT_TILDE" "~kyle"
+assert_contains "tilde-user finding is P2" "$OUT_TILDE" "[P2]"
+assert_eq "portable ~/ anchor in Read is not flagged" "0" \
+  "$(jq -n '{permissions:{allow:["Read(~/notes.md)"]}}' >"$D8F/.claude/settings.json" && run "$D8F" --count)"
+D8F_URL="$TEST_TMPDIR/issue-2397-tilde-url"
+mkdir -p "$D8F_URL/.claude"
+jq -n '{permissions:{allow:["Bash(curl https://example.com/~alice/index.html)"]}}' \
+  >"$D8F_URL/.claude/settings.json"
+assert_eq "URL user-directory segment is not flagged as tilde-user path" "0" "$(run "$D8F_URL" --count)"
+
+# --- Case 8g: #2397 A7b — inert substitution tokens in allowed-tools ----------
+D8G="$TEST_TMPDIR/issue-2397-inert"
+mkdir -p "$D8G/.claude/skills/demo"
+cat >"$D8G/.claude/skills/demo/SKILL.md" <<'EOF'
+---
+name: demo
+allowed-tools: Bash(${CLAUDE_PLUGIN_ROOT}/scripts/x.sh:*)
+---
+body
+EOF
+OUT_INERT=$(run "$D8G")
+assert_contains "flags inert CLAUDE_PLUGIN_ROOT grant" "$OUT_INERT" "[P4]"
+assert_contains "skill-local remedy recommends CLAUDE_SKILL_DIR" "$OUT_INERT" "CLAUDE_SKILL_DIR"
+
+D8G2="$TEST_TMPDIR/issue-2397-inert-settings"
+mkdir -p "$D8G2/.claude"
+cat >"$D8G2/.claude/settings.json" <<'EOF'
+{
+  "permissions": {
+    "allow": [
+      "Bash(%USERPROFILE%/scripts/x.sh:*)",
+      "Bash($env:USERPROFILE/scripts/x.sh:*)"
+    ]
+  }
+}
+EOF
+OUT_ENV=$(run "$D8G2")
+assert_contains "flags %USERPROFILE% inert grant" "$OUT_ENV" "%USERPROFILE%"
+assert_contains "flags PowerShell env inert grant" "$OUT_ENV" "\$env:USERPROFILE"
+assert_contains "settings-scope remedy does not prescribe plugin bin" "$OUT_ENV" "bare command on PATH"
+
+D8G3="$TEST_TMPDIR/issue-2397-inert-list"
+mkdir -p "$D8G3/.claude/skills/demo"
+cat >"$D8G3/.claude/skills/demo/SKILL.md" <<'EOF'
+---
+name: demo
+allowed-tools:
+  - Bash(git status)
+  - Bash(${CLAUDE_PLUGIN_ROOT}/scripts/x.sh:*)
+  - Bash(%USERPROFILE%/scripts/y.sh:*)
+---
+body
+EOF
+OUT_LIST=$(run "$D8G3")
+assert_contains "flags only the inert grant in a mixed list" "$OUT_LIST" "Bash(\${CLAUDE_PLUGIN_ROOT}/scripts/x.sh:*)"
+assert_not_contains "clean grant in the same list is not embedded in P4 detail" "$OUT_LIST" "Bash(git status)"
+assert_eq "two distinct inert Bash grants emit two P4 findings" "2" "$(run "$D8G3" --count)"
+
+D8G4="$TEST_TMPDIR/issue-2397-inert-read"
+mkdir -p "$D8G4/.claude"
+jq -n '{permissions:{allow:["Read(%USERPROFILE%/notes.txt)"]}}' >"$D8G4/.claude/settings.json"
+assert_eq "non-Bash rules with inert spellings are not P4-flagged" "0" "$(run "$D8G4" --count)"
 
 # --- Case 9: missing jq exits 2 ---------------------------------------------
 real_bash=$(command -v bash)
