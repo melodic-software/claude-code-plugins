@@ -53,7 +53,9 @@ The writer points at a specific line. Generate across FIVE COLUMNS:
    [mosaic-rhyme.md](mosaic-rhyme.md) per source word.
 2. **Content-word swaps** (~10) — the line's load-bearing word (usually
    a verb, sometimes an image-noun) replaced with stronger / more
-   specific / more surprising alternatives
+   specific / more surprising alternatives, generated common-stock-first
+   per *Discipline* below: the surprise comes from what the word is DOING
+   in this scene, not from how rare the word is
 3. **Internal rhyme partners** (~10) — mid-line sonic-bonding candidates
    (assonance + consonance + alliteration with words inside the line)
 4. **Image / sense alternates** (~10) — Rusty's-Collar concrete-image
@@ -85,14 +87,39 @@ bridge. Run Scope A FOR EACH LINE. Then add:
 Pat's. He publishes no line-brainstorm procedure and no candidate quotas. What
 IS his is the craft each box invokes — identity, stability tiers, the seven
 senses, cliché scanning, verb strength — each sourced in the file it links to.
-Do not restate any of these numbers as Pat's.*
+Do not restate any of these numbers as Pat's. The two-pass generation order
+below is also this repo's — writer-derived from the Sofía sessions
+(2026-08-12).*
+
+Generation runs in two passes, in this order. The reverse order — dodging the
+familiar words up front — is what put `silt` in front of the writer
+(2026-08-12).
+
+1. **Pass 1 — generate from the common stock.** Draw first on the plain
+   everyday words and the idiom stock a person would use telling this scene
+   out loud ("time to kill", "sit still", "the bill"), plus the song's own
+   developed world. Do not reach past the common words in order to avoid a
+   cliche.
+2. **Pass 2 — reframe what pass 1 turned up.** Now run the cliche scan, and
+   answer a flagged candidate the way Pat does: put it "in a context that
+   brings out its original meaning or makes us see it in a new way"
+   (*Writing Better Lyrics* (2009), Chapter 5; see [cliche.md](cliche.md)).
+   Reframing is the exit. Vocabulary escalation is not.
+
+A common-stock-first order raises cliche exposure deliberately: it puts the
+familiar words on the table so pass 2 can recontextualize them, instead of
+avoiding them and landing outside the vocabulary anyone sings. Whether a
+surviving candidate is SAYABLE is pass 8 of
+[line-edit-rubric.md](line-edit-rubric.md).
 
 The brainstorm is fast and high-volume, but NOT undisciplined. Pre-dump:
 
 - [ ] **Stressed vowel of the end-line word identified** before Column 1
 - [ ] **Identity check** applied (rejected before listing)
-- [ ] **Cliche scan** applied per pair / per candidate (flag, don't
-      always reject — but flag)
+- [ ] **Cliche scan** applied per pair / per candidate as PASS 2 — after the
+      common-stock pass has generated, never as a pre-filter on it (flag,
+      don't always reject — but flag; a flagged candidate gets reframed, not
+      swapped for a rarer word)
 - [ ] **Song's developed world** mined for Column 1 when the song has
       established setting / era / character — ≥5 candidates from THAT
       vocabulary

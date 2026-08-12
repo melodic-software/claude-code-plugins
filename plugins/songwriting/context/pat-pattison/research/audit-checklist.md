@@ -173,6 +173,15 @@ different jobs — auditing a refrain like a chorus is the wrong test.
 
 Run for any line under consideration for locking.
 
+**Pre-lock, not pre-emission.** This pass runs when the WRITER is considering
+committing an existing line. Its counterpart, `line-edit-rubric.md`, runs one
+moment earlier and in the other direction: nothing has been shown to the writer
+yet, and the AI is gating its own about-to-emit candidate. Same craft, two
+moments — neither file owns per-line checking on its own. The rubric reuses this
+block's material rather than copying it: the greedy / too-hot-too-cold passage,
+the `ínto` and compound-word material, and the identity passage below are quoted
+there from here.
+
 **Stress & meter (*Essential Guide to Lyric Form and Structure* (1991),
 Chapter 3 "Rhythm: Setting Up, Shutting Down"; *Songwriting Without Boundaries*
 (2011), Challenge 4 "Writing in Rhythm & Rhyme" — that book is organized in
@@ -573,3 +582,7 @@ repo wants an audit conducted, not because Pat says it.*
 - `verse-development.md` — power positions, travelogue test
 - `repetition.md` — repaintable chorus, box weight rule
 - `ai-tools.md` — Datamuse helper for rhyme audit
+- `line-edit-rubric.md` — the PRE-EMISSION counterpart to the per-line checklist
+  above: the cycle an AI runs on a candidate line before the writer has seen it
+- `voiceprint.md` — the writer's own register, built from their accepted lines;
+  what a register judgement in this checklist is measured against

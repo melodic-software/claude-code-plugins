@@ -3,6 +3,359 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.4.0]
+
+Both audit denominators are unchanged: **Axis 1 stays 44 of 44** and **Axis 2
+stays 226 of 226.** No Pattison reading. Every Pat quote carried into the two new
+files was copied from a file already in this corpus and mechanically re-checked
+against it — **37 quoted fragments in `line-edit-rubric.md`, 33 matched verbatim
+and the other 4 are this release's own new section titles**, not attributions.
+
+**A minor, not a patch.** Two new context files ship, the line-emitting skills
+gain preconditions they did not have, and one gate class becomes non-skippable.
+That is behavior.
+
+### ⚠ THE LINES WERE BAD, AND THE FILTER SAID THEY WERE FINE
+
+1.0.0 recorded the finding this release acts on: *"the quality is contingent on
+the response filter actually running"*, and **`response-filter.md` is therefore
+the highest-leverage file in the plugin** — followed by the sentence that made
+this release necessary: *"the filter is self-administered with no enforcement."*
+
+It was used in anger, on a real song, and the prediction held exactly. Across the
+Sofía sessions (2026-08-12) the plugin emitted line candidates that miscounted
+stresses against a sung demo melody, repeated a content word across adjacent
+lines in violation of its own discipline, offered a plain description labeled as a
+metaphor, and presented lines it had *itself* flagged as off-template. The writer
+caught every one. **The assistant had run the response filter as self-attestation
+and passed itself**, then reported the boxes as clear.
+
+The writer stopped songwriting until it was fixed. The findings are logged
+per-gap, with the rejected candidates, in the consuming workspace's
+`research/plugin-gaps.md`; the ten craft gaps triaged fix-now are what this
+release closes.
+
+**A plausible-looking pass is the failure mode, not an absent one.** Naming a box
+and checking a box are indistinguishable in the output when the same context does
+both — which is why almost every change below is about producing an ARTIFACT
+rather than a verdict.
+
+### Added — the per-emission cycle, and the register it is measured against
+
+- **`context/pat-pattison/research/line-edit-rubric.md`** — eleven passes cycled
+  on every candidate line BEFORE the writer sees it: positional fit,
+  word-repetition at three radii, sonic bonding, rhyme audit, five-element delta,
+  the §2 content boxes, dependency re-verification, register, metaphor validity,
+  spotlight content, voiceprint match. Battle-tested in the sessions that
+  produced it; each box exists because the writer caught a miss.
+
+  **Its form is this repo's, and it says so per pass.** Every pass opens with a
+  `Provenance:` line — Pat-anchored with a citation, or writer-derived. Passes 2,
+  7 and 11 carry **no** Pat quote and state that plainly; `repetition.md` was
+  checked and does **not** draw pass 2's named-motif-versus-unnamed-defect
+  distinction, so pass 2 cites it as related reading only. This is the
+  `audit-checklist.md` header pattern (*"The checklist form is this repo's, not
+  Pat's… What is his is the material each box invokes"*), applied box by box.
+
+  **It is a separate file for a reason the filter itself states.**
+  `response-filter.md`'s own recheck table says *"Filter takes more than ~10s to
+  apply on a typical output | Trim — fast filters get run, slow ones get
+  skipped."* An eleven-pass cycle inlined into that gate would turn the gate into
+  the thing that gets skipped. So §2 stays the OWNER of its content boxes and the
+  rubric's pass 6 loads them — **one way, not two**, stated in both files.
+
+  **And it is bounded against the file that already owns per-line checking.**
+  `audit-checklist.md`'s per-line pass is **pre-LOCK** (the writer is considering
+  committing an existing line); the rubric is **pre-EMISSION** (nothing has been
+  shown yet). Both files now carry the distinction, in the same words, pointing at
+  each other. A one-way pointer would have left the older file reading as the sole
+  owner.
+
+- **`context/pat-pattison/research/voiceprint.md`** — the writer's own register,
+  built from their accepted lines: vocabulary band, syntax shapes, image density,
+  irony level, each recorded with quoted evidence rather than an adjective.
+
+  **This closes a gap where the plugin asserted a principle and shipped no
+  mechanism.** `response-filter.md` §4 has always carried *"Coach toward writer's
+  voice — the AI does NOT impose its preference"*, and its posture table opens on
+  `Voice | The writer's voice | The AI's preferred voice`. Neither says what the
+  writer's voice IS, and with no answer to that, "don't impose mine" degrades into
+  a guess. The guess defaults to a fancy-plain dial, and the transcript shows the
+  oscillation: `silt` rejected as too literary, then `cruel` and `too` rejected as
+  too basic, while `picturesque` was accepted and `so` was never acceptable. Those
+  are not four points on one dial; they are four observations about one band whose
+  edges are set by whether a long word pays and whether a short word carries.
+
+  **No Pat lineage is claimed, because there is none.** The file states outright
+  that he publishes no such build. One quote licenses the TARGET — *"I decided to
+  set four 14-day challenges to help you explore your writer's voice more fully"*
+  (*Songwriting Without Boundaries* (2011), cited book-and-year because that
+  sentence carries no Challenge or Day locator anywhere in this corpus) — and the
+  file says in the same breath that it licenses nothing about the method.
+
+  **The Sofía words are shipped as the FAILURE, not as the target.** A table
+  records them as one writer's judgements on one night, with the wrong lesson the
+  assistant drew from each. Shipping them as the plugin's register would have
+  replaced the AI's preferred voice with one writer's — the same defect at one
+  remove. What generalizes is the build. The artifact lands at
+  `songwriting/shared/voiceprint.md`, cross-song, because register is a property
+  of the writer; a deliberate per-song departure is a recorded craft decision and
+  goes to that song's `decisions/`, where this corpus already records them.
+
+- **A fixed-melody fitting procedure**, in `meter.md`. The corpus taught
+  stress-count discipline for matching verse two to verse one; nothing covered
+  fitting a replacement line to a melody that has already been SUNG.
+
+  **Stress-COUNT matching was tested in production and it failed.** A five-stress
+  replacement stressing syllables 2/4/6/11/13 was written against a sung line
+  stressing 3/6/8/11/13 and died on the first sing-through. The procedure now
+  matches syllable count **and stress positions**: transcribe from the recording
+  rather than the lyric sheet, scan by importance, number the syllables and
+  bracket the stressed ones, then compose into that template.
+
+  Two findings inside it are worth more than the procedure. **The singer's
+  phrasing outranks the inferred grid** — the grid read syllable 9 as weak and the
+  writer pushed it on every take, so any road sign parked there got promoted and
+  stuck out; forced-alignment tooling failed on the talk-sung verse, leaving the
+  writer's own singing as the measurement. And **the sung original is the floor,
+  not the ideal**: the demo itself sings a preposition on that slot, so a candidate
+  reproducing that shape is no worse than what is sung today. Without that second
+  rule the procedure stalls on impossible perfection.
+
+  The `±1 syllable = one merged or split note` tolerance is labelled as the
+  writer's own, and priced rather than absorbed — in production the 14-syllable
+  variant of a 13-syllable slot was surfaced as a choice, not spent quietly.
+
+### Fixed — the routing failure that caused the fitting gap
+
+- **Scenario 2 and Scenario 4 never composed, and the auto-detect list is why.**
+  `workflows.md` routed each signal to exactly one scenario, so a
+  revise-this-demo request reached Scenario 2 (existing song revision) alone and
+  Scenario 4 (writing to an existing melody) never loaded. Scenario 2 now carries
+  a melody-locked precondition routing to **both**, with the fitting pass running
+  *before* step 1 of its chain; Scenario 4 carries the already-sung sub-case; and
+  the detect list gains the one signal that resolves to a **pair**.
+
+  Fixing only the craft file would have left the router sending the next session
+  down the same path.
+
+### Fixed — force-loading, because a routing hint is not a precondition
+
+- **`§2`'s `Reference:` line is a load list, not a bibliography**, and now says
+  so. The three line-emitting skills state that §2 has not been run until
+  `meter.md` and `phrasing.md` have been READ this session — plus `metaphor.md`
+  when a figure is asked for. The gap was subtle and is the whole lesson: those
+  files were already *referenced* through the filter checklist, so a skill could
+  name §2 as run having never opened one of them.
+- **`co-write`'s hard-gate table gained a `Craft sources read` row whose artifact
+  is a citation of what the file settled for THIS line** — the stress count it has
+  to hit, the phrase shape it has to keep. A filename is not an artifact.
+- **That table's preamble was scoped to "a rhymed position"**, which would have
+  let every source row be skipped for an unrhymed line. Every row now applies
+  before any line is emitted; only the rhyme row is position-specific.
+- Five Action Router `Load` cells that emit lines routed no craft source for
+  stress or phrasing at all — `co-write`'s `line-brainstorm` and
+  `section-brainstorm`, `diagnose`'s `variations` and `rewrite`, `workflow`'s
+  `fragment`. The routing hint and the gate now agree.
+
+### Fixed — self-attestation, replaced with a refutation
+
+- **A skeptic pass is now a gate row**, and what it must show is *the strongest
+  case AGAINST each candidate* — not a verdict. A line survives when its
+  refutation is stated and judged insufficient; a return holding nothing against
+  anything has shown nothing. The skeptic is dispatched blind, reading the sources
+  at their paths, on the same hard-boundary mechanic that makes the
+  `object-writer` fleet diverge. Its kill rules rank **singability and verbosity
+  above cleverness** — the writer's own ordering.
+- **This is instruction-level and needs no new component**, and the text says so
+  ("no agent in this plugin is a skeptic") so a reader does not hunt for one. The
+  preloaded-skill agent set is deliberately not shipped — see *Still open*.
+- **Read-at-path, not context-provided, is load-bearing.** The 12-agent panel that
+  produced the rejected batch was given inlined context and never read the corpus.
+  That is why the row demands the sources be read at their paths.
+
+### Fixed — the two gate classes are no longer one
+
+- **`Any gate may be skipped` was true of craft artifacts and false of the AI's
+  own self-check**, and the file said only the first thing. The gate rows now
+  split: rows demanding a craft artifact stay skippable-with-reason, because how
+  much scaffolding a line gets is the writer's call and *"There are no rules, only
+  tools."* (*Writing Better Lyrics* (2009), Chapter 18) is why. The rubric rows do
+  **not** carry that clause — the writer cannot overrule a check he never saw run.
+  Under load, emit fewer candidates, not unchecked ones.
+
+  Getting this wrong in either direction was the risk: a blanket
+  no-exceptions rule would have contradicted the plugin's whole stance, and
+  leaving the skip clause blanket would have made the new rules decorative.
+  `response-filter.md`'s own §1-§8 box-level skips are explicitly untouched.
+- **A FAILED pass kills the candidate; it does not reach the menu with the flag
+  attached.** A disclosed failure is still a failure shown, and the writer's
+  attention is what the disclosure spends. Two new cross-section drift checks
+  catch the regression — `Own-flag drift` and `Self-run drift` (a pass named as
+  run with no marked artifact behind it).
+- **Two rejected executions in a slot ends generation**, and the terms are defined
+  so the rule can actually be applied: what a *slot* is, what counts as a
+  *rejection* (declining the batch's execution, not asking for a tweak; rejecting
+  the CONCEPT resets the count), and what the handoff contains instead of a third
+  batch. **Two** is the writer's own threshold and is labelled as his.
+
+### Fixed — the two vocabulary overcorrections, in opposite directions
+
+- **The anti-cliche discipline was reaching past the words anyone sings.** The
+  writer caught it on `silt`. `line-brainstorm.md`'s generation now runs in two
+  passes with the order stated: **common stock first** — the plain words and the
+  idiom stock someone would use telling this scene out loud — **then reframe**.
+  The cliche scan moves to pass 2 and is explicitly *not* a pre-filter on pass 1.
+
+  **This raises cliche exposure deliberately, and Pat supplies the exit** — put it
+  *"in a context that brings out its original meaning or makes us see it in a new
+  way"* (*Writing Better Lyrics* (2009), Chapter 5). Reframing is the answer to a
+  flagged cliche; vocabulary escalation is not, and §2 now says so where its
+  cliche scan previously ended on a bare "REWRITE".
+- **The fix is NOT a prefer-plain-words dial, and pass 8 states that outright.**
+  `picturesque` passes; `cruel` and `too` are as common as words get and were
+  rejected as too basic. Pass 8 fails a word for being unsayable, never for being
+  long or Latinate. **1.1.2 shipped an overclaim replaced by its opposite
+  overclaim** and 1.1.3 had to repair it; that failure is the reason this one is
+  guarded in the text rather than left to a reader's good sense.
+- **The writer's "modern pop vocabulary is roughly the common few thousand words"
+  ships as his premise with no figure attached.** It is not a measurement, and
+  this plugin has deleted a `~70%` and a `~60%` for exactly that shape.
+- **The say-it-aloud kill rule is reuse, not invention.** `cliche.md`'s rewrite
+  pattern already said *"Read the old and new lines aloud"* under its own
+  plugin-authored flag; pass 8 promotes it from a rewrite nicety to a gate.
+
+### Fixed — rhyme search swept a column and called it the field
+
+- **`§1`'s `Stressed vowel anchored` box was the instruction that failed.**
+  Anchoring the vowel and then searching the source word's own coda returns one
+  row and stops — `-ill` returns the `-ill` column and never reaches the rest of
+  the field. `rhyme-generation.md` gains **Step 1b**: the source word's coda is
+  ONE row; walk the other coda columns on the same stressed vowel.
+
+  **Pat runs the field himself, in print, and this corpus already had the pages.**
+  Chapter 7's keyword `risk` has a Perfect Rhymes column two lines long
+  (`disc` / `(oops!)`) beside an Imperfect column crossing roughly fifteen codas on
+  one short-`i`. The walk ORDER is labelled as this plugin's assembly of his two
+  printed orders — Chapter 4's within-family sequence and Chapter 5's
+  noticeability sequence — because **neither of them is a walk across codas**.
+- **A third fail signature** joins §1's two. Both existing ones catch a list's
+  surface; neither catches a tier-labeled, mosaic-complete, ≥8-candidate list
+  whose every entry still sits on one coda. **The tell is what is ABSENT.** The
+  writer's own quartet is the worked case: `chest / dress / picturesque / forget`
+  spans four codas on one `ĕ` and all four pass the identity check.
+- **A named word-family seed** — final-stress Latinate/French multisyllabics
+  (`picturesque`, `silhouette`, `masquerade`) that column search never surfaces.
+  Their phonetic property is what makes them usable: final primary stress, so they
+  behave as masculine rhymes, on codas that are not the source word's.
+  `charade`, `masquerade`, `parade` and `promenade` are **Pat's own printed
+  candidates** in his `afraid` columns, so the pattern is licensed rather than
+  invented. Marked as the writer's observation, not a measurement of pop usage,
+  and explicitly not a licence to reach for rare words — the same writer rejected
+  `silt`.
+- **Datamuse was checked against the script rather than assumed.** No mode of
+  `datamuse.sh` accepts a phonetic post-vowel constraint — `pattern` matches
+  SPELLING — so the walk is recorded as internal-generation-only, with Datamuse
+  confined to post-walk verification and breadth.
+
+### Fixed — candidates the writer could not judge
+
+- **Bare one-line candidates in a table forced the writer to re-embed each one in
+  the section before he could sing it, and the singing is where the judgement
+  happens.** `variations.md` now carries the writer's own convention: full section
+  blocks IN CONTEXT, changed lines marked `►`, one labeled block per variation,
+  3-4 per chat menu, deep analysis in the `variations/` file. A worked example
+  shows the shape, since a shape is best specified by showing it.
+- **`variations-prompt.md` literally labelled the metadata block "Format for
+  output to writer"** — the exact shape that was rejected. That label was the
+  contradiction and is corrected at its source; the block is now named as the
+  recorded FILE shape, with the chat shape as its own step.
+- **Two numbers looked like a conflict and were not.** §1 mandates ≥8 rhyme
+  candidates and the posture table said `3-15 surfaced`, against the writer's 3-4
+  cap. The row now separates **generated and recorded** from **shown per chat
+  menu**, with a note stating that no generation volume drops. Generate wide,
+  record everything, show few.
+- **"Don't dump options inline" was being read as "show nothing singable."**
+  `artifact-persistence.md` now defines the prohibited DUMP (the whole untrimmed
+  set pasted into chat) against the required MENU. A variations response with
+  nothing singable in it has not been delivered.
+
+### Fixed — object-write register leaked into lyric slots
+
+- **`Mine, never transcribe` was insufficient, not wrong.** The word bank was
+  QUOTED rather than adapted: object-write prose has its own texture, and the
+  agents pasted the texture instead of translating it. The section becomes
+  **`Mine → adapt → say it aloud`**, and the middle step is marked
+  plugin-authored — Pat draws the raw-material-versus-crafted-line distinction
+  (*"with bushels of sense-bound images glittering on the kitchen table, what do
+  you do with them?"*, *Writing Better Lyrics* (2009), Chapter 2) and prints **no
+  translation procedure**. The SSOT's claim that the whole gate is "Pat's own" is
+  two-thirds true and shipped that way.
+- **Line length under free meter had no budget**, and a bridge ballooned to 13-
+  and 14-syllable prose lines with nothing to catch it. `prosody.md` gains an
+  envelope rule in the section that already owns line length: measure the
+  stress-length range of the song's other sections and write inside it. Measured
+  in **stresses**, per that section's own traffic-cop rule — a raw syllable count
+  answers a different question. `"Free meter"` is recorded as workspace shorthand
+  with zero corpus hits, not a Pat category.
+
+### Fixed — the fleet inherited the session's model
+
+- **`object-writer`'s frontmatter is `model: inherit`, so the DISPATCHER chooses
+  the model and a dispatch that leaves it unset runs the whole fleet on the
+  session's.** In the rejected batch that came to ~383k subagent tokens at
+  top-tier pricing. Writer directive, recorded as his: creative fan-out fleets run
+  on Opus, per agent call, reserving the expensive model for the judge stage at
+  most. It lands in `object-writing/SKILL.md`'s numbered dispatch rules — the
+  plugin's only place that recommends a fan-out — because the agent file cannot
+  act on a rule about which model calls it.
+
+### Placement — why two new files live under `context/pat-pattison/`
+
+Neither file is Pat's method, and the author seam matters. They live there anyway,
+on this repo's own precedent: `README.md` enumerates what
+`context/pat-pattison/` holds as *"the full reference corpus, its templates, the
+Datamuse script, and the mandatory response filter"* — naming a repo-authored file
+as a resident — and `audit-checklist.md` has always declared its own form as this
+repo's rather than Pat's. **The seam remedy is per-box provenance labelling, not
+relocation.** A third sibling under `context/` was considered and rejected:
+`context/<author>/` is the author seam, and a peer directory would break the one
+story the README tells about extension.
+
+### Still open
+
+This release closes the ten craft gaps triaged fix-now and the four post-mortem
+fix-nows. It closes **none** of the following, and none should be read as covered:
+
+- **Rubrics-per-skill and book-grounded evals** (gap 6a). The skills ship `evals/`
+  directories; populating them from Pat's printed worked examples — the "Some
+  People's Lives" counterfactuals, the "50 Ways" consonance swap, the wind-as-dog
+  drills — is real book work and is not done. The rubric this release promotes is
+  the general case; the per-concern rubrics are not written.
+- **The narrative-information pass** (gap 8) — *what does the listener know at this
+  point, and when should they learn the rest*. The corpus covers the craft in
+  verse development and repainting; it has never surfaced as an operational check.
+- **The preloaded-skill co-writer agent set** — `imagist`, `rhyme-strategist`,
+  `prosodist`, `line-skeptic`. Validated in principle and deliberately deferred
+  until the rubric and voiceprint had landed, which is now. The skeptic gate above
+  is honoured by a general subagent in the meantime.
+- **Constraint tightness as a quality lever.** The one salvageable slot in the
+  rejected batch was the tightest template (a fixed 8-syllable chorus line), and
+  the pattern is recorded but not folded into the co-write templates.
+- **An audio-analysis capability** (gap 5) and a **`lyric-desk` generator** (gap
+  6c). Both tracked in the consuming workspace; scripts and a v1 HTML page exist
+  there.
+- **The four Suno documentation items** (duration control, the Audio Influence
+  default in the cover flow, tag-only chorus absorption, lineation as phrasing
+  control). Independent of this change and deliberately not bundled with it —
+  `skills/suno/**` is untouched here.
+- **This release is not itself verified against a live session.** Every change is
+  instruction-level, and the whole finding above is that instructions which merely
+  *name* a discipline do not enforce it. The gates now demand artifacts, which is
+  the mechanism intended to make the next self-report checkable — but whether the
+  emitted lines clear the writer's bar is a question only the next real song
+  answers.
+
 ## [1.3.0]
 
 Both audit denominators are unchanged: **Axis 1 stays 44 of 44** and **Axis 2
