@@ -219,7 +219,11 @@ fi
 # ${CLAUDE_PLUGIN_ROOT}, which is undefined outside a plugin) — so the layout
 # convention is asserted in ONE place rather than restated per call site.
 IS_PLUGIN_SKILL=0
+PLUGIN_DIR=""
 [[ -f "$SKILL_DIR/../../.claude-plugin/plugin.json" ]] && IS_PLUGIN_SKILL=1
+if [[ "$IS_PLUGIN_SKILL" == 1 ]]; then
+  PLUGIN_DIR="$(cd "$SKILL_DIR/../.." && pwd)"
+fi
 
 # --- Check 1: frontmatter parses; description present; declared name matches --
 
@@ -402,11 +406,21 @@ fi
 INTERNAL_DIRS='context|templates|scripts|reference|references|actions|evals|lanes|catalog|vendor'
 while IFS= read -r ref; do
   [[ -z "$ref" ]] && continue
-  if git -C "$REPO_ROOT" check-ignore -q "$SKILL_DIR/$ref" 2>/dev/null; then
-    note "check-5 skip (gitignored runtime path): $ref"
+  resolve_base="$SKILL_DIR"
+  check_ref="$ref"
+  if [[ "$ref" == '${CLAUDE_PLUGIN_ROOT}/'* ]]; then
+    check_ref="${ref#'${CLAUDE_PLUGIN_ROOT}/'}"
+    if [[ "$IS_PLUGIN_SKILL" != 1 || -z "$PLUGIN_DIR" ]]; then
+      note "check-5 skip (plugin-root placeholder outside a plugin): $ref"
+      continue
+    fi
+    resolve_base="$PLUGIN_DIR"
+  fi
+  if git -C "$REPO_ROOT" check-ignore -q "$resolve_base/$check_ref" 2>/dev/null; then
+    note "check-5 skip (gitignored runtime path): $check_ref"
     continue
   fi
-  if [[ ! -e "$SKILL_DIR/$ref" ]]; then
+  if [[ ! -e "$resolve_base/$check_ref" ]]; then
     ref_line="$(grep -nF "$ref" "$SKILL_MD" 2>/dev/null | head -1 | cut -d: -f1)"
     # A path that misses here but DOES resolve under a SIBLING skill of the same
     # skills root is most often a cross-skill citation written in the
@@ -428,14 +442,18 @@ while IFS= read -r ref; do
     for other_md in "$SKILLS_ROOT"/*/SKILL.md; do
       [[ -f "$other_md" ]] || continue
       [[ "$other_md" == "$SKILL_MD" ]] && continue
-      if [[ -e "${other_md%/SKILL.md}/$ref" ]]; then
+      if [[ -e "${other_md%/SKILL.md}/$check_ref" ]]; then
         REF_HOST="${other_md%/SKILL.md}"
         REF_HOST="${REF_HOST##*/}"
         break
       fi
     done
     if [[ -z "$REF_HOST" ]]; then
-      err "broken skill-internal ref: $ref (no such file under the skill dir; cited at SKILL.md:${ref_line:-?} — hand-verify the line before fixing, may be an illustrative example)"
+      if [[ "$resolve_base" == "$PLUGIN_DIR" ]]; then
+        err "broken plugin-root ref: $ref (no such file under the plugin root; cited at SKILL.md:${ref_line:-?} — hand-verify the line before fixing, may be an illustrative example)"
+      else
+        err "broken skill-internal ref: $ref (no such file under the skill dir; cited at SKILL.md:${ref_line:-?} — hand-verify the line before fixing, may be an illustrative example)"
+      fi
     else
       # Plugin-shaped root: bundled plugin assets are anchored at the plugin
       # root, so that is the form to name. Outside a plugin
@@ -443,17 +461,17 @@ while IFS= read -r ref; do
       # sibling-relative form rather than advertise a variable that resolves to
       # nothing.
       if [[ "$IS_PLUGIN_SKILL" == 1 ]]; then
-        ref_fix="\${CLAUDE_PLUGIN_ROOT}/skills/$REF_HOST/$ref"
+        ref_fix="\${CLAUDE_PLUGIN_ROOT}/skills/$REF_HOST/$check_ref"
       else
-        ref_fix="../$REF_HOST/$ref"
+        ref_fix="../$REF_HOST/$check_ref"
       fi
       err "broken skill-internal ref: $ref (no such file under the skill dir; cited at SKILL.md:${ref_line:-?} — hand-verify the line before fixing, may be an illustrative example). A file with that path DOES exist under sibling skill '$REF_HOST': if that is the file meant, this is a cross-skill citation, and a bare path always resolves against the CITING skill's dir — write it as $ref_fix. If the names merely collide, the ref is unrelated to that sibling."
     fi
   fi
 done < <(
   {
-    grep -oE "\`($INTERNAL_DIRS)/[A-Za-z0-9._/-]+\`" "$SKILL_MD" 2>/dev/null | tr -d '`'
-    grep -oE "\]\(($INTERNAL_DIRS)/[A-Za-z0-9._/#-]+\)" "$SKILL_MD" 2>/dev/null |
+    grep -oE "\`(\$\{CLAUDE_PLUGIN_ROOT\}/)?($INTERNAL_DIRS)/[A-Za-z0-9._/-]+\`" "$SKILL_MD" 2>/dev/null | tr -d '`'
+    grep -oE "\]\((\$\{CLAUDE_PLUGIN_ROOT\}/)?($INTERNAL_DIRS)/[A-Za-z0-9._/#-]+\)" "$SKILL_MD" 2>/dev/null |
       sed -E 's/^\]\(//; s/\)$//; s/#.*$//'
   } | sort -u
 )
