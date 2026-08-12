@@ -3,6 +3,14 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.14]
+
+### Fixed
+
+- **`stale-path-verify` history walk uses `core.quotePath=false` and `-m` (#1452).**
+  Non-ASCII deleted paths match citations literally, and deletions made while
+  resolving a merge enter the deleted-path set.
+
 ## [0.28.13]
 
 ### Changed
