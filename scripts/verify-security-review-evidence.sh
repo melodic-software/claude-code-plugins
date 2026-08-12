@@ -18,14 +18,18 @@
 #   GITHUB_BASE_REF        base branch name
 #   GITHUB_HEAD_REF        head branch name (optional)
 #   GITHUB_ACTOR           PR author login
-#   MIN_REVIEW_SECONDS     minimum plausible duration (default 45)
+#   MIN_REVIEW_SECONDS     absolute floor: shorter than this with no positive
+#                          execution evidence is a false pass (default 8).
+#                          Real Claude reviews commonly finish under 45s on
+#                          small diffs; duration alone above this floor is not
+#                          decisive once logs show the review action ran.
 #   SKIP_ACTORS            comma-separated actors exempt from review
 #
 # Exit: 0 evidence OK or not applicable; 1 in-scope false pass detected.
 
 set -euo pipefail
 
-MIN_REVIEW_SECONDS="${MIN_REVIEW_SECONDS:-45}"
+MIN_REVIEW_SECONDS="${MIN_REVIEW_SECONDS:-8}"
 SKIP_ACTORS="${SKIP_ACTORS:-dependabot[bot],claude[bot],melodic-ai[bot],melodic-standards-sync[bot]}"
 PATHS_FILE="${PATHS_FILE:-.github/claude-security-paths}"
 
@@ -35,8 +39,8 @@ verify-security-review-evidence.sh — guard against in-scope security-review fa
 
 Reads the current workflow run's security-review job. Exits 0 when the PR is
 out of scope, exempt, skipped, or shows plausible execution evidence. Exits 1
-when an in-scope PR's security-review job succeeded too quickly or its logs
-show a validation skip (#2337).
+when an in-scope PR's security-review job succeeded with a validation skip,
+or finished below the absolute duration floor with no execution evidence (#2337).
 EOF
 }
 
@@ -174,12 +178,21 @@ main() {
     exit 1
   fi
 
-  if (( duration > 0 && duration < MIN_REVIEW_SECONDS )); then
-    echo "ERROR: in-scope security-review succeeded in ${duration}s (<${MIN_REVIEW_SECONDS}s) — likely no review ran (#2337)" >&2
+  # Positive execution evidence: the Claude review action progressed past
+  # install into the agent SDK (or posted a review). Prefer this over a
+  # wall-clock ceiling — small in-scope PRs routinely finish a real review
+  # in 15–30s and must not be blocked as "#2337 false passes".
+  local has_execution_evidence=0
+  if grep -qE '@anthropic-ai/claude-agent-sdk|mcp__github_inline_comment__create_inline_comment|Posted review|create_inline_comment|Claude Code action completed' "$log_file" 2>/dev/null; then
+    has_execution_evidence=1
+  fi
+
+  if (( duration > 0 && duration < MIN_REVIEW_SECONDS && has_execution_evidence == 0 )); then
+    echo "ERROR: in-scope security-review succeeded in ${duration}s (<${MIN_REVIEW_SECONDS}s) with no execution evidence — likely no review ran (#2337)" >&2
     exit 1
   fi
 
-  echo "security-review evidence OK (duration=${duration}s, in-scope)"
+  echo "security-review evidence OK (duration=${duration}s, execution_evidence=${has_execution_evidence}, in-scope)"
 }
 
 main "$@"
