@@ -3,11 +3,40 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.31.8]
+## [0.31.9]
 
 ### Fixed
 
 - **hook-utils:** scope `read_file_path` to git worktrees when project dir unset (#1091).
+
+## [0.31.8]
+
+### Fixed
+
+- **`scope-semantics.md` claimed `converge` was the only action that surfaces a settings diff.**
+  False by its own new evidence: `sync`'s Step 5 issues `enable <id> -s <that scope>`, and
+  `enable -s project` writes the committed file the same way `install` does. The update exemption is
+  re-verified and still holds, but it is now documented as the exception rather than the rule.
+
+### Added
+
+- **`scope-semantics.md` gains a verified write-behavior table for project scope.** `install`,
+  `uninstall`, `enable`, and `disable` at `-s project` all write the committed
+  `.claude/settings.json`; `update` does not; `-s local` writes the gitignored
+  `.claude/settings.local.json` instead. Also recorded: `enable -s project` gates on the *merged
+  effective* value, so enabling an id that is `true` only at user scope fails rather than writing a
+  project entry.
+- **`sync.md` Step 5 names its own exposure.** A `-s project` enable can leave a team-shared tracked
+  file modified with no diff surfaced — the failure class `converge` Step 5 prevents, in the default
+  action. Flagged with instructions to name it in the report; the diff-surfacing remediation is
+  tracked separately.
+- **`gotchas.md` records that a subdirectory install is invisible to the skill.** The CLI keys
+  `projectPath` on the literal cwd — installing from `<checkout>/nested/subdir` recorded that
+  subdirectory and created its own `.claude/settings.json` — while `fleet-state.sh` resolves the
+  checkout root. A plugin installed below the checkout root therefore never matches
+  `currentProject`, never updates, and never appears in a divergence row, while still loading in
+  that subtree. The same mechanism is why two `git worktree` checkouts of one repo pin
+  independently, which `converge` Step 2 now states directly.
 
 ## [0.31.7]
 

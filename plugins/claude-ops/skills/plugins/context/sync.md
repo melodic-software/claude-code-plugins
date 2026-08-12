@@ -179,6 +179,15 @@ Never touches an id that has an explicit entry anywhere (true — already enable
 false — deliberate opt-out, never flipped). This step only fills a genuine gap: installed but never
 recorded either way.
 
+**Known exposure — `-s project` here dirties a tracked file, and `sync` surfaces no diff.**
+`enable <id> -s project` writes the project's committed `.claude/settings.json` (verified on Claude
+Code 2.1.228; see [scope-semantics.md](scope-semantics.md)), so this step can leave a team-shared
+tracked file modified without the report ever mentioning it — the failure class
+[converge.md](converge.md) Step 5 exists to prevent, in the default action. `-s user` and `-s local`
+are unaffected: local scope writes the gitignored `.claude/settings.local.json`. Until this step
+gains converge's diff-surfacing, name any `-s project` enable in the report so the user knows to
+check `git status`.
+
 ## Step 6 — Report
 
 Emit the report per SKILL.md's "Report" section, filling each updated plugin's `<old> → <new>` from

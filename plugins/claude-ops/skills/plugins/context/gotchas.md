@@ -39,6 +39,29 @@ copy) before comparing — empirically verified to fold both representations to 
 canonical string. Never hand-roll a separate path comparison anywhere else in this skill; always go
 through the `currentProject` field `fleet-state.sh` already computed.
 
+## A subdirectory install is invisible to this skill — `currentProject` cannot see it
+
+Distinct from the spelling mismatch above: here both sides are spelled correctly and still never
+match, because they name *different directories*. Per
+[scope-semantics.md](scope-semantics.md), `claude plugin install -s project` records `projectPath` as
+the **literal cwd** — verified on Claude Code 2.1.228, where installing from
+`<checkout>/nested/subdir` recorded that subdirectory and created its own
+`nested/subdir/.claude/settings.json`. `fleet-state.sh` resolves the project root to the **checkout
+root** instead.
+
+So a plugin installed at project scope from anywhere below the checkout root gets a `projectPath`
+that `fleet-state.sh` will never match for `currentProject`: `currentProject` stays `false`, so
+`sync`'s Step 2 never updates it — while `converge` can still target a divergence row for the same
+id when another scope record exists, because `fleet-state.sh` groups every installed record by id
+without filtering on `currentProject`. The subtree install still loads for anyone working there. The
+failure is silent for sync/update in the same way the spelling mismatch is, and the same report
+still gets produced.
+
+This is a genuine gap, not a parser bug to fix by widening the comparison: matching a record against
+every ancestor of the checkout root would claim project state the skill has not established is
+project state. Treat an unexplained "installed but never converges" report as a candidate for this,
+and confirm by reading the record's `projectPath` directly.
+
 ## Concurrency / TOCTOU
 
 `fleet-state.sh`'s output is a snapshot. A background `autoUpdate` sweep (random delay up to ten

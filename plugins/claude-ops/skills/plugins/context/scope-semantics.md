@@ -53,26 +53,61 @@ the machine-local `installed_plugins.json` record. `enabledPlugins` carries no v
 committed settings files are untouched by an update. Re-verified on Claude Code 2.1.228 under the
 hardest available conditions: a tracked `.claude/settings.json` that a sibling `install -s project`
 had just rewritten, reverted to clean, then updated — the update left it clean. `sync`'s in-repo
-update step is therefore safe to run without a settings-diff review, and `converge` is the only
-action this skill runs that surfaces a settings diff.
+update step is therefore safe to run without a settings-diff review. It is the exception, not the
+rule: the next section lists the calls that do write.
 
-## `plugin install|uninstall -s project` DO write committed settings
+## Every call that touches `enabledPlugins` at project scope writes committed settings
 
 **Empirically verified on Claude Code 2.1.228** — one call each, against a clean tracked
 `.claude/settings.json`, git-diffed after every step:
 
-- `claude plugin install <id> -s project` adds the id to `enabledPlugins` (value `true`) in the
-  committed file.
-- `claude plugin uninstall <id> -s project` removes that entry but leaves `"enabledPlugins": {}`
-  behind — it empties the map rather than deleting the key, and it writes the key even into a
-  committed file that never had one.
-- Both rewrite the whole file in Claude Code's own key order, so sibling keys unrelated to plugins
-  can move. The reorder is a serialization artifact of the write, not a semantic change.
+| Call | Writes `.claude/settings.json`? | Effect |
+|---|---|---|
+| `install <id> -s project` | yes | adds the id to `enabledPlugins`, value `true` |
+| `uninstall <id> -s project` | yes | removes the entry, leaves `"enabledPlugins": {}` |
+| `enable <id> -s project` | yes | adds the id, value `true` |
+| `disable <id> -s project` | yes | adds the id, value `false` |
+| `update <id> -s project` | no | the exemption above |
 
-Consequence for `converge`: an `uninstall -s project` against a project whose committed settings
-carry no `enabledPlugins` entry still dirties the tracked file, with a diff that changes no
-behavior — an empty map plus a key reorder. Expect that diff; it is not evidence an entry was
-removed. [converge.md](converge.md) Step 5 classifies it.
+Three properties hold across every writing call:
+
+- **The key is created when absent.** `uninstall` writes `enabledPlugins` even into a committed file
+  that never had it, emptying the map to `{}` rather than deleting the key.
+- **The whole file is re-serialized in Claude Code's key order,** so sibling keys unrelated to
+  plugins can move. The reorder is a serialization artifact, not a semantic change.
+- **`-s local` writes `.claude/settings.local.json` instead** — verified for `enable`/`disable`,
+  which created that file and left the tracked `.claude/settings.json` clean. That file is
+  gitignored, so local scope never dirties team-shared state.
+
+`enable -s project` gates on the **merged effective** value, not that scope's raw map: enabling an id
+that is `true` only at user scope fails with `Plugin "<id>" is already enabled at project scope`
+rather than writing a project-scope entry.
+
+Two consequences:
+
+- **`converge`** — an `uninstall -s project` against a project whose committed settings carry no
+  `enabledPlugins` entry still dirties the tracked file, with a diff that changes no behavior: an
+  empty map plus a key reorder. Expect it; it is not evidence an entry was removed.
+  [converge.md](converge.md) Step 5 classifies it.
+- **`sync`** — Step 5 issues `enable <id> -s <that scope>`, so a `project`-scope completeness gap
+  makes the default, non-destructive action write a team-shared tracked file. `sync` surfaces no
+  settings diff today; [sync.md](sync.md) Step 5 flags the exposure.
+
+## Project scope: the CLI keys on the cwd, `fleet-state.sh` matches on the checkout root
+
+**Empirically verified on Claude Code 2.1.228.** `-s project` has no path flag — it acts on the
+current directory, and it means that literally. Installing from `<checkout>/nested/subdir` recorded
+`projectPath: <checkout>\nested\subdir` and created a fresh `nested/subdir/.claude/settings.json`,
+rather than resolving up to the checkout root.
+
+`fleet-state.sh` resolves its project root differently: `CLAUDE_PROJECT_DIR`, else
+`git rev-parse --show-toplevel`, else a `.claude`-corroborated cwd (`fleet-state.sh:211-221`), and
+`fleet-state.test.sh` pins that a session invoked from a nested subdirectory still matches the
+checkout-root record.
+
+The two layers therefore disagree, which is a real blind spot — see
+[gotchas.md](gotchas.md). It also means two `git worktree` checkouts of one repo, sharing one `.git`
+and one tracked `.claude/settings.json`, hold independent records and pin independently.
 
 ## `/reload-plugins` — bare by default, `--force` for the MCP-cache-invalidation case
 
