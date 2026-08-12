@@ -171,8 +171,7 @@ main() {
   local log_file
   log_file="$(mktemp)"
   trap 'rm -f "$log_file"' RETURN
-  local attempt
-  for attempt in 1 2 3 4 5; do
+  for _ in 1 2 3 4 5; do
     if gh run view "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --job "$(printf '%s' "$job" | jq -r '.id')" --log >"$log_file" 2>/dev/null && [[ -s "$log_file" ]]; then
       break
     fi
