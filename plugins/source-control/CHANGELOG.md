@@ -8,8 +8,8 @@ All notable changes to the `source-control` plugin are documented here. Format f
 ### Fixed
 
 - **Abbreviation gate now asserts every catalogued Python entry point exposes `--help`.**
-  Without that premise, a parser built with `add_help=False` would pass the universal `--hel`
-  probe vacuously.
+  Without that premise, a parser built with `add_help=False` would pass the universal
+  abbreviation probe vacuously.
 
 ## [0.53.6]
 

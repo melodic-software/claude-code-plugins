@@ -390,7 +390,7 @@ class NoParserResolvesAnAbbreviation(unittest.TestCase):
     def test_every_catalogued_entry_point_exposes_help(self) -> None:
         """The abbreviation probe assumes `--help` is registered on every parser.
 
-        `add_help=False` makes the universal `--hel` probe vacuous: the flag is
+        `add_help=False` makes the universal abbreviation probe vacuous: the flag is
         unrecognized whatever `allow_abbrev` is, so the entry point would pass
         the abbreviation gate while proving nothing about abbreviation policy.
         """
