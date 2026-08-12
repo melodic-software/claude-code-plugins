@@ -68,6 +68,7 @@ Suno documents none of these techniques. They are probabilistic rather than dete
    - 80-100% — demo strongly shapes output (use when demo is the spine)
    - 50% — balanced; demo is reference, model has creative liberty
    - 20% — demo is loose vibe inspiration only
+   - Entry value: **25%**, observed only where step 3's path was **Cover** (`writer-observed, single session (2026-08-12), n=1 — not externally corroborated`). The melodic-seed path's entry value was not observed — read the slider rather than assuming it. Trade-off detail: [advanced.md](advanced.md#creative-sliders)
 5. Generate 4 versions
 6. Pick winner → open in Studio
 7. (Optional) Replace Section on weak spots
@@ -171,6 +172,8 @@ Suno documents none of these techniques. They are probabilistic rather than dete
 6. Pick the winner → continue refining via Studio
 
 Note: covers chain. Cover-of-cover-of-cover is allowed; each version traces back to original. Commercial-use rights apply only to YOUR originals — covers of someone else's track are not commercially usable.
+
+**Audio Influence on a cover chain.** Where the source is an uploaded file, the Cover dialog exposes Audio Influence, and on the one flow observed it opened at **25%** (`writer-observed, single session (2026-08-12), n=1 — not externally corroborated`; the Extend and upload-as-seed flows were not observed). That is a **low** setting, favoring new-arrangement freedom over uploaded-melody fidelity — the right default for steps 2-4 above, where the point is to hear the melody re-cast in a new genre. Raise it on any pass where the uploaded melody has to survive rather than be reinterpreted; leave it low where transformation is the goal. Step 1's generate-the-original path involves no upload, so the slider is not in play there. Full trade-off breakdown: [advanced.md](advanced.md#creative-sliders).
 
 ## Recipe 7: Comp the perfect vocal
 

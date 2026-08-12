@@ -26,6 +26,7 @@ Suno v5.5 has multiple generation modes, post-generation tools, and personalizat
 | **Stems** (Split from Mix / Auto Split / Advanced Split) | [studio.md](studio.md#stem-isolation--export) | No stem separation on Free; Split from Mix + Auto Split on Pro+; Advanced Split Premier-only |
 | **Suno Studio (GAW)** (multitrack DAW) | [studio.md](studio.md) — full guide | Premier |
 | **Creative Sliders** (Weirdness, Style Influence, Audio Influence) | this file, below | Custom mode |
+| **Duration slider** (target song length) | this file, below | Web + V5.5 model, in the Create form |
 | **ReMi** (lyric-generation model) | this file, below | All tiers |
 
 ## Personas (distinct from Voices)
@@ -72,13 +73,25 @@ Fix for "the second verse is bad but the rest is perfect."
 
 ## Creative Sliders
 
-Suno's official help names these controls and their qualitative endpoints. **Every percentage, numeric range, and numeric default below is presented as community-empirical (MEDIUM confidence).** No percentage here is an official recommendation; use the numbers as A/B-test starting points.
+Suno's official help names these controls and their qualitative endpoints. **Every percentage, numeric range, and numeric default below is presented as community-empirical (MEDIUM confidence) — with one carve-out: the Audio Influence entry value is writer-observed, and carries its provenance in the note under the table.** No percentage here is an official recommendation; use the numbers as A/B-test starting points.
 
 | Slider | Range | Default | Effect |
 |--------|-------|---------|--------|
 | **Weirdness** | Safe ↔ Chaos | 50% | Left = conventional structure / familiar progressions; right = unconventional / genre-bending |
 | **Style Influence** | Loose ↔ Strong | 50% | Right = strict adherence to descriptors; left = creative interpretation |
-| **Audio Influence** | (with upload only) | — | Weight of uploaded reference vs creative AI interpretation |
+| **Audio Influence** | (with upload only) | **25%** on entry to the cover-from-upload flow; other entry flows unobserved — see note below | Weight of uploaded reference vs creative AI interpretation |
+
+**Audio Influence entry value — read the flow, not just the number.** The slider read **25%** on entry to the **cover-from-upload** flow (upload a file, then Cover it) on Suno v5.5. Provenance: `writer-observed, single session (2026-08-12), n=1 — not externally corroborated`, which sits off the [SKILL.md](../SKILL.md) confidence ladder rather than on a rung of it. First-hand does not mean stronger: this is one unreproduced reading.
+
+**Do not generalize it across entry flows.** The **Extend** flow and the **upload-as-melodic-seed** flow were not observed, and nothing here establishes that Suno seeds them identically. Treat 25% as what you will see on a cover opened from an upload, and re-read the slider in any other flow rather than assuming a starting value.
+
+**What the slider trades on a cover-from-upload.** Audio Influence is the fidelity-versus-freedom dial for anything built on an uploaded file. High = the uploaded **melody** is the shape the new style gets applied over. Low = the model is freer to build its own arrangement, and the melodic contour is the first thing it spends. Set it by what you are protecting:
+
+- **Protecting the melody** — the demo's tune is the asset and you want a new production around it. Raise it well above the observed entry value. Cost: the target genre lands closer to a re-skin than a re-imagining, because the shape it must fit is already fixed. Suno publishes no number; `>=70%` circulates as a community-derived, unverified starting point — see [troubleshoot.md](troubleshoot.md).
+- **Protecting the new arrangement** — you want the target genre to actually reshape the song. Leave it at or near the observed entry value. Cost: the melody can drift or be replaced, so what you liked about the demo may not survive the pass.
+- **Undecided** — generate one pass near each end before committing. The two ends usually differ more than any middle value suggests.
+
+The consequence of the observed entry value: on the one flow observed, a cover-from-upload opens **low**, so its untouched behavior is arrangement freedom, not melody fidelity. If the uploaded melody is the asset, that is a setting to change deliberately rather than inherit.
 
 Community-empirical starting points:
 
@@ -86,9 +99,34 @@ Community-empirical starting points:
 - **Genre-bending experimental**: Weirdness ~75%, Style Influence ~50%
 - **Faithful upload extension**: Audio Influence ~80%, Style Influence ~70%
 
+## Duration slider (Create form)
+
+**Added after this skill's v5.5 baseline.** Suno's release notes, Jul 20 2026: *"Drag the new Duration slider in the Create form to pick your song length. Available on Web using V5.5 model."* — tagged *Improvement, CREATE, WEB* (<https://suno.com/release-notes/duration-slider-on-web>, fetched 2026-08-12). **HIGH confidence** for the control's existence, its name, its home in the Create form, and that platform scoping. Everything below that line is weaker and says so.
+
+**The platform scoping is first-party and narrow.** The entry carries `WEB` and no mobile tag, and no later release note through 2026-08-12 brings the slider to iOS or Android. Treat it as web-only until a release note says otherwise.
+
+| Detail | Value | Basis |
+|--------|-------|-------|
+| Where | Create form | First-party release note above |
+| Model | V5.5 | First-party release note above |
+| Platform | Web; no mobile tag | First-party release note above |
+| Range | 10 seconds to 6 minutes | **LOW-MEDIUM** — see below |
+| Increment | 5 seconds | **LOW-MEDIUM** — one community post |
+| Default | Auto (Suno picks the length); Custom engages the slider | **LOW-MEDIUM** — one community post |
+
+**The range is attested twice, from two different directions, and still only reaches LOW-MEDIUM.** It was read off the UI first-hand (`writer-observed, single session (2026-08-12)`) and is independently stated as "10 seconds to 6 minutes, in 5-second increments" by one community post ([a v5.5 duration-control guide](https://note.com/dreammii/n/n6e7cf9fc2ace), fetched 2026-08-12) — so unlike most writer-observed items in this skill it is **not** uncorroborated. It stays LOW-MEDIUM anyway: no `help.suno.com` article states a range. The two length-related help articles both predate the slider and cover per-model maximums and Extend instead (<https://help.suno.com/en/articles/2409473>, <https://help.suno.com/en/articles/2409601>), and two published guides written *about* the slider decline to state a range or increment at all. Treat the numbers as what the UI is reported to offer, not as published limits.
+
+**The slider's Auto/Custom setting is not Suno's Simple/Custom generation mode.** Two unrelated uses of the word — do not conflate them.
+
+**A selected duration is a target, not a guarantee** — *"not a guarantee that Suno will end on an exact second"* ([Jack Righteous song-length guide](https://jackrighteous.com/en-us/blogs/guides-using-suno-ai-music-creation/suno-duration-slider-song-length-guide), fetched 2026-08-12). Record the runtime you actually got rather than assuming the slider value.
+
+**OPEN QUESTION — what a duration target does to a lyric that does not fit it.** Unresolved as of 2026-08-12; **do not advise on this until it is settled.** The single community post above reports a hard cut rather than a fade when the target is reached, rushed delivery when a long lyric meets a short target, and trailing silence when the target overruns the lyric. Nothing first-party addresses it and both guides written about the slider explicitly do not. The direction is plausible because this skill already documents the same failure family from the other end — past ~3,000 lyric chars Suno "rushes, skips sections, or cuts output short" — but **a shared failure shape is not evidence that the slider causes it.** Settle it by generating one lyric against a short and a long target and recording both runtimes.
+
+**Recheck trigger:** any `help.suno.com` article on the Duration slider, or a release note extending it beyond Web / V5.5.
+
 ## More Options panel (Custom mode)
 
-The "More Options" expandable section contains five controls. Claims below are community-empirical unless explicitly identified as first-party; numeric thresholds are MEDIUM-confidence starting points.
+The "More Options" expandable section contains five controls. Claims below are community-empirical unless explicitly identified as first-party; numeric thresholds are MEDIUM-confidence starting points. **The Duration slider is not one of the five** — the Jul 20 2026 release note places it in the Create form, and no source places it inside this panel, so the count above stands. See [Duration slider (Create form)](#duration-slider-create-form).
 
 ### Exclude styles (text field)
 
