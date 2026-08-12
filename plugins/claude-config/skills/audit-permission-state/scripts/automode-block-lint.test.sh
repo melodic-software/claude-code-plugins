@@ -140,11 +140,11 @@ assert_contains "an empty capture is reported unavailable, not clean" "$OUT_NOUS
 assert_contains "and says explicitly that it is not a clean bill" "$OUT_NOUSE" "NOT a clean bill"
 assert_eq "no findings are invented from an unread block" 0 "$(count_matching "$OUT_NOUSE" '^finding ')"
 
-# Unparseable even non-strictly is reported as unread rather than as empty.
+# Unparsable even non-strictly is reported as unread rather than as empty.
 GARBAGE="$TEST_TMPDIR/garbage.json"
 printf 'this is not json at all\n' >"$GARBAGE"
 OUT_GARBAGE=$(env AUTOMODE_CONFIG_FIXTURE="$GARBAGE" AUTOMODE_DEFAULTS_FIXTURE="$DEFAULTS" bash "$SCRIPT")
-assert_contains "unparseable output is reported unparseable" "$OUT_GARBAGE" "status=unparseable"
+assert_contains "unparsable output is reported unparsable" "$OUT_GARBAGE" "status=unparsable"
 assert_eq "and yields no findings" 0 "$(count_matching "$OUT_GARBAGE" '^finding ')"
 
 # --- The lane is optional: no python, no failure ------------------------------

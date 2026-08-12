@@ -171,7 +171,7 @@ if config is None or defaults is None:
         "with a non-strict parser (%s). Reporting it as unread rather than as an "
         "empty block." % (config_err or defaults_err)
     )
-    print("automode summary findings=0 sections=0 status=unparseable")
+    print("automode summary findings=0 sections=0 status=unparsable")
     raise SystemExit(0)
 
 # Parsing is not enough: the payload must also be the SHAPE this lane expects.
