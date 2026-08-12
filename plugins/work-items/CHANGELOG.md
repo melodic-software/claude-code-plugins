@@ -5,10 +5,9 @@ All notable changes to the `work-items` plugin are documented here. Format follo
 
 ## [0.35.9]
 
-### Fixed
+### Added
 
-- Add lane-neutral AI disclaimer SSOT.
-
+- **Lane-neutral AI disclaimer SSOT** in work-items reference docs.
 
 ## [0.35.8]
 
