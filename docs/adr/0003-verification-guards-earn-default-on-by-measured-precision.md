@@ -54,11 +54,24 @@ firing at 57% precision**.
 been measured against a real corpus.** A sound oracle is a necessary condition, never a
 sufficient one. Specifically:
 
-1. **Measure before shipping, on the real corpus, at real scale.** Not a sample, not the
+1. **Measure before shipping, on the real corpus, at real scale — where "real corpus" means the
+   guard's deployment surface, not necessarily the authoring repository.** Not a sample, not the
    contract suite. A passing contract suite is evidence for the cases it contains — nothing
    more; an input shape absent from the suite can still be misclassified. A corpus sweep is
    what exposes the scoping. The path guard had 61 green cases and a 23.7% real-world firing
    rate.
+
+   Two readings satisfy this rule and the ADR names both:
+
+   - A guard whose matcher explicitly confines it to this marketplace may measure here.
+   - A guard that ships default-on into consumer projects measures against corpora
+     representative of that deployment scope — and states which corpora, since a single-repo
+     sweep is not evidence about other distributions.
+
+   The path guard's dominant failure class — consumer-project config paths (`.claude/**`) that a
+   doc describes for a *consuming* repo and that a marketplace correctly lacks — is the
+   motivating case: the oracle was exact at the repo root, but the corpus was the wrong
+   deployment surface.
 2. **Report the number in the PR.** "It looks quieter now" is not a measurement. The
    before/after firing rate and precision are the artifact that justifies default-on.
 3. **A guard that fires and is never right disqualifies itself**, however sound its oracle.
