@@ -13,7 +13,7 @@ duckdb -init ${CLAUDE_PLUGIN_ROOT}/skills/observability/otel/cc-otel.sql -c "SEL
 
 | View / macro | Source file | Use |
 |---|---|---|
-| `cc_logs` | `cc-logs.json` | Events (tool_result, api_request, hooks, …) |
+| `cc_logs` | `cc-logs.json` | Events (tool_result, tool_decision, api_request, hooks, …) |
 | `cc_metrics` | `cc-metrics.json` | token.usage, cost.usage, … |
 | `cc_spans` | `cc-traces.json` | One row per span |
 | `cc_traces` | aggregate over `cc_spans` | One row per trace_id |
@@ -65,6 +65,62 @@ GROUP BY 1 ORDER BY cache_creation DESC;
 Hot-tier only, deliberately: the `cc_*_cold()` macros raise `IO Error: No files found that match
 the pattern …` when the cold tier holds no parquet yet, so the union pattern above is for stores
 that have aged, not a safe default. Add the cold half only after confirming `cold/` is populated.
+
+### Tool decisions (`claude_code.tool_decision`)
+
+Event `event_name='tool_decision'` in `cc_logs` / `cc_logs_cold()`. Promoted columns:
+`decision`, `source`, `tool_name`, `tool_use_id`, `session_id`, `prompt_id`,
+`trace_id`, `span_id`.
+
+**Column mapping:** Claude Code's `tool_decision` event emits the deciding-mechanism
+attribute as `source` (see monitoring docs). `tool_result` events use `decision_source` for
+the same semantics; `cc-otel.sql` coalesces both into the `source` column.
+
+**Use when:** "which tool calls were denied?", "why was this tool call blocked?", "how many
+permission denials this session?"
+
+**Do not:** search session transcripts or hook-events.jsonl — those surfaces do not carry
+permission outcomes.
+
+**Attribution caveat:** `source='config'` lumps settings, allow/deny rules, managed
+policy, CLI tool lists, permission mode, session grants, and inherently-safe-tool logic.
+Counts of `reject`+`config` are an upper bound on config-driven denials, not per-rule
+attribution.
+
+```sql
+-- rejected tool calls in window (upper bound on config-driven denials)
+SELECT event_time, tool_name, tool_use_id, decision, source, session_id
+FROM cc_logs
+WHERE event_name = 'tool_decision'
+  AND decision = 'reject'
+  AND event_time >= TIMESTAMP '<SINCE_ISO>'
+ORDER BY event_time DESC
+LIMIT 50;
+
+-- reject rate by tool and source (rate, not raw volume — high-volume tools can reject more
+-- calls yet reject a smaller share)
+SELECT tool_name, source,
+       count(*) FILTER (WHERE decision = 'reject') AS rejects,
+       count(*) AS total,
+       count(*) FILTER (WHERE decision = 'reject')::DOUBLE
+         / NULLIF(count(*), 0) AS reject_rate
+FROM cc_logs
+WHERE event_name = 'tool_decision'
+  AND event_time >= TIMESTAMP '<SINCE_ISO>'
+GROUP BY 1, 2
+ORDER BY reject_rate DESC, rejects DESC;
+
+-- config-driven denials for a session (join by tool_use_id to trace spans if needed)
+SELECT event_time, tool_name, tool_use_id, source
+FROM cc_logs
+WHERE event_name = 'tool_decision'
+  AND session_id = '<session_id>'
+  AND decision = 'reject'
+  AND source = 'config'
+ORDER BY event_time;
+```
+
+For multi-week history, union `cc_logs_cold()` per the hot+cold pattern above.
 
 Join logs to traces via shared `trace_id` / `span_id` on log rows.
 
