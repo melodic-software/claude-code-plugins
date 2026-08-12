@@ -139,7 +139,7 @@ main() {
   local jobs_json
   jobs_json="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs" --paginate)"
   local job
-  job="$(printf '%s' "$jobs_json" | jq -c '.jobs[] | select(.name == "security-review")' | head -n1)"
+  job="$(printf '%s' "$jobs_json" | jq -c '.jobs[] | select(.name == "security-review / security-review" or .name == "security-review")' | head -n1)"
   if [[ -z "$job" ]]; then
     echo "ERROR: security-review job not found in run $GITHUB_RUN_ID" >&2
     exit 1
