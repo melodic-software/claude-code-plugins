@@ -133,9 +133,9 @@ fi
 # a fresh "transition" and re-injected the ~1KB block. Only the FIRST dumb here
 # may emit.
 #
-# NOT the recurring 10s-timeout defect (context-guard 0.4.8 / PR #2001), which
-# was about the hook dying before it ran. This is about how often it injects
-# WHEN it runs.
+# NOT the recurring 10s-timeout defect fixed in context-guard 0.4.8
+# (squash-merged 925c3259), which was about the hook dying before it ran. This
+# is about how often it injects WHEN it runs.
 write_snapshot "$H" sflap 90 # dumb — first observation, injects
 run "$H" "$D" sflap
 if [[ $RC -eq 0 && "$OUT" == *additionalContext* && "$OUT" == *dumb* ]]; then
