@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.53.3]
+
+### Fixed
+
+- **`fetch_pull_request_commits` fails closed when the pull-commits walk is shorter than the PR's `commits` count (#2387).** GitHub caps that endpoint at 250 commits regardless of pagination.
+
 ## [0.53.2]
 
 ### Fixed
