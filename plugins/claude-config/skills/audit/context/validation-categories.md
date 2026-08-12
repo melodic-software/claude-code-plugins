@@ -51,6 +51,14 @@ Load the audit checklist alongside these: [audit-checklist.md](../reference/audi
 
 ## Category D: Hooks
 
+**The inventory this category checks is Phase 1.0's**, from
+`scripts/check-hook-coverage.sh` — settings-declared hooks *and* every enabled plugin's own hook
+config, resolved through the installed-plugin registry. That matters for two of the rules below:
+`${CLAUDE_PLUGIN_ROOT}` and `${CLAUDE_PLUGIN_DATA}` only ever appear in a plugin-provided hook, so
+before Phase 1.0 existed those rules were written against a surface the audit never opened. Where the
+script exited 1, say which sources went unenumerated rather than reporting the inventory as the
+complete set.
+
 - All hook script paths resolve to existing files on disk
 - Scripts are readable (not permission-denied)
 - `timeout` is a seconds value — flag a recognizably millisecond-scale figure (a round thousands
@@ -131,16 +139,50 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/fix-plugin-drift.sh" --yes
 
 ## Category G: Skill-listing budget
 
-- **Overflow check** — if `/doctor` reports dropped skill descriptions, the skill listing has exceeded
-  its budget and the least-invoked skills' trigger keywords are silenced (names still resolve;
-  auto-invocation degrades silently). `/doctor` needs an interactive TTY — prompt the user to run it.
-  Repos with large skill rosters overflow routinely
-- **Levers, cheapest first** — trim `description` / `when_to_use` frontmatter (key use case first;
-  1,536-char cap per entry), `skillOverrides: { <skill>: "name-only" }` in a contributor's
-  `settings.local.json` (does NOT apply to plugin skills), then `skillListingBudgetFraction` /
-  `SLASH_COMMAND_TOOL_CHAR_BUDGET` in project settings as a last resort (costs context every turn)
-- **Recommend, don't apply the list** — `skillOverrides` is contributor-scoped; surface the candidate
-  least-invoked skills, leave the actual name-only list to the developer
+Row-by-row criteria are in [audit-checklist.md](../reference/audit-checklist.md) "G. Skill-listing
+budget". What governs the category:
+
+- **State the budget, or the finding is not computable.** The listing budget is
+  `skillListingBudgetFraction` of the model's context window — **default `0.01`, i.e. 1%** — and
+  `SLASH_COMMAND_TOOL_CHAR_BUDGET` overrides it with a fixed character count, **documented fallback
+  8,000 characters**. Each entry's combined `description` + `when_to_use` text is separately capped at
+  `skillListingMaxDescChars`, **default `1536`**. For a 200K-token window, `200,000 × 4 × 0.01 = 8,000`
+  characters, which is why the env var's fallback is that number. Without the constant a report can say
+  "overflowed" but not "by how much", so quote it. All three are upstream-owned: confirm them in Phase
+  3 against [settings](https://code.claude.com/docs/en/settings) and
+  [env-vars](https://code.claude.com/docs/en/env-vars) before publishing a number
+- **Overflow check — two routes, and only one survives a headless run.** `/doctor` estimates the
+  listing's cost and its biggest contributors, and it needs an interactive TTY, so prompt the user to
+  run it. When this audit runs headless — `-p`, a spawned agent, a background job — use the documented
+  debug route instead: *"When the listing exceeds its budget, Claude Code also writes a warning to the
+  debug log, visible with `--debug`"*
+  ([skills](https://code.claude.com/docs/en/skills), "Skill descriptions are cut short"). Report which
+  route was taken; a category that names only `/doctor` yields nothing in the harness's own headless
+  mode. `/context`'s Skills row reports the listing size after the budget is applied — a second
+  *interactive* reading, not a headless one. Overflow silences the least-invoked skills' trigger
+  keywords (names still resolve; auto-invocation degrades silently), and repos with large skill rosters
+  overflow routinely
+- **Measure the roster composition before naming a lever.** Count listing entries by origin — plugin
+  skills, project skills (`.claude/skills/`), user skills (`${CLAUDE_CONFIG_DIR:-~/.claude}/skills/`).
+  This is the single input that decides which levers exist, and it is cheap. A run that skips it
+  recommends levers the operator cannot pull
+- **Levers, cheapest first — and the ordering depends on that composition:**
+  - *Any origin* — trim `description` / `when_to_use` at the source, key use case first. Costs nothing
+    at runtime and is the only lever that helps every roster
+  - *Project and user skills* — `skillOverrides: { <skill>: "name-only" }` in a contributor's
+    `settings.local.json`
+  - *Plugin skills* — `skillOverrides` **does not reach them**: *"Does not apply to plugin skills,
+    which are managed through `/plugin`"* (settings) and *"Plugin skills are not affected by
+    `skillOverrides`. Manage those through `/plugin` instead"* (skills). So on a plugin-heavy roster
+    the lever is `/plugin` — disabling a plugin removes its skills from the listing — plus trimming
+    the descriptions upstream in the plugin that owns them. Neither page documents a per-skill
+    `name-only` state reachable from `/plugin`, so do not promise one
+  - *Last resort, any origin* — raise `skillListingBudgetFraction` / `SLASH_COMMAND_TOOL_CHAR_BUDGET`
+    in project settings. It costs context every turn, which is why it is last here even though the
+    docs present it first
+- **Recommend, don't apply the list** — `skillOverrides` is contributor-scoped and `/plugin` is a
+  machine-level action; surface the candidate least-invoked skills, leave the actual list to the
+  developer
 
 ## Category H: Model and effort settings
 
