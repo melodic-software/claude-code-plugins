@@ -6,6 +6,17 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 Versions 0.1.0–0.7.0 predate this file (introduced with 0.7.1); their history lives in the
 merged work-package PRs (#333, #343, #356, #372, #377, #600, #676).
 
+## [0.16.2]
+
+### Fixed
+
+- **The verification-topology leaf now names `scanner_class`, the field that decides whether a slot
+  is deterministic or model-adjudicated.** The schema and the checker both key the whole
+  deterministic/model split on it — which constraints are legal, which floor a slot counts toward,
+  how distinctness is judged — while the normative leaf described the split only in prose. A binding
+  author reading the contract could not tell how to declare a deterministic slot, and the contract
+  is the surface that is supposed to answer that.
+
 ## [0.16.1]
 
 ### Fixed
