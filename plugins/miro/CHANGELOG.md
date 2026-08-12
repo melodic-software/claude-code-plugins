@@ -3,6 +3,12 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.1]
+
+### Changed
+
+- **Bump `@hono/node-server` from 1.19.14 to 2.1.0** (#2508).
+
 ## [0.3.0]
 
 ### Removed
