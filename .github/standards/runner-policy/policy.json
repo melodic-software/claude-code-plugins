@@ -749,7 +749,8 @@
     "name": "runner",
     "expression": "${{ inputs.runner }}",
     "default": "ubuntu-24.04",
-    "failureSentinel": "ci-runner-selection-failed"
+    "failureSentinel": "ubuntu-24.04",
+    "failureSentinelMarker": "ci-runner-selection-failed"
   },
   "fallbackLabelAllowlist": ["ubuntu-24.04", "melodic-ubuntu-24.04-x64"],
   "forbiddenHostedRunnerLabels": ["macos-latest", "ubuntu-latest", "windows-latest"],
