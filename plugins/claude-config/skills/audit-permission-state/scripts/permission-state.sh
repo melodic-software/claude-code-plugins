@@ -115,6 +115,18 @@ source "$MANAGED_SCOPE_LIB"
 # something no real rule text contains.
 NL_SENTINEL=$'\x01MULTILINE\x01'
 
+# Strips a CRLF line ending WITHOUT touching a CR inside a string value.
+#
+# Deleting every CR was a defect on two counts: it silently rewrote rule text
+# (turning a CR-carrying rule into one present in no settings file), and it
+# REPAIRED a payload that jq rejects, so an invalid file was classified
+# `present`. A status must never be kinder than the file it describes.
+#
+# A trailing CR is a line ending; a CR anywhere else is data. Narrowing to the
+# trailing one keeps CRLF-on-Windows working and lets the in-string case reach
+# jq, which rejects it, or the sentinel, which announces it.
+crlf_strip() { sed 's/\r$//'; }
+
 emit() { printf '%s %s %s %s\n' "$1" "$2" "$3" "${4:--}"; }
 note() { printf 'NOTE: %s\n' "$1"; }
 
@@ -196,7 +208,7 @@ classify_json_file() {
     printf 'unreadable\n'
     return 0
   }
-  tr -d '\r' <"$path" | jq empty 2>/dev/null || {
+  crlf_strip <"$path" | jq empty 2>/dev/null || {
     printf 'invalid-json\n'
     return 0
   }
@@ -226,7 +238,7 @@ emit_file_rules() {
       # jq emits CRLF on Windows; a trailing \r would corrupt every rule string.
       # Reading with @json keeps a multi-line rule on ONE line so the loop sees
       # it whole; the sentinel below marks the ones that needed it.
-    done < <(tr -d '\r' <"$path" |
+    done < <(crlf_strip <"$path" |
       jq -r --arg k "$kind" --arg nl "$NL_SENTINEL" \
         '.permissions[$k] // [] | .[] | if test("[\n\r]") then $nl + (. | gsub("[\n\r]"; " ")) else . end' 2>/dev/null |
       tr -d '\r')
@@ -284,7 +296,7 @@ emit_json_scope() {
   emit "$scope" "$surface" "$status" "$path"
   if [[ "$status" == "present" ]]; then
     emit_file_rules "$scope" "$surface" "$path"
-    emit_file_conf "$scope" "$surface" < <(tr -d '\r' <"$path")
+    emit_file_conf "$scope" "$surface" < <(crlf_strip <"$path")
   fi
   return 0
 }

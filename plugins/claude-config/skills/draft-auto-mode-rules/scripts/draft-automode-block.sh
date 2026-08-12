@@ -135,14 +135,27 @@ printf '%s\n' "$answers" | jq -Rn '
   # exactly the "written where nothing reads it" defect its audit sibling
   # exists to find -- the one thing an authoring tool must never produce.
   | map(select(.section != null and (.label | test("[^[:space:]]"))))
+  # FAIL CLOSED on an unknown section rather than skipping it with a warning.
+  #
+  # Skipping printed a warning on stderr and valid JSON on stdout, which is
+  # correct until the caller captures both together -- and agent tooling merges
+  # streams by default, so the merged stream was not parseable JSON. Failing
+  # loudly makes that impossible: there is no partial output left to corrupt.
+  # It also matches the posture every script here already takes, where a
+  # non-zero exit means "could not run" and never "found nothing". The cost is
+  # nil: an unknown section is a typo in composed input, free to fix and rerun.
+  #
+  # A `_warnings` key inside the JSON was considered and rejected -- it would
+  # land in the pasted autoMode block as a section the classifier does not read,
+  # manufacturing the exact defect this check exists to prevent.
   | (map(select(.section | IN("environment", "allow", "soft_deny", "hard_deny") | not))
      | map(.section) | unique) as $unknown
   | (if ($unknown | length) > 0 then
-       ("draft-automode-block.sh: unknown section(s) skipped: " + ($unknown | join(", "))
-        + " -- the classifier reads only environment, allow, soft_deny and hard_deny; anything else would be written where nothing reads it"
-        | stderr | empty)
-     else empty end),
-    (map(select(.section | IN("environment", "allow", "soft_deny", "hard_deny")))
+       ("draft-automode-block.sh: unknown section(s): " + ($unknown | join(", "))
+        + " -- the classifier reads only environment, allow, soft_deny and hard_deny. Nothing was drafted; fix the section name and rerun."
+        | halt_error(2))
+     else . end)
+    | (map(select(.section | IN("environment", "allow", "soft_deny", "hard_deny")))
   | group_by(.section)
   | map({
       key: .[0].section,

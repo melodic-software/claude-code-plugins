@@ -98,7 +98,9 @@ why the runner is named in the command text
 bash "${CLAUDE_PLUGIN_ROOT}/skills/draft-auto-mode-rules/scripts/draft-automode-block.sh" < answers
 ```
 
-It prints a JSON object carrying only the sections that got entries. **Every section opens with
+It prints a JSON object carrying only the sections that got entries. **An unknown section name
+is a hard failure** — exit 2, nothing on stdout — rather than a warning beside partial output,
+because a caller capturing both streams together would otherwise get unparseable JSON. **Every section opens with
 `"$defaults"`** — customizing a section replaces the built-in list rather than adding to it, so
 omitting the token silently discards every shipped rule in that section.
 

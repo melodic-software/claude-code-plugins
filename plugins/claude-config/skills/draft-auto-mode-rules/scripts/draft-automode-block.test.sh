@@ -192,10 +192,12 @@ assert_exit "a sectionless entry does not crash the drafter" 0 "$rc"
 assert_eq "and yields an empty object rather than a guessed section" "{}" \
   "$(printf '%s' "$OUT_NOSECTION" | jq -c .)"
 
-# --- Only the four documented sections are emitted ---------------------------
-# A drafter that wrote `bogus_section` into an autoMode block would manufacture
-# the exact "written where nothing reads it" defect its audit sibling exists to
-# find. Unknown sections are skipped with a warning on stderr, not emitted.
+# --- An unknown section FAILS CLOSED ------------------------------------------
+# Skipping it printed a warning on stderr and JSON on stdout, which breaks the
+# moment a caller captures both together -- and agent tooling merges streams by
+# default, so the merged stream was not parseable JSON. Failing loudly leaves no
+# partial output to corrupt, and matches every other script here: a non-zero
+# exit means "could not run", never "found nothing".
 UNKNOWN=$(
   cat <<'EOF'
 section bogus_section_name
@@ -206,27 +208,40 @@ label Real Entry
 covered something real
 EOF
 )
+rc=0
+ERR_UNKNOWN=$(printf '%s
+' "$UNKNOWN" | bash "$SCRIPT" 2>&1 >/dev/null) || rc=$?
+assert_exit "an unknown section exits 2" 2 "$rc"
+assert_contains "the section is named" "$ERR_UNKNOWN" "bogus_section_name"
+assert_contains "and the four legal names are given" "$ERR_UNKNOWN" "environment, allow, soft_deny and hard_deny"
+assert_contains "and the caller is told nothing was drafted" "$ERR_UNKNOWN" "Nothing was drafted"
+
 OUT_UNKNOWN=$(printf '%s
 ' "$UNKNOWN" | bash "$SCRIPT" 2>/dev/null)
-ERR_UNKNOWN=$(printf '%s
-' "$UNKNOWN" | bash "$SCRIPT" 2>&1 >/dev/null)
-assert_eq "an unknown section is not emitted" "allow"   "$(printf '%s' "$OUT_UNKNOWN" | jq -r 'keys | join(" ")')"
-assert_contains "and the skip is warned about by name" "$ERR_UNKNOWN" "bogus_section_name"
-assert_contains "the warning says why" "$ERR_UNKNOWN" "written where nothing reads it"
-assert_contains "the real section still ships" "$OUT_UNKNOWN" "Real Entry:"
-rc=0
-printf '%s
-' "$UNKNOWN" | bash "$SCRIPT" >/dev/null 2>&1 || rc=$?
-assert_exit "an unknown section does not fail the run" 0 "$rc"
+assert_eq "no partial JSON is emitted" "" "$OUT_UNKNOWN"
 
-# An empty section name is the same class and must not become the key "".
-EMPTY_SECTION=$(printf 'section 
+# The merged stream is the case this posture exists for: with nothing on stdout,
+# there is no JSON for the warning to corrupt.
+MERGED=$(printf '%s
+' "$UNKNOWN" | bash "$SCRIPT" 2>&1 || true)
+assert_not_contains "the merged stream carries no half-written JSON" "$MERGED" "{"
+
+# An empty section name is the same class.
+rc=0
+printf 'section 
 label X
 covered y
-')
-OUT_EMPTY_S=$(printf '%s
-' "$EMPTY_SECTION" | bash "$SCRIPT" 2>/dev/null)
-assert_eq "an empty section name yields no key" "{}" "$(printf '%s' "$OUT_EMPTY_S" | jq -c .)"
+' | bash "$SCRIPT" >/dev/null 2>&1 || rc=$?
+assert_exit "an empty section name also exits 2" 2 "$rc"
+
+# A wholly legal input is unaffected.
+rc=0
+OUT_OK=$(printf 'section allow
+label Real
+covered z
+' | bash "$SCRIPT") || rc=$?
+assert_exit "a legal input still exits 0" 0 "$rc"
+assert_contains "and drafts normally" "$OUT_OK" "Real:"
 
 # --- Fail-loud ----------------------------------------------------------------
 rc=0

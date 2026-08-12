@@ -244,8 +244,22 @@ END {
     # working: "WebFetch rules use a `domain:` prefix and match against the
     # hostname… supports `*` wildcards." Firing on `WebFetch(domain:*.example.com)`
     # called a documented working rule broken.
+    # The exemption is by GRAMMAR, not by a list of parameter names. The page
+    # says parameter matching works "on any tool" for "any scalar parameter the
+    # tool accepts" -- open-ended by construction -- and "the value supports `*`
+    # as a wildcard that matches any sequence of characters". A hardcoded
+    # allowlist could only ever chase that: it exempted WebFetch/domain and then
+    # flagged `Agent(model:*-haiku)`, a documented parameter form whose wildcard
+    # happens to land mid-value.
+    #
+    # So: in a deny or ask rule, an `identifier:value` body IS the parameter
+    # form and the mid-pattern rule does not apply to it. In an allow rule it
+    # cannot be the parameter form at all -- an allow rule uses the specifier
+    # syntax its own tool defines -- so a command-prefix reading is the only one
+    # and the check still applies.
     cs = index(body, ":*")
-    if (cs > 0 && cs + 1 < length(body) && !((tool SUBSEP prefix_of(body)) in documented_param))
+    param_form = (kind != "allow") && (prefix_of(body) ~ /^[A-Za-z_][A-Za-z0-9_]*$/)
+    if (cs > 0 && cs + 1 < length(body) && !param_form && !((tool SUBSEP prefix_of(body)) in documented_param))
       finding("error", "C6-colonStar", scope, text " — the :* form is only recognized at the END of a pattern; here the colon is treated as a literal character and the rule will not match what it looks like it matches")
 
     # Parameter form is `Tool(param:value)`. Two distinct defects live here.
