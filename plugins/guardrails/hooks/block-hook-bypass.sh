@@ -773,6 +773,8 @@ block_bypass() {
   local form="$1" reason="$2"
   echo "BLOCKED: $reason" >&2
   echo "Use the Write or Edit tool instead of a shell file-write workaround." >&2
+  echo "In an isolated session, Write or Edit may be refused for paths in the main checkout — that remedy is then unavailable." >&2
+  echo "An operator can set the guardrails block_hook_bypass_enabled option to false (/plugin configure) to bypass; that option is user-scoped and persists in every repository where guardrails is enabled — re-enable it when the bypass is no longer needed. The switch is not actionable by the blocked agent." >&2
   if [[ "$TOOL_NAME" == "PowerShell" ]]; then
     echo "$_BYPASS_SCOPE_NOTE_PWSH" >&2
   else
