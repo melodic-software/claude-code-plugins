@@ -3,6 +3,16 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.5]
+
+### Fixed
+
+- **`work-loop` drain exit excludes open `work-map` containers as lane infrastructure (#2078).**
+  A bare container issue is never claimable and never closed by the loop, so it blocked drain
+  completion until the `/loop` expiry. `/work-items:triage` and `/work-items:work-loop` now exclude
+  container-labelled items from the snapshot, intake sweep, exit evaluation, and post-snapshot
+  intake report — the same treatment as per-lane telemetry issues.
+
 ## [0.35.4]
 
 ### Fixed

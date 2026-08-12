@@ -432,10 +432,13 @@ open, and it is worked once the admission gate passes it and a cap slot is free.
 
 Lane-infrastructure items never gate the drain: the per-lane telemetry tracking issues — this
 lane's and any sibling lane's, identified as `/work-items:triage` ("Scope: raw intake only")
-defines them, by pinned config identity or sentinel comment and never by title alone — are
-excluded from the cycle-start snapshot, the intake sweep, the exit evaluation, and the
+defines them, by pinned config identity or sentinel comment and never by title alone — **and open
+`work-map` container items** (the tracker seam's `WIT_CONTAINER_LABEL`, default `work-map`: never
+claimable, never closed by this lane, openness means the map exists) — are excluded from the
+cycle-start snapshot, the intake sweep, the exit evaluation, and the
 post-snapshot intake report below. The loop never works, closes, or waits on them; an open
-telemetry issue is the lane operating, not backlog. The report is on that list for the same reason
+telemetry issue is the lane operating, not backlog, and an open container is lane infrastructure
+for the same reason — not unresolved backlog blocking drain exit. The report is on that list for the same reason
 as the snapshot: a telemetry issue is deliberately never among the retained ids, so a reading that
 did not re-apply this exclusion would diff it in as post-snapshot intake and misreport it as
 unworked on every single run.
