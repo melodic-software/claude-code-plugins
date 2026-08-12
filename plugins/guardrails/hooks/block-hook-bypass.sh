@@ -1047,7 +1047,10 @@ _py_inline_c='(^|[[:space:];|&()/\]+)(pypy|python|py)[0-9]*(\.[0-9]+)*(\.exe)?([
 # NO `-` argument) stays uncovered. Matching a bare trailing interpreter token
 # would flip `echo "pathlib" | python3` and `cat s.py | python3` to blocked —
 # verified rc=0 both before and after — so the exemption those keep costs this
-# one spelling.
+# one spelling. Same discipline as the `-c` arm above: no gap is allowed between
+# the interpreter and the `-`, so an interpreter option in between
+# (`python3 -O - <<PY`) is uncovered too. Widening to admit an arbitrary
+# option-shaped token is what would let a SCRIPT path through as one.
 _py_stdin_code='(^|[[:space:];|&()/\]+)(pypy|python|py)[0-9]*(\.[0-9]+)*(\.exe)?[[:space:]]+-([[:space:]]|$)'
 if [[ "$EXEC_LC" =~ $_py_inline_c || "$EXEC_LC" =~ $_py_stdin_code ]] &&
   py_write_indicator "$COMMAND_LC"; then

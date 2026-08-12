@@ -81,8 +81,11 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   **Accepted residual, restated at its narrowed width:** `python3 <<PY … PY` — stdin with **no** `-`
   argument — stays uncovered. Matching a bare trailing interpreter token would flip
   `echo "pathlib" | python3` and `cat script.py | python3` to blocked, so that exemption costs this
-  one spelling; both floors are asserted. Inline writes via other interpreters (`node -e`, `perl -e`,
-  `ruby -e`, `sed -i`) remain out of scope, unchanged.
+  one spelling; both floors are asserted. Same discipline as the `-c` arm: no gap is allowed between
+  the interpreter and its flag beyond a `-<digits>` version selector, so `python3 -O - <<PY` is
+  uncovered too — admitting an arbitrary option-shaped token is what would let a *script path*
+  through as one. Inline writes via other interpreters (`node -e`, `perl -e`, `ruby -e`, `sed -i`)
+  remain out of scope, unchanged.
 
 ## [0.27.2]
 

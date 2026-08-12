@@ -1179,6 +1179,14 @@ run "#2217: python3 - </dev/null (allowed)" "python3 - </dev/null" 0
 # flip the two allowed cases below, so that exemption costs this one spelling.
 PY_HEREDOC_NODASH=$(printf 'python3 <<\x27PY\x27\nopen("f","w").write("x")\nPY')
 run "#2217: accepted floor — python3 <<PY with no dash (allowed)" "$PY_HEREDOC_NODASH" 0
+# Same discipline as the `-c` arm: no gap between interpreter and `-`, so an
+# interpreter option in between is uncovered. Admitting an arbitrary
+# option-shaped token is what would let a SCRIPT path through as one.
+PY_HEREDOC_OPT=$(printf 'python3 -O - <<\x27PY\x27\nopen("f","w").write("x")\nPY')
+run "#2217: accepted floor — an option between python3 and - (allowed)" "$PY_HEREDOC_OPT" 0
+# The heredoc operator glued to the `-` is the same invocation and IS covered.
+PY_HEREDOC_GLUED=$(printf 'python3 -<<\x27PY\x27\nopen("f","w").write("x")\nPY')
+run "#2217: python3 -<<PY with no space (blocked)" "$PY_HEREDOC_GLUED" 2
 run "#2217: floor that costs it — echo pathlib | python3 (allowed)" \
   "echo \"pathlib\" | python3" 0
 run "#2217: floor that costs it — cat script.py | python3 (allowed)" \
