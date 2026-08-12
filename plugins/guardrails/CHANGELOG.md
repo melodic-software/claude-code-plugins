@@ -3,6 +3,53 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.2]
+
+### Fixed
+
+- **`block-convention-violation` read the wrong repository's git config, so a commit whose
+  subject violates the team convention passed unblocked.** Its `effective_dir` scanned EVERY word of
+  the command for `-C` — no `[git, subcommand)` slice and no wrapper replay, the shape the shared
+  parser from #1785 replaced, and that #2100 removed from `block-dangerous-git`. It failed
+  in the opposite direction from that sibling: not blind to a chdir, but inventing chdirs that were
+  never there. In `env -u -C git <alias> …`, GNU env's `-u NAME` consumes `-C` as the variable to
+  unset, so git never moves — yet the every-word scan composed `<cwd>/git` and looked for the alias
+  there. The consumer that matters is the gitconfig alias lookup, which has neither a stdin-form
+  gate nor an exemption gate and fails OPEN: reading the wrong repository's config silently misses
+  the expansion, the guard never learns the real subcommand is `commit`, and the convention goes
+  unenforced. `effective_dir` now takes git's own globals only — the slice from the resolved git
+  token to the subcommand — preceded by any genuine wrapper chdir replayed from
+  `HOOK_GIT_RESOLVED_WRAPPER_DIRS`, which is the one parser that can tell a real `env -C <dir>`
+  from the `-C` in `env -u -C git`. The sequencer probe at the same call site is corrected with it.
+
+  A post-subcommand `-C` is `--reuse-message`, not a directory, and the distinction is purely
+  positional. Note that `git commit -C HEAD` cannot itself demonstrate this: `-C` sets the
+  reuse-message exemption and the hook returns before `effective_dir` is ever called, so that
+  invocation answered "allowed" both before and after and would read as already fixed. The
+  positional case is covered through the alias lookup instead, where no exemption applies.
+
+  **Acceptance behavior changes** (hence a minor bump): a wrapped alias invocation whose expansion
+  is `commit` is now content-gated where it was waved through, and one whose alias exists only in
+  an unrelated directory the scan used to compose is no longer blocked on an expansion git would
+  never perform.
+
+- **A `!` shell alias lost the directory its invocation resolved to, so a prepared merge commit was
+  blocked instead of exempted.** Found in review of the above. A `!` alias body re-parses as a NEW
+  top-level command, and that fresh argv carries neither the wrapper that moved git nor git's own
+  globals — so `env -C <dir> git <alias>` resolved the alias in `<dir>` and then evaluated the alias
+  body's sequencer probe against the payload cwd. With a merge in progress in `<dir>`, the commit
+  git was about to make carries a prepared message and the guard documents an exemption for exactly
+  that; it was gated instead. `effective_dir` now falls back to `HOOK_EFFECTIVE_BASE`, which the
+  caller sets to the resolved directory around each `!` reparse and restores after — the mechanism
+  `block-noncanonical-commit.sh` already uses. Pre-existing, not introduced by the scoping fix above;
+  the fix simply made the path reachable enough to demonstrate.
+
+  What this composes is the caller's directory, where the sibling asks git for the alias's real
+  launch directory (git starts a `!` body at the work tree's top level). For this guard's two
+  consumers the two agree — `config --get` and `rev-parse --absolute-git-dir` answer identically from
+  anywhere inside one repository. They diverge only when a separate repository is nested below the
+  composed path, which is deliberately not modelled here.
+
 ## [0.25.1]
 
 ### Changed
