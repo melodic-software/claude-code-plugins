@@ -1061,9 +1061,17 @@ hook::emit_telemetry() {
   local timestamp
   timestamp=$(TZ=UTC printf '%(%Y-%m-%dT%H:%M:%SZ)T' -1)
 
-  # Build the envelope. Redirect jq stderr to /dev/null; output goes to a local
-  # variable — never to fd1.
-  local envelope
+  # Build the envelope. The `data` object is written to a temp file, not passed
+  # as --argjson, so payloads larger than the Windows 32767-character command-line
+  # cap are not dropped before jq runs (#1595). /dev/stdin is not used: jq's
+  # --slurpfile there is not portable on Windows. Redirect jq stderr to
+  # /dev/null; output goes to a local variable — never to fd1.
+  local envelope data_file
+  data_file=$(mktemp) || return 0
+  printf '%s' "$data_json" >"$data_file" || {
+    rm -f "$data_file"
+    return 0
+  }
   envelope=$(jq -n \
     --arg schema_version "1.0" \
     --arg timestamp "$timestamp" \
@@ -1071,9 +1079,13 @@ hook::emit_telemetry() {
     --arg hook_event "$hook_event" \
     --arg status "$status" \
     --argjson duration_ms "$duration_ms" \
-    --argjson data "$data_json" \
-    '{schema_version:$schema_version,timestamp:$timestamp,hook:$hook,hook_event:$hook_event,status:$status,duration_ms:$duration_ms,data:$data}' \
-    2>/dev/null) || return 0
+    --slurpfile data "$data_file" \
+    '{schema_version:$schema_version,timestamp:$timestamp,hook:$hook,hook_event:$hook_event,status:$status,duration_ms:$duration_ms,data:($data[0] // {})}' \
+    2>/dev/null) || {
+    rm -f "$data_file"
+    return 0
+  }
+  rm -f "$data_file"
 
   # Resolve the sink path. A relative HOOK_TELEMETRY_SINK is joined onto the
   # consuming repo root (portable, tracked wiring); absolute is used as-is. A

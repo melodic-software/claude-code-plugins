@@ -3,6 +3,12 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.8]
+
+### Changed
+
+- **Synced `hook-utils.sh`:** feed `emit_telemetry` data via mktemp slurpfile instead of `--argjson`, so payloads above the Windows command-line cap are not dropped (#1595).
+
 ## [0.16.7]
 
 ### Changed
