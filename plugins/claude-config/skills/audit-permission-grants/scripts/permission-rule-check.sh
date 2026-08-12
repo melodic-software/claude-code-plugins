@@ -3,7 +3,7 @@
 # permission grants across a repo's skill/command/agent frontmatter and its
 # settings.json / settings.local.json permission rules.
 #
-# Flags three anti-patterns (criteria file: reference/criteria.md):
+# Flags five anti-patterns (criteria file: reference/criteria.md):
 #   P1  interpreter-wildcard / blanket allow rules that Claude Code DROPS on
 #       entering auto mode (blanket Bash(*)/PowerShell(*), wildcarded
 #       interpreters like Bash(python*), package-manager wildcards — runner
@@ -20,6 +20,12 @@
 #       settings.json supports only the `agent` and `subagentStatusLine` keys,
 #       so a self-granted permission rule is silently ignored; the operative
 #       allow-rule has to be added by the operator to ~/.claude/settings.json.
+#   P4  inert substitution tokens in a Bash allow rule — `${CLAUDE_PLUGIN_ROOT}`
+#       (not substituted in allowed-tools), `%USERPROFILE%`, or
+#       `$env:USERPROFILE` (unexpanded in Bash rules). The grant never matches.
+#   P2b `~username/…` in a Bash rule — the portable `~/` home anchor is exempt
+#       (Read/Edit resolve it per user); `~user` is not portable, names a
+#       specific account, and is not expanded in Bash rules.
 #
 # Advisory about FINDINGS: they never fail the run, so a scan that completes exits 0
 # whether or not it found anything. Environment gaps are the exception and exit 2 —
@@ -162,6 +168,16 @@ _p2_path="${_sl}Users${_sl}${_seg}|${_sl}home${_sl}${_seg}|[A-Za-z]:[${_sl}${_bs
 # The leading `[A-Za-z_][A-Za-z0-9_]*` is `CCPERM_TOOL_TOKEN_ERE`'s own tool-name
 # grammar, kept consistent with the library #2260 extracted.
 P2_RULE_ERE="[A-Za-z_][A-Za-z0-9_]*\\([^)]*(${_p2_path})[^)]*\\)"
+# `~user/…` in a Bash rule — not the portable `~/` anchor (Read/Edit resolve that
+# per user). Bash rules match literally and do not expand tilde-user forms.
+# Require `~` to begin a shell word (immediately after `(` or whitespace), not
+# inside arbitrary command text such as a URL user-directory segment.
+P2_TILDE_USER_RULE_ERE='Bash\((~[^/[:space:]~]+/|[[:space:]]+~[^/[:space:]~]+/)[^)]*\)'
+
+# Inert tokens inside Bash(...) only — not Read/Edit or other tools.
+# shellcheck disable=SC2016  # single quotes deliberate: \$ and % are literal ERE, not shell expansion
+P4_INERT_TOKEN_ERE='\$\{CLAUDE_PLUGIN_ROOT\}|%USERPROFILE%|\$env:USERPROFILE'
+P4_BASH_INERT_ERE="Bash\\([^)]*(${P4_INERT_TOKEN_ERE})[^)]*\\)"
 
 findings=()
 
@@ -170,9 +186,23 @@ emit() {
   findings+=("$1 [$2] $3: $4")
 }
 
+inert_grant_remedy() {
+  # inert_grant_remedy <source-file-path> — branch the P4 remedy per #2397 A7b.
+  local file="$1"
+  case "$file" in
+    */skills/*/SKILL.md)
+      printf '%s' "replace with \${CLAUDE_SKILL_DIR} for a script bundled in this skill (substituted in allowed-tools Bash rules per the skills page)"
+      ;;
+    *)
+      printf '%s' "relocate the helper to a stable bare command on PATH and allow that name narrowly — do not prescribe plugin bin/ (see permission-rule-hygiene convention known gap)"
+      ;;
+  esac
+}
+
 scan_rule() {
-  # scan_rule <rule-string> <source-label> — one allow rule or one frontmatter token region
-  local text="$1" src="$2" m
+  # scan_rule <rule-string> <source-label> [<source-file>] — one allow rule or
+  # one frontmatter token region. source-file enables the P4 remedy branch.
+  local text="$1" src="$2" file="${3:-}" m remedy
   while IFS= read -r m; do
     [[ -n "$m" ]] && emit warning P1 "$src" "'$m' is an interpreter/runner-led grant, not the portable bare-name pattern; Claude Code drops the broad forms of this shape (blanket, package-manager runners, and wildcarded/globbed-target interpreters) on entering auto mode. Expose the guarded script as a bare PATH command and allow that, e.g. Bash(babysit_merge.sh:*)."
   done < <(printf '%s\n' "$text" | grep -oE "$P1_ERE" 2>/dev/null | sort -u)
@@ -186,6 +216,15 @@ scan_rule() {
     # genuinely portable forms and are already excluded by `_seg` above.
     emit error P2 "$src" "hardcoded machine path in '$m' — the rule names a concrete user home, so it breaks on other machines and usernames and leaks a username into source control. Portable forms: \${CLAUDE_SKILL_DIR} for a skill's own bundled script (substituted in allowed-tools Bash rules), a bare-name command on PATH, or the ~/ home anchor for Read/Edit rules."
   done < <(printf '%s\n' "$text" | grep -oE "$P2_RULE_ERE" 2>/dev/null | sort -u)
+  while IFS= read -r m; do
+    [[ -z "$m" ]] && continue
+    emit error P2 "$src" "tilde-user path in '$m' — Bash rules match literally and do not expand ~username forms, so the rule names a specific account, leaks a username into version control, and breaks on other machines. Use \${CLAUDE_SKILL_DIR} for a skill's own script, a bare-name command on PATH, or the ~/ home anchor for Read/Edit rules."
+  done < <(printf '%s\n' "$text" | grep -oE "$P2_TILDE_USER_RULE_ERE" 2>/dev/null | sort -u)
+  while IFS= read -r m; do
+    [[ -z "$m" ]] && continue
+    remedy="$(inert_grant_remedy "$file")"
+    emit error P4 "$src" "inert substitution token in '$m' — the grant never matches at runtime. Remedy: $remedy."
+  done < <(printf '%s\n' "$text" | grep -oE "$P4_BASH_INERT_ERE" 2>/dev/null | sort -u)
 }
 
 top_level_tokens() {
@@ -258,7 +297,7 @@ while IFS= read -r file; do
   at="$(extract_allowed_tools "$file")"
   [[ -n "${at//[[:space:]]/}" ]] || continue
   rel="${file#"$ROOT"/}"
-  scan_rule "$at" "$rel allowed-tools"
+  scan_rule "$at" "$rel allowed-tools" "$file"
   scan_bare_tool "$at" "$rel allowed-tools"
   scan_agent "$at" "$rel allowed-tools"
 done < <(
@@ -278,7 +317,7 @@ scan_settings_allow() {
     [[ -n "$rule" ]] || continue
     scan_bare_tool "$rule" "$label"
     scan_agent "$rule" "$label"
-    scan_rule "$rule" "$label"
+    scan_rule "$rule" "$label" ""
     # Trailing tr strips CR: jq emits CRLF on Windows, which would otherwise
     # leave a \r on each rule and pollute the token the scans above match.
   done < <(tr -d '\r' <"$file" | jq -r '.permissions.allow // [] | .[]' 2>/dev/null | tr -d '\r')
