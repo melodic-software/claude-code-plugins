@@ -204,6 +204,36 @@ else
 fi
 rm -f "$f"
 
+# --- Markdown list/blockquote-prefixed block comments count (#1342) ---------
+f="$(tmpfile '- <!-- portability-ok: list-item annotation -->
+diff against origin/main here')"
+if scan_paths "$f" >/dev/null 2>&1; then
+  ok "list-item portability-ok comment exempts the next line"
+else
+  fail "list-item portability-ok comment should exempt the next line"
+fi
+rm -f "$f"
+
+f="$(tmpfile '> <!-- portability-ok: blockquote annotation -->
+diff against origin/main here')"
+if scan_paths "$f" >/dev/null 2>&1; then
+  ok "blockquote portability-ok comment exempts the next line"
+else
+  fail "blockquote portability-ok comment should exempt the next line"
+fi
+rm -f "$f"
+
+f="$(tmpfile 'Prose with <!-- portability-ok: inline marker --> mid-line
+diff against origin/main here')"
+if out="$(scan_paths "$f" 2>&1)"; then
+  fail "mid-line portability-ok marker must not exempt the next line, got success: $out"
+elif echo "$out" | grep -q ":2:"; then
+  ok "mid-line portability-ok marker does not exempt the next line"
+else
+  fail "expected line 2 flagged after mid-line marker, got: $out"
+fi
+rm -f "$f"
+
 # --- whole-file portability-scope declaration passes -----------------------
 f="$(tmpfile '<!-- portability-scope: forge=github — inherent, declared boundary -->
 This skill diffs origin/main and pushes with origin/master.')"

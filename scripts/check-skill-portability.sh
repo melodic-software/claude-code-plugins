@@ -173,7 +173,13 @@ scan_file() {
     # count as a comment line for pending_annot carry-forward purposes — only a
     # line whose `<!--` opens at the start (after optional whitespace) is a
     # genuine dedicated comment line. See #611.
-    function is_comment(l) { return l ~ /^[[:space:]]*#/ || l ~ /^[[:space:]]*<!--/ }
+    # Block-level HTML comments may follow Markdown list/blockquote prefixes
+    # (`- <!-- ... -->`, `> <!-- ... -->`, etc.) — see #1342; mid-line `<!--`
+    # markers in prose still do not count (#611).
+    function is_comment(l) {
+      return l ~ /^[[:space:]]*#/ \
+        || l ~ /^[[:space:]]*(([-*+] |[0-9]+\.[[:space:]]|>[[:space:]]))*<!--/
+    }
     # Guard markers for the active branch class: branch-detection evidence ONLY
     # — a symbolic-ref / merge-base / origin/HEAD / PR-baseRefName resolution
     # command (or a `-> origin/` symbolic-ref target) co-located on the hit line.
