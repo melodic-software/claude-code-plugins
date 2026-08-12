@@ -32,7 +32,7 @@ mk_repo() {
 }
 
 git_init() {
-  git_init_safe "$1"
+  git_init_test_repo "$1"
 }
 
 git_commit() {

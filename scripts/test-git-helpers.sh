@@ -38,3 +38,14 @@ git_init_safe() {
   fi
   git_test_config "$dir" init -q
 }
+
+# Initialize a throwaway repo outside the checkout and give it a local identity.
+# Local config on a temp dir cannot leak into the real repository tree.
+git_init_test_repo() {
+  local dir="$1"
+  git_init_safe "$dir" || return 1
+  git_test_config "$dir" config user.email t@t.test
+  git_test_config "$dir" config user.name test
+  git_test_config "$dir" config commit.gpgsign false
+  git_test_config "$dir" config core.autocrlf false
+}
