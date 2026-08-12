@@ -1443,26 +1443,30 @@ hook::git_resolve_index() {
       ;;
     sudo)
       # sudo's own chdir is -D/--chdir (its -C is close-from, -R is --chroot).
-      # Only the unclustered spellings are read here; sudo's valueless short set
-      # is large and release-dependent, so peeling a cluster the way the env
-      # branch does would be guesswork rather than grammar.
-      # Known gap, fail-open: a clustered `sudo -bD dir git …` loses the chdir,
-      # and `-i` relocates to the target user's home without naming a directory
-      # at all.
+      # GNU sudo clusters short options, so `-bD dir` carries a chdir that no
+      # exact `-D` match sees. Peel the documented valueless shorts (-A/-B/-b/-e/-E
+      # -H/-K/-k/-l/-n/-P/-s/-S/-v/-V, per `sudo --help`) off a single-dash token
+      # so the value-taking tail (-D/--chdir, -u/-g/-h/-p/-C/-R/-T) reaches its own
+      # branch. `-h` is value-taking (`-h host` / `--host=`) and must not be peeled.
+      # `-i` relocates to the target user's home without naming a directory at all.
       ((i++))
-      local sudo_ci=-1
+      local sudo_ci=-1 stok
       while ((i < n)) && [[ "${w[i]}" == -* ]]; do
-        case "${w[i]}" in
+        stok="${w[i]}"
+        if [[ "$stok" == -[!-]* ]]; then
+          while [[ "$stok" =~ ^-[ABbeEHKklnPsSvV](.+)$ ]]; do stok="-${BASH_REMATCH[1]}"; done
+        fi
+        case "$stok" in
         -D | --chdir)
           ((i + 1 < n)) && hook::wrapper_chdir_record sudo_ci "${w[i + 1]}"
           ((i += 2))
           ;;
         --chdir=*)
-          hook::wrapper_chdir_record sudo_ci "${w[i]#--chdir=}"
+          hook::wrapper_chdir_record sudo_ci "${stok#--chdir=}"
           ((i++))
           ;;
         -D*)
-          hook::wrapper_chdir_record sudo_ci "${w[i]#-D}"
+          hook::wrapper_chdir_record sudo_ci "${stok#-D}"
           ((i++))
           ;;
         -u | -g | -h | -p | -C | -R | -T | --user | --group) ((i += 2)) ;;

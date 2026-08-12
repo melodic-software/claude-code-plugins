@@ -3,6 +3,12 @@
 All notable changes to the `biome-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.9]
+
+### Changed
+
+- **Synced `hook-utils.sh`:** peel sudo clustered short options for chdir resolution (#1811); widen the valueless-short peel set and keep `-h` value-taking.
+
 ## [0.6.8]
 
 ### Added

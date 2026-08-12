@@ -3,6 +3,14 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.12]
+
+### Fixed
+
+- **`hook::git_resolve_index` sudo cluster peel (#1811).** Peel documented valueless sudo
+  short options off clustered tokens so `sudo -bD <dir> git …` records the chdir; widen the
+  peel set to cover all documented valueless shorts while keeping `-h` value-taking.
+
 ## [0.28.11]
 
 ### Fixed
