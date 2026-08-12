@@ -6,6 +6,19 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 Versions 0.1.0–0.7.0 predate this file (introduced with 0.7.1); their history lives in the
 merged work-package PRs (#333, #343, #356, #372, #377, #600, #676).
 
+## [0.16.3]
+
+### Fixed
+
+- **The runner charter now records the three obligations the verification-topology work deferred
+  to it.** That work states plainly that per-run verdict aggregation and resolved-instance
+  distinctness ship unverified because no runner exists to carry them — but it recorded the
+  deferral only on the leaf making it, and a deferral the receiving seam does not name is
+  indistinguishable from an obligation nobody owns. The runner's inherited-constraints section
+  now carries all three (verdict aggregation under the unanimity invariant including the
+  timeout and no-verdict cases, refusing to count two checkers that resolve to one instance, and
+  lens drawing), each stated as a hole until the build trigger fires.
+
 ## [0.16.2]
 
 ### Fixed
