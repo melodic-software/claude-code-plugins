@@ -337,11 +337,14 @@ fi
 
 # --- List existing comments (paginated, raw) ---------------------------------
 # Fetch raw JSON and select in-script rather than via `gh --jq`, so the whole
-# two-tier detection is one auditable jq program. --paginate concatenates one
-# JSON array per page; `jq -s 'add'` slurps them into a single array — without
-# it, an existing comment on page 2 of a busy tracking issue is invisible and we
+# two-tier detection is one auditable jq program. With no `--jq`, `gh` merges
+# array-shaped pages into ONE array, so `jq -s 'add'` unwraps a one-element
+# slurp rather than concatenating pages — but it is not optional: supplying
+# `--jq` would suppress that merge and restore per-page emission, and `add`
+# keeps this correct under either shape. `--paginate` itself is what makes an
+# existing comment on page 2 of a busy tracking issue visible; without it we
 # would POST a duplicate, the exact failure this script exists to prevent.
-raw_pages="$(gh api --paginate "repos/$REPO/issues/$ISSUE/comments" 2>/dev/null)" || {
+raw_pages="$(gh api --paginate "repos/$REPO/issues/$ISSUE/comments?per_page=100" 2>/dev/null)" || {
   err "failed to list comments on $REPO#$ISSUE (gh api)"
   exit 5
 }

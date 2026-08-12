@@ -771,7 +771,7 @@ lane_comment_bodies() {
     jq -c --arg l "$lane" '[ (.[$l] // [])[] | .body // "" ]' "$TELEMETRY_JSON_FILE" 2>/dev/null || return 1
     return 0
   fi
-  raw="$(gh api --paginate "repos/$repo/issues/$issue/comments" -q '.[] | {body}' 2>/dev/null)" || return 1
+  raw="$(gh api --paginate "repos/$repo/issues/$issue/comments?per_page=100" -q '.[] | {body}' 2>/dev/null)" || return 1
   printf '%s' "$raw" | jq -s -c '[ .[].body // "" ]' 2>/dev/null || return 1
 }
 
