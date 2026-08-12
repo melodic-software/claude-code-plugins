@@ -719,6 +719,10 @@ hook::buffer_stdin() {
       echo "BLOCKED: hook stdin timed out before a complete JSON payload arrived." >&2
       return 2
     fi
+    # Whitespace-only stdin (e.g. `<<<""` sends a lone newline) is an empty
+    # payload, not a malformed one — keep the silent rc=1 path advisory hooks
+    # treat as a no-op.
+    [[ -n "${input//[[:space:]]/}" ]] || return 1
     echo "BLOCKED: hook stdin is not valid JSON." >&2
     return 2
   fi
