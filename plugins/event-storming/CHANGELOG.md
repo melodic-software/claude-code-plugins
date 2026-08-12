@@ -3,6 +3,14 @@
 All notable changes to the `event-storming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.1]
+
+### Fixed
+
+- **Repaired Miro API sticky-note item link in `miro-integration.md` (#2137).** The URL fragment
+  `create-sticky-note-item` 404'd; updated to `create-sticky-note-item-1` so installed consumers
+  receive the fix after marketplace update.
+
 ## [0.6.0]
 
 ### Removed
