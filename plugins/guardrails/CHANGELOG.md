@@ -11,6 +11,7 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   Non-ASCII deleted paths match citations literally, and deletions made while
   resolving a merge enter the deleted-path set.
 
+## [0.28.11]
 
 ### Fixed
 
