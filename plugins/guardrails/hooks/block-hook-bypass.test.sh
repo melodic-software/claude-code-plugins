@@ -873,7 +873,7 @@ run "scratch: case-insensitive compare (documented residual, allowed)" \
   "echo hello > /tmp/SCRATCH/f" 0 "$SCRATCH_ENV=/tmp/scratch"
 
 # TRUNCATED-OPERAND FAIL-CLOSED. strip_literals keeps a quoted write target but
-# drops its quotes, and before 0.26.0 normalize_segments then resolved a `;`,
+# drops its quotes, and before 0.27.0 normalize_segments then resolved a `;`,
 # `|`, `&`, newline or space inside that operand as SYNTAX — so a quoted pathname
 # reached the compare as a safe-looking prefix of itself. bash treats the whole
 # quoted word as one pathname, so exempting the prefix would be a one-token
@@ -897,7 +897,7 @@ run "scratch: even a benign quoted target is not exempted (blocked)" \
 run "scratch: quoted content, unquoted target (allowed)" \
   "echo \"hello world\" > /tmp/scratch/f" 0 "$SCRATCH_ENV=/tmp/scratch"
 # THE BREADTH THAT WAS, still pinned on both sides — but the verdicts moved in
-# 0.26.0 and these four cases are where that is visible. 0.25.x could not tell
+# 0.27.0 and these four cases are where that is visible. 0.25.x could not tell
 # operand quotes from content quotes, so it read `${COMMAND#*>}` and refused the
 # exemption on ANY quote or backslash after the first `>` CHARACTER anywhere in
 # the command (#2236). The operand marks supply that association, so the test is
@@ -925,7 +925,7 @@ run "scratch: > inside single-quoted content keeps it (allowed)" \
   "echo 'x > y' > /tmp/scratch/f" 0 "$SCRATCH_ENV=/tmp/scratch"
 # --- Redirect-operand marking (#2226) ---------------------------------------
 # THE REPORTED BYPASS AND ITS FAMILY. A quoted redirect operand is one pathname
-# to bash. Until 0.26.0 the exemptions were decided on its first whitespace- or
+# to bash. Until 0.27.0 the exemptions were decided on its first whitespace- or
 # separator-delimited fragment, so `> "/dev/null ../../etc/pw"` was exempted on
 # the word `/dev/null` while nothing named `/dev/null` was the destination. The
 # operand now carries an opaque mark over every character whose literal value

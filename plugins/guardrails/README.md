@@ -115,13 +115,13 @@ out of scope until such a signal exists.
   fails closed rather than being documented: the quote strip drops a kept
   target's quotes, and the segment split would then read a `;`, `|`, `&` or space
   *inside* the operand as syntax, so `> "/tmp/scratch/a;/../../etc/passwd"` —
-  one pathname to bash — would be judged on `/tmp/scratch/a`. Since **0.26.0**
+  one pathname to bash — would be judged on `/tmp/scratch/a`. Since **0.27.0**
   the operand is **marked** wherever that would happen, so it reaches the compare
   as one word and the decision is made on the whole thing: an operand carrying
   whitespace, `;`, `|`, `&`, `(`, `)`, a newline or a backslash escape exempts
   nothing, and a merely quoted operand is refused by this axis on its shipped
   floor. **Quotes and backslashes elsewhere in the command no longer matter.**
-  Before 0.26.0 this test read the whole raw command tail after the first `>`
+  Before 0.27.0 this test read the whole raw command tail after the first `>`
   *character*, so a quote in an unrelated later segment, or a `>` inside quoted
   content, cancelled the exemption for an earlier plain write. Both were friction
   rather than protection and both are gone — `echo x > /tmp/scratch/f && grep foo
