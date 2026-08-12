@@ -3,6 +3,16 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.10]
+
+### Fixed
+
+- **`block-noncanonical-commit` replays locating globals on persisted-alias lookup (#1501).**
+  `git config --get alias.<name>` now receives the invocation's `--git-dir` /
+  `--work-tree` / `--namespace` sequence, matching the identity probe. A
+  multi-line `-m` reached via an alias chain from outside the work tree is
+  blocked instead of allowed.
+
 ## [0.28.9]
 
 ### Fixed
