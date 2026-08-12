@@ -33,6 +33,13 @@ editing tools from the pool while this skill is active, so the report-only contr
 the tool set, not of model obedience. `Write` is kept — run state and the report persist under
 `${CLAUDE_PLUGIN_DATA}`.
 
+**`scripts/run-state.sh` writes under that same plugin data directory and nowhere else** — never
+inside a target repository. It takes the data directory as an argument rather than discovering one,
+and validates both path segments it contributes: `lib/state-key.sh` refuses a remote URL that would
+become traversing directory components, and a `--run-id` outside `[A-Za-z0-9][A-Za-z0-9_.-]*` is
+refused here. The run-state writes were always sanctioned; what changed is that a script performs
+them.
+
 ## Scope boundary (route out)
 
 - **One instruction surface against the model-capability catalog** → `/claude-config:audit-instructions`
@@ -127,7 +134,23 @@ Resolve the target root, compute the state key, and take the lock posture for th
 runs take no lock and run concurrently; an applying run takes an exclusive advisory lock and refuses
 rather than queues. All specified in
 [reference/run-state-and-resumability.md](reference/run-state-and-resumability.md). With `--resume`,
-read the run manifest and carry forward every lane whose input digest is unchanged.
+read the lease, then read the partial's lane records and carry forward every lane whose input digest
+is unchanged.
+
+**Do not derive the run directory or hand-write the lease.** `scripts/run-state.sh` does both, which
+is what makes this phase a mechanism rather than a description of one:
+
+```bash
+S="${CLAUDE_PLUGIN_ROOT}/skills/audit-pass/scripts/run-state.sh"
+bash "$S" paths --plugin-data "${CLAUDE_PLUGIN_DATA}" --run-id "<run-id>"
+bash "$S" lease acquire --run-dir "<run-dir>" --run-id "<run-id>"
+```
+
+`paths` derives `<plugin-data>/runs/<state-key>/<run-id>` through the plugin's own `lib/state-key.sh`
+— the library whose header records the keying scheme as *this skill's*, and which until now three
+other skills called and this one did not. Pass `--plugin-data` explicitly: `${CLAUDE_PLUGIN_DATA}`
+substitutes in this text but is **not** exported to the Bash tool's environment, so a shell cannot
+expand it.
 
 **`--resume` never attaches to a run that is still going.** Concurrent read-only runs are safe
 because each owns its own partial artifact; resume is the one operation that reaches into *another*
@@ -137,14 +160,20 @@ terminating records to one file, and highest-terminated-attempt assembly becomes
 the interruption-tolerance mechanism producing a report neither run performed.
 
 So every active run, read-only included, maintains a **lease**, and `--resume` reads it before it
-reads the manifest. The lease is fully specified in
-[reference/run-state-and-resumability.md](reference/run-state-and-resumability.md) §3 — its path,
-refresh interval, and staleness threshold — because "on the same heartbeat the applying lock uses"
-named a mechanism that did not exist and left the classification unimplementable. A **live** lease means the run is still
-going: resume exits non-zero naming the run id rather than attaching. A **stale** lease means the run
-was interrupted and its artifact is resumable. The lease is not a lock — it excludes nothing, blocks
-no concurrent read-only run, and grants no exclusivity; it answers the one question resume has to ask
-and previously could not.
+reads the partial. `run-state.sh lease classify --run-dir <run-dir>` prints the verdict:
+a **live** lease means the run is still going, and resume exits non-zero naming the run id rather
+than attaching; a **stale** lease means the run was interrupted and its artifact is resumable; a
+`released` tombstone is resumable immediately; `missing` means there is nothing to attach to. The
+lease is not a lock — it excludes nothing, blocks no concurrent read-only run, and grants no
+exclusivity; it answers the one question resume has to ask and previously could not.
+
+Refresh it at every lane's persistence point (`lease heartbeat`) and write the tombstone on a clean
+exit (`lease release`). The full specification — path, contents, the two-sided liveness window, and an
+explicit statement of **which clauses the script enforces and which remain the run's own discipline**
+— is in [reference/run-state-and-resumability.md](reference/run-state-and-resumability.md) §3. Read
+that split before relying on any of it: the section specified a refresh interval and a staleness
+threshold against no writer at all, which is the same shape as "on the same heartbeat the applying
+lock uses" — a mechanism named rather than provided.
 
 **The scan baseline is captured after the inventory is frozen and before any lane reads.** The
 digest spans every inventoried scope, so it cannot be computed before Phase 1 has produced that
@@ -284,13 +313,25 @@ lanes. Route it out (`skill-quality:check` when installed).
 
 Persist each lane's findings to the partial artifact **as that lane completes**, never buffered to
 the end — a lane is complete when its terminating record is in the partial, and every record carries
-its attempt id so an abandoned re-attempt is discardable rather than merely older.
+its attempt id so an abandoned re-attempt is discardable rather than merely older. The write is one
+call per record — `bash "$S" partial append --run-dir "<run-dir>" --record '<json-line>'` — and the
+lease is refreshed at the same boundary. The partial is named `findings.partial.<owner_epoch>.jsonl`
+after the epoch the lease holds, so it cannot be written without a lease to classify it: a record
+resume could not attribute to a live-or-abandoned run is worse than no record.
 
 **The lane count is bounded by the delegated interfaces, not chosen here** — one per scope value the
 instruction catalog accepts, plus one for the memory layer — so it is a handful, and a per-run
 dispatch ceiling would never bind. What is *not* bounded here is the fan-out inside a lane: the
-delegated catalogs spawn their own subagents. So cap concurrency at 3–5 lanes and let incremental
-persistence carry the rest — it is what degrades a blown session ceiling into a resumed run.
+delegated catalogs spawn their own subagents, and this pass cannot reach inside one to cap it. So cap
+concurrency at 3–5 lanes and let incremental persistence carry the rest — it is what degrades a blown
+session ceiling into a resumed run.
+
+**That mitigation now names something that exists.** "Let incremental persistence carry the rest" was
+the load-bearing answer to the *one* cost dimension this passage declines to bound, and until
+`run-state.sh` shipped the persistence it named was prose — so an intra-lane overrun, the failure
+mode this paragraph is explicitly about, degraded into nothing resumable. The `partial append` call
+above **bounds nothing**, and the disclaimer stands unchanged; what it buys is that an overrun costs
+the lanes still running rather than the whole pass.
 
 ## Phase 4 — The `/doctor` handoff
 
@@ -317,10 +358,16 @@ sweep to run again.
 would have made the promised resume impossible: §7 needs a terminating record to assemble a report at
 all, while §5 skips any lane whose state is complete and whose digest is unchanged — so a lane that
 was both terminated *and* complete would be carried forward untouched on every resume, and the
-outstanding handoff would never close. So the record terminates the attempt for assembly and the
-manifest records the lane's state as **incomplete**. `--resume` therefore re-runs it, which for a
-delegated lane means re-prompting rather than re-scanning. `handed-back` and `declined` are
-completions; only `open` is not.
+outstanding handoff would never close. So the record terminates the attempt for assembly and marks
+the lane's state **incomplete**. `--resume` therefore re-runs it, which for a delegated lane means
+re-prompting rather than re-scanning. `handed-back` and `declined` are completions; only `open` is
+not.
+
+**That instruction to the operator is only true if the terminating record is actually written.**
+`--resume` reads the partial, not the report, so a report telling the operator to come back with
+`--resume` against a partial nothing wrote is a false instruction in the one artifact they act on. So
+the `open` terminator goes through `partial append` at the moment Phase 4 records the handoff — never
+deferred to Phase 6 assembly, which is exactly where a run that does not reach Phase 6 loses it.
 
 ## Phase 5 — Apply, only under `--fix`
 
@@ -337,7 +384,7 @@ with a **fresh-context (non-fork) subagent** as the stated fallback.
 The apply-verify step and delegated lanes that mandate subagent dispatch **require** that dispatch.
 When the Agent tool is blocked, unavailable, or the session cannot spawn subagents:
 
-1. **Record per-lane verification mode** in the run manifest and assembled report (`verified` |
+1. **Record per-lane verification mode** in the lane's terminating record and the assembled report (`verified` |
    `inline` | `skipped`) for every lane that mandates independent verification.
 2. **Mark unverified findings.** Proposals or applied fixes that did not receive an independent
    verifier MUST carry an `(unverified)` marker and MUST NOT be presented as resolved.

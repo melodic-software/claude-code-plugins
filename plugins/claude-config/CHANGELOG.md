@@ -3,6 +3,72 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.38.0]
+
+### Added
+
+- **`audit-pass` ships an executable for the run state it had only ever described.**
+  `skills/audit-pass/scripts/run-state.sh` derives the run directory, writes and classifies the
+  lease, and appends to the epoch-scoped partial. Until now the skill was the only audit skill in
+  this plugin with no `scripts/` directory at all, while `SKILL.md` and ten `reference/*.md` spelled
+  out a lease path, a refresh discipline, a two-sided liveness window, a `released` tombstone,
+  `owner_epoch` fencing and an append-only partial as prose. The gap has a sharper form than "no
+  scripts": `lib/state-key.sh`, whose own header records the keying scheme as *`audit-pass`'s, reused
+  rather than reinvented*, was called by `audit-instructions`, `audit-prompting-postures` and
+  `claude-memory:audit` — every skill except the one that specified it. `paths` now calls it, so the
+  skill runs on its own scheme rather than describing it for others.
+
+  Scope is stated plainly, because the point of the change is that a contract should not read as
+  enforced when nothing enforces it. The script owns path derivation,
+  `lease acquire|heartbeat|release|classify`, and `partial append`. It does **not** own stale-lease
+  adoption (the `owner_epoch` compare-and-set) or §7 assembly; those stay the run's own discipline,
+  and §3 and §7 now say so in as many words instead of leaving a reader to assume mechanism.
+  (#2280, F3, F5)
+- **Three negative tests, not only passing ones.** `run-state.test.sh` mutates a copy of the script
+  to delete exactly one check and asserts the mutated copy reaches the outcome the real one refuses:
+  the two-sided window's *lower* bound (delete it and a future `heartbeat_at` pins a dead run `live`
+  forever, so every `--resume` refuses an abandoned run — assertion 3.9), the `..` rejection in
+  `--run-id`, and the segment-shape check that keeps an absolute id from walking the run directory
+  out of the plugin's namespace. A test that would still pass with the check deleted proves nothing,
+  and both id checks guard the same door `lib/state-key.sh` documents defending on the remote-URL
+  side. (#2280, F3)
+
+### Changed
+
+- **The lease's refresh contract now describes something a skill-driven run can keep.** §3 specified
+  a **60-second** wall-clock heartbeat with a 5-minute staleness threshold derived from it. A skill
+  acts between tool calls and has no timer, so that cadence named a mechanism no run could provide —
+  the same defect as specifying a lease and shipping no writer. Refresh is now boundary-driven
+  (acquire, each lane's persistence point, release), and each lease records the `stale_after_s` and
+  `skew_grace_s` its writer committed to, so `classify` reads the thresholds from the artifact rather
+  than assuming its own — which is what the section's own "two implementations must reach it
+  identically" concern actually needed. The default threshold moves 5 minutes → 30: with
+  boundary-driven refresh a single delegated lane can outlast five minutes, and a threshold shorter
+  than a lane classifies a *running* pass as abandoned, which is the unsafe direction because it lets
+  `--resume` adopt a live run's artifact. (#2280, F5)
+- **The `/doctor` handoff's instruction to the operator is no longer false by construction.** Phase 4
+  marks that lane `open`, closable only by `--resume`; `--resume` reads the partial, not the report;
+  and nothing wrote a partial. The report therefore told the operator to come back with a flag that
+  had no artifact to attach to. The `open` terminator now goes through `partial append` at the moment
+  Phase 4 records the handoff, never deferred to Phase 6 assembly — which is exactly where a run that
+  does not reach Phase 6 loses it. The second link in the same path is closed too: §5's "run
+  manifest" is now stated as the partial's own lane records rather than a separate file, which is
+  what §7 already required ("completion state is derivable from the artifact rather than tracked
+  beside it and able to disagree with it"). Making the partial real while leaving completion state in
+  a file nothing writes would have moved the defect rather than fixed it. (#2280, F12)
+- **Phase 3's cost mitigation now names something that exists.** The passage bounds lane *count*,
+  explicitly declines to bound intra-lane fan-out, and mitigates with "let incremental persistence
+  carry the rest" — persistence that was prose, so an intra-lane overrun degraded into nothing
+  resumable. The disclaimer is unchanged and the `partial append` call still bounds nothing; what
+  changed is that an overrun now costs the lanes still running rather than the whole pass.
+  (#2280, F13)
+
+  A note on evidence, since the originating report leans on a runtime observation. What is verifiable
+  from this repository is the **specification-versus-implementation gap** — a fully specified lease,
+  partial and manifest with no executable behind any of them — and that is the whole basis for these
+  entries. Whether any particular past run failed to write a lease is not something the tree can
+  confirm, and nothing here asserts it.
+
 ## [0.37.2]
 
 ### Fixed

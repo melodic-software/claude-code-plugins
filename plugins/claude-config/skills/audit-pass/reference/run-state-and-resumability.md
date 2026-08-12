@@ -64,20 +64,48 @@ target.
   applies only to locks predating this rule, since a lock carrying a run id names its holder exactly.
 - **This does not reintroduce the unreclaimable lock the age bound exists to prevent.** That failure
   needs a holder that is both past the age bound and *provably* alive; a crashed or killed run stops
-  refreshing, so its lease goes stale within five minutes and the lock is reclaimable from then on. A
+  refreshing, so its lease goes stale once its own recorded `stale_after_s` elapses and the lock is
+  reclaimable from then on. A
   lease that is missing or unreadable is treated as stale for this test — the absence of a heartbeat
   is not evidence of life. This is the shape `claude-ops`' restart-consumer settled for the same
   defect class (`plugins/claude-ops/skills/lanes/context/restart-consumer.md`, "**age alone never
   reclaims**"): without a start identity a live holder only **defers** the reclaim. The bound on that
   deferral differs by design — restart-consumer, whose holder publishes no lease, needs a hard
-  24-hour ceiling; a lease-bearing run needs none, because a dead holder's heartbeat stops within
-  five minutes and the deferral ends on its own.
+  24-hour ceiling; a lease-bearing run needs none, because a dead holder's heartbeat stops and the
+  deferral ends on its own once that lease's recorded threshold elapses.
 
 ### The lease — how `--resume` tells a live run from an abandoned one
 
 Every run writes a lease; only an applying run also takes the lock above. The two are separate
 mechanisms and the lease grants no exclusivity: it exists solely so `--resume` can classify an
 incomplete run, which the no-lock read-only policy otherwise makes undecidable.
+
+**The lease is written and classified by a script, not by hand.** `scripts/run-state.sh` owns the
+write and the verdict:
+
+```
+bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-pass/scripts/run-state.sh" paths \
+  --plugin-data "${CLAUDE_PLUGIN_DATA}" --run-id <run-id>
+bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-pass/scripts/run-state.sh" lease acquire \
+  --run-dir <run-dir> --run-id <run-id>
+bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-pass/scripts/run-state.sh" lease heartbeat --run-dir <run-dir>
+bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-pass/scripts/run-state.sh" lease classify  --run-dir <run-dir>
+bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-pass/scripts/run-state.sh" lease release   --run-dir <run-dir>
+```
+
+`classify` prints `live`, `stale`, `released`, or `missing` and exits 0 — refusing `--resume` against
+a `live` lease is the caller's move, not the script's. Pass `--plugin-data` explicitly: the
+`${CLAUDE_PLUGIN_DATA}` placeholder substitutes in *this text* but is not exported to the Bash tool's
+environment (§2), so a shell cannot expand it.
+
+**What is executable here, and what is not.** Everything below through the two-sided liveness test is
+enforced by that script and covered by `run-state.test.sh`, negative tests included. Two clauses are
+**not**: stale-lease **adoption** (the `owner_epoch` compare-and-set) and §7 **assembly**
+(highest-epoch, highest-terminated-attempt selection). The script writes `owner_epoch` into the lease
+and names the partial after it, so the epoch is a value on disk rather than a notion — but nothing
+increments it or fences a previous holder, and a run performing an adoption is performing it itself.
+Stated here because the rest of this section reads as machinery, and a contract that reads as
+enforced while nothing enforces it is the defect this section was carrying.
 
 **An applying run writes its lease before it takes the lock**, and the order is normative rather
 than incidental: reclamation reads the holder's lease as its second conjunct, so a lock whose lease
@@ -89,12 +117,25 @@ no reclamation test consults.
 - **Path** — `runs/<state-key>/<run-id>/lease`, beside that run's own partial artifact, so one lease
   describes exactly one run and concurrent read-only runs never contend for it.
 - **Contents** — the run id, the process id, an ISO-8601 start timestamp, a **`heartbeat_at`**
-  timestamp the run rewrites in place, and an **`owner_epoch`** integer starting at 1.
-- **Refresh** — the holder rewrites `heartbeat_at` every **60 seconds**, and additionally at each
-  lane boundary, so a long single lane cannot look abandoned.
-- **Liveness** — the lease is **live** when `now - heartbeat_at < 5 minutes` — five refresh intervals,
-  chosen so ordinary scheduling delay, a slow filesystem, or a paused VM does not read as a crash.
-  Otherwise it is **stale**.
+  timestamp the run rewrites in place, an **`owner_epoch`** integer starting at 1, and the
+  **`stale_after_s`** and **`skew_grace_s`** thresholds this writer committed to.
+- **Refresh is boundary-driven, not timed.** The holder rewrites `heartbeat_at` at acquisition, at
+  every lane's persistence point, and at release. It is **not** rewritten on a wall clock: a
+  skill-driven run acts between tool calls and has no timer, so a 60-second cadence — which this
+  section specified before the script existed — named a mechanism no run could keep, which is the
+  same defect as specifying a lease and shipping no writer.
+- **Liveness — the thresholds live in the lease, and the classifier reads them from there.** The lease
+  is **live** when `now - heartbeat_at < stale_after_s`; otherwise it is **stale**. Putting the
+  threshold in the artifact is what makes "live or abandoned" a function of what was *written* rather
+  than of what the classifier happens to believe — the concern this section closes at the end of the
+  subsection, resolved by the artifact instead of by an asserted constant.
+- **The default `stale_after_s` is 30 minutes, not the 5 the timed cadence implied.** Five minutes was
+  five 60-second refresh intervals; with refreshes at lane boundaries, a single delegated lane can
+  outlast it, and a threshold shorter than a lane classifies a *running* pass as abandoned — the one
+  direction that is unsafe, because it lets `--resume` adopt a live run's artifact. Longer only ever
+  costs an operator a wait, and the `released` tombstone below removes that cost from every clean
+  exit. A run that knows its lanes are short may commit to a shorter threshold via `--stale-after`;
+  the classifier will honor whatever the lease records.
 - **A run that exits cleanly writes a `released` state into its lease** — a tombstone — rather than
   leaving its last heartbeat to age out. Without it, a run that finished normally while deliberately
   leaving a lane incomplete (the `/doctor` handoff is exactly this) looks live for the full five
@@ -141,13 +182,16 @@ no reclamation test consults.
   every `--resume` refuses an abandoned run indefinitely. That is the worse failure of the two,
   because the backwards case costs a re-run and this one costs the artifact.
 - So liveness is **two-sided**: the lease is live when
-  `-60s ≤ now - heartbeat_at < 5 minutes`. A heartbeat more than one refresh interval in the future
-  is not evidence of life — it is a clock artifact — and the lease is classified **stale**, with the
-  skew reported so the operator sees why. Both bounds are needed: the lower one keeps a corrected
-  clock from pinning a dead run live, the upper one is the ordinary staleness test.
+  `-skew_grace_s ≤ now - heartbeat_at < stale_after_s`, both read from the lease (`skew_grace_s`
+  defaults to 60). A heartbeat further ahead than the grace is not evidence of life — it is a clock
+  artifact — and the lease is classified **stale**, with the skew reported so the operator sees why.
+  Both bounds are needed: the lower one keeps a corrected clock from pinning a dead run live, the
+  upper one is the ordinary staleness test. `run-state.test.sh` carries a negative test for the lower
+  bound specifically: it deletes that branch from a copy of the script and asserts the future
+  heartbeat then reads `live`, because a bound whose removal changes nothing is not a bound.
 
-Interval and threshold are stated here rather than left to the implementation because "live or abandoned" is a
-classification two implementations must reach identically or `--resume` is nondeterministic.
+The thresholds travel in the lease rather than in an implementation's head because "live or
+abandoned" is a classification two readers must reach identically or `--resume` is nondeterministic.
 
 | # | Assertion |
 |---|---|
@@ -172,7 +216,19 @@ A pass over a large corpus plus three scopes can be interrupted by compaction, a
 crash. Restarting from zero wastes the run and tempts an operator to narrow the scan.
 
 - Findings persist **incrementally, per lane**, as each lane completes — never buffered to the end.
-- A run manifest records, per lane: the lane id, its **input digest**, and its completion state.
+  The write is `scripts/run-state.sh partial append --run-dir <run-dir> --record '<json-line>'`, which
+  appends one line to `findings.partial.<owner_epoch>.jsonl` — the epoch taken from the lease, so the
+  partial cannot exist without the lease that classifies it. The script refuses a record that is not a
+  single-line JSON object, because a record carrying a newline splits into two rows and the second is
+  unparseable.
+- **The run manifest is the partial's own lane records, not a second file.** A lane's start record
+  carries the lane id and its **input digest**; its terminating record carries the completion state.
+  §7 already requires that `--resume` read the partial "so completion state is derivable from the
+  artifact rather than tracked beside it and able to disagree with it" — a manifest written beside the
+  partial is exactly the thing that can disagree with it, so there is one artifact and the manifest is
+  a view over it. This also removes the second broken link in the resume path: making the partial real
+  while leaving completion state in a file nothing writes would have moved the defect rather than
+  fixed it.
 - **Input digest** = `sha256` over the lane's ordered file list paired with each file's content hash,
   **plus its detection configuration** — the lane's detection version (catalog version and the
   check's prompt digest), the harness version, and every behavior-affecting argument the resumed
