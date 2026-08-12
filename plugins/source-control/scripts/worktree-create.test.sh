@@ -770,8 +770,9 @@ assert_file_absent "--root-file NUL-collapsed path never materialized" \
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 root_file="$TEST_TMPDIR/rootfile-lock"
 printf '%s' "$TEST_TMPDIR/wtroot18-lock" > "$root_file"
-out=$(bash "$HELPER" --name feat/liveness --root-file "$root_file" --repo-dir "$repo" 2>/dev/null)
+out=$(bash "$HELPER" --name feat/liveness --root-file "$root_file" --repo-dir "$repo" 2>"$TEST_TMPDIR/wt-lock-stderr")
 assert_exit "lock case: creation succeeds (exit 0)" 0 "$?"
+assert_contains "lock state is machine-readable on stderr" "$(cat "$TEST_TMPDIR/wt-lock-stderr")" "worktree_lock=armed"
 stanza=$(git -C "$repo" worktree list --porcelain | awk -v RS= -v p="acme-widget-feat-liveness" 'index($0, p)')
 assert_contains "the new worktree is locked at creation" "$stanza" "locked"
 assert_contains "the lock reason names the arming helper" "$stanza" "worktree-create.sh"

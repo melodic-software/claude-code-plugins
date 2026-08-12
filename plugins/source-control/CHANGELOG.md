@@ -3,6 +3,22 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.53.3]
+
+### Fixed
+
+- **`fetch_pull_request_commits` fails closed when the pull-commits walk is shorter than the PR's
+  `commits` count (#2387).** GitHub caps that endpoint at 250 commits regardless of pagination; the
+  helper now compares against the PR metadata and raises instead of returning a silently truncated
+  list.
+
+## [0.53.4]
+
+### Fixed
+
+- **`worktree-create.sh` emits `worktree_lock=armed|unarmed` on stderr (#2389).** Lock failures
+  still warn and exit 0, but orchestrators can see when the liveness guard did not arm.
+
 ## [0.53.2]
 
 ### Fixed
