@@ -102,6 +102,7 @@ real_trace_line() { # <startTimeUnixNano> <span_name> <extra_attrs_fragment>
 }
 
 readonly TOOL_EXTRA=',{"key":"tool_name","value":{"stringValue":"Bash"}},{"key":"tool_use_id","value":{"stringValue":"toolu-1"}},{"key":"duration_ms","value":{"stringValue":"42"}}'
+readonly TOOL_DECISION_SOURCE_EXTRA=',{"key":"tool_name","value":{"stringValue":"Bash"}},{"key":"tool_use_id","value":{"stringValue":"toolu-1"}},{"key":"decision","value":{"stringValue":"reject"}},{"key":"source","value":{"stringValue":"config"}}'
 readonly PROMPT_EXTRA=',{"key":"prompt","value":{"stringValue":"SECRET_PROMPT_SENTINEL"}},{"key":"prompt_length","value":{"stringValue":"22"}}'
 readonly SPAN_PROMPT_EXTRA=',{"key":"user_prompt","value":{"stringValue":"SECRET_PROMPT_SENTINEL"}}'
 readonly API_EXTRA=',{"key":"body","value":{"stringValue":"API_BODY_SENTINEL"}},{"key":"model","value":{"stringValue":"claude-x"}}'
@@ -641,6 +642,22 @@ if [[ "$HAS_DUCKDB" == true ]]; then
   assert_eq "cold prompt attribute scrubbed from raw" "0" "$(dq_macro "SELECT count(*) FROM cc_spans_cold('$(sql_path "$S")/cold/cc-traces-*.parquet') WHERE span_attributes_raw LIKE '%SECRET_PROMPT_SENTINEL%';")"
 else
   skip_case "duckdb not found — skipping traces cold compaction"
+fi
+
+# --- 25. cc_logs_from promotes tool_decision `source` (official) and tool_result `decision_source` ---
+if [[ "$HAS_DUCKDB" == true ]]; then
+  S="$(new_store source-projection)"
+  real_log_line "$RECENT" tool_decision tool_decision "$TOOL_DECISION_SOURCE_EXTRA" >"$S/cc-logs.json"
+  hot="$(sql_path "$S/cc-logs.json")"
+  assert_eq "tool_decision source attr -> source column" "config" \
+    "$(dq_macro "SELECT source FROM cc_logs_from('$hot') WHERE event_name='tool_decision' LIMIT 1;")"
+  real_log_line "$RECENT" tool_result tool_result \
+    ',{"key":"decision_source","value":{"stringValue":"user_temporary"}}' >"$S/cc-logs.json"
+  hot="$(sql_path "$S/cc-logs.json")"
+  assert_eq "tool_result decision_source attr -> source column" "user_temporary" \
+    "$(dq_macro "SELECT source FROM cc_logs_from('$hot') WHERE event_name='tool_result' LIMIT 1;")"
+else
+  skip_case "duckdb not found — skipping source projection"
 fi
 
 printf '\n%d passed, %d failed\n' "$((CASE_NUM - FAILED))" "$FAILED"
