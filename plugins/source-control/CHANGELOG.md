@@ -47,6 +47,30 @@ All notable changes to the `source-control` plugin are documented here. Format f
   removal refuses and the tree survives) and the ranking (bisect probed; in-progress outranks
   landed); all fail against the pre-#2257 scripts.
 
+## [0.51.15]
+
+### Fixed
+
+- **D6's reachability gate resolves the push remote instead of hardcoding `origin`**
+  (`reference/review-discipline.md`, `skills/pull-request/SKILL.md`; #2310). 0.51.12 replaced the
+  tip read with `git fetch origin <branch> && git merge-base --is-ancestor <fix-sha>
+  origin/<branch>` — a hardcoded remote that release itself introduced, while the same skill pushes
+  through `push-branch.sh` / `resolve-remote.sh --push` (pushRemote, pushDefault, non-`origin`
+  tracking, triangular forks). On such a checkout a successful push is followed by a fetch of the
+  wrong remote — a false D6 failure that blocks D7 and thread resolution — and an `origin` base
+  repo carrying a same-named branch can verify the wrong ref entirely (Codex P1 on #2262). Both
+  gates now resolve the remote through the existing `resolve-remote.sh --push` and compare against
+  `FETCH_HEAD`, exactly what the resolved remote just served. Verified live in both directions: a
+  non-tip fix commit on its branch exits 0 where the old tip read reported it missing, a commit
+  from a sibling branch exits 1 where the repo-presence lookup returns 200, and a deleted remote
+  branch fails the fetch loudly rather than passing.
+- **The 0.51.12 entry's two overstated claims are corrected in place.** "Matching the reachability
+  *primitive* `verify_fix_commit` uses" now claims the matching *guarantee*: that helper proves the
+  same ancestor property via the clone-free, fork-aware compare API
+  (`repos/{owner}/{repo}/compare/{sha}...{head_oid}`), not `git merge-base`. And `babysit_gh.py`'s
+  `per_page=100` sits at `fetch_paginated_api`'s call sites, not adjacent to the `--paginate` flag
+  the line-based #2246 sweep matched.
+
 ## [0.51.14]
 
 ### Fixed
