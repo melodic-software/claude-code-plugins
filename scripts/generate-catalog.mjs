@@ -34,6 +34,7 @@ const CATEGORY_ORDER = [
   "autonomy",
   "security",
   "workflow",
+  "presentation",
   "project-management",
   "operations",
   "learning",
