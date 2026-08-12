@@ -7,7 +7,7 @@ Pair with `tips.md` (lyric-side performance tricks) and `lyrics.md` "Per-section
 ## Tag weighting via position
 
 - **First tag = highest weight.** Front-load whatever matters most.
-- **Last tag = highest exclusion weight.** This is why negatives go at the end of the style prompt.
+- **Grouping negatives at the end is an organizational convention.** No source establishes that end-placement changes exclusion weight; the `no X` syntax itself is community-attested.
 - **Middle tags often softened or merged.** Don't rely on tags 4-7 carrying strong signal.
 
 Practical: if mood matters more than genre for a specific song, lead with mood. If a single instrument is the song's signature, name it before the genre.
@@ -35,8 +35,8 @@ These produce **different outputs**. Order encodes priority.
 Surgical refinement of a single instrument layer without losing the rest:
 
 1. Generate full song
-2. **12-track stem export**
-3. Upload ONE stem back as Audio Influence at 80%
+2. **Auto Split stem export** (up to 12 stems; Pro / Premier)
+3. Upload ONE stem back as Audio Influence at 80% (community-derived starting point; not officially confirmed)
 4. Prompt narrowly for that element only (`punchy 808 trap drums, no other elements`)
 5. Regenerate
 
@@ -54,7 +54,7 @@ Cleaner vocal separation than single-pass generation:
 **Pass 2 — vocals over Pass 1:**
 
 - Upload Pass 1's audio
-- Audio Influence ~80%
+- Audio Influence ~80% (community-derived starting point; not officially confirmed)
 - Style prompt: vocal-only descriptors (`female vocals, breathy, intimate`)
 - Lyrics field: full song lyrics with section tags
 
@@ -202,11 +202,13 @@ v5.5 is NOT a new audio model; it's v5's audio engine + Voices/Custom Models/My 
 
 Practical implication: **detailed prompts override My Taste**; vague prompts let it dominate. If output feels repetitive across sessions, prompt more verbosely to neutralize My Taste's silent biasing.
 
-### Voice Audio Influence sweet spot: 25-30% (NOT 70-80%)
+### Voice Audio Influence: raise it when resemblance is poor
 
-**Contradicts earlier Suno docs.** Higher slider values import recording artifacts (mic coloration, room tone, breath placement) along with vocal identity. Start 25%, climb in 10% steps only if voice identity is too weak.
+**First-party direction, narrowly scoped:** Suno's Voices walkthrough says to set Audio Influence "fairly high," and its Voices FAQ says to experiment with turning it up, when fixing poor voice resemblance. **Neither publishes a number**, so every specific threshold below is community-derived and unverified — not officially confirmed.
 
-Full detail in [voices.md](voices.md#audio-influence-sweet-spot-high-confidence-contradicts-initial-suno-docs).
+Community reports describe higher slider values importing recording artifacts (mic coloration, room tone, breath placement) along with vocal identity. Treat that as a reported tradeoff: raise the slider when resemblance is poor, compare outputs, and back down if artifacts intrude — then improve the source recording rather than chasing a threshold Suno has not published.
+
+Full detail in [voices.md](voices.md#audio-influence-with-an-active-voice).
 
 ### Voice clone training: single 90-120s clip with variety
 
@@ -245,7 +247,7 @@ Cheaper credits, better outputs, less wheel-spinning. New default.
 
 ### v4.5 × v5.5 Cover hybrid
 
-Generate creatively in v4.5 Plus first → then `Cover Song` → v5.5 with style field nearly empty + Audio Influence ~30%.
+Generate creatively in v4.5 Plus first → then `Cover Song` → v5.5 with style field nearly empty + Audio Influence ~30% (community-derived; not officially confirmed).
 
 **Why this works:** v4.5 has more creative variety on initial generation; v5.5 has cleaner voice quality. Hybrid extracts strengths of both.
 
@@ -257,7 +259,7 @@ Enables **album-vocal continuity across genre-diverse tracks** — same vocal ch
 
 ### Studio "Remove Effects" per-stem (v5.5)
 
-In Suno Studio with 12-track stems: right-click an individual stem → `Remove Effects`. Strips processing from JUST that stem (e.g., strip reverb from vocals only) before DAW export.
+In Suno Studio with Auto Split stems: right-click an individual stem → `Remove Effects`. Strips processing from JUST that stem (e.g., strip reverb from vocals only) before DAW export.
 
 Cleaner external mixing; you keep the production on stems you like and dry the ones you'll re-process.
 
@@ -277,18 +279,6 @@ The new Editor's Extend function often produces glitchy output in v5.5. Workarou
 
 Suno is aware; treat as known issue until fixed.
 
-### v4.5 metatag breakage in v5.5
-
-v5.5 enforces stricter parsing. Migration:
-
-| v4.5 form (broken in v5.5) | v5.5 form |
-|---------------------------|-----------|
-| `[Female Vocal]` (standalone) | `[Vocalist: Female]` OR put in section: `[Verse: female vocal]` |
-| `[Whisper]` (standalone) | `[Verse: whispered]` |
-| `[Orchestral Interlude]` (named tag) | `[Interlude: orchestral, sweeping strings]` |
-
-**Plain section tags `[Verse]`, `[Chorus]`, `[Bridge]` etc. still work standalone.** Only the descriptive named-tag form broke. Prefer **descriptor-after-colon** over named tags for any non-core structural element.
-
 ## Confidence note
 
 Community-validated through extensive empirical testing across multiple users on hookgenius, blakecrosley, jackrighteous, songaifarm guides + Reddit r/SunoAI consensus + creator-community testing. Suno does not officially document most. Effects reproducible; exact magnitudes (e.g., "20% higher adherence") are folk wisdom, not measured.
@@ -299,4 +289,4 @@ Treat as **MEDIUM-HIGH confidence empirical patterns** — solid enough for prod
 
 - **My Taste override behavior:** Suno docs say it never overrides explicit prompts; community reports show it can lock cycles requiring temporary disable to escape. Unresolved.
 - **Voice cloning consistency across mics/environments:** known unstable; root cause undocumented.
-- **Audio Influence behavior split** between voice-clone context vs audio-reference context: confirmed different (25-30% sweet for voice clone; 60-80% sweet for audio-reference upload) but exact threshold unmapped.
+- **Audio Influence behavior split** between voice-clone context vs audio-reference context: community-reported as different (community-derived 25-30% sweet spot for voice clone; community-derived 60-80% sweet spot for audio-reference upload), but the behavior split and exact thresholds are not officially confirmed.

@@ -3,6 +3,45 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.0]
+
+### Fixed
+
+- **`/code-tidying:tidy`'s open-PR-count grant was inert.** It granted
+  `Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/tidy/scripts/open-pr-count.sh:*)`, but
+  `${CLAUDE_PLUGIN_ROOT}` is not substituted in `allowed-tools` — only `${CLAUDE_SKILL_DIR}` and
+  `${CLAUDE_PROJECT_DIR}` are — so the rule stayed a literal string and never matched. The throttle
+  pre-compute has been prompting or falling to the classifier since it shipped.
+
+- **`/code-tidying:audit-comment-residue`'s grant worked, but only by accident.**
+  `Bash(bash *audit-comment-residue/scripts/detect.sh*)` matched because its leading and trailing
+  wildcards absorbed both the `bash` wrapper and the quotes around the body's path. That is the
+  wildcarded-interpreter shape auto mode drops outright, and a rule anchored on a bare wrapper name
+  matches that name at *any* path, including an unvetted copy.
+
+  Both are repaired the same way, and the repair is not the obvious one. Dropping `bash` from the
+  rule alone would have made these grants **dead**: `bash` is not among the wrappers Claude Code
+  strips before matching (`timeout`, `time`, `nice`, `nohup`, `stdbuf`, `command`, `builtin`,
+  `noglob`), so a rule without it stops matching a body that still says `bash <path>`. For
+  `audit-comment-residue` that would have been a regression from a working grant to a broken one. The
+  change is **paired**: the bodies invoke their scripts directly and unquoted, and the rules name the
+  same strings — `Bash(${CLAUDE_SKILL_DIR}/scripts/open-pr-count.sh:*)` and
+  `Bash(${CLAUDE_SKILL_DIR}/scripts/detect.sh:*)`.
+
+### Changed
+
+- **Both skills now grant the read-only commands their pre-computes pipe through** (`grep`, `head`,
+  `echo`). A permission rule must match each subcommand of a compound command independently, so a
+  script grant on its own left the surrounding pipeline uncovered and the pre-compute prompted
+  regardless of whether the script rule matched.
+
+### Added
+
+- **`scripts/allowed-tools-pairing.test.sh`**, asserting the contract the fix establishes: no
+  interpreter-led grant and no `${CLAUDE_PLUGIN_ROOT}` in `allowed-tools`, every bundled-script
+  invocation in skill markdown unquoted and free of a `bash` wrapper, and every granted script
+  present, executable, and actually invoked by a body.
+
 ## [0.9.0]
 
 ### Removed

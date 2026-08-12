@@ -17,7 +17,7 @@ Each guard is independently toggleable, so you run exactly the subset you want.
 | **workflow-resilience-check** | PreToolUse · Workflow | **Advisory** (exit 0) | Un-throttled Workflow fan-out — a script calling `parallel()` / `pipeline()` with no wave-cap throttle (`inWaves` / `inWavesPipeline`) and no retry wrapper (`agentRetry`), which risks a burst 529 under wide Opus fan-out. Surfaces a resilience checklist via `additionalContext`, never blocks. **Opt-in — default off since 0.20.0** (behavioral-class injector config-disabled per #2021; set `workflow_resilience_check_enabled=true` to enable). |
 | **block-noncanonical-commit** | PreToolUse · Bash \| PowerShell | **Blocks** (exit 2) | `git commit -m` whose message actually contains a newline — a multi-line `-m` flattens newlines unpredictably across shells; pipe it via `-F -` / `--file -` instead (narrowed in 0.20.0 per #2021: single-line `-m`, bare `git commit`, and repeated single-line `-m` paragraphs all pass). On the PowerShell tool a here-string `-m` value blocks too — its content is uninspectable and multi-line by construction of the form. Exempt: `--amend`, `-C`/`-c`/`--reuse-message`/`--reedit-message`, `--fixup`/`--squash`, `-F <path>`, and any commit taken while a merge/rebase/cherry-pick/revert is in progress. Resolves `bash -lc` wrappers and git aliases (inline `-c` and persisted config alike). |
 | **block-convention-violation** | PreToolUse · Bash \| PowerShell | **Blocks** (exit 2) | A commit subject or `gh pr create --title` that violates the team-tracked convention pattern declared in `.claude/source-control.md`. No tracked pattern means no enforcement. Same exemptions as `block-noncanonical-commit`. |
-| **flag-commit-pr-skill-bypass** | PreToolUse · Bash \| PowerShell | **Advisory** (exit 0) | Any `gh pr create`, bypassing this marketplace's own `/pull-request create` skill. Only fires when the consuming project's own `.claude/settings.json` enables the `source-control` plugin — silent otherwise. Surfaces via `additionalContext`, never blocks. **Opt-in — default off since 0.20.0** (behavioral-class injector config-disabled per #2021; set `flag_commit_pr_skill_bypass_enabled=true` to enable). |
+| **flag-commit-pr-skill-bypass** | PreToolUse · Bash \| PowerShell | **Advisory** (exit 0) | Any `gh pr create`, bypassing this marketplace's own `/source-control:pull-request create` skill. Only fires when the consuming project's own `.claude/settings.json` enables the `source-control` plugin — silent otherwise. Surfaces via `additionalContext`, never blocks. **Opt-in — default off since 0.20.0** (behavioral-class injector config-disabled per #2021; set `flag_commit_pr_skill_bypass_enabled=true` to enable). |
 | **skill-reference-verify** | PostToolUse · Write \| Edit | **Advisory** (exit 0) | A `` `/plugin:skill` `` reference in markdown that does not resolve. Only fires inside a marketplace repo, and only for a plugin that repo's own manifests own — a reference to another marketplace is left alone. Resolves through manifest and frontmatter `name`, so a renamed directory still matches. Surfaces via `additionalContext`, never blocks. |
 | **stale-path-verify** | PostToolUse · Write \| Edit | **Advisory** (exit 0) | A repo-relative path cited in a markdown inline code span that this repo's own history shows was **deleted** and that is gone from the working tree. The gate is provenance, not absence: the exact path must appear in `git log HEAD --no-renames --diff-filter=D --name-only`, so a path belonging to a consuming project's tree, an example, or a plan is never adjudicated. Names the surviving file when exactly one tracked path now carries that basename. Link destinations are out of scope. Surfaces via `additionalContext`, never blocks. |
 
@@ -70,6 +70,16 @@ out of scope until such a signal exists.
   **These are friction guards against accidental/casual bypass, not a
   sandbox.** (A command longer than 16 KB is not parsed and is blocked
   fail-closed.)
+- **A NUL byte in the payload blocks, whatever the command says.**
+  `block-no-verify` and `block-dangerous-git` refuse any payload whose read
+  fields carry a NUL, before they look at the command at all — including one
+  that leaves no command text behind. The reason is that the text a guard can
+  read is not dependably the text that would run: two behaviours were measured
+  and they disagree — bash **discards** a NUL while parsing a command it reads,
+  and Node's `child_process` **refuses** a NUL-bearing string outright — and
+  which of them, if either, a hook payload reaches has not been traced. Refusing
+  is the one verdict correct under all of them, and needs no such trace. A NUL is
+  treated as malformed input rather than as an exotic-but-valid command.
 - **`block-hook-bypass` string-matching floor.** Detection strips quoted literal
   spans before matching the executable token, so quoted prose or a commit
   message merely mentioning `cat >` / `python3 -c open(...)` is not flagged. The
@@ -86,6 +96,40 @@ out of scope until such a signal exists.
   (`cat > f` consuming stdin, `echo`/`printf > f`, inline `python3 -c` writes,
   the PowerShell write cmdlets) is blocked. The block message carries this scope
   so a reader does not credit the guard with coverage it never claimed.
+- **`block-hook-bypass` has one target-scoped exemption beyond `/dev/null`, and
+  it is off unless an operator turns it on.** `block_hook_bypass_scratch_roots`
+  takes a comma-separated list of absolute directories whose contents are
+  scratch — a session or job temp root, where a throwaway probe file is written
+  that no formatter, secret scanner or path check would ever process. Empty is
+  the default and exempts nothing. When set, the match is made on the
+  **effective** stdout target (the last redirect wins, as with `/dev/null`) after
+  lexical normalization, and containment is decided at a path-component
+  boundary: `/tmp/scratchevil/f` is not under `/tmp/scratch`, a `..` escape is
+  resolved away before the compare, `echo x > /tmp/scratch/f > real.txt` still
+  blocks, and a relative, unexpanded (`$VAR`, `~`) or glob target is never
+  exempt. A **quoted or escaped** operand is never exempt either, and that one
+  fails closed rather than being documented: the quote strip drops a kept
+  target's quotes and the segment split then reads a `;`, `|`, `&` or space
+  *inside* the operand as syntax, so `> "/tmp/scratch/a;/../../etc/passwd"` —
+  one pathname to bash — would otherwise be judged on `/tmp/scratch/a`. The rule
+  is therefore blunt, and blunt in two directions worth stating exactly: **any
+  quote or backslash after the first `>` character in the command — operator or
+  not — cancels the exemption.** It is not scoped to the segment being evaluated,
+  so a quote in an unrelated later segment cancels it too
+  (`echo x > /tmp/scratch/f && grep foo "notes.txt"` blocks; the same compound
+  without quotes does not). And it is not keyed on the redirect *operator*, so a
+  `>` inside quoted content starts the scan early and that content's own closing
+  quote falls inside it — `echo "hi there" > /tmp/scratch/f` is exempt, but
+  `echo "a > b" > /tmp/scratch/f` is **not**. Both are the safe direction: the
+  check can only ever refuse an exemption, never grant one. Making it precise
+  needs the same thing in both cases — knowing which `>` and which quotes are
+  syntax rather than content — which is exactly what the quote strip destroys
+  before this code runs. The same root cause reaches the `/dev/null` exemption and
+  predates this option — filed as #2226 and pinned by a control test. Two residuals remain, both
+  deliberate and both pinned: normalization is lexical, so symlinks out of a
+  root are not followed, and the compare is case-insensitive because the segment
+  scan runs over the lowercased command. Naming a root is accepting that root's
+  contents.
 - **`flag-commit-pr-skill-bypass` is a nudge, not a gate.** Detection is a
   literal-stripped top-level regex match, not a full argv-grammar parser — it
   does not evaluate shell variable / command substitution, and a determined
@@ -93,15 +137,15 @@ out of scope until such a signal exists.
   this exact command" from "someone hand-typed the same shape", and for
   `gh pr create` there is no command-shape signature at all, so every direct
   call is flagged. It stays advisory and cannot become otherwise:
-  `/pull-request create` issues that exact command itself, so blocking it would
+  `/source-control:pull-request create` issues that exact command itself, so blocking it would
   deadlock the skill being advertised. `create.md` also documents a legitimate
   inline fallback when skill discovery is broken.
 
 - **`block-noncanonical-commit` gates shape, not skill invocation.** No hook can
-  see which skill (if any) originated a Bash call, so "did you run `/commit`" is
+  see which skill (if any) originated a Bash call, so "did you run `/source-control:commit`" is
   not an available condition — and shape is the better target regardless, since
   it enforces an outcome verifiable in `git log`. It deliberately does not
-  require `--trailer`: `/commit` omits the trailer under a resolved
+  require `--trailer`: `/source-control:commit` omits the trailer under a resolved
   `trailer_policy` of `none`, so demanding it would block the skill's own
   conformant output in repos whose convention forbids co-author trailers.
 
@@ -241,6 +285,81 @@ as before.
 Then verify the runtime prerequisites and live guard surface with
 `/guardrails:setup check`; `/guardrails:setup apply` resolves anything the
 check reports with guidance.
+
+<!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
+
+### Options reference
+
+Generated from this plugin's `.claude-plugin/plugin.json`. Every option Claude Code
+will prompt for when the plugin is enabled, with the environment variable each hook
+reads it from.
+
+| Option | Type | Default | Environment variable | Description |
+| --- | --- | --- | --- | --- |
+| `secret_pattern_detection_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_SECRET_PATTERN_DETECTION_ENABLED` | Block writes containing high-confidence secret/credential patterns |
+| `hardcoded_path_check_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_HARDCODED_PATH_CHECK_ENABLED` | Block writes containing hardcoded machine-specific paths |
+| `block_no_verify_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_ENABLED` | Block git hook-bypass attempts (--no-verify, core.hooksPath=, hook-manager env-var disables for a configurable set — lefthook/husky/pre-commit/simple-git-hooks by default) |
+| `block_dangerous_git_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ENABLED` | Block irreversible git operations (push --force, push --force-with-lease leasing against a value git resolves at push time — either no expected value, or an expectation that is not an object id of the repository's own hash width — reset --hard, clean -f, worktree-wide checkout/restore discards) |
+| `block_hook_bypass_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_ENABLED` | Block Bash file-write workarounds that circumvent Write/Edit hook gates |
+| `block_noncanonical_commit_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_NONCANONICAL_COMMIT_ENABLED` | Block `git commit -m` when the message actually contains a newline (multi-line `-m` mangles across shells — pipe it via `-F -` instead; single-line `-m` passes); --amend, -C/-c, --fixup/--squash, -F <path>, and an in-progress merge/rebase are exempt |
+| `block_convention_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_CONVENTION_GATE_ENABLED` | Block a commit subject or `gh pr create --title` that violates the team-tracked convention pattern in .claude/source-control.md (no tracked pattern = no enforcement; same exemptions as block-noncanonical-commit) |
+| `cli_flag_verify_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_ENABLED` | Advise on hallucinated CLI flags written to files (never blocks) |
+| `skill_reference_verify_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_SKILL_REFERENCE_VERIFY_ENABLED` | Advise when markdown cites a /plugin:skill reference this repo owns but cannot resolve (never blocks) |
+| `stale_path_verify_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_STALE_PATH_VERIFY_ENABLED` | Advise when markdown cites a repo-relative path this repo's own history shows was removed and that is gone from the working tree (never blocks) |
+| `workflow_resilience_check_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_WORKFLOW_RESILIENCE_CHECK_ENABLED` | Advise on un-throttled Workflow fan-out (never blocks). Default off since 0.20.0: a behavioral-class prose injector, config-disabled per the instruction-economy evidence gate (#2021) — set true to opt back in |
+| `flag_commit_pr_skill_bypass_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_FLAG_COMMIT_PR_SKILL_BYPASS_ENABLED` | Advise when a direct gh pr create bypasses the source-control pull-request skill (never blocks). Default off since 0.20.0: a behavioral-class prose injector, config-disabled per the instruction-economy evidence gate (#2021) — set true to opt back in |
+| `cli_flag_verify_bins` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS` | Comma-separated binaries cli-flag-verify scans; empty uses the built-in default set |
+| `cli_flag_verify_skip_bins` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_SKIP_BINS` | Comma-separated binaries cli-flag-verify must never scan |
+| `block_dangerous_git_allow` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW` | Comma-separated forms block-dangerous-git permits: push-force, push-lease-unsafe, reset-hard, clean-force, checkout-dot, restore-dot, checkout-force; empty blocks all |
+| `block_noncanonical_commit_allow` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_NONCANONICAL_COMMIT_ALLOW` | Comma-separated form tokens to allow (currently: message-flag, which permits `-m` even when the message contains a newline) |
+| `block_no_verify_hook_manager_prefixes` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_HOOK_MANAGER_PREFIXES` | Comma-separated hook-manager env-var name prefixes block-no-verify treats as a bypass when set to 0/false (e.g. lefthook,husky); empty uses the built-in default set (lefthook, husky, pre_commit, simple_git_hooks) |
+| `block_hook_bypass_scratch_roots` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS` | Comma-separated ABSOLUTE directories block-hook-bypass exempts as scratch/temp write targets (e.g. /tmp/scratch,/d/jobtmp/session); empty (the default) exempts nothing and leaves the guard's shipped behaviour unchanged. Matching is on the effective stdout target after lexical normalization, at a path-component boundary — a sibling merely sharing the name prefix, a `..` escape out of a root, and a discard-then-real-file redirect all still block. Any quote or backslash after the first `>` CHARACTER in the command (operator or not) cancels the exemption for the whole command — so a quote in a later segment, or a `>` inside quoted content, also cancels it. Symlinks are not followed |
+| `stdin_read_timeout` | number<br>*min 1* | `2` | `CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT` | Idle bound on reading the hook payload from stdin — how long a silent pipe is tolerated before a blocking guard fails closed |
+
+### How to set these
+
+Three supported routes, in the order most people want them:
+
+1. **Interactively** — Claude Code prompts for declared options when you enable the
+   plugin. To change them later: `/plugin configure guardrails`.
+2. **Headless, at install time** — repeat `--config` for each option. Replace
+   `<marketplace>` with the marketplace you installed this plugin from:
+
+   ```shell
+   claude plugin install guardrails@<marketplace> --config secret_pattern_detection_enabled=<value>
+   ```
+
+3. **By hand, in settings** — add the value under `pluginConfigs` in your **user**
+   settings (`~/.claude/settings.json`):
+
+   ```json
+   {
+     "pluginConfigs": {
+       "guardrails@<marketplace>": {
+         "options": {
+           "secret_pattern_detection_enabled": <value>
+         }
+       }
+     }
+   }
+   ```
+
+   Plugin option values are read from **user**, `--settings`, and managed settings
+   only — **not** from a project's `.claude/settings.json`. To vary behavior per
+   repository, enable or disable the plugin in that project's `enabledPlugins`
+   instead of setting an option there.
+
+Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself. They are how Claude Code
+hands a configured value to a hook process; the value comes from the routes above.
+
+### Upstream documentation
+
+- [User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration) — the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
+- [Plugin settings](https://code.claude.com/docs/en/settings#plugin-settings) — `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
+- [Configuration scopes](https://code.claude.com/docs/en/settings#configuration-scopes) — user vs project vs local precedence
+- [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins) — enabling, disabling, `/plugin list`
+
+<!-- END GENERATED: plugin options -->
 
 ## License
 

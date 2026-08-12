@@ -3,7 +3,7 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.7.1]
+## [0.8.1]
 
 ### Changed
 
@@ -17,6 +17,93 @@ All notable changes to the `claude-memory` plugin are documented here. Format fo
   macOS) — a presence report must not let an absent JSON file read as "no managed policy
   deployed". The Windows base path also now resolves through `%PROGRAMFILES%` rather than assuming
   the default location.
+
+## [0.8.0]
+
+The audit now covers two surfaces it never could before, which is why this is a minor.
+
+### Fixed
+
+- **`audit`: the user-global instruction surfaces were audited by nothing at all.** Step 1 discovery was
+  two bare `find` commands rooted at the current directory — `find . -maxdepth 1 -name "CLAUDE.md"` and
+  `find .claude/rules -name "*.md"` — so it could only ever see project scope. Meanwhile
+  `claude-config`'s `audit-instructions` partitions memory-layer hygiene to this skill and names
+  **`~/.claude/rules/`** explicitly in the handoff (`audit-instructions/reference/criteria.md:96`). One
+  skill delegated a user-global surface by name; the receiving skill's discovery could not reach it. So
+  `~/.claude/CLAUDE.md`, which loads in *every* session in *every* project, was checked by neither — and
+  under-coverage reads as a clean report.
+
+  Discovery now resolves `${CLAUDE_CONFIG_DIR:-$HOME/.claude}` for both `CLAUDE.md` and `rules/*.md`,
+  reusing the same config-root resolution the memory-dir resolver already carries rather than
+  re-deriving it.
+
+  *(Recorded because the originating report argued this from a different line —
+  `reference/criteria.md:224`, the C9 carve-out for personal files. Read in context that line **excludes**
+  personal files from C9 as "not repo-scoped", which cuts against the argument rather than for it. The
+  seam above is the load-bearing mechanism, and it needs no interpretation.)*
+
+### Added
+
+- **`scripts/discover-instruction-surfaces.sh` + tests.** Discovery is a script now because the fix has
+  a second half that inline `find` cannot carry: **every file is tagged with the scope it loads from.**
+  Widening discovery without that would have traded under-coverage for a false positive — C9 is
+  project-scoped and its own criteria row says to skip personal files, so an unscoped widening would fire
+  C9 on `~/.claude/CLAUDE.md` and FAIL it for not stating a repo's build and test commands. Step 2 now
+  routes on the emitted scope, and the R-checks apply at both scopes — an always-loaded user rule costs
+  context in every session of every project, so they apply to it at least as strongly as to a project
+  rule. 44 checks in the sibling `*.test.sh` style, including the Git Bash case where the config root is
+  a Windows path with a drive letter.
+- **A third scope value, `both`, for the two dotfiles layouts where one physical file is reachable by
+  each layer.** A naive widening emits such a file twice under two path spellings: a duplicate finding,
+  and a cross-scope comparison of a file against itself. Paths are now canonicalized and compared, and
+  where they coincide the file is emitted once as `both`, which satisfies either `--scope` filter
+  because the file really is reachable by each layer.
+
+  **Each layout collides exactly one surface, which is why the two comparisons are computed
+  independently rather than from one flag.** A repo rooted at `~` — the target shape the sibling
+  `audit-pass` fix calls ordinary — makes `.claude/rules` and `~/.claude/rules` the same **directory**,
+  while its two `CLAUDE.md` files stay distinct. A repo rooted at `~/.claude` itself makes the depth-1
+  `CLAUDE.md` and `~/.claude/CLAUDE.md` the same **file**, while its rules dirs stay distinct — project
+  rules there resolve to `~/.claude/.claude/rules`, not `~/.claude/rules`. Cases pin the asymmetry in
+  both directions.
+- **Path-scoped rules are not assumed loaded.** A user rule carrying `paths:` frontmatter is absent until
+  a matching file is read, so a repo-relative currency or redundancy finding against one is valid only
+  where its `paths:` can match in *this* project. Step 2 and the Step 3 comparison both say to establish
+  co-residency first rather than treating every discovered user rule as live here.
+- **R1 says which `CLAUDE.md` it compares against.** "Does this rule duplicate content already in
+  CLAUDE.md?" was unambiguous while only one could ever be in scope; with two it was not. R1 now pairs
+  within a scope — a user rule against the user `CLAUDE.md`, a project rule against the project one —
+  because R1 is a redundancy the owner of that layer fixes by deleting one of the two, and only a
+  same-scope pair is theirs to fix. Cross-scope overlap is real and belongs to the Step 3 pass, which
+  reports it against the pair and names each side's scope; routing it through R1 as well would report
+  one overlap twice and address it to the wrong person. A `both`-scoped rule is the one case with no
+  same-scope partner — it arises only in the `~`-rooted layout, where the two `CLAUDE.md` files stay
+  distinct — so it compares against each `CLAUDE.md` in scope, attributing every finding to the scope of
+  the one it overlapped.
+- **Step 3 gains a cross-scope consistency pass.** Both layers load together, so a user instruction that
+  contradicts a project one is a live conflict rather than a layering choice, and one the project already
+  states is redundant context on every run. The report names which scope each side came from, because the
+  resolution differs — only one of the two is yours to edit on behalf of the repo.
+
+## [0.7.1]
+
+### Changed
+
+- **Upstream doc stamps re-verified against the live pages (2026-08-10).** Each dated claim below was re-checked against the complete raw markdown source of the page it cites (`https://code.claude.com/docs/en/<page>.md`), not a summarized fetch, and each was confirmed by a verbatim quote before its stamp was refreshed. No claim changed; only the verification dates moved.
+
+  - `skills/stateless/reference/official-guidance.md` — all seven block quotes from the settings
+    and `.claude` directory references (settings precedence ladder and its managed-tier override
+    bullet, the `env` description, `cleanupPeriodDays`, the not-automatically-cleaned table
+    heading, the `sessions/` sweep exclusion, the `claude project purge` deletion list, its
+    `shell-snapshots/`/`backups/` carve-out, and its confirmation prompt) matched the live pages
+    word for word. The file's own negative — that no settings-precedence exception bullet names
+    `autoMemoryEnabled`, `CLAUDE_CODE_DISABLE_AUTO_MEMORY`, or auto memory — was re-checked
+    against the complete bullet list and still holds, as does its note that the `v2.1.124+` floor
+    for `claude project purge` has no current upstream source. Every dated citation in the file
+    moved: the seven block quotes, the settings negative, the `env`-block quote (whose stamp wraps
+    across two lines), and the `cli-reference` observation that `claude project purge` now carries
+    no version requirement at all.
+  - `skills/audit/reference/official-guidance.md` — the memory reference re-verification date.
 
 ## [0.7.0]
 

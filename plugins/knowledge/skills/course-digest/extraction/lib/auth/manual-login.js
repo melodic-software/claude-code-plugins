@@ -28,3 +28,38 @@ export async function promptManualLogin(context, storageStatePath, envPrefix) {
   await context.storageState({ path: storageStatePath });
   writeStdout("  Saved auth state for future runs.\n");
 }
+
+/**
+ * Log in with `{envPrefix}_EMAIL`/`{envPrefix}_PASSWORD` when both — and a login URL —
+ * are available, otherwise fall back to {@link promptManualLogin}. Shared by every
+ * adapter's `authenticate()`; the provider-specific form flow is injected as `login`.
+ *
+ * @param {object} input
+ * @param {import('playwright').BrowserContext} input.context
+ * @param {import('playwright').Page} input.page
+ * @param {string} input.storageStatePath
+ * @param {string} input.envPrefix — e.g. "COURSE" or "TEACHABLE"
+ * @param {string|undefined} input.loginUrl
+ * @param {(page: import('playwright').Page, email: string, password: string, loginUrl: string) => Promise<void>} input.login
+ */
+export async function loginOrPromptManual({
+  context,
+  page,
+  storageStatePath,
+  envPrefix,
+  loginUrl,
+  login,
+}) {
+  const email = process.env[`${envPrefix}_EMAIL`];
+  const password = process.env[`${envPrefix}_PASSWORD`];
+
+  if (!(email && password && loginUrl)) {
+    await promptManualLogin(context, storageStatePath, envPrefix);
+    return;
+  }
+
+  writeStdout("  Logging in automatically...");
+  await login(page, email, password, loginUrl);
+  await context.storageState({ path: storageStatePath });
+  writeStdout("  Logged in and saved auth state.\n");
+}

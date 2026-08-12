@@ -4,6 +4,59 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.8.3]
+
+### Changed
+
+- **`reference/model-adaptation/sonnet-5.md`: the `env-vars` provenance entry is re-verified against
+  a verbatim read, and one qualifier inside it is now flagged as uncorroborated.** The harness-side
+  thinking facts were sourced from a 2026-08-04 live fetch, back when `env-vars` could only be read
+  through a channel that truncates it. Read end to end on 2026-08-10 via the
+  [`.md` fetch route](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#reading-the-basis--the-fetch-route),
+  both cited rows hold: `MAX_THINKING_TOKENS` still carries the Anthropic-API-versus-third-party
+  split, the Fable 5 exception, and the nonzero-ignored rule, and
+  `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING` now states this file's central claim outright — "Has no
+  effect on Fable 5, Sonnet 5, or Opus 4.7 and later". The one part that did **not** re-verify is the
+  "from Claude Code v2.1.111" attribution: the page states no release for that variable at all. It
+  is flagged in place rather than deleted or quietly kept, because it is uncontradicted and
+  immaterial — the exclusion holds on every version the page describes — and a reader owes the
+  distinction between a claim re-read today and a claim carried forward. A recheck trigger is stated
+  where none was.
+
+## [0.8.2]
+
+### Changed
+
+- **`/playbooks:boris` gained typed trigger phrases.** Its `Use when` clause named topics
+  ("optimizing Claude Code setup, workflows, CLAUDE.md, skills, hooks, or parallel sessions") rather
+  than anything a user types, so the skill-quality gate found no trackable trigger.
+  `'how does Boris use Claude Code'`, `'Claude Code workflow tips'`, `'optimize my CLAUDE.md'`,
+  `'improve my Claude Code setup'`, `'parallel Claude sessions'` and `'hook ideas'` now front the
+  clause; the topic list is retained behind them. The vendored upstream baseline under
+  `skills/boris/vendor/` is untouched — this is the refactored hub's own frontmatter.
+
+## [0.8.1]
+
+### Changed
+
+- **`fable-5`'s "provided never means automatic" note: invocability scoped as a default, stamp
+  refreshed to 2026-08-10.** The note read "Since v2.1.215 `/verify` and `/code-review` run only when
+  you invoke them", stamped 2026-08-03. A recheck against the bundled-skills reference and the
+  shipped 2.1.223–2.1.226 clients found that exact for 2.1.215–2.1.224 but superseded from
+  **2.1.225**, where a runtime gate can re-enable model invocation — making the restriction the
+  default rather than a fixed version cutoff, so two clients on one version can differ. The note's
+  point is unchanged (provided is not automatic; check plan, version, and invocation expectations
+  before depending on these surfaces) and the correction sharpens it: version alone is no longer
+  sufficient to predict invocability. The stamp now names the client versions checked alongside the
+  pages, and the claim gains the observable recheck trigger the record was missing — a Claude Code
+  release whose changelog names `/verify`, `/code-review`, or bundled-skill invocability, or a Code
+  Review release note changing its plan or preview status. Touching a restatement of an
+  upstream-owned specific binds those parts (`docs/conventions/upstream-drift/README.md` §Adopters).
+- **A self-contradiction removed from the same sentence.** The line had read "run **only** when you
+  invoke them **by default**" — `only` asserts an absolute and `by default` an overridable one,
+  which is precisely the distinction this entry exists to draw. It now reads "are user-invoked by
+  default", matching the two sibling sites.
+
 ## [0.8.0]
 
 ### Fixed

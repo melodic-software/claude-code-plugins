@@ -4,6 +4,35 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.11.1]
+
+### Fixed
+
+- **`docpage-digest`: the Anthropic profile cited a live docs page by line number, and the line had
+  moved.** The `api-only` near-miss sub-shape (3) recorded its sole attested instance as
+  `env-vars.md:394`. On a full verbatim read of that page on 2026-08-10 it runs 458 lines with 315
+  variable rows, line 394 is `DISABLE_UPGRADE_COMMAND`, and the retry/fallback row the instance
+  actually describes is `FALLBACK_FOR_ALL_PRIMARY_MODELS` — the only row on the page that both
+  describes Claude Code's own retry behavior and names a model subject, the sibling
+  `CLAUDE_CODE_DISABLE_NONSTREAMING_FALLBACK` naming none. The attestation is intact; its address
+  was not, so the citation now names the variable. A standing rule goes with it: cite a live docs
+  page by anchor, heading, or row key — never by line number, which the `.md` channel renumbers
+  whenever the page gains a row. Line numbers into an archived snapshot stay citable, because that
+  file is immutable.
+- **`docpage-digest`: the profile's absence-fetch rule is now identified as the fleet rung it always
+  was.** The rule itself is unchanged and was already right — `curl` the raw `.md` channel, record
+  the retrieved length, because "a truncated fetch cannot fabricate a PRESENCE, only an ABSENCE".
+  That asymmetry is this pipeline's own and stays here. What is added is one sentence naming it as
+  rung 1 of the
+  [fetch route](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#reading-the-basis--the-fetch-route),
+  which the `upstream-drift` convention now owns fleet-wide — this profile's practice was one of two
+  surfaces that route was generalized from, so the pointer records provenance rather than importing
+  anything. Nothing is duplicated into or out of the profile. Its recorded "451-line, 316-row page"
+  is qualified in place: the count has no stated counting rule and this page admits two differing by
+  three, so it supports nothing by subtraction — the rule rests on the unambiguous 277-of-451
+  position and the first-fifth cutoff. Qualified, not deleted, per the profile's own rule that a
+  source artifact is noted at the row and never silently repaired.
+
 ## [0.11.0]
 
 ### Removed

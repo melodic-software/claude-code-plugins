@@ -209,7 +209,7 @@ while the latch is set (clear it on a fresh healthy snapshot after the pause end
 4. **Execute.** Work admitted items via `/work-items:work` (one invocation per item slot), up to
    the adaptive item cap. Each invocation uses that skill's **autonomous invocation** path: it
    names the admitted item id and states that this loop's admission gate (and any required
-   ratification marker) passed, so `/work` proceeds without its interactive confirmation prompt.
+   ratification marker) passed, so `/work-items:work` proceeds without its interactive confirmation prompt.
    Selection, claim (assignee + lease), staleness pre-check, dispatch
    mechanics, the PR contract, the review pass, and the never-merge boundary are all owned there —
    this loop restates none of them. Loop-level deltas only:

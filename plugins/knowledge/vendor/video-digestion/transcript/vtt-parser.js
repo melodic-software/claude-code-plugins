@@ -220,14 +220,17 @@ export function formatTranscript(cues) {
   let paragraphStart = cues[0].startSec;
   let cuesInParagraph = 0;
 
+  const closeParagraph = () => {
+    paragraphs.push(
+      `[${formatTimestamp(paragraphStart)}] ${currentParagraphText}`,
+    );
+    currentParagraphText = "";
+    cuesInParagraph = 0;
+  };
+
   for (const cue of cues) {
     if (currentParagraphText && cue.startSec - paragraphStart > 30) {
-      paragraphs.push(
-        `[${formatTimestamp(paragraphStart)}] ${currentParagraphText}`,
-      );
-      currentParagraphText = "";
-      cuesInParagraph = 0;
-      paragraphStart = cue.startSec;
+      closeParagraph();
     }
 
     if (!currentParagraphText) {
@@ -243,18 +246,12 @@ export function formatTranscript(cues) {
     }
 
     if (SENTENCE_ENDING.test(cue.text) && cuesInParagraph >= 2) {
-      paragraphs.push(
-        `[${formatTimestamp(paragraphStart)}] ${currentParagraphText}`,
-      );
-      currentParagraphText = "";
-      cuesInParagraph = 0;
+      closeParagraph();
     }
   }
 
   if (currentParagraphText) {
-    paragraphs.push(
-      `[${formatTimestamp(paragraphStart)}] ${currentParagraphText}`,
-    );
+    closeParagraph();
   }
 
   return paragraphs.join("\n\n");

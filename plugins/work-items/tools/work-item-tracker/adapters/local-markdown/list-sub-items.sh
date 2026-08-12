@@ -37,16 +37,8 @@ wit_need_storage
 # compare against the quoted form, never the bare id.
 parent_quoted="$(jq -cn --arg p "$id" '$p')"
 
-numbers=()
-shopt -s nullglob
-for f in "$WIT_STORAGE_DIR"/*.md; do
-  base="$(basename "$f" .md)"
-  [[ "$base" =~ ^[0-9]+$ ]] || continue
-  numbers+=("$base")
-done
-
 {
-  for n in $(printf '%s\n' "${numbers[@]+"${numbers[@]}"}" | sort -n); do
+  for n in $(wit_item_numbers); do
     file="$(wit_item_file "$n")"
     [[ "$(wit_fm_field "$file" parent)" == "$parent_quoted" ]] || continue
     item_state="$(wit_fm_field "$file" state)"

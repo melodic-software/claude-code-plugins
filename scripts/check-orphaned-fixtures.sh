@@ -63,10 +63,14 @@ if [[ -f "$BASELINE" ]]; then
   mapfile -t entries < <(sed -E 's/#.*//; s/^[[:space:]]+//; s/[[:space:]]+$//' "$BASELINE" | grep -v '^$')
 fi
 
-is_grandfathered() {
+# matched_baseline <fixture-path> -> print the baseline entry that grandfathers
+# it and return 0, or return 1 when none does. Callers that only need the
+# yes/no answer discard stdout.
+matched_baseline() {
   local path="$1" entry
   for entry in "${entries[@]}"; do
     if [[ "$path" == "$entry" ]]; then
+      printf '%s' "$entry"
       return 0
     fi
   done
@@ -84,6 +88,7 @@ plugin_root_of() {
 consumed() {
   local fixture="$1"
   local fixtures_dir evals_dir skill_dir evals_json rel base plugin plugin_rel files_values
+  local esc_base base_re
 
   fixtures_dir="${fixture%/*}"
   # walk up to the nearest 'fixtures' segment (fixtures may nest a subdir)
@@ -158,23 +163,13 @@ fi
 
 # Track which baseline entries actually shadow an orphan, to flag stale ones.
 declare -A entry_used
-matched_baseline() {
-  local path="$1" entry
-  for entry in "${entries[@]}"; do
-    if [[ "$path" == "$entry" ]]; then
-      printf '%s' "$entry"
-      return 0
-    fi
-  done
-  return 1
-}
 
 orphans=0
 if [[ "$mode" == "discover" ]]; then
   for f in "${fixtures[@]}"; do
     if consumed "$f"; then
       printf '%-14s %s\n' "CONSUMED" "$f"
-    elif is_grandfathered "$f"; then
+    elif matched_baseline "$f" >/dev/null; then
       printf '%-14s %s\n' "GRANDFATHERED" "$f"
     else
       printf '%-14s %s\n' "ORPHAN" "$f"

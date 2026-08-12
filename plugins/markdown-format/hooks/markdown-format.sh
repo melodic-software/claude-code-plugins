@@ -94,6 +94,75 @@ markdownlint_config_discoverable() {
   done
 }
 
+# Resolve the working-tree root for a path WITHOUT requiring git.
+#
+# When git cannot answer, hook::repo_root falls back to the HINT — the edited
+# file's own directory. For a path genuinely outside every repository that is
+# the right answer. Inside one it is not: every root-anchored walk in this hook
+# then begins and ends in that directory, a repository whose markdownlint config
+# sits at its root stops linting everything below the root, and the edit is
+# skipped silently. That is the ordinary docs layout, so the case the membership
+# scope below is meant to restore stays broken for most files in it. git is not
+# a documented requirement of this hook — README "Requirements" lists Bash, jq
+# and markdownlint-cli2 — so resolving the root must not need one.
+#
+# The fallback is recognized by its own signature: an answer equal to the hint,
+# or to the hint with a trailing `.claude` stripped. hook::repo_root strips that
+# suffix in BOTH spellings it can arrive in — `/.claude` and the Windows
+# `\.claude` — so both are checked here; testing only the forward-slash form
+# would leave a backslash-spelled hint unrecognized as a fallback and send it
+# back out unresolved. git's answer is returned untouched whenever git produced
+# one, so a host that HAS git is unaffected and no second probe is spawned to
+# find that out.
+#
+# Otherwise the root comes from the walk git's own discovery performs: upward
+# for a `.git` entry, accepted as a directory (ordinary clone) or as a FILE,
+# which is what a linked worktree and a submodule write instead
+# (https://git-scm.com/docs/gitrepository-layout, "$GIT_DIR", fetched
+# 2026-08-09). Reading the filesystem rather than asking git also means an
+# inherited GIT_DIR/GIT_WORK_TREE cannot make some other repository answer —
+# the same protection in_git_working_tree and file_is_gitignored buy by
+# unsetting those, here for free.
+#
+# CLAUDE_PROJECT_DIR is the last resort, for a project that is no working tree
+# at all (an unpacked archive, a vendored copy): the harness's own answer to the
+# same question, needing no git. It is only ever the walk's TERMINATOR, never a
+# widening of scope — discovery still starts at the file — so the fail-closed
+# reasoning in markdownlint_config_discoverable is unchanged. It ranks below the
+# `.git` walk so the root stays the working-tree top, which is what git itself
+# would have returned had it been available.
+#
+# When nothing resolves, the hint stands exactly as before, which is what keeps
+# the out-of-tree bound documented under the membership scope true.
+resolve_repo_root() {
+  local hint="$1" root dir parent
+  root="$(hook::repo_root "$hint")"
+  if [[ "$root" != "$hint" && "$root" != "${hint%/.claude}" &&
+    "$root" != "${hint%\\.claude}" ]]; then
+    printf '%s' "$root"
+    return 0
+  fi
+  # Physical, matching CONFIG_ROOT and markdownlint_config_discoverable, which
+  # both compare `pwd -P` results: a lexically-spelled root would never compare
+  # equal to the walk's cursor and the search would run past the repository.
+  if dir="$(cd "$hint" 2>/dev/null && pwd -P)"; then
+    while :; do
+      if [[ -e "$dir/.git" ]]; then
+        printf '%s' "$dir"
+        return 0
+      fi
+      parent="$(dirname "$dir")"
+      [[ "$parent" != "$dir" ]] || break
+      dir="$parent"
+    done
+  fi
+  if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
+    printf '%s' "$CLAUDE_PROJECT_DIR"
+    return 0
+  fi
+  printf '%s' "$root"
+}
+
 # jq is required to parse Claude Code's hook payload and to emit structured
 # PostToolUse context. Absent → visible once-per-session skip notice on both
 # the agent and user channels, exit 0 — but only for a repository that opted
@@ -116,7 +185,7 @@ if ! command -v jq >/dev/null 2>&1; then
   DECODED_FILE="${DECODED_FILE//\\\\/\\}"
   if [[ -f "$DECODED_FILE" ]] &&
     ! markdownlint_config_discoverable "$DECODED_FILE" \
-      "$(hook::repo_root "$(dirname "$DECODED_FILE")")"; then
+      "$(resolve_repo_root "$(dirname "$DECODED_FILE")")"; then
     # silent-skip-ok: this exit reports the opt-in verdict, not a jq verdict —
     # the repository never enabled this hook, so it is owed no notice about a
     # prerequisite for it. jq's absence stays visible for every repository that
@@ -147,6 +216,20 @@ in_git_working_tree() {
       GIT_DISCOVERY_ACROSS_FILESYSTEM
     git -C "$1" rev-parse --show-toplevel
   ) >/dev/null 2>&1
+}
+
+# Is $1's directory $2, or below it? Both sides go through `cd … && pwd -P`, so
+# a link, a `..`, or a differing spelling on either side cannot make a
+# containment answer disagree with the filesystem. Fails CLOSED — an
+# undecidable containment answer is not a licence to write.
+physically_inside() {
+  local file_dir root
+  file_dir="$(cd "$(dirname "$1")" 2>/dev/null && pwd -P)" || return 1
+  root="$(cd "$2" 2>/dev/null && pwd -P)" || return 1
+  case "$file_dir" in
+  "$root" | "$root"/*) return 0 ;;
+  *) return 1 ;;
+  esac
 }
 
 # markdownlint applies repo-doc rules, so when no CLAUDE_PROJECT_DIR anchors
@@ -181,59 +264,44 @@ in_git_working_tree() {
 # therefore lints, the same direction file_is_gitignored takes below for the
 # same reason.
 #
-# Exposure of that fail-open is bounded by the consumer opt-in gate, not by
-# this scope: without git, hook::repo_root cannot resolve a working-tree top
-# and falls back to the edited file's own directory, so
-# markdownlint_config_discoverable searches that single directory — a scratch
-# `/tmp/comment-body.md` still does not lint unless `/tmp` itself carries a
-# markdownlint config. The noise class this scope exists to stop stays stopped
-# wherever git can actually answer.
+# The fail-open is bounded, but NOT by the opt-in gate alone, and the escaping
+# symlink is exactly where that distinction bites. Without git this scope cannot
+# ask `in_git_working_tree` anything, so containment goes unchecked — and a
+# symlink is the one shape whose lexical parent (inside the repository, where
+# the root config lives) and physical parent (outside it) disagree. Discovery
+# then opens the gate on the repository's own config and `--fix` follows the
+# link and rewrites a file outside the tree.
+#
+# So when git cannot answer, containment is decided from the filesystem instead
+# — the same source resolve_repo_root already uses — rather than skipped. This
+# does NOT re-break the git-less host: the check runs only when the physical
+# path differs from the lexical one, which for an ordinary file it never does,
+# so a git-less repository lints exactly as before. An undecidable GIT verdict
+# still lints; an escape that the filesystem can prove does not.
+#
+# What remains bounded by the opt-in gate is the ordinary out-of-tree file: a
+# scratch `/tmp/comment-body.md` sits under no working tree, so the walk finds
+# no `.git`, discovery searches its own directory alone, and it does not lint
+# unless `/tmp` itself carries a markdownlint config.
+#
+# REPO_ROOT is resolved before the scope rather than after it because the scope
+# now needs it. It depends only on FILE, so moving it earlier changes nothing
+# about its value, and it is computed once for both.
+REPO_ROOT="$(resolve_repo_root "$(dirname "$FILE")")"
+
 if [[ -z "${CLAUDE_PROJECT_DIR:-}" ]]; then
   FILE_PHYSICAL="$(hook::physical_path "$FILE")"
   if [[ -L "$FILE" && "$FILE_PHYSICAL" == "$FILE" ]]; then
     exit 0
   fi
-  if command -v git >/dev/null 2>&1 &&
-    ! in_git_working_tree "$(dirname "$FILE_PHYSICAL")"; then
+  if command -v git >/dev/null 2>&1; then
+    if ! in_git_working_tree "$(dirname "$FILE_PHYSICAL")"; then
+      exit 0
+    fi
+  elif [[ "$FILE_PHYSICAL" != "$FILE" ]] &&
+    ! physically_inside "$FILE_PHYSICAL" "$REPO_ROOT"; then
     exit 0
   fi
-fi
-
-# Resolve repo root early — needed for CWD-anchored config discovery and for
-# computing the schema-required repo-relative path in data.file.
-#
-# Without git, hook::repo_root has no working-tree top to return and falls back
-# to the HINT — the edited file's own directory. That silently narrows config
-# discovery's upward walk to a single directory, so a repository whose
-# markdownlint config sits at its root stops linting every file below the root:
-# the ordinary docs layout, and the case the membership-scope fix above is
-# otherwise supposed to restore. `CLAUDE_PROJECT_DIR` is the harness's own
-# answer to the same question and needs no git, so prefer it when the git probe
-# came back empty-handed. It is used ONLY as the walk's terminator, never to
-# widen scope: discovery still starts at the file and still stops at a root, so
-# the fail-closed reasoning in markdownlint_config_discoverable is unchanged.
-#
-# The test is whether git ACTUALLY resolves a toplevel here, not whether a
-# `git` word exists: `command -v git` answers yes for a shell function, for a
-# stub on PATH, and for a real binary standing in a directory that is no
-# repository — all cases where hook::repo_root still returns the hint. Probing
-# the capability directly is the only form that covers them.
-# The probe clears the git discovery/selection environment for the same reason
-# in_git_working_tree and file_is_gitignored do: an inherited GIT_DIR or
-# GIT_WORK_TREE from whatever launched the session would let some OTHER
-# repository answer the question, and here a spurious success is the harmful
-# direction — it withholds the CLAUDE_PROJECT_DIR fallback and leaves the walk
-# terminating at the file's own directory, which is the bug this block exists
-# to fix. Cleared in a subshell so the surrounding process keeps its own
-# environment.
-REPO_ROOT="$(hook::repo_root "$(dirname "$FILE")")"
-if [[ -n "${CLAUDE_PROJECT_DIR:-}" && "$REPO_ROOT" == "$(dirname "$FILE")" ]] &&
-  ! (
-    unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_CEILING_DIRECTORIES \
-      GIT_DISCOVERY_ACROSS_FILESYSTEM
-    git -C "$(dirname "$FILE")" rev-parse --show-toplevel
-  ) >/dev/null 2>&1; then
-  REPO_ROOT="$CLAUDE_PROJECT_DIR"
 fi
 
 # Telemetry-payload precursors — TOOL and FILE_REL feed only the envelope's
@@ -869,7 +937,7 @@ fi
 # into a shell command would let the shell run whatever that value contains, so
 # the component fails" — while every option is exported to hook processes as
 # CLAUDE_PLUGIN_OPTION_<KEY> anyway (Plugins reference, "User configuration",
-# https://code.claude.com/docs/en/plugins-reference, fetched 2026-07-26). A
+# https://code.claude.com/docs/en/plugins-reference, fetched 2026-08-10). A
 # value that is not a non-negative integer falls back to the default rather
 # than being interpolated anywhere.
 MAX_FINDINGS=20
@@ -917,22 +985,17 @@ FIX_OUTPUT="${FIX_OUTPUT//$'\r'/}"
 # that this hook changed the file, so it is reported rather than dropped; the
 # clean-after-fix path used to emit nothing at all, which made a rewrite of the
 # user's file indistinguishable from the hook not running.
+#
+# Split in the SAME pass: the output is also divided into violation lines and
+# everything else. The banner lines markdownlint-cli2 always prints (its
+# version, the resolved `Finding:` glob list, `Linting: N files`, `Summary: N
+# issues`) carry no information about the file being edited and cost context on
+# every single edit, so they do not enter the report — the counts below are
+# derived here instead. Violation lines are identified by the " MD<digits>/"
+# rule-code pattern, matching what the telemetry schema calls a finding. Neither
+# classification depends on the other, and a lint run over a large file emits
+# thousands of lines, so they share one walk rather than each taking their own.
 FIXES_LINE=""
-while IFS= read -r line; do
-  case "$line" in
-  "Attempted: 0 fixes"*) ;;
-  "Attempted:"*) FIXES_LINE="$line" ;;
-  *) ;;
-  esac
-done <<<"$FIX_OUTPUT"
-
-# Split the output into violation lines and everything else. The banner lines
-# markdownlint-cli2 always prints (its version, the resolved `Finding:` glob
-# list, `Linting: N files`, `Summary: N issues`) carry no information about the
-# file being edited and cost context on every single edit, so they do not enter
-# the report — the counts below are derived here instead. Violation lines are
-# identified by the " MD<digits>/" rule-code pattern, matching what the
-# telemetry schema calls a finding.
 findings_raw=""
 FINDING_COUNT=0
 RULE_TALLY=""
@@ -942,6 +1005,11 @@ while IFS= read -r line; do
     FINDING_COUNT=$((FINDING_COUNT + 1))
     RULE_TALLY+="${BASH_REMATCH[1]}"$'\n'
   fi
+  case "$line" in
+  "Attempted: 0 fixes"*) ;;
+  "Attempted:"*) FIXES_LINE="$line" ;;
+  *) ;;
+  esac
 done <<<"$FIX_OUTPUT"
 
 hook::ctx_reset

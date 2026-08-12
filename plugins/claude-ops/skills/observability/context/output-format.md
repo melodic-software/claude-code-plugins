@@ -1,4 +1,4 @@
-# `/observability` output format
+# `/claude-ops:observability` output format
 
 Markdown report. Structured for quick visual scan + machine grep.
 
@@ -120,7 +120,7 @@ Top recurring (same `<bin>:<sha16>` ≥ 3×):
   apart from Token / cost instead of adding columns to it
 - **The Token / cost caveat line is fixed copy** — Claude Code documents the same list-rate
   limitation for its own locally computed dollar figures
-  (<https://code.claude.com/docs/en/costs.md>, verified 2026-08-04)
+  (<https://code.claude.com/docs/en/costs.md>, verified 2026-08-10)
 
 ## Severity coloring (terminal)
 
@@ -142,6 +142,6 @@ Reports are working artifacts — copy one into the consumer project only if it 
 
 ## What this template intentionally omits
 
-- Recommendations / action items — `/observability` surfaces signals, user decides what to act on
+- Recommendations / action items — `/claude-ops:observability` surfaces signals, user decides what to act on
 - Per-session detail — aggregation hides per-session noise; use ccusage MCP directly for session drill-down
 - Cross-repo data — out of scope; observability is project-local

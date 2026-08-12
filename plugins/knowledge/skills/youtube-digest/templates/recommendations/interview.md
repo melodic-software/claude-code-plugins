@@ -8,10 +8,10 @@ Watch complete for **{video title}** (`{video-id}`).
 | --- | --- | --- |
 | {title} | {category} | {P0–P2} |
 
-## Recommended `/interview` scope
+## Recommended `/planning:interview` scope
 
 {Start with top P0 POC or immediate-takeaway.}
 
 ## Should we go further?
 
-Run `/interview` to pick POC vs full-slice items. No code changes were made during this watch.
+Run `/planning:interview` to pick POC vs full-slice items. No code changes were made during this watch.

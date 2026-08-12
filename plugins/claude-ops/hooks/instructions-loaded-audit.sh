@@ -30,8 +30,13 @@ START=${EPOCHREALTIME:-}
 
 INPUT=$(hook::buffer_stdin) || exit 0
 
-FILE_PATH=$(hook::jq_field "$INPUT" '.file_path' || true)
-LOAD_REASON=$(hook::jq_field "$INPUT" '.load_reason' || true)
+# Both payload fields in ONE jq process (hook::jq_fields), not two. A jq spawn is
+# ~140 ms of fork() emulation on Windows Git Bash. Failure semantics are
+# unchanged: a missing jq or an unparsable payload yields rc 1 here, which exits 0
+# exactly as the both-fields-empty skip below did.
+hook::jq_fields "$INPUT" '.file_path' '.load_reason' || exit 0
+FILE_PATH="${HOOK_JQ_FIELDS[0]}"
+LOAD_REASON="${HOOK_JQ_FIELDS[1]}"
 
 # Need at least one of the two; a pure missing payload is a silent skip.
 [[ -n "$FILE_PATH$LOAD_REASON" ]] || exit 0

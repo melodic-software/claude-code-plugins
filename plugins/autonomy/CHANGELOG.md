@@ -6,6 +6,113 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 Versions 0.1.0–0.7.0 predate this file (introduced with 0.7.1); their history lives in the
 merged work-package PRs (#333, #343, #356, #372, #377, #600, #676).
 
+## [0.15.0]
+
+### Changed — ACTION REQUIRED for anyone with an existing `L2`/`L3` binding
+
+- **The isolation probe now runs three assertions, and every level bound under the old
+  two-assertion recipe must be re-probed.** Transcripts captured before this release do not
+  carry the workspace assertion, so the security check leaves those levels UNPROVEN — and the
+  ladder's fail-closed rule then BLOCKS autonomous dispatch on that surface until a fresh probe
+  lands. Nothing degrades silently and no binding becomes invalid; the affected levels simply
+  stop counting toward isolation eligibility, and the check names the missing assertion so the
+  remedy is readable from the failure. **To restore dispatch: re-run the probe under the updated
+  recipe and re-record `probe_evidence`.** This is a deliberate bar raise — the two-assertion
+  recipe certified boundaries it had never measured.
+
+  The prior recipe could pass a boundary that still carried the entire host-execution attack
+  class. Its assertions covered egress and credentials; nothing covered the workspace mount,
+  which is a deliberate hole through the process boundary the levels describe.
+
+- **A zero exit is accepted where, and only where, the peer was substituted.** Peer identity is the
+  verdict and the exit code is evidence, so requiring a non-zero exit unconditionally would leave one
+  sealed boundary unprovable: an interception layer whose block page carries a SUCCESSFUL HTTP status
+  exits `0`. That target's `transport_outcome` must be `peer-substituted` and its two fingerprints
+  must differ; everywhere else a non-zero exit is still required, so the exception cannot excuse a
+  target that simply succeeded.
+
+- **Egress denial is proven by peer identity, not by a failed connection.** Two observed
+  behaviors defeated the old test: a raw `connect()` SUCCEEDS where an interception layer accepts
+  the SYN and then drops the session, and a policy block page is a valid HTTP response that a
+  fetch client exits `0` on. Certificate validity does not settle it either — an inspection CA
+  trusted inside the boundary makes an interceptor verify cleanly. An interceptor cannot present
+  the origin's own key, so the transcript now records and compares peer fingerprints. Three legs
+  close the rest: the probe client must be shown to RUN inside the boundary (an absent client
+  would satisfy every egress assertion trivially), at least two targets under different operators
+  must be denied (one denial is consistent with a policy that allows others), and the exercised
+  address families are recorded rather than inferred.
+
+- **`L2` in the isolation ladder now names contained workspace host-writes** alongside
+  default-deny egress and credential protection. Scope is WRITE containment, stated explicitly:
+  read exposure is not covered, and a copy-on-read workspace leaves reads fully open.
+
+### Added
+
+- **`workspace_host_write_contained`** — the third probe assertion, proven from the OUTER side so
+  one rule covers both substrate shapes: a read-only mount rejects the inner write, a
+  copy-on-read mount accepts and discards it, and both are contained. The inner exit code is
+  recorded but never asserted on, because constraining it would grade copy-on-read substrates
+  wrongly. Randomized canaries span an ordinary file, a dotfile, and a version-control path; the
+  host re-check runs after teardown so a caching mount cannot propagate a write behind the
+  probe's back. Where the host workspace is not observable from the outer context, the assertion
+  records `not-applicable` and the level stays UNPROVEN — never a silent pass.
+
+## [0.14.4]
+
+### Changed
+
+- **Carries the shared hook library's new `hook::is_enabled` predicate.** `hook::check_enabled`
+  exits the process when a plugin is gated off, which is correct for a hook but wrong for a
+  caller that must keep running afterward. The resolution is now also available as a predicate
+  that returns instead of exiting. No behaviour of this plugin changes; the version moves so
+  consumers receive the updated library.
+
+## [0.14.3]
+
+### Fixed
+
+- **Shared `hook-utils.sh`: `hook::jq_fields` now REPORTS a NUL byte in a payload value
+  (#2122).** 0.14.1 stopped a NUL from failing the helper's cardinality check, by stripping every
+  NUL out of each value. That keeps the helper working, but stripping also silently rewrites the
+  value — `--no-verify<NUL>x` arrives as `--no-verifyx` — so a caller that owns a block/allow
+  verdict cannot tell a clean payload from one that carried a NUL, and matches against a token the
+  payload never held contiguously. The fact is now reported in a new `HOOK_JQ_FIELDS_NUL` global,
+  set on EVERY call including every failure path, so such a caller can fail closed on its own terms.
+  It is computed from the values as the payload carried them, BEFORE the strip; strip first and the
+  flag would read "0" on every payload. Values themselves are unchanged — still stripped, so a
+  scanning caller still sees everything after the NUL. This plugin's own hooks do not consult the
+  new global, so their behaviour is unchanged. Synced from `lib/hook-utils.sh`.
+
+## [0.14.2]
+
+### Fixed
+
+- **Shared `hook-utils.sh`: `env -S` / `--split-string` no longer hides a whole command from the
+  git guards (#2124).** `-S` exists so a shebang line can pass OPTIONS to env
+  (`#!/usr/bin/env -S -i prog`), so the words it splits out are env's own arguments. The resolver
+  spliced them back into the scan but resumed at the COMMAND dispatcher, which read a leading
+  option in the split string as the command NAME and gave up — `env -S '-C <dir> git push --force'`
+  resolved to no git at all, so every guard built on `hook::git_resolve_index` skipped the command
+  unexamined. Parsing now resumes inside env's own option loop. That also keeps env's single chdir
+  slot last-wins across the splice, so `env -C a -S '-C b git …'` reports `b`, matching GNU env.
+  Synced from `lib/hook-utils.sh`.
+
+## [0.14.1]
+
+### Fixed
+
+- **Shared `hook-utils.sh`: a NUL byte inside a payload value no longer makes `hook::jq_fields`
+  come back empty (#2120).** The helper delimits its batched fields with NUL, and a JSON string may
+  legitimately encode one — a `Write`/`Edit`/`NotebookEdit` content field can. jq emitted the raw
+  byte, the read split that value in two, the cardinality check saw one value too many, and the
+  helper returned non-zero — which every caller treats as "skip", so the hook exited without doing
+  its work. Each value is now NUL-stripped INSIDE the jq filter, so the delimiter provably cannot
+  occur in a value. Stripping is not a lesser alternative to an encoding scheme, it is the only
+  representable behavior: a bash variable cannot hold a NUL byte, and the per-field command
+  substitution this helper replaced dropped the byte and kept the rest of the value — so content
+  AFTER a NUL is returned and scanned exactly as it was before the batching. Synced from
+  `lib/hook-utils.sh`.
+
 ## [0.14.0]
 
 ### Removed

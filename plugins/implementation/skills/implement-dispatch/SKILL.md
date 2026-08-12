@@ -1,5 +1,5 @@
 ---
-description: "Orchestrate worker subagents to execute an approved plan — the main window composes scope-fenced briefs, dispatches workers, verifies their returns against direct evidence, and builds main-side instead of editing inline. Use when the plan routes phases to worker surfaces or the session runs autonomously; for interactive all-inline execution use /implementation:implement instead."
+description: "Orchestrate worker subagents to execute an approved plan — the main window composes scope-fenced briefs, dispatches workers, verifies their returns against direct evidence, and builds main-side instead of editing inline. Use when: 'dispatch this to workers', 'run this with subagents', 'execute the plan in parallel', 'fan the plan out', or the plan routes phases to worker surfaces or the session runs autonomously; for interactive all-inline execution use /implementation:implement instead."
 argument-hint: "[phase] [--wave-cap <N>] (e.g., /implementation:implement-dispatch, /implementation:implement-dispatch phase-2 --wave-cap 3)"
 user-invocable: true
 disable-model-invocation: false
@@ -53,7 +53,7 @@ Because the orchestrator stays on the default branch, **every source-touching op
    undercuts the frontmatter binding for source-editing work. (Model resolution order —
    `CLAUDE_CODE_SUBAGENT_MODEL` when set to anything but `inherit`, then the per-invocation `model`
    parameter, then the definition's `model` frontmatter, then the main conversation's model — per
-   <https://code.claude.com/docs/en/sub-agents>, verified 2026-07-27.)
+   <https://code.claude.com/docs/en/sub-agents>, verified 2026-08-10.)
 3. **Verify the return against direct evidence before accepting edits** — worker returns are synthesis, not ground truth; promote their claims to direct evidence (diff read, grep, file Read) before building on them
 4. **Build/test main-side** — invoke `/toolchain:check` from the main window when the `toolchain` plugin is installed, otherwise run the project's own build/test command main-side; never accept a worker's green claim as the build signal. Under worker-side provisioning, run it against the returned worktree (`git -C <path>` or from that directory), not the orchestrator's default checkout — see the Prerequisites exception
 5. **Route worker divergence reports into `/implementation:implement` "Step 3: Divergence Detection"** — a worker STOPping per the divergence-escalation clause is a divergence signal, severity-assessed the same way; the orchestrator revises the brief or routes back to the planning skill (`/planning:plan review` when installed)

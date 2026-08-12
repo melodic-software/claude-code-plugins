@@ -485,7 +485,7 @@ def save_state(
             cycles_since_full_sweep = (
                 int(current.get("cycles_since_full_sweep") or 0) + 1
             )
-# An unscoped queue run owns the whole error map; scoped and single
+        # An unscoped queue run owns the whole error map; scoped and single
         # runs replace only the keys they observed and preserve the rest.
         if mode == "queue" and scope is None:
             merged_errors: dict[str, Any] = {}

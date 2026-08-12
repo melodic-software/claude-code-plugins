@@ -329,7 +329,7 @@ while [[ $# -gt 0 ]]; do
     [[ "$pair" == *=* ]] || fail "invalid --canonical value: $pair"
     key="${pair%%=*}"
     value="${pair#*=}"
-    key="$(printf '%s' "$key" | tr '[:upper:]' '[:lower:]')"
+    key="$(lower "$key")"
     [[ "$key" =~ ^github\.com/[^/]+/[^/]+$ && -n "$value" ]] ||
       fail "invalid --canonical value: $pair"
     OVERRIDE_KEYS+=("$key")
@@ -773,13 +773,13 @@ parse_github_url() {
   else
     return 1
   fi
-  host="$(printf '%s' "$host" | tr '[:upper:]' '[:lower:]')"
+  host="$(lower "$host")"
   path="${path#/}"
   path="${path%/}"
   path="${path%.git}"
   [[ "$host" == "github.com" && "$path" =~ ^[^/]+/[^/]+$ ]] || return 1
   PARSED_SLUG="$path"
-  PARSED_KEY="github.com/$(printf '%s' "$path" | tr '[:upper:]' '[:lower:]')"
+  PARSED_KEY="github.com/$(lower "$path")"
 }
 
 lookup_override() {
@@ -805,7 +805,7 @@ lookup_override() {
         value="${entry#*$'\n'}"
         name="${name#canonical.}"
         name="${name%.path}"
-        if [[ "$(printf '%s' "$name" | tr '[:upper:]' '[:lower:]')" == "$key" ]]; then
+        if [[ "$(lower "$name")" == "$key" ]]; then
           configured="$value"
           break
         fi

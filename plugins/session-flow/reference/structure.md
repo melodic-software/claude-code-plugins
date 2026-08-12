@@ -140,7 +140,7 @@ bullet, and an omitted one is exactly what the resuming session ships as a bug.
 notice or summary turn actually present in this conversation — never inferred from the history
 merely feeling short or discontinuous. (The citing skill's "When to invoke" — "last turn had an
 unexpected compaction" — names the common case that brings a session here, but compaction can also
-happen mid-session without being the reason `/handoff` was invoked, so check for the signal itself,
+happen mid-session without being the reason `/session-flow:handoff` was invoked, so check for the signal itself,
 not the invocation reason.) Once that signal is present, the model-visible conversation is the
 summarizer's output, not the original turns, and a scan of what remains cannot find a caveat the
 summarizer already dropped. Exactly one of the following must be true when the section closes, and
@@ -420,7 +420,7 @@ the backward chain pointer — the walker resolves the prior session's id by rea
 continued the prior handoff's work: it resumed from that handoff (the resume prompt loaded it), or
 the task/topic clearly matches. A shared handoff directory accumulates entries from unrelated tasks
 — pointing at the newest file regardless would splice unrelated sessions into one chain, and a later
-`/retro` would aggregate stale transcripts and decisions as if they belonged to the current work.
+`/session-flow:retro` would aggregate stale transcripts and decisions as if they belonged to the current work.
 The first handoff of a NEW task omits the field, even when older, unrelated handoffs exist in the
 directory. Older entries lacking `session_id` cause chain-walkers to break cleanly at the first
 absent field.

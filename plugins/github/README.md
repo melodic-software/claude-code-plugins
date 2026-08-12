@@ -76,3 +76,60 @@ From whichever marketplace distributes this plugin:
 /plugin marketplace add <marketplace-owner>/<marketplace-repo>
 /plugin install github@<marketplace-name>
 ```
+
+<!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
+
+### Options reference
+
+Generated from this plugin's `.claude-plugin/plugin.json`. Every option Claude Code
+will prompt for when the plugin is enabled, with the environment variable each hook
+reads it from.
+
+| Option | Type | Default | Environment variable | Description |
+| --- | --- | --- | --- | --- |
+| `offer_browser_automation` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_OFFER_BROWSER_AUTOMATION` | When a settings surface is UI-only, offer opt-in browser automation (never auto-fired; every action individually confirmed). Set false to suppress the offer entirely. Advisory: honored by the skills' prose, layered under the per-action confirm. |
+
+### How to set these
+
+Three supported routes, in the order most people want them:
+
+1. **Interactively** — Claude Code prompts for declared options when you enable the
+   plugin. To change them later: `/plugin configure github`.
+2. **Headless, at install time** — repeat `--config` for each option. Replace
+   `<marketplace>` with the marketplace you installed this plugin from:
+
+   ```shell
+   claude plugin install github@<marketplace> --config offer_browser_automation=<value>
+   ```
+
+3. **By hand, in settings** — add the value under `pluginConfigs` in your **user**
+   settings (`~/.claude/settings.json`):
+
+   ```json
+   {
+     "pluginConfigs": {
+       "github@<marketplace>": {
+         "options": {
+           "offer_browser_automation": <value>
+         }
+       }
+     }
+   }
+   ```
+
+   Plugin option values are read from **user**, `--settings`, and managed settings
+   only — **not** from a project's `.claude/settings.json`. To vary behavior per
+   repository, enable or disable the plugin in that project's `enabledPlugins`
+   instead of setting an option there.
+
+Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself. They are how Claude Code
+hands a configured value to a hook process; the value comes from the routes above.
+
+### Upstream documentation
+
+- [User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration) — the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
+- [Plugin settings](https://code.claude.com/docs/en/settings#plugin-settings) — `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
+- [Configuration scopes](https://code.claude.com/docs/en/settings#configuration-scopes) — user vs project vs local precedence
+- [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins) — enabling, disabling, `/plugin list`
+
+<!-- END GENERATED: plugin options -->

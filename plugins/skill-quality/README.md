@@ -24,7 +24,10 @@ phrase, which quietly degrades a skill's auto-invocation. Check 3 compares the t
   truncates that entry) — a different, narrower limit from the shared budget below.
 - Trigger-keyword preservation vs `HEAD` (skipped for a new, uncommitted skill).
 - `SKILL.md` under 500 lines (hard) / 200 lines (soft, advisory).
-- Backtick- and link-cited skill-internal supporting files resolve.
+- Backtick- and link-cited skill-internal supporting files resolve — when a path that misses instead
+  resolves under a sibling skill, the finding names that sibling and the
+  `${CLAUDE_PLUGIN_ROOT}/skills/<sibling>/...` cross-skill form, while keeping the hand-verify
+  caveat (the sibling hit is evidence, not proof: paths can collide).
 - `markdownlint-cli2` clean (advisory-skips when `npx` is absent).
 - `scripts/*.test.sh` pass where present.
 - Vendored `vendor/` byte-identical vs `HEAD`; stale-tracking metadata keys preserved; sync age.
@@ -101,3 +104,60 @@ stands alone.
   exits 2.
 - `npx` (Node) is optional; without it the markdownlint check downgrades to a warning and the other
   twenty-one still gate.
+
+<!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
+
+### Options reference
+
+Generated from this plugin's `.claude-plugin/plugin.json`. Every option Claude Code
+will prompt for when the plugin is enabled, with the environment variable each hook
+reads it from.
+
+| Option | Type | Default | Environment variable | Description |
+| --- | --- | --- | --- | --- |
+| `skills_root` | directory | *(none)* | `CLAUDE_PLUGIN_OPTION_SKILLS_ROOT` | Directory holding your skills (each a subdirectory with a SKILL.md). When unset, resolves to .claude/skills under the project root. Set this only when your skills live elsewhere. |
+
+### How to set these
+
+Three supported routes, in the order most people want them:
+
+1. **Interactively** — Claude Code prompts for declared options when you enable the
+   plugin. To change them later: `/plugin configure skill-quality`.
+2. **Headless, at install time** — repeat `--config` for each option. Replace
+   `<marketplace>` with the marketplace you installed this plugin from:
+
+   ```shell
+   claude plugin install skill-quality@<marketplace> --config skills_root=<value>
+   ```
+
+3. **By hand, in settings** — add the value under `pluginConfigs` in your **user**
+   settings (`~/.claude/settings.json`):
+
+   ```json
+   {
+     "pluginConfigs": {
+       "skill-quality@<marketplace>": {
+         "options": {
+           "skills_root": <value>
+         }
+       }
+     }
+   }
+   ```
+
+   Plugin option values are read from **user**, `--settings`, and managed settings
+   only — **not** from a project's `.claude/settings.json`. To vary behavior per
+   repository, enable or disable the plugin in that project's `enabledPlugins`
+   instead of setting an option there.
+
+Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself. They are how Claude Code
+hands a configured value to a hook process; the value comes from the routes above.
+
+### Upstream documentation
+
+- [User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration) — the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
+- [Plugin settings](https://code.claude.com/docs/en/settings#plugin-settings) — `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
+- [Configuration scopes](https://code.claude.com/docs/en/settings#configuration-scopes) — user vs project vs local precedence
+- [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins) — enabling, disabling, `/plugin list`
+
+<!-- END GENERATED: plugin options -->

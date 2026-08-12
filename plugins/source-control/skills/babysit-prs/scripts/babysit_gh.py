@@ -69,17 +69,23 @@ def gh_timeout_seconds() -> float:
     return _default_timeout_seconds
 
 
-def run_gh(args: list[str], *, timeout_seconds: float | None = None) -> str:
-    """Run a gh command, raising on timeout or nonzero exit; returns stdout."""
-    proc = run_command(
+def _run_gh(
+    args: list[str], *, timeout_seconds: float | None, check: bool
+) -> subprocess.CompletedProcess[str]:
+    """The one gh invocation seam; `None` means the process-wide default timeout."""
+    return run_command(
         ["gh", *args],
         allowed_executables=("gh",),
         timeout_seconds=(
             timeout_seconds if timeout_seconds is not None else _default_timeout_seconds
         ),
-        check=True,
+        check=check,
     )
-    return proc.stdout
+
+
+def run_gh(args: list[str], *, timeout_seconds: float | None = None) -> str:
+    """Run a gh command, raising on timeout or nonzero exit; returns stdout."""
+    return _run_gh(args, timeout_seconds=timeout_seconds, check=True).stdout
 
 
 def gh_capture(
@@ -87,14 +93,7 @@ def gh_capture(
 ) -> subprocess.CompletedProcess[str]:
     """Run a gh command capturing stdout/stderr/returncode without raising on
     nonzero exit -- for callers that inspect the returncode themselves."""
-    return run_command(
-        ["gh", *args],
-        allowed_executables=("gh",),
-        timeout_seconds=(
-            timeout_seconds if timeout_seconds is not None else _default_timeout_seconds
-        ),
-        check=False,
-    )
+    return _run_gh(args, timeout_seconds=timeout_seconds, check=False)
 
 
 def gh_json(args: list[str]) -> Any:

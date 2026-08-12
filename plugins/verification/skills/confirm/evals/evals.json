@@ -77,11 +77,11 @@
       "id": 9,
       "name": "live-app-delegates-to-bundled-with-fallback",
       "prompt": "/verification:confirm outcome — run the live app and show me the change working",
-      "expected_output": "For live-app run/observe, delegates to /testing:run-e2e (primary for orchestrated apps) or the bundled /run (supplementary, agent-invocable, on the ≥2.1.145 availability floor). The bundled /verify shares that floor but is user-invoked only from v2.1.215 — before v2.1.215 Claude could also run it — so it is offered as a suggestion for the user to run rather than delegated to, uniformly on every version rather than branched on the client's. Fidelity-preserving graceful fallback: if bundled /run cannot infer the project's launch, falls back to /testing:run-e2e and surfaces the gap rather than silently downgrading to a static check.",
+      "expected_output": "For live-app run/observe, delegates to /testing:run-e2e (primary for orchestrated apps) or the bundled /run (supplementary, agent-invocable, on the ≥2.1.145 availability floor). The bundled /verify shares that floor but is user-invoked by default from v2.1.215 — before v2.1.215 Claude could also run it, and from v2.1.225 a runtime gate governs invocability rather than a fixed version cutoff — so it is offered as a suggestion for the user to run rather than delegated to, uniformly on every version rather than branched on the client's. Fidelity-preserving graceful fallback: if bundled /run cannot infer the project's launch, falls back to /testing:run-e2e and surfaces the gap rather than silently downgrading to a static check.",
       "files": [],
       "expectations": [
         "Delegates live-app observation rather than reimplementing app launch",
-        "Treats /testing:run-e2e as primary for orchestrated apps and the bundled /run as supplementary; surfaces the bundled /verify as a suggestion for the user to run rather than invoking it, scoping the user-invoked-only restriction to v2.1.215 and later rather than stating it unscoped",
+        "Treats /testing:run-e2e as primary for orchestrated apps and the bundled /run as supplementary; surfaces the bundled /verify as a suggestion for the user to run rather than invoking it, scoping the restriction as the default from v2.1.215 and as runtime-gated from v2.1.225 rather than stating it unscoped or as an absolute",
         "On bundled /run failure, falls back to /testing:run-e2e and SAYS SO — never silently swaps live observation for a static check"
       ]
     },

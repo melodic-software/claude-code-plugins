@@ -86,6 +86,8 @@ owned by [docs/CATALOG-TAXONOMY.md](CATALOG-TAXONOMY.md).
 | --- | --- | --- |
 | [`/evals:design`](../plugins/evals/skills/design/SKILL.md) | `evals` | Interview for success criteria and scaffold an eval suite in the consumer repo |
 | [`/evals:methodology`](../plugins/evals/skills/methodology/SKILL.md) | `evals` | Answer LLM-evaluation design questions from Anthropic's official guidance |
+| [`/mutation-testing:audit`](../plugins/mutation-testing/skills/audit/SKILL.md) | `mutation-testing` | Report surviving mutants on the diff, read-only, with survivors triaged |
+| [`/mutation-testing:principles`](../plugins/mutation-testing/skills/principles/SKILL.md) | `mutation-testing` | Answer mutation-testing questions from the primary literature |
 | [`/playwright:playwright`](../plugins/playwright/skills/playwright/SKILL.md) | `playwright` | Live E2E browser automation with disk-written artifacts |
 | [`/tdd:principles`](../plugins/tdd/skills/principles/SKILL.md) | `tdd` | Answer test design questions from authoritative TDD sources |
 | [`/testing:diagnose`](../plugins/testing/skills/diagnose/SKILL.md) | `testing` | Root-cause failing tests — never retry blindly |
@@ -148,6 +150,7 @@ owned by [docs/CATALOG-TAXONOMY.md](CATALOG-TAXONOMY.md).
 | [`/claude-ops:known-issues`](../plugins/claude-ops/skills/known-issues/SKILL.md) | `claude-ops` | Look up and track known Claude product issues, health, and workarounds |
 | [`/code-tidying:tidy`](../plugins/code-tidying/skills/tidy/SKILL.md) | `code-tidying` | Proactively hunt one lane for safe structural tidyings and ship a structure-only PR |
 | [`/codebase-health:audit`](../plugins/codebase-health/skills/audit/SKILL.md) | `codebase-health` | Audit for drift between docs, config, code, and architecture via verified findings |
+| [`/computer-use:diagnose`](../plugins/computer-use/skills/diagnose/SKILL.md) | `computer-use` | Resolve computer-use capture, input, and screenshot symptoms to a cause |
 | [`/discipline:do-your-research`](../plugins/discipline/skills/do-your-research/SKILL.md) | `discipline` | Re-anchor research discipline, then audit and correct the current work |
 | [`/discipline:do-your-research-deep`](../plugins/discipline/skills/do-your-research-deep/SKILL.md) | `discipline` | Verify every session claim against primary sources in a heavy fan-out |
 | [`/discipline:follow-our-standards`](../plugins/discipline/skills/follow-our-standards/SKILL.md) | `discipline` | Re-anchor to org engineering standards and audit the work in flight |
@@ -207,6 +210,7 @@ owned by [docs/CATALOG-TAXONOMY.md](CATALOG-TAXONOMY.md).
 
 | Skill | Plugin | Cadence | What it does |
 | --- | --- | --- | --- |
+| [`/claude-ops:audit-install-state`](../plugins/claude-ops/skills/audit-install-state/SKILL.md) | `claude-ops` | weekly | Audit a Claude Code install directory — what is there, what the product manages, what is stale |
 | [`/claude-ops:lanes`](../plugins/claude-ops/skills/lanes/SKILL.md) | `claude-ops` | daily | Start, restart, stop, and check loop lanes as named background sessions |
 | [`/claude-ops:morning-brief`](../plugins/claude-ops/skills/morning-brief/SKILL.md) | `claude-ops` | daily | Print the operator's read-only morning view — queues, merge-ready PRs, parked decisions |
 | [`/claude-ops:observability`](../plugins/claude-ops/skills/observability/SKILL.md) | `claude-ops` | weekly | Report on locally captured telemetry — token burn, cost, hook latency, trends |

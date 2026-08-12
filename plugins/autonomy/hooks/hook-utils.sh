@@ -16,11 +16,33 @@ readonly _HOOK_UTILS_LOADED=1
 # read from the hook-process CLAUDE_PLUGIN_OPTION_<NAME>_ENABLED mirror.
 # Exits 0 (allow) if disabled. Place after source, before stdin parsing.
 #   hook::check_enabled "MARKDOWN_FORMAT"  # checks CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED
-hook::check_enabled() {
+#
+# Deliberately NOT layered with a marketplace-specific fleet switch. Claude Code
+# already ships the coarse controls, and a parallel scheme here would become a
+# second source of truth for the same question:
+#   * `--safe-mode` / `CLAUDE_CODE_SAFE_MODE` — start with every customization
+#     (CLAUDE.md, plugins, skills, hooks, MCP servers) disabled
+#   * `disableAllHooks` — disable all hooks and any custom status line
+#   * `claude plugin disable|enable <name>` — per-plugin, dependency-aware
+# This helper stays scoped to the one thing it owns: the plugin's own
+# `<name>_enabled` userConfig boolean, surfaced to hook processes as the native
+# `$CLAUDE_PLUGIN_OPTION_<KEY>` mirror.
+
+# hook::is_enabled <NAME> — the same check as a PREDICATE. Returns 0 when the
+# plugin should run, 1 when it should not. For callers that must not terminate
+# the process on a "disabled" answer.
+#
+# The statusline tee is exactly that caller: it is a TRANSPARENT WRAPPER around
+# the user's real statusline, so exiting 0 on "disabled" would suppress the
+# wrapped command's output and blank the status line. It needs to skip its own
+# side effect and still pass through.
+hook::is_enabled() {
   local var_name="CLAUDE_PLUGIN_OPTION_${1}_ENABLED"
-  if [[ "${!var_name:-true}" != "true" ]]; then
-    exit 0
-  fi
+  [[ "${!var_name:-true}" == "true" ]]
+}
+
+hook::check_enabled() {
+  hook::is_enabled "$1" || exit 0
 }
 
 # --- Prerequisite visibility --------------------------------------------------
@@ -622,37 +644,107 @@ hook::jq_field() {
 # the whole contract) would DROP the field here and silently shift every later
 # index onto the wrong filter. Emptiness stays the caller's decision.
 #
-# Returns 1 — with HOOK_JQ_FIELDS empty — when jq is absent or fails, or when
-# fewer values came back than filters were asked for, so a partial read can
-# never be mistaken for a complete one. Values are CR-stripped, as in
+# Returns 1 — with HOOK_JQ_FIELDS empty — when jq is absent, when jq cannot
+# parse the payload, or when the record count does not match what was asked for
+# in EITHER direction (an over-count rejects too: two concatenated well-formed
+# JSON documents parse fine and yield twice the records). Every guardrail caller
+# spells that `|| exit 0`, a PreToolUse ALLOW, so what can reach it matters. NUL
+# CONTENT no longer can (#2122). A payload jq itself rejects — malformed JSON, a
+# wrongly typed field, an empty buffer — still does, exactly as it did before
+# this change; that path is untouched here, and process substitution means jq's
+# own exit status is not observed either. Values are CR-stripped, as in
 # hook::jq_field.
 #
-# Fields are NUL-separated on the wire: the values carry arbitrary text
-# (a Bash command spans newlines routinely) and NUL is the one byte a shell
-# string cannot hold, so it is the only separator that cannot occur inside a
-# value. A JSON input that encodes a literal \u0000 INSIDE a string value is the
-# residual — jq would emit it raw and split that value in two; hook payloads do
-# not carry one, and a command substitution would have discarded it anyway.
-# Read through a process substitution rather than $( ) for the same reason:
-# command substitution strips NUL bytes.
+# HOOK_JQ_FIELDS_NUL is set on EVERY call — "1" when any REQUESTED field carried
+# a NUL byte, "0" otherwise, and "0" on every failure path — so a caller can
+# never inherit a stale "1" from an earlier invocation by forgetting to reset it.
+# A caller that owns a block/allow verdict MUST consult it and fail CLOSED.
+#
+# Fields are NUL-separated on the wire, and every value has its own NUL bytes
+# REMOVED jq-side first, so the delimiter provably cannot occur inside a value
+# and the record count no longer depends on what a PARSEABLE payload holds. jq
+# used to emit the raw byte, the value split in two, the cardinality check below
+# failed, and the callers' `|| exit 0` turned a PreToolUse BLOCK into a silent
+# ALLOW (#2122).
+#
+# The FLAG is computed from the values as the payload carried them, BEFORE the
+# strip — the ordering is load-bearing and is the one thing a textual merge of
+# this function will get wrong. Strip first and `index(0)` looks at a value that
+# no longer holds a NUL, so the flag reads "0" on every payload and the guards
+# that consult it never fire: a fail-open with no diagnostic, which is the exact
+# defect #2122 filed. Anyone editing the jq program must keep the flag ahead of
+# the strip.
+#
+# Removing the NUL is NOT a claim about how a NUL executes, and must not be read
+# as one. Two behaviours were measured and they disagree: bash DISCARDS a NUL
+# while parsing a command it reads (stdin or a script file), so `echo ha<NUL>rd`
+# prints `hard`; Node's child_process REFUSES a NUL-bearing string outright, on
+# argv, on `shell: true`, and on exec alike. Which of those — if either — a hook
+# payload would ever reach is UNTRACED. No value semantics chosen here can claim
+# fidelity to the executor, in either direction, and none is claimed.
+#
+# That is exactly why the verdict is fail-CLOSED on the flag rather than a match
+# against the value: blocking is correct under deletion, under truncation, and
+# under refusal alike, so it does not depend on anyone having traced the path —
+# and it cannot be invalidated by tracing it later. The flag is the load-bearing
+# part; the value semantics are not.
+#
+# Deletion over truncation is chosen on grounds that appeal to no shell at all,
+# and it is the disposition #2120 already shipped: a truncating helper hides
+# everything after the first NUL from the ten scanning callers #2120 converted,
+# none of which consults the flag, so truncation would make a credential past a
+# NUL invisible to secret-pattern-detection and hardcoded-path-check. Deletion
+# keeps those callers seeing the whole value. The trade runs the other way for a
+# COMMAND caller that forgets the flag — `--no-verify<NUL>x` joins to
+# `--no-verifyx` and matches nothing — which is precisely why the two guards
+# refuse on the flag before reading a value at all, rather than relying on the
+# disposition to keep them safe.
+#
+# split/join (1-arity, a plain string split — NOT gsub, which would put a NUL
+# inside an Oniguruma pattern) for the strip, and explode/index for the flag, so
+# that no regex pattern and no string literal in the jq PROGRAM text carries a
+# NUL byte: a construct whose behaviour varied across jq builds would fail EVERY
+# payload, which is strictly worse than the payload-dependent bug being fixed.
+#
+# The library cannot impose the verdict itself — the plugins sourcing it include
+# formatters, for which exiting 2 would be wrong — so policy stays with the
+# caller and the library only reports the fact.
+#
+# Read through a process substitution rather than $( ): command substitution
+# strips NUL bytes, which would eat the separators themselves.
 #
 #   hook::jq_fields "$INPUT" '.tool_input.command' '.tool_name' || exit 0
+#   if ((HOOK_JQ_FIELDS_NUL)); then echo "BLOCKED: …" >&2; exit 2; fi
 #   COMMAND="${HOOK_JQ_FIELDS[0]}" TOOL_NAME="${HOOK_JQ_FIELDS[1]}"
-# shellcheck disable=SC2034  # result global is consumed by the sourcing hook, not this file
+# shellcheck disable=SC2034  # result globals are consumed by the sourcing hook, not this file
 hook::jq_fields() {
   local input="$1"
   shift
   HOOK_JQ_FIELDS=()
+  HOOK_JQ_FIELDS_NUL=0
   (($#)) || return 1
   command -v jq >/dev/null 2>&1 || return 1
   local prog="" filter
   for filter in "$@"; do
     [[ -n "$prog" ]] && prog+=","
+    # Raw here: the NUL must still be in the value when the flag is computed
+    # below. The strip happens after, on the whole array.
     prog+="((${filter}) // \"\" | tostring)"
   done
-  # `-j` concatenates outputs verbatim, so emitting the NUL as its own output
-  # after each value yields exactly value NUL value NUL … with nothing added.
-  prog="[$prog] | .[] | (., \"\\u0000\")"
+  # The NUL flag rides in front of the values as one more record, so reporting
+  # it costs no second jq process — the whole point of this helper. It is
+  # computed FIRST, from the values exactly as the payload carried them; only
+  # then is each value stripped. `-j` concatenates outputs verbatim, so emitting
+  # the separator as its own output yields exactly value NUL value NUL … with
+  # nothing added. `A | (X, Y)` feeds the SAME array to both branches, so the
+  # flag and the values come from one input with no jq variable in the program
+  # text. Moving the split/join up into the loop above — which is what a textual
+  # merge of this function produces — would silently zero the flag on every
+  # payload.
+  prog="[$prog]"
+  prog+=' | ((if (map(explode | index(0) != null) | any) then "1" else "0" end),'
+  prog+=' (.[] | split("\u0000") | join("")))'
+  prog+=" | (., \"\\u0000\")"
   local -a values=()
   local v clean
   # `read -d ''` (not `mapfile -d ''`, which is Bash 4.4+; this lib supports
@@ -672,8 +764,12 @@ hook::jq_fields() {
     clean="${v//$'\r'/}"
     values+=("$clean")
   done < <(printf '%s' "$input" | jq -j "$prog" 2>/dev/null)
-  ((${#values[@]} == $#)) || return 1
-  HOOK_JQ_FIELDS=("${values[@]}")
+  # One record for the flag plus one per filter. Short of that, jq produced no
+  # usable output — it is absent, it failed, or it rejected the payload. What can
+  # no longer shorten it is NUL CONTENT: the values carry no separator byte.
+  ((${#values[@]} == $# + 1)) || return 1
+  HOOK_JQ_FIELDS_NUL="${values[0]}"
+  HOOK_JQ_FIELDS=("${values[@]:1}")
 }
 
 # Reduce a tool + optional Bash command to a privacy-safe subject label. For
@@ -1135,10 +1231,28 @@ hook::git_resolve_index() {
           # -S/--split-string re-splits its operand into argv (GNU env), so a
           # quoted 'git commit --no-verify' would otherwise hide from the
           # resolver as one non-git word. Splice the split words back into the
-          # scan and restart at the command position. The splice drops every
-          # word before `i`, this `env` included, so a chdir already recorded for
-          # it is not re-walked and stays recorded — which is right, because env
-          # performs that chdir whether or not -S rewrites the command.
+          # scan and resume. The splice drops every word before `i`, this `env`
+          # included, so a chdir already recorded for it is not re-walked and
+          # stays recorded — which is right, because env performs that chdir
+          # whether or not -S rewrites the command.
+          #
+          # Resume INSIDE env's own option loop (`continue`, not `continue 2`),
+          # because the split words are env's OWN arguments: `-S` exists so a
+          # shebang line can carry env options, and GNU documents exactly that
+          # (`#!/usr/bin/env -S -i some-program`). Restarting at the command
+          # dispatcher instead read a leading option in the split string as the
+          # COMMAND NAME and abandoned the whole segment — `env -S '-C <dir> git
+          # push --force'` resolved to no git at all, so every guard skipped a
+          # real force-push, and `env -S '-C <sha256-repo> git push
+          # --force-with-lease=main:<40-hex>'` skipped a lease against a movable
+          # ref name. Staying in this loop also keeps `env_ci` in scope, so
+          # `env -C a -S '-C b git …'` is last-wins in the one slot GNU env
+          # keeps, exactly as an unspliced `env -C a -C b` already is.
+          #
+          # Termination: each splice consumes the `-S` word and its operand and
+          # substitutes only the operand's own words, so the argv's byte count
+          # strictly decreases — a self-referential `env -S '-S -S'` runs out
+          # rather than looping.
           -S | --split-string)
             local sval=""
             ((i + 1 < n)) && sval="${w[i + 1]}"
@@ -1146,7 +1260,7 @@ hook::git_resolve_index() {
             w=(${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"} "${w[@]:i+2}")
             n=${#w[@]}
             i=0
-            continue 2
+            continue
             ;;
           -S* | --split-string=*)
             local sval="${etok#-S}"
@@ -1155,7 +1269,7 @@ hook::git_resolve_index() {
             w=(${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"} "${w[@]:i+1}")
             n=${#w[@]}
             i=0
-            continue 2
+            continue
             ;;
           -C | --chdir)
             ((i + 1 < n)) && hook::wrapper_chdir_record env_ci "${w[i + 1]}"

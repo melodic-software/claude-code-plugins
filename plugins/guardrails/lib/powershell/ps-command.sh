@@ -132,7 +132,9 @@ ps::blank_herestrings() {
     # would swallow following code lines into a phantom here-string body).
     # Distinguish by stripping PAIRED quote spans first: a real opener's quote
     # is unpaired, so its `@'` survives, while `'@'` / `'foo@'` disappear.
-    opener_scan=$(printf '%s' "$line" | sed "s/'[^']*'//g" | sed -E 's/"([^"\\]|\\.)*"//g')
+    # One `sed` per line, not two: the expressions apply in order, so the
+    # double-quote strip still sees the single-quote-stripped line.
+    opener_scan=$(printf '%s' "$line" | sed -E -e "s/'[^']*'//g" -e 's/"([^"\\]|\\.)*"//g')
     if [[ "$opener_scan" == *"@'" || "$opener_scan" == *'@"' ]]; then
       hs_quote="${line: -1}" # ' or "
       pending="${line%??}${PS_HERESTRING_PLACEHOLDER}"
@@ -160,8 +162,10 @@ ps::blank_herestrings() {
 # already forces the fail-closed branch, so this crudeness cannot open a gap.
 ps::blank_quoted_spans() {
   local text="$1"
-  text=$(printf '%s' "$text" | sed "s/'[^']*'//g")
-  text=$(printf '%s' "$text" | sed -E 's/"[^"]*"//g')
+  # One `sed` for both spans: expressions apply in order per line, so the
+  # double-quote strip still sees the single-quote-stripped text — same result
+  # as the two chained passes, at half the process cost on a hot classifier path.
+  text=$(printf '%s' "$text" | sed -e "s/'[^']*'//g" -e 's/"[^"]*"//g')
   printf '%s' "$text"
 }
 

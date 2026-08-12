@@ -3,6 +3,379 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.1]
+
+### Changed
+
+- **0.25.0 described the scratch-root exemption's fail-close inaccurately on every surface, twice
+  over. Corrected, and pinned (#2236; root cause #2226).** No behaviour changes — four documents
+  become accurate and four regression tests now pin the boundaries they describe.
+
+  0.25.0 said the exemption fails closed on "a quoted or escaped **operand**", "after the first
+  redirect **operator**". Both halves are wrong, in the same direction — they imply precision the
+  check does not have:
+
+  1. **It is not operand-scoped.** It reads the whole raw command tail, not the segment being
+     evaluated and not the target word, so a quote in an unrelated *later* segment cancels the
+     exemption for an earlier, unambiguous write.
+  2. **It is not keyed on the redirect operator.** `${COMMAND#*>}` splits at the first literal `>`
+     **character**, without deciding whether that `>` is an operator at all. A `>` inside quoted
+     *content* therefore starts the scanned tail early, and the closing quote of that same content
+     lands inside it.
+
+  Consequence of (2), and the case 0.25.0's own text got backwards: it claimed quotes *before* the
+  redirect are the ordinary case and keep the exemption. That holds only while the quoted content
+  contains no `>`.
+
+  | command, root `/tmp/scratch` | verdict |
+  | --- | --- |
+  | `echo x > /tmp/scratch/f` | allowed |
+  | `echo "hello world" > /tmp/scratch/f` | allowed |
+  | `echo x > /tmp/scratch/f && grep foo "notes.txt"` — quote in a later segment | **blocked** |
+  | `echo x > /tmp/scratch/f && grep foo notes.txt` | allowed |
+  | `echo "a > b" > /tmp/scratch/f` — `>` inside quoted content | **blocked** |
+  | `echo 'x > y' > /tmp/scratch/f` | **blocked** |
+
+  The breadth stays. It is one-directional — the check can only ever *refuse* an exemption, never
+  grant one — so the failure mode is lost convenience, never a bypass. Keying it on the real redirect
+  operator, or narrowing it to the operand, both need the same thing: knowing which `>` and which
+  quotes are syntax rather than content. That is exactly the association `strip_literals` destroys
+  before this code runs, which is **#2226**, not a separate fix, and it is deliberately not attempted
+  here. Recorded on #2226 as further evidence.
+
+  The hook comment, the README, the manifest's option description and this entry now state the
+  mechanism as it is: **any quote or backslash after the first `>` character, operator or not,
+  anywhere in the command.**
+
+  0.25.0's entry below is left as it shipped, per Keep a Changelog; this entry is its erratum.
+
+## [0.25.0]
+
+### Added
+
+> **Erratum:** the fail-close scope described in this entry is inaccurate in two ways. See 0.25.1
+> above for the corrected mechanism. The behaviour described elsewhere in this entry is unchanged.
+
+- **`block-hook-bypass` gains an opt-in scratch-root exemption, and with it its first
+  target-scoped axis (#2210).** A read-only investigation that writes a throwaway probe file
+  under a session or job temp root was blocked exactly like a repo-file write — reproduced twice,
+  once against the reporting session and once against the validation pass that confirmed it, which
+  was blocked by the installed guard while building a telemetry-sink probe under `/tmp`. None of the
+  Write/Edit hooks this guard exists to protect (the nine formatters, secret-pattern detection,
+  hardcoded-path checking, the three verifiers) would ever process such a file.
+
+  **State the design change plainly, because it is one.** This guard is PRODUCER-scoped: it fires on
+  `echo`/`printf`/`cat`/`python3 -c` as the command whose stdout reaches a file, wherever that file
+  lives. The originating report framed a carve-out as a *tightening of the existing producer
+  scoping*; it is not, and shipping that rationale would have been wrong. A carve-out by target path
+  adds a new axis to the guard's design. The producer axis is untouched — an inline `python3 -c`
+  write into an exempt root still blocks, and a test pins that.
+
+  The new `block_hook_bypass_scratch_roots` option takes a comma-separated list of absolute
+  directories and **defaults to empty, so no shipped behaviour changes**. Two tests assert exactly
+  that: a temp write still blocks with the option unset, and again with it set empty. The reported
+  friction therefore persists until an operator names their own roots — deliberately, because the
+  last target-based exemption of this shape (`/dev/null`) shipped a one-token bypass of the whole
+  guard (write the discard first, the real file second), and the default trust surface stays
+  byte-for-byte what it was.
+
+  The match is made against a lexically normalized path, never a substring or a bare prefix compare.
+  Windows separators and drive letters fold to the Git Bash spelling — so a root configured as
+  `D:\jobtmp\scratch` covers a target written `/d/jobtmp/scratch/f` — `.` and `..` resolve by
+  component, and containment requires the target to continue with `/` past the root's last
+  component. (A backslash-spelled *target* is a separate matter and is never exempt: in bash a
+  backslash is an escape, so it is not the path it looks like. See the fail-close below.) The
+  adversarial floor is the point of the test block, not the happy path:
+
+  | shape | verdict |
+  | --- | --- |
+  | `echo x > /tmp/scratch/f`, root `/tmp/scratch` | allowed |
+  | `echo x > /tmp/scratchevil/f`, same root (a string prefix would exempt it) | **blocked** |
+  | `echo x > /tmp/scratch` — the root itself; containment is strict | **blocked** |
+  | `echo x > /tmp/scratch/../../etc/passwd` | **blocked** |
+  | `echo x > /tmp/scratch/f > real.txt` — the effective-target rule the `/dev/null` exemption already survived | **blocked** |
+  | `echo a > /tmp/scratch/f && echo b > real.txt` — an exemption cannot leak across segments | **blocked** |
+  | a relative, `$VAR`, `~` or glob target | **blocked** |
+  | `python3 -c "open('/tmp/scratch/x','w').write('a')"` — producer axis unchanged | **blocked** |
+
+  **A quoted or escaped redirect operand is never exempt.** This was caught in review and is the
+  sharpest edge on the whole axis. `strip_literals` keeps a quoted write target but **drops its
+  quotes**, and `normalize_segments` then resolves a `;`, `|`, `&`, newline or space *inside that
+  operand* as syntax — so `echo x > "/tmp/scratch/a;/../../etc/passwd"`, which bash treats as one
+  pathname, reaches the containment check as the safe-looking prefix `/tmp/scratch/a`. Exempting
+  that prefix would be precisely the one-token bypass the `/dev/null` precedent warns about. The
+  only surviving evidence of the truncation is the raw command, so the exemption **fails closed on
+  any quote or backslash after the first redirect operator**. Deliberately conservative: even a
+  benign `> "/tmp/scratch/f"` loses the exemption, and an operator who wants it writes the target
+  unquoted. Quotes *before* the operator (`echo "hello world" > /tmp/scratch/f`) are the ordinary
+  case and keep it. Six tests pin the closed shapes.
+
+  The same truncation reaches the **`/dev/null`** exemption and **predates this change** — measured
+  at `685dd381`, `echo x > "/dev/null;/../../etc/passwd"` is already allowed there. Fixing that half
+  means teaching `strip_literals` to mark a kept operand's internal separators, shared machinery
+  #1680 and #1667 also concern and wider than this row, so it is filed as **#2226** and pinned here
+  by a control test that flips visibly when it is fixed.
+
+  Two further residuals, both deliberate, both stated in the file and the README, both pinned.
+  Normalization is lexical, not filesystem resolution: symlinks are not followed, because resolving
+  them needs a subprocess per segment on a path this file deliberately keeps fork-free, and the
+  target frequently does not exist yet — naming a root is accepting that root's contents. And the
+  compare is case-insensitive, because the segment scan runs over the lowercased command; on a
+  case-sensitive filesystem a sibling differing from a root only in case is also exempt.
+
+  Bash lane only. The PowerShell lane classifies on cmdlet/redirect co-occurrence and never resolves
+  a single effective target, so there is no well-defined target to exempt there; its `$null` discard
+  is unchanged.
+
+## [0.24.3]
+
+### Changed
+
+- **Carries the shared hook library's new `hook::is_enabled` predicate.** `hook::check_enabled`
+  exits the process when a plugin is gated off, which is correct for a hook but wrong for a
+  caller that must keep running afterward. The resolution is now also available as a predicate
+  that returns instead of exiting. No behaviour of this plugin changes; the version moves so
+  consumers receive the updated library.
+
+## [0.24.2]
+
+### Changed
+
+- **Upstream doc stamps re-verified against the live pages (2026-08-10).** Each dated claim below was re-checked against the complete raw markdown source of the page it cites (`https://code.claude.com/docs/en/<page>.md`), not a summarized fetch, and each was confirmed by a verbatim quote before its stamp was refreshed. No claim changed; only the verification dates moved.
+
+  - `hooks/skill-reference-verify.sh` — the manifest `skills` key adding to rather than replacing
+    the default `skills/` scan, the marketplace-root exception the hook deliberately does not
+    model, `.`/`./` both denoting the plugin root, and the root-`SKILL.md` single-skill
+    auto-load condition (plugins reference, "Path behavior rules").
+
+## [0.24.1]
+
+### Fixed
+
+- **`block-no-verify` and `block-dangerous-git` still allowed a NUL-bearing command after
+  0.23.1 (#2122).** 0.23.1 stopped the helper's cardinality failure by stripping every NUL out of
+  each value, which closed the fail-open for the content guards. It did not close the command
+  guards: stripping SPLICES the bytes on either side of the NUL into one token the payload never
+  carried contiguously, and the guards then match against that token. Measured at the hook boundary
+  on the shipped hooks, `origin/main` at `fd075c27` versus this change, identical fixtures whose NUL
+  is a real byte decoded from a JSON `\u0000` escape:
+
+  | payload | main | this change |
+  | --- | --- | --- |
+  | `git commit --no-verify<NUL>x` | **0 allowed** | **2 blocked** |
+  | `git push --force<NUL>x` | **0 allowed** | **2 blocked** |
+  | a lone NUL, and a trailing NUL | **0 allowed** | **2 blocked** |
+  | `git commit --no-veri<NUL>fy` | 2 blocked | 2 blocked |
+  | clean `--no-verify` / clean `--force` / harmless | 2 / 2 / 0 | 2 / 2 / 0 |
+
+  The last two rows are stated rather than counted: the splice happens to reassemble a real
+  `--no-verify` in the fourth row, so `main` already blocks it and it evidences nothing, and no
+  clean command changed verdict in either direction.
+
+- **Both guards now fail CLOSED on a NUL byte in any field they read.** The new
+  `HOOK_JQ_FIELDS_NUL` global reports the byte, and both guards block on it — ahead of their
+  empty-command skip, so a command consisting only of NUL bytes, which strips to nothing, cannot
+  pass as "no command". They refuse rather than match because the text a guard can read is not
+  dependably the text that would run: bash **discards** a NUL while parsing a command it reads,
+  Node's `child_process` **refuses** a NUL-bearing string outright, and which of them (if either) a
+  hook payload reaches has not been traced. Refusing is correct under all of them and needs no such
+  trace. Synced from `lib/hook-utils.sh`.
+
+- **A non-zero return from `hook::jq_fields` still means the guards allow, and that is unchanged.**
+  jq being absent, a malformed payload, a wrongly typed field, two concatenated JSON documents, or
+  an empty buffer all still reach it, and every caller spells it `|| exit 0`. That path is out of
+  scope here and is documented rather than claimed away.
+
+## [0.24.0]
+
+### Fixed
+
+- **`block-dangerous-git` no longer clears an unsafe `--force-with-lease` by measuring the wrong
+  repository (#2124).** The lease check accepts a `=<refname>:<expect>` whose `<expect>` is a
+  full-width object id, because git cannot resolve one to something newer at push time. The width
+  is the local repository's, and the guard probed the HOOK PROCESS's directory to learn it. Claude
+  Code launches hooks from the session root and runs the Bash tool wherever the session stands, so
+  the two differ routinely — and a payload `cwd` in a SHA-256 repository with the hook process in a
+  SHA-1 one read a 40-hex lease as an immutable object id while git resolves it as a movable REF
+  NAME where the push actually runs. That is precisely the hole `--force-with-lease` exists to
+  close, and it needed no wrapper and no `cd`: a plain `git push` was enough. The payload's `.cwd`
+  is now read and replayed as a LEADING `-C` ahead of any wrapper chdir, so it composes under git's
+  own rules exactly as the wrapper replay already did. The base-resolution chain is
+  `HOOK_EFFECTIVE_BASE` → `HOOK_CWD` → `CLAUDE_PROJECT_DIR` → `.`, adopted verbatim from
+  `block-noncanonical-commit` rather than invented a second time; a `!` shell alias relocates the
+  base for its reparse and it is save/restored around each one, since git launches that body in the
+  relocated repository.
+- **The alias re-expansion memo keys on the effective base, so a cached verdict cannot be reused
+  across repositories (#2124).** Caught in review of this change, and a defect this change itself
+  introduced: making the lease verdict a function of the base means the base has to be part of any
+  key that memoizes that verdict, and `HOOK_ALIAS_MEMO` keyed only on kind, seen-set and command
+  text. One Bash command invoking the SAME `!` alias text twice — first under a SHA-1 `git -C`,
+  where a 40-hex expectation is a real object id and is correctly allowed, then under a SHA-256
+  `git -C`, where the identical word is a movable ref name — had its second analysis skipped as
+  already seen, and the guard exited 0. Verified against this branch's own pre-fix head rather than
+  `origin/main`, which has no base-dependent verdict to cache wrongly: the buggy tree runs the width
+  probe ONCE (`40`) and allows; the fixed tree runs it twice (`40`, then `64`) and blocks. The
+  other cache, `repo_oid_width`, was checked for the same class and is already base-keyed — its key
+  is the replayed option list, which now leads with the base — confirmed empirically, not by
+  inspection. `block-noncanonical-commit` keys its memo on the base for exactly this reason.
+
+  The collision was unconditional rather than occasional: the `!` branch empties `HOOK_ALIAS_SEEN`
+  *before* the key is built, so the old key reduced to kind + a constant + the reparse text, and two
+  reparses of identical alias text collided at any depth, through `;` and `&&` alike. It could only
+  ever be a bypass, never a false block — a memo hit skips analysis, skipping can only turn DENY
+  into ALLOW, and the guard exits at the first blocking segment so nothing follows a DENY.
+
+  **Cost, measured.** Keying on the base means the memo dedups less, so analyses now scale with the
+  number of DISTINCT bases in one command instead of collapsing to one. Counted from the `bash -x`
+  trace, distinct bases → analyses (width probes): old 1→1 (2), 4→1 (2), 16→1 (2), 32→1 (2); new
+  1→1 (2), 4→4 (8), 16→16 (32), 32→32 (64). Linear, and that collapse to 1 was the defect, not an
+  optimization worth keeping. `HOOK_ALIAS_WORK_MAX` (128) still bounds it and exhausting it fails
+  CLOSED, so the weakened dedup costs work, never safety. A fixture pins 16 distinct bases as
+  allowed-and-bounded, and the same walk with a SHA-256 base appended as still blocked.
+
+  Two things the reviewer flagged as reasoned-not-run are now run. The memo does not survive a hook
+  invocation — it is a shell variable in a process that exits, and the sha1-then-sha256 pair split
+  across two separate invocations gives 0 then 2. The git-alias branch shares the memo under a
+  different tag and is covered by construction, since the base is keyed inside
+  `alias_reexpand_admit` rather than at the call sites; no live case is constructible there, because
+  a git alias splices words into the same argv and cannot relocate the base.
+- **`env -S` / `--split-string` no longer hides a whole command from the git guards (#2124).** `-S`
+  exists so a shebang line can pass OPTIONS to env (`#!/usr/bin/env -S -i prog`), so the words it
+  splits out are env's own arguments. `hook::git_resolve_index` spliced them back into the scan but
+  resumed at the COMMAND dispatcher, which read a leading option in the split string as the command
+  NAME and gave up — `env -S '-C <sha256-repo> git push --force-with-lease=main:<40-hex>'` and even
+  a bare `env -S '-v git push --force'` resolved to no git at all, so the guard never examined
+  them. Parsing now resumes inside env's own option loop, which also keeps env's single chdir slot
+  last-wins across the splice (`env -C a -S '-C b git …'` reports `b`, as GNU env behaves). This is
+  the LARGER of the two holes and it was not lease-specific: an independent adversary confirmed
+  `block-no-verify` allowed `git commit --no-verify` and `block-dangerous-git` allowed
+  `git reset --hard` behind the same `env -S` form. `hook::git_resolve_index` is the shared resolver,
+  so the hole was shared — `hook-utils.sh` lives in 17 places (`lib/` plus 16 plugin copies) and
+  every one of them was stale. Synced from `lib/hook-utils.sh`, so all 17 carry the fix.
+
+### Changed
+
+- **A RELATIVE `--git-dir` / `--work-tree` / `--namespace` / `-C` in a guarded command now resolves
+  against the directory the TOOL CALL runs in, not the hook process's.** This falls out of the
+  leading-`-C` base above and is the correct origin — a relative path written in a tool call means
+  relative to where that call runs — but it is a behaviour change and is called out here so it is
+  not read as a regression. An ABSOLUTE one is unaffected.
+- `repo_oid_width`'s known-gap docblock is restated at its real width. It described the residual as
+  needing "a SHA-256 repository, a lease pinned to a full-width hex word that is also a ref name
+  there, and a compound `cd` into it" — three conjuncts, when at the time the payload cwd was not
+  read at all and neither the wrapper nor the `cd` was required. Reading `.cwd` closes that route;
+  what remains is any SHELL relocation the static parser does not evaluate (`cd … && git push`, a
+  subshell, `pushd`), and the comment now says so plainly. A documented gap that reads narrower
+  than it is, is how this one survived review.
+- The known-gap docblock also now records that the gap's PRIMARY symptom is a false BLOCK, not a
+  bypass: with a shell `cd` the probe measures a base that is often not a repository, answers width
+  0, and fails closed — so `cd <repo> && git push --force-with-lease=main:<literal full-width sha>
+  origin main`, the exact form the block message prescribes, is denied from a non-repository session
+  root. Fail-closed is right for an unresolvable base; the note exists so the next person to narrow
+  the gap treats the false block as the symptom to measure.
+- A second residual is now documented rather than left implicit: git EXPORTS an explicit
+  `--git-dir` / `--work-tree` into a `!` shell-alias body, so the body inherits a repository the
+  composed directory does not name and its lease is judged against the base. Reproduced against
+  BOTH `origin/main` and this change — pre-existing, of the same family, and closing it means
+  replaying inherited globals rather than a directory, which is a larger mechanism than the base
+  chain adopted here.
+
+## [0.23.1]
+
+### Fixed
+
+- **A NUL byte in a `Write`/`Edit`/`NotebookEdit` content field no longer disables the content
+  guards.** Regression introduced by the `hook::jq_fields` conversion in 0.22.1: the helper
+  delimits its batched fields with NUL, and JSON may legitimately encode a NUL inside a string, so
+  jq emitted the raw byte, the field count came back wrong, and `secret-pattern-detection`,
+  `hardcoded-path-check`, `skill-reference-verify`, `stale-path-verify` and `cli-flag-verify` all
+  took their `|| exit 0` skip — a credential or machine path placed after the NUL passed unblocked.
+  Reproduced against `origin/main` (exit 2, blocked) versus 0.22.1 (exit 0, allowed). `hook::jq_fields`
+  now strips NUL inside the jq filter, so the delimiter cannot collide with content and everything
+  after the NUL is still scanned, matching the pre-conversion command substitution byte for byte.
+  Regression cases added to `lib/hook-utils.test.sh`, `secret-pattern-detection.test.sh` and
+  `hardcoded-path-check.test.sh`. Synced from `lib/hook-utils.sh`.
+
+### Changed
+
+- `skill-reference-verify` and `stale-path-verify` say plainly that keeping `replace_all`'s
+  `// false | tostring` inside the jq filter is for parity with the pre-conversion output, not
+  because a branch depends on it — every consumer tests `== "true"`, which `""` and `"false"` fail
+  alike. Comment only; behavior unchanged.
+
+- **Every remaining hook now parses its payload in ONE `jq` process (`hook::jq_fields`), not two or
+  three.** #2007 introduced the helper and converted `block-dangerous-git` and `block-no-verify`; the
+  other ten hooks still ran a separate `printf … | jq … | tr -d '\r'` pipeline per field over the
+  same stdin envelope. Converted: `block-noncanonical-commit`, `block-convention-violation` (3 jq
+  execs → 1 each), `hardcoded-path-check`, `secret-pattern-detection`, `skill-reference-verify`,
+  `stale-path-verify` (3 → 1 each), `block-hook-bypass`, `flag-commit-pr-skill-bypass`,
+  `cli-flag-verify`, `workflow-resilience-check` (2 → 1 each). Measured on Windows Git Bash with the
+  arms interleaved in one loop and compared as paired deltas — every sample is recorded in the PR.
+  Conservative headline, the least-favourable quartile (p75) of the paired deltas: **-404 ms** per
+  invocation for a 3-field hook and **-194 ms** for a 2-field hook, which agrees independently with
+  the least-contended floor across 100 iterations (-394 ms / -192 ms). Medians run higher because
+  this host was running several agents concurrently (-1033 / -991 ms for 3 fields, -274 ms for
+  2 fields; -687 ms end-to-end across a whole `block-noncanonical-commit` invocation). Direction is
+  not in doubt: the converted arm was faster in 87-95% of paired iterations. No behavior change:
+  every hook's contract suite passes unchanged, the `// "Bash"` tool-name default moves to the
+  bash-side expansion (the `block-dangerous-git` pattern), and a jq failure still exits 0 through the
+  same empty-field guard it always did.
+- `hardcoded-path-check` and `secret-pattern-detection` now serialize the per-tool content field in
+  the same call as the tool name, i.e. BEFORE the file-path exclusions and the `git check-ignore`
+  skip that used to precede it. Deliberate: the payload is already buffered in memory, so the
+  marginal cost on a skipped write is one copy out of jq, traded against one fewer process on every
+  path — and process creation, not jq's parse, is what costs on this host.
+- `skill-reference-verify` and `stale-path-verify` keep `replace_all`'s `// false | tostring` INSIDE
+  the jq filter. `hook::jq_fields` wraps each filter in `// ""`, and jq's `//` treats the boolean
+  `false` as empty — a bare `.tool_input.replace_all` would come back `""` instead of `"false"`.
+
+## [0.23.0]
+
+**Note on the version bump.** MINOR rather than patch, on the same test 0.22.1 applied: does the
+change alter what the guard reports on? It does, in one direction. `RECONSTRUCT_MAX_CHARS` is now
+read as BYTES rather than characters (see the docblock at `skill-reference-verify.sh`), so a large
+multibyte file that previously fit under the character cap can now exceed the byte cap and skip
+reconstruction. That is a narrowing a consumer can observe, so it does not belong in a patch
+release — even though the locale pin itself is a fix and the rest of the entry is a relabel.
+
+### Fixed
+
+- **`skill-reference-verify`'s partial-edit reconstruction ran in the consumer's ambient locale,
+  so its matcher semantics and its cost were whatever the invoking shell happened to be set to.**
+  Every search the reconstruction performs is LITERAL, but bash's `%%` pattern strip DECODES
+  rather than compares under a multibyte locale, so the same scan is charged roughly 6.5x for a
+  decode it never uses. Measured on a lightly-loaded Windows/Git Bash host (bash 5.3, 32 logical
+  cores at ~18%), one no-match scan costs 0.054 s at 32 KiB / 0.221 s at 64 KiB / 0.880 s at 128 KiB
+  under `LC_ALL=C`, against 0.395 s / 1.447 s / 5.786 s under `en_US.UTF-8`. The function now pins
+  `local +x LC_ALL=C` for its own scanning, which makes both its cost and its matcher independent
+  of the caller. No wall-clock bound is claimed from those figures — the ratio is the finding.
+
+  The `+x` is load-bearing rather than incidental. A plain `local LC_ALL=C` inherits the export
+  attribute whenever the consumer exported `LC_ALL`, which pushes the pin into the `grep`/`sed`
+  children; `[[:space:]]` admits some non-ASCII spaces under a UTF-8 locale but never under C, so
+  an exported pin silently drops a reference whose argument separator is one of them. That costs
+  detection and buys nothing: the entire ~6.5x is bash's own matcher, and `grep -oE` over the same
+  64 KiB measured 0.139 s under BOTH locales. Un-exported, the children keep running in the
+  caller's locale exactly as before — verified identical on Git Bash (Cygwin 3.6.9, bash 5.3) and
+  on Linux (glibc 2.39, bash 5.2), which is what rules out a platform-specific `+x` semantic.
+
+  WHICH non-ASCII spaces qualify is the host C library's table and is not portable: glibc dropped
+  U+00A0 and U+202F from `space` in 2.26, while Cygwin/MSYS still classifies them; U+3000 and
+  U+2028 are admitted by both. The regression case therefore DISCOVERS a separator the host
+  actually classifies differently between the two locales instead of hardcoding one — an earlier
+  revision hardcoded U+00A0, which passed on Windows and failed on Linux CI because it asserted a
+  libc's classification rather than this hook's behavior. If no candidate discriminates, the case
+  reports a loud, reasoned skip naming the platform rather than passing quietly.
+
+### Changed
+
+- **The reconstruction cost curve in `skill-reference-verify` is now labelled with the locale it
+  was measured in.** The published figures (0.07 s at 32 KiB … 3.94 s at 256 KiB) match the
+  C-locale column, but the hook did not then run in the C locale, so the table described a locale
+  the code never used. The pin above makes C the actual locale, so the figures are re-labelled
+  rather than re-measured; a re-check on a second host of the same shape read 0.054 s / 0.221 s /
+  0.880 s / 3.410 s at 32 / 64 / 128 / 256 KiB.
+
 ## [0.22.1]
 
 ### Fixed

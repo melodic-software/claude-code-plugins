@@ -3,6 +3,189 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.51.9]
+
+### Fixed
+
+- **`babysit_merge` no longer drops required status contexts when more than one ruleset governs the
+  base branch.** `branch_rules` assigned `requiredContexts` inside its loop over
+  `repos/{repo}/rules/branches/{branch}`, but that endpoint returns one rule of a given type PER
+  RULESET, so each `required_status_checks` rule overwrote the previous one and only the last
+  survived. On a branch governed by two rulesets this reported one of four required contexts,
+  under-reporting `effectiveRules` and the "required checks not satisfied" blocker. The single-rule
+  assumption was correct under classic branch protection, which has exactly one such rule, and does
+  not hold under rulesets. Contexts are now unioned across all rules, deduped (two rulesets may
+  legitimately require the same context) and sorted (stable regardless of the order rulesets are
+  returned in). An entry carrying no `context` is dropped rather than surfacing as a literal `None`
+  required context. Not a merge-safety hole: the gate refuses independently on `mergeStateStatus`,
+  which GitHub computes from all required checks. Its one safety-adjacent effect ran in the
+  over-holding direction — `baseUnprotected` is true when the context list is empty, which under
+  the bug meant "the LAST status-checks rule is empty" and now means "ALL of them are", a subset —
+  so the bug produced a false hold on a superset of cases and never retired one. Latent on this
+  repository, where neither ruleset carries an empty context list.
+- **`pull_request` rules are folded across rulesets too.** Same assign-in-loop shape, same
+  function. `requiredApprovingReviews` now takes the max and `requireThreadResolution` the OR — the
+  fail-closed direction whatever GitHub's own composition rule is, since max/OR can only
+  over-report and hold a PR for a human, where last-wins can under-report and release one. This
+  one could lose a blocker outright: a trailing rule with `required_approving_review_count: 0`
+  erased an earlier ruleset's requirement and dropped the "needs N approving review(s)" hold. Not
+  observed — one such rule governs the branch today. The count fold is a behaviour change; the
+  boolean is report-only, never consumed as a blocker. The count also distinguishes an ABSENT
+  `required_approving_review_count` (the rule requires no reviews — zero) from one present but
+  unreadable (`null`, `""`, `0.0`, `[]`, `{}` — a requirement is stated and its size is unknown, so
+  it counts as one). Collapsing a falsy non-int to zero would be the single fail-open step in a
+  fold whose guarantee is that it may only ever over-report.
+
+## [0.51.8]
+
+### Fixed
+
+- **`skills/pull-request/reference/readiness.md` no longer documents a `check-runs` query that
+  silently truncates.** Gate 1's codex-verification command called
+  `repos/{owner}/{repo}/commits/<sha>/check-runs` with no pagination. The endpoint returns 30 per
+  page by default and reports nothing when it truncates, so on any PR carrying more than 30 check
+  runs the command answers "is check X present?" with a silent *no* for every check that landed on
+  a page the caller never fetched — indistinguishable from a check that never attached. Observed on
+  this repo: three separate heads returned `total_count=33, returned=30`, dropping
+  `do-not-merge / do-not-merge` — a required status context — every time, and a reader concluded
+  the context never attaches. It attached and was green on all three. The command now uses
+  `--paginate` with `per_page=100`, matching the form
+  `skills/pull-request/scripts/fetch-annotations.sh` already used. Pagination alone only moves the
+  cliff to 100, so the gate also documents a completeness assertion — `total_count` against the
+  flattened count across every page — and names the trap that makes the naive assertion wrong:
+  `--jq` runs per page, so `.check_runs | length` reports one page at a time and must be slurped
+  before comparing. The rule is hoisted out of Gate 1 into a `Reading GitHub list APIs` section,
+  because it governs every gate in the file rather than one command.
+- **The per-page `--jq` trap is stated as its own rule, and Gate 5 no longer breaks it.** With
+  `--paginate`, `gh` applies `--jq` to each page *separately*, so any expression that folds a whole
+  list — `length`, `sort_by`, `add`, `max`, `group_by` — silently answers per page. Element-wise
+  filters are safe because their results concatenate; folds are not. Gate 5's codex-comment count
+  was itself an instance: `--jq '[…] | length'` over four pages printed `10 10 10 3` instead of
+  `33`. It now slurps the page stream with `jq -s` and flattens with `.[][]`, and the rule sits
+  beside the other two rather than being buried in the completeness-assertion prose.
+- **Every documented PR comment and review read is paginated, and the positional-index reads are
+  gone.** The same 30-per-page default governs `issues/<pr>/comments`, `pulls/<pr>/comments`, and
+  `pulls/<pr>/reviews`, all of which return **oldest-first** — so an unpaginated read drops the
+  newest items, which on a PR being monitored are the only ones that matter. Corrected in
+  `readiness.md` (comment-only actor discovery, bot-actor discovery, the codex-comment count at
+  HEAD, and Gate 4's three reads) and `skills/pull-request/reference/monitor.md` (all three
+  review-surface polls; the reviews poll filters `submitted_at` client-side, which made pagination
+  load-bearing there rather than merely tidy).
+- **`reference/review-discipline.md` and `skills/pull-request/SKILL.md` no longer verify a reply
+  with `.[-1]`.** This shape is worse than truncation: it does not omit, it answers. On an
+  unpaginated oldest-first list `.[-1]` is the **30th-oldest** comment, so D7's "did my follow-up
+  post?" check passes or fails on someone else's comment. Measured on this repo: issue #657 (33
+  comments) returned a comment timestamped 11.5 hours before the actual latest; #502 (31) returned
+  the second-newest. Both call sites now paginate and select on the fix SHA, so the query states
+  what it is asserting and cannot be satisfied by the wrong record. The inline-reply verifications
+  filtered by `in_reply_to_id` are paginated for the same reason.
+- **D7's follow-up verification is constrained on the posting identity, not just the SHA.** Selecting
+  on SHA-in-body alone proves the SHA was *mentioned*, not that you posted it — a reviewer quoting
+  the fix commit, or a bot restating it, satisfies the selector while your own failed write goes
+  unnoticed. That is the same failure shape as the `.[-1]` bug it replaced: a plausible positive
+  instead of a real presence signal, on a control gate an autonomous agent acts on. Both copies of
+  the checklist step now pin `.user.login` as well. Rule 2 gains the general form: where a query is
+  a control gate, ask what else could satisfy the selector and constrain that too — one property is
+  usually not enough.
+
+## [0.51.7]
+
+### Fixed
+
+- **`worktree_create_gate_enabled` could not be turned off.** `hooks/worktree-create-gate.sh`
+  reads `CLAUDE_PLUGIN_OPTION_WORKTREE_CREATE_GATE_ENABLED` and names the option in its own skip
+  message, but the option was never declared in `.claude-plugin/plugin.json`. Claude Code exports
+  `CLAUDE_PLUGIN_OPTION_<KEY>` only for **declared** options, so the variable was never set, the
+  hook's `:-true` fallback always won, and the gate ran unconditionally. Setting the option
+  produced no effect and no error — the failure was silent in both directions. The declaration is
+  now present with `default: true`, so behaviour is unchanged for anyone who does not set it, and
+  the documented routes for setting it now work.
+
+## [0.51.6]
+
+### Changed
+
+- **`skills/worktree`: the pre-compute constraint is grounded in the documented isolation checks
+  instead of one observed refusal (#2176).** The SKILL had recorded, from #1619, that "a
+  worktree-isolated agent refuses a git-bearing compound command" — true, but stated as an incident,
+  which invites a future author to test whether it still holds and fold the calls back. Claude Code
+  v2.1.224 documented the enforcement, so the constraint now cites it: an isolated session is screened
+  by three checks — main-checkout file edits, a command whose working directory resolves there, and a
+  git redirect into it "whether through `git -C`, `--git-dir`, a `GIT_DIR` or `GIT_WORK_TREE`
+  variable, or a `cd` into the main checkout before running git" — and both command-level checks fail
+  closed, since "Claude Code also blocks a command it can't verify stays inside the worktree"
+  (`code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation`, fetched 2026-08-10). That
+  reframes the refusal: an unverifiable compound command is blocked on the same footing as one that
+  would really have reached the main checkout, so no amount of narrowing the commands makes the
+  pre-compute block safe again. Two adjacent facts are recorded with it — the enforcement "covers
+  every subagent Claude spawns from the isolated session", interactive or background, so delegation
+  does not escape it; and "For PowerShell commands, Claude Code applies only the working-directory
+  check", noted as narrower coverage rather than as a sanctioned route around the git-redirect check.
+
+## [0.51.5]
+
+### Fixed
+
+- **Shared `hook-utils.sh`: `hook::jq_fields` now REPORTS a NUL byte in a payload value
+  (#2122).** 0.51.2 stopped a NUL from failing the helper's cardinality check, by stripping every
+  NUL out of each value. That keeps the helper working, but stripping also silently rewrites the
+  value — `--no-verify<NUL>x` arrives as `--no-verifyx` — so a caller that owns a block/allow
+  verdict cannot tell a clean payload from one that carried a NUL, and matches against a token the
+  payload never held contiguously. The fact is now reported in a new `HOOK_JQ_FIELDS_NUL` global,
+  set on EVERY call including every failure path, so such a caller can fail closed on its own terms.
+  It is computed from the values as the payload carried them, BEFORE the strip; strip first and the
+  flag would read "0" on every payload. Values themselves are unchanged — still stripped, so a
+  scanning caller still sees everything after the NUL. This plugin's own hooks do not consult the
+  new global, so their behaviour is unchanged. Synced from `lib/hook-utils.sh`.
+
+## [0.51.4]
+
+### Fixed
+
+- **`exec-bit-check.sh` no longer skips a copy destination whose source was never executable
+  (#2118).** `R*` and `C*` shared one `src_mode == "100755"` gate, so a copy off a `100644` shebang
+  source went unreported — while the *identical staged content* under `diff.renames=false` reports
+  as `A` and IS reported. That config-dependence is the exact failure the candidate set was widened
+  in #1590/#2098 to remove. The two statuses are not symmetric and no longer share a predicate: a
+  rename destination is the same tracked file at a new path, so a `100644` source means nothing
+  dropped a bit and the rename arm keeps its gate; a copy destination is a path that did NOT
+  previously exist, so it is newly added, squarely inside this check's scope, and the copy arm now
+  gates on nothing and defers to the `100644`-plus-shebang filter exactly as `A` does. Consequence
+  worth naming: copying a deliberately non-executable shebang library is now reported under
+  `diff.renames=copies`. That is not a new trade — creating one, or copying one under any other
+  `diff.renames` setting, is already reported through the `A` branch; the change makes the opt-in
+  copy-detection configuration agree with the default rather than adding a class of finding.
+
+## [0.51.3]
+
+### Fixed
+
+- **Shared `hook-utils.sh`: `env -S` / `--split-string` no longer hides a whole command from the
+  git guards (#2124).** `-S` exists so a shebang line can pass OPTIONS to env
+  (`#!/usr/bin/env -S -i prog`), so the words it splits out are env's own arguments. The resolver
+  spliced them back into the scan but resumed at the COMMAND dispatcher, which read a leading
+  option in the split string as the command NAME and gave up — `env -S '-C <dir> git push --force'`
+  resolved to no git at all, so every guard built on `hook::git_resolve_index` skipped the command
+  unexamined. Parsing now resumes inside env's own option loop. That also keeps env's single chdir
+  slot last-wins across the splice, so `env -C a -S '-C b git …'` reports `b`, matching GNU env.
+  Synced from `lib/hook-utils.sh`.
+
+## [0.51.2]
+
+### Fixed
+
+- **Shared `hook-utils.sh`: a NUL byte inside a payload value no longer makes `hook::jq_fields`
+  come back empty (#2120).** The helper delimits its batched fields with NUL, and a JSON string may
+  legitimately encode one — a `Write`/`Edit`/`NotebookEdit` content field can. jq emitted the raw
+  byte, the read split that value in two, the cardinality check saw one value too many, and the
+  helper returned non-zero — which every caller treats as "skip", so the hook exited without doing
+  its work. Each value is now NUL-stripped INSIDE the jq filter, so the delimiter provably cannot
+  occur in a value. Stripping is not a lesser alternative to an encoding scheme, it is the only
+  representable behavior: a bash variable cannot hold a NUL byte, and the per-field command
+  substitution this helper replaced dropped the byte and kept the rest of the value — so content
+  AFTER a NUL is returned and scanned exactly as it was before the batching. Synced from
+  `lib/hook-utils.sh`.
+
 ## [0.51.1]
 
 ### Fixed

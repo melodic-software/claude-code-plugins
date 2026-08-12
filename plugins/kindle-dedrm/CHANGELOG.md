@@ -3,6 +3,25 @@
 All notable changes to the `kindle-dedrm` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.1]
+
+### Changed
+
+- **`/kindle-dedrm:manage`'s trigger phrases are now single-quoted.** All eight
+  (`'set up Kindle DRM removal'`, `'remove DRM from Kindle books'`,
+  `'extract keys from my Kindle library'`, `'sync new Kindle books I bought'`,
+  `'check if DeDRM setup is current'`, `'clean up Kindle DRM tools'`, `'undo DeDRM setup'`,
+  `'convert Kindle books to EPUB'`) were written with escaped double quotes, which the skill-quality
+  gate's trigger-drop protection does not track — so none of them carried regression cover. Quoting
+  only; the wording is unchanged.
+
+  `'set up Kindle DRM removal'` is deliberately kept here even though the sibling
+  `/kindle-dedrm:setup` also lists it. That looks like a routing ambiguity, but `setup` is
+  `disable-model-invocation: true` — its description is never matched against user text — so
+  `manage` is the only skill that can receive the phrase by model invocation, and its action router
+  delegates to `/kindle-dedrm:setup` from there. Dropping the duplicate would make the phrase
+  reachable only by an explicit slash command.
+
 ## [0.7.0]
 
 ### Removed

@@ -3,19 +3,37 @@
 Live-validation probe shapes the guardrail slice runs INSIDE a candidate isolation boundary
 before binding it. `<...>` placeholders resolve from the detected substrate at wire time; no
 org, fleet, or vendor value is baked in — substrate/tool names appear only as marked examples.
-Every recipe runs the SAME two assertions the [isolation-ladder leaf](../../../reference/guardrails/isolation-ladder.md)
-requires of an `L2` boundary — denied egress and absent host credentials — and both MUST fail
-for the boundary to bind. A probe that any assertion PASSES (egress succeeded, a credential was
-readable) proves the boundary is not `L2`; the binding does not land.
+Every recipe runs the SAME three assertions the [isolation-ladder leaf](../../../reference/guardrails/isolation-ladder.md)
+requires of an `L2` boundary — denied egress, absent host credentials, and contained workspace
+host-writes — and all three MUST fail for the boundary to bind. A probe that any assertion PASSES
+(data flowed from the origin, a credential was readable, an inner write reached the host) proves the
+boundary is not `L2`; the binding does not land.
 
 ## Assertions (all substrate classes)
 
-Two checks, run inside the boundary, both expected to FAIL:
+Three checks, run inside the boundary, all expected to FAIL:
 
 | Assertion | Runs | Expected result |
 |---|---|---|
-| Denied egress | a network fetch to `<well-known-external-host>` | connection/DNS refused or timed out — NON-zero exit |
+| Denied egress | a TLS fetch of two `<well-known-external-host>` targets under different operators | no origin peer answered — NON-zero exit, and no in-boundary peer identity matching the outer context's |
 | Absent host credentials | a read of `<host-credential-path>` | file absent, or read denied — NON-zero exit |
+| Contained workspace host-writes | randomized canary writes into the workspace mount, re-checked on the host after teardown | every canary still absent on the host, and the VCS control-plane digest unchanged |
+
+**Why the egress assertion tests peer identity, not reachability.** Two boundary behaviors defeat an
+exit-code test, and both were observed live rather than theorized. A raw TCP `connect()` SUCCEEDS
+where an interception layer accepts the SYN and then drops the session — so "connection refused" is
+the wrong thing to require. And a policy block page is still a valid HTTP response, so a fetch client
+can exit `0` against a fully sealed boundary. Certificate VALIDITY does not settle it either: an
+organization that trusts a TLS-inspection CA inside the boundary makes an interceptor verify cleanly.
+Peer IDENTITY does settle it — an interceptor cannot present the origin's own key, so an in-boundary
+fingerprint that MATCHES the outer context's means the origin itself answered, which is reached
+egress.
+
+**Why the workspace assertion is proven from the outer side.** Substrates disagree about whether the
+inner write should succeed: a read-only mount rejects it, a clone-mode mount accepts it and discards
+it. Both are contained. Asserting on the inner exit code would grade the second one wrongly, so the
+assertion constrains only what the HOST can see afterward, and the inner exit code is recorded as
+evidence rather than tested.
 
 `<well-known-external-host>` is a durable public endpoint chosen at wire time (a marked example:
 a public DNS resolver's address, or a well-known example domain). `<host-credential-path>` is a
@@ -33,16 +51,65 @@ trusted-root values bind per the deployment's secret-binding classification.
 
 ## Egress-denial probe shape
 
-First prove the target reachable from the OUTER context (a target that fails everywhere — an
-unregistered name, a dead host — "fails" inside too and proves nothing), then run the same fetch
-INSIDE the boundary and assert non-zero exit:
+Three properties have to hold together, because each one alone is satisfiable by a boundary that is
+not `L2`.
+
+**The client must be shown to run.** A boundary with no working fetch tool denies nothing, yet a
+missing tool is indistinguishable from a sealed network by exit code alone — so the emptiest possible
+boundary would otherwise score best. Prove the client runs before believing anything it reports.
+
+**At least two targets, under different operators.** One denied destination is fully consistent with
+a policy that allows others; a kit installed on top of a global deny-all can add its own allow rule.
+
+**Each target must be reachable from the OUTER context first.** A target that fails everywhere — an
+unregistered name, a dead host — "fails" inside too and proves nothing. This is why the targets are
+well-known hosts rather than unguessable ones: unguessability and outer-reachability cannot both hold
+over DNS, and outer-reachability is what makes the inner failure mean something.
 
 ```sh
-# probe (outer context): the target must be reachable — record this exit as outer_exit_code
+# readiness (inside the boundary): the client itself must work — record as client_ready
+<fetch-command> <in-boundary-endpoint> ; test $? -eq 0 || fail "the probe client does not run inside the boundary — an absent client would satisfy every egress assertion trivially"
+# probe (outer context), per target: must be reachable — record exit as outer_exit_code and the
+# peer certificate fingerprint as outer_peer_fingerprint
 <fetch-command> <well-known-external-host> ; test $? -eq 0 || fail "cannot reach <well-known-external-host> from the outer context — an unreachable target cannot evidence a boundary"
-# probe (inside the boundary): egress must be denied
-<fetch-command> <well-known-external-host> ; test $? -ne 0 || fail "egress reached <well-known-external-host> — boundary is not L2"
+<peer-fingerprint-command> <well-known-external-host>
+# probe (inside the boundary), per target. Run the client in fail-on-HTTP-error mode so a policy
+# block page is not counted as a successful transfer — but do NOT stop on a zero exit, because a
+# block page carrying a SUCCESSFUL status also exits 0 and that boundary is sealed. The exit is
+# evidence; the peer identity is the verdict.
+<fetch-command> --fail-on-http-error <well-known-external-host> ; record exit as exit_code
+<peer-fingerprint-command> <well-known-external-host>   # record as inner_peer_fingerprint, or "none"
+# the verdict, evaluated for every target regardless of exit code
+test "<inner_peer_fingerprint>" != "<outer_peer_fingerprint>" || fail "the origin's own peer identity answered inside the boundary — this is reached egress, not interception"
 ```
+
+A zero exit is therefore accepted ONLY where that target's `transport_outcome` is `peer-substituted`
+and its two fingerprints differ. Everywhere else a non-zero exit is still required, so the exception
+cannot be claimed to excuse a target that simply succeeded.
+
+**Two capture requirements, both learned from a boundary that defeated the naive form.**
+
+`<peer-fingerprint-command>` MUST be proxy-aware — it has to obtain the certificate through whatever
+path the boundary routes traffic over. A direct-TLS tool cannot traverse an HTTP `CONNECT` proxy and
+reports NO peer at all, identically for a sealed boundary and a wide-open one, so an unaware capture
+silently records "no peer" and proves nothing. Use the fetch client's own certificate output, since
+it is the component that already speaks the boundary's egress path.
+
+Certificate VALIDITY must not be substituted for the comparison. On a measured boundary the
+interception layer presented a certificate carrying the CORRECT hostname, signed by a CA the boundary
+trusted: hostname matching passed and verification returned success, so a verification-based test
+graded a fully sealed boundary as reached egress. Only the peer's IDENTITY — its fingerprint, differing
+from the outer context's — distinguished the two.
+
+Record HOW each target was denied as `transport_outcome`, one entry per target:
+`dns-unresolved` · `connect-failed` · `tls-failed` · `peer-substituted`. There is deliberately no
+token for a completed handshake with the origin's own identity, because that is egress and cannot be
+recorded as a pass. `outer_peer_fingerprint` and `inner_peer_fingerprint` are required for a
+`peer-substituted` target (the comparison IS the proof) and are the literal `none` elsewhere.
+
+Record the address families exercised as `address_families` (`ipv4` · `ipv6`). A boundary sealed on
+one family and open on the other passes an unrecorded probe, so the families are recorded rather than
+inferred, and an unexercised family is never counted as denied.
 
 `<fetch-command>` is the substrate's available client (marked example: an HTTP client CLI with a
 short connect timeout so a denied boundary fails fast rather than hanging).
@@ -76,9 +143,49 @@ which a fully reachable service returns for an incomplete request (a missing req
 wrong api-version). Record HOW each probe failed as `transport_outcome`: `connect-failed` for a
 metadata endpoint, `read-denied` for a file or env-token read.
 
+## Workspace host-write containment probe shape
+
+The ladder's levels describe the PROCESS boundary. The workspace mount is a deliberate hole through
+it, and nothing else in this recipe measures it — a substrate can fail both other assertions cleanly
+while the agent still writes files the HOST later executes. `.git/config` is the documented instance:
+it is a command key ring, and `core.fsmonitor` executes host code on a read-only-looking `git status`.
+
+Snapshot the host first, write randomized canaries from inside, tear the boundary down, then re-check
+the host:
+
+```sh
+# outer, pre: every canary must be ABSENT on the host first — record each exit as host_pre_absent
+<outer-absence-check> <workspace-host-path>/<canary> ; test $? -eq 0 || fail "canary already present on the host — its later absence would prove nothing"
+<digest-command> <workspace-host-path>/.git/config    # record as git_config_digest_pre, or the literal "absent"
+# inner: write each canary, and append to the VCS control plane — record inner_exit_code, do NOT assert on it
+<write-command> <workspace-mount>/<canary>
+<append-command> <workspace-mount>/.git/config
+# TEAR THE BOUNDARY DOWN, then re-check the host
+<outer-absence-check> <workspace-host-path>/<canary> ; test $? -eq 0 || fail "an inner write reached the host workspace — the mount carries host-executing writes"
+<digest-command> <workspace-host-path>/.git/config    # record as git_config_digest_post; must EQUAL pre
+```
+
+`<canary>` names are RANDOMIZED per run and span at least three shapes — an ordinary file, a dotfile,
+and a `.git/`-relative path. Randomization defeats a substrate that special-cases a known probe path;
+the shape set covers hidden-file handling and the control plane that a single literal path would miss.
+Canonicalize both sides before comparing, so a case-folding or path-normalizing host filesystem
+cannot hide a landed write behind a differently-spelled name.
+
+The re-check runs AFTER teardown (`checked_after_teardown`), never immediately: a caching or
+asynchronously-flushed mount can propagate the write after an in-flight check has already looked.
+
+Where the host workspace path is not observable from the outer context — a hosted ephemeral executor
+whose storage the operator cannot inspect — record `outcome: "not-applicable"`. That leaves the level
+UNPROVEN. It is deliberately not a pass: a boundary nobody could observe is not a boundary anybody
+verified.
+
+**Scope, stated because the assertion's name has to earn it.** This proves host-WRITE containment
+only. It does not measure READ exposure, and a clone-mode workspace leaves reads fully open — so
+exfiltration of workspace contents is unaffected by a passing result.
+
 ## Per-substrate-class wrapping
 
-The two assertions are constant; only the wrapper that launches them inside the boundary changes
+The three assertions are constant; only the wrapper that launches them inside the boundary changes
 per substrate class. Each wrapper passes NO host environment and NO host secrets into the
 boundary, and each keeps the OUTER context normally networked so a passing assertion means the
 inner boundary — not a broken outer environment — denied egress.
@@ -100,7 +207,7 @@ inner boundary — not a broken outer environment — denied egress.
 ## Transcript capture shape
 
 Capture the run as the `probe_evidence` the level binding records — enough for a reviewer to
-confirm both assertions failed inside a boundary the run itself created:
+confirm all three assertions failed inside a boundary the run itself created:
 
 ```json
 {
@@ -111,8 +218,9 @@ confirm both assertions failed inside a boundary the run itself created:
   "substrate_class": "<container|os-sandbox|vm-microvm|hosted-ephemeral-executor>",
   "probed_at": "<iso-8601>",
   "assertions": {
-    "egress_denied": { "host": "<well-known-external-host>", "exit_code": "<non-zero>", "outer_exit_code": "0", "outcome": "denied" },
-    "credentials_absent": { "path": "<host-credential-path>", "host_expanded": "<host-expanded-path>", "exit_code": "<non-zero>", "outer_exit_code": "0", "transport_outcome": "<read-denied|connect-failed>", "outcome": "absent-or-denied" }
+    "egress_denied": { "host": "<well-known-external-host>,<second-target-different-operator>", "exit_code": "<non-zero>,<non-zero>", "outer_exit_code": "0,0", "transport_outcome": "<dns-unresolved|connect-failed|tls-failed|peer-substituted>,<...>", "outer_peer_fingerprint": "<fingerprint|none>,<...>", "inner_peer_fingerprint": "<fingerprint|none>,<...>", "client_ready": "0", "address_families": "<ipv4|ipv6>,<...>", "outcome": "denied" },
+    "credentials_absent": { "path": "<host-credential-path>", "host_expanded": "<host-expanded-path>", "exit_code": "<non-zero>", "outer_exit_code": "0", "transport_outcome": "<read-denied|connect-failed>", "outcome": "absent-or-denied" },
+    "workspace_host_write_contained": { "workspace_host_path": "<workspace-host-path>", "canaries": "<randomized-file>,<randomized-dotfile>,.git/<randomized>", "inner_exit_code": "<any>,<any>,<any>", "host_pre_absent": "0,0,0", "host_post_absent": "0,0,0", "git_config_digest_pre": "<digest|absent>", "git_config_digest_post": "<digest|absent>", "checked_after_teardown": true, "outcome": "contained" }
   },
   "outer_context_networked": true
 }

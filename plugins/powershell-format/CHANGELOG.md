@@ -3,6 +3,62 @@
 All notable changes to the `powershell-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.4]
+
+### Changed
+
+- **Carries the shared hook library's new `hook::is_enabled` predicate.** `hook::check_enabled`
+  exits the process when a plugin is gated off, which is correct for a hook but wrong for a
+  caller that must keep running afterward. The resolution is now also available as a predicate
+  that returns instead of exiting. No behaviour of this plugin changes; the version moves so
+  consumers receive the updated library.
+
+## [0.7.3]
+
+### Fixed
+
+- **Shared `hook-utils.sh`: `hook::jq_fields` now REPORTS a NUL byte in a payload value
+  (#2122).** 0.7.1 stopped a NUL from failing the helper's cardinality check, by stripping every
+  NUL out of each value. That keeps the helper working, but stripping also silently rewrites the
+  value — `--no-verify<NUL>x` arrives as `--no-verifyx` — so a caller that owns a block/allow
+  verdict cannot tell a clean payload from one that carried a NUL, and matches against a token the
+  payload never held contiguously. The fact is now reported in a new `HOOK_JQ_FIELDS_NUL` global,
+  set on EVERY call including every failure path, so such a caller can fail closed on its own terms.
+  It is computed from the values as the payload carried them, BEFORE the strip; strip first and the
+  flag would read "0" on every payload. Values themselves are unchanged — still stripped, so a
+  scanning caller still sees everything after the NUL. This plugin's own hooks do not consult the
+  new global, so their behaviour is unchanged. Synced from `lib/hook-utils.sh`.
+
+## [0.7.2]
+
+### Fixed
+
+- **Shared `hook-utils.sh`: `env -S` / `--split-string` no longer hides a whole command from the
+  git guards (#2124).** `-S` exists so a shebang line can pass OPTIONS to env
+  (`#!/usr/bin/env -S -i prog`), so the words it splits out are env's own arguments. The resolver
+  spliced them back into the scan but resumed at the COMMAND dispatcher, which read a leading
+  option in the split string as the command NAME and gave up — `env -S '-C <dir> git push --force'`
+  resolved to no git at all, so every guard built on `hook::git_resolve_index` skipped the command
+  unexamined. Parsing now resumes inside env's own option loop. That also keeps env's single chdir
+  slot last-wins across the splice, so `env -C a -S '-C b git …'` reports `b`, matching GNU env.
+  Synced from `lib/hook-utils.sh`.
+
+## [0.7.1]
+
+### Fixed
+
+- **Shared `hook-utils.sh`: a NUL byte inside a payload value no longer makes `hook::jq_fields`
+  come back empty (#2120).** The helper delimits its batched fields with NUL, and a JSON string may
+  legitimately encode one — a `Write`/`Edit`/`NotebookEdit` content field can. jq emitted the raw
+  byte, the read split that value in two, the cardinality check saw one value too many, and the
+  helper returned non-zero — which every caller treats as "skip", so the hook exited without doing
+  its work. Each value is now NUL-stripped INSIDE the jq filter, so the delimiter provably cannot
+  occur in a value. Stripping is not a lesser alternative to an encoding scheme, it is the only
+  representable behavior: a bash variable cannot hold a NUL byte, and the per-field command
+  substitution this helper replaced dropped the byte and kept the rest of the value — so content
+  AFTER a NUL is returned and scanned exactly as it was before the batching. Synced from
+  `lib/hook-utils.sh`.
+
 ## [0.7.0]
 
 ### Removed

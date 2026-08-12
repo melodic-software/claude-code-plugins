@@ -61,8 +61,10 @@ Dispatch rules:
    isolation is the mechanism; briefing an agent on the song destroys the divergence it exists to
    produce. This is a hard boundary, not a default.
 3. **Each agent writes to its own file** under the song's `ideation/` (per
-   [artifact-persistence](../../context/pat-pattison/research/artifact-persistence.md)) and returns
-   a path plus a sense-inventory summary. Never ask an agent to return the write in a message.
+   [artifact-persistence](../../context/pat-pattison/research/artifact-persistence.md)). It returns
+   only three things: the path, the seven channels each graded `strong` / `thin` / `absent`, and
+   one sentence on where the pivot chain landed. The write itself and the phrase-quoting sense
+   inventory live in the file — never ask an agent to return either in a message.
 4. **Grade coverage on return**, then mine. Read each file, honor thin-channel reports rather than
    overruling them, and pull individual images forward. Mining stays here because you hold the song
    context the writers deliberately lack.

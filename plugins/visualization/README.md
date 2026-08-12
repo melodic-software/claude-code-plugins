@@ -39,10 +39,10 @@ different concern. This skill is form-driven (render content as a visual), not
 comprehension-driven.
 
 ```shell
-/visualize                          # infer the target, auto-decide form and medium
-/visualize this as a sequence       # honor a named form
-/visualize file                     # render richer forms as a local HTML file, never published
-/visualize artifact                 # prefer a published Artifact when that surface is available
+/visualization:visualize                          # infer the target, auto-decide form and medium
+/visualization:visualize this as a sequence       # honor a named form
+/visualization:visualize file                     # render richer forms as a local HTML file, never published
+/visualization:visualize artifact                 # prefer a published Artifact when that surface is available
 ```
 
 ## Surfaces and availability
@@ -85,3 +85,60 @@ its own.
   maintained security posture (a self-hosted AntV deployment is the current
   candidate) — until then the skill relies only on native rendering surfaces and
   the presence-gated craft capabilities.
+
+<!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
+
+### Options reference
+
+Generated from this plugin's `.claude-plugin/plugin.json`. Every option Claude Code
+will prompt for when the plugin is enabled, with the environment variable each hook
+reads it from.
+
+| Option | Type | Default | Environment variable | Description |
+| --- | --- | --- | --- | --- |
+| `medium` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_MEDIUM` | Preferred delivery medium when the skill auto-selects. One of: 'auto' (decide by content and available surfaces), 'terminal' (always render inline, degrading richer forms to their best terminal approximation), 'file' (render richer forms as a self-contained local HTML file, never published off the machine), 'artifact' (prefer a published Artifact when that surface is available, else fall back to a local HTML file, else terminal). An unrecognized value is reported and treated as 'auto'. |
+
+### How to set these
+
+Three supported routes, in the order most people want them:
+
+1. **Interactively** — Claude Code prompts for declared options when you enable the
+   plugin. To change them later: `/plugin configure visualization`.
+2. **Headless, at install time** — repeat `--config` for each option. Replace
+   `<marketplace>` with the marketplace you installed this plugin from:
+
+   ```shell
+   claude plugin install visualization@<marketplace> --config medium=<value>
+   ```
+
+3. **By hand, in settings** — add the value under `pluginConfigs` in your **user**
+   settings (`~/.claude/settings.json`):
+
+   ```json
+   {
+     "pluginConfigs": {
+       "visualization@<marketplace>": {
+         "options": {
+           "medium": <value>
+         }
+       }
+     }
+   }
+   ```
+
+   Plugin option values are read from **user**, `--settings`, and managed settings
+   only — **not** from a project's `.claude/settings.json`. To vary behavior per
+   repository, enable or disable the plugin in that project's `enabledPlugins`
+   instead of setting an option there.
+
+Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself. They are how Claude Code
+hands a configured value to a hook process; the value comes from the routes above.
+
+### Upstream documentation
+
+- [User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration) — the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
+- [Plugin settings](https://code.claude.com/docs/en/settings#plugin-settings) — `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
+- [Configuration scopes](https://code.claude.com/docs/en/settings#configuration-scopes) — user vs project vs local precedence
+- [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins) — enabling, disabling, `/plugin list`
+
+<!-- END GENERATED: plugin options -->

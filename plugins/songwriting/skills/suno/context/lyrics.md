@@ -30,6 +30,8 @@ Place each on its own line at the start of the section.
 | `[Guitar Solo]`, `[Piano Solo]`, `[Drum Solo]`, `[Bass Solo]`, `[Saxophone Solo]`, `[Synth Solo]` | Instrument-specific solos |
 | `[Spoken Word]` | Recited rather than sung |
 
+`[Fade Out]` is attested; **`[Fade In]` is not** — no source states it. It is kept because nothing places it outside the recognized set, but do not assume it carries the same backing as `[Fade Out]`.
+
 ## Vocal delivery tags
 
 Place before sections, after section tags, or inline as `(parenthetical)` cues. For inline use, keep cues to 1-3 words — longer phrases get sung as lyrics.
@@ -135,9 +137,9 @@ Empirical community consensus: **4-7 descriptors per `[Tag: ...]` block** produc
 - **4-7 elements** → sweet spot, model has clear direction without internal conflict
 - **8+ elements** → "muddy results where descriptors compete," model picks subset randomly
 
-### Recognized core section labels (HIGH reliability in v5.5)
+### Recognized core section labels (HIGH reliability in v5.5 except `[Fade In]`)
 
-Use ONLY these labels for structural section tags. Non-standard labels (`[Hook Variation]`, `[Synth Solo]`, `[Final Push]`) get parsed as sung lyrics text, not structure.
+Use these labels for structural section tags. Non-standard labels (`[Hook Variation]`, `[Final Push]`) get parsed as sung lyrics text, not structure. Instrument-specific solo labels are covered below.
 
 ```
 [Intro] [Verse] [Verse 1] [Verse 2] [Verse 3]
@@ -147,7 +149,9 @@ Use ONLY these labels for structural section tags. Non-standard labels (`[Hook V
 [Outro] [End] [Fade Out] [Fade In]
 ```
 
-For solos use `[Guitar Solo]`, `[Piano Solo]`, `[Drum Solo]`, `[Bass Solo]`, `[Saxophone Solo]`, `[Synth Solo]` — these are recognized.
+`[Fade In]` is retained as unverified; no source states it.
+
+For solos use `[Guitar Solo]`, `[Piano Solo]`, `[Drum Solo]`, `[Bass Solo]`, `[Saxophone Solo]`, `[Synth Solo]` — these are recognized. `[Synth Solo]` is community-attested (MEDIUM confidence); no source supports the claim that it is sung literally.
 
 For anything else, **describe via parameterized syntax** instead of inventing a new label:
 
@@ -161,7 +165,6 @@ For anything else, **describe via parameterized syntax** instead of inventing a 
 - **Override placed on wrong line** — must be on the `[Tag]` line itself, not on a lyric line below
 - **Ambiguous descriptors** — `[Verse: better]` does nothing. Be specific: `[Verse: piano only, no drums]`
 - **Lyric density mismatch** — `[Verse: piano only]` paired with 8 lines of dense lyrics gets ignored — model fills sonic space to support the vocal load. Either (a) shorter lyrics for sparse arrangements, or (b) more sonic descriptors to convince the model
-- **v4.5-era metatag formats** — `[Female Vocal]`, `[Whisper]`, `[Choir]` as structural tags broke in v5.5. Migrate to colon-descriptor form: `[Vocalist: Female]` or use parameterized section: `[Verse: female vocal, whispered, intimate]`. Plain section tags like `[Verse]`/`[Chorus]` still work standalone
 
 ### Brackets vs Parentheses — the v5.5 distinction
 
@@ -169,7 +172,7 @@ For anything else, **describe via parameterized syntax** instead of inventing a 
 |--------|---------|---------|
 | `[Section]` | **Structural label** — boundary marker, never sung | `[Verse]`, `[Chorus]`, `[Bridge]` |
 | `[Section: descriptors]` | **Parameterized section override** — also never sung, configures section behavior | `[Verse: piano only, no drums]` |
-| `(text)` | **Vocal delivery modifier** — never sung as text BUT triggers delivery changes (harmonies, whispers, echoes, ad-libs) | `(whispered)`, `(echo)`, `(ad-lib: ooh)` |
+| `(text)` | **Vocal delivery modifier** — short cues (1-3 words) are interpreted as performance directives, triggering delivery changes (harmonies, whispers, echoes, ad-libs); longer phrases get sung as lyrics | `(whispered)`, `(echo)`, `(ad-lib: ooh)` |
 
 Combine all three for arrangement-level precision:
 

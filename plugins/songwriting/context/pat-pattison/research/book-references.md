@@ -2,8 +2,35 @@
 
 Single source of truth for how Pat Pattison's four books are cited
 throughout this skill. Every context file references books by SHORT NAME +
-year. The short name is used inline; the full title appears in file
-headers.
+year. The short name is used inline and in file headers.
+
+## ⚠ WHAT "VERBATIM" COVERS — read this before auditing anything
+
+**Verbatim means the WORDS.** Reproduce Pat's examples, exercises, answer keys,
+tables and analysed lyrics exactly as printed: no paraphrase, no genericizing,
+no invented substitutes.
+
+**It does NOT mean punctuation glyphs.** ASCII `'` and `"` versus curly `’`
+`“` `”` are typography, not content. This repo is GitHub-flavored Markdown and
+either form is acceptable. The four books are not even consistent with each
+other — the 2009 EPUB prints ASCII apostrophes, the other three print curly.
+
+**Do not sweep, measure, audit, or open work items on punctuation glyphs.** A
+session was spent on exactly that before the owner ruled it out of scope. If a
+restoration reproduces the printed words, it is verbatim, full stop. Spend the
+effort on missing content, invented content, and wrong citations instead.
+
+**Two places deliberately carry a title longer than the short name — do not
+"normalize" either one:** this file's bibliographic table below, and the
+buy-the-books list in the plugin `README.md`. That list exists so a reader can go
+and purchase the books, which is the one job a short name does not do.
+
+This only affects the 1991 and 2014 books; the 2009 and 2011 short names *are*
+their full titles, so those two entries look identical everywhere. Note the
+README deliberately stops short of the full catalogue string for 1991: its
+`dc:title` is `Songwriting: Essential Guide to Lyric Form and Structure: Tools
+and Techniques for Writing Better Lyrics (Songwriting Guides)`, and the subtitle
+and series marker are dropped because they are not needed to find the book.
 
 ## Canonical short names
 
@@ -37,7 +64,7 @@ Every `context/*.md` file MUST have a header attributing source books:
 # <Concept name>
 
 Pat Pattison — *Essential Guide to Lyric Form and Structure* (1991),
-Chapter 4. Extended by *Essential Guide to Rhyming* (2014), Chapter 1-2.
+Chapter 4. Extended by *Essential Guide to Rhyming* (2014), Chapters 1-2.
 ```
 
 When a file synthesizes across multiple books, list them in chronological
@@ -90,6 +117,47 @@ Pat Pattison — *What's in a Song* podcast, "Creating Metaphors" episode
 
 Date when relevant. Citation includes the publication / platform first,
 then the title.
+
+## Vocabulary that is NOT in the four books
+
+**"Not in the books" and "not Pat's" are different claims. Do not collapse
+them** — an earlier version of this table did, and was wrong. Pat teaches
+outside the books too, and terms he coins in a column are still his.
+
+Each corpus count below was measured wrap-safe against the extracted text of all
+four books:
+
+| Term | Corpus hits | Status |
+| --- | --- | --- |
+| `front-heavy` / `back-heavy` | 0 | **Pat's own coinage**, outside the books — see below. Citable to the column, never to a book. |
+| `tone of voice` | 0 | Not located in any Pat source, book or column. Treat as plugin shorthand; never attribute to Pat. |
+| `central emotion` | 0 | **Do not use.** It truncates a real three-part phrase — see below. |
+
+`front-heavy` / `back-heavy` are Pat's, coined in his patpattison.com column
+"The Art of Phrasing" (fetched and read 2026-08-11,
+<https://www.patpattison.com/art-of-phrasing>), which defines both:
+
+> "We'll call phrases that start on the downbeat of a bar, or pick up to the
+> downbeat, front-heavy."
+> "We'll call phrases that start after the downbeat back-heavy."
+
+So the correct caveat on these two is **"not in the four books, cite the
+column"** — not "not Pat's". `phrasing.md` had this right before this table did.
+
+`central emotion` is a distortion rather than an invention, which is why sweeps
+for fabricated quotes kept missing it. Pat's actual sentence is:
+
+> The elements all join together to support the central intent, idea, and emotion
+> of the work. Everything fits. Prosody: the appropriate relationship between
+> elements.
+> — Pat Pattison, *Writing Better Lyrics* (2009), Chapter 18
+
+When the three-part idea is meant, write it in Pat's wording — "the central
+intent, idea, and emotion" — not the shortened "central emotion."
+
+A term being plugin-authored is not a defect and does not have to be removed.
+Presenting one **as Pat's** is the defect. `stable-unstable-meta.md` carries the
+worked example of the correction.
 
 ## Why this convention matters
 

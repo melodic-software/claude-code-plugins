@@ -123,6 +123,16 @@ MEDIUM confidence — works on 5/10 generations. Worth trying, regenerate if mis
 
 LOW-MEDIUM confidence. Use structural tags (`[Intro]`, `[Outro]`) as primary control; timing cues as secondary nudge.
 
+## Multilingual lyrics and diacritics
+
+This guidance is **community-empirical, not officially documented by Suno**:
+
+- Prefer one language per section when code-switching. Section-boundary changes are better attested than within-line switching.
+- Within-line Spanglish can work, but reports describe it as inconsistent. Treat it as an experiment, not a reliable controller.
+- Extend can drift into an unintended language. Re-state the intended language in the new lyrics and review the continuation before building on it.
+- Keep standard diacritics in lyrics and titles rather than stripping them defensively. Community reports support accented characters in lyrics, and Suno title display is Unicode-clean; official field behavior is undocumented.
+- An accented vowel can act as a stress cue for Spanish pronunciation. This is a community-attested technique, not a guarantee.
+
 ## Style-prompt micro-tricks
 
 ### Front-load the highest-priority tag
@@ -164,7 +174,7 @@ Don't change three things at once. Change mood OR instrumentation OR BPM, regene
 
 ### 3. Stem-first workflow for production
 
-Generate full track → export 12-track stems → polish in Logic / Ableton / Pro Tools. Suno is great at the rough mix; external DAW is great at the final 10%.
+Generate full track → Auto Split stem export (up to 12 stems; Pro / Premier) → polish in Logic / Ableton / Pro Tools. Suno is great at the rough mix; external DAW is great at the final 10%.
 
 ### 4. Persona library for cross-project consistency
 
@@ -192,13 +202,13 @@ For a sequel-sounding follow-up: reuse exact mood + key + BPM + production tags.
 
 ### 10. Voice cloning prep
 
-Best clone results from:
+**MEDIUM confidence — community-derived; Suno does not publish a recommendation for clip count or target length.** Best clone results from one continuous 90-120s acapella clip containing:
 
-- 3 acapella clips
-- Each 30-90 seconds
-- Across emotional range (gentle / mid / intense)
+- Gentle / quiet, mid-dynamic, and intense / belted passages across the emotional range
 - Same mic, same room, same distance
 - Clean room (treated or quiet)
+
+An earlier revision advised three separate clips; that guidance was deliberately retired in favor of the single varied clip, the only approach here with a stated mechanism: community reports say Suno's auto-selection favors the most-frequent dynamic, so variety within one clip beats several flat-dynamic clips.
 
 ## When to stop iterating
 

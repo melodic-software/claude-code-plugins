@@ -51,11 +51,7 @@ COMMON_DIR="$(git -C "$REPO_ROOT" rev-parse --path-format=absolute --git-common-
 [[ -z "$COMMON_DIR" ]] && COMMON_DIR="$(git -C "$REPO_ROOT" rev-parse --git-common-dir 2>/dev/null | tr -d '\r')"
 printf 'StashStore: %s\n' "${COMMON_DIR:-unknown}"
 
-DEFAULT_BRANCH="$(git -C "$REPO_ROOT" symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|^refs/remotes/origin/||' | tr -d '\r')"
-if [[ -z "$DEFAULT_BRANCH" ]] && command -v gh >/dev/null 2>&1; then
-  DEFAULT_BRANCH="$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null | tr -d '\r')"
-fi
-DEFAULT_BRANCH="${DEFAULT_BRANCH:-main}"
+DEFAULT_BRANCH="$(clean_default_branch "$REPO_ROOT")"
 
 # PR map (best-effort): source-branch → state, so a stash whose source branch was
 # merged can be flagged likely-superseded. Same batched gh call as the branch audit.

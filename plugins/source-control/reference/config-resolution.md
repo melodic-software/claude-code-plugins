@@ -25,9 +25,9 @@ Markdown, one `## <key>` H2 per key, the value as the section body:
 - `pr_title_pattern` — the PR-title shape, or the deferral marker spelled exactly
   `` Same as `subject_pattern`. `` (capital S, backticked key, trailing period). The match is literal:
   any other casing or punctuation is treated as a pattern in its own right.
-- `trailer_policy` — the attribution-trailer template, or `none`. Absent means the `/commit` default
+- `trailer_policy` — the attribution-trailer template, or `none`. Absent means the `/source-control:commit` default
   trailer applies.
-- `pr_body_attribution` — the attribution line `/pull-request create` appends to the PR body, or
+- `pr_body_attribution` — the attribution line `/source-control:pull-request create` appends to the PR body, or
   `none`. Absent means the default `🤖 Generated with [Claude Code](https://claude.com/claude-code)`
   line applies. This is the PR-body analogue of `trailer_policy`, and a separate key on purpose: the
   two govern different surfaces (a commit `Co-Authored-By:` trailer vs a Markdown PR-body line), so a
@@ -279,7 +279,7 @@ property of a Conventional-Commits-shaped pattern, so after the layers merge, an
 `type_list` is dropped whenever the *effective* `subject_pattern` is a custom regex — even when the
 layer supplying that pattern said nothing about `type_list`. A user-global `Conventional Commits`
 plus its type list, overridden by a team ticket-prefix regex, resolves to the team pattern with **no**
-`type_list`; retaining it per key would leave `/commit` pre-checking against a vocabulary the
+`type_list`; retaining it per key would leave `/source-control:commit` pre-checking against a vocabulary the
 effective pattern does not use. The reverse also holds: an effective Conventional-Commits pattern with
 no `type_list` in any layer resolves to the bundled 11-type list.
 
@@ -288,7 +288,7 @@ no `type_list` in any layer resolves to the bundled 11-type list.
 
 ## Drafting vs enforcement
 
-This document owns **drafting** resolution — how `/source-control:commit` and `/pull-request`
+This document owns **drafting** resolution — how `/source-control:commit` and `/source-control:pull-request`
 compose a compliant subject/title, reading all three layers with the per-key merge above. A separate
 concern owns **enforcement** — how a zero-dependency guardrails hook decides whether an
 *already-formed* subject/title is allowed. The two read the same `.claude/source-control.md` file but

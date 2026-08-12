@@ -1,5 +1,51 @@
 # Changelog — session-flow plugin
 
+## [0.22.3]
+
+### Changed
+
+- **Upstream doc stamps re-verified against the live pages (2026-08-10).** Each dated claim below was re-checked against the complete raw markdown source of the page it cites (`https://code.claude.com/docs/en/<page>.md`), not a summarized fetch, and each was confirmed by a verbatim quote before its stamp was refreshed. No claim changed; only the verification dates moved.
+
+  - `skills/orchestrate/SKILL.md` — the workflow size guideline's agent counts (fewer than 5 for
+    `small`, 15 for `medium`, 50 for `large`) and the `Large workflow` warning above 25
+    agents (workflows reference).
+  - `skills/orchestrate/context/sources.md` — all twelve remaining dated quotes, the densest
+    citation block in the repo, re-checked one by one against the sub-agents, workflows, changelog,
+    and `whats-new/2026-w32` pages. Every quote still matches word for word: the depth-limit
+    `Agent` withholding and the fork's error-instead-of-spawn, the two tool filters and the
+    first filter's list (which still contains `Workflow`), the fork exemption, the agent-teams
+    task/cron carve-out, `Concurrent subagent limit reached` at 20 running with the ultracode
+    exemption and the `/subtask` slot rider, the v2.1.172 / v2.1.217 / v2.1.219 / v2.1.178
+    changelog entries, and the workflow runtime caps (16 concurrent, 1,000 per run, `Large
+    workflow` above 25 agents or 1.5M projected tokens, requiring v2.1.203). Every dated citation
+    in the file moved, including the depth-limit stamp, whose date wraps onto its own line and so
+    escaped the first sweep.
+
+    The 0.22.2 finding above is independently re-confirmed: the sub-agents page now states
+    outright, "There's no limit on the total number of subagents Claude can spawn over a
+    session", and `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION` appears nowhere on it. That negative is
+    trustworthy here because the check ran against the complete page rather than a truncated
+    fetch.
+
+## [0.22.2]
+
+### Fixed
+
+- **`orchestrate` no longer records a per-session subagent cap that no longer exists.** The sources
+  file and the SKILL both carried "at most 200 subagents per session"
+  (`CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION`, v2.1.212+), read from the sub-agents page on 2026-07-29.
+  That cap was removed in v2.1.220–v2.1.224 — "The 200-subagent-per-session cap is removed, so
+  long-running sessions no longer refuse new subagents; the concurrency and depth limits still
+  apply" ([2026-w32](https://code.claude.com/docs/en/whats-new/2026-w32)) — and both the cap and its
+  variable are gone from the reference page. A long-running orchestration planned around a session
+  total was budgeting against a ceiling that is not there.
+- The concurrency limit gains two riders recorded on the same re-read (verified 2026-08-10): sessions
+  with `ultracode` active are exempt from it, and an in-session `/subtask` fork takes a slot while it
+  runs but is never blocked by the limit.
+- The superseded claim is kept in `sources.md` as an explicit **Superseded** note rather than
+  deleted, so a reader who remembers the old cap finds out what replaced it instead of finding
+  silence.
+
 ## [0.22.1]
 
 ### Fixed

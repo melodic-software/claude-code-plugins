@@ -498,6 +498,35 @@
       "source": "./plugins/wizard",
       "category": "development",
       "tags": ["wizard", "setup", "provisioning", "credentials", "ci-secrets", "migration", "cutover", "bash", "skill"]
+    },
+    {
+      "name": "mutation-testing",
+      "source": "./plugins/mutation-testing",
+      "category": "testing",
+      "tags": [
+        "mutation-testing",
+        "test-quality",
+        "mutation-score",
+        "test-strength",
+        "coverage",
+        "stryker",
+        "pitest",
+        "skill"
+      ]
+    },
+    {
+      "name": "computer-use",
+      "source": "./plugins/computer-use",
+      "category": "claude-code",
+      "tags": [
+        "computer-use",
+        "desktop-automation",
+        "screen-control",
+        "gui",
+        "screenshot",
+        "accessibility",
+        "skill"
+      ]
     }
   ],
   "renames": {

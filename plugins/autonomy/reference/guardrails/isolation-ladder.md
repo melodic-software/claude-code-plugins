@@ -12,10 +12,17 @@ document names substrate CLASSES as marked examples only, never an instance list
 - **`L1` — per-command OS sandbox.** The sandbox wraps shell-command execution only; file
   tools, hooks, and protocol-connected tool surfaces still execute on the host. An attended
   ergonomics tier — NOT an autonomy tier.
-- **`L2` — whole-process OS-enforced boundary with default-deny egress and credential
-  protection.** The MINIMUM for any unattended run. Free-path substrate classes (marked
-  examples, not an instance list): a whole-process OS-sandbox wrap; a container with a
-  default-deny egress firewall.
+- **`L2` — whole-process OS-enforced boundary with default-deny egress, credential
+  protection, and contained workspace host-writes.** The MINIMUM for any unattended run.
+  Free-path substrate classes (marked examples, not an instance list): a whole-process
+  OS-sandbox wrap; a container with a default-deny egress firewall.
+
+  The levels above describe the PROCESS boundary; the workspace mount is a deliberate hole
+  through it, which is why containment of writes that reach the HOST is named here rather than
+  assumed. A boundary can deny egress and hide every credential while still accepting writes the
+  host later executes — a version-control config file is a command key ring, and one of its keys
+  fires on a read-only-looking status call. Scope is deliberately WRITE containment: read
+  exposure is not covered at this level, and a copy-on-read workspace leaves reads fully open.
 - **`L3` — kernel-separated ephemeral environment.** Substrate classes (marked examples): a
   VM or microVM; a hosted ephemeral executor surface. Required where policy demands kernel
   separation — untrusted-provenance (`C5`) work.

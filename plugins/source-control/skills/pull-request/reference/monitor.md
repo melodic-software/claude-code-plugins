@@ -8,7 +8,7 @@ Phase 3 is an **async event loop**, not a sequential pipeline. After every push 
 
 **Key principle: "no comments" ≠ "ready to merge."** An empty comment list may mean reviewers haven't posted yet, not that there are no issues. The readiness checklist includes a **cooldown period** (minimum 2 minutes after the last check-run completion or comment arrival) to prevent the race condition where monitor declares readiness before all actors post.
 
-**Bounded autonomy — NEVER auto-merge.** Monitor is a co-pilot, not an autopilot. It evaluates, classifies, and recommends — it does not merge. The merge decision is always a human gate (Phase 4), even in `full` mode. The only difference in `full` mode: readiness gates are checked automatically — never relaxed. The user must explicitly approve every merge via `/pull-request merge` or manual `gh pr merge`. No auto-merge, no `--auto` flag, no autonomous merge under any condition.
+**Bounded autonomy — NEVER auto-merge.** Monitor is a co-pilot, not an autopilot. It evaluates, classifies, and recommends — it does not merge. The merge decision is always a human gate (Phase 4), even in `full` mode. The only difference in `full` mode: readiness gates are checked automatically — never relaxed. The user must explicitly approve every merge via `/source-control:pull-request merge` or manual `gh pr merge`. No auto-merge, no `--auto` flag, no autonomous merge under any condition.
 
 ## 3.0.0 Cloud session baseline poll
 
@@ -93,16 +93,19 @@ Establish a baseline poll: `gh pr checks <N>` + the three comment-surface fetche
      # the failed poll window and never emit them.
      now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
      fetch_ok=1
-     if out=$(gh api "repos/$OWNER/$REPO/issues/$PR_NUMBER/comments?since=$last_comment_ts" \
+     if out=$(gh api --paginate "repos/$OWNER/$REPO/issues/$PR_NUMBER/comments?since=$last_comment_ts&per_page=100" \
        --jq '.[] | "COMMENT \(.user.login): \(.body[:80])"' 2>/dev/null); then
        printf '%s\n' "$out" | tr -d '\r' | grep --line-buffered . || true
      else fetch_ok=0; fi
-     if out=$(gh api "repos/$OWNER/$REPO/pulls/$PR_NUMBER/comments?since=$last_comment_ts" \
+     if out=$(gh api --paginate "repos/$OWNER/$REPO/pulls/$PR_NUMBER/comments?since=$last_comment_ts&per_page=100" \
        --jq '.[] | "INLINE-COMMENT \(.user.login): \(.body[:80])"' 2>/dev/null); then
        printf '%s\n' "$out" | tr -d '\r' | grep --line-buffered . || true
      else fetch_ok=0; fi
-     # Reviews API has no `since` param — filter client-side on submitted_at
-     if out=$(gh api "repos/$OWNER/$REPO/pulls/$PR_NUMBER/reviews" \
+     # Reviews API has no `since` param — filter client-side on submitted_at.
+     # Client-side filtering makes pagination load-bearing: an unpaginated read
+     # returns the 30 OLDEST reviews, so on a PR past that count the new ones
+     # this poll exists to catch are exactly the ones never fetched.
+     if out=$(gh api --paginate "repos/$OWNER/$REPO/pulls/$PR_NUMBER/reviews?per_page=100" \
        --jq ".[] | select(.submitted_at > \"$last_comment_ts\") | \"REVIEW \(.user.login) [\(.state)]: \(.body[:80])\"" 2>/dev/null); then
        printf '%s\n' "$out" | tr -d '\r' | grep --line-buffered . || true
      else fetch_ok=0; fi
@@ -118,11 +121,11 @@ Establish a baseline poll: `gh pr checks <N>` + the three comment-surface fetche
 
 **Why Monitor over fixed-interval cron:** a cron fires every N minutes regardless of PR activity. Monitor fires only when the filter emits — typically 5-15 times per PR lifecycle. Zero request cost during idle periods.
 
-**Re-arm after `--resume`:** Monitor is session-scoped and does NOT restore on `--resume`. On any `/pull-request monitor` invocation in a new or resumed session, the §3.0.1 idempotency check (step 2) detects no watch and re-arms automatically.
+**Re-arm after `--resume`:** Monitor is session-scoped and does NOT restore on `--resume`. On any `/source-control:pull-request monitor` invocation in a new or resumed session, the §3.0.1 idempotency check (step 2) detects no watch and re-arms automatically.
 
 ## 3.0.5 Loop-aware monitoring (self-termination support)
 
-When `/pull-request monitor` runs in a loop (either auto-created by 3.0.1 or user-created via `/loop`), each iteration should be lightweight and self-terminating. Runs **after** 3.0.1 on every iteration.
+When `/source-control:pull-request monitor` runs in a loop (either auto-created by 3.0.1 or user-created via `/loop`), each iteration should be lightweight and self-terminating. Runs **after** 3.0.1 on every iteration.
 
 **Terminal state pre-check (MANDATORY first action on every iteration):**
 
@@ -136,7 +139,7 @@ gh pr view <pr_number> --json state -q '.state'
 | `MERGED` | Output final report (see below), self-terminate the loop |
 | `CLOSED` | Output final report (see below), self-terminate the loop |
 
-**Readiness-pass check (OPEN PRs only):** if the previous iteration already presented "All readiness gates passed. Recommend merge." and no new activity has occurred since (no new check-run completions, no new comments, no new pushes), self-terminate the loop using the same protocol below. Continued polling after readiness-pass is a no-op — the user has all information needed to merge. If a new push occurs later, the next `/pull-request monitor` invocation re-creates the loop via 3.0.1.
+**Readiness-pass check (OPEN PRs only):** if the previous iteration already presented "All readiness gates passed. Recommend merge." and no new activity has occurred since (no new check-run completions, no new comments, no new pushes), self-terminate the loop using the same protocol below. Continued polling after readiness-pass is a no-op — the user has all information needed to merge. If a new push occurs later, the next `/source-control:pull-request monitor` invocation re-creates the loop via 3.0.1.
 
 **Self-termination protocol** (when PR is MERGED or CLOSED):
 
@@ -382,7 +385,7 @@ When all readiness gates pass:
 **All readiness gates passed. Recommend merge.**
 ```
 
-**After presenting the readiness report, self-terminate the Monitor watch** (same protocol as 3.0.5). Continued watching after readiness-pass adds no value. If a new push occurs after readiness-pass, the next `/pull-request monitor` invocation re-arms via 3.0.1.
+**After presenting the readiness report, self-terminate the Monitor watch** (same protocol as 3.0.5). Continued watching after readiness-pass adds no value. If a new push occurs after readiness-pass, the next `/source-control:pull-request monitor` invocation re-arms via 3.0.1.
 
 **If any gate fails**, present which gates failed and what action is needed. Never suggest merge with open gates — even in `full` mode.
 
@@ -400,13 +403,13 @@ Monitor MUST run in the session that created the PR. Not a preference — a cons
 4. Therefore: monitor runs in the session that owns the branch
 
 ```text
-Session A: feat/feature-x → create PR → /pull-request monitor (arms watch) → keep working or idle
+Session A: feat/feature-x → create PR → /source-control:pull-request monitor (arms watch) → keep working or idle
 Session B: feat/feature-y → different branch, different worktree → code the next thing
 ```
 
 Watch notifications arrive between turns. If you're mid-response on a complex task, the notification queues until your turn completes.
 
-**For read-only status checks from any session:** use `/pull-request status` — a read-only action that only calls `gh` commands. Safe from any terminal, any time, no branch checkout required.
+**For read-only status checks from any session:** use `/source-control:pull-request status` — a read-only action that only calls `gh` commands. Safe from any terminal, any time, no branch checkout required.
 
 **Key behaviors:**
 
@@ -418,4 +421,4 @@ Watch notifications arrive between turns. If you're mid-response on a complex ta
 
 **Cloud sessions (`CLAUDE_CODE_REMOTE=true`):** §3.0.0's baseline poll handles event delivery via `gh`; the Monitor tool is not needed — check `CLAUDE_CODE_REMOTE` before arming.
 
-**Legacy `/loop` pattern:** `/loop 2m /pull-request monitor` still works but costs a full model turn per interval. Monitor is preferred for active CLI sessions; `/loop` remains a manual override if Monitor is unavailable.
+**Legacy `/loop` pattern:** `/loop 2m /source-control:pull-request monitor` still works but costs a full model turn per interval. Monitor is preferred for active CLI sessions; `/loop` remains a manual override if Monitor is unavailable.

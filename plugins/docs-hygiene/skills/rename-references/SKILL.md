@@ -61,7 +61,7 @@ Multiple flags compose. Unknown flags raise an error. Detail in [audit-modes.md]
 
 ## Blocklist action
 
-`/rename-references blocklist` prints the English-verb blocklist literal from [context/triage.md](context/triage.md). Read-only — no edits, no sweeps. Use to inspect which tokens force the ambiguous-bucket safety path. To extend, edit `triage.md` directly.
+`/docs-hygiene:rename-references blocklist` prints the English-verb blocklist literal from [context/triage.md](context/triage.md). Read-only — no edits, no sweeps. Use to inspect which tokens force the ambiguous-bucket safety path. To extend, edit `triage.md` directly.
 
 ## Smart default (no arguments)
 
@@ -74,7 +74,7 @@ Detect rename pairs in this priority order:
 
 If multiple candidates surface, present via `AskUserQuestion` — user picks which pair to audit.
 
-If zero candidates: report "No rename detected in conversation or git state. Provide `/rename-references <old> to <new>` or `/rename-references audit <old>` to invoke explicitly."
+If zero candidates: report "No rename detected in conversation or git state. Provide `/docs-hygiene:rename-references <old> to <new>` or `/docs-hygiene:rename-references audit <old>` to invoke explicitly."
 
 ## Natural-language parser
 
@@ -122,8 +122,8 @@ Paths skipped from sweeps automatically:
 
 | Stage | How | Why |
 |---|---|---|
-| Pre-rename impact analysis | `/rename-references audit <old>` | Read-only sweep, see blast radius before changing anything |
-| Rename execution | `/rename-references <old> to <new>` | Sweep → triage → edit → re-sweep |
+| Pre-rename impact analysis | `/docs-hygiene:rename-references audit <old>` | Read-only sweep, see blast radius before changing anything |
+| Rename execution | `/docs-hygiene:rename-references <old> to <new>` | Sweep → triage → edit → re-sweep |
 | Post-rename verification | the consuming repository's build/test/lint workflow | Confirm no semantic regression |
 | Cleanup near rename sites | a separate simplification/refactor pass | Opportunistic refactor (separate concern) |
 
@@ -149,7 +149,7 @@ Paths skipped from sweeps automatically:
 
 ## Gotchas
 
-- **NEVER trust a single-pattern grep as "clean."** That was the bug this skill exists to prevent. In the skill-rename incident that motivated the pattern library, token-only grep returned 0 matches across 4 sweep passes; chain prose, comma-lists, numbered rows, and frontmatter forms surfaced one round at a time. Run all patterns or invoke `/rename-references audit`.
+- **NEVER trust a single-pattern grep as "clean."** That was the bug this skill exists to prevent. In the skill-rename incident that motivated the pattern library, token-only grep returned 0 matches across 4 sweep passes; chain prose, comma-lists, numbered rows, and frontmatter forms surfaced one round at a time. Run all patterns or invoke `/docs-hygiene:rename-references audit`.
 - **Ambiguous bucket is mandatory triage, not optional.** English-verb collisions are the highest false-positive vector. If a token is in the blocklist, force into ambiguous regardless of position. Cost of one extra confirmation prompt is far lower than silently mangling prose.
 - **Re-sweep until the ACTIONABLE count is 0.** Don't trust Phase 5 ended cleanly without verification. Phase 6 is the gate. "Actionable" is load-bearing, and it excludes TWO categories the sweep leaves matching forever: the bare-token residue container-rename mode deliberately leaves unrenamed, and any match the user confirmed skipping in Phase 4. Gating on the RAW count means the loop never terminates; gating on residue alone means it never terminates whenever the user declines a match, which container mode makes routine by demoting Forms 4–12 to per-match prompts. Skips are keyed by occurrence span, REMAPPED as Phase 5's edits shift later columns on the same line (a pre-edit span does not survive an edit when `<old>` and `<new>` differ in length), and reported separately from residue in the hand-off — one was declined, the other was never proposed.
 - **Plan-doc exclusion is mandatory.** The active plan/work-notes document *documents the rename* and contains both old and new names by design. Editing it would break the documentation narrative.
@@ -159,14 +159,14 @@ Paths skipped from sweeps automatically:
 
 ## Integration with workflow
 
-`/rename-references` is invocable mid-workflow whenever a rename happens — typically during implementation (when the work includes a rename) or as a precursor to final verification, to confirm no stragglers before declaring done.
+`/docs-hygiene:rename-references` is invocable mid-workflow whenever a rename happens — typically during implementation (when the work includes a rename) or as a precursor to final verification, to confirm no stragglers before declaring done.
 
 **Skill chaining:**
 
 | Condition | Action |
 |---|---|
-| User says "I renamed X to Y" mid-implementation | Invoke `/rename-references <X> to <Y>` to sweep before continuing |
-| `git mv` just executed | Invoke `/rename-references audit` to surface stragglers |
-| Pre-PR: working tree contains R-status files | Suggest `/rename-references audit` before final verification |
-| `/rename-references` finds 0 matches | Proceed to verification (or done if already past it) |
-| `/rename-references` finds NEW form not in pattern library | Update `context/patterns.md`, add eval case, re-iterate |
+| User says "I renamed X to Y" mid-implementation | Invoke `/docs-hygiene:rename-references <X> to <Y>` to sweep before continuing |
+| `git mv` just executed | Invoke `/docs-hygiene:rename-references audit` to surface stragglers |
+| Pre-PR: working tree contains R-status files | Suggest `/docs-hygiene:rename-references audit` before final verification |
+| `/docs-hygiene:rename-references` finds 0 matches | Proceed to verification (or done if already past it) |
+| `/docs-hygiene:rename-references` finds NEW form not in pattern library | Update `context/patterns.md`, add eval case, re-iterate |

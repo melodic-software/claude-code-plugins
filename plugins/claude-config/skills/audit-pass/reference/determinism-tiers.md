@@ -64,13 +64,17 @@ So the run **measures** its own precondition:
   evaluate P1–P3 as though the tree held still while different lanes in fact read different states.
   Pairing each path with its content is what makes both movements visible.
 - **The run's own artifacts are excluded from the digest, on the same list that excludes them from
-  the scan.** A `--report-to` path inside the target appears in `git status --porcelain` the moment
-  the report is written, which is between the scan-baseline and audit-endpoint captures — so a digest over *every*
-  dirty path makes the redirected run fail its own determinism gate as `indeterminate`, every time,
-  purely because it did what it was asked to do. Recording the path in the scan exclusion set does
+  the scan.** A report path inside the target appears in `git status --porcelain` the moment the report
+  is written, which is between the scan-baseline and audit-endpoint captures — so a digest over *every*
+  dirty path makes that run fail its own determinism gate as `indeterminate`, every time, purely
+  because it did what it was asked to do. Recording the path in the scan exclusion set does
   not reach the digest; the exclusion has to apply to both, and it is one list precisely so the two
-  cannot diverge. What is excluded is the pass's own class-4 artifact set and nothing else: a
-  *different* file appearing or changing is still a moved tree and still `indeterminate`.
+  cannot diverge. **The exclusion is keyed on containment, not on `--report-to`** — Class 4's predicate
+  is `write_path ⊆ target_root`, so it covers the default `${CLAUDE_PLUGIN_DATA}` path just as well
+  whenever the target sits at or above `~`. Keying it on the flag was the defect that made every run
+  against such a target report `indeterminate` about itself. What is excluded is the pass's own class-4
+  artifact set and nothing else: a *different* file appearing or changing is still a moved tree and
+  still `indeterminate`.
 - If either capture differs, the determinism gate is reported **`indeterminate`**, never `passed` and
   never `failed`, naming both captures and what moved.
 - **Two endpoint captures detect a net change, not a transient one.** A file mutated and reverted

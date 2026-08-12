@@ -48,7 +48,7 @@ prompt-only bullet list drops. A single one of them is enough to force the full 
 
 ANY doubt → full save-point. A wrongly-skipped file loses state the fresh session must rediscover;
 a wrongly-written one costs nothing. An explicit method argument overrides auto-detect — but note
-`prompt` leaves a gap in the session-id chain that `/retro` walks (no file, no chain pointer).
+`prompt` leaves a gap in the session-id chain that `/session-flow:retro` walks (no file, no chain pointer).
 
 ## Redaction pass — mandatory on BOTH paths
 
@@ -125,7 +125,7 @@ being that, which no later full-path handoff can reconstruct.
 ## Writing the handoff file (full path)
 
 The body sections, the TaskList reconstitute format, and the frontmatter shape (including the
-`session_id` and `previous_handoff` chain fields that `/retro` walks) live in
+`session_id` and `previous_handoff` chain fields that `/session-flow:retro` walks) live in
 [`${CLAUDE_PLUGIN_ROOT}/reference/structure.md`](${CLAUDE_PLUGIN_ROOT}/reference/structure.md)
 — walk it while writing the file; never write the section list from memory.
 
@@ -335,7 +335,7 @@ detection-contract change: signal 1 below is matched on the `…handoffs/<TS>-ha
 directive names, which the added clause leaves untouched.
 
 `<UUID>` = this session's `$CLAUDE_CODE_SESSION_ID` (the frontmatter `session_id`) — it lets a
-fresh session or `/retro` chain-walker locate the transcript later.
+fresh session or `/session-flow:retro` chain-walker locate the transcript later.
 
 After the rails prompt is emitted, control returns to the citing skill's delivery step.
 

@@ -5,7 +5,7 @@ Exit-code contract (see ``main`` / ``_decide`` / ``_watchdog_fire``): only ``0``
 (a deliberate JSON allow/ask/deny decision on stdout) and ``2`` (a blocking
 deny, one-line diagnostic on stderr) are reachable. Exit ``1`` is a Claude Code
 *non-blocking* status for PreToolUse
-(https://code.claude.com/docs/en/hooks, fetched 2026-07-25: "Claude Code treats
+(https://code.claude.com/docs/en/hooks, fetched 2026-08-10: "Claude Code treats
 exit code 1 as a non-blocking error and proceeds with the action... If your
 hook is meant to enforce a policy, use exit 2") — every internal failure path
 that could once fall through to the interpreter's default (uncaught exception
@@ -173,6 +173,23 @@ _PLUGIN_DATA_DIRNAME = "data"
 _PLUGIN_ID_DISALLOWED = re.compile(r"[^A-Za-z0-9_-]")
 
 
+def _plugins_cache_index(parts: tuple[str, ...]) -> int | None:
+    """Index of the ``cache`` segment of a ``<plugins>/cache/...`` layout, or None.
+
+    The single place the marketplace-install marker is located. Every derivation
+    that anchors on it (data root, user settings path, plugin id, cached-version
+    family) shares this one scan, so they cannot drift apart on what counts as a
+    marketplace install. The FIRST match wins, as each derivation did alone.
+    """
+    for index in range(1, len(parts)):
+        if (
+            parts[index].casefold() == _PLUGIN_CACHE_DIRNAME
+            and parts[index - 1].casefold() == _PLUGINS_DIRNAME
+        ):
+            return index
+    return None
+
+
 def _plugin_data_root_from_root(plugin_root: str) -> str | None:
     """Derive the persistent data root from the plugin's installation root.
 
@@ -194,21 +211,15 @@ def _plugin_data_root_from_root(plugin_root: str) -> str | None:
     instead of trusting a guessed path.
     """
     parts = Path(plugin_root).parts
-    for index in range(1, len(parts)):
-        if not (
-            parts[index].casefold() == _PLUGIN_CACHE_DIRNAME
-            and parts[index - 1].casefold() == _PLUGINS_DIRNAME
-        ):
-            continue
-        if index + 2 >= len(parts):
-            return None
-        marketplace, name = parts[index + 1], parts[index + 2]
-        if not marketplace or not name:
-            return None
-        plugin_id = _PLUGIN_ID_DISALLOWED.sub("-", f"{name}@{marketplace}")
-        plugins_dir = Path(*parts[:index])
-        return os.fspath(plugins_dir / _PLUGIN_DATA_DIRNAME / plugin_id)
-    return None
+    index = _plugins_cache_index(parts)
+    if index is None or index + 2 >= len(parts):
+        return None
+    marketplace, name = parts[index + 1], parts[index + 2]
+    if not marketplace or not name:
+        return None
+    plugin_id = _PLUGIN_ID_DISALLOWED.sub("-", f"{name}@{marketplace}")
+    plugins_dir = Path(*parts[:index])
+    return os.fspath(plugins_dir / _PLUGIN_DATA_DIRNAME / plugin_id)
 
 
 _MODE_FLAG = "--mode"
@@ -242,16 +253,10 @@ def _plugin_cache_family_root() -> str | None:
     there would gate a contributor's work on their own checkout.
     """
     parts = Path(__file__).resolve().parts
-    for index in range(1, len(parts)):
-        if not (
-            parts[index].casefold() == _PLUGIN_CACHE_DIRNAME
-            and parts[index - 1].casefold() == _PLUGINS_DIRNAME
-        ):
-            continue
-        if index + 2 >= len(parts):
-            return None
-        return os.path.normcase(os.fspath(Path(*parts[: index + 3])))
-    return None
+    index = _plugins_cache_index(parts)
+    if index is None or index + 2 >= len(parts):
+        return None
+    return os.path.normcase(os.fspath(Path(*parts[: index + 3])))
 
 
 def _within_plugin_cache_family(value: str) -> bool:
@@ -440,7 +445,7 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
         base = Path(word.casefold()).name
         return base.startswith("python") or base in {"py", "py.exe"}
 
-    bundled = Path(__file__).resolve().with_name("hygiene.py")
+    bundled = _engine_script_path()
 
     def _samefile(word: str) -> bool:
         try:
@@ -644,6 +649,18 @@ def _argv_authorized_data_root(argv: list[str]) -> str | None:
     return _argv_flag_value(argv, _AUTHORIZED_DATA_ROOT_FLAG)
 
 
+def _plugin_root_argument() -> str | None:
+    """The substituted ``--plugin-root`` value, or None when it carries nothing.
+
+    A literal, unexpanded ``${CLAUDE_PLUGIN_ROOT}`` is not a path, and all three
+    derivations that anchor on this argument (data root, user settings path,
+    plugin id) treat it as absent — so the placeholder check lives here once
+    rather than at each of them.
+    """
+    value = _argv_flag_value(sys.argv[1:], _PLUGIN_ROOT_FLAG)
+    return value if value and value != _PLUGIN_ROOT_PLACEHOLDER else None
+
+
 def resolve_authorized_data_root() -> str | None:
     """Resolve the authoritative data root a skill-frontmatter hook can supply.
 
@@ -661,11 +678,11 @@ def resolve_authorized_data_root() -> str | None:
     every channel the guard has no authority and every ``--data-root`` engine call
     fails closed.
     """
-    direct = _argv_flag_value(sys.argv[1:], _AUTHORIZED_DATA_ROOT_FLAG)
+    direct = _argv_authorized_data_root(sys.argv[1:])
     if direct and direct != _AUTHORIZED_DATA_ROOT_PLACEHOLDER:
         return direct
-    plugin_root = _argv_flag_value(sys.argv[1:], _PLUGIN_ROOT_FLAG)
-    if plugin_root and plugin_root != _PLUGIN_ROOT_PLACEHOLDER:
+    plugin_root = _plugin_root_argument()
+    if plugin_root:
         derived = _plugin_data_root_from_root(plugin_root)
         if derived:
             return derived
@@ -685,14 +702,11 @@ def _user_settings_path_from_root(plugin_root: str) -> str | None:
     falls back to the environment.
     """
     parts = Path(plugin_root).parts
-    for index in range(1, len(parts)):
-        if (
-            parts[index].casefold() == _PLUGIN_CACHE_DIRNAME
-            and parts[index - 1].casefold() == _PLUGINS_DIRNAME
-        ):
-            plugins_dir = Path(*parts[:index])
-            return os.fspath(plugins_dir.parent / "settings.json")
-    return None
+    index = _plugins_cache_index(parts)
+    if index is None:
+        return None
+    plugins_dir = Path(*parts[:index])
+    return os.fspath(plugins_dir.parent / "settings.json")
 
 
 def _plugin_id_from_root(plugin_root: str) -> str | None:
@@ -707,18 +721,13 @@ def _plugin_id_from_root(plugin_root: str) -> str | None:
     falls back to matching any ``disk-hygiene`` entry.
     """
     parts = Path(plugin_root).parts
-    for index in range(1, len(parts)):
-        if (
-            parts[index].casefold() == _PLUGIN_CACHE_DIRNAME
-            and parts[index - 1].casefold() == _PLUGINS_DIRNAME
-        ):
-            if index + 2 >= len(parts):
-                return None
-            marketplace, name = parts[index + 1], parts[index + 2]
-            if not marketplace or not name:
-                return None
-            return f"{name}@{marketplace}"
-    return None
+    index = _plugins_cache_index(parts)
+    if index is None or index + 2 >= len(parts):
+        return None
+    marketplace, name = parts[index + 1], parts[index + 2]
+    if not marketplace or not name:
+        return None
+    return f"{name}@{marketplace}"
 
 
 def _resolve_user_settings_path() -> Path | None:
@@ -736,8 +745,8 @@ def _resolve_user_settings_path() -> Path | None:
     ``None``; the caller then relies on managed settings (fixed system paths) and
     otherwise fails closed to enabled.
     """
-    plugin_root = _argv_flag_value(sys.argv[1:], _PLUGIN_ROOT_FLAG)
-    if plugin_root and plugin_root != _PLUGIN_ROOT_PLACEHOLDER:
+    plugin_root = _plugin_root_argument()
+    if plugin_root:
         derived = _user_settings_path_from_root(plugin_root)
         if derived:
             return Path(derived)
@@ -773,12 +782,8 @@ def resolve_disk_hygiene_enabled() -> bool:
     both run ``main()``, and both receive ``--plugin-root ${CLAUDE_PLUGIN_ROOT}`` —
     so the belt needs no environment channel it does not have.
     """
-    plugin_root = _argv_flag_value(sys.argv[1:], _PLUGIN_ROOT_FLAG)
-    plugin_id = (
-        _plugin_id_from_root(plugin_root)
-        if plugin_root and plugin_root != _PLUGIN_ROOT_PLACEHOLDER
-        else None
-    )
+    plugin_root = _plugin_root_argument()
+    plugin_id = _plugin_id_from_root(plugin_root) if plugin_root else None
     return killswitch_config.resolve_effective(
         _resolve_user_settings_path(),
         killswitch_config.managed_settings_path(),
@@ -866,30 +871,22 @@ def classify_exact_engine_command(command: str, authority: str | None) -> str | 
         ):
             return None
         return "scan"
-    if tokens[2] == "preview":
+    # preview and handoff-verify share one grammar — `--snapshot <path>` plus a
+    # subcommand-specific second required pair — so they are checked once and
+    # differ only in that pair's flag name.
+    second_flag = {"preview": "--plan", "handoff-verify": "--paths"}.get(tokens[2])
+    if second_flag is not None:
         valid = (
             len(tokens) in {7, 9}
             and tokens[3] == "--snapshot"
             and _argument(tokens[4])
-            and tokens[5] == "--plan"
+            and tokens[5] == second_flag
             and _argument(tokens[6])
             and _consume_optional_pairs(
                 tokens[7:], frozenset({"--data-root"}), authority
             )
         )
-        return "preview" if valid else None
-    if tokens[2] == "handoff-verify":
-        valid = (
-            len(tokens) in {7, 9}
-            and tokens[3] == "--snapshot"
-            and _argument(tokens[4])
-            and tokens[5] == "--paths"
-            and _argument(tokens[6])
-            and _consume_optional_pairs(
-                tokens[7:], frozenset({"--data-root"}), authority
-            )
-        )
-        return "handoff-verify" if valid else None
+        return tokens[2] if valid else None
     if tokens[2] == "apply":
         if len(tokens) not in {14, 16}:
             return None

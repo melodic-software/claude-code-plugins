@@ -113,17 +113,29 @@ function normalizeField(value) {
 }
 
 /**
+ * First non-blank line of a multi-line stream capture, trimmed.
+ *
+ * @param {string} text
+ * @returns {string}
+ */
+function firstNonEmptyLine(text) {
+  return (
+    (text ?? "")
+      .split(/\r?\n/)
+      .map((entry) => entry.trim())
+      .find((entry) => entry.length > 0) ?? ""
+  );
+}
+
+/**
  * Parse the first non-empty `--print` line into its component fields.
  *
  * @param {string} stdout
  * @returns {{ id: string, title: string, channel: string, handle: string }}
  */
 export function parsePreflightLine(stdout) {
-  const line = (stdout ?? "")
-    .split(/\r?\n/)
-    .map((entry) => entry.trim())
-    .find((entry) => entry.length > 0);
-  const [id = "", title = "", channel = "", handle = ""] = (line ?? "").split(PREFLIGHT_FIELD_SEP);
+  const line = firstNonEmptyLine(stdout);
+  const [id = "", title = "", channel = "", handle = ""] = line.split(PREFLIGHT_FIELD_SEP);
   return {
     id: normalizeField(id),
     title: normalizeField(title),
@@ -167,11 +179,7 @@ export function buildPreflightArgs(url, { env = process.env, authOverride = {} }
  * @returns {string}
  */
 function summarizeDetail(detail) {
-  const firstLine = (detail ?? "")
-    .split(/\r?\n/)
-    .map((entry) => entry.trim())
-    .find((entry) => entry.length > 0);
-  const cleaned = (firstLine ?? "").replace(/^ERROR:\s*/i, "");
+  const cleaned = firstNonEmptyLine(detail).replace(/^ERROR:\s*/i, "");
   return cleaned.length > 120 ? `${cleaned.slice(0, 119)}…` : cleaned;
 }
 

@@ -126,11 +126,8 @@ try {
         # Escalate INFO -> WARN -> CRIT based on how long the reboot has been
         # pending (proxied by hotfix install age since the reboot flag persists
         # until the machine reboots).
-        if ($null -ne $hotfixAgeDays -and $hotfixAgeDays -gt 14) {
-            $severity = 'CRIT'
-            $summary = "Reboot pending for $hotfixAgeDays days (last hotfix install age)."
-        } elseif ($null -ne $hotfixAgeDays -and $hotfixAgeDays -gt 7) {
-            $severity = 'WARN'
+        if ($null -ne $hotfixAgeDays -and $hotfixAgeDays -gt 7) {
+            $severity = $hotfixAgeDays -gt 14 ? 'CRIT' : 'WARN'
             $summary = "Reboot pending for $hotfixAgeDays days (last hotfix install age)."
         } else {
             $severity = 'INFO'

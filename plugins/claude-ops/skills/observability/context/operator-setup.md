@@ -5,7 +5,7 @@ optional Aspire dashboard live tail. Machine provisioning owns Collector and das
 lifecycle; this file provides the **Naming** section and topic dispatch table below — detail
 lives in the linked concern docs.
 
-**Agents:** read routing — [`read-routing.md`](read-routing.md). Scope reports — `/observability`.
+**Agents:** read routing — [`read-routing.md`](read-routing.md). Scope reports — `/claude-ops:observability`.
 
 ## Naming
 

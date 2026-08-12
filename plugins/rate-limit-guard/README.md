@@ -87,23 +87,89 @@ One `userConfig` option:
 
 | Option | What it controls |
 |---|---|
-| `rate_limit_guard_enabled` | Kill switch for the StopFailure detection hook (default `true`). |
+| `rate_limit_guard_enabled` | Kill switch for the StopFailure detection hook **and** the statusline tee's snapshot write (default `true`). |
 
 Set it with `/plugin configure rate-limit-guard`, or headless on a fresh install via
 `claude plugin install rate-limit-guard@<marketplace> --config rate_limit_guard_enabled=false`.
 
+**Where the switch is read from.** The StopFailure hook receives it the ordinary way, as
+`CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED`. The statusline tee cannot: it is invoked by
+absolute path from the operator's own `statusLine` setting, and Claude Code exports those variables
+to *hook* processes only, so the tee reads `pluginConfigs` from the settings files directly. Its
+precedence is **managed settings → user settings → environment**, highest first — a managed
+`rate_limit_guard_enabled: false` is an organization's policy and wins over any user value. Every
+degraded read (no settings file, no `jq`, malformed JSON) leaves the tee enabled, and no outcome of
+that gate ever changes what your statusline prints.
+
 The tee path and the 90% pause threshold are deliberately **not** configurable: they are contract
 constants that cross-plugin consumers inline from the
 [reader contract](reference/reader-contract.md); a per-user override would silently split the
-writer from its readers. Disabling the statusline tee is the operator's edit (remove or unwrap the
-statusline command); disabling the hook is the kill switch; disabling everything is
-`enabledPlugins` / uninstall.
+writer from its readers. The kill switch stops the tee's *write* while leaving the wrapper
+transparent; removing the wrapper itself is the operator's edit to their `statusLine`; disabling
+everything is `enabledPlugins` / uninstall.
 
 ## Consumers
 
 Written for the loop-lane convention's three lanes (work-items `work-loop` and `attend-queue`,
 source-control `babysit-loop`), which inline the reader contract's operable floor. Any session or
 tool on the machine may read the same files under the same contract.
+
+<!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
+
+### Options reference
+
+Generated from this plugin's `.claude-plugin/plugin.json`. Every option Claude Code
+will prompt for when the plugin is enabled, with the environment variable each hook
+reads it from.
+
+| Option | Type | Default | Environment variable | Description |
+| --- | --- | --- | --- | --- |
+| `rate_limit_guard_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED` | Master switch for the StopFailure detection hook and the statusline tee's snapshot write; read from managed settings first, then user settings |
+
+### How to set these
+
+Three supported routes, in the order most people want them:
+
+1. **Interactively** — Claude Code prompts for declared options when you enable the
+   plugin. To change them later: `/plugin configure rate-limit-guard`.
+2. **Headless, at install time** — repeat `--config` for each option. Replace
+   `<marketplace>` with the marketplace you installed this plugin from:
+
+   ```shell
+   claude plugin install rate-limit-guard@<marketplace> --config rate_limit_guard_enabled=<value>
+   ```
+
+3. **By hand, in settings** — add the value under `pluginConfigs` in your **user**
+   settings (`~/.claude/settings.json`):
+
+   ```json
+   {
+     "pluginConfigs": {
+       "rate-limit-guard@<marketplace>": {
+         "options": {
+           "rate_limit_guard_enabled": <value>
+         }
+       }
+     }
+   }
+   ```
+
+   Plugin option values are read from **user**, `--settings`, and managed settings
+   only — **not** from a project's `.claude/settings.json`. To vary behavior per
+   repository, enable or disable the plugin in that project's `enabledPlugins`
+   instead of setting an option there.
+
+Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself. They are how Claude Code
+hands a configured value to a hook process; the value comes from the routes above.
+
+### Upstream documentation
+
+- [User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration) — the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
+- [Plugin settings](https://code.claude.com/docs/en/settings#plugin-settings) — `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
+- [Configuration scopes](https://code.claude.com/docs/en/settings#configuration-scopes) — user vs project vs local precedence
+- [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins) — enabling, disabling, `/plugin list`
+
+<!-- END GENERATED: plugin options -->
 
 ## License
 

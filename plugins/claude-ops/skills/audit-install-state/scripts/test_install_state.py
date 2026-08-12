@@ -1,0 +1,575 @@
+#!/usr/bin/env python3
+"""Contract tests for the install-state engine.
+
+Every test builds its own synthetic tree. Nothing here reads the author's real
+`~/.claude`, so the suite is portable and its results do not depend on which
+machine it runs on.
+"""
+
+from __future__ import annotations
+
+import contextlib
+import io
+import json
+import sys
+import tempfile
+import unittest
+from contextlib import redirect_stdout
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import install_state as engine  # noqa: E402
+
+
+@contextlib.contextmanager
+def _managed_paths(paths: list[Path]):
+    """Point the machine-scope managed-settings lookup at a temp file.
+
+    The real locations are absolute machine paths this suite must never depend on
+    or write to, so the seam is patched rather than the filesystem.
+    """
+    original = engine.managed_settings_paths
+    engine.managed_settings_paths = lambda: paths
+    try:
+        yield
+    finally:
+        engine.managed_settings_paths = original
+
+
+def build_tree(root: Path) -> None:
+    """A miniature `~/.claude` carrying one instance of each trap."""
+    (root / "sessions").mkdir(parents=True)
+    (root / "sessions" / "5052.json").write_text("{}", encoding="utf-8")
+
+    (root / "ide").mkdir()
+    # Body deliberately carries an authToken so a test can prove it is not read.
+    (root / "ide" / "22580.lock").write_text(
+        '{"pid": 32324, "authToken": "SHOULD-NEVER-BE-READ"}', encoding="utf-8"
+    )
+
+    (root / "rate-limit-guard").mkdir()
+    (root / "rate-limit-guard" / "stop-events.jsonl.tmp.2541395").write_text("x", encoding="utf-8")
+
+    (root / "shell-snapshots").mkdir()
+    (root / "shell-snapshots" / "snapshot-bash-1786398511670-a1b2c3.sh").write_text(
+        "#", encoding="utf-8"
+    )
+
+    (root / "paste-cache").mkdir()
+    (root / "paste-cache" / "deadbeefdeadbeef").write_text("p", encoding="utf-8")
+
+    (root / "session-env" / "0be285ac-e025-47df-bac9-ee6a03806c3d").mkdir(parents=True)
+    (root / "session-env" / "0be285ac-e025-47df-bac9-ee6a03806c3d" / "env.json").write_text(
+        "{}", encoding="utf-8"
+    )
+
+    (root / "projects" / "D--repo").mkdir(parents=True)
+    (root / "projects" / "D--repo" / "e2a52749-8ff6-4355-bd13-cbef81921701.jsonl").write_text(
+        "{}", encoding="utf-8"
+    )
+
+    (root / "settings.json").write_text(json.dumps({"cleanupPeriodDays": 14}), encoding="utf-8")
+    (root / ".credentials.json").write_text("SECRET", encoding="utf-8")
+    (root / "history.jsonl").write_text("{}", encoding="utf-8")
+
+    (root / "some-plugin-state").mkdir()
+    (root / "some-plugin-state" / "notes.jsonl").write_text("{}", encoding="utf-8")
+
+
+class TestNameSchemes(unittest.TestCase):
+    """A number in a filename is not reliably a PID."""
+
+    def test_known_schemes_resolve_to_their_real_meanings(self) -> None:
+        cases = {
+            "sessions/5052.json": engine.PID,
+            "ide/22580.lock": engine.TCP_PORT,
+            "rate-limit-guard/stop-events.jsonl.tmp.2541395": engine.MSYS_SHELL_PID,
+            "shell-snapshots/snapshot-bash-1786398511670-a1b2c3.sh": engine.EPOCH_MS,
+            "backups/.claude.json.backup.1786398511670": engine.EPOCH_MS,
+            "paste-cache/deadbeefdeadbeef": engine.CONTENT_HASH,
+            "session-env/0be285ac-e025-47df-bac9-ee6a03806c3d/env.json": engine.SESSION_UUID,
+            "projects/D--repo/e2a52749-8ff6-4355-bd13-cbef81921701.jsonl": engine.SESSION_UUID,
+        }
+        for rel, expected in cases.items():
+            with self.subTest(rel=rel):
+                self.assertEqual(engine.classify_name(rel)[0], expected)
+
+    def test_unrecognised_numeric_name_is_unknown_not_a_guess(self) -> None:
+        meaning, _ = engine.classify_name("third-party-plugin/state.99999")
+        self.assertEqual(meaning, engine.UNKNOWN_MEANING)
+
+    def test_name_without_digits_is_none(self) -> None:
+        self.assertEqual(engine.classify_name("hooks/guard.py")[0], engine.NO_NUMBER)
+
+
+class TestLivenessGate(unittest.TestCase):
+    """The probe must never run against a number that is not a PID.
+
+    This is the check the whole engine exists to get right: a process lookup
+    against a TCP port or a shell `$$` returns a meaningless miss that reads as
+    "dead" and authorises a wrong deletion.
+    """
+
+    def setUp(self) -> None:
+        self.calls: list[int] = []
+
+    def spy(self, pid: int) -> tuple[str, str]:
+        self.calls.append(pid)
+        return engine.DEAD, "spy says dead"
+
+    def test_probe_is_never_called_for_a_non_pid_name(self) -> None:
+        non_pids = [
+            "ide/22580.lock",
+            "rate-limit-guard/stop-events.jsonl.tmp.2541395",
+            "shell-snapshots/snapshot-bash-1786398511670-a1b2c3.sh",
+            "paste-cache/deadbeefdeadbeef",
+            "third-party-plugin/state.99999",
+        ]
+        for rel in non_pids:
+            verdict = engine.verdict_for(rel, probe=self.spy)
+            with self.subTest(rel=rel):
+                self.assertEqual(verdict.liveness, engine.NOT_APPLICABLE)
+        self.assertEqual(self.calls, [], "the liveness probe ran against a non-PID number")
+
+    def test_probe_is_called_only_for_a_genuine_pid_name(self) -> None:
+        verdict = engine.verdict_for("sessions/5052.json", probe=self.spy)
+        self.assertEqual(self.calls, [5052])
+        self.assertEqual(verdict.number_meaning, engine.PID)
+        self.assertEqual(verdict.liveness, engine.DEAD)
+
+    def test_an_unusable_probe_yields_unverified_never_dead(self) -> None:
+        def broken(_pid: int) -> tuple[str, str]:
+            return engine.UNVERIFIED, "no probe available"
+
+        verdict = engine.verdict_for("sessions/5052.json", probe=broken)
+        self.assertEqual(verdict.liveness, engine.UNVERIFIED)
+        self.assertNotEqual(verdict.liveness, engine.DEAD)
+
+    def test_probe_rejects_a_nonsensical_pid_without_claiming_death(self) -> None:
+        self.assertEqual(engine.probe_pid(0)[0], engine.UNVERIFIED)
+        self.assertEqual(engine.probe_pid(-1)[0], engine.UNVERIFIED)
+
+
+class TestSecretHandling(unittest.TestCase):
+    def test_never_read_list_covers_the_documented_secrets(self) -> None:
+        for rel in (".credentials.json", "daemon/control.key", "daemon/pipe.key", "ide/22580.lock"):
+            with self.subTest(rel=rel):
+                self.assertTrue(engine.is_never_read(rel))
+
+    def test_reader_refuses_a_secret_even_when_asked_directly(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            build_tree(root)
+            for rel in (".credentials.json", "ide/22580.lock"):
+                with self.subTest(rel=rel):
+                    with self.assertRaises(engine.SecretReadRefused):
+                        engine.read_text_guarded(root, rel)
+
+    def test_reader_refuses_anything_outside_the_content_allowlist(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            build_tree(root)
+            with self.assertRaises(engine.SecretReadRefused):
+                engine.read_text_guarded(root, "history.jsonl")
+            self.assertEqual(engine.read_text_guarded(root, "settings.json").strip()[0], "{")
+
+
+class TestDenyListCaseSensitivity(unittest.TestCase):
+    """Three deny paths differing only by case are three paths, not one.
+
+    Recorded because the single operation a prior audit labelled mechanically
+    provable was wrong for exactly this reason: a case-insensitive comparer
+    collapsed three distinct deny rules into one and dropped two protections.
+    """
+
+    def test_case_distinct_deny_roots_all_survive(self) -> None:
+        records = [
+            {"deny_root": "plugins/data/Experiment"},
+            {"deny_root": "plugins/data/experiment"},
+            {"deny_root": "plugins/data/EXPERIMENT"},
+        ]
+        self.assertEqual(len(engine.deny_roots(records)), 3)
+
+    def test_exact_duplicates_still_collapse(self) -> None:
+        records = [{"deny_root": "plugins/data/x"}, {"deny_root": "plugins/data/x"}]
+        self.assertEqual(engine.deny_roots(records), ["plugins/data/x"])
+
+    def test_deny_matching_is_prefix_bounded_at_a_path_segment(self) -> None:
+        denied = ["plugins/data/exp"]
+        self.assertTrue(engine.under_deny("plugins/data/exp", denied))
+        self.assertTrue(engine.under_deny("plugins/data/exp/RESTORE.md", denied))
+        self.assertFalse(engine.under_deny("plugins/data/experiment2/x", denied))
+
+    def test_surface_classification_is_case_sensitive(self) -> None:
+        self.assertEqual(engine.classify_entry("projects/x")[0], engine.SWEPT)
+        self.assertEqual(engine.classify_entry("Projects/x")[0], engine.UNCLASSIFIED)
+
+
+class TestDeliberateState(unittest.TestCase):
+    def test_a_restore_ledger_deny_lists_its_subtree(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            build_tree(root)
+            exp = root / "plugins" / "data" / "an-experiment"
+            exp.mkdir(parents=True)
+            (exp / "RESTORE.md").write_text("all keys set false", encoding="utf-8")
+            (exp / "settings.json.baseline").write_text("{}", encoding="utf-8")
+
+            report = engine.scan(root, samples=1, interval=0, authored_threshold=1000, recent_hours=24)
+            self.assertTrue(report["deliberate_state"], "the revert ledger was not found")
+            self.assertIn("plugins/data/an-experiment", report["deny_roots"])
+            plugins_entry = next(e for e in report["entries"] if e["entry"] == "plugins")
+            self.assertTrue(plugins_entry["deny_listed"])
+            self.assertEqual(plugins_entry["reading"]["verdict"], "deny-listed")
+
+    def test_hotspot_is_swept_even_though_the_full_tree_is_too(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "plugins" / "data" / "e").mkdir(parents=True)
+            (root / "plugins" / "data" / "e" / "manifest.json").write_text("{}", encoding="utf-8")
+            found = engine.find_deliberate_state(root)
+            self.assertEqual(len(found), 1)
+            self.assertTrue(found[0]["found_via"].startswith("hotspot:"))
+
+
+class TestRetention(unittest.TestCase):
+    def test_user_setting_wins_over_the_documented_default(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            build_tree(root)
+            retention = engine.read_retention(root)
+            self.assertEqual(retention["effective_days"], 14)
+            self.assertEqual(retention["effective_evidence"], engine.MEASURED)
+
+    def test_absent_setting_reports_the_default_as_a_documented_default(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "settings.json").write_text("{}", encoding="utf-8")
+            retention = engine.read_retention(root)
+            self.assertEqual(retention["effective_days"], 30)
+            self.assertEqual(retention["effective_evidence"], engine.DOCUMENTED_DEFAULT)
+
+    def test_unparsable_settings_raises_the_sweep_paused_finding(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "settings.json").write_text("{ not json", encoding="utf-8")
+            retention = engine.read_retention(root)
+            ids = [f["id"] for f in retention["findings"]]
+            self.assertIn("settings-unparsable-pauses-sweep", ids)
+
+    def test_managed_settings_withdraw_the_sweep_paused_finding(self) -> None:
+        """The finding's own claim names managed settings as the exception. When the
+        exception is measured to apply, telling the reader nothing is being swept --
+        and that every staleness reading is suspect -- is simply false."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "settings.json").write_text("{ not json", encoding="utf-8")
+            managed = root / "managed-settings.json"
+            managed.write_text(json.dumps({"cleanupPeriodDays": 7}), encoding="utf-8")
+            with _managed_paths([managed]):
+                retention = engine.read_retention(root)
+            ids = [f["id"] for f in retention["findings"]]
+            self.assertNotIn("settings-unparsable-pauses-sweep", ids)
+            self.assertEqual(retention["effective_days"], 7)
+            # The parse failure itself is still on the record.
+            self.assertTrue(retention["user_settings_parse"].startswith("failed:"))
+
+    def test_invalid_managed_value_keeps_the_sweep_paused_finding(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "settings.json").write_text("{ not json", encoding="utf-8")
+            managed = root / "managed-settings.json"
+            managed.write_text(json.dumps({"cleanupPeriodDays": 0}), encoding="utf-8")
+            with _managed_paths([managed]):
+                retention = engine.read_retention(root)
+            ids = [f["id"] for f in retention["findings"]]
+            self.assertIn("settings-unparsable-pauses-sweep", ids)
+            self.assertEqual(retention["effective_days"], 30)
+
+    def test_a_retention_value_below_the_documented_minimum_is_rejected(self) -> None:
+        """`bool` is an `int` in Python and a negative window puts the cutoff in the
+        FUTURE, marking effectively every swept file as past retention."""
+        for bad in (True, False, 0, -5, "14", 14.0, None):
+            with self.subTest(value=bad):
+                self.assertIsNone(engine.valid_retention_days(bad))
+        self.assertEqual(engine.valid_retention_days(1), 1)
+        self.assertEqual(engine.valid_retention_days(30), 30)
+
+    def test_an_invalid_user_value_is_reported_and_does_not_drive_the_window(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "settings.json").write_text(
+                json.dumps({"cleanupPeriodDays": -5}), encoding="utf-8"
+            )
+            retention = engine.read_retention(root)
+            self.assertEqual(retention["effective_days"], 30)
+            self.assertEqual(retention["effective_evidence"], engine.DOCUMENTED_DEFAULT)
+            self.assertIn("invalid", str(retention["user_setting_days"]))
+
+    def test_a_boolean_user_value_is_not_read_as_one_day(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "settings.json").write_text(
+                json.dumps({"cleanupPeriodDays": True}), encoding="utf-8"
+            )
+            retention = engine.read_retention(root)
+            self.assertEqual(retention["effective_days"], 30)
+            self.assertIn("invalid", str(retention["user_setting_days"]))
+
+
+class TestReadings(unittest.TestCase):
+    def test_a_swept_path_inside_the_window_is_product_managed_healthy(self) -> None:
+        entry = {
+            "entry": "plans",
+            "surface": engine.SWEPT,
+            "older_than_retention": 0,
+            "deny_listed": False,
+        }
+        self.assertEqual(
+            engine.staleness_reading(entry, 30)["verdict"], "product-managed-healthy"
+        )
+
+    def test_an_mtime_overage_is_reported_as_an_inference_not_a_measurement(self) -> None:
+        entry = {"entry": "file-history", "surface": engine.SWEPT, "older_than_retention": 4, "deny_listed": False}
+        reading = engine.staleness_reading(entry, 30)
+        self.assertEqual(reading["verdict"], "age-exceeds-window")
+        self.assertEqual(reading["evidence"], engine.INFERRED)
+        self.assertIn("4 file(s)", reading["measured"])
+        self.assertIn("checkpoint", reading["why"])
+
+    def test_an_unclassified_path_is_never_called_disposable(self) -> None:
+        entry = {"entry": "some-plugin", "surface": engine.UNCLASSIFIED, "older_than_retention": 99, "deny_listed": False}
+        reading = engine.staleness_reading(entry, 30)
+        self.assertEqual(reading["verdict"], "unclassified-report-only")
+        self.assertEqual(reading["evidence"], "no-upstream-row")
+
+    def test_session_scoped_state_is_keep_not_stale(self) -> None:
+        entry = {"entry": "sessions", "surface": engine.SESSION_SCOPED, "older_than_retention": 7, "deny_listed": False}
+        self.assertEqual(engine.staleness_reading(entry, 30)["verdict"], "keep")
+
+
+class TestEntrySurfacePromotion(unittest.TestCase):
+    """A secret-bearing member must not be summarised by a milder entry line.
+
+    `ide/*.lock` is in NEVER_READ_GLOBS but `ide` has no SURFACE_TABLE row, so the
+    entry-level surface came from the directory NAME alone and read `unclassified`
+    while every row beneath it read `secret`.
+    """
+
+    def _entries(self, root: Path) -> dict:
+        rows, _errors = engine.walk_tree(root, denied=[], probe=lambda _pid: (engine.DEAD, "x"))
+        return {e["entry"]: e for e in engine.rollup(rows, retention_days=30, authored_threshold=200)}
+
+    def test_a_secret_bearing_member_promotes_its_entry(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            build_tree(root)
+            entries = self._entries(root)
+            self.assertEqual(entries["ide"]["surface"], engine.SECRET)
+            self.assertEqual(entries["ide"]["reading"]["verdict"], "keep")
+            self.assertEqual(entries["ide"]["surface_evidence"], engine.MEASURED)
+
+    def test_an_entry_with_no_secret_member_is_not_promoted(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            build_tree(root)
+            entries = self._entries(root)
+            self.assertEqual(entries["some-plugin-state"]["surface"], engine.UNCLASSIFIED)
+
+    def test_every_secret_member_is_covered_by_its_entry_surface(self) -> None:
+        """The general property, not just the `ide` instance: no row may be SECRET
+        under an entry whose own surface is milder."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            build_tree(root)
+            rows, _ = engine.walk_tree(root, denied=[], probe=lambda _pid: (engine.DEAD, "x"))
+            entries = self._entries(root)
+            for row in rows:
+                if row.surface == engine.SECRET:
+                    head = engine.top_level_name(row.relpath)
+                    with self.subTest(path=row.relpath):
+                        self.assertEqual(entries[head]["surface"], engine.SECRET)
+
+
+class TestRecentWriterPrecision(unittest.TestCase):
+    def test_a_write_in_the_cutoff_second_is_not_dropped(self) -> None:
+        """`FileRow.mtime` carries second precision; a cutoff carrying microseconds
+        compares HIGHER (`.` 0x2E sorts after `+` 0x2B), so a file written inside the
+        window but in the cutoff second was silently excluded."""
+        cutoff_second = (
+            datetime.now(timezone.utc) - timedelta(hours=24)
+        ).isoformat(timespec="seconds")
+        row = engine.FileRow(
+            relpath="projects/x.jsonl",
+            bytes=1,
+            mtime=cutoff_second,
+            surface=engine.SWEPT,
+            number_meaning=engine.NO_NUMBER,
+            liveness=engine.NOT_APPLICABLE,
+            liveness_reason="",
+            deny_listed=False,
+            evidence=engine.MEASURED,
+        )
+        self.assertEqual([w["entry"] for w in engine.recent_writers([row], 24)], ["projects"])
+
+
+class TestSampledCounts(unittest.TestCase):
+    """A time-varying quantity is reported as a range with its sample count."""
+
+    def test_a_count_is_never_emitted_as_a_bare_scalar(self) -> None:
+        sampled = engine.Sampled([7, 9, 8])
+        out = sampled.as_dict(volatile=True)
+        self.assertEqual({out["min"], out["max"]}, {7, 9})
+        self.assertEqual(out["n"], 3)
+        self.assertNotIn("mean", out)
+        self.assertNotIn("value", out)
+
+    def test_unanimous_small_n_on_a_volatile_path_is_flagged_not_confirmed(self) -> None:
+        out = engine.Sampled([5, 5]).as_dict(volatile=True)
+        self.assertEqual(out["flag"], "unanimous_small_n_on_volatile_path")
+
+    def test_a_stable_path_is_not_flagged(self) -> None:
+        self.assertNotIn("flag", engine.Sampled([5, 5]).as_dict(volatile=False))
+
+    def test_three_samples_clear_the_flag(self) -> None:
+        self.assertNotIn("flag", engine.Sampled([5, 5, 5]).as_dict(volatile=True))
+
+
+class TestScanShape(unittest.TestCase):
+    def test_every_entry_carries_a_surface_a_reading_and_a_sampled_count(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            build_tree(root)
+            report = engine.scan(root, samples=1, interval=0, authored_threshold=1000, recent_hours=24)
+            self.assertTrue(report["entries"])
+            for entry in report["entries"]:
+                with self.subTest(entry=entry["entry"]):
+                    self.assertIn("surface", entry)
+                    self.assertIn("evidence", entry["reading"])
+                    self.assertIn("n", entry["file_count_sampled"])
+
+    def test_unlisted_plugin_state_lands_in_the_unclassified_bucket(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            build_tree(root)
+            report = engine.scan(root, samples=1, interval=0, authored_threshold=1000, recent_hours=24)
+            entry = next(e for e in report["entries"] if e["entry"] == "some-plugin-state")
+            self.assertEqual(entry["surface"], engine.UNCLASSIFIED)
+            self.assertEqual(entry["reading"]["verdict"], "unclassified-report-only")
+
+    def test_the_run_excludes_its_own_output_from_its_scan_set(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            build_tree(root)
+            (root / "plugins" / "data" / "claude-ops").mkdir(parents=True)
+            out = root / "plugins" / "data" / "claude-ops" / "listing.csv"
+            out.write_text("placeholder", encoding="utf-8")
+            exclude = engine.self_excluded(root, [str(out)])
+            self.assertIn("plugins/data/claude-ops/listing.csv", exclude)
+            report = engine.scan(
+                root,
+                samples=1,
+                interval=0,
+                authored_threshold=1000,
+                recent_hours=24,
+                exclude=exclude,
+            )
+            listed = {m["relpath"] for e in report["entries"] for m in e.get("members", [])}
+            self.assertNotIn("plugins/data/claude-ops/listing.csv", listed)
+
+    def test_the_report_never_claims_a_quiesced_tree(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            build_tree(root)
+            report = engine.scan(root, samples=1, interval=0, authored_threshold=1000, recent_hours=24)
+            self.assertFalse(report["quiesced"])
+
+
+class TestCsvCompleteness(unittest.TestCase):
+    """The CSV is the artifact in which "every file" literally exists.
+
+    Pinned because an earlier version drove the CSV off the JSON rollup and
+    emitted 169 rows for an 86,984-file tree while the surrounding prose claimed
+    completeness -- the exact "silently drop 99% of the files" failure the skill
+    exists to prevent.
+    """
+
+    def test_csv_row_count_equals_the_scanned_file_count(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            build_tree(root)
+            report = engine.scan(root, samples=1, interval=0, authored_threshold=1000, recent_hours=24)
+            rows = report["_rows"]
+            out = Path(tmp) / "listing.csv"
+            self.assertEqual(engine.write_csv(rows, out), report["totals"]["files"])
+
+    def test_a_low_rollup_threshold_does_not_shrink_the_csv(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            build_tree(root)
+            report = engine.scan(root, samples=1, interval=0, authored_threshold=0, recent_hours=24)
+            self.assertTrue(
+                all(e["listing"] == "rolled-up" for e in report["entries"]),
+                "the threshold did not actually force rollups",
+            )
+            out = Path(tmp) / "listing.csv"
+            self.assertEqual(engine.write_csv(report["_rows"], out), report["totals"]["files"])
+
+
+class TestCsvNoteAccuracy(unittest.TestCase):
+    """The emitted `csv.note` must not outlive what the code does.
+
+    `main()` drops `members` from every entry before serializing, so the JSON
+    embeds no per-file rows whatever `--authored-threshold` is. The note claimed
+    the threshold governed "how much per-file detail the JSON summary embeds" and
+    survived a commit that corrected the same sentence in SKILL.md, README.md and
+    the CHANGELOG -- because no test pinned the runtime string. This is that test.
+    """
+
+    def _report(self, root: Path, csv_path: Path | None) -> dict:
+        argv = ["--root", str(root), "--samples", "1", "--sample-interval", "0"]
+        if csv_path is not None:
+            argv += ["--csv", str(csv_path)]
+        buffer = io.StringIO()
+        with redirect_stdout(buffer):
+            self.assertEqual(engine.main(argv), 0)
+        return json.loads(buffer.getvalue())
+
+    def test_the_json_never_embeds_per_file_rows(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            build_tree(root)
+            report = self._report(root, Path(tmp) / "out.csv")
+            self.assertTrue(report["entries"])
+            for entry in report["entries"]:
+                with self.subTest(entry=entry["entry"]):
+                    self.assertNotIn("members", entry)
+
+    def test_the_csv_note_does_not_claim_the_json_embeds_per_file_detail(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            build_tree(root)
+            csv_path = Path(tmp) / "out.csv"
+            for target in (csv_path, None):
+                note = self._report(root, target)["csv"]["note"]
+                with self.subTest(csv=target is not None):
+                    self.assertNotIn("per-file detail", note)
+                    self.assertNotIn("embeds", note.replace("embeds no per-file rows", ""))
+
+    def test_the_csv_row_count_reported_matches_the_file_count(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            build_tree(root)
+            report = self._report(root, Path(tmp) / "out.csv")
+            self.assertEqual(report["csv"]["rows"], report["totals"]["files"])
+
+
+class TestRootResolution(unittest.TestCase):
+    def test_explicit_root_wins(self) -> None:
+        self.assertEqual(engine.resolve_root("/tmp/x"), Path("/tmp/x"))
+
+
+if __name__ == "__main__":
+    unittest.main()

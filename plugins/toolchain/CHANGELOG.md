@@ -3,6 +3,18 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.1]
+
+### Changed
+
+- **`/toolchain:check` and `/toolchain:lint` now carry `Use when:` trigger phrasing.** `check`
+  stated its phrases as "Use after any code edit or for 'does it compile' / 'run tests' checks" —
+  the two phrases are preserved verbatim and now lead, joined by `'build it'`, `'run the tests'`,
+  `'does this still build'` and `'check it'`. `lint` had no typed phrase at all ("Use for quick
+  lint/format feedback during development"), and now leads with `'lint this'`, `'run the linter'`,
+  `'format check'`, `'fix the formatting'`, `'is this formatted right'` and
+  `'run prettier/ruff/eslint'`.
+
 ## [0.12.0]
 
 ### Removed

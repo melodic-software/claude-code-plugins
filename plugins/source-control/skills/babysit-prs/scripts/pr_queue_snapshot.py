@@ -41,14 +41,12 @@ from babysit_review_trigger import ReviewTriggerConfig
 from babysit_util import configure_stdio, json_object
 
 
-def _csv(value: str | None) -> frozenset[str]:
-    return frozenset(
-        part.strip() for part in (value or "").split(",") if part.strip()
-    )
-
-
 def _csv_list(value: str | None) -> list[str]:
     return [part.strip() for part in (value or "").split(",") if part.strip()]
+
+
+def _csv(value: str | None) -> frozenset[str]:
+    return frozenset(_csv_list(value))
 
 
 def build_config(args: argparse.Namespace) -> delta.ClassifyConfig:

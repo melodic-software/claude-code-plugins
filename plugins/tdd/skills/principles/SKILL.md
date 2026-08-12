@@ -53,6 +53,7 @@ Load the most relevant file first. Load a second only if the first doesn't fully
 - **Beck**: Kent Beck, *Test-Driven Development: By Example* (2003)
 - **Khorikov**: Vladimir Khorikov, *Unit Testing: Principles, Practices, and Patterns* (2020)
 - **Ousterhout** (secondary, cross-referenced only): John Ousterhout, *A Philosophy of Software Design* — cited in one editorial-synthesis section of [test-doubles.md](reference/test-doubles.md)
+- **Mutation-testing literature** (secondary, cross-referenced only): the primary sources on mutation testing — cited in one clearly-labeled editorial note in each of [code-coverage-khorikov.md](reference/code-coverage-khorikov.md) and [four-pillars-khorikov.md](reference/four-pillars-khorikov.md), where a claim of Khorikov's has a measurable partial exception he does not cover. Both notes are marked as outside his text and leave his claim standing. The material itself is owned by `/mutation-testing:principles` when the `mutation-testing` plugin is installed; without it, each note carries its own one-line fallback.
 
 ## Naming convention
 

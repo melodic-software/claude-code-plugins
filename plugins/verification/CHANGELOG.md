@@ -3,6 +3,69 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.2]
+
+### Changed
+
+- **`/verification:measure`'s `description` is now a trigger spec rather than a summary.** A skill
+  `description` is the text Claude matches to decide whether to load the skill, and this one opened
+  with what the skill *is* and buried its routing phrases behind `use for`, so the skill
+  under-fired: the skill-quality gate flagged it as carrying no `Use when:` trigger phrasing
+  (claude-code-plugins#2174). The phrases now sit behind `Use when:` in the marketplace's house
+  shape, and six phrases a user would actually type — `'did that actually speed it up'`,
+  `'how much faster is it'`, `'measure this'`, `'capture a baseline'`,
+  `'benchmark before and after'`, `'did complexity go down'` — join the three that were already
+  there. Every phrase the previous description carried is preserved verbatim — including
+  `'cannot quantify'`, which is prose the gate's extractor nonetheless tracks as a trigger — so the
+  trigger-keyword-preservation check sees a superset, not a rewrite.
+- **`/verification:confirm`'s `description` now uses `Use when:` too.** It had the same shape: three
+  good routing phrases (`'verify changes'`, `'prove this works'`, `'did we build the right thing'`)
+  behind a lowercase `use for` the gate does not recognize as trigger phrasing. All three are
+  preserved verbatim and `'is this done'`, `'check my work'` and `'did the fix actually work'` join
+  them.
+
+## [0.5.1]
+
+### Changed
+
+- **The bundled `/verify` invocability claim is now scoped as a default, and its stamp refreshed to
+  2026-08-10.** 0.3.6 recorded that v2.1.215 made `/verify` user-invoked only, and that was exact for
+  2.1.215–2.1.224: the shipped client carried a hard model-invocation block. A recheck against the
+  bundled-skills reference and the shipped 2.1.223–2.1.226 clients found that from **2.1.225** the
+  block became a runtime gate able to re-enable model invocation, so the restriction is the
+  *default* rather than an absolute and two clients on one version can differ. The delegation
+  prohibition 0.3.6 introduced is unaffected and now rests on firmer ground: a delegated call is
+  **refused at the tool layer**, not merely discouraged, so suggest-don't-delegate holds across
+  either invocability state rather than on the version cutoff alone. The stamp moves from
+  2026-08-02 to 2026-08-10 and now names the client versions checked, not only the doc page.
+- **An observable recheck trigger joins the stamp.** `docs/conventions/upstream-drift/README.md`
+  §Adopters binds the required record parts *on touch* for a surface restating an upstream-owned
+  specific, and 0.3.6's record carried a date and basis but no trigger — so nothing obliged the next
+  recheck, which is why a v2.1.225 behavior change sat unnoticed until now. The claim now fires on a
+  Claude Code release whose changelog names `/run`, `/verify`, `/run-skill-generator`, or
+  bundled-skill invocability.
+- **Eval 9 (`live-app-delegates-to-bundled-with-fallback`) moved with the wording**, in both its
+  `expected_output` and its expectation string. 0.3.6 hit the same hazard from the other direction —
+  the eval had encoded the removed delegation as a pass condition — and leaving either field on the
+  old "user-invoked only" phrasing would have graded the corrected skill as failing.
+
+## [0.5.0]
+
+### Added
+
+- **Covered-code mutation score as the proxy for a "better tested" claim** (`measure/context/metrics.md`).
+  The quality-metrics table previously offered only test count and assertion count for test
+  coverage — both of which rise with assertion-free tests. The new row and section name the metric
+  that measures fault detection directly, instruct reporting it as a diff-scoped delta rather than a
+  whole-repo figure, and carry the three caveats that must travel with the number: scores are not
+  comparable across repositories or operator sets, the ceiling is below 100% by an unknowable margin
+  because equivalent mutants cannot all be removed, and known flaky tests inflate it by an unknown
+  amount. Explicitly not a pass/fail bar.
+- Presence-gated reference to `/mutation-testing:audit` per the seam-phrasing convention, with the
+  fallback stated inline (run the ecosystem's own tool diff-scoped and read the covered-code figure)
+  and the no-tool case handled by saying the proxy is unavailable rather than substituting a
+  coverage number for it.
+
 ## [0.4.0]
 
 ### Removed

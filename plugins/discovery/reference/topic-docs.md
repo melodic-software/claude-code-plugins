@@ -37,3 +37,11 @@ whose isolated subagent runs in the parent's checkout and writes `RESEARCH.md` t
 (already visible to the parent), returning a summary by value; a worker dispatched into its **own**
 checkout (worktree or background session) returns findings by value instead, and the parent writes
 the memory slice.
+
+**Where that rule is reachable from.** A worker does not choose the by-value mode by reading this
+file; it is `persistence: by-value` in the return payload (`agents/explorer.md`,
+`agents/researcher.md`), and the parent acts on it at the `persistence: by-value` rung of both
+recovery ladders — `skills/explore/reference/dispatch.md` and `skills/research/context/dispatch.md`.
+The parent writes the slice from the payload's verbatim artifact bodies and then re-runs the
+acceptance gate against disk. The mode changes **who writes**, never **whether the gate passes**:
+findings returned in place of an artifact are a failed dispatch, not a fallback.

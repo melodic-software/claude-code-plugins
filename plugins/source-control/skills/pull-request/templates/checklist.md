@@ -1,4 +1,4 @@
-# /pull-request Checklist
+# /source-control:pull-request Checklist
 
 Copy into your project's working-notes location (or track inline). Tick each box as the corresponding action completes.
 

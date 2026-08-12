@@ -3,7 +3,7 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.30.0]
+## [0.32.0]
 
 ### Changed
 
@@ -60,6 +60,211 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   `managed-settings.d/` drop-in directory, Windows policy registry keys, macOS preferences domain).
   `claude-memory` carries a byte-identical copy, registered as a cross-plugin shared-source cluster
   so the two cannot drift.
+
+## [0.31.0]
+
+`audit-pass` changes what it does on two target classes, which is why this is a minor: a target that is
+not a git repository is now refused, and a target at or above `~` now gets the self-exclusion and
+disclosure that only `--report-to` runs used to get. The three fixes are independent — the refusal does
+**not** subsume the containment work, because the class that falsified the containment claim is a *git*
+repository rooted at or above `$HOME`, which a dotfiles repo is.
+
+### Fixed
+
+- **`audit-pass` claimed its report lands "outside any target repository", and that is false by
+  construction.** `${CLAUDE_PLUGIN_DATA}` resolves to `~/.claude/plugins/data/{id}/`
+  ([plugins reference](https://code.claude.com/docs/en/plugins-reference), verified 2026-08-11), and no
+  documented setting relocates it — so the default report path is *inside* any target at or above `~`.
+  The sentence was true for an ordinary repo under `C:/Projects/…` and stated as a universal, while a
+  whole reachable target class falsifies it. It is now stated as what it is: outside a target below `~`,
+  inside one at or above it. That claim was load-bearing for the read-only contract's headline property
+  and for assertions 2.1 and 2.4.
+- **And the machinery that exists for exactly that situation was gated on the wrong thing.** Name-based
+  refusal, the pre-write exclusion entry, the operator disclosure, and the digest exclusion were all
+  written under the `--report-to` bullet. The flag is one way a report path ends up inside the target;
+  it was never the definition. The governing condition is now the predicate `report_path ⊆ target_root`,
+  evaluated against the resolved path on every run, with `--report-to` demoted to one instance of it.
+  Class 4 of the exclusion set is stated as that predicate rather than as a two-item list, so a member
+  added later inherits the rule instead of needing someone to remember the list.
+- **The consequence this retires:** a run against a dotfiles repository, or against `~` itself, wrote
+  its report into its own scan set with no exclusion entry and no disclosure, and then reported
+  `indeterminate` on its own determinism gate — every time, purely for doing what it was asked. The
+  digest exclusion in `determinism-tiers.md` is re-keyed on containment for the same reason.
+- **Assertions 2.1–2.4 are re-scoped on containment, and 2.6 is added.** 2.1 ("`git status --porcelain`
+  is empty") was falsified by the same class as 2.4, not just 2.4. 2.6 is the default-path twin of the
+  redirect disclosure: a run against a target at or above `~` with no `--report-to` discloses that its
+  report path is contained and names it, so a contained write is never silent.
+
+### Changed
+
+- **`audit-pass` refuses a target that is not a git repository.** `SKILL.md` called `target` "the git
+  repository to audit" while the gate required only that it "resolve to the active project root" — so a
+  non-git directory passed, and the contract then had no branch for it in five places: the state key has
+  a no-remote fallback and no no-git one; the scan baseline is defined as HEAD plus the state digest;
+  Class 3 exclusion derives worktrees from `git worktree list` and, unlike Class 1, is given no fallback;
+  assertion 2.1 is stated over `git status --porcelain`; and — the one that is a permanent capability
+  loss rather than a missing derivation — suppression is enacted only by the team layer, which is the
+  *tracked* layer, so no suppression is ever enactable on such a target. An operator could accept a
+  finding there and have the acceptance silently fail to persist, forever.
+
+  **This closes a target class, deliberately.** The alternative was specifying all five branches, which
+  obliges the contract to promise a capability it cannot deliver on that class. The refusal reuses the
+  existing channel — non-zero, before Phase 0, naming the path and the reason — rather than minting a
+  new exit code, and it states the cost out loud, naming the suppression consequence in particular, so
+  it does not read as an arbitrary restriction.
+
+  **It names the directory even when resolution produced nothing**, which is the case the refusal is
+  most for: on a bare invocation with no `${CLAUDE_PROJECT_DIR}`, the documented default is
+  `git rev-parse --show-toplevel`, and that fails outside a repository — leaving no resolved root to put
+  in the message. The diagnostic falls back to the current directory so the refusal can say what it
+  refused. That fallback is for the message only and never becomes a target.
+
+### Added
+
+- **Eval 30 `non-git-target-is-refused-not-half-specified`**, and evals 1 and 20 rewritten. This is the
+  row that had to land first: eval 1's expectation graded "writes the report under `CLAUDE_PLUGIN_DATA`
+  **rather than** into the scan set", and eval 20's graded the digest exclusion as a `--report-to`
+  property — so the suite passed a defect-exhibiting run and would have failed the corrected one. Eval 1
+  now grades that the containment predicate is *evaluated*, and that where it holds the path is recorded
+  before the write and disclosed; eval 20 grades that the exclusion is keyed on containment and not on
+  the flag. Reading all 29 shipped cases at HEAD found no others carrying the premise.
+
+## [0.30.0]
+
+Two graded outputs move, which is why this is a minor rather than a patch: a baseline deny finding can
+now come back `info` where it previously came back `error`, and adding a baseline deny rule is no longer
+offered as a mechanical `--fix`.
+
+### Changed
+
+- **`audit`: Category B stopped manufacturing an `error` on every repo whose destructive-git
+  enforcement is a hook rather than a deny rule.** The category iterates the baseline patterns and
+  states flatly that each "must appear" in `permissions.deny`; the only two ways out were prose the
+  *consuming repo* writes — a documented exemption in its own rules files, or its own documented hook
+  conventions. Neither is keyed on a hook that is actually installed and enabled, and `grep -rn "hook"`
+  across the whole skill returns no `hooks.json` read, no plugin-hook enumeration, and no coverage
+  concept at all. So a repo that blocks `git push --force` with a `PreToolUse` hook exiting 2 — which
+  the permissions reference says stops the call *before* permission rules are evaluated, ahead even of
+  an allow rule — was told its security floor was missing. "Narrowing the baseline" now carries a third
+  narrowing: a family already blocked by a **live** `PreToolUse` hook is `info`, not `error`, whether
+  the hook came from the repo or from a plugin.
+- **The narrowing is fenced by three preconditions, because a careless downgrade is worse than the
+  false positive it replaces.** The hook must be *live* — `disableAllHooks`, `allowManagedHooksOnly`,
+  or `strictPluginOnlyCustomization` can have switched it off already, and a hook a setting has
+  disabled blocks nothing, so under any of those the finding stands unnarrowed. The hook must be on the
+  tool surface the pattern defends — `sensitive-file-deny` is a `Read`-pattern family, so a hook
+  matching only `Bash` leaves the `Read`/`Grep`/`Glob` path open and retires nothing. And it must block
+  *that* family: coverage of `git push --force` says nothing about `git clean -fd`, nor a long flag
+  about its short spelling. Narrow per family, pattern by pattern.
+- **Every downgrade names its own residual.** Hook coverage is contingent in ways a deny rule is not,
+  and an `info` that hides that is worse than the `error` it replaced, so the off-ramp obliges the
+  report to say what ends the coverage: disabling or uninstalling the providing plugin, any per-guard
+  opt-out the hook exposes, and later suppression by `disableAllHooks` / `allowManagedHooksOnly` /
+  `strictPluginOnlyCustomization` even where none is set today.
+- **`audit`: adding a baseline deny rule is judgment-required, not an auto-fix.** The Phase 5 matrix
+  graded it `Auto-fixable: Yes (from checklist)` / `Requires judgment: No` — the column that tells a
+  user not to think about it, next to a prompt whose offered reply `'all'` applies the lot in one
+  keystroke. It also contradicted this skill's own baseline reference, which says adding a deny for a
+  family a project hook escalates to an *ask* suppresses that prompt and must be audited against the
+  project's hook conventions. The judgment is now written out: is the family already covered, and would
+  the addition suppress a gate the project built deliberately. *Moving* a deny rule from local to
+  project stays mechanical — that is bug #8961 placement, not a policy change — and `SKILL.md`'s prose
+  restatement of the matrix splits the two the same way instead of asserting the opposite.
+- Scope stated honestly: the applied change was *more* deny rules, which is fail-closed, and a
+  confirmation gate already existed and was already pinned by eval #2 — so this was never "unattended
+  auto-apply". The graded harm is unwanted config growth against a stated simplification goal, plus the
+  loss of a human approve/reject decision where a hook returned `ask`. A hook that blocks by `exit 2`
+  short-circuits before permission rules and suppresses nothing.
+
+### Fixed
+
+- **The narrowings were unreachable from where the check runs.** Category B's directive delegates by
+  *pattern* — "iterate the patterns in required-permissions.md" — and the checklist likewise says
+  "assert presence per sub-category". Neither named the off-ramp sections, so they were prose elsewhere
+  in a file the category cites only for its tables, and a new off-ramp added there alone would have
+  inherited the same weak wiring. Category B and the checklist's B.1–B.3 severity table now both point
+  at "Narrowing the baseline" and say the tabled severities are the *unnarrowed* rating.
+- **The skill assumed absence where it simply could not see.** It has no enumeration path over a
+  plugin's `hooks/hooks.json` — it reads the settings-declared layer only — so on most runs it does not
+  know what is installed. A missing baseline pattern with no hook inventory behind it is now stated
+  conditionally ("if a `PreToolUse` hook on `Bash` already blocks this family, this finding is void")
+  and says which inventory would settle it, rather than asserting the gap. Fail open, not fail silent.
+
+### Added
+
+- **Category D now reads the hook-suppression levers**, because the new narrowing depends on a reading
+  nothing was taking. `disableAllHooks` in the settings-declared layer and `allowManagedHooksOnly` /
+  `strictPluginOnlyCustomization` in the managed layer each switch hooks off, and Category D checked
+  script paths, readability, timeouts, matchers, and events without ever asking whether the hooks it
+  inventoried could run at all. It reports each lever as set or unset with the hooks it disables —
+  `info`, because a repo may set any of them deliberately and the reading is state rather than a
+  defect. Category B may not take its third narrowing on a reading that was never made: an unread lever
+  leaves the narrowing **unavailable**, not assumed clear.
+- **And the dependency is sequenced, since Category B runs before Category D.** A–I is presentation
+  order, not a dependency ban: Category B pulls the lever reading forward before taking the narrowing,
+  or defers the downgrade and revises the severity once Category D has run. On a scope-filtered run that
+  never reaches Category D — `/audit permissions` is exactly this — the narrowing is unavailable unless
+  the operator supplies the state. Stated in both Category B and "Narrowing the baseline", so a reader
+  arriving at either one gets it.
+- Eval #8 `baseline-deny-narrowed-by-installed-hook` grades the narrowing *per family*: force-push and
+  hard-reset patterns drop to `info` under a live Bash hook, while `git clean` patterns the hook does
+  not match and `sensitive-file-deny` Read patterns it cannot reach stay at their unnarrowed severity.
+  Eval #9 `no-hook-inventory-states-the-finding-conditionally` grades the fail-open half, and eval #10
+  `suppressed-hook-does-not-narrow-the-baseline` grades the negative case the liveness precondition
+  exists for: a declared hook under `disableAllHooks: true` narrows nothing, and the finding holds at
+  `error`.
+
+## [0.29.2]
+
+### Changed
+
+- **Upstream doc stamps re-verified against the live pages (2026-08-10).** Each dated claim below was re-checked against the complete raw markdown source of the page it cites (`https://code.claude.com/docs/en/<page>.md`), not a summarized fetch, and each was confirmed by a verbatim quote before its stamp was refreshed. No claim changed; only the verification dates moved.
+
+  - `skills/audit/scripts/check-structure.sh` — managed-settings paths, and the legacy
+    `C:\ProgramData\ClaudeCode\managed-settings.json` location being unsupported since v2.1.75
+    (settings reference).
+  - `skills/audit-pass/reference/doctor-handoff.md` — `/doctor` proposing fixes it applies only
+    after confirmation (debug-your-config reference).
+  - `skills/audit-pass/SKILL.md` — `@path` imports not reducing context because imported files
+    load at launch (memory reference).
+
+## [0.29.1]
+
+### Fixed
+
+- **`audit`: the MANDATORY env-var check told auditors to do the exact thing that fabricates
+  findings.** Category F required fetching `code.claude.com/docs/en/env-vars` and searching it for
+  each name, calling that page "the authoritative source" — with no word about how to read it. The
+  page carries 315 variable rows and truncates through a summarizing fetch, which then reports the
+  rows past the cutoff as absent; `env-vars` produced that false negative on three independent
+  fetches (#2182). An auditor following this row as written could flag a perfectly valid variable as
+  unrecognized and never know. The row now routes through the
+  [`.md` fetch route](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#reading-the-basis--the-fetch-route)
+  — `curl` to a file, grep the file — and states that a truncated read supports no finding at all.
+- **`audit`: and the inverse error the same row invited.** "Authoritative source" plus "do not flag
+  as unrecognized without checking this page" reads as *absent here means not a real variable*.
+  It does not: `CLAUDE_CODE_ENTRYPOINT`, `CLAUDE_CODE_ENHANCED_TELEMETRY_BETA`, and
+  `CLAUDE_CODE_EXPERIMENTAL_OBSERVER_AGENTS` are each cited as real in this repo and each absent
+  from a full verbatim read of the page on 2026-08-10. The row now caps the strongest available
+  verdict at "not documented on `env-vars`" and names the sibling pages to check first.
+- **`audit-instructions`: the effort-audit reading list promised a release the page does not state.**
+  It sent auditors to `env-vars` for `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING` "with the models **and
+  release** it reaches"; the row states the models — "Has no effect on Fable 5, Sonnet 5, or Opus
+  4.7 and later" — and no release at all (verbatim read, 2026-08-10). Sending a reader to look for
+  something that is not there invites them to invent it. The clause is corrected, and the entry
+  routes through the fetch route for the same truncation reason as Category F above.
+- **`audit-pass`: `DISABLE_DOCTOR_COMMAND` is documented, and the handoff said it was not.**
+  `reference/doctor-handoff.md` carried it as a design-phase channel "not documented on the current
+  official pages … does not appear in the environment variables list (checked 2026-07-24)". A live
+  verbatim read on 2026-08-10 found it, and found it describing this skill precisely: "Set to `1` to
+  hide the `/doctor` setup checkup skill and its `/checkup` alias … Doesn't affect the `claude
+  doctor` terminal command. Before v2.1.205, this variable hid the `/doctor` diagnostics screen
+  command" — which independently corroborates the v2.1.205 cutover the same section already states.
+  It moves up into the verified list with the scope the row actually draws (session skill, not the
+  terminal command). The pass still **detects** rather than predicts: a documented suppression lever
+  says an operator could have set it, never that they did. The `skillOverrides` half is untouched and
+  still says so — this run re-derived the `env-vars` basis only, and the recheck trigger now names
+  the settings fetch that would retire the stale half.
 
 ## [0.29.0]
 

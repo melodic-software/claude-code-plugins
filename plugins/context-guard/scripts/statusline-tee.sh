@@ -89,10 +89,43 @@ tee_snapshot() {
   [[ -n "${HOME:-}" ]] || return 0
   command -v jq >/dev/null 2>&1 || return 0 # visible notice emitted by the caller
 
-  # Extract + sanitize the session id BEFORE any filesystem work: it becomes
-  # the snapshot filename, so only [A-Za-z0-9_-] is accepted.
-  local sid
-  sid=$(printf '%s' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null) || return 0
+  local ts payload sid out
+  ts=$(date -u '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null) || return 0
+  # ONE jq pass for both the snapshot body and the session id — this runs on
+  # every statusline refresh, so a second spawn here is a second spawn per
+  # refresh. Framing is payload-FIRST and is airtight because `jq -c` emits an
+  # object on exactly one line (JSON escapes any newline inside a string),
+  # while a raw session id may legally carry newlines: the first line is
+  # always the payload, everything after it is the id, and a multi-line id
+  # simply fails the character-class gate below like any other bad value.
+  #
+  # cli_version carries the payload's top-level `version` (the Claude Code
+  # version — statusline reference, verified 2026-08-10; the same re-check
+  # confirms `total_input_tokens` / `total_output_tokens` are documented as
+  # "tokens currently in the context window"). The reader needs it because
+  # those fields mean current context occupancy only from 2.1.132 and were
+  # CUMULATIVE session totals before it — a version floor the statusline page
+  # NO LONGER states as of the 2026-08-10 re-check, so it is a retained claim
+  # with no current upstream source; treat it as a lower bound, not doc-backed:
+  # a cumulative total below the window size is indistinguishable from a real
+  # occupancy, so without a version there is no sound way to trust the token
+  # bands. Copied only when it is a string; absent leaves the reader on the
+  # percentage shape alone.
+  out=$(printf '%s' "$INPUT" | jq -rc --arg ts "$ts" '
+    ({captured_at: $ts, session_id: .session_id}
+     + (if (.version? // null | type) == "string" then {cli_version: .version} else {} end)
+     + (if has("context_window") then {context_window} else {} end)),
+    (.session_id // "")
+  ' 2>/dev/null) || return 0
+  payload=${out%%$'\n'*}
+  sid=""
+  # No second line at all (absent/null session_id) leaves sid empty, which the
+  # character-class gate rejects — never the payload text read as an id.
+  [[ "$out" == *$'\n'* ]] && sid=${out#*$'\n'}
+  [[ -n "$payload" ]] || return 0
+
+  # Sanitize the session id BEFORE any filesystem work: it becomes the
+  # snapshot filename, so only [A-Za-z0-9_-] is accepted.
   [[ "$sid" =~ ^[A-Za-z0-9_-]+$ ]] || return 0
 
   local dir="$HOME/.claude/context-guard/context"
@@ -102,23 +135,6 @@ tee_snapshot() {
   # symlinks or reading the snapshots. Best-effort (no-op on filesystems
   # without POSIX modes, e.g. Windows ACL volumes under Git Bash).
   chmod 700 "$dir" 2>/dev/null || true
-
-  local ts payload
-  ts=$(date -u '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null) || return 0
-  # cli_version carries the payload's top-level `version` (the Claude Code
-  # version — statusline reference, verified 2026-07-26). The reader needs it
-  # because `total_input_tokens` / `total_output_tokens` mean current context
-  # occupancy only from 2.1.132 and were CUMULATIVE session totals before it:
-  # a cumulative total below the window size is indistinguishable from a real
-  # occupancy, so without a version there is no sound way to trust the token
-  # bands. Copied only when it is a string; absent leaves the reader on the
-  # percentage shape alone.
-  payload=$(printf '%s' "$INPUT" | jq -c --arg ts "$ts" '
-    {captured_at: $ts, session_id: .session_id}
-    + (if (.version? // null | type) == "string" then {cli_version: .version} else {} end)
-    + (if has("context_window") then {context_window} else {} end)
-  ' 2>/dev/null) || return 0
-  [[ -n "$payload" ]] || return 0
 
   # Prune stale sibling snapshots (14 days ≫ the reader contract's 10-minute
   # staleness window — a live-but-idle session survives). Pattern *.json

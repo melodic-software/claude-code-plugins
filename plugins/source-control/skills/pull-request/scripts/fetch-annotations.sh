@@ -128,7 +128,9 @@ if [[ "$FAILED_ONLY" -eq 1 ]]; then
   FILTERED=$(printf '%s\n' "$CHECK_RUNS_JSON" |
     jq -c 'select(.conclusion == "failure" or .conclusion == "timed_out" or .conclusion == "action_required" or .conclusion == "cancelled")')
 else
-  FILTERED=$(printf '%s\n' "$CHECK_RUNS_JSON" | jq -c '.')
+  # No filter: the records are already the one-per-line compact form the walk
+  # below reads, so passing them through `jq -c '.'` was an identity round trip.
+  FILTERED="$CHECK_RUNS_JSON"
 fi
 
 if [[ -z "$FILTERED" ]]; then

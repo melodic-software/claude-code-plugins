@@ -7,17 +7,32 @@ Terms: [terms.md](terms.md). Full index: [run-contract.md](run-contract.md).
 
 ## 2. Where the report lives
 
-**A run never writes into its own scan set.** If run 1 writes a report into the tree, run 2's tree is
-not unchanged and the idempotence property is unfalsifiable by construction.
+**A run never scans what it wrote.** If run 1 writes a report into the scanned tree and run 2 reads it,
+run 2's tree is not unchanged and the idempotence property is unfalsifiable by construction.
 
-- The report goes under `${CLAUDE_PLUGIN_DATA}`, which resolves outside any target repository and
-  survives plugin updates, at `runs/<state-key>/<run-id>/findings.json`.
-- `--report-to <path>` redirects it into the target tree. **The redirecting run records that path in
-  its own exclusion set, before it writes** — not only for subsequent runs — and says so in its
-  output. Deferring the record to run 2 would put the path in one run's derived-tier exclusion
-  artifact and not the other's, and 2.2 requires those two derived sets to be equal. The path is
-  recorded whether or not a file exists there yet: the exclusion is about the path this run is about
-  to write, not about what it found there.
+**The governing condition is containment, not a flag.** Whether the run must protect itself from its own
+report is decided by the predicate `report_path ⊆ target_root`, evaluated against the **resolved** report
+path on every run. `--report-to` is one way that condition becomes true; it was never the definition of
+it, and gating the machinery on the flag left the default path unprotected wherever the same condition
+held.
+
+- The report goes under `${CLAUDE_PLUGIN_DATA}` at `runs/<state-key>/<run-id>/findings.json`, which
+  survives plugin updates. **State its location precisely, because a whole target class turns on it:**
+  that directory resolves to `~/.claude/plugins/data/{id}/`
+  ([plugins reference](https://code.claude.com/docs/en/plugins-reference), verified 2026-08-11), and no
+  documented setting relocates it. It is therefore **outside** a target below `~` and **inside** any
+  target at or above it. The default path is *usually* outside the scan set and is **not
+  unconditionally** outside it — a dotfiles repository, or `~` itself, is a target where containment
+  holds by construction, and the older unconditional claim was false there.
+- `--report-to <path>` redirects the report, which makes containment hold whenever the destination lies
+  inside the target.
+- **Whenever containment holds — by either route — the run records that path in its own exclusion set
+  before it writes**, and says so in its output. Not only for subsequent runs: deferring the record to
+  run 2 would put the path in one run's derived-tier exclusion artifact and not the other's, and 2.2
+  requires those two derived sets to be equal. The path is recorded whether or not a file exists there
+  yet — the exclusion is about the path this run is about to write, not about what it found there.
+- **Where containment does not hold, none of this is owed** and the run writes its report without an
+  exclusion entry, because there is nothing to exclude from a tree the path is not in.
 - **A redirect destination is accepted only if it is an `audit-pass`-owned report, or a new path that
   is not a recognized instruction surface.** Recording the path unconditionally is right for the
   *exclusion* and no licence to *write*: `--report-to CLAUDE.md` would overwrite an audited
@@ -39,11 +54,12 @@ not unchanged and the idempotence property is unfalsifiable by construction.
 
 | # | Assertion |
 |---|---|
-| 2.1 | After a run against a clean git worktree with no redirect, `git status --porcelain` is empty. |
+| 2.1 | After a run against a clean git worktree whose **resolved report path is not contained in the target root**, `git status --porcelain` is empty. Scoped on containment rather than on "no redirect", because the default path is contained too whenever the target is at or above `~`, and the unscoped form was false there. |
 | 2.5 | `--report-to <existing-non-report-path>` exits non-zero naming the file, writes nothing, and leaves the file byte-identical — including when the path is an audited instruction surface. |
-| 2.2 | With a redirect, a second run's scan set excludes the redirected path, and the two runs' derived identity sets are still equal. |
-| 2.3 | The first run under `--report-to` records the redirected path in its own exclusion artifact before writing the report, whether or not that path already exists. |
-| 2.4 | A run under `--report-to <path-inside-target>` against an otherwise-unchanging tree reports the determinism gate as satisfied, not `indeterminate` — writing its own report does not move its own state digest. |
+| 2.2 | Where the report path is contained, a second run's scan set excludes it, and the two runs' derived identity sets are still equal. |
+| 2.3 | The first run whose report path is contained records that path in its own exclusion artifact before writing the report, whether or not that path already exists, and whether it became contained by `--report-to` or by default resolution. |
+| 2.4 | A run whose report path is contained in the target, against an otherwise-unchanging tree, reports the determinism gate as satisfied, not `indeterminate` — writing its own report does not move its own state digest. Holds for the default path under a target at or above `~` exactly as it holds under `--report-to`. |
+| 2.6 | A run against a target at or above `~` with **no** `--report-to` discloses that its default report path is contained, and names it — the default-path twin of the redirect disclosure, so a contained write is never silent. |
 
 ## 7. Report schema
 

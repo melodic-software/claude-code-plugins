@@ -69,11 +69,18 @@ INPUT=""
 # payload at the timeout (measured on Git Bash); Bash below 4.1 (macOS ships
 # 3.2) lacks -N and falls back to the delimiter form, fast enough on native
 # POSIX pipes. 1MiB bound: statusline payloads are a few KB.
-if ((BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 1))); then
-  IFS= read -r -N 1048576 -t 5 INPUT || true
-else
-  IFS= read -r -d '' -t 5 INPUT || true
-fi
+#
+# Deferred into a function rather than run at load: this file carries a sourcing
+# guard at the bottom so its enablement gate can be driven by the test suite, and
+# a top-level read would consume the sourcing shell's stdin before `main` runs.
+read_tee_input() {
+  if ((BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 1))); then
+    IFS= read -r -N 1048576 -t 5 INPUT || true
+  else
+    IFS= read -r -d '' -t 5 INPUT || true
+  fi
+  return 0
+}
 
 # Path of the temp file currently in flight, for the reclaim traps below. A
 # global rather than the function's local: the trap body is evaluated when the
@@ -163,23 +170,31 @@ tee_snapshot() {
   # without POSIX modes, e.g. Windows ACL volumes under Git Bash).
   chmod 700 "$dir" 2>/dev/null || true
 
-  local ts payload
+  local ts payload has_windows out
   ts=$(date -u '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null) || return 0
-  payload=$(printf '%s' "$INPUT" | jq -c --arg ts "$ts" '
-    {captured_at: $ts}
-    + (to_entries
-       | map(select(.key == "rate_limits" or .key == "session_id"
-                    or .key == "session_name" or (.key | test("account"; "i"))))
-       | from_entries)
-  ' 2>/dev/null) || return 0
-  [[ -n "$payload" ]] || return 0
-
+  # ONE jq pass for the snapshot body AND the window-bearing verdict — this
+  # runs on every statusline refresh, so a second spawn here is a second spawn
+  # per refresh. Both lines are single-line by construction (`jq -c` escapes
+  # any newline inside a string; the verdict is `true`/`false`), so the split
+  # below is exact.
+  #
   # Window-bearing is a structural property — jq's has(), never a substring
   # test: a forwarded value that merely contains the string "rate_limits"
   # (e.g. "session_name":"rate_limits") must not count as window-bearing and
-  # overwrite a snapshot holding real windows.
-  local has_windows=false
-  jq -e 'has("rate_limits")' >/dev/null 2>&1 <<<"$payload" && has_windows=true
+  # overwrite a snapshot holding real windows. It is asked of the BUILT payload,
+  # exactly as the separate call it replaces was.
+  out=$(printf '%s' "$INPUT" | jq -rc --arg ts "$ts" '
+    ({captured_at: $ts}
+     + (to_entries
+        | map(select(.key == "rate_limits" or .key == "session_id"
+                     or .key == "session_name" or (.key | test("account"; "i"))))
+        | from_entries)) as $p
+    | $p, ($p | has("rate_limits"))
+  ' 2>/dev/null) || return 0
+  payload=${out%%$'\n'*}
+  has_windows=false
+  [[ "${out##*$'\n'}" == true ]] && has_windows=true
+  [[ -n "$payload" ]] || return 0
 
   # Sweep before any early return: a machine where only windowless sessions
   # remain active would otherwise skip below on every refresh and never
@@ -240,33 +255,197 @@ tee_snapshot() {
   return 0
 }
 
-tee_snapshot
+# The tee's WRITE is plugin behavior and is gated like any other hook's. Two
+# things make this call site different from a normal `hook::check_enabled`:
+#
+#   1. This script is a TRANSPARENT statusline wrapper. `hook::check_enabled`
+#      exits 0 on "disabled", which here would suppress the wrapped command's
+#      stdout and blank the user's status line. The predicate form skips only
+#      the snapshot; the passthrough below stays unconditional.
+#   2. This script is invoked BY ABSOLUTE PATH from settings.json `statusLine`,
+#      not by the plugin hook runner, so it is reached whatever the plugin's
+#      enablement says. Without this gate it is the one code path in the plugin
+#      that keeps running when the plugin is off.
+#
+# If no scope contributes a verdict the tee still runs, consistent with this
+# script's rule that no tee outcome ever alters the wrapped statusline.
+#
+# CHANNEL: this process is NOT a hook process. Claude Code exports
+# CLAUDE_PLUGIN_OPTION_<KEY> to hook processes only (plugins-reference, "User
+# configuration"; and this repo's docs/conventions/hook-config-delivery/README.md scopes
+# the env channel the same way). Reading that variable alone would always find it unset,
+# always fall back to enabled, and produce a gate that is decorative -- so the value is
+# read from the configured sources directly (channel F), which is the sanctioned route
+# for a non-hook consumer. The env var is still honored, but last (see the precedence
+# note on _rlg_tee_enabled), in case it is ever delivered here.
 
-if (($#)); then
-  # Wrapped mode: transparent passthrough. The wrapped command sees the same
-  # stdin bytes and owns stdout; its exit code is the wrapper's. pipefail is
-  # dropped for exactly this pipeline: a wrapped command that never reads
-  # stdin closes the pipe under printf, and pipefail would surface printf's
-  # SIGPIPE (141) instead of the wrapped command's own exit code. printf's
-  # stderr is silenced for the same case (bash prints a broken-pipe notice).
-  set +o pipefail
-  printf '%s' "$INPUT" 2>/dev/null | "$@"
-  rc=$?
-  set -o pipefail
-  if ! command -v jq >/dev/null 2>&1; then
-    printf 'rate-limit-guard: jq not found — rate-limit tee disabled (https://jqlang.org/download/)\n'
+# Managed settings — the highest-precedence scope Claude Code honors for
+# pluginConfigs (settings docs, "Settings precedence") and the one an organization
+# uses to enforce a policy. Fixed, root-owned per-platform paths, the primary file
+# first and then the `managed-settings.d/` drop-ins in sorted order; later files
+# override earlier ones in _rlg_managed_option, mirroring Claude Code's merge.
+#
+# Platform comes from `uname -s`, never $OSTYPE — the same spelling as this repo's
+# sibling bash channel-F reader, plugins/autonomy/hooks/lane-stop-gate-lib.sh,
+# itself the bash equivalent of the python exemplar's sys.platform table
+# (plugins/disk-hygiene/lib/killswitch_config.py::managed_settings_path). The
+# Windows path is the literal absolute path the docs give, never
+# %ProgramFiles%-derived: an environment-derived base would let a repo `env` block
+# redirect the highest-precedence scope at the one process that trusts it most.
+#
+# Server-managed settings are deliberately excluded, as in the sibling reader:
+# their only on-disk artifact is the user-writable cache
+# ~/.claude/remote-settings.json, which fails this list's trust test.
+#
+# Prints nothing on an unrecognized platform — managed then configures nothing and
+# the user scope decides.
+_rlg_managed_settings_files() {
+  local primary
+  case "$(uname -s 2>/dev/null)" in
+  Darwin) primary="/Library/Application Support/ClaudeCode/managed-settings.json" ;;
+  MINGW* | MSYS* | CYGWIN*) primary="C:/Program Files/ClaudeCode/managed-settings.json" ;;
+  Linux) primary="/etc/claude-code/managed-settings.json" ;;
+  *) return 0 ;;
+  esac
+  # Defense in depth: a managed path MUST be absolute (POSIX /… or a Windows
+  # drive). A relative value would resolve against this process's cwd — the
+  # user's checkout — turning the highest-precedence scope into a plantable file.
+  case "$primary" in
+  /* | [A-Za-z]:[/\\]*) ;;
+  *) return 0 ;;
+  esac
+  [[ -f "$primary" ]] && printf '%s\n' "$primary"
+  local dropin="${primary%/*}/managed-settings.d" f
+  if [[ -d "$dropin" ]]; then
+    for f in "$dropin"/*.json; do
+      [[ -f "$f" ]] && printf '%s\n' "$f"
+    done
   fi
-  exit "$rc"
-fi
+  return 0
+}
 
-# Standalone mode: minimal statusline when none was configured.
-if command -v jq >/dev/null 2>&1; then
-  printf '%s' "$INPUT" | jq -r '
-    def pct(w): ((w // {}) | if .used_percentage != null then "\(.used_percentage)%" else "-" end);
-    "[\(.model.display_name // "Claude")] ctx \(.context_window.used_percentage // "-")% | 5h "
-    + pct(.rate_limits.five_hour) + " | 7d " + pct(.rate_limits.seven_day)
-  ' 2>/dev/null || printf 'rate-limit-guard: waiting for session data\n'
-else
-  printf 'rate-limit-guard: jq not found — install jq (https://jqlang.org/download/)\n'
+# Print this plugin's configured rate_limit_guard_enabled from ONE settings file
+# as "true"/"false"; return 1 when that file contributes no verdict — absent,
+# unreadable, unparsable, no matching entry, or a JSON null. Every no-verdict path
+# is a fail-OPEN path at the caller.
+#
+# NOT `// empty` on the value: jq's alternative operator treats `false` as falsy,
+# so the one value this gate exists to detect would be discarded. `tostring` yields
+# "true"/"false", and emptiness is decided by an explicit `length == 0` on the
+# collected array, so no alternative operator ever touches a boolean.
+#
+# Marketplace-agnostic: pluginConfigs is keyed `<plugin>@<marketplace>`, and this
+# plugin may be installed from a fork or private catalog, so the key is matched by
+# PREFIX. Last match wins, as in the sibling reader.
+#
+# The file is opened by bash (`<"$file"`), not by jq: a native jq on Windows
+# cannot open an MSYS-style path, while a shell redirection always can.
+_rlg_settings_option() {
+  local file="$1" out
+  [[ -r "$file" ]] || return 1
+  command -v jq >/dev/null 2>&1 || return 1
+  out="$(jq -r '[ (.pluginConfigs // {}) | to_entries[]
+      | select(.key | startswith("rate-limit-guard@"))
+      | .value.options.rate_limit_guard_enabled
+      | select(. != null) | tostring ]
+    | if length == 0 then empty else last end' <"$file" 2>/dev/null)" || return 1
+  [[ -n "$out" ]] || return 1
+  printf '%s' "$out"
+}
+
+# The managed-scope verdict, or return 1 when managed configures none.
+_rlg_managed_option() {
+  local f v verdict="" have=1
+  while IFS= read -r f; do
+    [[ -n "$f" ]] || continue
+    if v="$(_rlg_settings_option "$f")"; then
+      verdict="$v"
+      have=0
+    fi
+  done < <(_rlg_managed_settings_files)
+  ((have == 0)) || return 1
+  printf '%s' "$verdict"
+}
+
+# PRECEDENCE, highest first: managed settings, then user settings, then the
+# environment. Absent a verdict from all three the tee runs — the plugin default,
+# and the fail-OPEN direction every degraded read lands on.
+#
+# Managed is authoritative because it is the scope an organization uses to enforce
+# a policy and the one no user or project scope can override; a gate that let a
+# user (or a repo) out-vote it would be exactly the policy bypass this function is
+# supposed to close. The env channel sits BELOW user settings for the same reason
+# it is kept at all: it is honored only in case it is ever delivered here, and for
+# an UNCONFIGURED key a repo `.claude/settings.json` `env` block freely populates
+# CLAUDE_PLUGIN_OPTION_* with no provenance
+# (docs/conventions/hook-config-delivery/README.md fact 4), so it must never
+# out-vote a value a real settings scope actually configured.
+#
+# RESIDUALS (accepted; see this plugin's CHANGELOG for the trust analysis): the
+# USER settings file is still located from ${CLAUDE_CONFIG_DIR:-$HOME/.claude}
+# rather than channel F's install anchor, and a value supplied only through a
+# session `--settings` file is invisible to any on-disk read (channel F's own
+# documented residual). Neither weakens the MANAGED verdict, which is
+# environment-independent by construction.
+_rlg_tee_enabled() {
+  local v
+  if v="$(_rlg_managed_option)"; then
+    [[ "$v" == "false" ]] && return 1
+    return 0
+  fi
+  if v="$(_rlg_settings_option "${CLAUDE_CONFIG_DIR:-${HOME:-}/.claude}/settings.json")"; then
+    [[ "$v" == "false" ]] && return 1
+    return 0
+  fi
+  case "${CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED:-}" in
+  "" | true) return 0 ;;
+  *) return 1 ;;
+  esac
+}
+
+main() {
+  read_tee_input
+
+  if _rlg_tee_enabled; then
+    tee_snapshot
+  fi
+
+  if (($#)); then
+    # Wrapped mode: transparent passthrough. The wrapped command sees the same
+    # stdin bytes and owns stdout; its exit code is the wrapper's. pipefail is
+    # dropped for exactly this pipeline: a wrapped command that never reads
+    # stdin closes the pipe under printf, and pipefail would surface printf's
+    # SIGPIPE (141) instead of the wrapped command's own exit code. printf's
+    # stderr is silenced for the same case (bash prints a broken-pipe notice).
+    local rc
+    set +o pipefail
+    printf '%s' "$INPUT" 2>/dev/null | "$@"
+    rc=$?
+    set -o pipefail
+    if ! command -v jq >/dev/null 2>&1; then
+      printf 'rate-limit-guard: jq not found — rate-limit tee disabled (https://jqlang.org/download/)\n'
+    fi
+    exit "$rc"
+  fi
+
+  # Standalone mode: minimal statusline when none was configured.
+  if command -v jq >/dev/null 2>&1; then
+    printf '%s' "$INPUT" | jq -r '
+      def pct(w): ((w // {}) | if .used_percentage != null then "\(.used_percentage)%" else "-" end);
+      "[\(.model.display_name // "Claude")] ctx \(.context_window.used_percentage // "-")% | 5h "
+      + pct(.rate_limits.five_hour) + " | 7d " + pct(.rate_limits.seven_day)
+    ' 2>/dev/null || printf 'rate-limit-guard: waiting for session data\n'
+  else
+    printf 'rate-limit-guard: jq not found — install jq (https://jqlang.org/download/)\n'
+  fi
+  exit 0
+}
+
+# Sourcing guard (the idiom already used by this repo's updater scripts): `main`
+# runs only on a direct invocation, so a direct run is byte-for-byte what it was,
+# while the test suite can SOURCE this file to stub _rlg_managed_settings_files —
+# whose paths are fixed and root-owned by design, therefore unwritable from a
+# test — and then drive the real end-to-end path through `main`.
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  main "$@"
 fi
-exit 0

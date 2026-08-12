@@ -42,8 +42,16 @@ INPUT=$(hook::buffer_stdin) || exit 0
 # (additionalContext), once per session — see docs/conventions/hook-observability/.
 hook::require_jq "PreToolUse" "guardrails-workflow-resilience-check" "$INPUT"
 
-SCRIPT=$(printf '%s' "$INPUT" | jq -r '.tool_input.script // empty' 2>/dev/null | tr -d '\r')
-SCRIPT_PATH=$(printf '%s' "$INPUT" | jq -r '.tool_input.scriptPath // empty' 2>/dev/null | tr -d '\r')
+# Both payload fields in ONE jq process (hook::jq_fields), not two — a jq spawn is
+# fork() emulation on Windows Git Bash. Failure semantics are unchanged: a missing
+# jq or an unparsable payload yields rc 1 here, which exits 0 exactly as the
+# empty-SCRIPT skip below did (both fields would have come back empty, and the
+# scriptPath fallback needs a non-empty SCRIPT_PATH to do anything) —
+# hook::require_jq above has already made the degraded state visible once per
+# session.
+hook::jq_fields "$INPUT" '.tool_input.script' '.tool_input.scriptPath' || exit 0
+SCRIPT="${HOOK_JQ_FIELDS[0]}"
+SCRIPT_PATH="${HOOK_JQ_FIELDS[1]}"
 
 # Saved-engine / resume path passes scriptPath (no inline script) — read the
 # file so the same check covers saved scripts too. Absent both → nothing to

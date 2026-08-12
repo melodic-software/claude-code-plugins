@@ -65,7 +65,24 @@ esac
 
 # Diff-scope: verify only the content THIS tool call wrote, never re-read the
 # whole file from disk.
-TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null | tr -d '\r')
+#
+# Every payload field this hook can need, in ONE jq process (hook::jq_fields),
+# not three — a jq spawn is fork() emulation on Windows Git Bash. Both per-tool
+# content fields and replace_all are fetched together because selecting between
+# them would cost another process; jq reads the same envelope either way, and the
+# tool-specific choice happens below in the shell. `replace_all` keeps its
+# `// false | tostring` INSIDE the filter: hook::jq_fields wraps each filter in
+# `// ""`, and jq's `//` treats the boolean false as empty, so a bare
+# `.tool_input.replace_all` would come back "" instead of "false". That is kept
+# for parity with the pre-conversion output, not because a branch depends on it
+# — every consumer below tests `== "true"`, which "" and "false" fail alike.
+# Failure semantics are unchanged: a missing jq or an unparsable payload yields
+# rc 1 here, which exits 0 exactly as the unmatched-TOOL case did —
+# hook::require_jq above has already made the degraded state visible once per
+# session.
+hook::jq_fields "$INPUT" '.tool_name' '.tool_input.new_string' \
+  '.tool_input.content' '.tool_input.replace_all // false | tostring' || exit 0
+TOOL="${HOOK_JQ_FIELDS[0]}"
 # Edit's `replace_all` (documented at
 # https://code.claude.com/docs/en/tools-reference — Edit requires `old_string` to
 # occur exactly once, and `replace_all: true` is how Claude edits every occurrence
@@ -75,10 +92,10 @@ TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null | tr -d '\
 REPLACE_ALL=false
 case "$TOOL" in
 Edit)
-  SCAN_CONTENT=$(printf '%s' "$INPUT" | jq -r '.tool_input.new_string // empty' 2>/dev/null | tr -d '\r')
-  REPLACE_ALL=$(printf '%s' "$INPUT" | jq -r '(.tool_input.replace_all // false) | tostring' 2>/dev/null | tr -d '\r')
+  SCAN_CONTENT="${HOOK_JQ_FIELDS[1]}"
+  REPLACE_ALL="${HOOK_JQ_FIELDS[3]}"
   ;;
-Write) SCAN_CONTENT=$(printf '%s' "$INPUT" | jq -r '.tool_input.content // empty' 2>/dev/null | tr -d '\r') ;;
+Write) SCAN_CONTENT="${HOOK_JQ_FIELDS[2]}" ;;
 *) exit 0 ;;
 esac
 [[ -n "$SCAN_CONTENT" ]] || exit 0
@@ -101,7 +118,7 @@ shopt -u nullglob
 # holds a path or an array of paths, each relative to the plugin root, and those
 # ADD to the conventional `skills/` directory rather than replacing it — verified
 # against the Plugins reference (<https://code.claude.com/docs/en/plugins-reference>,
-# "Path behavior rules", fetched 2026-08-06). Collect them per plugin so a skill
+# "Path behavior rules", fetched 2026-08-10). Collect them per plugin so a skill
 # loaded from a declared location resolves like any other.
 #
 # One documented exception is NOT modelled: for a marketplace entry whose `source`
@@ -138,7 +155,7 @@ skill_frontmatter_name() {
 # declares nothing and the root itself is the skill.
 #
 # All three shapes come from the Plugins reference
-# (<https://code.claude.com/docs/en/plugins-reference>, fetched 2026-08-06):
+# (<https://code.claude.com/docs/en/plugins-reference>, fetched 2026-08-10):
 # declared paths are relative to the plugin root and start with `./` (the `skills`
 # key also accepts `.`, and both `.` and `./` denote the root); they ADD to the
 # default `skills/` scan; and a plugin with a root SKILL.md, no `skills/`
@@ -227,11 +244,21 @@ emit_refs() {
 # of it is wrong by orders of magnitude at the sizes that matter.
 #
 # One anchor_offsets scan, measured on the slowest host available (Windows/Git
-# Bash, quiescent, best of three): 0.07 s at 32 KiB, 0.24 s at 64 KiB, 0.53 s at
-# 96 KiB, 1.07 s at 128 KiB, 2.18 s at 192 KiB, 3.94 s at 256 KiB. That is
-# ~0.065 s x (KiB/32)^2 — bash's `%%` pattern strip walks the string it searches
-# rather than indexing it, so the scan is quadratic in FILE size no matter how
-# short the anchor is. Extrapolated: ~67 s at 1 MiB, ~18 minutes at 4 MiB.
+# Bash, quiescent, best of three) IN THE C LOCALE: 0.07 s at 32 KiB, 0.24 s at
+# 64 KiB, 0.53 s at 96 KiB, 1.07 s at 128 KiB, 2.18 s at 192 KiB, 3.94 s at
+# 256 KiB. That is ~0.065 s x (KiB/32)^2 — bash's `%%` pattern strip walks the
+# string it searches rather than indexing it, so the scan is quadratic in FILE
+# size no matter how short the anchor is. Extrapolated: ~67 s at 1 MiB, ~18
+# minutes at 4 MiB.
+#
+# The locale label is not a footnote: this curve was originally recorded without
+# one, and under a UTF-8 locale the same scans cost ~6.5x more, which made the
+# table describe a locale the hook did not then run in. reconstruct_partial_edit
+# now pins LC_ALL=C for its own scanning, so C IS the locale these figures
+# describe. Re-checked rather than re-measured, on a second host of the same shape
+# (lightly loaded, not quiescent — ~18% CPU across 32 cores): 0.054 s at 32 KiB,
+# 0.221 s at 64 KiB, 0.880 s at 128 KiB, 3.410 s at 256 KiB — the same curve
+# within host-to-host spread.
 #
 # Those figures are the FLOOR, not the cost: they time an anchor that matches near
 # the end, so one strip walks the file and the second is free. A no-match strip
@@ -388,6 +415,50 @@ anchor_offsets() {
 # scanning budget bounds the fallback that cannot.
 reconstruct_partial_edit() {
   [[ "$TOOL" == "Edit" && -f "$FILE" ]] || return 0
+  # Pin the locale this function's own scanning runs in, so its matcher semantics
+  # and its cost are the consumer's ambient locale's business no longer. Every
+  # search below is LITERAL, so a multibyte locale buys this function nothing and
+  # charges it ~6.5x: one no-match scan, measured on a lightly-loaded Windows/Git
+  # Bash host (bash 5.3, 32 logical cores at ~18%), costs 0.054 s at 32 KiB / 0.221 s
+  # at 64 KiB / 0.880 s at 128 KiB under C, against 0.395 s / 1.447 s / 5.786 s
+  # under en_US.UTF-8. That ratio is the reason for the pin; no wall-clock BOUND
+  # is claimed from it, and the caps above are calibrated end to end against the
+  # hook rather than off that table, so this is not a correction to them.
+  #
+  # `+x` is load-bearing, not decoration. The whole ~6.5x is bash's OWN `%%`
+  # walk; the child processes are locale-insensitive here (`grep -oE` on the same
+  # 64 KiB measured 0.139 s under BOTH locales), so exporting the pin would buy
+  # nothing and cost real behavior: `[[:space:]]` is ASCII-only under C but admits
+  # some non-ASCII spaces under a UTF-8 locale, so an exported pin would make
+  # emit_refs below drop a reference whose argument separator is one of them, and
+  # would make the blank-line filter keep an anchor line it used to discard.
+  # Un-exported, children run in the caller's locale exactly as before, and nothing
+  # they emit changes. Nothing needs them pinned either: no offset ever crosses a
+  # process boundary — the fallback's grep yields anchor STRINGS and emit_refs
+  # consumes a context STRING.
+  #
+  # WHICH separators those are is the host C library's table, not this hook's, and
+  # it is not portable: glibc dropped U+00A0 and U+202F from `space` in 2.26, while
+  # Cygwin/MSYS still classifies them; U+3000 and U+2028 are admitted by both.
+  # Measured, after a first revision of the regression case hardcoded U+00A0 and so
+  # passed on Windows and failed on Linux CI. The case now DISCOVERS a separator
+  # this host actually classifies differently, so it asserts this hook's behavior
+  # rather than a libc's table.
+  #
+  # Scope and lifetime were verified rather than assumed: assigning LC_ALL re-runs
+  # setlocale even for a `local` (and even with `+x`), and bash restores the
+  # previous value AND its export attribute on return, including when the consumer
+  # exported LC_ALL itself.
+  #
+  # Safe because every offset this function computes is also consumed by it: the
+  # unit is bytes here and characters outside, and the two never meet. Slices are
+  # taken only at a literal match or at a newline, and no UTF-8 multibyte sequence
+  # contains an ASCII byte, so a byte slice never splits a character.
+  # RECONSTRUCT_MAX_CHARS is therefore read as bytes, the stricter of the two
+  # readings, so it cannot raise the ceiling it exists to set, and the fallback's
+  # KiB estimate stops understating a multibyte file and over-granting its anchor
+  # cap. Both shifts are toward less work, never more.
+  local +x LC_ALL=C
   local content
   content=$(<"$FILE") || return 0
   # Gate on the size BEFORE touching the string: every step past this point is a
@@ -519,7 +590,7 @@ emit_tel() {
   if ((${#UNRESOLVED[@]} > 0)); then
     local r raw_list=""
     for r in "${UNRESOLVED[@]}"; do raw_list+="$r"$'\n'; done
-    findings_json=$(printf '%s' "$raw_list" | jq -R . | jq -s . 2>/dev/null) || findings_json="[]"
+    findings_json=$(printf '%s' "$raw_list" | jq -Rn '[inputs]' 2>/dev/null) || findings_json="[]"
   fi
   local data
   data=$(jq -n --arg file "$file_rel" --argjson findings "$findings_json" \

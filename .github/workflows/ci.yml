@@ -424,6 +424,22 @@ jobs:
       - name: Check plugin hook configs for bare userConfig argv tokens
         run: scripts/check-hook-userconfig-argv.sh
 
+  # Every option a plugin declares must be documented in that plugin's README.
+  # The block is generated from the manifest, so the failure this catches is an
+  # option added to plugin.json whose README block was never regenerated -- an
+  # undocumented knob is indistinguishable from one that does not exist, and the
+  # only place a user can discover it is the manifest itself.
+  plugin-options-docs-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check plugin option docs are in sync with each manifest
+        run: python3 scripts/sync-plugin-options-docs.py --check
+
   silent-skip-gate:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -483,9 +499,10 @@ jobs:
       - name: Check for orphaned eval fixtures
         run: scripts/check-orphaned-fixtures.sh --check
 
-  # CHANGELOG parity: a versioned plugin must keep a CHANGELOG.md (static
-  # --check), and a PR that changes a plugin's manifest version must update that
-  # plugin's CHANGELOG.md in the same diff (--check-bump, PR-only). Existing
+  # CHANGELOG parity: a versioned plugin must keep a CHANGELOG.md whose newest
+  # version heading does not outrun the manifest (static --check), and a PR that
+  # changes a plugin's manifest version must update that plugin's CHANGELOG.md in
+  # the same diff (--check-bump, PR-only). Existing
   # "versioned but changelog-less" debt is grandfathered by name in
   # scripts/changelog-parity-baseline.txt with a stale guard; the bump gate is
   # never relaxed by the baseline. The self-test runs unconditionally so a broken
@@ -502,7 +519,7 @@ jobs:
           fetch-depth: 0
       - name: Test the changelog-parity gate
         run: bash scripts/check-changelog-parity.test.sh
-      - name: Verify every versioned plugin keeps a CHANGELOG.md
+      - name: Verify every versioned plugin keeps a CHANGELOG.md at or below its manifest version
         run: scripts/check-changelog-parity.sh --check
       - name: Verify a version bump updates the plugin's CHANGELOG.md
         if: github.event_name == 'pull_request'
@@ -1029,6 +1046,7 @@ jobs:
       - cross-plugin-source-drift
       - skill-leaf-name-gate
       - userconfig-argv-gate
+      - plugin-options-docs-gate
       - silent-skip-gate
       - plugin-manifest-presence-gate
       - orphaned-fixture-gate

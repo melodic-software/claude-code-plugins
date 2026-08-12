@@ -1,6 +1,8 @@
 # Voices — full guide
 
-Voices clones YOUR singing identity. v5.5 only. **Pro / Premier tier.** 18+, geographically gated.
+Voices clones YOUR singing identity. v5.5 only. 18+, geographically gated.
+
+**Tier updated 2026-08-08 — Pro / Premier, plus a free-plan TRIAL.** The release note says free plans can "try" Voices; **a trial is not all-tier entitlement, and this file must not describe it as one.** <https://suno.com/release-notes>, Aug 7 2026: "We brought Voices to both iOS and Android. Record your voice once and use it on any song. Now available to try on free plans." **Caveat:** that entry carries no `Web` tag (unlike other web-touching entries in the same window), `suno.com/pricing` lists no Voices bullet under Free, and both Voices help articles are silent on plan gating — so free-plan Voices may be mobile-only. Unresolved; verify in-app.
 
 ## What Voices does
 
@@ -39,6 +41,29 @@ Sing actual melodies, not spoken word. The model learns your sung timbre, not yo
 
 **Why single clip + variety beats multiple flat clips:** Suno's auto-selection picks a 2-min window from training material. A varied single window gives it the full dynamic spectrum to model from; multiple flat clips often get sampled at the most-frequent dynamic and miss your range.
 
+### Two-stage bootstrap for non-singers
+
+**LOW-MEDIUM confidence — a SINGLE community post plus its comment thread, not multi-source consensus.** Read 2026-08-11 from [r/SunoAI, "Another useful trick to use your own voice in Suno, even if you cannot sing well"](https://www.reddit.com/r/SunoAI/comments/1ujzbqj/another_useful_trick_to_use_your_own_voice_in/) (posted 2026-06-30, 152 votes, 58 comments). Not documented by Suno. Untested here.
+
+For a writer who cannot deliver the sung 90-120s session above, the reported route is to clone twice:
+
+1. Record **30-60s of ordinary speech** — read anything, no singing — clean and dry, exported as WAV.
+2. Save it as a voice, then generate a short a cappella test using it as the lead voice, with a style prompt asking for unaccompanied vocal and clipped, on-beat delivery.
+3. Reported slider settings for that test generation: **Weirdness 0%, Style Influence 100%, Audio Influence ~95-100%.**
+4. From the generated take, **create a second voice from the part where the voice actually sings** — that second voice is the one to use. The poster notes you can also try the whole generated piece rather than a selected span.
+
+**⚠ This DOES conflict with "sing actual melodies, not spoken word" above, and the conflict is not resolvable from the source.** Both are recorded because both are reported; neither is edited to fit the other.
+
+The rule at the top of this section gives a reason: the model learns your *sung* timbre, not your speaking voice. In this technique the only audio the writer ever performs is **speech**. The "singing" that voice #2 is built from is Suno's own extrapolation from a speech-trained clone — synthesized singing, not the writer's. So a reader following the rule records singing, and a reader following this technique never sings at all. **They are opposite instructions at the only step a human performs.** If you can sing the 90-120s session, the rule above is the better-supported route; this is a fallback for writers who cannot, and it is untested here.
+
+**Interaction with the verification phrase below is UNRESOLVED.** That guard compares a live spoken phrase against *your uploaded singing*. Stage 4 uploads **Suno-generated** audio, not your own recording. Whether that clears verification, and what the anti-impersonation check means when the singing was synthesized, is not addressed by the source and was not tested here.
+
+**Also unreconciled: the slider value.** Step 3's reported ~95-100% Audio Influence sits above the 85%+ tier in the table below, which this file describes as over-fitting to the recording environment. That may well be *desirable* when the goal is to capture a voice rather than produce a track — but no source says so, so it is flagged rather than explained.
+
+**Reported failure mode:** the stage-2 test generation usually arrives with a beat or backing behind the vocal. The poster reports the voice-creation step filters to the vocal anyway, that selecting only the cleanest sung span works better, and that the backing can also be pushed back via Excluded Styles or the style field.
+
+**⚠ The poster states the "make this voice public" toggle is ON by default when creating a voice — turn it off before finishing.** This applies to **every** voice you create, not only to this technique. Unverified against Suno's documentation; asked about in the thread and re-affirmed by the poster, not contradicted. Note it also sits awkwardly beside this file's "account-locked" line above, which nobody has reconciled. **Check the toggle yourself.**
+
 ## Verification phrase
 
 Anti-impersonation guard. After upload:
@@ -54,23 +79,24 @@ This blocks: cloning a public figure's voice from YouTube, cloning a friend / co
 
 1. Custom mode (required — Voices not available in Simple)
 2. Voice selector dropdown → pick your voice
-3. **Set Audio Influence slider to 25-30%** (sweet spot per community empirical testing — see below)
-4. Climb in 10% increments only if voice identity is too weak
+3. If voice resemblance is poor, **raise the Audio Influence slider**
+4. Increase gradually while checking whether resemblance improves
 
-### Audio Influence sweet spot (HIGH confidence, contradicts initial Suno docs)
+### Audio Influence with an active Voice
 
-**Empirical sweet spot is 25-30%, NOT the higher values some early Suno docs suggested.**
+**First-party direction, narrowly scoped:** Suno's Voices walkthrough says to set Audio Influence "fairly high," and its Voices FAQ says to experiment with turning it up, when fixing poor voice resemblance. Neither article publishes a number or claims that higher settings are universally better.
+
+Specific thresholds — including the `>=70%` starting point in the troubleshooting guide — are **community-derived and unverified**, not first-party guidance.
+
+Community reports also describe higher settings carrying more of the source recording's artifacts. The ranges below are retained as **unverified community observations**, not documented slider behavior:
 
 | Slider | Effect |
 |--------|--------|
-| 25-30% | Sweet spot — voice identity preserved, recording artifacts minimized |
 | 40-50% | Voice still identifiable, room tone / mic artifacts start surfacing |
 | 60-80% | Voice character preserved BUT imports recording artifacts, breath sounds, room reverb from training clips |
 | 85%+ | Voice clone over-fits to training audio's environment (mic, room), output sounds like the recording session, not a produced track |
 
-**Why this matters:** higher slider values cause Suno to inherit the **physical environment** of your training recording (mic coloration, room tone, breath placement) as much as the voice itself. 25-30% extracts vocal identity while letting the song's production layer apply normally.
-
-Start low, climb only if needed. Most users settle at 25-30%.
+Raise Audio Influence when resemblance is poor. If artifacts increase, treat that as a community-reported tradeoff: compare outputs, back down as needed, and improve the source recording rather than relying on an official threshold that Suno has not published.
 
 ### Voice clone input — quality over quantity
 

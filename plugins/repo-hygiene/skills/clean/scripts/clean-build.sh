@@ -104,10 +104,7 @@ if [[ "$DRY_RUN" -eq 0 && -n "$MANIFEST_ARG" ]]; then
     echo "clean-build.sh: manifest not readable: $MANIFEST_ARG" >&2
     exit 1
   fi
-  clean_apply_manifest "$REPO_ROOT" "$MANIFEST_ARG" "$ALLOWED_CLASSES"
-  printf 'Summary: removed=%s failed=%s bytes=%s\n' \
-    "$CLEAN_REMOVED_COUNT" "$CLEAN_FAILED_COUNT" "$CLEAN_REMOVED_BYTES"
-  [[ "$CLEAN_FAILED_COUNT" -eq 0 ]] || exit 1
+  clean_apply_and_report "$REPO_ROOT" "$MANIFEST_ARG" "$ALLOWED_CLASSES" || exit 1
   exit 0
 fi
 
@@ -129,8 +126,5 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   exit 0
 fi
 
-clean_apply_manifest "$REPO_ROOT" "$MANIFEST" "$ALLOWED_CLASSES"
-printf 'Summary: removed=%s failed=%s bytes=%s\n' \
-  "$CLEAN_REMOVED_COUNT" "$CLEAN_FAILED_COUNT" "$CLEAN_REMOVED_BYTES"
-[[ "$CLEAN_FAILED_COUNT" -eq 0 ]] || exit 1
+clean_apply_and_report "$REPO_ROOT" "$MANIFEST" "$ALLOWED_CLASSES" || exit 1
 exit 0

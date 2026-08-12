@@ -61,7 +61,7 @@ Run rounds until the stop condition is met. Each round:
 
 ### Where a round may fire
 
-An `/interview` reached from inside another workflow's phase must not meter its questions out mid-phase: a gate that fires once the phase is already underway blocks a running lane on a human who is not watching, and the measured cost is a session spending most of its wall time idle. Emit the whole open set at the **phase boundary** — the point where the caller hands control over — and treat a mid-phase blocking question as the exception, allowed when proceeding without it would produce work that has to be thrown away, and stated in one line when it happens ("asking now because the next step writes the schema").
+A `/planning:interview` reached from inside another workflow's phase must not meter its questions out mid-phase: a gate that fires once the phase is already underway blocks a running lane on a human who is not watching, and the measured cost is a session spending most of its wall time idle. Emit the whole open set at the **phase boundary** — the point where the caller hands control over — and treat a mid-phase blocking question as the exception, allowed when proceeding without it would produce work that has to be thrown away, and stated in one line when it happens ("asking now because the next step writes the schema").
 
 A consumer batching questions on its own side does not make this unnecessary: the reported failure had the caller listing the phase's open question up front and the interview serialized it anyway. When a question surfaces mid-phase and does not meet the exception, register it `open` and carry it to the next round boundary rather than stopping the lane for it.
 
@@ -205,7 +205,7 @@ Two shapes of restate, both one line: *"Still open: Q3 (content format)"* when t
 
 ### Unattended path
 
-`/interview` can be reached with no human to answer — from a loop, a spawned worker, or another skill's chain. There is no supported way for the session to *detect* this (checked against the CLI reference; the page documents `--permission-prompt-tool` for non-interactive permission handling but exposes no state a running session can read), so the trigger is **declared, never sniffed**: the caller says it is unattended, or the round has been emitted and the run has no user turn to wait for.
+`/planning:interview` can be reached with no human to answer — from a loop, a spawned worker, or another skill's chain. There is no supported way for the session to *detect* this (checked against the CLI reference; the page documents `--permission-prompt-tool` for non-interactive permission handling but exposes no state a running session can read), so the trigger is **declared, never sniffed**: the caller says it is unattended, or the round has been emitted and the run has no user turn to wait for.
 
 The ladder, in order:
 
@@ -273,7 +273,7 @@ Each section in the PLAN.md Brief captures a specific shape. Keep tight.
 - ✅ "`GET /api/users/me` returns 401 when the session token is missing" (testable)
 - ❌ "Authentication works correctly" (fuzzy)
 
-**Captured assumptions** — what was deferred-with-assumption. Each captures the assumption AND the trigger forcing a revisit. The load-bearing innovation: what would otherwise be silent becomes explicit, and `/devils-advocate` and `/planning:plan` can attack it later.
+**Captured assumptions** — what was deferred-with-assumption. Each captures the assumption AND the trigger forcing a revisit. The load-bearing innovation: what would otherwise be silent becomes explicit, and `/planning:devils-advocate` and `/planning:plan` can attack it later.
 
 **Out-of-scope** — things raised during the interview and explicitly excluded. Distinct from non-goals (constraints up-front); these surfaced in conversation.
 
@@ -281,7 +281,7 @@ Each section in the PLAN.md Brief captures a specific shape. Keep tight.
 
 ### Brief template (the literal shape)
 
-Write this into `<contract_dir>/<topic-slug>/PLAN.md` (default `docs/topics/`; the topic's contract slice, joining the memory slice under `contract_tier: local`). `/interview` writes only `## Brief` and leaves `## Plan` empty for `/planning:plan`.
+Write this into `<contract_dir>/<topic-slug>/PLAN.md` (default `docs/topics/`; the topic's contract slice, joining the memory slice under `contract_tier: local`). `/planning:interview` writes only `## Brief` and leaves `## Plan` empty for `/planning:plan`.
 
 ```markdown
 ## Brief

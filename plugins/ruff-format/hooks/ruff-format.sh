@@ -41,12 +41,15 @@ hook::check_enabled "RUFF_FORMAT"
 # `set -u` would abort before the advisory exit 0, failing every edit.
 start=${EPOCHREALTIME:-}
 
-# Telemetry needs the high-res start stamp. When EPOCHREALTIME is unavailable
-# (Bash < 5.0) the stamp is empty and telemetry is skipped, so the hook still
-# formats and lints on older bash rather than aborting.
+# Emit this run's telemetry envelope: $1 status, $2 findings JSON array.
+# Two guards: the high-res start stamp (EPOCHREALTIME is Bash 5.0+; on older
+# bash it is empty and telemetry is skipped, so the hook still formats and
+# lints rather than aborting) and the sink opt-in. The data payload costs a jq
+# subprocess, so it is built here after both guards — never on the unwired path.
 emit_tel() {
   [[ -n "$start" ]] || return 0
-  hook::emit_telemetry "$@"
+  hook::telemetry_enabled || return 0
+  hook::emit_telemetry "ruff-format" "PostToolUse" "$1" "$start" "$(build_data_json "$2")" "$REPO_ROOT"
 }
 
 INPUT=$(hook::buffer_stdin) || exit 0
@@ -70,7 +73,13 @@ case "$FILE" in
 *) exit 0 ;;
 esac
 
-TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
+# Telemetry-only. Parsed behind the sink opt-in so the unwired default path
+# spawns zero telemetry-only subprocesses (FILE_REL below is NOT gated — it is
+# also the path Ruff itself is invoked with).
+TOOL=""
+if hook::telemetry_enabled; then
+  TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
+fi
 
 # Resolve repo root early — used to bound the config opt-in walk and to compute
 # the schema-required repo-relative path in data.file.
@@ -109,9 +118,7 @@ build_data_json() {
 }
 
 emit_skipped() {
-  local data_json
-  data_json=$(build_data_json '[]')
-  emit_tel "ruff-format" "PostToolUse" "skipped" "$start" "$data_json" "$REPO_ROOT"
+  emit_tel "skipped" '[]'
   exit 0
 }
 
@@ -234,8 +241,7 @@ OUTPUT=$(cd "$RUN_DIR" && "$RUFF_BIN" check --no-fix --output-format concise "${
 RC=$?
 
 if [[ $RC -eq 0 ]]; then
-  data_json=$(build_data_json '[]')
-  emit_tel "ruff-format" "PostToolUse" "ok" "$start" "$data_json" "$REPO_ROOT"
+  emit_tel "ok" '[]'
   exit 0
 fi
 
@@ -254,11 +260,10 @@ if [[ $RC -eq 1 && -n "$OUTPUT" ]]; then
   if [[ -n "$findings_raw" ]]; then
     FINDINGS_JSON=$(printf '%s' "$findings_raw" | jq -R . | jq -s . 2>/dev/null) || FINDINGS_JSON='[]'
   fi
-  data_json=$(build_data_json "$FINDINGS_JSON")
   # Status "ok" — the linter RAN and produced a judgment (findings live in
   # data.findings), mirroring the sibling formatter plugins where status
   # reflects whether the tool ran, not whether it was clean.
-  emit_tel "ruff-format" "PostToolUse" "ok" "$start" "$data_json" "$REPO_ROOT"
+  emit_tel "ok" "$FINDINGS_JSON"
   exit 0
 fi
 
@@ -274,6 +279,5 @@ while IFS= read -r line; do
   hook::ctx_append "  $line"
 done <<<"$OUTPUT"
 hook::ctx_flush PostToolUse
-data_json=$(build_data_json '[]')
-emit_tel "ruff-format" "PostToolUse" "skipped" "$start" "$data_json" "$REPO_ROOT"
+emit_tel "skipped" '[]'
 exit 0

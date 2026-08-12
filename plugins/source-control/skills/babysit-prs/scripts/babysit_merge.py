@@ -179,9 +179,7 @@ def split_owner(repo: str) -> str:
 
 
 def parse_allowed_owners(raw: str | None) -> set[str]:
-    if not raw:
-        return set()
-    return {part.strip().casefold() for part in raw.split(",") if part.strip()}
+    return {owner.casefold() for owner in parse_csv_set(raw)}
 
 
 def unresolved_threads(repo: str, number: int) -> list[dict[str, object]]:
@@ -234,7 +232,23 @@ def repository_default_branch(repo: str) -> str | None:
 
 
 def branch_rules(repo: str, branch: str) -> dict[str, object]:
-    """Summarize the effective merge-governing rules for the base branch."""
+    """Summarize the effective merge-governing rules for the base branch.
+
+    Rulesets COMPOSE: `/rules/branches/{branch}` returns one rule of a given
+    type PER RULESET governing the branch, so the single-rule assumption that
+    held under classic branch protection does not hold here. Every repeatable
+    rule is therefore folded across all rules rather than assigned from one:
+
+    * `requiredContexts` is the union, deduped and sorted -- keeping a single
+      rule's list drops every other ruleset's contexts from both
+      `effectiveRules` and the unmet-required blocker. Two rulesets may
+      legitimately require the same context, hence the dedupe; the sort makes
+      the reported set stable regardless of the order rulesets are returned in.
+    * `requiredApprovingReviews` takes the max and `requireThreadResolution`
+      the OR. That is the fail-closed direction whatever GitHub's own
+      composition rule turns out to be: max/OR can only ever over-report, which
+      holds a PR for a human, where last-wins can under-report and release one.
+    """
     summary: dict[str, object] = {
         "requiredContexts": [],
         "requiredApprovingReviews": 0,
@@ -249,6 +263,9 @@ def branch_rules(repo: str, branch: str) -> dict[str, object]:
         # Rules are advisory context; a read failure must never fail the run.
         summary["error"] = f"could not read branch rules: {exc}"
         return summary
+    required_contexts: set[str] = set()
+    required_reviews = 0
+    require_thread_resolution = False
     for rule in cast(list[Any], rules) if isinstance(rules, list) else []:
         if not isinstance(rule, dict):
             continue
@@ -259,17 +276,29 @@ def branch_rules(repo: str, branch: str) -> dict[str, object]:
             cast(dict[str, Any], raw_params) if isinstance(raw_params, dict) else {}
         )
         if rtype == "required_status_checks":
-            summary["requiredContexts"] = [
-                cast(dict[str, Any], c).get("context")
+            # A context-less entry is dropped rather than carried: it names no
+            # check to reconcile, and a None would sort-crash the union and
+            # surface downstream as a literal "None" required context.
+            required_contexts.update(
+                str(cast(dict[str, Any], c)["context"])
                 for c in params.get("required_status_checks", [])
-                if isinstance(c, dict)
-            ]
-        elif rtype == "pull_request":
-            summary["requiredApprovingReviews"] = params.get(
-                "required_approving_review_count", 0
+                if isinstance(c, dict) and cast(dict[str, Any], c).get("context")
             )
-            summary["requireThreadResolution"] = params.get(
-                "required_review_thread_resolution", False
+        elif rtype == "pull_request":
+            # Absence and unreadability are different facts. No key means the
+            # rule requires no reviews, which is 0. A key holding anything this
+            # code cannot read as a count -- null, "", 0.0, [], {} -- means a
+            # requirement IS stated and its size is unknown, so it counts as
+            # one: a falsy non-int must not collapse to 0, which would be the
+            # single fail-OPEN step in a fold that may only ever over-report.
+            if "required_approving_review_count" not in params:
+                count = 0
+            else:
+                raw = params["required_approving_review_count"]
+                count = int(raw) if isinstance(raw, int) else 1
+            required_reviews = max(required_reviews, count)
+            require_thread_resolution = require_thread_resolution or bool(
+                params.get("required_review_thread_resolution", False)
             )
         elif rtype == "required_signatures":
             summary["requireSignatures"] = True
@@ -277,6 +306,9 @@ def branch_rules(repo: str, branch: str) -> dict[str, object]:
             summary["requireLinearHistory"] = True
         elif rtype == "merge_queue":
             summary["mergeQueueRequired"] = True
+    summary["requiredContexts"] = sorted(required_contexts)
+    summary["requiredApprovingReviews"] = required_reviews
+    summary["requireThreadResolution"] = require_thread_resolution
     return summary
 
 
@@ -870,12 +902,11 @@ def evaluate(
 
     # Reconcile each required status-check context against the deduped rollup.
     required_contexts = rules.get("requiredContexts")
+    required_context_list = (
+        cast(list[Any], required_contexts) if isinstance(required_contexts, list) else []
+    )
     required_check_status: list[dict[str, object]] = []
-    for raw_context in (
-        cast(list[Any], required_contexts)
-        if isinstance(required_contexts, list)
-        else []
-    ):
+    for raw_context in required_context_list:
         ctx = str(raw_context)
         match = next(
             (
@@ -896,9 +927,6 @@ def evaluate(
         )
 
     required_reviews = rules.get("requiredApprovingReviews") or 0
-    required_context_list = (
-        required_contexts if isinstance(required_contexts, list) else []
-    )
     base_is_unprotected = not required_reviews and not required_context_list
 
     blockers: list[str] = []

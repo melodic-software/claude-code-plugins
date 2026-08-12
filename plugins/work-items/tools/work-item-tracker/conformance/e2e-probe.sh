@@ -9,7 +9,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TRACKER="$SCRIPT_DIR/../work-item-tracker.sh"
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../tests/lib.sh"
+source "$SCRIPT_DIR/../tests/lib.sh"
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
   echo "usage: e2e-probe.sh [--evidence <file>]  (drives the full lifecycle — map, typed items, edge, frontier, claim/lease, renew, close, graduation — against a live GitHub sandbox; target required: WIT_CONFORMANCE_GITHUB_REPO=owner/name)"

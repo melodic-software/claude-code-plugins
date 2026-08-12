@@ -1,5 +1,5 @@
 ---
-description: "Compress (tighten, shorten, trim) markdown files by dropping flavor — filler, hedging, articles — while preserving all content (directives, qualifiers, thresholds, examples), with a mandatory semantic-diff subagent that reverts any SEMANTIC LOSS or AMBIGUITY. Use when: \"compress this doc\", \"tighten markdown\", \"cut prose\", \"shorten without losing meaning\", \"trim onboarding doc\", or verbose prose in docs/, READMEs, rule bodies, skill bodies, or third-party pasted text — actions: default (snapshot → backend → semantic-diff subagent → revert-pass → markdownlint) and audit (read-only dry-run classifying SKIP/COMPRESS/UNCERTAIN per file); flags: --force (bypass <3% revert rule), --keep-snapshot; not for: session compaction (/compact), markdown noise classification (/audit-noise), code-comment trimming, or content relocation/SSOT consolidation (/extract-ssot)."
+description: "Compress (tighten, shorten, trim) markdown files by dropping flavor — filler, hedging, articles — while preserving all content (directives, qualifiers, thresholds, examples), with a mandatory semantic-diff subagent that reverts any SEMANTIC LOSS or AMBIGUITY. Use when: 'compress this doc', 'tighten markdown', 'cut prose', 'shorten without losing meaning', 'trim onboarding doc', or verbose prose in docs/, READMEs, rule bodies, skill bodies, or third-party pasted text — actions: default (snapshot → backend → semantic-diff subagent → revert-pass → markdownlint) and audit (read-only dry-run classifying SKIP/COMPRESS/UNCERTAIN per file); flags: --force (bypass <3% revert rule), --keep-snapshot; not for: session compaction (/compact), markdown noise classification (/audit-noise), code-comment trimming, or content relocation/SSOT consolidation (/extract-ssot)."
 argument-hint: "[audit] [target] [--force] [--keep-snapshot]"
 user-invocable: true
 disable-model-invocation: false
@@ -80,7 +80,7 @@ Flags (apply to both actions):
 - **Snapshot default = ephemeral** (`mktemp -d`, deleted post-dispatch). `--keep-snapshot` persists to `${CLAUDE_PLUGIN_DATA}/snapshots/` instead.
 - **Always-loaded instruction-file policy: SOFT-BLOCK.** Default reverts <3%/0SL on ANY file including `.claude/rules/**` / `AGENTS.md` / `CLAUDE.md` / `**/SKILL.md`. `--force` bypasses on ANY file — user owns the result. `audit` heuristic emits informational SKIP recommendation on always-loaded paths citing the 2-3% empirical baseline; not a structural gate.
 - **Subagent dispatch follows `context/semantic-diff-prompt.md` template.** Findings must carry verifiable citations; training-recall citation tokens are forbidden — `[known]` / `[from memory]` / `[context]` / `[obvious]` / `[standard]` / `[usual]`.
-- **Backend choice does NOT bypass semantic-diff dispatch.** When the caveman backend is absent or unwanted, `/compress` falls back to in-session Edit-based compression. Backend selection determines only the mechanical-compression path; semantic-diff + revert pass + markdownlint hard rules apply regardless. LLM-compression fabrication risk (caveman backend OR in-session Edit) caught structurally by the revert pass.
+- **Backend choice does NOT bypass semantic-diff dispatch.** When the caveman backend is absent or unwanted, `/docs-hygiene:compress` falls back to in-session Edit-based compression. Backend selection determines only the mechanical-compression path; semantic-diff + revert pass + markdownlint hard rules apply regardless. LLM-compression fabrication risk (caveman backend OR in-session Edit) caught structurally by the revert pass.
 
 ## Output schema (default action, per target)
 
@@ -106,16 +106,16 @@ Observed failure points — each traces to a real incident; grown iteratively.
 - Binary files
 - Author-time-disciplined instruction files (`.claude/rules/**`, `AGENTS.md`, `CLAUDE.md`, `**/SKILL.md`) — `audit` will SKIP-recommend; sub-3% revert default applies (Gotchas "Sub-3% diffs auto-revert unless `--force`")
 - Conversation summarization or session compaction — that's the built-in `/compact`, different semantic
-- **Subagent context invoking `/compress` for batch fan-out** — see Gotchas "Self-audit drifts toward EXPANSION"; follow `context/fan-out-orchestration.md`
+- **Subagent context invoking `/docs-hygiene:compress` for batch fan-out** — see Gotchas "Self-audit drifts toward EXPANSION"; follow `context/fan-out-orchestration.md`
 
 ## What this skill is NOT
 
-- **Not an orchestrator surface.** `/compress` prints a human-readable summary; no structured/`--json` output
+- **Not an orchestrator surface.** `/docs-hygiene:compress` prints a human-readable summary; no structured/`--json` output
 - **Not a lint front-end.** `markdownlint-cli2` is the post-edit verifier, not the primary purpose
 - **Not a code-comment compressor.** Out of scope
-- **Not a `/code-review` / `/simplify` shadow.** The bundled `/code-review` and `/simplify` skills review code changes; `/compress` rewrites markdown prose. Different concerns
-- **Not `/audit-noise`.** `/compress` owns FLAVOR (filler, hedging, articles, redundant restatement). `/audit-noise` owns NOISE classification (historical citations, ghost refs, "Why this file exists" preambles, hard-coupled enumerated consumer lists) per its own taxonomy. Different concerns; both may apply to the same target iteratively
-- **Not a content-relocation / cite-don't-recap tool.** When an inline passage recaps detail that already lives in a cited single source of truth (another doc or rule), condensing it is content RELOCATION, not flavor removal — the mandatory semantic-diff net sees the words gone from THIS file and reverts them as SEMANTIC LOSS, blind to the SSOT. Apply "reference, don't duplicate" as a MANUAL editorial pass (verify the cited SSOT actually holds the detail first — an unread pointer is an unverified claim); use `/extract-ssot` when the duplicated cluster spans 3+ files
+- **Not a `/code-review` / `/simplify` shadow.** The bundled `/code-review` and `/simplify` skills review code changes; `/docs-hygiene:compress` rewrites markdown prose. Different concerns
+- **Not `/docs-hygiene:audit-noise`.** `/docs-hygiene:compress` owns FLAVOR (filler, hedging, articles, redundant restatement). `/docs-hygiene:audit-noise` owns NOISE classification (historical citations, ghost refs, "Why this file exists" preambles, hard-coupled enumerated consumer lists) per its own taxonomy. Different concerns; both may apply to the same target iteratively
+- **Not a content-relocation / cite-don't-recap tool.** When an inline passage recaps detail that already lives in a cited single source of truth (another doc or rule), condensing it is content RELOCATION, not flavor removal — the mandatory semantic-diff net sees the words gone from THIS file and reverts them as SEMANTIC LOSS, blind to the SSOT. Apply "reference, don't duplicate" as a MANUAL editorial pass (verify the cited SSOT actually holds the detail first — an unread pointer is an unverified claim); use `/docs-hygiene:extract-ssot` when the duplicated cluster spans 3+ files
 
 ## Cross-references
 

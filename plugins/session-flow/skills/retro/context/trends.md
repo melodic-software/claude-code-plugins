@@ -17,7 +17,7 @@ Format: `| Date | Session | Type | Workflow | Technical | Alignment | Efficiency
 
 ### 1. Load and parse the score history
 
-If the file doesn't exist, report "No historical scores found. Run `/retro session` to build
+If the file doesn't exist, report "No historical scores found. Run `/session-flow:retro session` to build
 history." and exit.
 
 ### 2. Compute aggregate statistics

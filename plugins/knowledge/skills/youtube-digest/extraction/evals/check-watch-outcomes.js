@@ -24,7 +24,7 @@ import {
   validateTriageManifestForSlice,
   validateWatchChecklistForCompleteSlice,
 } from "../lib/watch-vision-validation.js";
-import { resolveSourceFile } from "../watch/rebuild-visual-frames.js";
+import { readPromotionMap, resolveSourceFile } from "../watch/rebuild-visual-frames.js";
 
 /** @typedef {{ id: string, pass: boolean, actual: string, expected: string, severity: 'fail'|'warn' }} OutcomeCheck */
 
@@ -69,8 +69,7 @@ export function loadPromotedTimestampsSec(sliceDir) {
 
   const selection = JSON.parse(fs.readFileSync(selectionPath, "utf8"));
   const byFile = Object.fromEntries(selection.selectedFrames.map((f) => [f.file, f]));
-  const mapPath = lanePath(absSlice, LANES.keyFrames, "promotion-map.json");
-  const promotionMap = fs.existsSync(mapPath) ? JSON.parse(fs.readFileSync(mapPath, "utf8")) : {};
+  const promotionMap = readPromotionMap(absSlice);
 
   const timestamps = [];
   for (const file of fs.readdirSync(synthesisDir)) {
@@ -260,6 +259,7 @@ function loadWatchOutcomeSlice(sliceDir) {
     ? fs.readFileSync(claimInventoryPath, "utf8")
     : "";
   const sessions = parseSessionsFromClaimInventory(claimBody);
+  const triageBody = fs.existsSync(triageLogPath) ? fs.readFileSync(triageLogPath, "utf8") : "";
 
   return {
     sliceDir,
@@ -273,10 +273,8 @@ function loadWatchOutcomeSlice(sliceDir) {
     contentClass,
     sessions,
     floors: outcomeFloors(contentClass, durationSec, sessions.length || 1),
-    triageBody: fs.existsSync(triageLogPath) ? fs.readFileSync(triageLogPath, "utf8") : "",
-    triageSheets: countTriageSheetsLogged(
-      fs.existsSync(triageLogPath) ? fs.readFileSync(triageLogPath, "utf8") : "",
-    ),
+    triageBody,
+    triageSheets: countTriageSheetsLogged(triageBody),
     promotedTs: loadPromotedTimestampsSec(sliceDir),
     visualGapsBody: fs.existsSync(visualGapsPath) ? fs.readFileSync(visualGapsPath, "utf8") : "",
     claimInventoryPath,
@@ -418,10 +416,17 @@ function pushSessionCoverageChecks(checks, slice) {
 function pushTriageManifestChecks(checks, slice) {
   const { sliceDir, triageBody, triageManifestPath } = slice;
   const triageJson = validateTriageManifestForSlice(sliceDir, { requireIndexMatch: true });
+  const triageManifestExists = fs.existsSync(triageManifestPath);
+  // Parsed once and shared by the agentic/batch-file checks below — both only
+  // read it on the same manifest-present-and-valid branch.
+  const triageManifestUsable = triageManifestExists && triageJson.valid;
+  const triageManifest = triageManifestUsable
+    ? JSON.parse(fs.readFileSync(triageManifestPath, "utf8"))
+    : null;
   checks.push({
     id: "triage-json-present",
-    pass: fs.existsSync(triageManifestPath) && triageJson.valid,
-    actual: fs.existsSync(triageManifestPath)
+    pass: triageManifestUsable,
+    actual: triageManifestExists
       ? triageJson.valid
         ? "valid manifest"
         : triageJson.errors.slice(0, 2).join("; ")
@@ -430,8 +435,7 @@ function pushTriageManifestChecks(checks, slice) {
     severity: "fail",
   });
 
-  const triageCellComplete =
-    triageJson.valid && fs.existsSync(triageManifestPath) && triageJson.errors.length === 0;
+  const triageCellComplete = triageManifestUsable && triageJson.errors.length === 0;
   checks.push({
     id: "triage-cell-completeness",
     pass: triageCellComplete,
@@ -440,10 +444,9 @@ function pushTriageManifestChecks(checks, slice) {
     severity: "fail",
   });
 
-  const triageAgenticErrors =
-    fs.existsSync(triageManifestPath) && triageJson.valid
-      ? validateTriageAgentic(JSON.parse(fs.readFileSync(triageManifestPath, "utf8")))
-      : ["manifest missing or invalid"];
+  const triageAgenticErrors = triageManifestUsable
+    ? validateTriageAgentic(triageManifest)
+    : ["manifest missing or invalid"];
   checks.push({
     id: "triage-agentic-required",
     pass: triageAgenticErrors.length === 0,
@@ -455,10 +458,9 @@ function pushTriageManifestChecks(checks, slice) {
     severity: "fail",
   });
 
-  const triageBatchErrors =
-    fs.existsSync(triageManifestPath) && triageJson.valid
-      ? validateTriageBatchFiles(sliceDir, JSON.parse(fs.readFileSync(triageManifestPath, "utf8")))
-      : ["manifest missing or invalid"];
+  const triageBatchErrors = triageManifestUsable
+    ? validateTriageBatchFiles(sliceDir, triageManifest)
+    : ["manifest missing or invalid"];
   checks.push({
     id: "triage-batch-files-present",
     pass: triageBatchErrors.length === 0,
@@ -471,7 +473,7 @@ function pushTriageManifestChecks(checks, slice) {
   });
 
   const hasMarkdownTriage = triageBody.length > 100;
-  const hasJsonTriage = fs.existsSync(triageManifestPath);
+  const hasJsonTriage = triageManifestExists;
   checks.push({
     id: "heuristic-triage-forbidden",
     pass: !hasMarkdownTriage || hasJsonTriage,
@@ -523,8 +525,7 @@ function pushPromotionChecks(checks, slice) {
   let traceabilityActual = "no synthesis pngs";
   if (synthesisPngs.length > 0 && fs.existsSync(promotionDecisionsPath)) {
     const decisions = JSON.parse(fs.readFileSync(promotionDecisionsPath, "utf8"));
-    const mapPath = lanePath(sliceDir, LANES.keyFrames, "promotion-map.json");
-    const promotionMap = fs.existsSync(mapPath) ? JSON.parse(fs.readFileSync(mapPath, "utf8")) : {};
+    const promotionMap = readPromotionMap(sliceDir);
     const promoteByDest = new Map(
       (decisions.decisions ?? [])
         .filter((d) => d.verdict === "promote")
@@ -565,14 +566,16 @@ function pushQualityAuditChecks(checks, slice) {
   } = slice;
   const qualityAuditJsonPath = lanePath(sliceDir, LANES.keyFrames, "key-frame-quality-audit.json");
   const qualityAuditValidation = validateQualityAuditForSlice(sliceDir);
-  const auditFailures =
+  const auditFiles =
     // biome-ignore lint/suspicious/noUnnecessaryConditions: validateQualityAuditForSlice() returns without `doc` on the missing-audit branch, so `doc` may be undefined; Biome models only the doc-present shape.
     qualityAuditValidation.doc && Array.isArray(qualityAuditValidation.doc.files)
-      ? qualityAuditValidation.doc.files.filter((f) => !f.pass)
+      ? qualityAuditValidation.doc.files
       : [];
+  const auditFailures = auditFiles.filter((f) => !f.pass);
 
   let manifestRowCount = 0;
-  if (fs.existsSync(manifestPath)) {
+  const manifestExists = fs.existsSync(manifestPath);
+  if (manifestExists) {
     manifestRowCount = fs
       .readFileSync(manifestPath, "utf8")
       .split("\n")
@@ -581,11 +584,7 @@ function pushQualityAuditChecks(checks, slice) {
       ).length;
   }
 
-  const auditRowCount =
-    // biome-ignore lint/suspicious/noUnnecessaryConditions: same as the auditFailures guard — validateQualityAuditForSlice() can return without `doc` (missing audit JSON), so `doc` may be undefined.
-    qualityAuditValidation.doc && Array.isArray(qualityAuditValidation.doc.files)
-      ? qualityAuditValidation.doc.files.length
-      : 0;
+  const auditRowCount = auditFiles.length;
   const parityPass =
     synthesisPngs.length === 0 ||
     (manifestRowCount === synthesisPngs.length &&
@@ -609,17 +608,15 @@ function pushQualityAuditChecks(checks, slice) {
     expected: "delete or fix frames with pass:false in key-frame-quality-audit.json",
     severity: "fail",
   });
+  const auditMdExists = fs.existsSync(qualityAuditPath);
+  const auditJsonExists = fs.existsSync(qualityAuditJsonPath);
   checks.push({
     id: "quality-audit",
-    pass:
-      fs.existsSync(qualityAuditPath) &&
-      fs.existsSync(manifestPath) &&
-      fs.existsSync(qualityAuditJsonPath) &&
-      qualityAuditValidation.valid,
+    pass: auditMdExists && manifestExists && auditJsonExists && qualityAuditValidation.valid,
     actual: [
-      fs.existsSync(manifestPath) ? "manifest" : "no-manifest",
-      fs.existsSync(qualityAuditPath) ? "audit-md" : "no-audit-md",
-      fs.existsSync(qualityAuditJsonPath) ? "audit-json" : "no-audit-json",
+      manifestExists ? "manifest" : "no-manifest",
+      auditMdExists ? "audit-md" : "no-audit-md",
+      auditJsonExists ? "audit-json" : "no-audit-json",
     ].join(", "),
     expected: "manifest + key-frame-quality-audit.md + .json after promotion",
     severity: "fail",
@@ -674,7 +671,7 @@ function writeWatchOutcomeReport(sliceDir, checks, pass) {
   const verificationDir = lanePath(sliceDir, LANES.verification);
   fs.mkdirSync(verificationDir, { recursive: true });
   // Latest report is authoritative: clear prior outcome reports before writing this run's.
-  for (const name of fs.existsSync(verificationDir) ? fs.readdirSync(verificationDir) : []) {
+  for (const name of fs.readdirSync(verificationDir)) {
     if (/-watch-outcomes\.md$/.test(name)) {
       fs.rmSync(path.join(verificationDir, name));
     }

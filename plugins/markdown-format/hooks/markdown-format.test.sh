@@ -509,6 +509,139 @@ else
   fail "git absent: nested .md skipped — config discovery never left its own directory (rc=$RC_NOGIT_NEST out=$OUT_NOGIT_NEST)"
 fi
 
+# The same nesting with CLAUDE_PROJECT_DIR UNSET. That is not an exotic variant:
+# the membership scope this PR exists to fix is itself gated on
+# `[[ -z "${CLAUDE_PROJECT_DIR:-}" ]]`, and the primary no-git fixture above runs
+# unset — so unset is the configuration the fix is ABOUT, and a root resolved
+# from CLAUDE_PROJECT_DIR cannot serve it. Nothing but the filesystem can anchor
+# the root here. The scope above already declines to skip when git cannot
+# answer, so this run reaches config discovery and stands or falls on root
+# resolution alone.
+NOGIT_NESTED_UNSET="$REPO/docs/fixtureNoGitNestedUnanchored.md"
+printf '# No Git Nested Unanchored\n\n* star item\n' >"$NOGIT_NESTED_UNSET"
+OUT_NOGIT_NEST_U="$(run_hook_no_git "$NOGIT_NESTED_UNSET")"
+RC_NOGIT_NEST_U=$?
+if [[ $RC_NOGIT_NEST_U -eq 0 ]] && grep -q '^- star item$' "$NOGIT_NESTED_UNSET"; then
+  ok "git absent + CLAUDE_PROJECT_DIR unset: a NESTED .md still reaches the root config"
+else
+  fail "git absent + unset: nested .md skipped, nothing anchored the root (rc=$RC_NOGIT_NEST_U out=$OUT_NOGIT_NEST_U)"
+fi
+
+# The last resort, and the only case where CLAUDE_PROJECT_DIR decides the root:
+# a project that is no working tree at all — an unpacked archive, a vendored
+# copy — where the filesystem walk finds no `.git` to stop at. Every other
+# fixture here lives in a real git tree, so nothing else can reach this branch.
+# The fixture is deliberately NOT under $REPO for that reason.
+NOVCS="$WORK/no-vcs-project"
+mkdir -p "$NOVCS/docs"
+cat >"$NOVCS/.markdownlint.json" <<'JSON'
+{ "MD004": { "style": "dash" } }
+JSON
+NOVCS_FIXTURE="$NOVCS/docs/archived.md"
+printf '# Archived\n\n* star item\n' >"$NOVCS_FIXTURE"
+OUT_NOVCS="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$NOVCS_FIXTURE" |
+  env BASH_ENV="$NO_GIT_ENV" CLAUDE_PROJECT_DIR="$NOVCS" \
+    CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+RC_NOVCS=$?
+if [[ $RC_NOVCS -eq 0 ]] && grep -q '^- star item$' "$NOVCS_FIXTURE"; then
+  ok "no working tree anywhere: CLAUDE_PROJECT_DIR is the root of last resort"
+else
+  fail "no working tree: nested .md skipped despite CLAUDE_PROJECT_DIR (rc=$RC_NOVCS out=$OUT_NOVCS)"
+fi
+
+# make_symlink <target> <link> → 0 only if a REAL symlink now exists at <link>.
+# Plain `ln -s` under Git Bash's default MSYS settings COPIES the file, which is
+# why the escape cases earlier in this file skip on Windows. nativestrict asks
+# for a real NTFS symlink and succeeds wherever the host allows it (Developer
+# Mode, or the create-symlink privilege), so the escape shapes below are
+# exercised on hosts the bare-`ln -s` probe writes off.
+make_symlink() {
+  MSYS=winsymlinks:nativestrict ln -s "$1" "$2" 2>/dev/null ||
+    ln -s "$1" "$2" 2>/dev/null
+  [[ -L "$2" ]]
+}
+
+# Escaping symlink with git ABSENT. The escape cases earlier run with git
+# present, where in_git_working_tree decides containment on the physical path
+# and skips. Without git that question could not be asked at all, so containment
+# went unchecked — and resolving the root from the filesystem is precisely what
+# makes discovery SUCCEED here, opening the repository's own config for a file
+# whose bytes live outside the tree. Both nestings are covered: nested (reachable
+# only once the root walk exists) and root-level (reachable before it too).
+#
+# ASSERTED ON LINK SURVIVAL, not on the target's bytes, and the difference is
+# the whole discriminating power of these two cases. The stub linter at the top
+# of this file rewrites with `sed -i`, which renames a temp over the path and so
+# REPLACES a symlink with a regular file while leaving the target untouched —
+# verified on this host. Real markdownlint-cli2 is a Node process whose
+# fs.writeFile follows the link and rewrites the target instead. So under this
+# stub an unchanged target proves nothing (it is unchanged either way), while a
+# surviving symlink proves the hook never ran --fix on it at all.
+NOGIT_OUTSIDE="$WORK/outside-nogit"
+mkdir -p "$NOGIT_OUTSIDE"
+
+for _case in nested root; do
+  case "$_case" in
+  nested) _link="$REPO/docs/escapeNoGitNested.md" ;;
+  root) _link="$REPO/escapeNoGitRoot.md" ;;
+  # Unreachable from the loop above, and present because CI runs ShellCheck with
+  # no severity floor, so SC2249 (info) fails the lane. Exiting rather than
+  # falling through: a silently unhandled case here would report a PASS for a
+  # symlink case that never ran.
+  *)
+    echo "unhandled escape case: $_case" >&2
+    exit 1
+    ;;
+  esac
+  _ext="$NOGIT_OUTSIDE/external-$_case.md"
+  printf '# External\n\n* star item\n' >"$_ext"
+  if make_symlink "$_ext" "$_link"; then
+    _ext_before="$(cat "$_ext")"
+    OUT_ESC="$(run_hook_no_git "$_link")"
+    RC_ESC=$?
+    if [[ $RC_ESC -eq 0 && -L "$_link" && "$(cat "$_ext")" == "$_ext_before" ]]; then
+      ok "git absent: a $_case escaping symlink is skipped, not handed to --fix"
+    else
+      fail "git absent: --fix reached a $_case symlink's out-of-tree target (rc=$RC_ESC link-intact=$([[ -L "$_link" ]] && echo yes || echo no) out=$OUT_ESC)"
+    fi
+    rm -f "$_link"
+  else
+    ok "git absent $_case symlink-escape case SKIPPED (host cannot create real symlinks)"
+  fi
+done
+
+# CONTROL for the three skips above: the containment check must admit as well as
+# reject. Every git-absent symlink case in this file wants a SKIP, so a
+# `physically_inside` that regressed to always-false — an off-by-one in its
+# `case` prefix match, a stray early `return 1` — would satisfy all of them
+# while silently costing every legitimately in-repo symlinked .md its --fix on a
+# git-less host. Only a symlink whose target resolves INSIDE the repository
+# separates the two.
+#
+# ASSERTED ON THE LINK BEING GONE, and that is the discriminating part. The stub
+# linter rewrites with `sed -i`, which renames a temp over the path it was
+# handed, so a --fix that ran REPLACES the symlink at $NOGIT_INSIDE_LINK with a
+# regular file and leaves the target's bytes alone — the exact inverse of the
+# escape cases above, which assert the link SURVIVES. Checking the target's
+# bytes here would therefore fail against correct code. `! -L` plus the fixed
+# bytes cannot be produced by a skip, which leaves the link intact and unfixed.
+NOGIT_INSIDE_TARGET="$REPO/docs/insideNoGitTarget.md"
+NOGIT_INSIDE_LINK="$REPO/docs/insideNoGitLink.md"
+printf '# Inside\n\n* inside item\n' >"$NOGIT_INSIDE_TARGET"
+if make_symlink "$NOGIT_INSIDE_TARGET" "$NOGIT_INSIDE_LINK"; then
+  OUT_INSIDE="$(run_hook_no_git "$NOGIT_INSIDE_LINK")"
+  RC_INSIDE=$?
+  if [[ $RC_INSIDE -eq 0 && ! -L "$NOGIT_INSIDE_LINK" ]] &&
+    grep -q '^- inside item$' "$NOGIT_INSIDE_LINK"; then
+    ok "git absent: a symlink resolving inside the repo still gets --fix"
+  else
+    fail "git absent: an in-repo symlinked .md was skipped instead of linted (rc=$RC_INSIDE link-intact=$([[ -L "$NOGIT_INSIDE_LINK" ]] && echo yes || echo no) out=$OUT_INSIDE)"
+  fi
+  rm -f "$NOGIT_INSIDE_LINK"
+else
+  ok "git absent in-repo symlink control SKIPPED (host cannot create real symlinks)"
+fi
+
 # The scope must still fire when git CAN answer — that half is the out-of-tree
 # case above, which runs with git present and asserts the skip.
 #
@@ -554,28 +687,81 @@ else
   fail "git present, dir is no repo: the override did not fire — config above was never reached (rc=$RC_FIRES out=$OUT_FIRES)"
 fi
 
-# NO NEGATIVE TWIN, deliberately — three instruments were tried and none can
-# fail, so shipping one would be a test that proves nothing while looking like
-# coverage. Recorded here rather than omitted silently, because the reason is a
-# fact about the CODE, not only about the fixtures:
+# The NEGATIVE twin — the override must stay INERT when git CAN resolve a
+# toplevel. Three obvious instruments cannot express it, and the fourth can;
+# the failures are recorded because each one looks workable until tried:
 #
-#   1. Lint output cannot see it. Force the override to fire on a file at the
-#      root of a real repository (replace the probe with `false`) and the file
-#      is STILL not rewritten — markdownlint-cli2 performs its own config
-#      discovery and does not cross the repository boundary, so widening the
-#      hook's gate changes no observable byte.
-#   2. Telemetry's `data.file` is derived from REPO_ROOT and looked promising,
-#      but the forced-override run emits an EMPTY value rather than the
-#      relative-to-outer path a wrongly-widened root would produce. Empty is
-#      also what a sink that never populated looks like, so the assertion could
-#      not tell a real regression from a flaky sink.
-#   3. Exit status is 0 either way; the gate's only effect is whether the lint
-#      runs, and (1) shows the lint's own result is unchanged.
+#   1. Lint output cannot see it. Force the override to fire on a file at a real
+#      repository root (replace the probe with `false`) and the file is STILL
+#      not rewritten — markdownlint-cli2 does its own config discovery and does
+#      not cross the repository boundary, so widening the hook's gate changes no
+#      observable byte.
+#   2. Telemetry's `data.file` is derived from REPO_ROOT, but the forced-override
+#      run emits an EMPTY value rather than a relative-to-outer path — and empty
+#      is also what a sink that never populated looks like.
+#   3. Exit status is 0 either way.
 #
-# So the override's INERTNESS in that configuration is not behaviourally
-# observable, and the positive case above is what pins the branch. A future
-# change that makes REPO_ROOT observable — exporting it, or emitting it in the
-# envelope — would make the negative writable; until then it cannot be.
+# The fourth works because it reads REPO_ROOT DIRECTLY rather than inferring it
+# from an effect: the hook resolves a repo-local linter at
+# "$REPO_ROOT/node_modules/.bin/markdownlint-cli2", so a distinguishable shim
+# planted at BOTH candidate roots names the root the hook actually computed.
+#
+# Two mechanics this depends on, both of which silently defeat it if missed:
+# the PATH copy of markdownlint-cli2 wins over the repo-local one, so it has to
+# be hidden from `command -v` (see the next paragraph for how, and for why NOT
+# by editing PATH); and the shim must write a MARKER FILE, because the hook
+# captures stdout and stderr into a variable, so anything it prints is
+# swallowed.
+#
+# The assertion is positive — the marker must read INNER. A wrongly-firing
+# override yields OUTER or no marker at all, and both fail it. Measured against
+# a hook whose probe was forced to `false`: correct reads INNER, forced reads no
+# marker. Discriminating in the direction that matters.
+# `PATH` is left ALONE. An earlier draft stripped every directory containing a
+# `markdownlint-cli2`, which also removes whatever else lives beside it — `git`,
+# which `hook::repo_root` needs, or the coreutils `resolve_repo_markdownlint`
+# calls. On such a layout the hook's git probe would fail as command-not-found,
+# the override would fire, the marker would read OUTER, and this case would fail
+# while the production behaviour was correct. The suite already has the right
+# technique for this (`NO_MDLINT_ENV` further down): a `BASH_ENV` `command()`
+# override that hides the binary from `command -v` without touching `PATH`. A
+# self-contained one is used here rather than that shared shim, because that one
+# also stubs `npx`, and a miss should surface as "no shim ran" rather than be
+# absorbed by an npx marker.
+NEG_ENV="$WORK/override-inert.bashenv"
+cat >"$NEG_ENV" <<'NEGEOF'
+command() {
+  if [[ "${1:-}" == "-v" && "${2:-}" == "markdownlint-cli2" ]]; then
+    return 1
+  fi
+  builtin command "$@"
+}
+NEGEOF
+NEG_OUTER="$WORK/override-inert"
+mkdir -p "$NEG_OUTER/inner"
+printf '{ "config": { "MD004": { "style": "dash" } } }\n' >"$NEG_OUTER/.markdownlint-cli2.jsonc"
+printf '{ "config": { "MD004": { "style": "dash" } } }\n' >"$NEG_OUTER/inner/.markdownlint-cli2.jsonc"
+git init -q "$NEG_OUTER/inner" 2>/dev/null
+NEG_MARK="$WORK/override-inert.marker"
+for _md_root_spec in "$NEG_OUTER:OUTER" "$NEG_OUTER/inner:INNER"; do
+  _md_root="${_md_root_spec%:*}"
+  _md_label="${_md_root_spec##*:}"
+  mkdir -p "$_md_root/node_modules/.bin"
+  printf '#!/usr/bin/env bash\nprintf "%%s" "%s" > "%s"\nexit 0\n' \
+    "$_md_label" "$NEG_MARK" >"$_md_root/node_modules/.bin/markdownlint-cli2"
+  chmod +x "$_md_root/node_modules/.bin/markdownlint-cli2"
+done
+rm -f "$NEG_MARK"
+printf '# Override Inert\n\n* star item\n' >"$NEG_OUTER/inner/f.md"
+(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$NEG_OUTER/inner/f.md" |
+  env BASH_ENV="$NEG_ENV" CLAUDE_PROJECT_DIR="$NEG_OUTER" \
+    CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK") >/dev/null 2>&1
+NEG_SAW="$(cat "$NEG_MARK" 2>/dev/null || echo '<no shim ran>')"
+if [[ "$NEG_SAW" == "INNER" ]]; then
+  ok "git present: the override stays inert — the hook resolved REPO_ROOT to the git toplevel"
+else
+  fail "git present: REPO_ROOT was not the git toplevel — shim that ran reported '$NEG_SAW' (want INNER)"
+fi
 
 # --- Repository-local markdownlint: use contained npm/Git Bash shim ---------
 # Hide the PATH copy, then provide the extensionless POSIX shim npm installs
@@ -753,6 +939,42 @@ if [[ $RC_NO_JQ_NOCFG -eq 0 && -z "$OUT_NO_JQ_NOCFG" ]]; then
   ok "missing jq in a config-less repo -> exit 0, no notice (opt-in decided first)"
 else
   fail "missing jq in a config-less repo emitted output (rc=$RC_NO_JQ_NOCFG out=$OUT_NO_JQ_NOCFG)"
+fi
+
+# --- Missing jq AND missing git, nested file: the notice must still be owed ---
+# The opt-in pre-check resolves its own repo root, on the one path that runs
+# before jq exists. It is the same resolution as the authoritative gate's and it
+# carries the same git dependency, but no other case in this file can see it:
+# every jq-absence case above runs with git present, and every git-absence case
+# runs with jq present. Together the two shims put a nested file on that path,
+# where a root that collapses to the file's own directory reads a repository
+# that DID opt in as one that never did — and then swallows the jq notice it is
+# owed, silently. The config-less pair above pins the other direction, so the
+# assertion cannot pass by the hook simply having stopped warning.
+NO_JQ_NO_GIT_ENV="$WORK/no-jq-no-git.bashenv"
+cat >"$NO_JQ_NO_GIT_ENV" <<'EOF'
+command() {
+  if [[ "${1:-}" == "-v" && ("${2:-}" == "jq" || "${2:-}" == "git") ]]; then
+    return 1
+  fi
+  builtin command "$@"
+}
+git() {
+  printf 'bash: git: command not found\n' >&2
+  return 127
+}
+EOF
+PD_NO_JQ_NOGIT="$(mktemp -d "$WORK/pd.XXXXXX")"
+NOJQ_NESTED="$REPO/docs/fixtureNoJqNoGitNested.md"
+printf '# No Jq No Git Nested\n\n* star item\n' >"$NOJQ_NESTED"
+OUT_NO_JQ_NOGIT="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$NOJQ_NESTED" |
+  env -u CLAUDE_PROJECT_DIR BASH_ENV="$NO_JQ_NO_GIT_ENV" CLAUDE_PLUGIN_DATA="$PD_NO_JQ_NOGIT" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+RC_NO_JQ_NOGIT=$?
+if [[ $RC_NO_JQ_NOGIT -eq 0 ]] &&
+  printf '%s' "$OUT_NO_JQ_NOGIT" | grep -q 'jq not found on PATH'; then
+  ok "missing jq + missing git, nested .md -> the opt-in pre-check still finds the root config and the notice is emitted"
+else
+  fail "missing jq + missing git, nested .md -> notice swallowed, the pre-check read an opted-in repo as opted-out (rc=$RC_NO_JQ_NOGIT out=$OUT_NO_JQ_NOGIT)"
 fi
 
 # --- Repository-config trust gate: risky config blocks lint until approved ---

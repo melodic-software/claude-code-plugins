@@ -3,7 +3,7 @@ description: "Builds throwaway UI variations — several radically different vis
 argument-hint: "[scope] (e.g., /prototype:explore-directions settings page)"
 user-invocable: true
 disable-model-invocation: false
-allowed-tools: ["Bash(git branch:*)", "Bash(git status:*)", "Bash(head:*)", "Bash(echo:*)", "Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/detect-ecosystems.sh:*)"]
+allowed-tools: ["Bash(git branch:*)", "Bash(git status:*)", "Bash(head:*)", "Bash(echo:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/detect-ecosystems.sh:*)"]
 shell: bash
 metadata:
   workflow-stage: plan
@@ -14,7 +14,7 @@ metadata:
 
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 Working tree status: !`git status --porcelain 2>/dev/null | head -10 || echo "clean"`
-Project ecosystems: !`bash "${CLAUDE_PLUGIN_ROOT}/scripts/detect-ecosystems.sh" 2>/dev/null || echo "none detected"`
+Project ecosystems: !`${CLAUDE_SKILL_DIR}/scripts/detect-ecosystems.sh 2>/dev/null || echo "none detected"`
 
 ## Variables
 

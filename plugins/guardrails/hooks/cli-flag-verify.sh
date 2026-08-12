@@ -70,10 +70,19 @@ esac
 # from an overwrite, so "whole-file only for new files" degrades to whole-content
 # here — still the payload, never disk). The live matcher is Write|Edit; any
 # other tool carries nothing this call wrote that we can scope a scan to.
-TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null | tr -d '\r')
+#
+# Tool name and both per-tool content fields in ONE jq process
+# (hook::jq_fields), not two — a jq spawn is fork() emulation on Windows Git
+# Bash. Selecting the field inside jq would still cost the same process, so both
+# are fetched and the tool-specific choice happens below in the shell. Failure
+# semantics are unchanged: a missing jq or an unparsable payload yields rc 1
+# here, which exits 0 exactly as the unmatched-TOOL case did — hook::require_jq
+# above has already made the degraded state visible once per session.
+hook::jq_fields "$INPUT" '.tool_name' '.tool_input.new_string' '.tool_input.content' || exit 0
+TOOL="${HOOK_JQ_FIELDS[0]}"
 case "$TOOL" in
-Edit) SCAN_CONTENT=$(printf '%s' "$INPUT" | jq -r '.tool_input.new_string // empty' 2>/dev/null | tr -d '\r') ;;
-Write) SCAN_CONTENT=$(printf '%s' "$INPUT" | jq -r '.tool_input.content // empty' 2>/dev/null | tr -d '\r') ;;
+Edit) SCAN_CONTENT="${HOOK_JQ_FIELDS[1]}" ;;
+Write) SCAN_CONTENT="${HOOK_JQ_FIELDS[2]}" ;;
 *) exit 0 ;;
 esac
 [[ -n "$SCAN_CONTENT" ]] || exit 0
@@ -379,7 +388,7 @@ emit_tel() {
       [[ -n "$chainstr" ]] && disp="$bin $chainstr $flag" || disp="$bin $flag"
       raw+="$disp"$'\n'
     done
-    findings_json=$(printf '%s' "$raw" | jq -R . | jq -s . 2>/dev/null) || findings_json="[]"
+    findings_json=$(printf '%s' "$raw" | jq -Rn '[inputs]' 2>/dev/null) || findings_json="[]"
   fi
   local data
   data=$(jq -n --arg file "$file_rel" --argjson findings "$findings_json" \

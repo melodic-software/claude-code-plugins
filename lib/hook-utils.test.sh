@@ -2048,6 +2048,26 @@ resolve_dirs_are "sudo --chdir=DIR reports the chdir" "other" sudo --chdir=other
 resolve_dirs_are "sudo -C fd is not a chdir" "" sudo -C 3 git commit
 # Nested wrappers each contribute, in execution order, for the caller to compose.
 resolve_dirs_are "nested wrappers report both chdirs in order" "a|b" env -C a sudo -D b git commit
+# `-S` exists so a shebang line can pass OPTIONS to env (`#!/usr/bin/env -S -i
+# prog`), so the split words are env's own arguments and parsing must resume
+# inside env's option loop. Resuming at the command dispatcher read a leading
+# option in the split string as the COMMAND NAME and abandoned the segment
+# entirely — the resolver reported no git, and every guard skipped the command.
+resolve_dirs_are "env -S splices a chdir that belongs to env" "other" env -S '-C other git commit'
+resolve_dirs_are "env --split-string= splices a chdir that belongs to env" "other" env --split-string='-C other git commit'
+resolve_dirs_are "env -S with an attached operand splices the chdir" "other" env "-S-C other git commit"
+resolve_dirs_are "env -S with no leading option still resolves git" "" env -S 'git commit'
+# One env, one chdir slot: a -C inside the split string is last-wins against an
+# earlier one outside it, not cumulative.
+resolve_dirs_are "env -C first -S '-C second …' is last-wins in the one slot" "second" env -C first -S '-C second git commit'
+# A valueless clustered option inside the split string must not swallow the chdir.
+resolve_dirs_are "env -S '-v -C DIR git …' keeps the chdir" "other" env -S '-v -C other git commit'
+# Termination: a self-referential -S consumes itself rather than looping.
+if hook::git_resolve_index env -S '-S -S'; then
+  fail "env -S '-S -S' should resolve no git, resolved at $HOOK_GIT_RESOLVED_GI"
+else
+  ok "a self-referential env -S terminates and resolves no git"
+fi
 
 # --- resolve_read_slice: shell fixed-point division ---------------------------
 # The slice is produced by shell arithmetic rather than an awk spawn, and its
@@ -2122,6 +2142,29 @@ else
   ok "jq_fields: a call with no filters returns non-zero"
 fi
 
+# A JSON string may legitimately encode a NUL, and a Write/Edit content field
+# does reach this helper. The NUL delimiter is only safe because every value is
+# NUL-stripped jq-side FIRST: without that strip jq emitted the raw byte, the
+# read split one value into two, the cardinality check failed, and every
+# caller's `|| exit 0` skipped its guard outright — a fail-open the per-field
+# command substitution this helper replaced never had, because `$( )` dropped
+# the NUL and kept the rest of the value. The value after the NUL must survive.
+# The payload is built with jq (`[0] | implode`) so no literal escape sequence
+# for the byte lives in this file's source.
+jf_nul_input=$(jq -nc '{tool_name:"Write",tool_input:{content:("before" + ([0] | implode) + "after")}}')
+jf_nul_input="${jf_nul_input//$'\r'/}"
+if hook::jq_fields "$jf_nul_input" '.tool_name' '.tool_input.content'; then
+  if [[ "${#HOOK_JQ_FIELDS[@]}" -eq 2 &&
+    "${HOOK_JQ_FIELDS[0]}" == "Write" &&
+    "${HOOK_JQ_FIELDS[1]}" == "beforeafter" ]]; then
+    ok "jq_fields: a NUL inside a value is stripped, never read as the delimiter"
+  else
+    fail "jq_fields NUL-bearing value: got (${#HOOK_JQ_FIELDS[@]}) '${HOOK_JQ_FIELDS[0]-}' / '${HOOK_JQ_FIELDS[1]-}'"
+  fi
+else
+  fail "jq_fields returned $? on a NUL-bearing value — the caller's || exit 0 would skip its guard"
+fi
+
 # Non-string JSON values are stringified rather than dropped, so a numeric or
 # null field cannot desynchronize the indexes either.
 if hook::jq_fields '{"a":5,"b":null}' '.a' '.b' &&
@@ -2130,6 +2173,203 @@ if hook::jq_fields '{"a":5,"b":null}' '.a' '.b' &&
 else
   fail "jq_fields non-string handling: got '${HOOK_JQ_FIELDS[0]-}' / '${HOOK_JQ_FIELDS[1]-}'"
 fi
+
+# --- jq_fields: a NUL in a value must not split the frame (#2122) -------------
+# The separator was drawn from the same byte space as the values it separates,
+# so a JSON NUL escape inside a value split that value in two, failed the
+# cardinality check, and returned 1 — which every guardrail caller spells
+# `|| exit 0`, i.e. ALLOW. jq now STRIPS every NUL out of each value, so the
+# separator cannot occur inside one and the record count no longer depends on
+# what a parseable payload holds. Stripping is not a claim about how a NUL would
+# execute — it SPLICES the bytes either side into a token the payload never
+# carried contiguously — which is exactly why the NUL itself is reported in
+# HOOK_JQ_FIELDS_NUL: only the caller can own the verdict, and the two guards
+# refuse on the flag rather than match the spliced value.
+#
+# A NUL cannot live in a shell variable, so the payload is built inside jq:
+# `[0] | implode` is the one-character NUL string (jq re-emits it as a NUL
+# escape on the wire), and `[92] | implode` is a backslash — which keeps both
+# a raw NUL and an escape out of this file's own source.
+jf_bs=$(jq -rn '[92] | implode')
+jf_nul=$(jq -n '{
+  tool_name: "Bash",
+  tool_input: { command: ("git push --no-veri" + ([0] | implode) + "fy") },
+  session_id: ("s" + ([0] | implode) + "1"),
+  only_nul: ([0] | implode),
+  runs: ("p" + ([0] | implode) + ([0] | implode) + "q"),
+  literal: (([92] | implode) + "u0000")
+}')
+
+if hook::jq_fields "$jf_nul" \
+  '.tool_input.command' '.tool_name' '.session_id' '.only_nul' '.runs' '.literal' '.absent'; then
+  if [[ "${#HOOK_JQ_FIELDS[@]}" -eq 7 &&
+    "${HOOK_JQ_FIELDS[0]}" == "git push --no-verify" &&
+    "${HOOK_JQ_FIELDS[1]}" == "Bash" &&
+    "${HOOK_JQ_FIELDS[2]}" == "s1" &&
+    -z "${HOOK_JQ_FIELDS[3]}" &&
+    "${HOOK_JQ_FIELDS[4]}" == "pq" &&
+    "${HOOK_JQ_FIELDS[5]}" == "${jf_bs}u0000" &&
+    -z "${HOOK_JQ_FIELDS[6]}" ]]; then
+    ok "jq_fields: a NUL-bearing value keeps every slot and is stripped, not split"
+  else
+    fail "jq_fields NUL framing: got (${#HOOK_JQ_FIELDS[@]}) '${HOOK_JQ_FIELDS[0]-}' / '${HOOK_JQ_FIELDS[1]-}' / '${HOOK_JQ_FIELDS[2]-}' / '${HOOK_JQ_FIELDS[3]-}' / '${HOOK_JQ_FIELDS[4]-}' / '${HOOK_JQ_FIELDS[5]-}' / '${HOOK_JQ_FIELDS[6]-}'"
+  fi
+else
+  fail "jq_fields returned $? on a payload whose value carried a NUL"
+fi
+
+# The point of the fix is what the CALLER sees. A NUL used to make the helper
+# return non-zero, which every guardrail turns into an allow; now it returns
+# success and reports the NUL, so the caller can fail CLOSED on its own terms.
+if hook::jq_fields "$jf_nul" '.tool_input.command'; then
+  if [[ "$HOOK_JQ_FIELDS_NUL" == 1 ]]; then
+    ok "jq_fields: a NUL is reported to the caller instead of returning its fail-open code"
+  else
+    fail "jq_fields HOOK_JQ_FIELDS_NUL: expected 1 on a NUL-bearing payload, got '$HOOK_JQ_FIELDS_NUL'"
+  fi
+else
+  fail "jq_fields returned $? on a NUL-bearing payload — callers spell that ALLOW"
+fi
+
+# A NUL only the LAST filter carries must still raise the flag — the report is
+# over every requested value, not just the first.
+if hook::jq_fields "$jf_nul" '.tool_name' '.only_nul' && [[ "$HOOK_JQ_FIELDS_NUL" == 1 ]]; then
+  ok "jq_fields: a NUL in any requested field raises the flag"
+else
+  fail "jq_fields flag on a trailing NUL field: got '$HOOK_JQ_FIELDS_NUL'"
+fi
+
+# A leading NUL KEEPS its text under stripping — it is the splice, not an empty
+# value, that a command guard has to survive. `--no-verify<NUL>x` arrives as the
+# single token `--no-verifyx`, which no matcher recognizes, so a caller reading
+# only the value would allow it. The flag is the only thing that separates it
+# from a clean payload, which is why the two guards refuse on the flag instead of
+# matching the value.
+jf_lead=$(jq -n '{tool_input: {command: (([0] | implode) + "git push --force")}}')
+if hook::jq_fields "$jf_lead" '.tool_input.command' &&
+  [[ "${HOOK_JQ_FIELDS[0]}" == "git push --force" && "$HOOK_JQ_FIELDS_NUL" == 1 ]]; then
+  ok "jq_fields: a leading NUL keeps the value's text and still raises the flag"
+else
+  fail "jq_fields leading NUL: got '${HOOK_JQ_FIELDS[0]-}' flag '$HOOK_JQ_FIELDS_NUL'"
+fi
+
+jf_splice=$(jq -n '{tool_input: {command: ("git commit --no-verify" + ([0] | implode) + "x")}}')
+if hook::jq_fields "$jf_splice" '.tool_input.command' &&
+  [[ "${HOOK_JQ_FIELDS[0]}" == "git commit --no-verifyx" && "$HOOK_JQ_FIELDS_NUL" == 1 ]]; then
+  ok "jq_fields: stripping splices a token the payload never carried, and flags it"
+else
+  fail "jq_fields splice: got '${HOOK_JQ_FIELDS[0]-}' flag '$HOOK_JQ_FIELDS_NUL'"
+fi
+
+# A value that is NOTHING BUT NUL bytes strips to empty, and is then
+# indistinguishable from an absent field. That case — not a leading NUL — is why
+# both guards consult the flag AHEAD of their empty-command skip.
+jf_allnul=$(jq -n '{tool_input: {command: (([0] | implode) + ([0] | implode))}}')
+if hook::jq_fields "$jf_allnul" '.tool_input.command' &&
+  [[ -z "${HOOK_JQ_FIELDS[0]}" && "$HOOK_JQ_FIELDS_NUL" == 1 ]]; then
+  ok "jq_fields: an all-NUL value strips to empty and still raises the flag"
+else
+  fail "jq_fields all-NUL: got '${HOOK_JQ_FIELDS[0]-}' flag '$HOOK_JQ_FIELDS_NUL'"
+fi
+
+# Set on EVERY call, not only when a NUL is present: a caller that never resets
+# it must not inherit a stale 1 from an earlier invocation. Both assertions run
+# the NUL payload FIRST on purpose — a single call cannot observe a stale value
+# however it is written.
+hook::jq_fields "$jf_nul" '.tool_input.command'
+if hook::jq_fields "$jf_input" '.tool_name' && [[ "$HOOK_JQ_FIELDS_NUL" == 0 ]]; then
+  ok "jq_fields: a clean payload clears the flag rather than leaving it stale"
+else
+  fail "jq_fields stale flag: expected 0 after a clean payload, got '$HOOK_JQ_FIELDS_NUL'"
+fi
+
+# The early returns — no filters, and a host without jq — fire before any NUL
+# could be observed, so the flag has to be cleared in the same unconditional
+# block that resets the array rather than on detection. In a guard a stale 1
+# would block a clean payload on the strength of an earlier one.
+hook::jq_fields "$jf_nul" '.tool_input.command'
+hook::jq_fields "$jf_nul" || true
+if [[ "$HOOK_JQ_FIELDS_NUL" == 0 ]]; then
+  ok "jq_fields: an early return clears the flag instead of leaking the previous call's"
+else
+  fail "jq_fields early-return flag: expected 0, got '$HOOK_JQ_FIELDS_NUL'"
+fi
+
+# --- Test 20: hook::is_enabled / hook::check_enabled --------------------------
+# `check_enabled` exits the process when a plugin is gated off, so a case cannot
+# be asserted in-process: each runs in a child bash that sources the lib and
+# prints a sentinel only if the gate let it through. Absence of the sentinel IS
+# the "skipped" signal. Each probe unsets the control variable first so an
+# ambient value in the test runner's own environment cannot mask a regression.
+#
+# Scope note: this gate reads ONLY the plugin's own userConfig mirror. Turning
+# the whole fleet off is Claude Code's job (`--safe-mode`, `disableAllHooks`,
+# `claude plugin disable`), not this library's — a second fleet-wide switch here
+# would be a competing source of truth for the same question.
+ce_probe() {
+  # ce_probe <RUN|SKIP> <description> [VAR=VALUE ...]
+  local want="$1" desc="$2"
+  shift 2
+  local got
+  got=$(
+    # shellcheck disable=SC2016  # $0 must NOT expand here: it is the child bash's
+    # own positional, bound to the library path passed after the -c string.
+    env -u CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED \
+      "$@" bash -c 'source "$0"; hook::check_enabled "RATE_LIMIT_GUARD"; printf RUN' \
+      "$HOOK_DIR/hook-utils.sh" 2>/dev/null
+  )
+  got="${got:-SKIP}"
+  if [[ "$got" == "$want" ]]; then
+    ok "check_enabled: $desc"
+  else
+    fail "check_enabled: $desc — got '$got', want '$want'"
+  fi
+}
+
+# The default must not move: every existing installation leaves this unset, so a
+# regression here silently changes behavior for every user of the marketplace.
+ce_probe RUN "unset stays enabled (backward compatibility)"
+ce_probe RUN "explicit true" CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED=true
+ce_probe SKIP "explicit false" CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED=false
+# Anything that is not exactly "true" is off — a typo must not read as enabled.
+ce_probe SKIP "a non-boolean value is not 'true'" CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED=yes
+# An EMPTY value is treated as unset, not as false: `${var:-true}` falls back to
+# the default. This is long-standing behavior, asserted here so a future change
+# to the parameter expansion (`:-` to `-`) can't flip it silently. It matters
+# because Claude Code exports every declared userConfig option to the hook
+# environment, so an option the user never answered arrives as an empty string —
+# and that must mean "default", not "disabled".
+ce_probe RUN "empty value falls back to the default (treated as unset)" \
+  CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED=
+
+# hook::is_enabled is the predicate form: same answer, but it RETURNS instead of
+# exiting. The statusline tee depends on this — it wraps the user's real
+# statusline, so an exit would blank the status line instead of just skipping
+# the tee's own write.
+ie_probe() {
+  local want="$1" desc="$2"
+  shift 2
+  local got
+  got=$(
+    # shellcheck disable=SC2016  # $0 must NOT expand here: it is the child bash's
+    # own positional, bound to the library path passed after the -c string.
+    env -u CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED \
+      "$@" bash -c 'source "$0"
+        if hook::is_enabled "RATE_LIMIT_GUARD"; then printf ENABLED; else printf DISABLED; fi
+        printf "+SURVIVED"' "$HOOK_DIR/hook-utils.sh" 2>/dev/null
+  )
+  if [[ "$got" == "$want" ]]; then
+    ok "is_enabled: $desc"
+  else
+    fail "is_enabled: $desc — got '$got', want '$want'"
+  fi
+}
+ie_probe "ENABLED+SURVIVED" "unset returns true and does not exit"
+ie_probe "ENABLED+SURVIVED" "explicit true returns true" \
+  CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED=true
+# The critical one: a disabled answer must NOT terminate the caller.
+ie_probe "DISABLED+SURVIVED" "explicit false returns false WITHOUT exiting" \
+  CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED=false
 
 echo
 echo "PASS=$PASS FAIL=$FAIL"

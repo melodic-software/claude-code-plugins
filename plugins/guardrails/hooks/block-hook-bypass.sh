@@ -23,8 +23,10 @@
 # (`echo "$(python3 -c 'import pathlib ...')"`) is NOT caught — catching it needs
 # a shell parser, and neutralizing quotes re-blocks inert prose. An LLM never
 # emits this form; the deny-list plus human oversight are the adversarial layers.
-# The only supported deliberate bypass is the kill switch
-# (block_hook_bypass_enabled userConfig option set to false).
+# The supported deliberate bypasses are both operator-configured and both
+# default to no effect: the kill switch (block_hook_bypass_enabled set to false)
+# and the scratch-root exemption (block_hook_bypass_scratch_roots, empty by
+# default — see the block above scratch_target_exempt).
 #
 # BLOCKING: exits 2 on any detected bypass form.
 
@@ -68,9 +70,17 @@ INPUT=$(hook::buffer_stdin) || {
 # (additionalContext), once per session — see docs/conventions/hook-observability/.
 hook::require_jq "PreToolUse" "guardrails-block-hook-bypass" "$INPUT"
 
-COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null | tr -d '\r')
+# Both payload fields in ONE jq process (hook::jq_fields), not two. A jq spawn is
+# fork() emulation on Windows Git Bash and this guard runs on every Bash/PowerShell
+# call. Failure semantics are unchanged: a missing jq or an unparsable payload
+# yields rc 1 here, which exits 0 exactly as the empty-COMMAND skip below did —
+# hook::require_jq above has already made the degraded state visible once per
+# session. The `// "Bash"` default moves to the bash-side expansion, matching
+# block-dangerous-git.
+hook::jq_fields "$INPUT" '.tool_input.command' '.tool_name' || exit 0
+COMMAND="${HOOK_JQ_FIELDS[0]}"
 [[ -n "$COMMAND" ]] || exit 0
-TOOL_NAME=$(printf '%s' "$INPUT" | jq -r '.tool_name // "Bash"' 2>/dev/null | tr -d '\r')
+TOOL_NAME="${HOOK_JQ_FIELDS[1]:-Bash}"
 
 # Privacy-safe telemetry subject: `Bash:<first-token>` with leading `sudo` /
 # env-assignment prefixes stripped and the token basenamed. Never the full
@@ -477,6 +487,172 @@ set_last_stdout_target() {
   done
 }
 
+# --- Scratch-root exemption (opt-in; TARGET-PATH axis) ------------------------
+#
+# This guard is PRODUCER-scoped: it fires on echo/printf/cat/python3 -c as the
+# command whose stdout reaches a file, wherever that file lives. The exemption
+# below is the guard's first TARGET-scoped axis, and it is deliberately narrow.
+# Read this block before widening it.
+#
+# WHY: a read-only investigation that writes a throwaway probe under a session
+# or job temp root is blocked exactly like a repo-file write, and none of the
+# Write/Edit hooks this guard protects (formatters, secret scanning, path
+# checking) would ever process such a file. See #2210.
+#
+# WHY OPT-IN AND EMPTY BY DEFAULT: the last target-based exemption of this shape
+# (`/dev/null`) shipped a one-token bypass of the whole guard — write the discard
+# first, the real file second — fixed by resolving the EFFECTIVE target
+# left-to-right in set_last_stdout_target above. Shipping an empty list keeps the
+# default trust surface byte-for-byte what it was, and confines the new axis to
+# operators who name their own roots.
+#
+# HOW THE MATCH IS MADE, and why it is not a prefix compare: both the target and
+# each configured root are lexically normalized first (Windows separators and
+# drive letters folded to the Git Bash spelling, `.` and `..` resolved by
+# COMPONENT, duplicate and trailing slashes dropped). Only then is containment
+# decided, and it requires the target to continue with `/` past the root's last
+# component — so `/tmp/scratchevil/f` is NOT under `/tmp/scratch`, while a bare
+# string prefix would have exempted it. `..` that escapes above the root is
+# resolved away before the compare, so `/tmp/scratch/../../etc/passwd` normalizes
+# to `/etc/passwd` and blocks.
+#
+# WHAT FAILS CLOSED (blocks, no exemption considered): a relative target (the cwd
+# a redirect resolves against is not knowable from the payload — an earlier `cd`
+# in the same command can move it); a target still carrying `$`, a backtick or
+# `~` (the written text is not the path that gets written); and a target carrying
+# `*`, `?` or `[` (a glob names a set, not a path).
+#
+# SCOPE (documented residual): normalization is LEXICAL, not filesystem
+# resolution. Symlinks are not followed — a symlink inside a configured root that
+# points outside it is exempted. Resolving them needs a subprocess per segment,
+# which this file's hot path deliberately refuses (see set_last_stdout_target),
+# and the target frequently does not exist yet. An operator naming a root is
+# accepting that root's contents.
+#
+# SCOPE (documented residual): the comparison is CASE-INSENSITIVE, because the
+# segment scan runs over the lowercased command (`normalize_segments "$EXEC_LC"`).
+# On a case-sensitive filesystem a sibling directory differing from a configured
+# root only in case is therefore also exempt.
+#
+# A QUOTED OR ESCAPED redirect operand is never exempt — see the fail-closed
+# test at the top of scratch_target_exempt. A quoted operand can carry
+# whitespace, `;`, `|`, `&` or a newline that strip_literals and
+# normalize_segments have already resolved away as syntax, leaving only a
+# safe-looking prefix of the real pathname to compare. The same truncation
+# reaches the `/dev/null` exemption and PREDATES this axis (measured at
+# `685dd381`: `echo x > "/dev/null;/../../etc/passwd"` is allowed there); that
+# half is filed as #2226 and pinned here by a control test, because fixing it
+# means teaching strip_literals to mark a kept operand's internal separators —
+# shared machinery this row does not touch.
+#
+# SCOPE: Bash lane only. The PowerShell lane classifies on cmdlet/redirect
+# CO-OCCURRENCE and never resolves a single effective target, so there is no
+# well-defined target to exempt there; its `$null` discard is unchanged.
+_SCRATCH_ROOTS="${CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS:-}"
+
+# Lexically normalize an absolute path into `/`-joined canonical form in
+# _NORM_PATH. Returns 1 for every shape the compare must not be trusted with
+# (see "WHAT FAILS CLOSED" above); returns 0 with _NORM_PATH empty only for `/`
+# itself, which is never a usable root.
+_NORM_PATH=""
+_norm_path() {
+  local p="$1" out="" comp rest
+  case "$p" in
+  *'$'* | *'`'* | *'~'* | *'*'* | *'?'* | *'['*) return 1 ;;
+  *) ;; # every other shape proceeds to normalization below
+  esac
+  p="${p//\\//}"
+  # `C:/x` and `c:` -> the Git Bash spelling `/c/x`, so both spellings compare
+  # equal after normalization.
+  if [[ "$p" =~ ^([A-Za-z]):(/.*)?$ ]]; then
+    p="/${BASH_REMATCH[1]}${BASH_REMATCH[2]:-/}"
+  fi
+  [[ "$p" == /* ]] || return 1
+  # Split on `/` by hand rather than by word-splitting with IFS: an unquoted
+  # expansion would also glob against the cwd.
+  rest="$p"
+  while [[ -n "$rest" ]]; do
+    comp="${rest%%/*}"
+    if [[ "$comp" == "$rest" ]]; then rest=""; else rest="${rest#*/}"; fi
+    case "$comp" in
+    '' | '.') continue ;;
+    '..')
+      # An escape above the root is not a path this guard can reason about.
+      [[ -n "$out" ]] || return 1
+      out="${out%/*}"
+      ;;
+    *) out="$out/$comp" ;;
+    esac
+  done
+  _NORM_PATH="$out"
+  return 0
+}
+
+# 0 when the EFFECTIVE stdout target lies strictly under a configured scratch
+# root. Called only after a segment has already matched a producer + real-file
+# redirect, so it adds no work to the per-call hot path, and it returns on the
+# first line when no root is configured.
+scratch_target_exempt() {
+  local target="$1" norm_target root roots
+  [[ -n "$_SCRATCH_ROOTS" ]] || return 1
+  # FAIL CLOSED on a QUOTED or ESCAPED redirect operand, before anything else.
+  # By the time LAST_STDOUT_TARGET exists the evidence is gone: strip_literals
+  # KEEPS a quoted write target but drops its quotes, and normalize_segments then
+  # turns a `;`, `|`, `&` or newline inside that operand into a segment boundary
+  # and whitespace into a word boundary — so the operand
+  # `"/tmp/scratch/a;/../../etc/passwd"`, which bash treats as ONE pathname,
+  # reaches the compare as the safe-looking prefix `/tmp/scratch/a`. Exempting
+  # that is precisely the one-token bypass the `/dev/null` precedent warns about.
+  # The only surviving evidence is the RAW command, so refuse the exemption when
+  # any quote or backslash appears after the first `>` in it.
+  #
+  # STATE THE TRUE SCOPE — it is broader than "the operand" in TWO ways, and both
+  # are easy to describe more precisely than they behave:
+  #
+  #   1. NOT segment-scoped. This reads the WHOLE raw tail, not the segment being
+  #      evaluated and not the target word, so a quote anywhere later in a compound
+  #      command costs an EARLIER, unambiguous write its exemption:
+  #      `echo x > /tmp/scratch/f && grep foo "notes.txt"` blocks, even though
+  #      segment 1's target is a plain path.
+  #   2. NOT keyed on the redirect OPERATOR. `${COMMAND#*>}` splits at the first
+  #      literal `>` CHARACTER and never decides whether it is an operator, so a
+  #      `>` inside quoted CONTENT starts the tail early and that content's own
+  #      closing quote lands inside it: `echo "a > b" > /tmp/scratch/f` blocks.
+  #      Quotes before the redirect are otherwise fine — `echo "hi there" > …` is
+  #      exempt — but only while the quoted content holds no `>`.
+  #
+  # Both are deliberate and both are the safe direction: this test can only ever
+  # REFUSE an exemption, never grant one, so the failure mode is lost convenience,
+  # never a bypass. Fixing either one needs the same thing — knowing which `>` and
+  # which quotes are SYNTAX rather than CONTENT — and that is exactly the
+  # association strip_literals destroys before this code runs. Same root cause as
+  # #2226; not attempted here. Four regression tests pin these boundaries so the
+  # breadth cannot silently widen or narrow. An operator who wants the exemption
+  # keeps quotes, backslashes and `>` out of the command after the target.
+  #
+  # The same truncation reaches the `/dev/null` exemption and predates this axis;
+  # it is filed as #2226 and pinned by a control test.
+  [[ "${COMMAND#*>}" == *[\"\'\\]* ]] && return 1
+  _norm_path "$target" || return 1
+  [[ -n "$_NORM_PATH" ]] || return 1
+  norm_target="$_NORM_PATH"
+  roots="$_SCRATCH_ROOTS"
+  while [[ -n "$roots" ]]; do
+    root="${roots%%,*}"
+    if [[ "$root" == "$roots" ]]; then roots=""; else roots="${roots#*,}"; fi
+    root="${root#"${root%%[![:space:]]*}"}"
+    root="${root%"${root##*[![:space:]]}"}"
+    [[ -n "$root" ]] || continue
+    _norm_path "${root,,}" || continue
+    # `/` normalizes to the empty string; exempting it would exempt every path.
+    [[ -n "$_NORM_PATH" ]] || continue
+    # Component-boundary containment on two normalized paths — the trailing `/`
+    # is what makes this a component compare and not a string prefix.
+    [[ "$norm_target" == "$_NORM_PATH"/* ]] && return 0
+  done
+  return 1
+}
+
 # `cat >` with no input file is content authoring redirected into a file — the
 # heredoc/typed-content Write bypass. Scanned per segment so the /dev/null
 # DISCARD exemption cannot leak across a compound command: `cat > /dev/null &&
@@ -493,6 +669,9 @@ cat_redirect_bypass() {
     # through to `return 0`.
     [[ -n "$LAST_STDOUT_TARGET" ]] || continue
     [[ "$LAST_STDOUT_TARGET" == "/dev/null" ]] && continue
+    # Same left-to-right rule as the discard above: the exemption is decided on
+    # the EFFECTIVE target, so `cat > /allowed/tmp/f > real.txt` still blocks.
+    scratch_target_exempt "$LAST_STDOUT_TARGET" && continue
     return 0
   done < <(printf '%s\n' "$NORMALIZED_SEGMENTS") # not <<<: a >=64KiB here-string deadlocks (see hardcoded-path-patterns.sh)
   return 1
@@ -562,6 +741,9 @@ producer_redirect_bypass() {
     # target classes ever drift apart again.
     [[ -n "$LAST_STDOUT_TARGET" ]] || continue
     [[ "$LAST_STDOUT_TARGET" == "/dev/null" ]] && continue
+    # Mirror of the cat lane, and for the same reason: decided on the EFFECTIVE
+    # target, so `echo x > /allowed/tmp/f > real.txt` still blocks.
+    scratch_target_exempt "$LAST_STDOUT_TARGET" && continue
     return 0
   done < <(printf '%s\n' "$NORMALIZED_SEGMENTS") # not <<<: a >=64KiB here-string deadlocks (see hardcoded-path-patterns.sh)
   return 1

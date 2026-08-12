@@ -516,12 +516,12 @@ not "is the server useful". `enabled`/`disabled` = medley `.claude/settings.json
 | chrome-devtools | stdio | — | STAY | Ad-hoc browser/debug; stateful; no migrating plugin structurally requires it (degraded-but-functional) |
 | context7 | http | `CONTEXT7_API_KEY` | STAY (CLI-first) | context7 plugin ships `ctx7`; HTTP MCP kept repo-level as fallback |
 | github-events | stdio (repo-built) | `GITHUB_EVENTS_SECRET` | STAY | Repo-local broker; stateful `activeFilter`; repo identity via `CLAUDE_PROJECT_DIR` — not repo-agnostic |
-| microsoft-learn | http | — | STAY | `/research` + .NET docs; no plugin structurally requires it; degrades to WebSearch/WebFetch |
+| microsoft-learn | http | — | STAY | `/discovery:research` + .NET docs; no plugin structurally requires it; degrades to WebSearch/WebFetch |
 | nuget | stdio (`dotnet dnx`) | — | STAY | `/packages` + .NET; no dotnet/packages plugin in the locked slugs; .NET-scoped |
 | openai-developer-docs | http | — | STAY | codex/OpenAI research; degraded-but-functional |
-| perplexity | stdio | `PERPLEXITY_API_KEY` | STAY | `/research` + ai-briefing; multi-consumer, degrades gracefully — shipping would auto-spawn for all discovery sessions |
+| perplexity | stdio | `PERPLEXITY_API_KEY` | STAY | `/discovery:research` + ai-briefing; multi-consumer, degrades gracefully — shipping would auto-spawn for all discovery sessions |
 | playwright | stdio | — | STAY (CLI-first, disabled) | playwright plugin ships `@playwright/cli`; MCP disabled in medley in its favor |
-| ref | http | `REF_API_KEY` | STAY | `/research` doc search; degraded-but-functional |
+| ref | http | `REF_API_KEY` | STAY | `/discovery:research` doc search; degraded-but-functional |
 
 **SHIP: 1. STAY: 13. DROP: 0** — only `miro` clears the SHIP bar, and only once reframed as its own
 dedicated plugin (rule 2). The other 13 are CLI-first, degraded-but-functional (their consumer plugin
@@ -710,6 +710,28 @@ plugins-reference, and hooks pages 2026-07-17; re-verify per the `CLAUDE.md` fre
    third-party SaaS is a trust delegation — record accept/deny with rationale. Note the platform already blocks
    plugin-shipped **agents** from declaring `hooks` / `mcpServers` / `permissionMode` "for security reasons" —
    don't design around that.
+   - **An `archive` marketplace entry MUST carry its `sha256` pin.** A catalog entry may set
+     `"source": "archive"` with a `url` and an **optional** `sha256`, installing the plugin from a zip
+     downloaded over HTTPS with no git or npm on the consumer's machine
+     ([plugin-marketplaces](https://code.claude.com/docs/en/plugin-marketplaces#zip-archives), fetched
+     2026-08-10; requires Claude Code v2.1.224 or later, and on v2.1.120–v2.1.223 the install fails while
+     on older versions "a marketplace containing an `archive` entry fails to load entirely"). The
+     platform's own floor is **transport-level only**: `url` is "Required. HTTPS URL of the zip archive.
+     Claude Code rejects `http://` URLs, along with loopback, link-local, and cloud-metadata hosts. Every
+     redirect hop must satisfy the same rules". Content identity is not in that floor — the `sha256` field
+     is documented as "Optional", so an unpinned entry lets the same URL serve different bytes on every
+     install with nothing to detect it. That is a mutable-remote-artifact surface, which criterion 6
+     denies by default, so **this review requires the pin**: an `archive` entry without `sha256` is a
+     deny, whether this repository publishes it or accepts a plugin that depends on it. With the pin,
+     "Claude Code verifies every download against it and refuses the install on a mismatch". Two
+     follow-ons to record when accepting one: the digest doubles as the plugin's version when neither
+     `plugin.json` nor the entry declares one, so a repinned archive still needs its `version` bumped or
+     "users keep the cached copy"; and organization distribution through claude.ai admin settings does
+     not accept this source at all — "Plugin sources of type `github`, `url`, and `git-subdir` are
+     supported. `npm` and `archive` sources are not." Enforced by `scripts/validate-plugin-contracts.mjs`
+     over `.claude-plugin/marketplace.json`. This marketplace publishes every plugin as a relative path
+     (`"source": "./plugins/<name>"`), so no entry uses `archive` today; the rule governs the first that
+     does.
 7. **Main-thread and PATH surfaces.** A plugin `settings.json` `agent` entry takes over the
    consumer's main thread — prohibited by default per the component stance table in
    [PLUGIN-PHILOSOPHY.md](PLUGIN-PHILOSOPHY.md); an exception requires the documented justification
@@ -1258,8 +1280,9 @@ surface to a published plugin for a single consumer's low-value nicety.
 1. Register the marketplace in the consumer's `extraKnownMarketplaces` and enable the plugin in
    `enabledPlugins` (project `settings.json`, so clones inherit it on trust — the interactive trust prompt
    both registers and installs the enabled plugin). Headless/CI has no such prompt, and registering a
-   marketplace does not install its plugins, so do both explicitly: `claude plugin marketplace add <repo>`
-   then `claude plugin install <plugin>@<marketplace> --scope project --config KEY=VALUE …`, seeding every
+   marketplace does not install its plugins, so do both explicitly at project scope: `claude plugin
+   marketplace add <repo> --scope project` then `claude plugin install <plugin>@<marketplace> --scope
+   project --config KEY=VALUE …`, seeding every
    non-default `userConfig` toggle on that install command — `--config` applies only on a fresh install and
    is ignored once the plugin is already installed (smoke-test C), so a headless reconfiguration later
    means uninstall/reinstall. Otherwise the marketplace is known but the plugin is absent, and step 3's

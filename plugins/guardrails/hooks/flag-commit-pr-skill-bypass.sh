@@ -85,9 +85,17 @@ INPUT=$(hook::buffer_stdin) || exit 0
 # (additionalContext), once per session — see docs/conventions/hook-observability/.
 hook::require_jq "PreToolUse" "guardrails-flag-commit-pr-skill-bypass" "$INPUT"
 
-COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null | tr -d '\r')
+# Both payload fields in ONE jq process (hook::jq_fields), not two. A jq spawn is
+# fork() emulation on Windows Git Bash and this hook runs on every Bash/PowerShell
+# call. Failure semantics are unchanged: a missing jq or an unparsable payload
+# yields rc 1 here, which exits 0 exactly as the empty-COMMAND skip below did —
+# hook::require_jq above has already made the degraded state visible once per
+# session. The `// "Bash"` default moves to the bash-side expansion, matching
+# block-dangerous-git.
+hook::jq_fields "$INPUT" '.tool_input.command' '.tool_name' || exit 0
+COMMAND="${HOOK_JQ_FIELDS[0]}"
 [[ -n "$COMMAND" ]] || exit 0
-TOOL_NAME=$(printf '%s' "$INPUT" | jq -r '.tool_name // "Bash"' 2>/dev/null | tr -d '\r')
+TOOL_NAME="${HOOK_JQ_FIELDS[1]:-Bash}"
 # On the PowerShell tool, neutralize here-strings first so a `gh pr create`
 # mention inside message text is inert and a real invocation after a here-string
 # is still seen. Advisory-only: never blocks, so best-effort is proportionate.
@@ -126,7 +134,7 @@ emit_tel() {
   hook::telemetry_enabled || return 0
   local forms_json="[]"
   if ((${#FORMS[@]} > 0)); then
-    forms_json=$(printf '%s\n' "${FORMS[@]}" | jq -R . | jq -s . 2>/dev/null) || forms_json="[]"
+    forms_json=$(printf '%s\n' "${FORMS[@]}" | jq -Rn '[inputs]' 2>/dev/null) || forms_json="[]"
   fi
   local data
   data=$(jq -n --arg tool "$TOOL_NAME" --arg subject "$SUBJECT" --argjson forms "$forms_json" \
@@ -224,7 +232,9 @@ strip_literals() {
       line="${line%%<<*}${line#*"${BASH_REMATCH[0]}"}"
       in_heredoc=1
     fi
-    line=$(printf '%s' "$line" | sed "s/'[^']*'//g" | sed -E 's/"([^"\\]|\\.)*"//g')
+    # One `sed` per line, not two: the expressions apply in order, so the
+    # double-quote strip still sees the single-quote-stripped line.
+    line=$(printf '%s' "$line" | sed -E -e "s/'[^']*'//g" -e 's/"([^"\\]|\\.)*"//g')
     result+="${line}"$'\n'
   done < <(printf '%s\n' "$cmd") # not <<<: a >=64KiB here-string deadlocks (see hardcoded-path-patterns.sh)
   printf '%s' "${result%$'\n'}"

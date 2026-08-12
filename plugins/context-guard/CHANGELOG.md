@@ -5,6 +5,109 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.5]
+
+### Changed
+
+- **Carries the shared hook library's new `hook::is_enabled` predicate.** `hook::check_enabled`
+  exits the process when a plugin is gated off, which is correct for a hook but wrong for a
+  caller that must keep running afterward. The resolution is now also available as a predicate
+  that returns instead of exiting. No behaviour of this plugin changes; the version moves so
+  consumers receive the updated library.
+
+## [0.6.4]
+
+### Fixed
+
+- **A cited plugins-reference section had been renamed upstream.** `scripts/statusline-shim.sh`
+  attributed the 14-day orphaned-cache-directory grace period to a section called "Plugin cache and
+  file access". That section is now titled **"Plugin caching and file resolution"**, and the cache
+  root it documents is `~/.claude/plugins/cache`. The behaviour cited is unchanged and still stated
+  verbatim; only the section title a reader would search for had moved, which is exactly the kind of
+  silent rot that makes a citation unfollowable. The comment now names the current title and records
+  the former one so the rename is traceable.
+
+- **The 2.1.132 token-semantics floor no longer has an upstream source, and the reader contract now
+  says so.** `reference/reader-contract.md` quoted the statusline page as stating "Before v2.1.132
+  these were cumulative session totals". Re-checked 2026-08-10 against the complete raw page
+  (`https://code.claude.com/docs/en/statusline.md`, not a summarized fetch): that sentence is gone,
+  and with it the version number. What the page still states is only the present-tense semantics the
+  floor depends on — "Token counts currently in the context window, from the most recent API
+  response" and "**Combined totals** (`total_input_tokens`, `total_output_tokens`): tokens currently
+  in the context window". The dead quote is removed and replaced with an explicit sourcing-status
+  note; `statusline-tee.sh` carries the same note at its `cli_version` comment. **The floor itself is
+  unchanged** — `TOKEN_SEMANTICS_MIN_VERSION` still gates the token shape at `>= 2.1.132`, and no
+  behaviour, test, or zone result moves. Dropping it could only widen which payloads the token shape
+  trusts, and the misfire it prevents (a pre-2.1.132 cumulative 170k reading as a plausible current
+  occupancy) is silent, so it stays as a deliberate conservative lower bound. Re-source it before any
+  change that relaxes it.
+
+### Changed
+
+- **Upstream doc stamps re-verified against the live pages (2026-08-10).** Each claim below was
+  re-checked against the complete raw markdown source of the page it cites, and confirmed by a
+  verbatim quote before its stamp was refreshed.
+
+  - `hooks/post-compact-mark.sh` — "PostCompact hooks have no decision control", still stated
+    verbatim, which is what makes the hook side-effect-only.
+  - `scripts/statusline-shim.sh` — the 14-day orphaned-version-directory grace period, quoted
+    verbatim from the plugins reference.
+  - `scripts/statusline-tee.sh` — the statusline payload's top-level `version` field carrying the
+    Claude Code version.
+  - `reference/reader-contract.md` — the `context_window` field list, `current_usage` being null
+    before the first API call and again immediately after `/compact`, `used_percentage` /
+    `remaining_percentage` being nullable early in a session, and the `${CLAUDE_SESSION_ID}`
+    substitution in the skills reference's substitution table. Also the auto-compaction negative:
+    no numeric threshold is published anywhere, and `costs` still says only that auto-compaction
+    "summarizes conversation history when approaching context limits" — a negative that is
+    trustworthy here because the check ran against complete pages rather than truncated fetches.
+
+## [0.6.3]
+
+### Fixed
+
+- **Shared `hook-utils.sh`: `hook::jq_fields` now REPORTS a NUL byte in a payload value
+  (#2122).** 0.6.1 stopped a NUL from failing the helper's cardinality check, by stripping every
+  NUL out of each value. That keeps the helper working, but stripping also silently rewrites the
+  value — `--no-verify<NUL>x` arrives as `--no-verifyx` — so a caller that owns a block/allow
+  verdict cannot tell a clean payload from one that carried a NUL, and matches against a token the
+  payload never held contiguously. The fact is now reported in a new `HOOK_JQ_FIELDS_NUL` global,
+  set on EVERY call including every failure path, so such a caller can fail closed on its own terms.
+  It is computed from the values as the payload carried them, BEFORE the strip; strip first and the
+  flag would read "0" on every payload. Values themselves are unchanged — still stripped, so a
+  scanning caller still sees everything after the NUL. This plugin's own hooks do not consult the
+  new global, so their behaviour is unchanged. Synced from `lib/hook-utils.sh`.
+
+## [0.6.2]
+
+### Fixed
+
+- **Shared `hook-utils.sh`: `env -S` / `--split-string` no longer hides a whole command from the
+  git guards (#2124).** `-S` exists so a shebang line can pass OPTIONS to env
+  (`#!/usr/bin/env -S -i prog`), so the words it splits out are env's own arguments. The resolver
+  spliced them back into the scan but resumed at the COMMAND dispatcher, which read a leading
+  option in the split string as the command NAME and gave up — `env -S '-C <dir> git push --force'`
+  resolved to no git at all, so every guard built on `hook::git_resolve_index` skipped the command
+  unexamined. Parsing now resumes inside env's own option loop. That also keeps env's single chdir
+  slot last-wins across the splice, so `env -C a -S '-C b git …'` reports `b`, matching GNU env.
+  Synced from `lib/hook-utils.sh`.
+
+## [0.6.1]
+
+### Fixed
+
+- **Shared `hook-utils.sh`: a NUL byte inside a payload value no longer makes `hook::jq_fields`
+  come back empty (#2120).** The helper delimits its batched fields with NUL, and a JSON string may
+  legitimately encode one — a `Write`/`Edit`/`NotebookEdit` content field can. jq emitted the raw
+  byte, the read split that value in two, the cardinality check saw one value too many, and the
+  helper returned non-zero — which every caller treats as "skip", so the hook exited without doing
+  its work. Each value is now NUL-stripped INSIDE the jq filter, so the delimiter provably cannot
+  occur in a value. Stripping is not a lesser alternative to an encoding scheme, it is the only
+  representable behavior: a bash variable cannot hold a NUL byte, and the per-field command
+  substitution this helper replaced dropped the byte and kept the rest of the value — so content
+  AFTER a NUL is returned and scanned exactly as it was before the batching. Synced from
+  `lib/hook-utils.sh`.
+
 ## [0.6.0]
 
 ### Removed

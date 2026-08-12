@@ -5,6 +5,10 @@ skills, Git, GitHub CLI, and GitHub REST documentation. Re-checked 2026-07-31 fo
 batch limit raised to the shared `MERGED_PR_BATCH_LIMIT` / `MERGED_PR_HEAD_LIMIT` constants; probe
 allowlist still admits only the fixed `pr list` argv shapes, now keyed to those constants rather than
 hardcoded 200/100 literals; truncation at the cap emits `UNKNOWN` and does not widen network egress).
+Re-checked 2026-08-11 for the `allowed-tools` pairing fix: the grant is now a narrow, skill-anchored
+`Bash(${CLAUDE_SKILL_DIR}/scripts/audit-fleet.sh:*)` matching the body's direct invocation. No new
+execution, network, or config surface — the previous rule never matched, so this makes an already
+user-invoked script prompt-free rather than admitting anything new.
 
 ## Decision
 
@@ -21,8 +25,10 @@ is explicit authenticated GitHub metadata lookup initiated by the user-invoked a
 2. **MCP:** none.
 3. **Consumer config:** no `userConfig`, credentials, or secrets. Optional tracked/explicit config
    contains local discovery roots and canonical checkout paths only.
-4. **Cache isolation:** bundled assets are addressed through `${CLAUDE_PLUGIN_ROOT}`. The plugin writes
-   no cache or persistent state and has no sibling-plugin reach-outs.
+4. **Cache isolation:** bundled assets are addressed through `${CLAUDE_SKILL_DIR}`, the token Claude
+   Code substitutes both in skill content and in `allowed-tools` Bash rules, so the grant and the
+   documented invocation resolve to the same install-local path. The plugin writes no cache or
+   persistent state and has no sibling-plugin reach-outs.
 5. **Data egress:** `git` reads local metadata. `gh api` and `gh pr list` contact only `github.com` and
    transmit repository/branch identifiers already represented by the configured GitHub remote. No
    file content, report, commit content, diff, environment value, or absolute local path is sent.
