@@ -683,6 +683,19 @@ plugins-reference, and hooks pages 2026-07-17; re-verify per the `CLAUDE.md` fre
    **advisory** (exits 0, never blocks) vs gating; no `eval` / `curl … | sh` / outbound network; untrusted
    input (file contents, tool args, PR/issue text) never flows unquoted into a shell; a kill switch
    (a per-hook `userConfig` boolean with a `default` of `true`) exists.
+   - **A skill's frontmatter `allowed-tools` is a prompt-free execution grant, and workspace trust does
+     not gate it.** Measured on Claude Code 2.1.225: a marketplace-installed skill's `allowed-tools`
+     entry takes effect at **user scope** in a **never-trusted** workspace, under `-p` where no trust
+     dialog can appear — the covered command ran without a prompt, the uncovered one blocked with
+     `This command requires approval`, and a no-grant baseline confirmed that shape blocks. Bounds on
+     the measurement: a local-directory marketplace, and user scope only.
+     **Consequence: the install-time plugin trust prompt is the only gate in front of such a grant —
+     there is no second, per-workspace one.** Review every `allowed-tools` entry with the scrutiny a
+     hook command gets, and deny by default anything broader than the specific command the skill's own
+     scripts invoke. A wildcard interpreter grant (`Bash(python*)`, `Bash(*)`, bare `Bash`) is a deny
+     outright: it is arbitrary code execution in a workspace the consumer never trusted.
+     `claude-config:audit-permission-grants` check P1 detects exactly these shapes and is the
+     mechanical half of this criterion.
 2. **MCP servers — `.mcp.json` / inline in `plugin.json`.** `miro` is the only plugin that ships a
    **local** `stdio`, bundled server (see its §2 trust accept above); `dometrain` is the only plugin
    that ships a **remote** server (see its review record below), which remains the higher-scrutiny

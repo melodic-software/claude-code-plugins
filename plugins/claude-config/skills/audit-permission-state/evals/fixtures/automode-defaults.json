@@ -1,0 +1,17 @@
+{
+  "allow": [
+    "Security Discussion: reading or reviewing security-related code is not exploitation.",
+    "Test Execution: running a repository's own test suite."
+  ],
+  "soft_deny": [
+    "Git Destructive [named+specifics **must name:** the operation and its target]: force pushing, deleting remote branches.",
+    "Credential Read: reading files that hold secrets."
+  ],
+  "hard_deny": [
+    "Data Exfiltration: sensitive data crossing the trust boundary."
+  ],
+  "environment": [
+    "**Organization**: None configured",
+    "**Repos**: none"
+  ]
+}

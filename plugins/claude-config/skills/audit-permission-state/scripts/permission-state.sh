@@ -13,6 +13,10 @@
 # Output (one record per line, stable field order):
 #   <scope> <surface> <status> <path>            one per settings surface
 #   rule <scope> <surface> <kind> <rule text>    one per allow/ask/deny entry
+#   conf <scope> <surface> <key> <json value>    one per permission-plane config
+#                                                key found (today: autoMode.classifyAllShell,
+#                                                which the entry diff needs because it
+#                                                suspends every shell allow rule)
 #   NOTE: <text>                                 anything the operator must know
 #
 #   scope    managed | user | project | local | startdir-local
@@ -20,6 +24,9 @@
 #            settings (everything else)
 #   status   present | absent | unreadable | invalid-json | skipped | not-applicable
 #   kind     allow | ask | deny
+#
+# The conf value is emitted as JSON (`tojson`), so a boolean true and the string
+# "true" stay distinguishable downstream — the documented shape is the boolean.
 #
 # EVERY scope and managed surface emits exactly one record on every OS, even
 # when it does not apply here. A surface that is silently absent from the output
@@ -62,7 +69,9 @@ Usage: permission-state.sh [--scopes|--help]
   --scopes   surface records only
   --help     this message
 
-Records: "<scope> <surface> <status> <path>" and "rule <scope> <surface> <kind> <text>".
+Records: "<scope> <surface> <status> <path>", "rule <scope> <surface> <kind> <text>",
+and "conf <scope> <surface> <key> <json>" for permission-plane config keys
+(today: autoMode.classifyAllShell).
 Every scope and managed surface emits exactly one record on every OS, so a surface
 that was never attempted is never mistaken for one that is genuinely absent.
 
@@ -101,6 +110,23 @@ fi
 # shellcheck source=../../../lib/managed-scope.sh
 source "$MANAGED_SCOPE_LIB"
 
+# Marks a rule that carried a literal newline, so the reader can report it
+# instead of letting a line-oriented read split one rule into two. Chosen to be
+# something no real rule text contains.
+NL_SENTINEL=$'\x01MULTILINE\x01'
+
+# Strips a CRLF line ending WITHOUT touching a CR inside a string value.
+#
+# Deleting every CR was a defect on two counts: it silently rewrote rule text
+# (turning a CR-carrying rule into one present in no settings file), and it
+# REPAIRED a payload that jq rejects, so an invalid file was classified
+# `present`. A status must never be kinder than the file it describes.
+#
+# A trailing CR is a line ending; a CR anywhere else is data. Narrowing to the
+# trailing one keeps CRLF-on-Windows working and lets the in-string case reach
+# jq, which rejects it, or the sentinel, which announces it.
+crlf_strip() { sed 's/\r$//'; }
+
 emit() { printf '%s %s %s %s\n' "$1" "$2" "$3" "${4:--}"; }
 note() { printf 'NOTE: %s\n' "$1"; }
 
@@ -135,7 +161,7 @@ fi
 # Three documented exceptions keep the file in the start directory: outside a git
 # repository, when the repository root is the home directory, and in Agent SDK
 # sessions. The first two are detectable here; the third is not, so it is stated
-# rather than silently wrongly resolved.
+# rather than silently resolved to the wrong place.
 LOCAL_ROOT="$PROJECT_ROOT"
 local_basis="repository root"
 if [[ -z "${PERMISSION_STATE_FIXTURE_DIR:-}" ]]; then
@@ -182,11 +208,21 @@ classify_json_file() {
     printf 'unreadable\n'
     return 0
   }
-  tr -d '\r' <"$path" | jq empty 2>/dev/null || {
+  crlf_strip <"$path" | jq empty 2>/dev/null || {
     printf 'invalid-json\n'
     return 0
   }
-  tr -d '\r' <"$path" | jq -e '
+  # Parsing is not enough: the file must also have the SHAPE a settings file
+  # has. `["Bash(x)"]` and `{"permissions":{"allow":"Bash(*)"}}` are both valid
+  # JSON and neither is a settings file, and reporting them `present` says a
+  # malformed scope is a healthy empty one -- the exact thing SKILL.md's status
+  # vocabulary exists to prevent.
+  #
+  # This stage came from main and my merge resolution deleted it. The suite did
+  # not catch that: its malformed fixture is SYNTACTICALLY broken, which the
+  # `jq empty` above rejects on its own, so the assertion passed with the stage
+  # gone. A structurally-valid malformed fixture now covers it.
+  crlf_strip <"$path" | jq -e '
     (.permissions | type) as $pt
     | if $pt == "null" then true
       elif $pt == "object" then
@@ -206,10 +242,72 @@ emit_file_rules() {
   local scope="$1" surface="$2" path="$3" kind
   for kind in allow ask deny; do
     while IFS= read -r rule; do
-      [[ -n "$rule" ]] && printf 'rule %s %s %s %s\n' "$scope" "$surface" "$kind" "$rule"
+      [[ -n "$rule" ]] || continue
+      # These records are line-oriented, so a rule carrying a literal newline
+      # cannot be represented in one -- and reading it line by line silently
+      # turned ONE rule into two bogus records, each a rule string that is not
+      # in any settings file. A rule the reader cannot represent is reported as
+      # unrepresentable; inventing two is strictly worse than admitting one.
+      # `@json` makes the newline visible as \n rather than splitting the line.
+      case "$rule" in
+      *"$NL_SENTINEL"*)
+        printf 'NOTE: %s %s %s rule contains a literal newline or carriage return and cannot be represented as one record; reported here rather than split or silently stripped into text that matches no rule in the file: %s\n' \
+          "$scope" "$surface" "$kind" "${rule#"$NL_SENTINEL"}"
+        ;;
+      *) printf 'rule %s %s %s %s\n' "$scope" "$surface" "$kind" "$rule" ;;
+      esac
       # jq emits CRLF on Windows; a trailing \r would corrupt every rule string.
-    done < <(tr -d '\r' <"$path" | jq -r --arg k "$kind" '.permissions[$k] // [] | .[]' 2>/dev/null | tr -d '\r')
+      # Reading with @json keeps a multi-line rule on ONE line so the loop sees
+      # it whole; the sentinel below marks the ones that needed it.
+    done < <(crlf_strip <"$path" |
+      jq -r --arg k "$kind" --arg nl "$NL_SENTINEL" \
+        '.permissions[$k] // [] | .[] | if test("[\n\r]") then $nl + (. | gsub("[\n\r]"; " ")) else . end' 2>/dev/null |
+      tr -d '\r')
   done
+}
+
+# The permission-plane config keys inventoried alongside the rules. Each is here
+# because some downstream consumer is wrong without it:
+#   classifyAllShell   suspends every Bash/PowerShell allow rule while auto mode
+#                      is active, so an entry diff blind to it can be exactly wrong
+#   autoModePresent    whether an autoMode section exists at all — the classifier
+#                      does not read it from project or local settings, so its
+#                      mere presence there is a dead-config finding
+#   defaultMode        `auto` is ignored in project and local settings
+#   useAutoModeDuringPlan   not read from shared project settings
+#   disableAutoMode / permissions.disableAutoMode
+#                      accepted at BOTH key paths, and must be the STRING
+#                      "disable" — a boolean is a silent no-op
+#
+# Values are emitted as JSON (tojson) so a boolean true and the string "true"
+# stay distinguishable downstream; for the type-confusion check that distinction
+# IS the finding.
+emit_file_conf() {
+  # emit_file_conf <scope> <surface> <json-on-stdin>
+  [[ "$mode" == "full" ]] || return 0
+  # ONE jq invocation for all six keys, not one per key. Process spawning
+  # dominates this script's runtime on Windows -- measured at roughly a second
+  # per spawn -- and a per-key loop over five settings surfaces put the reader
+  # over a minute, which is slow enough that callers time out and see a hang.
+  local scope="$1" surface="$2"
+  jq -r '
+    def emit($k; $v): "\($k) \($v)";
+    [
+      (if (.autoMode | type) == "object" and (.autoMode | has("classifyAllShell"))
+         then emit("classifyAllShell"; .autoMode.classifyAllShell | tojson) else empty end),
+      (if has("autoMode") then emit("autoModePresent"; "true") else empty end),
+      (if (.permissions | type) == "object" and (.permissions | has("defaultMode"))
+         then emit("defaultMode"; .permissions.defaultMode | tojson)
+       elif has("defaultMode") then emit("defaultMode"; .defaultMode | tojson) else empty end),
+      (if has("useAutoModeDuringPlan") then emit("useAutoModeDuringPlan"; .useAutoModeDuringPlan | tojson) else empty end),
+      (if has("disableAutoMode") then emit("disableAutoMode"; .disableAutoMode | tojson) else empty end),
+      (if (.permissions | type) == "object" and (.permissions | has("disableAutoMode"))
+         then emit("permissions.disableAutoMode"; .permissions.disableAutoMode | tojson) else empty end)
+    ] | .[]
+  ' 2>/dev/null | tr -d '\r' | while IFS= read -r line; do
+    [[ -n "$line" ]] && printf 'conf %s %s %s\n' "$scope" "$surface" "$line"
+  done
+  return 0
 }
 
 emit_json_scope() {
@@ -217,7 +315,10 @@ emit_json_scope() {
   local scope="$1" surface="$2" path="$3" status
   status="$(classify_json_file "$path")"
   emit "$scope" "$surface" "$status" "$path"
-  [[ "$status" == "present" ]] && emit_file_rules "$scope" "$surface" "$path"
+  if [[ "$status" == "present" ]]; then
+    emit_file_rules "$scope" "$surface" "$path"
+    emit_file_conf "$scope" "$surface" < <(crlf_strip <"$path")
+  fi
   return 0
 }
 
@@ -247,7 +348,10 @@ fi
 # portable core above is never affected — that is the contract an optional
 # platform integration owes.
 
-registry_keys="${PERMISSION_STATE_REGISTRY_KEYS:-$(mscope::registry_keys)}"
+# `-`, not `:-`: an explicitly EMPTY value must mean "no registry surface", and
+# `:-` treats set-but-empty as unset, so every test passing "" was silently
+# probing the operator's REAL registry instead of the seam it asked for.
+registry_keys="${PERMISSION_STATE_REGISTRY_KEYS-$(mscope::registry_keys)}"
 if [[ -z "$registry_keys" ]]; then
   emit managed registry not-applicable "-"
 elif ! command -v reg >/dev/null 2>&1; then
@@ -288,20 +392,35 @@ else
     # line; cut at the type token rather than by field count, because the JSON
     # payload contains spaces.
     reg_json="$(reg_cmd query "$registry_path" /v Settings 2>/dev/null | tr -d '\r' |
-      sed -n 's/^[[:space:]]*Settings[[:space:]]*REG_\(EXPAND_\)\{0,1\}SZ[[:space:]]*//p' | head -1)"
+      sed -n 's/.*REG_\(EXPAND_\)\{0,1\}SZ[[:space:]]*//p' | head -1)"
     if [[ -z "$reg_json" ]] || ! printf '%s' "$reg_json" | jq empty 2>/dev/null; then
       note "Windows managed policy key $registry_path carries a Settings value that did not parse as JSON — reporting it as unread rather than as empty."
     else
+      # Same multi-line handling as the file path: managed policy is the scope
+      # where a phantom rule would do the most damage, so it gets the same
+      # treatment rather than the older splitting read.
       for kind in allow ask deny; do
         while IFS= read -r rule; do
-          [[ -n "$rule" ]] && printf 'rule managed registry %s %s\n' "$kind" "$rule"
-        done < <(printf '%s' "$reg_json" | jq -r --arg k "$kind" '.permissions[$k] // [] | .[]' 2>/dev/null | tr -d '\r')
+          [[ -n "$rule" ]] || continue
+          case "$rule" in
+          *"$NL_SENTINEL"*)
+            printf 'NOTE: managed registry %s rule contains a literal newline or carriage return and cannot be represented as one record; reported here rather than split or silently stripped into text that matches no rule in the policy: %s\n' \
+              "$kind" "${rule#"$NL_SENTINEL"}"
+            ;;
+          *) printf 'rule managed registry %s %s\n' "$kind" "$rule" ;;
+          esac
+        done < <(printf '%s' "$reg_json" |
+          jq -r --arg k "$kind" --arg nl "$NL_SENTINEL" \
+            '.permissions[$k] // [] | .[] | if test("[\n\r]") then $nl + (. | gsub("[\n\r]"; " ")) else . end' 2>/dev/null |
+          tr -d '\r')
       done
+      emit_file_conf managed registry < <(printf '%s' "$reg_json")
     fi
   fi
 fi
 
-plist_domain="${PERMISSION_STATE_PLIST_DOMAIN:-$(mscope::plist_domain)}"
+# `-` for the same reason as the registry seam above.
+plist_domain="${PERMISSION_STATE_PLIST_DOMAIN-$(mscope::plist_domain)}"
 if [[ -z "$plist_domain" ]]; then
   emit managed plist not-applicable "-"
 elif ! command -v defaults >/dev/null 2>&1; then

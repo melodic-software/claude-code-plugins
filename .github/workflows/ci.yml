@@ -184,10 +184,23 @@ jobs:
           # the same corpus: it pins each fixture's trusted --credential-roots
           # (a real runner home) and expected not-under-root rejections, so it
           # necessarily carries those same host paths.
+          # audit-permission-state is the third case of the same kind: its
+          # C6-winPath check EXISTS to find Windows paths in permission rules,
+          # so its detector message quotes one, its criteria file quotes the
+          # settings page quoting one, and its fixtures must carry them or the
+          # check has nothing to detect. The oracle fixtures reproduce Claude
+          # Code's own [DEBUG] narration, which prints native Windows settings
+          # paths — rewriting those would make the fixture stop matching what
+          # the parser has to survive. The paths are invented (`alice`, `x`),
+          # not any operator's.
           exclude: >-
             :(exclude)plugins/guardrails/lib/path-detection/**
             :(exclude)plugins/autonomy/skills/setup/evals/fixtures/security-binding/**
             :(exclude)plugins/autonomy/skills/setup/scripts/check-security-binding.fixtures.test.manifest.json
+            :(exclude)plugins/claude-config/skills/audit-permission-state/reference/criteria.md
+            :(exclude)plugins/claude-config/skills/audit-permission-state/scripts/permission-plane-lint.sh
+            :(exclude)plugins/claude-config/skills/audit-permission-state/scripts/permission-plane-lint.test.sh
+            :(exclude)plugins/claude-config/skills/audit-permission-state/scripts/automode-entry-diff.test.sh
 
       - name: Check index-level EOL drift
         id: eol
