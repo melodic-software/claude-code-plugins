@@ -883,7 +883,7 @@ name is not the same underlying value across models):
   only if Claude's triggering still doesn't match your needs at that level" — and gives the
   rationale that lowering effort "is usually the better first lever, since it is a calibrated
   control rather than a wording-sensitive instruction"
-  ([steering thinking: steering how often Claude thinks](https://platform.claude.com/docs/en/build-with-claude/thinking-steering-and-cost#steering-how-often-claude-thinks),
+  ([steering thinking: effort levels](https://platform.claude.com/docs/en/build-with-claude/thinking-steering-and-cost#effort-levels),
   verified 2026-08-03). Both directions: shallow output from a pinned-`low` lane raises the lane's
   effort rather than prompting around it, and a lane thinking more than the work needs lowers the
   pin before any prose telling the model to think less — upstream states that reduce direction
