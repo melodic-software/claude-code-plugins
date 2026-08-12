@@ -3,6 +3,64 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.3]
+
+Both audit denominators are unchanged: **Axis 1 stays 44 of 44** and **Axis 2
+stays 226 of 226.** No reading, no new unit, no new technique.
+
+**This release repairs 1.1.2, which shipped with two review findings
+outstanding.** Both were raised on PR #2351 and both were correct; the PR was
+merged before the fixes were pushed, so they land here instead. Nothing in the
+1.1.2 entry is rewritten — it records what shipped, including what was wrong
+with it.
+
+### ⚠ 1.1.2 REPLACED AN OVERCLAIM WITH AN OPPOSITE OVERCLAIM
+
+1.1.2 correctly removed *"Order encodes priority"* from `power-tips.md`. It then
+asserted the negative: *"Grammatical role, not word position, is what the sources
+describe as the signal."* **The evidence does not carry that either.** The one
+source that addresses order says word order matters *"not just"* on its own —
+which treats position as a **contributing** signal, qualifying the positional
+rule rather than refuting it. The other two speak only to hierarchy and say
+nothing about position at all.
+
+**Position is not ruled out. It is unestablished.** The section now says exactly
+that. This is worth stating loudly because the failure is subtle and repeatable:
+an audit that correctly finds a claim unsupported is *not* thereby licensed to
+assert its opposite. Both directions need evidence, and a confidently-worded
+demotion reads as researched while carrying the same defect the demotion was
+meant to fix.
+
+### Fixed
+
+- **The genre-fusion section no longer claims MEDIUM confidence**, because it
+  never met this skill's own bar. `SKILL.md`'s ladder defines MEDIUM as multiple
+  community guides **plus** Reddit consensus — and 1.1.2 recorded in the same
+  breath that the Reddit pass could not run (the search tool available refuses
+  `reddit.com`). So 1.1.2 routed callers to a confidence level its evidence had
+  not earned, using the very ladder that release proposed as the governing home
+  for Suno claims. The section now states that it sits **between LOW-MEDIUM and
+  MEDIUM**: three independent guides clearly exceed LOW-MEDIUM's "at most a
+  single community post", and the Reddit half of MEDIUM is unmet and untried.
+  **No new rung was invented** to make the claim fit — the gap is named instead.
+  `SKILL.md`'s router row matches.
+- **An r/SunoAI pass is added to the genre-fusion recheck trigger**, since it is
+  now the specific event that would settle the rung in either direction.
+- **`tips.md` stated the same conclusion twice within six lines.** The `Effect:`
+  line and the corpus block both explained that the `~70%` had no basis; the
+  `Effect:` line now points down to the corpus instead of restating it.
+- **`SKILL.md`'s LOW-MEDIUM bullet had grown to a ~150-word sentence-run**
+  covering two unrelated items (the `voices.md` caveats and the timing-cue
+  history). Split into two sub-bullets under the same rung.
+
+### Process note worth keeping
+
+The two findings above were posted as review threads on #2351 and the PR merged
+before they were addressed. **A merged PR is not evidence its review was
+resolved** — check the thread state, not the merge state, and when a merge
+outruns a fix, ship the fix as its own release rather than editing the shipped
+entry to hide the gap.
+
 ## [1.1.2]
 
 Both audit denominators are unchanged: **Axis 1 stays 44 of 44** and **Axis 2

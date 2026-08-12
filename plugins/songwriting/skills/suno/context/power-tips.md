@@ -18,7 +18,9 @@ Practical, if the front-loading rule holds: if mood matters more than genre for 
 
 ## Genre fusion — anchor and accent
 
-**What is attested is a hierarchy, not a position.** Give one genre the lead and let the second supply texture; do not bill two genres equally. Every source below says this, and none of them supports the older wording this section carried ("Order encodes priority") — one contradicts it outright.
+**What is attested is a hierarchy.** Give one genre the lead and let the second supply texture; do not bill two genres equally. All three sources below say this.
+
+**What is *not* attested is that position alone is the mechanism** — the older wording here, "Order encodes priority". No source states it, and the one source that addresses order treats it as *a* contributing signal rather than the signal: *"not just word order"*. So order is **not ruled out**; it is simply unestablished as the carrier, and stating it as the mechanism outran the evidence.
 
 ```
 synth-pop with dream-pop textures
@@ -30,19 +32,21 @@ vs
 dream-pop with synth-pop production
 ```
 
-These are expected to produce **different outputs** — but note *what* differs. The lead genre is the noun the track **is**; the accent is a thing the track **has**. Grammatical role, not word position, is what the sources describe as the signal. The rewritten example is not evidence for a positional rule, because it changes both at once.
+These are expected to produce **different outputs** — but note *what* differs. The lead genre is the noun the track **is**; the accent is a thing the track **has**. Grammatical role is the signal the sources describe explicitly; word order moves with it here and may well contribute too. **This example cannot separate them**, because it changes both at once — so use it as an illustration of anchor/accent, never as evidence about position.
 
 **Three or more genres with no hierarchy degrades the result** — sources describe mush, averaging, and drift. The former "hard cap: 2" was this file's own sharpening; two sources model exactly one anchor plus one accent, a third warns against "three-way competition", and none states a numeric cap. Treat two as the working default and anything beyond as needing an explicit hierarchy, not as a hard limit.
 
-**MEDIUM confidence** — multi-source community consensus, no official Suno doc. Verified 2026-08-12 by live fetch of each page below; bodies arrived whole (character counts are of the extracted text) and each quote is verbatim.
+**Below MEDIUM until a Reddit pass runs — do not label this MEDIUM.** `SKILL.md`'s ladder defines MEDIUM as multiple community guides **plus** Reddit consensus. Three independent guides satisfy the guides half; **the Reddit half is unmet and untried** (the search tool available here refuses `reddit.com`). Three guides also clearly exceed LOW-MEDIUM, which is "at most a single community post". So this sits between the two named rungs, and it is stated that way rather than rounded up to the rung it has not earned. Surface it as an opt-in suggestion, not a default.
+
+Verified 2026-08-12 by live fetch of each page below; bodies arrived whole (character counts are of the extracted text) and each quote is verbatim.
 
 - [sunopromptpro.com/en/guides/suno-genre-combinations](https://www.sunopromptpro.com/en/guides/suno-genre-combinations) (7,086 chars) — *"A genre combination should not give every style equal authority. Start with the lane that should control the song shape"*; and *"Avoid three-way competition. Most hybrid prompts become weaker when they name three or four genres with no hierarchy."*
-- [brahmstorm.com/blog/suno-genre-blending-prompts-that-actually-work](https://brahmstorm.com/blog/suno-genre-blending-prompts-that-actually-work/) (8,741 chars) — *"pick ONE dominant genre as the anchor … then add ONE accent genre"*; and, against the positional reading, *"The cleanest way to signal hierarchy is through sentence structure, not just word order."*
+- [brahmstorm.com/blog/suno-genre-blending-prompts-that-actually-work](https://brahmstorm.com/blog/suno-genre-blending-prompts-that-actually-work/) (8,741 chars) — *"pick ONE dominant genre as the anchor … then add ONE accent genre"*; and, **qualifying** rather than refuting the positional reading, *"The cleanest way to signal hierarchy is through sentence structure, not just word order."*
 - [jackrighteous.com — Suno prompt too complicated](https://jackrighteous.com/en-us/blogs/guides-using-suno-ai-music-creation/suno-prompt-too-complicated-clean-workflow) (22,431 chars) — *"Blending Genres Requires a Hierarchy … The problem begins when every genre is treated as an equal foundation."*
 
 **Not officially documented.** `help.suno.com` articles [5782849](https://help.suno.com/en/articles/5782849) (1,177 chars, whole) and [5782977](https://help.suno.com/en/articles/5782977) (805 chars, whole) were read verbatim on 2026-08-12 and neither addresses genre order or fusion; 5782849 points the other way for v4.5+, saying *"In previous models, you would want to prioritize certain genre and style details, but your instructions can now include a more conversational prompt."* That absence is scoped to those two pages, not to Suno's documentation as a whole.
 
-**Recheck trigger:** Suno's help center or blog publishes guidance on style-prompt ordering or genre blending, **or** a read-time re-fetch finds any source above no longer carrying its quoted text. Not a date.
+**Recheck trigger:** Suno's help center or blog publishes guidance on style-prompt ordering or genre blending; **or** an r/SunoAI pass becomes possible and runs, which would settle the rung either way; **or** a read-time re-fetch finds any source above no longer carrying its quoted text. Not a date.
 
 ## Stem-loop refinement (Premier)
 
