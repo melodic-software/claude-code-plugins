@@ -167,10 +167,12 @@ root="$(cd "$REPO_ROOT" 2>/dev/null && pwd)" || root=""
 # Rust binary; no per-repo dependency-manager convention exists for it, unlike
 # ruff's .venv or markdownlint's node_modules).
 TYPOS_BIN="$(command -v typos 2>/dev/null)" || TYPOS_BIN=""
-TYPOS_CONFIG="${CLAUDE_PLUGIN_ROOT}/config/default-typos.toml"
 TYPOS_CONFIG_ARGS=()
-if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -f "$TYPOS_CONFIG" ]]; then
-  TYPOS_CONFIG_ARGS=(-c "$TYPOS_CONFIG")
+if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
+  TYPOS_CONFIG="${CLAUDE_PLUGIN_ROOT}/config/default-typos.toml"
+  if [[ -f "$TYPOS_CONFIG" ]]; then
+    TYPOS_CONFIG_ARGS=(-c "$TYPOS_CONFIG")
+  fi
 fi
 
 # No binary available → visible once-per-session skip notice, not a silent gap
