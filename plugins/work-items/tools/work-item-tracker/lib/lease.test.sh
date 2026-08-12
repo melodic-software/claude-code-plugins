@@ -28,6 +28,8 @@ ZERO_TTL_DEAD="$(jq -cn '{renewed_at:"2000-01-01T00:00:00Z", ttl_hours:0}')"
 if wit_lease_is_live "$ZERO_TTL_DEAD" "$NOW"; then fail "0-ttl lease not live" "not live" "live"; else pass "0-ttl lease not live"; fi
 FRESH_LIVE="$(jq -cn --arg t "$NOW_ISO" '{renewed_at:$t, ttl_hours:24}')"
 if wit_lease_is_live "$FRESH_LIVE" "$NOW"; then pass "fresh 24h lease is live"; else fail "fresh 24h lease is live" "live" "not live"; fi
+FRESH_15M="$(jq -cn --arg t "$NOW_ISO" '{renewed_at:$t, ttl_hours:0, ttl_minutes:15}')"
+if wit_lease_is_live "$FRESH_15M" "$NOW"; then pass "fresh 15m lease is live"; else fail "fresh 15m lease is live" "live" "not live"; fi
 SUPERSEDED="$(jq -cn --arg t "$NOW_ISO" '{renewed_at:$t, ttl_hours:24, superseded_at:$t}')"
 if wit_lease_is_live "$SUPERSEDED" "$NOW"; then fail "superseded lease not live" "not live" "live"; else pass "superseded lease not live"; fi
 

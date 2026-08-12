@@ -1061,9 +1061,17 @@ hook::emit_telemetry() {
   local timestamp
   timestamp=$(TZ=UTC printf '%(%Y-%m-%dT%H:%M:%SZ)T' -1)
 
-  # Build the envelope. Redirect jq stderr to /dev/null; output goes to a local
-  # variable — never to fd1.
-  local envelope
+  # Build the envelope. The `data` object is written to a temp file, not passed
+  # as --argjson, so payloads larger than the Windows 32767-character command-line
+  # cap are not dropped before jq runs (#1595). /dev/stdin is not used: jq's
+  # --slurpfile there is not portable on Windows. Redirect jq stderr to
+  # /dev/null; output goes to a local variable — never to fd1.
+  local envelope data_file
+  data_file=$(mktemp) || return 0
+  printf '%s' "$data_json" >"$data_file" || {
+    rm -f "$data_file"
+    return 0
+  }
   envelope=$(jq -n \
     --arg schema_version "1.0" \
     --arg timestamp "$timestamp" \
@@ -1071,9 +1079,13 @@ hook::emit_telemetry() {
     --arg hook_event "$hook_event" \
     --arg status "$status" \
     --argjson duration_ms "$duration_ms" \
-    --argjson data "$data_json" \
-    '{schema_version:$schema_version,timestamp:$timestamp,hook:$hook,hook_event:$hook_event,status:$status,duration_ms:$duration_ms,data:$data}' \
-    2>/dev/null) || return 0
+    --slurpfile data "$data_file" \
+    '{schema_version:$schema_version,timestamp:$timestamp,hook:$hook,hook_event:$hook_event,status:$status,duration_ms:$duration_ms,data:($data[0] // {})}' \
+    2>/dev/null) || {
+    rm -f "$data_file"
+    return 0
+  }
+  rm -f "$data_file"
 
   # Resolve the sink path. A relative HOOK_TELEMETRY_SINK is joined onto the
   # consuming repo root (portable, tracked wiring); absolute is used as-is. A
@@ -1443,26 +1455,30 @@ hook::git_resolve_index() {
       ;;
     sudo)
       # sudo's own chdir is -D/--chdir (its -C is close-from, -R is --chroot).
-      # Only the unclustered spellings are read here; sudo's valueless short set
-      # is large and release-dependent, so peeling a cluster the way the env
-      # branch does would be guesswork rather than grammar.
-      # Known gap, fail-open: a clustered `sudo -bD dir git …` loses the chdir,
-      # and `-i` relocates to the target user's home without naming a directory
-      # at all.
+      # GNU sudo clusters short options, so `-bD dir` carries a chdir that no
+      # exact `-D` match sees. Peel the documented valueless shorts (-A/-B/-b/-e/-E
+      # -H/-K/-k/-l/-n/-P/-s/-S/-v/-V, per `sudo --help`) off a single-dash token
+      # so the value-taking tail (-D/--chdir, -u/-g/-h/-p/-C/-R/-T) reaches its own
+      # branch. `-h` is value-taking (`-h host` / `--host=`) and must not be peeled.
+      # `-i` relocates to the target user's home without naming a directory at all.
       ((i++))
-      local sudo_ci=-1
+      local sudo_ci=-1 stok
       while ((i < n)) && [[ "${w[i]}" == -* ]]; do
-        case "${w[i]}" in
+        stok="${w[i]}"
+        if [[ "$stok" == -[!-]* ]]; then
+          while [[ "$stok" =~ ^-[ABbeEHKklnPsSvV](.+)$ ]]; do stok="-${BASH_REMATCH[1]}"; done
+        fi
+        case "$stok" in
         -D | --chdir)
           ((i + 1 < n)) && hook::wrapper_chdir_record sudo_ci "${w[i + 1]}"
           ((i += 2))
           ;;
         --chdir=*)
-          hook::wrapper_chdir_record sudo_ci "${w[i]#--chdir=}"
+          hook::wrapper_chdir_record sudo_ci "${stok#--chdir=}"
           ((i++))
           ;;
         -D*)
-          hook::wrapper_chdir_record sudo_ci "${w[i]#-D}"
+          hook::wrapper_chdir_record sudo_ci "${stok#-D}"
           ((i++))
           ;;
         -u | -g | -h | -p | -C | -R | -T | --user | --group) ((i += 2)) ;;

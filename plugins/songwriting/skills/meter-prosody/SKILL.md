@@ -36,7 +36,7 @@ No action → route on context (a pasted line → `meter`; a "does this feel rig
 | `prosody` | whether structure supports meaning, motion, greedy spots, tone-of-voice | [prosody](../../context/pat-pattison/research/prosody.md), [meter](../../context/pat-pattison/research/meter.md), [stable-unstable-meta](../../context/pat-pattison/research/stable-unstable-meta.md) |
 | `phrasing` | the three phrasing types, front/back-heavy lines, breath and pacing | [phrasing](../../context/pat-pattison/research/phrasing.md), [meter](../../context/pat-pattison/research/meter.md), [prosody](../../context/pat-pattison/research/prosody.md) |
 | `stability` | section-level stable/unstable scan, "does my song feel right" | [stable-unstable-meta](../../context/pat-pattison/research/stable-unstable-meta.md) |
-| `align-melody` | lyric-melody mismatch, setting words to a tune, roadmap problems, greedy spots | [lyric-melodic-roadmaps](../../context/pat-pattison/research/lyric-melodic-roadmaps.md), [phrasing](../../context/pat-pattison/research/phrasing.md), [prosody](../../context/pat-pattison/research/prosody.md) |
+| `align-melody` | lyric-melody mismatch, setting words to a tune, roadmap problems, greedy spots, fitting a replacement line to a demo's or cover's sung melody | [lyric-melodic-roadmaps](../../context/pat-pattison/research/lyric-melodic-roadmaps.md), [phrasing](../../context/pat-pattison/research/phrasing.md), [prosody](../../context/pat-pattison/research/prosody.md), [meter](../../context/pat-pattison/research/meter.md) "fitting a replacement line to an already-sung melody" |
 
 ## Handlers
 
@@ -55,6 +55,13 @@ No action → route on context (a pasted line → `meter`; a "does this feel rig
   - **Lyric against a melody**: a mismatch in *either* direction is a greedy spot — a stressed
     syllable on a weak beat, or an unstressed syllable riding a strong one. Both distort the
     natural shape of the language.
+- Replacement lines over an already-sung melody (demo, cover, AI-generated track) get a
+  **positional template** first: the sung line's syllables numbered with its stressed slots
+  bracketed, per [meter](../../context/pat-pattison/research/meter.md) "fitting a replacement line
+  to an already-sung melody". Matching the stress COUNT is not fitting — the positions are the
+  template, and the singer's actual phrasing outranks the inferred grid. This skill emits the
+  template, never the fitted line; the line goes to `/songwriting:co-write` per the boundary table
+  below.
 
 ## Persistence and template overrides
 

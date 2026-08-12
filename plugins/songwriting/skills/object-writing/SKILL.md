@@ -70,10 +70,22 @@ Dispatch rules:
    context the writers deliberately lack.
 5. **For rounds:** name what made the strongest write of a round work, then carry that as the
    standard into the next round's dispatch. The bar escalates; rounds are not independent repeats.
+6. **Set the model on each agent call — do not let the fleet inherit the session's.** The
+   `object-writer` agent's frontmatter is `model: inherit`, so a dispatch that leaves the model
+   unset runs the whole fleet on whatever the session runs on. Writer directive (Sofía sessions,
+   2026-08-12): creative fan-out fleets run on Sonnet — the writer wrote it as
+   `opts.model: 'sonnet'` per agent call — reserving Opus for the judge or verifier stage at most.
+   That directive came from the writer's own observation of the same session: agents that inherited
+   the session model spent ~383k subagent tokens at top-tier pricing for a batch the writer rejected.
+   The fleet loses nothing — rule 2 above names isolation, not model tier, as the mechanism that
+   produces the divergence. Any creative fan-out this plugin adds later inherits the directive.
 
 **Never transcribe a write into lines.** The whole page is ore. Pat's discipline is to pull one
 image out of it — moving a dive wholesale into a section is the failure this action exists to
-prevent, not its purpose.
+prevent, not its purpose. What replaces transcription is the three-step gate in
+`/songwriting:co-write` — mine → adapt → say it aloud: the mined image is rewritten in plain sung
+English before it enters a slot, and then said out loud. Rule 4's "then mine" ends at the mining;
+the adapting and the saying belong to the emitting skill.
 
 Nothing else in this skill dispatches agents. Metaphor generation is
 `/songwriting:metaphor`; line-writing is not this skill's job at all (see boundaries below).

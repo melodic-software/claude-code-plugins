@@ -47,6 +47,90 @@ it exactly:
 The rhyme search is fundamentally a stressed-vowel search. Pre-vowel and
 post-vowel consonants come second.
 
+### Step 1b — Search the vowel FIELD, not the source word's own coda
+
+Those two sentences are the instruction that failed in production. Anchoring on the
+stressed vowel and then searching the source word's OWN post-vowel consonant returns
+one column of the field and stops. Enumerate the field first; Steps 3, 4, 4b and 5
+then LABEL what the field produced, rather than each re-running the source coda.
+
+- The **column** is one post-vowel consonant (or cluster) on the stressed vowel —
+  `et`, `il`, `isk`.
+- The **field** is that same stressed vowel with the other codas the language puts
+  after it. The source word's own coda is one row of the field, not the field.
+
+Pat runs the field himself, in print. In *Essential Guide to Rhyming* (2014),
+Chapter 7's complete search, keyword 6 `risk` has a Perfect Rhymes column two lines
+long (`disc` / `(oops!)`) while the Imperfect column beside it crosses roughly
+fifteen different codas on the one short-`i` vowel. Keyword 7 `chance` does the same
+across short `a`; keyword 3 `flirt` across r-colored `ur`. The columns are printed in
+full in [rhyme-worksheets.md](rhyme-worksheets.md) "The complete Chapter 7 search" —
+read them there rather than reproducing them; their strategic reading is in
+[rhyme-strategy.md](rhyme-strategy.md) "The full rhyme search".
+
+**The walk ORDER below is this plugin's assembly, not a printed list.** Pat prints
+two search orders and neither one is a walk across codas: Chapter 4 orders the search
+WITHIN one phonetic family (perfect, then partner, then companions, then the
+remaining members), and Chapter 5 orders additive rhyme by how much sound gets added
+— voiced plosives, then unvoiced plosives, then unvoiced fricatives — under the
+guideline "In general, the more sound you add, the less stable the rhyme becomes."
+The field is Pat's; the order composes his two printed orders so the walk starts
+where the ear notices least.
+
+1. The source word's own coda — one row, logged as such.
+2. That coda's phonetic relatives, via the family table in Step 4.
+3. The remaining consonant groups, in Chapter 5's noticeability order — voiced
+   plosives, unvoiced plosives, unvoiced fricatives — then voiced fricatives and
+   nasals, then `l` and `r`, which Chapter 5 says carry the most weight.
+4. Clusters on the same vowel (Chapter 4, "SYLLABLES ENDING IN MORE THAN ONE
+   CONSONANT").
+5. The bare open vowel — Step 4b's trigger read in reverse, i.e. subtractive.
+
+Write each row as a coda column, the way Pat writes `ud`, `uk`, `as`, `urd`, `elt`:
+
+<!-- spellchecker:off -->
+```text
+stressed vowel: ĕ (end)          source word: forget          own coda: et
+
+et    regret   upset   duet   cassette
+ed    thread   instead   bled
+ek    wreck   check   speck
+es    dress   confess   address
+esh   fresh   refresh
+est   chest   request   arrest
+esk   picturesque   grotesque
+ent   cement   lament
+elt   felt   heartfelt   melt
+```
+<!-- spellchecker:on -->
+
+No coda count is prescribed. The stopping rule is already in place: §1 of
+[response-filter.md](response-filter.md) sets the ≥8-candidate floor, and Chapter 7
+sets the posture — over-generate, then trim ("The list will have to be trimmed down
+later").
+
+**Writer-caught in production, 2026-08-12 (the Sofía sessions).** A search run on the
+source word's own rime (`et`, and separately `il`) missed the ladder across codas on
+the same vowel. The quartet `chest / dress / picturesque / forget` spans four codas
+(`st` / `s` / `sk` / `t`) on one ĕ, and all four survive the Step 2 identity check
+because their pre-vowel consonants (`ch` / `dr` / `r` / `g`) all differ.
+
+Two cautions carried from elsewhere in this corpus rather than restated here. Family
+assonance — which lets the walk move to a NEIGHBOURING vowel and start the field
+again — is one step along a leg of the vowel triangle; use Step 5 as printed and do
+not re-derive the figure. And before treating a polysyllabic candidate as a masculine
+rhyme, check that its PRIMARY stress is on the syllable you are rhyming: `picturesque`
+qualifies, `sunset` does not, and [rhyme-types.md](rhyme-types.md) has the trap in
+Pat's own words on `lineage`.
+
+**Datamuse cannot run this walk.** No mode of
+`${CLAUDE_PLUGIN_ROOT}/context/pat-pattison/scripts/datamuse.sh` accepts a phonetic
+post-vowel constraint — `pattern` (`sp`) matches SPELLING, and `near` (`rel_nry`),
+`family` and `sounds` (`sl`) return opaque similarity rankings with no coda control.
+The walk is internal generation only. Datamuse supplements AFTER it: confirming a
+walked candidate is a real current word, adding breadth the model did not recall, and
+verifying syllable counts (`syllables`). See [ai-tools.md](ai-tools.md).
+
 ### Step 2 — Apply the identity check FIRST
 
 Before adding any candidate, run the identity check from *Essential Guide to Rhyming* (2014), Chapter 1:
@@ -287,6 +371,47 @@ This is why object-writing the world first (*Writing Better Lyrics* (2009),
 Chapter 1; *Songwriting Without Boundaries* (2011), Challenge 1) is
 prerequisite for rhyme work: object-writing generates the world's
 vocabulary, which becomes the worksheet input.
+
+### Step 6b — The final-stress Latinate/French family (writer-supplied, 2026-08-12)
+
+**Writer-supplied observation from the Sofía sessions (2026-08-12).** It is not a
+sourced claim about pop vocabulary and not a measurement of it — no proportion, share,
+or count is claimed, and the members below are a starting stock, never an exhaustive
+list.
+
+The observation: a body of multisyllabic Latinate/French words is in actual pop usage
+and never surfaces from a column search. Named here as the **final-stress
+Latinate/French family**, because that is the phonetic property that both explains the
+miss and makes the words usable:
+
+- their PRIMARY stress falls on the final syllable, so they behave as masculine
+  rhymes on that syllable — which is what Chapter 3's selection rule asks for ("Find
+  mostly masculine words");
+- and that final syllable's coda is usually NOT the source word's coda, so a search
+  that sweeps the source column never reaches them. Step 1b's field walk does.
+
+Starting stock, grouped by the coda that carries them:
+
+- `esk` — picturesque, statuesque, grotesque, burlesque
+- `et` — silhouette, cigarette, cassette, roulette, marionette, vignette, brunette
+- `ād` — masquerade, charade, promenade, parade, serenade, escapade
+
+The `ād` group is not a plugin invention: `charade`, `masquerade`, `parade` and
+`promenade` are Pat's own printed candidates in the Chapter 3 and Chapter 7 columns
+for keyword 2, `afraid` (see [rhyme-worksheets.md](rhyme-worksheets.md)). Treat the
+group as the licensed pattern and the other two as the same pattern extended.
+
+**Not a licence to reach for rare words.** The same writer, in the same session,
+rejected `silt` as too literary while accepting `picturesque`. The distinguishing
+property is that these words are in actual pop usage despite being multisyllabic and
+Latinate — not that they are unusual. A word that is merely rare fails on register
+even when it walks out of the field cleanly. The register judgement belongs to §2 of
+[response-filter.md](response-filter.md) and to pass 8 of
+[line-edit-rubric.md](line-edit-rubric.md), not to §1; surface the candidate with its
+tier label and let the line-writing filter and the writer's ear decide.
+
+Run each member through the Step 2 identity check and the secondary-stress caution in
+Step 1b before using it.
 
 ### Step 7 — Run cliche scan on every candidate pair
 

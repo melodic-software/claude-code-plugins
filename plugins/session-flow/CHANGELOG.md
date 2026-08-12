@@ -1,5 +1,22 @@
 # Changelog — session-flow plugin
 
+## [0.23.0]
+
+### Added
+
+- **The context-guard zone seam is now consumed plugin-wide (#1602).** The plugin-wide decision the
+  issue tracked is made: every skill whose correctness depends on how degraded the current window is
+  reads the seam, presence-gated, instead of estimating. `keep-going` gains a zone-input section
+  (a degraded or evidence-degraded window routes the continuation toward `handoff` rather than
+  pushing judgment-heavy work through it), `running-retro`'s subjective-state note now carries the
+  measured zone word next to the self-read, and `orchestrate`'s fan-out imperative resolves the word
+  before a delegation decision. All three follow the pattern `handoff` and the `workflow`
+  continuation router already established: resolve per the reader contract (which owns the snapshot
+  path, staleness rule, and bands), consume only the zone word, inline no band values, and treat
+  absent-plugin / absent-snapshot / `unknown` as degraded. Self-estimating the window remains
+  explicitly forbidden at each consumption site — the motivating incident was a session reporting
+  "around 40%" while the instrument read 15%.
+
 ## [0.22.5]
 
 ### Added
