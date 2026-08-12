@@ -3,6 +3,12 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.10]
+
+### Changed
+
+- **Synced `hook-utils.sh`:** refuse sub-minimum `stdin_read_timeout` values (#1883).
+
 ## [0.5.9]
 
 ### Changed

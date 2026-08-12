@@ -561,6 +561,10 @@ hook::json_complete() {
 # shell is exact where a version check would be a guess. Reading /dev/null hits
 # EOF immediately, so a valid timeout produces no stderr at all. The probe is
 # skipped for the default, which is known-good everywhere.
+# Minimum 0.00001 s (10 µs): smaller positive values are a silent disable — the
+# read returns before payload bytes arrive, same class as exact zero (#1883).
+readonly HOOK_STDIN_READ_TIMEOUT_MIN_MICROS=10
+
 hook::resolve_read_timeout() {
   local t="${CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT:-2}"
   if [[ "$t" != "2" ]]; then
@@ -569,6 +573,14 @@ hook::resolve_read_timeout() {
     probe=$(read -r -t "$t" discard </dev/null 2>&1)
     if ! [[ "$t" =~ ^[0-9]+(\.[0-9]+)?$ ]] || [[ "$t" =~ ^0+(\.0+)?$ ]] || [[ -n "$probe" ]]; then
       t=2
+    elif [[ "$t" =~ ^([0-9]+)(\.([0-9]+))?$ ]]; then
+      local whole="${BASH_REMATCH[1]}" frac="${BASH_REMATCH[3]:-}"
+      frac="${frac}000000"
+      frac="${frac:0:6}"
+      local micros=$((10#$whole * 1000000 + 10#$frac))
+      if ((micros < HOOK_STDIN_READ_TIMEOUT_MIN_MICROS)); then
+        t=2
+      fi
     fi
   fi
   printf '%s' "$t"
