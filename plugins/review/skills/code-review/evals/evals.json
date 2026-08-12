@@ -1,0 +1,39 @@
+{
+  "skill_name": "code-review",
+  "evals": [
+    {
+      "id": 1,
+      "name": "scopes-out-security-when-security-lane-exists",
+      "prompt": "/review:code-review\n\nREPO: acme/app\nPR NUMBER: 12\nHEAD SHA: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\nThe repo has .github/workflows/claude-security-review.yml. The PR adds an auth bypass in src/auth.ts and a missing null check in src/util.ts.",
+      "expected_output": "Reviews the null-check / correctness finding in util.ts for the code-review lane, and explicitly leaves the auth-bypass security finding to the security lane rather than reporting it here.",
+      "files": [],
+      "expectations": [
+        "Leaves security findings to the security lane when claude-security-review.yml exists",
+        "Still reviews non-security correctness issues in the changed files",
+        "Uses gh pr diff (or equivalent) to scope to changed files"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "skips-draft-or-closed",
+      "prompt": "/review:code-review\n\nREPO: acme/app\nPR NUMBER: 9\nHEAD SHA: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n\nThe pull request is a draft.",
+      "expected_output": "Hits the skip gate for draft PRs, states that it is skipping, and posts no review findings.",
+      "files": [],
+      "expectations": [
+        "Recognizes the draft skip-gate condition",
+        "Does not post inline findings for a skipped draft"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "excludes-linter-nits",
+      "prompt": "/review:code-review\n\nREPO: acme/app\nPR NUMBER: 3\nHEAD SHA: cccccccccccccccccccccccccccccccccccccccc\n\nThe only issues visible in the diff are missing imports a typechecker would catch and a pre-existing TODO on an untouched line.",
+      "expected_output": "Applies the high-signal bar: does not report the typechecker-catchable import issue or the pre-existing untouched-line TODO; reports no findings or says none meet the bar.",
+      "files": [],
+      "expectations": [
+        "Excludes linter/typechecker-catchable issues",
+        "Excludes pre-existing issues on untouched lines"
+      ]
+    }
+  ]
+}

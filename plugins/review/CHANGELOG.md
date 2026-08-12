@@ -3,6 +3,19 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.0]
+
+### Added
+
+- **`/review:code-review` and `/review:security-review` CI lane skills
+  (ci-workflows#258).** Thin org-owned slash commands the
+  `claude-review` / `claude-security-review` reusable workflows invoke via
+  claude-code-action `plugins` + `plugin_marketplaces`. They carry the
+  lane criteria, skip-gate, high-signal bar, and adversarial-validation
+  target; the workflow wrapper still owns checkout, MCP install via
+  `claude_args`, and reporting mechanics. Skills (not legacy `commands/`)
+  per marketplace PLUGIN-PHILOSOPHY.
+
 ## [0.18.4]
 
 ### Fixed
