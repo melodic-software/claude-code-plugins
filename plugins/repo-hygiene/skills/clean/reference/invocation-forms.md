@@ -30,9 +30,13 @@ Files: `context/action-router.md`, `context/clean-batch.md`, `context/git-branch
 
 They are loaded on demand when `SKILL.md` routes into a step. Whether `${CLAUDE_SKILL_DIR}`
 substitution reaches those files is **unverified** — the skills page scopes substitution to "the
-skill's markdown content" without saying bundled context files loaded later count. `${CLAUDE_PLUGIN_ROOT}`
-is documented more broadly (plugins-reference: "Skill and agent content | Anywhere the placeholder
-appears"), so it is the safe token for copy-paste examples the model may run from a context file.
+skill's markdown content" without saying bundled context files loaded later count. That phrasing
+already leans toward the broader reading: `docs/conventions/permission-rule-hygiene/README.md`
+states the same substitution scope for `${CLAUDE_SKILL_DIR}` in "the skill's markdown content"
+without carving out bundled files loaded on demand, so the two repo docs are in tension until
+#2237 settles it empirically. `${CLAUDE_PLUGIN_ROOT}` is documented more broadly
+(plugins-reference: "Skill and agent content | Anywhere the placeholder appears"), so it is the
+safe token for copy-paste examples the model may run from a context file.
 
 **Failure mode if converted on the wrong assumption:** an unsubstituted body emits a literal
 `${CLAUDE_SKILL_DIR}/scripts/x.sh`, which the Bash tool expands from an unset environment variable

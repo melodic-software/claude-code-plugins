@@ -99,8 +99,20 @@ for skill in "${SKILLS[@]}"; do
     if [[ "$f" == skills/*/context/* ]]; then
       if grep -qF '${CLAUDE_SKILL_DIR}/scripts/' "$f"; then
         fail "$f: context file must not use \${CLAUDE_SKILL_DIR}/scripts/ — keep \${CLAUDE_PLUGIN_ROOT} form (#2237)"
+      fi
+      # Every bundled-script reference must retain the interpreter-led PLUGIN_ROOT
+      # prefix — banning SKILL_DIR alone still passes if a command is rerouted to
+      # another invalid path such as bash /wrong/preflight.sh.
+      required='bash ${CLAUDE_PLUGIN_ROOT}/skills/'"$skill"'/scripts/'
+      while IFS= read -r line; do
+        if [[ "$line" != *"$required"* ]]; then
+          fail "$f: context script invocation must use bash \${CLAUDE_PLUGIN_ROOT}/skills/$skill/scripts/… — got: ${line%%$'\n'}"
+        fi
+      done < <(grep -F 'skills/'"$skill"'/scripts/' "$f" || true)
+      if grep -qF 'skills/'"$skill"'/scripts/' "$f"; then
+        pass "$f: context script invocations use interpreter-led \${CLAUDE_PLUGIN_ROOT} form"
       else
-        pass "$f: context file free of direct \${CLAUDE_SKILL_DIR}/scripts/ invocations"
+        pass "$f: context file has no bundled-script invocations to pin"
       fi
     fi
   done
