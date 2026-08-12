@@ -500,9 +500,10 @@ jobs:
         run: scripts/check-orphaned-fixtures.sh --check
 
   # CHANGELOG parity: a versioned plugin must keep a CHANGELOG.md whose newest
-  # version heading does not outrun the manifest (static --check), and a PR that
+  # version heading does not outrun the manifest (static --check), a PR that
   # changes a plugin's manifest version must update that plugin's CHANGELOG.md in
-  # the same diff (--check-bump, PR-only). Existing
+  # the same diff (--check-bump, PR-only), and no PR may DROP a version heading a
+  # changelog already carried (--check-preserved, PR-only). Existing
   # "versioned but changelog-less" debt is grandfathered by name in
   # scripts/changelog-parity-baseline.txt with a stale guard; the bump gate is
   # never relaxed by the baseline. The self-test runs unconditionally so a broken
@@ -526,6 +527,15 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: scripts/check-changelog-parity.sh --check-bump "origin/$BASE_REF"
+      # The other half of the same PR discipline: the bump gate polices what a
+      # change set ADDS and never what it REMOVES, so a merge-forward that writes
+      # the new release under the PREVIOUS release's heading deletes a released
+      # section with no conflict marker and no gate to catch it (#2264).
+      - name: Verify no changed changelog drops a version heading it carried at the fork point
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: scripts/check-changelog-parity.sh --check-preserved "origin/$BASE_REF"
       # Whole-file, not per-diff: the other two modes reason about one version at
       # a time, so neither can see that two branches staged the same number or
       # that a stale-based entry landed below one already on main.
