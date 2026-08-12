@@ -1,0 +1,62 @@
+name: dependabot-miro-bundle
+
+# Dependabot bumps plugins/miro/package*.json but cannot regenerate the committed
+# dist/index.min.js artifact. This workflow runs on Dependabot PRs, rebuilds when
+# the miro manifest changed, and pushes the bundle back to the PR branch (#2083).
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  regenerate-miro-bundle:
+    if: github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: read
+    steps:
+      - name: Check out PR head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+      - name: Detect miro manifest changes
+        id: scope
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if git diff --name-only "origin/$BASE_REF"...HEAD | grep -qE '^plugins/miro/package(-lock)?\.json$'; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Set up Node
+        if: steps.scope.outputs.changed == 'true'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: plugins/miro/package-lock.json
+      - name: Install and regenerate bundle
+        if: steps.scope.outputs.changed == 'true'
+        working-directory: plugins/miro
+        run: |
+          npm ci
+          npm run bundle
+          npm run verify-bundle
+      - name: Commit regenerated bundle when drifted
+        if: steps.scope.outputs.changed == 'true'
+        run: |
+          if git diff --quiet -- plugins/miro/dist/index.min.js; then
+            echo "dist already matches source — nothing to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add plugins/miro/dist/index.min.js
+          git commit -m "chore(miro): regenerate dist for dependabot manifest bump"
+          git push
