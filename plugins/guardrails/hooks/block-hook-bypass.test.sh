@@ -731,6 +731,9 @@ assert_absent "PS write block message is shell-agnostic" "$psout" "Bash file-wri
 assert_contains "PS write block names kill switch" "$psout" "block_hook_bypass_enabled"
 assert_contains "PS write block names isolated Write/Edit refusal" "$psout" "main checkout"
 assert_contains "PS write block marks kill switch operator-only" "$psout" "not actionable by the blocked agent"
+assert_contains "PS write block warns kill switch is user-scoped" "$psout" "user-scoped"
+assert_contains "PS write block warns kill switch persists across repositories" "$psout" "every repository"
+assert_contains "PS write block tells operator to re-enable kill switch" "$psout" "re-enable it"
 
 # --- Enforcement-scope disclosure -------------------------------------------
 # The message asserted "use Write or Edit instead" with no scope, so it read as
@@ -742,6 +745,10 @@ assert_contains "bash block names kill switch" "$scopeout" "block_hook_bypass_en
 assert_contains "bash block names isolated Write/Edit refusal" "$scopeout" "main checkout"
 assert_contains "bash block marks kill switch operator-only" "$scopeout" \
   "not actionable by the blocked agent"
+assert_contains "bash block warns kill switch is user-scoped" "$scopeout" "user-scoped"
+assert_contains "bash block warns kill switch persists across repositories" "$scopeout" \
+  "every repository"
+assert_contains "bash block tells operator to re-enable kill switch" "$scopeout" "re-enable it"
 assert_contains "bash block states its scope" "$scopeout" \
   "only this command string is inspected"
 assert_contains "bash block names the invoked-script gap" "$scopeout" \
