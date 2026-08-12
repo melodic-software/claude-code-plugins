@@ -155,7 +155,7 @@ if [[ "$(cat "$D/state/sflap.armed" 2>/dev/null)" == "dumb" ]]; then
 else
   fail "armed rank decayed on a one-rank dip: $(cat "$D/state/sflap.armed" 2>/dev/null)"
 fi
-write_snapshot "$H" sflap 90 # back to dumb — the re-crossing that used to re-inject
+write_snapshot "$H" sflap 90 # back to dumb — the re-crossing that re-injects without the armed gate
 run "$H" "$D" sflap
 if [[ $RC -eq 0 && -z "$OUT" ]]; then
   ok "flap: re-crossing into an already-reported zone does NOT re-inject"
