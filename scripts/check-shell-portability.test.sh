@@ -547,7 +547,7 @@ rm -f "$f"
 # cluster (one token covers both), and --in-place (GNU long form) — #1513
 # =============================================================================
 
-tok="$(one_token_list '(^|[^[:alnum:]_])s(\$?['\''"]|\\)*e(\$?['\''"]|\\)*d(\$?['\''"]|\\)*([[:space:]]([^;&|()`\n]|[<>]\([^)]*\))*)?[[:space:]]+(\$?['\''"]|\\)*-[bEnrsuz]*i([[:space:]|&;()<>]|$)')"
+tok="$(one_token_list '(^|[^[:alnum:]_"'\'"'"'\\])(\$?['\''"]|\\)*s(\$?['\''"]|\\)*e(\$?['\''"]|\\)*d(\$?['\''"]|\\)*([[:space:]]([^;&|()`\n]|[<>]\([^)]*\))*)?[[:space:]]+(\$?['\''"]|\\)*-[bEnrsuz]*i([[:space:]|&;()<>]|$)')"
 
 f="$(tmpsh "sed -i 's/foo/bar/' \"\$file\"")"
 if out="$(scan_paths "$tok" "$f" 2>&1)"; then
@@ -787,7 +787,7 @@ sed -Ei; echo done
 CASES
 rm -f "$tok"
 
-tok="$(one_token_list '(^|[^[:alnum:]_])s(\$?['\''"]|\\)*e(\$?['\''"]|\\)*d(\$?['\''"]|\\)*([[:space:]]([^;&|()`\n]|[<>]\([^)]*\))*)?[[:space:]]+(\$?['\''"]|\\)*--(\$?['\''"]|\\)*i(\$?['\''"]|\\)*n(\$?['\''"]|\\)*-(\$?['\''"]|\\)*p(\$?['\''"]|\\)*l(\$?['\''"]|\\)*a(\$?['\''"]|\\)*c(\$?['\''"]|\\)*e(\$?['\''"]|\\)*([[:space:]|&;()<>]|=|$)')"
+tok="$(one_token_list '(^|[^[:alnum:]_"'\'"'"'\\])(\$?['\''"]|\\)*s(\$?['\''"]|\\)*e(\$?['\''"]|\\)*d(\$?['\''"]|\\)*([[:space:]]([^;&|()`\n]|[<>]\([^)]*\))*)?[[:space:]]+(\$?['\''"]|\\)*--(\$?['\''"]|\\)*i(\$?['\''"]|\\)*n(\$?['\''"]|\\)*-(\$?['\''"]|\\)*p(\$?['\''"]|\\)*l(\$?['\''"]|\\)*a(\$?['\''"]|\\)*c(\$?['\''"]|\\)*e(\$?['\''"]|\\)*([[:space:]|&;()<>]|=|$)')"
 
 f="$(tmpsh "sed --in-place 's/foo/bar/' \"\$file\"")"
 if out="$(scan_paths "$tok" "$f" 2>&1)"; then
@@ -2762,6 +2762,16 @@ if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
   ok "interleaved quote runs do not span separate words or longer names"
 else
   fail "the spliced-name spelling over-reached: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
+fi
+rm -f "$f"
+# a quoted sed suffix inside a longer shell word is not a sed command (#2091).
+f="$(tmpsh "$(printf '%s\n' \
+  'x"sed" -i value' \
+  'u"sed" --in-place x')")"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "a quoted sed suffix inside a longer shell word is not flagged"
+else
+  fail "quoted sed suffix inside a longer word must not fire: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
 fi
 rm -f "$f"
 
