@@ -3,18 +3,18 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.6.2]
+## [0.6.3]
 
-<<<<<<< HEAD
-### Fixed
-
-- **education:teach loads under worktree isolation (#1687).** Workspace listing moved out of the pre-compute block into a body Bash call.
-=======
 ### Added
 
 - **`/education:setup` check-only setup skill** for `quiz_policy` and `report_library_dir`
   userConfig verification (#988).
->>>>>>> dc513c6a (feat(education): add check-only setup skill for userConfig)
+
+## [0.6.2]
+
+### Fixed
+
+- **education:teach loads under worktree isolation (#1687).** Workspace listing moved out of the pre-compute block into a body Bash call.
 
 ## [0.6.1]
 
