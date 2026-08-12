@@ -750,4 +750,29 @@ assert_contains "--root-file NUL error names the NUL byte" "$err" "NUL"
 assert_file_absent "--root-file NUL-collapsed path never materialized" \
   "$TEST_TMPDIR/wtroot17-nulsuffix/acme-widget-feat-nul/README.md"
 
+# --- Case: the created worktree is LOCKED, with a reason naming the creator ---
+# The lock is the liveness guard the cleanup skill honors: without it, plain
+# `git worktree remove` deletes a clean worktree whose operation is mid-flight
+# (an interactive rebase paused at `break` leaves `status --porcelain` empty),
+# and before the helper armed it no lane ever ran `git worktree lock` (#2257).
+# Asserted from `worktree list --porcelain` — the surface cleanup reads — and
+# then behaviorally: plain removal must refuse while the lock is armed.
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+root_file="$TEST_TMPDIR/rootfile-lock"
+printf '%s' "$TEST_TMPDIR/wtroot18-lock" > "$root_file"
+out=$(bash "$HELPER" --name feat/locked --root-file "$root_file" --repo-dir "$repo" 2>/dev/null)
+assert_exit "lock case: creation succeeds (exit 0)" 0 "$?"
+stanza=$(git -C "$repo" worktree list --porcelain | awk -v RS= -v p="acme-widget-feat-locked" 'index($0, p)')
+assert_contains "the new worktree is locked at creation" "$stanza" "locked"
+assert_contains "the lock reason names the arming helper" "$stanza" "worktree-create.sh"
+err=$(git -C "$repo" worktree remove "$out" 2>&1 >/dev/null)
+rc=$?
+assert_contains "plain removal refuses and names the lock" "$err" "locked"
+if [[ "$rc" -ne 0 ]]; then
+  pass "plain removal exits non-zero while the lock is armed"
+else
+  fail "plain removal exits non-zero while the lock is armed" "non-zero" "0"
+fi
+assert_file_exists "the locked worktree survives the removal attempt" "$out/README.md"
+
 [[ $FAILED -eq 0 ]] || exit 1

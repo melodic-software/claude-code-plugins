@@ -214,7 +214,10 @@ is_worktree_root() {
   [[ -z "$prefix" ]]
 }
 
-# inprogress_of <path>: the in-progress sequencer operation, or `none`.
+# inprogress_of <path>: the in-progress operation (rebase, merge, cherry-pick,
+# revert, or bisect), or `none`. A clean `status --porcelain` proves none of
+# these absent — an interactive rebase paused at a `break` leaves it completely
+# empty — so this probe is the liveness signal porcelain cannot be.
 #
 # Probed through `rev-parse --git-path`, never `<path>/.git/<file>`: a linked
 # worktree's git dir is <main>/.git/worktrees/<name>, and only --git-path
@@ -229,13 +232,14 @@ inprogress_of() {
       return 0
     fi
   done
-  for name in MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD; do
+  for name in MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD BISECT_LOG; do
     resolved=$(git -C "$p" rev-parse --git-path "$name" 2>/dev/null) || continue
     if [[ -e "$resolved" ]]; then
       case "$name" in
       MERGE_HEAD) printf 'merge' ;;
       CHERRY_PICK_HEAD) printf 'cherry-pick' ;;
-      *) printf 'revert' ;;
+      REVERT_HEAD) printf 'revert' ;;
+      *) printf 'bisect' ;;
       esac
       return 0
     fi
@@ -787,7 +791,7 @@ while [[ $idx -lt ${#T_PATH[@]} ]]; do
     reason="${reason:+$reason; }status-unreadable: the working tree was not inspected"
   fi
   if [[ "$inprog" != "none" ]]; then
-    reason="${reason:+$reason; }$inprog-in-progress: staged tree is that operation's own result, recomputable"
+    reason="${reason:+$reason; }$inprog-in-progress: the operation's transient state (staged result, sequencer position) dies with the directory"
   fi
   R_REASON+=("$reason")
   idx=$((idx + 1))
@@ -854,10 +858,15 @@ while [[ $idx -lt ${#T_PATH[@]} ]]; do
     risk="STRANDED"
   elif [[ "${R_LANDED[$idx]}" == "?" ]]; then
     risk="UNKNOWN"
+  elif [[ "${R_INPROGRESS[$idx]}" != "none" ]]; then
+    # Outranks `landed`: consumers read `landed` as "safe to remove", but a
+    # removal mid-operation kills the sequencer state (and any conflict
+    # resolutions) even when every commit is durable — clean or landed does not
+    # mean idle. The stranded family above still outranks this: data loss is the
+    # stronger stop, and the `inprogress` column carries the operation either way.
+    risk="in-progress"
   elif [[ "${R_LANDED[$idx]}" == "yes" ]]; then
     risk="landed"
-  elif [[ "${R_INPROGRESS[$idx]}" != "none" ]]; then
-    risk="in-progress"
   elif [[ "${R_CONFLICTED[$idx]}" != "0" || "${R_UNSTAGED[$idx]}" != "0" || "${R_STAGED[$idx]}" != "0" ]]; then
     risk="dirty"
   else

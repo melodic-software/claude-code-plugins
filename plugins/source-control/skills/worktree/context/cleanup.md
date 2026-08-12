@@ -12,6 +12,8 @@ git worktree prune
 
 Cleans up worktree administrative records for directories that no longer exist on disk (e.g., manually deleted via `rm -rf`).
 
+A **locked** worktree's record survives `prune` even when its directory is gone — deliberate on git's part, and what makes the lock a durable claim. Surface such records (a `locked` stanza in `git worktree list --porcelain` whose path no longer exists) rather than counting them pruned: confirm with the owner, then `git worktree unlock <path>` (works with the directory missing) and prune again.
+
 In `--dry-run` mode this step runs `git worktree prune --dry-run` instead — it reports what would be pruned without touching worktree metadata, keeping the whole dry-run pass mutation-free.
 
 ## Step 2: Identify cleanup candidates
@@ -25,6 +27,8 @@ Run `status` logic internally and identify candidates:
 | **PR merged** | `gh pr list --state merged --head <branch>` returns non-empty result |
 | **Stale** | Last commit > threshold days, no open PR, no locked flag |
 | **Stranded** | `landed-work.sh` reports `risk=STRANDED` or `risk=UNKNOWN` — **not a cleanup candidate.** Listed here because it is the row most easily mistaken for `Stale`: both are old and quiet, but this one holds unpushed commits whose content is not on the base |
+| **In-progress operation** | `landed-work.sh` reports `risk=in-progress`, or its `inprogress` column is anything but `none` — **not a cleanup candidate.** A rebase, merge, cherry-pick, revert, or bisect is mid-flight, probed via `git rev-parse --git-path` (`rebase-merge`, `rebase-apply`, `MERGE_HEAD`, `CHERRY_PICK_HEAD`, `REVERT_HEAD`, `BISECT_LOG`). Clean does not mean idle: an interactive rebase paused at a `break` leaves `git status --porcelain` completely empty, and plain `git worktree remove` then deletes it silently — git's own refusal covers dirty trees and nothing else. Report the operation; the owner finishes or aborts it first |
+| **Locked** | `git worktree list --porcelain` shows a `locked` line (reason on the same line) — **not a cleanup candidate.** `worktree-create.sh` arms the lock on every worktree it creates, so a lock is an owning lane's claim, and the reason names the creator, host, and start time. Present the reason; only on explicit confirmation that the owner is done, disarm with `git worktree unlock <path>` and re-classify — never bypass with `--force --force` |
 
 Extract actual branch name from porcelain output (`branch refs/heads/<name>`), not from directory name — they may differ if branch was renamed.
 
@@ -77,7 +81,7 @@ Read the candidate's row from the record collected in Step 2:
 
 - `risk=landed`, `ok`, or `bare` → proceed.
 - `risk=STRANDED`, `UNKNOWN`, or `superseded` → **stop and do not remove.** Present the count, the `base` stamp, the `reason`, and the commit subjects (`git -C <path> log HEAD --not --remotes --oneline`), then get explicit per-worktree confirmation naming those commits. `UNKNOWN` means the engine could not prove landedness, not that it proved absence. `superseded` means only that a MERGED pull request carried this branch's NAME — a name reused after that merge makes the evidence describe different commits than the ones here, and the row is `landed=no` either way. Treat both exactly as `STRANDED`.
-- `risk=in-progress` → **stop.** A merge, rebase, cherry-pick, or revert is paused here. Its staged tree is recomputable, but the operator's conflict resolutions are not, and the sequencer state is lost with the directory. Report the operation and let the user finish or abort it first.
+- `risk=in-progress` → **stop.** A merge, rebase, cherry-pick, revert, or bisect is mid-flight here. Its staged tree is recomputable, but the operator's conflict resolutions are not, and the operation's position is lost with the directory. The tree can be completely clean at the same time — an interactive rebase paused at a `break` leaves `--porcelain` empty, which is why this row outranks `landed` and never reads as disposable. Report the operation and let the user finish or abort it first.
 - `risk=dirty` → **stop.** Nothing is unpushed, but the working tree carries uncommitted edits — and the same value is emitted when the working-tree status could not be read at all, which is the `-` or `?` you will see in the count columns. Neither is safe to remove without the user looking.
 - **Any value not listed above → treat it as `STRANDED`.** The list is closed on the safe side only. A risk value this file does not recognize is a value it cannot vouch for, and the whole point of the record is that an unproven verdict never authorizes a removal.
 - When the row's `peers` column names another worktree, say so: those commits survive in the peer, which is a different decision from losing them.
@@ -99,9 +103,15 @@ file may simply never have been carried). Removal without this pass loses the ed
 **Escalation guard (before any `--force`):** when the plain removal fails, inspect why — `git -C <path> status --porcelain` (uncommitted edits) and `git -C <path> log HEAD --not --remotes --oneline | head` (unpushed commits). `HEAD`, not `--branches`: on a detached HEAD — the one case where removal makes commits unreachable *immediately*, with no branch ref left holding them — `--branches` reports every other branch in the repository and nothing about this worktree's own commits, so the guard reads clean at exactly the moment it matters most. If either is non-empty, present the summary to the user and get explicit per-worktree confirmation BEFORE forcing — forced removal permanently discards those changes. Only after confirmation (or when the failure is a lock/metadata issue with a verifiably clean tree):
 
 ```bash
-git worktree remove --force <path> \
-  || git worktree remove --force --force <path>   # second --force required for LOCKED worktrees (git-scm)
+git worktree remove --force <path>   # dirty-tree override — only after the confirmation above
 ```
+
+A **locked** worktree never takes the second `--force`. The lock is an owning lane's claim — armed
+at creation by `worktree-create.sh` — not a stronger kind of dirt, and `--force --force` answers
+both questions with one flag. On explicit confirmation that the owner is done:
+`git worktree unlock <path>` first, then remove (plain, or a single `--force` only for a
+confirmed-dirty tree). The unlock is a separate deliberate act naming the lock, so no flag ever
+silently answers a question it was not asked.
 
 Do NOT swallow stderr with `2>/dev/null` — a failed removal must surface so Step 5 can report it honestly.
 
