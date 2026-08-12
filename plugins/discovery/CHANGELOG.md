@@ -1,5 +1,14 @@
 # Changelog — discovery plugin
 
+## [0.15.2]
+
+### Fixed
+
+- **`researcher` no longer assumes `skills:` preload succeeded.** The agent
+  body now requires confirming the preload-liveness sentinel or Reading the
+  skill before research, and mandates echoing `preload_token` — matching the
+  parent contract that treats a missing token as a failed dispatch. (#2338)
+
 ## [0.15.1]
 
 ### Fixed
