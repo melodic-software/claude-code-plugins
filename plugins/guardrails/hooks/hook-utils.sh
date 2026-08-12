@@ -1,4 +1,7 @@
-# Returns 1 when jq is absent or zero filters were requested. Returns 2 when jq is present but cannot parse the payload or record count mismatches (#2157). Advisory callers allow on both codes; blocking guards exit 2 on rc 2.# shellcheck shell=bash
+# Returns 1 when jq is absent or zero filters were requested. Returns 2 when jq
+# is present but cannot parse the payload or record count mismatches (#2157).
+# Advisory callers allow on both codes; blocking guards exit 2 on rc 2.
+# shellcheck shell=bash
 # Shared hook utility library for this marketplace's hook plugins. Sourced
 # (not executed): kill switch, file_path parsing + path normalization,
 # repo-root resolution, additionalContext accumulator, telemetry envelope.
@@ -716,7 +719,8 @@ hook::buffer_stdin() {
       echo "BLOCKED: hook stdin timed out before a complete JSON payload arrived." >&2
       return 2
     fi
-    return 1
+    echo "BLOCKED: hook stdin is not valid JSON." >&2
+    return 2
   fi
   printf '%s' "$input"
 }
@@ -871,7 +875,7 @@ hook::jq_fields() {
   # One record for the flag plus one per filter. Short of that, jq produced no
   # usable output — it is absent, it failed, or it rejected the payload. What can
   # no longer shorten it is NUL CONTENT: the values carry no separator byte.
-  ((${#values[@]} == $# + 1)) || return 1
+  ((${#values[@]} == $# + 1)) || return 2
   HOOK_JQ_FIELDS_NUL="${values[0]}"
   HOOK_JQ_FIELDS=("${values[@]:1}")
 }

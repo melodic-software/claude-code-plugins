@@ -12,6 +12,7 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 ### Changed
 
 - **Synced `hook-utils.sh`:** `hook::jq_fields` and `hook::buffer_stdin` return 2 when jq is present but cannot parse the payload (#2157).
+<<<<<<< HEAD
 
 ## [0.28.3]
 
@@ -22,6 +23,8 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   its directory the way `-C` does, so the reparse's width probe ran against the payload cwd while
   the push executed in the inherited repository. Inherited locating spellings are now replayed into
   `!` reparses via `HOOK_GIT_INHERITED_LOCATING_OPTS`.
+=======
+>>>>>>> b3378e21 (fix(guardrails): implement jq_fields rc 2 and fleet hook-utils sync (#2157))
 
 ## [0.28.2]
 
