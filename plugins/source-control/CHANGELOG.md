@@ -3,6 +3,29 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.51.17]
+
+### Fixed
+
+- **`babysit_merge` enforces `requireSignatures` instead of only reporting it (#2265).**
+  `branch_rules` computed the flag and nothing consumed it: on a base whose ruleset requires signed
+  commits, a head held only by an unsigned or misattributed commit reported the generic
+  `mergeStateStatus` line naming four other causes — none of them the real one — and the operator
+  went re-reading checks, approvals, and threads that were already fine. New
+  `fetch_pull_request_commits` (`babysit_gh.py`) reads `.commit.verification` per PR commit,
+  paginated `per_page=100`; a missing verification block reports reason `unreadable` rather than
+  being skipped. `evaluate()` walks the commits only when the rule is present (an ungoverned base
+  pays no extra request), in the read-only pass — a signature hold discovered only under `--merge`
+  would defeat the wrapper's report-readiness purpose — and emits one blocker per verification
+  reason naming every offending commit. `unsigned`, `no_user`, and `unknown_key` carry distinct
+  remedies: `no_user` states that the signature IS valid and the author/committer email is
+  unlinked (#2162's recurring product, needing `--reset-author` or a linked email, not a key). A
+  fetch failure holds with its own "could not be read" blocker (fail closed, never a fabricated
+  reason). The generic `mergeStateStatus` enumeration now names signatures, and
+  `requiredSignatures` `{required, checked, unverified}` joins the JSON report. New tests pin
+  every reason message, the distinct-blockers property, the no-rule-no-request invariant, the
+  fail-closed fetch failure, and the fetcher's projection; all fail against the pre-#2265 modules.
+
 ## [0.51.16]
 
 ### Fixed
