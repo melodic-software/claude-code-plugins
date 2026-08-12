@@ -268,6 +268,7 @@ dispositions bind:
 
 | Class | Disposition |
 |---|---|
+| C1 read-only | Autonomous |
 | C2 mechanical | Autonomous |
 | C3 scoped, bug-fix-shaped | Autonomous — but see first-drain ratification below |
 | C3 scoped, feature-shaped | Human-gated (operator tightening — permitted without justification) |

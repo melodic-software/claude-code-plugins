@@ -20,6 +20,7 @@ These axes work in any repo and don't change per team. Do not snapshot their mem
 | Status | `status:` | Exception and gate flags only (e.g. `needs-info`, `needs-decision`, `ready`). Members from the live set. `needs-triage` is dual-axis — a repo may file it under Status (`status:needs-triage`) or Priority (`priority:needs-triage`); see [`../skills/triage/SKILL.md`](../skills/triage/SKILL.md) "Scope: raw intake only". **Claim is not a status label** — it is assignee + lease (see the seam claim protocol). **Blocked is not a status label** — it is a native `blocked-by` dependency edge. |
 | Meta | (none) | Tool-owned flat markers the automation sets: `automated`, `good-first-issue`, `migrated`, `stale`, plus the three canonical-role labels (defaults `agent-ready`, `needs-human`, `recurring` — see "Canonical roles" below). |
 | Cadence | `cadence:` | Recurrence period for maintenance items. Members from the live set. |
+| Work class | `work-class:` | Semantic risk class (C1–C5) stamped at triage for the fail-closed admission gate and merge partition. Canonical members and migration: [`work-class-labels.md`](work-class-labels.md). Classification criteria: the `autonomy` plugin's [`work-classes.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/autonomy/reference/guardrails/work-classes.md). |
 
 ## Canonical roles
 

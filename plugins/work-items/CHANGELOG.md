@@ -3,6 +3,26 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.7]
+
+### Added
+
+- **`reference/work-class-labels.md` — canonical `work-class:` axis members, migration path, and
+  classification pointer to the `autonomy` plugin's `work-classes.md`.** Declares the five labels
+  triage stamps and setup migrates; linked from `label-taxonomy.md` and `tracker-seam.md`.
+
+### Changed
+
+- **`/work-items:setup` discovers and migrates the work-class label axis (#1677).** `check` probe 7
+  FAILs when any canonical member is missing on label-listing providers; `apply` step 3 provisions
+  missing labels when no label-as-code owner is declared (interactive migration), or stops with
+  explicit remediation otherwise.
+- **`/work-items:triage` pairs autonomous-eligible with a work-class label (#1677).** Hard pairing
+  rule cites `work-classes.md` for classification, preflights label-axis presence before mutating,
+  and covers all agent-ready outcomes via the general rule (not per-table-row duplication).
+- **`/work-items:work-loop` admission gate adds C1 read-only disposition as Autonomous**, matching
+  the shipped admission-policy default for C1.
+
 ## [0.35.6]
 
 ### Added
