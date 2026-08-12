@@ -3,6 +3,13 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+
+## [0.6.1]
+
+### Changed
+
+- Cut statusline tee from 9 process spawns to 4.
+
 ## [0.6.0]
 
 ### Changed
