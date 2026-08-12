@@ -3,6 +3,14 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.53.5]
+
+### Fixed
+
+- **`worktree-create.sh` signals lock failure with exit 5 and `lock_failed=1` on stderr (#2389).** The
+  worktree path is still printed so orchestrators can detect an unarmed liveness guard without
+  treating a silent success as a locked worktree.
+
 ## [0.53.4]
 
 ### Changed
