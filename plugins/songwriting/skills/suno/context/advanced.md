@@ -94,15 +94,15 @@ The "More Options" expandable section contains five controls. Claims below are c
 
 Operates at **different parsing stage** than inline `no X` negatives — Suno's negative-constraint pipeline vs style-prompt mixed pipeline. **More reliable than inline negatives** for global removal.
 
-**Critical syntax: enter BARE NOUNS, NOT negation phrases.**
+**Convention: enter BARE NOUNS, not negation phrases.** This is the documented convention, not a demonstrated requirement. Suno's own instruction for the field is first-party — "Enter any information (instruments, etc) that you do not want in your track" (`help.suno.com/en/articles/3161921`) — and community worked examples for the field list bare nouns. **No source shows negation phrases failing.**
 
-| Correct | Wrong (silently ignored) |
-|---------|--------------------------|
+| Convention | Off-convention |
+|------------|----------------|
 | `drums` | `no drums` |
 | `synthesizers, autotune` | `without synthesizers, no autotune` |
 | `electric guitar` | `exclude electric guitar` |
 
-The field already negates. Adding "no" / "without" / "exclude" creates a double-negative the parser drops.
+The field is already negative, so "no" / "without" / "exclude" are redundant inside it. What the parser does with them is untested — use the bare-noun column because it is the attested form, not because the other column is known to be ignored.
 
 **Complex exclusions like "no drums except cymbals" fail in this field** — handle via per-section style overrides in the lyrics field instead (see [lyrics.md](lyrics.md)).
 

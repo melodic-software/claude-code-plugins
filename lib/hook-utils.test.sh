@@ -789,6 +789,47 @@ else
 fi
 rm -rf "$DATA17" "$FAKEBIN17"
 
+# --- Test 17b: hook::require_jq_blocking — fail-closed gate (#2146) -----------
+out17b=$( (
+  hook::require_jq_blocking test-hook block_test_enabled
+  echo "alive"
+) 2>/dev/null)
+if [[ "$out17b" == "alive" ]]; then
+  ok "require_jq_blocking: jq present → pass-through"
+else
+  fail "require_jq_blocking: jq present misbehaved: $out17b"
+fi
+run17b() {
+  local args="$1"
+  CLAUDE_PLUGIN_DATA="$(mktemp -d)" "$BASH" -c '
+    PATH="'"$FAKEBIN17"'"
+    source "'"$HOOK_DIR"'/hook-utils.sh"
+    hook::require_jq_blocking '"$args"'
+    echo "unreachable"
+  ' 2>&1
+}
+FAKEBIN17="$(mktemp -d)"
+for t in mkdir find tr; do
+  real_t=$(command -v "$t")
+  printf '#!/bin/sh\nexec "%s" "$@"\n' "$real_t" >"$FAKEBIN17/$t"
+  chmod +x "$FAKEBIN17/$t"
+done
+with_opt17b=$(run17b 'test-hook block_test_enabled')
+rc_with_opt17b=$?
+if [[ $rc_with_opt17b -eq 2 && "$with_opt17b" == *'block_test_enabled'* && "$with_opt17b" != *unreachable* ]]; then
+  ok "require_jq_blocking: jq absent with option → exit 2 names the option"
+else
+  fail "require_jq_blocking: with option rc=$rc_with_opt17b out=$with_opt17b"
+fi
+no_opt17b=$(run17b 'test-hook-only')
+rc_no_opt17b=$?
+if [[ $rc_no_opt17b -eq 2 && "$no_opt17b" == *'Install jq'* && "$no_opt17b" != *'/plugin configure'* && "$no_opt17b" != *unreachable* ]]; then
+  ok "require_jq_blocking: jq absent without option → exit 2 names install only"
+else
+  fail "require_jq_blocking: without option rc=$rc_no_opt17b out=$no_opt17b"
+fi
+rm -rf "$FAKEBIN17"
+
 # --- git config value kinds + effective resolution ---------------------------
 # The option walk must tag each collected -c/--config/--config-env value with its
 # origin, and the effective-value projection must resolve a --config-env entry

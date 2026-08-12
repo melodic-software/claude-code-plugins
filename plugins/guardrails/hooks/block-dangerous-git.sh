@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# PreToolUse hook: block irreversible git operations on Bash tool calls.
+# PreToolUse hook: block irreversible git operations on Bash and PowerShell tool calls.
 #
 # Default block-list is irreversible-only (form tokens):
 #   push-force     — git push --force / -f / +refspec / --mirror
@@ -74,26 +74,34 @@ start=${EPOCHREALTIME:-}
 # call, and a silent skip would pass exactly the traffic this guard exists to
 # stop. buffer_stdin already printed the BLOCKED reason to stderr. Buffering
 # does not require jq (hook::buffer_stdin's own JSON-completeness check is
-# jq-optional), so it runs before the jq gate below — hook::require_jq needs
-# the buffered input for its once-per-session notice scoping.
+# jq-optional), so it runs before the jq gate below — hook::require_jq_blocking
+# needs the buffered input only when the fail-open sibling would scope a notice;
+# this guard denies instead, so the buffer is for jq_fields below, not for a skip
+# notice.
 INPUT=$(hook::buffer_stdin) || {
   rc=$?
   ((rc == 2)) && exit 2
   exit 0
 }
 
-# jq is required to parse the tool payload. hook::require_jq fails OPEN
-# (advisory hooks never block over a missing prerequisite) but makes the
-# degraded state visible to both the user (systemMessage) and the agent
-# (additionalContext), once per session — see docs/conventions/hook-observability/.
-hook::require_jq "PreToolUse" "guardrails-block-dangerous-git" "$INPUT"
+# jq is required to parse the tool payload, and this guard FAILS CLOSED on its
+# absence (#2146) — the same posture the MAX_COMMAND_LEN ceiling below already
+# took toward an input it cannot parse. Before #2146 the two disagreed inside
+# this one script: an over-long command was treated as obfuscation and blocked,
+# while a machine without jq skipped the guard entirely after one notice —
+# measured, `git push --force origin main` was ALLOWED. The posture, the
+# membership criterion for this class, and the disclosed cost are argued at
+# hook::require_jq_blocking in hook-utils.sh — this comment asserts the
+# behaviour, that one explains it.
+hook::require_jq_blocking "guardrails-block-dangerous-git" "block_dangerous_git_enabled"
 
 # All three payload fields in ONE jq process (hook::jq_fields), not three. A jq
 # spawn is ~140 ms of fork() emulation on Windows Git Bash and this guard runs on
-# every Bash/PowerShell call. Failure semantics are unchanged: a missing jq or an
-# unparsable payload yields rc 1 here, which exits 0 exactly as the empty-COMMAND
-# skip below did — hook::require_jq above has already made the degraded state
-# visible once per session.
+# every Bash/PowerShell call. rc 1 here means jq could not parse the payload at
+# all — it exits 0 exactly as the empty-COMMAND skip below did. A MISSING jq
+# can no longer reach this line — hook::require_jq_blocking above has already
+# denied the call (#2146) — so the rc-1 path here is now only the unparsable-
+# payload case.
 #
 # `.cwd` is the directory the TOOL CALL runs in, which is not the hook process's
 # own: Claude Code launches hooks from the session root while the Bash tool runs

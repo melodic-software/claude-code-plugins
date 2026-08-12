@@ -3,9 +3,153 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.0]
+
+### Changed
+
+- **`block-dangerous-git` and `block-no-verify` now FAIL CLOSED when `jq` is missing (#2146).**
+  `hook::require_jq` skipped the whole hook and exited 0 after one notice per session, so on a
+  machine without `jq` the guard was off: measured, `git push --force origin main` was **allowed**.
+  The same two scripts already fail *closed* on the other input they cannot parse — a command above
+  `MAX_COMMAND_LEN` is treated as obfuscation and blocked — so one script held two opposite postures
+  toward "I cannot read this input", and an author who could not fit a dangerous command under
+  16384 characters could simply be somewhere without `jq`. These two now deny instead, naming `jq`
+  as the missing prerequisite and pointing at the same install route the skip notice used.
+- **BREAKING for a `jq`-less machine, and stated plainly:** these guards run on every Bash and
+  PowerShell tool call, and without `jq` they cannot read the command at all — so they cannot tell a
+  dangerous one from a safe one and deny **both**. Every matched tool call is blocked until `jq` is
+  installed or the guard's own `block_dangerous_git_enabled` / `block_no_verify_enabled` option is
+  set to false. That is the hard dependency the fail-closed decision accepted; a `jq`-free substring
+  pre-check was considered and rejected for manufacturing a false sense of coverage. The kill switch
+  still bypasses the guard on a `jq`-less machine — `hook::check_enabled` runs before the gate.
+- **Every other guardrails hook is unchanged and still fails OPEN.** Membership in the fail-closed
+  class is mechanical, not a taste judgement about severity: a hook qualifies iff it *already* fails
+  closed on another unparsable-input condition (today, a `MAX_COMMAND_LEN` ceiling). Exactly two do.
+  `block-hook-bypass` and `block-noncanonical-commit` were considered and deliberately left
+  fail-open — they guard a reversible file write or a message shape, and neither holds the internal
+  contradiction. New `require-jq-posture.test.sh` pins the membership so the class cannot drift, and
+  measures the four-cell ALLOW/DENY grid with `jq` genuinely unreachable (hidden by overriding the
+  *lookup*, never by touching `PATH`, which would also remove `git` and produce the same answer for
+  an unrelated reason), with the `jq`-present column as the discrimination control and an advisory
+  hook as the posture control.
+
+## [0.25.3]
+
+### Fixed
+
+- **`skill-reference-verify` reported an untouched, pre-existing reference when an Edit carried
+  `replace_all: true`.** Partial-edit reconstruction separates an occurrence the call wrote from a
+  coincidental one by requiring the anchor to occur exactly once — and `replace_all` is precisely
+  where that rule is suspended, because there every occurrence is supposed to be the edit's own
+  footprint. It is not: after `ghost` replaces `setup` everywhere, the `ghost` inside a pre-existing
+  `ghost-old` matches the anchor too, and the guard named a reference the call never touched.
+
+  The issue this closes proposed it might be unfixable, on the ground that nothing in the payload
+  separates the two. That holds for `tool_input` and fails for `tool_response`, which carries the
+  Edit tool's structured output: `structuredPatch` marks the lines the call actually wrote with a
+  leading `+`. Under `replace_all` only, an occurrence is now kept just when its physical line is
+  one the patch reports as written. The suspended uniqueness rule gets an external witness instead
+  of nothing.
+
+  Both halves of that were confirmed against pages fetched 2026-08-10 rather than recall:
+  `PostToolUse` input carries `tool_response`, "the result it returned", and that field is "the
+  tool's structured `Output` object" ([Hooks reference](https://code.claude.com/docs/en/hooks));
+  `Output` for Edit is `FileEditOutput`, whose `structuredPatch` is `Array<{oldStart, oldLines,
+  newStart, newLines, lines: string[]}>` ([Agent SDK TypeScript
+  reference](https://code.claude.com/docs/en/agent-sdk/typescript), "Edit").
+
+  Matched by line TEXT, not line number, for two reasons: numbers are wrong the moment another
+  PostToolUse hook reformats the file between the write and this read — the case the reconstruction
+  fallback already exists for — and mapping a character offset back to a line number costs a
+  whole-prefix scan per occurrence, reintroducing the quadratic term 0.21.0 removed. The residual
+  imprecision runs in the safe direction: an untouched line whose text duplicates an edited one is
+  kept, and two references sharing one physical line stand or fall together.
+
+  Gate 3 may only ever REMOVE an occurrence when it can positively identify at least one the call
+  wrote. Found in review: comparing the on-disk line to the patch's line verbatim undid the
+  reformatting tolerance the per-line fallback exists to provide. An earlier-ordered PostToolUse hook
+  that reflows whitespace leaves the anchor locatable — a literal substring search does not care what
+  surrounds it — while changing the physical line, so a genuinely written reference was silently
+  dropped. Two corrections: comparison is whitespace-normalized, covering the reflow formatters
+  actually perform; and if the witness recognizes no occurrence at all it **abstains**, leaving the
+  unfiltered set, because a witness matching nothing is stale rather than discriminating. Without the
+  abstain, a formatter that rewrote more than spacing turned this gate from a filter into a silent
+  mute. Both residuals now run in the same direction: over-reporting, never under-reporting.
+
+  Deliberately inert outside its one case. A multi-line `new_string` is not filtered — its anchor
+  extent spans several lines, matches no single patch line, and filtering would erase every finding
+  rather than narrow them. A payload with no `tool_response`, and every non-`replace_all` Edit,
+  behaves exactly as before. Field supply is **observed, not merely documented**: an independent
+  reviewer captured a live PostToolUse payload on `claude 2.1.225`, in which `tool_response` arrives
+  as an object carrying `structuredPatch` (complete, not truncated, at 42 replacement sites in a
+  300-line file). The read is shape-tolerant regardless — a non-object `tool_response` yields an
+  empty witness and leaves the filter inert, rather than erroring the payload parse and silencing the
+  whole guard.
+
+  Scope worth stating plainly, since it is broader than "fixes one false positive": under
+  `replace_all`, a genuine reference sitting on a line the patch reports as CONTEXT is no longer
+  reported. That is the gate working as designed — a context line is one the call did not write — but
+  it does narrow what this guard says about a `replace_all` edit.
+
+## [0.25.2]
+
+### Fixed
+
+- **`block-convention-violation` read the wrong repository's git config, so a commit whose
+  subject violates the team convention passed unblocked.** Its `effective_dir` scanned EVERY word of
+  the command for `-C` — no `[git, subcommand)` slice and no wrapper replay, the shape the shared
+  parser from #1785 replaced, and that #2100 removed from `block-dangerous-git`. It failed
+  in the opposite direction from that sibling: not blind to a chdir, but inventing chdirs that were
+  never there. In `env -u -C git <alias> …`, GNU env's `-u NAME` consumes `-C` as the variable to
+  unset, so git never moves — yet the every-word scan composed `<cwd>/git` and looked for the alias
+  there. The consumer that matters is the gitconfig alias lookup, which has neither a stdin-form
+  gate nor an exemption gate and fails OPEN: reading the wrong repository's config silently misses
+  the expansion, the guard never learns the real subcommand is `commit`, and the convention goes
+  unenforced. `effective_dir` now takes git's own globals only — the slice from the resolved git
+  token to the subcommand — preceded by any genuine wrapper chdir replayed from
+  `HOOK_GIT_RESOLVED_WRAPPER_DIRS`, which is the one parser that can tell a real `env -C <dir>`
+  from the `-C` in `env -u -C git`. The sequencer probe at the same call site is corrected with it.
+
+  A post-subcommand `-C` is `--reuse-message`, not a directory, and the distinction is purely
+  positional. Note that `git commit -C HEAD` cannot itself demonstrate this: `-C` sets the
+  reuse-message exemption and the hook returns before `effective_dir` is ever called, so that
+  invocation answered "allowed" both before and after and would read as already fixed. The
+  positional case is covered through the alias lookup instead, where no exemption applies.
+
+  **Acceptance behavior changes** (hence a minor bump): a wrapped alias invocation whose expansion
+  is `commit` is now content-gated where it was waved through, and one whose alias exists only in
+  an unrelated directory the scan used to compose is no longer blocked on an expansion git would
+  never perform.
+
+- **A `!` shell alias lost the directory its invocation resolved to, so a prepared merge commit was
+  blocked instead of exempted.** Found in review of the above. A `!` alias body re-parses as a NEW
+  top-level command, and that fresh argv carries neither the wrapper that moved git nor git's own
+  globals — so `env -C <dir> git <alias>` resolved the alias in `<dir>` and then evaluated the alias
+  body's sequencer probe against the payload cwd. With a merge in progress in `<dir>`, the commit
+  git was about to make carries a prepared message and the guard documents an exemption for exactly
+  that; it was gated instead. `effective_dir` now falls back to `HOOK_EFFECTIVE_BASE`, which the
+  caller sets to the resolved directory around each `!` reparse and restores after — the mechanism
+  `block-noncanonical-commit.sh` already uses. Pre-existing, not introduced by the scoping fix above;
+  the fix simply made the path reachable enough to demonstrate.
+
+  What this composes is the caller's directory, where the sibling asks git for the alias's real
+  launch directory (git starts a `!` body at the work tree's top level). For this guard's two
+  consumers the two agree — `config --get` and `rev-parse --absolute-git-dir` answer identically from
+  anywhere inside one repository. They diverge only when a separate repository is nested below the
+  composed path, which is deliberately not modelled here.
+
 ## [0.25.1]
 
 ### Changed
+
+- **`block-hook-bypass`'s scope note now names `tee` and other inline-interpreter
+  write families it does not model (#2218).** No behaviour changes — lane-specific
+  `_BYPASS_SCOPE_NOTE_BASH` / `_BYPASS_SCOPE_NOTE_PWSH`, two `SCOPE (documented
+  residual)` blocks, the README residuals section, and five accepted-floor tests
+  now move together so a reader does not credit the guard with POSIX `tee` or
+  general interpreter coverage from the old "recognized inline interpreter code"
+  wording — and a PowerShell block no longer claims `tee` is unseen when Tee-Object
+  and its alias are modeled.
 
 - **0.25.0 described the scratch-root exemption's fail-close inaccurately on every surface, twice
   over. Corrected, and pinned (#2236; root cause #2226).** No behaviour changes — four documents

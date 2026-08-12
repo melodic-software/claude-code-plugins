@@ -75,8 +75,75 @@ Dispatch one fresh-context, non-fork verifier per surface batch, prompted to ref
 addition: "argue this component's purpose does not need this posture, or that it already carries
 it." Findings a verifier refutes are dropped or demoted to `info`.
 
-Persist the report to `${CLAUDE_PLUGIN_DATA}/audit-prompting-postures/last-audit.md` and summarize
-in chat:
+Persist the report to
+`${CLAUDE_PLUGIN_DATA}/audit-prompting-postures/<state-key>/last-audit.md`.
+
+**Derive `<state-key>` by running the commands below.** `${CLAUDE_PLUGIN_DATA}` is machine-global, not
+per-project, so a fixed `last-audit.md` is silently overwritten by the next run from any other root —
+this skill's only durable deliverable, destroyed by ordinary use of it. The scheme is `audit-pass`'s,
+reused rather than reinvented: `<repo-identity>/<worktree-discriminator>`, per
+[audit-pass's run-state reference](../audit-pass/reference/run-state-and-resumability.md) §3.
+
+```bash
+# sha256sum is absent on stock macOS; shasum -a 256 is the portable partner.
+sha256() { if command -v sha256sum >/dev/null 2>&1; then sha256sum; else shasum -a 256; fi; }
+
+# "the FIRST configured remote" — not necessarily one named `origin`. A repo whose only
+# remote is `upstream` still has a remote, and must not fall through to the local rung.
+remote_name=$(git remote 2>/dev/null | head -1)
+remote=$(git config --get "remote.${remote_name}.url" 2>/dev/null || true)
+# tr -d '\r': Git on Windows can return a CRLF-terminated path.
+root=$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r' || true)
+
+# repo-identity
+if [ -n "$remote" ]; then
+  identity=$(printf '%s' "$remote" \
+    | sed -e 's#^[a-z+]*://##' -e 's#^[^@/]*@##' -e 's#:#/#' -e 's#\.git$##' \
+    | tr '[:upper:]' '[:lower:]')
+  # A remote URL is arbitrary text and becomes DIRECTORY COMPONENTS here, so accept it
+  # only in the shape the scheme means — segments of [a-z0-9._-] each starting
+  # alphanumeric. That rejects `../central` (a relative filesystem remote, which would
+  # otherwise write outside this skill's namespace), absolute local paths, and
+  # backslashes. Anything rejected still keys deterministically, by hash.
+  if ! printf '%s' "$identity" | grep -qE '^[a-z0-9][a-z0-9._-]*(/[a-z0-9][a-z0-9._-]*)*$'; then
+    identity="remote/$(printf '%s' "$remote" | sha256 | cut -c1-12)"
+  fi
+elif [ -n "$root" ]; then
+  identity="local/$(printf '%s' "$root" | sha256 | cut -c1-12)"
+else
+  # Non-repo root. audit-pass's ladder stops at the two git rungs because it refuses
+  # non-git targets; this skill is report-only and audits them, so it needs a third.
+  identity="nonrepo/$(printf '%s' "$PWD" | sha256 | cut -c1-12)"
+fi
+
+# worktree-discriminator — two worktrees of one repo legitimately hold different content
+discriminator=$(printf '%s' "${root:-$PWD}" | sha256 | cut -c1-8)
+
+state_key="$identity/$discriminator"
+```
+
+Executed, not merely written: an https remote and its scp-style ssh equivalent normalize to the same
+`github.com/<owner>/<repo>`; a repo whose only remote is `upstream` keys by that remote rather than
+dropping to the local rung; a repo with no remote gives `local/<12>`; a non-repo root gives
+`nonrepo/<12>`; and relative (`../central.git`), absolute-local, and Windows-path remotes all key by
+hash and stay inside this skill's directory. Two worktrees of one repository differ in the
+discriminator, which is the property it exists for.
+
+Run those and use the result. Do **not** express the path as a condition over `${CLAUDE_PROJECT_DIR}`
+"when set": that placeholder is substituted inline before this file reaches you, so the literal token
+is never visible and the condition is not yours to evaluate. Derive the key from commands you actually
+run.
+
+**Open the report with a three-line header**, so a file that does survive is self-describing rather
+than merely un-overwritten:
+
+```
+Resolved root: <absolute path audited>
+Scope filter:  <the scope argument this run used, or "all">
+Run (UTC):     <ISO-8601 timestamp>
+```
+
+Then summarize in chat:
 
 | # | Posture | Component | Verdict | Proposed addition |
 |---|---------|-----------|---------|-------------------|

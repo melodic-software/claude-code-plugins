@@ -8,7 +8,8 @@ Boundaries* (2011), Challenge 2 ("Metaphor," Days 1-14) and Challenge 3
 ## Anchor stance
 
 > "Metaphors have a way of holding the most truth in the least space."
-> — Orson Scott Card (cited by Pat as Challenge 2 epigraph)
+> — Orson Scott Card (cited by Pat as *Songwriting Without Boundaries* (2011),
+> Challenge 2 epigraph)
 
 > "The ability to see one thing as another is the only truly creative
 > human act." — Aristotle (cited by Pat,
@@ -278,13 +279,22 @@ Pat refers to these by number throughout Challenges 2 and 3 ("the second
 version of expressed identity," "the third form"), so keep the numbering
 when coaching.
 
-Chapter 3's drill — run each of these through all three forms:
+*Writing Better Lyrics* (2009), Chapter 3's drill — run each of these through
+all three forms:
 
 ```text
 wind = yelping dog
 wind = river
 wind = highway
 ```
+
+**Pat prints this same drill twice.** It is *Writing Better Lyrics* (2009),
+Chapter 3 "Making Metaphors", and he reprints it in *Songwriting Without
+Boundaries* (2011), Challenge 2. Matching the three `wind =` lines against the
+books therefore returns **two** books, and only the chapter number settles it:
+the 2011 book has Challenges and Days, never chapters, and its printing sits in
+Challenge 2 rather than 3. Recorded because a text-only matcher cannot resolve
+this site and should not guess.
 
 Each form changes the pressure and usability of the metaphor:
 

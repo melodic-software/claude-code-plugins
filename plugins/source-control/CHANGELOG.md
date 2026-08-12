@@ -3,6 +3,42 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.51.11]
+
+### Changed
+
+- **Shared `hook-utils.sh`: the jq gate now has a fail-CLOSED sibling, and the posture reasoning
+  lives at the helper (#2146).** `hook::require_jq` is unchanged and still fails OPEN — one visible
+  skip notice per session, then exit 0 — which is the correct posture for every hook in this plugin,
+  so **nothing in this plugin's behaviour changes**. What is new is `hook::require_jq_blocking`, a
+  second named function that denies the tool call instead, for the narrow class of guards whose job
+  is blocking an irreversible operation (today only two, both in `guardrails`). A sibling function
+  rather than a parameter, because a flag's omitted value would default to fail-open and a guard
+  whose flag someone forgot would then fail open *silently* — the exact defect #2146 reports,
+  reintroduced at the API. The two postures are now argued together in one block above both
+  functions, which is what #2146 asked for: previously each call site asserted a posture in a
+  comment and nothing where the decision is made explained it. Synced from `lib/hook-utils.sh`.
+
+## [0.51.10]
+
+### Documentation
+
+- **`exec-bit-check.sh`'s rename arm is `diff.renames`-dependent on the DEFAULT config, and that
+  trade is now recorded where the gate is (#2141).** `git mv` of a `100644` shebang file reads as
+  `D`+`A` under `diff.renames=false` and IS reported through the `A` branch; the same index and the
+  same HEAD read as `R100` under the default `diff.renames=true` and are NOT. Only the config
+  differs. **No behaviour change** — the `R*` arm keeps its `100755`-source gate. #2141 weighed
+  dropping the gate for renames and making the `A` branch skip a rename-as-add, and kept the gate:
+  the false positive it prevents is real and pinned by `repo19` in `exec-bit-check.test.sh` — a
+  deliberately non-executable sourced library or template must not be flipped to `100755` because
+  someone moved it. Dropping the gate would buy config-agreement by shipping that false positive to
+  every consumer; making the `A` branch match would buy it by reporting *less*, risking silence on
+  genuinely new files. What changes is the prose: content-determinism is stated as a property of the
+  `A` and `C` classes only — never of the whole tool — at the script header, at the candidate-set
+  gate, in `--help`, in `reference/exec-bit.md`, and next to `repo19`. New case group **19b** pins
+  both halves of the disagreement on one fixture repo, with HEAD and the index asserted identical
+  across the two runs, so the decision is executable rather than only written down.
+
 ## [0.51.9]
 
 ### Fixed

@@ -291,6 +291,16 @@ You give my life direction                       4  <- added phrase
 You make everything so clear                     5
 ```
 
+**Do not "correct" `everything` to `averything` here.** The 1991 text layer
+prints `You make averything so clear` at this passage — the only occurrence of
+that spelling in all four books. Two photographic scans of the printed page,
+figures `image_rsrc32V` (Chapter 5) and `image_rsrc34F` (Chapter 7), both print
+`everything`, so the text layer carries the defect and the line above is what
+the book prints. Recorded here because a future sweep matching this block
+against the spine will otherwise "restore" the defect. See `hook.md` for the
+full three-printing comparison, which also covers a second divergence: fig
+`34F` drops the `that` in line one, and Chapters 1 and 5 keep it.
+
 Unbalancing the second verse throws it into the air, "just like juggling."
 
 **The reversal test.** Pattison's own check on this example: swap the two

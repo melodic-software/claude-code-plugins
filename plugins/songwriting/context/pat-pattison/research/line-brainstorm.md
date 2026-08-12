@@ -276,7 +276,7 @@ something about them. They're the most potent force in language. Nouns are
 inert. They sit there. Adjectives pile on top of them and sit there. Verbs
 electrify them, propel them, launch them into action. The difference between
 average and great writing: verbs." — *Songwriting Without Boundaries* (2011),
-Challenge #2.
+Challenge 2.
 
 > "Eminem and Stephen Sondheim approach their writing through the same
 > process. It's called a worksheet process."

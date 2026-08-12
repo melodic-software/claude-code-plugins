@@ -1036,11 +1036,18 @@ closing / rose      like / hiking      steamer / cream
 
 Worked example: expanding a family search on `travel`
 
-The Chapter 4 family search on `travel` produced feminine matches only:
+This worked example is *Essential Guide to Rhyming* (2014), Chapter 6 recalling
+the `travel` search it ran back in Chapter 4 — "Look at a word from the earlier
+section on family rhyme. Remember this rhyme search?" The search produced
+feminine matches only:
 
 ```text
 bashful   dazzle   wrathful   glass full   satchel   fragile
 ```
+
+The list above follows **Chapter 6's** printing. Chapter 4 prints the same seven
+words but annotates one of them, `glass full (mosaic)`; Chapter 6 drops the
+annotation. Both are as printed — do not merge them.
 
 Add partial rhyme and the field opens:
 

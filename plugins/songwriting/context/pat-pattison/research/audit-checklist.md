@@ -24,8 +24,8 @@ Sources, corrected:
   Ch 7 (power positions), Ch 8 (travelogues), Ch 9 (recoloring), Ch 10-13
   (point of view), Ch 19 (the five basic structural elements, motion and
   emotion), Ch 22 (song forms, "four times is a lot")
-- *Songwriting Without Boundaries* (2011) — Challenge #1 and #2 (verbs),
-  Challenge #4 (stress, the *ínto* rule). This book has **Challenges and Days,
+- *Songwriting Without Boundaries* (2011) — Challenge 1 and 2 (verbs),
+  Challenge 4 (stress, the *ínto* rule). This book has **Challenges and Days,
   not chapters**; the old header's "Chapter 4" was a citation-form error.
 - *Essential Guide to Rhyming* (2014) — Ch 4 "Family Friends" (partners and
   companions), Ch 9 "Craft and Rhyme Types" (rhyme type by position)
@@ -175,7 +175,7 @@ Run for any line under consideration for locking.
 
 **Stress & meter (*Essential Guide to Lyric Form and Structure* (1991),
 Chapter 3 "Rhythm: Setting Up, Shutting Down"; *Songwriting Without Boundaries*
-(2011), Challenge #4 "Writing in Rhythm & Rhyme" — that book is organized in
+(2011), Challenge 4 "Writing in Rhythm & Rhyme" — that book is organized in
 Challenges and Days, never chapters)**
 
 Pat frames this as Goldilocks — too hot, too cold, just right:
@@ -202,7 +202,7 @@ Pat frames this as Goldilocks — too hot, too cold, just right:
       > stressed ínto, not intó. It is probably the most badly handled word in
       > songwriting—perhaps since it usually follows a stressed syllable […]
       > The proper handling is / She walked (pause) ínto the room."
-      > — *Songwriting Without Boundaries* (2011), Challenge #4
+      > — *Songwriting Without Boundaries* (2011), Challenge 4
 - [ ] compound words: "In English, the primary stress in compound words is
       almost always on the first syllable." (same challenge)
 - [ ] prepositions kept in secondary rhythmic positions — "when you set lyric
@@ -346,11 +346,11 @@ inside a phrase:
       > pile on top of them and sit there. Verbs electrify them, propel them,
       > launch them into action. The difference between average and great
       > writing: verbs."
-      > — *Songwriting Without Boundaries* (2011), Challenge #2
+      > — *Songwriting Without Boundaries* (2011), Challenge 2
       And his audition test: "Strong verbs are the key to strong writing.
       Audition your verbs. Let them prance and somersault for you. Verbs based
       in metaphor or steeped in the senses usually get the gig."
-      (*Songwriting Without Boundaries* (2011), Challenge #1)
+      (*Songwriting Without Boundaries* (2011), Challenge 1)
 
 **Cliche scan (*Writing Better Lyrics* (2009), Chapter 5)**
 

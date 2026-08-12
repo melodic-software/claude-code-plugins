@@ -4,6 +4,8 @@ Techniques here are **MEDIUM confidence** — multi-source consensus across comm
 
 Surface as **opt-in suggestions**, not commands. Default to HIGH-confidence techniques in `style.md` and `lyrics.md`.
 
+**An individual entry may flag itself lower than this header, and that flag wins.** The timing-cue entry below is LOW-MEDIUM; the rung is defined in the confidence ladder in `SKILL.md`.
+
 ## Performance shaping (in lyrics)
 
 ### Capitalization for vocal pressure

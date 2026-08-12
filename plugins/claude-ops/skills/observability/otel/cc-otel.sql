@@ -92,7 +92,11 @@ SELECT
     list_filter(r.attributes, lambda x: x.key = 'duration_ms')[1].value.intValue
   ) AS DOUBLE)                                                                             AS duration_ms,
   list_filter(r.attributes, lambda x: x.key = 'success')[1].value.stringValue              AS success,
-  list_filter(r.attributes, lambda x: x.key = 'decision_source')[1].value.stringValue      AS decision_source,
+  -- tool_decision emits `source` (official); tool_result emits `decision_source` — one column.
+  COALESCE(
+    list_filter(r.attributes, lambda x: x.key = 'source')[1].value.stringValue,
+    list_filter(r.attributes, lambda x: x.key = 'decision_source')[1].value.stringValue
+  )                                                                                        AS source,
   list_filter(r.attributes, lambda x: x.key = 'prompt.id')[1].value.stringValue            AS prompt_id,
   list_filter(r.attributes, lambda x: x.key = 'tool_use_id')[1].value.stringValue          AS tool_use_id,
   list_filter(r.attributes, lambda x: x.key = 'terminal.type')[1].value.stringValue        AS terminal_type,

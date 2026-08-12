@@ -22,7 +22,8 @@ Make the rhyme search before drafting lines. A worksheet puts the writer in
 known terrain, so phrase-end positions can be chosen for meaning rather than
 panic-filled availability.
 
-Chapter 3 opens with the friend-finding analogy in Pat's own words:
+*Essential Guide to Rhyming* (2014), Chapter 3 opens with the friend-finding
+analogy in Pat's own words:
 
 > If you're lonely and you want to make friends, you should go places where
 > you're likely to find people you have things in common with. Maybe go to a
@@ -50,7 +51,7 @@ The whole method is three steps:
 
 Pat does not introduce a fresh example to run the method on. He writes, verbatim,
 "Start with our old idea." — the couplet already in play from earlier in the book,
-and the one he returns to in Chapter 7:
+and the one he returns to in *Essential Guide to Rhyming* (2014), Chapter 7:
 
 ```text
 I'm sick of all this risky business
@@ -510,7 +511,7 @@ additive, assonance, and consonance rhyme are on the table.
 ## Expand the worksheet after learning rhyme types
 
 Keep the Chapter 3 worksheet frame: idea sketch -> central word list -> active search
--> filtering -> drafting. Chapter 7 adds a new middle layer:
+-> filtering -> drafting. *Essential Guide to Rhyming* (2014), Chapter 7 adds a new middle layer:
 
 ```text
 seed word

@@ -111,7 +111,8 @@ skip+reason):**
 - [ ] **NO single winner imposed** — writer picks by emotional intent
 - [ ] **Sing-check noted** — the AI cannot sing; the WRITER must sing-check.
       Not optional politeness: Pat makes singing the test that settles an
-      additive rhyme, twice in Chapter 5 alone (see anchor quotes below).
+      additive rhyme, twice in *Essential Guide to Rhyming* (2014), Chapter 5
+      alone (see anchor quotes below).
       Chapter 4 gives the reason — "Since lyrics are sung, vowel sounds are
       promoted and consonant sounds are demoted. If you take the time to
       sing the family rhymes, they will not trouble your sensibilities."

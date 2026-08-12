@@ -246,7 +246,7 @@ Pat carries the same reading through the other two verses:
 
 ## Verses show, chorus tells
 
-Chapter 9 states a useful rule of thumb:
+*Writing Better Lyrics* (2009), Chapter 9 states a useful rule of thumb:
 
 > verses show, chorus tells.
 
@@ -582,7 +582,7 @@ Where did I get here from?
 The verse first written may belong in the middle or end. Try moving boxes
 around before assuming the song must continue forward from the first draft.
 
-Chapter 6's framing, twice stated:
+*Writing Better Lyrics* (2009), Chapter 6's framing, twice stated:
 
 > Just because you wrote a verse first doesn't mean it's your first verse. Give
 > yourself two chances. Don't just ask "Where do I go next?" Try asking "What

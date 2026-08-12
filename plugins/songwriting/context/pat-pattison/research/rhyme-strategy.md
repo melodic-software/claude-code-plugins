@@ -56,7 +56,8 @@ This file focuses on decision-making. For definitions and mechanics, see
 
 ## The five areas rhyme controls
 
-Chapter 4 names five, not four. Pat's list as printed:
+*Essential Guide to Lyric Form and Structure* (1991), Chapter 4 names five, not
+four. Pat's list as printed:
 
 > Rhyme controls or helps to control each structural area:
 >
@@ -87,7 +88,8 @@ scheme itself:
 
 ## The three rhyme strategies
 
-Having covered the "What," Chapter 4 turns to the "Why" and names three:
+Having covered the "What," *Essential Guide to Lyric Form and Structure* (1991),
+Chapter 4 turns to the "Why" and names three:
 
 > Once you understand the effect that rhyme structure has on a system, you can
 > start to develop strategies for choosing them. There are three basic rhyme
@@ -412,7 +414,8 @@ landing, and emotional stability.
 Rhyme schemes create expected motion. Rhyme types can reinforce, soften, or
 destabilize that motion.
 
-Chapter 9's method statement, and the sentence the slogan caps:
+*Essential Guide to Rhyming* (2014), Chapter 9's method statement, and the
+sentence the slogan caps:
 
 > Here, however, we’ll look only at the rhymes themselves so we can isolate
 > their motion; understand what they do within the more complicated motions

@@ -340,14 +340,54 @@ The revised section (fig `image_rsrc34E`):
 
 > "Watch."
 
-The scan in fig `image_rsrc34F` is a five-line lyric block. Rows one through
-four print 5, 5, 5, and 3 slash marks. Row five prints `u u / u // u /`,
-including a doubled slash; whether that doubled mark denotes two stresses or
-is a printing anomaly cannot be determined from the scan. Line two carries the
-strategic-position arrows; line four carries the unbalancing-phrases label. Its
-printed lyric is image-only and was deliberately not reproduced: it is absent
-from the gated 1991 spine text, so the required file-to-file lyric splice cannot
-be applied.
+The scan in fig `image_rsrc34F` is a five-line lyric block — Verse 2 of Kevin
+Cronin's "CAN'T FIGHT THIS FEELING", scanned. Every row was read from the
+rendered figure one row at a time at 12-13x magnification, by eye, no OCR:
+
+<!-- spellchecker:off -->
+```text
+    u / u / u / u / u / u
+    I tell myself I can't hold out forever
+
+->  u / u / u / u / u /                          <-  (strategic position)
+    I say there is no reason for my fear
+
+    u / u / u / u / u / u
+    'Cause I feel so secure when we're together
+
+    u / u / u / u                                    (unbalancing phrases)
+    You give my life direction
+
+    u u / u // u /
+    You make everything so clear
+```
+<!-- spellchecker:on -->
+
+Rows one through four print 5, 5, 5, and 3 slash marks. Row five prints a
+**doubled** slash; whether that doubled mark denotes two stresses or is a
+printing anomaly cannot be determined from the scan, so it is recorded exactly
+as printed. Line two carries the strategic-position arrows; line four carries
+the unbalancing-phrases label.
+
+**The same lyric is printed twice more in this book, and the three printings do
+not agree.** Chapter 1's prose sets the whole verse as text; Chapter 5 sets
+lines one and three as text and lines two, four and five as figures
+(`image_rsrc32U`, `image_rsrc32V`). Two divergences, both recorded rather than
+reconciled:
+
+- **Line one.** Fig `34F` prints `I tell myself I can't hold out forever`.
+  Chapter 1 and Chapter 5 both print `I tell myself **that** I can't hold out
+  forever`. The figure omits the `that`; its 11 marks match the 11 syllables
+  without it.
+- **Line five.** Figs `34F` and `32V` both print `everything`. The Chapter 1
+  **text layer** prints `averything` — a single-letter variant that appears
+  exactly once in all four books. Two photographic scans of the printed page
+  agree against one reflowed text run, so `everything` is what the book prints
+  and the text layer carries the defect. This is the one place in this corpus
+  where a figure adjudicates the spine rather than the other way round.
+
+Do **not** "correct" either divergence in the direction of the other: the
+figure is verbatim as a figure, and Chapter 1's prose is verbatim as prose.
 
 > "When your HOOK rhythm matches the second phrase, as in"
 

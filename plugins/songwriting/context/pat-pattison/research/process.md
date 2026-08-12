@@ -161,7 +161,8 @@ keeping present-tense verses immediate.
 
 ## Form alternatives
 
-After point of view and tense are working, test form. Chapter 24's working form is:
+After point of view and tense are working, test form. *Writing Better Lyrics*
+(2009), Chapter 24's working form is:
 
 ```text
 verse / verse / chorus / verse / verse / chorus / bridge / chorus

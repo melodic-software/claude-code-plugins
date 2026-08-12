@@ -3,6 +3,123 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.1]
+
+Both audit denominators are unchanged: **Axis 1 stays 44 of 44** and **Axis 2
+stays 226 of 226**, read from the ledger rather than inherited. Nothing here
+opens a new unit — no new reading was done. This release closes the six
+follow-ups tracked in issue #2233.
+
+**A patch, not a minor.** The one piece of new content is a lyric this project
+had itself recorded as a deliberate omission, so restoring it is a fix rather
+than an addition.
+
+### ⚠ A CLAIM SHIPPED IN 1.1.0 WAS FALSE — figure `34F` is NOT image-only
+
+1.1.0 recorded, under "Known and deliberate omissions", that fig
+`image_rsrc34F`'s five-line lyric was *"image-only — absent from the gated 1991
+text layer, confirmed against a known-present control"*. **It is not.** The same
+verse is printed as prose in the 1991 spine, in **Chapter 1** — six chapters
+before the figure, which is in Chapter 7. The original search was scoped to the
+spine file holding the figure and never asked whether another chapter printed
+it.
+
+**The control could not have caught this, and that is the lesson.** A grep for
+line five — `make everything so clear` — returns **zero across all four books**,
+because the 1991 text layer prints `averything`. A known-present control proves
+your *search* works; it can never prove your *target* is absent. One line failing
+where its neighbours match means "look for a typo", not "absent".
+
+### Added
+
+- **Fig `image_rsrc34F`'s five-line lyric is transcribed** in `hook.md`, with
+  its scansion. Every row was read one row at a time at **12-13x**, by eye,
+  **no OCR**, from named PNG files. Rows 1-4 carry 5, 5, 5 and 3 slash marks;
+  row 5's
+  doubled mark is recorded exactly as printed, still without deciding whether it
+  denotes two stresses or is a printing anomaly.
+- **A standing rule for image-only figure content**, in `book-references.md`:
+  render, read by eye, name the PNG, **OCR forbidden**, crop one row at a time.
+  This is not a new practice — it is what `hook.md` (fig `34G`), `cliche.md` and
+  `bridge.md` already do. Fig `34G` proves it: the figure prints `ANYMORE`, the
+  prose prints `ANY MORE`, and `hook.md` correctly prints the figure's form.
+- **The `Challenge #N` boundary**, in `book-references.md`, as a role table.
+
+### Fixed
+
+- **50 bare `Chapter N` / `Challenge N` citations now name their book.** Each
+  book was resolved by matching the introduced block against the four spines,
+  under a control that fails the run if matching breaks. **One site was genuinely
+  ambiguous** — the `wind = yelping dog` drill is printed in *both* the 2009 and
+  2011 books — where the previous measurement had reported none; only the chapter
+  number settles it, since the 2011 book has Challenges and Days, never chapters.
+  The last **3** of the 50 came from re-running the scan with a deliberately
+  looser pattern and diffing it against the tight one: the tight scan required
+  the intro line to end in a colon and the block to be quoted or fenced, and so
+  was blind to indented blocks and to intros that trail into the next sentence.
+  Loose found 9 more sites, **6 false positives** — four inside HTML comments,
+  one a sentence of this release's own new prose, one a plugin-authored example
+  inside a fence — and **3 real ones**, now fixed.
+- **`rhyme-types.md` attributed the wrong chapter.** The `travel` family search
+  is printed twice: Chapter 4 annotates `glass full (mosaic)`, and Chapter 6
+  recalls the search and drops the annotation. The reproduced block is
+  **Chapter 6's** printing, followed by Chapter 6's "Add partial rhyme" move,
+  while the line cited Chapter 4. Found by a second check that verified cited
+  chapter *numbers* against all 266 spine headings — the resolver itself only
+  ever proved the *book*, and would have passed 47 correct book names sitting on
+  wrong chapter numbers.
+- **10 citation-role `Challenge #N` sites normalized** to `Challenge N`. Exactly
+  one hash site remains in the research corpus — `metaphor.md`, inside a
+  quotation, verified verbatim against the 2011 spine. The other occurrences in
+  the plugin are the new rule in `book-references.md` and this changelog, both
+  of which quote the form in order to describe it.
+- **`lyrics.md` no longer claims first-party support it does not have.** The
+  cited Suno article is "How to Use: Song Editor" and contains no bracket-tag
+  content. The false clause was deleted and **no citation was substituted for
+  it** — the surviving `HIGH` is re-anchored to the community attestation that
+  actually carries it.
+- **`advanced.md`'s `Wrong (silently ignored)`** is now `Off-convention`. No
+  source shows negation phrases failing; the bare-noun form is the attested one,
+  which is a different claim.
+- **`power-tips.md`'s positional tag weighting** moved out of instruction bullets
+  into prose marked never-checked. **No audit row has ever examined this claim
+  class**, so it is kept and marked rather than deleted — unsourced is not
+  contradicted.
+- **`voices.md`'s privacy warning now governs every voice creation**, not just
+  the subsection for writers who cannot sing. A competent singer never read it
+  before.
+- **`SKILL.md`'s confidence ladder gained the `LOW-MEDIUM` rung** that two files
+  were already using without it being defined.
+
+### Recorded, deliberately not resolved
+
+- **Fig `34F` against the prose printings.** The figure drops the `that` in line
+  one; Chapters 4 and 6 keep it. Figs `34F` and `32V` print `everything`; the
+  Chapter 1 text layer prints `averything` — the only occurrence in the corpus,
+  confirmed genuine to the EPUB. Two photographs of the printed page against one
+  reflowed text run, so **the text layer carries the defect**. This is the one
+  site where a figure adjudicates the spine. `phrasing.md` carries a note so a
+  future spine-matching sweep cannot "restore" it.
+- **`voices.md`'s account-locked line versus the reported default-public
+  toggle.** Both are stated, the conflict is stated, and the conservative reading
+  governs. No reconciliation was invented, and the warning is **not** described
+  as disputed — the poster re-affirmed it and nobody rebutted it.
+
+### Still open
+
+<!-- spellchecker:off -->
+
+- **`melodic-software/standards#349` is MERGED**, but `_typos.toml` here has not
+  synced — `DUM` is still absent. The 56 inline `<!-- spellchecker:off/on -->`
+  guards stay until it does.
+
+<!-- spellchecker:on -->
+
+- `power-tips.md:29` ("Order encodes priority") is the same never-audited claim
+  class as the rule demoted above, in the same file, and no audit row covers it.
+- The `tips.md` timing-cue entry's `~70%` figure has no basis recorded anywhere
+  in this repo. Flagged `LOW-MEDIUM` and left flagged.
+
 ## [1.1.0]
 
 Both audit denominators are unchanged: **Axis 1 stays 44 of 44** and **Axis 2

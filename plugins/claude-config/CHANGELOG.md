@@ -3,7 +3,7 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.32.0]
+## [0.33.0]
 
 ### Changed
 
@@ -60,6 +60,87 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   `managed-settings.d/` drop-in directory, Windows policy registry keys, macOS preferences domain).
   `claude-memory` carries a byte-identical copy, registered as a cross-plugin shared-source cluster
   so the two cannot drift.
+
+## [0.32.0]
+
+Two behavior changes, hence the minor: `permission-rule-check.sh` refuses an unresolvable scan root
+instead of sweeping the user profile, and `audit-prompting-postures` writes its report to a
+project-keyed path instead of one fixed name.
+
+### Fixed
+
+- **`audit-permission-grants` P2 stated a rule the docs do not contain, and emitted it on rule classes
+  it is false for.** The check's **Why** read "Bash rules match literally with no `~`/`$HOME`/env
+  expansion". Grepping the complete raw markdown of both
+  [permissions](https://code.claude.com/docs/en/permissions) and
+  [skills](https://code.claude.com/docs/en/skills) (fetched with `curl` to a file, 2026-08-11) finds no
+  such sentence on either page — the claim is **unsupported**, not merely over-broad — and two
+  documented behaviors contradict it. Claude Code substitutes `${CLAUDE_SKILL_DIR}` and
+  `${CLAUDE_PROJECT_DIR}` in Bash rules in `allowed-tools`, which the skills page presents as *the* way
+  to run a bundled script without a prompt; and a leading assignment of certain known-safe environment
+  variables is stripped, so `Bash(npm test *)` matches `NODE_ENV=test npm test`. The skill was telling
+  authors to remove the documented zero-prompt pattern.
+- **And the same sentence was emitted on `Read` and `Edit` findings, where it is false twice over.**
+  Probing the shipped detector confirms P2 fires on a `Read(<home>/notes.md)` or
+  `Edit(<home>/src/**)` rule carrying the Bash-scoped message — but those classes use gitignore
+  pattern syntax and **do** resolve `~/`: the permissions page's own example has
+  `Read(~/Documents/*.pdf)` matching `<home>/Documents/*.pdf`. One message string serves every class,
+  so it now carries only what is true of all of them — the portability break — and names the portable
+  form per class. The mechanism
+  detail moves into `criteria.md` as a per-rule-class table, syncing down from the
+  `permission-rule-hygiene` convention, which already held the corrected doctrine including the
+  `${CLAUDE_PROJECT_DIR}` v2.1.196 substitution floor and the fact that `${CLAUDE_PLUGIN_ROOT}` is not
+  substituted at all. The wrong text was pinned by a passing assertion, so the test moved with it.
+
+### Changed
+
+- **`permission-rule-check.sh` refuses an unresolvable scan root instead of falling through to `$PWD`.**
+  Outside a git repository `$PWD` is whatever directory the session happens to stand in — on a
+  developer machine, usually the user profile — and both scans walk the root with `find` with no depth
+  bound and stderr discarded, then exit 0. A timeout or a swallowed permission error was
+  indistinguishable from a clean bill, on a skill that is model-invocable
+  (`disable-model-invocation: false`). The ladder is now fixture dir → git toplevel →
+  `${CLAUDE_PROJECT_DIR}` and nothing after it; an unresolvable root exits **2**, reusing the
+  environment-gap channel the contract already documents for a missing `jq` rather than minting a new
+  code, so the advisory exit-0-for-findings contract is untouched. **`--count` refuses too** — a `0`
+  printed by a scan that never resolved a root reads exactly like a clean bill. The refusal names what
+  it tried and how to fix it.
+- All five "always exits 0" statements moved together — `reference/criteria.md`, and the script's
+  header comment, usage block, and `--help` text — since a refusal branch contradicts each. `SKILL.md`
+  carried no such claim to update: `grep` finds none there, and its exit-related line documents the jq
+  exit 2.
+- **`audit-prompting-postures` keys its report per project.** It persisted to a single
+  `${CLAUDE_PLUGIN_DATA}/audit-prompting-postures/last-audit.md`, and `${CLAUDE_PLUGIN_DATA}` resolves
+  to `~/.claude/plugins/data/{id}/` where `{id}` is the *plugin* identifier, never the project. The
+  skill's only durable deliverable was therefore overwritten by the next run from any other root — the
+  audit artifact destroyed by ordinary use of the skill. The path now carries a `<state-key>`, and the
+  report opens with a three-line header (resolved root, scope filter, UTC timestamp) so a surviving file
+  is self-describing rather than merely un-overwritten.
+
+  **The scheme is `audit-pass`'s, reused rather than reinvented** —
+  `<repo-identity>/<worktree-discriminator>` from its run-state reference — because a second scheme for
+  one concern is the drift this batch exists to remove. One rung is added: that ladder has
+  git-with-remote and git-without-remote and no non-repo rung, which `audit-pass` does not need because
+  it refuses non-git targets, while this skill is report-only and audits them.
+
+  **The derivation is written as commands to run, never as a condition over `${CLAUDE_PROJECT_DIR}`.**
+  That placeholder substitutes inline in skill content, so the model never sees the literal token and
+  cannot evaluate "when set" — the originally filed fix sketch would have introduced that defect while
+  removing this one.
+
+  **A remote URL is arbitrary text that becomes directory components here, so it is validated before
+  use.** Only the shape the scheme means is accepted — path segments of `[a-z0-9._-]` each starting
+  alphanumeric. Everything else keys by hash instead, still deterministically. Without that check a
+  relative filesystem remote (`git remote add origin ../central.git`) yields the identity `../central`
+  and the report lands *outside* this skill's directory; absolute-local and Windows-path remotes fail
+  the same way. And the remote is read from **the first configured remote** — `git remote | head -1` —
+  not from one named `origin`, because a repo whose only remote is `upstream` has a remote and must not
+  drop to the local rung. Both were found in review against the first draft, which did exactly that.
+
+### Added
+
+- Evals 4 and 5 for `audit-prompting-postures`: two roots must produce two surviving reports keyed by
+  the reused scheme, and a non-repo root must still key and still self-describe.
 
 ## [0.31.0]
 

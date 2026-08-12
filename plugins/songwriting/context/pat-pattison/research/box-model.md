@@ -24,7 +24,7 @@ A box is a unit of idea-movement, not a unit of form
 > Boxes only show how the ideas evolve, regardless of the specific form you use.
 
 The governing principle, stated at the end of the "Between Fathers and Sons"
-demonstration in Chapter 6:
+demonstration in *Writing Better Lyrics* (2009), Chapter 6:
 
 > Here is a simple principle for division of labor: Put separate ideas in
 > separate boxes.
@@ -35,7 +35,8 @@ from a travelogue.
 
 ## Box weight rule
 
-Pat's own statement of the stack, opening Chapter 6's box discussion:
+Pat's own statement of the stack, opening *Writing Better Lyrics* (2009),
+Chapter 6's box discussion:
 
 > It might be helpful to think about a song as a stack of boxes that are
 > connected to each other, each one getting progressively larger. Think of each
@@ -437,7 +438,8 @@ And recognized the gift I'd been given in my life
 ## The "what came before?" diagnostic
 
 When a writer is stuck on verse 2, the question is rarely "what's the next
-event?" Pat states the move twice in Chapter 6:
+event?" Pat states the move twice in *Writing Better Lyrics* (2009),
+Chapter 6:
 
 > One more tip: Just because you wrote a verse first doesn't mean it's your
 > first verse. Give yourself two chances. Don't just ask "Where do I go next?"
@@ -487,7 +489,7 @@ pole's material comes from.
 | Box symptom | boxes gain no weight; all the same size | Box 2 = Box 1 |
 | Fix | find the chain — use each verse to prepare what comes next | shift the job via You-I-We or Past-Present-Future |
 
-Chapter 8's own image for the difference:
+*Writing Better Lyrics* (2009), Chapter 8's own image for the difference:
 
 > Your lyric accumulates power when your verses work together — using each verse
 > to prepare what comes next. It's like starting avalanches. If you go a third of
@@ -559,7 +561,7 @@ The full worked travelogue and its repair ("Chain Reaction") are in
 
 The test Pat actually applies is to read each verse and then the chorus that
 follows it, and see whether the second chorus can say anything the first didn't.
-Chapter 7 supplies the image:
+*Writing Better Lyrics* (2009), Chapter 7 supplies the image:
 
 > Think of your verses as colored spotlights. They shine their lights on their
 > chorus or refrain. If two verses project exactly the same color, their choruses
@@ -570,7 +572,7 @@ Verses connected but same-colored is NOT a travelogue; the chain is intact and
 the repainting is missing.
 
 Pat's case is "Between Fathers and Sons" (John Jarvis and Gary Nicholson), in
-Chapter 6. He counts **two** boxes, not three:
+*Writing Better Lyrics* (2009), Chapter 6. He counts **two** boxes, not three:
 
 > "Between Fathers and Sons" is made up of two boxes. Verses one and two plus
 > the first chorus make up box one. Verses three and four plus the second chorus
@@ -651,7 +653,8 @@ connection first, the weight second.
 
 ## Repaintable chorus across boxes
 
-Strong boxes are only half the job. Chapter 9 opens:
+Strong boxes are only half the job. *Writing Better Lyrics* (2009),
+Chapter 9 opens:
 
 > Strong verse development is crucial to deepening the colors of your refrain or
 > chorus. Just as important, however, is making sure your refrain chorus can be
