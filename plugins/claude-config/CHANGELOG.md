@@ -60,6 +60,21 @@ Review of *those* fixes found four more of the same class, all closed here rathe
   directory and the record, so an audit following that page after an adoption would have omitted
   `--epoch` and reinstated the interleaving. Both surfaces now carry the same command.
 
+And review of *that* round caught the containment fix breaking the one run no fixture represents:
+
+- **`acquire` works on a plugin data directory that does not exist yet.** Canonicalizing with
+  `pwd -P` cannot resolve a directory that is not there, so the new check made `acquire` fail on a
+  plugin's **very first run** — the only run whose data root has never been created. Every test in
+  the file pre-makes that directory, so none of them could see it. The root is now created before it
+  is resolved (creating the plugin's own data root is inside this script's mandate and is not a
+  target write), and a test exercises the fresh-install path specifically. Reproduced before the
+  fix: `--plugin-data cannot be resolved: …/fresh`, `rc=2`.
+- The containment guard's **check-then-act window** — a symlink planted between the resolution and
+  the `mkdir` — is now recorded in the code as a disclosed residual rather than left implied. Closing
+  it needs an atomic create-and-verify no portable shell offers, and an attacker who can plant that
+  link can already write the lease directly. A guard whose limits are unstated reads as one without
+  any.
+
 ## [0.38.0]
 
 ### Added

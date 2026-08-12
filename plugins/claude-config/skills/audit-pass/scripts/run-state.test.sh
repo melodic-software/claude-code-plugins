@@ -308,6 +308,17 @@ assert_exit "acquire without --plugin-data has nothing to check containment agai
 # runs/link -> /tmp/outside, `<plugin-data>/runs/link/run` passes a string
 # comparison and then mkdir and the lease write follow the link straight out of
 # the plugin tree. The guarantee would hold on the string and fail on the disk.
+# THE FIRST RUN OF ALL. On a fresh install the plugin data directory does not
+# exist yet, and a containment check that resolves it with `pwd -P` before
+# creating it fails for exactly the run that has never succeeded before. A
+# fixture that pre-makes the directory — every other case in this file — cannot
+# see that.
+FRESH="$TEST_TMPDIR/never-used/data"
+rc=0
+OUT=$(run lease acquire --run-dir "$FRESH/runs/demo/first" --run-id first --plugin-data "$FRESH" 2>&1) || rc=$?
+assert_exit "acquire works on a plugin data directory that does not exist yet" 0 "$rc"
+assert_file "and the lease is written under it" "$FRESH/runs/demo/first/lease"
+
 ESCAPE_TARGET="$TEST_TMPDIR/escaped"
 mkdir -p "$ESCAPE_TARGET" "$DATA/runs"
 if ln -s "$ESCAPE_TARGET" "$DATA/runs/link" 2>/dev/null && [[ -L "$DATA/runs/link" ]]; then

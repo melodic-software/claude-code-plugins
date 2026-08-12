@@ -208,11 +208,17 @@ require_non_negative_int() {
 # chose — the shape of defect this script exists to remove. `--skew-grace 0` is
 # left legal: it means "tolerate no forward clock jump", which is a coherent
 # choice and inverts nothing.
+# `--epoch 0` is refused for a different reason — epochs start at 1, so 0 names no
+# writer's file — which is why the reason travels as an argument rather than being
+# hardcoded to the staleness case.
 require_int_at_least_one() {
-  local name="$1" value="$2"
+  local name="$1" value="$2" why="${3:-}"
   require_non_negative_int "$name" "$value"
   if [[ "$value" -lt 1 ]]; then
-    die "$name must be at least 1: $value (0 would make the lease classify stale the moment it is written)"
+    if [[ -n "$why" ]]; then
+      die "$name must be at least 1: $value ($why)"
+    fi
+    die "$name must be at least 1: $value"
   fi
 }
 
@@ -428,9 +434,10 @@ cmd_lease_acquire() {
   done
 
   validate_run_id "$run_id"
-  require_int_at_least_one "--stale-after" "$stale_after"
+  require_int_at_least_one "--stale-after" "$stale_after" \
+    "0 would make the lease classify stale the moment it is written"
   require_non_negative_int "--skew-grace" "$skew_grace"
-  require_int_at_least_one "--epoch" "$epoch"
+  require_int_at_least_one "--epoch" "$epoch" "epochs start at 1"
   if [[ -z "$run_dir" ]]; then
     die "--run-dir is required"
   fi
@@ -470,9 +477,23 @@ cmd_lease_acquire() {
   #
   # `--run-dir` usually does not exist yet, which is the point of `mkdir` below,
   # so its deepest EXISTING ancestor is what gets resolved — the only part a
-  # symlink can be in. A link introduced after this check is out of scope for any
-  # check-then-act sequence, and it would have to be planted inside the plugin's
-  # own data directory.
+  # symlink can be in.
+  #
+  # DISCLOSED RESIDUAL: this is check-then-act, so a symlink planted between the
+  # resolution and the `mkdir` is not covered. Closing that needs an atomic
+  # create-and-verify no portable shell offers, and the attacker would already
+  # need write access inside the plugin's own data directory — at which point they
+  # can write the lease themselves and the guard is moot. Recorded rather than
+  # implied, because a guard whose limits are unstated reads as one without any.
+  # THE PLUGIN DATA ROOT IS CREATED FIRST, because on a plugin's very first run it
+  # does not exist yet and `pwd -P` cannot resolve a directory that is not there —
+  # resolving before creating would have made `acquire` fail for exactly the run
+  # that has never succeeded before, which no test with a pre-made fixture would
+  # ever catch. Creating the plugin's OWN data root is inside this script's
+  # mandate and is not a target write; it is the tree everything below is then
+  # confined to.
+  mkdir -p "$plugin_data" || die "cannot create the plugin data directory: $plugin_data"
+
   local real_plugin_data real_prefix
   real_plugin_data=$(physical_path "$plugin_data") ||
     die "--plugin-data cannot be resolved: $plugin_data"
@@ -722,7 +743,7 @@ cmd_partial_append() {
   # Omitting the flag is only correct for a run whose epoch nothing has moved.
   local fenced=0
   if [[ -n "$held_epoch" ]]; then
-    require_int_at_least_one "--epoch" "$held_epoch"
+    require_int_at_least_one "--epoch" "$held_epoch" "epochs start at 1"
     if [[ "$held_epoch" != "$epoch" ]]; then
       fenced=1
       printf '%s: FENCED — lease owner_epoch is %s but this writer holds %s; the record lands in the writer'"'"'s own epoch file and this run must stop (exit %s)\n' \
