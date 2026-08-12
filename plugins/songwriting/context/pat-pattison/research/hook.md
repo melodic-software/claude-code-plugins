@@ -370,16 +370,16 @@ as printed. Line two carries the strategic-position arrows; line four carries
 the unbalancing-phrases label.
 
 **The same lyric is printed twice more in this book, and the three printings do
-not agree.** Chapter 4's prose sets the whole verse as text; Chapter 6 sets
+not agree.** Chapter 1's prose sets the whole verse as text; Chapter 5 sets
 lines one and three as text and lines two, four and five as figures
 (`image_rsrc32U`, `image_rsrc32V`). Two divergences, both recorded rather than
 reconciled:
 
 - **Line one.** Fig `34F` prints `I tell myself I can't hold out forever`.
-  Chapter 4 and Chapter 6 both print `I tell myself **that** I can't hold out
+  Chapter 1 and Chapter 5 both print `I tell myself **that** I can't hold out
   forever`. The figure omits the `that`; its 11 marks match the 11 syllables
   without it.
-- **Line five.** Figs `34F` and `32V` both print `everything`. The Chapter 4
+- **Line five.** Figs `34F` and `32V` both print `everything`. The Chapter 1
   **text layer** prints `averything` — a single-letter variant that appears
   exactly once in all four books. Two photographic scans of the printed page
   agree against one reflowed text run, so `everything` is what the book prints
@@ -387,7 +387,7 @@ reconciled:
   where a figure adjudicates the spine rather than the other way round.
 
 Do **not** "correct" either divergence in the direction of the other: the
-figure is verbatim as a figure, and Chapter 4's prose is verbatim as prose.
+figure is verbatim as a figure, and Chapter 1's prose is verbatim as prose.
 
 > "When your HOOK rhythm matches the second phrase, as in"
 

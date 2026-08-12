@@ -187,7 +187,9 @@ Take me home (ad-lib: home, home)
 
 ### Confidence note
 
-Parameterized syntax is documented across multiple community guides (hookgenius, blakecrosley, jackrighteous). **No first-party Suno source states the `[Tag: descriptors]` form** — it is community-attested only. The full **per-section instrumentation control** as a primary technique (vs just vocal/mood modifiers) is community-validated through extensive empirical testing — HIGH confidence on syntax, but that HIGH rests on community attestation, not on official documentation; HIGH-MEDIUM on the broader "treat lyrics as second style channel" framing.
+Parameterized syntax is documented across multiple community guides (hookgenius, blakecrosley, jackrighteous). **No first-party Suno source states the `[Tag: descriptors]` form** — it is community-attested only. The full **per-section instrumentation control** as a primary technique (vs just vocal/mood modifiers) is community-validated through extensive empirical testing.
+
+**MEDIUM confidence on the syntax** — multi-guide community consensus with no official Suno documentation, which is precisely what MEDIUM means in this skill's ladder; the "Performance shaping" section immediately below carries the same rung on the same kind of evidence. It was previously marked HIGH on the strength of a first-party citation that does not in fact describe bracket tags. MEDIUM on the broader "treat lyrics as second style channel" framing too. **The syntax itself is not in doubt — only the claim that Suno documented it.**
 
 ## Performance shaping (community-validated, MEDIUM confidence)
 

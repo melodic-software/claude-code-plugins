@@ -19,9 +19,10 @@ than an addition.
 1.1.0 recorded, under "Known and deliberate omissions", that fig
 `image_rsrc34F`'s five-line lyric was *"image-only — absent from the gated 1991
 text layer, confirmed against a known-present control"*. **It is not.** The same
-verse is printed as prose in the 1991 spine, in **Chapter 4**, two chapters
-before the figure. The original search was scoped to the spine file holding the
-figure and never asked whether another chapter printed it.
+verse is printed as prose in the 1991 spine, in **Chapter 1** — six chapters
+before the figure, which is in Chapter 7. The original search was scoped to the
+spine file holding the figure and never asked whether another chapter printed
+it.
 
 **The control could not have caught this, and that is the lesson.** A grep for
 line five — `make everything so clear` — returns **zero across all four books**,
@@ -56,8 +57,9 @@ where its neighbours match means "look for a typo", not "absent".
   looser pattern and diffing it against the tight one: the tight scan required
   the intro line to end in a colon and the block to be quoted or fenced, and so
   was blind to indented blocks and to intros that trail into the next sentence.
-  Loose found 9 more sites, **6 of which were false positives inside HTML
-  comments** and 3 of which were real.
+  Loose found 9 more sites, **6 false positives** — four inside HTML comments,
+  one a sentence of this release's own new prose, one a plugin-authored example
+  inside a fence — and **3 real ones**, now fixed.
 - **`rhyme-types.md` attributed the wrong chapter.** The `travel` family search
   is printed twice: Chapter 4 annotates `glass full (mosaic)`, and Chapter 6
   recalls the search and drops the annotation. The reproduced block is
@@ -66,9 +68,11 @@ where its neighbours match means "look for a typo", not "absent".
   chapter *numbers* against all 266 spine headings — the resolver itself only
   ever proved the *book*, and would have passed 47 correct book names sitting on
   wrong chapter numbers.
-- **10 citation-role `Challenge #N` sites normalized** to `Challenge N`. The two
-  hash sites that remain are deliberate: one is inside a quotation, verified
-  verbatim against the 2011 spine.
+- **10 citation-role `Challenge #N` sites normalized** to `Challenge N`. Exactly
+  one hash site remains in the research corpus — `metaphor.md`, inside a
+  quotation, verified verbatim against the 2011 spine. The other occurrences in
+  the plugin are the new rule in `book-references.md` and this changelog, both
+  of which quote the form in order to describe it.
 - **`lyrics.md` no longer claims first-party support it does not have.** The
   cited Suno article is "How to Use: Song Editor" and contains no bracket-tag
   content. The false clause was deleted and **no citation was substituted for
@@ -91,7 +95,7 @@ where its neighbours match means "look for a typo", not "absent".
 
 - **Fig `34F` against the prose printings.** The figure drops the `that` in line
   one; Chapters 4 and 6 keep it. Figs `34F` and `32V` print `everything`; the
-  Chapter 4 text layer prints `averything` — the only occurrence in the corpus,
+  Chapter 1 text layer prints `averything` — the only occurrence in the corpus,
   confirmed genuine to the EPUB. Two photographs of the printed page against one
   reflowed text run, so **the text layer carries the defect**. This is the one
   site where a figure adjudicates the spine. `phrasing.md` carries a note so a
