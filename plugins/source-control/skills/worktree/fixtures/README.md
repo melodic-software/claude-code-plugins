@@ -84,3 +84,55 @@ absence claim is not carried forward.
 - `worktree_create_gate_enabled=false` cannot hand placement back to Claude Code. The harness-side
   stand-downs are `worktree.bgIsolation: "none"` and disabling the plugin.
 - Every refusal message leads with a remedy, because a failing hook's stderr is what the user reads.
+
+## `nesting-invariant-probe.sh` — the nesting invariant's disputed arm
+
+**Status: WRITTEN, NOT YET RUN.** Nothing below is claimed on this script's authority. It is the
+recheck *procedure* for the claim
+[`SKILL.md § The nesting invariant, verified`](../SKILL.md#the-nesting-invariant-verified) owns;
+running it is what would convert that section's disputed arm into a settled one.
+
+**Claim under test.** From a session inside a worktree nested in a checkout, a read matching a
+path-scoped rule's glob also loads the enclosing checkout's copy of that rule.
+
+**Why it is not settled.** Measured once on 2.1.224 and not reproduced on 2.1.227 — and **neither
+run recorded its fixture**, so the two results cannot be compared. That is the whole problem: the
+outcome depends on discriminators neither run disclosed, and a null result from a fixture that
+differs anywhere is not a refutation.
+
+The discriminators this script pins, none of which the original runs recorded:
+
+| Discriminator | Why it changes the answer |
+|---|---|
+| How the worktree was **created** (`claude --worktree` / `EnterWorktree` / plain `git worktree add`) | The harness's worktree-aware behavior attaches to a session it *recognizes* as a worktree session. `worktrees.md` (fetched 2026-08-11) frames it as "whether you started it with `--worktree`, Claude entered one with `EnterWorktree`, or you resumed a worktree session" — a bare `cd` into a `git worktree add` directory is not obviously any of those. |
+| How the session was **launched** into it | Same reason. |
+| The exact `paths:` glob **and its anchoring root** | A glob anchored at the worktree root and one anchored at the parent are different tests. |
+| Whether the parent's rule file was **committed** | An untracked rule file in a worktree's parent is a different fixture from a tracked one. |
+| **Placement**: dot-prefixed `.claude/worktrees/` vs a plain subdirectory vs an **unrelated** repository | These are three separate claims, and one arm's null refutes none of the others. |
+
+**Arms.** dot-nested, plain-nested, external (control — must show zero), and unrelated-nested. The
+unrelated-nested arm is the one claimed *worse* (all three surfaces, not just scoped rules) and is
+**untested by anyone**; the dispute above does not reach it, so a result there settles nothing about
+arm A and vice versa.
+
+**Instrument.** An `InstructionsLoaded` hook, which names the files loaded rather than inferring
+them from token deltas. Registered in **exec (`args`-array) form** per
+<https://code.claude.com/docs/en/hooks> (raw markdown, fetched 2026-08-11): "Set `args` whenever the
+hook references a path placeholder, since each element is passed as one argument with no quoting."
+Delivered with `claude -p --settings <file>`, because a project-scope hook in an unapproved
+`settings.json` does not run headlessly.
+
+**A trap the script guards.** Zero trace events means *the hook did not fire* — a fixture failure,
+not evidence of absence. The script says so rather than printing a null. Mistaking one for the other
+is the most likely way this dispute arose in the first place.
+
+**Doc status of the claim.** `worktrees.md` (fetched 2026-08-11) documents the default
+`.claude/worktrees/<name>/` placement, the isolation checks, the non-suppressible `EnterWorktree`
+approval outside `.claude/worktrees/`, and what a worktree shares with the main checkout — and says
+**nothing** about whether a nested worktree's session discovers the parent checkout's
+`.claude/rules/`. The claim is doc-*unaddressed*, not doc-contradicted, which is exactly why
+measurement is the only adjudicator and why an undisclosed fixture was fatal.
+
+**When you run it:** record the outcome here — *including a null, which is a finding* — and refresh
+the as-of stamp in `SKILL.md` with the verdict, per the upstream-drift convention's
+"when a trigger fires" procedure.

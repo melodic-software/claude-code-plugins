@@ -20,9 +20,11 @@
 # Root-resolution contract: a configured root (--root/--root-file) wins; absent one,
 # the plugin data directory supplied via --data-root-file yields <data-dir>/worktrees;
 # absent both, the helper refuses (exit 3). It never falls back to Claude Code's
-# in-repo `.claude/worktrees/`: from a worktree nested inside a checkout, a read
-# matching a path-scoped rule's glob also loads the PARENT checkout's copy of that
-# rule. The data dir is never read from the environment — see the resolution block.
+# in-repo `.claude/worktrees/`, whose nested placement is what the nesting
+# invariant forbids. That claim is owned, measured and dated in exactly one place
+# and is not restated here: skills/worktree/SKILL.md § "The nesting invariant,
+# verified". The data dir is never read from the environment — see the resolution
+# block.
 #
 # Output contract: on success the created worktree path is the SOLE stdout line
 # (machine-parseable); all diagnostics go to stderr.
@@ -59,8 +61,8 @@ Options:
                       re-quoting of the value happens on that path). An empty
                       value or an unexpanded \${user_config.*} token falls
                       through to --data-root-file — never to the in-repo
-                      .claude/worktrees/ default, whose nested placement makes a
-                      read load the parent checkout's path-scoped rules as well.
+                      .claude/worktrees/ default, whose nested placement the
+                      nesting invariant forbids (skills/worktree/SKILL.md).
                       Mutually exclusive with --root-file.
   --data-root-file <path>
                       Read the plugin's data directory from <path>, used as the
@@ -311,9 +313,10 @@ Set the source-control plugin's \`worktree_root\` directory key to an external
 root (a path OUTSIDE every repository), then retry. Run the worktree setup
 skill, or configure it via \`/plugin\`.
 
-Not falling back to the in-repo .claude/worktrees/ default: from a worktree
-nested inside a checkout, a read matching a path-scoped rule's glob also loads
-the PARENT checkout's copy of that rule.
+Not falling back to the in-repo .claude/worktrees/ default: a worktree nested
+inside a checkout can pick up that checkout's path-scoped rules as well as its
+own. Measurement, disputed arms and expiry:
+skills/worktree/SKILL.md "The nesting invariant, verified".
 EOF
     exit 3
   fi
@@ -476,10 +479,10 @@ worktree_path=$(normalize_path "$worktree_path")
 
 # Reject placement inside any git repository — a working tree, a normal repo's
 # .git directory, or a bare clone. Keeping worktrees OUT of every repository is
-# the helper's core purpose: from a worktree nested inside a working tree, a read
-# matching a path-scoped rule's glob also loads the ancestor checkout's copy of
-# that rule, and one dropped inside a .git or bare directory mixes the checkout
-# into git metadata. The root resolution above does not catch a root explicitly
+# the helper's core purpose — see skills/worktree/SKILL.md § "The nesting
+# invariant, verified" for the measured claim, and note that a worktree dropped
+# inside a .git or bare directory additionally mixes the checkout into git
+# metadata, which is a separate and undisputed reason to refuse. The root resolution above does not catch a root explicitly
 # pointed inside a repository (e.g. the old .claude/worktrees/ path, a root under
 # a sibling clone, or a path beneath a .git directory), so ask git about the
 # target's location: walk up from the target's parent to the nearest existing
@@ -522,9 +525,10 @@ Set the source-control plugin's \`worktree_root\` directory key to an external
 root (a path OUTSIDE every repository, on the same drive as the repo on Windows),
 then retry.
 
-Not creating inside a checkout or a git directory: from there a read matching a
-path-scoped rule's glob also loads the enclosing checkout's copy of that rule,
-and a git-directory placement mixes the worktree into git metadata.
+Not creating inside a checkout or a git directory: from there a worktree can
+pick up the enclosing checkout's path-scoped rules as well as its own, and a
+git-directory placement mixes the worktree into git metadata. Measurement and
+expiry: skills/worktree/SKILL.md "The nesting invariant, verified".
 EOF
     exit 3
   fi

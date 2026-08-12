@@ -3,6 +3,78 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.53.0]
+
+### Changed
+
+- **The nesting-invariant claim has one owner and twelve pointers, instead of 13 undated copies**
+  (`skills/worktree/SKILL.md`, `skills/worktree/context/create.md`, `scripts/worktree-create.sh`,
+  `hooks/worktree-create-gate.sh`, `.claude-plugin/plugin.json`, `README.md`; #2213). The mechanism
+  claim justifying a machine-wide placement rule enforced by a fail-closed hook was restated as an
+  **undated absolute at 13 sites** against exactly two dated statements — and the one site asserting
+  freshness ("It is the live constraint, not a historical one") was itself undated, so a pointer
+  landed the reader precisely there. `SKILL.md` now carries the claim under an explicit
+  `### The nesting invariant, verified` heading and everything else points at it. Not thirteen
+  updated copies: one owner, and a test (`skills/worktree/nesting-invariant-ssot.test.sh`) that
+  fails when a second site states the mechanism, so the next person to explain it in place has to
+  point instead.
+  - **Deviation from the filed fix direction, stated so it is not read as an oversight.** The issue
+    asks pointers to restate the as-of at each pointer site. They do not: twelve restated dates are
+    twelve drift sites, which is the defect being removed. Pointers instead say the claim is dated
+    and measured, and name the section that carries the stamp.
+  - **The two exit-3 heredocs keep a short restatement** alongside their pointer. They are read at
+    the moment creation fails, when the reader cannot go follow a link; a pointer-only refusal there
+    would be a regression. Both restatements are deliberately non-causal ("can pick up") rather than
+    the absolute the rest of the sweep removed.
+- **The nesting invariant now carries an unconditional expiry, because both of its event triggers
+  were structurally unable to fire** (`skills/worktree/SKILL.md`; #2213). The triggers were "a
+  release note naming worktree rule-file loading" and "upstream #16600 changing state". #16600 has
+  not changed state since well before the 2026-08-07 as-of date, and an opaque release stanza
+  ("Bug fixes and reliability improvements", 2.1.226) cannot fire an event-keyed trigger at all — so
+  the most consequential claim in this plugin was guarded by two triggers that could not go off. The
+  stamp now adds **2.1.244 or 2026-11-07, whichever comes first**, composed with
+  `docs/conventions/upstream-drift/` rather than inventing a parallel mechanism.
+- **The `SKILL.md` ownership claim is no longer a false absolute, and it gained a back-channel**
+  (`skills/worktree/SKILL.md`; #2213). "This skill is the canonical owner … — no external prose doc"
+  was untrue: a consumer doc outside this repository defers mechanism to this skill *and* is more
+  current than it. Ownership is now scoped to this plugin fleet, and states how a consumer who
+  measures something contradicting the owner gets that correction back into the owner. Canonical
+  ownership with no inbound channel makes the owner the last to know.
+
+### Fixed
+
+- **The nesting-invariant measurement is downgraded to the modality it actually has, and its fixture
+  is now recorded** (`skills/worktree/SKILL.md`, `skills/worktree/fixtures/`; #2212). The 2.1.224
+  leak measurement was **disputed, not refuted** — a 2.1.227 counter-reproduction did not observe
+  it — and *neither run recorded its fixture*, so the two results could not be compared and the
+  claim was not adjudicable. It read as settled anyway. The section now names the dispute, carries
+  an arm-by-arm status table so a fix to one arm cannot silently weaken another (the
+  **nested-in-an-unrelated-repo** arm is untested by anyone and **not** refuted — the dispute does
+  not reach it), and ships `fixtures/nesting-invariant-probe.sh`, which pins every discriminator
+  neither original run disclosed: creation mechanism, launch mode, the exact `paths:` glob and its
+  anchoring root, whether the parent's rule file was committed, and the three placements as separate
+  arms. **The probe is written and has NOT been run** — that is stated at the top of the script and
+  in `fixtures/README.md`, and nothing is claimed on its authority. It converts a recheck *trigger*
+  into a recheck *procedure*.
+- **The reproduction guidance no longer contradicts the hooks docs** (`skills/worktree/SKILL.md`;
+  #2212). It claimed the single-string command shape "silently never fires". That is not what
+  <https://code.claude.com/docs/en/hooks> says (raw markdown, fetched 2026-08-11): both command
+  forms are documented with no event-specific carve-out, and the documented rule is narrower — "Set
+  `args` whenever the hook references a path placeholder, since each element is passed as one
+  argument with no quoting." This plugin's own `hooks/hooks.json` registers all three of its hooks
+  in the single-string form and they fire. The guidance now states the documented rule, and the
+  genuinely unknown part is named as unknown: whether the single-string form fires for an
+  `InstructionsLoaded` hook supplied via `claude -p --settings <file>` is **unprobed by anyone**.
+- **The 2.1.224 version basis no longer reads as a release fact** (`skills/worktree/SKILL.md`;
+  #2212). "which 2.1.224 already handles correctly" sat several sentences from the only "Basis:"
+  clause and had already been misread as a version fact by two independent readers. The basis is now
+  inlined at the claim: it is a **null result from the same trace**, not a release note, and the
+  changelog scan behind it is packet-sourced and has not been re-run. Supersedes the in-place
+  correction shipped in 0.52.1 (#2332), which fixed the same two rows (`D-F1`, `D-F6`) inside the
+  old single-paragraph shape; both of its corrections are preserved here, restated inside the
+  restructured owner section, and `D-F2` — the missing fixture that #2332 left open — is what
+  this release adds.
+
 ## [0.52.1]
 
 ### Fixed

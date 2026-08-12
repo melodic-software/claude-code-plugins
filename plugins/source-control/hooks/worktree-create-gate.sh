@@ -5,8 +5,11 @@
 # The `/worktree create` skill already routes through scripts/worktree-create.sh,
 # but three creation paths bypass the skill entirely — `claude --worktree`, a
 # subagent with `isolation: "worktree"`, and a background session. Those land in
-# the in-repo default, where a read matching a path-scoped rule's glob also loads
-# the PARENT checkout's copy of that rule. This hook is the seam that covers them,
+# the in-repo default — the nested placement the nesting invariant exists to
+# avoid; that claim is owned, measured and dated in exactly one place, and this
+# comment does not restate it: see
+# skills/worktree/SKILL.md § "The nesting invariant, verified".
+# This hook is the seam that covers those three paths,
 # and it is a thin stdin adapter over the same helper so there is one placement
 # implementation rather than two.
 #
