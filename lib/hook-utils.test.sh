@@ -2209,13 +2209,17 @@ else
 fi
 
 # A payload jq cannot parse yields no values at all — never a partial set the
-# caller could mistake for a complete read.
-if hook::jq_fields 'not json at all' '.tool_name' '.session_id'; then
+# caller could mistake for a complete read. Return code 2 (not 1) when jq is
+# present but rejects the payload — blocking guards fail closed on that path
+# (#2157).
+hook::jq_fields 'not json at all' '.tool_name' '.session_id'
+rc=$?
+if ((rc == 2 && ${#HOOK_JQ_FIELDS[@]} == 0)); then
+  ok "jq_fields: an unparsable payload returns 2 and leaves no values"
+elif ((rc == 0)); then
   fail "jq_fields accepted an unparsable payload"
-elif ((${#HOOK_JQ_FIELDS[@]} == 0)); then
-  ok "jq_fields: an unparsable payload returns non-zero and leaves no values"
 else
-  fail "jq_fields left ${#HOOK_JQ_FIELDS[@]} values after an unparsable payload"
+  fail "jq_fields left ${#HOOK_JQ_FIELDS[@]} values after an unparsable payload (rc=$rc)"
 fi
 
 if hook::jq_fields "$jf_input"; then
