@@ -586,6 +586,70 @@ else
   ok "read_file_path: temp-tree scoping SKIPPED (no writable HOME outside the temp tree on this host — no coverage here, not a pass)"
 fi
 
+# --- Test 12e: read_file_path — git worktree scope when project dir unset (#1091)
+if command -v git >/dev/null 2>&1; then
+  PROJ12E=$(mktemp -d)
+  SCRATCH12E=$(mktemp -d)
+  (
+    cd "$PROJ12E" || exit 1
+    git init -q .
+    echo in-repo > tracked.md
+    git add tracked.md
+    git -c user.email=t@e.st -c user.name=t commit -q -m init
+  ) >/dev/null 2>&1
+  echo scratch >"$SCRATCH12E/outside.md"
+  got_in=$(
+    unset CLAUDE_PROJECT_DIR
+    printf '%s' "{\"tool_input\":{\"file_path\":\"$PROJ12E/tracked.md\"}}" |
+      hook::read_file_path
+  ) || got_in=""
+  got_out=$(
+    unset CLAUDE_PROJECT_DIR
+    printf '%s' "{\"tool_input\":{\"file_path\":\"$SCRATCH12E/outside.md\"}}" |
+      hook::read_file_path
+  ) || got_out=""
+  if [[ "$got_in" == "$PROJ12E/tracked.md" ]]; then
+    ok "read_file_path: in-repo file accepted with CLAUDE_PROJECT_DIR unset"
+  else
+    fail "read_file_path: in-repo file rejected with CLAUDE_PROJECT_DIR unset (got '$got_in')"
+  fi
+  if [[ -z "$got_out" ]]; then
+    ok "read_file_path: out-of-tree file rejected with CLAUDE_PROJECT_DIR unset"
+  else
+    fail "read_file_path: out-of-tree file admitted with CLAUDE_PROJECT_DIR unset (got '$got_out')"
+  fi
+  rm -rf "$PROJ12E" "$SCRATCH12E"
+else
+  ok "read_file_path: git worktree scope SKIPPED (git not on PATH)"
+fi
+
+# --- Test 12f: read_file_path — git absent with project dir unset fails closed
+# PATH-prefix on a pipeline producer does not reach the consumer, and emptying
+# PATH also hides jq (which returns 1 before the fail-closed else). Build a
+# private bin with the tools this path needs and deliberately omit git so
+# `command -v git` fails while jq still runs. Use an in-repo file: if git
+# leaked back onto PATH the worktree branch would admit it and this test fails.
+NO_GIT_BIN12F="$(mktemp -d)"
+for _cmd12f in jq realpath readlink; do
+  _src12f=$(command -v "$_cmd12f" 2>/dev/null) || continue
+  ln -s "$_src12f" "$NO_GIT_BIN12F/$_cmd12f"
+done
+unset _cmd12f _src12f
+IN_TREE12F="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/README.md"
+rc_no_git=0
+got_no_git=$(
+  unset CLAUDE_PROJECT_DIR
+  PATH="$NO_GIT_BIN12F" \
+    printf '%s' "{\"tool_input\":{\"file_path\":\"$IN_TREE12F\"}}" |
+    PATH="$NO_GIT_BIN12F" hook::read_file_path
+) && rc_no_git=0 || rc_no_git=$?
+rm -rf "$NO_GIT_BIN12F"
+if [[ "$rc_no_git" -eq 1 && -z "$got_no_git" ]]; then
+  ok "read_file_path: git absent with CLAUDE_PROJECT_DIR unset rejects file"
+else
+  fail "read_file_path: git absent admitted file or wrong status (rc=$rc_no_git got='$got_no_git')"
+fi
+
 # --- Test 12d: under_temp_root — the filesystem root as a temp candidate ------
 # A candidate of `/` contains every absolute path. Trimming its trailing slash
 # empties the string, and an empty candidate is discarded — so `TMPDIR=/` used

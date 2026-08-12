@@ -58,6 +58,7 @@ run_fake() {
   local target="$case_dir/target.$ext"
   printf '%s\n' "$content" >"$target"
   PATH="$FAKE_BIN_DIR:$PATH" \
+    CLAUDE_PROJECT_DIR="$case_dir" \
     CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS=faketool \
     LOCALAPPDATA="$case_dir/cache" \
     XDG_CACHE_HOME="$case_dir/cache" \
@@ -75,6 +76,7 @@ run_edit() {
   local target="$case_dir/target.$ext"
   printf '%s\n' "$disk" >"$target"
   PATH="$FAKE_BIN_DIR:$PATH" \
+    CLAUDE_PROJECT_DIR="$case_dir" \
     CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS=faketool \
     LOCALAPPDATA="$case_dir/cache" \
     XDG_CACHE_HOME="$case_dir/cache" \
@@ -182,13 +184,13 @@ dis_dir="$TEST_TMPDIR/fake-disabled"
 mkdir -p "$dis_dir/cache"
 printf 'faketool sub --fake\n' >"$dis_dir/target.sh"
 dis_input=$(MSYS_NO_PATHCONV=1 jq -n --arg fp "$dis_dir/target.sh" --arg c 'faketool sub --fake' '{tool_name:"Write",tool_input:{file_path:$fp,content:$c}}')
-OUT=$(PATH="$FAKE_BIN_DIR:$PATH" CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS=faketool \
+OUT=$(PATH="$FAKE_BIN_DIR:$PATH" CLAUDE_PROJECT_DIR="$dis_dir" CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS=faketool \
   LOCALAPPDATA="$dis_dir/cache" XDG_CACHE_HOME="$dis_dir/cache" \
   CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_ENABLED=false bash "$HOOK" <<<"$dis_input" 2>&1); RC=$?
 assert_exit "disabled via env → exit 0" 0 "$RC"
 assert_silent "disabled via env → no output" "$OUT"
 
-OUT=$(PATH="$FAKE_BIN_DIR:$PATH" CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS=faketool \
+OUT=$(PATH="$FAKE_BIN_DIR:$PATH" CLAUDE_PROJECT_DIR="$dis_dir" CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS=faketool \
   LOCALAPPDATA="$dis_dir/cache" XDG_CACHE_HOME="$dis_dir/cache" \
   CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_SKIP_BINS=faketool bash "$HOOK" <<<"$dis_input" 2>&1); RC=$?
 assert_exit "per-binary skip → exit 0" 0 "$RC"
@@ -199,7 +201,7 @@ assert_exit "per-binary skip → exit 0" 0 "$RC"
 # late-EOF pipe stall the fix targets, and rc-2 (timeout) collapses to the same
 # silent exit 0 as rc-1 for an advisory hook — so this asserts the skip contract,
 # not the stall itself.
-OUT=$(PATH="$FAKE_BIN_DIR:$PATH" CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS=faketool \
+OUT=$(PATH="$FAKE_BIN_DIR:$PATH" CLAUDE_PROJECT_DIR="$dis_dir" CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS=faketool \
   bash "$HOOK" </dev/null 2>&1); RC=$?
 assert_exit "empty stdin → exit 0" 0 "$RC"
 assert_silent "empty stdin → no output" "$OUT"
@@ -215,7 +217,7 @@ cp "$HOOK" "$noverif_root/hooks/cli-flag-verify.sh"
 cp "$HOOK_DIR/hook-utils.sh" "$noverif_root/hooks/hook-utils.sh"
 noverif_data="$TEST_TMPDIR/no-verifier-data"; mkdir -p "$noverif_data"
 noverif_input=$(MSYS_NO_PATHCONV=1 jq -n --arg fp "$dis_dir/target.sh" --arg c 'faketool sub --fake' '{tool_name:"Write",tool_input:{file_path:$fp,content:$c}}')
-OUT=$(PATH="$FAKE_BIN_DIR:$PATH" CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS=faketool \
+OUT=$(PATH="$FAKE_BIN_DIR:$PATH" CLAUDE_PROJECT_DIR="$dis_dir" CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS=faketool \
   CLAUDE_PLUGIN_ROOT="$noverif_root" CLAUDE_PLUGIN_DATA="$noverif_data" \
   bash "$noverif_root/hooks/cli-flag-verify.sh" <<<"$noverif_input" 2>&1); RC=$?
 assert_exit "bundled verifier missing → exit 0 (fail open)" 0 "$RC"
@@ -232,7 +234,7 @@ tel_dir="$TEST_TMPDIR/fake-tel"
 mkdir -p "$tel_dir/cache"
 printf 'faketool sub --fake\n' >"$tel_dir/target.sh"
 tel_input=$(MSYS_NO_PATHCONV=1 jq -n --arg fp "$tel_dir/target.sh" --arg c 'faketool sub --fake' '{tool_name:"Write",tool_input:{file_path:$fp,content:$c}}')
-PATH="$FAKE_BIN_DIR:$PATH" CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS=faketool \
+PATH="$FAKE_BIN_DIR:$PATH" CLAUDE_PROJECT_DIR="$tel_dir" CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS=faketool \
   LOCALAPPDATA="$tel_dir/cache" XDG_CACHE_HOME="$tel_dir/cache" \
   HOOK_TELEMETRY_SINK="$SINK" bash "$HOOK" <<<"$tel_input" >/dev/null 2>&1 || true
 if wait_for_sink "$TEL"; then

@@ -466,10 +466,10 @@ if [[ $RC_NOGIT -eq 0 ]]; then
 else
   fail "git absent: hook exit $RC_NOGIT (out=$OUT_NOGIT)"
 fi
-if grep -q '^- star item$' "$NOGIT_FIXTURE"; then
-  ok "git absent + CLAUDE_PROJECT_DIR unset: in-repo .md still linted (--fix applied)"
+if grep -q '^\* star item$' "$NOGIT_FIXTURE"; then
+  ok "git absent + CLAUDE_PROJECT_DIR unset: in-repo .md skipped (fail closed without git)"
 else
-  fail "git absent: in-repo .md silently skipped, file unmodified: $(cat "$NOGIT_FIXTURE")"
+  fail "git absent: in-repo .md was linted despite no git and no project dir: $(cat "$NOGIT_FIXTURE")"
 fi
 
 # Control for the assertion above: the shim must not be what decides the
@@ -509,22 +509,17 @@ else
   fail "git absent: nested .md skipped — config discovery never left its own directory (rc=$RC_NOGIT_NEST out=$OUT_NOGIT_NEST)"
 fi
 
-# The same nesting with CLAUDE_PROJECT_DIR UNSET. That is not an exotic variant:
-# the membership scope this PR exists to fix is itself gated on
-# `[[ -z "${CLAUDE_PROJECT_DIR:-}" ]]`, and the primary no-git fixture above runs
-# unset — so unset is the configuration the fix is ABOUT, and a root resolved
-# from CLAUDE_PROJECT_DIR cannot serve it. Nothing but the filesystem can anchor
-# the root here. The scope above already declines to skip when git cannot
-# answer, so this run reaches config discovery and stands or falls on root
-# resolution alone.
+# The same nesting with CLAUDE_PROJECT_DIR UNSET. Without git, read_file_path fails
+# closed (#1091) — the hook cannot establish membership, so config discovery never
+# runs and the file stays unmodified.
 NOGIT_NESTED_UNSET="$REPO/docs/fixtureNoGitNestedUnanchored.md"
 printf '# No Git Nested Unanchored\n\n* star item\n' >"$NOGIT_NESTED_UNSET"
 OUT_NOGIT_NEST_U="$(run_hook_no_git "$NOGIT_NESTED_UNSET")"
 RC_NOGIT_NEST_U=$?
-if [[ $RC_NOGIT_NEST_U -eq 0 ]] && grep -q '^- star item$' "$NOGIT_NESTED_UNSET"; then
-  ok "git absent + CLAUDE_PROJECT_DIR unset: a NESTED .md still reaches the root config"
+if [[ $RC_NOGIT_NEST_U -eq 0 ]] && grep -q '^\* star item$' "$NOGIT_NESTED_UNSET"; then
+  ok "git absent + CLAUDE_PROJECT_DIR unset: nested .md skipped (fail closed without git)"
 else
-  fail "git absent + unset: nested .md skipped, nothing anchored the root (rc=$RC_NOGIT_NEST_U out=$OUT_NOGIT_NEST_U)"
+  fail "git absent + unset: nested .md was linted despite no membership anchor (rc=$RC_NOGIT_NEST_U out=$OUT_NOGIT_NEST_U)"
 fi
 
 # The last resort, and the only case where CLAUDE_PROJECT_DIR decides the root:
@@ -610,36 +605,27 @@ for _case in nested root; do
   fi
 done
 
-# CONTROL for the three skips above: the containment check must admit as well as
-# reject. Every git-absent symlink case in this file wants a SKIP, so a
-# `physically_inside` that regressed to always-false — an off-by-one in its
-# `case` prefix match, a stray early `return 1` — would satisfy all of them
-# while silently costing every legitimately in-repo symlinked .md its --fix on a
-# git-less host. Only a symlink whose target resolves INSIDE the repository
-# separates the two.
-#
-# ASSERTED ON THE LINK BEING GONE, and that is the discriminating part. The stub
-# linter rewrites with `sed -i`, which renames a temp over the path it was
-# handed, so a --fix that ran REPLACES the symlink at $NOGIT_INSIDE_LINK with a
-# regular file and leaves the target's bytes alone — the exact inverse of the
-# escape cases above, which assert the link SURVIVES. Checking the target's
-# bytes here would therefore fail against correct code. `! -L` plus the fixed
-# bytes cannot be produced by a skip, which leaves the link intact and unfixed.
+# Fail-closed case for the three skips above: with git absent and
+# CLAUDE_PROJECT_DIR unset, even a symlink whose target resolves INSIDE the
+# repository must be skipped. `hook::read_file_path` no longer falls back to
+# unscoped admission (#1091); link survival plus an unfixed target proves
+# --fix never ran. (When CLAUDE_PROJECT_DIR is set, the project-dir branch
+# still admits in-repo paths without git — covered separately below.)
 NOGIT_INSIDE_TARGET="$REPO/docs/insideNoGitTarget.md"
 NOGIT_INSIDE_LINK="$REPO/docs/insideNoGitLink.md"
 printf '# Inside\n\n* inside item\n' >"$NOGIT_INSIDE_TARGET"
 if make_symlink "$NOGIT_INSIDE_TARGET" "$NOGIT_INSIDE_LINK"; then
   OUT_INSIDE="$(run_hook_no_git "$NOGIT_INSIDE_LINK")"
   RC_INSIDE=$?
-  if [[ $RC_INSIDE -eq 0 && ! -L "$NOGIT_INSIDE_LINK" ]] &&
-    grep -q '^- inside item$' "$NOGIT_INSIDE_LINK"; then
-    ok "git absent: a symlink resolving inside the repo still gets --fix"
+  if [[ $RC_INSIDE -eq 0 && -L "$NOGIT_INSIDE_LINK" ]] &&
+    grep -q '^\* inside item$' "$NOGIT_INSIDE_TARGET"; then
+    ok "git absent + CLAUDE_PROJECT_DIR unset: in-repo symlink skipped (fail closed without git)"
   else
-    fail "git absent: an in-repo symlinked .md was skipped instead of linted (rc=$RC_INSIDE link-intact=$([[ -L "$NOGIT_INSIDE_LINK" ]] && echo yes || echo no) out=$OUT_INSIDE)"
+    fail "git absent: in-repo symlinked .md was linted despite no git (rc=$RC_INSIDE link-intact=$([[ -L "$NOGIT_INSIDE_LINK" ]] && echo yes || echo no) out=$OUT_INSIDE)"
   fi
   rm -f "$NOGIT_INSIDE_LINK"
 else
-  ok "git absent in-repo symlink control SKIPPED (host cannot create real symlinks)"
+  ok "git absent in-repo symlink fail-closed case SKIPPED (host cannot create real symlinks)"
 fi
 
 # The scope must still fire when git CAN answer — that half is the out-of-tree
