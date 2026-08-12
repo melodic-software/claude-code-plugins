@@ -502,10 +502,10 @@ effective_dir() {
 # command-qualified `refs/heads/<name>` pairs with its short branch name.
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 lease_refs_equivalent() {
-  local a="$1" b="$2"
-  [[ "$a" == "$b" ]] && return 0
-  [[ "$a" == refs/heads/* && "${a#refs/heads/}" == "$b" ]] && return 0
-  [[ "$b" == refs/heads/* && "${b#refs/heads/}" == "$a" ]] && return 0
+  local left_ref="$1" right_ref="$2"
+  [[ "$left_ref" == "$right_ref" ]] && return 0
+  [[ "$left_ref" == refs/heads/* && "${left_ref#refs/heads/}" == "$right_ref" ]] && return 0
+  [[ "$right_ref" == refs/heads/* && "${right_ref#refs/heads/}" == "$left_ref" ]] && return 0
   return 1
 }
 
