@@ -755,18 +755,29 @@ producer_redirect_bypass() {
 # have, and a human credits the guard with coverage it never claimed. The guard
 # is a speed bump against specific accidental write-workaround forms in one
 # command string, not a boundary — and it is deliberately producer-scoped, so
-# ordinary data-processing redirects (`sort f > out`, `curl … > page.html`) are
+# ordinary data-processing redirects (`sort f > out`, `curl … > page.html`) and
+# other unmodeled Bash write utilities (POSIX `tee`, inline `node -e`, …) are
 # allowed by design too, not only writes inside an invoked script.
-_BYPASS_SCOPE_NOTE="Scope: only this command string is inspected — known shell \
-file-write forms plus recognized inline interpreter code (e.g. python -c). Writes \
-inside an invoked script file or a program's own opaque code, and redirects \
-produced by another program, are not seen."
+_BYPASS_SCOPE_NOTE_BASH="Scope: only this command string is inspected — known shell \
+file-write forms plus inline python3 -c only. POSIX tee pipe writes, other \
+inline-interpreter writes (e.g. node -e, sed -i), writes inside an invoked \
+script file or a program's own opaque code, and redirects produced by another \
+program, are not seen."
+_BYPASS_SCOPE_NOTE_PWSH="Scope: only this command string is inspected — known PowerShell \
+file-write cmdlets and content-producer redirects (including Tee-Object and the \
+tee alias) plus inline python3 -c only. Other inline-interpreter writes (e.g. \
+node -e), writes inside an invoked script file or a program's own opaque code, \
+and redirects produced by another program, are not seen."
 
 block_bypass() {
   local form="$1" reason="$2"
   echo "BLOCKED: $reason" >&2
   echo "Use the Write or Edit tool instead of a shell file-write workaround." >&2
-  echo "$_BYPASS_SCOPE_NOTE" >&2
+  if [[ "$TOOL_NAME" == "PowerShell" ]]; then
+    echo "$_BYPASS_SCOPE_NOTE_PWSH" >&2
+  else
+    echo "$_BYPASS_SCOPE_NOTE_BASH" >&2
+  fi
   emit_tel "blocked" "$form"
   exit 2
 }
@@ -821,6 +832,12 @@ fi
 # detection.
 normalize_segments "$EXEC_LC"
 
+# SCOPE (documented residual): Bash lane only. POSIX `tee` / `tee -a` pipe-to-file
+# writes are NOT caught — the guard models cat/echo/printf redirects and
+# python3 -c, not every POSIX write utility. The PowerShell lane blocks
+# Tee-Object and its `tee` alias via ps::write_bypass. Catching POSIX tee needs a
+# separate Bash lane; covered by an accepted-floor test.
+#
 # cat > file (allow cat without redirect, and allow a `> /dev/null` discard).
 if cat_redirect_bypass; then
   block_bypass "cat-redirect" "cat > file write bypasses Write/Edit hooks"
@@ -833,6 +850,12 @@ if producer_redirect_bypass; then
   block_bypass "echo-redirect" "echo/printf > file write bypasses Write/Edit hooks"
 fi
 
+# SCOPE (documented residual): inline writes via interpreters other than
+# python3 -c — `node -e`, `perl -e`, `ruby -e`, `sed -i`, `dd of=`, `awk >`,
+# and similar — are NOT caught. Only the python3 -c lane is modeled; each other
+# interpreter has its own spelling and write surface. Covered by accepted-floor
+# tests.
+#
 # python3 -c with file-write indicators. Detect the `python3 -c` INVOCATION in
 # the literal-stripped form (EXEC_LC) so prose/commit text merely mentioning it
 # is not a false positive; scan the RAW command (COMMAND_LC) for the write
