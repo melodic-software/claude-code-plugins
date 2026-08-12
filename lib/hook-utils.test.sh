@@ -2057,6 +2057,40 @@ else
 fi
 rm -f "$tel19" "$sink19"
 
+# --- Test 19b: hook::emit_telemetry — large data_json survives (#1595) -------
+# Regression for payloads above the Windows ~32767-character command-line cap:
+# passing data via --argjson silently dropped telemetry. The fix writes data to a
+# temp file and slurpfiles it into jq. Build the payload inside a driver script
+# so the size is not limited by the host's argv cap (Windows Git Bash truncates
+# multi-KB function arguments). Assert the sink receives the full envelope.
+tel19b="$(mktemp)"
+sink19b="$(make_sink "$tel19b")"
+driver19b="$(mktemp)"
+blob19b="$(mktemp)"
+printf 'x%.0s' {1..35000} >"$blob19b"
+cat >"$driver19b" <<DRIVER
+# shellcheck source=hook-utils.sh
+source "$HOOK_DIR/hook-utils.sh"
+data_json=\$(jq -cn --rawfile blob "$blob19b" \
+  '{tool:"Write",file:"src/big.py",findings:[\$blob]}')
+HOOK_TELEMETRY_SINK="$sink19b" hook::emit_telemetry \
+  "sample-hook" "PostToolUse" "ok" "\$EPOCHREALTIME" "\$data_json" 2>/dev/null
+DRIVER
+bash "$driver19b"
+wait_for_sink "$tel19b"
+unset HOOK_TELEMETRY_SINK
+if [[ -s "$tel19b" ]]; then
+  blob_len=$(jq -r '.data.findings[0] | length' "$tel19b" 2>/dev/null || echo 0)
+  if ((blob_len == 35000)); then
+    ok "emit_telemetry: 35 KB data_json payload → sink intact ($blob_len bytes)"
+  else
+    fail "emit_telemetry large payload: findings len=$blob_len (want 35000)"
+  fi
+else
+  fail "emit_telemetry large payload: sink empty (telemetry dropped)"
+fi
+rm -f "$tel19b" "$sink19b" "$driver19b" "$blob19b"
+
 # --- hook::extract_bash_subject: privacy-safe subject reduction --------------
 # The subject is emitted verbatim into hook-events.jsonl and any wired
 # HOOK_TELEMETRY_SINK, so it must never carry an assignment VALUE (a credential).
