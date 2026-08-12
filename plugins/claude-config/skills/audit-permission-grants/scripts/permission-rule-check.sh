@@ -174,6 +174,7 @@ P2_TILDE_USER_RULE_ERE='Bash\([^)]*~[^/[:space:]~]+/[^)]*\)'
 
 # Inert tokens: not among the two substitutions expanded in allowed-tools Bash
 # rules, or unexpandable env-var spellings that make the rule a literal no-op.
+# shellcheck disable=SC2016  # single quotes deliberate: \$ and % are literal ERE, not shell expansion
 P4_INERT_ERE='\$\{CLAUDE_PLUGIN_ROOT\}|%USERPROFILE%|\$env:USERPROFILE'
 
 findings=()

@@ -435,8 +435,16 @@ assert_contains "skill-local remedy recommends CLAUDE_SKILL_DIR" "$OUT_INERT" "C
 
 D8G2="$TEST_TMPDIR/issue-2397-inert-settings"
 mkdir -p "$D8G2/.claude"
-jq -n '{permissions:{allow:["Bash(%USERPROFILE%/scripts/x.sh:*)","Bash($env:USERPROFILE\\scripts\\x.sh:*)"]}}' \
-  >"$D8G2/.claude/settings.json"
+cat >"$D8G2/.claude/settings.json" <<'EOF'
+{
+  "permissions": {
+    "allow": [
+      "Bash(%USERPROFILE%/scripts/x.sh:*)",
+      "Bash($env:USERPROFILE/scripts/x.sh:*)"
+    ]
+  }
+}
+EOF
 OUT_ENV=$(run "$D8G2")
 assert_contains "flags %USERPROFILE% inert grant" "$OUT_ENV" "%USERPROFILE%"
 assert_contains "flags PowerShell env inert grant" "$OUT_ENV" "\$env:USERPROFILE"
