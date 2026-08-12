@@ -174,6 +174,22 @@ if config is None or defaults is None:
     print("automode summary findings=0 sections=0 status=unparseable")
     raise SystemExit(0)
 
+# Parsing is not enough: the payload must also be the SHAPE this lane expects.
+# A valid JSON array or string parses cleanly and then explodes on the first
+# .get() -- which exited 0 with a traceback and no summary line, so a caller
+# grepping status= saw nothing and a success exit. In the one lane whose whole
+# premise is that the CLI's output cannot be trusted, that is the failure the
+# header contract exists to forbid.
+for _payload, _name in ((config, "config"), (defaults, "defaults")):
+    if not isinstance(_payload, dict):
+        print(
+            "BLOCK-NOTE: autoMode block lane read the %s payload but it is a %s, not "
+            "an object with the four rule sections. Reporting it as unusable rather "
+            "than as an empty block." % (_name, type(_payload).__name__)
+        )
+        print("automode summary findings=0 sections=0 status=unexpected-shape")
+        raise SystemExit(0)
+
 SECTIONS = ("environment", "allow", "soft_deny", "hard_deny")
 findings = 0
 
@@ -303,6 +319,18 @@ PYEOF
 # measured across three consecutive runs on one unchanged config, the output was
 # truncated mid-sentence twice and empty once, exiting 0 every time.
 crit="$tmp/critique.txt"
+# The entry-diff sibling prices its spawn before making it; this one did not,
+# and an unpriced spawn is exactly the surprise the opt-in flag exists to avoid.
+# Printed before the capture call so it is true whether or not a fixture short-
+# circuits the run.
+if [[ -z "${AUTOMODE_CRITIQUE_FIXTURE:-}" ]]; then
+  cat >&2 <<'EOF'
+CRITIQUE COST NOTICE — nothing has been spawned yet.
+  --critique runs `claude auto-mode critique`, a real session on this machine.
+  That costs API tokens and leaves the state any session leaves behind. It reads
+  your autoMode block and writes no settings file.
+EOF
+fi
 if ! capture "$crit" "${AUTOMODE_CRITIQUE_FIXTURE:-}" critique; then
   note "critique returned nothing; run it yourself. Measured on 2.1.225: three consecutive runs on one unchanged config produced 3032 bytes, 991 bytes, and no output at all, each exiting 0 -- so an empty result here means nothing about your rules."
   exit 0

@@ -192,6 +192,42 @@ assert_exit "a sectionless entry does not crash the drafter" 0 "$rc"
 assert_eq "and yields an empty object rather than a guessed section" "{}" \
   "$(printf '%s' "$OUT_NOSECTION" | jq -c .)"
 
+# --- Only the four documented sections are emitted ---------------------------
+# A drafter that wrote `bogus_section` into an autoMode block would manufacture
+# the exact "written where nothing reads it" defect its audit sibling exists to
+# find. Unknown sections are skipped with a warning on stderr, not emitted.
+UNKNOWN=$(
+  cat <<'EOF'
+section bogus_section_name
+label Skipped Entry
+covered something
+section allow
+label Real Entry
+covered something real
+EOF
+)
+OUT_UNKNOWN=$(printf '%s
+' "$UNKNOWN" | bash "$SCRIPT" 2>/dev/null)
+ERR_UNKNOWN=$(printf '%s
+' "$UNKNOWN" | bash "$SCRIPT" 2>&1 >/dev/null)
+assert_eq "an unknown section is not emitted" "allow"   "$(printf '%s' "$OUT_UNKNOWN" | jq -r 'keys | join(" ")')"
+assert_contains "and the skip is warned about by name" "$ERR_UNKNOWN" "bogus_section_name"
+assert_contains "the warning says why" "$ERR_UNKNOWN" "written where nothing reads it"
+assert_contains "the real section still ships" "$OUT_UNKNOWN" "Real Entry:"
+rc=0
+printf '%s
+' "$UNKNOWN" | bash "$SCRIPT" >/dev/null 2>&1 || rc=$?
+assert_exit "an unknown section does not fail the run" 0 "$rc"
+
+# An empty section name is the same class and must not become the key "".
+EMPTY_SECTION=$(printf 'section 
+label X
+covered y
+')
+OUT_EMPTY_S=$(printf '%s
+' "$EMPTY_SECTION" | bash "$SCRIPT" 2>/dev/null)
+assert_eq "an empty section name yields no key" "{}" "$(printf '%s' "$OUT_EMPTY_S" | jq -c .)"
+
 # --- Fail-loud ----------------------------------------------------------------
 rc=0
 err=$(printf '' | bash "$SCRIPT" 2>&1) || rc=$?

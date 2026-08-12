@@ -119,11 +119,14 @@ Neither is a limitation to apologise for; both change what a finding means.
   `Bash(aws s3 ls)`." This merge does not evaluate pattern subsumption, so a narrow allow that a
   broader deny blocks is still reported effective. It over-reports allow; it never over-reports
   blocking.
-- **A rule containing a literal newline is reported, never split.** The records are line-oriented, so
-  such a rule cannot be represented in one — and reading it line by line produced two records, each a
-  rule string present in no settings file, both of which would flow downstream as if they were real
-  grants. It is reachable through an ordinary settings file, so the reader names it as
-  unrepresentable and emits no rule record for it.
+- **A rule containing a literal newline or carriage return is reported, never split or stripped.**
+  The records are line-oriented, so such a rule cannot be represented in one. A newline read line by
+  line produced two records; a carriage return was silently deleted by the CRLF line-ending strip,
+  turning `Bash(a\rb *)` into `Bash(ab *)`. Every one of those is a rule string present in no
+  settings file, flowing downstream as if it were a real grant. Both are reachable through an
+  ordinary settings file, and both are now named as unrepresentable with no rule record emitted. The
+  line-ending strip stays — `jq` emits CRLF on Windows — so the in-string case is caught *before* it
+  reaches the strip rather than by weakening it.
 - **A surface that could not be read bounds the result.** `skipped`, `unreadable` and `invalid-json`
   each raise a caveat naming the surface. `absent` and `not-applicable` raise none — the reader looked
   and there was nothing, which is a complete answer.
@@ -187,7 +190,7 @@ fixed all three.
 | `C2-defaultMode` | "Claude Code v2.1.142 and later ignore `auto` from those files so a repository cannot grant itself auto mode." Only the value `auto` is dead — other modes are read in project scope |
 | `C2-planMode` | `useAutoModeDuringPlan` is "**Not read from shared project settings**". That names `.claude/settings.json` specifically, so a local-settings occurrence is **not** claimed dead — doing so would assert a restriction no page states |
 | `C5-disableType` | "set `permissions.disableBypassPermissionsMode` or `permissions.disableAutoMode` to `\"disable\"` in any settings file" — the **string**. Checked at both documented key paths, in every scope; it is not managed-only |
-| `C6-winPath` | "On Windows, paths are normalized to POSIX form before matching. `C:\Users\alice` becomes `/c/Users/alice`" |
+| `C6-winPath` | "On Windows, paths are normalized to POSIX form before matching. `C:\Users\alice` becomes `/c/Users/alice`". Tested on a **single** backslash — the form the reader emits. An earlier revision tested the doubled JSON-source spelling, which `jq -r` decodes away, so the check was dead in the real pipeline while passing a suite whose fixtures bypassed the reader |
 | `C6-contentField` | "You can't match a tool's primary content field this way: `command` for Bash and PowerShell, `file_path` for Read, Edit, and Write, `path` for Grep and Glob, `notebook_path` for NotebookEdit, and `url` for WebFetch… Claude Code ignores it and emits a startup warning" |
 | `C6-uncoveredPath` | "Claude Code checks file permissions against `Edit(path)` and `Read(path)` rules only. If you write a path rule for `Write`, `NotebookEdit`, `Glob`, or the legacy `MultiEdit` tool instead, Claude Code accepts the rule but never consults it, and warns at startup" (v2.1.210+; a `Glob` rule passed in `--allowedTools` is the stated exception) |
 | `C6-colonStar` | "The `:*` form is only recognized at the end of a pattern. In a pattern like `Bash(git:* push)`, the colon is treated as a literal character" |
@@ -239,6 +242,10 @@ confident wrong answer.
 | `defaults --label <x>` **omits** a non-matching key entirely rather than returning an empty list | tolerates a missing key as "no entries", never as an error |
 | Entry labels carry a bracketed annotation **before** the colon — `Git Destructive [named+specifics …]: …` | splits at the first `[` when one precedes the colon, so the label is not truncated mid-annotation |
 | **Exit status is never trustworthy** — `critique` returned 0 on a run producing no output at all | judges every capture by whether it yielded usable content. A run that produced nothing is `status=unavailable` with an explicit "NOT a clean bill", never success |
+| A payload can **parse and still be the wrong shape** — a JSON array or string is valid JSON and has no sections | shape is checked before use. An earlier revision exploded on the first field access, exiting 0 with a traceback and **no summary line**, so a caller grepping `status=` saw nothing and a success exit. Now `status=unexpected-shape`, exactly one summary line, always |
+
+`--critique` prints a cost notice before spawning, for the same reason the entry diff's oracle does:
+an unpriced session spawn is the surprise an opt-in flag exists to prevent.
 
 ### Optional by declaration
 

@@ -257,9 +257,33 @@ OUT_NL=$(env -u CLAUDE_CONFIG_DIR HOME="$NLFX/home" \
   bash "$SCRIPT")
 assert_eq "the multi-line rule yields no rule record" 0 "$(count_matching "$OUT_NL" '^rule user settings allow Bash\(echo')"
 assert_eq "and no fragment record either" 0 "$(count_matching "$OUT_NL" '^rule user settings allow there')"
-assert_contains "it is reported as unrepresentable" "$OUT_NL" "contains a literal newline and cannot be represented"
+assert_contains "it is reported as unrepresentable" "$OUT_NL" "cannot be represented as one record"
 assert_contains "with the rule text rendered on one line" "$OUT_NL" "Bash(echo hi there *)"
 assert_contains "the well-formed sibling rule is unaffected" "$OUT_NL" "rule user settings allow Bash(npm test)"
+
+# A CARRIAGE RETURN is the same class and was the worse case: the newline fix
+# announced LF while the CRLF line-ending strip silently DELETED an in-string
+# CR, turning a rule into "Bash(ab *)" -- text present in no settings file,
+# flowing downstream as a real grant. That strip is load-bearing (jq emits CRLF
+# on Windows), so the in-string CR is caught BEFORE it reaches the strip rather
+# than by weakening it.
+CRFX="$TEST_TMPDIR/crfx"
+mkdir -p "$CRFX/proj/.claude" "$CRFX/home/.claude" "$CRFX/pol" "$CRFX/sd/.claude"
+jq -n '{}' >"$CRFX/proj/.claude/settings.json"
+jq -n '{}' >"$CRFX/pol/managed-settings.json"
+# The CR reaches the file as a JSON backslash-r escape, which is how a real settings
+# file would carry one.
+jq -n '{permissions:{allow:["Bash(a\rb *)","Bash(npm test)"]}}' >"$CRFX/home/.claude/settings.json"
+OUT_CR=$(env -u CLAUDE_CONFIG_DIR HOME="$CRFX/home" \
+  PERMISSION_STATE_FIXTURE_DIR="$CRFX/proj" \
+  PERMISSION_STATE_STARTDIR="$CRFX/sd" \
+  PERMISSION_STATE_MANAGED_PATH="$CRFX/pol/managed-settings.json" \
+  PERMISSION_STATE_REGISTRY_KEYS="" \
+  PERMISSION_STATE_PLIST_DOMAIN="" \
+  bash "$SCRIPT")
+assert_eq "a CR-carrying rule yields no rule record" 0 "$(count_matching "$OUT_CR" '^rule user settings allow Bash.a')"
+assert_contains "it is reported rather than silently stripped" "$OUT_CR" "carriage return"
+assert_contains "the sibling rule is unaffected by the CR case" "$OUT_CR" "rule user settings allow Bash(npm test)"
 
 # --- Case 13: jq is required for correctness ---------------------------------
 # The jq gate runs before any external tool, so an EMPTY stub dir is enough here;

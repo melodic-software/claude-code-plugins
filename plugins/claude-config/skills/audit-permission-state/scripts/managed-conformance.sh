@@ -101,7 +101,11 @@ NF >= 3 {
     n_managed_surfaces++
     status = $3
     if (status == "present") n_managed_present++
-    else if (status == "skipped" || status == "unreadable") unread[++n_unread] = $2 " (" status ")"
+    # invalid-json belongs here, not with absent: a CORRUPT managed policy is a
+    # policy that exists and could not be read, and reporting it as "no policy
+    # deployed" is the single worst answer this report can give an
+    # administrator. The merge already groups the three; this now matches it.
+    else if (status == "skipped" || status == "unreadable" || status == "invalid-json") unread[++n_unread] = $2 " (" status ")"
   }
   next
 }
@@ -116,9 +120,20 @@ END {
 
   print "MANAGED-NOTE: server-managed settings are delivered remotely at sign-in and have no local path, so no local reader can see them. \"Managed\" here means the LOCAL managed surfaces only; an intent enforced remotely will not appear below."
 
+  # "No local policy" is claimed ONLY when every surface was actually looked at
+  # and found empty. A surface that could not be read -- corrupt, skipped,
+  # unreadable -- means a policy may well be deployed and this report could not
+  # see it, so the honest status is `incomplete`. Reporting that as
+  # `no-local-policy` told an administrator their corrupt policy file was an
+  # absent one.
   if (n_managed_present == 0) {
-    print "MANAGED-NOTE: no local managed policy surface was readable with content, so there is nothing to report conformance against."
-    print "managed conformance summary enforced=0 loosenable=0 status=no-local-policy"
+    if (n_unread > 0) {
+      print "MANAGED-NOTE: no managed surface could be read with content, and " n_unread " surface(s) above could not be read at all — this is NOT evidence that no policy is deployed, only that none could be read here."
+      print "managed conformance summary enforced=0 loosenable=0 status=incomplete"
+    } else {
+      print "MANAGED-NOTE: no local managed policy surface was readable with content, so there is nothing to report conformance against."
+      print "managed conformance summary enforced=0 loosenable=0 status=no-local-policy"
+    }
     exit 0
   }
 

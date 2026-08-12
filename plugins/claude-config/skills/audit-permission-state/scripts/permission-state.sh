@@ -218,7 +218,7 @@ emit_file_rules() {
       # `@json` makes the newline visible as \n rather than splitting the line.
       case "$rule" in
       *"$NL_SENTINEL"*)
-        printf 'NOTE: %s %s %s rule contains a literal newline and cannot be represented as one record; reported here rather than split into fragments that match no rule in the file: %s\n' \
+        printf 'NOTE: %s %s %s rule contains a literal newline or carriage return and cannot be represented as one record; reported here rather than split or silently stripped into text that matches no rule in the file: %s\n' \
           "$scope" "$surface" "$kind" "${rule#"$NL_SENTINEL"}"
         ;;
       *) printf 'rule %s %s %s %s\n' "$scope" "$surface" "$kind" "$rule" ;;
@@ -228,7 +228,7 @@ emit_file_rules() {
       # it whole; the sentinel below marks the ones that needed it.
     done < <(tr -d '\r' <"$path" |
       jq -r --arg k "$kind" --arg nl "$NL_SENTINEL" \
-        '.permissions[$k] // [] | .[] | if test("\n") then $nl + (. | gsub("\n"; " ")) else . end' 2>/dev/null |
+        '.permissions[$k] // [] | .[] | if test("[\n\r]") then $nl + (. | gsub("[\n\r]"; " ")) else . end' 2>/dev/null |
       tr -d '\r')
   done
 }
@@ -368,14 +368,14 @@ else
           [[ -n "$rule" ]] || continue
           case "$rule" in
           *"$NL_SENTINEL"*)
-            printf 'NOTE: managed registry %s rule contains a literal newline and cannot be represented as one record; reported here rather than split into fragments that match no rule in the policy: %s\n' \
+            printf 'NOTE: managed registry %s rule contains a literal newline or carriage return and cannot be represented as one record; reported here rather than split or silently stripped into text that matches no rule in the policy: %s\n' \
               "$kind" "${rule#"$NL_SENTINEL"}"
             ;;
           *) printf 'rule managed registry %s %s\n' "$kind" "$rule" ;;
           esac
         done < <(printf '%s' "$reg_json" |
           jq -r --arg k "$kind" --arg nl "$NL_SENTINEL" \
-            '.permissions[$k] // [] | .[] | if test("\n") then $nl + (. | gsub("\n"; " ")) else . end' 2>/dev/null |
+            '.permissions[$k] // [] | .[] | if test("[\n\r]") then $nl + (. | gsub("[\n\r]"; " ")) else . end' 2>/dev/null |
           tr -d '\r')
       done
       emit_file_conf managed registry < <(printf '%s' "$reg_json")

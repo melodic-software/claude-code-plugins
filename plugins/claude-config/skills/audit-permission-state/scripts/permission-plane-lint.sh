@@ -191,9 +191,17 @@ END {
     # a false positive on the most ordinary rule shape there is.
     if (body == "") continue
 
-    # Doubled backslashes: on Windows a rule path is normalized to POSIX form
-    # before matching, so a JSON-escaped Windows path never matches anything.
-    if (index(body, "\\\\") > 0)
+    # A Windows-style path in a rule: rule paths are normalized to POSIX form
+    # before matching, so `C:\Users\alice` never matches anything.
+    #
+    # The test is on a SINGLE backslash, not a doubled one. An earlier revision
+    # looked for `\\` -- the JSON SOURCE spelling -- which made this check dead
+    # in the real pipeline: `jq -r` decodes the escape, so the reader emits
+    # `Read(C:\Users\alice\**)` and the doubled form never reaches here. It
+    # passed its own suite only because the fixture was a hand-written record
+    # that bypassed the reader. A rule shipping the doubled form literally is
+    # broken the same way, so both spellings are caught by testing for one.
+    if (index(body, "\\") > 0)
       finding("error", "C6-winPath", scope, text " — a Windows-style path in a rule cannot match: rule paths are normalized to POSIX form (C:\\Users\\alice becomes /c/Users/alice), so use //c/** form instead")
 
     # `:*` is recognized only at the end of a pattern; elsewhere the colon is a

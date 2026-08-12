@@ -213,6 +213,28 @@ assert_contains "the summary states how many checks ran" "$OUT" "checks_run=8"
 OUT=$(lint "$SURFACES")
 assert_contains "a clean run still reports its summary" "$OUT" "lint summary findings=0"
 
+# --- C6-winPath must fire on what the READER actually emits ------------------
+# It did not. The check tested for a doubled backslash -- the JSON SOURCE
+# spelling -- but `jq -r` decodes the escape, so the reader emits a single
+# backslash and the check was dead in the real pipeline. It passed its own suite
+# only because every other case here feeds a hand-written record that bypasses
+# the reader. This one drives the reader.
+if command -v jq >/dev/null 2>&1; then
+  WPFX="$TEST_TMPDIR/wpfx"
+  mkdir -p "$WPFX/proj/.claude" "$WPFX/home/.claude" "$WPFX/pol" "$WPFX/sd/.claude"
+  jq -n '{}' >"$WPFX/proj/.claude/settings.json"
+  jq -n '{}' >"$WPFX/pol/managed-settings.json"
+  # Doubled in the jq SOURCE so the file carries single backslashes -- which is
+  # exactly the point: the reader decodes them, and the check has to match what
+  # the reader emits rather than the source spelling.
+  jq -n '{permissions:{allow:["Read(C:\\Users\\alice\\**)","Read(//c/**/.env)"]}}' >"$WPFX/home/.claude/settings.json"
+  E2E_WP=$(env -u CLAUDE_CONFIG_DIR HOME="$WPFX/home"     PERMISSION_STATE_FIXTURE_DIR="$WPFX/proj"     PERMISSION_STATE_STARTDIR="$WPFX/sd"     PERMISSION_STATE_MANAGED_PATH="$WPFX/pol/managed-settings.json"     PERMISSION_STATE_REGISTRY_KEYS=""     PERMISSION_STATE_PLIST_DOMAIN=""     bash "$STATE_SCRIPT" | bash "$SCRIPT")
+  assert_eq "the Windows path is caught through the real reader" 1 "$(count_matching "$E2E_WP" '\[C6-winPath\]')"
+  assert_contains "and it is the backslash rule, not the POSIX one" "$E2E_WP" "Read(C:\Users\alice"
+else
+  pass "winPath end-to-end (skipped -- jq not installed)"
+fi
+
 # --- Fail-loud: no input is never a clean bill --------------------------------
 rc=0
 err=$(printf '' | bash "$SCRIPT" 2>&1) || rc=$?

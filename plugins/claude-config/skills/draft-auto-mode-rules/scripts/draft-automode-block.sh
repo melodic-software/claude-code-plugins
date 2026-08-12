@@ -130,7 +130,19 @@ printf '%s\n' "$answers" | jq -Rn '
         end
     )
   | (if .current != null then .entries + [.current] else .entries end)
+  # Only the four documented sections are emitted. A drafter that happily wrote
+  # `bogus_section` (or "") into an autoMode block would be manufacturing
+  # exactly the "written where nothing reads it" defect its audit sibling
+  # exists to find -- the one thing an authoring tool must never produce.
   | map(select(.section != null and (.label | test("[^[:space:]]"))))
+  | (map(select(.section | IN("environment", "allow", "soft_deny", "hard_deny") | not))
+     | map(.section) | unique) as $unknown
+  | (if ($unknown | length) > 0 then
+       ("draft-automode-block.sh: unknown section(s) skipped: " + ($unknown | join(", "))
+        + " -- the classifier reads only environment, allow, soft_deny and hard_deny; anything else would be written where nothing reads it"
+        | stderr | empty)
+     else empty end),
+    (map(select(.section | IN("environment", "allow", "soft_deny", "hard_deny")))
   | group_by(.section)
   | map({
       key: .[0].section,
@@ -139,5 +151,5 @@ printf '%s\n' "$answers" | jq -Rn '
       # every shipped rule -- the exact defect the audit sibling reports.
       value: (["$defaults"] + map(render(.)))
     })
-  | from_entries
+  | from_entries)
 '

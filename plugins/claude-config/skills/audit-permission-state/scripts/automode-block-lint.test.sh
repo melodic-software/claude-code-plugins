@@ -192,6 +192,38 @@ assert_contains "and prices the claim with the measurement behind it" "$OUT_NOCR
 # Without the flag, critique is never run at all.
 assert_not_contains "critique is not surfaced without the flag" "$OUT" "end critique"
 
+# --- A payload that PARSES but has the wrong SHAPE ---------------------------
+# Parsing is not enough. A valid JSON array or string parsed cleanly and then
+# exploded on the first .get(), exiting 0 with a traceback and NO summary line --
+# so a caller grepping status= saw nothing and a success exit. In the one lane
+# whose premise is that the CLI's output cannot be trusted, that is the failure
+# its own header contract forbids.
+for shape in '[1, 2, 3]' '"hello"' '42' 'null'; do
+  SHAPE_FILE="$TEST_TMPDIR/shape.json"
+  printf '%s
+' "$shape" >"$SHAPE_FILE"
+  rc=0
+  OUT_SHAPE=$(env AUTOMODE_CONFIG_FIXTURE="$SHAPE_FILE" AUTOMODE_DEFAULTS_FIXTURE="$DEFAULTS" bash "$SCRIPT" 2>&1) || rc=$?
+  assert_exit "a $shape payload does not crash the lane" 0 "$rc"
+  assert_eq "and always emits exactly one summary line" 1 "$(count_matching "$OUT_SHAPE" '^automode summary ')"
+  assert_eq "and never reports findings from a payload it could not use" 0 "$(count_matching "$OUT_SHAPE" '^finding ')"
+  assert_not_contains "and never leaks a traceback" "$OUT_SHAPE" "Traceback"
+done
+
+# --- The critique spawn is priced before it happens --------------------------
+# The entry-diff sibling prices its spawn; this one did not, and an unpriced
+# spawn is the surprise the opt-in flag exists to prevent.
+NOTICE_STUB="$TEST_TMPDIR/notice-stub"
+mkdir -p "$NOTICE_STUB"
+real_bash_n="$(command -v bash)"
+printf '#!%s
+printf "stub critique output.\n"
+' "$real_bash_n" >"$NOTICE_STUB/claude"
+chmod +x "$NOTICE_STUB/claude"
+OUT_NOTICE=$(env AUTOMODE_CONFIG_FIXTURE="$CONFIG" AUTOMODE_DEFAULTS_FIXTURE="$DEFAULTS"   PATH="$NOTICE_STUB:$PATH" bash "$SCRIPT" --critique 2>&1)
+assert_contains "the critique spawn prints a cost notice" "$OUT_NOTICE" "CRITIQUE COST NOTICE"
+assert_contains "the notice says nothing has been spawned yet" "$OUT_NOTICE" "nothing has been spawned yet"
+
 # --- Argument handling --------------------------------------------------------
 rc=0
 err=$(bash "$SCRIPT" --bogus </dev/null 2>&1) || rc=$?

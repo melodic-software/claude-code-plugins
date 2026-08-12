@@ -202,6 +202,26 @@ OUT=$(report "$NO_POLICY")
 assert_contains "no local policy is stated explicitly" "$OUT" "status=no-local-policy"
 assert_eq "and no conformance claim is made" 0 "$(count_matching "$OUT" '^managed enforced')"
 
+# --- A CORRUPT managed policy is not an absent one ---------------------------
+# invalid-json means a policy exists and could not be read. Reporting that as
+# "no local policy" is the single worst answer this report can give an
+# administrator, and the merge already grouped the three statuses correctly.
+CORRUPT=$(
+  cat <<'EOF'
+managed file invalid-json /policy/managed-settings.json
+managed dropin-dir absent /policy/managed-settings.d
+managed registry not-applicable -
+managed plist not-applicable -
+user settings present /fx/home/.claude/settings.json
+rule user settings allow Bash(npm test)
+EOF
+)
+OUT=$(report "$CORRUPT")
+assert_contains "a corrupt managed file is reported unread" "$OUT" "the managed surface file (invalid-json) was NOT read"
+assert_contains "and the status says incomplete, not absent" "$OUT" "status=incomplete"
+assert_contains "and explicitly not as absence of policy" "$OUT" "not evidence that no policy is deployed"
+assert_not_contains "it is never reported as no local policy" "$OUT" "status=no-local-policy"
+
 # --- Fail-loud ----------------------------------------------------------------
 rc=0
 err=$(printf '' | bash "$SCRIPT" 2>&1) || rc=$?
