@@ -27,6 +27,7 @@
 #   C6-contentField  a parameter-form rule on a tool's primary content field
 #   C6-uncoveredPath a path rule on a tool whose path rules are never consulted
 #   C6-colonStar     `:*` mid-pattern in a command-prefix rule (not the parameter form)
+#   C6-colonStarAmbiguous  mid-pattern `:*` with no trailing space — indistinguishable from a parameter form (warning)
 #   C6-allowParam    parameter-form matching in an allow rule (deny/ask only)
 #
 # Prerequisites: jq (required for correctness — the conf/settings reads are JSON).
@@ -286,6 +287,11 @@ END {
       : (is_param_shape && (tool SUBSEP prefix_of(body)) in param_only)
     if (cs > 0 && cs + 1 < length(body) && !param_form && !((tool SUBSEP prefix_of(body)) in documented_param))
       finding("error", "C6-colonStar", scope, text " — the :* form is only recognized at the END of a pattern; here the colon is treated as a literal character and the rule will not match what it looks like it matches")
+    # Mid-pattern `:*` with no trailing space is structurally identical to a live
+    # parameter form (`Agent(model:*-haiku)`). Once the space is gone nothing in
+    # the rule text distinguishes them; silence is fail-open on deny/ask rules.
+    if (cs > 0 && cs + 1 < length(body) && kind != "allow" && is_param_shape && !((tool SUBSEP prefix_of(body)) in documented_param) && !((tool SUBSEP prefix_of(body)) in param_only))
+      finding("warning", "C6-colonStarAmbiguous", scope, text " — mid-pattern :* with no trailing space is indistinguishable from a documented parameter form; this rule may be a dead command prefix or a parameter wildcard — verify which you intended")
 
     # Parameter form is `Tool(param:value)`. Two distinct defects live here.
     colon = index(body, ":")
