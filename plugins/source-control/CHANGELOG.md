@@ -3,6 +3,13 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.51.13]
+
+### Fixed
+
+- **`readiness.md` rule 3 no longer lists bare `map(f)` as element-wise safe.** `map(f)` builds a
+  per-page array; only `map(f) | .[]` re-flattens safely. `select` alone remains correct. (#2245)
+
 ## [0.51.12]
 
 ### Fixed
