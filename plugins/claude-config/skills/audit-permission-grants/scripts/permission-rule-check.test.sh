@@ -418,6 +418,11 @@ assert_contains "flags tilde-user Bash path" "$OUT_TILDE" "~kyle"
 assert_contains "tilde-user finding is P2" "$OUT_TILDE" "[P2]"
 assert_eq "portable ~/ anchor in Read is not flagged" "0" \
   "$(jq -n '{permissions:{allow:["Read(~/notes.md)"]}}' >"$D8F/.claude/settings.json" && run "$D8F" --count)"
+D8F_URL="$TEST_TMPDIR/issue-2397-tilde-url"
+mkdir -p "$D8F_URL/.claude"
+jq -n '{permissions:{allow:["Bash(curl https://example.com/~alice/index.html)"]}}' \
+  >"$D8F_URL/.claude/settings.json"
+assert_eq "URL user-directory segment is not flagged as tilde-user path" "0" "$(run "$D8F_URL" --count)"
 
 # --- Case 8g: #2397 A7b — inert substitution tokens in allowed-tools ----------
 D8G="$TEST_TMPDIR/issue-2397-inert"
@@ -449,6 +454,28 @@ OUT_ENV=$(run "$D8G2")
 assert_contains "flags %USERPROFILE% inert grant" "$OUT_ENV" "%USERPROFILE%"
 assert_contains "flags PowerShell env inert grant" "$OUT_ENV" "\$env:USERPROFILE"
 assert_contains "settings-scope remedy does not prescribe plugin bin" "$OUT_ENV" "bare command on PATH"
+
+D8G3="$TEST_TMPDIR/issue-2397-inert-list"
+mkdir -p "$D8G3/.claude/skills/demo"
+cat >"$D8G3/.claude/skills/demo/SKILL.md" <<'EOF'
+---
+name: demo
+allowed-tools:
+  - Bash(git status)
+  - Bash(${CLAUDE_PLUGIN_ROOT}/scripts/x.sh:*)
+  - Bash(%USERPROFILE%/scripts/y.sh:*)
+---
+body
+EOF
+OUT_LIST=$(run "$D8G3")
+assert_contains "flags only the inert grant in a mixed list" "$OUT_LIST" "Bash(\${CLAUDE_PLUGIN_ROOT}/scripts/x.sh:*)"
+assert_not_contains "clean grant in the same list is not embedded in P4 detail" "$OUT_LIST" "Bash(git status)"
+assert_eq "two distinct inert Bash grants emit two P4 findings" "2" "$(run "$D8G3" --count)"
+
+D8G4="$TEST_TMPDIR/issue-2397-inert-read"
+mkdir -p "$D8G4/.claude"
+jq -n '{permissions:{allow:["Read(%USERPROFILE%/notes.txt)"]}}' >"$D8G4/.claude/settings.json"
+assert_eq "non-Bash rules with inert spellings are not P4-flagged" "0" "$(run "$D8G4" --count)"
 
 # --- Case 9: missing jq exits 2 ---------------------------------------------
 real_bash=$(command -v bash)

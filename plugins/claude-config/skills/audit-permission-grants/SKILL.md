@@ -18,7 +18,7 @@ work?"
 The principle, the three anti-patterns, and the correct pattern (with official-doc citations) live in
 the marketplace's **permission-rule-hygiene** convention, published at
 <https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/permission-rule-hygiene/README.md>.
-The mechanical check definitions (P1/P2/P3, severities, detector invocation) are in
+The mechanical check definitions (P1/P2/P2b/P3/P4, severities, detector invocation) are in
 [reference/criteria.md](reference/criteria.md), which carries every recommendation this skill needs at
 run time — the convention is the doctrine's owner, not a runtime dependency.
 
@@ -67,8 +67,8 @@ A user-global finding is reported the same as any other, but its remediation is 
 skill cannot write that file. Expect this scope to carry the most findings on a long-lived machine —
 "Always allow" writes there, and nothing prunes it.
 
-If a scope filter was given, run the full detector and present only the matching checks (P1/P2 map to
-`frontmatter`/`settings` sources; P3 to `plugins`).
+If a scope filter was given, run the full detector and present only the matching checks (P1/P2/P2b map to
+`frontmatter`/`settings` sources; P3 to `plugins`; P4 to `frontmatter`/`settings`).
 
 ## Phase 2: Report
 
@@ -82,7 +82,7 @@ required.
 
 | Severity | Criteria |
 | --- | --- |
-| error | Non-portable grant that leaks a username / breaks on other machines (P2) |
+| error | Non-portable grant that leaks a username / breaks on other machines (P2, P2b), or an inert Bash substitution token (P4) |
 | warning | Interpreter/runner-led grant whose broad forms auto mode drops, or an inert self-grant (P1, P3) |
 
 A clean scan ("No fragile permission grants found.") is a valid outcome — report it as such.

@@ -170,12 +170,14 @@ _p2_path="${_sl}Users${_sl}${_seg}|${_sl}home${_sl}${_seg}|[A-Za-z]:[${_sl}${_bs
 P2_RULE_ERE="[A-Za-z_][A-Za-z0-9_]*\\([^)]*(${_p2_path})[^)]*\\)"
 # `~user/…` in a Bash rule — not the portable `~/` anchor (Read/Edit resolve that
 # per user). Bash rules match literally and do not expand tilde-user forms.
-P2_TILDE_USER_RULE_ERE='Bash\([^)]*~[^/[:space:]~]+/[^)]*\)'
+# Require `~` to begin a shell word (immediately after `(` or whitespace), not
+# inside arbitrary command text such as a URL user-directory segment.
+P2_TILDE_USER_RULE_ERE='Bash\((~[^/[:space:]~]+/|[[:space:]]+~[^/[:space:]~]+/)[^)]*\)'
 
-# Inert tokens: not among the two substitutions expanded in allowed-tools Bash
-# rules, or unexpandable env-var spellings that make the rule a literal no-op.
+# Inert tokens inside Bash(...) only — not Read/Edit or other tools.
 # shellcheck disable=SC2016  # single quotes deliberate: \$ and % are literal ERE, not shell expansion
-P4_INERT_ERE='\$\{CLAUDE_PLUGIN_ROOT\}|%USERPROFILE%|\$env:USERPROFILE'
+P4_INERT_TOKEN_ERE='\$\{CLAUDE_PLUGIN_ROOT\}|%USERPROFILE%|\$env:USERPROFILE'
+P4_BASH_INERT_ERE="Bash\\([^)]*(${P4_INERT_TOKEN_ERE})[^)]*\\)"
 
 findings=()
 
@@ -218,10 +220,11 @@ scan_rule() {
     [[ -z "$m" ]] && continue
     emit error P2 "$src" "tilde-user path in '$m' — Bash rules match literally and do not expand ~username forms, so the rule names a specific account, leaks a username into version control, and breaks on other machines. Use \${CLAUDE_SKILL_DIR} for a skill's own script, a bare-name command on PATH, or the ~/ home anchor for Read/Edit rules."
   done < <(printf '%s\n' "$text" | grep -oE "$P2_TILDE_USER_RULE_ERE" 2>/dev/null | sort -u)
-  if printf '%s' "$text" | grep -qE "$P4_INERT_ERE"; then
+  while IFS= read -r m; do
+    [[ -z "$m" ]] && continue
     remedy="$(inert_grant_remedy "$file")"
-    emit error P4 "$src" "inert substitution token in allow rule — the grant never matches at runtime ($text). Remedy: $remedy."
-  fi
+    emit error P4 "$src" "inert substitution token in '$m' — the grant never matches at runtime. Remedy: $remedy."
+  done < <(printf '%s\n' "$text" | grep -oE "$P4_BASH_INERT_ERE" 2>/dev/null | sort -u)
 }
 
 top_level_tokens() {
