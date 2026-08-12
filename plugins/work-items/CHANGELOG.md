@@ -3,6 +3,15 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.6]
+
+### Added
+
+- **Standing-item `precondition` field on recurring schedule rows (#2052).** Tier-4 `/work-items:work`
+  selection and `/work-items:track recheck` consult `precondition` via
+  `scripts/evaluate-schedule-precondition.sh` before claiming or closing. Migrated #2019's
+  frontier-release guard onto the new surface.
+
 ## [0.35.5]
 
 ### Fixed
