@@ -7,7 +7,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 
 ### Changed
 
-- **Synced `hook-utils.sh`:** feed `emit_telemetry` data via mktemp slurpfile instead of `--argjson`, so payloads above the Windows command-line cap are not dropped (#1595).
+- **Synced `hook-utils.sh`:** write `emit_telemetry`'s `data` payload to a temp file instead of passing it via `--argjson`, so payloads above the Windows command-line cap are not dropped (#1595).
 
 ## [0.31.5]
 

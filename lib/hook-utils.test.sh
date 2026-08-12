@@ -2057,6 +2057,32 @@ else
 fi
 rm -f "$tel19" "$sink19"
 
+# --- Test 19b: hook::emit_telemetry — large data_json survives (#1595) -------
+# Regression for payloads above the Windows ~32767-character command-line cap:
+# passing data via --argjson silently dropped telemetry. The fix writes data to a
+# temp file and slurpfiles it into jq. Drive a 40 KB findings string (well past
+# the cap) and assert the sink receives the full envelope with the payload intact.
+tel19b="$(mktemp)"
+sink19b="$(make_sink "$tel19b")"
+large_blob="$(printf 'x%.0s' {1..40000})"
+data_json_large=$(jq -cn --arg blob "$large_blob" \
+  '{tool:"Write",file:"src/big.py",findings:[$blob]}')
+HOOK_TELEMETRY_SINK="$sink19b" hook::emit_telemetry \
+  "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" "$data_json_large" 2>/dev/null
+wait_for_sink "$tel19b"
+unset HOOK_TELEMETRY_SINK
+if [[ -s "$tel19b" ]]; then
+  blob_len=$(jq -r '.data.findings[0] | length' "$tel19b" 2>/dev/null || echo 0)
+  if ((blob_len == 40000)); then
+    ok "emit_telemetry: 40 KB data_json payload → sink intact ($blob_len bytes)"
+  else
+    fail "emit_telemetry large payload: findings len=$blob_len (want 40000)"
+  fi
+else
+  fail "emit_telemetry large payload: sink empty (telemetry dropped)"
+fi
+rm -f "$tel19b" "$sink19b"
+
 # --- hook::extract_bash_subject: privacy-safe subject reduction --------------
 # The subject is emitted verbatim into hook-events.jsonl and any wired
 # HOOK_TELEMETRY_SINK, so it must never carry an assignment VALUE (a credential).
