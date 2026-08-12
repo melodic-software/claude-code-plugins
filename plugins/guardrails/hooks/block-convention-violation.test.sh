@@ -272,4 +272,11 @@ CLAUDE_PROJECT_DIR="$r" CLAUDE_PLUGIN_OPTION_BLOCK_CONVENTION_GATE_ENABLED=false
   bash "$HOOK" <<<"$json" >/dev/null 2>&1
 assert_exit "kill switch off: violating subject allowed" 0 $?
 
+# --- NUL in payload must fail closed (#2136) ----------------------------------
+r="$(newrepo "$TICKET")"
+nul_rc=0
+CLAUDE_PROJECT_DIR="$r" bash "$HOOK" <<<"$(jq -n --arg d "$r" \
+  '{tool_name:"Bash",tool_input:{command:("git status" + ([0]|implode))},cwd:$d}')" >/dev/null 2>&1 || nul_rc=$?
+assert_exit "NUL in command (blocked)" 2 "$nul_rc"
+
 report

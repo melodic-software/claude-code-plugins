@@ -39,9 +39,17 @@ Bare invocation reads and reports. `--fix` is the only mutation path, and it is 
 
 Parse `$ARGUMENTS`:
 
-- **`target`** — the git repository to audit. Default: `${CLAUDE_PROJECT_DIR}` when set, else
-  `git rev-parse --show-toplevel`. Never the working directory — a run launched from a subdirectory
-  must key and scan identically to one launched from the root.
+- **`target`** — the git repository to audit. Default: the project root Claude Code resolved for this
+  session; where no such root is available, `git rev-parse --show-toplevel`. Never the working
+  directory — a run launched from a subdirectory must key and scan identically to one launched from
+  the root.
+
+  **Do not express this as a condition over `${CLAUDE_PROJECT_DIR}` "when set".** That placeholder is
+  substituted inline in skill content before this file reaches you, so the literal token is never
+  visible and the test is not yours to make — you would be deciding "is it set?" about a value that
+  has already been resolved. Work from what you can observe: the resolved path, or a command you run.
+  The sibling `audit-prompting-postures` states this same rule where it derives its report path, and
+  the two skills contradicted each other on it until this was fixed.
 
   **`target` must resolve to the active project root, and a path that does not is refused.** The
   delegated interfaces accept no target: `audit-instructions` takes a surface scope and inventories
@@ -63,7 +71,7 @@ Parse `$ARGUMENTS`:
   before Phase 0 does any work, naming the path and the reason, writing nothing.
 
   **Name the directory, not an empty string.** In the case this refusal is *for*, the default
-  resolution above produces nothing: with no explicit `target` and no `${CLAUDE_PROJECT_DIR}`,
+  resolution above produces nothing: with no explicit `target` and no session-resolved project root,
   `git rev-parse --show-toplevel` fails outside a repository and there is no resolved root to report.
   So for the diagnostic only, fall back to the current directory and name **that** — a refusal that
   cannot say which path it refused is barely better than a silent one. The fallback is for the message;
