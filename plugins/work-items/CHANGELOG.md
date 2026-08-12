@@ -3,6 +3,13 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.4]
+
+### Fixed
+
+- **`triage` disambiguates "standing rules" from `re-anchor`'s homonym and
+  names when a general lane mandate satisfies the direction gate.** (#570)
+
 ## [0.35.3]
 
 ### Changed
