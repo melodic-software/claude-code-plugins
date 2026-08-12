@@ -341,7 +341,7 @@ CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 project_dir="$case_dir/git-project-root"
 mkdir -p "$project_dir/nested/subdir"
-(cd "$project_dir" && git init -q && git config user.email t@t.test && git config user.name t && git commit -q --allow-empty -m init)
+(cd "$project_dir" && git init -q && git -c user.email=t@t.test -c user.name=t -c commit.gpgsign=false commit -q --allow-empty -m init)
 # Derive the native-Windows form from `git rev-parse --show-toplevel` itself
 # (forward-slash-to-backslash only) rather than `cygpath -w`: on this
 # machine cygpath silently 8.3-shortens a profile segment (KyleSexton ->

@@ -14,6 +14,8 @@ SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SELF_DIR/.." && pwd)"
 SCRIPT="$SELF_DIR/affected-tests.sh"
 NO_SUITE="$SELF_DIR/affected-tests-no-suite.txt"
+# shellcheck source=test-git-helpers.sh
+. "$SELF_DIR/test-git-helpers.sh"
 
 PASS=0
 FAIL=0
@@ -42,11 +44,7 @@ mk_widget_consumer() {
 mk_repo() {
   local dir
   dir="$(mktemp -d "${TMPDIR:-/tmp}/affected-tests-fixture.XXXXXX")"
-  git -C "$dir" init -q
-  git -C "$dir" config user.email t@t.test
-  git -C "$dir" config user.name test
-  git -C "$dir" config commit.gpgsign false
-  git -C "$dir" config core.autocrlf false
+  git_init_safe "$dir"
 
   mkdir -p "$dir/scripts" "$dir/lib" \
     "$dir/plugins/alpha/hooks" "$dir/plugins/beta/hooks"
@@ -80,8 +78,8 @@ mk_repo() {
   # A file no suite names and no no-suite pattern covers.
   printf 'echo orphan\n' >"$dir/scripts/zzorphan-tool.sh"
 
-  git -C "$dir" add scripts lib plugins >/dev/null
-  git -C "$dir" commit -qm base >/dev/null
+  git_test_config "$dir" add scripts lib plugins >/dev/null
+  git_test_config "$dir" commit -qm base >/dev/null
   printf '%s' "$dir"
 }
 
@@ -144,8 +142,8 @@ mkdir -p "$repo/plugins/gamma/hooks"
 printf 'widget_helper() { echo widget; }\n' >"$repo/plugins/gamma/hooks/widget.sh"
 mk_widget_consumer "$repo/plugins/gamma/hooks/gamma-hook.sh"
 suite_body gamma-hook >"$repo/plugins/gamma/hooks/gamma-hook.test.sh"
-git -C "$repo" add plugins/gamma >/dev/null
-git -C "$repo" commit -qm gamma >/dev/null
+git_test_config "$repo" add plugins/gamma >/dev/null
+git_test_config "$repo" commit -qm gamma >/dev/null
 run_sel "$repo" lib/widget.sh
 out="$OUT"
 if [[ "$RC" -eq 0 ]] && has_line "$out" plugins/gamma/hooks/gamma-hook.test.sh; then
