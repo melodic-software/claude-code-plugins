@@ -3,6 +3,90 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.0]
+
+### Fixed
+
+- **`block-hook-bypass` missed three inline-write forms that reach a real file, one of them a
+  residual the file itself recorded as accepted (#2217).** Measured against `4c90b454` (0.27.2),
+  hook invoked as a decision function on a `PreToolUse` Bash payload — `rc=2` blocked, `rc=0`
+  allowed:
+
+  ```
+  rc=0 :: python -c "open('f','w').write('x')"
+  rc=0 :: py -c "open('f','w').write('x')"
+  rc=0 :: python3.11 -c "open('f','w').write('x')"
+  rc=0 :: printf 'a<newline>b<newline>' > notes.md
+  rc=0 :: python3 - <<'PY' … open('f','w').write('x') … PY
+  rc=2 :: python3 -c "open('f','w').write('x')"   # the one spelling that matched
+  rc=2 :: printf "a\nb\n" > notes.md              # the same write, escaped newline
+  ```
+
+  Three separate causes, all in the direction of letting a write through:
+
+  1. **The interpreter detector was a spelling floor, not a rule.** Both lanes required the literal
+     `python3` — the Bash lane's `EXEC_LC` scan and the PowerShell lane's
+     `ps::might_write_via_python3` token test — so `python -c`, `py -c`, `py3 -c`, `python2 -c` and
+     `python3.11 -c` ran the identical inline write unseen. The guard's own scope message advertised
+     `python -c` as its example, naming the one spelling the regex did not match. The command word is
+     now the python family (`py`/`python`/`pypy` plus an optional version suffix and `.exe`), still
+     separator-anchored, so `notpython3`, `mypython3`, `mypy`, `spy`, `happy` and `pytest` stay
+     inert. `py -3 -c` is admitted because a `-<digits>` token cannot be a script path; no other gap
+     between interpreter and flag is, so `python3 build.py` and `python3 -m tool …` are still not
+     blocked.
+
+  2. **A physical newline inside a quoted span split a producer from its own redirect.** A newline
+     reached with a quote still OPEN is not a separator — bash is inside a quoted word, so the text
+     either side of the span is ONE word — but `strip_literals` re-emitted it, `normalize_segments`
+     split there, and `producer_redirect_bypass` requires producer and redirect in one segment. The
+     join is now empty rather than a newline. **Empty, not a space:** `ec"<newline>"ho x > f` is
+     `echo x > f` to bash, and a space join leaves `ec ho`, which `_producer_head` does not match —
+     the fix ships with that case as an assertion. Joining empty cannot manufacture a token bash does
+     not also form, because an open quote is what makes the two sides one word. The kept-operand and
+     backslash-newline joins are unchanged; the multi-line `--body`/`-m` prose floor is unchanged
+     because a dropped span's content is dropped either way.
+
+  3. **REOPENED ACCEPTED RESIDUAL** — a stdin heredoc (`python3 - <<PY … PY`, no `-c`) was recorded
+     as uncovered and accepted in the PowerShell lane's comment. It is reopened here on new
+     reachability evidence rather than treated as an oversight: this repo's own session record shows
+     an agent reaching for exactly that form to patch a file
+     (`.work/handoffs/20260809T082720Z-handoff-post-2008-followups.md:211`, `python - <<'PY'`), and
+     widening the `-c` arm raises the pressure toward it, since a refused `python -c` write reroutes
+     most naturally to the heredoc. The `-` is what makes it inline: the code sits in the command
+     string the hook reads, not in an opaque script file. The acceptance comment is updated in both
+     `block-hook-bypass.sh` and `lib/powershell/ps-command.sh` rather than contradicted.
+
+  **Direction of every change: 23 granted → refused, 1 refused → granted.** Measured, not asserted:
+  the new assertions were run against the PRE-change hook and the failures enumerated
+  (`PASS=377 FAIL=15`, every one `expected 2, got 0`), then adversarial probes written afterwards
+  specifically to hunt the other direction turned up eight more rows, now assertions as well.
+
+  The **one** in the other direction is `foo "a<newline>" echo x > f`, and it is a false positive
+  being removed rather than a new exemption. Fusing the two sides of a span back into one segment
+  also puts whatever preceded the span at the segment start: there bash's command word is `foo` and
+  `echo` is one of its *arguments*, so the redirect's producer is another program and this guard is
+  producer-scoped by design. The newline previously split it into a bogus `echo x > f` segment. The
+  single-line spelling `foo "a" echo x > f` was already allowed, so this makes the multi-line form
+  agree with shipped behaviour; both are asserted, as is the mirror case (`echo "a<newline>" x > f`,
+  where the command word really is the producer) which moves the other way.
+
+  It is one row and not a class, verified rather than reasoned: every command PREFIX the file already
+  models — env assignments, `env`, `if…then`, `!`, `exec -a NAME`, a leading redirect — was probed in
+  front of a multi-line span against both hooks, and all still block, because `_cmd_prefix` /
+  `_modifier_opt_arg` / `_leading_redir` peel on the fused segment. Each is pinned with its
+  single-line control. Every remaining floor keeps its `rc=0`: the name anchor, the `#1601`/`#2148`
+  over-block repros re-run for each new spelling, the multi-line prose/`--body` floor, the
+  `/dev/null` discard floor, and the stdin floor.
+
+  **Accepted residual, restated at its narrowed width:** `python3 <<PY … PY` — stdin with **no** `-`
+  argument — stays uncovered. Matching a bare trailing interpreter token would flip
+  `echo "pathlib" | python3` and `cat script.py | python3` to blocked, so that exemption costs this
+  one spelling; both floors are asserted. Same discipline as the `-c` arm: no gap is allowed between
+  the interpreter and its flag beyond a `-<digits>` version selector, so `python3 -O - <<PY` is
+  uncovered too — admitting an arbitrary option-shaped token is what would let a *script path*
+  through as one. Inline writes via other interpreters (`node -e`, `perl -e`, `ruby -e`, `sed -i`)
+  remain out of scope, unchanged.
+
 ## [0.27.2]
 
 ### Fixed
