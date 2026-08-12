@@ -59,6 +59,32 @@
         "Does NOT invent a git-only derivation that cannot resolve without a repository",
         "States that the report opens with a header naming the resolved root, the scope filter, and a UTC timestamp"
       ]
+    },
+    {
+      "id": 6,
+      "name": "description-drives-selection-without-explicit-invocation",
+      "prompt": "I just wrote a new orchestrator skill that fans out to subagents. What guardrails is it missing that the official prompting guide says a skill like that should carry?",
+      "expected_output": "This skill is selected from its description alone — the request carries no slash invocation — because it asks for guidance that is ABSENT and needed, which is this skill's lane rather than audit-instructions', whose lane is text that is present and wrong. It classifies the component as orchestrating, judges P1 (delegation criteria and caps) and any other posture whose predicate actually matches, sources proposed wording from a live fetch of the prompting guide rather than from the catalog, and returns proposals for the human to apply.",
+      "files": [],
+      "expectations": [
+        "Handled by audit-prompting-postures with no slash command typed, and NOT routed to claude-config:audit-instructions, which owns present-and-wrong text rather than absent-and-needed guidance",
+        "Classifies the component as orchestrating and judges P1, rather than sweeping all ten postures regardless of predicate",
+        "Proposed wording comes from a live fetch of the guide, not from reference/postures.md, which carries pointers only",
+        "Proposes rather than applies: no component file is edited"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "mechanical-gate-counts-as-p7-presence",
+      "prompt": "/claude-config:audit-prompting-postures skills — my deploy skill can force-push and carries no confirmation wording anywhere in its body, but a PreToolUse hook denies the push unless the operator approves it. Is it MISSING P7?",
+      "expected_output": "No. P7's own 'present when' says a deny-by-default hook or script gate satisfies it without any prose, so the hook is presence evidence and the verdict is PRESENT, cited to the hook configuration and the rule. Phase B's inventory covers instruction text and therefore cannot hold that evidence, which is why Phase C looks for the gate in the settings scopes and hook configuration before judging P7 MISSING — and widening the evidence set that way can only turn a MISSING into a PRESENT, never create a finding.",
+      "files": [],
+      "expectations": [
+        "Returns PRESENT for P7, not MISSING, and cites the hook as the evidence",
+        "States that mechanical gates are presence evidence living outside Phase B's instruction-text inventory",
+        "Does not extend the mechanical-gate allowance to postures other than P7",
+        "Does not treat mere Bash access as satisfying the destructive-capable predicate"
+      ]
     }
   ]
 }

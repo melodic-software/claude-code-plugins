@@ -16,7 +16,11 @@ Classify each component by what its body has the model DO (multiple or none):
 - **code-changing** — edits code, implements, refactors, fixes
 - **codebase-answering** — answers questions about existing code
 - **long-running** — states or invites autonomous/unattended/multi-hour operation
-- **destructive-capable** — can delete, reset, force-push, publish, or mutate shared state
+- **destructive-capable** — the body has the model delete, reset, force-push, publish, or mutate
+  shared state, or instructs it to. Read this as this section's opening line says — what the body
+  has the model DO, not what a tool grant would make possible. A component that merely holds Bash
+  access is not `destructive-capable`; if it were, this predicate would match everything with a
+  shell and P7 would fire on all of it
 - **context-surfacing** — displays token budgets, context occupancy, or remaining-window figures
 - **multi-window** — spans sessions/windows via saved state, handoffs, or resumability
 - **parallelism-steering** — instructs when/how to parallelize tool calls
@@ -75,12 +79,23 @@ Classify each component by what its body has the model DO (multiple or none):
 - **Predicate:** destructive-capable.
 - **Present when:** hard-to-reverse, shared-system, or destructive actions require confirmation or
   an equivalent mechanical gate, and obstacles must not be shortcut destructively. A deny-by-
-  default hook or script gate satisfies this without any prose.
+  default hook or script gate satisfies this without any prose — which is evidence Phase B's
+  instruction-text inventory cannot hold, so SKILL.md Phase C requires looking for the gate in the
+  settings and hook configuration before this row may be judged MISSING. This is the only row whose
+  presence evidence is allowed to live outside the inventory.
 - **Pointer:** main page, "Balancing autonomy and safety".
 
 ### P8 — Context-budget reassurance
 
 - **Predicate:** context-surfacing.
+- **Model condition:** the guide section this row points at scopes the underlying capability by
+  model — "Claude Sonnet 5, Claude Sonnet 4.6, Claude Sonnet 4.5, and Claude Haiku 4.5 feature
+  context awareness", main page, "Context awareness and multiwindow workflows" (fetched
+  2026-08-12). Components here run on any consumer model, so per SKILL.md Gotchas
+  ("Model-conditional postures stay conditional") the proposal must be model-neutral or carry that
+  same condition. Re-read the section's own model list on the run's live fetch rather than trusting
+  this one — the list is the guide's to change, and the recheck trigger for this row is a change to
+  it.
 - **Present when:** the surfaced figure is accompanied by do-not-wrap-up-early framing (or the
   component deliberately avoids surfacing raw countdowns at all — the stronger form).
 - **Pointer:** main page, "Context awareness and multiwindow workflows"; Fable 5 subpage, "Rare

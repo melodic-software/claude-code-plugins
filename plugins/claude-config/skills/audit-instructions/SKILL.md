@@ -36,6 +36,11 @@ Diffs are proposed artifacts. A clean audit is a valid outcome.
 This skill owns instruction **content vs current model capability**. It does not own the adjacent
 concerns its siblings already cover — route rather than re-answer:
 
+- Posture guidance that is **absent and needed** is `claude-config:audit-prompting-postures` (same
+  plugin) — the additive lane to this one. This skill judges instruction text that is present and
+  wrong; that one proposes text the official prompting guide says a component's purpose needs and
+  the component does not carry. Neither finds the other's defects, so a sweep that wants both runs
+  both, and a request phrased as "what guardrails is this skill missing" belongs there, not here.
 - Structural skill lint (frontmatter, line caps, broken refs) is `skill-quality:check`.
 - Token brevity for its own sake is `docs-hygiene:compress`.
 - Config-file mechanics (settings.json, .mcp.json, hooks wiring) is `claude-config:audit`; grant
