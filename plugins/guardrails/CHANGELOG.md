@@ -3,6 +3,16 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.4]
+
+### Fixed
+
+- **block-dangerous-git and block-no-verify fail closed on unparsable payload** (#2157).
+
+### Changed
+
+- **Synced `hook-utils.sh`:** `hook::jq_fields` and `hook::buffer_stdin` return 2 when jq is present but cannot parse the payload (#2157).
+
 ## [0.28.3]
 
 ### Fixed
