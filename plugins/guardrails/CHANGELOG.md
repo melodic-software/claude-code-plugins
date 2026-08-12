@@ -3,11 +3,19 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.28.17]
+## [0.28.18]
 
 ### Fixed
 
 - **hook-utils:** scope `read_file_path` to git worktrees when project dir unset (#1091).
+
+## [0.28.16]
+
+### Changed
+
+- **Block-noncanonical-commit tests isolate from enclosing repo state (#2455).** Fixture
+  aliases use embedded newlines so assertions exercise real block paths; hang-guard
+  fallbacks skip follow-up exit checks when `timeout` reports 124.
 
 ## [0.28.15]
 

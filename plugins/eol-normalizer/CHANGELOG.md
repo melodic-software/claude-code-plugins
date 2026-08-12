@@ -5,6 +5,11 @@ All notable changes to the `eol-normalizer` plugin are documented here. Format f
 
 ## [0.6.11]
 
+### Added
+
+- **Line-ending rewrites are disclosed on the user channel** when the hook normalizes
+  CRLF/LF mismatches, so agents see the mutation instead of silently rewriting (#1256).
+
 ### Fixed
 
 - **hook-utils:** scope `read_file_path` to git worktrees when project dir unset (#1091).
