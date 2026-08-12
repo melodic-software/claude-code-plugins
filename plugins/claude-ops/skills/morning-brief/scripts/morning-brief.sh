@@ -19,6 +19,7 @@
 #   morning-brief.sh --repo owner/name        target a specific repo
 #   morning-brief.sh --telemetry-issue N      pin the lane-telemetry issue
 #   morning-brief.sh --stale-hours N          age past which a lane is STALE (default 6)
+#   morning-brief.sh --stranded-days N        age window for stranded review findings (default 3)
 #   morning-brief.sh --rec-maxlen N           truncate RECOMMENDED previews (default 240; 0 = full)
 #   morning-brief.sh --help
 #
