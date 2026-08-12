@@ -420,10 +420,14 @@ done < <(find "$ROOT" -type f -path '*/.claude-plugin/plugin.json' 2>>"$WALK_ERR
 walk_errors="$(awk 'NF{n++} END{print n+0}' "$WALK_ERR" 2>/dev/null)"
 [[ -n "$walk_errors" ]] || walk_errors=0
 
-# The denominator. Anything the run judged is one of these two: a frontmatter
-# allowed-tools block or a settings allow rule. Plugin manifests are a third,
-# independent axis (P3) and are reported separately rather than folded in.
-audited=$((fm_with_block + allow_rules_read))
+# The denominator: every unit this run could have produced a finding about. All
+# THREE axes count, including P3's — a plugin settings.json that parsed is a
+# surface the run examined, so a root holding only clean plugin settings has a
+# denominator and gets a clean bill. Folding P3 in is not cosmetic: leaving it out
+# made a run that examined two plugin settings files report "this run has no
+# denominator" two lines above the count of the files it examined, which is the
+# exact defect this block exists to remove, in a new spelling.
+audited=$((fm_with_block + allow_rules_read + plugin_settings_parsed))
 
 coverage_block() {
   local s joined=""
@@ -463,7 +467,7 @@ if [[ "${#findings[@]}" -eq 0 ]]; then
     # NOT a clean bill. "No fragile permission grants found." and "there was
     # nothing here to find them in" were the same string; they are now different
     # strings, because only one of them is a statement about the grants.
-    echo "NOTHING TO AUDIT: 0 allowed-tools block(s) and 0 allow rule(s) were read under this root, so this run has no denominator. That is a scan of nothing, not a clean bill — do not report it as one. See the coverage block below for what was and was not read."
+    echo "NOTHING TO AUDIT: 0 allowed-tools block(s), 0 allow rule(s) and 0 plugin settings.json were read under this root, so this run has no denominator on any of the three axes. That is a scan of nothing, not a clean bill — do not report it as one. See the coverage block below for what was and was not read."
   else
     echo "No fragile permission grants found."
   fi

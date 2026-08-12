@@ -82,7 +82,16 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
     no slash invocation, so description-driven selection is exercised for the first time, and one
     pinning the P7 mechanical-gate rule. (CC-F8)
   - The state key stops overwrites, not reaping — the uninstall sentence is quoted with
-    `--keep-data`, re-fetched 2026-08-12. (CC-F11)
+    `--keep-data`, re-fetched 2026-08-12. **Only the uninstall half of CC-F11 is actioned**: the
+    row's other two observations are recorded, not fixed. `when_to_use` is still unused, and the
+    description grew from 1,290 to **1,305** of its 1,536-char cap to carry `output-styles` for
+    CC-F6 — the opposite direction from the row's headroom note, and the trade is deliberate.
+- **`audit-instructions` gets the same `disallowed-tools` declaration**, in the same change rather
+  than after it. It states the identical report-only contract ("never by this skill") and names
+  neither `Edit` nor `Write` anywhere in its body, so declaring it on only one of the pair would
+  have opened a fresh instance of exactly the sibling divergence CC-F6 is about — in the release
+  that fixes CC-F6. `audit-pass` states the contract too and is **not** touched here: PR #2403 owns
+  that file right now. Tracked in #2415.
 
 ### Not taken
 

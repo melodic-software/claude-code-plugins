@@ -383,6 +383,23 @@ assert_contains "clean bill carries a non-zero rule count" "$OUT" "2 allow rule(
 assert_contains "coverage names the project scope it read" "$OUT" "project: 2 rule(s)"
 assert_contains "coverage names an absent scope as absent" "$OUT" "local: absent"
 
+# 10bb: P3 is the third axis and counts toward the denominator. A root whose only
+# auditable surface is plugin settings.json files, all clean, IS a clean bill —
+# the run examined two files. Folding only frontmatter and allow rules into the
+# denominator made this print "this run has no denominator" two lines above the
+# count of the files it had just examined, which is the defect the block exists
+# to remove wearing a new spelling.
+D10BB="$TEST_TMPDIR/p3-only-clean"
+mkdir -p "$D10BB/plugins/foo/.claude-plugin" "$D10BB/plugins/ok/.claude-plugin"
+jq -n '{name:"foo"}' >"$D10BB/plugins/foo/.claude-plugin/plugin.json"
+jq -n '{name:"ok"}' >"$D10BB/plugins/ok/.claude-plugin/plugin.json"
+jq -n '{agent:{model:"opus"}}' >"$D10BB/plugins/foo/settings.json"
+jq -n '{agent:{model:"opus"}}' >"$D10BB/plugins/ok/settings.json"
+OUT=$(run "$D10BB")
+assert_contains "a clean P3-only root is a clean bill" "$OUT" "No fragile permission grants found."
+assert_not_contains "a clean P3-only root is NOT a scan of nothing" "$OUT" "NOTHING TO AUDIT"
+assert_contains "coverage counts the plugin settings it parsed" "$OUT" "2 settings.json parsed"
+
 # 10c: a settings file that is present but not valid JSON was skipped in silence,
 # so its rules were never read and the run still printed a clean bill. The skip
 # is now named — an unparsable rules file is exactly where a fragile grant would

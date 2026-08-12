@@ -1,6 +1,7 @@
 ---
 description: "Audit locally-owned Claude Code instruction surfaces — CLAUDE.md, .claude/rules, skill bodies, agent definitions, hook instruction text, output styles — for instructions current models no longer need (prior-model workarounds, over-prescriptive scaffolding, stale examples), instructions that misstate Claude Code's own behavior or cite files in forms that never load, and cross-surface conflicts where two surfaces contradict each other. Report-only: proposed diffs gated to the human, never auto-applied. Use when: 'after a model upgrade', 'are my instructions holding the model back', 'instructions the model no longer needs', 'too prescriptive', 'audit instructions', 'instruction audit', 'stale Claude Code behavior', 'outdated harness claim', 'my @path import is not loading', 'instruction re-reads CLAUDE.md', 'conflicting instructions', 'contradictory instructions', 'which instruction wins'. Not a brevity pass and not memory-layer hygiene."
 argument-hint: "[scope] [--target-model <version>] [--opinion] [--no-stopping-condition] — scope: claude-md|rules|skills|agents|hooks|output-styles|conflicts|all (default: all)"
+disallowed-tools: Edit, NotebookEdit
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -30,6 +31,13 @@ answers it against [reference/conflict-criteria.md](reference/conflict-criteria.
 This skill is report-only. There is no `--fix`: instruction files are the operator's voice —
 every change is applied by the human (or explicitly delegated afterward), never by this skill.
 Diffs are proposed artifacts. A clean audit is a valid outcome.
+
+`disallowed-tools: Edit, NotebookEdit` in the frontmatter makes that mechanical rather than a matter
+of obedience; `Write` stays for the Phase D persist, and the restriction clears on the operator's
+next message (<https://code.claude.com/docs/en/skills>, frontmatter reference, fetched 2026-08-12) —
+so the audit cannot edit and the human who accepts a diff can. `audit-prompting-postures` carries the
+identical declaration, because the two state the same contract and drifting on it is the shape of
+defect this pair keeps producing.
 
 ## Scope boundary (route out)
 
