@@ -373,6 +373,7 @@ marker_identity() {
   # the next alternative, and a host with neither returns the empty identity this
   # function documents (#1784)
   stat -c '%Y %s' -- "$1" 2>/dev/null ||
+    # portability-ok: BSD ladder rung paired with GNU `stat -c` above (#1784)
     stat -f '%m %z' -- "$1" 2>/dev/null ||
     printf ''
 }

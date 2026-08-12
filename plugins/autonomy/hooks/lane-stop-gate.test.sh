@@ -806,6 +806,9 @@ bash "$ARM" --id "$ARM_ID_10" --cwd "$WORK" 2>/dev/null
 rm -f "$SETTINGS"
 if ! mkfifo "$DATA_DIR/lane-arms/$ARM_ID_10.claim" 2>/dev/null; then
   ok "mkfifo unavailable; skip non-regular claim path hang case"
+elif ! command -v timeout >/dev/null 2>&1 ||
+  ! timeout --help 2>&1 | grep -Fq -- '--kill-after'; then
+  ok "GNU timeout unavailable; skip non-regular claim path hang case"
 else
 FIFO_INPUT=$(build_input Stop "no token" false "" "sess-fifo")
 FIFO_OUT="$WORK/fifo-out"
