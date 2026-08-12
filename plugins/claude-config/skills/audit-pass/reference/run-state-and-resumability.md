@@ -105,6 +105,13 @@ would get created and a lease written into it, and this skill keeps Bash specifi
 writes while promising that a bare audit writes nothing into the target. Every later command operates
 on a run directory `acquire` already validated.
 
+**Containment is checked on the resolved path, not on the string.** A lexical prefix test is not
+containment while symlinks exist: with `runs/link -> /elsewhere`, the path `<plugin-data>/runs/link/run`
+passes the comparison and then the write follows the link out of the tree, so the guarantee holds on
+the string and fails on the filesystem. Both sides are canonicalized with `pwd -P` before they are
+compared — `--run-dir` through its deepest *existing* ancestor, since it usually does not exist yet
+and that is the only part a symlink can be in.
+
 **What is executable here, and what is not.** Everything below through the two-sided liveness test is
 enforced by that script and covered by `run-state.test.sh`, negative tests included. Two clauses are
 **not**: stale-lease **adoption** (the `owner_epoch` compare-and-set) and §7 **assembly**
@@ -235,18 +242,23 @@ crash. Restarting from zero wastes the run and tempts an operator to narrow the 
   **Pass the epoch you hold.** The filename is the *writer's* epoch, never whatever the lease
   currently carries: a stale holder that wakes after an adopter incremented it would otherwise read
   the adopter's value and append into the adopter's file, so two writers interleave under one attempt
-  ordinal — the one failure the attempt machinery cannot absorb. When the two differ the script says
-  `FENCED` on stderr and writes to the writer's own file; the run aborts on that signal. Omitting
-  `--epoch` falls back to the lease's current value, correct only for a run whose epoch nothing has
-  moved.
+  ordinal — the one failure the attempt machinery cannot absorb. Where the two differ the script
+  writes to the writer's own file, says `FENCED`, and **exits 3**. The abort is in the exit code, not
+  only in the message: a diagnostic reading "this run must stop" while the command exits 0 is a
+  control announcing a state it never establishes, since it depends on the caller noticing a
+  substring — the same shape as the rest of §3 before it had a script. Omitting `--epoch` falls back
+  to the lease's current value, correct only for a run whose epoch nothing has moved.
 
   **A record is validated, not merely sniffed.** A malformed row in an append-only artifact is
   permanent, and resume and assembly are its only readers, so a quoting slip in the caller would cost
   the run's persisted state rather than one record. The script refuses anything that is not a
-  well-formed single-line JSON object — `jq` decides where it is installed, and a scan that tracks
-  string context and escapes decides where it is not, which still rejects `{bad json}`, a truncated
-  row, and an unbalanced one. `jq` is deliberately not a hard requirement here: failing the state
-  path closed on a missing optional tool would cost the artifact the check exists to protect.
+  well-formed single-line JSON object. `jq` answers definitively where it is installed and `python3`
+  where it is not; on a host with neither, a scan tracking string context and escapes still rejects
+  `{bad json}`, a truncated row and an unbalanced one — but **not** every malformed object, since
+  `{"a" garbage}` balances and opens with a quoted key and no non-parser catches it. That rung
+  therefore **announces itself** rather than passing for the real thing. Neither parser is a hard
+  requirement: failing the state path closed on a missing optional tool would cost the artifact the
+  check exists to protect, so the residual is disclosed instead of hidden.
 - **The run manifest is the partial's own lane records, not a second file.** A lane's start record
   carries the lane id and its **input digest**; its terminating record carries the completion state.
   §7 already requires that `--resume` read the partial "so completion state is derivable from the

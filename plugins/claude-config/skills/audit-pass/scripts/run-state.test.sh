@@ -304,6 +304,37 @@ rc=0
 OUT=$(env -u CLAUDE_PLUGIN_DATA bash "$SCRIPT" lease acquire --run-dir "$DATA/runs/demo/z" --run-id run-z 2>&1) || rc=$?
 assert_exit "acquire without --plugin-data has nothing to check containment against, and refuses" 2 "$rc"
 
+# A lexical prefix check is not containment while symlinks exist: with
+# runs/link -> /tmp/outside, `<plugin-data>/runs/link/run` passes a string
+# comparison and then mkdir and the lease write follow the link straight out of
+# the plugin tree. The guarantee would hold on the string and fail on the disk.
+ESCAPE_TARGET="$TEST_TMPDIR/escaped"
+mkdir -p "$ESCAPE_TARGET" "$DATA/runs"
+if ln -s "$ESCAPE_TARGET" "$DATA/runs/link" 2>/dev/null && [[ -L "$DATA/runs/link" ]]; then
+  rc=0
+  OUT=$(run lease acquire --run-dir "$DATA/runs/link/run" --run-id run-s --plugin-data "$DATA" 2>&1) || rc=$?
+  assert_exit "a run dir reached through a symlink out of the tree is refused" 2 "$rc"
+  assert_contains "the refusal names the resolved destination" "$OUT" "symlinked component"
+  if [[ -e "$ESCAPE_TARGET/run/lease" ]]; then
+    fail "the symlinked escape must not be written" "$ESCAPE_TARGET/run/lease exists"
+  else
+    pass "no lease was written through the symlink"
+  fi
+  # A symlink that stays INSIDE the tree is not an escape and must still work.
+  mkdir -p "$DATA/runs/real"
+  if ln -s "$DATA/runs/real" "$DATA/runs/inside" 2>/dev/null; then
+    rc=0
+    run lease acquire --run-dir "$DATA/runs/inside/run" --run-id run-i --plugin-data "$DATA" >/dev/null 2>&1 || rc=$?
+    assert_exit "a symlink resolving back inside the tree is still accepted" 0 "$rc"
+  fi
+else
+  # ANNOUNCED, never silent: symlink creation needs privilege or developer mode
+  # on Windows. The escape arm is exercised on POSIX CI.
+  printf 'SKIP: symlink-containment arm not exercised — this platform refused ln -s. Exercised on POSIX CI.\n' >&2
+  assert_exit "the lexical containment check still refuses an outside path here" 2 \
+    "$(rc=0; run lease acquire --run-dir "$TEST_TMPDIR/outside2" --run-id run-s2 --plugin-data "$DATA" >/dev/null 2>&1 || rc=$?; echo "$rc")"
+fi
+
 # --- Case 6: the append-only partial ----------------------------------------
 
 P_DIR="$DATA/runs/demo/run-partial"
@@ -364,6 +395,22 @@ assert_exit "without jq, a brace inside a string does not fool the fallback" 0 "
 rc=0
 nojq partial append --run-dir "$P_DIR" --record '{}' >/dev/null 2>&1 || rc=$?
 assert_exit "without jq, an empty object is accepted" 0 "$rc"
+# python3 is the second definitive rung, so the no-jq path is still a real parse
+# where it exists — `{"a" garbage}` balances and opens with a quoted key, and no
+# non-parser catches it.
+if command -v python3 >/dev/null 2>&1; then
+  rc=0
+  nojq2() { PATH="$EMPTY_PATH:$(dirname "$(command -v python3)")" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" "$REAL_BASH" "$SCRIPT" "$@"; }
+  nojq2 partial append --run-dir "$P_DIR" --record '{"a" garbage}' >/dev/null 2>&1 || rc=$?
+  assert_exit "without jq but with python3, a balanced object-shaped non-JSON string is refused" 2 "$rc"
+else
+  printf 'SKIP: python3 rung not exercised — python3 absent here. Exercised on CI.\n' >&2
+fi
+# With NEITHER parser the structural rung cannot catch that case, so it says so
+# rather than passing for the real thing.
+assert_contains "with neither parser the weaker check announces its own limit" \
+  "$(nojq partial append --run-dir "$P_DIR" --record '{"a":1}' 2>&1 >/dev/null)" \
+  "checked structurally only"
 
 # The epoch in the filename is the WRITER's, not whatever the lease now carries.
 # A stale holder that wakes after an adopter incremented the epoch would
@@ -375,15 +422,27 @@ assert_exit "without jq, an empty object is accepted" 0 "$rc"
   printf 'started_at=x\nheartbeat_at=%s\nheartbeat_at_iso=x\n' "$(date -u +%s)"
   printf 'stale_after_s=1800\nskew_grace_s=60\n'
 } >"$P_DIR/lease"
-OUT=$(run partial append --run-dir "$P_DIR" --record '{"lane":"fenced"}' --epoch 3 2>/dev/null)
+rc=0
+OUT=$(run partial append --run-dir "$P_DIR" --record '{"lane":"fenced"}' --epoch 3 2>/dev/null) || rc=$?
 assert_eq "a fenced writer appends to its own epoch file, not the adopter's" \
   "$P_DIR/findings.partial.3.jsonl" "$OUT"
-assert_contains "and the fence is reported rather than swallowed" \
+# The abort must be ENFORCED, not announced. A stderr string saying "this run
+# must stop" while the command still exits 0 is a control reporting a state it
+# never established — it depends on the caller noticing a substring, and it is
+# indistinguishable in form from any other diagnostic. `classify` already puts
+# its machine-actionable answer where a caller cannot miss it.
+assert_exit "a fenced append exits 3 — the abort is in the exit code, not only the message" 3 "$rc"
+assert_contains "and the fence is still said in words" \
   "$(run partial append --run-dir "$P_DIR" --record '{"lane":"fenced2"}' --epoch 3 2>&1 >/dev/null)" \
   "FENCED"
-OUT=$(run partial append --run-dir "$P_DIR" --record '{"lane":"adopter"}' 2>/dev/null)
+rc=0
+run partial append --run-dir "$P_DIR" --record '{"lane":"same"}' --epoch 9 >/dev/null 2>&1 || rc=$?
+assert_exit "an append whose --epoch matches the lease is not fenced and exits 0" 0 "$rc"
+rc=0
+OUT=$(run partial append --run-dir "$P_DIR" --record '{"lane":"adopter"}' 2>/dev/null) || rc=$?
 assert_eq "omitting --epoch still falls back to the lease's current epoch" \
   "$P_DIR/findings.partial.9.jsonl" "$OUT"
+assert_exit "and that fallback is not treated as a fence" 0 "$rc"
 
 NO_LEASE="$DATA/runs/demo/run-noleash"
 mkdir -p "$NO_LEASE"

@@ -73,6 +73,11 @@
 # Exit codes:
 #   0  the operation succeeded (for `classify`, the verdict is on stdout)
 #   2  usage error, rejected argument, or a missing environment prerequisite
+#   3  `partial append` only — FENCED. The record WAS written, to the writer's own
+#      epoch file so nothing interleaves, but the lease has moved on: this run has
+#      been superseded and must stop dispatching. Carried in the exit code rather
+#      than only in a stderr string, because a control that announces an abort
+#      nobody enforces is the defect this file exists to remove.
 #
 # `classify` prints one of `live`, `stale`, `released`, `missing` and exits 0 —
 # a classification is an answer, not a failure. Acting on it (refusing `--resume`
@@ -81,6 +86,11 @@
 set -uo pipefail
 
 PROG="run-state.sh"
+
+# A fenced append is neither success nor a usage error, so it gets its own code:
+# the record was written (to the writer's own epoch file), and the run that wrote
+# it has been superseded and must stop.
+EXIT_FENCED=3
 
 # Defaults for the liveness window. Stated here rather than left to the caller
 # because "live or abandoned" is a classification two implementations must reach
@@ -151,6 +161,29 @@ validate_run_id() {
   esac
 }
 
+# Physical (symlink-resolved) form of a directory that exists. `pwd -P` is the
+# portable resolver; `readlink -f` is GNU-only and this must run on BSD userland.
+physical_path() {
+  (cd "$1" 2>/dev/null && pwd -P) || return 1
+}
+
+# Physical form of the deepest existing ancestor of a path, which is the only
+# part of it a symlink can be in before the path is created.
+physical_existing_prefix() {
+  local p="$1" guard=0
+  while [[ ! -d "$p" ]]; do
+    p="${p%/*}"
+    if [[ -z "$p" ]]; then
+      p="/"
+    fi
+    guard=$((guard + 1))
+    if [[ "$guard" -gt 64 ]]; then
+      return 1
+    fi
+  done
+  physical_path "$p"
+}
+
 require_absolute_path() {
   local name="$1" value="$2"
   case "$value" in
@@ -192,13 +225,20 @@ require_int_at_least_one() {
 # one record. The check has to fire on construction errors, not just on obviously
 # non-JSON input.
 #
-# Two rungs, and the weaker one still catches the motivating case. With `jq` on
-# PATH the answer is definitive. Without it, a scan that tracks string context
-# and escapes verifies brace/bracket balance, string termination, and that the
-# object opens with a quoted key or closes empty — which rejects `{bad json}`,
-# truncated rows, and unbalanced ones. `jq` is deliberately NOT made a hard
-# requirement: this is the run's state-persistence path, and failing it closed on
-# a missing optional tool would cost the artifact the check exists to protect.
+# THREE RUNGS, AND THE WEAKEST ONE SAYS SO. `jq` answers definitively where it is
+# installed; `python3` answers definitively where it is not (and this plugin
+# already depends on it elsewhere), so the structural rung is reached only on a
+# host with neither. That rung tracks string context and escapes to verify
+# brace/bracket balance, string termination, and that the object opens with a
+# quoted key or closes empty — which rejects `{bad json}`, truncated rows and
+# unbalanced ones, but NOT every malformed object: `{"a" garbage}` balances and
+# opens with a quoted key, and no non-parser catches it. So the structural rung
+# ANNOUNCES itself on stderr rather than passing for the real thing. A check that
+# claims more than it verifies is the defect this whole file exists to remove.
+#
+# Neither parser is made a hard requirement: this is the run's state-persistence
+# path, and failing it closed on a missing optional tool would cost the artifact
+# the check exists to protect. The residual is disclosed instead of hidden.
 record_is_json_object() {
   local s="$1"
   case "$s" in
@@ -214,6 +254,14 @@ record_is_json_object() {
     printf '%s' "$s" | jq -e 'type == "object"' >/dev/null 2>&1
     return
   fi
+  if command -v python3 >/dev/null 2>&1; then
+    printf '%s' "$s" |
+      python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if isinstance(d,dict) else 1)' \
+        >/dev/null 2>&1
+    return
+  fi
+  printf '%s: no jq or python3 on PATH — the record was checked structurally only; a string that balances but is not JSON (%s) can pass\n' \
+    "$PROG" '{"a" garbage}' >&2
 
   local i ch in_str=0 esc=0 depth=0 len=${#s}
   for ((i = 0; i < len; i++)); do
@@ -410,6 +458,29 @@ cmd_lease_acquire() {
   case "$run_dir" in
   "$plugin_data"/runs/*) : ;;
   *) die "--run-dir is not under \$plugin-data/runs/ — refusing to write outside the plugin's own tree: $run_dir" ;;
+  esac
+
+  # A LEXICAL PREFIX CHECK IS NOT CONTAINMENT WHILE SYMLINKS EXIST. With
+  # `runs/link -> /tmp/outside`, the path `<plugin-data>/runs/link/run` passes the
+  # comparison above and then `mkdir` and the lease write follow the link straight
+  # out of the plugin tree — the guarantee would hold on the string and fail on
+  # the filesystem. So both sides are canonicalized physically before they are
+  # compared: `pwd -P` resolves every symlink in a path that exists, and
+  # `readlink -f` is not used because it is GNU-only.
+  #
+  # `--run-dir` usually does not exist yet, which is the point of `mkdir` below,
+  # so its deepest EXISTING ancestor is what gets resolved — the only part a
+  # symlink can be in. A link introduced after this check is out of scope for any
+  # check-then-act sequence, and it would have to be planted inside the plugin's
+  # own data directory.
+  local real_plugin_data real_prefix
+  real_plugin_data=$(physical_path "$plugin_data") ||
+    die "--plugin-data cannot be resolved: $plugin_data"
+  real_prefix=$(physical_existing_prefix "$run_dir") ||
+    die "--run-dir cannot be resolved: $run_dir"
+  case "$real_prefix" in
+  "$real_plugin_data" | "$real_plugin_data"/*) : ;;
+  *) die "--run-dir resolves outside the plugin's own tree (symlinked component): $run_dir -> $real_prefix" ;;
   esac
 
   mkdir -p "$run_dir" || die "cannot create run directory: $run_dir"
@@ -649,11 +720,13 @@ cmd_partial_append() {
   # machinery cannot absorb. A writer that knows the epoch it holds passes it,
   # and it lands in its OWN superseded file no matter what the lease now says.
   # Omitting the flag is only correct for a run whose epoch nothing has moved.
+  local fenced=0
   if [[ -n "$held_epoch" ]]; then
     require_int_at_least_one "--epoch" "$held_epoch"
     if [[ "$held_epoch" != "$epoch" ]]; then
-      printf '%s: FENCED — lease owner_epoch is %s but this writer holds %s; appending to the writer'"'"'s own epoch file and this run must abort\n' \
-        "$PROG" "$epoch" "$held_epoch" >&2
+      fenced=1
+      printf '%s: FENCED — lease owner_epoch is %s but this writer holds %s; the record lands in the writer'"'"'s own epoch file and this run must stop (exit %s)\n' \
+        "$PROG" "$epoch" "$held_epoch" "$EXIT_FENCED" >&2
     fi
     epoch="$held_epoch"
   fi
@@ -664,6 +737,18 @@ cmd_partial_append() {
   # half-done.
   printf '%s\n' "$record" >>"$file" || die "cannot append to: $file"
   printf '%s\n' "$file"
+
+  # THE FENCE IS ENFORCED BY THE EXIT CODE, NOT BY THE MESSAGE. A diagnostic on
+  # stderr saying "this run must abort" is a control announcing a state it never
+  # establishes: it depends on the caller noticing a substring, and it is
+  # indistinguishable in form from any other diagnostic. `classify` already puts
+  # its machine-actionable answer on stdout for exactly that reason. So a fenced
+  # append exits EXIT_FENCED — the record IS written (to the writer's own file,
+  # so nothing interleaves) and the caller is told, in the one channel it cannot
+  # miss, that it has been superseded and must stop dispatching.
+  if [[ "$fenced" -eq 1 ]]; then
+    return "$EXIT_FENCED"
+  fi
 }
 
 dispatch_lease() {

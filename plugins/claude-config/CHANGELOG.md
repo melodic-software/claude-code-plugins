@@ -36,6 +36,30 @@ version to be on.
   `<plugin-data>/runs/`; every later command operates on a directory `acquire` already validated. A
   test asserts the refused directory is not created. (#2280, F3, F5)
 
+Review of *those* fixes found four more of the same class, all closed here rather than deferred:
+
+- **The fence is enforced by the exit code, not announced in a string.** `partial append` printed
+  `FENCED … this run must abort` to stderr and returned 0, so the abort depended on the caller
+  noticing a substring in a channel indistinguishable from any other diagnostic — a control reporting
+  a state it never establishes, which is the exact defect the surrounding change exists to remove. A
+  fenced append now exits **3**: the record is still written to the writer's own epoch file, and the
+  run is told in the one channel it cannot miss that it has been superseded. `SKILL.md` Phase 3 says
+  what to do with it.
+- **The no-parser rung announces its own limit.** `{"a" garbage}` balances and opens with a quoted
+  key, and no non-parser rejects it. `python3` is now the second definitive rung after `jq`; where
+  neither exists the structural scan runs and **says on stderr that it checked structurally only**,
+  rather than passing for a validator. A check that claims more than it verifies is the same defect
+  in a new spelling.
+- **Containment is checked on the resolved path, not the string.** A lexical prefix test is not
+  containment while symlinks exist: with `runs/link -> /elsewhere`, `<plugin-data>/runs/link/run`
+  passed the comparison and the write then followed the link out of the tree. Both sides are
+  canonicalized with `pwd -P` — `--run-dir` through its deepest existing ancestor, the only part a
+  symlink can be in. (`readlink -f` is GNU-only and is not used.)
+- **`reference/report-location-and-schema.md` §7 no longer contradicts the append contract.** It
+  still described `partial append` as taking the epoch from the lease and listed only the run
+  directory and the record, so an audit following that page after an adoption would have omitted
+  `--epoch` and reinstated the interleaving. Both surfaces now carry the same command.
+
 ## [0.38.0]
 
 ### Added

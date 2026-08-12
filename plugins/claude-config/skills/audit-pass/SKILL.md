@@ -320,10 +320,14 @@ its attempt id so an abandoned re-attempt is discardable rather than merely olde
 call per record — `bash "$S" partial append --run-dir "<run-dir>" --record '<json-line>' --epoch
 "<held>"` — and the lease is refreshed at the same boundary. A lease must exist, so a record resume
 could not attribute to a live-or-abandoned run is never written. **Pass the epoch you hold**: the
-filename is the writer's epoch, not whatever the lease now carries, which is what keeps a fenced
-writer's rows out of its adopter's file. The script validates the record as a well-formed single-line
-JSON object rather than sniffing its first character — a malformed row in an append-only artifact is
-permanent, and resume is its only reader.
+filename is the writer's epoch, not whatever the lease now carries, which keeps a fenced writer's rows
+out of its adopter's file. The record is validated as well-formed single-line JSON rather than sniffed
+by its first character — a malformed row here is permanent, and resume is its only reader.
+
+**Exit 3 means FENCED: stop this run.** The record was written safely to your own epoch file, but the
+lease has moved on and another run has adopted the artifact, so continuing dispatches lanes whose
+output nothing will assemble. Stop and report the run as superseded. Never retry the append, and never
+read that exit as transient.
 
 **The lane count is bounded by the delegated interfaces, not chosen here** — one per scope value the
 instruction catalog accepts, plus one for the memory layer — so it is a handful, and a per-run
