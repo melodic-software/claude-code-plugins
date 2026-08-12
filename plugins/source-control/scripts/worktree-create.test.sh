@@ -135,6 +135,11 @@ assert_contains "--help documents refuse (exit 3)" "$help_out" "refuse"
 bash "$HELPER" --root "$TEST_TMPDIR/wt" >/dev/null 2>&1
 assert_exit "missing --name exit 2" 2 "$?"
 
+# --- Case: drive-relative --root is refused (exit 2, #962) -------------------
+repo=$(mkrepo)
+bash "$HELPER" --name feat/x --root 'C:foo' --repo-dir "$repo" >/dev/null 2>&1
+assert_exit "drive-relative --root exit 2" 2 "$?"
+
 # --- Case: unset root defaults to <plugin-data-dir>/worktrees (exit 0) ---
 # The invariant is that the worktree lands OUTSIDE every repository, not that the
 # user configured a root by hand. The plugin data dir satisfies it, and reaches the
