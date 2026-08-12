@@ -3,6 +3,16 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.3]
+
+### Fixed
+
+- **`block-dangerous-git` cleared a lease when a `!` alias inherited `--git-dir` / `--work-tree`
+  (#2151).** git exports those globals into a shell-alias body's environment without relocating
+  its directory the way `-C` does, so the reparse's width probe ran against the payload cwd while
+  the push executed in the inherited repository. Inherited locating spellings are now replayed into
+  `!` reparses via `HOOK_GIT_INHERITED_LOCATING_OPTS`.
+
 ## [0.28.2]
 
 ### Fixed
