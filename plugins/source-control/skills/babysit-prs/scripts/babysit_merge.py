@@ -81,6 +81,7 @@ from babysit_classify import (
 from babysit_feedback import latest_reviews_by_author
 from babysit_gh import (
     fetch_issue_comments,
+    fetch_pull_request_commits,
     fetch_pull_request_review_comments,
     fetch_pull_request_reviews,
     fetch_review_threads,
@@ -310,6 +311,69 @@ def branch_rules(repo: str, branch: str) -> dict[str, object]:
     summary["requiredApprovingReviews"] = required_reviews
     summary["requireThreadResolution"] = require_thread_resolution
     return summary
+
+
+# Distinct remedies per verification reason: `unsigned`, `no_user`, and
+# `unknown_key` are different problems fixed in different places, so they must
+# never collapse into one message. `no_user` in particular is the trap #2162
+# keeps producing -- the signature itself is VALID, and nothing else in the
+# loop says why GitHub still reports verified:false.
+SIGNATURE_REMEDIES = {
+    "unsigned": (
+        "the commit carries no signature -- configure commit signing on the "
+        "writing machine (never commit.gpgsign=false)"
+    ),
+    "no_user": (
+        "the signature is valid but the author/committer email is not linked "
+        "to any GitHub account -- link that email, or rewrite the commit with "
+        "a linked identity (--reset-author)"
+    ),
+    "unknown_key": (
+        "signed with a key that is not registered on the committer's GitHub "
+        "account -- upload the public key to the account"
+    ),
+}
+
+
+def evaluate_required_signatures(
+    repo: str, number: int
+) -> tuple[list[str], dict[str, Any]]:
+    """Enforce a `required_signatures` rule against the PR's actual commits.
+
+    `branch_rules` has always computed `requireSignatures` and, before #2265,
+    nothing consumed it: a head held only by an unsigned or mis-authored commit
+    reported the generic `mergeStateStatus` line, whose enumeration named four
+    other causes and omitted the real one. Called only when the rule is
+    present, so an ungoverned base pays no extra request; a fetch failure holds
+    rather than passes (the one direction this gate is allowed to be wrong in),
+    stated as its own blocker so an operator sees "could not be read", never a
+    fabricated "unsigned".
+    """
+    record: dict[str, Any] = {"required": True, "checked": False, "unverified": []}
+    try:
+        commits = fetch_pull_request_commits(repo, number)
+    except (RuntimeError, json.JSONDecodeError) as exc:
+        return (
+            [
+                "base branch requires signed commits and commit verification "
+                f"could not be read ({exc}) -- held"
+            ],
+            record,
+        )
+    record["checked"] = True
+    offending = [c for c in commits if not c.get("verified")]
+    record["unverified"] = offending
+    by_reason: dict[str, list[str]] = {}
+    for commit in offending:
+        sha = str(commit.get("sha") or "")[:12]
+        by_reason.setdefault(str(commit.get("reason") or "unreadable"), []).append(sha)
+    blockers = [
+        f"base branch requires signed commits; verified:false reason={reason} "
+        f"on {', '.join(shas)} -- "
+        + SIGNATURE_REMEDIES.get(reason, f"GitHub reports verification reason {reason!r}")
+        for reason, shas in sorted(by_reason.items())
+    ]
+    return blockers, record
 
 
 def approval_reports_blocking(body: str) -> bool:
@@ -944,7 +1008,7 @@ def evaluate(
         blockers.append(
             f"mergeStateStatus={pr.get('mergeStateStatus')} "
             + "(need CLEAN/HAS_HOOKS: integrates required checks, up-to-date, "
-            + "approvals, conversation resolution)"
+            + "approvals, conversation resolution, signatures)"
         )
     if review_decision == "CHANGES_REQUESTED":
         blockers.append(
@@ -976,6 +1040,19 @@ def evaluate(
             "base branch requires a merge queue -- a direct merge is not allowed; "
             "add to the queue"
         )
+    # Enforced in this read-only pass, not only at merge time: the wrapper's
+    # documented purpose is reporting readiness so the caller can react, and a
+    # signature hold discovered only under --merge defeats that.
+    signature_result: dict[str, Any] = {
+        "required": bool(rules.get("requireSignatures")),
+        "checked": False,
+        "unverified": [],
+    }
+    if rules.get("requireSignatures"):
+        signature_blockers, signature_result = evaluate_required_signatures(
+            repo, number
+        )
+        blockers.extend(signature_blockers)
     if head_matches is False:
         blockers.append(
             f"head moved: live={str(head)[:12] if head else None} expected={expected_head}"
@@ -1081,6 +1158,7 @@ def evaluate(
         "expectedHead": expected_head,
         "headMatches": head_matches,
         "effectiveRules": rules,
+        "requiredSignatures": signature_result,
         "requiredChecks": required_check_status,
         "unresolvedThreadCount": len(threads),
         "unresolvedThreads": threads,

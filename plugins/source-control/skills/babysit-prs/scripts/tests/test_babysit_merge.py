@@ -812,6 +812,166 @@ class SelfAuthoredUnprotectedBaseTests(unittest.TestCase):
         self.assertEqual(self._unprotected_blockers(result), [], result["blockers"])
 
 
+class RequiredSignaturesEnforcement(unittest.TestCase):
+    """#2265: `requireSignatures` is enforced, not merely reported.
+
+    Before this gate, a head held only by an unsigned or mis-authored commit
+    produced the generic `mergeStateStatus` line naming four other causes; the
+    real one was absent from every blocker. Reasons carry distinct remedies:
+    `no_user` is a VALID signature whose author email is unlinked (#2162's
+    recurring product), which no operator can guess from "unsigned".
+    """
+
+    SIGNED_RULES = RULES + [{"type": "required_signatures"}]
+
+    @staticmethod
+    def _commit(sha: str, verified: bool, reason: str) -> dict[str, Any]:
+        return {"sha": sha, "verified": verified, "reason": reason}
+
+    def _evaluate(
+        self,
+        *,
+        rules: list[dict[str, Any]],
+        commits: list[dict[str, Any]] | None = None,
+        commits_error: bool = False,
+        **pr_overrides: Any,
+    ) -> dict[str, Any]:
+        pr = _pr(**pr_overrides)
+
+        def gh_json(args: list[str]) -> Any:
+            if args[:2] == ["pr", "view"]:
+                return pr
+            if args[0] == "api":  # branch rules
+                return rules
+            raise AssertionError(f"unexpected gh_json call: {args}")
+
+        def commits_side_effect(repo: str, number: int) -> list[dict[str, Any]]:
+            if commits_error:
+                raise RuntimeError("simulated commit-verification fetch failure")
+            return commits or []
+
+        with (
+            mock.patch.object(merge, "gh_json", side_effect=gh_json),
+            mock.patch.object(merge, "fetch_review_threads", return_value=[]),
+            mock.patch.object(
+                merge,
+                "fetch_pull_request_commits",
+                side_effect=commits_side_effect,
+            ) as commits_mock,
+        ):
+            result = merge.evaluate(
+                "owner/repo",
+                PR_NUMBER,
+                HEAD,
+                {"owner"},
+                frozenset(),
+                False,
+                False,
+            )
+        result["_commits_called"] = commits_mock.called
+        return result
+
+    def _signature_blockers(self, result: dict[str, Any]) -> list[str]:
+        return [b for b in result["blockers"] if "signed commits" in b]
+
+    def test_no_signature_rule_makes_no_commit_read(self) -> None:
+        result = self._evaluate(rules=RULES)
+        self.assertFalse(result["_commits_called"])
+        self.assertEqual(self._signature_blockers(result), [])
+        self.assertEqual(
+            result["requiredSignatures"],
+            {"required": False, "checked": False, "unverified": []},
+        )
+
+    def test_all_verified_is_ready(self) -> None:
+        result = self._evaluate(
+            rules=self.SIGNED_RULES,
+            commits=[self._commit(HEAD, True, "valid")],
+        )
+        self.assertTrue(result["_commits_called"])
+        self.assertEqual(self._signature_blockers(result), [])
+        self.assertTrue(result["ready"])
+        self.assertEqual(result["requiredSignatures"]["unverified"], [])
+
+    def test_unsigned_commit_blocks_and_names_the_commit(self) -> None:
+        result = self._evaluate(
+            rules=self.SIGNED_RULES,
+            commits=[self._commit(HEAD, False, "unsigned")],
+        )
+        [blocker] = self._signature_blockers(result)
+        self.assertFalse(result["ready"])
+        self.assertIn("reason=unsigned", blocker)
+        self.assertIn(HEAD[:12], blocker)
+        self.assertIn("carries no signature", blocker)
+
+    def test_no_user_names_the_unlinked_email_remedy(self) -> None:
+        # A valid signature over an unlinked author email: the message must say
+        # the signature itself is fine, or the operator goes chasing keys.
+        result = self._evaluate(
+            rules=self.SIGNED_RULES,
+            commits=[self._commit(HEAD, False, "no_user")],
+        )
+        [blocker] = self._signature_blockers(result)
+        self.assertIn("reason=no_user", blocker)
+        self.assertIn("signature is valid", blocker)
+        self.assertIn("--reset-author", blocker)
+        self.assertNotIn("carries no signature", blocker)
+
+    def test_unknown_key_names_the_key_registration_remedy(self) -> None:
+        result = self._evaluate(
+            rules=self.SIGNED_RULES,
+            commits=[self._commit(HEAD, False, "unknown_key")],
+        )
+        [blocker] = self._signature_blockers(result)
+        self.assertIn("reason=unknown_key", blocker)
+        self.assertIn("upload the public key", blocker)
+
+    def test_distinct_reasons_stay_distinct_blockers(self) -> None:
+        result = self._evaluate(
+            rules=self.SIGNED_RULES,
+            commits=[
+                self._commit("c" * 40, False, "unsigned"),
+                self._commit("d" * 40, False, "no_user"),
+                self._commit(HEAD, True, "valid"),
+            ],
+        )
+        blockers = self._signature_blockers(result)
+        self.assertEqual(len(blockers), 2)
+        by_reason = {b.split("reason=")[1].split(" ")[0]: b for b in blockers}
+        self.assertIn("c" * 12, by_reason["unsigned"])
+        self.assertIn("d" * 12, by_reason["no_user"])
+        self.assertNotIn(HEAD[:12], "".join(blockers))
+
+    def test_unrecognized_reason_is_reported_verbatim(self) -> None:
+        result = self._evaluate(
+            rules=self.SIGNED_RULES,
+            commits=[self._commit(HEAD, False, "gpgverify_error")],
+        )
+        [blocker] = self._signature_blockers(result)
+        self.assertIn("reason=gpgverify_error", blocker)
+        self.assertIn("'gpgverify_error'", blocker)
+
+    def test_verification_read_failure_holds(self) -> None:
+        # Fail closed: over-report is the one allowed error direction, and the
+        # message says "could not be read", never a fabricated reason.
+        result = self._evaluate(rules=self.SIGNED_RULES, commits_error=True)
+        [blocker] = self._signature_blockers(result)
+        self.assertFalse(result["ready"])
+        self.assertIn("could not be read", blocker)
+        self.assertFalse(result["requiredSignatures"]["checked"])
+
+    def test_generic_merge_state_line_names_signatures(self) -> None:
+        # The honesty fix: even the coarse mergeStateStatus enumeration may not
+        # misdirect by omission.
+        result = self._evaluate(
+            rules=self.SIGNED_RULES,
+            commits=[self._commit(HEAD, True, "valid")],
+            mergeStateStatus="BLOCKED",
+        )
+        [line] = [b for b in result["blockers"] if "mergeStateStatus=" in b]
+        self.assertIn("signatures", line)
+
+
 class NoAbbreviatedFlags(unittest.TestCase):
     def test_merge_abbreviation_is_rejected(self) -> None:
         # The permission grants state "no --merge means check-only" as a
