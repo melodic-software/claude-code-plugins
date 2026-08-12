@@ -934,8 +934,15 @@ _POWERSHELL_MUTATION_WORDS = re.compile(
     r"(?i)(?<![\w./\\-])("
     r"remove-item|rm|rmdir|del|erase|rd|ri|clear-content|clear-recyclebin|rimraf|unlink"
     r"|sendtorecyclebin|deletefile|deletedirectory|removedirectory"
+    r"|move-item|rename-item|mv|move|ren|rename"
+    r"|set-content|out-file|add-content"
+    r"|format-volume|clear-disk|initialize-disk"
     r")(?![\w-])"
 )
+_POWERSHELL_NEW_ITEM_FORCE = re.compile(
+    r"(?i)(?<![\w./\\-])new-item(?![\w-]).*-force\b"
+)
+_POWERSHELL_OUTPUT_REDIRECT = re.compile(r"(?<![<>])>(?![=>])")
 _POWERSHELL_DOTNET_DELETE = re.compile(r"(?i)(::\s*delete|\.\s*delete\s*\()")
 # robocopy is an executable normally invocable by full path
 # (C:\Windows\System32\robocopy.exe), so unlike the cmdlet word list its
@@ -983,7 +990,18 @@ def powershell_decision(command: str, enabled: bool) -> tuple[str, str] | None:
     if match:
         return _powershell_mutation_verdict(
             enabled,
-            f'disk-hygiene flagged the deletion spelling "{match.group(0)}".',
+            f'disk-hygiene flagged the mutation spelling "{match.group(0)}".',
+        )
+    new_item_force = _POWERSHELL_NEW_ITEM_FORCE.search(command)
+    if new_item_force:
+        return _powershell_mutation_verdict(
+            enabled,
+            'disk-hygiene flagged New-Item -Force (truncates an existing file).',
+        )
+    if _POWERSHELL_OUTPUT_REDIRECT.search(command):
+        return _powershell_mutation_verdict(
+            enabled,
+            "disk-hygiene flagged shell output redirection (may overwrite a file).",
         )
     if _POWERSHELL_DOTNET_DELETE.search(command):
         return _powershell_mutation_verdict(

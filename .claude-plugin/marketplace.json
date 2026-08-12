@@ -271,7 +271,7 @@
     {
       "name": "visualization",
       "source": "./plugins/visualization",
-      "category": "workflow",
+      "category": "presentation",
       "tags": ["visualize", "visualization", "diagram", "mermaid", "chart", "artifact", "render", "skill"]
     },
     {

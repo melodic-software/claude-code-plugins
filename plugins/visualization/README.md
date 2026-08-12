@@ -76,10 +76,6 @@ its own.
 
 ## Possible future change
 
-- **Category.** Filed under `workflow` as the least-bad existing fit; a visualization
-  router is really presentation/output-shaping, which the taxonomy has no category
-  for yet. Recategorization is tracked in
-  [#1068](https://github.com/melodic-software/claude-code-plugins/issues/1068).
 - **Third-party visualization server.** No credible egress-free, self-hostable
   visualization server exists to depend on today. Re-evaluate if one lands with a
   maintained security posture (a self-hosted AntV deployment is the current

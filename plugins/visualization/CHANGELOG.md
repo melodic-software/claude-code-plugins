@@ -3,6 +3,13 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.1]
+
+### Changed
+
+- **Catalog taxonomy.** Add `presentation` category for visualization plugin listing in generated
+  catalog output.
+
 ## [0.2.0]
 
 ### Removed

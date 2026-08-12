@@ -30,7 +30,7 @@ Markdown, one `## <key>` H2 per key, the value as the section body:
 - `pr_body_attribution` — the attribution line `/source-control:pull-request create` appends to the PR body, or
   `none`. Absent means the default `🤖 Generated with [Claude Code](https://claude.com/claude-code)`
   line applies. This is the PR-body analogue of `trailer_policy`, and a separate key on purpose: the
-  two govern different surfaces (a commit `Co-Authored-By:` trailer vs a Markdown PR-body line), so a
+  two govern different surfaces (a commit `Co-authored-by:` trailer vs a Markdown PR-body line), so a
   consumer setting `trailer_policy: none` keeps the PR-body line unless they also set this to `none`.
 - `pr_body_required_sections` — the PR-body section scaffold: a flat Markdown bullet list (`- <H2
   heading>` per line, one heading per bullet) naming every `## <heading>` section

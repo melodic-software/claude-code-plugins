@@ -40,6 +40,7 @@ self. Self authorship is admissible as a REPLY only. See
 
 from __future__ import annotations
 
+import contextlib
 import io
 import json
 import pathlib
@@ -85,11 +86,18 @@ def _thread(
 
 def _run(threads: list[dict[str, object]], argv: list[str]) -> dict[str, object]:
     buffer = io.StringIO()
-    with (
-        mock.patch.object(rt, "fetch_threads", return_value=threads),
-        mock.patch.object(sys, "argv", ["babysit_resolve_thread.py", *argv]),
-        redirect_stdout(buffer),
-    ):
+    with contextlib.ExitStack() as stack:
+        stack.enter_context(mock.patch.object(rt, "fetch_threads", return_value=threads))
+        if "--autonomous" in argv or "--independent-resolver" in argv:
+            stack.enter_context(
+                mock.patch.object(
+                    rt, "fetch_pull_request_author", return_value="someone-else"
+                )
+            )
+        stack.enter_context(
+            mock.patch.object(sys, "argv", ["babysit_resolve_thread.py", *argv])
+        )
+        stack.enter_context(redirect_stdout(buffer))
         rt.main()
     return json.loads(buffer.getvalue())
 
@@ -292,15 +300,24 @@ class SelfLoginsNeutralizeOwnReply(unittest.TestCase):
         # exercising the CLI's `--self-logins` parsing together with the
         # classifier fix, not a pre-projected fixture that bypasses both.
         buffer = io.StringIO()
-        with (
-            mock.patch.object(
-                rt,
-                "fetch_review_threads",
-                side_effect=lambda repo, number, **kw: [kw["projection"](record)],
-            ),
-            mock.patch.object(sys, "argv", ["babysit_resolve_thread.py", *argv]),
-            redirect_stdout(buffer),
-        ):
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(
+                mock.patch.object(
+                    rt,
+                    "fetch_review_threads",
+                    side_effect=lambda repo, number, **kw: [kw["projection"](record)],
+                )
+            )
+            if "--autonomous" in argv or "--independent-resolver" in argv:
+                stack.enter_context(
+                    mock.patch.object(
+                        rt, "fetch_pull_request_author", return_value="someone-else"
+                    )
+                )
+            stack.enter_context(
+                mock.patch.object(sys, "argv", ["babysit_resolve_thread.py", *argv])
+            )
+            stack.enter_context(redirect_stdout(buffer))
             rt.main()
         return json.loads(buffer.getvalue())
 
@@ -491,6 +508,9 @@ class BotOnlyRequiresABotOpener(unittest.TestCase):
                 side_effect=lambda repo, number, **kw: [kw["projection"](record)],
             ),
             mock.patch.object(
+                rt, "fetch_pull_request_author", return_value="someone-else"
+            ),
+            mock.patch.object(
                 sys,
                 "argv",
                 [
@@ -541,6 +561,85 @@ class HumanThreadsActedExtraBotLogins(unittest.TestCase):
 
 
 class AutonomousSeverityGuard(unittest.TestCase):
+    def test_own_pr_is_refused_in_autonomous_mode(self) -> None:
+        with (
+            mock.patch.object(rt, "fetch_threads") as fetch_threads,
+            mock.patch.object(
+                rt, "fetch_pull_request_author", return_value="worker-bot"
+            ),
+            mock.patch.object(
+                sys,
+                "argv",
+                [
+                    "babysit_resolve_thread.py",
+                    "owner/repo#1",
+                    "--allowed-owners",
+                    "owner",
+                    "--self-logins",
+                    "worker-bot",
+                    "--autonomous",
+                ],
+            ),
+            redirect_stdout(io.StringIO()) as buffer,
+        ):
+            code = rt.main()
+        fetch_threads.assert_not_called()
+        result = json.loads(buffer.getvalue())
+        self.assertTrue(result["skippedOwnPr"])
+        self.assertEqual(result["prAuthor"], "worker-bot")
+        self.assertEqual(code, 0)
+
+    def test_own_pr_resolve_exits_2(self) -> None:
+        with (
+            mock.patch.object(rt, "fetch_threads") as fetch_threads,
+            mock.patch.object(
+                rt, "fetch_pull_request_author", return_value="worker-bot"
+            ),
+            mock.patch.object(
+                sys,
+                "argv",
+                [
+                    "babysit_resolve_thread.py",
+                    "owner/repo#1",
+                    "--allowed-owners",
+                    "owner",
+                    "--self-logins",
+                    "worker-bot",
+                    "--autonomous",
+                    "--resolve",
+                    "--thread-id",
+                    "T1",
+                    "--expected-comment-count",
+                    "2",
+                    "--expected-last-updated",
+                    "2026-01-01T00:00:00Z",
+                ],
+            ),
+            redirect_stdout(io.StringIO()) as buffer,
+        ):
+            code = rt.main()
+        fetch_threads.assert_not_called()
+        result = json.loads(buffer.getvalue())
+        self.assertTrue(result["skippedOwnPr"])
+        self.assertEqual(code, 2)
+
+    def test_non_self_pr_author_proceeds_in_autonomous_mode(self) -> None:
+        with mock.patch.object(
+            rt, "fetch_pull_request_author", return_value="someone-else"
+        ):
+            result = _run(
+                [_thread("T_ok", "codex[bot]", "Bot", bot_only=True, is_outdated=True)],
+                [
+                    "owner/repo#1",
+                    "--allowed-owners",
+                    "owner",
+                    "--self-logins",
+                    "worker-bot",
+                    "--autonomous",
+                ],
+            )
+        self.assertEqual(result["threads"][0]["action"], "would-resolve")
+
     def test_severity_marked_thread_is_skipped_in_autonomous_mode(self) -> None:
         result = _run(
             [
@@ -725,6 +824,9 @@ def _run_independent(
     buffer = io.StringIO()
     with (
         mock.patch.object(rt, "fetch_threads", return_value=threads),
+        mock.patch.object(
+            rt, "fetch_pull_request_author", return_value="someone-else"
+        ),
         mock.patch.object(rt, "gh_capture", side_effect=list(gh_results or [])),
         mock.patch.object(rt, "resolve_thread", return_value=(resolve_ok, "")),
         mock.patch.object(sys, "argv", ["babysit_resolve_thread.py", *argv]),

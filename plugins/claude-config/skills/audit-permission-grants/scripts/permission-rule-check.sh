@@ -228,7 +228,7 @@ findings=()
 # candidate is excluded, unreadable, block-free, or parsed. Nothing may fall
 # out of the walk without landing in one of them.
 fm_candidates=0        # frontmatter files the walk returned
-fm_excluded_vendor=0   # …removed by the vendor/ exclusion
+fm_excluded_non_loadable=0 # …removed by the loadability filter
 fm_unreadable=0        # …enumerated but not openable (or gone) — NOT audited
 fm_no_block=0          # …read fine, carried no allowed-tools block
 fm_with_block=0        # …read fine, carried a non-empty allowed-tools block
@@ -351,18 +351,39 @@ extract_allowed_tools() {
 }
 
 # SKILL.md anywhere, plus markdown directly under an agents/ or commands/ dir.
-# A file under a `vendor/` path segment is a vendored upstream reference, not a
-# loadable skill/agent/command (Claude Code loads a skill from
-# skills/<name>/SKILL.md, not from a nested vendor/ copy), so its `allowed-tools`
-# never take effect and must not be flagged. Excluding the whole `vendor/`
-# segment is a principled, path-based exclusion that covers both a direct child
-# (vendor/SKILL.md) and a nested one (vendor/<tool>/SKILL.md).
+# Only frontmatter at a documented load path is audited — not every SKILL.md the
+# walk finds. Claude Code loads skills from project `.claude/skills/<name>/`,
+# nested `**/.claude/skills/<name>/` below the working directory (including
+# under `node_modules/<pkg>/`), and a plugin's `skills/<name>/SKILL.md`; agents
+# and commands load from the parallel `.claude/` and plugin paths. A vendored
+# copy at `vendor/foo/SKILL.md` or `pkg/skills/foo/SKILL.md` is not one of
+# those shapes and is excluded; `vendor/foo/.claude/skills/bar/SKILL.md` IS
+# loadable under the nested rule and must not be excluded. See criteria.md and
+# #2406 for the model.
 #
-# The exclusion moved OUT of the `find` predicate and into the loop so the run can
-# say how many files it removed. An exclusion nothing counts is invisible, and an
+# The loadability filter lives in the loop (not in `find`) so the run can say
+# how many files it removed. An exclusion nothing counts is invisible, and an
 # invisible exclusion is indistinguishable from a tree that had nothing in it —
-# the same confusion the coverage block exists to remove. Same predicate, same
-# result set; only the accounting changed.
+# the same confusion the coverage block exists to remove.
+frontmatter_is_loadable() {
+  # frontmatter_is_loadable <absolute-file-path> — 0 when Claude Code would load
+  # this frontmatter file per the skills/agents/commands discovery rules.
+  local file="$1" rel="${1#"$ROOT"/}"
+  case "$file" in
+    */SKILL.md)
+      [[ "$rel" =~ (^|/)\.claude/skills/[^/]+/SKILL\.md$ ]] && return 0
+      [[ "$rel" =~ ^plugins/[^/]+/skills/[^/]+/SKILL\.md$ ]] && return 0
+      return 1
+      ;;
+    *)
+      [[ "$rel" =~ (^|/)\.claude/agents/[^/]+\.md$ ]] && return 0
+      [[ "$rel" =~ (^|/)\.claude/commands/[^/]+\.md$ ]] && return 0
+      [[ "$rel" =~ ^plugins/[^/]+/agents/[^/]+\.md$ ]] && return 0
+      [[ "$rel" =~ ^plugins/[^/]+/commands/[^/]+\.md$ ]] && return 0
+      return 1
+      ;;
+  esac
+}
 #
 # EVERY path out of this loop increments exactly one bucket, and
 # `reconcile_frontmatter` below checks that the buckets sum to the enumeration.
@@ -372,13 +393,10 @@ extract_allowed_tools() {
 while IFS= read -r file; do
   [[ -n "$file" ]] || continue
   fm_candidates=$((fm_candidates + 1))
-  case "$file" in
-    */vendor/*)
-      fm_excluded_vendor=$((fm_excluded_vendor + 1))
-      continue
-      ;;
-    *) ;; # not excluded — fall through to the readability gate below
-  esac
+  if ! frontmatter_is_loadable "$file"; then
+    fm_excluded_non_loadable=$((fm_excluded_non_loadable + 1))
+    continue
+  fi
   # `find` needs only directory-traversal permission to report a file as
   # `-type f`; it does NOT need read permission on the file. So an existing but
   # unreadable candidate (mode 000, a restrictive ACL, a mount that denies
@@ -537,14 +555,14 @@ reconcile_frontmatter() {
   # A candidate that lands in no bucket is a defect in THIS SCRIPT, and it is the
   # defect class this whole change exists to remove — so it is reported as a bug
   # in the tool, in the tool's own voice, not silently absorbed.
-  local sum=$((fm_excluded_vendor + fm_unreadable + fm_no_block + fm_with_block))
+  local sum=$((fm_excluded_non_loadable + fm_unreadable + fm_no_block + fm_with_block))
   if [[ "$sum" -ne "$fm_candidates" ]]; then
-    printf '  DENOMINATOR BUG: %d candidate(s) enumerated but %d accounted for (vendor=%d unreadable=%d no-block=%d parsed=%d). A candidate escaped every bucket: this is a defect in permission-rule-check.sh, not a property of the scanned tree, and the coverage above is incomplete. Do not report this run as clean.\n' \
-      "$fm_candidates" "$sum" "$fm_excluded_vendor" "$fm_unreadable" "$fm_no_block" "$fm_with_block"
+    printf '  DENOMINATOR BUG: %d candidate(s) enumerated but %d accounted for (non-loadable=%d unreadable=%d no-block=%d parsed=%d). A candidate escaped every bucket: this is a defect in permission-rule-check.sh, not a property of the scanned tree, and the coverage above is incomplete. Do not report this run as clean.\n' \
+      "$fm_candidates" "$sum" "$fm_excluded_non_loadable" "$fm_unreadable" "$fm_no_block" "$fm_with_block"
     return 1
   fi
-  printf '  reconciled: %d candidate(s) = %d vendor-excluded + %d unreadable + %d without an allowed-tools block + %d parsed\n' \
-    "$fm_candidates" "$fm_excluded_vendor" "$fm_unreadable" "$fm_no_block" "$fm_with_block"
+  printf '  reconciled: %d candidate(s) = %d non-loadable-excluded + %d unreadable + %d without an allowed-tools block + %d parsed\n' \
+    "$fm_candidates" "$fm_excluded_non_loadable" "$fm_unreadable" "$fm_no_block" "$fm_with_block"
   return 0
 }
 
@@ -562,8 +580,8 @@ coverage_block() {
   printf '  root: %s (resolved from %s)\n' "$ROOT" "$ROOT_SOURCE"
   printf '  DENOMINATOR = %d input(s) successfully examined: %d frontmatter file(s) + %d settings scope(s) + %d plugin settings.json. The unit on every axis is "read and examined", never "produced a finding".\n' \
     "$audited" "$fm_examined" "$scopes_read" "$plugin_settings_parsed"
-  printf '  frontmatter: %d allowed-tools block(s) parsed from %d candidate file(s); %d excluded under a vendor/ path segment as non-loadable\n' \
-    "$fm_with_block" "$fm_candidates" "$fm_excluded_vendor"
+  printf '  frontmatter: %d allowed-tools block(s) parsed from %d candidate file(s); %d excluded as non-loadable (not at a documented skills/agents/commands path)\n' \
+    "$fm_with_block" "$fm_candidates" "$fm_excluded_non_loadable"
   reconcile_frontmatter
   printf '  settings: %d allow rule(s) from %d scope(s) read — %s\n' \
     "$allow_rules_read" "$scopes_read" "$joined"

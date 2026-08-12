@@ -442,6 +442,28 @@ if [[ -d "$PCFG/.git" ]]; then
   done
 fi
 
+# --- #1022: persisted alias.<sub>.command subkey (plain alias.$sub absent) ----
+PCMD="$TEST_TMPDIR/persisted-command"
+mkdir -p "$PCMD"
+(
+  cd "$PCMD" || exit 1
+  git init -q .
+  git config user.email t@e.st
+  git config user.name t
+  git config alias.c.command commit
+) >/dev/null 2>&1
+
+if [[ -d "$PCMD/.git" ]]; then
+  for spec in "git c -m \$'bypass\nb':2" "git c -F -:0"; do
+    cmd="${spec%:*}"
+    want="${spec##*:}"
+    MSYS_NO_PATHCONV=1 jq -n --arg c "$cmd" --arg d "$PCMD" \
+      '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
+      bash "$HOOK" >/dev/null 2>&1
+    assert_exit "persisted .command-subkey alias: $cmd" "$want" $?
+  done
+fi
+
 # --- #964: persisted alias CHAIN (git resolves alias -> alias in config) ------
 # `git config alias.c x; git config alias.x commit` chains in .git/config; git
 # expands c -> x -> commit, so `git c -m` must block through both hops.
@@ -1128,6 +1150,17 @@ if [[ -d "$GLOB/repo/.git" ]]; then
     ((rc == 124)) && bad "$label: the hook HUNG — no verdict inside the ${HANG_GUARD_SECS}s hang guard" && continue
     assert_exit "$label" "$want" "$rc"
   done
+
+  # R8-2 (#1501): persisted-alias lookup must replay locating globals.
+  git -C "$GLOB/repo" config alias.b $'commit --allow-empty -m "x\ny"'
+  MSYS_NO_PATHCONV=1 jq -n \
+    --arg c "git --git-dir=$GLOB/repo/.git --work-tree=$GLOB/repo -c alias.a=b a" \
+    --arg d "$GLOB/outside" \
+    '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
+    timeout "$HANG_GUARD_SECS" bash "$HOOK" >/dev/null 2>&1
+  rc=$?
+  ((rc == 124)) && bad "persisted lookup with locating globals: the hook HUNG" || true
+  assert_exit "persisted lookup replays --git-dir/--work-tree (blocks multi-line -m via alias chain)" 2 "$rc"
 fi
 
 # --- explicit locating globals: a `!` body launches where the CALLER stands ----

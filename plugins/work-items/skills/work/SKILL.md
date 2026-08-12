@@ -166,6 +166,21 @@ For tier 1 and tier 4 (recurring candidates), cross-reference against open items
 
 **Last-resort recurring tiers (`last-resort: true` AND `where: 'next_due > today'`):** by design the consuming repo's recurring-issues automation typically creates items only when `next_due <= today`, so there is usually no open item to hold. Since picking early shifts the cadence, **skip last-resort candidates that have no open item and advance to the next candidate**. Only hold/claim a last-resort item when an open one already exists. If every last-resort candidate is skipped for lack of an item, report "no actionable work" rather than forcing one into existence.
 
+**Standing-item preconditions (tiers 1 and 4).** After a recurring candidate is identified and before cross-reference/claim, evaluate any `precondition` on its schedule row ([`${CLAUDE_PLUGIN_ROOT}/reference/standing-item-preconditions.md`](${CLAUDE_PLUGIN_ROOT}/reference/standing-item-preconditions.md)):
+
+```bash
+SCHEDULE="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.github/recurring-schedule.json"
+EVAL="${CLAUDE_PLUGIN_ROOT}/scripts/evaluate-schedule-precondition.sh"
+[[ -f "$EVAL" ]] || EVAL="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/plugins/work-items/scripts/evaluate-schedule-precondition.sh"
+"$EVAL" "$SCHEDULE" "<schedule-item-id>"   # add --operator-confirmed when the operator affirmed
+```
+
+- Exit `0` with `met` or `no-precondition` → proceed.
+- Exit `2` with `needs-confirmation` → surface the printed `prompt` inline, **skip this candidate**, and do not claim. Autonomous invocations must skip without claiming unless the invocation explicitly records operator confirmation for that schedule id (then pass `--operator-confirmed`).
+- Exit `1` with `unmet` → skip the candidate and report why.
+
+This is what makes #2019's tier-4 caveat enforceable instead of convention-only prose in the issue body.
+
 ### Step 3: Present and confirm
 
 Because the frontier is already unassigned + unblocked, present the top candidate directly — no pre-hold is needed (the seam `claim` in Step 4 is the atomic acquisition point):

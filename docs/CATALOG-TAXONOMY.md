@@ -50,6 +50,7 @@ Domain-and-cross-cutting tier — filed by subject:
 | `autonomy` | Governed autonomous agent operation: adoption discovery, guardrail and sandbox contracts, standing routines, autonomy telemetry and return-accounting conventions. |
 | `security` | Secret, path, and bypass guarding. |
 | `workflow` | Conducting the development session and process: staging, handoff, retrospective, orchestration priming. |
+| `presentation` | Shaping how information is presented to the reader: visual form, medium, rendering, and output register. |
 | `project-management` | Tracking, triaging, and decomposing the work backlog. |
 | `operations` | Workstation day-2 operations — monitoring and remediation. |
 | `learning` | Coaching the human through a subject. |

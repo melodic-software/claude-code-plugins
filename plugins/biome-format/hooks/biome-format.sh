@@ -207,10 +207,27 @@ fi
 # biome.json (verified empirically). Unsetting it keeps the discovered CONFIG_DIR
 # config authoritative — consistent with the in-tree opt-in this plugin is built
 # on (an out-of-tree config has no in-tree biome.json, so the gate skips anyway).
+_biome_before=""
+if _biome_before=$(mktemp 2>/dev/null); then
+  cp "$FILE" "$_biome_before" 2>/dev/null || _biome_before=""
+fi
+_biome_emit_mutation_if_changed() {
+  if [[ -n "$_biome_before" ]]; then
+    if ! cmp -s "$_biome_before" "$FILE" 2>/dev/null; then
+      hook::emit_system_message "biome-format: auto-fixed and/or reformatted $(basename "$FILE") via Biome."
+    fi
+    rm -f "$_biome_before"
+    _biome_before=""
+  fi
+}
+
 if OUTPUT=$(cd "$CONFIG_DIR" && env -u BIOME_CONFIG_PATH "$BIOME_BIN" check --write --error-on-warnings --reporter=github "$BIOME_ARG" 2>&1); then
+  _biome_emit_mutation_if_changed
   emit_tel "ok" '[]'
   exit 0
 fi
+
+_biome_emit_mutation_if_changed
 
 # Non-zero exit. The github reporter emits one `::warning`/`::error`/`::notice`
 # line per diagnostic; their presence is the unambiguous signal that Biome made a

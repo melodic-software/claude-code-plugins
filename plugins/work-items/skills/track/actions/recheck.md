@@ -29,6 +29,16 @@ fi
 
 If multiple matches, present them and ask the user to clarify.
 
+1. **Evaluate any `precondition` on the matched row** before mutating dates or closing the issue ([`${CLAUDE_PLUGIN_ROOT}/reference/standing-item-preconditions.md`](${CLAUDE_PLUGIN_ROOT}/reference/standing-item-preconditions.md)):
+
+```bash
+EVAL="${CLAUDE_PLUGIN_ROOT}/scripts/evaluate-schedule-precondition.sh"
+[[ -f "$EVAL" ]] || EVAL="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/plugins/work-items/scripts/evaluate-schedule-precondition.sh"
+"$EVAL" "$SCHEDULE" "<matched-id>"   # add --operator-confirmed when the operator affirmed
+```
+
+Refuse to advance `last_checked`/`next_due` or close the associated issue when the helper exits `2` (`needs-confirmation`) or `1` (`unmet`). Surface the printed prompt inline instead.
+
 1. **Update dates.** Always set `last_checked` to today. Only advance `next_due` if it's in the past or today — if it's already in the future, the recurring-issues automation has already advanced it and re-advancing would skip a cycle.
 
 | Cadence | Days |

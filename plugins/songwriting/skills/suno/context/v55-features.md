@@ -2,6 +2,8 @@
 
 **Released March 26, 2026** (verified 2026-07-18 against <https://suno.com/blog/v5-5>; still the current model). v5.5 is a personalization-focused upgrade over v5 (Sep 2025). Core prompt syntax unchanged from v5; what changed is **adherence quality** plus three new identity layers.
 
+**Post-baseline addition, 2026-08-12.** The 2026-07-18 verification stamp above predates the **Duration slider**, which Suno's release notes announced on Jul 20 2026 for Web on the V5.5 model — two days after that pass. It is not a March-launch layer and is deliberately **absent from the version-delta table below**, which tracks model capabilities rather than Create-form controls; a row there would misdate it to March. Documented in [advanced.md](advanced.md#duration-slider-create-form).
+
 ## Three new layers
 
 ### 1. Voices (clone your singing identity)

@@ -230,9 +230,9 @@ while the latch is set (clear it on a fresh healthy snapshot after the pause end
      composes") for the clean/dirty accounting below.
 5. **Escalate.** Anything the gate or execution rejects for human judgment follows the
    convention's escalation contract: the human-gated role label **resolved from
-   `config.role_labels`, never a literal**, plus a machine-marked escalation comment whose first
-   line is `<!-- work-items:escalation lane=work-loop kind=escalated|ratify-c3|routed-advisory -->`
-   — the marker,
+   `config.role_labels`, never a literal**, plus a machine-marked escalation comment per
+   [`${CLAUDE_PLUGIN_ROOT}/reference/escalation-marker.md`](${CLAUDE_PLUGIN_ROOT}/reference/escalation-marker.md)
+   (`lane=work-loop`, `kind=escalated|ratify-c3|routed-advisory`) — the marker,
    not a second label, is what discriminates a worker-escalated item from an operator-parked one.
    The same step performs the contract's escalation record write, **immediately before posting
    that comment**: create `.claude/lane-escalations/<UTC-stamp>-<item>-work-loop.json` (stamp
@@ -268,6 +268,7 @@ dispositions bind:
 
 | Class | Disposition |
 |---|---|
+| C1 read-only | Autonomous |
 | C2 mechanical | Autonomous |
 | C3 scoped, bug-fix-shaped | Autonomous — but see first-drain ratification below |
 | C3 scoped, feature-shaped | Human-gated (operator tightening — permitted without justification) |

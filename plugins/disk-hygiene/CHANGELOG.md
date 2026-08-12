@@ -3,6 +3,14 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.3]
+
+### Fixed
+
+- **PowerShell guard now surfaces move/rename/overwrite spellings (#387).** `Move-Item`, `Rename-Item`,
+  `Set-Content`, `Out-File`, `New-Item -Force`, output redirection, and `Format-Volume`/`Clear-Disk`
+  join the existing deletion-spelling `ask` bar on the PowerShell lane.
+
 ## [0.17.2]
 
 ### Fixed

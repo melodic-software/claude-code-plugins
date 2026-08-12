@@ -535,6 +535,62 @@ while IFS= read -r p; do
 done < <(bash -c 'source "$1" </dev/null; _rlg_managed_settings_files' _ "$TEE")
 if [[ "$MANAGED_ABS" == ok ]]; then ok "gate: every managed path is absolute"; else fail "gate: $MANAGED_ABS"; fi
 
+# --- Opt-in asynchrony: the snapshot still lands, and stdout stays clean ------
+# Everything above exercised the default synchronous path. RLG_TEE_ASYNC=1
+# detaches the snapshot; these cases prove the detachment is real (stdout is not
+# held open) without giving up the guarantee that the snapshot is still written.
+HOME_ASYNC="$WORK/home-async"
+mkdir -p "$HOME_ASYNC"
+ASYNC_OUT="$(printf '%s' "$GATE_INPUT" | HOME="$HOME_ASYNC" RLG_TEE_ASYNC=1 \
+  bash "$TEE" jq -r '.model.display_name')"
+ASYNC_RC=$?
+if [[ $ASYNC_RC -eq 0 && "$ASYNC_OUT" == "Opus" ]]; then
+  ok "async: wrapped stdout is exactly the wrapped command's, nothing leaks from the child"
+else
+  fail "async: stdout polluted or rc bad (rc=$ASYNC_RC out=$ASYNC_OUT)"
+fi
+
+# Bounded wait, not a fixed sleep: fails honestly if the write never happens.
+ASYNC_DEADLINE=$((SECONDS + 10))
+while [[ ! -f "$HOME_ASYNC/$TEE_REL" && $SECONDS -lt $ASYNC_DEADLINE ]]; do
+  sleep 0.05
+done
+if [[ -f "$HOME_ASYNC/$TEE_REL" ]]; then
+  ok "async: the detached snapshot is still written"
+else
+  fail "async: no snapshot appeared within 10s"
+fi
+if [[ "$(jq -r '.session_id' <"$HOME_ASYNC/$TEE_REL" 2>/dev/null)" == "sess-gate" ]] ||
+  jq -e '.rate_limits' <"$HOME_ASYNC/$TEE_REL" >/dev/null 2>&1; then
+  ok "async: the detached snapshot carries the session's windows"
+else
+  fail "async: snapshot body wrong: $(cat "$HOME_ASYNC/$TEE_REL" 2>/dev/null)"
+fi
+
+# The detached child must not hold the statusline pipe open: if it did, a reader
+# consuming to EOF would block until the snapshot finished, which is the whole
+# cost the asynchrony exists to remove. Reading to EOF must therefore complete
+# well inside the time the snapshot itself takes.
+HOME_EOF="$WORK/home-async-eof"
+mkdir -p "$HOME_EOF"
+EOF_START=$SECONDS
+printf '%s' "$GATE_INPUT" | HOME="$HOME_EOF" RLG_TEE_ASYNC=1 bash "$TEE" \
+  jq -r '.model.display_name' >/dev/null
+EOF_ELAPSED=$((SECONDS - EOF_START))
+if [[ $EOF_ELAPSED -le 5 ]]; then
+  ok "async: stdout reaches EOF without waiting on the detached snapshot"
+else
+  fail "async: reader blocked ${EOF_ELAPSED}s — the child is holding the pipe"
+fi
+
+# Let the last detached child finish before the suite's cleanup trap removes the
+# work directory out from under it. Without this the run ends on a spurious
+# "Directory not empty" from rm — harmless, but it reads like a failure.
+EOF_DEADLINE=$((SECONDS + 10))
+while [[ ! -f "$HOME_EOF/$TEE_REL" && $SECONDS -lt $EOF_DEADLINE ]]; do
+  sleep 0.05
+done
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]

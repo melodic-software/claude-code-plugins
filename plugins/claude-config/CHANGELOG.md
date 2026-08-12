@@ -3,6 +3,182 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.38.1]
+
+### Fixed
+
+Three defects in the `audit-pass` script `scripts/run-state.sh`, all one family — a control that does not
+enforce what its surface claims. They were found by review on #2441 and are shipped separately
+because that PR merged before the fixes were pushed; **0.38.0 carries all three**, so this is the
+version to be on.
+
+- **The partial's filename now takes the *writer's* epoch, not the lease's current one.** `partial
+  append` read `owner_epoch` from the lease at append time, which defeats exactly the isolation §3
+  describes: a stale holder waking after an adopter incremented the epoch would read the adopter's
+  value and append into the **adopter's** file, so two writers interleave under one attempt ordinal —
+  by §3's own account "the one failure the attempt machinery cannot absorb". `partial append --epoch
+  <held>` now names the writer's own file whatever the lease says, and reports `FENCED` on stderr
+  when the two differ so the run aborts on the signal rather than silently corrupting the artifact.
+- **A record is validated rather than sniffed.** The check accepted any string beginning with `{`,
+  so a construction slip such as `{bad json}` was appended permanently to an artifact whose only
+  readers are `--resume` and assembly — costing the run's persisted state rather than one record.
+  Records are now verified as well-formed single-line JSON objects: `jq` decides where it is
+  installed, and where it is not, a scan tracking string context and escape sequences still rejects
+  `{bad json}`, a truncated row, and an unbalanced one. `jq` is deliberately **not** made a hard
+  requirement — failing the state-persistence path closed on a missing optional tool would cost the
+  artifact the check exists to protect. Both rungs are asserted; the second runs with a `PATH`
+  holding only `bash`.
+- **`lease acquire` pins the write tree.** It created whatever `--run-dir` it was handed and wrote a
+  lease into it, so a wrong or invented run directory — the target root, say — was created and
+  written to, against this skill's promise that a bare audit writes nothing into the target and while
+  it keeps Bash specifically for state writes. `acquire` is the only command that *creates* a
+  directory, so it now requires `--plugin-data` and refuses any run directory outside
+  `<plugin-data>/runs/`; every later command operates on a directory `acquire` already validated. A
+  test asserts the refused directory is not created. (#2280, F3, F5)
+
+Review of *those* fixes found four more of the same class, all closed here rather than deferred:
+
+- **The fence is enforced by the exit code, not announced in a string.** `partial append` printed
+  `FENCED … this run must abort` to stderr and returned 0, so the abort depended on the caller
+  noticing a substring in a channel indistinguishable from any other diagnostic — a control reporting
+  a state it never establishes, which is the exact defect the surrounding change exists to remove. A
+  fenced append now exits **3**: the record is still written to the writer's own epoch file, and the
+  run is told in the one channel it cannot miss that it has been superseded. `SKILL.md` Phase 3 says
+  what to do with it.
+- **The no-parser rung announces its own limit.** `{"a" garbage}` balances and opens with a quoted
+  key, and no non-parser rejects it. `python3` is now the second definitive rung after `jq`; where
+  neither exists the structural scan runs and **says on stderr that it checked structurally only**,
+  rather than passing for a validator. A check that claims more than it verifies is the same defect
+  in a new spelling.
+- **Containment is checked on the resolved path, not the string.** A lexical prefix test is not
+  containment while symlinks exist: with `runs/link -> /elsewhere`, `<plugin-data>/runs/link/run`
+  passed the comparison and the write then followed the link out of the tree. Both sides are
+  canonicalized with `pwd -P` — `--run-dir` through its deepest existing ancestor, the only part a
+  symlink can be in. (`readlink -f` is GNU-only and is not used.)
+- **`reference/report-location-and-schema.md` §7 no longer contradicts the append contract.** It
+  still described `partial append` as taking the epoch from the lease and listed only the run
+  directory and the record, so an audit following that page after an adoption would have omitted
+  `--epoch` and reinstated the interleaving. Both surfaces now carry the same command.
+
+And review of *that* round caught the containment fix breaking the one run no fixture represents:
+
+- **`acquire` works on a plugin data directory that does not exist yet.** Canonicalizing with
+  `pwd -P` cannot resolve a directory that is not there, so the new check made `acquire` fail on a
+  plugin's **very first run** — the only run whose data root has never been created. Every test in
+  the file pre-makes that directory, so none of them could see it. The root is now created before it
+  is resolved (creating the plugin's own data root is inside this script's mandate and is not a
+  target write), and a test exercises the fresh-install path specifically. Reproduced before the
+  fix: `--plugin-data cannot be resolved: …/fresh`, `rc=2`.
+- The containment guard's **check-then-act window** — a symlink planted between the resolution and
+  the `mkdir` — is now recorded in the code as a disclosed residual rather than left implied. Closing
+  it needs an atomic create-and-verify no portable shell offers, and an attacker who can plant that
+  link can already write the lease directly. A guard whose limits are unstated reads as one without
+  any.
+
+## [0.38.0]
+
+### Added
+
+- **`audit-pass` ships an executable for the run state it had only ever described.**
+  `skills/audit-pass/scripts/run-state.sh` derives the run directory, writes and classifies the
+  lease, and appends to the epoch-scoped partial. Until now the skill was the only audit skill in
+  this plugin with no `scripts/` directory at all, while `SKILL.md` and ten `reference/*.md` spelled
+  out a lease path, a refresh discipline, a two-sided liveness window, a `released` tombstone,
+  `owner_epoch` fencing and an append-only partial as prose. The gap has a sharper form than "no
+  scripts": `lib/state-key.sh`, whose own header records the keying scheme as *`audit-pass`'s, reused
+  rather than reinvented*, was called by `audit-instructions`, `audit-prompting-postures` and
+  `claude-memory:audit` — every skill except the one that specified it. `paths` now calls it, so the
+  skill runs on its own scheme rather than describing it for others.
+
+  Scope is stated plainly, because the point of the change is that a contract should not read as
+  enforced when nothing enforces it. The script owns path derivation,
+  `lease acquire|heartbeat|release|classify`, and `partial append`. It does **not** own stale-lease
+  adoption (the `owner_epoch` compare-and-set) or §7 assembly; those stay the run's own discipline,
+  and §3 and §7 now say so in as many words instead of leaving a reader to assume mechanism.
+  (#2280, F3, F5)
+- **Three negative tests, not only passing ones.** `run-state.test.sh` mutates a copy of the script
+  to delete exactly one check and asserts the mutated copy reaches the outcome the real one refuses:
+  the two-sided window's *lower* bound (delete it and a future `heartbeat_at` pins a dead run `live`
+  forever, so every `--resume` refuses an abandoned run — assertion 3.9), the `..` rejection in
+  `--run-id`, and the segment-shape check that keeps an absolute id from walking the run directory
+  out of the plugin's namespace. A test that would still pass with the check deleted proves nothing,
+  and both id checks guard the same door `lib/state-key.sh` documents defending on the remote-URL
+  side. (#2280, F3)
+
+  Review of this change caught one more of the same class before it shipped: because §3 now documents
+  `--stale-after` as an operator lever, a value of **0** would have been accepted, and a lease
+  recording a zero window satisfies the staleness test the moment it is written — born abandoned, and
+  adoptable by `--resume` out from under the run that just wrote it. It is refused rather than
+  clamped (a clamp hands a caller a window it did not choose and then reports on it), with an
+  assertion. `--skew-grace 0` stays legal: "tolerate no forward clock jump" is a coherent choice and
+  inverts nothing.
+
+### Changed
+
+- **The lease's refresh contract now describes something a skill-driven run can keep.** §3 specified
+  a **60-second** wall-clock heartbeat with a 5-minute staleness threshold derived from it. A skill
+  acts between tool calls and has no timer, so that cadence named a mechanism no run could provide —
+  the same defect as specifying a lease and shipping no writer. Refresh is now boundary-driven
+  (acquire, each lane's persistence point, release), and each lease records the `stale_after_s` and
+  `skew_grace_s` its writer committed to, so `classify` reads the thresholds from the artifact rather
+  than assuming its own — which is what the section's own "two implementations must reach it
+  identically" concern actually needed. The default threshold moves 5 minutes → 30: with
+  boundary-driven refresh a single delegated lane can outlast five minutes, and a threshold shorter
+  than a lane classifies a *running* pass as abandoned, which is the unsafe direction because it lets
+  `--resume` adopt a live run's artifact. (#2280, F5)
+- **The `/doctor` handoff's instruction to the operator is no longer false by construction.** Phase 4
+  marks that lane `open`, closable only by `--resume`; `--resume` reads the partial, not the report;
+  and nothing wrote a partial. The report therefore told the operator to come back with a flag that
+  had no artifact to attach to. The `open` terminator now goes through `partial append` at the moment
+  Phase 4 records the handoff, never deferred to Phase 6 assembly — which is exactly where a run that
+  does not reach Phase 6 loses it. The second link in the same path is closed too: §5's "run
+  manifest" is now stated as the partial's own lane records rather than a separate file, which is
+  what §7 already required ("completion state is derivable from the artifact rather than tracked
+  beside it and able to disagree with it"). Making the partial real while leaving completion state in
+  a file nothing writes would have moved the defect rather than fixed it. (#2280, F12)
+- **Phase 3's cost mitigation now names something that exists.** The passage bounds lane *count*,
+  explicitly declines to bound intra-lane fan-out, and mitigates with "let incremental persistence
+  carry the rest" — persistence that was prose, so an intra-lane overrun degraded into nothing
+  resumable. The disclaimer is unchanged and the `partial append` call still bounds nothing; what
+  changed is that an overrun now costs the lanes still running rather than the whole pass.
+  (#2280, F13)
+
+  A note on evidence, since the originating report leans on a runtime observation. What is verifiable
+  from this repository is the **specification-versus-implementation gap** — a fully specified lease,
+  partial and manifest with no executable behind any of them — and that is the whole basis for these
+  entries. Whether any particular past run failed to write a lease is not something the tree can
+  confirm, and nothing here asserts it.
+
+## [0.37.2]
+
+### Fixed
+
+- **`permission-rule-check` applies a loadability model instead of a `vendor/` path exclusion
+  (#2406).** Blanket `vendor/` or `node_modules/` exclusions would silently blind an `error`-tier
+  check to live grants under nested `.claude/skills/<name>/SKILL.md` paths — which Claude Code loads
+  the moment it touches a file in that subdirectory. The detector now audits only frontmatter at
+  documented discovery paths (project/nested `.claude/skills/`, plugin `skills/`, and the parallel
+  agents/commands locations) and reports how many candidates it excluded as non-loadable. Installed
+  versus orphaned plugin-cache copies still need an `installed_plugins.json` oracle and remain out of
+  scope.
+- **`fix-plugin-drift.sh` uses the portable `mktemp` form (#1709).** The two `mktemp -t
+  <name>-XXXXXX.json` scratch files move to the positional absolute template with trailing Xs
+  (`mktemp "${TMPDIR:-/tmp}/<name>-XXXXXX"`), the one form GNU and BSD accept identically —
+  verified by execution on both (GNU coreutils 9.4 and macOS 26.5). GNU marks `-t` deprecated,
+  BSD `-t` treats the argument as a prefix rather than a template, and BSD substitutes only
+  trailing Xs, so a template carrying a `.json` suffix is created verbatim on macOS with no
+  randomness at all.
+
+## [0.37.1]
+
+### Changed
+
+- **`audit-permission-grants` no longer prescribes an unreachable bare-name-on-PATH fix.** P1
+  remediation and Phase 2 reporting now distinguish platforms where plugin `bin/` is reliably on the
+  Bash tool's PATH from the measured Windows/Git Bash gap recorded in the permission-rule-hygiene
+  convention — bundled-path grants and operator-setup notes replace the unconditional bare-name
+  prescription where that end state is not yet reachable.
+
 ## [0.37.0]
 
 ### Changed

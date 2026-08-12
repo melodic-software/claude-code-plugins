@@ -86,6 +86,25 @@ completes. Append-only is what makes §5 real: a single JSON document would be r
 every append, which is exactly the operation an interrupted run leaves half-done. A lane's final
 record is its terminating record.
 
+**The append is `scripts/run-state.sh partial append`, not a hand-rolled redirection**, and its full
+form carries the writer's epoch:
+
+```
+run-state.sh partial append --run-dir <run-dir> --record '<json-line>' --epoch <held>
+```
+
+**`--epoch` is not optional in practice.** The file is named for the epoch **the writer holds**, never
+whatever the lease currently carries: omit it after an adoption and the fallback selects the
+*adopter's* epoch, putting a superseded writer's rows into the adopter's file — exactly the
+cross-writer interleaving §3's fencing exists to prevent. Where the two differ the command writes to
+the writer's own file, says `FENCED`, and **exits 3**: the record is safe, and the run that wrote it
+is superseded and must stop. A lease must exist either way, so the partial cannot outlive the thing
+that classifies it, and a record that is not a well-formed single-line JSON object is refused.
+
+§5 also states which clauses of the run-state contract that script enforces and which remain the run's
+own discipline; **assembly is among the latter**, so the selection rules below are performed by the
+run, not by an executable.
+
 **Completion is read from the terminator's state, not from its presence.** A terminator lets
 assembly render the lane; whether the lane is *done* is a separate question, and conflating them
 would carry an outstanding `/doctor` handoff forward on every resume instead of closing it. A
@@ -136,4 +155,9 @@ the run and target identity, the resolved version of every catalog consulted, an
 | `verification` | per-lane verification mode (`verified` \| `inline` \| `skipped`) for lanes that mandate independent subagent dispatch; omitted only when every such lane verified |
 
 **Resume reads the partial, not the report**, so completion state is derivable from the artifact
-rather than tracked beside it and able to disagree with it.
+rather than tracked beside it and able to disagree with it. §5 makes the same point from the other
+side: the run manifest is these lane records, not a second file — a manifest beside the partial is
+precisely the thing that could disagree with it. And the instruction the report gives the operator —
+come back with `--resume` — is only true because the partial is written by a script as each lane
+terminates, Phase 4's `open` handoff included. Stated as a contract against an artifact nothing
+wrote, it was a false instruction in the one artifact the operator acts on.

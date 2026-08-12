@@ -3,6 +3,62 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.11]
+
+### Changed
+
+- **Escalation-marker grammar has one canonical source (#1672).** `reference/escalation-marker.md`
+  now defines the marker comment prefix, kind enum, author-match suppression rule, and
+  label-plus-comment pairing; `work-loop` and `attend-queue` cite it instead of restating the
+  grammar in prose.
+
+## [0.35.10]
+
+### Added
+
+- **Unattended recurring-schedule seeding via --accept-recommended** in setup skill.
+
+## [0.35.9]
+
+### Added
+
+- **Lane-neutral AI disclaimer SSOT** in work-items reference docs.
+
+## [0.35.8]
+
+### Fixed
+
+- Harden triage intake against priority-axis stacking and blocked-by relabel races.
+
+## [0.35.7]
+
+### Added
+
+- **`reference/work-class-labels.md` — canonical `work-class:` axis members, migration path, and
+  classification pointer to the `autonomy` plugin's `work-classes.md`.** Declares the five labels
+  triage stamps and setup migrates; linked from `label-taxonomy.md` and `tracker-seam.md`.
+
+### Changed
+
+- **`/work-items:setup` discovers and migrates the work-class label axis (#1677).** `check` probe 7
+  FAILs when any canonical member is missing on label-listing providers; `apply` step 3 provisions
+  missing labels when no label-as-code owner is declared (interactive migration), or stops with
+  explicit remediation otherwise.
+- **`/work-items:triage` pairs autonomous-eligible with a work-class label (#1677).** Hard pairing
+  rule cites `work-classes.md` for classification, preflights label-axis presence before mutating,
+  and covers all agent-ready outcomes via the general rule (not per-table-row duplication).
+- **`/work-items:work-loop` admission gate adds C1 read-only disposition as Autonomous**, matching
+  the shipped admission-policy default for C1.
+
+## [0.35.6]
+
+### Added
+
+- **Standing-item `precondition` field on recurring schedule rows (#2052).** Tier-4 `/work-items:work`
+  selection and `/work-items:track recheck` consult `precondition` via
+  `scripts/evaluate-schedule-precondition.sh` before claiming or closing. Migrated #2019's
+  frontier-release guard onto the new surface.
+
 ## [0.35.5]
 
 ### Fixed

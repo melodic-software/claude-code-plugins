@@ -130,8 +130,18 @@ For any "is it stuck / check the monitor / poke it":
 - The time-vs-reset check belongs to the **orchestration** case: when
   step 2 inspects a worker or subagent that is itself limited, compare the
   current time against the reset its limit message states, to decide
-  whether that worker can proceed now. In a single interactive session,
-  if you are running, the answer is already GO.
+  whether that worker can proceed now. Run the bundled checker instead of
+  doing this arithmetic yourself:
+
+  ```shell
+  python3 "${CLAUDE_PLUGIN_ROOT}/skills/keep-going/scripts/check-usage-limit-reset.py" "<limit message text>"
+  ```
+
+  Exit `0` means the reset has passed — treat the worker as resumable now.
+  Exit `1` means the limit still holds — hand back via `/session-flow:handoff`
+  and stop. Exit `2` means the message carried no parseable reset clause; say
+  so plainly and ask the operator rather than guessing. In a single interactive
+  session, if you are running, the answer is already GO.
 - Reset information available in-session is the limit **message text**
   only (e.g. `resets 3:45pm`) and the interactive `/usage` view — there is
   no environment variable, file, or API that exposes it. Read the reset

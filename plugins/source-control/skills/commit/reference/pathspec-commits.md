@@ -8,7 +8,7 @@ pre-existing mixed WIP — where a bare `git commit` would sweep them all in.
 # Same trailer_policy conditionality as the canonical form in SKILL.md: drop --trailer
 # entirely when trailer_policy is "none"; substitute a named alternate template.
 git commit -F - --cleanup=verbatim \
-  --trailer "<Co-Authored-By trailer>" \
+  --trailer "<Co-authored-by trailer>" \
   -- <path> [<path>...] <<'EOF'
 <subject>
 
@@ -172,7 +172,7 @@ done
 # Same trailer_policy conditionality as the canonical form: drop --trailer entirely
 # when trailer_policy is "none"; substitute a named alternate template.
 git commit -F - --cleanup=verbatim \
-  --trailer "<Co-Authored-By trailer>" \
+  --trailer "<Co-authored-by trailer>" \
   -- <path> [<path>...] <<'EOF'
 <subject>
 

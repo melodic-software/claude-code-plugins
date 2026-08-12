@@ -49,18 +49,16 @@ plugin manifests and plugin `settings.json` files parsed, paths the walk could n
 an exclusion rule removed. `No fragile permission grants found.` is printed only against a non-zero
 denominator; a run that parsed nothing prints `NOTHING TO AUDIT` and must not be relayed as clean.
 
-**The exclusion set is disclosed rather than extended, and here is why.** `vendor/` is the only path
-exclusion, and its rationale — not loadable, so the grant never takes effect — does *not* generalize
-to `node_modules/`, worktrees, or marketplace mirrors the way it appears to. Nested skills load:
-"Skills also load from nested `.claude/skills/` directories below your working directory. When Claude
-reads or edits a file in a subdirectory, skills from that subdirectory's `.claude/skills/` become
-available." (<https://code.claude.com/docs/en/skills>, fetched 2026-08-12.) So a
-`node_modules/<pkg>/.claude/skills/<name>/SKILL.md` **is** loadable the moment Claude touches a file
-under that package, and excluding the directory would make an `error`-tier check silently blind to a
-live grant. Filtering to *installed* plugin versions needs an `installed_plugins.json` oracle this
-detector does not consult. Until a loadability model exists that distinguishes those cases, the
-exclusion set stays at one rule and every run reports how many files it removed — an exclusion whose
-count is printed cannot suppress anything silently, which is the property that matters.
+**The exclusion set is disclosed rather than extended by path segment, and here is why.** A
+blanket `vendor/` or `node_modules/` exclusion would make an `error`-tier check silently blind to
+live grants under nested `.claude/skills/` paths — which Claude Code loads the moment it touches a
+file in that subdirectory (<https://code.claude.com/docs/en/skills>, fetched 2026-08-12). The
+detector instead applies a **loadability model**: only frontmatter at documented discovery paths is
+audited — project or nested `.claude/skills/<name>/SKILL.md`, plugin `skills/<name>/SKILL.md`, and
+the parallel agents/commands paths. Everything else is excluded and counted. Filtering to *installed*
+plugin versions needs an `installed_plugins.json` oracle this detector does not consult (#2406).
+An exclusion whose count is printed cannot suppress anything silently, which is the property that
+matters.
 
 ---
 
@@ -89,8 +87,14 @@ via an interpreter (`Bash(bash <fixed-path>:*)`) is flagged as the same authorin
 where the doc's dropped-category wording does not clearly reach it; the fix (a bare PATH command) is
 the same. See convention anti-pattern 1.
 
-**Recommend**: expose the helper as a bare command on PATH and allow the bare name narrowly. An
-`Agent` rule has no bare-PATH analog — remove or re-scope it, or run outside auto mode.
+**Recommend**: where the convention's bare-name-on-PATH end state is reachable (see its **Known gap —
+step 1's plugin `bin/` delivery** section), expose the helper as a bare command on PATH and allow the
+bare name narrowly. On platforms where plugin `bin/` is not reliably on the Bash tool's PATH — the
+measured default on Windows/Git Bash today — keep the finding and prescribe the bundled-path
+invocation that works now (`Bash(${CLAUDE_PLUGIN_ROOT}/bin/<helper>:*)` or `${CLAUDE_SKILL_DIR}` for a
+skill's own script), plus an operator-setup note for the bare-name rule the operator can add when
+delivery is stable. An `Agent` rule has no bare-PATH analog — remove or re-scope it, or run outside
+auto mode.
 
 ## P2: Hardcoded absolute machine/user path [error]
 

@@ -349,6 +349,19 @@ NOT_SUPPRESSED=$(
 OUT=$(lint "$NOT_SUPPRESSED")
 assert_contains "an allow-rule command prefix still fires colonStar" "$OUT" "[C6-colonStar]"
 
+# --- C6-colonStarAmbiguous: mid-pattern :* with no space ---------------------
+C6_AMBIG=$(
+  printf '%s\n' "$SURFACES"
+  cat <<'EOF'
+rule user settings deny Bash(git:*push)
+rule user settings deny Agent(model:*-haiku)
+EOF
+)
+OUT=$(lint "$C6_AMBIG")
+assert_eq "no-space mid-pattern on an unknown prefix warns once" 1 "$(count_matching "$OUT" '\[C6-colonStarAmbiguous\]')"
+assert_contains "names the undecidability" "$OUT" "[C6-colonStarAmbiguous] user Bash(git:*push)"
+assert_not_contains "documented parameter forms stay silent" "$OUT" "[C6-colonStarAmbiguous] user Agent(model:*-haiku)"
+
 # --- Parameter matching is deny/ask only -------------------------------------
 # "Deny and ask rules can match a top-level input parameter... An allow rule for
 # one parameter value would not establish that the call is safe overall, so

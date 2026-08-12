@@ -63,6 +63,12 @@ Deterministic guards encoded here:
   thread whose comment page is truncated cannot prove the absence of a marker
   and is refused the same way. Interactive modes are unaffected -- severity
   judgment there stays with the evaluating agent.
+- `--autonomous` and `--independent-resolver` refuse when the PR author is a
+  configured self login (`--self-logins`, including `@me`). Resolving threads on
+  the caller's own PR is the same actor signing its own permission slip the
+  unattended guards exist to prevent; there is no autonomous override (mirroring
+  the merge gate's human-only `--allow-unprotected` pattern). Interactive modes
+  are unaffected.
 - `--independent-resolver` is a THIRD mode, parallel to `--autonomous` and not a
   relaxation of it. `--autonomous`'s `isOutdated` requirement is right about the
   merging worker, but `isOutdated` means "the referenced code moved" -- on a prose
@@ -165,8 +171,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any, cast
 
 from babysit_classify import (
@@ -179,12 +188,38 @@ from babysit_classify import (
 from babysit_gh import (
     GITHUB_OWNER_RE,
     GITHUB_REPOSITORY_RE,
+    fetch_pull_request_author,
     fetch_review_threads,
     gh_capture,
     parse_repo_number,
     resolve_authors,
 )
 from babysit_util import configure_stdio, dig, is_json_object
+
+
+def resolve_thread_audit_log_path() -> Path:
+    """Append-only audit trail for guarded wrapper resolutions (#2139)."""
+    override = os.environ.get("SOURCE_CONTROL_RESOLVE_THREAD_AUDIT_LOG")
+    if override:
+        return Path(override).expanduser()
+    plugin_data = os.environ.get("CLAUDE_PLUGIN_DATA")
+    if plugin_data:
+        return Path(plugin_data) / "source-control" / "resolve-thread-audit.jsonl"
+    home = os.environ.get("HOME")
+    if home:
+        return Path(home) / ".claude" / "source-control" / "resolve-thread-audit.jsonl"
+    return Path("/tmp/resolve-thread-audit.jsonl")
+
+
+def append_resolve_thread_audit(record: dict[str, object]) -> None:
+    path = resolve_thread_audit_log_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    stamped = {
+        "recorded_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+        **record,
+    }
+    with path.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(stamped, separators=(",", ":"), sort_keys=True) + "\n")
 
 
 # Deterministic proxies for "a security or P1 thread" — deliberately NARROWER
@@ -1112,6 +1147,33 @@ def main() -> int:
             if token.strip().casefold() != "@me"
         )
 
+    if args.autonomous or args.independent_resolver:
+        try:
+            pr_author = fetch_pull_request_author(repo, number)
+        except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
+            print(json.dumps({"pr": args.pr, "error": f"{type(exc).__name__}: {exc}"}))
+            return 2
+        if is_self_login(pr_author, self_logins):
+            print(
+                json.dumps(
+                    {
+                        "pr": args.pr,
+                        "prAuthor": pr_author,
+                        "skippedOwnPr": True,
+                        "eligibleCount": 0,
+                        "humanThreadsActed": 0,
+                        "threads": [],
+                        "error": (
+                            "refused: PR author is a configured self login; "
+                            "--autonomous and --independent-resolver do not "
+                            "resolve threads on own PRs"
+                        ),
+                    },
+                    indent=2,
+                )
+            )
+            return 2 if args.resolve else 0
+
     try:
         threads = fetch_threads(
             repo, number, extra_bot_logins=extra_bot_logins, self_logins=self_logins
@@ -1193,6 +1255,27 @@ def main() -> int:
             entry["action"] = "resolved" if ok else "resolve-failed"
             if err:
                 entry["error"] = err
+            if ok:
+                append_resolve_thread_audit(
+                    {
+                        "route": "source-control-babysit-resolve-thread",
+                        "pr": f"{repo}#{number}",
+                        "thread_id": thread["id"],
+                        "path": thread.get("path"),
+                        "mode": (
+                            "autonomous"
+                            if args.autonomous
+                            else "independent-resolver"
+                            if args.independent_resolver
+                            else "explicit"
+                        ),
+                        "disposition": args.disposition,
+                        "expected_comment_count": args.expected_comment_count,
+                        "expected_last_updated": args.expected_last_updated,
+                        "is_outdated": thread.get("isOutdated"),
+                        "severity_flagged": thread.get("severityFlagged"),
+                    }
+                )
         results.append(entry)
 
     resolved_count = len([r for r in results if r["action"] == "resolved"])

@@ -1,5 +1,19 @@
 # Changelog — session-flow plugin
 
+## [0.22.5]
+
+### Added
+
+- **`keep-going` usage-limit reset checker** — `check-usage-limit-reset.py` parses the
+  `resets …` clause from a limit message and exits lifted/blocked/unparsed (#1321).
+
+## [0.22.4]
+
+### Added
+
+- **`Brain fried` output style** — ambient simplified register for cognitively depleted
+  sessions; opt-in via `/config` (#1223).
+
 ## [0.22.3]
 
 ### Changed

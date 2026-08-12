@@ -52,9 +52,10 @@ citation. This skill restates none of them; it adds only the attended-lane mecha
 Build a single merged view, oldest first, each row tagged by kind:
 
 1. **`[escalated]`** — open items carrying the human-gated role label (**resolved from the
-   binding's `config.role_labels`, never compared as a literal**; warn loudly on a defaulted
-   resolution) that also carry a machine-marked escalation comment whose first line starts with
-   `<!-- work-items:escalation` — the marker is what discriminates a worker-**escalated** item
+   binding's `config.role_labels`, never compared as a literal**; absent entries fall back to
+   documented defaults) that also carry a machine-marked escalation comment per
+   [`${CLAUDE_PLUGIN_ROOT}/reference/escalation-marker.md`](${CLAUDE_PLUGIN_ROOT}/reference/escalation-marker.md)
+   — the marker is what discriminates a worker-**escalated** item
    from an operator-**parked** one; both wear the same role label, so the label alone never
    qualifies a row. Marker kinds `escalated` (a worker question) and `routed-advisory` (a
    workflow-bot advisory routed by the worker loop's intake sweep) both list here;

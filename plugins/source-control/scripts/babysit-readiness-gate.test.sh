@@ -37,6 +37,7 @@ assert_contains "--help describes the gate" "$help_out" "readiness pre-gate"
 # --help must surface the owner/repo override so a worker whose cwd is not the
 # target repo can fix the fetch-failure exit 4 without trial-and-error.
 assert_contains "--help documents the env-var override" "$help_out" "FETCH_COMMENTS_OWNER"
+assert_contains "--help documents --repo" "$help_out" "--repo owner/repo"
 
 # --- Case: unknown flag ---
 bash "$GATE" 123 --bogus >/dev/null 2>&1
@@ -45,6 +46,10 @@ assert_exit "unknown flag exit 3" 3 "$?"
 # --- Case: no pr + no comments-json ---
 bash "$GATE" >/dev/null 2>&1
 assert_exit "no args exit 3" 3 "$?"
+
+# --- Case: bad --repo ---
+bash "$GATE" 123 --repo bad --comments-json /dev/null >/dev/null 2>&1
+assert_exit "bad --repo exit 3" 3 "$?"
 
 # --- Case: under-decomposed (three findings, one classification) ---
 F=$(mkjson under '[
