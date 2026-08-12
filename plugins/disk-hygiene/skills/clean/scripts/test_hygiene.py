@@ -4396,6 +4396,12 @@ class GuardTests(unittest.TestCase):
             "C:\\Windows\\System32\\robocopy.exe C:\\src C:\\dst /MIR",
             "& 'C:/Windows/System32/robocopy.exe' C:/src C:/dst /PURGE",
             "[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile('x', 'OnlyErrorDialogs', 'SendToRecycleBin')",
+            "Move-Item C:/tmp/old C:/tmp/new",
+            "Rename-Item C:/tmp/old C:/tmp/new",
+            "Set-Content C:/tmp/file.txt 'overwrite'",
+            "Out-File C:/tmp/file.txt -Force",
+            "New-Item C:/tmp/file.txt -ItemType File -Force",
+            "'data' > C:/tmp/file.txt",
         ):
             result = self.run_guard_powershell(command)
             assert result is not None, command
