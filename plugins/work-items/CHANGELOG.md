@@ -3,6 +3,13 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.15]
+
+### Changed
+
+- **Triage:** retire `T1`/`T2`/`T3` as a classification vocabulary; express the multi-surface
+  stub outcome in `work-class: mechanical` terms (#1254).
+
 ## [0.35.14]
 
 ### Fixed

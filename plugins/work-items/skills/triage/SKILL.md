@@ -41,6 +41,12 @@ Evaluate **raw intake** — any untriaged item carrying the raw marker, whoever 
 
 ## Scope: raw intake only
 
+**Classification vocabulary.** Autonomous routing uses the `work-class:` label axis (`read-only`,
+`mechanical`, `scoped`, `structural`, `untrusted-provenance`) — human-readable aliases of the
+autonomy plugin's `C1`–`C5` contract. Retired scaffolding: `T1`/`T2`/`T3` and
+`simple`/`medium`/`complex` are not classification metadata here; loop-lane status lines may
+still report simple/medium/complex counts as lane-local telemetry only.
+
 **Raw intake is defined by triage state, not authorship.** An item is raw intake when it is untriaged — unlabeled, or carrying the raw marker (`status:needs-triage` / `priority:needs-triage`, whichever axis the repo files it under) — regardless of who authored it. External bug reports, incoming feature requests, and unsolicited PRs are the common sources, but a **team-authored self-observation / dogfood issue** filed with only the raw marker ([`${CLAUDE_PLUGIN_ROOT}/reference/dogfood-filing.md`](${CLAUDE_PLUGIN_ROOT}/reference/dogfood-filing.md)) is raw intake too: it carries no routing decision yet, surfaces in the same attention view, and needs the same evaluation (priority normalization, tier routing, brief drafting). The boundary is *untriaged vs. already-triaged*, never *external vs. team-authored*.
 
 Three rules bound what enters this flow:
@@ -136,7 +142,7 @@ Every outcome is a **transition off raw**, not a layer on top of it. Applying an
 |---------|--------|
 | Briefed, delegable | Write the brief per [`${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md) — durability over precision: behavioral contracts and named interfaces, **no file paths or line numbers** — apply labels + the autonomous-eligible role label (default `agent-ready`) |
 | Briefed, decision-defaulted | Same brief structure and durability rules; the brief states the RECOMMENDED answer and its maintainer-vetoable alternative. Apply labels + the autonomous-eligible role label (default `agent-ready`) + `status:ready`, and post a `Decision defaulted: X — veto before merge` comment |
-| Briefed, T1 multi-surface stub | For a trivial (T1) fix spanning 3+ surfaces: in place of a full brief, post a one-line `sites + fix pattern` comment and apply the autonomous-eligible role label (default `agent-ready`) + `status:ready` — the stub replaces the full brief but not the ready-to-work state, so the item is picked up like any other autonomous-eligible outcome. The brief durability rule still holds — name sites by interface / symbol / domain concept, **not file paths or line numbers** (recommended default: symbol-level naming) |
+| Briefed, multi-surface mechanical stub | For mechanical-class (`work-class: mechanical`) work spanning 3+ surfaces: in place of a full brief, post a one-line `sites + fix pattern` comment and apply the autonomous-eligible role label (default `agent-ready`) + `status:ready` — the stub replaces the full brief but not the ready-to-work state, so the item is picked up like any other autonomous-eligible outcome. The brief durability rule still holds — name sites by interface / symbol / domain concept, **not file paths or line numbers** (recommended default: symbol-level naming) |
 | Briefed, human-gated | Same brief structure, plus why a human must act: a genuinely open decision (open design space, product intent, cross-repo policy) or a capability blocker (external access, manual QA); apply labels + the human-gated role label (default `needs-human`) |
 | Needs more info | `status:needs-info` + needs-info template comment |
 | Already implemented | Close pointing to where the behavior lives; do NOT ledger it (`docs/out-of-scope/` records rejections, not built features) |
