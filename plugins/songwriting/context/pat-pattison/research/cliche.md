@@ -396,7 +396,7 @@ A prisoner of time
 > uninvolved.
 
 And the real thing — the opening of Beth Nielsen Chapman's "Child Again," the
-lyric Chapter 7 then analyzes in full:
+lyric *Writing Better Lyrics* (2009), Chapter 7 then analyzes in full:
 
 ```text
 She's wheeled into the hallway

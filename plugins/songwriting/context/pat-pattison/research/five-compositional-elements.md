@@ -321,7 +321,8 @@ Pat's four named uses of row 1 (phrase count), from the same chapter:
 3. CONTRASTING ONE SECTION WITH ANOTHER ONE
 4. CREATING A NEED FOR A BALANCING SECTION OR PHRASE
 
-These are Chapter 21's four section headings, printed in caps as shown.
+These are *Writing Better Lyrics* (2009), Chapter 21's four section headings,
+printed in caps as shown.
 
 > Unbalanced sections make you want to move to find a stable spot. Balanced
 > sections stop motion; they pause for a rest.

@@ -361,7 +361,7 @@ Too far apart:
 
 Strong verse development keeps the ideas close enough to belong together and
 far enough apart to make the repeated material gain weight. Pat states both
-poles in one breath at the close of Chapter 8:
+poles in one breath at the close of *Writing Better Lyrics* (2009), Chapter 8:
 
 > Verse development is probably a lyricist's trickiest job. Verse ideas must
 > advance enough, but can't move too much. If the ideas are too close, the
@@ -745,7 +745,8 @@ When reviewing a draft:
 
 ## Chapter 8's exercise
 
-Chapter 8 prints one exercise, as a single paragraph. Verbatim:
+*Writing Better Lyrics* (2009), Chapter 8 prints one exercise, as a single
+paragraph. Verbatim:
 
 > **EXERCISE 12**
 >

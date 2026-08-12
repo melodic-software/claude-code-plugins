@@ -658,7 +658,8 @@ fabrication. -->
 
 This is form-level juggling: the chorus comments on the long, loose verse
 material by becoming more compact, balanced, and focused. That is Pat's point
-about the verse too — Chapter 5, verbatim:
+about the verse too — *Essential Guide to Lyric Form and Structure* (1991),
+Chapter 5, verbatim:
 
 > The verse phrases are long. It takes a long time to get from rhyme to rhyme.
 > It is even a challenge to figure out exactly where some of the phrases start
@@ -908,7 +909,8 @@ return:    Verse
 In AABA form, the first two A sections define home. The B section moves away.
 The return to A feels like arrival because the bridge created tension.
 
-Pat's worked example is Buck Ram's "THE GREAT PRETENDER." Chapter 5, verbatim:
+Pat's worked example is Buck Ram's "THE GREAT PRETENDER." *Essential Guide to
+Lyric Form and Structure* (1991), Chapter 5, verbatim:
 
 > A very pretty bridge. Though it feels like a section, it still throws you off
 > balance a little, which gets you ready to move into the last verse. Look.
@@ -1018,7 +1020,8 @@ open  -> more unstable        -> central arrival
 ```
 
 Pat's worked example is Ric Ocasek's "WHY CAN'T I HAVE YOU" — "This one by Ric
-Ocasek of The Cars is typical." Chapter 5, verbatim:
+Ocasek of The Cars is typical." *Essential Guide to Lyric Form and Structure*
+(1991), Chapter 5, verbatim:
 
 > The structure of this Transitional Bridge is VERY effective. Its first two
 > lines don't rhyme, but they make a couplet with repeating rhythmic structure:
@@ -1184,7 +1187,8 @@ exercise in Chapter 5; they were invented and have been removed. -->
 
 ## What Chapter 5 tells you to do
 
-Chapter 5 closes with its own instruction, verbatim:
+*Essential Guide to Lyric Form and Structure* (1991), Chapter 5 closes with its
+own instruction, verbatim:
 
 > You have looked at typical elements or sections of lyrics. It is important to
 > put them together carefully so they can do their jobs, arranging phrases to

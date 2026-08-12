@@ -65,7 +65,7 @@ in place rather than silently reconciled.
 
 ## Core idea
 
-Chapter 18 defines the term through Aristotle:
+*Writing Better Lyrics* (2009), Chapter 18 defines the term through Aristotle:
 
 > Aristotle said that every great work of art contains the same feature: unity.
 > Everything in the work belongs — it all works to support every other element.
@@ -128,11 +128,13 @@ Listeners may not consciously name the structural cue, but they react to it. A
 lyric can say one thing while structure quietly creates a contrary emotional
 signal underneath it.
 
-Chapter 19 states the same operating principle more directly:
+*Writing Better Lyrics* (2009), Chapter 19 states the same operating principle
+more directly:
 
 > Motion creates emotion.
 
-Chapter 18 puts the same claim as an unconditional:
+*Writing Better Lyrics* (2009), Chapter 18 puts the same claim as an
+unconditional:
 
 > These elements conspire to act like a film score and, in and of themselves,
 > create motion. And motion always creates emotion, completely independent of

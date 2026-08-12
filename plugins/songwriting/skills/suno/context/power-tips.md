@@ -4,13 +4,13 @@ Techniques here are **community-validated through empirical testing**, not Suno-
 
 Pair with `tips.md` (lyric-side performance tricks) and `lyrics.md` "Per-section style overrides" (lyrics-as-second-style-channel technique).
 
-## Tag weighting via position
+## Tag order
 
-- **First tag = highest weight.** Front-load whatever matters most.
-- **Grouping negatives at the end is an organizational convention.** No source establishes that end-placement changes exclusion weight; the `no X` syntax itself is community-attested.
-- **Middle tags often softened or merged.** Don't rely on tags 4-7 carrying strong signal.
+**Positional weighting is retained here as unverified.** This file's long-standing rule — first tag carries the highest weight, so front-load whatever matters most; middle tags (roughly 4-7) get softened or merged — has **never been checked against a source in either direction**. Nothing found so far establishes a first-tag advantage or middle-tag softening, and nothing contradicts them. Treat both as untested rules of thumb, not as mechanisms.
 
-Practical: if mood matters more than genre for a specific song, lead with mood. If a single instrument is the song's signature, name it before the genre.
+- **Grouping negatives at the end is an organizational convention.** No source establishes that end-placement changes exclusion weight; the `no X` syntax itself is community-attested. Unlike the positional rule above, this one *was* searched for: no source addresses placement at all.
+
+Practical, if the front-loading rule holds: if mood matters more than genre for a specific song, lead with mood. If a single instrument is the song's signature, name it before the genre. Cheap to try, and nothing checked so far argues against it.
 
 ## Genre fusion order trick
 

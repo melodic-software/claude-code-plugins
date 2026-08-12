@@ -39,7 +39,8 @@ Related files: [verse development](verse-development.md),
 
 ## Core idea
 
-Pat opens Chapter 10 with the questions every lyric has to answer:
+Pat opens *Writing Better Lyrics* (2009), Chapter 10 with the questions every
+lyric has to answer:
 
 > Whenever you put pen to paper, you must answer a few fundamental questions:
 > Who is doing the talking? Is it you personally? Is it a character you're
@@ -179,7 +180,8 @@ Pat first raises this as the reading he has to eliminate for Seger:
 > sometimes talk to myself: "Come on, Pat, can't you be clear for once?" instead
 > of "I wish I could be clear for once."
 
-Then, at the end of Chapter 12, he comes back to it with a model:
+Then, at the end of *Writing Better Lyrics* (2009), Chapter 12, he comes back
+to it with a model:
 
 > You can also leave the narrative mode, using second person as a substitute for
 > I, as in, "C'mon, can't you be clear for once?" Or as an internal command:
@@ -550,7 +552,8 @@ on top of it.
 
 ## Hangman repair workflow
 
-Chapter 11 ends with the rule and the habit, in Pat's words. The rule:
+*Writing Better Lyrics* (2009), Chapter 11 ends with the rule and the habit, in
+Pat's words. The rule:
 
 > No matter what the point of view is, mothers will always have their modes of
 > torment. This natural use of second person is maddeningly effective. Any
@@ -882,7 +885,7 @@ at.
 ## POV check
 
 Pat gives no numbered procedure. He gives a frequency and a refusal, and
-Chapter 10 ends on them:
+*Writing Better Lyrics* (2009), Chapter 10 ends on them:
 
 > It's impossible to make a rule about when to use each point of view. The only
 > way to make sure your point of view is working the most effectively it can is
@@ -892,7 +895,8 @@ Chapter 10 ends on them:
 > every time worth it. It only takes a little practice and not much time, and
 > sometimes it will turn a good lyric into a killer one.
 
-Chapter 12 closes the same way, with one addition about where the odds sit:
+*Writing Better Lyrics* (2009), Chapter 12 closes the same way, with one
+addition about where the odds sit:
 
 > Practice with points of view. Get in the habit of checking every lyric you
 > write from each point of view. Sometimes a change will make all the
