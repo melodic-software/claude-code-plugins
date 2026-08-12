@@ -3,6 +3,13 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+
+## [0.35.9]
+
+### Fixed
+
+- Reconcile role_labels docs and resolve all three roles at the seam.
+
 ## [0.35.8]
 
 ### Fixed
