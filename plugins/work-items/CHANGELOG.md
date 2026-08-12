@@ -1,5 +1,12 @@
 # Changelog
 
+
+## [0.35.9]
+
+### Fixed
+
+- Centralize escalation-marker grammar.
+
 ## [0.35.8]
 
 ### Fixed
