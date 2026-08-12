@@ -3,6 +3,39 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.0]
+
+### Added
+
+- **`lib/state-key.sh`** — the `<repo-identity>/<worktree-discriminator>` derivation, previously
+  specified in `audit-pass`'s `reference/run-state-and-resumability.md` §3 and copied as a ~40-line
+  shell block into `audit-prompting-postures`, now an executable with a 23-case suite. The third
+  adopter would have been a third copy. It ships byte-identical in `claude-memory` and is registered
+  in `scripts/cross-plugin-source-registry.txt`, so the copies cannot drift silently. The suite pins
+  the properties the prose asserted and nothing checked: an https remote and its scp-style ssh
+  equivalent key identically; a repo whose only remote is `upstream` keys by that remote rather than
+  dropping to the local rung; two worktrees of one repository key apart; and — the security
+  property — a remote that would become directory components outside the namespace (`../../../etc`,
+  an absolute local path, a Windows path) is hashed instead, with no `..` and no backslash surviving
+  into a key.
+
+### Changed
+
+- **`audit-instructions` no longer computes a token delta against another project's report.** It
+  persisted to a fixed `${CLAUDE_PLUGIN_DATA}/audit-instructions/last-audit.md`, and that directory
+  is keyed to the plugin identifier and nothing else — no project, checkout, worktree, or session
+  segment — so every run from every project on the machine overwrote the last. The lost artifact was
+  the smaller half. The same Phase D block requires the report header to carry a per-surface token
+  delta "versus the previous catalog version": under collision that prior file exists but belongs to
+  a *different project's* surface set, so the skill computed and printed a number instead of
+  declining. The report path now carries a state key, and the two absent-prior cases are separated —
+  no report at this project's key means the delta is omitted with a reason, while an unkeyed leftover
+  from an earlier version is named to the operator and never used as a baseline. It was the last
+  writer in this plugin on a fixed path; `audit-pass` has keyed since it shipped and #2250 moved
+  `audit-prompting-postures`.
+- **An eval pins the property**, which had none: a second project neither overwrites the first's
+  report nor borrows its delta.
+
 ## [0.34.0]
 
 ### Added
