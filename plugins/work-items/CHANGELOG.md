@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.10]
+
+### Added
+
+- **Unattended recurring-schedule seeding via --accept-recommended** in setup skill.
+
 ## [0.35.9]
 
 ### Added
@@ -13,7 +19,7 @@ All notable changes to the `work-items` plugin are documented here. Format follo
 
 ### Fixed
 
-- Add lane-neutral AI disclaimer SSOT.
+- Harden triage intake against priority-axis stacking and blocked-by relabel races.
 
 ## [0.35.7]
 
