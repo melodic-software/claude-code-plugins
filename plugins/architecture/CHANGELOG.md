@@ -3,6 +3,15 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.1]
+
+### Fixed
+
+- **`improve` Gotcha no longer asserts `${CLAUDE_PLUGIN_DATA}` is hook-only substitution.**
+  The 0.3.6 rationale overstated the mechanism; the rule — memory-tier path only, never
+  `${CLAUDE_PLUGIN_DATA}` — is unchanged on its own grounds (no project dimension, uninstall
+  deletes the directory, documented use is deps/caches). (#2207)
+
 ## [0.5.0]
 
 ### Removed
