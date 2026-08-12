@@ -222,6 +222,28 @@ one feature.
 
 `claude auto-mode reset` is never run. It strips the `autoMode` section from user settings.
 
+## Open upstream discrepancy — carry this caveat on any `ask` finding
+
+Any finding that rests on an `ask` rule prompting under auto mode carries this, named:
+
+> The permissions page states that content-scoped `ask` rules "always force a permission prompt, even
+> in auto mode… The classifier cannot auto-approve a matching action."
+
+Two upstream issues (**#83766** and **#42797**) report the opposite — `permissions.ask` patterns
+auto-approved under `defaultMode: "auto"`. Both cannot be true. This plugin follows the documented
+behavior, because that is the only source with a stated contract, but a reader acting on an `ask`
+finding should know the reported behavior contradicts it.
+
+**What this changes in practice:** an `ask` rule is reported here as outranking an `allow`, and as
+surviving auto mode. If the issues are right, an `ask` rule is weaker in auto mode than this report
+implies — so treat `ask` as a prompt you *expect*, not a guarantee you *rely on*, and use
+`permissions.deny` where the outcome must hold. This is not a defect in the reader: it reports the
+documented mechanic, and the discrepancy is upstream.
+
+**Retires when** the permissions page and the issue reports agree — either the issues close as
+not-reproducible against a current version, or the page is corrected. Only a fresh read of both
+settles it; a version bump alone does not.
+
 ## Managed policy, and what it does not buy
 
 > "no other level, including command line arguments, can override a managed permission rule."

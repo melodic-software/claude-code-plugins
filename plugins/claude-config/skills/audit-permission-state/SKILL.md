@@ -241,6 +241,11 @@ collapse it in the report:
 - **`managed` means the LOCAL managed surfaces.** Server-managed settings arrive remotely at sign-in
   and have no local path, so no local reader can see them. The script says so on every run; carry it
   into the report rather than implying completeness.
+- **An `ask` finding carries an open upstream discrepancy.** The permissions page says content-scoped
+  `ask` rules always prompt, "even in auto mode"; issues #83766 and #42797 report them auto-approved
+  under `defaultMode: "auto"`. This plugin follows the documented behavior — it is the only source
+  with a stated contract — but say so when reporting an `ask` result, and point at `permissions.deny`
+  where the outcome must hold regardless. See `reference/criteria.md`.
 - **`invalid-json` is not `absent`.** A malformed settings file contributes no rules to the
   inventory, but its rules may still be a live problem for the operator — report it as a finding, not
   as an empty scope.

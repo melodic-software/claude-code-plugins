@@ -47,7 +47,7 @@ components are declared in, not a component, so it has no row.
 | Monitors (`monitors/monitors.json`) | <https://code.claude.com/docs/en/plugins-reference#monitors> | 2026-08-06 |
 | Channels (`channels` manifest field) | <https://code.claude.com/docs/en/channels> | 2026-08-06 |
 | Executables (`bin/`) | <https://code.claude.com/docs/en/plugins-reference#file-locations-reference> | 2026-08-06 |
-| Settings (`settings.json` defaults) | <https://code.claude.com/docs/en/settings> | 2026-08-06 |
+| Settings (`settings.json` defaults) | <https://code.claude.com/docs/en/settings> | 2026-08-12 |
 | Dependencies (`dependencies` manifest field) | <https://code.claude.com/docs/en/plugin-dependencies> | 2026-08-06 |
 
 ## Authoring
@@ -104,14 +104,14 @@ SDK-based host.
 
 | Page | Official doc page | Verified date |
 |---|---|---|
-| Settings | <https://code.claude.com/docs/en/settings> | 2026-08-06 |
+| Settings | <https://code.claude.com/docs/en/settings> | 2026-08-12 |
 | Server-managed settings | <https://code.claude.com/docs/en/server-managed-settings> | 2026-08-06 |
 | Control MCP server access for your organization | <https://code.claude.com/docs/en/managed-mcp> | 2026-08-06 |
 | Memory — CLAUDE.md, `.claude/rules/`, auto memory | <https://code.claude.com/docs/en/memory> | 2026-08-06 |
 | The `.claude` directory | <https://code.claude.com/docs/en/claude-directory> | 2026-08-06 |
-| Permissions | <https://code.claude.com/docs/en/permissions> | 2026-08-06 |
-| Permission modes | <https://code.claude.com/docs/en/permission-modes> | 2026-08-06 |
-| Configure auto mode (`autoMode`, `claude auto-mode`) | <https://code.claude.com/docs/en/auto-mode-config> | 2026-08-09 |
+| Permissions | <https://code.claude.com/docs/en/permissions> | 2026-08-12 |
+| Permission modes | <https://code.claude.com/docs/en/permission-modes> | 2026-08-12 |
+| Configure auto mode (`autoMode`, `claude auto-mode`) | <https://code.claude.com/docs/en/auto-mode-config> | 2026-08-12 |
 | Environment variables | <https://code.claude.com/docs/en/env-vars> | 2026-08-10 |
 
 ## Prompting doctrine (platform docs)

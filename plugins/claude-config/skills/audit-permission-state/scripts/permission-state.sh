@@ -229,22 +229,28 @@ emit_file_rules() {
 emit_file_conf() {
   # emit_file_conf <scope> <surface> <json-on-stdin>
   [[ "$mode" == "full" ]] || return 0
-  local scope="$1" surface="$2" json
-  json="$(cat)"
-  local key expr
-  while IFS='=' read -r key expr; do
-    [[ -n "$key" ]] || continue
-    local v
-    v="$(printf '%s' "$json" | jq -r "$expr" 2>/dev/null | tr -d '\r')"
-    [[ -n "$v" ]] && printf 'conf %s %s %s %s\n' "$scope" "$surface" "$key" "$v"
-  done <<'CONF_KEYS'
-classifyAllShell=if (.autoMode | type) == "object" and (.autoMode | has("classifyAllShell")) then (.autoMode.classifyAllShell | tojson) else empty end
-autoModePresent=if has("autoMode") then "true" else empty end
-defaultMode=if (.permissions | type) == "object" and (.permissions | has("defaultMode")) then (.permissions.defaultMode | tojson) elif has("defaultMode") then (.defaultMode | tojson) else empty end
-useAutoModeDuringPlan=if has("useAutoModeDuringPlan") then (.useAutoModeDuringPlan | tojson) else empty end
-disableAutoMode=if has("disableAutoMode") then (.disableAutoMode | tojson) else empty end
-permissions.disableAutoMode=if (.permissions | type) == "object" and (.permissions | has("disableAutoMode")) then (.permissions.disableAutoMode | tojson) else empty end
-CONF_KEYS
+  # ONE jq invocation for all six keys, not one per key. Process spawning
+  # dominates this script's runtime on Windows -- measured at roughly a second
+  # per spawn -- and a per-key loop over five settings surfaces put the reader
+  # over a minute, which is slow enough that callers time out and see a hang.
+  local scope="$1" surface="$2"
+  jq -r '
+    def emit($k; $v): "\($k) \($v)";
+    [
+      (if (.autoMode | type) == "object" and (.autoMode | has("classifyAllShell"))
+         then emit("classifyAllShell"; .autoMode.classifyAllShell | tojson) else empty end),
+      (if has("autoMode") then emit("autoModePresent"; "true") else empty end),
+      (if (.permissions | type) == "object" and (.permissions | has("defaultMode"))
+         then emit("defaultMode"; .permissions.defaultMode | tojson)
+       elif has("defaultMode") then emit("defaultMode"; .defaultMode | tojson) else empty end),
+      (if has("useAutoModeDuringPlan") then emit("useAutoModeDuringPlan"; .useAutoModeDuringPlan | tojson) else empty end),
+      (if has("disableAutoMode") then emit("disableAutoMode"; .disableAutoMode | tojson) else empty end),
+      (if (.permissions | type) == "object" and (.permissions | has("disableAutoMode"))
+         then emit("permissions.disableAutoMode"; .permissions.disableAutoMode | tojson) else empty end)
+    ] | .[]
+  ' 2>/dev/null | tr -d '\r' | while IFS= read -r line; do
+    [[ -n "$line" ]] && printf 'conf %s %s %s\n' "$scope" "$surface" "$line"
+  done
   return 0
 }
 

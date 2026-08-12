@@ -805,7 +805,63 @@ output, and the non-strict allowance exists only for the CLI's malformed emissio
 free of the Python dependency that Phase 5 scopes to one optional lane. Zero-writes is covered by
 Phase 8's sweep, which must include this skill.
 
-### Phase 8: Cross-cutting close [TODO]
+### Phase 8: Cross-cutting close [IN PROGRESS]
+
+**Settled so far, 2026-08-12:**
+
+- **Criterion 12 measured, not assumed: `6737/8000` chars across nine listing-eligible skills.** Both
+  new entries are inside the shared budget with room left.
+- **Criterion 10 was NOT met and now is.** The `permissions.ask`-under-auto-mode discrepancy (#83766,
+  #42797) was recorded in the plan but appeared nowhere the skills ship — so a consumer acting on an
+  `ask` finding had no way to know the reported behavior contradicts the documented one. It is now a
+  named caveat in `reference/criteria.md` with its retirement condition, and `SKILL.md` tells the
+  reader to carry it into any `ask` report.
+- **Fresh-eyes declarations verified in the enforced form**, not by grep: `check-skill.sh` returns
+  PASS for both skills, and each carries exactly one
+  `<!-- fresh-eyes-exempt: external-input -- … -->` directive.
+- **Version-bump assertions hold**: `plugin.json` moved `0.29.0` → `0.32.0` from the branch point, and
+  its description names both new skills.
+- **Frontmatter `name:` re-checked rather than assumed**, as the phase demanded: the repo-wide drop
+  has landed on `main`, so both new skills correctly omit it.
+- **`audit-pass` lane registered.** `audit-permission-state` takes an action flag and no target, so it
+  is exactly one lane. Two constraints are recorded with it: its `--oracle` path is **never
+  dispatched** (the pass cannot price a session spawn for the operator mid-run), and its optional
+  `autoMode` lane's self-reported skip must be carried into the report as *unchecked with its reason*
+  rather than collapsed into "clean".
+- **`docs/OFFICIAL-DOCS.md` verified dates advanced** for the four pages actually re-fetched during
+  this work.
+
+**A performance defect introduced in Phase 4 was found by the criterion-9 harness and fixed.** The
+`conf` extension ran **one `jq` invocation per key per settings surface** — six spawns per file,
+thirty across five scopes. Process spawning dominates on Windows, so the reader took **65 seconds**
+per run, slow enough that every caller timed out and the harness looked like it was hanging rather
+than working. Collapsed to one `jq` invocation emitting all six keys: **65s → 7s**, identical output.
+Worth fixing on its own terms, not merely to unblock a test — a reader nobody will wait for is a
+reader nobody will run.
+
+**Criterion 9 is asserted mechanically and the harness needed three rewrites to be trustworthy.** The
+first ran every action under a stub-only `PATH`, which starved the scripts of tools they legitimately
+need — and worse, its `env` wrapper re-entered itself through the very `PATH` it was setting up, so
+the harness deadlocked before its first assertion. The second composed pipelines inside `bash -c`
+strings, which stalled on quoting. The third replaced a `while read` snapshot loop whose subshell
+deadlocked against its own feeding pipeline on Git Bash. Stages now chain through files and only
+`claude` is stubbed, because what is under test is whether these programs write — not how they are
+composed. The oracle runs with the flag explicitly ON against that stub, since the default
+configuration never exercises the one path that spawns a process.
+
+A fourth defect was in the harness's own reporting, and it is the one worth remembering: a helper
+returned its produced file path on **stdout**, which interleaved with the `PASS` lines the same
+function printed. Four stages silently never ran, and the harness reported **"All 10 checks passed"**
+— a green result over work it had not done. The path now comes back in a named variable, every stage
+asserts its output is non-empty, and a final assertion checks that all nine actions were attempted.
+A harness that can miscount its own cases is worse than no harness, because it converts absence of
+verification into a passing claim.
+
+Each earlier rewrite failed *silently* too — no error, just no further output — which is the standing
+lesson: a hung harness, a slow one, and a passing one that has not finished all look identical from
+outside.
+
+### Phase 8 (original brief, retained for the record)
 
 - **Criterion 9 — no writes, any scope, any flag.** Assert mechanically, not by inspection.
 - **Criterion 10** — every finding whose basis is an open upstream discrepancy carries that

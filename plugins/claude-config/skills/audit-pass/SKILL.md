@@ -241,6 +241,23 @@ Dispatch, in inventory order, each invocation presence-gated with its fallback s
   belong to exactly one lane by construction rather than needing a deduplication rule downstream —
   and the per-class lanes drop the pair check, since dispatching it there is what created the
   overlap.
+- **`/claude-config:audit-permission-state`** — sibling in this plugin, always available. It owns the
+  permission plane as it is *in effect*: the merged allow/ask/deny set with per-rule provenance,
+  what auto mode drops on entry, configuration written where nothing reads it, and which managed
+  intents are enforced versus loosenable. It takes an **action flag and no target**, so it is
+  **exactly one lane** covering all of that.
+
+  **Its managed-scope reads belong to the pass's read-only managed inventory, not to a project lane.**
+  It reads managed policy on every OS and never writes anywhere, in any scope, under any flag — so it
+  is safe to dispatch under the pass's bare invocation. Its `--oracle` path spawns a real session and
+  is **never dispatched here**: the pass has no way to price that for the operator mid-run, and the
+  flag exists to make the cost an explicit choice.
+
+  **Its optional lanes degrade rather than fail.** The `autoMode` block lane needs `python3` and
+  `claude` on PATH; absent either, that lane self-reports as skipped and the rest of the skill still
+  runs. Carry that skip into the report as **unchecked with its reason**, exactly as an absent plugin
+  would be — the distinction between "clean" and "not read" is this skill's whole contract and the
+  pass must not collapse it.
 - **`/claude-memory:audit`** — invoke when the `claude-memory` plugin is installed; it owns
   memory-layer hygiene and the within-memory-layer consistency check. It takes an **action verb and
   no surface filter**, so it is **exactly one lane** covering the whole memory layer. Not installed:
