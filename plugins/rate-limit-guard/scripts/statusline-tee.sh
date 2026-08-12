@@ -55,6 +55,57 @@
 # sibling, since the normal write-to-rename window is sub-second while the
 # age floor is a minute.
 #
+# ASYNCHRONY (opt-in, RLG_TEE_ASYNC=1, OFF by default -- read the measurements
+# before turning it on): the snapshot is a SIDE EFFECT, not an input to the statusline.
+# Nothing the wrapped command prints depends on it, and the reader contract
+# (../reference/reader-contract.md) budgets ten minutes of staleness, so making
+# the render wait for a jq, a lock, a write and a rename buys nothing and costs
+# the user a visibly slower status line — roughly 270 ms per refresh on Windows,
+# on a path that fires on every assistant message AND every refreshInterval tick,
+# once per open session. The snapshot therefore runs in a DETACHED subshell and
+# the wrapper returns as soon as the wrapped command does.
+#
+# This skips no work: every refresh still takes the lock and writes a snapshot,
+# just without the render waiting on it. Detachment is threefold and each part is
+# load-bearing: stdout and stderr go to /dev/null, or the background child would
+# hold the statusline pipe open and Claude Code would keep waiting for EOF long
+# after the render finished — cancelling out the entire point; stdin is closed so
+# the child can never consume the payload a later reader wants; and the job is
+# disowned so the shell does not wait on it at exit.
+#
+# Two consequences, both already inside the existing contract. A snapshot now
+# lands a fraction of a second AFTER the render rather than before it, which the
+# staleness budget absorbs. And a cancelled refresh can be killed mid-write, which
+# is the case the temp-file-plus-rename, the reclaim traps and the age-filtered
+# sweep below were already built for.
+#
+# WHY IT IS OFF BY DEFAULT. Detaching is a clear win for a single session and a
+# clear loss for many, and the crossover is not where intuition puts it. MSYS has
+# no native fork(), so forking a bash subshell that has the payload in memory was
+# measured at 75-200 ms here, against ~24 ms to exec a small binary. Detaching
+# therefore does not make the work cheaper; it buys the render's critical path
+# back by paying a fork that is more expensive than the execs it steps around,
+# and it lets the work of successive refreshes overlap instead of serialise.
+#
+# Measured on this repo's harness (Windows, 24 cores), statusline + tee:
+#
+#   one session, refreshes 1 s apart   sync 660 ms   async 222 ms   (async wins)
+#   ten sessions, each at 1 Hz         sync 2265 ms  async 4476 ms  (async loses)
+#   ten sessions, peak bash processes  sync 50       async 71       (async loses)
+#
+# At ten concurrent sessions the fork is paid ten times a second and the detached
+# children oversubscribe the box, so the same total work takes twice as long and
+# the process count nearly doubles. Sessions, not refresh rate, is the variable
+# that decides: turn this on if you run one or two, leave it off if you run many.
+# A future design that removes the cost rather than moving it -- the render
+# appending the payload to a spool file with zero forks, drained by one periodic
+# writer -- is the durable answer, and is not this flag.
+#
+# Because the default is synchronous, "the snapshot has been written" remains
+# observable the moment the wrapper returns, which is what the test suite relies
+# on: assertions that a snapshot was NOT written would pass vacuously against a
+# race. The suite covers the detached path in dedicated cases that wait for it.
+#
 # jq is required for the tee and for the standalone line; when absent the
 # wrapper stays transparent and appends a visible one-line notice instead of
 # silently dropping the feature.
@@ -164,36 +215,30 @@ tee_snapshot() {
   command -v jq >/dev/null 2>&1 || return 0 # visible notice emitted by the caller
   local dir="$HOME/.claude/rate-limit-guard"
   local target="$dir/rate-limits.json"
-  mkdir -p "$dir" 2>/dev/null || return 0
-  # Owner-only contract dir: keeps other local users from pre-planting
-  # symlinks or reading the snapshot. Best-effort (no-op on filesystems
-  # without POSIX modes, e.g. Windows ACL volumes under Git Bash).
-  chmod 700 "$dir" 2>/dev/null || true
+  # Create-and-harden only when the directory is not already there. Both calls
+  # were unconditional and both are processes, so on every refresh after the
+  # first they were paying ~50 ms to re-assert a state that already held.
+  # Tradeoff, accepted deliberately: the owner-only mode is now asserted at
+  # creation instead of re-asserted on every refresh, so a mode a user or tool
+  # later loosens on this directory is no longer silently corrected. There is no
+  # builtin that can read a mode, so the alternative is a stat process per
+  # refresh — the same cost this removes.
+  if [[ ! -d "$dir" ]]; then
+    mkdir -p "$dir" 2>/dev/null || return 0
+    # Owner-only contract dir: keeps other local users from pre-planting
+    # symlinks or reading the snapshot. Best-effort (no-op on filesystems
+    # without POSIX modes, e.g. Windows ACL volumes under Git Bash).
+    chmod 700 "$dir" 2>/dev/null || true
+  fi
 
-  local ts payload has_windows out
-  ts=$(date -u '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null) || return 0
-  # ONE jq pass for the snapshot body AND the window-bearing verdict — this
-  # runs on every statusline refresh, so a second spawn here is a second spawn
-  # per refresh. Both lines are single-line by construction (`jq -c` escapes
-  # any newline inside a string; the verdict is `true`/`false`), so the split
-  # below is exact.
+  # Body and window-bearing verdict both come from _rlg_probe's single jq pass.
   #
-  # Window-bearing is a structural property — jq's has(), never a substring
+  # Window-bearing stays a structural property — jq's has(), never a substring
   # test: a forwarded value that merely contains the string "rate_limits"
   # (e.g. "session_name":"rate_limits") must not count as window-bearing and
   # overwrite a snapshot holding real windows. It is asked of the BUILT payload,
-  # exactly as the separate call it replaces was.
-  out=$(printf '%s' "$INPUT" | jq -rc --arg ts "$ts" '
-    ({captured_at: $ts}
-     + (to_entries
-        | map(select(.key == "rate_limits" or .key == "session_id"
-                     or .key == "session_name" or (.key | test("account"; "i"))))
-        | from_entries)) as $p
-    | $p, ($p | has("rate_limits"))
-  ' 2>/dev/null) || return 0
-  payload=${out%%$'\n'*}
-  has_windows=false
-  [[ "${out##*$'\n'}" == true ]] && has_windows=true
+  # exactly as it was when this function ran its own jq.
+  local payload="$_RLG_PAYLOAD" has_windows="$_RLG_HAS_WINDOWS"
   [[ -n "$payload" ]] || return 0
 
   # Sweep before any early return: a machine where only windowless sessions
@@ -301,6 +346,23 @@ tee_snapshot() {
 # the user scope decides.
 _rlg_managed_settings_files() {
   local primary
+  # Fork-free short circuit. `uname` is a process, and this function runs on
+  # every statusline refresh only to discover — on the overwhelming majority of
+  # machines — that no managed-settings file exists at all. None of the three
+  # candidate locations can exist on a platform other than its own, so testing
+  # all three with builtins first answers the common case without spawning
+  # anything, and the platform table below still decides whenever one of them
+  # is actually present.
+  local _c _any=""
+  for _c in "/Library/Application Support/ClaudeCode/managed-settings" \
+    "C:/Program Files/ClaudeCode/managed-settings" \
+    "/etc/claude-code/managed-settings"; do
+    if [[ -f "$_c.json" || -d "$_c.d" ]]; then
+      _any=1
+      break
+    fi
+  done
+  [[ -n "$_any" ]] || return 0
   case "$(uname -s 2>/dev/null)" in
   Darwin) primary="/Library/Application Support/ClaudeCode/managed-settings.json" ;;
   MINGW* | MSYS* | CYGWIN*) primary="C:/Program Files/ClaudeCode/managed-settings.json" ;;
@@ -340,15 +402,24 @@ _rlg_managed_settings_files() {
 #
 # The file is opened by bash (`<"$file"`), not by jq: a native jq on Windows
 # cannot open an MSYS-style path, while a shell redirection always can.
+# The verdict filter itself, shared verbatim by this function and by the single
+# jq pass in _rlg_probe, so the two can never drift into disagreeing about what
+# a settings file configures. $doc is the parsed settings document.
+# shellcheck disable=SC2016
+# $doc is a jq variable bound by --argjson at each call site, not a shell one:
+# single quotes are required here, and double quotes would have the shell
+# substitute an empty string into the filter.
+_RLG_VERDICT_JQ='[ ($doc.pluginConfigs // {}) | to_entries[]
+      | select(.key | startswith("rate-limit-guard@"))
+      | .value.options.rate_limit_guard_enabled
+      | select(. != null) | tostring ]
+    | if length == 0 then "" else last end'
+
 _rlg_settings_option() {
   local file="$1" out
   [[ -r "$file" ]] || return 1
   command -v jq >/dev/null 2>&1 || return 1
-  out="$(jq -r '[ (.pluginConfigs // {}) | to_entries[]
-      | select(.key | startswith("rate-limit-guard@"))
-      | .value.options.rate_limit_guard_enabled
-      | select(. != null) | tostring ]
-    | if length == 0 then empty else last end' <"$file" 2>/dev/null)" || return 1
+  out="$(jq -rn --argjson doc "$(<"$file")" "$_RLG_VERDICT_JQ" 2>/dev/null)" || return 1
   [[ -n "$out" ]] || return 1
   printf '%s' "$out"
 }
@@ -393,7 +464,15 @@ _rlg_tee_enabled() {
     [[ "$v" == "false" ]] && return 1
     return 0
   fi
-  if v="$(_rlg_settings_option "${CLAUDE_CONFIG_DIR:-${HOME:-}/.claude}/settings.json")"; then
+  # User scope. _rlg_probe already read this file inside the one jq pass, so the
+  # normal path spends no process here. The unprobed fallback keeps a DIRECT
+  # call to this function (no main, hence no probe) behaving exactly as it did.
+  if ((_RLG_USER_PROBED)); then
+    if [[ -n "$_RLG_USER_VERDICT" ]]; then
+      [[ "$_RLG_USER_VERDICT" == "false" ]] && return 1
+      return 0
+    fi
+  elif v="$(_rlg_settings_option "${CLAUDE_CONFIG_DIR:-${HOME:-}/.claude}/settings.json")"; then
     [[ "$v" == "false" ]] && return 1
     return 0
   fi
@@ -403,12 +482,104 @@ _rlg_tee_enabled() {
   esac
 }
 
-main() {
-  read_tee_input
+# ONE jq pass for everything this script needs to decide and to write: the
+# snapshot body, the window-bearing verdict, and the USER-scope enablement
+# verdict. Each of those used to be its own jq — three spawns per refresh, at
+# ~42 ms each on Windows, on a path that fires on every assistant message AND
+# every refreshInterval tick with as many concurrent sessions as the user has
+# windows open.
+#
+# The settings document is read by BASH (`$(<file)`, which bash performs without
+# forking) and handed over as --argjson, never opened by jq: a native jq on
+# Windows cannot open an MSYS-style path, the same reason the shell redirection
+# was there before.
+#
+# Everything is wrapped so that no single malformed input can cost more than the
+# thing it feeds: a settings file that will not parse yields an empty verdict
+# (fail-open, as before) without disturbing the snapshot, and a payload that will
+# not parse yields an empty payload without disturbing the gate.
+_RLG_PAYLOAD=""
+_RLG_HAS_WINDOWS=false
+_RLG_USER_VERDICT=""
+_RLG_USER_PROBED=0
 
+_rlg_probe() {
+  command -v jq >/dev/null 2>&1 || return 0
+  local ts settings_file settings_json out
+  # printf's %()T is a bash builtin; `date -u` was a process. TZ is scoped to
+  # the builtin call, so nothing downstream sees a changed timezone.
+  TZ=UTC printf -v ts '%(%Y-%m-%dT%H:%M:%SZ)T' -1 2>/dev/null || return 0
+  [[ -n "$ts" ]] || return 0
+
+  settings_file="${CLAUDE_CONFIG_DIR:-${HOME:-}/.claude}/settings.json"
+  settings_json='null'
+  if [[ -r "$settings_file" ]]; then
+    settings_json="$(<"$settings_file")"
+    [[ -n "$settings_json" ]] || settings_json='null'
+  fi
+
+  # Three lines out, in a fixed order: payload, window-bearing, user verdict.
+  # `jq -c` escapes any newline inside a string and the other two are bare
+  # tokens, so every line is single-line by construction and the split is exact.
+  out="$(jq -rc --arg ts "$ts" --arg settings "$settings_json" '
+    (try ($settings | fromjson) catch {}) as $doc
+    | ({captured_at: $ts}
+       + (to_entries
+          | map(select(.key == "rate_limits" or .key == "session_id"
+                       or .key == "session_name" or (.key | test("account"; "i"))))
+          | from_entries)) as $p
+    | $p,
+      ($p | has("rate_limits")),
+      (try ([ ($doc.pluginConfigs // {}) | to_entries[]
+         | select(.key | startswith("rate-limit-guard@"))
+         | .value.options.rate_limit_guard_enabled
+         | select(. != null) | tostring ]
+       | if length == 0 then "" else last end) catch "")
+  ' <<<"$INPUT" 2>/dev/null)" || return 0
+
+  local -a lines
+  mapfile -t lines <<<"$out"
+  _RLG_PAYLOAD="${lines[0]:-}"
+  [[ "${lines[1]:-}" == true ]] && _RLG_HAS_WINDOWS=true
+  # An unparsable payload means jq produced nothing usable; leave the user
+  # verdict unprobed so the gate falls back to its own read rather than
+  # silently reading "no verdict configured" off a failed parse.
+  if [[ -n "$_RLG_PAYLOAD" ]]; then
+    _RLG_USER_VERDICT="${lines[2]:-}"
+    _RLG_USER_PROBED=1
+  fi
+  return 0
+}
+
+# Probe, gate and snapshot as one unit. The gate lives in here with the write it
+# governs rather than in the caller: it decides nothing the foreground needs, and
+# its managed-scope lookup can itself cost a process, so keeping the pair together
+# is what lets the foreground spend exactly one fork on the whole feature.
+_rlg_tee_run() {
+  _rlg_probe
   if _rlg_tee_enabled; then
     tee_snapshot
   fi
+  return 0
+}
+
+rlg_tee_dispatch() {
+  if [[ "${RLG_TEE_ASYNC:-0}" != "1" ]]; then
+    _rlg_tee_run
+    return 0
+  fi
+  # See ASYNCHRONY at the top of this file for why all three redirections are
+  # required rather than merely tidy.
+  _rlg_tee_run >/dev/null 2>&1 </dev/null &
+  # Job control is off in this shell, so `disown` may legitimately have nothing
+  # to do; the shell does not wait on background jobs at exit either way.
+  disown "$!" 2>/dev/null || true
+  return 0
+}
+
+main() {
+  read_tee_input
+  rlg_tee_dispatch
 
   if (($#)); then
     # Wrapped mode: transparent passthrough. The wrapped command sees the same
