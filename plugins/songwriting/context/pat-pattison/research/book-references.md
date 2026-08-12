@@ -75,6 +75,16 @@ sentence four lines later keeps `Challenge #3`. **That is not an inconsistency
 — do not "normalize" it.** The same rule is why the 1991 book's chapter titles
 are quoted as printed while its citations read `Chapter 3`.
 
+**A citation that glosses the title is still a citation.**
+`audit-checklist.md:178` reads `Challenge 4 "Writing in Rhythm & Rhyme"` — no
+hash — and that is correct, even though the book's own chapter title is
+`Challenge #4: Writing in Rhythm & Rhyme`. The line is citing the challenge and
+naming it for the reader, in the same shape as the 1991 citation beside it
+(`Chapter 3 "Rhythm: Setting Up, Shutting Down"`). **Do not read it as a title
+reproduction and re-add the hash.** The verbatim branch applies only where the
+title is being reproduced *as printed text* — inside a quotation, a transcribed
+figure, or a heading that reproduces the book's own.
+
 ## Image-only figure content — render, read, transcribe
 
 **Some content in these books exists only inside a scanned figure**, with no

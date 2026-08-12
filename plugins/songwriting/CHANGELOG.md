@@ -46,12 +46,18 @@ where its neighbours match means "look for a typo", not "absent".
 
 ### Fixed
 
-- **47 bare `Chapter N` / `Challenge N` citations now name their book.** Each
+- **50 bare `Chapter N` / `Challenge N` citations now name their book.** Each
   book was resolved by matching the introduced block against the four spines,
   under a control that fails the run if matching breaks. **One site was genuinely
   ambiguous** — the `wind = yelping dog` drill is printed in *both* the 2009 and
   2011 books — where the previous measurement had reported none; only the chapter
   number settles it, since the 2011 book has Challenges and Days, never chapters.
+  The last **3** of the 50 came from re-running the scan with a deliberately
+  looser pattern and diffing it against the tight one: the tight scan required
+  the intro line to end in a colon and the block to be quoted or fenced, and so
+  was blind to indented blocks and to intros that trail into the next sentence.
+  Loose found 9 more sites, **6 of which were false positives inside HTML
+  comments** and 3 of which were real.
 - **`rhyme-types.md` attributed the wrong chapter.** The `travel` family search
   is printed twice: Chapter 4 annotates `glass full (mosaic)`, and Chapter 6
   recalls the search and drops the annotation. The reproduced block is

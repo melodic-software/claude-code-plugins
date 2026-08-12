@@ -8,7 +8,8 @@ Boundaries* (2011), Challenge 2 ("Metaphor," Days 1-14) and Challenge 3
 ## Anchor stance
 
 > "Metaphors have a way of holding the most truth in the least space."
-> — Orson Scott Card (cited by Pat as Challenge 2 epigraph)
+> — Orson Scott Card (cited by Pat as *Songwriting Without Boundaries* (2011),
+> Challenge 2 epigraph)
 
 > "The ability to see one thing as another is the only truly creative
 > human act." — Aristotle (cited by Pat,
