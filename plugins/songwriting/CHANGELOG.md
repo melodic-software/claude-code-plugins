@@ -3,6 +3,19 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.4]
+
+Both audit denominators are unchanged: **Axis 1 stays 44 of 44** and **Axis 2
+stays 226 of 226.**
+
+### Documented
+
+- **Tag-order positional weighting audited on its own evidence (#2353).**
+  `power-tips.md:7-13` stays retained-as-unverified: no source establishes
+  first-tag advantage or middle-tag softening; Suno's category-order lead
+  does not settle positional weight. Row **S7** recorded in
+  `skills/suno/reference/suno-drift-audit-ledger.md`.
+
 ## [1.1.3]
 
 Both audit denominators are unchanged: **Axis 1 stays 44 of 44** and **Axis 2
