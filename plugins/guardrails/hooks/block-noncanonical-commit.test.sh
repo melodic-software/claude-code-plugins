@@ -862,8 +862,8 @@ wrapper_cd_case() {
     '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
     timeout "$HANG_GUARD_SECS" bash "$HOOK" >/dev/null 2>&1
   rc=$?
-  ((rc == 124)) && bad "$label: the hook HUNG — no verdict inside the ${HANG_GUARD_SECS}s hang guard"
-  ((rc == 124)) || assert_exit "$label" "$expected" "$rc"
+  ((rc == 124)) && bad "$label: the hook HUNG — no verdict inside the ${HANG_GUARD_SECS}s hang guard" && return
+  assert_exit "$label" "$expected" "$rc"
 }
 
 if [[ -d "$WRAP/outer/other/.git" ]]; then
@@ -1159,8 +1159,8 @@ if [[ -d "$GLOB/repo/.git" ]]; then
     '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
     timeout "$HANG_GUARD_SECS" bash "$HOOK" >/dev/null 2>&1
   rc=$?
-  ((rc == 124)) && bad "persisted lookup with locating globals: the hook HUNG" || true
-  assert_exit "persisted lookup replays --git-dir/--work-tree (blocks multi-line -m via alias chain)" 2 "$rc"
+  ((rc == 124)) && bad "persisted lookup with locating globals: the hook HUNG" || \
+    assert_exit "persisted lookup replays --git-dir/--work-tree (blocks multi-line -m via alias chain)" 2 "$rc"
 fi
 
 # --- explicit locating globals: a `!` body launches where the CALLER stands ----
