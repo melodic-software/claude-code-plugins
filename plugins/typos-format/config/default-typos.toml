@@ -3,6 +3,6 @@
 # the hook must carry fleet-wide (claude-code-plugins#1257).
 
 [default.extend-ignore-re]
-# Git commit SHAs (abbreviated and full): typos treats hex digraphs like `caf`
-# as English words and silently corrupts SHAs during write mode.
+# Git commit SHAs (abbreviated and full): typos treats some hex digraphs as English
+# words and silently corrupts SHAs during write mode.
 "\\b[0-9a-f]{7,40}\\b" = ""
