@@ -34,7 +34,10 @@ Official contract: <https://code.claude.com/docs/en/plugins-reference#user-confi
 3. Explain the effective report library root:
    - empty or unexpanded `report_library_dir` — reports live under the plugin's own persistent
      data directory;
-   - configured directory — reports and recall search that checkout instead.
+   - configured directory outside the consuming project — reports and recall search that checkout;
+   - configured directory that is `${CLAUDE_PROJECT_DIR}` or nested under it — quiz-me's
+     repo-tree guard refuses it and falls back to `${CLAUDE_PLUGIN_DATA}` (same effective root
+     as unset).
 4. State the tradeoff instead of asking: machine-private plugin data (default) versus a dedicated
    corpus checkout for long-lived recall across machines. For a repository-backed library,
    inspect the consumer's artifact conventions and recommend one portable location. Never
