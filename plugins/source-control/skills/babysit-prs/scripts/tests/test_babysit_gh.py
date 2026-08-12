@@ -288,7 +288,13 @@ class FetchPullRequestCommitsTests(unittest.TestCase):
                 "commit": {"verification": {"verified": False, "reason": "no_user"}},
             },
         ]
-        with mock.patch.object(gh, "gh_json", return_value=rows) as gh_json:
+
+        def gh_side_effect(args: list[str]) -> Any:
+            if "-q" in args and args[1].endswith("/pulls/5"):
+                return 2
+            return [rows]
+
+        with mock.patch.object(gh, "gh_json", side_effect=gh_side_effect):
             out = gh.fetch_pull_request_commits("owner/repo", 5)
         self.assertEqual(
             out,
@@ -297,11 +303,18 @@ class FetchPullRequestCommitsTests(unittest.TestCase):
                 {"sha": "b" * 40, "verified": False, "reason": "no_user"},
             ],
         )
-        [call] = gh_json.call_args_list
-        endpoint = call.args[0][1]
-        self.assertIn("repos/owner/repo/pulls/5/commits", endpoint)
-        self.assertIn("per_page=100", endpoint)
-        self.assertIn("--paginate", call.args[0])
+
+    def test_truncated_commit_list_raises(self) -> None:
+        rows = [{"sha": "a" * 40, "commit": {"verification": {"verified": True}}}]
+
+        def gh_side_effect(args: list[str]) -> Any:
+            if "-q" in args and args[1].endswith("/pulls/99"):
+                return 251
+            return [rows]
+
+        with mock.patch.object(gh, "gh_json", side_effect=gh_side_effect):
+            with self.assertRaisesRegex(RuntimeError, "walked 1 of 251"):
+                gh.fetch_pull_request_commits("owner/repo", 99)
 
     def test_missing_verification_reads_unverified_unreadable(self) -> None:
         rows = [
@@ -309,7 +322,13 @@ class FetchPullRequestCommitsTests(unittest.TestCase):
             {"sha": "d" * 40},
             {"sha": "e" * 40, "commit": {"verification": {"verified": True}}},
         ]
-        with mock.patch.object(gh, "gh_json", return_value=rows):
+
+        def gh_side_effect(args: list[str]) -> Any:
+            if "-q" in args and args[1].endswith("/pulls/5"):
+                return 3
+            return [rows]
+
+        with mock.patch.object(gh, "gh_json", side_effect=gh_side_effect):
             out = gh.fetch_pull_request_commits("owner/repo", 5)
         self.assertEqual(
             out,

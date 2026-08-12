@@ -481,11 +481,23 @@ def fetch_pull_request_commits(repo: str, number: int) -> list[dict[str, Any]]:
     whose verification block is missing is reported unverified with reason
     `unreadable` rather than skipped: the caller enforcing a signature rule may
     only ever over-report.
+
+    GitHub's pull-commits endpoint returns at most 250 commits regardless of
+    pagination; when the PR's `commits` count exceeds the walked rows, this
+    raises rather than returning a silently truncated list (#2387).
     """
+    pr_commits = gh_json(["api", f"repos/{repo}/pulls/{number}", "-q", ".commits"])
+    expected = int(pr_commits) if pr_commits is not None else 0
     rows = fetch_paginated_api(
         f"repos/{repo}/pulls/{number}/commits?per_page=100",
         f"{repo}#{number} commits",
     )
+    walked = len(rows)
+    if expected > walked:
+        raise RuntimeError(
+            "commit list walked "
+            f"{walked} of {expected} (pull-commits endpoint caps at 250)"
+        )
     out: list[dict[str, Any]] = []
     for row in rows:
         commit = row.get("commit")
