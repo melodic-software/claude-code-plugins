@@ -3,6 +3,23 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.51.14]
+
+### Fixed
+
+- **Rule 3 no longer lists bare `select(f)` as element-wise-safe.** Bare `select(f)` applied to a
+  paginated page (an array) errors in jq rather than filtering elements; only `.[] | select(f)` is
+  safe. Qualified alongside the existing `map(f)` carve-out fix from 0.51.13.
+
+## [0.51.13]
+
+### Fixed
+
+- **Rule 3 no longer lists bare `map(f)` as element-wise-safe (#2245).** `map(f)` is `[.[] | f]` — it
+  builds an array per page, so `--paginate` emits one array document per page unless a trailing
+  `| .[]` re-flattens. The carve-out now names `.[] | select(f)` and `.[] | f` as safe and calls out
+  `map(f) | .[]` as the safe `map` form.
+
 ## [0.51.12]
 
 ### Fixed
