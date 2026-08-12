@@ -83,9 +83,15 @@ hook::require_jq_blocking "guardrails-block-no-verify" "block_no_verify_enabled"
 # it exits 0 exactly as the empty-COMMAND skip below did. A MISSING jq can no
 # longer reach this line — hook::require_jq_blocking above has already denied the
 # call (#2146) — so the rc-1 path here is now only the unparsable-payload case.
-# That remaining allow-on-unparsable path is unchanged by #2122 and is NOT what
+# That remaining allow-on-unparsable path is closed by #2157 and is NOT what
 # the NUL check below covers.
-hook::jq_fields "$INPUT" '.tool_input.command' '.tool_name' || exit 0
+jq_rc=0
+hook::jq_fields "$INPUT" '.tool_input.command' '.tool_name' || jq_rc=$?
+if ((jq_rc == 2)); then
+  echo "BLOCKED: the hook payload could not be parsed." >&2
+  exit 2
+fi
+((jq_rc != 0)) && exit 0
 
 # A NUL byte in EITHER field read above is fail-CLOSED, and is decided BEFORE
 # the empty-COMMAND skip below: the helper strips every NUL out of a value, so a
