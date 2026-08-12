@@ -129,9 +129,8 @@ from the tracker binding's `config.role_labels` (defaults `agent-ready` / `needs
 
 At the start of every action that queries, creates, or filters items by a canonical role, read
 `.work-item-tracker.json` and resolve each role the action uses from `config.role_labels`; an absent
-file or absent entry falls back to the documented default **with a loud warning** — surface that the
-binding (or that role's entry) is absent and the role is running under its default, a real correctness
-risk when the consuming repo remapped `config.role_labels`, rather than substituting silently. Keep
+file or absent entry falls back to the documented default silently (setup omits default entries on
+purpose). Keep
 those resolved strings for that invocation and
 use them in every adapter query and core-side label comparison. Never put a default literal such as
 `recurring` into a provider query after the role has been remapped. A present binding with invalid

@@ -3,6 +3,15 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.14]
+
+### Fixed
+
+- **Reconcile `role_labels` docs and resolve all three roles at the seam (#1561).** Absent
+  `config.role_labels` entries are sanctioned silent defaults; export
+  `WIT_AUTONOMOUS_ELIGIBLE_LABEL` and `WIT_RECURRING_MAINTENANCE_LABEL` alongside the existing
+  human-gated label.
+
 ## [0.35.13]
 
 ### Fixed
