@@ -159,9 +159,9 @@ Persona 1 sits at the `y=0` timeline baseline.
 
 | Row | y | Purpose |
 |-----|---|---------|
-| External Systems | -600 | System dependencies |
-| Read Models | -400 | Information panels |
-| Actors | -200 | Who issues commands |
+| External Systems | -750 | System dependencies |
+| Read Models | -500 | Information panels |
+| Actors | -250 | Who issues commands |
 | **Main Flow** | **0** | **Event-Command-Policy spine** |
 | Pass 2 corrections | 300 | Speak Out Loud refinements |
 | Exception flows | 600 | Full-chain failure paths |
