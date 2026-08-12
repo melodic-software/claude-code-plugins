@@ -873,12 +873,13 @@ run "scratch: case-insensitive compare (documented residual, allowed)" \
   "echo hello > /tmp/SCRATCH/f" 0 "$SCRATCH_ENV=/tmp/scratch"
 
 # TRUNCATED-OPERAND FAIL-CLOSED. strip_literals keeps a quoted write target but
-# drops its quotes, and normalize_segments then resolves a `;`, `|`, `&`,
-# newline or space inside that operand as SYNTAX — so a quoted pathname reaches
-# the compare as a safe-looking prefix of itself. bash treats the whole
+# drops its quotes, and before 0.26.0 normalize_segments then resolved a `;`,
+# `|`, `&`, newline or space inside that operand as SYNTAX — so a quoted pathname
+# reached the compare as a safe-looking prefix of itself. bash treats the whole
 # quoted word as one pathname, so exempting the prefix would be a one-token
-# bypass. The scratch axis therefore refuses to exempt any quoted or escaped
-# operand.
+# bypass. The operand now carries an OPAQUE mark over each such character and
+# survives as one token (#2226); this axis refuses any operand that is opaque,
+# and — its shipped floor, unchanged — any operand that was quoted at all.
 run "scratch: quoted operand with ; is not exempted (blocked)" \
   "echo x > \"/tmp/scratch/a;/../../etc/passwd\"" 2 "$SCRATCH_ENV=/tmp/scratch"
 run "scratch: quoted operand with | is not exempted (blocked)" \
@@ -895,27 +896,31 @@ run "scratch: even a benign quoted target is not exempted (blocked)" \
 # exemption — as long as the quoted content holds no `>`; see the pair below.
 run "scratch: quoted content, unquoted target (allowed)" \
   "echo \"hello world\" > /tmp/scratch/f" 0 "$SCRATCH_ENV=/tmp/scratch"
-# THE BREADTH, pinned rather than left to drift. It is blunt in TWO directions
-# and both sides of each boundary are asserted, so a later change cannot quietly
-# widen or narrow either. Both are one-directional — the check can only refuse an
-# exemption, never grant one — and making either precise needs to know which `>`
-# and which quotes are syntax rather than content, which is exactly what
-# strip_literals destroys before this runs (#2226).
+# THE BREADTH THAT WAS, still pinned on both sides — but the verdicts moved in
+# 0.26.0 and these four assertions are where that is visible. 0.25.x could not
+# tell operand quotes from content quotes, so it read `${COMMAND#*>}` and refused
+# the exemption on ANY quote or backslash after the first `>` CHARACTER anywhere
+# in the command (#2236). The operand marks supply that association, so the test
+# is keyed on the target word instead and both shapes below are exempt again.
+# Each is a GRANT, and each lands only on a target the marks prove was bare — no
+# quote mark, no opaque mark, no backslash.
 #
-# (1) NOT segment-scoped: a quote in an unrelated LATER segment cancels the
-#     exemption for an earlier, unambiguous write.
-run "scratch: quote in an unrelated later segment cancels it (blocked)" \
-  "echo x > /tmp/scratch/f && grep foo \"notes.txt\"" 2 "$SCRATCH_ENV=/tmp/scratch"
+# (1) Segment-scoped now: a quote in an unrelated LATER segment is that segment's
+#     business. Segment 1's target is a plain path strictly under the root.
+run "scratch: quote in an unrelated later segment keeps it (allowed)" \
+  "echo x > /tmp/scratch/f && grep foo \"notes.txt\"" 0 "$SCRATCH_ENV=/tmp/scratch"
 run "scratch: the same compound with no quotes keeps it (allowed)" \
   "echo x > /tmp/scratch/f && grep foo notes.txt" 0 "$SCRATCH_ENV=/tmp/scratch"
-# (2) NOT keyed on the redirect OPERATOR: `${COMMAND#*>}` splits at the first `>`
-#     CHARACTER, so a `>` inside quoted CONTENT starts the tail early and that
-#     content's own closing quote lands inside it. This is the case the 0.25.0
-#     text got backwards by promising that quotes before the redirect are safe.
-run "scratch: > inside double-quoted content cancels it (blocked)" \
-  "echo \"a > b\" > /tmp/scratch/f" 2 "$SCRATCH_ENV=/tmp/scratch"
-run "scratch: > inside single-quoted content cancels it (blocked)" \
-  "echo 'x > y' > /tmp/scratch/f" 2 "$SCRATCH_ENV=/tmp/scratch"
+run "scratch: quote in a later ;-segment keeps it (allowed)" \
+  "echo x > /tmp/scratch/f; cat \"notes.txt\"" 0 "$SCRATCH_ENV=/tmp/scratch"
+# (2) Keyed on the redirect OPERAND now: a `>` inside quoted CONTENT is content,
+#     and that content's quotes are the content's own. strip_literals drops the
+#     whole span — the same quote tracking every other lane of this guard already
+#     relies on to keep quoted prose inert.
+run "scratch: > inside double-quoted content keeps it (allowed)" \
+  "echo \"a > b\" > /tmp/scratch/f" 0 "$SCRATCH_ENV=/tmp/scratch"
+run "scratch: > inside single-quoted content keeps it (allowed)" \
+  "echo 'x > y' > /tmp/scratch/f" 0 "$SCRATCH_ENV=/tmp/scratch"
 # --- Redirect-operand marking (#2226) ---------------------------------------
 # THE REPORTED BYPASS AND ITS FAMILY. A quoted redirect operand is one pathname
 # to bash. Until 0.26.0 the exemptions were decided on its first whitespace- or
