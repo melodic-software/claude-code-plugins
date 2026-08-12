@@ -34,6 +34,31 @@
         "Judges P6 NOT-APPLICABLE for a report-only, human-gated component",
         "Names the failed predicate in the verdict instead of manufacturing a finding"
       ]
+    },
+    {
+      "id": 4,
+      "name": "two-roots-produce-two-reports",
+      "prompt": "/claude-config:audit-prompting-postures — I ran this in my work repo yesterday and I am running it in a different repo now. Will today's run overwrite yesterday's report, and where does each land?",
+      "expected_output": "No. The report path carries a state key derived per project — <repo-identity>/<worktree-discriminator>, the scheme audit-pass already uses — so the two runs write to different directories under ${CLAUDE_PLUGIN_DATA}/audit-prompting-postures/ and both survive. The skill derives the key by RUNNING the documented commands (git remote, git toplevel, sha256 of the canonicalized root), not by testing whether a placeholder is set. It names a distinct resolved path for each run, and notes that two worktrees of the SAME repository also key apart because the discriminator hashes the worktree root.",
+      "files": [],
+      "expectations": [
+        "Answers that the second run does NOT overwrite the first, and names a distinct path for each",
+        "Derives the state key by running the documented git and sha256 commands rather than by evaluating whether a placeholder is set",
+        "Reuses audit-pass's <repo-identity>/<worktree-discriminator> scheme rather than inventing a second keying scheme",
+        "States that two worktrees of one repository also key apart, via the worktree discriminator"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "non-repo-root-still-keys-and-self-describes",
+      "prompt": "/claude-config:audit-prompting-postures — I am running this from my home directory, which is not a git repository at all. Does it still work, and can I tell later which root a saved report came from?",
+      "expected_output": "Yes to both. The identity ladder carries a third rung for a non-repo root — nonrepo/<hash of the working directory> — because this skill is report-only and legitimately audits such roots, unlike audit-pass which refuses non-git targets outright. And the report opens with a mandated three-line header giving the resolved root, the scope filter, and a UTC timestamp, so a surviving file is self-describing rather than merely un-overwritten.",
+      "files": [],
+      "expectations": [
+        "Runs rather than refusing, and keys the report under a non-repo rung instead of falling back to one fixed shared path",
+        "Does NOT invent a git-only derivation that cannot resolve without a repository",
+        "States that the report opens with a header naming the resolved root, the scope filter, and a UTC timestamp"
+      ]
     }
   ]
 }

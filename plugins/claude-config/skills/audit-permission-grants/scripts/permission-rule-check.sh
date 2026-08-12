@@ -21,11 +21,20 @@
 #       so a self-granted permission rule is silently ignored; the operative
 #       allow-rule has to be added by the operator to ~/.claude/settings.json.
 #
-# Advisory: prints findings, ALWAYS exits 0 (findings never fail the run).
-# Requires jq for the settings-file half; exits 2 when jq is absent.
+# Advisory about FINDINGS: they never fail the run, so a scan that completes exits 0
+# whether or not it found anything. Environment gaps are the exception and exit 2 —
+# missing jq, and an unresolvable scan root (below).
 #
-# Root resolution: $PERMISSION_HYGIENE_FIXTURE_DIR, else the cwd's git
-# toplevel, else $CLAUDE_PROJECT_DIR, else $PWD. Never the plugin's own dir.
+# Root resolution: $PERMISSION_HYGIENE_FIXTURE_DIR, else the cwd's git toplevel, else
+# $CLAUDE_PROJECT_DIR. Never the plugin's own dir, and NEVER $PWD.
+#
+# Why there is no $PWD fallback: outside a git repository $PWD is whatever directory
+# the session happens to stand in, which on a developer machine is typically the user
+# profile. Both scans below walk the root with `find` with no depth bound and stderr
+# discarded, so that fallback turned an unresolved root into an unbounded sweep of the
+# user's home that still exited 0 — a timeout or a swallowed permission error was
+# indistinguishable from a clean bill. An unresolvable root is an environment gap, so
+# it is reported as one (exit 2) rather than scanned on a guess.
 #
 # Usage:
 #   permission-rule-check.sh            # human-readable findings, one per line
@@ -47,8 +56,12 @@ Usage: permission-rule-check.sh [--count|--help]
 Scans skill/command/agent frontmatter `allowed-tools` and the `permissions.allow`
 arrays of .claude/settings.json and .claude/settings.local.json for P1 (auto-mode
 -dropped interpreter/blanket rules), P2 (hardcoded machine paths), and plugin
-settings.json for P3 (unsupported self-granted `permissions`). Advisory — exit 0.
-Requires jq (exit 2 when absent).
+settings.json for P3 (unsupported self-granted `permissions`).
+
+Findings are advisory and never fail the run, so a completed scan exits 0 in both
+modes. Environment gaps exit 2 instead of reporting a clean bill: missing jq, and a
+scan root that resolves to neither a git toplevel nor $CLAUDE_PROJECT_DIR. Set
+$PERMISSION_HYGIENE_FIXTURE_DIR to scan an explicit directory.
 EOF
 }
 
@@ -72,7 +85,30 @@ if [[ -n "${PERMISSION_HYGIENE_FIXTURE_DIR:-}" ]]; then
   ROOT="$PERMISSION_HYGIENE_FIXTURE_DIR"
 else
   ROOT="$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
-  [[ -n "$ROOT" ]] || ROOT="${CLAUDE_PROJECT_DIR:-$PWD}"
+  [[ -n "$ROOT" ]] || ROOT="${CLAUDE_PROJECT_DIR:-}"
+fi
+
+# No $PWD fallback — see the header. Refuse rather than sweep an unknown tree, and
+# refuse in BOTH modes: a `--count` of 0 from a scan that never resolved a root reads
+# exactly like a clean bill, which is the confusion this refusal exists to remove.
+if [[ -z "$ROOT" ]]; then
+  cat >&2 <<'EOF'
+ERROR: no scan root resolved — refusing to scan.
+
+Tried, in order: $PERMISSION_HYGIENE_FIXTURE_DIR, the current directory's git
+toplevel, then $CLAUDE_PROJECT_DIR. None resolved, and there is deliberately no
+fallback to the current directory: outside a repository that is usually the user
+profile, and scanning it would walk the whole home tree and still report success.
+
+Fix by running from inside the repository you mean to scan, or set
+$PERMISSION_HYGIENE_FIXTURE_DIR to the directory to scan explicitly.
+EOF
+  exit 2
+fi
+
+if [[ ! -d "$ROOT" ]]; then
+  printf 'ERROR: scan root does not exist or is not a directory: %s\n' "$ROOT" >&2
+  exit 2
 fi
 
 # --- Detection patterns -------------------------------------------------------
@@ -136,7 +172,7 @@ scan_rule() {
     [[ -n "$m" ]] && emit warning P1 "$src" "'$m' is an interpreter/runner-led grant, not the portable bare-name pattern; Claude Code drops the broad forms of this shape (blanket, package-manager runners, and wildcarded/globbed-target interpreters) on entering auto mode. Expose the guarded script as a bare PATH command and allow that, e.g. Bash(babysit_merge.sh:*)."
   done < <(printf '%s\n' "$text" | grep -oE "$P1_ERE" 2>/dev/null | sort -u)
   while IFS= read -r m; do
-    [[ -n "$m" ]] && emit error P2 "$src" "hardcoded machine path in '$m' — Bash rules match literally (no ~/\$HOME/env expansion), so this breaks on other machines/usernames and leaks a username into source control. Use a machine-independent bare-name rule."
+    [[ -n "$m" ]] && emit error P2 "$src" "hardcoded machine path in '$m' — the rule names a concrete user home, so it breaks on other machines and usernames and leaks a username into source control. Portable forms: \${CLAUDE_SKILL_DIR} for a skill's own bundled script (substituted in allowed-tools Bash rules), a bare-name command on PATH, or the ~/ home anchor for Read/Edit rules."
   done < <(printf '%s\n' "$text" | grep -oE "$P2_ERE" 2>/dev/null | sort -u)
 }
 
