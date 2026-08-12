@@ -34,6 +34,8 @@ git_init_safe() {
         echo "git_init_safe: refusing path inside current repository: $abs_dir" >&2
         return 1
         ;;
+      *)
+        ;;
     esac
   fi
   git_test_config "$dir" init -q
