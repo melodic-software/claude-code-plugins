@@ -26,6 +26,16 @@ audit runs with that same project directory; a fleet config meant to apply from 
 belongs at the user-global path (`apply --config ~/.claude/repo-fleet-hygiene.conf`). The audit
 report header names which config (if any) was consumed.
 
+## Argument grammar
+
+```text
+check | apply [--config <path>] [--root <dir>]... [--repo <dir>]...
+        [--canonical <github.com/owner/repo=path>]... [--ack-unavailable <github.com/owner/repo>]...
+        [--max-depth <1..12>]
+```
+
+`--max-depth` writes `[fleet] maxDepth`; this skill owns the config file that carries it.
+
 ## `check` (read-only)
 
 The config file and the grammar below are the source of truth. Probe, report a PASS/FAIL/INFO table
@@ -87,13 +97,16 @@ Run `check`, then create or update the config from the supplied arguments.
    consumer mistake. This preference is prose guidance followed by the model, not a property a
    deterministic component enforces; treat it as a default to justify departing from, not a
    guarantee.
-5. Verify after remediation — re-run the `check` probes against the written file (never claim success on
-   the edit alone). Config-only, exactly as `check` defines them: parse validity, then per-entry path
-   resolution.
+5. Verify after remediation — re-run every `check` probe against the written file (never claim success on
+   the edit alone). Config-only, exactly as `check` defines them:
 
-   ```bash
-   git config --file "<config-path>" --list >/dev/null
-   ```
+   - **Parse validity** — `git config --file "<config-path>" --list >/dev/null`
+   - **Entry resolution** — for each `[fleet] root`/`repo` and each `[canonical …] path`, resolve from
+     the config directory and confirm the directory exists and (for roots/repos) `git rev-parse` succeeds
+     read-only
+   - **`maxDepth`** — when present, confirm it is an integer in `1..12`
+   - **Canonical identity** and **acknowledged identities** — confirm each key/value normalizes to
+     `github.com/owner/repository`
 
    Do **not** invoke the collector to verify a write. It is the full fleet walk this skill says it
    never runs — per-repository network queries across every configured root, minutes on a real fleet
@@ -145,8 +158,11 @@ GitHub remote identity on both sides first.
   canonical target written as an absolute path may trip a consumer's write-time path-portability guard;
   the same target written relative to the config file's directory passes and resolves identically, so
   `apply` prefers the relative form — except across Windows volumes, where no relative form exists and
-  the absolute path is the only option. Say so when that happens rather than leaving the consumer to
-  conclude they misconfigured something.
+  the absolute path is the only honest option. When that happens, write the absolute path, say in the
+  report that no relative path exists between volumes, and name the consumer's remedies if the guard
+  still rejects the write: colocate the config with the fleet root on one volume, exempt this file or
+  path from the guard, or keep a user-global config outside the guard's scan — do not fabricate a
+  relative path or leave the consumer to conclude they misconfigured something.
 - **A project-scoped config is consumed only from its own project.** Per the Scoping rule above, a
   config meant to apply from every project belongs at the user-global
   `~/.claude/repo-fleet-hygiene.conf`, not a per-project path — otherwise the audit silently narrows to
