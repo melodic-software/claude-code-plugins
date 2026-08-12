@@ -17,6 +17,13 @@
   explicitly forbidden at each consumption site — the motivating incident was a session reporting
   "around 40%" while the instrument read 15%.
 
+## [0.22.5]
+
+### Added
+
+- **`keep-going` usage-limit reset checker** — `check-usage-limit-reset.py` parses the
+  `resets …` clause from a limit message and exits lifted/blocked/unparsed (#1321).
+
 ## [0.22.4]
 
 ### Added

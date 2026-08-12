@@ -54,7 +54,11 @@ Path resolution rules every action MUST follow:
 
 ## Pre-computed Context
 
-Existing workspaces (current project only): !`bash "${CLAUDE_PLUGIN_ROOT}/skills/teach/scripts/list-workspaces.sh" "${CLAUDE_PROJECT_DIR}" "${CLAUDE_PLUGIN_DATA}" 2>/dev/null || echo "none"`
+Gather with one Bash call (worktree-isolated agents refuse `$`-expansion in pre-compute blocks; #1687):
+
+- Existing workspaces — `bash "${CLAUDE_PLUGIN_ROOT}/skills/teach/scripts/list-workspaces.sh" "${CLAUDE_PROJECT_DIR}" "${CLAUDE_PLUGIN_DATA}" 2>/dev/null || echo "none"`
+
+Treat failure as `"none"` and continue.
 
 ## Action Router
 
