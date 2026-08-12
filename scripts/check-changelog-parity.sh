@@ -405,6 +405,8 @@ fi
 # plugin-root scoping) a cosmetic touch elsewhere under the plugin dir cannot pull
 # a main-only advance back into scope.
 declare -A bumped_candidate
+declare -A plugin_changed
+declare -A shipped_changed
 # The changelogs this change set touched, in `git diff` order, for
 # --check-preserved. Same two roots --check-order sweeps.
 touched_changelogs=()
@@ -444,12 +446,24 @@ while IFS= read -r path; do
     rest="${path#plugins/}"
     bumped_candidate["${rest%%/*}"]=1
     ;;
-  plugins/*/CHANGELOG.md | docs/conventions/*/CHANGELOG.md)
+  plugins/*/CHANGELOG.md)
+    rest="${path#plugins/}"
+    plugin_changed["${rest%%/*}"]=1
+    if [[ -z "${seen_changelog[$path]:-}" ]]; then
+      seen_changelog["$path"]=1
+      touched_changelogs+=("$path")
+    fi
+    ;;
+  plugins/*/*)
+    rest="${path#plugins/}"
+    plugin_changed["${rest%%/*}"]=1
+    shipped_changed["${rest%%/*}"]=1
+    ;;
+  docs/conventions/*/CHANGELOG.md)
     # A `case` glob's `*` spans `/`, so the depth is re-checked explicitly: only
     # a changelog exactly one directory below a root is in scope, never one
     # nested deeper inside a plugin.
-    rest="${path#plugins/}"
-    rest="${rest#docs/conventions/}"
+    rest="${path#docs/conventions/}"
     if [[ "$rest" == "${rest%%/*}/CHANGELOG.md" && -z "${seen_changelog[$path]:-}" ]]; then
       seen_changelog["$path"]=1
       touched_changelogs+=("$path")
@@ -560,6 +574,7 @@ undocumented=0
 malformed=0
 preexisting=0
 nonmonotonic=0
+published_reuse=0
 absorbed=0
 declare -A absorbed_reported
 
@@ -584,15 +599,27 @@ for manifest in "${manifests[@]}"; do
   name="${plugin_dir##*/}"
   changelog="$plugin_dir/CHANGELOG.md"
 
+  base_version="$(git show "$base:$manifest" 2>/dev/null | jq -r '.version // empty' 2>/dev/null || true)"
+  [[ -n "$base_version" ]] || continue
+  head_version="$(version_of "$manifest")"
+
+  # A branch that changes shipped plugin files but leaves the manifest version
+  # byte-identical to the base tip reuses a published version number (#1559).
+  # Changelog-only edits and manifest bumps are out of scope here — the former
+  # is --check-preserved / review discipline; the latter is collision/preexisting.
+  if [[ -n "${shipped_changed[$name]:-}" && -z "${bumped_candidate[$name]:-}" && "$head_version" == "$base_version" ]]; then
+    echo "PUBLISHED VERSION REUSE: $name still carries $head_version while this change set modifies files under plugins/$name/ — bump the manifest and add a new '## [$head_version]' release entry instead of editing in place." >&2
+    published_reuse=$((published_reuse + 1))
+    continue
+  fi
+
   # Only plugins whose manifest this change set touched are in scope (see the
   # bumped_candidate note above); a plugin main advanced but this branch never
   # touched is not the PR's to document.
   [[ -n "${bumped_candidate[$name]:-}" ]] || continue
 
-  base_version="$(git show "$base:$manifest" 2>/dev/null | jq -r '.version // empty' 2>/dev/null || true)"
   # Absent at base => new plugin in this change set; the static --check owns
   # whether its initial CHANGELOG.md exists, not the bump gate.
-  [[ -n "$base_version" ]] || continue
   head_version="$(version_of "$manifest")"
 
   # "Did this branch bump?" is head vs the FORK POINT, never vs the base tip:
@@ -681,12 +708,13 @@ for manifest in "${manifests[@]}"; do
   fi
 done
 
-if ((undocumented > 0 || malformed > 0 || preexisting > 0 || nonmonotonic > 0 || absorbed > 0)); then
+if ((undocumented > 0 || malformed > 0 || preexisting > 0 || nonmonotonic > 0 || absorbed > 0 || published_reuse > 0)); then
   ((undocumented > 0)) && echo "Add a '## [<version>]' entry for every plugin whose version changed." >&2
   ((malformed > 0)) && echo "Convert unbracketed changelog headings to the '## [<version>]' Keep-a-Changelog form." >&2
   ((preexisting > 0)) && echo "Add the bumped version's '## [<version>]' entry in this change set; it must be absent from the base changelog, not merely present at head." >&2
   ((nonmonotonic > 0)) && echo "Renumber every bumped version strictly above the base ref's CURRENT version, not the version the branch was cut from." >&2
   ((absorbed > 0)) && echo "Restore every '## [<version>]' heading that existed at the fork point; release notes must not be relabelled or absorbed into a newer section." >&2
+  ((published_reuse > 0)) && echo "Bump the manifest version and add a new '## [<version>]' release entry whenever this change set modifies shipped plugin files — reusing a published version number is not allowed." >&2
   exit 1
 fi
 echo "Every plugin whose version changed vs $base has a '## [<version>]' CHANGELOG.md entry."

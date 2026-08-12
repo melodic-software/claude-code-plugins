@@ -471,15 +471,28 @@ rc=$?
 if [[ $rc -ne 0 && "$out" == *"UNDOCUMENTED BUMP"*"alpha"* ]]; then ok "bump without changelog fails --check-bump (synthetic undocumented bump caught)"; else fail "undocumented bump not caught: rc=$rc out='$out'"; fi
 rm -rf "$repo"
 
-# version unchanged -> passes (no bump, nothing to document)
+# version unchanged but plugin files changed -> fails (published version reuse, #1559)
 repo="$(mk_repo)"
 git_init "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
 base="$(git -C "$repo" rev-parse HEAD)"
-printf 'unrelated\n' >"$repo/plugins/alpha/README.md"
+printf 'shipped\n' >"$repo/plugins/alpha/shipped.txt"
 git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm noop
-if (cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" >/dev/null 2>&1); then ok "unchanged version passes --check-bump"; else fail "unchanged version wrongly failed"; fi
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
+rc=$?
+if [[ $rc -ne 0 && "$out" == *"PUBLISHED VERSION REUSE"*"alpha"* ]]; then ok "unchanged version with plugin file edits fails --check-bump"; else fail "published version reuse not caught: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
+# version unchanged and no plugin file edits -> passes
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 1.0.0 yes
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+base="$(git -C "$repo" rev-parse HEAD)"
+printf 'unrelated\n' >"$repo/README.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm noop
+if (cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" >/dev/null 2>&1); then ok "unchanged version with no plugin edits passes --check-bump"; else fail "repo-only edit wrongly failed --check-bump"; fi
 rm -rf "$repo"
 
 # new plugin absent at base -> --check-bump skips it (static --check owns it)
