@@ -122,7 +122,7 @@
 # a LATER command's option-shaped word be attributed to this one — with `|`
 # and `;` now in the boundary, `grep foo /dev/null; printf '%s\n' -P|cat` was
 # reported even though the `-P` is printf's data.
-grep[^;&|\n]*[[:space:]]-[A-Za-z]*P([A-Za-z]|['"][A-Za-z]*['"])*([[:space:]|&;()]|[<>]([^(]|$)|$)
+grep[^;&|()]*[[:space:]]-[A-Za-z]*P([A-Za-z]|['"][A-Za-z]*['"])*([[:space:]|&;()]|[<>]([^(]|$)|$)
 --perl-regexp
 
 # `echo -e` — POSIX leaves echo's flag handling unspecified; BSD/macOS sh/bash
@@ -177,9 +177,9 @@ echo[[:space:]]+-[neE]*e([neE]|['"][neE]*['"])*([[:space:]|&;()]|[<>]([^(]|$)|$)
 # positions, the same interleaving the `grep -P` token above documents for its
 # own cluster. `git tag --sort=version:refname` stays clean for the reason it
 # already did: the WORD boundary still rejects the longer `version:refname`.
-sort[^;&|\n]*[[:space:]]-[A-Za-z]*V([A-Za-z]|['"][A-Za-z]*['"])*([[:space:]|&;()]|[<>]([^(]|$)|$)
+sort[^;&|()]*[[:space:]]-[A-Za-z]*V([A-Za-z]|['"][A-Za-z]*['"])*([[:space:]|&;()]|[<>]([^(]|$)|$)
 --version-sort
-sort[^;&|\n]*[[:space:]]['"]?--sort['"]?(=|[[:space:]]+)['"]?version([[:space:]|&;()'"`]|[<>]([^(]|$)|$)
+sort[^;&|()]*[[:space:]]['"]?--sort['"]?(=|[[:space:]]+)['"]?version([[:space:]|&;()'"`]|[<>]([^(]|$)|$)
 
 # `sed -i` with no suffix argument attached — GNU treats the suffix as
 # optional; BSD sed requires one immediately after `-i`.
