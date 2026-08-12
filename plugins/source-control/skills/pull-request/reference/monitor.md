@@ -178,6 +178,18 @@ Other open PRs:
   #103 fix/null-check — all checks green, awaiting review
 ```
 
+**`statusCheckRollup` pitfall: a running check has `conclusion: ""` (empty string), not `null`.**
+The obvious "did anything fail" filter — `select(.conclusion != null and .conclusion != "SUCCESS")`
+— therefore matches every **in-progress** check and reports still-running CI as failures. Select on
+the values you mean, never on the complement:
+
+```bash
+# failures only
+--jq '[.statusCheckRollup[] | select(.conclusion=="FAILURE" or .conclusion=="TIMED_OUT" or .conclusion=="CANCELLED")]'
+# still running
+--jq '[.statusCheckRollup[] | select(.status!="COMPLETED")]'
+```
+
 **Constraint: Monitor watches are branch-locked.** Monitor MUST run in the session that owns the branch (§3.5). Scanning is READ-ONLY — you cannot arm a Monitor watch for a PR on a different branch from this worktree. Report status and suggest: *"Switch to the worktree for `<branch>` to monitor PR #N."*
 
 **When NO other open PRs found:** report `No other open PRs need attention.` and let the session idle.
@@ -190,7 +202,7 @@ Other open PRs:
 
 After each push, run this loop until convergence (**every** check in a terminal state + all comments addressed):
 
-1. **Mergeable pre-check (MANDATORY before polling)** — `gh pr view <N> --json mergeable,mergeStateStatus` FIRST. If `mergeable == "CONFLICTING"`, GitHub will NOT trigger workflows — integrate the default branch, resolve conflicts, force-push with lease, and restart the loop. Only proceed to CI polling when `mergeable == "MERGEABLE"`. **Never blame the platform for missing CI runs before checking this.**
+1. **Mergeable pre-check (MANDATORY before polling)** — `gh pr view <N> --json mergeable,mergeStateStatus` FIRST. If `mergeable == "CONFLICTING"`, GitHub will NOT trigger workflows — integrate the default branch (merge-forward first, per the stale-branch recovery rule in §3.2), resolve conflicts, push, and restart the loop. Only proceed to CI polling when `mergeable == "MERGEABLE"`. **Never blame the platform for missing CI runs before checking this.**
 2. **Poll CI** — `gh pr checks <N>` every 30s (the standard monitor cadence), max 15 minutes per cycle. **Wait for ALL checks to reach a terminal state** (pass/fail/skipped) before suggesting merge — no exceptions, regardless of PR type. Never merge while any check is still pending or in_progress
 3. **Check for new comments** — on each poll, also fetch new review comments (`gh api --paginate "repos/<owner>/<repo>/pulls/<N>/comments?per_page=100"`)
 4. **Process comments immediately** — if a bot comments while CI is still running, start evaluating/researching that comment now. Don't wait for CI
@@ -276,7 +288,9 @@ For each security finding:
 5. **Implement** (only after 1-4) — make the change, re-run the project's build/test/lint gate, commit, push
 6. **Loop restarts** — new push triggers 3.1 again. Track iteration count
 
-**Stale branch recovery** — if CI fails because the branch is out of date with the default branch (merge conflicts, "branch is not up to date" errors, or tests failing due to default-branch-only changes): integrate (merge or rebase per the project's convention and the branch's own history), resolve conflicts conservatively, force-push with lease, restart the monitor loop from 3.1. Distinct from code failures — no research gate for the integration itself, only for conflicts requiring intent judgment.
+**Stale branch recovery** — if CI fails because the branch is out of date with the default branch (merge conflicts, "branch is not up to date" errors, or tests failing due to default-branch-only changes): integrate, resolve conflicts conservatively, push, restart the monitor loop from 3.1. Distinct from code failures — no research gate for the integration itself, only for conflicts requiring intent judgment.
+
+**Merge-forward is the default integration; rebase is the exception.** `git merge <remote>/<default-branch>` *into* the PR branch resolves staleness and pushes **fast-forward** — no force-push, no history rewrite. A rebase rewrites the branch and demands `git push --force-with-lease`, which permission classifiers commonly deny in autonomous/auto-mode sessions; the observed failure shape is a lane concluding every rebase costs a fresh branch + fresh PR + closing the old one (re-opening every review thread from scratch), when the stale branch never needed a rebase at all. Under a squash-only default branch, the merge commits inside the PR branch collapse to one commit on merge and linear-history requirements stay satisfied — repeated merge-forwards as the default branch moves cost nothing. Rebase only when the project's convention requires a linear PR branch *and* force-push is actually available.
 
 **Escalation guard** — after **3 fix iterations**, STOP. Present a history table. The root cause may be environmental.
 

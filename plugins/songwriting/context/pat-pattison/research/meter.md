@@ -1603,6 +1603,141 @@ riding a strong one — because either one fights the bar. See
 again: a stress check may or may not catch it, and when it does not, only asking
 what each strong position is *carrying* will.
 
+## Fitting a replacement line to an already-sung melody
+
+**Plugin-authored procedure, writer-derived from the Sofía sessions
+(2026-08-12).** The Chapter 3 material above answers "match verse two to verse
+one," where the model is another lyric. This section answers the case the
+paragraph directly above splits off: the melody has already been *sung* — a demo,
+a cover, an AI-generated track — and one line inside it is being replaced while
+every note stays exactly where it is. Nothing here is Pat's beyond the quoted
+passages, which are his and are reproduced from elsewhere in this file.
+
+### A note count is not a length claim
+
+[Stress count vs syllable count](#stress-count-vs-syllable-count) is the
+measurement for how long a phrase *is* — how far it extends when set to music —
+and this procedure does not weaken it. Fitting runs one level below it: the notes
+are already recorded, so a raw syllable count here is an **inventory of notes
+already sung**, not a length claim about the line. Each syllable has to land on a
+note that exists. Length questions about the section are still answered in
+stresses; fit questions are answered in notes. Report which one you counted.
+
+Pat's own note-per-syllable arithmetic, from [syllables](#syllables) above:
+
+> Since diphthongs contain two vowel sounds, composers often use two notes to set
+> them to music. Syllables containing only one vowel sound typically are set to
+> one note.
+>
+> — *Essential Guide to Lyric Form and Structure* (1991), Chapter 3
+
+### Notation
+
+The same notation as the rest of this file — `/` primary stress, `//` secondary,
+`u` unstressed — in three labelled rows, because a fitting procedure has to
+*name* positions and not only mark them:
+
+- `line:` the sung line, split into syllables
+- `scan:` the stress marks, one per syllable
+- `syl:` the syllable numbers, with the stressed ones in `[brackets]`
+
+The Sofía worksheets also carried a compact `1u 2u 3S` slot digest. Do not carry
+that form forward — its `S` collides with this file's `/`. One notation, extended
+by one row.
+
+### The procedure
+
+1. **Transcribe the sung line from the recording, not from the lyric sheet.** A
+   lyric sheet records the words; only the recording records where the weight
+   fell.
+2. **Scan it by importance.** Mark the meaning carriers first and let the grey
+   areas settle around them, per [scansion](#scansion) above. Road signs —
+   prepositions, articles, conjunctions, auxiliaries, pronouns — are unstressed
+   unless the singer pushes them, which is step 6.
+3. **Number the syllables and bracket the stressed ones.** That block is the
+   positional template. Write it down: it is the artifact every candidate answers
+   to, and an unwritten template is an assertion, not a template.
+4. **Compose into the template, not to its stress count.** A candidate with the
+   right *number* of stresses in the wrong *places* does not sit on the melody.
+   Observed 2026-08-12: a five-stress replacement stressing syllables
+   2/4/6/11/13 was written against a sung line stressing 3/6/8/11/13 and died on
+   the first sing-through. Put a carrier on every bracketed slot. This is
+   Chapter 3's own instruction with a recording supplying the model:
+
+   > You must resist greed. But you must put your important words in the
+   > important positions.
+   >
+   > — *Essential Guide to Lyric Form and Structure* (1991), Chapter 3
+
+5. **Road signs ride the unbracketed slots.** A stressed word in an unbracketed
+   slot is the too-hot failure — "It is important not to be greedy: do not put
+   stressed syllables in the unstressed positions" (*Essential Guide to Lyric
+   Form and Structure* (1991), Chapter 3, quoted in full under
+   [too hot](#too-hot) above). A bracketed slot holding a road sign is the
+   opposite error, and against a *melody* it counts as a greedy spot too; see
+   [prosody](prosody.md) "greedy spots" for why the melody frame is
+   two-directional where the model-lyric frame is not.
+6. **The singer's actual phrasing overrides the inferred grid.**
+   Production-observed, 2026-08-12: the grid read syllable 9 as weak and the
+   singer pushed it on every take. The original sang a preposition there ("she
+   watched me move FROM the window sill"), the push promoted it, and any road
+   sign parked at 9 stuck out. A slot the recording pushes is a strong slot
+   whatever the scan says — re-bracket it and put a stressable word there. In
+   that session forced-alignment tooling failed on the talk-sung verse, so the
+   writer's own singing stayed the measurement. Where the grid and the ear
+   disagree, the ear is the template.
+7. **Exact syllable match is the target; ±1 is a priced trade-off, never spent
+   silently.** Writer-derived (Sofía sessions, 2026-08-12). One syllable over or
+   under costs exactly one merged or split note — available because a diphthong
+   already takes two notes and a single vowel takes one, per the quote above.
+   Naming the price is the rule. In production the 14-syllable variant of a
+   13-syllable slot was surfaced to the writer as a choice about whether the
+   added specificity was worth the extra note; it was not absorbed as tolerance.
+   Anything past one note is a melody change, which is one of Pat's options in
+   [lyric-melodic roadmaps](lyric-melodic-roadmaps.md), not a fit.
+8. **The sung original is the floor, not the ideal.** If the recording itself
+   sings a road sign on a strong slot, a candidate that reproduces that shape is
+   no worse than what is sung today; a candidate that puts a carrier there is
+   strictly safer. Say which of the two a candidate is. Demanding a cleaner map
+   than the original has is how this procedure stalls on impossible perfection.
+9. **The writer sing-checks; the procedure cannot.** A candidate that maps
+   perfectly can still crowd — two carriers on adjacent slots is the common case.
+   Mapping is a claim about positions, never about singability.
+10. **Hand the fitted line off to the dependency re-verification.** Replacing a
+    line can orphan an earlier or later line that referenced it. Observed
+    2026-08-12: removing a window sill left the next line's coin toss with
+    nothing to land in, and nobody re-checked the dependency. That check is
+    pass 7 of the per-edit line rubric in
+    [line-edit-rubric](line-edit-rubric.md); this procedure ends by handing over
+    to it and does not perform it.
+
+### Worked template — Sofía, verse 1 line 2 (2026-08-12)
+
+The sung line, transcribed from the recording and scanned by importance:
+
+```text
+line: While  I   wan-  dered  she  watched  me   move  from  the  win-  dow  sill
+scan: u      u   /     u      u    /        u    /     u     u    /     u    /
+syl:  1      2   [3]   4      5    [6]      7    [8]   9     10   [11]  12   [13]
+```
+
+Thirteen notes; stresses at 3, 6, 8, 11, 13. Step 6 then re-bracketed 9: the
+singer pushes it, so the template a candidate has to answer is 3, 6, 8, **9**,
+11, 13. A candidate built into that template:
+
+```text
+line: By  the  wa-  ter  she  dropped  her  coin,  let  the  eve-  ning  spill
+scan: u   u    /    u    u    /        u    /      /    u    /     u     /
+syl:  1   2    [3]  4    5    [6]      7    [8]   [9]  10   [11]  12    [13]
+```
+
+Thirteen syllables on thirteen notes; carriers WA / DROPPED / COIN / LET / EVE /
+SPILL on 3/6/8/9/11/13; every unbracketed slot holds a road sign (by, the, she,
+her, the, ning), so no preposition can be promoted anywhere in the line. That
+is the whole test this procedure applies. Whether the line is *good* — its image,
+its rhyme tier, its register, its dependencies — is decided by the per-edit line
+rubric and by the writer's ear, not here.
+
 ## Pitch-based stress model (*Songwriting Without Boundaries* (2011), Challenge 4)
 
 Pat's distinctive Challenge 4 teaching frame: English stressed syllables are
@@ -1772,6 +1907,11 @@ applied across domains.
   apply the Pentad's five properties.
 - [hook](hook.md) — strategic vs balancing position in Common Meter.
 - [prosody](prosody.md) — greedy spots; pitch-stress in melody setting.
+- [workflows](workflows.md) — Scenario 2's melody-locked precondition composes
+  revision-of-a-demo with Scenario 4 and routes the fitting pass here.
+- [line-edit-rubric](line-edit-rubric.md) — pass 1 checks a candidate against the
+  positional template this file's fitting procedure builds; pass 7 is the
+  dependency re-verification that procedure hands off to.
 - [exercises](exercises.md) — *Essential Guide to Lyric Form and Structure*
   (1991), Chapter 3, Exercises 8-17 cover syllables, stress, scansion, pattern
   matching, and the three Paradigm-write drills; *Writing Better Lyrics* (2009),

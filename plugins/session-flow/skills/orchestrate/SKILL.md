@@ -42,7 +42,14 @@ told:
    tool-restricted specialist. Decompose by what CONTEXT each piece needs, not by head-count or
    work-type — sequential or shared-context steps stay in one agent. Coding parallelizes less than
    research: never split one feature across agents. Multi-agent costs 3–10× the tokens (returns
-   cost context too), so spend it on value + parallelism, not convenience.
+   cost context too), so spend it on value + parallelism, not convenience. "Would flood context"
+   is a measurement, not a hunch, when the instrument exists: with the `context-guard` plugin
+   installed, resolve this session's zone word per its reader contract before a fan-out decision
+   (the contract owns the snapshot path, staleness rule, and bands — read them there; this
+   imperative consumes only the word, no band values). Never estimate your own remaining window —
+   that guess is the failure the seam replaces. A degraded or `unknown` zone shifts the balance
+   toward delegating context-heavy legs and shrinking what returns; a healthy zone is license to
+   keep sequential, shared-context work inline.
 2. SPEC EVERY SPAWN — give each worker an objective, the REASON it is being asked (the larger task
    it feeds, who the output is for, what it enables), an output format, the tools/sources to use,
    explicit task boundaries, and a deliberately chosen model tier. Vague delegation makes workers

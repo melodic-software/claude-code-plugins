@@ -43,7 +43,8 @@ No action → generate rhymes for the word/line in context (the `rhyme` default)
 - **Pre-flight ALWAYS:** run response-filter §1 before any rhyme output.
 - Load [rhyme-generation](../../context/pat-pattison/research/rhyme-generation.md) FIRST for any
   rhyme request. Apply the discipline — identity check (pre-vowel consonants MUST differ; identity
-  is NOT rhyme), stability-tier walk, vowel triangle, song's-world vocabulary, cliche scan — to
+  is NOT rhyme), vowel-FIELD walk (Step 1b — the source word's own coda is ONE row of the field,
+  not the search), stability-tier walk, vowel triangle, song's-world vocabulary, cliche scan — to
   internal vocabulary. Surface 8-15 labeled candidates across tiers, never a single winner.
 - Use [ai-tools](../../context/pat-pattison/research/ai-tools.md) (Datamuse) only as a supplement
   for vocabulary breadth, syllable verification, or semantic-field mining. Internal generation is
@@ -70,10 +71,12 @@ write the line the rhyme lands in.
 | A structural judgement about where the rhyme sits | `/songwriting:song-form` |
 | A claim that a candidate scans | `/songwriting:meter-prosody` |
 
-Two failures belong to this skill specifically and are caught nowhere downstream: a rhyme list that
-is all-perfect, all-single-word, and all-same-part-of-speech, and a "mosaic" list whose entries
-reuse the source word with a prefix (identity in disguise). §1 of the response filter names both
-fail signatures — run it rather than recalling it.
+Three failures belong to this skill specifically and are caught nowhere downstream: a rhyme list
+that is all-perfect, all-single-word, and all-same-part-of-speech; a "mosaic" list whose entries
+reuse the source word with a prefix (identity in disguise); and a tier-labeled, mosaic-complete
+list whose every entry still sits on the source word's own coda — a column sweep, not a walk of
+the stressed vowel's field. §1 of the response filter names all three fail signatures — run it
+rather than recalling it.
 
 ## Related skills
 

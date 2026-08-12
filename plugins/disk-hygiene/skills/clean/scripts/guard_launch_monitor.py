@@ -162,21 +162,36 @@ def _write_marker(marker_paths: list[Path]) -> None:
             continue
 
 
+def _read_tail_from_handle(handle, *, size: int) -> str:
+    if size > _MAX_TAIL_BYTES:
+        offset = size - _MAX_TAIL_BYTES
+        # A newline immediately before the window means the window already
+        # starts on a record boundary; discarding then would throw away a
+        # whole record, which can be the only guard failure in the tail.
+        handle.seek(offset - 1)
+        starts_mid_record = handle.read(1) != b"\n"
+        if starts_mid_record:
+            handle.readline()  # discard the truncated partial first line
+    raw = handle.read()
+    return raw.decode("utf-8", errors="replace")
+
+
 def _read_tail(transcript_path: str) -> str:
     path = Path(transcript_path)
     size = path.stat().st_size
     with path.open("rb") as handle:
-        if size > _MAX_TAIL_BYTES:
-            offset = size - _MAX_TAIL_BYTES
-            # A newline immediately before the window means the window already
-            # starts on a record boundary; discarding then would throw away a
-            # whole record, which can be the only guard failure in the tail.
-            handle.seek(offset - 1)
-            starts_mid_record = handle.read(1) != b"\n"
-            if starts_mid_record:
-                handle.readline()  # discard the truncated partial first line
-        raw = handle.read()
-    return raw.decode("utf-8", errors="replace")
+        if size <= _MAX_TAIL_BYTES:
+            return handle.read().decode("utf-8", errors="replace")
+        # Guard failures can land in the head region when a later turn appends
+        # more than _MAX_TAIL_BYTES after them (#1514). Scan complete JSONL
+        # records from the head plus the capped tail window.
+        head_limit = size - _MAX_TAIL_BYTES
+        head_raw = handle.read(head_limit)
+        if head_raw and not head_raw.endswith(b"\n"):
+            head_raw = head_raw.rsplit(b"\n", 1)[0] + b"\n"
+        head_text = head_raw.decode("utf-8", errors="replace")
+        tail_text = _read_tail_from_handle(handle, size=size - head_limit)
+    return head_text + tail_text
 
 
 def _iter_guard_failures(transcript_text: str):
