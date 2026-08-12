@@ -62,7 +62,7 @@ gh api --paginate "repos/<owner>/<repo>/commits/<sha>/check-runs?per_page=100" \
   | jq -s -r '"total_count=\(.[0].total_count) returned=\([.[].check_runs[]] | length)"'
 ```
 
-`/annotations` is shaped differently — a bare JSON array with no envelope and no `total_count` — so the assertion above is not available there and `--paginate` is the only guard. Concatenated pages are arrays, so they are combined with `add`, not by reaching through a wrapper:
+`/annotations` is shaped differently — a bare JSON array with no envelope and no `total_count` — so the assertion above is not available there and `--paginate` is the only guard. With no `--jq`, `gh` merges array-shaped pages into **one** JSON array, emitting a document per page only for object envelopes like `check-runs` — so `jq -s` here yields a one-element slurp and `add` unwraps it rather than concatenating pages. Supplying `--jq` suppresses that merge and restores per-page emission, which is why the per-page caveat above still governs any reduction pushed into the filter:
 
 ```bash
 gh api --paginate "repos/<owner>/<repo>/check-runs/<check-run-id>/annotations?per_page=100" \

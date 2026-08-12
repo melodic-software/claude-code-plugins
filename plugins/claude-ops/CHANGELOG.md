@@ -3,6 +3,29 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.2]
+
+### Changed
+
+- **`skills/lanes/scripts` `--paginate` reads now carry `per_page=100`.**
+  `restart-consumer.sh`'s telemetry-comment read and `telemetry-upsert.sh`'s comment listing
+  paginated without a page size — complete, but non-conformant with the published pagination rule
+  and 3.3x the requests at the 30-item default. No behavior change: both folds are page-shape
+  agnostic. `telemetry-upsert.test.sh`'s `gh` stub matched the list endpoint with an exact `*/comments`
+  suffix, which the query string would have fallen through silently; it now matches the query form
+  explicitly.
+
+### Fixed
+
+- **`telemetry-upsert.sh`'s slurp rationale no longer misdescribes `gh --paginate`.** The comment
+  above the comment listing claimed `--paginate` "concatenates one JSON array per page". It does
+  not: with no `--jq`, `gh` merges array-shaped pages into ONE array, so `jq -s 'add'` unwraps a
+  one-element slurp rather than concatenating. `--paginate` is still load-bearing (it is what makes
+  a page-2 comment visible at all) and `add` is still correct — but for a different reason than the
+  comment gave, and a reader trusting it would mispredict the next endpoint's shape. Same correction
+  applied to the pagination fixture's header comment in `telemetry-upsert.test.sh`. Measured against
+  `gh` 2.95.0.
+
 ## [0.29.1]
 
 ### Changed

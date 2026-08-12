@@ -186,7 +186,7 @@ wit_emit_item() {
 # {id, node_id, body, created_at} for lease-marker comments, ascending id.
 wit_list_lease_comments() {
   local owner="$1" repo="$2" number="$3"
-  wit_run_gh read api --paginate "repos/$owner/$repo/issues/$number/comments" \
+  wit_run_gh read api --paginate "repos/$owner/$repo/issues/$number/comments?per_page=100" \
     --jq '[.[] | select(.body | startswith("<!-- work-item-lease v1")) | {id, node_id, body, created_at}]'
   printf '%s\n' "$WIT_GH_OUT" | jq -c -s 'add // []'
 }
