@@ -91,7 +91,11 @@ One per line, alphabetical, with aliases and hidden/gated markers.
 One per line, alphabetical.
 
 ## Plugin components
-Grouped by marketplace, then plugin, with a component-type breakdown.
+Installed plugins grouped by marketplace, then plugin, with a component-type breakdown.
+Catalog-only entries — offered by a cached marketplace but not installed — are listed separately.
+
+## Project scope
+Skills, agents, and wired hook events from the current project's `.claude` tree, when present.
 
 ## Provenance
 Which source produced which section, and anything the run could not resolve.
@@ -119,8 +123,14 @@ hooks live in its own manifest. Report the map as read and route the verdict to
 alongside `resolved`. When they differ, some registration used a dynamically computed name; say so
 rather than reporting the smaller number as complete.
 
-**A marketplace checkout is not an installation.** Plugins under a cached marketplace are a catalog
-of what is *available*. Only `enabledPlugins` says what loads.
+**A marketplace checkout is not an installation, and neither is enablement.** Three different sets:
+a cached marketplace is a catalog of what is *available*, `disk.installed_plugins` is what is
+*present locally*, and `enabledPlugins` governs what *loads*. They routinely disagree — report the
+one the question is actually about, and say which you used.
+
+**A hook script on disk is not a wired hook.** Project scope reports hook *events* declared in
+settings, not files sitting in a `.claude/hooks/` directory. A script nothing references is dead
+weight, and listing it as a hook repeats the same present-versus-active error.
 
 ## How the binary read works
 
@@ -177,8 +187,9 @@ exports the script does not know about, and the resolved-versus-seen gap on bund
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/inventory/scripts/inventory.py" --self-check
 ```
 
-It prints one verdict line and exits `0` ok, `1` broken, `2` degraded — so it works as a CI gate, a
-loop-lane step, or a post-update check without parsing JSON. The natural trigger is a CLI release:
+It prints one verdict line and exits `0` ok, `1` broken, `3` degraded — so it works as a CI gate, a
+loop-lane step, or a post-update check without parsing JSON. `2` is left to argparse for a usage
+error, so a mistyped flag can never be mistaken for a degraded run. The natural trigger is a CLI release:
 `/claude-ops:changelog` already ingests those, and this is the check to run when it reports one.
 
 **What a maintainer actually updates.** Most releases need no change — registrar names are
