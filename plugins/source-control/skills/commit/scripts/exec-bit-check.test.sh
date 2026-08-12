@@ -654,7 +654,7 @@ else
   # The skip reports WHAT IT SAW, not just that it gave up. A silent skip is
   # indistinguishable from a fixture that never built, and this suite has been
   # bitten by exactly that.
-  skip_case "this git did not produce both a D+A and an R pairing for the disagreement fixture (renames=false saw: ${dis_off_status:-<empty>} | renames=true saw: ${dis_on_status:-<empty>})"
+  fail_discriminating_skip "this git did not produce both a D+A and an R pairing for the disagreement fixture (renames=false saw: ${dis_off_status:-<empty>} | renames=true saw: ${dis_on_status:-<empty>})"
 fi
 
 # The COPY arm is the OPPOSITE of repo19 above, and this case pins that
