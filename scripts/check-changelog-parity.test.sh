@@ -217,6 +217,22 @@ git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm bump
 if (cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" >/dev/null 2>&1); then ok "bump + '## [x.y.z]' entry passes --check-bump"; else fail "bump+entry wrongly failed"; fi
 rm -rf "$repo"
 
+# ABSORBED HEADING: a merge-forward folds the predecessor release into the new
+# section and deletes its `## [x]` heading — every other mode passes today.
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 0.51.8 yes
+printf '# Changelog\n\n## [0.51.8]\n\n### Fixed\n\n- predecessor note\n\n## [0.51.7]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+base="$(git -C "$repo" rev-parse HEAD)"
+printf '{ "name": "alpha", "version": "0.51.9" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
+printf '# Changelog\n\n## [0.51.9]\n\n### Fixed\n\n- new note\n- predecessor note\n\n## [0.51.7]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm bump
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
+rc=$?
+if [[ $rc -ne 0 && "$out" == *"ABSORBED CHANGELOG HEADING"*"alpha"* && "$out" == *"## [0.51.8]"* ]]; then ok "absorbed predecessor release heading fails --check-bump"; else fail "absorbed heading not caught: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
 # LARGE CHANGELOG (SIGPIPE regression, #2130): the new entry sits near the top
 # of a changelog far larger than the pipe buffer — the shape every mature
 # changelog has. A has_heading reader that exits on first match kills
