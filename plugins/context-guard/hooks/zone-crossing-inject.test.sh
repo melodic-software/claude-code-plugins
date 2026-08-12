@@ -262,6 +262,27 @@ else
   fail "armed marker not seeded: $(cat "$D/state/slegacy.armed" 2>/dev/null)"
 fi
 
+# 4d. 0.7.1 TWO-FIELD `.armed` (`<zone> <streak>`) under 0.7.2's reader: `tr -cd '[:lower:]'`
+# strips the digit, so `dumb 0` still reads as `dumb` and suppresses a repeat report.
+printf 'dumb 0\n' >"$D/state/s071.armed"
+printf 'dumb\n' >"$D/state/s071.zone"
+write_snapshot "$H" s071 90 # still dumb — must stay silent
+run "$H" "$D" s071
+if [[ $RC -eq 0 && -z "$OUT" ]]; then
+  ok "0.7.1 two-field .armed still suppresses an already-reported dumb zone"
+else
+  fail "0.7.1 .armed compatibility broke: rc=$RC out=${OUT:0:120}"
+fi
+write_snapshot "$H" s071 10 # smart — decay
+run "$H" "$D" s071
+write_snapshot "$H" s071 60 # acceptable relapse — must re-inject once
+run "$H" "$D" s071
+if [[ $RC -eq 0 && "$OUT" == *additionalContext* && "$OUT" == *acceptable* ]]; then
+  ok "0.7.1 .armed state still re-arms after a return to smart"
+else
+  fail "0.7.1 .armed state did not re-arm after recovery: rc=$RC out=${OUT:0:120}"
+fi
+
 # 5. Unknown zone (no snapshot) → silent, state untouched.
 run "$H" "$D" nosuchsession
 if [[ $RC -eq 0 && -z "$OUT" && ! -e "$D/state/nosuchsession.zone" ]]; then

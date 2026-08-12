@@ -5,6 +5,16 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.3]
+
+### Fixed
+
+- **Docs and tests reconcile the 0.7.1/0.7.2 re-arm collision without a behaviour change (#2355).**
+  `reader-contract.md` credited the return-to-`smart` rule to 0.7.1; it shipped in 0.7.2 (0.7.1 was
+  the dwell). The 0.7.2 CHANGELOG entry below now records that 0.7.1's dwell was removed and why, drops
+  an unverified pre-0.7.0 cadence comparison, and the suite pins 0.7.1's two-field `.armed` state
+  (`dumb 0`) reading correctly under 0.7.2's `tr -cd '[:lower:]'` reader.
+
 ## [0.7.2]
 
 ### Fixed
@@ -37,10 +47,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   recovery, the legacy-state seed — still passes unmodified against the new rule, alongside a new
   `acceptable → smart → acceptable` session that fails against 0.7.0.
 
+  **Supersedes 0.7.1's dwell.** 0.7.1 armed decay on three consecutive strictly-better observations;
+  under that rule `acceptable → smart → acceptable` — a genuine recovery observed once — did **not**
+  re-inject, which is the exact sequence this fix exists to restore. The dwell is removed, not refined.
+
   **The residual, stated rather than papered over**: at the `smart`/`acceptable` edge a flap and a
   full recovery are the SAME observation — `smart` is both the far side of that boundary and the
   bottom of the ladder — so a session oscillating there re-announces `acceptable` once per down-up
-  cycle (the pre-0.7.0 cadence at that one boundary, and no worse). Rank granularity cannot separate
+  cycle. Rank granularity cannot separate
   the two: this hook sees one word per observation and never the occupancy behind it, because band
   logic lives in `scripts/context-zone.sh` and only there. Closing it needs either a numeric deadband
   below the band edge or a dwell requirement on the improved reading — and a dwell wide enough to

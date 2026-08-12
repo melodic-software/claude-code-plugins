@@ -191,7 +191,7 @@ Since 0.4.0 the plugin itself ships hooks over its own seam — the first shippe
   continuation tree plus a presence-gated pointer to `session-flow:workflow`'s router). Silent
   while the zone is unchanged, improving, or `unknown`. **Hysteresis** (since 0.7.0): the gate is
   the worst zone already *reported*, not the zone last *seen*. That marker decays only when the
-  session returns to `smart` — the bottom of the ladder (**since 0.7.1**; 0.7.0 asked instead for an
+  session returns to `smart` — the bottom of the ladder (**since 0.7.2**; 0.7.0 asked instead for an
   improvement of at least two ranks, which no band but `dumb` could ever satisfy, so a session that
   armed at `acceptable` could never re-arm). Occupancy does not climb monotonically, so a session
   sitting on a band edge crosses it repeatedly; without the rule each re-crossing read as a fresh
