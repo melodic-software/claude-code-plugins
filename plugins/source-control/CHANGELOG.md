@@ -7,10 +7,18 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Fixed
 
+<<<<<<< HEAD
 - **Canonical `gh pr create` now passes `--head` explicitly (#1900).** The §2.4.3 worktree path already
   did; the on-branch canonical path did not. Once dotfiles#375's amended auto-mode grant lands, `gh pr
   create` is covered only when the head branch is named — so the canonical lane must match the
   sibling spelling. Detached HEAD is refused rather than emitting `--head ""`.
+=======
+- **`babysit_resolve_thread` severity guard reads structured P0/P1 markers only (#1939).** The
+  `--autonomous` and `--independent-resolver` paths refused any thread whose body contained a
+  word-bounded `P1` token, so a P2 thread discussing P1 properties in prose became
+  `skipped-severity-marked`. The scan now keys on shields badges and bracketed `[P0]`/`[P1]` only.
+  Vetted `--resolve --thread-id` still applies no severity screen — documented as intentional.
+>>>>>>> f1056a0d (fix(source-control): structured P0/P1 severity markers in resolve guard)
 
 ## [0.53.1]
 
