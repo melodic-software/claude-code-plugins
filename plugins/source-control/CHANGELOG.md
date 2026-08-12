@@ -14,6 +14,60 @@ All notable changes to the `source-control` plugin are documented here. Format f
   incorrectly. Each claim now matches the InstructionsLoaded trace basis recorded in
   the skill.
 
+## [0.52.0]
+
+### Changed
+
+- **`worktree_create_gate_enabled=false` now refuses out loud instead of exiting 0 silently**
+  (`hooks/worktree-create-gate.sh`, `.claude-plugin/plugin.json`, `README.md`; #2211). The option's
+  documented meaning — "let Claude Code use its own default", implemented as exit 0 with an empty
+  stdout — was **false**, and the suite asserted it. Measured on Claude Code **2.1.228**: a
+  `WorktreeCreate` hook that exits 0 without printing a path fails the creation with
+  `hook succeeded but returned no worktree path`, and nothing is created. So the old exit-0 path
+  produced the *same* outcome as a refusal while suppressing every explanation, because an exit-0
+  hook's stderr is dropped — the probe's stderr marker was absent from the harness output on exit 0
+  and present, in full, on exit 3. The option only became reachable at 0.51.7 (#2193 declared it in
+  `userConfig`), so this is the first release in which anyone could hit it. Disabled now exits
+  non-zero with a message naming the real stand-downs: `worktree.bgIsolation: "none"`, or disabling
+  the plugin. The docs agree at the current revision and are quoted in the fixture: "Hook failure or
+  missing path fails creation."
+- **The `WorktreeCreate` contract is now a recorded, runnable fixture** (`skills/worktree/fixtures/`;
+  #2211). `worktree-create-hook-probe.sh` runs the four arms — control, exit-0-no-path,
+  exit-3-with-stderr, path-without-directory — and `README.md` carries the outcome, the verbatim
+  harness strings, corroborating doc quotes, an as-of stamp (2026-08-11, 2.1.228) and a recheck
+  trigger, per the upstream-drift convention. A recheck is one command instead of a re-derivation
+  from memory.
+
+### Fixed
+
+- **The worktree-create gate's failure output reported a constant exit status, discarded the
+  helper's exit taxonomy, and named no remedy** (`hooks/worktree-create-gate.sh`,
+  `scripts/worktree-create.sh`; #2209). `status=$?` sat inside the body of `if ! path="$(…)"`, where
+  `$?` is the status of the *negated compound* — 0 exactly when the command failed — so every
+  failure reported `exited 0`. That constant is what produced, and cost a verification pass to
+  unwind, the theory that a hook had exited 0 while failing. The assignment now stands alone, and
+  the helper's documented `0/2/3/4` taxonomy is translated into distinct messages, so "not a
+  repository", "no `worktree_root` configured" and "illegal branch name" are no longer one
+  indistinguishable line. Every refusal leads with a **remedy** and follows with the diagnosis.
+  **Corrected mechanism:** the issue was filed on the premise that the transcript surfaces only the
+  *first* stderr line; measured on 2.1.228, a failing hook's stderr is surfaced **in full** inside
+  the harness's own error text. Remedy-first still holds — it is the line a reader acts on — but it
+  is a readability argument, not a truncation one. The helper's non-repository refusal gained the
+  same treatment.
+- **An empty or unbufferable stdin payload was reported as the wrong cause**
+  (`hooks/worktree-create-gate.sh`; #2209). `hook::buffer_stdin`'s status was ignored, so a payload
+  that never arrived surfaced as "the WorktreeCreate payload carried no `.name`" — sending readers
+  after a field in a document the hook had never received. The two are now separate messages. The
+  jq-absent fail-open path through the `sed` fallback is untouched.
+- **Both worktree suites were unrunnable on any machine with `commit.gpgsign=true`**
+  (`hooks/worktree-create-gate.test.sh`, `scripts/worktree-create.test.sh`). Their repo fixtures set
+  a throwaway identity but not `commit.gpgsign false`, so every fixture commit failed for want of a
+  secret key for that identity — and the suites then reported their *creation* cases as failures
+  while their refusal cases still passed, a shape that reads as a real regression rather than an
+  unrunnable fixture. Repo-local on a just-`mktemp`'d repo, the same line the sibling suites
+  (`scripts/landed-work.test.sh`, `skills/commit/scripts/exec-bit-check.test.sh`) already carry.
+  `worktree-create.test.sh` goes from 94/154 to 154/154 on such a machine.
+
 ## [0.51.17]
 
 ### Fixed
