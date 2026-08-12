@@ -13,8 +13,8 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   the two shipped files disagreed, so a maintainer reading `criteria.md` could not predict the
   detector. **The corrected mechanism is the opposite of the one originally filed:** `//` is the
   *absolute* anchor, not a portable one. The permissions page's pattern table gives `//path` =
-  "Absolute path from filesystem root" with `Read(//Users/alice/secrets/**)` resolving to
-  `/Users/alice/secrets/**`, and the same page says "Use `//Users/alice/file` for absolute
+  "Absolute path from filesystem root" with `Read(//Users/<name>/secrets/**)` resolving to
+  `/Users/<name>/secrets/**`, and the same page says "Use `//Users/<name>/file` for absolute
   paths." So `//Users/<name>/…` is the canonical *spelling* of a hardcoded user home rather than
   an exception to one, and it leaks the username exactly as `/Users/<name>/…` does — which is
   the whole of P2's finding. `~/…` is portable because its home segment is supplied per user;

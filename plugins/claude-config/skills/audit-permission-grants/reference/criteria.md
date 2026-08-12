@@ -76,12 +76,12 @@ genuinely expand per machine and per user — while only concrete usernames matc
 **`//…` is flagged, and this line used to say the opposite.** It previously grouped `//…` with the two
 expanding forms as a "portable anchor". It is not one: `//` is the *absolute* anchor.
 <https://code.claude.com/docs/en/permissions>, § Read and Edit, fetched 2026-08-12, gives the pattern
-table row `` `//path` | Absolute path from filesystem root | `Read(//Users/alice/secrets/**)` |
-`/Users/alice/secrets/**` ``, and the same page states: *"A pattern like `/Users/alice/file` isn't an
+table row `` `//path` | Absolute path from filesystem root | `Read(//Users/<name>/secrets/**)` |
+`/Users/<name>/secrets/**` ``, and the same page states: *"A pattern like `/Users/<name>/file` isn't an
 absolute path. The single leading slash anchors at the settings source, not the filesystem root. **Use
-`//Users/alice/file` for absolute paths.**"* So `//Users/alice/…` resolves to a concrete user home and
+`//Users/<name>/file` for absolute paths.**"* So `//Users/<name>/…` resolves to a concrete user home and
 carries the username — it is the canonical *spelling* of the defect P2 exists to catch, not an
-exception to it. Contrast `~/…`, whose own doc row (`Read(~/Documents/*.pdf)` → `/Users/alice/Documents/*.pdf`)
+exception to it. Contrast `~/…`, whose own doc row (`Read(~/Documents/*.pdf)` → `/Users/<name>/Documents/*.pdf`)
 shows the home segment being supplied per user, which is what makes it portable.
 
 Exempting `//` would have made this check blind to the documentation's own literal example of a

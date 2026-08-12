@@ -180,7 +180,7 @@ scan_rule() {
     [[ -z "$m" ]] && continue
     # No `//…` carve-out. `//` is the ABSOLUTE anchor, not a portable one: the
     # permissions page's own row is `//path` = "Absolute path from filesystem
-    # root", with `Read(//Users/alice/secrets/**)` -> `/Users/alice/secrets/**`.
+    # root", with `Read(//Users/<name>/secrets/**)` -> `/Users/<name>/secrets/**`.
     # So `//Users/<name>/…` names a concrete user home and leaks the username,
     # exactly like `/Users/<name>/…`. `~/…` and `${CLAUDE_PROJECT_DIR}/…` are the
     # genuinely portable forms and are already excluded by `_seg` above.
