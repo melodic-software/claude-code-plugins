@@ -570,7 +570,8 @@ fi
 # hiding the kindle-dedrm failure mode (a phrase reachable only from a dmi-true
 # skill), so the warning stays and the exemptions stay documented instead.
 if [[ -n "$CUR_DESC" ]]; then
-  if ! grep -qi 'use when' <<<"$CUR_DESC$CUR_WTU"; then
+  CUR_TRIG_WTU="$(printf '%s\n' "$CUR_WTU" | skill_frontmatter::extract_triggers)"
+  if ! grep -qi 'use when' <<<"$CUR_DESC$CUR_WTU" && [[ -z "$CUR_TRIG_WTU" ]]; then
     warn "description has no 'Use when:' trigger phrasing — a description is a trigger spec, not a summary"
   elif [[ -z "$(printf '%s\n%s\n' "$CUR_DESC" "$CUR_WTU" | skill_frontmatter::extract_triggers)" ]]; then
     warn "'Use when:' triggers are not single-quoted — drop-regression protection (check 3) tracks only 'quoted' phrases; single-quote each trigger phrase to cover it"
