@@ -27,6 +27,38 @@ artifacts land. The dispatched `discovery:explorer` / `discovery:researcher` age
 `research-deep` subagent, all operate under the contract's **non-interactive / forked mode** rule:
 they cannot ask, so any assumed destination is flagged in the return rather than silently adopted.
 
+## The write boundary — stated once
+
+**This is the single statement of where a dispatched agent may write.** Both agent definitions point
+here rather than restating it; three earlier restatements disagreed with each other about whether
+scratch was inside the boundary or outside it.
+
+A dispatched `discovery:explorer` / `discovery:researcher` writes to exactly these:
+
+| Destination | Who | Notes |
+|---|---|---|
+| The artifact files — index and sidecars, plus `research-checklist.md` — inside the **memory-slice path named in the dispatch prompt** | both | the deliverable |
+| **Scratch inside that same slice**, named `scratch-<purpose>` (a file, or a directory holding several) | both | sanctioned: `artifact-protocol.md` lists "scratch" among the memory-tier kinds under `<memory_dir>/<topic-slug>/` |
+| The **memory root's** self-ignoring `.gitignore` guard, when it is absent | both | the one write outside the slice, and the reason the memory root is its own envelope field |
+
+Nothing else. Not repository source, not the contract tier, not another slice, not the consumer's
+root `.gitignore`.
+
+**Naming and cleanup are owned, not left open.** Scratch carries the `scratch-` prefix so a consumer
+reading the slice can tell a working file from a deliverable without opening it, and so the
+acceptance gate — which keys on the `<INDEX>-<section>.md` sidecar contract — can never mistake one
+for an artifact. **The run that created scratch deletes it before it returns.** If the run dies
+first, cleanup falls to the parent's recovery ladder, which already clears the slice (or assigns a
+fresh sub-slice) before any re-dispatch; scratch left in a slice that is being kept is a defect to
+report, not to tidy silently.
+
+**The `discovery:researcher`'s session scratch directory is a different place and stays outside this
+boundary.** `Bash`-mediated downloads of artifacts too large to fetch in context (`curl` into the
+session scratch dir the harness provides) land there, not in the slice. It is not a memory-tier
+location, nothing in it is a deliverable, no artifact ever records a path into it, and this plugin
+owes it no cleanup. `discovery:explorer` has no equivalent: its Bash is read-only, so it downloads
+nothing.
+
 ## Visibility (contract ≥ 2.0.0)
 
 These artifacts are memory-tier, so they exist only in the checkout that wrote them. They are

@@ -70,6 +70,60 @@ corroborator.
 **The header set is closed; the sidecar set is open.** Adding a sidecar needs no schema change.
 Adding a header *field* does — keep the header small enough that widening it stays cheap.
 
+## The fetch log — the written record criteria 6 and 9 are graded against
+
+`SKILL.md`'s Output Format names the fetch log and its columns. This is its full specification,
+because it is a **schema a verifier parses**, not a narrative — and because two outcome values that
+look interchangeable are not.
+
+**One entry per fetch, PER CLAIM:** `Claim | URL or command | artifact-ladder rung | tool used |
+outcome`. The claim key is not decoration — criterion 9 is evaluated per accepted claim, and one
+artifact routinely carries claim A while lacking claim B, so an unkeyed outcome cannot show which
+claim it answers.
+
+**Each accepted claim carries the entry for the rung it came from AND one for every rung above it.**
+Each of those states its outcome as exactly one of five:
+
+| Outcome | Means | Earned by |
+|---|---|---|
+| carries the claim | the claim came from this rung | the fetch |
+| **does not exist** for this claim class | the normal result for rung 1 | the full first-party surface sweep criterion 9 specifies — never one clean surface |
+| **unresolved** | the sweep fell short, so absence is unproven | this is the **DEFAULT** whenever the sweep was not completed. A Gap row naming surfaces checked and unchecked, and never a licence to source from below the rung |
+| fetched and searched, does not carry the claim | settled only by the fetch | the artifact itself retrieved and searched — never a title, index entry, or snippet standing in for it |
+| unreachable after escalation | also a Gap row | the escalation ladder in `discipline.md` walked and failed |
+
+**The middle three are not interchangeable.** Nonexistence is what an exhaustive multi-surface sweep
+settles and one clean surface does not; unresolved is where a short sweep lands; lacking-the-claim is
+only ever settled by the fetch. Collapsing lacks-the-claim into a probe is what would let a probe
+stand in for reading the artifact. Collapsing unresolved into nonexistence is the substitution the
+absence rule names as the worse one, and it is the likelier of the two here, because `unresolved` is
+the default whenever the sweep was not completed.
+
+**The changelog rung is required on top of that walk, not by it.** For a claim criterion 6 applies to
+— one whose subject ships releases — the recency cross-check is unconditional at every rung, so such
+a claim sourced from a rung *above* the changelog still carries its own latest-release entry. That
+entry's outcome is **composite**, because one changelog fetch can serve the ladder walk and the
+cross-check at once:
+
+```text
+<ladder outcome> — <confirmed-latest version> (<release date>) — <verdict>
+```
+
+- The **ladder half** is the five-value vocabulary above, present exactly when the walk reaches this
+  rung — the claim came from the changelog itself or from a rung below it. A claim sourced from a
+  rung above the changelog has no ladder half, and its entry opens at the version.
+- The **verdict half** is `current` (the claim holds as of that release), `invalidated` (a major bump
+  or a superseding change since the cited doc — the claim returns to Phase 2), or `unresolved` (the
+  latest release could not be confirmed, or its bearing on the claim could not be settled — a Gap
+  row, exactly as an unreachable rung is).
+
+Criterion 9 reads the ladder half and criterion 6 the verdict; **neither half stands in for the
+other**, and a rung recorded as fetched without its verdict leaves the recency gate graded from
+recollection, which is exactly what this log exists to prevent.
+
+A claim criterion 6 does not reach — foundational doctrine and anything else with no upstream release
+stream — carries the ladder walk alone; there is no changelog artifact to cite and none is expected.
+
 ## Two placement rules, both load-bearing
 
 1. **Sidecars stay inside `<memory_dir>/<slug>/`.** A sidecar root anywhere else is a placement

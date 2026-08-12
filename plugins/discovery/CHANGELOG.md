@@ -1,5 +1,162 @@
 # Changelog — discovery plugin
 
+## [0.15.0]
+
+### Fixed
+
+- **A harness behavior this plugin had never sourced was stated as settled fact in eight places.**
+  Through 0.14.0 the plugin asserted a specific empty-string rendering of `$ARGUMENTS` on the
+  subagent preload path — at `agents/explorer.md`, `agents/researcher.md`, both `SKILL.md` bodies and
+  `skills/research/context/dispatch.md`, in a weaker sixth form at `skills/explore/SKILL.md`, and
+  inside both `evals.json` files where it had become a **grading criterion**. Re-checked against raw
+  markdown on 2026-08-11: the skills page scopes the placeholder to "All arguments passed **when
+  invoking** the skill" and says preload "work[s] differently: the full skill content is injected at
+  startup"; the sub-agents page says only "The full content of each listed skill is injected into the
+  subagent's context at startup". **Neither page covers argument substitution on that path in either
+  direction**, and the nearest documented analogue — the `context: fork` walkthrough, where the
+  subagent "receives the skill content as its prompt" with the placeholder shown escaped — points the
+  other way.
+
+  This is recorded as **unsupported, not false**: nothing establishes that the retired sentence was
+  wrong. What was wrong was asserting an uncovered mechanism as the stated reason. Every copy now
+  states the rule that holds whichever way the harness renders the placeholder — *the scope or topic
+  does not reach a preloaded body by argument substitution, so do not rely on seeing an unfilled
+  slot; a topic that did not arrive in the dispatch prompt is a parent-envelope failure the agent
+  reports rather than repairs* — which is strictly stronger than what it replaced, because it no
+  longer depends on a rendering nobody has verified. The doc status is written down once, in the new
+  `reference/parent-contract.md`.
+
+  **Erratum against 0.14.0.** That entry's closing line, "That older claim is untouched here and is
+  tracked separately," described the claim as merely deferred. It is the claim retired here; the
+  0.14.0 text stands as written and this is its correction.
+
+- **The truncation rule and both recovery ladders prescribed opposite outcomes for one event.** Three
+  sites (`agents/explorer.md`, `agents/researcher.md`, `skills/research/context/dispatch.md`) said
+  the parent "discards the partial slice **rather than** resuming it" on a no-payload or `truncated`
+  return, while both ladders said resume first — and `skills/explore/reference/dispatch.md`
+  back-referenced the discard rule as the justification for its own. Five sites, two rules, one
+  event. The observed incident refutes discard-first: a resume recovered the complete artifact set
+  from retained context, so following the rule as written would have thrown away a finished run and
+  re-dispatched at full cost.
+
+  **Resume first; decide about the slice from what the resume returns.** Sourced against the
+  sub-agents page (raw markdown, 2026-08-11): "Resumed subagents retain their full conversation
+  history … The subagent picks up exactly where it stopped rather than starting fresh," and "A
+  completed subagent that receives a `SendMessage` auto-resumes in the background without a new
+  `Agent` invocation." The discard is not removed — it is **sequenced**, and stays mandatory once the
+  resume is refused, unavailable, or comes back without a usable payload, because that is precisely
+  the state the coverage script cannot grade. `truncated` still means the turn-budget stop and its
+  rung is unchanged, so #2203's `persistence:` axis is not reopened.
+
+- **The pre-dispatch envelope specified six fields and the primary dispatchers delivered a
+  parenthetical.** `skills/research/context/dispatch.md`'s parent-obligation table had five rows and
+  no **Memory root**, while `agents/researcher.md` requires it "as its own field, not left to be
+  derived" and `skills/research-deep/SKILL.md` already ships it as a literal prompt line. The
+  envelope is now one labelled template — reproduced from `research-deep`'s existing block so the two
+  cannot drift — and the table carries the missing row. Memory root is recorded as the one
+  **degradable** field: the agent derives, flags in `open_questions`, and continues, which is the
+  behavior actually observed and is proportionate to a recoverable, visible wrong guess.
+
+  **Capability flags stay one flag, deliberately.** All five statements of the field named nesting
+  and nothing else, and the capability that actually failed in the field was the child's ability to
+  write. The fix is **not** to assert a write flag: there is no pre-dispatch probe for it that does
+  not either lie or corrupt the gate's freshness baseline, and the parent's own `mkdir`/`touch`
+  proves only that the *parent* can write there. All three sites now say so and route the question to
+  `persistence: written | by-value`, which is the mechanism that already answers it after the fact.
+
+- **The pre-dispatch baseline was POSIX-only at three sites, and two pointers were monorepo paths.**
+  `touch` is not a command in PowerShell and the directory flag is a parameter error there, and
+  `shell: bash` does not cover this — its documented scope is inline injection blocks, not prose the
+  parent executes later through its own tool. The command now has exactly one home carrying **both**
+  shell forms, and the three skills point at it. `skills/explore/reference/dispatch.md` and
+  `skills/research/context/dispatch.md` cited `plugins/discovery/agents/<name>.md`, which resolves to
+  nothing from an installed plugin root; both now use the `${CLAUDE_PLUGIN_ROOT}` form every other
+  cross-reference in the plugin already used.
+
+- **Three files stated three different write boundaries, and scratch had no owner.**
+  `reference/artifact-protocol.md` sanctions scratch inside the memory slice, `agents/explorer.md`
+  put it out of bounds ("exactly two permitted destinations"), and `agents/researcher.md` admitted it
+  only incidentally. `reference/topic-docs.md` now carries the single statement — three destinations,
+  a `scratch-` naming prefix so a consumer can tell a working file from a deliverable, and a cleanup
+  owner (the run that created it, falling to the ladder's existing clear-the-slice rung when the run
+  dies). Both agents point at it instead of restating it. The researcher's **session** scratch dir is
+  named as a separate, harness-owned place outside that boundary rather than merged into it — the two
+  were never the same location, and collapsing them would have shipped a new false claim.
+  `reference/artifact-protocol.md` is byte-identical across four plugins and is not edited here.
+
+- **`skills/research/SKILL.md` was the hub and was larger than the spoke it delegates to** — a file
+  preloaded in full into every dispatched `maxTurns: 40` run. Measured at `9b34a82a`: **6,629 words
+  against `context/discipline.md`'s 5,087**, a gap that #2222 had widened by 851 words. The two
+  densest lines (3,105 and 2,108 characters) are where the mechanism depends on exact reading, so
+  neither was compressed in place. **Three distinct operations, stated as three:** the fetch-log
+  specification **moved** to `context/artifact-shape.md` beside the sidecar-header schema it belongs
+  with (+644 words there); the Tier-3 scoped exception **moved** to `context/discipline.md`'s "Source
+  tiers" (+149 words there, the only content this release adds to that file); and outcome-gate
+  criterion 9's cell was **compressed to a pointer, because `discipline.md` already carried the
+  elaboration** — "A probe locates a rung; it does not grade one", the exhaustive-surface rule, and
+  the `unresolved` default have been in its "Primary-source-first protocol" all along, so the hub was
+  restating a spoke rather than owning anything. The remaining reduction is ordinary compression of
+  rationale the two dispatch spokes already carry. **The hub is now 5,026 words / 232 lines**, below
+  the 5,236-word spoke, and a contract test pins the direction so the next edit cannot silently
+  re-invert it.
+
+  Its `description` also gained the boundary clause it lacked: `research-deep` already routed back to
+  `research` and nothing routed the other way, so auto-discovery could send a small lookup into the
+  heavier sibling and never the reverse.
+
+- **`explorer`'s turn budget was smaller than `researcher`'s with no stated reason** — 30 against 40
+  on the read-heavier workload. Raised to 40 **on parity grounds only.** It is explicitly *not*
+  offered as the cause of any past bare-prose return: the packet's own `evidence-2.md` supersedes
+  that reading and the discriminator is unrecoverable.
+
+  Separately, both agents' "budget a turn for the payload" instruction asked them to schedule against
+  a limit they cannot observe. They now **emit the payload block early and keep it current**, so a
+  stop at any later point leaves the parent a well-formed payload rather than silence.
+
+### Added
+
+- `plugins/discovery/reference/parent-contract.md` — the parent's **cross-family** contract. The
+  plugin had two family-specific parent-side spokes and no home for what is identical across both,
+  which is why five statements existed in two to six copies each and every one had drifted. It owns
+  the envelope template, the baseline in both shell forms, the doc status of the preload path, the
+  caller-supplied-`${CLAUDE_…}` caveat (previously triplicated verbatim across three `SKILL.md`
+  files), the gate's un-run case, and the resume-before-discard ordering. The two existing spokes
+  keep their family-specific halves and point here; the file states that split in its own header so a
+  future edit knows where a new statement belongs.
+
+- `plugins/discovery/scripts/contract.test.sh` — a grep-level contract test over the plugin's shipped
+  documents, alongside the two script suites. It pins every defect above: no file asserts the
+  unsupported preload mechanism (10 hits before, over 7 files), no monorepo agent pointer (2 before), the baseline
+  command has exactly one home and that home states a PowerShell form, no file prescribes
+  discard-instead-of-resume (4 before), the envelope table carries its Memory root row,
+  `explorer maxTurns >= researcher maxTurns`, and `research/SKILL.md` stays smaller than
+  `context/discipline.md`. **24 assertions; 22 fail at the merge-base and all 24 pass at the tip.**
+  The two that hold on both sides are the deliberate no-grant guards, and they are labelled as such
+  — an earlier revision of this file asserted that each agent "points at" the write boundary, which
+  passed *before* the change too because both agents already linked that file for an unrelated
+  reason. That assertion now keys on the restatements being gone, because a check that cannot fail is
+  the script-layer form of the self-graded gate these skills refuse everywhere else — the exact
+  pattern `B-F8` records across three previous releases. `CHANGELOG.md` is excluded from the content
+  sweeps by design: it quotes the wording it retires, and editing a shipped entry to satisfy a
+  tripwire is the failure this file exists to make expensive.
+
+### Security
+
+- **No permission grant is added, and that is the finding.** The gate invocations run through Bash
+  and neither `SKILL.md` declares `allowed-tools`; the un-run case was unstated, so a gate that could
+  not run read as a gate that passed. A grant cannot be made to work here, on three sourced legs
+  (skills page, raw markdown, 2026-08-11): Claude Code substitutes only `${CLAUDE_SKILL_DIR}` and
+  `${CLAUDE_PROJECT_DIR}` in `allowed-tools` Bash rules — `${CLAUDE_PLUGIN_ROOT}` is not on that list
+  and a rule written with it is inert — while `${CLAUDE_SKILL_DIR}` is "the skill's subdirectory
+  within the plugin, **not the plugin root**", and these scripts live at the plugin root precisely
+  because one gate serves both families; `bash` is not one of the wrappers stripped before matching,
+  so a covering rule would be interpreter-led (this repo's `permission-rule-hygiene` anti-pattern 1);
+  and the grant "clears when you send your next message", while the parent runs this gate on a later
+  turn. So both skills now state the honest rule — **a gate that could not run is a FAIL, never a
+  skip** — and the parent contract records the operator-setup path the docs actually prescribe
+  ("add allow rules to those permission settings instead"), which a plugin cannot ship for them.
+  This narrows behavior; it widens no trust surface.
+
 ## [0.14.1]
 
 ### Fixed
