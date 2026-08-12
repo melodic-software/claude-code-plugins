@@ -75,7 +75,7 @@ blanket form is false for the file tools. Match the mechanism to the rule class:
 | Rule class | What actually happens |
 | --- | --- |
 | `Bash(...)` | A glob over the literal command string ([permissions](https://code.claude.com/docs/en/permissions#bash)) — with the two documented exceptions below. |
-| `Read(...)` / `Edit(...)` | gitignore pattern syntax, which **does** resolve anchors: `~/path` from the home directory, `//path` from the filesystem root, `/path` from the settings source ([permissions](https://code.claude.com/docs/en/permissions#read-and-edit)). `Read(~/Documents/*.pdf)` matches `/Users/alice/Documents/*.pdf`. |
+| `Read(...)` / `Edit(...)` | gitignore pattern syntax, which **does** resolve anchors: `~/path` from the home directory, `//path` from the filesystem root, `/path` from the settings source ([permissions](https://code.claude.com/docs/en/permissions#read-and-edit)). The page's own example: `Read(~/Documents/*.pdf)` matches `<home>/Documents/*.pdf`. |
 
 The two exceptions on Bash rules:
 

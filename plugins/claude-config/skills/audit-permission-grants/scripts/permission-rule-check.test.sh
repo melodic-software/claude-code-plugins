@@ -56,6 +56,8 @@ SL='/'
 BS='\'
 POSIX_MP="${SL}c${SL}Users${SL}alice${SL}.agents${SL}skills${SL}merge${SL}x.sh"
 WIN_MP="C:${BS}Users${BS}bob${BS}x.sh"
+READ_MP="${SL}c${SL}Users${SL}carol${SL}notes.md"
+EDIT_MP="${SL}Users${SL}dave${SL}src${SL}**"
 
 # --- Case 1: --help ----------------------------------------------------------
 rc=0
@@ -143,8 +145,8 @@ assert_eq "two machine-path findings" "2" "$(run "$D4" --count)"
 # claim on a true finding.
 D4B="$TEST_TMPDIR/p2-file-tools"
 mkdir -p "$D4B/.claude"
-jq -n '{permissions:{allow:["Read(/c/Users/kyle/notes.md)","Edit(/Users/alice/src/**)"]}}' \
-  >"$D4B/.claude/settings.json"
+jq -n --arg r "Read(${READ_MP})" --arg e "Edit(${EDIT_MP})" \
+  '{permissions:{allow:[$r,$e]}}' >"$D4B/.claude/settings.json"
 OUT_FT=$(run "$D4B")
 assert_contains "flags a machine path in a Read rule" "$OUT_FT" "[P2]"
 assert_not_contains "Read-rule finding does not claim Bash semantics" "$OUT_FT" "Bash rules match literally"

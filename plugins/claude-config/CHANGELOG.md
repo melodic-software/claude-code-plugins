@@ -23,11 +23,12 @@ project-keyed path instead of one fixed name.
   variables is stripped, so `Bash(npm test *)` matches `NODE_ENV=test npm test`. The skill was telling
   authors to remove the documented zero-prompt pattern.
 - **And the same sentence was emitted on `Read` and `Edit` findings, where it is false twice over.**
-  Probing the shipped detector confirms P2 fires on `Read(/c/Users/kyle/notes.md)` and
-  `Edit(/Users/alice/src/**)` carrying the Bash-scoped message — but those classes use gitignore
-  pattern syntax and **do** resolve `~/`: `Read(~/Documents/*.pdf)` matches
-  `/Users/alice/Documents/*.pdf`. One message string serves every class, so it now carries only what is
-  true of all of them — the portability break — and names the portable form per class. The mechanism
+  Probing the shipped detector confirms P2 fires on a `Read(<home>/notes.md)` or
+  `Edit(<home>/src/**)` rule carrying the Bash-scoped message — but those classes use gitignore
+  pattern syntax and **do** resolve `~/`: the permissions page's own example has
+  `Read(~/Documents/*.pdf)` matching `<home>/Documents/*.pdf`. One message string serves every class,
+  so it now carries only what is true of all of them — the portability break — and names the portable
+  form per class. The mechanism
   detail moves into `criteria.md` as a per-rule-class table, syncing down from the
   `permission-rule-hygiene` convention, which already held the corrected doctrine including the
   `${CLAUDE_PROJECT_DIR}` v2.1.196 substitution floor and the fact that `${CLAUDE_PLUGIN_ROOT}` is not
