@@ -97,14 +97,17 @@
 # children oversubscribe the box, so the same total work takes twice as long and
 # the process count nearly doubles. Sessions, not refresh rate, is the variable
 # that decides: turn this on if you run one or two, leave it off if you run many.
-# A future design that removes the cost rather than moving it -- the render
-# appending the payload to a spool file with zero forks, drained by one periodic
-# writer -- is the durable answer, and is not this flag.
+# The design that removes the cost rather than moving it -- the render writing
+# its payload to a per-session spool file with zero forks, drained by one
+# elected render per cadence -- is THE SPOOL below, and is the default from bash
+# 4.2 up. This flag is the older answer, kept for the machines where it measured
+# well; setting it opts back out of the spool entirely.
 #
-# Because the default is synchronous, "the snapshot has been written" remains
-# observable the moment the wrapper returns, which is what the test suite relies
-# on: assertions that a snapshot was NOT written would pass vacuously against a
-# race. The suite covers the detached path in dedicated cases that wait for it.
+# Neither default is asynchronous, so "the snapshot has been written" is
+# observable the moment the wrapper returns on any refresh that drains, which is
+# what the test suite relies on: assertions that a snapshot was NOT written would
+# pass vacuously against a race. The suite pins RLG_TEE_DRAIN_INTERVAL=0 so every
+# refresh drains, and covers election and the detached path in dedicated cases.
 #
 # jq is required for the tee and for the standalone line; when absent the
 # wrapper stays transparent and appends a visible one-line notice instead of
@@ -155,11 +158,21 @@ release_tee_lock() {
   return 0
 }
 
+# Election lock held by an in-process drain (see _rlg_drain below). A SECOND
+# lock, deliberately not the snapshot lock: see the DRAIN LOCK note there.
+TEE_DRAIN_LOCK=""
+
+release_drain_lock() {
+  [[ -n "$TEE_DRAIN_LOCK" ]] && rmdir "$TEE_DRAIN_LOCK" 2>/dev/null
+  TEE_DRAIN_LOCK=""
+  return 0
+}
+
 # The signal traps exit rather than reclaiming directly, so the EXIT trap stays
 # the single reclaim path. Exiting is also the right response to a cancelling
 # signal: this refresh's snapshot is already superseded by the update that
 # cancelled it.
-trap 'reclaim_tee_tmp; release_tee_lock' EXIT
+trap 'reclaim_tee_tmp; release_tee_lock; release_drain_lock' EXIT
 trap 'exit 143' TERM
 trap 'exit 130' INT
 trap 'exit 129' HUP
@@ -431,6 +444,22 @@ _RLG_VERDICT_JQ='[ ($doc.pluginConfigs // {}) | to_entries[]
       | select(. != null) | tostring ]
     | if length == 0 then "" else last end'
 
+# The snapshot BODY projection, as a jq function so the live probe and the
+# drainer below emit byte-identical bodies from the same text. It is applied to
+# a statusline payload object and takes the ISO-8601 timestamp to stamp it with:
+# the probe passes its own render time, the drainer passes the OBSERVATION time
+# of the record it chose (never "now"), which is what keeps captured_at honest
+# about when the windows were seen rather than when they were flushed.
+#
+# Selection is on the TOP-LEVEL key name only and a selected key carries its
+# whole value across — the rule reference/reader-contract.md states.
+# shellcheck disable=SC2016  # jq filter text; $ts is a jq parameter, not a shell variable
+_RLG_BODY_JQ='def rlg_body($ts): {captured_at: $ts}
+      + (to_entries
+         | map(select(.key == "rate_limits" or .key == "session_id"
+                      or .key == "session_name" or (.key | test("account"; "i"))))
+         | from_entries);'
+
 _rlg_settings_option() {
   local file="$1" out
   [[ -r "$file" ]] || return 1
@@ -547,12 +576,9 @@ _rlg_probe() {
   # `jq -c` escapes any newline inside a string and the other two are bare
   # tokens, so every line is single-line by construction and the split is exact.
   out="$(RLG_SETTINGS_DOC="$settings_json" jq -rc --arg ts "$ts" "
+    $_RLG_BODY_JQ
     $_RLG_DOC_JQ"'
-    | ({captured_at: $ts}
-       + (to_entries
-          | map(select(.key == "rate_limits" or .key == "session_id"
-                       or .key == "session_name" or (.key | test("account"; "i"))))
-          | from_entries)) as $p
+    | (rlg_body($ts)) as $p
     | $p,
       ($p | has("rate_limits")),
       (try ('"$_RLG_VERDICT_JQ"') catch "")
@@ -586,9 +612,270 @@ _rlg_tee_run() {
   return 0
 }
 
+# =============================== THE SPOOL ==================================
+#
+# The render path above costs a jq, a lock, a write and a rename on EVERY
+# refresh — once per assistant message and once per refreshInterval tick, per
+# open session. Measured same-window here (Windows/MSYS, n=9): render.sh alone
+# 234.4 ms, render.sh + this wrapper 1047.1 ms. The wrapper dominates, and the
+# dominant term in the wrapper is process creation, which MSYS has no cheap
+# primitive for. So the render stops doing the work: it APPENDS NOTHING and
+# FORKS NOTHING, it overwrites one small per-session file with builtins, and
+# one elected render per cadence flushes the batch into the same contract
+# snapshot the same tee_snapshot writes today.
+#
+# WHY PER-SESSION FILES, NOT ONE SHARED APPEND SPOOL. A shared O_APPEND spool
+# would be the obvious shape and it is not safe here. POSIX guarantees
+# atomicity for concurrent writes to PIPES up to PIPE_BUF; for REGULAR FILES it
+# explicitly leaves concurrent-write behaviour unspecified. Through
+# Cygwin/MSYS the observed no-interleave bound on appends is around a kilobyte
+# while statusline payloads are multiple kilobytes, and bash's buffered builtin
+# output can split one large record across syscalls regardless. Atomicity is
+# therefore obtained from FILE DISJOINTNESS instead of from any write-size
+# argument: no two writers ever share a file, each record is one line written
+# with a TRUNCATING '>', and a reader either sees the previous complete record
+# or the new one. A record that is torn anyway (killed mid-write) fails
+# `fromjson` in the drain and is dropped.
+#
+# THE FILENAME IS A SHARD KEY, NEVER TRUSTED DATA. session_id is extracted from
+# the payload with parameter expansion and must match ^[A-Za-z0-9._-]{1,64}$
+# and not begin with a dot; anything else — a traversal attempt, an embedded
+# quote, a 200-character value, a JSON null — shards to the literal name
+# `misc`. Sessions that collide on `misc` overwrite each other's record, which
+# costs one refresh of freshness and nothing else.
+#
+# DRAIN LOCK. The election takes its OWN lock (spool/.drain.lock), not the
+# snapshot lock. Two reasons, both load-bearing: tee_snapshot acquires and
+# releases the snapshot lock through one global, so a drain holding it would
+# have tee_snapshot burn its full retry budget and then rmdir the lock out from
+# under its own caller; and the snapshot lock's existing semantics — a
+# window-bearing writer proceeds through a lock it could not take — must keep
+# working, which a drain gated on that same lock would break.
+#
+# TRIGGER. There is no timer to hang this on: Claude Code hooks are strictly
+# event-driven (https://code.claude.com/docs/en/hooks.md) and none fires on a
+# schedule, an OS scheduler would mean three mechanisms across three platforms,
+# and a resident lock-holder would have to be forked off a render — the one
+# thing this design exists to stop — and would be killed with it, since Claude
+# Code cancels in-flight statusline scripts. The renders themselves are the
+# clock: whichever one finds the stamp older than the cadence does the work,
+# in-process, for everyone.
+#
+# BASH FLOOR. %(%s)T is a bash 4.2 builtin. Below that (macOS ships 3.2) the
+# synchronous path above runs untouched — and that is the platform where fork
+# is cheap and this problem does not exist. RLG_TEE_ASYNC=1 also keeps its
+# current behaviour.
+
+# Extract session_id from the raw payload with parameter expansion only, and
+# reduce it to a safe shard name. Sets _RLG_SHARD.
+_RLG_SHARD=""
+_rlg_shard_name() {
+  local rest="${INPUT#*\"session_id\"}" sid=""
+  if [[ "$rest" != "$INPUT" ]]; then
+    rest="${rest#*\"}"
+    sid="${rest%%\"*}"
+  fi
+  # Charset AND a leading-dot rejection: a name beginning with a dot would be
+  # skipped by the drain's spool glob, letting a session's own record sit
+  # unread forever.
+  if [[ "$sid" =~ ^[A-Za-z0-9._-]{1,64}$ && "$sid" != .* ]]; then
+    _RLG_SHARD="$sid"
+  else
+    _RLG_SHARD="misc"
+  fi
+  return 0
+}
+
+# Take the election lock, or return 1. No retry loop and no sleep: a render
+# that loses the election has nothing to wait for — the winner is doing the
+# work — so the collapse costs exactly one failed mkdir. The stale-lock steal
+# is attempted only when the stamp itself is far past due, which is the only
+# state a lock abandoned by a killed holder can produce.
+acquire_drain_lock() {
+  local spool="$1" steal="$2" lock="$1/.drain.lock"
+  if mkdir "$lock" 2>/dev/null; then
+    TEE_DRAIN_LOCK="$lock"
+    return 0
+  fi
+  ((steal)) || return 1
+  find "$spool" -maxdepth 1 -type d -name '.drain.lock' \
+    -mmin +2 -exec rmdir {} + 2>/dev/null || true
+  if mkdir "$lock" 2>/dev/null; then
+    TEE_DRAIN_LOCK="$lock"
+    return 0
+  fi
+  return 1
+}
+
+# Flush the spool into one contract snapshot. Runs IN-PROCESS in the elected
+# render: detaching would pay back the fork this whole design removes.
+_rlg_drain() {
+  local dir="$1" spool="$2" now="$3" self="$4" interval="$5" steal="$6"
+  local marker="$dir/.tee-disabled" stamp="$spool/.last-drain"
+  command -v jq >/dev/null 2>&1 || return 0
+  acquire_drain_lock "$spool" "$steal" || return 0
+
+  # Re-read the stamp UNDER the lock. Without this, every render that queued
+  # behind the winner would drain again the moment the winner released.
+  local last2=0
+  if [[ -f "$stamp" ]]; then
+    IFS= read -r last2 <"$stamp" || last2=0
+  fi
+  [[ "$last2" =~ ^[0-9]+$ ]] || last2=0
+  if ((now - last2 < interval)); then
+    release_drain_lock
+    return 0
+  fi
+
+  # Records from sessions that are gone. The floor is 15 minutes — far past the
+  # reader contract's 10-minute staleness budget, so nothing still usable is
+  # ever swept, and far past any live session's refresh interval.
+  find "$spool" -maxdepth 1 -type f -name '*.json' \
+    -mmin +15 -exec rm -f {} + 2>/dev/null || true
+
+  local batch="" f line
+  for f in "$spool"/*.json; do
+    [[ -f "$f" ]] || continue
+    IFS= read -r line <"$f" || true
+    [[ -n "$line" ]] || continue
+    batch+="$line"$'\n'
+  done
+
+  local settings_file settings_json out
+  settings_file="${CLAUDE_CONFIG_DIR:-${HOME:-}/.claude}/settings.json"
+  settings_json='null'
+  if [[ -r "$settings_file" ]]; then
+    settings_json="$(<"$settings_file")"
+    [[ -n "$settings_json" ]] || settings_json='null'
+  fi
+
+  # ONE jq pass, same three lines in the same order _rlg_probe emits, so
+  # everything downstream is shared code. Lines are read raw and parsed under
+  # `try` so a torn record is dropped instead of failing the batch. The chosen
+  # record is the newest WINDOW-BEARING one, falling back to the newest overall
+  # when the machine has no window-bearing session at all; ties on the
+  # one-second stamp are broken in favour of THIS render's own shard, whose
+  # observation is the freshest by construction.
+  if [[ -n "$batch" ]]; then
+    out="$(RLG_SETTINGS_DOC="$settings_json" jq -Rrcn --arg self "$self" "
+      $_RLG_BODY_JQ
+      $_RLG_DOC_JQ"'
+      | [ inputs
+          | (try fromjson catch empty)
+          | select(type == "object" and (.e | type) == "number"
+                   and (.p | type) == "object") ] as $recs
+      | ([ $recs[] | select(.p | has("rate_limits")) ]) as $win
+      | (if ($win | length) > 0 then $win else $recs end) as $pool
+      | if ($pool | length) == 0 then empty
+        else
+          ($pool | map(.e) | max) as $maxe
+          | ([ $pool[] | select(.e == $maxe) ]) as $tied
+          | (([ $tied[] | select(.p.session_id == $self) ] | last)
+             // ($tied | last)) as $chosen
+          | ($chosen.p | rlg_body($chosen.e | floor | todate)) as $body
+          | $body,
+            ($body | has("rate_limits")),
+            (try ('"$_RLG_VERDICT_JQ"') catch "")
+        end
+    ' <<<"$batch" 2>/dev/null)" || out=""
+    local -a lines=()
+    while IFS= read -r line || [[ -n "$line" ]]; do
+      lines[${#lines[@]}]="$line"
+    done <<<"$out"
+    _RLG_PAYLOAD="${lines[0]:-}"
+    [[ "${lines[1]:-}" == true ]] && _RLG_HAS_WINDOWS=true
+    if [[ -n "$_RLG_PAYLOAD" ]]; then
+      _RLG_USER_VERDICT="${lines[2]:-}"
+      _RLG_USER_PROBED=1
+    fi
+  fi
+
+  # Bootstrap, or every line torn: fall back to this render's own payload so the
+  # first-ever refresh on a machine still snapshots immediately.
+  [[ -n "$_RLG_PAYLOAD" ]] || _rlg_probe
+
+  if _rlg_tee_enabled; then
+    [[ -e "$marker" ]] && rm -f "$marker" 2>/dev/null
+    tee_snapshot
+  else
+    # Stamp the marker so the render path can stop spooling with one builtin
+    # test, and drop what is already spooled — a disabled plugin holds no data.
+    printf '%s\n' "$now" >"$marker" 2>/dev/null || true
+    local any=""
+    for f in "$spool"/*.json; do
+      [[ -f "$f" ]] || continue
+      any=1
+      break
+    done
+    [[ -n "$any" ]] && rm -f "$spool"/*.json 2>/dev/null
+  fi
+
+  printf '%s\n' "$now" >"$stamp" 2>/dev/null || true
+  release_drain_lock
+  return 0
+}
+
+# The zero-fork render path. Every construct below is a bash builtin: no `$( )`
+# anywhere, because command substitution forks a subshell and the subshell fork
+# is the cost being removed.
+_rlg_spool_dispatch() {
+  [[ -n "${HOME:-}" ]] || return 0
+  [[ -n "$INPUT" ]] || return 0
+  local dir="$HOME/.claude/rate-limit-guard" spool="$HOME/.claude/rate-limit-guard/spool"
+
+  # Cold start only, exactly as tee_snapshot guards its own directory. The
+  # owner-only mode is asserted on the PARENT at creation; spool/ inherits its
+  # protection from that, since traversal is what gates access to a child.
+  if [[ ! -d "$spool" ]]; then
+    if [[ ! -d "$dir" ]]; then
+      mkdir -p "$dir" 2>/dev/null || return 0
+      chmod 700 "$dir" 2>/dev/null || true
+    fi
+    mkdir "$spool" 2>/dev/null || return 0
+  fi
+
+  local now
+  printf -v now '%(%s)T' -1 2>/dev/null || return 0
+
+  # Disabled: a drain wrote this marker after reading the real gate. Rechecking
+  # costs a jq, so it happens on a cadence rather than per refresh; until then
+  # this render does nothing at all.
+  local marker="$dir/.tee-disabled" m=0
+  if [[ -f "$marker" ]]; then
+    IFS= read -r m <"$marker" || m=0
+    [[ "$m" =~ ^[0-9]+$ ]] || m=0
+    ((now - m < ${RLG_TEE_DISABLED_RECHECK:-300})) && return 0
+  fi
+
+  # JSON strings cannot contain a raw CR or LF, so stripping them cannot change
+  # what a parser reads — and it guarantees the record is exactly one line.
+  local payload="${INPUT//$'\r'/}"
+  payload="${payload//$'\n'/}"
+
+  _rlg_shard_name
+  printf '{"e":%s,"p":%s}\n' "$now" "$payload" >"$spool/$_RLG_SHARD.json" 2>/dev/null || return 0
+
+  local interval="${RLG_TEE_DRAIN_INTERVAL:-30}" stamp="$spool/.last-drain" last=0
+  [[ "$interval" =~ ^[0-9]+$ ]] || interval=30
+  if [[ -f "$stamp" ]]; then
+    IFS= read -r last <"$stamp" || last=0
+  fi
+  [[ "$last" =~ ^[0-9]+$ ]] || last=0
+  ((now - last >= interval)) || return 0
+
+  local steal=0
+  ((now - last >= interval + 120)) && steal=1
+  _rlg_drain "$dir" "$spool" "$now" "$_RLG_SHARD" "$interval" "$steal"
+  return 0
+}
+
 rlg_tee_dispatch() {
   if [[ "${RLG_TEE_ASYNC:-0}" != "1" ]]; then
-    _rlg_tee_run
+    if ((BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 2))); then
+      _rlg_spool_dispatch
+    else
+      _rlg_tee_run
+    fi
     return 0
   fi
   # See ASYNCHRONY at the top of this file for why all three redirections are

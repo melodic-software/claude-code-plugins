@@ -22,6 +22,18 @@ set -uo pipefail
 # to _rlg_tee_enabled, so a developer's own exported value would otherwise decide
 # what this suite proves. Every case supplies its settings through a scoped HOME.
 unset CLAUDE_CONFIG_DIR CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED
+unset RLG_TEE_ASYNC RLG_TEE_DISABLED_RECHECK
+
+# The render path no longer writes the snapshot itself: it spools a per-session
+# record with zero forks and ONE elected render per cadence drains the batch
+# into the contract file (see THE SPOOL in statusline-tee.sh). Pinning the
+# cadence to zero makes every refresh the elected one, which is exactly the
+# synchronous visibility every case below already assumes — "the snapshot has
+# been written" observable the moment the wrapper returns, so an assertion that
+# a snapshot was NOT written cannot pass vacuously against a race. EXPORTED, not
+# assigned: the suite runs the tee as a child process. Election itself is proven
+# in dedicated cases at the end, which set their own cadence per invocation.
+export RLG_TEE_DRAIN_INTERVAL=0
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEE="$SCRIPT_DIR/statusline-tee.sh"
@@ -590,6 +602,201 @@ EOF_DEADLINE=$((SECONDS + 10))
 while [[ ! -f "$HOME_EOF/$TEE_REL" && $SECONDS -lt $EOF_DEADLINE ]]; do
   sleep 0.05
 done
+
+# --- THE SPOOL: election, drain selection, sharding, and the zero-fork claim --
+# Everything above pins RLG_TEE_DRAIN_INTERVAL=0 so each refresh drains
+# synchronously. These cases set the cadence per invocation instead, because
+# what they prove IS the cadence: a render that loses the election must spool
+# and stop, and the render that wins must apply the whole batch.
+
+SPOOL_REL=".claude/rate-limit-guard/spool"
+
+# --- Case 22: a fresh stamp → the second render spools but does NOT drain ----
+HOME_EL="$WORK/home-elect"
+mkdir -p "$HOME_EL"
+# Bootstrap: no stamp yet, so this render is elected and snapshots immediately.
+printf '%s' "$(build_input)" | HOME="$HOME_EL" RLG_TEE_DRAIN_INTERVAL=30 bash "$TEE" cat >/dev/null
+EL_FILE="$HOME_EL/$TEE_REL"
+if [[ -f "$EL_FILE" ]] && [[ "$(jq -r '.session_id' <"$EL_FILE")" == "sess-42" ]]; then
+  ok "election: the first-ever render drains immediately (bootstrap)"
+else
+  fail "election: bootstrap render did not snapshot: $(cat "$EL_FILE" 2>/dev/null)"
+fi
+printf '{"session_id":"sess-fresh","rate_limits":{"five_hour":{"used_percentage":99,"resets_at":1738425600}}}' |
+  HOME="$HOME_EL" RLG_TEE_DRAIN_INTERVAL=30 bash "$TEE" cat >/dev/null
+if [[ -f "$HOME_EL/$SPOOL_REL/sess-fresh.json" ]]; then
+  ok "election: the non-elected render still spools its record"
+else
+  fail "election: non-elected render wrote no spool record"
+fi
+if [[ "$(jq -r '.session_id' <"$EL_FILE")" == "sess-42" ]]; then
+  ok "election: a fresh stamp suppresses the drain (snapshot untouched)"
+else
+  fail "election: fresh stamp did not suppress the drain: $(jq -r '.session_id' <"$EL_FILE")"
+fi
+
+# --- Case 23: a stale stamp → drain applies the newest window-bearing record --
+# Two sessions have spooled; the draining render is a THIRD, windowless one, so
+# what lands can only have come from the batch and not from this render.
+write_settings "$HOME_EL/$SPOOL_REL/.last-drain" "0"
+printf '{"session_id":"sess-drainer"}' |
+  HOME="$HOME_EL" RLG_TEE_DRAIN_INTERVAL=30 bash "$TEE" cat >/dev/null
+if [[ "$(jq -r '.session_id' <"$EL_FILE")" == "sess-fresh" ]]; then
+  ok "election: a stale stamp drains, and the newest window-bearing record wins"
+else
+  fail "election: stale-stamp drain chose $(jq -r '.session_id' <"$EL_FILE"), want sess-fresh"
+fi
+if [[ "$(jq -r '.rate_limits.five_hour.used_percentage' <"$EL_FILE")" == "99" ]]; then
+  ok "election: the drained snapshot carries the chosen record's windows"
+else
+  fail "election: drained windows wrong: $(jq -c '.rate_limits' <"$EL_FILE")"
+fi
+# captured_at is the OBSERVATION time of the chosen record, not the drain time.
+WANT_CAP="$(jq -r '.e | todate' <"$HOME_EL/$SPOOL_REL/sess-fresh.json")"
+if [[ "$(jq -r '.captured_at' <"$EL_FILE")" == "$WANT_CAP" ]]; then
+  ok "election: captured_at is the chosen record's observation time"
+else
+  fail "election: captured_at = $(jq -r '.captured_at' <"$EL_FILE"), want $WANT_CAP"
+fi
+if [[ "$(cat "$HOME_EL/$SPOOL_REL/.last-drain")" != "0" ]]; then
+  ok "election: the drain refreshes the stamp"
+else
+  fail "election: stamp not refreshed — every later render would re-drain"
+fi
+
+# --- Case 24: a torn spool line is dropped, a valid sibling still drains ------
+# Atomicity here comes from file disjointness, not from a write-size argument,
+# so a record torn by a kill mid-write is a case the drain must survive rather
+# than one it can rule out. The torn record carries a far-future epoch: if it
+# parsed at all it would win, so this cannot pass by accident.
+HOME_TORN="$WORK/home-torn"
+mkdir -p "$HOME_TORN/$SPOOL_REL"
+write_settings "$HOME_TORN/$SPOOL_REL/sess-torn.json" \
+  '{"e":9999999999,"p":{"session_id":"sess-torn","rate_limits":{"five_hour":{"used_perc'
+run "$HOME_TORN" "$(build_input)" cat >/dev/null
+if [[ "$(jq -r '.session_id' <"$HOME_TORN/$TEE_REL")" == "sess-42" ]]; then
+  ok "drain: a torn spool line is dropped and the valid sibling still lands"
+else
+  fail "drain: torn line polluted the snapshot: $(cat "$HOME_TORN/$TEE_REL" 2>/dev/null)"
+fi
+if jq -e '.rate_limits.five_hour.used_percentage == 23.5' <"$HOME_TORN/$TEE_REL" >/dev/null 2>&1; then
+  ok "drain: the surviving record's windows are intact"
+else
+  fail "drain: surviving windows wrong: $(jq -c '.rate_limits' <"$HOME_TORN/$TEE_REL")"
+fi
+
+# --- Case 25: a hostile session_id shards to `misc` and never escapes spool/ --
+# The spool filename is a SHARD KEY, never trusted data: session_id reaches the
+# writer from the harness payload, and a name that escaped the directory would
+# turn a statusline refresh into an arbitrary-path write.
+HOME_HOSTILE="$WORK/home-hostile"
+mkdir -p "$HOME_HOSTILE"
+printf -v LONG_ID '%0200d' 0
+HOSTILE_N=0
+for bad in '../../pwned' 'a\"b' "$LONG_ID" '.hidden' 'has space'; do
+  printf '{"session_id":"%s","rate_limits":{"five_hour":{"used_percentage":7,"resets_at":1738425600}}}' "$bad" |
+    HOME="$HOME_HOSTILE" bash "$TEE" cat >/dev/null
+  HOSTILE_N=$((HOSTILE_N + 1))
+done
+HOSTILE_JSON="$(find "$HOME_HOSTILE/$SPOOL_REL" -maxdepth 1 -type f -name '*.json' | wc -l | tr -d ' \r')"
+if [[ "$HOSTILE_JSON" == "1" && -f "$HOME_HOSTILE/$SPOOL_REL/misc.json" ]]; then
+  ok "shard: $HOSTILE_N hostile session_ids all collapse to the single misc shard"
+else
+  fail "shard: $HOSTILE_JSON spool files: $(find "$HOME_HOSTILE/$SPOOL_REL" -maxdepth 1 -type f | tr '\n' ' ')"
+fi
+ESCAPED="$(find "$HOME_HOSTILE" -mindepth 1 -maxdepth 4 \
+  -not -path "$HOME_HOSTILE/.claude*" 2>/dev/null | wc -l | tr -d ' \r')"
+if [[ "$ESCAPED" == "0" ]]; then
+  ok "shard: nothing was written outside the contract directory"
+else
+  fail "shard: $ESCAPED path(s) escaped: $(find "$HOME_HOSTILE" -mindepth 1 -maxdepth 4 -not -path "$HOME_HOSTILE/.claude*" | tr '\n' ' ')"
+fi
+if [[ ! -e "$HOME_HOSTILE/.claude/rate-limit-guard/pwned" && ! -e "$HOME_HOSTILE/pwned.json" ]]; then
+  ok "shard: the traversal attempt created no file above spool/"
+else
+  fail "shard: a traversal attempt escaped spool/"
+fi
+
+# --- Case 26: a disabled verdict marks, stops spooling, and rechecks back -----
+# The render path cannot evaluate the gate — that costs a jq, which is the whole
+# expense being removed — so the drain stamps a marker the render can read with
+# one builtin test, and the marker expires so a re-enabled plugin recovers on
+# its own rather than needing a restart.
+HOME_DIS="$WORK/home-disabled"
+mkdir -p "$HOME_DIS"
+DIS_MARKER="$HOME_DIS/.claude/rate-limit-guard/.tee-disabled"
+write_settings "$HOME_DIS/.claude/settings.json" "$USER_FALSE"
+DIS_OUT="$(run "$HOME_DIS" "$GATE_INPUT" jq -r '.model.display_name')"
+if [[ "$DIS_OUT" == "Opus" ]]; then ok "disabled: statusline passthrough unchanged"; else fail "disabled: passthrough broken ($DIS_OUT)"; fi
+if [[ -f "$DIS_MARKER" && ! -e "$HOME_DIS/$TEE_REL" ]]; then
+  ok "disabled: the drain writes the marker and no snapshot"
+else
+  fail "disabled: marker=$([[ -f $DIS_MARKER ]] && echo yes || echo no) snapshot=$([[ -e $HOME_DIS/$TEE_REL ]] && echo yes || echo no)"
+fi
+DIS_SPOOLED="$(find "$HOME_DIS/$SPOOL_REL" -maxdepth 1 -type f -name '*.json' 2>/dev/null | wc -l | tr -d ' \r')"
+if [[ "$DIS_SPOOLED" == "0" ]]; then
+  ok "disabled: the drain drops what was already spooled"
+else
+  fail "disabled: $DIS_SPOOLED spool record(s) retained while disabled"
+fi
+printf '%s' "$GATE_INPUT" | HOME="$HOME_DIS" bash "$TEE" cat >/dev/null
+DIS_SPOOLED2="$(find "$HOME_DIS/$SPOOL_REL" -maxdepth 1 -type f -name '*.json' 2>/dev/null | wc -l | tr -d ' \r')"
+if [[ "$DIS_SPOOLED2" == "0" ]]; then
+  ok "disabled: a fresh marker stops the render spooling at all"
+else
+  fail "disabled: render spooled through a fresh marker"
+fi
+write_settings "$HOME_DIS/.claude/settings.json" "$USER_TRUE"
+printf '%s' "$GATE_INPUT" | HOME="$HOME_DIS" RLG_TEE_DISABLED_RECHECK=0 bash "$TEE" cat >/dev/null
+if [[ ! -e "$DIS_MARKER" && -f "$HOME_DIS/$TEE_REL" ]]; then
+  ok "disabled: the recheck clears the marker and the tee resumes"
+else
+  fail "disabled: recheck did not restore (marker=$([[ -e $DIS_MARKER ]] && echo present || echo gone))"
+fi
+
+# --- Case 27: the zero-fork render path, proven by trace ----------------------
+# Reading the code cannot prove this: a command substitution anywhere on the
+# render path forks a subshell, and the subshell fork is precisely the MSYS cost
+# the spool exists to remove. So the claim is asserted against an xtrace of a
+# NON-ELECTED render — stamp and spool primed so even the cold-start mkdir is
+# out of the picture — up to the passthrough, which is the one fork the wrapper
+# has always paid.
+TRACE_HOME="$WORK/home-trace"
+TRACE_SPOOL="$TRACE_HOME/$SPOOL_REL"
+mkdir -p "$TRACE_SPOOL"
+TRACE_NOW="$(date +%s)"
+TRACE_INPUT='{"session_id":"sess-trace","rate_limits":{"five_hour":{"used_percentage":5,"resets_at":1738425600}}}'
+write_settings "$TRACE_SPOOL/.last-drain" "$TRACE_NOW"
+write_settings "$TRACE_SPOOL/sess-trace.json" "{\"e\":$TRACE_NOW,\"p\":$TRACE_INPUT}"
+TRACE_LOG="$WORK/xtrace.log"
+printf '%s' "$TRACE_INPUT" | HOME="$TRACE_HOME" RLG_TEE_DRAIN_INTERVAL=30 \
+  BASH_XTRACEFD=9 bash -x "$TEE" cat >/dev/null 9>"$TRACE_LOG"
+# Up to `set +o pipefail`, which main executes immediately before the
+# passthrough pipeline. (The script's own `set -uo pipefail` does not match.)
+TRACE_PRE="$(sed -n '1,/set +o pipefail/p' "$TRACE_LOG")"
+if [[ -n "$TRACE_PRE" ]] && printf '%s\n' "$TRACE_PRE" | grep -q '_rlg_spool_dispatch'; then
+  ok "trace: the render path was traced (spool dispatch present)"
+else
+  fail "trace: no usable xtrace captured: $(head -c 200 "$TRACE_LOG" 2>/dev/null)"
+fi
+FORKED="$(printf '%s\n' "$TRACE_PRE" |
+  grep -nE '(^|[^[:alnum:]_])(jq|mkdir|mv|rmdir|find|date|uname|sleep|chmod|rm)([^[:alnum:]_]|$)' || true)"
+if [[ -z "$FORKED" ]]; then
+  ok "trace: no external command runs before the passthrough (zero forks)"
+else
+  fail "trace: external command(s) on the render path: $FORKED"
+fi
+SUBSHELLS="$(printf '%s\n' "$TRACE_PRE" | grep -c '^++' | tr -d ' \r')"
+if [[ "$SUBSHELLS" == "0" ]]; then
+  ok "trace: no command-substitution subshell frames on the non-elected path"
+else
+  fail "trace: $SUBSHELLS subshell frame(s) before the passthrough"
+fi
+if [[ ! -e "$TRACE_HOME/$TEE_REL" ]]; then
+  ok "trace: the non-elected render wrote no snapshot, as elected"
+else
+  fail "trace: the non-elected render drained anyway"
+fi
 
 echo
 echo "PASS=$PASS FAIL=$FAIL"

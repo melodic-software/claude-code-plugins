@@ -25,8 +25,14 @@ loop-lane convention (`docs/conventions/loop-lane/README.md` §6 in the marketpl
 
 ## Tee file shape
 
-One JSON object, rewritten atomically on every statusline refresh (temp file + rename — a reader
-never sees torn JSON; the file is **last-writer-wins** across all sessions on the machine):
+One JSON object, rewritten atomically on a **drain cadence** rather than on every refresh (temp file
++ rename — a reader never sees torn JSON; the file is **last-writer-wins** across all sessions on the
+machine). Each refresh records its observation to a private per-session spool file with no external
+process at all, and one elected refresh per cadence flushes the batch into this file, so the snapshot
+trails the newest refresh on the machine by **at most 30 seconds**. That is well inside the
+10-minute staleness budget below, and the operable floor values are unchanged. `captured_at` is the
+**observation time of the record the drain chose** — when those windows were seen — not the time the
+file was written:
 
 ```json
 {
@@ -42,7 +48,9 @@ never sees torn JSON; the file is **last-writer-wins** across all sessions on th
 (The example is internally consistent: `1784841300` is 2026-07-23T21:15:00Z — within five hours of
 `captured_at` — and `1785142800` is 2026-07-27T09:00:00Z, within the seven-day window.)
 
-- `captured_at` — ISO-8601 UTC write time; always present. Drives the staleness rule.
+- `captured_at` — ISO-8601 UTC **observation** time of the chosen record; always present. Drives the
+  staleness rule. It can trail the file's mtime by up to the drain cadence (30 s), which is why the
+  rule is written against this field and never against the file's modification time.
 - `rate_limits` — copied verbatim from the statusline stdin schema
   (<https://code.claude.com/docs/en/statusline>, verified 2026-08-10): `used_percentage` is 0–100,
   `resets_at` is Unix epoch seconds. The key is present **only** when the session observes
@@ -111,6 +119,19 @@ sweeping the directory expects them:
 
 - `stop-events.jsonl.lock` — the advisory-lock sibling the hook's serialized append and rotation use
   (present wherever `flock` exists).
+- `spool/` — the tee's per-session write-ahead spool, owner-only by inheritance from the contract
+  directory. `spool/<session>.json` holds ONE line: the newest observation that session recorded,
+  overwritten in place each refresh (never appended, so no two writers ever share a file). The name
+  is a shard key derived from `session_id` and reduced to `misc` unless it matches
+  `^[A-Za-z0-9._-]{1,64}$` without a leading dot — it is **never** trusted as a path. `spool/.last-drain`
+  holds the epoch seconds of the last flush and is what elects the next draining refresh; a stale
+  `spool/.drain.lock` directory can appear if a drain is killed and is stolen after two minutes.
+  Records older than 15 minutes are swept by the next drain. Readers consume none of this: the
+  contract file above is still the only proactive surface.
+- `.tee-disabled` — written by a drain that read `rate_limit_guard_enabled: false`, holding the epoch
+  seconds at which it was written. While it is present and younger than the recheck interval the
+  refreshes stop recording entirely; when it ages out the next drain re-reads the real setting and
+  removes the marker, so re-enabling the plugin recovers without a restart.
 - `.rate-limits.json.tmp.<pid>.<random>` — the tee's atomic-write staging file. Normally it exists
   for well under a second between write and rename. It can outlive its writer: Claude Code
   [cancels an in-flight statusline script](https://code.claude.com/docs/en/statusline) when a new
