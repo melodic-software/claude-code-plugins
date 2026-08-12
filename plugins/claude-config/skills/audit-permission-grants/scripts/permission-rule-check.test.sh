@@ -54,9 +54,12 @@ fi
 # and its rules would pollute every case's finding count.
 ISOLATED_HOME="$TEST_TMPDIR/empty-home"
 mkdir -p "$ISOLATED_HOME"
-run() { env -u CLAUDE_CONFIG_DIR HOME="$ISOLATED_HOME" PERMISSION_HYGIENE_FIXTURE_DIR="$1" bash "$SCRIPT" "${2:-}"; }
-run_with_home() { env -u CLAUDE_CONFIG_DIR HOME="$2" PERMISSION_HYGIENE_FIXTURE_DIR="$1" bash "$SCRIPT" "${3:-}"; }
-run_with_config_dir() { env CLAUDE_CONFIG_DIR="$2" HOME="$3" PERMISSION_HYGIENE_FIXTURE_DIR="$1" bash "$SCRIPT" "${4:-}"; }
+# PERMISSION_HYGIENE_SCAN_ROOT is unset in every helper: it outranks the alias
+# these cases pass, so an outer session exporting it would silently redirect the
+# whole suite at another tree.
+run() { env -u CLAUDE_CONFIG_DIR -u PERMISSION_HYGIENE_SCAN_ROOT HOME="$ISOLATED_HOME" PERMISSION_HYGIENE_FIXTURE_DIR="$1" bash "$SCRIPT" "${2:-}"; }
+run_with_home() { env -u CLAUDE_CONFIG_DIR -u PERMISSION_HYGIENE_SCAN_ROOT HOME="$2" PERMISSION_HYGIENE_FIXTURE_DIR="$1" bash "$SCRIPT" "${3:-}"; }
+run_with_config_dir() { env -u PERMISSION_HYGIENE_SCAN_ROOT CLAUDE_CONFIG_DIR="$2" HOME="$3" PERMISSION_HYGIENE_FIXTURE_DIR="$1" bash "$SCRIPT" "${4:-}"; }
 
 # Runtime-assembled machine paths (no contiguous path literal in source).
 SL='/'
@@ -317,14 +320,14 @@ nonrepo="$TEST_TMPDIR/not-a-repo"
 mkdir -p "$nonrepo"
 
 rc=0
-root_err=$(cd "$nonrepo" && env -u PERMISSION_HYGIENE_FIXTURE_DIR -u CLAUDE_PROJECT_DIR \
+root_err=$(cd "$nonrepo" && env -u PERMISSION_HYGIENE_FIXTURE_DIR -u PERMISSION_HYGIENE_SCAN_ROOT -u CLAUDE_PROJECT_DIR \
   GIT_CEILING_DIRECTORIES="$TEST_TMPDIR" bash "$SCRIPT" 2>&1) || rc=$?
 assert_exit "unresolvable root exits 2, not 0" 2 "$rc"
 assert_contains "refusal names the failure" "$root_err" "no scan root resolved"
 assert_not_contains "refusal is not a clean bill" "$root_err" "No fragile permission grants found."
 
 rc=0
-count_err=$(cd "$nonrepo" && env -u PERMISSION_HYGIENE_FIXTURE_DIR -u CLAUDE_PROJECT_DIR \
+count_err=$(cd "$nonrepo" && env -u PERMISSION_HYGIENE_FIXTURE_DIR -u PERMISSION_HYGIENE_SCAN_ROOT -u CLAUDE_PROJECT_DIR \
   GIT_CEILING_DIRECTORIES="$TEST_TMPDIR" bash "$SCRIPT" --count 2>&1) || rc=$?
 assert_exit "--count also refuses rather than printing 0" 2 "$rc"
 assert_not_contains "--count prints no count on a refusal" "$count_err" "0
@@ -352,6 +355,79 @@ assert_contains "regular-file refusal names the same reason" "$notdir_err" "not 
 rc=0
 PERMISSION_HYGIENE_FIXTURE_DIR="$TEST_TMPDIR/does-not-exist" bash "$SCRIPT" --count >/dev/null 2>&1 || rc=$?
 assert_exit "--count refuses a nonexistent root too" 2 "$rc"
+
+# --- Case 10: the denominator ------------------------------------------------
+# "No fragile permission grants found." used to print identically whether the run
+# parsed forty grants and found them healthy or parsed none at all. These cases
+# pin that the two are now different strings, and that the coverage block reports
+# what was NOT read as well as what was.
+
+# 10a: a root with nothing in it is NOT a clean bill.
+D10A="$TEST_TMPDIR/empty-root"
+mkdir -p "$D10A"
+OUT=$(run "$D10A")
+assert_contains "empty root reports NOTHING TO AUDIT" "$OUT" "NOTHING TO AUDIT"
+assert_not_contains "empty root does NOT print a clean bill" "$OUT" "No fragile permission grants found."
+assert_contains "empty root still prints the coverage block" "$OUT" "Scan coverage"
+assert_contains "empty root denominator names zero blocks" "$OUT" "0 allowed-tools block(s)"
+
+# 10b: a root with healthy grants IS a clean bill, and says how many it read.
+# This is the pair 10a exists against: same finding count, different denominator.
+D10B="$TEST_TMPDIR/clean-with-denominator"
+mkdir -p "$D10B/.claude"
+jq -n '{permissions:{allow:["Bash(npm test)","Bash(cargo build)"]}}' >"$D10B/.claude/settings.json"
+OUT=$(run "$D10B")
+assert_contains "healthy root prints the clean bill" "$OUT" "No fragile permission grants found."
+assert_not_contains "healthy root is not NOTHING TO AUDIT" "$OUT" "NOTHING TO AUDIT"
+assert_contains "clean bill carries a non-zero rule count" "$OUT" "2 allow rule(s)"
+assert_contains "coverage names the project scope it read" "$OUT" "project: 2 rule(s)"
+assert_contains "coverage names an absent scope as absent" "$OUT" "local: absent"
+
+# 10c: a settings file that is present but not valid JSON was skipped in silence,
+# so its rules were never read and the run still printed a clean bill. The skip
+# is now named — an unparsable rules file is exactly where a fragile grant would
+# sit unexamined.
+D10C="$TEST_TMPDIR/unparsable-settings"
+mkdir -p "$D10C/.claude"
+printf '{ "permissions": { "allow": [ "Bash(python*)"\n' >"$D10C/.claude/settings.json"
+OUT=$(run "$D10C")
+assert_contains "unparsable settings file is named, not skipped in silence" "$OUT" "project: NOT VALID JSON"
+assert_contains "unparsable file is counted under NOT read" "$OUT" "NOT read:"
+assert_not_contains "a run whose only rules file will not parse is not a clean bill" "$OUT" "No fragile permission grants found."
+
+# 10d: --count keeps the bare integer on stdout (the machine contract) and puts
+# the coverage block on stderr, so a 0 from a scan of nothing is still separable
+# from a 0 from a healthy tree.
+assert_eq "--count stdout is still the bare integer" "0" "$(run "$D10B" --count)"
+count_cov=$(run "$D10B" --count 2>&1 >/dev/null)
+assert_contains "--count writes the coverage block to stderr" "$count_cov" "Scan coverage"
+assert_contains "--count coverage carries the denominator" "$count_cov" "2 allow rule(s)"
+
+# 10e: the vendor/ exclusion reports how many files it removed. An exclusion
+# nothing counts is indistinguishable from a tree that had nothing in it.
+OUT=$(run "$D6B")
+assert_contains "vendor exclusion discloses its count" "$OUT" "2 excluded under a vendor/ path segment"
+assert_contains "coverage names the candidate file total" "$OUT" "from 3 candidate file(s)"
+
+# --- Case 11: the scan-root lever is named for operators, not for tests -------
+# $PERMISSION_HYGIENE_FIXTURE_DIR is the documented remedy for the exit-2 refusal
+# while its name says it is a test seam. The sanctioned name resolves the same
+# root; the alias keeps working; the new name wins when both are set.
+sanctioned() { env -u CLAUDE_CONFIG_DIR -u PERMISSION_HYGIENE_FIXTURE_DIR HOME="$ISOLATED_HOME" \
+  PERMISSION_HYGIENE_SCAN_ROOT="$1" bash "$SCRIPT" "${2:-}"; }
+assert_eq "PERMISSION_HYGIENE_SCAN_ROOT resolves a root" "0" "$(sanctioned "$D10B" --count)"
+assert_contains "coverage names the rung that resolved the root" "$(sanctioned "$D10B")" \
+  "resolved from \$PERMISSION_HYGIENE_SCAN_ROOT"
+assert_contains "the legacy alias still resolves a root" "$(run "$D10B")" \
+  "resolved from \$PERMISSION_HYGIENE_FIXTURE_DIR"
+both=$(env -u CLAUDE_CONFIG_DIR HOME="$ISOLATED_HOME" \
+  PERMISSION_HYGIENE_SCAN_ROOT="$D10B" PERMISSION_HYGIENE_FIXTURE_DIR="$D10A" bash "$SCRIPT")
+assert_contains "the sanctioned name wins over the alias" "$both" "No fragile permission grants found."
+assert_not_contains "the alias did not win" "$both" "NOTHING TO AUDIT"
+assert_contains "refusal names the sanctioned variable as the fix" \
+  "$(cd "$nonrepo" && env -u PERMISSION_HYGIENE_FIXTURE_DIR -u PERMISSION_HYGIENE_SCAN_ROOT \
+    -u CLAUDE_PROJECT_DIR GIT_CEILING_DIRECTORIES="$TEST_TMPDIR" bash "$SCRIPT" 2>&1)" \
+  "PERMISSION_HYGIENE_SCAN_ROOT"
 
 # --- Case 9: missing jq exits 2 ---------------------------------------------
 real_bash=$(command -v bash)
