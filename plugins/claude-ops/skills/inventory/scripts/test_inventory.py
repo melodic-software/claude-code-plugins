@@ -27,7 +27,7 @@ class TestBraceMap(unittest.TestCase):
 
     def test_ignores_braces_inside_regex(self) -> None:
         # A regex literal containing an unbalanced brace would desync a naive
-        # counter and mis-attribute every object after it.
+        # counter and misattribute every object after it.
         bm = inv.build_brace_map("x={a:/[{]/g}")
         self.assertEqual(len(bm.pairs), 1)
 
@@ -105,9 +105,9 @@ class TestCommandExtraction(unittest.TestCase):
 class TestBundledSkills(unittest.TestCase):
     BUNDLE = (
         'pt(Q,{registerBundledSkill:()=>xu,getBundledSkills:()=>dF});'
-        'var gme="code-review",lFo="dataviz";'
+        'var gme="code-review",dvz="dataviz";'
         'xu({name:gme,aliases:["review"],menuDescription:"Review the current diff"});'
-        'xu({name:lFo,menuDescription:"Chart and dashboard design guidance"});'
+        'xu({name:dvz,menuDescription:"Chart and dashboard design guidance"});'
         'xu({name:"doctor",aliases:["checkup"],menuDescription:"Health-check your setup"});'
     )
 

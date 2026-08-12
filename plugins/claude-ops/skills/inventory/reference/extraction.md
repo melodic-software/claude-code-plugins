@@ -61,7 +61,7 @@ single version.
 The bundle's module export maps keep the original names:
 
 ```js
-pt(QCd,{ ... registerBundledSkill:()=>xu, getBundledSkills:()=>dFo, ... })
+pt(QCd,{ ... registerBundledSkill:()=>xu, ... })
 ```
 
 `discover_registrar(src, "registerBundledSkill")` reads the minified name out of that map at
