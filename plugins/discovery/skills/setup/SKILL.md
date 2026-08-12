@@ -78,12 +78,11 @@ Report the effective concern and the guard result as a PASS/FAIL/INFO table. Do 
      which has not seen the work is the outcome-gate verifier, and the parent dispatches that as a
      **sibling** rather than the agent as a child. Note that env vars are read at session start, so a
      value set now takes effect next session.
-   - **Fork availability.** Report it as a control, not a gate: forks have been enabled by default
-     since **2.1.161**, and `CLAUDE_CODE_FORK_SUBAGENT` now only forces them on or off. Report it as
-     a control, never as a prerequisite: older text that made forks conditional on setting that
-     variable is stale, and it also attached the variable to skill-level `context: fork` rather than
-     to the `fork` subagent type, which is a different mechanism. The user-facing command is
-     `/subtask` as of **2.1.212**.
+   - **Fork availability.** Report it as a control, not a gate: `CLAUDE_CODE_FORK_SUBAGENT=1` forces fork
+     mode on and `=0` forces it off; when unset, server-side rollout may still enable or disable the
+     `fork` subagent type — the only authoritative probe is a live inheritance check (see
+     `discipline:sweep-all`'s preflight). Report the env var when set; never claim forks are
+     unconditionally available on every build. The user-facing command is `/subtask` as of **2.1.212**.
 
 ## `apply` (idempotent)
 
