@@ -31,10 +31,15 @@ All notable changes to the `source-control` plugin are documented here. Format f
   was present: a false negative on a control gate, and a positional index on a list. A
   repository-scoped `commits/<fix-sha>` lookup fixed the tip-read false negative but still answered
   "does this object exist anywhere in the repo?" — satisfied by a force-pushed-off commit or an
-  identical commit on another branch. The gate now fetches the PR branch and runs
-  `git merge-base --is-ancestor <fix-sha> origin/<branch>` (exit 0 when the fix commit is on the
-  remote PR branch), matching the reachability primitive `babysit-prs` already uses in
-  `verify_fix_commit`.
+  identical commit on another branch. The gate now resolves the branch's push remote via
+  `resolve-remote.sh --push` (the same resolver `push-branch.sh` pushes through — a hardcoded
+  `origin` would false-fail a successful push from a triangular/fork checkout, or verify a
+  same-named branch on the wrong repository), fetches the PR branch from it, and runs
+  `git merge-base --is-ancestor <fix-sha> FETCH_HEAD` (exit 0 when the fix commit is on the
+  remote PR branch). This matches the reachability *guarantee* of `babysit-prs`'s
+  `verify_fix_commit` — the same is-ancestor-of-the-live-head property — not its mechanism, which
+  is the clone-free, fork-aware compare API (`repos/{owner}/{repo}/compare/{sha}...{head_oid}`
+  against the PR's own head repository).
 - **Every remaining `--paginate` list read carries `per_page=100`**, conforming to rule 1 as
   `readiness.md` publishes it (#2246): `skills/pull-request/reference/merge.md` (three
   comment-source re-checks), `skills/pull-request/SKILL.md` (C1–C3),
@@ -44,8 +49,10 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `--paginate` alone fetches every page — but the default 30-per-page form costs 3.3x the
   requests and diverges from the rule the same skill states as absolute.
   `skills/babysit-prs/scripts/babysit_gh.py` and `scripts/request_review.py` were reported in the
-  #2246 sweep but were already conformant: their `per_page=100` sits in the endpoint URL on the
-  line adjacent to the `--paginate` flag the line-based sweep matched.
+  #2246 sweep but were already conformant: each passes `per_page=100` inside the endpoint URL —
+  adjacent to the `--paginate` flag in `request_review.py`, and at `fetch_paginated_api`'s four
+  call sites in `babysit_gh.py` — so the line-based sweep matched the flag without seeing the
+  parameter.
 
 ## [0.51.11]
 
