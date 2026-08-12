@@ -7,6 +7,14 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 ### Fixed
 
+- **`permission-rule-check` applies a loadability model instead of a `vendor/` path exclusion
+  (#2406).** Blanket `vendor/` or `node_modules/` exclusions would silently blind an `error`-tier
+  check to live grants under nested `.claude/skills/<name>/SKILL.md` paths — which Claude Code loads
+  the moment it touches a file in that subdirectory. The detector now audits only frontmatter at
+  documented discovery paths (project/nested `.claude/skills/`, plugin `skills/`, and the parallel
+  agents/commands locations) and reports how many candidates it excluded as non-loadable. Installed
+  versus orphaned plugin-cache copies still need an `installed_plugins.json` oracle and remain out of
+  scope.
 - **`fix-plugin-drift.sh` uses the portable `mktemp` form (#1709).** The two `mktemp -t
   <name>-XXXXXX.json` scratch files move to the positional absolute template with trailing Xs
   (`mktemp "${TMPDIR:-/tmp}/<name>-XXXXXX"`), the one form GNU and BSD accept identically —
