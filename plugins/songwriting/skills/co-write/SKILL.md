@@ -119,24 +119,26 @@ The rows run in the order work actually happens: inputs, then the self-check, th
 | Rubric cycled per candidate, pass 1 CLEAN | the pass-by-pass result visible in this response, or at the candidate's named path under the song's `variations/` — per [line-edit-rubric](../../context/pat-pattison/research/line-edit-rubric.md). Pass 1's artifact is the marked template above; on free-melody work the stress map stands in |
 | Skeptic refutation returned | the strongest case AGAINST each candidate, visible in this response or at a named path under the song's `variations/` — from a fresh subagent that READ [response-filter](../../context/pat-pattison/research/response-filter.md) §2, the marked map, and [line-edit-rubric](../../context/pat-pattison/research/line-edit-rubric.md) at those paths. A line survives when its refutation is stated and judged insufficient; a return holding nothing against anything has shown nothing |
 
-Any gate above may be skipped **when it demands a craft artifact** — every row from the voiceprint
-through the section mode and the marked map. A skip is **named, with its reason, in the output** —
-that is the "tools, not rules" stance applied honestly. A silent skip is the failure, and so is
-listing a box as passed while its artifact does not exist. Those rows stay skippable because how
-much scaffolding a line gets is the writer's craft call, and "There are no rules, only tools."
+**Every row except the rubric row may be skipped**, and a skip is **named, with its reason, in the
+output** — that is the "tools, not rules" stance applied honestly. A silent skip is the failure, and
+so is listing a box as passed while its artifact does not exist. Those rows stay skippable because
+how much scaffolding a line gets is the writer's craft call, and "There are no rules, only tools."
 (*Writing Better Lyrics* (2009), Chapter 18, quoted in
-[response-filter](../../context/pat-pattison/research/response-filter.md)) is why.
+[response-filter](../../context/pat-pattison/research/response-filter.md)) is why. The skeptic row
+is in that class deliberately: a refutation pass costs a subagent dispatch, and whether one is
+worth spending on a given batch is a judgement, not a rule the writer laid down. Skip it by name
+and reason — and expect to be asked why, because self-attestation is what failed.
 
-**The last two rows do not carry that clause**, because neither is offered to the writer at all —
-they are the AI checking its own output before spending his attention, and he cannot overrule a
-check he never saw run. The full statement of the rules behind them is
+**The rubric row alone does not carry that clause**, because it is not offered to the writer at all
+— it is the AI checking its own output before spending his attention, and he cannot overrule a check
+he never saw run. The full statement of the rules behind it is
 [line-edit-rubric](../../context/pat-pattison/research/line-edit-rubric.md)
 `## Standing operating rules`; in short, the cycle runs on every candidate every time with no
-fatigue exception, no per-pass named skip inside it, and a FAILED pass kills the candidate rather
-than annotating it. Under load, emit fewer candidates — not unchecked ones. This leaves the
-response-filter's own box-level skip clause untouched: its §1-§8 boxes remain
-skippable-with-reason. The one legitimate skip among the two is pass 11 (voiceprint match) when no
-voiceprint exists — named, with that reason.
+fatigue exception, and a FAILED pass kills the candidate rather than annotating it. Under load, emit
+fewer candidates — not unchecked ones. Passes scoped out by their own headings (no fixed melody, no
+rhyme position, no figure, no voiceprint on disk) are declared and stepped past — that is the pass
+running, not a skip. This leaves the response-filter's own box-level skip clause untouched: its
+§1-§8 boxes remain skippable-with-reason.
 
 If a gate's input is missing, the correct move is to invoke the skill that produces it, not to
 proceed and note the absence. Lines written without their inputs are LLM defaults wearing the

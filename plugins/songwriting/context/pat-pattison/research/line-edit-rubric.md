@@ -57,9 +57,17 @@ assistant violated its own rubric. Do not attribute them to Pat.
    exceptions.** The failures this rule exists for: a word repeated across
    adjacent lines (`wishes` / `wish`) in violation of the rubric's own pass 2,
    and lines presented after the assistant had itself flagged them off-template.
-   Under load, emit FEWER candidates — never unchecked ones. "Full" means full:
-   no per-pass named skip inside the cycle. A pass whose input is missing is the
-   pass that sends you to go get the input.
+   Under load, emit FEWER candidates — never unchecked ones.
+
+   **Not applicable is not a skip.** Four passes are scoped by their own headings:
+   pass 1 to fixed-melody work, pass 4 to lines in a rhyme position, pass 9 to
+   figurative lines, and pass 11 to sessions where a voiceprint exists. Reaching
+   one of those, declaring it out of scope for THIS candidate, and moving on IS
+   the pass running — say which scope condition failed and continue. What rule 2
+   forbids is the other thing: dropping an in-scope pass because the cycle is
+   long, the hour is late, or the candidate looks fine. A pass whose input is
+   merely missing is the pass that sends you to go get the input; a pass whose
+   subject is absent has nothing to get.
 3. **A FAILED pass kills the candidate.** It does not reach the menu with the
    flag attached. A disclosed failure is still a failure shown, and the writer's
    attention is what the disclosure spends.
@@ -548,10 +556,13 @@ AND the accepted line that sets the standard:
       the writer's recorded rejection list? A repeat of a named rejection is an
       automatic fail, not a judgement call
 
-If no voiceprint exists, this pass is SKIPPED WITH THE REASON NAMED ("no
-voiceprint on disk") — not silently passed. A pass claimed with no artifact to
-judge against is a failed pass. This is the one pass whose skip is legitimate,
-because its input lives in the consuming project and may not have been built yet.
+If no voiceprint exists, report `UNKNOWN — no voiceprint on disk` and move on.
+That is this pass's scope condition failing, in the sense rule 2 allows, and it is
+the same `UNKNOWN` [voiceprint.md](voiceprint.md) uses for a dimension below its
+evidence floor. What is not allowed is claiming the pass PASSED: a pass claimed
+with no artifact to judge against is a failed pass. This pass's input lives in the
+consuming project, so `UNKNOWN` is a real and common answer — and it is also the
+signal that building the voiceprint is the next piece of work.
 
 **Distinct from pass 8.** Pass 8 asks whether the line fits the SECTION's voice —
 whether it is speakable in this slot. This pass asks whether it fits the WRITER's,

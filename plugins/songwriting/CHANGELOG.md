@@ -6,10 +6,18 @@ All notable changes to the `songwriting` plugin are documented here. Format foll
 ## [1.4.0]
 
 Both audit denominators are unchanged: **Axis 1 stays 44 of 44** and **Axis 2
-stays 226 of 226.** No Pattison reading. Every Pat quote carried into the two new
-files was copied from a file already in this corpus and mechanically re-checked
-against it — **37 quoted fragments in `line-edit-rubric.md`, 33 matched verbatim
-and the other 4 are this release's own new section titles**, not attributions.
+stays 226 of 226.** No Pattison reading, and **no new Pat text enters the corpus.**
+Every Pat passage this release quotes was copied from a file already here and then
+re-checked against the pre-change corpus by script rather than by eye:
+**37 added blockquote fragments — 29 in `line-edit-rubric.md`, 5 in `meter.md`,
+3 in `voiceprint.md` — and all 37 are verbatim in the corpus as it stood at the
+fork point. Zero unfound.**
+
+The wider sweep over every added `"…"` span finds 74 fragments, 53 of them already
+verbatim here. The 21 that are not are this release's own new section titles
+("Presenting the candidates — chat vs file"), router trigger phrases, one writer
+utterance, and this entry quoting itself — no attribution among them. Blockquotes
+are the fidelity axis, and they are clean.
 
 **A minor, not a patch.** Two new context files ship, the line-emitting skills
 gain preconditions they did not have, and one gate class becomes non-skippable.
@@ -173,21 +181,38 @@ rather than a verdict.
 - **Read-at-path, not context-provided, is load-bearing.** The 12-agent panel that
   produced the rejected batch was given inlined context and never read the corpus.
   That is why the row demands the sources be read at their paths.
+- **The skeptic row is skippable-with-named-reason, and that is a judgement call
+  this release made rather than one the writer handed down.** His standing rules
+  cover the rubric self-run with no fatigue exceptions; they say nothing about
+  mandating a subagent dispatch per batch. Making it unskippable would have been
+  this plugin's decision wearing his authority, so it sits in the skippable class
+  with the reason required and the note that being asked why is expected. **A
+  reviewer who wants it mandatory should say so** — it is one word in one cell.
 
-### Fixed — the two gate classes are no longer one
+### Fixed — one gate class was two, and the skip clause covered only one
 
 - **`Any gate may be skipped` was true of craft artifacts and false of the AI's
-  own self-check**, and the file said only the first thing. The gate rows now
-  split: rows demanding a craft artifact stay skippable-with-reason, because how
+  own self-check**, and the file said only the first thing. The rows now split:
+  everything demanding a craft artifact stays skippable-with-reason, because how
   much scaffolding a line gets is the writer's call and *"There are no rules, only
-  tools."* (*Writing Better Lyrics* (2009), Chapter 18) is why. The rubric rows do
-  **not** carry that clause — the writer cannot overrule a check he never saw run.
-  Under load, emit fewer candidates, not unchecked ones.
+  tools."* (*Writing Better Lyrics* (2009), Chapter 18) is why. **The rubric row
+  alone** does not carry that clause — the writer cannot overrule a check he never
+  saw run. Under load, emit fewer candidates, not unchecked ones.
 
   Getting this wrong in either direction was the risk: a blanket
   no-exceptions rule would have contradicted the plugin's whole stance, and
   leaving the skip clause blanket would have made the new rules decorative.
   `response-filter.md`'s own §1-§8 box-level skips are explicitly untouched.
+- **And "no exceptions" needed one distinction to be self-consistent.** Four of
+  the rubric's passes are scoped by their own headings — fixed-melody work, a rhyme
+  position, a figurative line, an existing voiceprint. Read against a flat
+  no-skip rule, "pass 4: not a rhyme position" would be a violation, and pass 11
+  openly said its own skip was legitimate. The rule now separates **not applicable
+  by the pass's own scope** (declare which condition failed and step past — that IS
+  the pass running) from **dropped because the cycle is long** (forbidden). Pass 11
+  reports `UNKNOWN — no voiceprint on disk`, reusing the vocabulary
+  `voiceprint.md` already uses for a dimension below its evidence floor. A
+  self-contradicting rule is an unenforceable one.
 - **A FAILED pass kills the candidate; it does not reach the menu with the flag
   attached.** A disclosed failure is still a failure shown, and the writer's
   attention is what the disclosure spends. Two new cross-section drift checks
@@ -332,6 +357,12 @@ fix-nows. It closes **none** of the following, and none should be read as covere
   People's Lives" counterfactuals, the "50 Ways" consonance swap, the wind-as-dog
   drills — is real book work and is not done. The rubric this release promotes is
   the general case; the per-concern rubrics are not written.
+
+  **The existing evals were read for conflicts and none was found**, but one is now
+  under-specified: `skills/rhyme/evals/evals.json` expects the stability-tier walk
+  and says nothing about the coda-field walk that must now precede it. Its `8-15
+  candidates` assertion is a GENERATION count and is unaffected by the 3-4 display
+  cap. No eval mentions the rubric or the voiceprint, because neither existed.
 - **The narrative-information pass** (gap 8) — *what does the listener know at this
   point, and when should they learn the rest*. The corpus covers the craft in
   verse development and repainting; it has never surfaced as an operational check.
