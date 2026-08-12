@@ -3,6 +3,37 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.30.0]
+
+### Added
+
+- **`skills/inventory` — read-only enumeration of the complete invocable surface.**
+  Answers "what can this machine actually invoke, and where did each thing come from" in one
+  report: built-in CLI commands with aliases and hidden/gated markers, bundled skills, and every
+  component of every installed plugin across all marketplaces. Built-in and bundled surfaces are
+  read from the shipped binary because upstream publishes no built-in command list —
+  `docs/en/slash-commands` and `docs/en/skills` return byte-identical markdown since commands were
+  merged into skills — so no documentation source is complete for them. Filters accept either a
+  flag (`--builtin`, `--plugins`, `--marketplace <name>`, `--agents`, `--hooks`, `--diff`) or the
+  equivalent sentence; one extraction feeds every view.
+
+  The extraction survives ordinary releases by resolving at runtime what changes between them:
+  registrar names come from the bundle's export maps (`registerBundledSkill:()=>xu`) rather than a
+  hardcoded minified identifier, the bundle is located by export-name anchor rather than section
+  layout, and each command's fields are read by brace depth rather than a text window — adjacent
+  minified literals otherwise bleed into one another. `scripts/inventory.py` needs only Python
+  3.11+; no `strings`, `jq`, or PowerShell, so it behaves the same on all three platforms.
+
+  Every run carries an integrity verdict (`ok` / `degraded` / `broken`) because the failure that
+  matters is not a crash but a clean-looking short list. Canary commands, a minimum resolved-to-
+  registration-token ratio, a sweep for unrecognised registrar-shaped exports, and the
+  resolved-versus-seen gap on bundled skills each convert a quiet shortfall into a stated one; a
+  `degraded` run reports counts as floors rather than totals. `--self-check` prints one verdict
+  line and exits 0/1/2 for use as a CI gate or scheduled drift check, with `/claude-ops:changelog`
+  as the natural trigger. `VALIDATED_AGAINST` records the last human-verified build, so a consumer
+  running an older plugin against a newer CLI is told its counts are believed rather than verified
+  instead of being handed a wrong answer.
+
 ## [0.29.3]
 
 ### Fixed

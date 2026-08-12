@@ -1,0 +1,78 @@
+{
+  "skill_name": "inventory",
+  "evals": [
+    {
+      "id": 1,
+      "name": "full-inventory-separated-by-source",
+      "prompt": "What slash commands and skills do I actually have available? Give me the whole picture.",
+      "expected_output": "Runs scripts/inventory.py once, then reports the integrity status before any count. Built-in CLI commands, bundled skills, and plugin components appear as separate sections rather than one merged list, each one-per-line and alphabetical, with aliases and hidden/gated markers on the built-in rows. Closes with provenance: which source produced which section.",
+      "files": [],
+      "expectations": [
+        "Output runs the bundled inventory.py engine rather than enumerating commands from memory or ad-hoc grep over the binary",
+        "Output keeps built-in commands, bundled skills, and plugin-provided components in separate sections instead of merging them into one list",
+        "Output lists names one per line in alphabetical order rather than as prose or a multi-column grid",
+        "Output states which source produced each section, distinguishing what was read from the binary from what was read from disk"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "degraded-counts-are-floors",
+      "prompt": "How many bundled skills does Claude Code ship? Just give me the number.",
+      "expected_output": "Reads the integrity block first. Because the current build reports degraded — some bundled-skill registrations use computed names — the count is reported as a floor with the shortfall named, not as a verified total. Does not round the unresolved registrations away or present the resolved number as complete.",
+      "files": [],
+      "expectations": [
+        "Output reports the bundled-skill count as a floor or minimum rather than asserting it as an exact total",
+        "Output names the reason the count is not exact, referring to registrations whose names could not be resolved",
+        "Output does not silently drop the unresolved registrations from the explanation to present a cleaner number"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "alias-is-not-a-separate-command",
+      "prompt": "Is /cost still a thing? I thought it got removed and replaced by /usage.",
+      "expected_output": "Answers the specific name first: /cost resolves, as an alias of /usage alongside /stats — one command with three names, not a removal and not three commands. Distinguishes an alias from a separate registration, and notes that counting aliases separately would make any total disagree with /help.",
+      "files": [],
+      "expectations": [
+        "Output states that /cost still resolves and identifies it as an alias of /usage rather than a removed or separate command",
+        "Output answers the named command directly before offering any surrounding list",
+        "Output does not count the alias as an additional command in any total it reports"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "hidden-is-not-available",
+      "prompt": "The report lists /heapdump and /sandbox. Walk me through using them.",
+      "expected_output": "Refuses the premise that presence in the extraction means availability. Both carry the hidden marker, meaning a runtime predicate decides visibility from plan, platform, session type, or config, so the extraction proves only that they exist in the build. Routes the question of what actually resolves right now to /help and /skills rather than asserting the commands are usable.",
+      "files": [],
+      "expectations": [
+        "Output states that a hidden or gated marker means presence in the build, not availability to this user",
+        "Output declines to present the commands as usable on the strength of the extraction alone",
+        "Output routes the what-resolves-now question to /help or /skills as the live authority"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "plugin-filter-natural-language",
+      "prompt": "show me only the stuff my plugins added, not the built-in stuff",
+      "expected_output": "Treats the sentence as equivalent to the --plugins flag and reports only plugin-provided components, grouped by marketplace then plugin, with a component-type breakdown. Does not merge plugin components into the built-in sections, and notes that a marketplace checkout is a catalog of what is available while enabledPlugins governs what actually loads.",
+      "files": [],
+      "expectations": [
+        "Output restricts the report to plugin-provided components rather than printing the full unfiltered inventory",
+        "Output groups plugin components by marketplace and plugin rather than flattening them into one list",
+        "Output distinguishes plugins present in a marketplace checkout from plugins actually enabled"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "routes-install-directory-question-away",
+      "prompt": "My ~/.claude directory is huge and I think there's stale junk in it. Can you inventory it and tell me what to clean up?",
+      "expected_output": "Recognises the object as the install directory on disk rather than the invocable surface, and routes to /claude-ops:audit-install-state for the staleness reading and /disk-hygiene:clean for any deletion. Offers what this skill can answer — which capabilities resolve and where each came from — without producing a staleness verdict or recommending deletions.",
+      "files": [],
+      "expectations": [
+        "Output routes the install-directory staleness question to /claude-ops:audit-install-state rather than answering it",
+        "Output does not produce staleness verdicts or recommend deleting anything",
+        "Output explains the boundary between inventorying files on disk and inventorying capabilities that resolve"
+      ]
+    }
+  ]
+}
