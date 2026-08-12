@@ -135,7 +135,7 @@ fi
 # Three documented exceptions keep the file in the start directory: outside a git
 # repository, when the repository root is the home directory, and in Agent SDK
 # sessions. The first two are detectable here; the third is not, so it is stated
-# rather than silently mis-resolved.
+# rather than silently wrongly resolved.
 LOCAL_ROOT="$PROJECT_ROOT"
 local_basis="repository root"
 if [[ -z "${PERMISSION_STATE_FIXTURE_DIR:-}" ]]; then
