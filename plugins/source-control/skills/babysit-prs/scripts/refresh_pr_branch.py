@@ -12,7 +12,7 @@ from typing import Any, cast
 
 import babysit_lease as leases
 from babysit_delta import compute_branch_freshness, head_repository_scope
-from babysit_feedback import fetch_current_human_stop
+from babysit_feedback import fetch_current_human_stop, human_stop_blocks_automation
 from babysit_gh import (
     find_open_prs_for_head_ref,
     gh_json,
@@ -64,7 +64,7 @@ def validate_current_candidate(
         raise RuntimeError("PR has a merge conflict; refusing branch refresh")
     if compute_branch_freshness(current)["state"] != "behind":
         raise RuntimeError("PR is no longer behind its base branch")
-    if fetch_current_human_stop(repo, number, current)["required"]:
+    if human_stop_blocks_automation(fetch_current_human_stop(repo, number, current)):
         raise RuntimeError("human review stop is active; refusing branch refresh")
     matching_prs = find_open_prs_for_head_ref(current)
     if matching_prs != [f"{repo}#{number}"]:
@@ -125,7 +125,7 @@ def run_locked(
         "branch_write_allowed"
     ):
         raise RuntimeError("snapshot does not allow writes to this PR head repository")
-    if json_object(pr_state.get("human_stop")).get("required"):
+    if human_stop_blocks_automation(json_object(pr_state.get("human_stop"))):
         raise RuntimeError("snapshot has an active human review stop")
     uniqueness = json_object(pr_state.get("head_ref_uniqueness"))
     if not uniqueness.get("checked") or not uniqueness.get("unique"):

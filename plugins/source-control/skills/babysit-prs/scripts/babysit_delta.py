@@ -464,12 +464,19 @@ def classify_pr(
     dispositions = dict(prev.get("feedback_dispositions") or {})
     feedback = collect_feedback(pr, inline_comments, dispositions, config.feedback)
     review_decision = str(pr.get("reviewDecision") or "")
+    self_logins = normalize_self_logins(config.self_logins)
     human_changes_requested = any(
         item.get("kind") == "review" and item.get("state") == "CHANGES_REQUESTED"
         for item in feedback["human_blocking"]
     )
+    external_human_blocking = [
+        item
+        for item in feedback["human_blocking"]
+        if not is_self_login(item.get("author"), self_logins)
+    ]
     human_stop = {
         "required": bool(feedback["human_blocking"]),
+        "external_required": bool(external_human_blocking),
         "human_changes_requested": human_changes_requested,
         "human_blocking_count": len(feedback["human_blocking"]),
     }
@@ -581,7 +588,6 @@ def classify_pr(
     # gate. Filtering it there instead would silently strip the solo maintainer's
     # ability to human-stop their own PR. Here it only stops re-dispatching a
     # worker onto the engine's own prior output.
-    self_logins = normalize_self_logins(config.self_logins)
     new_blocking_feedback = [
         item for item in feedback["blocking"] if item["id"] not in prev_blocking_ids
     ]

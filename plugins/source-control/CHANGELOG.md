@@ -3,6 +3,14 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.53.17]
+
+### Fixed
+
+- **Branch refresh and review triggers no longer halt on self-authored human stops (#902).**
+  `human_stop.external_required` excludes configured self-logins from automation gates while
+  `human_stop.required` still blocks merge when the maintainer posts under their own login.
+
 ## [0.53.16]
 
 ### Changed

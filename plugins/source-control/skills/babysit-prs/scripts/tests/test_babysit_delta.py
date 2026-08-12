@@ -451,6 +451,7 @@ class SelfLoginHumanFeedbackExclusionTests(unittest.TestCase):
                    for item in result["feedback"]["human_blocking"]]
         self.assertEqual(authors, ["solo"])
         self.assertTrue(result["human_stop"]["required"])
+        self.assertFalse(result["human_stop"]["external_required"])
         self.assertFalse(result["pr_clean_ready_for_direct_gate"])
 
     def test_other_login_still_fires_under_same_config(self) -> None:
