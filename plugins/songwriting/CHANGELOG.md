@@ -3,14 +3,17 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [1.1.4]
+## [1.2.0]
 
 Both audit denominators are unchanged: **Axis 1 stays 44 of 44** and **Axis 2
 stays 226 of 226.** No Pattison reading.
 
-**The r/SunoAI pass that three releases called impossible was run, and it
-changed two verdicts.** 1.1.2 and 1.1.3 both recorded the Reddit corpus as
-unreachable — "the search tool refuses `reddit.com`" — and rated claims down
+**A minor, not a patch.** A confidence rung changes, which changes how callers
+are told to surface the technique, and `SKILL.md` gains a new standing
+instruction (the browser route to Reddit). Both are behavior, not wording.
+
+**The r/SunoAI pass that three releases called impossible was run.** 1.1.2 and
+1.1.3 both recorded the Reddit corpus as unreachable — "the search tool refuses `reddit.com`" — and rated claims down
 accordingly. A reviewer on PR #2366 pointed at this plugin's **own**
 `context/workflow-recipes.md`, which has said since 1.1.0 that *"r/SunoAI is no
 longer unreachable"* and that a **browser session** reaches it where search and
@@ -21,7 +24,7 @@ finding worth keeping: an absence recorded as "cannot be checked" is only as goo
 as the search for a way to check, and the way was already written down in this
 skill.
 
-### ⚠ TWO CLAIMS DEMOTED IN 1.1.2 ARE ACTUALLY SUPPORTED
+### One claim moves up a rung; the other does not, and that is the more useful result
 
 - **Tag-order front-loading (`power-tips.md` "Tag order") is no longer
   unsourced.** 1.1.1 demoted it as *"never been checked against a source in
@@ -31,28 +34,33 @@ skill.
   leads with **"Key Insight 1: Order Matters"** and states that Suno assigns
   importance by order, first descriptors setting the stage and later ones adding
   flavor, with a paired example differing only in which half leads. Now
-  **MEDIUM**, with an era caveat below.
-- **Bare genre order has an isolating empirical report.** In
-  [`1g5qzes`](https://www.reddit.com/r/SunoAI/comments/1g5qzes/style_order/), a
-  user reports `progressive metal, jazz` and `jazz, progressive metal` producing
-  noticeably different results. A comma swap changes **order and nothing else** —
-  which is exactly the comparison this file's own `X with Y textures` example
-  cannot make, since that moves grammatical role too. 1.1.2 called position
-  "unestablished"; it is now attested, **and contested** — the same thread's
-  other reply says merged styles need no particular order.
+  **LOW-MEDIUM** — the ladder defines that rung as *"at most a single community
+  post"*, and one post is what this is. Not MEDIUM.
+- **Bare genre order is still unestablished, and now we know what would settle
+  it.** In
+  [`1g5qzes`](https://www.reddit.com/r/SunoAI/comments/1g5qzes/style_order/) a
+  user reports `progressive metal, jazz` and `jazz, progressive metal` giving
+  different results. A draft of this release called that **isolating**, because a
+  comma swap moves order and nothing else. **A reviewer showed it is not** — and
+  the refutation came from this plugin's own `tips.md`: *"Variance is high. First
+  generation is rarely best."* Against a stochastic generator, one run per
+  ordering leaves run-to-run variance uncontrolled; two different outputs are
+  what you would expect from the **same** prompt twice. Recorded as an anecdote
+  and as the shape a real test would take — repeated or seed-controlled — not as
+  evidence.
 
-**Neither is promoted past what the evidence carries.** Order is attested as
-mattering, **disputed**, and **unquantified**; "Order encodes priority" is still
-not restored, because its defect was certainty and mechanism, not direction.
+**"Order encodes priority" is still not restored.** Its defect was certainty and
+mechanism, and none of this supplies either.
 
 ### Fixed
 
-- **Genre fusion is now MEDIUM, and says which half of the rung earned it.**
-  `SKILL.md` defines MEDIUM as multiple guides **plus** Reddit consensus; the
-  guides were already there and the Reddit pass supplies the rest. The entry
-  states that consensus covers **anchor-and-accent**, not position — the guides
-  and the Reddit guide post agree one style should lead, while the "Style order"
-  thread splits on bare order.
+- **Genre fusion stays between LOW-MEDIUM and MEDIUM — but now on evidence.**
+  `SKILL.md` requires multiple guides **plus** Reddit consensus. Three guides
+  give the first half; the pass found **one** corroborating post and one split
+  thread, which is corroboration, not consensus. The rung is unchanged from
+  1.1.3; what changed is that 1.1.3 rated it down for an **untried** corpus —
+  wrong twice over, since the corpus was reachable and now says something
+  specific.
 - **An era caveat is attached to front-loading, and it is load-bearing.** The
   cited post is from 2024 (v3/v4). `help.suno.com` 5782849 says of v4.5 that
   *"In previous models, you would want to prioritize certain genre and style
@@ -60,8 +68,8 @@ not restored, because its defect was certainty and mechanism, not direction.
   First-party guidance is moving **away** from the terse prioritized-token style
   the rule describes. So front-loading is attested for terse comma-separated
   prompts and **unverified for the v5.5 conversational prompts this skill
-  targets**. Rating it MEDIUM without that split would have shipped a v3-era
-  finding as current advice.
+  targets**. Rating it without that split would have shipped a v3-era finding as
+  current advice.
 - **Middle-tag softening (roughly 4-7) stays unsourced**, explicitly. The post
   that sources the first half says nothing about middle positions, and the entry
   now warns against letting one half carry the other.
