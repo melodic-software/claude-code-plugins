@@ -53,6 +53,18 @@
         "ai-review": { "$ref": "#/$defs/PerClassVerification" }
       }
     },
+    "verification_topology": {
+      "description": "Optional per-class verification-topology binding over the verification-topology leaf's vocabulary: WHO verifies, how those verifiers must differ, and the per-class checker floor. An absent key (or an absent class) is NOT a hole: the leaf's shipped floors apply, exactly as escalation_severity falls back to contract defaults. Shipped floor values are FLOORS: tightening is legal, weakening below a shipped value makes the binding invalid — the admission-rule override_justification escape does NOT apply here, the same rule verification_blocking carries. Policy is roles + relational constraints + machine-checkable predicates; every concrete model instance is an org-binding outcome resolved on the binding seam at run time, so no entry here ever names a vendor or instance.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "C1": { "$ref": "#/$defs/ClassTopology" },
+        "C2": { "$ref": "#/$defs/ClassTopology" },
+        "C3": { "$ref": "#/$defs/ClassTopology" },
+        "C4": { "$ref": "#/$defs/ClassTopology" },
+        "C5": { "$ref": "#/$defs/ClassTopology" }
+      }
+    },
     "promotion_state": {
       "description": "Keyed by PROMOTABLE cell id only (C2-auto-merge, C3-auto-merge, C3-ai-review-blocking); an entry for a non-promotable cell (C4/C5 merge never promotes) makes the binding invalid. The bound state is a CEILING: consumers must resolve the effective state against live promotion-evidence telemetry before every autonomous dispatch/merge decision, fail-closing to unpromoted when evidence is unavailable.",
       "type": "object",
@@ -174,8 +186,13 @@
           "description": "The HUMAN-RATIFIED substrate-class assertion the eligibility decision keys off, living here on the agent-unwritable surface — never resolved from the probe transcript, whose recorded class is capture evidence the executing agent could doctor and must EQUAL this value to verify. An L3 entry ratifying a class outside the kernel-separated pair (vm-microvm, hosted-ephemeral-executor) is an invalid binding, fail-closed.",
           "enum": ["container", "os-sandbox", "vm-microvm", "hosted-ephemeral-executor"]
         },
+        "component_reachable_hosts": {
+          "description": "The HUMAN-RATIFIED set of external destinations this surface's installed components may request — an outer-world fact no capture can establish, so it lives here on the agent-unwritable surface rather than in the transcript. An L2/L3 probe transcript verifies only when its probed egress targets cover this set in FULL: each ratified destination is a separate policy decision, so covering one says nothing about the rest. The EMPTY list is the explicit claim that this surface installs nothing carrying policy rules of its own; an ABSENT field leaves the level UNPROVEN and excluded from isolation eligibility, fail-closed.",
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
         "probe_evidence": {
-          "description": "Reference to the live-validation probe transcript that proved this boundary; a binding without probe evidence is invalid. For L2/L3 the referenced transcript must VERIFY (capture shape with all three assertions — denied egress proven by peer identity, absent host credentials, contained workspace host-writes — and a networked outer context) — under autonomous-enabled an unverifiable transcript leaves the level UNPROVEN and excluded from isolation eligibility, fail-closed. A transcript captured before the workspace assertion existed does not verify: the level goes UNPROVEN and the surface re-probes.",
+          "description": "Reference to the live-validation probe transcript that proved this boundary; a binding without probe evidence is invalid. For L2/L3 the referenced transcript must VERIFY (capture shape with all three assertions — denied egress proven by peer identity, absent host credentials, contained workspace host-writes — and a networked outer context) — under autonomous-enabled an unverifiable transcript leaves the level UNPROVEN and excluded from isolation eligibility, fail-closed. A transcript captured before the workspace assertion existed does not verify: the level goes UNPROVEN and the surface re-probes. The transcript must additionally cover every ratified component_reachable_hosts destination.",
           "type": "string",
           "minLength": 1
         },
@@ -225,6 +242,76 @@
           "format": "date-time"
         }
       }
+    },
+    "ClassTopology": {
+      "description": "One class's declared verification topology: a list of checker SLOTS plus the floors evaluated over it. All four axes are required — a count with no slot list is a length with no coverage, so a declared class always carries the list its counts are checked against. The checker enforces the floor comparisons, relational-reference resolution, the declared distinctness the leaf requires of every model-adjudicated slot, and the never-vacuous cross_vendor_required rule; this schema fixes the shape.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["min_checkers", "min_model_checkers", "cross_vendor_required", "roles"],
+      "properties": {
+        "min_checkers": {
+          "description": "Floor-bounded count of DISTINCT checker slots — a coverage floor, never a list length: deterministic slots are distinguished by scanner class, model-adjudicated slots by declared distinctness, and two slots that resolve identically declare ONE checker.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "min_model_checkers": {
+          "description": "Floor-bounded count of MODEL-ADJUDICATED checker slots. Exists because a total count cannot express which KIND of coverage is owed: without it a class meets its floor with deterministic slots alone and never faces a model judge.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "cross_vendor_required": {
+          "description": "Whether the model-adjudicated slots must be pairwise vendor-disjoint AND disjoint from the generator. The knob itself carries that obligation onto every model-adjudicated slot, and it is never vacuously satisfied: asserting it with fewer than two model-adjudicated slots is invalid rather than trivially conforming. Floor-bounded: false where the shipped floor is true is invalid.",
+          "type": "boolean"
+        },
+        "roles": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/TopologyRole" }
+        }
+      }
+    },
+    "TopologyRole": {
+      "description": "One declared slot in the class's verification pipeline. A slot is filled by either a DETERMINISTIC layer (role checker carrying scanner_class) or a MODEL-ADJUDICATED role; a deterministic layer has no model or vendor identity, so the relational constraints and predicates bind only model-adjudicated slots and are never accepted on a deterministic one. name is the class-local id relational constraints resolve against: a constraint naming a role its own class does not declare is invalid, not ignored — that resolution is what keeps the constraint machine-checkable rather than decorative. A slot name says nothing about what it resolves to, so every model-adjudicated checker slot DECLARES distinct_model_from against the generator and against every other model-adjudicated checker slot; undeclared distinctness is unestablished distinctness. Predicates are requirements a binding can EVALUATE against a candidate instance; a requirement that cannot be evaluated is a preference, and preferences are not policy, so an unrecognized predicate key is rejected rather than carried as decoration.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "role"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "role": { "enum": ["generator", "checker", "cross_vendor_checker", "ranker"] },
+        "scanner_class": {
+          "description": "Marks the slot as a DETERMINISTIC layer and names the scanner class that distinguishes it — two deterministic slots sharing a scanner class resolve identically and declare one checker. Legal on role checker only.",
+          "type": "string",
+          "minLength": 1
+        },
+        "distinct_model_from": { "$ref": "#/$defs/RoleReference" },
+        "distinct_vendor_from": { "$ref": "#/$defs/RoleReference" },
+        "min_context_tokens": {
+          "description": "Evaluated against the declared input limit of the bound instance.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "requires_modality": { "$ref": "#/$defs/PredicateTokenList" },
+        "requires_feature": { "$ref": "#/$defs/PredicateTokenList" }
+      }
+    },
+    "RoleReference": {
+      "description": "Relational-constraint target(s): the class-local name(s) of declared roles this role must differ from. A list is several constraints of one kind; entries must be distinct, because repeating a target restates one constraint while presenting as several.",
+      "oneOf": [
+        { "type": "string", "minLength": 1 },
+        {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      ]
+    },
+    "PredicateTokenList": {
+      "description": "Non-empty, duplicate-free token list. For requires_feature the names are vendor-local, so the binding declares the mapping it resolves them against; a repeated token is one requirement presenting as several.",
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
     },
     "Route": { "type": "string", "minLength": 1 },
     "EscalationEventClass": {
