@@ -37,6 +37,10 @@ extend-ignore-re = [
 abd = "abd"
 # Business Associate Agreements (HIPAA) — provisioning.
 BAAs = "BAAs"
+# Scansion vocalization for a stressed syllable ("DUM da DUM da") — songwriting
+# plugin, prosody/meter craft docs. Corrected to "DUMB" by default. Case-sensitive
+# and whole-token, so lowercase "dum" and any word containing it are unaffected.
+DUM = "DUM"
 # Features on Demand (Windows optional-feature packaging) — provisioning.
 FoD = "FoD"
 # NIC power-management registry value name — provisioning.
