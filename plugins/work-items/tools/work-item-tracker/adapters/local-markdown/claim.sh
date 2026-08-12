@@ -8,17 +8,22 @@ set -uo pipefail
 # shellcheck source=common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
 
-wit_help_if_requested "usage: claim <id> [--ttl-hours <n>] [--session-id <s>]" "$@"
+wit_help_if_requested "usage: claim <id> [--ttl-hours <n>] [--ttl-minutes <n>] [--session-id <s>]" "$@"
 
 id="${1:-}"
-[[ -n "$id" ]] || wit_usage_error "usage: claim <id> [--ttl-hours <n>] [--session-id <s>]"
+[[ -n "$id" ]] || wit_usage_error "usage: claim <id> [--ttl-hours <n>] [--ttl-minutes <n>] [--session-id <s>]"
 shift
-ttl="${WIT_LEASE_TTL_HOURS:-}" session_id=""
+ttl="${WIT_LEASE_TTL_HOURS:-}" ttl_minutes="${WIT_LEASE_TTL_MINUTES:-0}" session_id=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --ttl-hours)
       [[ $# -ge 2 ]] || wit_usage_error "--ttl-hours needs a value"
       ttl="$2"
+      shift 2
+      ;;
+    --ttl-minutes)
+      [[ $# -ge 2 ]] || wit_usage_error "--ttl-minutes needs a value"
+      ttl_minutes="$2"
       shift 2
       ;;
     --session-id)
@@ -31,6 +36,7 @@ while [[ $# -gt 0 ]]; do
 done
 wit_require_local_id "$id" || wit_usage_error "malformed or non-local-markdown id: $id"
 [[ "$ttl" =~ ^[0-9]+$ ]] || wit_usage_error "--ttl-hours must be a non-negative integer (binding config.lease_ttl_hours supplies the default)"
+[[ "$ttl_minutes" =~ ^[0-9]+$ ]] || wit_usage_error "--ttl-minutes must be a non-negative integer (binding config.lease_ttl_minutes defaults to 0)"
 
 wit_need_storage
 number="$WIT_ID_NUMBER"
@@ -54,9 +60,10 @@ now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 lease_id="$(wit_next_lease_id)"
 
 lease="$(jq -cn --arg sv "$WIT_SCHEMA_VERSION" --arg holder "$holder" --arg now "$now" \
-  --arg ttl "$ttl" --arg sid "$session_id" --arg cid "$lease_id" \
+  --arg ttl "$ttl" --arg ttl_minutes "$ttl_minutes" --arg sid "$session_id" --arg cid "$lease_id" \
   '{schema_version: $sv, holder: $holder, acquired_at: $now, renewed_at: $now,
     ttl_hours: ($ttl | tonumber), lease_comment_id: ($cid | tonumber)}
+   + (if ($ttl_minutes | tonumber) > 0 then {ttl_minutes: ($ttl_minutes | tonumber)} else {} end)
    + (if $sid != "" then {session_id: $sid} else {} end)')"
 # The lease marker and the assignee are one claim and must land together: a live
 # lease with an empty assignees would look available and let a later claim race the
@@ -71,7 +78,8 @@ if ! wit_claim_write "$file" "$marker_line" "$(jq -cn --arg h "$holder" '[$h]')"
 fi
 
 jq -cn --arg sv "$WIT_SCHEMA_VERSION" --arg id "$id" --arg holder "$holder" \
-  --arg now "$now" --arg ttl "$ttl" --arg cid "$lease_id" --arg sid "$session_id" \
+  --arg now "$now" --arg ttl "$ttl" --arg ttl_minutes "$ttl_minutes" --arg cid "$lease_id" --arg sid "$session_id" \
   '{schema_version: $sv, id: $id, holder: $holder, acquired_at: $now, renewed_at: $now,
     ttl_hours: ($ttl | tonumber), lease_comment_id: ($cid | tonumber),
-    session_id: (if $sid != "" then $sid else null end)}'
+    session_id: (if $sid != "" then $sid else null end)}
+   + (if ($ttl_minutes | tonumber) > 0 then {ttl_minutes: ($ttl_minutes | tonumber)} else {} end)}'

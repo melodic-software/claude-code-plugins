@@ -41,7 +41,8 @@ The repo binds exactly ONE active provider via `.work-item-tracker.json` at the 
   config — as the once-per-repo binding step.
 - All defaults are externalized to `config` — nothing numeric is baked into scripts.
   `config.lease_ttl_hours` (lease TTL, hours) is REQUIRED; a binding without it is
-  invalid (exit `3`).
+  invalid (exit `3`). Optional `config.lease_ttl_minutes` (0–59 additive minutes;
+  default `0`) combines with `lease_ttl_hours` for sub-hour leases (#1034).
 - `config.storage_dir` is REQUIRED when `provider` is `local-markdown` (no baked default).
 
 ## Verbs (core public surface)
@@ -222,8 +223,10 @@ issue comment with a machine marker:
 
 - Created at claim; **edited in place** at renew (`renewed_at` bump); superseded at
   reclaim/back-off by adding `"superseded_at":"<ISO>"` to the JSON.
-- A lease is **live** when it has no `superseded_at` and `renewed_at + ttl_hours` is in
-  the future. `ttl_hours` defaults from binding `config.lease_ttl_hours`.
+- A lease is **live** when it has no `superseded_at` and `renewed_at + ttl_hours×3600 +
+  (ttl_minutes×60)` is in the future. `ttl_hours` defaults from binding
+  `config.lease_ttl_hours`; `ttl_minutes` defaults to `0` and may be set per claim via
+  `--ttl-minutes` or binding `config.lease_ttl_minutes`.
 - `renew-lease` renews **only a live lease**. A lease that is still the active
   (non-superseded) lease but already **expired** — `renewed_at + ttl_hours` elapsed with
   no back-off yet — is refused (exit `7`), never revived: a delayed holder must not undo a

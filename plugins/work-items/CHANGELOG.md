@@ -13,6 +13,7 @@ All notable changes to the `work-items` plugin are documented here. Format follo
 
 ### Added
 
+<<<<<<< HEAD
 - **`reference/work-class-labels.md` — canonical `work-class:` axis members, migration path, and
   classification pointer to the `autonomy` plugin's `work-classes.md`.** Declares the five labels
   triage stamps and setup migrates; linked from `label-taxonomy.md` and `tracker-seam.md`.
@@ -28,6 +29,10 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   and covers all agent-ready outcomes via the general rule (not per-table-row duplication).
 - **`/work-items:work-loop` admission gate adds C1 read-only disposition as Autonomous**, matching
   the shipped admission-policy default for C1.
+=======
+- **Lease TTL minutes** — optional `ttl_minutes` on lease records, `--ttl-minutes` on
+  `claim`, and optional `config.lease_ttl_minutes` in the binding (#1034).
+>>>>>>> f24f7a7f (feat(work-items): add sub-hour lease TTL via ttl_minutes)
 
 ## [0.35.6]
 

@@ -44,6 +44,8 @@ wit_read_binding() {
   [[ "$provider" =~ ^[a-zA-Z0-9_-]+$ ]] || return 1
   ttl="$(jq -r '.config.lease_ttl_hours // empty' "$path")"
   [[ "$ttl" =~ ^[0-9]+$ ]] || return 1
+  minutes="$(jq -r '.config.lease_ttl_minutes // 0' "$path")"
+  [[ "$minutes" =~ ^[0-9]+$ ]] || return 1
   storage="$(jq -r '.config.storage_dir // empty' "$path")"
   if [[ "$provider" == "local-markdown" && -z "$storage" ]]; then
     return 1
@@ -62,7 +64,8 @@ wit_read_binding() {
   [[ -n "$human_gated" ]] || human_gated="needs-human"
   WIT_PROVIDER="$provider"
   WIT_LEASE_TTL_HOURS="$ttl"
+  WIT_LEASE_TTL_MINUTES="$minutes"
   WIT_STORAGE_DIR="$storage"
   WIT_HUMAN_GATED_LABEL="$human_gated"
-  export WIT_PROVIDER WIT_LEASE_TTL_HOURS WIT_STORAGE_DIR WIT_HUMAN_GATED_LABEL
+  export WIT_PROVIDER WIT_LEASE_TTL_HOURS WIT_LEASE_TTL_MINUTES WIT_STORAGE_DIR WIT_HUMAN_GATED_LABEL
 }

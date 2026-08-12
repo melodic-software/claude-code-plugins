@@ -6,17 +6,22 @@ set -uo pipefail
 # shellcheck source=common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
 
-wit_help_if_requested "usage: claim <id> [--ttl-hours <n>] [--session-id <s>]" "$@"
+wit_help_if_requested "usage: claim <id> [--ttl-hours <n>] [--ttl-minutes <n>] [--session-id <s>]" "$@"
 
-id="" ttl="${WIT_LEASE_TTL_HOURS:-}" session_id=""
+id="" ttl="${WIT_LEASE_TTL_HOURS:-}" ttl_minutes="${WIT_LEASE_TTL_MINUTES:-0}" session_id=""
 id="${1:-}"
-[[ -n "$id" ]] || wit_usage_error "usage: claim <id> [--ttl-hours <n>] [--session-id <s>]"
+[[ -n "$id" ]] || wit_usage_error "usage: claim <id> [--ttl-hours <n>] [--ttl-minutes <n>] [--session-id <s>]"
 shift
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --ttl-hours)
     [[ $# -ge 2 ]] || wit_usage_error "--ttl-hours needs a value"
     ttl="$2"
+    shift 2
+    ;;
+  --ttl-minutes)
+    [[ $# -ge 2 ]] || wit_usage_error "--ttl-minutes needs a value"
+    ttl_minutes="$2"
     shift 2
     ;;
   --session-id)
@@ -29,6 +34,7 @@ while [[ $# -gt 0 ]]; do
 done
 wit_require_github_id "$id" || wit_usage_error "malformed or non-github id: $id"
 [[ "$ttl" =~ ^[0-9]+$ ]] || wit_usage_error "--ttl-hours must be a non-negative integer (binding config.lease_ttl_hours supplies the default)"
+[[ "$ttl_minutes" =~ ^[0-9]+$ ]] || wit_usage_error "--ttl-minutes must be a non-negative integer (binding config.lease_ttl_minutes defaults to 0)"
 
 owner="$WIT_ID_OWNER" repo="$WIT_ID_REPO" number="$WIT_ID_NUMBER"
 
@@ -63,9 +69,10 @@ fi
 # 3. Post our lease comment.
 now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 lease="$(jq -cn --arg sv "$WIT_SCHEMA_VERSION" --arg holder "$login" --arg now "$now" \
-  --arg ttl "$ttl" --arg sid "$session_id" \
+  --arg ttl "$ttl" --arg ttl_minutes "$ttl_minutes" --arg sid "$session_id" \
   '{schema_version: $sv, holder: $holder, acquired_at: $now, renewed_at: $now,
     ttl_hours: ($ttl | tonumber)}
+   + (if ($ttl_minutes | tonumber) > 0 then {ttl_minutes: ($ttl_minutes | tonumber)} else {} end)
    + (if $sid != "" then {session_id: $sid} else {} end)')"
 wit_run_gh write api "repos/$owner/$repo/issues/$number/comments" \
   -f body="${WIT_LEASE_MARKER}${lease} -->" --jq '.id'
