@@ -205,6 +205,20 @@ if [[ -n "${CLAUDE_PLUGIN_DATA:-}" ]]; then
   PSSA_STATE_BASE_ARG="$(to_pwsh_path "$CLAUDE_PLUGIN_DATA")"
 fi
 
+_ps_before=""
+if _ps_before=$(mktemp 2>/dev/null); then
+  cp "$FILE" "$_ps_before" 2>/dev/null || _ps_before=""
+fi
+
+maybe_disclose_ps_rewrite() {
+  [[ -n "$_ps_before" ]] || return 0
+  if ! cmp -s "$_ps_before" "$FILE" 2>/dev/null; then
+    hook::emit_system_message "powershell-format: reformatted $(basename "$FILE") via Invoke-Formatter (structural layout only)."
+  fi
+  rm -f "$_ps_before"
+  _ps_before=""
+}
+
 # Single pwsh invocation — probe the module, gate code-loading settings, format
 # in place, then lint. File and settings pass via env vars to avoid pwsh
 # argument parsing issues.
@@ -618,6 +632,7 @@ PWSH_EXIT=$?
 case $PWSH_EXIT in
 0)
   # Clean — the analyzer ran to judgment with no findings.
+  maybe_disclose_ps_rewrite
   emit_tel "ok" '[]'
   exit 0
   ;;
@@ -640,18 +655,21 @@ case $PWSH_EXIT in
     FINDINGS_JSON=$(printf '%s' "$findings_raw" | jq -R . | jq -s . 2>/dev/null) || FINDINGS_JSON='[]'
   fi
   emit_tel "ok" "$FINDINGS_JSON"
+  maybe_disclose_ps_rewrite
   exit 0
   ;;
 3)
   # PSScriptAnalyzer module not installed — the repo opted into a settings file
   # but the analyzer is not present; nothing to run. Clean silent skip, the same
   # status as the no-settings / no-pwsh paths.
+  rm -f "$_ps_before"
   emit_skipped
   ;;
 5)
   # File is neither BOM'd nor valid UTF-8 (legacy ANSI) — rewriting it would
   # transcode bytes the hook cannot round-trip. Clean silent skip; the repo's
   # commit hook / CI remains the gate for such files.
+  rm -f "$_ps_before"
   emit_skipped
   ;;
 6)
