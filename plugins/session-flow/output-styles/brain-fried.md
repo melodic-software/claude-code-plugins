@@ -22,4 +22,7 @@ Rephrase for clarity; do not dumb down the work or skip load-bearing detail.
 
 ## Inspiration
 
-Inspired by the on-demand `/education:explain` skill and a public post by Lydia Hallie (Anthropic) on simplified register when exhausted. For a one-shot deep explanation, use `/education:explain` instead of relying on this style.
+Inspired by simplified register when cognitively depleted (including a public post by Lydia
+Hallie at Anthropic). For a one-shot deep explanation, invoke `/education:explain` when the
+`education` plugin is installed; otherwise explain inline in this simplified register instead of
+relying on this style alone.
