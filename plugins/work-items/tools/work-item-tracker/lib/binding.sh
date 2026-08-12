@@ -32,7 +32,7 @@ wit_find_binding() {
 # REQUIRED (all defaults live in the binding, never in code). storage_dir is
 # required only for provider local-markdown.
 wit_read_binding() {
-  local path="$1" version provider ttl storage human_gated
+  local path="$1" version provider ttl storage human_gated minutes
   jq -e . "$path" >/dev/null 2>&1 || return 1
   version="$(jq -r '.schema_version // empty' "$path")"
   [[ "$version" == 1.* ]] || return 1
@@ -45,7 +45,7 @@ wit_read_binding() {
   ttl="$(jq -r '.config.lease_ttl_hours // empty' "$path")"
   [[ "$ttl" =~ ^[0-9]+$ ]] || return 1
   minutes="$(jq -r '.config.lease_ttl_minutes // 0' "$path")"
-  [[ "$minutes" =~ ^[0-9]+$ ]] || return 1
+  [[ "$minutes" =~ ^[0-9]+$ && "$minutes" -le 59 ]] || return 1
   storage="$(jq -r '.config.storage_dir // empty' "$path")"
   if [[ "$provider" == "local-markdown" && -z "$storage" ]]; then
     return 1

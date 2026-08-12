@@ -3,6 +3,14 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.13]
+
+### Fixed
+
+- **Lease TTL minutes review fixes** — remove stray jq brace in local-markdown `claim.sh`,
+  enforce the documented 0–59 `lease_ttl_minutes` ceiling, and declare `minutes` local in
+  `wit_read_binding`.
+
 ## [0.35.12]
 
 ### Added
