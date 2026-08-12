@@ -230,14 +230,11 @@ assert_contains "flags bare Bash in skill frontmatter" "$OUT" "skills/bare/SKILL
 assert_contains "flags Agent rule in skill frontmatter" "$OUT" "skills/agent/SKILL.md allowed-tools: Agent allow rules are dropped"
 assert_not_contains "does NOT flag narrow git/npm skill" "$OUT" "skills/good/SKILL.md"
 
-# --- Case 6b: vendored (non-loadable) SKILL.md excluded ----------------------
-# A SKILL.md under a vendor/ path segment is a vendored upstream reference, not
-# a loadable skill, so its allowed-tools never take effect and must not be
-# flagged — while a real sibling skill with the same grant still is. Covers both
-# a direct child (vendor/SKILL.md) and a nested one (vendor/<tool>/SKILL.md).
-# Fixture root deliberately NOT named "vendor" — the exclusion matches a
-# /vendor/ path segment anywhere, so a root literally named vendor would exclude
-# every file beneath it and mask the real-vs-vendored distinction under test.
+# --- Case 6b: non-loadable SKILL.md excluded by loadability model ------------
+# A SKILL.md outside documented load paths (vendored upstream reference) is not
+# loadable, so its allowed-tools never take effect and must not be flagged —
+# while a real sibling skill with the same grant still is. Nested
+# `vendor/.claude/skills/<name>/SKILL.md` IS loadable (#2406, Case 6c).
 D6B="$TEST_TMPDIR/vendor-exclusion-fixture"
 mkdir -p "$D6B/plugins/p/skills/real" \
   "$D6B/plugins/p/skills/real/vendor" \
@@ -251,6 +248,20 @@ assert_contains "flags the real loadable SKILL.md" "$OUT" "skills/real/SKILL.md 
 assert_not_contains "does NOT flag vendored direct-child SKILL.md" "$OUT" "vendor/SKILL.md"
 assert_not_contains "does NOT flag vendored nested SKILL.md" "$OUT" "vendor/cli/SKILL.md"
 assert_eq "vendored copies excluded — exactly one finding" "1" "$(run "$D6B" --count)"
+
+# --- Case 6c: #2406 — nested `.claude/skills/` under vendor/ IS loadable ----
+D6C="$TEST_TMPDIR/loadability-nested-vendor"
+mkdir -p "$D6C/vendor/pkg/.claude/skills/nested"
+printf '%s' "$GRANT" >"$D6C/vendor/pkg/.claude/skills/nested/SKILL.md"
+OUT_NESTED=$(run "$D6C")
+assert_contains "flags nested vendor/.claude/skills grant" "$OUT_NESTED" "vendor/pkg/.claude/skills/nested/SKILL.md"
+assert_eq "nested vendor/.claude/skills is audited" "1" "$(run "$D6C" --count)"
+
+# --- Case 6d: #2406 — node_modules/.claude/skills/ IS loadable ---------------
+D6D="$TEST_TMPDIR/loadability-node-modules"
+mkdir -p "$D6D/node_modules/@scope/pkg/.claude/skills/pkg-skill"
+printf '%s' "$GRANT" >"$D6D/node_modules/@scope/pkg/.claude/skills/pkg-skill/SKILL.md"
+assert_eq "node_modules nested skill is audited" "1" "$(run "$D6D" --count)"
 
 # --- Case 7: P3 plugin self-grant -------------------------------------------
 D7="$TEST_TMPDIR/p3"
@@ -429,9 +440,9 @@ assert_contains "coverage counts the plugin settings it parsed" "$OUT" "2 settin
 # "a denominator that counts only successes" — the defect this block exists to
 # remove — and it survived three earlier revisions of the formula.
 D10BF="$TEST_TMPDIR/examined-not-productive"
-mkdir -p "$D10BF/skills/a" "$D10BF/skills/b" "$D10BF/.claude"
-printf -- '---\nname: a\n---\nbody\n' >"$D10BF/skills/a/SKILL.md"
-printf -- '---\nname: b\n---\nbody\n' >"$D10BF/skills/b/SKILL.md"
+mkdir -p "$D10BF/.claude/skills/a" "$D10BF/.claude/skills/b" "$D10BF/.claude"
+printf -- '---\nname: a\n---\nbody\n' >"$D10BF/.claude/skills/a/SKILL.md"
+printf -- '---\nname: b\n---\nbody\n' >"$D10BF/.claude/skills/b/SKILL.md"
 jq -n '{permissions:{allow:[]}}' >"$D10BF/.claude/settings.json"
 OUT=$(run "$D10BF")
 assert_contains "examined-but-unproductive inputs are a clean bill" "$OUT" \
@@ -445,14 +456,14 @@ assert_contains "the denominator names its per-axis units" "$OUT" \
 # land in exactly one bucket, and the script reconciles the buckets against the
 # enumeration itself rather than trusting each `continue` site.
 D10BC="$TEST_TMPDIR/reconcile"
-mkdir -p "$D10BC/skills/a" "$D10BC/skills/b" "$D10BC/skills/c/vendor"
-printf -- '---\nname: a\nallowed-tools: Bash(npm test)\n---\nbody\n' >"$D10BC/skills/a/SKILL.md"
-printf -- '---\nname: b\n---\nbody\n' >"$D10BC/skills/b/SKILL.md"
+mkdir -p "$D10BC/.claude/skills/a" "$D10BC/.claude/skills/b" "$D10BC/skills/c/vendor"
+printf -- '---\nname: a\nallowed-tools: Bash(npm test)\n---\nbody\n' >"$D10BC/.claude/skills/a/SKILL.md"
+printf -- '---\nname: b\n---\nbody\n' >"$D10BC/.claude/skills/b/SKILL.md"
 printf -- '---\nname: v\nallowed-tools: Bash(npm:*)\n---\nbody\n' >"$D10BC/skills/c/vendor/SKILL.md"
 OUT=$(run "$D10BC")
 assert_contains "coverage reconciles candidates against buckets" "$OUT" "reconciled: 3 candidate(s)"
 assert_contains "reconciliation names each bucket" "$OUT" \
-  "1 vendor-excluded + 0 unreadable + 1 without an allowed-tools block + 1 parsed"
+  "1 non-loadable-excluded + 0 unreadable + 1 without an allowed-tools block + 1 parsed"
 assert_not_contains "no candidate escaped a bucket" "$OUT" "DENOMINATOR BUG"
 
 # 10bd: NEGATIVE — the invariant must actually discriminate. Drop one bucket
@@ -485,10 +496,10 @@ fi
 # reached awk, failed there, wrote to the real stderr and was counted in NO
 # bucket — while the coverage block claimed to disclose unread inputs.
 D10BE="$TEST_TMPDIR/unreadable"
-mkdir -p "$D10BE"
-printf -- '---\nname: u\nallowed-tools: Bash(python*)\n---\nbody\n' >"$D10BE/SKILL.md"
-chmod 000 "$D10BE/SKILL.md" 2>/dev/null
-if [[ -r "$D10BE/SKILL.md" ]]; then
+mkdir -p "$D10BE/.claude/skills/u"
+printf -- '---\nname: u\nallowed-tools: Bash(python*)\n---\nbody\n' >"$D10BE/.claude/skills/u/SKILL.md"
+chmod 000 "$D10BE/.claude/skills/u/SKILL.md" 2>/dev/null
+if [[ -r "$D10BE/.claude/skills/u/SKILL.md" ]]; then
   # ANNOUNCED, never silent: on Windows/Git Bash, and as root, mode 000 does not
   # deny the owner a read, so the fixture cannot be built here. The invariant is
   # still asserted; only the unreadable arm goes unexercised, and it runs on CI.
@@ -500,7 +511,7 @@ else
   assert_contains "an unreadable candidate is counted, not dropped" "$OUT" \
     "1 frontmatter candidate(s) enumerated but unopenable"
   assert_contains "the unreadable candidate reconciles into its bucket" "$OUT" \
-    "0 vendor-excluded + 1 unreadable + 0 without an allowed-tools block + 0 parsed"
+    "0 non-loadable-excluded + 1 unreadable + 0 without an allowed-tools block + 0 parsed"
   assert_not_contains "an unreadable-only root is not a plain clean bill" "$OUT" \
     "No fragile permission grants found."
   assert_contains "an unreadable-only root names the blocked inputs" "$OUT" "COULD NOT BE READ"
@@ -527,10 +538,10 @@ count_cov=$(run "$D10B" --count 2>&1 >/dev/null)
 assert_contains "--count writes the coverage block to stderr" "$count_cov" "Scan coverage"
 assert_contains "--count coverage carries the denominator" "$count_cov" "2 allow rule(s)"
 
-# 10e: the vendor/ exclusion reports how many files it removed. An exclusion
+# 10e: the loadability filter reports how many files it removed. An exclusion
 # nothing counts is indistinguishable from a tree that had nothing in it.
 OUT=$(run "$D6B")
-assert_contains "vendor exclusion discloses its count" "$OUT" "2 excluded under a vendor/ path segment"
+assert_contains "loadability exclusion discloses its count" "$OUT" "2 excluded as non-loadable"
 assert_contains "coverage names the candidate file total" "$OUT" "from 3 candidate file(s)"
 
 # --- Case 11: the scan-root lever is named for operators, not for tests -------
