@@ -3,6 +3,20 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.4]
+
+### Fixed
+
+- **Hook launcher uses bash instead of bare `python3` (#1504).** Both wired hooks now run
+  through `hooks/run-python-hook.sh`, which resolves a runnable interpreter (with
+  `python3_alias_probe` stub detection) and fail-closes PreToolUse when none is available.
+
+### Added
+
+- **`HOOK_TELEMETRY_SINK` envelopes on both wired hooks (#1505).** The bash launcher emits
+  telemetry for interpreter-unavailable, ok, blocked, and error outcomes via the shared
+  `hook-utils` helper.
+
 ## [0.17.3]
 
 ### Fixed

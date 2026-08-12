@@ -6,8 +6,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3",
+            "command": "bash",
             "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh",
+              "disk-hygiene-destructive-guard",
+              "PreToolUse",
               "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py",
               "--mode",
               "engine-gate",
@@ -26,8 +29,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3",
+            "command": "bash",
             "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh",
+              "disk-hygiene-guard-launch-monitor",
+              "Stop",
               "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/guard_launch_monitor.py",
               "--data-root",
               "${CLAUDE_PLUGIN_DATA}"
