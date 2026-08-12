@@ -17,6 +17,11 @@ dialects are accepted:
 Umbrella / epic items use an `Epic:` prefix or a trailing `(umbrella)`. A child-of relationship is
 recorded as a native sub-issue edge, **never** as a title suffix.
 
+When folding a member into an umbrella, treat the sequence as **one atomic action**: post the
+membership comment on the item, post the matching membership comment on the umbrella issue, record
+the `blocked-by` edge, then strip the raw marker — never stop after the item-side comment alone
+(#633).
+
 Recurring maintenance items keep the `[Maintenance] {title}` shape owned by `track add --recurring`
 (the due / work / recheck flows exact-match that prefix); they are exempt from the two prefix dialects.
 
