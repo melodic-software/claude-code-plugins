@@ -3,6 +3,14 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.5]
+
+### Fixed
+
+- **Check 12 accepts a populated `when_to_use` with single-quoted triggers.** Skills no longer need
+  a redundant `Use when:` prefix in `description` when triggers are already declared in
+  `when_to_use`.
+
 ## [0.15.4]
 
 ### Changed

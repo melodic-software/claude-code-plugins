@@ -342,6 +342,29 @@ else
   fail "unquoted triggers should warn without failing (rc=$rc): $out"
 fi
 
+# 9b. Single-quoted triggers in when_to_use alone satisfy check 12 (#1451).
+make_skill wtu-only-skill '---
+name: wtu-only-skill
+description: "Summary without Use-when prose in the description field."
+when_to_use: "'"'alpha trigger'"'", "'"'beta trigger'"'"
+---
+
+## Purpose
+
+Triggers live in when_to_use only.
+
+## Gotchas
+
+None known.
+'
+out="$(run wtu-only-skill 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q "no 'Use when:' trigger phrasing" <<<"$out"; then
+  pass "when_to_use single-quoted triggers satisfy check 12 without description prose"
+else
+  fail "when_to_use triggers should satisfy check 12 (rc=$rc): $out"
+fi
+
 # 10. CHECK_SKILL_BASE_REF catches an ALREADY-COMMITTED trigger drop that the
 #     default working-tree-vs-HEAD comparison misses (HEAD == tree).
 make_skill baseref-skill '---
