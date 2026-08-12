@@ -54,6 +54,7 @@
 #
 # Usage:
 #   babysit-readiness-gate.sh <pr>
+#   babysit-readiness-gate.sh <pr> --repo owner/repo     # target repo (not cwd)
 #   babysit-readiness-gate.sh <pr> --comments-json <file>   # skip network (tests/reuse)
 #   babysit-readiness-gate.sh <pr> --checklist <file>       # also gate R6
 #   babysit-readiness-gate.sh <pr> --self 'login,login2'    # self authors, full override
@@ -63,11 +64,11 @@
 #                              babysit_self_logins userConfig option here
 #   babysit-readiness-gate.sh --help
 #
-# Repo resolution (live comment fetch): owner/repo is auto-derived from the
-#   CURRENT directory via `gh repo view`, so run this from a checkout of the
-#   target repo. When that cannot resolve (e.g. a recheck pass whose cwd is not
-#   the target repo), export FETCH_COMMENTS_OWNER and FETCH_COMMENTS_REPO to
-#   override — the gate passes them through to fetch-all-pr-comments.sh.
+# Repo resolution (live comment fetch): pass `--repo owner/repo` when the invoking
+#   session's cwd is not a checkout of the PR's repository (#1086). When omitted,
+#   owner/repo is auto-derived from the current directory via `gh repo view`.
+#   `FETCH_COMMENTS_OWNER` and `FETCH_COMMENTS_REPO` remain supported as env
+#   overrides and are set from `--repo` when provided.
 #
 # Stdout (machine-readable — EXACTLY ONE verdict line on EVERY check run,
 # including every failure path, so an absent verdict line can only mean the gate
@@ -127,6 +128,7 @@ COMMENTS_JSON=""
 CHECKLIST=""
 SELF_CSV=""
 EXTRA_SELF_CSV=""
+REPO_SLUG=""
 
 # Print the header block (everything after the shebang up to the first
 # non-comment line) with its comment markers stripped. Derived rather than a
@@ -177,6 +179,11 @@ while (($# > 0)); do
     EXTRA_SELF_CSV="$2"
     shift 2
     ;;
+  --repo)
+    require_value "$1" "${2:-}"
+    REPO_SLUG="$2"
+    shift 2
+    ;;
   -*)
     printf 'babysit-readiness-gate: unknown flag %q (use --help)\n' "$1" >&2
     unproven bad-args 3
@@ -214,6 +221,16 @@ if [[ -z "$PR_NUMBER" && -z "$COMMENTS_JSON" ]]; then
   unproven bad-args 3
 fi
 
+if [[ -n "$REPO_SLUG" ]]; then
+  if [[ ! "$REPO_SLUG" =~ ^[^/[:space:]]+/[^/[:space:]]+$ ]]; then
+    printf 'babysit-readiness-gate: --repo must be owner/repo, got %q\n' "$REPO_SLUG" >&2
+    unproven bad-args 3
+  fi
+  FETCH_COMMENTS_OWNER="${REPO_SLUG%%/*}"
+  FETCH_COMMENTS_REPO="${REPO_SLUG#*/}"
+  export FETCH_COMMENTS_OWNER FETCH_COMMENTS_REPO
+fi
+
 # --- Resolve comments JSON (fixture file OR live fetch) -----------------------
 
 COMMENTS=""
@@ -235,7 +252,12 @@ if [[ -n "$COMMENTS_JSON" ]]; then
 else
   COMMENTS="$(bash "$SCRIPT_DIR/fetch-all-pr-comments.sh" "$PR_NUMBER")" || {
     printf 'babysit-readiness-gate: could not fetch comments for PR %s (fetch-all-pr-comments error above).\n' "$PR_NUMBER" >&2
-    printf 'babysit-readiness-gate: owner/repo is auto-derived from the current directory (%s) via gh repo view. Run from a checkout of the target repo, or export FETCH_COMMENTS_OWNER and FETCH_COMMENTS_REPO to override.\n' "$PWD" >&2
+    if [[ -n "${FETCH_COMMENTS_OWNER:-}" && -n "${FETCH_COMMENTS_REPO:-}" ]]; then
+      printf 'babysit-readiness-gate: target repo was %s/%s (from --repo or FETCH_COMMENTS_*).\n' \
+        "$FETCH_COMMENTS_OWNER" "$FETCH_COMMENTS_REPO" >&2
+    else
+      printf 'babysit-readiness-gate: owner/repo is auto-derived from the current directory (%s) via gh repo view. Pass --repo owner/repo when cwd is not the target checkout, or export FETCH_COMMENTS_OWNER and FETCH_COMMENTS_REPO.\n' "$PWD" >&2
+    fi
     unproven fetch-failed 4
   }
 fi
