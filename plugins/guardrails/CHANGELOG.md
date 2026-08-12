@@ -3,6 +3,86 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.0]
+
+### Fixed
+
+- **`block-hook-bypass` exempted a quoted redirect target on its first word, so a write whose real
+  destination was somewhere else entirely was waved through as a `/dev/null` discard (#2226).**
+  A quoted redirect operand is ONE pathname to bash. This guard decided its target-based exemptions
+  on the operand's first whitespace- or separator-delimited fragment, because the machinery either
+  side of that decision disagreed about what a kept operand is: `strip_literals` **keeps** a quoted
+  write target as literal content — dropping the quotes so a quoted target still reads as a write —
+  while `normalize_segments` then read a `;`, `|`, `&`, `(`, `)` or newline *inside* it as a segment
+  boundary and `_redir_scan`'s target class ended at whitespace.
+
+  Measured at `56f5cd21` (0.25.3), hook invoked as a decision function on a `PreToolUse` Bash
+  payload — `rc=2` blocked, `rc=0` allowed:
+
+  ```
+  rc=0 :: echo x > "/dev/null ../../etc/pw"        # exempted on the word /dev/null
+  rc=0 :: echo x > "/dev/null;/../../etc/passwd"
+  rc=0 :: echo x > '/dev/null ../../etc/pw'
+  rc=0 :: echo x > /dev/"null ../../etc/pw"
+  rc=0 :: echo x > /dev/null\;/../../etc/passwd    # the unquoted escaped spelling
+  rc=0 :: cat > "/dev/null ../../etc/pw"           # and the cat lane
+  ```
+
+  Nothing named `/dev/null` is the destination in any of them. Reaching a *chosen* file this way
+  needs a directory whose name ends in the whitespace-bearing fragment to already exist, so this is
+  correctness and defence-in-depth rather than a demonstrated escape — but it is the exact assumption
+  every target-based exemption rests on, and this guard now has two.
+
+  `strip_literals` marks a kept operand's literal content with two sentinels. `\x03` **OPAQUE**
+  stands in for one character whose literal value would read as syntax downstream, or for a backslash
+  escape this strip cannot reproduce faithfully (inside double quotes bash *retains* the backslash
+  unless it escapes `$`, `` ` ``, `"`, `\` or a newline). It is inert to every scan, so the operand
+  survives as one token, and its presence means the pathname is not recoverable here — no exemption
+  of any kind may be granted. `\x04` **QUOTED** is emitted where a kept span opens; the discard
+  compare strips it, so `> "/dev/null"` is still a discard, while the scratch-root axis keeps its
+  shipped floor of never exempting a quoted operand. A raw `\x01`-`\x04` byte arriving in the command
+  text is mapped to OPAQUE, so a forged sentinel can only ever *cost* an exemption.
+
+  Every mark is gated on "this word began right after a `>`" — the same test the quoted-operand keep
+  already used, now factored out and applied to the unquoted backslash branch too. **That gating is
+  load-bearing, not tidiness:** `normalize_segments`, `_producer_head`, `_cat_redir` and every
+  whitespace trim in the file are byte-for-byte as shipped, so an escaped separator *between*
+  commands (`echo x \; > f`) still travels the unchanged `\x02`-to-space path, and a backslash in a
+  command word (`/c/Python313/python3.exe -c`) is untouched. #1680 and #1667 read this same
+  normalization; their shapes (`echo x >&2`, `printf … >&2`, `echo x &>file`, `1>&2`, `2>&1`,
+  `>&2>file`, `cat 1>&2`, `cat 1>&-`) carry no quotes and no backslashes, emit no mark, and were
+  measured before and after with **no delta**. Neither issue moves.
+
+### Changed
+
+- **The scratch-root exemption's fail-close is keyed on the redirect operand instead of the whole
+  raw command, retiring both blunt edges 0.25.1 documented (#2236).** With the operand/quote
+  association restored above, `scratch_target_exempt` no longer has to infer it from
+  `${COMMAND#*>}`. It reads the operand's own marks, so the two frictions 0.25.1 recorded as
+  unfixable-without-#2226 are gone:
+
+  | command, root `/tmp/scratch` | 0.25.3 | 0.27.0 |
+  | --- | --- | --- |
+  | `echo x > /tmp/scratch/f && grep foo "notes.txt"` | blocked | **allowed** |
+  | `echo x > /tmp/scratch/f; cat "notes.txt"` | blocked | **allowed** |
+  | `echo "a > b" > /tmp/scratch/f` | blocked | **allowed** |
+  | `echo 'x > y' > /tmp/scratch/f` | blocked | **allowed** |
+  | `echo x > "/tmp/scratch/f"` — a merely quoted operand | blocked | blocked |
+  | `echo x > "/tmp/scratch/a;/../../etc/passwd"` | blocked | blocked |
+
+  **Grade every verdict this release moves on the direction that matters:** refusing an exemption is
+  friction, granting one is a bypass. Nineteen shapes move from GRANTED to REFUSED — the whole
+  `/dev/null` family above, plus a multi-line quoted operand, an operand continued by a
+  backslash-newline, an empty quoted target, and a forged sentinel byte. **Three move the other
+  way** — the first three rows of that table — and each lands on a target the marks prove was bare:
+  no quote mark, no opaque mark, no backslash. That is the entire grant surface of this release.
+  The scratch axis's own floor is deliberately *not* widened even though the operand is now known
+  precisely: a quoted operand stays non-exempt, and 0.25.0's assertion saying so is untouched.
+
+  0.25.1's entry below says the breadth "stays" and that narrowing it needs #2226. Both were true
+  when written; #2226 is now fixed and this entry is that entry's erratum. Per Keep a Changelog the
+  0.25.x entries are left as they shipped.
+
 ## [0.26.1]
 
 ### Fixed
@@ -148,6 +228,11 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 ## [0.25.1]
 
 ### Changed
+
+> **Erratum:** the second bullet below states that the fail-close's breadth stays, because narrowing
+> it needs #2226. #2226 is fixed in 0.26.0 and the breadth is gone — the check is keyed on the
+> redirect operand now. The mechanism this entry corrects for 0.25.0 was accurate for 0.25.x; see
+> 0.26.0 above for what replaced it. Everything else in this entry is unchanged.
 
 - **`block-hook-bypass`'s scope note now names `tee` and other inline-interpreter
   write families it does not model (#2218).** No behaviour changes — lane-specific
