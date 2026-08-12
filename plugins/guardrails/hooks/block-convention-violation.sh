@@ -367,7 +367,7 @@ check_segment() {
           hook::env_s_split "$exp"
           expw=(${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"})
           HOOK_NO_ALIAS=1
-          check_segment "${w[@]:0:gi+1}" ${expw[@]+"${expw[@]}"} "${w[@]:sub_idx+1}"
+          check_segment "${w[@]:0:sub_idx}" ${expw[@]+"${expw[@]}"} "${w[@]:sub_idx+1}"
           HOOK_NO_ALIAS=0
         fi
       done
@@ -390,7 +390,7 @@ check_segment() {
           hook::env_s_split "$pexp"
           pexpw=(${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"})
           HOOK_NO_ALIAS=1
-          check_segment "${w[@]:0:gi+1}" ${pexpw[@]+"${pexpw[@]}"} "${w[@]:sub_idx+1}"
+          check_segment "${w[@]:0:sub_idx}" ${pexpw[@]+"${pexpw[@]}"} "${w[@]:sub_idx+1}"
           HOOK_NO_ALIAS=0
         fi
       fi
