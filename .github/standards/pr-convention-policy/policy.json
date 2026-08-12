@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "title": {
+    "allowedTypes": [
+      "build",
+      "chore",
+      "ci",
+      "docs",
+      "feat",
+      "fix",
+      "perf",
+      "refactor",
+      "revert",
+      "security",
+      "style",
+      "test"
+    ],
+    "requireScope": false
+  },
+  "body": {
+    "requiredSections": ["Related"],
+    "closingKeywords": ["Closes", "Fixes", "Resolves"],
+    "noIssueMarkers": ["No linked issue", "No related issue"]
+  }
+}
