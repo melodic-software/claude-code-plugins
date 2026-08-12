@@ -220,7 +220,7 @@ crash. Restarting from zero wastes the run and tempts an operator to narrow the 
   appends one line to `findings.partial.<owner_epoch>.jsonl` — the epoch taken from the lease, so the
   partial cannot exist without the lease that classifies it. The script refuses a record that is not a
   single-line JSON object, because a record carrying a newline splits into two rows and the second is
-  unparseable.
+  unparsable.
 - **The run manifest is the partial's own lane records, not a second file.** A lane's start record
   carries the lane id and its **input digest**; its terminating record carries the completion state.
   §7 already requires that `--resume` read the partial "so completion state is derivable from the

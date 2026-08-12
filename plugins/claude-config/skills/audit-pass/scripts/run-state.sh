@@ -478,7 +478,7 @@ cmd_partial_append() {
   fi
   # One JSON object per line is the whole point of an append-only artifact: a
   # record carrying a newline would split into two rows, and the second would be
-  # unparseable.
+  # unparsable.
   case "$record" in
   *$'\n'*) die "--record must be a single line" ;;
   *) : ;;
