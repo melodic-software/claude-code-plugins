@@ -408,7 +408,9 @@ while IFS= read -r ref; do
   [[ -z "$ref" ]] && continue
   resolve_base="$SKILL_DIR"
   check_ref="$ref"
+  # shellcheck disable=SC2016  # single quotes deliberate: ${CLAUDE_PLUGIN_ROOT} is a literal placeholder prefix
   if [[ "$ref" == '${CLAUDE_PLUGIN_ROOT}/'* ]]; then
+    # shellcheck disable=SC2016
     check_ref="${ref#'${CLAUDE_PLUGIN_ROOT}/'}"
     if [[ "$IS_PLUGIN_SKILL" != 1 || -z "$PLUGIN_DIR" ]]; then
       note "check-5 skip (plugin-root placeholder outside a plugin): $ref"
