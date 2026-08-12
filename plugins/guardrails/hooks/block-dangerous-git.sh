@@ -97,11 +97,10 @@ hook::require_jq_blocking "guardrails-block-dangerous-git" "block_dangerous_git_
 
 # All three payload fields in ONE jq process (hook::jq_fields), not three. A jq
 # spawn is ~140 ms of fork() emulation on Windows Git Bash and this guard runs on
-# every Bash/PowerShell call. rc 1 here means jq could not parse the payload at
-# all — it exits 0 exactly as the empty-COMMAND skip below did. A MISSING jq
-# can no longer reach this line — hook::require_jq_blocking above has already
-# denied the call (#2146) — so the rc-1 path here is now only the unparsable-
-# payload case.
+# every Bash/PowerShell call. rc 2 here means jq could not parse the payload at
+# all — it exits 2, matching the MAX_COMMAND_LEN ceiling's fail-closed posture
+# toward an input it cannot parse (#2157). A MISSING jq can no longer reach this
+# line — hook::require_jq_blocking above has already denied the call (#2146).
 #
 # `.cwd` is the directory the TOOL CALL runs in, which is not the hook process's
 # own: Claude Code launches hooks from the session root while the Bash tool runs
@@ -112,9 +111,8 @@ hook::require_jq_blocking "guardrails-block-dangerous-git" "block_dangerous_git_
 # block-noncanonical-commit has read this field since it shipped; this guard did
 # not, and the same chain is adopted here rather than a second mechanism.
 #
-# That remaining allow-on-unparsable path is unchanged by #2122 and is NOT what
-# the NUL check below covers.
-hook::jq_fields "$INPUT" '.tool_input.command' '.cwd' '.tool_name' || exit 0
+# The NUL check below is a separate branch — payload integrity vs value-space.
+hook::jq_fields "$INPUT" '.tool_input.command' '.cwd' '.tool_name' || exit 2
 
 # A NUL byte in ANY field read above is fail-CLOSED, and is decided BEFORE
 # the empty-COMMAND skip below: the helper strips every NUL out of a value, so a
@@ -407,6 +405,39 @@ collect_git_locating_opts() {
     *) ((j++)) ;;
     esac
   done
+  if ((${#HOOK_GIT_INHERITED_LOCATING_OPTS[@]})); then
+    git_locating_opts+=("${HOOK_GIT_INHERITED_LOCATING_OPTS[@]}")
+  fi
+}
+
+# git_inherited_locating_opts_from_words <gi> <sub_idx> <words...> — the
+# --git-dir / --work-tree / --namespace spellings between git and subcommand.
+# git EXPORTS these into a `!` alias body's environment (unlike `-C`, which
+# relocates the body's directory), so a `!` reparse must replay them into its
+# width probe separately from effective_dir's `-C` composition.
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+git_inherited_locating_opts_from_words() {
+  local gi="$1" sub_idx="$2"
+  shift 2
+  local -a w=("$@")
+  local j=$((gi + 1))
+  HOOK_GIT_INHERITED_LOCATING_OPTS=()
+  while ((j < sub_idx)); do
+    case "${w[j]}" in
+    --git-dir | --work-tree | --namespace)
+      ((j + 1 < sub_idx)) && HOOK_GIT_INHERITED_LOCATING_OPTS+=("${w[j]}" "${w[j + 1]}")
+      ((j += 2))
+      ;;
+    --git-dir=* | --work-tree=* | --namespace=*)
+      HOOK_GIT_INHERITED_LOCATING_OPTS+=("${w[j]}")
+      ((j++))
+      ;;
+    -C | -c | --config | --config-env | --super-prefix | --attr-source | --exec-path)
+      ((j += 2))
+      ;;
+    *) ((j++)) ;;
+    esac
+  done
 }
 
 # Directory a segment's git actually runs in: the base with every `-C` in an
@@ -440,18 +471,9 @@ collect_git_locating_opts() {
 # alias.wd='!pwd' wd` prints `<other>`'s top level, while `git --git-dir=<other>
 # -c alias.wd='!pwd' wd` does NOT relocate at all. The two functions answer
 # different questions (which DIRECTORY the body runs in vs which REPOSITORY the
-# probe addresses), so the option sets legitimately differ.
-#
-# Known gap, pre-existing and NOT closed here: only `-C` is composed. git also
-# EXPORTS an explicit `--git-dir` / `--work-tree` into a `!` body's environment
-# (verified on git 2.54.0: `git --git-dir=<sha256>/.git -c alias.y='!git
-# rev-parse --show-object-format' y` prints sha256 from a SHA-1 directory, and
-# the body sees GIT_DIR set), so a body inherits a repository this directory does
-# not name and its lease is judged against the base instead. Reproduced against
-# BOTH origin/main and this change — it is a residual of the same family as
-# #2124, not something introduced by reading the payload cwd, and closing it
-# means replaying the inherited globals rather than a directory, which is a
-# larger mechanism than the base chain adopted here.
+# probe addresses), so the option sets legitimately differ. A `!` reparse replays
+# the inherited `--git-dir` / `--work-tree` / `--namespace` spellings separately
+# via HOOK_GIT_INHERITED_LOCATING_OPTS (#2151) — only `-C` is composed here.
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 effective_dir() {
   local base="${HOOK_EFFECTIVE_BASE:-${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}}" i n=$# arg
@@ -674,7 +696,7 @@ check_segment() {
   # and finite distinct alias keys guarantee termination. Terminating is not the
   # same as tractable — the walk branches per hop, and alias_reexpand_admit is what
   # keeps its cost proportional to the chain's length.
-  local exp reparse a alias_rc s seen_hit=0 saved_base=""
+  local exp reparse a alias_rc s seen_hit=0 saved_base="" saved_inherited=()
   local -a expw=() saved_seen=() nextw=()
   hook::git_alias_expansion "$sub"
   alias_rc=$?
@@ -738,6 +760,8 @@ check_segment() {
         reparse="${exp#!}"
         for a in "${w[@]:sub_idx+1}"; do reparse+=" $(printf '%q' "$a")"; done
         HOOK_ALIAS_SEEN=()
+        saved_inherited=(${HOOK_GIT_INHERITED_LOCATING_OPTS[@]+"${HOOK_GIT_INHERITED_LOCATING_OPTS[@]}"})
+        git_inherited_locating_opts_from_words "$gi" "$sub_idx" "${w[@]}"
         # `:2` skips the base's own `-C <dir>` pair, which
         # collect_git_locating_opts ALWAYS leads with. effective_dir supplies
         # that same value from its HOOK_EFFECTIVE_BASE default, so passing it
@@ -750,6 +774,7 @@ check_segment() {
         alias_reexpand_admit shell "$reparse" &&
           hook::bash_parse_segments "$reparse" check_segment
         HOOK_EFFECTIVE_BASE="$saved_base"
+        HOOK_GIT_INHERITED_LOCATING_OPTS=(${saved_inherited[@]+"${saved_inherited[@]}"})
         HOOK_ALIAS_SEEN=(${saved_seen[@]+"${saved_seen[@]}"} "$sub")
       else
         # Git alias: its expansion is dequoted with shell quoting rules
@@ -1340,6 +1365,7 @@ HOOK_ALIAS_SEEN=()
 # CLAUDE_PROJECT_DIR, then `.` — the last of which reproduces the pre-#2124
 # behaviour for a payload that carries no cwd at all.
 HOOK_EFFECTIVE_BASE="${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}"
+HOOK_GIT_INHERITED_LOCATING_OPTS=()
 
 # The alias-traversal bounds (alias_reexpand_admit). Both are invocation-wide and
 # deliberately NOT save/restored: a state analyzed anywhere is analyzed, and the
