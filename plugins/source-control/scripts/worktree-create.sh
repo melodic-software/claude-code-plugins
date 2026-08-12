@@ -714,6 +714,26 @@ if [[ -f "$include_file" ]]; then
   fi
 fi
 
+# Carry `.claude/settings.local.json` from the main checkout's git common dir
+# into the new worktree. Claude Code documents worktree resolution for settings,
+# but env overrides such as `DISK_HYGIENE_GUARD_WATCHDOG_SECONDS` only load when
+# the file is present locally — worktree sessions otherwise inherit the hook
+# defaults (#2119).
+common_dir="$(git -C "$toplevel" rev-parse --git-common-dir)"
+if [[ "$common_dir" != /* ]]; then
+  common_dir="$toplevel/$common_dir"
+fi
+main_worktree="$(dirname "$common_dir")"
+settings_src="$main_worktree/.claude/settings.local.json"
+if [[ -f "$settings_src" ]]; then
+  settings_dest="$worktree_path/.claude/settings.local.json"
+  if mkdir -p "$(dirname "$settings_dest")" && cp -p "$settings_src" "$settings_dest"; then
+    printf '%s: copied settings.local.json into the worktree\n' "$PROG" >&2
+  else
+    printf '%s: warning: failed to copy settings.local.json into the worktree\n' "$PROG" >&2
+  fi
+fi
+
 printf '%s: created worktree on branch %q (base %s)\n' "$PROG" "$name" "$base_ref" >&2
 printf '%s\n' "$worktree_path"
 if ((lock_failed)); then
