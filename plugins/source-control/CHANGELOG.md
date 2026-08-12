@@ -3,6 +3,29 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.51.17]
+
+### Fixed
+
+- **`babysit_merge` enforces `requireSignatures` instead of only reporting it (#2265).**
+  `branch_rules` computed the flag and nothing consumed it: on a base whose ruleset requires signed
+  commits, a head held only by an unsigned or misattributed commit reported the generic
+  `mergeStateStatus` line naming four other causes — none of them the real one — and the operator
+  went re-reading checks, approvals, and threads that were already fine. New
+  `fetch_pull_request_commits` (`babysit_gh.py`) reads `.commit.verification` per PR commit,
+  paginated `per_page=100`; a missing verification block reports reason `unreadable` rather than
+  being skipped. `evaluate()` walks the commits only when the rule is present (an ungoverned base
+  pays no extra request), in the read-only pass — a signature hold discovered only under `--merge`
+  would defeat the wrapper's report-readiness purpose — and emits one blocker per verification
+  reason naming every offending commit. `unsigned`, `no_user`, and `unknown_key` carry distinct
+  remedies: `no_user` states that the signature IS valid and the author/committer email is
+  unlinked (#2162's recurring product, needing `--reset-author` or a linked email, not a key). A
+  fetch failure holds with its own "could not be read" blocker (fail closed, never a fabricated
+  reason). The generic `mergeStateStatus` enumeration now names signatures, and
+  `requiredSignatures` `{required, checked, unverified}` joins the JSON report. New tests pin
+  every reason message, the distinct-blockers property, the no-rule-no-request invariant, the
+  fail-closed fetch failure, and the fetcher's projection; all fail against the pre-#2265 modules.
+
 ## [0.51.16]
 
 ### Fixed
@@ -23,30 +46,6 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `git worktree move`. New tests pin the lock (armed at creation, reason names the helper, plain
   removal refuses and the tree survives) and the ranking (bisect probed; in-progress outranks
   landed); all fail against the pre-#2257 scripts.
-
-## [0.51.15]
-
-### Fixed
-
-- **D6's reachability gate resolves the push remote instead of hardcoding `origin`**
-  (`reference/review-discipline.md`, `skills/pull-request/SKILL.md`; #2310). 0.51.12 replaced the
-  tip read with `git fetch origin <branch> && git merge-base --is-ancestor <fix-sha>
-  origin/<branch>` — a hardcoded remote that release itself introduced, while the same skill pushes
-  through `push-branch.sh` / `resolve-remote.sh --push` (pushRemote, pushDefault, non-`origin`
-  tracking, triangular forks). On such a checkout a successful push is followed by a fetch of the
-  wrong remote — a false D6 failure that blocks D7 and thread resolution — and an `origin` base
-  repo carrying a same-named branch can verify the wrong ref entirely (Codex P1 on #2262). Both
-  gates now resolve the remote through the existing `resolve-remote.sh --push` and compare against
-  `FETCH_HEAD`, exactly what the resolved remote just served. Verified live in both directions: a
-  non-tip fix commit on its branch exits 0 where the old tip read reported it missing, a commit
-  from a sibling branch exits 1 where the repo-presence lookup returns 200, and a deleted remote
-  branch fails the fetch loudly rather than passing.
-- **The 0.51.12 entry's two overstated claims are corrected in place.** "Matching the reachability
-  *primitive* `verify_fix_commit` uses" now claims the matching *guarantee*: that helper proves the
-  same ancestor property via the clone-free, fork-aware compare API
-  (`repos/{owner}/{repo}/compare/{sha}...{head_oid}`), not `git merge-base`. And `babysit_gh.py`'s
-  `per_page=100` sits at `fetch_paginated_api`'s call sites, not adjacent to the `--paginate` flag
-  the line-based #2246 sweep matched.
 
 ## [0.51.14]
 
