@@ -13,6 +13,28 @@ Sources, both fetched 2026-08-11: <https://code.claude.com/docs/en/settings> §H
 
 ---
 
+## Scopes
+
+| Scope | Why it is its own member |
+| --- | --- |
+| `managed` | Highest precedence. Four surfaces per OS, not one file — see below |
+| `user` | `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json`. Where Claude Code's own "Always allow" path writes, so it accumulates the most rules |
+| `project` | `.claude/settings.json` at the repository root |
+| `local` | `.claude/settings.local.json`, resolved **through worktrees to the main checkout** — anchoring on the worktree root looks where the file is not. Three documented exceptions keep it in the start directory: outside a git repository, when the repository root is the home directory, and in Agent SDK sessions |
+| `startdir-local` | A pre-v2.1.211 copy left in the session's start directory. Not a fallback: when both exist the repository root wins on a shared key, **but permission rules from both stay in effect**, so both are live |
+
+The managed scope is four surfaces. Two are the **portable core**, read on every OS: the per-OS
+`managed-settings.json` and its `managed-settings.d/` drop-in directory, read in the documented order
+— base first, then `*.json` sorted alphabetically on top, dotfiles ignored. Two are **declared
+optional platform integrations**: the Windows policy registry keys and the macOS managed-preferences
+domain. Each is read where it is native and readable; where its tool is missing the surface reports
+`skipped` with a notice and every other result is unaffected.
+
+`HKCU` is not a peer of `HKLM`. It is documented as lowest policy priority, used only when no
+admin-level source exists, so the first key that **exists** ends the search and the rest are not
+consulted — an existing key that yields nothing readable is reported unread, never as permission to
+fall through.
+
 ## The one thing that is not a contest
 
 > "Permission rules behave differently because they merge across scopes rather than override."
@@ -121,6 +143,43 @@ lands once.
   undocumented `[DEBUG]` strings with no stability contract, so a capture that yields nothing is
   **unavailable** and the prediction stands — an empty capture is never an empty drop set. Its
   measured cost is stated at the flag rather than discovered afterwards.
+
+## The permission-plane lint
+
+Eight checks over one question: the operator wrote something believing it takes effect, and it does
+not. Several also emit a startup warning upstream; the added value here is reading every scope at
+once, before a session, and naming the file the dead entry is in.
+
+**The three `C2` gates never merge into one finding.** They cover different scope sets and carry
+different version histories, so a merged count would let an operator fix one and believe they had
+fixed all three.
+
+| Check | Mechanic it follows from |
+| --- | --- |
+| `C2-autoMode` | "The classifier doesn't read `autoMode` from project settings in `.claude/settings.json` or `.claude/settings.local.json`." Before v2.1.207 it also read local settings, so a local-scope finding says so rather than implying it never worked |
+| `C2-defaultMode` | "Claude Code v2.1.142 and later ignore `auto` from those files so a repository cannot grant itself auto mode." Only the value `auto` is dead — other modes are read in project scope |
+| `C2-planMode` | `useAutoModeDuringPlan` is "**Not read from shared project settings**". That names `.claude/settings.json` specifically, so a local-settings occurrence is **not** claimed dead — doing so would assert a restriction no page states |
+| `C5-disableType` | "set `permissions.disableBypassPermissionsMode` or `permissions.disableAutoMode` to `\"disable\"` in any settings file" — the **string**. Checked at both documented key paths, in every scope; it is not managed-only |
+| `C6-winPath` | "On Windows, paths are normalized to POSIX form before matching. `C:\Users\alice` becomes `/c/Users/alice`" |
+| `C6-contentField` | "You can't match a tool's primary content field this way: `command` for Bash and PowerShell, `file_path` for Read, Edit, and Write, `path` for Grep and Glob, `notebook_path` for NotebookEdit, and `url` for WebFetch… Claude Code ignores it and emits a startup warning" |
+| `C6-uncoveredPath` | "Claude Code checks file permissions against `Edit(path)` and `Read(path)` rules only. If you write a path rule for `Write`, `NotebookEdit`, `Glob`, or the legacy `MultiEdit` tool instead, Claude Code accepts the rule but never consults it, and warns at startup" (v2.1.210+; a `Glob` rule passed in `--allowedTools` is the stated exception) |
+| `C6-colonStar` | "The `:*` form is only recognized at the end of a pattern. In a pattern like `Bash(git:* push)`, the colon is treated as a literal character" |
+
+**`C5-disableType` is the highest-consequence check here.** A boolean is valid JSON, is accepted, and
+does nothing — so the operator believes auto mode is locked out and it is not.
+
+**False positives these checks are written to avoid**, each a legitimate documented shape:
+
+- A **bare tool-name rule** (`deny: ["Write"]`) matches at the tool level everywhere; `C6-uncoveredPath`
+  fires only on a *path* rule.
+- `:*` **at the end** (`Bash(npm:*)`) is the working form; only mid-pattern use is dead.
+- A parameter rule on a **non**-content field (`WebFetch(domain:example.com)`) is the working form.
+- A POSIX-form absolute path (`//c/**/.env`) is the documented Windows spelling and must not trip
+  `C6-winPath`.
+
+**Advisory by contract: exit 0 whenever the lint ran.** Exit 2 means it could not run at all — never
+"nothing found". A findings count of zero is printed as a summary line, so a clean plane is stated
+rather than inferred from silence.
 
 ## Managed policy, and what it does not buy
 

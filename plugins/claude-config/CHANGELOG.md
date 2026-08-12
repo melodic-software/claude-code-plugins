@@ -59,7 +59,21 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   An opt-in `--oracle` flag corroborates the prediction against the harness's own drop narration by
   spawning a real `claude -p` session; it never fires without the flag, prints what it will leave
   behind before spawning anything, and reports an empty capture as unavailable rather than as an
-  empty drop set. Every run states the two bounds on the claim: the command-line scope
+  empty drop set.
+  A fourth pass lints the permission plane for configuration that is written but never read. Eight
+  checks: an `autoMode` section in a scope the classifier does not read, `defaultMode: "auto"` in
+  project or local settings, `useAutoModeDuringPlan` in shared project settings, `disableAutoMode`
+  typed as a boolean instead of the string `"disable"`, and four rule shapes that cannot match —
+  doubled-backslash Windows paths, parameter-form rules on a tool's primary content field, path rules
+  on a tool whose path rules are never consulted, and `:*` used anywhere but at the end of a pattern.
+  The three dead-config gates stay separate findings because they cover different scope sets and carry
+  different version histories; merging them would let an operator fix one and believe they had fixed
+  all three. The `disableAutoMode` check is the highest-consequence one — a boolean is valid JSON, is
+  accepted, and does nothing, so the operator believes auto mode is locked out when it is not — and it
+  is read at both documented key paths in every scope, since it is not managed-only. Several of these
+  also emit a startup warning upstream; the added value is reading every scope at once, before a
+  session, and naming the file. Advisory: it exits 0 whenever it ran, and exit 2 means it could not
+  run at all rather than that it found nothing. Every run states the two bounds on the claim: the command-line scope
   (`--settings`, `--allowedTools`, `--disallowedTools`) outranks the files and has none to read, and
   rules are compared by exact text, so a narrow allow blocked only by a broader deny pattern is still
   reported effective — the error direction is over-reporting allow, never over-reporting blocking.

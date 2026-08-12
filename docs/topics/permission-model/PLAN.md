@@ -569,7 +569,39 @@ Acceptance criterion 3, plus brainstorm candidate 4.
 - Oracle on with the drop strings absent (simulate with a fixture capture): the run reports the oracle
   as unavailable and falls back to the prediction rather than reporting an empty drop set.
 
-### Phase 4: Permission-plane lints [TODO]
+### Phase 4: Permission-plane lints [DONE]
+
+**Completed 2026-08-12.** `permission-plane-lint.test.sh` 43/43, `shellcheck -x` clean, siblings still
+green (`permission-state` 42/42, `automode-entry-diff` 49/49). `check-skill.sh` PASS.
+The sanity check holds: `grep -c '\[C2-autoMode\]'` = 1 and `grep -c '\[C2-defaultMode\]'` = 1 on the
+three-gate fixture, and `C2-planMode` is a third separately-labelled finding.
+
+**Criterion 6's fourth item shipped as TWO checks, not one, and criterion 2 shipped uncaveated** —
+both because the 2026-08-11 addendum found the pages state what the plan called unstated:
+
+- `C6-contentField` — a parameter-form rule on a tool's primary content field, ignored with a startup
+  warning. `C6-uncoveredPath` — a path rule on `Write`/`NotebookEdit`/`Glob`/`MultiEdit`, accepted but
+  never consulted. Different mechanics, different observables, so one merged check would have been
+  wrong about at least one of them.
+- The `v2.1.142` gate and the `useAutoModeDuringPlan` scope restriction are both cited now. The
+  plan-mode check fires on **shared project settings only**, because that is the scope the page names;
+  claiming a local occurrence dead would assert a restriction no page states.
+- **`disableAutoMode` is read at BOTH documented key paths** — top-level and under `permissions`. A
+  scan of one path would have missed half the surface of the highest-consequence check in the file.
+
+**Deviations recorded rather than silent:**
+
+- **The reader owns the config reads, not the lint.** `permission-state.sh`'s `conf` record grew from
+  one key to six (`classifyAllShell`, `autoModePresent`, `defaultMode`, `useAutoModeDuringPlan`, and
+  `disableAutoMode` at both paths), emitted as JSON so a boolean `true` and the string `"true"` stay
+  distinguishable — for `C5-disableType` that distinction **is** the finding. The alternative, a lint
+  that re-opens settings files itself, would have duplicated scope resolution the reader already does.
+- **False positives were designed against explicitly and are regression-tested**: a bare tool-name
+  rule (legitimate at the tool level), `:*` at pattern end, a parameter rule on a non-content field,
+  and a POSIX-form Windows path (`//c/**`) each have a case asserting they do **not** fire.
+- **SKILL.md was over the 200-line soft target**, so the scope tables and the per-check mechanic table
+  moved to `reference/criteria.md` — the spoke the progressive-disclosure convention calls for — and
+  the hub keeps the pipeline and the reading-it-honestly rules.
 
 Acceptance criteria 2, 5, 6.
 

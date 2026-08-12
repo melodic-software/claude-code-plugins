@@ -97,15 +97,12 @@ Two mechanics decide those records, and conflating them produces confident wrong
   user-level allow. Scope rank does not enter into it. This is what answers "why is my allow rule
   ignored": the `inert` record names the rule that beat it.
 - **A rule that is a bare tool name reaches every call of that tool.** A whole-tool deny removes the
-  tool from context entirely, so every other rule naming it is inert — including other denies, which
-  are moot rather than weakened; `EndConversation` is the documented exception. A whole-tool ask
-  prompts for every call, so no scoped allow for that tool applies. Both print a `NOTE:` naming the
-  tool.
+  tool from context entirely, so every other rule naming it is inert — other denies included;
+  `EndConversation` is the documented exception. A whole-tool ask prompts for every call, so no scoped
+  allow for that tool applies. Both print a `NOTE:` naming the tool.
 
 `reference/criteria.md` maps every `precedence_basis` token to the sentence it follows from, and
-states the two standing bounds the run prints — the command-line scope has no file to read, and rules
-are compared by exact text, so a narrow allow blocked only by a broader deny **pattern** is still
-reported effective. The error direction is over-reporting allow.
+states the two standing bounds the run prints.
 
 ## Phase 3: What entering auto mode drops
 
@@ -129,17 +126,44 @@ entry-diff summary allow_before=<n> dropped=<n> suspended=<n> kept=<n>
 - **Only allow rules change on entry.** Deny and ask are evaluated before the classifier in every
   mode, so they are not part of this diff — do not report them as "surviving".
 - **`class` names the documented reason**: `blanket`, `interpreter-wildcard`, `package-manager-run`,
-  or `agent`. The classes come from `lib/permission-patterns.sh`, the same vocabulary
-  `audit-permission-grants` check P1 scans with — one definition, two consumers.
+  or `agent`, from `lib/permission-patterns.sh` — the vocabulary `audit-permission-grants` check P1
+  also scans with.
 - **`autoMode.classifyAllShell` inverts the answer wholesale.** When true it suspends *every* Bash and
-  PowerShell allow rule, so narrow rules do **not** carry over. The classifier reads `autoMode` from
-  user settings, managed settings, and inline `--settings`/SDK JSON only, so a project- or
-  local-scope `classifyAllShell` changes nothing and the run says so rather than silently obeying it.
-- **`--oracle` is opt-in and priced.** It spawns a real `claude -p` session to capture the harness's
-  own drop narration. Measured cost: it does not touch your settings files, but it does rewrite
-  `~/.claude.json` and add project, session-env, security and subagent state under your config
-  directory. The prediction is the read path; the oracle only corroborates it, and a capture that
-  yields nothing is reported as **unavailable**, never as an empty drop set.
+  PowerShell allow rule, so narrow rules do **not** carry over. It is resolved only from the scopes
+  the classifier reads, so a project- or local-scope copy is reported inert rather than obeyed.
+- **`--oracle` is opt-in and priced.** It spawns a real `claude -p` session to corroborate the
+  prediction. Measured cost: your settings files are untouched, but `~/.claude.json` is rewritten and
+  project, session-env, security and subagent state appear under your config directory. A capture
+  that yields nothing is **unavailable**, never an empty drop set.
+
+## Phase 4: Configuration that is written but never read
+
+The permission plane accepts things it silently ignores. This finds them across every scope at once,
+before a session starts:
+
+```shell
+bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-permission-state/scripts/permission-state.sh" |
+  bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-permission-state/scripts/permission-plane-lint.sh"
+```
+
+```text
+finding <severity> [<check>] <scope> <detail>
+lint summary findings=<n> checks_run=<n>
+```
+
+Eight checks: three `C2-*` dead-config gates, `C5-disableType`, and four `C6-*` rules-that-cannot-match.
+`reference/criteria.md` maps each to the sentence it follows from and lists the legitimate rule shapes
+the checks are written NOT to flag.
+
+- **`C5-disableType` is the one to read first.** `disableAutoMode` must be the **string** `"disable"`;
+  a boolean is valid JSON, is accepted, and does nothing — so the operator believes auto mode is
+  locked out when it is not.
+- **The three `C2` gates stay separate findings.** Different scope sets, different version histories:
+  an operator who fixed one and saw the count drop would reasonably believe they had fixed all three.
+- **Several of these also produce a startup warning.** The added value here is reading every scope at
+  once, before a session, and naming the file — not that the harness is silent.
+- **Advisory: the lint always exits 0 when it ran.** Exit 2 means it could not run at all, never
+  "nothing found".
 
 ## Reading the output honestly
 
@@ -162,29 +186,12 @@ collapse it in the report:
   inventory, but its rules may still be a live problem for the operator — report it as a finding, not
   as an empty scope.
 
-## Scopes, and why there are five
+## Scopes
 
-| Scope | Why it is its own member |
-| --- | --- |
-| `managed` | Highest precedence. Four surfaces per OS, not one file — see below |
-| `user` | `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json`. Where Claude Code's own "Always allow" path writes, so it accumulates the most rules |
-| `project` | `.claude/settings.json` at the repository root |
-| `local` | `.claude/settings.local.json`, resolved **through worktrees to the main checkout** — anchoring on the worktree root looks where the file is not |
-| `startdir-local` | A pre-v2.1.211 copy left in the session's start directory. Not a fallback: when both exist the repository root wins on a shared key, **but permission rules from both stay in effect**, so both are live |
-
-## The managed scope is four surfaces
-
-Two are the portable core, read on every OS: the per-OS `managed-settings.json` and its
-`managed-settings.d/` drop-in directory (read in the documented order — base first, then `*.json`
-sorted alphabetically on top, dotfiles ignored).
-
-Two are declared optional platform integrations: the Windows policy registry keys and the macOS
-managed-preferences domain. Each is read where it is native and readable; where its tool is missing
-the surface reports `skipped` with a notice and **every other result is unaffected**. That is the
-contract — an optional platform integration degrades visibly and preserves the portable core.
-
-`HKCU` is not a peer of `HKLM`: it is documented as lowest policy priority, used only when no
-admin-level source exists, so the first key that answers wins and the rest are not consulted.
+Five, and the two easy to get wrong: `local` resolves **through worktrees to the main checkout**, so
+a reader anchored on the worktree root looks where the file is not; `startdir-local` is a
+pre-v2.1.211 copy that is **not** a fallback — permission rules from both files stay in effect.
+`managed` is four surfaces per OS, not one file. `reference/criteria.md` §Scopes has the full table.
 
 ## Prerequisites
 

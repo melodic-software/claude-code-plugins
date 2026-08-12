@@ -210,16 +210,41 @@ emit_file_rules() {
   done
 }
 
-# The one permission-plane config key inventoried alongside the rules:
-# autoMode.classifyAllShell suspends every Bash/PowerShell allow rule while auto
-# mode is active, so an entry diff that cannot see it can be exactly wrong.
-# Emitted as JSON (tojson) so boolean true and string "true" stay distinct.
+# The permission-plane config keys inventoried alongside the rules. Each is here
+# because some downstream consumer is wrong without it:
+#   classifyAllShell   suspends every Bash/PowerShell allow rule while auto mode
+#                      is active, so an entry diff blind to it can be exactly wrong
+#   autoModePresent    whether an autoMode section exists at all — the classifier
+#                      does not read it from project or local settings, so its
+#                      mere presence there is a dead-config finding
+#   defaultMode        `auto` is ignored in project and local settings
+#   useAutoModeDuringPlan   not read from shared project settings
+#   disableAutoMode / permissions.disableAutoMode
+#                      accepted at BOTH key paths, and must be the STRING
+#                      "disable" — a boolean is a silent no-op
+#
+# Values are emitted as JSON (tojson) so a boolean true and the string "true"
+# stay distinguishable downstream; for the type-confusion check that distinction
+# IS the finding.
 emit_file_conf() {
   # emit_file_conf <scope> <surface> <json-on-stdin>
   [[ "$mode" == "full" ]] || return 0
-  local scope="$1" surface="$2" v
-  v="$(jq -r 'if (.autoMode | type) == "object" and (.autoMode | has("classifyAllShell")) then (.autoMode.classifyAllShell | tojson) else empty end' 2>/dev/null | tr -d '\r')"
-  [[ -n "$v" ]] && printf 'conf %s %s classifyAllShell %s\n' "$scope" "$surface" "$v"
+  local scope="$1" surface="$2" json
+  json="$(cat)"
+  local key expr
+  while IFS='=' read -r key expr; do
+    [[ -n "$key" ]] || continue
+    local v
+    v="$(printf '%s' "$json" | jq -r "$expr" 2>/dev/null | tr -d '\r')"
+    [[ -n "$v" ]] && printf 'conf %s %s %s %s\n' "$scope" "$surface" "$key" "$v"
+  done <<'CONF_KEYS'
+classifyAllShell=if (.autoMode | type) == "object" and (.autoMode | has("classifyAllShell")) then (.autoMode.classifyAllShell | tojson) else empty end
+autoModePresent=if has("autoMode") then "true" else empty end
+defaultMode=if (.permissions | type) == "object" and (.permissions | has("defaultMode")) then (.permissions.defaultMode | tojson) elif has("defaultMode") then (.defaultMode | tojson) else empty end
+useAutoModeDuringPlan=if has("useAutoModeDuringPlan") then (.useAutoModeDuringPlan | tojson) else empty end
+disableAutoMode=if has("disableAutoMode") then (.disableAutoMode | tojson) else empty end
+permissions.disableAutoMode=if (.permissions | type) == "object" and (.permissions | has("disableAutoMode")) then (.permissions.disableAutoMode | tojson) else empty end
+CONF_KEYS
   return 0
 }
 
