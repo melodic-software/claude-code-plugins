@@ -841,6 +841,10 @@ run_pwsh "PS: call-op, single-quoted literal git (blocked by name)" \
 run_pwsh "PS: call-op, quoted literal path whose basename is git (blocked by name)" \
   '& "C:\Git\cmd\git.exe" reset --hard' 2
 
+malformed_rc=0
+(cd "$REPO_SHA1" && bash "$HOOK" <<< 'not json at all' >/dev/null 2>&1) || malformed_rc=$?
+assert_exit "malformed JSON payload (blocked)" 2 "$malformed_rc"
+
 # --- A NUL in the payload must not void the guard (#2122) --------------------
 # hook::jq_fields separates its fields with a NUL. A JSON NUL escape inside the
 # command used to split that value in two, fail the helper's cardinality check

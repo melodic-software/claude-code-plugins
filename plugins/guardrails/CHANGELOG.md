@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.4]
+
+### Fixed
+
+- **block-dangerous-git and block-no-verify fail closed on unparsable payload** (#2157).
+
 ## [0.28.1]
 
 ### Fixed
