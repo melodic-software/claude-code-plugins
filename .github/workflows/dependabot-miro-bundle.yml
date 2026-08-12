@@ -12,7 +12,8 @@ permissions:
 
 jobs:
   regenerate-miro-bundle:
-    if: github.actor == 'dependabot[bot]'
+    # zizmor: ignore[bot-conditions] dependabot-only job; login is read from the PR user, not github.actor
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -24,6 +25,7 @@ jobs:
         with:
           ref: ${{ github.head_ref }}
           fetch-depth: 0
+          persist-credentials: false
       - name: Detect miro manifest changes
         id: scope
         env:
@@ -50,6 +52,8 @@ jobs:
           npm run verify-bundle
       - name: Commit regenerated bundle when drifted
         if: steps.scope.outputs.changed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if git diff --quiet -- plugins/miro/dist/index.min.js; then
             echo "dist already matches source — nothing to commit"
@@ -59,4 +63,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add plugins/miro/dist/index.min.js
           git commit -m "chore(miro): regenerate dist for dependabot manifest bump"
+          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git push
