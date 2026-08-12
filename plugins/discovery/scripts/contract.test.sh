@@ -16,6 +16,10 @@
 # historical record, it quotes the wording it is retiring, and rewriting a
 # shipped entry to satisfy a tripwire is the failure mode this file exists to
 # make expensive.
+#
+# SC2016 is disabled file-wide on purpose. Single-quoted `$ARGUMENTS` strings in
+# assertion labels and grep patterns are literal prose/regex under test.
+# shellcheck disable=SC2016
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
