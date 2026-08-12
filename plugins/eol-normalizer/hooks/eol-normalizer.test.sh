@@ -109,7 +109,7 @@ if [[ "$(cr_count "$REPO/seed.sh")" == "2" ]]; then ok "pre: seed.sh seeded with
 OUT=$(run_hook "$REPO/seed.sh")
 RC=$?
 if [[ $RC -eq 0 ]]; then ok "LF arm .sh -> exit 0"; else fail "LF arm .sh exit $RC"; fi
-if [[ -z "$OUT" ]]; then ok "LF arm .sh -> empty stdout (advisory)"; else fail "LF arm stdout not empty: $OUT"; fi
+if [[ "$OUT" == *'"systemMessage"'* && "$OUT" == *'normalized line endings to LF'* ]]; then ok "LF arm .sh -> mutation disclosure on stdout"; else fail "LF arm stdout missing disclosure: $OUT"; fi
 if [[ "$(cr_count "$REPO/seed.sh")" == "0" ]]; then ok "LF arm CRLF .sh -> 0 CR (every OS)"; else fail "LF arm .sh CR=$(cr_count "$REPO/seed.sh")"; fi
 
 # --- Case 2: unspecified (.png) -> no-op, every OS ---------------------------
@@ -192,8 +192,8 @@ if [[ -x "$REPO/exec.sh" ]]; then ok "fallback: executable mode preserved"; else
 printf 'echo p\r\n' >"$REPO/tel1.sh"
 OUT_NS=$(run_hook_env "$REPO/tel1.sh" -u HOOK_TELEMETRY_SINK CLAUDE_PLUGIN_OPTION_EOL_NORMALIZER_ENABLED=true)
 RC_NS=$?
-if [[ $RC_NS -eq 0 && -z "$OUT_NS" ]]; then
-  ok "telemetry/sink-unset: exit 0, empty stdout (parity)"
+if [[ $RC_NS -eq 0 && "$OUT_NS" == *'"systemMessage"'* ]]; then
+  ok "telemetry/sink-unset: exit 0 with mutation disclosure (no telemetry envelope)"
 else
   fail "telemetry/sink-unset: rc=$RC_NS out=$OUT_NS"
 fi
@@ -224,6 +224,16 @@ else
   fail "telemetry/stub-sink: no envelope written"
 fi
 rm -f "$TEL"
+
+# --- Normalized .sh -> systemMessage names the target ending (#1596) ----------
+# Fresh file: tel2.sh was already normalized in the telemetry stub-sink case above.
+printf 'echo r\r\n' >"$REPO/tel2b.sh"
+OUT_LF=$(run_hook_env "$REPO/tel2b.sh" CLAUDE_PLUGIN_OPTION_EOL_NORMALIZER_ENABLED=true)
+if [[ "$OUT_LF" == *'"systemMessage"'* && "$OUT_LF" == *'normalized line endings to LF'* ]]; then
+  ok "mutation disclosure: LF normalization names target ending"
+else
+  fail "mutation disclosure: LF out=$OUT_LF"
+fi
 
 # --- Stub sink + unspecified .png -> status skipped, action skip ------------
 printf 'x\r\n' >"$REPO/tel3.png"
