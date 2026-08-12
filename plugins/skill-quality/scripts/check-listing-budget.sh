@@ -397,15 +397,22 @@ if ! AWK_RESULT="$(awk -F'\t' \
     close(path)
     while (FN > 0 && FM[FN] == "") FN--
     if (FN == 0) next
-    if (normalize_bool(strip_trailing_nl(fm_field("disable-model-invocation"))) == "true") next
+    # No strip_trailing_nl on this one, and the asymmetry with the next two
+    # lines is deliberate rather than an oversight: normalize_bool opens with
+    # trim_ws, whose trailing sub uses [[:space:]] — which matches a newline —
+    # so it already subsumes the strip. The description and when_to_use lines DO
+    # need it, because strip_quotes trims nothing: a value still ending in a
+    # newline has that newline as its last character, so the closing quote never
+    # matches and the quote marks survive into the measured length.
+    if (normalize_bool(fm_field("disable-model-invocation")) == "true") next
     desc = strip_quotes(strip_trailing_nl(fm_field("description")))
     wtu = strip_quotes(strip_trailing_nl(fm_field("when_to_use")))
     desc_len = length(desc); wtu_len = length(wtu)
     entry_len = desc_len + (wtu_len > 0 ? joiner_chars : 0) + wtu_len
     # The harness truncates each entry to the per-skill cap BEFORE the shared
     # budget ever sees it — mirror that here so an already-oversized single
-    # entry (check 2 own FAIL) does not inflate this aggregate beyond what
-    # Claude Code would actually load.
+    # entry — the FAIL check 2 already raises — does not inflate this aggregate
+    # beyond what Claude Code would actually load.
     if (entry_len > max) entry_len = max
     total += entry_len; count++
     name = path

@@ -3,6 +3,32 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.4]
+
+### Changed
+
+- **Two review findings on 0.15.3's single-pass scan, both verified before acting rather than taken
+  on faith. Output is unchanged, and that was re-proved rather than assumed.**
+  - The `strip_trailing_nl` wrapping the `disable-model-invocation` read was dead weight on every
+    scanned file. `normalize_bool` opens with `trim_ws`, whose trailing `sub` uses `[[:space:]]` —
+    a class that matches a newline — so the strip removed a strict subset of what the very next
+    call removed. Confirmed by running both compositions over a value ending in newline plus
+    spaces: identical output, and `[[:space:]]+$` strips a bare newline on its own.
+
+    It is deliberately **not** removed from the `description` and `when_to_use` reads, where it runs
+    before `strip_quotes`, which trims nothing: a value still ending in a newline has that newline
+    as its last character, so the closing quote never matches and the quote marks would survive into
+    the measured length. The asymmetry now carries a comment saying so, since it otherwise reads as
+    an oversight worth fixing.
+  - The FAIL check 2 message was an apostrophe dropped to avoid closing the enclosing
+    single-quoted awk program, and read as a typo. Rephrased to refer to check 2 without
+    an apostrophe rather than escaped — one apostrophe does not justify a `'"'"'` sequence
+    inside an awk program.
+
+  Whitespace handling is exactly where a "free" edit silently moves a number, so byte-identity was
+  re-established rather than presumed: the per-file contribution rows were re-diffed against the
+  pre-port baseline — **144/144 identical**, report identical.
+
 ## [0.15.3]
 
 ### Fixed
