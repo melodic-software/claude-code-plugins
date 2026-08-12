@@ -3,6 +3,14 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.3]
+
+### Fixed
+
+- **`morning-brief --help` now lists `--stranded-days`.** The flag was parsed and documented in
+  `SKILL.md` but missing from the script header that `--help` prints, so operators following
+  #1938's `--stranded-days 6` instruction could not confirm it from `--help`. (#1969)
+
 ## [0.29.2]
 
 ### Changed
