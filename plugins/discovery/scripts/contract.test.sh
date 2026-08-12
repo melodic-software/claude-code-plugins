@@ -200,6 +200,10 @@ fi
 # ---------------------------------------------------------------------------
 assert_present 'the research description carries a boundary against research-deep' \
   'skills/research/SKILL.md' '^description:.*research-deep'
+assert_present 'the research description claims single-topic work for research' \
+  'skills/research/SKILL.md' '^description:.*single topic'
+assert_present 'the research description routes multi-topic work to research-deep' \
+  'skills/research/SKILL.md' '^description:.*multi-topic'
 
 # ---------------------------------------------------------------------------
 # 10. The write boundary is stated once and pointed at (#2270 F6)

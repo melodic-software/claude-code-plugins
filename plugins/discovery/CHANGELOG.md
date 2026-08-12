@@ -1,5 +1,16 @@
 # Changelog — discovery plugin
 
+## [0.15.1]
+
+### Fixed
+
+- **Erratum for the 0.14.1 CHANGELOG entry (#2339).** That entry stated the routing gap backwards —
+  it described deep work landing in the lighter skill, while #2271 (`D-F9`) filed the opposite
+  (small lookups routed into `research-deep`). The clause 0.14.1 shipped was a positive pointer toward
+  the heavier sibling, not a negative boundary claiming small work for `research`; 0.15.0 replaced it
+  with the correct direction. The 0.14.1 text stands as written; this records the correction. The
+  contract test now keys on that direction, not merely on naming `research-deep`.
+
 ## [0.15.0]
 
 ### Fixed
