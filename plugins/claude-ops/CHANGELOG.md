@@ -3,6 +3,42 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.0]
+
+### Added
+
+- **`audit-performance`: a read-only slowness-diagnostic capture, run at the moment the machine or
+  a session feels slow — before anyone restarts or deletes anything.** The failure mode it replaces
+  is the folk remedy: "it was slow, so I nuked `~/.claude` and reinstalled" destroys the evidence
+  and permanently confounds the fix, because a reinstall also crosses version upgrades (v2.1.216
+  fixed a quadratic long-session slowdown; v2.1.208 cut per-tool-call MCP overhead up to 7x;
+  v2.1.207 fixed keystroke lag — all within weeks of each other). One engine pass
+  (`audit_performance.py`, Python 3.11+ stdlib only) captures the evidence to separate the three
+  documented suspects: **accumulated install-tree state** (retention-sweep health including the
+  silent unparsable-settings pause, plus a timed stat-walk of the whole tree whose duration
+  approximates what the product's own daily sweep costs on that volume right now), **version
+  regression** (CLI version, probed with its own latency recorded — a ten-second `--version` is
+  itself a finding), and **component bloat** (plugin-fleet and process censuses, with the verdict
+  routed to `/claude-ops:plugins audit`). Phase timings are first-class evidence throughout: on a
+  struggling machine the audit itself runs slow, and that is signal, not failure.
+
+- **A bundled known-performance-issues reference** (`reference/known-performance-issues.md`,
+  compiled 2026-08-12 under the upstream-drift stamp discipline) carrying the 2.1.2xx performance
+  fixes with dates, the source-level accumulated-state mechanisms confirmed against v2.1.228 (the
+  daily whole-tree sweep walk; the unparsable-`settings.json` silent sweep pause; `history.jsonl`
+  and home-root `~/.claude.json` as the two never-swept growth files; uncapped resumed-transcript
+  render cost), the weak evidence base behind the nuke-the-directory remedy, and the
+  Windows-specific amplifiers (Defender per-file taxation, hidden non-elevated exclusion reads,
+  Desktop-vs-CLI surface discipline). `/claude-ops:known-issues` remains the live-search
+  complement.
+
+- **Hard read boundaries.** The engine mutates nothing anywhere, never elevates (Defender guidance
+  is advisory text for the operator's own elevated shell), and its content-read allowlist is two
+  files — `settings.json` and `.last-cleanup`; `~/.claude.json` values and `history.jsonl`
+  contents are stat-only line items, never opened. The skill reports and routes: deletion belongs
+  to `/disk-hygiene:clean`, per-project shedding to `claude project purge`, deep inventory to
+  `/claude-ops:audit-install-state`, and settings repair to `/claude-config:audit`.
+
 ## [0.30.0]
 
 ### Added
