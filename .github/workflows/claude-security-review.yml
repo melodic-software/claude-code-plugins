@@ -68,3 +68,35 @@ jobs:
     # One named secret (least privilege), never `secrets: inherit`.
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+  # Repo-owned fail-closed supplement for #2337: the reusable workflow is
+  # advisory on some infra-failure classes and can report success without a
+  # review when validation skips or the job finishes implausibly fast on an
+  # in-scope diff. This job is intentionally separate so the guard stays
+  # readable in-repo and does not require a ci-workflows pin bump.
+  security-review-evidence:
+    needs: security-review
+    if: >-
+      always() &&
+      github.event_name == 'pull_request' &&
+      needs.security-review.result != 'cancelled'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Verify security-review execution evidence
+        env:
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_BASE_REF: ${{ github.base_ref }}
+          GITHUB_ACTOR: ${{ github.actor }}
+          SKIP_ACTORS: dependabot[bot],claude[bot],melodic-ai[bot],melodic-standards-sync[bot]
+        run: bash scripts/verify-security-review-evidence.sh
