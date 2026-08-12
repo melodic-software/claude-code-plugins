@@ -27,7 +27,19 @@ class CheckUsageLimitResetTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1, result.stderr)
         self.assertIn("blocked", result.stdout)
 
-    def test_unparsed_without_reset_clause(self) -> None:
+    def test_lifted_after_evening_reset_next_morning(self) -> None:
+        msg = "You've hit your session limit · resets 11pm (America/New_York)"
+        result = self.invoke(msg, "--now", "2026-07-26T01:00:00-04:00")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("lifted", result.stdout)
+
+    def test_timezone_less_uses_local_offset_from_now(self) -> None:
+        # 3:45pm local when --now carries -04:00 should block before that wall time.
+        msg = "You've hit your session limit · resets 3:45pm"
+        result = self.invoke(msg, "--now", "2026-07-25T14:00:00-04:00")
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn("blocked", result.stdout)
+
         result = self.invoke("session limit reached")
         self.assertEqual(result.returncode, 2, result.stderr)
 

@@ -15,7 +15,7 @@ from __future__ import annotations
 import argparse
 import re
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 
@@ -39,10 +39,22 @@ def parse_reset(text: str, *, now: datetime | None = None) -> datetime:
         hour = 0
     if ampm == "pm":
         hour += 12
-    tz_name = (match.group("tz") or "UTC").strip()
-    zone = ZoneInfo(tz_name)
+    tz_raw = match.group("tz")
+    if tz_raw:
+        zone = ZoneInfo(tz_raw.strip())
+    elif now is not None:
+        zone = now.tzinfo or ZoneInfo("UTC")
+    else:
+        local = datetime.now().astimezone().tzinfo
+        zone = local if local is not None else ZoneInfo("UTC")
     current = now.astimezone(zone) if now is not None else datetime.now(zone)
-    return current.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    reset_at = current.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    if reset_at > current:
+        # After midnight, an evening reset already passed yesterday; an early-morning
+        # reset is still ahead on today's calendar.
+        if ampm == "pm" and current.hour < 12:
+            reset_at -= timedelta(days=1)
+    return reset_at
 
 
 def main(argv: list[str] | None = None) -> int:
