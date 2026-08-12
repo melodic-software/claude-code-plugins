@@ -288,7 +288,7 @@ class FetchPullRequestCommitsTests(unittest.TestCase):
                 "commit": {"verification": {"verified": False, "reason": "no_user"}},
             },
         ]
-        with mock.patch.object(gh, "gh_json", return_value=rows) as gh_json:
+        with mock.patch.object(gh, "gh_json", side_effect=[rows, len(rows)]) as gh_json:
             out = gh.fetch_pull_request_commits("owner/repo", 5)
         self.assertEqual(
             out,
@@ -297,11 +297,26 @@ class FetchPullRequestCommitsTests(unittest.TestCase):
                 {"sha": "b" * 40, "verified": False, "reason": "no_user"},
             ],
         )
-        [call] = gh_json.call_args_list
-        endpoint = call.args[0][1]
+        commits_call = gh_json.call_args_list[0]
+        endpoint = commits_call.args[0][1]
         self.assertIn("repos/owner/repo/pulls/5/commits", endpoint)
         self.assertIn("per_page=100", endpoint)
-        self.assertIn("--paginate", call.args[0])
+        self.assertIn("--paginate", commits_call.args[0])
+
+    def test_pull_commits_cap_raises_when_walk_is_short(self) -> None:
+        rows = [
+            {
+                "sha": f"{i:040x}",
+                "commit": {"verification": {"verified": True, "reason": "valid"}},
+            }
+            for i in range(250)
+        ]
+        with mock.patch.object(gh, "gh_json") as gh_json_mock:
+            gh_json_mock.side_effect = [rows, 300]
+            with self.assertRaises(RuntimeError) as ctx:
+                gh.fetch_pull_request_commits("owner/repo", 5)
+        self.assertIn("250-commit cap", str(ctx.exception))
+        self.assertIn("walked 250 of 300", str(ctx.exception))
 
     def test_missing_verification_reads_unverified_unreadable(self) -> None:
         rows = [
