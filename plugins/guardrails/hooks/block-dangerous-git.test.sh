@@ -322,6 +322,7 @@ run "git push pinned lease + --no-force-if-includes (stated expectation stands w
 # git's apply_cas() returns on the FIRST lease entry matching the ref being
 # updated, so a repeated ref is decided by the earlier spelling alone.
 run "git push same ref pinned first, movable second (git uses the first, allowed)" "git push --force-with-lease=main:$SHA1_OID --force-with-lease=main:origin/main origin main" 0
+run "git push pinned main:<sha> then equivalent refs/heads/main spelling (allowed)" "git push --force-with-lease=main:$SHA1_OID --force-with-lease=refs/heads/main:origin/main origin main" 0
 run "git push same ref movable first, pinned second (git uses the first, blocked)" "git push --force-with-lease=main:origin/main --force-with-lease=main:$SHA1_OID origin main" 2
 run "git push same ref no-expect first, pinned second (first is tracking-based, blocked)" "git push --force-with-lease=main --force-with-lease=main:$SHA1_OID origin main" 2
 run "git push same ref no-expect first, pinned second, mitigated (allowed)" "git push --force-with-lease=main --force-with-lease=main:$SHA1_OID --force-if-includes origin main" 0

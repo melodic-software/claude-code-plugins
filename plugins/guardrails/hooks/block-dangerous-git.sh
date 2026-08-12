@@ -495,15 +495,27 @@ effective_dir() {
 # Has an earlier lease spelling in this same command already claimed <refname>?
 # git's apply_cas() walks the --force-with-lease entries in command-line order
 # and RETURNS on the first whose refname matches the ref being updated, so a
-# later entry for a ref an earlier one already pinned is dead text. Matching
-# entries by their literal spelling is the conservative reading of git's
-# refname_match(): two different spellings of one ref (`main` vs
-# `refs/heads/main`) are treated as distinct here, so an unsafe later entry is
-# still counted rather than silently dropped.
+# later entry for a ref an earlier one already pinned is dead text. When the
+# command itself qualifies a ref (`refs/heads/main`), treat it as equivalent to
+# the unqualified branch name (`main`) so a dead second spelling does not block a
+# safe push (#1418). Unqualified spellings are never folded together — only a
+# command-qualified `refs/heads/<name>` pairs with its short branch name.
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+lease_refs_equivalent() {
+  local a="$1" b="$2"
+  [[ "$a" == "$b" ]] && return 0
+  [[ "$a" == refs/heads/* && "${a#refs/heads/}" == "$b" ]] && return 0
+  [[ "$b" == refs/heads/* && "${b#refs/heads/}" == "$a" ]] && return 0
+  return 1
+}
+
 lease_ref_claimed() {
-  local seen="$1" ref="$2"
-  [[ $'\n'"$seen" == *$'\n'"$ref"$'\n'* ]]
+  local seen="$1" ref="$2" r
+  while IFS= read -r r; do
+    [[ -z "$r" ]] && continue
+    lease_refs_equivalent "$r" "$ref" && return 0
+  done <<< "$seen"
+  return 1
 }
 
 # Is an operand a worktree-wide pathspec? `.` from the repo root, the

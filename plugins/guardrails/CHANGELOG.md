@@ -3,6 +3,14 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.6]
+
+### Fixed
+
+- **`block-dangerous-git` treats `main` and `refs/heads/main` as one ref when the command
+  qualified the long form (#1418).** A dead second lease entry for an equivalent spelling no
+  longer blocks a safe push whose first entry is pinned to a full object id.
+
 ## [0.28.5]
 
 ### Fixed
