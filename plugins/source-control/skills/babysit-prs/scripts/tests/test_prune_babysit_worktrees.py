@@ -46,12 +46,15 @@ def git(*args: str) -> str:
 
 
 def make_repo(tmp: pathlib.Path) -> pathlib.Path:
-    """A one-commit repository with committer identity set locally."""
+    """A one-commit repository with committer identity and signing set locally."""
     main = tmp / "mainrepo"
     main.mkdir()
     git("init", "-q", str(main))
     git("-C", str(main), "config", "user.email", "t@t")
     git("-C", str(main), "config", "user.name", "t")
+    # Repo-local only: machines with commit.gpgsign=true globally have no key for
+    # the fixture identity and every setup commit errors out (#2358).
+    git("-C", str(main), "config", "commit.gpgsign", "false")
     git("-C", str(main), "commit", "-q", "--allow-empty", "-m", "init")
     return main
 
