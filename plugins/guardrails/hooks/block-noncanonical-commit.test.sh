@@ -1159,8 +1159,11 @@ if [[ -d "$GLOB/repo/.git" ]]; then
     '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
     timeout "$HANG_GUARD_SECS" bash "$HOOK" >/dev/null 2>&1
   rc=$?
-  ((rc == 124)) && bad "persisted lookup with locating globals: the hook HUNG" || \
+  if ((rc == 124)); then
+    bad "persisted lookup with locating globals: the hook HUNG"
+  else
     assert_exit "persisted lookup replays --git-dir/--work-tree (blocks multi-line -m via alias chain)" 2 "$rc"
+  fi
 fi
 
 # --- explicit locating globals: a `!` body launches where the CALLER stands ----
