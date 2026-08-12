@@ -1009,6 +1009,10 @@ jobs:
       # event like the schema step above.
       - name: Lint every eval set for quality
         run: bash plugins/skill-quality/scripts/check-evals-quality.sh plugins/*/skills/*/evals/evals.json
+      - name: Test the precompute-compose gate
+        run: bash scripts/check-skill-precompute-compose.test.sh
+      - name: Report precompute git+multi-line violations (warn-only)
+        run: scripts/check-skill-precompute-compose.sh --all
       - name: Test the shared listing-budget reporter
         run: bash plugins/skill-quality/scripts/check-listing-budget.test.sh
       # Report-only (always exit 0 — see the script's own header): pools every
