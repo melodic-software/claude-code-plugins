@@ -4,6 +4,35 @@ Notable changes to the upstream-drift contract (SemVer). Changing a required par
 name, or an enforceability verdict is a major bump; additive guidance is a minor bump; docs-only
 clarification is a patch.
 
+## 1.4.0 — 2026-08-12
+
+Closes the **adoption** gap rather than a design one: the contract already owned verification
+stamps, recheck triggers, and the rule that the name binds on touch, but a plugin restating an
+upstream harness fact in bare prose had no row and nothing made the stale claim surface
+([#2273](https://github.com/melodic-software/claude-code-plugins/issues/2273)). Additive guidance;
+no required part, canonical name, or enforceability verdict changed.
+
+- **`architecture` joins Adopters, and the table now says how a post-1.0.0 row got there.** The
+  preamble read "Migrated at this contract's 1.0.0", which an appended row would have quietly
+  falsified. It now distinguishes the eight migrated rows from later on-touch adoptions, requires
+  each later row to name the release that added it, and states the bar the third column implies: a
+  row is added only once the surface conforms, so a *known* unstamped carrier is a tracked issue,
+  never a table row. The `architecture` row records the concrete case — `improve` §Gotchas asserted
+  that `${CLAUDE_PLUGIN_DATA}` does not substitute in skill content while `plugins-reference` puts
+  skill and agent content in the "anywhere the placeholder appears" row; corrected and stamped in
+  `architecture` 0.5.1 ([#2207](https://github.com/melodic-software/claude-code-plugins/issues/2207)).
+- **A `*-gate` CI check for adoption is deferred, recorded as a decision with its own trigger.**
+  The load-bearing finding is that the check already named in §Enforceability — flag a
+  `Verified <date>` with no trigger — **would not have caught the case that prompted the
+  question**: that surface carried no stamp at all, so a stamp-anchored grep had nothing to match.
+  The named check is shaped for a half-conforming record; the failure that ships is the zero-part
+  one, and separating an upstream restatement from an in-repo fact is a judgment about meaning
+  (reasoning-only under the tiers doc). A harness-vocabulary grep would fire on every correct
+  citation too, and a gate that forces routine suppression trains authors to bypass it. Recorded
+  with a basis and an event trigger — a third unstamped carrier reaching `main`, or a demonstrated
+  detector needing no suppression list — so the deferral can expire on evidence rather than on a
+  date.
+
 ## 1.3.0 — 2026-08-11
 
 Closes two holes in [§Reading the basis — the fetch route](README.md#reading-the-basis--the-fetch-route)

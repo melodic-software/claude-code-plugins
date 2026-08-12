@@ -277,9 +277,46 @@ Classified per `melodic-software/standards` `conventions/engineering/enforceabil
 | The trigger clears the observability bar | **Reasoning-only** — whether an event is decidable from evidence is a judgment about meaning. |
 | A trigger has fired | **Reasoning-only** today; **detect-then-judge** if a hash store lands — the hash mismatch flags, and judgment decides whether the page change touches the claim, because a changed page is not a changed fact. |
 
+### Recorded decision — a `*-gate` check for adoption is deferred, and the named check would have missed the motivating case
+
+**Decided 2026-08-12 UTC: no CI gate is built for this convention, in either candidate shape.**
+Recorded here as a decision rather than left implicit, because this repo's `*-gate` CI pattern is
+the standing precedent for promoting a convention to a check, and the question was asked directly
+([#2273](https://github.com/melodic-software/claude-code-plugins/issues/2273)).
+
+The premise that settles it: the candidate check named in the table above — *flag any
+`Verified <date>` line or row whose surface states no trigger* — **would not have caught
+[#2207](https://github.com/melodic-software/claude-code-plugins/issues/2207)**, the finding that
+prompted the question. That surface carried no stamp at all, so a stamp-anchored grep had nothing
+to match on; the check is shaped for a *half-conforming* record and the failure that actually
+shipped was a *zero-part* one. The named check therefore stays named-not-built on its own build
+trigger, unchanged, and is not evidence that mechanization covers this class.
+
+The zero-part shape has no deterministic check available. Deciding whether a sentence restates an
+upstream-owned specific — as against an in-repo fact, a paraphrase of the surface's own behaviour,
+or ordinary prose — is a judgment about meaning, which is **reasoning-only** under the tiers doc.
+A grep for harness vocabulary (`PostToolUse`, `${CLAUDE_*}`, `settings.json`, and so on) would fire
+on every correct citation and every in-repo mention alike, and a gate whose false-positive rate
+forces routine suppression trains authors to bypass it — worse than no gate, because it converts a
+real signal into noise with an approved silencer.
+
+- **Basis** — `melodic-software/standards` `conventions/engineering/enforceability-tiers.md`
+  (the reasoning-only tier and the worth-mechanizing routing rule), plus the two worked instances
+  above.
+- **Recheck trigger** — a third unstamped upstream-fact carrier reaches `main` after this decision
+  (two are on the record: `plugin-quality`, corrected in its 0.4.0, and `architecture`, corrected
+  in its 0.5.1), **or** a detector is demonstrated that separates an upstream restatement from an
+  in-repo one without a suppression list. Either event reopens the shape question; neither is a
+  date.
+
 ## Adopters
 
-Migrated at this contract's 1.0.0 to the single name, each citing this doc with content intact.
+The first eight rows were migrated at this contract's 1.0.0 to the single name, each citing this
+doc with content intact. **Rows added later are surfaces that adopted on touch** — the mechanism
+the note below the table already required — and each such row names the release that added it, so
+the table never implies a surface was migrated at 1.0.0 when it was not. A row is added
+only once the surface actually conforms; a carrier known to be unstamped is a tracked issue, not a
+table row, because the third column is a promise to the reader.
 The rows are not all the same thing, and the table says which is which. A **conforming record**
 carries the four required parts for an upstream-derived claim or decision. A **named trigger**
 shares the canonical name, the observability bar, and
@@ -298,6 +335,7 @@ contract to fit its exceptions.
 | [MIGRATION-PLAYBOOK](../../MIGRATION-PLAYBOOK.md) decision records | "Revisit trigger", and "Re-trigger" on the plugin-acceptance review record | Mixed — the dated component-decision records cite upstream bases and conform; the org-internal records (e.g. the ratification and plugin-acceptance review records) are named triggers; the skill-quality retrofit record is a third kind, terminal exclusions that state "no recheck trigger" by design — decided out, so nothing fires. |
 | [ecosystem-commands](../ecosystem-commands/README.md) task-runner deferral | "Revisit triggers" | Named triggers only — an undated in-repo deferral; not a four-part record. |
 | [topic-docs](../topic-docs/README.md) §Implementers restate the rules | "What would reopen it" | Named trigger only — an in-repo source-hoisting decision; not a four-part record. |
+| [`architecture`](../../../plugins/architecture/skills/improve/SKILL.md) `improve` §Gotchas — *adopted on touch, added 1.4.0* | bare prose: an upstream substitution claim with no basis, no date, and no trigger | One conforming record — the `${CLAUDE_PLUGIN_DATA}` bullet cites `plugins-reference` §Environment variables with a UTC fetch date and a divergence-at-fetch trigger naming the specific table row the claim rests on. It is the plugin's only surface restating an upstream specific (swept at adoption), so the row covers the plugin, not one bullet. |
 
 Elsewhere the name binds on touch: living surfaces still saying "revisit trigger", "re-trigger",
 "re-derivation trigger", or "what would reopen it" (several plugin reference docs already use the

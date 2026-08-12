@@ -3,6 +3,44 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.1]
+
+### Fixed
+
+- **`improve`: the `${CLAUDE_PLUGIN_DATA}` Gotcha stated a false mechanism; the rule it justified
+  now rests on the true one.** The bullet asserted that the token "does not substitute in skill
+  markdown content (it is a hook/monitor/MCP path substitution only)". It **does** substitute: the
+  plugins reference's per-component table puts *skill and agent content* in the "anywhere the
+  placeholder appears" row, alongside hook and monitor commands, with no version qualifier
+  (<https://code.claude.com/docs/en/plugins-reference>, §Environment variables, re-fetched
+  2026-08-12 UTC over the raw-markdown channel — `200`, `text/markdown`, 95,338 bytes / 1,314
+  lines, first heading `# Plugins reference`, slug confirmed canonical against `llms.txt`, SHA-256
+  `f6627de35a3f285d18cf22494843bb328d65e3b867fbc1856865caa47ea3ea64`). The routing decision the
+  sentence defended is **unchanged and still correct**, on three legs the same page supplies and
+  this release states in its place: the token resolves to `~/.claude/plugins/data/{id}/`, which has
+  no project dimension and so collides candidates across codebases; uninstalling from the last
+  remaining scope deletes that directory by default; and its named use is installed dependencies,
+  generated code, and caches. The corrected sentence lands as a conforming upstream-drift record —
+  basis, as-of date, and a recheck trigger — so a later reader can tell a fresh claim from a stale
+  one, which is what let this one survive four releases. (Closes
+  melodic-software/claude-code-plugins#2207. The same false sentence was authored into
+  `plugin-quality` and corrected there in 0.4.0 via #1808; both plugins' histories now converge on
+  one explanation.)
+
+### Erratum — the 0.3.6 entry's stated reason, left as it shipped
+
+- **The 0.3.6 "Fixed" entry below gives a false reason for a change that was itself correct, and is
+  deliberately not edited.** It says the artifact path stopped using `${CLAUDE_PLUGIN_DATA}`
+  because that token "does not substitute in skill markdown content" — the claim corrected above.
+  The *path* change 0.3.6 made was right and stays right; only its stated mechanism was wrong. The
+  0.4.1 entry's promotion of that rationale to a permanent Gotcha is left standing for the same
+  reason: shipped history is never rewritten, so an erratum points forward rather than editing the
+  record (`docs/conventions/upstream-drift/README.md` §Adopters). This note does **not** claim the
+  0.3.6 symptom was imaginary. What a 0.3.5 consumer observed is not settled here and is out of
+  scope: an unexpanded token reaching a consumer is fully consistent with the correction above,
+  since reading a file returns its literal bytes whatever the loader substitutes at load time, and
+  0.3.5 carried the token in a `Read`-loaded `actions/*.md` step rather than in a `SKILL.md` body.
+
 ## [0.5.0]
 
 ### Removed
