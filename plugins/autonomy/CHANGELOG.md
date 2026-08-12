@@ -6,6 +6,14 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 Versions 0.1.0–0.7.0 predate this file (introduced with 0.7.1); their history lives in the
 merged work-package PRs (#333, #343, #356, #372, #377, #600, #676).
 
+## [0.16.1]
+
+### Fixed
+
+- **Guardrail matrix names the per-invocation `c3-this-run` widening.** The babysit-loop typed-pair
+  exception is now acknowledged in `reference/guardrails.md` with a route to the
+  `source-control` config-resolution contract. (#2087)
+
 ## [0.16.0]
 
 ### Changed — ACTION REQUIRED for anyone with an existing `L2`/`L3` binding, or auto-merge bound
