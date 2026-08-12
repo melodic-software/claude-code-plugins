@@ -1,4 +1,4 @@
-# shellcheck shell=bash
+# Returns 1 when jq is absent or zero filters were requested. Returns 2 when jq is present but cannot parse the payload or record count mismatches (#2157). Advisory callers allow on both codes; blocking guards exit 2 on rc 2.# shellcheck shell=bash
 # Shared hook utility library for this marketplace's hook plugins. Sourced
 # (not executed): kill switch, file_path parsing + path normalization,
 # repo-root resolution, additionalContext accumulator, telemetry envelope.
