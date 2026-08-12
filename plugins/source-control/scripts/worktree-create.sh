@@ -723,7 +723,8 @@ common_dir="$(git -C "$toplevel" rev-parse --git-common-dir)"
 if [[ "$common_dir" != /* ]]; then
   common_dir="$toplevel/$common_dir"
 fi
-settings_src="$common_dir/.claude/settings.local.json"
+main_worktree="$(dirname "$common_dir")"
+settings_src="$main_worktree/.claude/settings.local.json"
 if [[ -f "$settings_src" ]]; then
   settings_dest="$worktree_path/.claude/settings.local.json"
   if mkdir -p "$(dirname "$settings_dest")" && cp -p "$settings_src" "$settings_dest"; then

@@ -448,8 +448,6 @@ assert_file_absent "worktreeinclude: unignored file never copied" "$out/loose.tx
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 mkdir -p "$repo/.claude"
 printf '{"env":{"DISK_HYGIENE_GUARD_WATCHDOG_SECONDS":"50"}}\n' > "$repo/.claude/settings.local.json"
-git -C "$repo" add .claude/settings.local.json
-git -C "$repo" commit -qm "local settings"
 root="$TEST_TMPDIR/wtroot-settings"
 out=$(bash "$HELPER" --name feat/settings --root "$root" --repo-dir "$repo" 2>/dev/null)
 assert_file_exists "settings.local.json copied into the worktree" "$out/.claude/settings.local.json"

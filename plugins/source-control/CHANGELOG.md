@@ -3,6 +3,15 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.53.18]
+
+### Fixed
+
+- **`worktree-create` copies `.claude/settings.local.json` from the main checkout root, not
+  `.git/.claude/` (#2119).** `git rev-parse --git-common-dir` points at metadata, so the carry-in
+  step now resolves the sibling working-tree path and copies untracked local settings into new
+  worktrees.
+
 ## [0.53.17]
 
 ### Fixed
