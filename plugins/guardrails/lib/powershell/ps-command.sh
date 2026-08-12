@@ -277,6 +277,20 @@ ps::might_invoke_git() {
   return 1
 }
 
+# True (0) when every git invocation in the text is plausibly read-only — fetch,
+# log, status, rev-list, merge-base, etc. — with no commit/push/reset-class
+# subcommand visible. Used to narrow the fail-closed sink for guards that only
+# care about mutating git (#1415): `git fetch | ForEach-Object { }` must not
+# block just because `git` appears alongside `{}` grouping.
+ps::git_command_is_readonly() {
+  local recovered="${1//\`/}" lc
+  lc="${recovered,,}"
+  [[ "$lc" =~ (^|[^[:alnum:]_.])git([.]exe)?([^[:alnum:]_]|$) ]] || return 1
+  [[ "$lc" =~ (^|[^[:alnum:]_.-])(commit|push|reset|rebase|checkout|merge|cherry-pick|revert|stash|am|tag|notes|worktree)([^[:alnum:]_.-]|$) ]] &&
+    return 1
+  return 0
+}
+
 # True (0) when the command both names a python3 interpreter TOKEN and carries a
 # `-c` inline-code flag. Paired with a raw write indicator by the caller, this is
 # the mangle-resistant sink for the interpreter-write lane under the PowerShell
@@ -409,12 +423,13 @@ ps::has_launcher() {
 #   2  block fail-closed — carries a construct the Bash tokenizer cannot faithfully
 #      parse AND might reach git; refused by shape rather than guessed safe
 #
-# SINK DOCTRINE (the #740/#903 lesson): when the command is not faithfully
-# Bash-tokenizable, do NOT resolve-then-trust-a-negative — the same construct that
-# defeats the tokenizer also mangles any shape scan, so a negative `commit`/`push`
-# match is not evidence of safety. Block unless the command is provably git-free.
+# Optional third argument `sink_scope`:
+#   `mutating` (default) — block when ps::might_invoke_git is true
+#   `readonly-ok` — block only when git might be reached AND the visible git use is
+#      not read-only (commit/push/reset-class). Lets routine read-only PowerShell
+#      through the fail-closed branch (#1415).
 ps::classify_git_command() {
-  local tool="$1" cmd="$2" scan
+  local tool="$1" cmd="$2" sink_scope="${3:-mutating}" scan
   PS_SAFE_COMMAND="$cmd"
   PS_SINK_TRIGGER=""
   [[ "$tool" == "PowerShell" ]] || return 0
@@ -441,8 +456,11 @@ ps::classify_git_command() {
     # probe) so a quoted or backtick-obfuscated `git` is still seen; an unbalanced
     # here-string leaves PS_BLANKED as the raw command so a trailing pipeline is
     # scanned, not swallowed.
-    ps::might_invoke_git "$PS_BLANKED" && return 2
-    return 1
+    ps::might_invoke_git "$PS_BLANKED" || return 1
+    if [[ "$sink_scope" == "readonly-ok" ]] && ps::git_command_is_readonly "$PS_BLANKED"; then
+      return 1
+    fi
+    return 2
   fi
   # Backslash is a PATH SEPARATOR in PowerShell (its escape char is the
   # backtick, which already routes to the sink above), but the Bash tokenizer

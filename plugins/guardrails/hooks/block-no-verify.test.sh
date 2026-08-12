@@ -247,6 +247,8 @@ run_pwsh "PS: quoted git command word (blocked via parser)" "& 'git' commit --no
 # Provably git-free PowerShell carrying an unparsable construct is NOT blocked
 # by the git guards (no over-block of legitimate non-git PowerShell).
 run_pwsh "PS: non-git scriptblock (allowed)" "Get-Process | Where-Object { \$_.CPU -gt 5 }" 0
+run_pwsh "PS: read-only git with scriptblock (allowed — #1415)" \
+  "git fetch origin 2>&1 | ForEach-Object { \$_ | Select-Object -Last 5 }" 0
 run_pwsh "PS: non-git subexpression (allowed)" "Write-Output \$(Get-Date)" 0
 # Dynamic-invocation regressions: iex / string-literal call run an opaque string,
 # so a construct-free form must still route to the fail-closed sink (it otherwise

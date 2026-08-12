@@ -3,6 +3,15 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.15]
+
+### Fixed
+
+- **PowerShell fail-closed sink no longer blocks read-only git with `{}`/`()` grouping
+  on commit/push guards (#1415).** `block-no-verify` passes commands like
+  `git fetch | ForEach-Object { … }` when no mutating git subcommand is visible;
+  obfuscated commit/push shapes still fail closed.
+
 ## [0.28.14]
 
 ### Fixed
