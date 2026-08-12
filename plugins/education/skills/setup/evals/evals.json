@@ -1,0 +1,29 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "validates-rendered-quiz-policy-without-settings-edits",
+      "prompt": "/education:setup",
+      "expected_output": "Reports the rendered quiz_policy and report_library_dir (or their defaults), explains quiz offer cadence, and never reads or edits settings files or pluginConfigs.",
+      "files": [],
+      "expectations": [
+        "Reads only the rendered user_config values supplied to the skill",
+        "Explains the on-request default and the private plugin-data report fallback",
+        "Does not inspect or edit settings files or pluginConfigs"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "routes-changes-through-claude-configuration",
+      "prompt": "/education:setup\n\nStore quiz reports in a shared corpus checkout.",
+      "expected_output": "Recommends a portable corpus location, directs the user to Claude Code's plugin configuration prompt for report_library_dir, and requires a rerun before claiming the value changed.",
+      "files": [],
+      "expectations": [
+        "Uses repository evidence before recommending a library location",
+        "Rejects machine-absolute team paths",
+        "Routes persistence through Claude Code and verifies on rerun"
+      ]
+    }
+  ]
+}
