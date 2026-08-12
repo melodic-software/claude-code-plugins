@@ -69,7 +69,11 @@ All notable changes to the `source-control` plugin are documented here. Format f
   #2212). "which 2.1.224 already handles correctly" sat several sentences from the only "Basis:"
   clause and had already been misread as a version fact by two independent readers. The basis is now
   inlined at the claim: it is a **null result from the same trace**, not a release note, and the
-  changelog scan behind it is packet-sourced and has not been re-run.
+  changelog scan behind it is packet-sourced and has not been re-run. Supersedes the in-place
+  correction shipped in 0.52.1 (#2332), which fixed the same two rows (`D-F1`, `D-F6`) inside the
+  old single-paragraph shape; both of its corrections are preserved here, restated inside the
+  restructured owner section, and `D-F2` — the missing fixture that #2332 left open — is what
+  this release adds.
 
 ## [0.52.1]
 
