@@ -1,12 +1,14 @@
 # Permission Hygiene Criteria
 
-Version: 1.0.0
-Last updated: 2026-07-14
+Version: 1.2.0
+Last updated: 2026-08-12
+Synced from: permission-rule-hygiene convention 1.2 (`2a481e9d`)
 
 This file defines the checks the `audit-permission-grants` audit runs. The **principle, the three
 anti-patterns, and the prescribed correct pattern — with official-doc citations — live in the
 marketplace's permission-rule-hygiene convention** and are not restated here, published at
-<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/permission-rule-hygiene/README.md>.
+<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/permission-rule-hygiene/README.md>
+(pinned at the commit named in **Synced from** above).
 This file is the mechanical check layer: what the detector flags, at what severity, and how to read a
 finding. Each check's **Recommend** line below carries the fix in the form the report needs, so a run
 never depends on fetching the convention.
@@ -43,6 +45,8 @@ wildcarded interpreter (`Bash(python*)`, `Bash(node *)`, `Bash(bash <path>*)`, `
 package-manager grant — a runner subcommand (`Bash(npx *)`, `Bash(uvx *)`, `Bash(pipx run *)`,
 `Bash(pnpm dlx *)`, …) or a bare package-manager wildcard (`Bash(npm:*)`, `Bash(npm *)`,
 `Bash(pnpm:*)`, `Bash(yarn:*)`), which grants arbitrary execution via `npm exec` / lifecycle scripts —
+**this bare form reaches past the documented "package-manager run commands" category** (broader, not
+narrower; same authoring anti-pattern and fix) —
 a script-glob command (`Bash(*.py:*)`), or an `Agent` allow rule (bare `Agent` or scoped `Agent(...)` —
 both dropped categorically, with no narrow carry-over form).
 

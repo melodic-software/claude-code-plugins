@@ -3,6 +3,14 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.2]
+
+### Fixed
+
+- **`audit-permission-grants` criteria synced to permission-rule-hygiene 1.2.** Bumped the pinned
+  version stamp, added a convention commit handshake, and disclosed the bare package-manager wildcard
+  extension in P1. (#2284, A14 and A18)
+
 ## [0.35.1]
 
 ### Fixed
