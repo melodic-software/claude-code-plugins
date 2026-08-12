@@ -18,6 +18,11 @@ merged work-package PRs (#333, #343, #356, #372, #377, #600, #676).
   now carries all three (verdict aggregation under the unanimity invariant including the
   timeout and no-verdict cases, refusing to count two checkers that resolve to one instance, and
   lens drawing), each stated as a hole until the build trigger fires.
+- **`lane-stop-gate.test.sh` test-hygiene fixes from the #2065 verification pass (#2086).** The FIFO
+  hang case now fails closed when `mkfifo` is unavailable, uses `timeout` instead of `kill -9` on a
+  subshell that can orphan a grandchild, and `rc0` rejects an empty exit-code argument. The hook
+  comment records that `umask 077` is advisory on MSYS and documents the mid-lane downgrade over-gate
+  window.
 
 ## [0.16.2]
 
