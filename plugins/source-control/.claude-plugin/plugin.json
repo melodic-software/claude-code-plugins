@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "source-control",
-  "version": "0.51.17",
+  "version": "0.52.0",
   "description": "Git and GitHub delivery workflow: /commit (Conventional Commits + Co-Authored-By trailer via safe heredoc mechanics), /pull-request (prep, create, CI monitoring, review-comment triage, merge, CI-log fetch), /babysit-prs (self-pacing fleet loop — safe by default; opt-in worker/autopilot tiers add gate-checked merge and thread resolution behind a deterministic Python engine), /babysit-loop (the loop-lane merge lane: a standing or drain loop that invokes babysit-prs per cycle, configured through repo-scoped babysit_loop_* keys on the layered source-control.md seam, with merge authority human-only until the target repo's tracked config adopts the lane, a gate-proven C2-mechanical baseline once adopted, and standing merge-rung raises binding from the team-tracked layer only — with one named exception, where an invocation line explicitly typing both the autopilot tier keyword and the dedicated raise argument --merge c3-this-run widens that single invocation's merge authority up to C3 behind a fresh independent frontier-tier resolver, while C4-structural and C5-untrusted-provenance stay unconditionally human-merge), /worktree (create, status, cleanup, audit for parallel-session isolation), /setup (check the effective commit-subject / PR-title convention merged across its config layers and the babysit-prs config, or apply — interview the repo and write the convention config to a chosen layer), and /resolve-conflicts (intent-first merge/rebase conflict resolution with a semantic-conflict sweep — never --abort). The commit-subject / PR-title convention is configurable via a source-control.md config written by a re-runnable setup skill, layered across a ~/.claude user-global file, the tracked team file, and a gitignored .claude/source-control.local.md personal overlay merged per key; Conventional Commits is the default when no convention is declared.",
   "author": {
     "name": "Melodic Software",
@@ -43,7 +43,7 @@
     "worktree_create_gate_enabled": {
       "type": "boolean",
       "title": "worktree-create-gate hook",
-      "description": "Redirect a WorktreeCreate away from Claude Code's default location, which may be inside the repository, to the configured worktree_root. The hook already reads this option and names it in its own skip message, but the option was never declared here \u2014 so Claude Code never exported CLAUDE_PLUGIN_OPTION_WORKTREE_CREATE_GATE_ENABLED, the hook's `:-true` fallback always won, and the gate could not be turned off.",
+      "description": "Redirect a WorktreeCreate away from Claude Code's default location, which may be inside the repository, to the configured worktree_root. Turning this OFF does NOT hand placement back to Claude Code: a WorktreeCreate hook has no 'not applicable' channel \u2014 measured on Claude Code 2.1.228, a non-zero exit and an exit-0-without-a-path both fail the creation \u2014 so `false` makes the gate refuse out loud, and every harness-driven creation path (`claude --worktree`, a subagent with `isolation: \"worktree\"`, a background session) fails with a message naming the real stand-downs. To let Claude Code place worktrees itself, set `worktree.bgIsolation` to `\"none\"` in settings, or disable this plugin. Probe, verbatim harness output and the as-of stamp: `skills/worktree/fixtures/README.md`.",
       "default": true
     },
     "babysit_watched_owners": {

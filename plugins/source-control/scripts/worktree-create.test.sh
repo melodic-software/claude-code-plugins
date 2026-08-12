@@ -79,6 +79,12 @@ mkrepo() {
     git -C "$repo" init -q -b main
     git -C "$repo" config user.email t@t.t
     git -C "$repo" config user.name t
+    # Repo-local, on a repo this helper just mktemp'd. A machine with global
+    # commit.gpgsign=true has no secret key for the fixture identity, so without
+    # this every commit below fails and the suite reports its ~60 creation cases
+    # as failures while its refusal cases still pass — a shape that reads as a
+    # real regression rather than an unrunnable fixture.
+    git -C "$repo" config commit.gpgsign false
     printf 'seed\n' > "$repo/README.md"
     git -C "$repo" add README.md
     git -C "$repo" commit -qm init
@@ -176,6 +182,7 @@ disc_repo="$discovery_root/github.com/acme/widget"
   git init -q -b main "$disc_repo"
   git -C "$disc_repo" config user.email t@t.t
   git -C "$disc_repo" config user.name t
+  git -C "$disc_repo" config commit.gpgsign false
   printf 'seed\n' > "$disc_repo/README.md"
   git -C "$disc_repo" add README.md
   git -C "$disc_repo" commit -qm init
