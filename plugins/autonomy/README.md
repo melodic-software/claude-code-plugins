@@ -26,9 +26,10 @@ state and records that binding.
   lease) — plus the setup trigger/dispatch slice, its adapter and acknowledgment templates,
   and the signal-envelope conformance check.
 - **Guardrail matrix** (`reference/guardrails.md`): five semantic work classes (`C1`–`C5`)
-  crossed with five enforcement columns — isolation floor, verification layers, merge policy,
-  cost tier, escalation — as one progressive-disclosure hub with on-demand leaves (isolation
-  ladder, work classes, security review, admission policy), human-ratified promotion with
+  crossed with six enforcement columns — isolation floor, verification layers, verification
+  topology, merge policy, cost tier, escalation — as one progressive-disclosure hub with
+  on-demand leaves (isolation ladder, work classes, security review, verification topology,
+  admission policy), human-ratified promotion with
   automatic fail-closed demotion, and a two-surface binding split by governance sensitivity
   (security axes on the settings-as-code home outside agent blast radius; non-security remaps
   repo-local) — plus the contract-owned security-binding schema and its semantic check, and the

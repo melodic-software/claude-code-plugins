@@ -40,9 +40,10 @@ instantiation of it — the playbook names the obligation, this contract supplie
   for running the class unattended.
 - **Verification** — the gate layers a change must pass, with per-layer blocking knobs bound
   on the governance surface.
-- **Verification topology** — the floor for how many DISTINCT checker roles verify the class
-  and whether one must be cross-vendor; roles, relational constraints, and predicates are
-  contract vocabulary, instances org-bound.
+- **Verification topology** — the floor for how many DISTINCT checker slots verify the class
+  and whether they must be vendor-disjoint; roles, relational constraints, and predicates are
+  contract vocabulary, instances org-bound. The leaf owns these floor values; the cells above
+  are their glance restatement.
 - **Merge policy** — who lands the change; promotion-gated where the cell says so.
 - **Cost tier** — contract vocabulary (`economy` | `standard` | `premium`); the org binds
   tiers to model instances. Policy vocabulary only — cost enforcement is out of scope.
@@ -76,7 +77,7 @@ Six escalation event classes:
 | Event class | Fires when |
 |---|---|
 | `gate-failure` | a blocking verification gate fails |
-| `verification-divergence` | a verification outcome diverges from the expected or claimed result |
+| `verification-divergence` | a verification outcome diverges from the expected or claimed result, or two checkers of one class disagree |
 | `admission-rejection` | the admission seam rejects a signal as an audited rejection |
 | `demotion` | contrary evidence automatically demotes a promoted cell |
 | `structural-plan-approval` | a `C4` item requires upfront plan approval before execution |
