@@ -211,6 +211,7 @@ owned by [docs/CATALOG-TAXONOMY.md](CATALOG-TAXONOMY.md).
 | Skill | Plugin | Cadence | What it does |
 | --- | --- | --- | --- |
 | [`/claude-ops:audit-install-state`](../plugins/claude-ops/skills/audit-install-state/SKILL.md) | `claude-ops` | weekly | Audit a Claude Code install directory — what is there, what the product manages, what is stale |
+| [`/claude-ops:inventory`](../plugins/claude-ops/skills/inventory/SKILL.md) | `claude-ops` | weekly | Enumerate every command, skill, agent, and plugin component this machine can invoke |
 | [`/claude-ops:lanes`](../plugins/claude-ops/skills/lanes/SKILL.md) | `claude-ops` | daily | Start, restart, stop, and check loop lanes as named background sessions |
 | [`/claude-ops:morning-brief`](../plugins/claude-ops/skills/morning-brief/SKILL.md) | `claude-ops` | daily | Print the operator's read-only morning view — queues, merge-ready PRs, parked decisions |
 | [`/claude-ops:observability`](../plugins/claude-ops/skills/observability/SKILL.md) | `claude-ops` | weekly | Report on locally captured telemetry — token burn, cost, hook latency, trends |
