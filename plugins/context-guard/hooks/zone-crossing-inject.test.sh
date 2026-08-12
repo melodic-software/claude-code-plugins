@@ -116,13 +116,103 @@ else
   fail "state not updated on improvement"
 fi
 
-# 4. Relapse after improvement (smart → acceptable) injects again.
+# 4. Relapse after a FULL recovery (dumb → smart → acceptable) injects again.
+# smart is two ranks below the armed dumb, so the armed marker decayed and the
+# ladder re-armed. This is the discriminating half of the hysteresis pair: a
+# real recovery must not be silenced by the margin that silences a flap.
 write_snapshot "$H" s1 60
 run "$H" "$D" s1 UserPromptSubmit
 if [[ $RC -eq 0 && "$OUT" == *additionalContext* && "$OUT" == *acceptable* ]]; then
-  ok "relapse injects again (UserPromptSubmit)"
+  ok "relapse after a two-rank recovery injects again (UserPromptSubmit)"
 else
   fail "relapse: rc=$RC out=$OUT"
+fi
+
+# 4a. HYSTERESIS — the flap. A session hovering on the acceptable/dumb boundary
+# re-crosses it repeatedly; before the armed rank existed, every re-crossing was
+# a fresh "transition" and re-injected the ~1KB block. Only the FIRST dumb here
+# may emit.
+#
+# NOT the recurring 10s-timeout defect (context-guard 0.4.8 / PR #2001), which
+# was about the hook dying before it ran. This is about how often it injects
+# WHEN it runs.
+write_snapshot "$H" sflap 90 # dumb — first observation, injects
+run "$H" "$D" sflap
+if [[ $RC -eq 0 && "$OUT" == *additionalContext* && "$OUT" == *dumb* ]]; then
+  ok "flap: the first dumb observation injects"
+else
+  fail "flap setup did not inject: rc=$RC out=$OUT"
+fi
+write_snapshot "$H" sflap 60 # acceptable — a ONE-rank dip, below the margin
+run "$H" "$D" sflap
+if [[ $RC -eq 0 && -z "$OUT" ]]; then
+  ok "flap: the one-rank dip is silent"
+else
+  fail "flap dip emitted: rc=$RC out=$OUT"
+fi
+if [[ "$(cat "$D/state/sflap.armed" 2>/dev/null)" == "dumb" ]]; then
+  ok "flap: a one-rank dip does NOT decay the armed rank"
+else
+  fail "armed rank decayed on a one-rank dip: $(cat "$D/state/sflap.armed" 2>/dev/null)"
+fi
+write_snapshot "$H" sflap 90 # back to dumb — the re-crossing that used to re-inject
+run "$H" "$D" sflap
+if [[ $RC -eq 0 && -z "$OUT" ]]; then
+  ok "flap: re-crossing into an already-reported zone does NOT re-inject"
+else
+  fail "flap re-crossing re-injected (the #2220 defect): rc=$RC out=$OUT"
+fi
+# ...and the same session still reports nothing on further oscillation.
+write_snapshot "$H" sflap 60
+run "$H" "$D" sflap
+write_snapshot "$H" sflap 90
+run "$H" "$D" sflap
+if [[ $RC -eq 0 && -z "$OUT" ]]; then
+  ok "flap: repeated oscillation stays silent (injections are bounded, not counted)"
+else
+  fail "second flap cycle emitted: rc=$RC out=$OUT"
+fi
+
+# 4b. HYSTERESIS — the discriminating opposite, on a session of its own so the
+# two paths cannot share state: dumb → smart → dumb DOES inject twice, because
+# a two-rank improvement is a real state change rather than edge noise.
+write_snapshot "$H" srec 90
+run "$H" "$D" srec
+if [[ "$OUT" == *additionalContext* ]]; then ok "recovery: first dumb injects"; else fail "recovery setup: $OUT"; fi
+write_snapshot "$H" srec 10 # smart — two ranks, re-arms
+run "$H" "$D" srec
+if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "recovery: the improvement itself is silent"; else fail "improvement emitted: $OUT"; fi
+if [[ "$(cat "$D/state/srec.armed" 2>/dev/null)" == "smart" ]]; then
+  ok "recovery: a two-rank improvement decays the armed rank"
+else
+  fail "armed rank did not decay on a full recovery: $(cat "$D/state/srec.armed" 2>/dev/null)"
+fi
+write_snapshot "$H" srec 90
+run "$H" "$D" srec
+if [[ $RC -eq 0 && "$OUT" == *additionalContext* && "$OUT" == *dumb* ]]; then
+  ok "recovery: relapse after a genuine recovery injects again"
+else
+  fail "genuine relapse suppressed by hysteresis: rc=$RC out=$OUT"
+fi
+
+# 4c. LEGACY STATE: a session already running when this version lands has a
+# `.zone` file and no `.armed` file. The armed rank seeds from the last-seen
+# zone, so the first call after the upgrade decides exactly as the previous
+# version would have, and latches from there.
+mkdir -p "$D/state"
+printf 'acceptable\n' >"$D/state/slegacy.zone"
+rm -f "$D/state/slegacy.armed"
+write_snapshot "$H" slegacy 90 # acceptable → dumb: a worsening under either rule
+run "$H" "$D" slegacy
+if [[ $RC -eq 0 && "$OUT" == *additionalContext* && "$OUT" == *dumb* ]]; then
+  ok "legacy state without an .armed marker still injects on a real worsening"
+else
+  fail "legacy state broke the first post-upgrade decision: rc=$RC out=$OUT"
+fi
+if [[ "$(cat "$D/state/slegacy.armed" 2>/dev/null)" == "dumb" ]]; then
+  ok "legacy state gains an .armed marker on first write (no migration step)"
+else
+  fail "armed marker not seeded: $(cat "$D/state/slegacy.armed" 2>/dev/null)"
 fi
 
 # 5. Unknown zone (no snapshot) → silent, state untouched.
