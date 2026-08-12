@@ -24,9 +24,15 @@ Sources, both fetched 2026-08-11: <https://code.claude.com/docs/en/settings> §H
 | `startdir-local` | A pre-v2.1.211 copy left in the session's start directory. Not a fallback: when both exist the repository root wins on a shared key, **but permission rules from both stay in effect**, so both are live |
 
 The managed scope is four surfaces. Two are the **portable core**, read on every OS: the per-OS
-`managed-settings.json` and its `managed-settings.d/` drop-in directory, read in the documented order
-— base first, then `*.json` sorted alphabetically on top, dotfiles ignored. Two are **declared
-optional platform integrations**: the Windows policy registry keys and the macOS managed-preferences
+`managed-settings.json` and its `managed-settings.d/` drop-in directory. Their merge order is
+documented rather than guessed, so the reader implements it instead of reporting an inventory:
+
+> "Following the systemd convention, `managed-settings.json` is merged first as the base, then all
+> `*.json` files in the drop-in directory are sorted alphabetically and merged on top. Later files
+> override earlier ones for scalar values, arrays are concatenated and de-duplicated, and objects are
+> deep-merged. Hidden files starting with `.` are ignored."
+
+Two are **declared optional platform integrations**: the Windows policy registry keys and the macOS managed-preferences
 domain. Each is read where it is native and readable; where its tool is missing the surface reports
 `skipped` with a notice and every other result is unaffected.
 
