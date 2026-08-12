@@ -501,8 +501,8 @@ readlink[[:space:]]+(-[A-Za-z]*f|--canonicalize)
 # The optional quote AFTER the name closes the `"…/mktemp" -p` spelling; the
 # whitespace that must follow it is what rejects a run-together suffix such as
 # `mktempfoo`.
-(^|[[:space:]'"`;&|()<>/])mktemp['"]?([[:space:]][^;&|()`\n]*)?[[:space:]]-[A-Za-z]*p
-(^|[[:space:]'"`;&|()<>/])mktemp['"]?([[:space:]][^;&|()`\n]*)?[[:space:]]--tmpdir([[:space:]|&;()<>]|=|$)
+(^|[[:space:]'"`;&|()<>/\\])mktemp['"]?([[:space:]][^;&|()`\n]*)?[[:space:]]-[A-Za-z]*p
+(^|[[:space:]'"`;&|()<>/\\])mktemp['"]?([[:space:]][^;&|()`\n]*)?[[:space:]]--tmpdir([[:space:]|&;()<>]|=|$)
 
 # --- SCRIPT-IMPLEMENTED CLASSES ---
 #
