@@ -224,6 +224,10 @@ fi
 GOIMPORTS_ARGS=(-w -l)
 [[ -n "$LOCAL_PREFIX" ]] && GOIMPORTS_ARGS+=(-local "$LOCAL_PREFIX")
 
+_go_before=""
+if _go_before=$(mktemp 2>/dev/null); then
+  cp "$FILE" "$_go_before" 2>/dev/null || _go_before=""
+fi
 # -w writes the fix in place; -l (combined with -w) lists the changed
 # filename on stdout, which this hook doesn't need (a successful autofix
 # carries no advisory noise, same posture as a successful ruff/typos fix
@@ -240,6 +244,12 @@ STDERR=$("$GOIMPORTS_BIN" "${GOIMPORTS_ARGS[@]}" -- "$FILE" 2>&1 >/dev/null)
 RC=$?
 
 if [[ $RC -eq 0 ]]; then
+  if [[ -n "$_go_before" ]]; then
+    if ! cmp -s "$_go_before" "$FILE" 2>/dev/null; then
+      hook::emit_system_message "go-format: reformatted $(basename "$FILE") via goimports (imports and layout only)."
+    fi
+    rm -f "$_go_before"
+  fi
   # Clean, or fixed silently (formatting/import changes carry no advisory
   # noise — same posture as a successful ruff/typos autofix pass).
   emit_tel "ok" '[]'

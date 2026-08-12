@@ -221,6 +221,10 @@ if shell_editorconfig_opt_in; then
       probe_err=""
       _fmt_target="$TOOL_FILE"
       [[ -f "$_fmt_target" ]] || _fmt_target="$FILE"
+      _fmt_before=""
+      if _fmt_before=$(mktemp 2>/dev/null); then
+        cp "$_fmt_target" "$_fmt_before" 2>/dev/null || _fmt_before=""
+      fi
       if probe_err=$(shfmt --apply-ignore --version 2>&1 >/dev/null); then
         shfmt --apply-ignore -w "$_fmt_target" 2>/dev/null
       elif [[ "$probe_err" == *apply-ignore* ]] &&
@@ -228,6 +232,12 @@ if shell_editorconfig_opt_in; then
         shfmt -w "$_fmt_target" 2>/dev/null
       else
         append_notice "bash-format: shfmt capability probe failed unexpectedly (${probe_err%%$'\n'*}) — formatting skipped for this file, opt-outs preserved."
+      fi
+      if [[ -n "$_fmt_before" ]]; then
+        if ! cmp -s "$_fmt_before" "$_fmt_target" 2>/dev/null; then
+          hook::emit_system_message "bash-format: reformatted $(basename "$FILE") via shfmt (structural layout only)."
+        fi
+        rm -f "$_fmt_before"
       fi
       ran_any=1
     fi

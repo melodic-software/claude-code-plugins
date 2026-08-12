@@ -5,12 +5,12 @@
       "id": 1,
       "name": "conventional-subject-surgical-heredoc",
       "prompt": "I've staged the fix for the null-user crash in the /me endpoint. Commit it.",
-      "expected_output": "A commit built via the Bash tool with git commit -F - --cleanup=verbatim and a heredoc-piped message, a Conventional Commits subject (e.g. 'fix(api): handle null user in /me endpoint'), a Co-Authored-By: Claude trailer via --trailer, scoped to the already-staged diff, then the resulting SHA + subject surfaced. Staging is by explicit file list, never a wildcard.",
+      "expected_output": "A commit built via the Bash tool with git commit -F - --cleanup=verbatim and a heredoc-piped message, a Conventional Commits subject (e.g. 'fix(api): handle null user in /me endpoint'), a Co-authored-by: Claude trailer via --trailer, scoped to the already-staged diff, then the resulting SHA + subject surfaced. Staging is by explicit file list, never a wildcard.",
       "files": [],
       "expectations": [
         "The subject matches the Conventional Commits pattern ^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\\(.+\\))?!?: .+",
         "The commit is made via the Bash tool using a single-quoted heredoc (git commit -F - --cleanup=verbatim), not git commit -m with embedded newlines and not a PowerShell here-string",
-        "A Co-Authored-By: Claude trailer is appended via --trailer",
+        "A Co-authored-by: Claude trailer is appended via --trailer",
         "The resulting commit SHA and subject are surfaced to the user"
       ]
     },
@@ -81,12 +81,12 @@
       "id": 7,
       "name": "trailer-policy-none-honored-in-pathspec-form",
       "prompt": "The index already has other unrelated staged files from another session. Commit only src/api/me.js with the null-user fix, scoped by pathspec.",
-      "expected_output": "With .claude/source-control.md declaring trailer_policy: none, the skill omits --trailer from the git commit invocation entirely — including when it uses the pathspec-limited form (git commit -F - --cleanup=verbatim -- <path> <<EOF) for the dirty shared index, not just the default canonical form. No Co-Authored-By trailer is appended.",
+      "expected_output": "With .claude/source-control.md declaring trailer_policy: none, the skill omits --trailer from the git commit invocation entirely — including when it uses the pathspec-limited form (git commit -F - --cleanup=verbatim -- <path> <<EOF) for the dirty shared index, not just the default canonical form. No Co-authored-by trailer is appended.",
       "files": [".claude/source-control.md"],
       "expectations": [
         "The skill uses the pathspec-limited commit form (git commit ... -- <path>) since the index has unrelated staged files",
         "trailer_policy: none from .claude/source-control.md is honored: --trailer is omitted from the pathspec-limited invocation, not just the canonical one",
-        "No Co-Authored-By trailer appears in the resulting commit"
+        "No Co-authored-by trailer appears in the resulting commit"
       ]
     },
     {

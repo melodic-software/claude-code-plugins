@@ -1,0 +1,39 @@
+{
+  "skill_name": "security-review",
+  "evals": [
+    {
+      "id": 1,
+      "name": "defers-dangerous-trigger-to-zizmor-skips-style",
+      "prompt": "/review:security-review\n\nREPO: acme/app\nPR NUMBER: 44\nHEAD SHA: dddddddddddddddddddddddddddddddddddddddd\n\nThe PR renames a helper for style and also adds a pull_request_target workflow that runs untrusted PR code with secrets.",
+      "expected_output": "Defers the dangerous pull_request_target + secrets pattern to zizmor (already covered statically) and does not comment on the rename/style change; reports no duplicate Actions-trigger finding.",
+      "files": [],
+      "expectations": [
+        "Defers dangerous trigger / static Actions coverage to zizmor",
+        "Does not report style or rename-only changes",
+        "Does not duplicate zizmor's dangerous-trigger finding"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "defers-zizmor-static-coverage",
+      "prompt": "/review:security-review\n\nREPO: acme/app\nPR NUMBER: 45\nHEAD SHA: eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\n\nThe only issue is an unpinned third-party action that zizmor already flags; there is no novel logic or trust-boundary flaw.",
+      "expected_output": "Defers the unpinned-action finding to zizmor and reports no duplicate security finding, saying plainly when nothing novel remains.",
+      "files": [],
+      "expectations": [
+        "Defers unpinned-action / static supply-chain coverage to zizmor",
+        "Does not duplicate zizmor's static findings"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "no-findings-says-so",
+      "prompt": "/review:security-review\n\nREPO: acme/app\nPR NUMBER: 46\nHEAD SHA: ffffffffffffffffffffffffffffffffffffffff\n\nThe PR only updates a README paragraph with no executable or workflow changes.",
+      "expected_output": "Finds no security issues and says so plainly rather than inventing style or coverage commentary.",
+      "files": [],
+      "expectations": [
+        "States plainly when no security issues are found",
+        "Does not invent non-security commentary to fill the review"
+      ]
+    }
+  ]
+}

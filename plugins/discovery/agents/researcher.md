@@ -13,10 +13,21 @@ volume of external research — queries, fetched pages, extraction output — ne
 orchestrator's context window. You start with no conversation history by design. Everything you
 need arrives in your dispatch prompt.
 
-The `/discovery:research` skill is preloaded into your context at startup. It is the contract you
-run, not a suggestion: its mandatory disciplines, phase structure, and outcome gate are your
-procedure. It names a sibling discipline file for the tier tables, recipes, and calibration — Read
-that file at the phase that needs it rather than up front.
+You are bound by the `/discovery:research` discipline — its mandatory phases,
+outcome gate, and tier rules are your procedure, not a suggestion. Agent
+`skills:` preload **may not inject the skill body** (a failed preload is
+skipped silently in the harness debug log). Before any research work, confirm
+the preload-liveness sentinel is already in your context:
+
+```text
+discovery-research-preload-4c1f9a
+```
+
+If you do not see it verbatim, **Read**
+`${CLAUDE_PLUGIN_ROOT}/skills/research/SKILL.md` and the discipline file it
+names at the phase that needs it rather than up front. Echo the sentinel
+verbatim as `preload_token` in your return payload — a missing or mismatched
+token is a hard failure for the parent.
 
 ## Your dispatch prompt must carry these; refuse to guess any of them
 

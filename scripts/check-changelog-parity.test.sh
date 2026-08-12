@@ -8,8 +8,6 @@ set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SELF_DIR/check-changelog-parity.sh"
-# shellcheck source=test-git-helpers.sh
-. "$SELF_DIR/test-git-helpers.sh"
 
 PASS=0
 FAIL=0
@@ -32,14 +30,12 @@ mk_repo() {
 }
 
 git_init() {
-  git_init_test_repo "$1"
-}
-
-git_commit() {
   local dir="$1"
-  shift
-  git_test_config "$dir" add -A >/dev/null
-  git_test_config "$dir" commit -qm "$*"
+  git -C "$dir" init -q
+  git -C "$dir" config user.email t@t.test
+  git -C "$dir" config user.name test
+  git -C "$dir" config commit.gpgsign false
+  git -C "$dir" config core.autocrlf false
 }
 
 mk_plugin() {
@@ -213,118 +209,41 @@ rm -rf "$repo"
 repo="$(mk_repo)"
 git_init "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
-git_commit "$repo" base
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
 base="$(git -C "$repo" rev-parse HEAD)"
 printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
 printf '# Changelog\n\n## [1.1.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
-git_commit "$repo" bump
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm bump
 if (cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" >/dev/null 2>&1); then ok "bump + '## [x.y.z]' entry passes --check-bump"; else fail "bump+entry wrongly failed"; fi
 rm -rf "$repo"
 
-# ABSORBED HEADING: a merge-forward folds the predecessor release into the new
-# section and deletes its `## [x]` heading — every other mode passes today.
+# ABSORBED HEADING (#2324): merge-forward deletes a predecessor heading.
 repo="$(mk_repo)"
 git_init "$repo"
 mk_plugin "$repo" alpha 0.51.8 yes
 printf '# Changelog\n\n## [0.51.8]\n\n### Fixed\n\n- predecessor note\n\n## [0.51.7]\n' >"$repo/plugins/alpha/CHANGELOG.md"
-git_commit "$repo" base
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
 base="$(git -C "$repo" rev-parse HEAD)"
 printf '{ "name": "alpha", "version": "0.51.9" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
 printf '# Changelog\n\n## [0.51.9]\n\n### Fixed\n\n- new note\n- predecessor note\n\n## [0.51.7]\n' >"$repo/plugins/alpha/CHANGELOG.md"
-git_commit "$repo" bump
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm bump
 out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
 rc=$?
-if [[ $rc -ne 0 && "$out" == *"ABSORBED CHANGELOG HEADING"*"alpha"* && "$out" == *"## [0.51.8]"* ]]; then ok "absorbed predecessor release heading fails --check-bump"; else fail "absorbed heading not caught: rc=$rc out='$out'"; fi
+if [[ $rc -ne 0 && "$out" == *"ABSORBED CHANGELOG HEADING"*"alpha"* && "$out" == *"0.51.8"* ]]; then ok "absorbed predecessor release heading fails --check-bump"; else fail "absorbed heading not caught: rc=$rc out='$out'"; fi
 rm -rf "$repo"
 
-# RELABELLED, NOT DELETED: the same bad resolution renames the predecessor's
-# heading to the new version instead of adding one. That IS a deletion of the
-# predecessor version, and must read as one however the line is written.
+# ABSORBED without manifest bump (#2324 gap 2): only the changelog changed.
 repo="$(mk_repo)"
 git_init "$repo"
-mk_plugin "$repo" alpha 0.51.8 yes
-printf '# Changelog\n\n## [0.51.8]\n\n- eight\n\n## [0.51.7]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+mk_plugin "$repo" alpha 0.51.9 yes
+printf '# Changelog\n\n## [0.51.9]\n\n- nine\n\n## [0.51.8]\n\n- eight\n' >"$repo/plugins/alpha/CHANGELOG.md"
 git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
 base="$(git -C "$repo" rev-parse HEAD)"
-printf '{ "name": "alpha", "version": "0.51.9" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
-printf '# Changelog\n\n## [0.51.9]\n\n- eight\n\n## [0.51.7]\n' >"$repo/plugins/alpha/CHANGELOG.md"
-git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm relabel
+printf '# Changelog\n\n## [0.51.9]\n\n- nine\n- eight\n\n## [0.51.7]\n\n- seven\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'absorb without bump'
 out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
 rc=$?
-if [[ $rc -ne 0 && "$out" == *"ABSORBED CHANGELOG HEADING"*"## [0.51.8]"* ]]; then ok "a relabelled predecessor heading still fails --check-bump"; else fail "relabelled heading not caught: rc=$rc out='$out'"; fi
-rm -rf "$repo"
-
-# ANNOTATING A HEADING IS NOT DELETING IT (#2327). The comparison keys on the
-# VERSION a heading names, never on the rendered LINE: a line-level diff reads
-# every edit to an existing heading as a removal, so both annotations Keep a
-# Changelog itself prescribes red-lined this required gate while PRESERVING the
-# heading they annotate. Two cases, because they arrive by different routes —
-# dating is routine housekeeping, `[YANKED]` is the spec's own treatment of a
-# pulled release (`## [0.0.5] - 2014-12-13 [YANKED]`).
-
-# a release DATE added to an existing heading -> passes
-repo="$(mk_repo)"
-git_init "$repo"
-mk_plugin "$repo" alpha 1.0.0 yes
-printf '# Changelog\n\n## [1.0.0]\n\n- one\n' >"$repo/plugins/alpha/CHANGELOG.md"
-git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
-base="$(git -C "$repo" rev-parse HEAD)"
-printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
-printf '# Changelog\n\n## [1.1.0] - 2026-02-01\n\n- one one\n\n## [1.0.0] - 2026-01-01\n\n- one\n' >"$repo/plugins/alpha/CHANGELOG.md"
-git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'bump and date the headings'
-out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
-rc=$?
-if [[ $rc -eq 0 ]]; then ok "dating an existing heading is not an absorbed heading"; else fail "dated heading wrongly flagged: rc=$rc out='$out'"; fi
-rm -rf "$repo"
-
-# a release marked [YANKED] keeps its heading -> passes
-repo="$(mk_repo)"
-git_init "$repo"
-mk_plugin "$repo" alpha 1.0.0 yes
-printf '# Changelog\n\n## [1.0.0]\n\n- one\n' >"$repo/plugins/alpha/CHANGELOG.md"
-git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
-base="$(git -C "$repo" rev-parse HEAD)"
-printf '{ "name": "alpha", "version": "1.0.1" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
-printf '# Changelog\n\n## [1.0.1]\n\n- revert\n\n## [1.0.0] - 2026-01-01 [YANKED]\n\n- one\n' >"$repo/plugins/alpha/CHANGELOG.md"
-git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'yank 1.0.0 per Keep a Changelog'
-out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
-rc=$?
-if [[ $rc -eq 0 ]]; then ok "marking a release '[YANKED]' preserves its heading and passes --check-bump"; else fail "yanked-release marking wrongly flagged: rc=$rc out='$out'"; fi
-rm -rf "$repo"
-
-# REFORMATTED HEADING: bracketed -> unbracketed names the same version, so it is
-# not a deletion — the format of a release entry is CHANGELOG FORMAT's concern.
-# Pins the other direction of keying on the version: the shared extractor reads
-# the unbracketed form too, so such a heading is now PROTECTED where a
-# bracketed-only matcher could not see it at all.
-repo="$(mk_repo)"
-git_init "$repo"
-mk_plugin "$repo" alpha 1.0.0 yes
-printf '# Changelog\n\n## [1.0.0]\n\n- one\n\n## 0.9.0 — 2025-12-01\n\n- nine\n' >"$repo/plugins/alpha/CHANGELOG.md"
-git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
-base="$(git -C "$repo" rev-parse HEAD)"
-printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
-printf '# Changelog\n\n## [1.1.0]\n\n- one one\n\n## 1.0.0 — 2026-01-01\n\n- one\n\n## 0.9.0 — 2025-12-01\n\n- nine\n' >"$repo/plugins/alpha/CHANGELOG.md"
-git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'bump, reformatting 1.0.0 to the unbracketed form'
-out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
-rc=$?
-if [[ $rc -eq 0 ]]; then ok "reformatting a heading between the two accepted forms is not an absorbed heading"; else fail "heading reformat wrongly flagged: rc=$rc out='$out'"; fi
-rm -rf "$repo"
-
-# ...and dropping an UNBRACKETED heading IS a deletion. A bracketed-only matcher
-# could not see these headings, so removing one was invisible.
-repo="$(mk_repo)"
-git_init "$repo"
-mk_plugin "$repo" alpha 1.0.0 yes
-printf '# Changelog\n\n## [1.0.0]\n\n- one\n\n## 0.9.0 — 2025-12-01\n\n- nine\n' >"$repo/plugins/alpha/CHANGELOG.md"
-git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
-base="$(git -C "$repo" rev-parse HEAD)"
-printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
-printf '# Changelog\n\n## [1.1.0]\n\n- one one\n\n## [1.0.0]\n\n- one\n- nine\n' >"$repo/plugins/alpha/CHANGELOG.md"
-git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'bump, absorbing the unbracketed 0.9.0 section'
-out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
-rc=$?
-if [[ $rc -ne 0 && "$out" == *"ABSORBED CHANGELOG HEADING"*"## [0.9.0]"* ]]; then ok "absorbing an unbracketed release section is caught"; else fail "unbracketed absorption missed: rc=$rc out='$out'"; fi
+if [[ $rc -ne 0 && "$out" == *"ABSORBED CHANGELOG HEADING"* && "$out" == *"0.51.8"* ]]; then ok "absorbed heading with no manifest bump fails --check-bump"; else fail "absorbed-no-bump not caught: rc=$rc out='$out'"; fi
 rm -rf "$repo"
 
 # LARGE CHANGELOG (SIGPIPE regression, #2130): the new entry sits near the top
@@ -345,7 +264,7 @@ repo="$(mk_repo)"
 git_init "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
-git_commit "$repo" base
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
 base="$(git -C "$repo" rev-parse HEAD)"
 printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
 {
@@ -355,7 +274,7 @@ printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude
   done
   printf '\n## [1.0.0]\n'
 } >"$repo/plugins/alpha/CHANGELOG.md"
-git_commit "$repo" bump
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm bump
 if command -v gawk >/dev/null 2>&1; then
   mkdir -p "$repo/bin"
   printf '#!/bin/sh\nexec gawk "$@"\n' >"$repo/bin/awk"
@@ -373,11 +292,11 @@ rm -rf "$repo"
 repo="$(mk_repo)"
 git_init "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
-git_commit "$repo" base
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
 base="$(git -C "$repo" rev-parse HEAD)"
 printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
 printf '# Changelog\n\n## 1.1.0 — 2026-07-20\n' >"$repo/plugins/alpha/CHANGELOG.md"
-git_commit "$repo" bump
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm bump
 out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
 rc=$?
 if [[ $rc -ne 0 && "$out" == *"CHANGELOG FORMAT"*"alpha"* && "$out" == *"## 1.1.0"* && "$out" != *"UNDOCUMENTED BUMP"* ]]; then ok "bump + unbracketed heading -> FORMAT error (not UNDOCUMENTED)"; else fail "format-split not caught: rc=$rc out='$out'"; fi
@@ -390,11 +309,11 @@ repo="$(mk_repo)"
 git_init "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
-git_commit "$repo" base
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
 base="$(git -C "$repo" rev-parse HEAD)"
 printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
 printf '# Changelog\n\n## [1.1.0]\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
-git_commit "$repo" bump
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm bump
 if (cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" >/dev/null 2>&1); then ok "bump adding a NEW '## [x.y.z]' entry (absent at base) passes --check-bump"; else fail "newly-added entry wrongly failed"; fi
 rm -rf "$repo"
 
@@ -406,10 +325,10 @@ repo="$(mk_repo)"
 git_init "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 printf '# Changelog\n\n## [1.1.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
-git_commit "$repo" base
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
 base="$(git -C "$repo" rev-parse HEAD)"
 printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
-git_commit "$repo" bump
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm bump
 out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
 rc=$?
 if [[ $rc -ne 0 && "$out" == *"PRE-EXISTING CHANGELOG ENTRY"*"alpha"* && "$out" != *"UNDOCUMENTED BUMP"* ]]; then ok "bump reusing a base-pre-existing '## [x.y.z]' entry fails --check-bump"; else fail "preexisting-entry not caught: rc=$rc out='$out'"; fi
@@ -422,11 +341,11 @@ repo="$(mk_repo)"
 git_init "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
-git_commit "$repo" base
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
 base="$(git -C "$repo" rev-parse HEAD)"
 printf '{ "name": "alpha", "version": "1.0.1+build.1" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
 printf '# Changelog\n\n## [1.0.1+build.1]\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
-git_commit "$repo" bump
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm bump
 if (cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" >/dev/null 2>&1); then ok "SemVer build-metadata version with a proper entry passes (no regex leak)"; else fail "build-metadata version wrongly failed"; fi
 rm -rf "$repo"
 
@@ -439,11 +358,11 @@ repo="$(mk_repo)"
 git_init "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
-git_commit "$repo" base
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
 base="$(git -C "$repo" rev-parse HEAD)"
 printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
 printf '# Changelog\n\n## [1.0.0]\n\nNext release will be titled "## [1.1.0]" per convention.\n  ## [1.1.0] (example, indented, not a heading)\n' >"$repo/plugins/alpha/CHANGELOG.md"
-git_commit "$repo" bump
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm bump
 out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
 rc=$?
 if [[ $rc -ne 0 && "$out" == *"UNDOCUMENTED BUMP"*"alpha"* && "$out" != *"PRE-EXISTING"* ]]; then ok "version string in prose/indented example does not satisfy the anchored heading match"; else fail "unanchored-mention not caught: rc=$rc out='$out'"; fi
@@ -456,12 +375,12 @@ repo="$(mk_repo)"
 git_init "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
-git_commit "$repo" base
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
 base="$(git -C "$repo" rev-parse HEAD)"
 printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
 # shellcheck disable=SC2016  # single quotes are deliberate: the backtick fence and \n are literal changelog bytes, not shell expansions
 printf '# Changelog\n\nExample of a heading:\n\n```\n## [1.1.0]\n```\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
-git_commit "$repo" bump
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm bump
 out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
 rc=$?
 if [[ $rc -ne 0 && "$out" == *"UNDOCUMENTED BUMP"*"alpha"* && "$out" != *"PRE-EXISTING"* ]]; then ok "fenced-code example heading (column zero inside a fence) does not satisfy --check-bump"; else fail "fenced-block heading wrongly satisfied gate: rc=$rc out='$out'"; fi
@@ -475,12 +394,12 @@ repo="$(mk_repo)"
 git_init "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
-git_commit "$repo" base
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
 base="$(git -C "$repo" rev-parse HEAD)"
 printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
 # shellcheck disable=SC2016  # single quotes are deliberate: the backtick/tilde fences and \n are literal changelog bytes
 printf '# Changelog\n\n```\n~~~\n## [1.1.0]\n```\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
-git_commit "$repo" bump
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm bump
 out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
 rc=$?
 if [[ $rc -ne 0 && "$out" == *"UNDOCUMENTED BUMP"*"alpha"* && "$out" != *"PRE-EXISTING"* ]]; then ok "mismatched inner fence delimiter (tilde line inside a backtick fence) does not prematurely close"; else fail "fence delimiter mismatch wrongly toggled: rc=$rc out='$out'"; fi
@@ -495,12 +414,12 @@ repo="$(mk_repo)"
 git_init "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
-git_commit "$repo" base
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
 base="$(git -C "$repo" rev-parse HEAD)"
 printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
 # shellcheck disable=SC2016  # single quotes are deliberate: fence lines are literal changelog bytes
 printf '# Changelog\n\n```\n```not-a-close\n    ```\n## [1.1.0]\n```\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
-git_commit "$repo" bump
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm bump
 out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
 rc=$?
 if [[ $rc -ne 0 && "$out" == *"UNDOCUMENTED BUMP"*"alpha"* && "$out" != *"PRE-EXISTING"* ]]; then ok "non-closing fence lines (text suffix, four-space indent) do not close a fence"; else fail "non-closing fence line wrongly closed the fence: rc=$rc out='$out'"; fi
@@ -512,11 +431,11 @@ repo="$(mk_repo)"
 git_init "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
-git_commit "$repo" base
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
 base="$(git -C "$repo" rev-parse HEAD)"
 printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
 printf '# Changelog\n\n<!--\n## [1.1.0]\n-->\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
-git_commit "$repo" bump
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm bump
 out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
 rc=$?
 if [[ $rc -ne 0 && "$out" == *"UNDOCUMENTED BUMP"*"alpha"* && "$out" != *"PRE-EXISTING"* ]]; then ok "heading inside an HTML comment does not satisfy --check-bump"; else fail "HTML-comment heading wrongly satisfied gate: rc=$rc out='$out'"; fi
@@ -529,11 +448,11 @@ repo="$(mk_repo)"
 git_init "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
-git_commit "$repo" base
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
 base="$(git -C "$repo" rev-parse HEAD)"
 printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
 printf '# Changelog (typo fix)\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
-git_commit "$repo" bump
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm bump
 out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
 rc=$?
 if [[ $rc -ne 0 && "$out" == *"UNDOCUMENTED BUMP"*"alpha"* ]]; then ok "bump + unrelated changelog edit (no new-version entry) fails --check-bump"; else fail "unrelated-edit bump not caught: rc=$rc out='$out'"; fi
@@ -543,34 +462,61 @@ rm -rf "$repo"
 repo="$(mk_repo)"
 git_init "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
-git_commit "$repo" base
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
 base="$(git -C "$repo" rev-parse HEAD)"
 printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
-git_commit "$repo" bump
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm bump
 out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
 rc=$?
 if [[ $rc -ne 0 && "$out" == *"UNDOCUMENTED BUMP"*"alpha"* ]]; then ok "bump without changelog fails --check-bump (synthetic undocumented bump caught)"; else fail "undocumented bump not caught: rc=$rc out='$out'"; fi
 rm -rf "$repo"
 
-# version unchanged -> passes (no bump, nothing to document)
+# version unchanged but plugin files changed -> fails (published version reuse, #1559)
 repo="$(mk_repo)"
 git_init "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
-git_commit "$repo" base
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
 base="$(git -C "$repo" rev-parse HEAD)"
-printf 'unrelated\n' >"$repo/plugins/alpha/README.md"
-git_commit "$repo" noop
-if (cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" >/dev/null 2>&1); then ok "unchanged version passes --check-bump"; else fail "unchanged version wrongly failed"; fi
+printf 'shipped\n' >"$repo/plugins/alpha/shipped.txt"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm noop
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
+rc=$?
+if [[ $rc -ne 0 && "$out" == *"PUBLISHED VERSION REUSE"*"alpha"* ]]; then ok "unchanged version with plugin file edits fails --check-bump"; else fail "published version reuse not caught: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
+# cosmetic manifest touch (no version change) + shipped file edit -> fails (#1559 gap)
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 1.0.0 yes
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+base="$(git -C "$repo" rev-parse HEAD)"
+printf '{ "name": "alpha", "version": "1.0.0", "description": "touched" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
+printf 'shipped\n' >"$repo/plugins/alpha/shipped.txt"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm noop
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
+rc=$?
+if [[ $rc -ne 0 && "$out" == *"PUBLISHED VERSION REUSE"*"alpha"* ]]; then ok "cosmetic manifest touch with shipped file edits fails --check-bump"; else fail "cosmetic manifest reuse not caught: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
+# version unchanged and no plugin file edits -> passes
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 1.0.0 yes
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+base="$(git -C "$repo" rev-parse HEAD)"
+printf 'unrelated\n' >"$repo/README.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm noop
+if (cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" >/dev/null 2>&1); then ok "unchanged version with no plugin edits passes --check-bump"; else fail "repo-only edit wrongly failed --check-bump"; fi
 rm -rf "$repo"
 
 # new plugin absent at base -> --check-bump skips it (static --check owns it)
 repo="$(mk_repo)"
 git_init "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
-git_commit "$repo" base
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
 base="$(git -C "$repo" rev-parse HEAD)"
 mk_plugin "$repo" beta 1.0.0 no
-git_commit "$repo" add-beta
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm add-beta
 if (cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" >/dev/null 2>&1); then ok "new plugin skipped by --check-bump"; else fail "new plugin wrongly failed --check-bump"; fi
 rm -rf "$repo"
 
@@ -587,17 +533,17 @@ mk_plugin "$repo" alpha 1.0.0 yes
 printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
 mk_plugin "$repo" beta 1.0.0 yes
 printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/beta/CHANGELOG.md"
-git_commit "$repo" base
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
 fork="$(git -C "$repo" rev-parse HEAD)"
 # main advances alpha (a plugin the PR never touches)
 printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
 printf '# Changelog\n\n## [1.1.0]\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
-git_commit "$repo" 'main bumps alpha'
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'main bumps alpha'
 main="$(git -C "$repo" rev-parse HEAD)"
 # PR branch forks from base and edits only beta's changelog (alpha left stale)
 git -C "$repo" checkout -q -b pr "$fork"
 printf '# Changelog\n\ntypo fix\n\n## [1.0.0]\n' >"$repo/plugins/beta/CHANGELOG.md"
-git_commit "$repo" 'pr edits beta only'
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'pr edits beta only'
 out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$main" 2>&1)"
 rc=$?
 if [[ $rc -eq 0 ]]; then ok "untouched plugin advanced only on the base ref is not flagged (branch staleness scoped out)"; else fail "branch-staleness wrongly flagged: rc=$rc out='$out'"; fi
@@ -611,15 +557,15 @@ repo="$(mk_repo)"
 git_init "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
-git_commit "$repo" base
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
 fork="$(git -C "$repo" rev-parse HEAD)"
 printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
 printf '# Changelog\n\n## [1.1.0]\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
-git_commit "$repo" 'main bumps alpha'
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'main bumps alpha'
 main="$(git -C "$repo" rev-parse HEAD)"
 git -C "$repo" checkout -q -b pr "$fork"
 printf 'docs\n' >"$repo/plugins/alpha/README.md"
-git_commit "$repo" 'pr edits alpha README only'
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'pr edits alpha README only'
 out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$main" 2>&1)"
 rc=$?
 if [[ $rc -eq 0 ]]; then ok "cosmetic touch under a plugin dir does not pull a main-only advance into scope (manifest-scoped)"; else fail "manifest-scoping regressed to plugin-root: rc=$rc out='$out'"; fi
@@ -635,15 +581,15 @@ mk_plugin "$repo" alpha 1.0.0 yes
 printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
 mk_plugin "$repo" beta 1.0.0 yes
 printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/beta/CHANGELOG.md"
-git_commit "$repo" base
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
 fork="$(git -C "$repo" rev-parse HEAD)"
 printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
 printf '# Changelog\n\n## [1.1.0]\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
-git_commit "$repo" 'main bumps alpha'
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'main bumps alpha'
 main="$(git -C "$repo" rev-parse HEAD)"
 git -C "$repo" checkout -q -b pr "$fork"
 printf '{ "name": "beta", "version": "2.0.0" }\n' >"$repo/plugins/beta/.claude-plugin/plugin.json"
-git_commit "$repo" 'pr bumps beta, no entry'
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'pr bumps beta, no entry'
 out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$main" 2>&1)"
 rc=$?
 if [[ $rc -ne 0 && "$out" == *"UNDOCUMENTED BUMP"*"beta"* && "$out" != *"alpha"* ]]; then ok "a plugin the branch bumped is still checked while the main-only advance is scoped out"; else fail "diff-scoping incorrectly scoped: rc=$rc out='$out'"; fi
@@ -659,16 +605,16 @@ repo="$(mk_repo)"
 git_init "$repo"
 mk_plugin "$repo" alpha 0.21.9 yes
 printf '# Changelog\n\n## [0.21.9]\n' >"$repo/plugins/alpha/CHANGELOG.md"
-git_commit "$repo" base
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
 fork="$(git -C "$repo" rev-parse HEAD)"
 printf '{ "name": "alpha", "version": "0.25.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
 printf '# Changelog\n\n## [0.25.0]\n\n## [0.21.9]\n' >"$repo/plugins/alpha/CHANGELOG.md"
-git_commit "$repo" 'main advances alpha to 0.25.0'
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'main advances alpha to 0.25.0'
 main="$(git -C "$repo" rev-parse HEAD)"
 git -C "$repo" checkout -q -b pr "$fork"
 printf '{ "name": "alpha", "version": "0.21.10" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
 printf '# Changelog\n\n## [0.21.10]\n\n## [0.21.9]\n' >"$repo/plugins/alpha/CHANGELOG.md"
-git_commit "$repo" 'pr bumps alpha to 0.21.10 off a stale base'
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'pr bumps alpha to 0.21.10 off a stale base'
 out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$main" 2>&1)"
 rc=$?
 if [[ $rc -ne 0 && "$out" == *"VERSION REGRESSION"*"alpha"* && "$out" != *"UNDOCUMENTED"* && "$out" != *"PRE-EXISTING"* ]]; then ok "bump below the base ref's current version fails as VERSION REGRESSION despite valid parity"; else fail "version regression not caught: rc=$rc out='$out'"; fi
@@ -682,16 +628,16 @@ repo="$(mk_repo)"
 git_init "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
-git_commit "$repo" base
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
 fork="$(git -C "$repo" rev-parse HEAD)"
 printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
 printf '# Changelog\n\n## [1.1.0]\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
-git_commit "$repo" 'main merges its own 1.1.0'
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'main merges its own 1.1.0'
 main="$(git -C "$repo" rev-parse HEAD)"
 git -C "$repo" checkout -q -b pr "$fork"
 printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
 printf '# Changelog\n\n## [1.1.0]\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
-git_commit "$repo" 'pr also bumps to 1.1.0'
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'pr also bumps to 1.1.0'
 out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$main" 2>&1)"
 rc=$?
 if [[ $rc -ne 0 && "$out" == *"VERSION COLLISION"*"alpha"* && "$out" != *"UNDOCUMENTED"* ]]; then ok "bump equal to the base ref's current version fails as VERSION COLLISION (not skipped as not-bumped)"; else fail "version collision not caught: rc=$rc out='$out'"; fi
@@ -708,7 +654,7 @@ printf '# Changelog
 
 ## [1.0.0]
 ' >"$repo/plugins/alpha/CHANGELOG.md"
-git_commit "$repo" base
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
 fork="$(git -C "$repo" rev-parse HEAD)"
 printf '{ "name": "alpha", "version": "1.1.0" }
 ' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
@@ -718,7 +664,7 @@ printf '# Changelog
 
 ## [1.0.0]
 ' >"$repo/plugins/alpha/CHANGELOG.md"
-git_commit "$repo" 'main merges its own 1.1.0'
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'main merges its own 1.1.0'
 main="$(git -C "$repo" rev-parse HEAD)"
 git -C "$repo" checkout -q -b pr "$fork"
 printf '{ "name": "alpha", "version": "1.1.0" }
@@ -729,7 +675,7 @@ printf '# Changelog
 
 ## [1.0.0]
 ' >"$repo/plugins/alpha/CHANGELOG.md"
-git_commit "$repo" 'pr also bumps to 1.1.0'
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'pr also bumps to 1.1.0'
 git -C "$repo" checkout -q "$main"
 git -C "$repo" checkout -q -b synthetic
 git -C "$repo" merge -q --no-ff -m 'synthetic PR merge' pr >/dev/null 2>&1
@@ -747,7 +693,7 @@ printf '# Changelog
 
 ## [1.0.0]
 ' >"$repo/plugins/alpha/CHANGELOG.md"
-git_commit "$repo" base
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
 main="$(git -C "$repo" rev-parse HEAD)"
 git -C "$repo" checkout -q -b pr
 printf '{ "name": "alpha", "version": "1.two.0" }
@@ -758,7 +704,7 @@ printf '# Changelog
 
 ## [1.0.0]
 ' >"$repo/plugins/alpha/CHANGELOG.md"
-git_commit "$repo" 'pr ships a malformed version'
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'pr ships a malformed version'
 out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$main" 2>&1)"
 rc=$?
 if [[ $rc -ne 0 && "$out" == *"non-SemVer"*"1.two.0"* ]]; then ok "malformed manifest version refuses loudly before the sort key"; else fail "malformed version not refused: rc=$rc out='$out'"; fi
@@ -772,16 +718,16 @@ repo="$(mk_repo)"
 git_init "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
-git_commit "$repo" base
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
 fork="$(git -C "$repo" rev-parse HEAD)"
 printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
 printf '# Changelog\n\n## [1.1.0]\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
-git_commit "$repo" 'main bumps alpha to 1.1.0'
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'main bumps alpha to 1.1.0'
 main="$(git -C "$repo" rev-parse HEAD)"
 git -C "$repo" checkout -q -b pr "$fork"
 printf '{ "name": "alpha", "version": "1.2.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
 printf '# Changelog\n\n## [1.2.0]\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
-git_commit "$repo" 'pr bumps past the advance to 1.2.0'
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'pr bumps past the advance to 1.2.0'
 out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$main" 2>&1)"
 rc=$?
 if [[ $rc -eq 0 ]]; then ok "bump strictly above the base ref's advanced version passes --check-bump"; else fail "forward bump past an advanced base wrongly failed: rc=$rc out='$out'"; fi
@@ -794,11 +740,11 @@ repo="$(mk_repo)"
 git_init "$repo"
 mk_plugin "$repo" alpha 0.9.0 yes
 printf '# Changelog\n\n## [0.9.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
-git_commit "$repo" base
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
 base="$(git -C "$repo" rev-parse HEAD)"
 printf '{ "name": "alpha", "version": "0.10.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
 printf '# Changelog\n\n## [0.10.0]\n\n## [0.9.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
-git_commit "$repo" bump
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm bump
 out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
 rc=$?
 if [[ $rc -eq 0 ]]; then ok "0.9.0 -> 0.10.0 passes (monotonicity is numeric, not lexical)"; else fail "cross-segment bump wrongly failed: rc=$rc out='$out'"; fi
@@ -812,15 +758,15 @@ repo="$(mk_repo)"
 git_init "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
-git_commit "$repo" base
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
 fork="$(git -C "$repo" rev-parse HEAD)"
 printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
 printf '# Changelog\n\n## [1.1.0]\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
-git_commit "$repo" 'main bumps alpha'
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'main bumps alpha'
 main="$(git -C "$repo" rev-parse HEAD)"
 git -C "$repo" checkout -q -b pr "$fork"
 printf '{ "name": "alpha", "version": "1.0.0", "description": "d" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
-git_commit "$repo" 'pr edits alpha manifest, no version change'
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'pr edits alpha manifest, no version change'
 out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$main" 2>&1)"
 rc=$?
 if [[ $rc -eq 0 ]]; then ok "manifest edit without a version change on a stale branch is not flagged (fork-scoped, no regression false positive)"; else fail "cosmetic manifest edit wrongly flagged: rc=$rc out='$out'"; fi
@@ -836,13 +782,13 @@ rm -rf "$repo"
 repo="$(mk_repo)"
 git_init "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
-git_commit "$repo" base
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
 base="$(git -C "$repo" rev-parse HEAD)"
 # Orphan branch: a second root commit with no ancestor in common with base.
 git -C "$repo" checkout -q --orphan orphan
 git -C "$repo" rm -rq --cached . >/dev/null 2>&1 || true
 mk_plugin "$repo" alpha 1.1.0 yes
-git_commit "$repo" 'orphan root'
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'orphan root'
 out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
 rc=$?
 if [[ $rc -eq 2 && "$out" == *"failed"* ]]; then ok "no common ancestor -> git diff fails -> gate fails loud (exit 2), never silent pass"; else fail "no-common-ancestor did not fail loud: rc=$rc out='$out'"; fi
@@ -852,7 +798,7 @@ rm -rf "$repo"
 repo="$(mk_repo)"
 git_init "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
-git_commit "$repo" base
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
 (cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump does-not-exist >/dev/null 2>&1)
 if [[ $? -eq 2 ]]; then ok "unresolvable base ref -> exit 2"; else fail "bad base ref did not exit 2"; fi
 rm -rf "$repo"
@@ -929,6 +875,347 @@ if [[ $rc -eq 1 && "$out" == *"MISORDERED CHANGELOG"* ]]; then ok "misordered tw
 # Mixed widths in one file must compare correctly: 1.10 outranks 1.9.
 write_changelog "$repo/docs/conventions/demo/CHANGELOG.md" '## 1.10 — 2026-02-01' '## 1.9.1 — 2026-01-15' '## 1.9 — 2026-01-01'
 if out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-order 2>&1)"; then ok "two- and three-component versions compare correctly together"; else fail "mixed-width comparison wrong: $out"; fi
+rm -rf "$repo"
+
+# ===================== --check-preserved (#2264) =========================
+# The gap: every other mode polices what a change set ADDS. A merge-forward that
+# writes the new release under the PREVIOUS release's heading — absorbing it —
+# deletes a released section with no conflict marker left behind, and all three
+# pass. The first case below asserts that gap explicitly (the other three modes
+# green on the very tree --check-preserved red-lines) so a future edit cannot
+# quietly make this mode redundant without the suite noticing.
+
+# ABSORBED PREDECESSOR: base carries 0.51.8 and 0.51.7; head bumps to 0.51.9 and
+# folds 0.51.8's note into the new section, deleting its heading.
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 0.51.8 yes
+printf '# Changelog\n\n## [0.51.8]\n\n- eight\n\n## [0.51.7]\n\n- seven\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+base="$(git -C "$repo" rev-parse HEAD)"
+printf '{ "name": "alpha", "version": "0.51.9" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
+printf '# Changelog\n\n## [0.51.9]\n\n- nine\n- eight\n\n## [0.51.7]\n\n- seven\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'absorb 0.51.8 into 0.51.9'
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-preserved "$base" 2>&1)"
+rc=$?
+if [[ $rc -eq 1 && "$out" == *"DELETED CHANGELOG ENTRY"*"plugins/alpha/CHANGELOG.md"* && "$out" == *"0.51.8"* ]]; then ok "an absorbed predecessor section fails --check-preserved, naming the vanished version"; else fail "absorbed section not caught: rc=$rc out='$out'"; fi
+for other in "--check-order" "--check"; do
+  # shellcheck disable=SC2086  # deliberate split: the mode and its optional base ref
+  if (cd "$repo" && bash scripts/check-changelog-parity.sh $other >/dev/null 2>&1); then ok "the absorbed-section tree still passes '$other'"; else fail "'$other' unexpectedly fired on the absorbed-section tree"; fi
+done
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
+rc=$?
+if [[ $rc -ne 0 && "$out" == *"ABSORBED CHANGELOG HEADING"* && "$out" == *"0.51.8"* ]]; then ok "--check-bump now catches absorbed headings too (#2324)"; else fail "--check-bump should catch absorbed headings: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
+# RELABELLED PREDECESSOR: the same bad resolution renames 0.51.8's heading to
+# 0.51.9 instead of adding one. That IS a deletion of 0.51.8, and the failure
+# message must say so, so the author recognises what their resolve did.
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 0.51.8 yes
+printf '# Changelog\n\n## [0.51.8]\n\n- eight\n\n## [0.51.7]\n\n- seven\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+base="$(git -C "$repo" rev-parse HEAD)"
+printf '{ "name": "alpha", "version": "0.51.9" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
+printf '# Changelog\n\n## [0.51.9]\n\n- eight\n\n## [0.51.7]\n\n- seven\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'relabel 0.51.8 as 0.51.9'
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-preserved "$base" 2>&1)"
+rc=$?
+if [[ $rc -eq 1 && "$out" == *"0.51.8"* && "$out" == *"RELABELLING"* && "$out" == *"above the entry that replaced it"* ]]; then ok "a relabelled heading fails --check-preserved and the message names relabelling as a cause"; else fail "relabelled heading not caught or not explained: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
+# LEGITIMATE BUMP: adds a heading, preserves every predecessor -> passes. The
+# discriminating half of the pair above; a check that never passes is as useless
+# as one that never fires.
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 0.51.8 yes
+printf '# Changelog\n\n## [0.51.8]\n\n- eight\n\n## [0.51.7]\n\n- seven\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+base="$(git -C "$repo" rev-parse HEAD)"
+printf '{ "name": "alpha", "version": "0.51.9" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
+printf '# Changelog\n\n## [0.51.9]\n\n- nine\n\n## [0.51.8]\n\n- eight\n\n## [0.51.7]\n\n- seven\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm bump
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-preserved "$base" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]]; then ok "a bump that adds a heading and preserves its predecessors passes --check-preserved"; else fail "legitimate bump wrongly failed: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
+# STALE BRANCH THAT NEVER INTEGRATED: main adds `## [1.1.0]` after the fork; the
+# branch edits its OWN changelog and never merges main forward. Compared against
+# the base TIP, every heading main added would read as deleted — a false positive
+# on a required gate. The fork point is the only correct comparison.
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 1.0.0 yes
+printf '# Changelog\n\n## [1.0.0]\n\n- one\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+fork="$(git -C "$repo" rev-parse HEAD)"
+printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
+printf '# Changelog\n\n## [1.1.0]\n\n- main note\n\n## [1.0.0]\n\n- one\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'main bumps alpha'
+main="$(git -C "$repo" rev-parse HEAD)"
+git -C "$repo" checkout -q -b pr "$fork"
+printf '# Changelog\n\n## [1.0.0]\n\n- one\n- a wording fix\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'pr edits its changelog, never integrates main'
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-preserved "$main" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]]; then ok "a stale branch that never integrated main is not flagged (fork-point comparison, no false positive)"; else fail "stale branch wrongly flagged: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
+# CHANGELOG NEW IN THIS CHANGE SET: absent at the fork point, so there is nothing
+# to preserve. (`git cat-file -e` cannot express this — it exits 128 for a
+# missing path exactly as it does for an unusable rev — so this case is the guard
+# on the existence probe.)
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 1.0.0 no
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+base="$(git -C "$repo" rev-parse HEAD)"
+printf '# Changelog\n\n## [1.0.0]\n\n- one\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'add a changelog'
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-preserved "$base" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]]; then ok "a changelog added by this change set passes --check-preserved (nothing to preserve)"; else fail "newly added changelog wrongly failed: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
+# PLUGIN REMOVED: the changelog goes with its whole directory. That is a removal,
+# not an absorbed section.
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 1.0.0 yes
+mk_plugin "$repo" beta 1.0.0 yes
+printf '# Changelog\n\n## [1.0.0]\n\n- one\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+base="$(git -C "$repo" rev-parse HEAD)"
+rm -rf "$repo/plugins/alpha"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'remove the alpha plugin'
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-preserved "$base" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]]; then ok "removing a plugin outright passes --check-preserved (its whole directory went with it)"; else fail "plugin removal wrongly flagged: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
+# CHANGELOG DELETED, PLUGIN KEPT: the extreme form of the same defect — every
+# released heading vanishes at once, and the plugin is still there.
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 1.0.0 yes
+printf '# Changelog\n\n## [1.0.0]\n\n- one\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+base="$(git -C "$repo" rev-parse HEAD)"
+rm -f "$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'delete the changelog, keep the plugin'
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-preserved "$base" 2>&1)"
+rc=$?
+if [[ $rc -eq 1 && "$out" == *"DELETED CHANGELOG ENTRY"*"1.0.0"* ]]; then ok "deleting a changelog while its plugin survives fails --check-preserved"; else fail "whole-file deletion not caught: rc=$rc out='$out'"; fi
+# ...and gets the remediation for THAT failure: "restore the heading above the
+# entry that replaced it" names an entry that does not exist when the whole file
+# is gone.
+if [[ "$out" == *"changelog itself was deleted"* && "$out" != *"above the entry that replaced it"* ]]; then ok "whole-file deletion gets the restore-the-file remediation, not the absorbed-heading one"; else fail "whole-file deletion printed the wrong remediation: out='$out'"; fi
+rm -rf "$repo"
+
+# YANKED RELEASE: Keep a Changelog keeps the heading and marks it `[YANKED]`
+# rather than deleting it, so the correct treatment of a pulled release must
+# PASS. This is why the mode ships no exemption list.
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 1.0.0 yes
+printf '# Changelog\n\n## [1.0.0]\n\n- one\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+base="$(git -C "$repo" rev-parse HEAD)"
+printf '{ "name": "alpha", "version": "1.0.1" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
+printf '# Changelog\n\n## [1.0.1]\n\n- revert\n\n## [1.0.0] - 2026-01-01 [YANKED]\n\n- one\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'yank 1.0.0'
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-preserved "$base" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]]; then ok "marking a release '[YANKED]' preserves its heading and passes --check-preserved"; else fail "yanked-release marking wrongly failed: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
+# REFORMATTED HEADING: bracketed -> unbracketed names the same version. Matching
+# is on the VERSION, so a format change is not a deletion (--check-bump owns the
+# format concern).
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 1.0.0 yes
+printf '# Changelog\n\n## [1.0.0]\n\n- one\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+base="$(git -C "$repo" rev-parse HEAD)"
+printf '# Changelog\n\n## 1.0.0 — 2026-01-01\n\n- one\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'reformat the heading'
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-preserved "$base" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]]; then ok "reformatting a heading to another accepted form is not a deletion"; else fail "heading reformat wrongly flagged: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
+# HEADINGLESS CHANGELOG: the shared extractor's `grep -oE` exits 1 when a file
+# declares no version heading at all. Under pipefail that status must NOT be read
+# as a failed check — a false positive on every prose-only changelog.
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 1.0.0 yes
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+base="$(git -C "$repo" rev-parse HEAD)"
+printf '# Changelog\n\nNothing released yet.\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'edit a headingless changelog'
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-preserved "$base" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]]; then ok "a changelog with no version headings passes --check-preserved (grep's no-match status is not an error)"; else fail "headingless changelog wrongly failed: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
+# FENCED EXAMPLE HEADING: what looks like a heading inside a code fence is not
+# one, so removing it is not a deletion. The shared extractor owns this.
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 1.0.0 yes
+printf '# Changelog\n\n## [1.0.0]\n\n~~~\n## [9.9.9]\n~~~\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+base="$(git -C "$repo" rev-parse HEAD)"
+printf '# Changelog\n\n## [1.0.0]\n\n- one\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'drop the fenced example'
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-preserved "$base" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]]; then ok "removing a fenced example heading is not a deletion"; else fail "fenced example wrongly counted as a released heading: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
+# CONVENTION CHANGELOG: unversioned by any manifest, so --check and --check-bump
+# never look at it. Absorption is just as possible there, and --check-preserved
+# sweeps the same two roots --check-order does.
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 1.0.0 yes
+mkdir -p "$repo/docs/conventions/demo"
+printf '# Changelog\n\n## 2.0.0 — 2026-01-02\n\n- two\n\n## 1.0.0 — 2026-01-01\n\n- one\n' >"$repo/docs/conventions/demo/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+base="$(git -C "$repo" rev-parse HEAD)"
+printf '# Changelog\n\n## 3.0.0 — 2026-01-03\n\n- three\n- two\n\n## 1.0.0 — 2026-01-01\n\n- one\n' >"$repo/docs/conventions/demo/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'absorb 2.0.0 into 3.0.0'
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-preserved "$base" 2>&1)"
+rc=$?
+if [[ $rc -eq 1 && "$out" == *"docs/conventions/demo/CHANGELOG.md"* && "$out" == *"2.0.0"* ]]; then ok "convention changelogs are in --check-preserved scope"; else fail "convention changelog absorption missed: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
+# LARGE CHANGELOG under gawk (the #2130 shape, applied to this mode): the heading
+# lists are read through the same rendered_lines writer, so no reader in this
+# path may exit before EOF. Forced gawk for the same reason as the --check-bump
+# fixture above — mawk survives a closed pipe and would prove nothing.
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 1.0.0 yes
+{
+  printf '# Changelog\n\n## [1.0.0]\n\n'
+  for ((i = 0; i < 4000; i++)); do
+    printf '%s\n' '- a release note line padding the file well past any pipe or stdio buffer'
+  done
+  printf '\n## [0.9.0]\n'
+} >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+base="$(git -C "$repo" rev-parse HEAD)"
+printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
+{
+  printf '# Changelog\n\n## [1.1.0]\n\n- one one\n\n## [1.0.0]\n\n'
+  for ((i = 0; i < 4000; i++)); do
+    printf '%s\n' '- a release note line padding the file well past any pipe or stdio buffer'
+  done
+  printf '\n## [0.9.0]\n'
+} >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm bump
+if command -v gawk >/dev/null 2>&1; then
+  mkdir -p "$repo/bin"
+  printf '#!/bin/sh\nexec gawk "$@"\n' >"$repo/bin/awk"
+  chmod +x "$repo/bin/awk"
+  out="$(cd "$repo" && PATH="$repo/bin:$PATH" bash scripts/check-changelog-parity.sh --check-preserved "$base" 2>&1)"
+  rc=$?
+  if [[ $rc -eq 0 ]]; then ok "a large changelog passes --check-preserved under gawk (no early-exiting reader, no SIGPIPE misread)"; else fail "large-changelog preservation wrongly failed under gawk: rc=$rc out='$out'"; fi
+else
+  echo "SKIP: the SIGPIPE fixture requires gawk; under mawk a closed pipe is survivable, so this case cannot distinguish fixed from unfixed." >&2
+fi
+rm -rf "$repo"
+
+# NO COMMON ANCESTOR: same fail-loud discipline as --check-bump — a git read that
+# could not be computed must never read as "nothing was deleted" and pass.
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 1.0.0 yes
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+base="$(git -C "$repo" rev-parse HEAD)"
+git -C "$repo" checkout -q --orphan orphan
+git -C "$repo" rm -rq --cached . >/dev/null 2>&1 || true
+mk_plugin "$repo" alpha 1.1.0 yes
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'orphan root'
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-preserved "$base" 2>&1)"
+rc=$?
+if [[ $rc -eq 2 && "$out" == *"failed"* ]]; then ok "--check-preserved fails loud (exit 2) when the diff cannot be computed"; else fail "--check-preserved did not fail loud on a missing common ancestor: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
+# usage errors mirror --check-bump's
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 1.0.0 yes
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+(cd "$repo" && bash scripts/check-changelog-parity.sh --check-preserved >/dev/null 2>&1)
+if [[ $? -eq 2 ]]; then ok "--check-preserved without a base ref -> exit 2"; else fail "--check-preserved missing base ref did not exit 2"; fi
+(cd "$repo" && bash scripts/check-changelog-parity.sh --check-preserved does-not-exist >/dev/null 2>&1)
+if [[ $? -eq 2 ]]; then ok "--check-preserved with an unresolvable base ref -> exit 2"; else fail "--check-preserved bad base ref did not exit 2"; fi
+rm -rf "$repo"
+
+# ===================== inline-linked headings (#2392) ======================
+# changelog_versions must accept `(` after `]` so linked Keep a Changelog headings
+# are visible to --check, --check-order, and --check-preserved.
+
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 1.0.0 yes
+printf '# Changelog\n\n## [1.0.0](https://github.com/o/r/releases/tag/v1.0.0) - 2026-01-01\n\n- one\n' \
+  >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+if (cd "$repo" && bash scripts/check-changelog-parity.sh --check >/dev/null 2>&1); then
+  ok "inline-linked heading passes --check when it matches the manifest"
+else
+  fail "inline-linked heading wrongly failed --check"
+fi
+if (cd "$repo" && bash scripts/check-changelog-parity.sh --check-order >/dev/null 2>&1); then
+  ok "single inline-linked heading passes --check-order"
+else
+  fail "inline-linked heading wrongly failed --check-order"
+fi
+rm -rf "$repo"
+
+# Absorbed linked heading must fail --check-preserved.
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 1.0.0 yes
+printf '# Changelog\n\n## [1.0.0](https://github.com/o/r/releases/tag/v1.0.0)\n\n- one\n\n## [0.9.0]\n\n- nine\n' \
+  >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+base="$(git -C "$repo" rev-parse HEAD)"
+printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
+printf '# Changelog\n\n## [1.1.0]\n\n- eleven\n\n## [0.9.0]\n\n- nine\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm absorb
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-preserved "$base" 2>&1)"
+rc=$?
+if [[ $rc -eq 1 && "$out" == *"DELETED CHANGELOG ENTRY"* && "$out" == *"1.0.0"* ]]; then
+  ok "absorbed inline-linked heading fails --check-preserved"
+else
+  fail "absorbed inline-linked heading not caught: rc=$rc out='$out'"
+fi
+rm -rf "$repo"
+
+# Plain -> linked reformat must pass --check-preserved (not a deletion).
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 1.0.0 yes
+printf '# Changelog\n\n## [1.0.0]\n\n- one\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+base="$(git -C "$repo" rev-parse HEAD)"
+printf '# Changelog\n\n## [1.0.0](https://github.com/o/r/releases/tag/v1.0.0) - 2026-01-01\n\n- one\n' \
+  >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm link
+if (cd "$repo" && bash scripts/check-changelog-parity.sh --check-preserved "$base" >/dev/null 2>&1); then
+  ok "plain-to-linked heading reformat passes --check-preserved"
+else
+  fail "plain-to-linked reformat wrongly failed --check-preserved"
+fi
 rm -rf "$repo"
 
 printf '\nPASS=%d FAIL=%d\n' "$PASS" "$FAIL"

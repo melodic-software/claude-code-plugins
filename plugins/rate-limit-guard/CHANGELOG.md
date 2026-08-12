@@ -3,6 +3,118 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.1]
+
+### Changed
+
+- Cut statusline tee from 9 process spawns to 4.
+
+- **The settings document reaches `jq` through the environment, not through argv
+  and not through a temp file.** A settings file can hold credentials, and argv is
+  world-readable via `ps`/`/proc/<pid>/cmdline` for the life of the process while
+  `/proc/<pid>/environ` is owner-only. Both readers — `_rlg_settings_option`, which
+  the managed scope calls on every refresh wherever a `managed-settings.json`
+  exists, and `_rlg_probe` — now bind `$doc` from `env.RLG_SETTINGS_DOC` through one
+  shared prelude, so neither can drift back.
+
+  This also restores the fail-OPEN behaviour on a malformed settings file. Parsing
+  the document jq-side (`--argjson`, `--slurpfile`) aborts the whole invocation
+  before the filter runs, which took the snapshot down with the verdict; parsing it
+  filter-side under `try` yields an empty verdict and leaves the snapshot alone.
+  And it keeps the read off any jq-opened path: a native jq on Windows cannot open
+  an MSYS-style path, and `$TMPDIR` under MSYS is one.
+
+  Net spawns: measured against the slurpfile form on the same machine, a
+  steady-state refresh drops two external commands (`mktemp` and `rm`, which that
+  form added) and one subshell — 7 distinct `BASHPID`s to 6. The externals that
+  remain are the ones 0.6.0 documented as the contract itself.
+
+## [0.6.0]
+
+### Changed
+
+- **The statusline tee cost ~450 ms of process spawns on every refresh; it now costs ~180 ms,
+  with no change to what it writes.** This script runs once per assistant message AND once per
+  `refreshInterval` tick, in every open session, so its cost is multiplied by how many sessions
+  the user keeps open — at ten sessions on `refreshInterval: 1` it was the dominant term in
+  statusline latency. Nothing about the snapshot changed: the contract file's body is
+  byte-identical, and the 71 pre-existing assertions pass unmodified.
+
+  Per refresh, external commands went from nine to four and subshell forks from eleven to six.
+  The four that remain are the contract itself and are deliberately untouched — one `jq` to build
+  the snapshot, `mkdir`/`rmdir` for the concurrent-writer lock, and `mv` for the atomic rename.
+  What went:
+
+  - **Three `jq` spawns became one.** A new `_rlg_probe` produces the snapshot body, the
+    window-bearing verdict and the user-scope enablement verdict in a single pass. The settings
+    document is read by bash (`$(<file)`, which bash performs without forking) and handed over as
+    `--argjson`, never opened by jq — preserving the existing reason the read was a shell
+    redirection: a native jq on Windows cannot open an MSYS-style path. The verdict filter is now
+    a single constant shared by the probe and `_rlg_settings_option`, so the two cannot drift.
+  - **`_rlg_tee_enabled` consumes the probed verdict**, with a fallback to its own read when no
+    probe has run, so a direct call to it (no `main`) behaves exactly as before. The gate moved
+    next to the write it governs, which is the only thing it decides.
+  - **`uname` is no longer spawned to discover that no managed-settings file exists.**
+    `_rlg_managed_settings_files` now tests all three candidate locations with builtins first;
+    the platform table still decides whenever one is actually present.
+  - **`date -u` became `TZ=UTC printf -v … '%(…)T'`**, a bash builtin, output verified identical.
+  - **`mkdir -p` and `chmod 700` on the contract directory run only when it is absent.**
+    Both were unconditional, and both are processes re-asserting a state that already held.
+
+  One deliberate behavioural tradeoff, called out because it is a real one: the contract
+  directory's owner-only mode is now asserted at creation instead of re-asserted on every refresh,
+  so a mode that a user or another tool later loosens is no longer silently corrected. No builtin
+  can read a file mode, so the alternative is a `stat` process per refresh — exactly the cost being
+  removed.
+
+### Added
+
+- **`RLG_TEE_ASYNC=1` detaches the snapshot from the render. Off by default, and the measurements
+  say why.** The snapshot is a side effect — nothing the wrapped command prints depends on it, and
+  the reader contract budgets ten minutes of staleness — so it is a natural candidate for running
+  out of line. It skips no work: every refresh still takes the lock and writes.
+
+  Detaching is a clear win for one session and a clear loss for many. MSYS has no native `fork()`,
+  so forking a bash subshell holding the payload was measured at 75–200 ms against ~24 ms to exec
+  a small binary. Detaching does not make the work cheaper; it buys back the render's critical path
+  by paying a fork more expensive than the execs it steps around, and it lets successive refreshes
+  overlap instead of serialise. Measured (Windows, 24 cores, statusline + tee):
+
+  | | sync (default) | async |
+  |---|---|---|
+  | one session, refreshes 1 s apart | 660 ms | **222 ms** |
+  | ten sessions at 1 Hz, median | **2265 ms** | 4476 ms |
+  | ten sessions, peak bash processes | **50** | 71 |
+
+  Sessions, not refresh rate, is the variable that decides. Turn it on if you run one or two
+  windows; leave it off if you run many. The durable fix removes the cost instead of moving it —
+  the render appending its payload to a spool file with zero forks, drained by one periodic
+  writer — and that is not this flag.
+
+  When enabled, detachment is threefold and each part is load-bearing: stdout and stderr go to
+  `/dev/null` (otherwise the child holds the statusline pipe open and Claude Code waits for EOF
+  long after the render finished, cancelling out the point), stdin is closed, and the job is
+  disowned. A cancelled refresh can now be killed mid-write, which is the case the existing
+  temp-file-plus-rename, reclaim traps and age-filtered sweep were already built for.
+
+- **Four assertions covering the detached path** (75 total, up from 71): stdout carries only the
+  wrapped command's output, the snapshot still lands, it carries the session's windows, and a
+  reader consuming stdout to EOF is not made to wait on the child. The suite runs the default
+  synchronous path everywhere else, so assertions that a snapshot was *not* written keep their
+  meaning instead of passing vacuously against a race.
+
+## [0.5.10]
+
+### Changed
+
+- **Synced `hook-utils.sh`:** refuse sub-minimum `stdin_read_timeout` values (#1883).
+
+## [0.5.9]
+
+### Changed
+
+- **Synced `hook-utils.sh`:** `hook::jq_fields` returns 2 when jq is present but cannot parse the payload (#2157).
+
 ## [0.5.8]
 
 ### Changed

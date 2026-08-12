@@ -1,6 +1,7 @@
 ---
 description: "Audit locally-owned Claude Code instruction surfaces — CLAUDE.md, .claude/rules, skill bodies, agent definitions, hook instruction text, output styles — for instructions current models no longer need (prior-model workarounds, over-prescriptive scaffolding, stale examples), instructions that misstate Claude Code's own behavior or cite files in forms that never load, and cross-surface conflicts where two surfaces contradict each other. Report-only: proposed diffs gated to the human, never auto-applied. Use when: 'after a model upgrade', 'are my instructions holding the model back', 'instructions the model no longer needs', 'too prescriptive', 'audit instructions', 'instruction audit', 'stale Claude Code behavior', 'outdated harness claim', 'my @path import is not loading', 'instruction re-reads CLAUDE.md', 'conflicting instructions', 'contradictory instructions', 'which instruction wins'. Not a brevity pass and not memory-layer hygiene."
 argument-hint: "[scope] [--target-model <version>] [--opinion] [--no-stopping-condition] — scope: claude-md|rules|skills|agents|hooks|output-styles|conflicts|all (default: all)"
+disallowed-tools: Edit, NotebookEdit
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -31,11 +32,25 @@ This skill is report-only. There is no `--fix`: instruction files are the operat
 every change is applied by the human (or explicitly delegated afterward), never by this skill.
 Diffs are proposed artifacts. A clean audit is a valid outcome.
 
+`disallowed-tools: Edit, NotebookEdit` narrows the surface; it does **not** make the contract
+mechanical. `Write` stays for the Phase D persist and `Bash` for the pre-scans, and either can mutate
+a file this skill has already read — so this is an instruction-held contract with a narrowed accident
+surface, not an enforced one. Never describe it to an operator as a guarantee. The restriction clears
+on their next message (<https://code.claude.com/docs/en/skills>, frontmatter reference, fetched
+2026-08-12), so whoever accepts a diff can apply it. `audit-prompting-postures` carries the identical
+declaration and the identical caveat, because the two state the same contract and drifting on it is
+the shape of defect this pair keeps producing.
+
 ## Scope boundary (route out)
 
 This skill owns instruction **content vs current model capability**. It does not own the adjacent
 concerns its siblings already cover — route rather than re-answer:
 
+- Posture guidance that is **absent and needed** is `claude-config:audit-prompting-postures` (same
+  plugin) — the additive lane to this one. This skill judges instruction text that is present and
+  wrong; that one proposes text the official prompting guide says a component's purpose needs and
+  the component does not carry. Neither finds the other's defects, so a sweep that wants both runs
+  both, and a request phrased as "what guardrails is this skill missing" belongs there, not here.
 - Structural skill lint (frontmatter, line caps, broken refs) is `skill-quality:check`.
 - Token brevity for its own sake is `docs-hygiene:compress`.
 - Config-file mechanics (settings.json, .mcp.json, hooks wiring) is `claude-config:audit`; grant

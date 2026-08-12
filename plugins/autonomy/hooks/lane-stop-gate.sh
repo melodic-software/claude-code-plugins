@@ -193,6 +193,8 @@ gate_arm_owned() {
   # a symlink aimed elsewhere decides nothing. Leave it untouched and honor.
   [[ ! -e "$claim" || (-f "$claim" && ! -L "$claim") ]] || return 0
   if [[ -n "$me" ]] && (
+    # umask 077 is best-effort on MSYS (the claim may still land 644); the
+    # exclusive-create is what binds the record, not the file mode.
     umask 077
     set -o noclobber
     printf '%s\n' "$me" >"$claim"
@@ -231,7 +233,9 @@ gate_load_arm_record() {
   # Compatibility read: a record claimed before the sidecar existed carries its
   # owner in the record itself and has no claim file. That field stays
   # authoritative so an upgrade cannot let a second session claim a record
-  # already bound to a live lane; nothing writes it any more.
+  # already bound to a live lane; nothing writes it any more. Mid-lane downgrade
+  # (newer hook → older without sidecar support) can leave a sidecar the older
+  # hook ignores — over-gating only; re-arm after downgrade.
   claimed=$(printf '%s' "$json" | jq -r '.session_id // empty' 2>/dev/null)
   if [[ -n "$claimed" ]]; then
     [[ -n "$SESSION_ID" && "$claimed" == "$SESSION_ID" ]] || return 1
@@ -369,6 +373,7 @@ marker_identity() {
   # the next alternative, and a host with neither returns the empty identity this
   # function documents (#1784)
   stat -c '%Y %s' -- "$1" 2>/dev/null ||
+    # portability-ok: BSD ladder rung paired with GNU `stat -c` above (#1784)
     stat -f '%m %z' -- "$1" 2>/dev/null ||
     printf ''
 }

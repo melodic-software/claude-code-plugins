@@ -123,7 +123,7 @@ Before staging, run `git status --porcelain` and classify every modified/untrack
 
 ### 2.3.2 Stage and commit PR changes
 
-Stage specific files (never `git add -A`). Then invoke `/source-control:commit` (this plugin's sibling skill) for the commit step — it handles message drafting, the Conventional Commits regex pre-check, the `Co-Authored-By` trailer, and the canonical bash heredoc form. **Wait for user approval on the proposed commit message inside `/source-control:commit`.** Do NOT bypass `/source-control:commit` by invoking `git commit` directly from this phase — the canonical bash mechanic + trailer + sanity-check are encapsulated there.
+Stage specific files (never `git add -A`). Then invoke `/source-control:commit` (this plugin's sibling skill) for the commit step — it handles message drafting, the Conventional Commits regex pre-check, the `Co-authored-by` trailer, and the canonical bash heredoc form. **Wait for user approval on the proposed commit message inside `/source-control:commit`.** Do NOT bypass `/source-control:commit` by invoking `git commit` directly from this phase — the canonical bash mechanic + trailer + sanity-check are encapsulated there.
 
 **When NOT to delegate:** if `/source-control:commit` is unavailable (e.g. skill discovery broken), inline the same heredoc form (`git commit -F - --cleanup=verbatim <<'EOF' ... EOF`) and proceed — but note the fallback to the user.
 
@@ -480,7 +480,12 @@ out of the gated content:
 # Title shape: whatever the resolved subject/title convention requires
 # (Conventional Commits default shown; a custom resolved pr_title_pattern
 # or the project's own convention overrides this).
-PR_URL=$(gh pr create --title "<type>: <description>" --body "$BODY")
+BRANCH=$(git branch --show-current)
+if [[ -z "$BRANCH" ]]; then
+  echo "Cannot create PR: not on a named branch (detached HEAD?)." >&2
+  exit 1
+fi
+PR_URL=$(gh pr create --head "$BRANCH" --title "<type>: <description>" --body "$BODY")
 
 # Extract PR number from URL (gh pr create outputs the URL on success).
 # This number is the source of truth for the rest of this phase — pass it

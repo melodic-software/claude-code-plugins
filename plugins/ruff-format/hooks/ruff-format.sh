@@ -227,8 +227,18 @@ RUFF_COMMON=(--force-exclude --no-cache --quiet)
 # possibly not intent-preserving (same principle as --no-fix on the verify
 # pass below). Pass 2: format. Both are best-effort; the verify pass below
 # is the single source of residual findings.
+_ruff_before=""
+if _ruff_before=$(mktemp 2>/dev/null); then
+  cp "$FILE" "$_ruff_before" 2>/dev/null || _ruff_before=""
+fi
 (cd "$RUN_DIR" && "$RUFF_BIN" check --fix --no-unsafe-fixes --unfixable F401 "${RUFF_COMMON[@]}" "$RUFF_ARG") >/dev/null 2>&1 || true
 (cd "$RUN_DIR" && "$RUFF_BIN" format "${RUFF_COMMON[@]}" "$RUFF_ARG") >/dev/null 2>&1 || true
+if [[ -n "$_ruff_before" ]]; then
+  if ! cmp -s "$_ruff_before" "$FILE" 2>/dev/null; then
+    hook::emit_system_message "ruff-format: auto-fixed and/or reformatted $(basename "$FILE") via Ruff."
+  fi
+  rm -f "$_ruff_before"
+fi
 
 # Verify pass — a pure reporter. --no-fix matters: a consumer config may set
 # fix=true, which would make a bare `ruff check` re-apply fixes here, including

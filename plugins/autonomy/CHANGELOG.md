@@ -3,8 +3,47 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.6]
+
+### Fixed
+
+- **Concrete credential paths with dot-traversal segments now fail the expansion-coherence
+  check explicitly (#949).** A path like `/configured-root/subdir/../.ssh/id_rsa` that
+  repeats verbatim in `host_expanded` no longer passes coherence only to be denied later
+  by containment normalization; operators see the canonical-path remediation instead.
+
+## [0.16.5]
+
+### Changed
+
+- **Synced `hook-utils.sh`:** refuse sub-minimum `stdin_read_timeout` values (#1883).
+
 Versions 0.1.0–0.7.0 predate this file (introduced with 0.7.1); their history lives in the
 merged work-package PRs (#333, #343, #356, #372, #377, #600, #676).
+
+## [0.16.4]
+
+### Changed
+
+- **Synced `hook-utils.sh`:** `hook::jq_fields` returns 2 when jq is present but cannot parse the payload (#2157).
+
+## [0.16.3]
+
+### Fixed
+
+- **The runner charter now records the three obligations the verification-topology work deferred
+  to it.** That work states plainly that per-run verdict aggregation and resolved-instance
+  distinctness ship unverified because no runner exists to carry them — but it recorded the
+  deferral only on the leaf making it, and a deferral the receiving seam does not name is
+  indistinguishable from an obligation nobody owns. The runner's inherited-constraints section
+  now carries all three (verdict aggregation under the unanimity invariant including the
+  timeout and no-verdict cases, refusing to count two checkers that resolve to one instance, and
+  lens drawing), each stated as a hole until the build trigger fires.
+- **`lane-stop-gate.test.sh` test-hygiene fixes from the #2065 verification pass (#2086).** The FIFO
+  hang case now fails closed when `mkfifo` is unavailable, uses `timeout` instead of `kill -9` on a
+  subshell that can orphan a grandchild, and `rc0` rejects an empty exit-code argument. The hook
+  comment records that `umask 077` is advisory on MSYS and documents the mid-lane downgrade over-gate
+  window.
 
 ## [0.16.2]
 

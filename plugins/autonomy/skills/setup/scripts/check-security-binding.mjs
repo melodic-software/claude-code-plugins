@@ -324,6 +324,10 @@ function credentialExpansionProblem(entry, expanded) {
   const homeAnchored =
     !normalizedEntry.includes("://") && segments.length > 1 && isHomeEnvToken(segments[0]);
   if (!homeAnchored) {
+    const concreteSegments = normalizedEntry.split("/").filter((segment) => segment.length > 0);
+    if (concreteSegments.some((segment) => segment === "." || segment === "..")) {
+      return "a concrete credential path must not contain dot-traversal segments — use the canonical path";
+    }
     return normalizedExpanded === normalizedEntry
       ? null
       : "a concrete entry needs no host-side expansion, so host_expanded must repeat the entry verbatim";

@@ -121,6 +121,16 @@ hook::require_jq "PreToolUse" "guardrails-block-noncanonical-commit" "$INPUT"
 # visible once per session. The `// "Bash"` default moves to the bash-side
 # expansion, matching block-dangerous-git.
 hook::jq_fields "$INPUT" '.tool_input.command' '.cwd' '.tool_name' || exit 0
+
+# A NUL byte in ANY field read above is fail-CLOSED (#2136): the helper strips NUL
+# bytes before matching, so a clean verdict would not reflect the bytes carried.
+if ((HOOK_JQ_FIELDS_NUL)); then
+  echo "BLOCKED: the payload carries a NUL byte, which a command cannot reliably carry." >&2
+  echo "What a guard can read is not dependably what would run, so this is refused rather than matched." >&2
+  echo "Fix: reissue the tool call without the embedded NUL." >&2
+  exit 2
+fi
+
 COMMAND="${HOOK_JQ_FIELDS[0]}"
 [[ -n "$COMMAND" ]] || exit 0
 HOOK_CWD="${HOOK_JQ_FIELDS[1]}"
@@ -464,15 +474,32 @@ sequencer_in_progress() {
 # The result is published in a global and assigned by a PLAIN call, never through
 # `$(…)`: a command substitution would run this in a subshell and discard the
 # cache with it.
-declare -A _persisted_alias=()
-HOOK_PERSISTED_ALIAS=""
+declare -A _persisted_alias_plain=()
+declare -A _persisted_alias_command=()
+HOOK_PERSISTED_ALIAS_EXPS=()
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
-persisted_alias() {
-  local dir="$1" sub="$2" key
-  key="$dir"$'\n'"$sub"
-  [[ -n "${_persisted_alias[$key]+x}" ]] ||
-    _persisted_alias["$key"]=$(git -C "$dir" config --get "alias.$sub" 2>/dev/null)
-  HOOK_PERSISTED_ALIAS="${_persisted_alias[$key]}"
+persisted_alias_expansions() {
+  local dir="$1" sub="$2" key plain cmd q a
+  shift 2
+  printf -v q '%q' "$dir"
+  key="$q"$'\n'"$sub"
+  for a in "$@"; do
+    printf -v q '%q' "$a"
+    key+=$'\n'"$q"
+  done
+  if [[ -z "${_persisted_alias_plain[$key]+x}" ]]; then
+    _persisted_alias_plain["$key"]=$(git -C "$dir" "$@" config --get "alias.$sub" 2>/dev/null)
+    if [[ -z "${_persisted_alias_plain[$key]}" ]]; then
+      _persisted_alias_command["$key"]=$(git -C "$dir" "$@" config --get "alias.$sub.command" 2>/dev/null)
+    else
+      _persisted_alias_command["$key"]=""
+    fi
+  fi
+  HOOK_PERSISTED_ALIAS_EXPS=()
+  plain="${_persisted_alias_plain[$key]}"
+  cmd="${_persisted_alias_command[$key]}"
+  [[ -n "$plain" ]] && HOOK_PERSISTED_ALIAS_EXPS+=("$plain")
+  [[ -n "$cmd" ]] && HOOK_PERSISTED_ALIAS_EXPS+=("$cmd")
 }
 
 # Identity is a BEST-AVAILABLE answer, not a gate. When git cannot resolve a work
@@ -691,9 +718,10 @@ check_segment() {
     if ((inline_alias_handled == 0)) && [[ "$sub" != "commit" ]]; then
       local pexp
       [[ -n "$seg_dir" ]] || seg_dir="$(effective_dir ${wrapper_cd[@]+"${wrapper_cd[@]}"} "${w[@]:gi:sub_idx-gi}")"
-      persisted_alias "$seg_dir" "$sub"
-      pexp="$HOOK_PERSISTED_ALIAS"
-      if [[ -n "$pexp" ]]; then
+      collect_locating_globals "${w[@]:gi:sub_idx-gi}"
+      persisted_alias_expansions "$seg_dir" "$sub" ${locating_globals[@]+"${locating_globals[@]}"}
+      for pexp in ${HOOK_PERSISTED_ALIAS_EXPS[@]+"${HOOK_PERSISTED_ALIAS_EXPS[@]}"}; do
+        [[ -n "$pexp" ]] || continue
         if [[ "$pexp" == '!'* ]]; then
           # Persisted shell alias: same fresh-process semantics as the inline
           # `!` branch — reparse under an emptied git-alias seen-set. Unlike
@@ -747,7 +775,7 @@ check_segment() {
           nextw=("${w[@]:0:sub_idx}" ${pexpw[@]+"${pexpw[@]}"} "${w[@]:sub_idx+1}")
           alias_reexpand_admit git "${nextw[@]}" && check_segment "${nextw[@]}"
         fi
-      fi
+      done
     fi
     HOOK_ALIAS_SEEN=(${saved_seen[@]+"${saved_seen[@]}"})
     HOOK_SHELL_ALIAS_SEEN=(${saved_shell_seen[@]+"${saved_shell_seen[@]}"})

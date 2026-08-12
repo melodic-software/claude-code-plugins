@@ -193,6 +193,8 @@ if [[ "$(cat "$REPO_DOT/dot.ts")" == "$BEFORE_DOT" ]]; then ok "hidden .biome.js
 REPO="$WORK/consumer"
 new_biome_repo "$REPO"
 printf 'const x = 1;\nexport { x };\n' >"$REPO/clean.ts"
+# Stabilize against Biome's canonical layout so a second hook pass is a true no-op.
+(cd "$REPO" && "$REAL_BIOME" check --write clean.ts) >/dev/null 2>&1 || true
 OUT=$(run_hook "$REPO/clean.ts")
 RC=$?
 if [[ $RC -eq 0 ]]; then ok "clean .ts -> exit 0"; else fail "clean .ts exit $RC"; fi
@@ -208,6 +210,11 @@ if grep -q 'export { a };' "$REPO/src/fmt.ts"; then
   ok "gate ON (subdir file) -> Biome reformatted the file"
 else
   fail "gate ON -> file not formatted: $(cat "$REPO/src/fmt.ts")"
+fi
+if printf '%s' "$OUT" | grep -q 'biome-format: auto-fixed and/or reformatted'; then
+  ok "format case -> user-channel mutation disclosure"
+else
+  fail "format case -> missing systemMessage disclosure: $OUT"
 fi
 
 # --- Case 4: gate ON + lint finding (unused var) -> advisory context ---------

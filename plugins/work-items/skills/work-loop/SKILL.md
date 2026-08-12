@@ -230,9 +230,9 @@ while the latch is set (clear it on a fresh healthy snapshot after the pause end
      composes") for the clean/dirty accounting below.
 5. **Escalate.** Anything the gate or execution rejects for human judgment follows the
    convention's escalation contract: the human-gated role label **resolved from
-   `config.role_labels`, never a literal**, plus a machine-marked escalation comment whose first
-   line is `<!-- work-items:escalation lane=work-loop kind=escalated|ratify-c3|routed-advisory -->`
-   — the marker,
+   `config.role_labels`, never a literal**, plus a machine-marked escalation comment per
+   [`${CLAUDE_PLUGIN_ROOT}/reference/escalation-marker.md`](${CLAUDE_PLUGIN_ROOT}/reference/escalation-marker.md)
+   (`lane=work-loop`, `kind=escalated|ratify-c3|routed-advisory`) — the marker,
    not a second label, is what discriminates a worker-escalated item from an operator-parked one.
    The same step performs the contract's escalation record write, **immediately before posting
    that comment**: create `.claude/lane-escalations/<UTC-stamp>-<item>-work-loop.json` (stamp
@@ -268,6 +268,7 @@ dispositions bind:
 
 | Class | Disposition |
 |---|---|
+| C1 read-only | Autonomous |
 | C2 mechanical | Autonomous |
 | C3 scoped, bug-fix-shaped | Autonomous — but see first-drain ratification below |
 | C3 scoped, feature-shaped | Human-gated (operator tightening — permitted without justification) |
@@ -432,10 +433,13 @@ open, and it is worked once the admission gate passes it and a cap slot is free.
 
 Lane-infrastructure items never gate the drain: the per-lane telemetry tracking issues — this
 lane's and any sibling lane's, identified as `/work-items:triage` ("Scope: raw intake only")
-defines them, by pinned config identity or sentinel comment and never by title alone — are
-excluded from the cycle-start snapshot, the intake sweep, the exit evaluation, and the
+defines them, by pinned config identity or sentinel comment and never by title alone — **and open
+`work-map` container items** (the tracker seam's `WIT_CONTAINER_LABEL`, default `work-map`: never
+claimable, never closed by this lane, openness means the map exists) — are excluded from the
+cycle-start snapshot, the intake sweep, the exit evaluation, and the
 post-snapshot intake report below. The loop never works, closes, or waits on them; an open
-telemetry issue is the lane operating, not backlog. The report is on that list for the same reason
+telemetry issue is the lane operating, not backlog, and an open container is lane infrastructure
+for the same reason — not unresolved backlog blocking drain exit. The report is on that list for the same reason
 as the snapshot: a telemetry issue is deliberately never among the retained ids, so a reading that
 did not re-apply this exclusion would diff it in as post-snapshot intake and misreport it as
 unworked on every single run.

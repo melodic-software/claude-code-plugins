@@ -29,11 +29,36 @@ so a completed scan exits 0 in either mode; `--count` prints the finding count. 
 exits 2 instead of reporting a clean bill** — a missing `jq`, or a scan root that resolves to neither a
 git toplevel nor `$CLAUDE_PROJECT_DIR`. There is no fallback to the current directory, because outside
 a repository that is usually the user profile and scanning it would walk the whole home tree and still
-exit 0.
+exit 0. To scan an explicit directory, set **`$PERMISSION_HYGIENE_SCAN_ROOT`** — a sanctioned
+operator lever and the documented remedy for that exit 2, not a test-only seam. Its predecessor
+`$PERMISSION_HYGIENE_FIXTURE_DIR` still resolves as a back-compatible alias; the new name wins when
+both are set. The old name is what made an operator check whether using it in production was allowed,
+which is the friction the rename removes.
+
 `settings.local.json` is parsed for its `permissions.allow` array only — never read or echoed wholesale
 (it may hold tokens).
 
 Findings are printed as `<severity> [<check>] <source>: <detail>`.
+
+## The denominator, and the limits of the exclusion set
+
+Every run ends with a **coverage block**: `allowed-tools` blocks parsed and candidate files walked,
+allow rules read per settings scope (with `absent` and `NOT VALID JSON` reported distinctly, because
+an unparsable rules file is skipped entirely and is the likeliest place for an unexamined grant),
+plugin manifests and plugin `settings.json` files parsed, paths the walk could not open, and files
+an exclusion rule removed. `No fragile permission grants found.` is printed only against a non-zero
+denominator; a run that parsed nothing prints `NOTHING TO AUDIT` and must not be relayed as clean.
+
+**The exclusion set is disclosed rather than extended by path segment, and here is why.** A
+blanket `vendor/` or `node_modules/` exclusion would make an `error`-tier check silently blind to
+live grants under nested `.claude/skills/` paths — which Claude Code loads the moment it touches a
+file in that subdirectory (<https://code.claude.com/docs/en/skills>, fetched 2026-08-12). The
+detector instead applies a **loadability model**: only frontmatter at documented discovery paths is
+audited — project or nested `.claude/skills/<name>/SKILL.md`, plugin `skills/<name>/SKILL.md`, and
+the parallel agents/commands paths. Everything else is excluded and counted. Filtering to *installed*
+plugin versions needs an `installed_plugins.json` oracle this detector does not consult (#2406).
+An exclusion whose count is printed cannot suppress anything silently, which is the property that
+matters.
 
 ---
 
@@ -62,16 +87,37 @@ via an interpreter (`Bash(bash <fixed-path>:*)`) is flagged as the same authorin
 where the doc's dropped-category wording does not clearly reach it; the fix (a bare PATH command) is
 the same. See convention anti-pattern 1.
 
-**Recommend**: expose the helper as a bare command on PATH and allow the bare name narrowly. An
-`Agent` rule has no bare-PATH analog — remove or re-scope it, or run outside auto mode.
+**Recommend**: where the convention's bare-name-on-PATH end state is reachable (see its **Known gap —
+step 1's plugin `bin/` delivery** section), expose the helper as a bare command on PATH and allow the
+bare name narrowly. On platforms where plugin `bin/` is not reliably on the Bash tool's PATH — the
+measured default on Windows/Git Bash today — keep the finding and prescribe the bundled-path
+invocation that works now (`Bash(${CLAUDE_PLUGIN_ROOT}/bin/<helper>:*)` or `${CLAUDE_SKILL_DIR}` for a
+skill's own script), plus an operator-setup note for the bare-name rule the operator can add when
+delivery is stable. An `Agent` rule has no bare-PATH analog — remove or re-scope it, or run outside
+auto mode.
 
 ## P2: Hardcoded absolute machine/user path [error]
 
 **What**: An entry containing a concrete user-home absolute path — `/c/Users/<name>/…` (POSIX-normalized
 Windows), `/home/<name>/…`, `/Users/<name>/…`, or `C:\Users\<name>\…`.
 
-**How to check**: run the detector. `${CLAUDE_PROJECT_DIR}/…`, `~/…`, and `//…` forms are not flagged
-(they expand or are portable anchors); only concrete usernames match.
+**How to check**: run the detector. `${CLAUDE_PROJECT_DIR}/…` and `~/…` forms are not flagged — those
+genuinely expand per machine and per user — while only concrete usernames match.
+
+**`//…` is flagged, and this line used to say the opposite.** It previously grouped `//…` with the two
+expanding forms as a "portable anchor". It is not one: `//` is the *absolute* anchor.
+<https://code.claude.com/docs/en/permissions>, § Read and Edit, fetched 2026-08-12, gives the pattern
+table row `` `//path` | Absolute path from filesystem root | `Read(//Users/<name>/secrets/**)` |
+`/Users/<name>/secrets/**` ``, and the same page states: *"A pattern like `/Users/<name>/file` isn't an
+absolute path. The single leading slash anchors at the settings source, not the filesystem root. **Use
+`//Users/<name>/file` for absolute paths.**"* So `//Users/<name>/…` resolves to a concrete user home and
+carries the username — it is the canonical *spelling* of the defect P2 exists to catch, not an
+exception to it. Contrast `~/…`, whose own doc row (`Read(~/Documents/*.pdf)` → `/Users/<name>/Documents/*.pdf`)
+shows the home segment being supplied per user, which is what makes it portable.
+
+Exempting `//` would have made this check blind to the documentation's own literal example of a
+hardcoded path, in the check graded `error`. The detector's behavior was right and this file was
+wrong; the file moved.
 
 **Why**: the rule names a concrete user home, so it breaks on any other machine or username — and after
 a skill migrates into a plugin, since the install path changes — and it leaks a username into version
@@ -108,6 +154,36 @@ anti-pattern 2.
 **Recommend**: replace with a portable form — `${CLAUDE_SKILL_DIR}` for a skill's own bundled script, a
 bare-name command on PATH, or for `Read`/`Edit` rules the `~/` home anchor.
 
+### P2b: Tilde-user path in a `Bash(...)` rule [error]
+
+**What**: A `Bash(...)` allow rule whose payload begins a path with `~username/` (not the portable
+`~/` home anchor). Bash rules match literally and do not expand tilde-user forms.
+
+**How to check**: run the detector. `Read(~/notes.md)` and other `~/` anchors are not flagged. A URL
+user-directory segment such as `Bash(curl https://example.com/~alice/index.html)` is not flagged —
+only a tilde-user path that begins a shell word inside the `Bash(...)` payload.
+
+**Why**: the rule names a specific account, leaks a username into version control, and breaks on other
+machines. The portable fixes are the same as P2 for Bash rules: `${CLAUDE_SKILL_DIR}`, a bare-name
+command on PATH, or for `Read`/`Edit` rules the `~/` home anchor.
+
+## P4: Inert substitution token in a `Bash(...)` rule [error]
+
+**What**: A `Bash(...)` allow rule containing `${CLAUDE_PLUGIN_ROOT}`, `%USERPROFILE%`, or
+`$env:USERPROFILE`. Only the two documented substitutions — `${CLAUDE_SKILL_DIR}` and
+`${CLAUDE_PROJECT_DIR}` — expand in allowed-tools Bash rules; these tokens stay literal and the grant
+never matches at runtime.
+
+**How to check**: run the detector. Each offending `Bash(...)` token is reported separately. Non-Bash
+rules containing similar spellings are out of scope for this check.
+
+**Why**: the grant looks configured but is a no-op, so operators believe a helper is pre-approved when
+it is not.
+
+**Recommend**: in skill `allowed-tools`, replace with `${CLAUDE_SKILL_DIR}` for a bundled script. In
+settings or other scopes, relocate the helper to a stable bare command on PATH and allow that name
+narrowly.
+
 ## P3: Plugin self-granted permissions [warning]
 
 **What**: A plugin `settings.json` (a `settings.json` beside a `.claude-plugin/plugin.json`) that
@@ -137,11 +213,23 @@ rule. When a request is about baseline security patterns, deprecated syntax, or 
 ## Permission Hygiene Report — {date}
 
 ### Summary
-- Grants scanned: frontmatter allowed-tools + project, local, and user-global permissions.allow
+- Scan root: {resolved root} (resolved from {rung})
+- Denominator: {N} allowed-tools block(s) from {M} candidate file(s); {R} allow rule(s) across
+  {S} settings scope(s) — {per-scope breakdown}; {P} plugin manifest(s)
+- Not read: {W} unopenable path(s); {J} settings file(s) not valid JSON; {X} file(s) excluded
+- Scopes out of this detector's reach: managed policy, enterprise, --settings file,
+  pre-v2.1.211 start-directory copy (see audit-permission-state)
+- Consumer declarations read: {file(s), and what each changed — or "none"}
 - error: X findings (P2)
 - warning: X findings (P1, P3)
+- exempted by consumer declaration: X (still listed below; never removed)
 
 ### Findings
-| # | Check | Severity | Source | Finding | Recommended |
-|---|-------|----------|--------|---------|-------------|
+| # | Check | Severity | Source | Finding | Recommended | Exempt? |
+|---|-------|----------|--------|---------|-------------|---------|
 ```
+
+The Summary's first four lines are the denominator, and they are not optional. Without them
+"0 findings" carries no information: it reads identically whether the run parsed forty grants and
+found them healthy or parsed none at all. A run whose denominator is zero reports `NOTHING TO AUDIT`
+and does not print a clean bill. An exemption fills the last column and never empties a row.

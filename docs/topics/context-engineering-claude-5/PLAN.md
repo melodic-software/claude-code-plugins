@@ -546,7 +546,7 @@ listing descriptions:
   under `plugins/`; every row names a skill directory that already exists; the
   `deferred-with-trigger` row names its trigger; no row reads "TBD".
 
-### Phase 6: Design the detectors and the sweep [TODO]
+### Phase 6: Design the detectors and the sweep [PARTIALLY SHIPPED — run contract + suppression landed in `audit-pass`; detector catalog still open]
 
 Review: architecture
 
@@ -710,7 +710,7 @@ Gated behind Phase 2 only if it turns out to need the same seam; otherwise file-
   appears in a written exception list with a reason; any fragment promoted to a shared cluster appears
   in `scripts/cross-plugin-source-registry.txt` and its drift check passes.
 
-### Phase 8: Implement the checks in their owning plugins [TODO]
+### Phase 8: Implement the checks in their owning plugins [PARTIALLY SHIPPED — `audit-pass` run contract shipped; per-check detectors still open]
 
 Review: architecture
 
@@ -741,7 +741,7 @@ so neither `claude-memory` nor `docs-hygiene` needs a `setup` skill on this work
   works when the sweep calls it violates "Every plugin remains useful alone", which the
   invocation-argument seam shape makes easy to breach silently.
 
-### Phase 9: Implement the sweep [TODO]
+### Phase 9: Implement the sweep [PARTIALLY SHIPPED — `audit-pass` skill + run contract shipped; cross-plugin sweep wiring still open]
 
 Review: architecture, security
 

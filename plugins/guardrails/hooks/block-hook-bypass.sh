@@ -78,6 +78,16 @@ hook::require_jq "PreToolUse" "guardrails-block-hook-bypass" "$INPUT"
 # session. The `// "Bash"` default moves to the bash-side expansion, matching
 # block-dangerous-git.
 hook::jq_fields "$INPUT" '.tool_input.command' '.tool_name' || exit 0
+
+# A NUL byte in ANY field read above is fail-CLOSED (#2136): the helper strips NUL
+# bytes before matching, so a clean verdict would not reflect the bytes carried.
+if ((HOOK_JQ_FIELDS_NUL)); then
+  echo "BLOCKED: the payload carries a NUL byte, which a command cannot reliably carry." >&2
+  echo "What a guard can read is not dependably what would run, so this is refused rather than matched." >&2
+  echo "Fix: reissue the tool call without the embedded NUL." >&2
+  exit 2
+fi
+
 COMMAND="${HOOK_JQ_FIELDS[0]}"
 [[ -n "$COMMAND" ]] || exit 0
 TOOL_NAME="${HOOK_JQ_FIELDS[1]:-Bash}"
@@ -163,6 +173,17 @@ _in_redirect_operand() {
   [[ "${tail: -1}" == ">" ]]
 }
 
+# True when a dropped quote span opens INSIDE a command word (`ec"xy"ho`), not as
+# a separate argument (`echo "a"`). Only the in-word case may splice falsely.
+_drop_span_in_cmd_word() {
+  local tail="$1"
+  [[ -z "$tail" ]] && return 1
+  local prev="${tail: -1}"
+  # portability-ok: bracket-pattern metachar literals, not grep word boundaries.
+  [[ "$prev" == [[:space:]] || "$prev" == [\;\|\&\(\)\<\>] ]] && return 1
+  return 0
+}
+
 # One character of KEPT operand content, into _KEEP_CHAR: itself, or the opaque
 # marker when its literal value would read as syntax downstream. Single-sourced
 # so the two kept-span emit sites cannot drift apart.
@@ -194,7 +215,7 @@ strip_literals() {
   # `op_cont` is set when a line ends with a backslash INSIDE a redirect operand:
   # bash removes the backslash-newline entirely, so the operand continues on the
   # next line with no separator and the joining newline must not be emitted.
-  local open_quote="" open_keep="" out i n c prev nxt op_cont
+  local open_quote="" open_keep="" drop_span_active=0 drop_span_nonempty=0 out i n c prev nxt op_cont
   # `(^|[^<])` before `<<` excludes a here-string `<<<` — matching `<<` inside
   # `<<<` would capture a bogus delimiter and strand the stripper in-heredoc,
   # swallowing every later line (a here-string bypass). The delimiter body
@@ -247,11 +268,18 @@ strip_literals() {
       c="${line:i:1}"
       if [[ "$open_quote" == "'" ]]; then
         if [[ "$c" == "'" ]]; then
+          if [[ -z "$open_keep" && $drop_span_active -eq 1 && $drop_span_nonempty -eq 1 ]]; then
+            out+="$_MARK_OPAQUE"
+          fi
           open_quote=""
           open_keep=""
+          drop_span_active=0
+          drop_span_nonempty=0
         elif [[ -n "$open_keep" ]]; then
           _keep_char "$c"
           out+="$_KEEP_CHAR"
+        elif ((drop_span_active)); then
+          drop_span_nonempty=1
         fi
         ((i += 1))
       elif [[ "$open_quote" == '"' ]]; then
@@ -261,15 +289,26 @@ strip_literals() {
           # bash RETAINS the backslash unless the escaped char is one of
           # `$` `` ` `` `"` `\` or a newline — so the pair is marked OPAQUE
           # rather than guessed at, and the operand loses its exemption.
-          [[ -n "$open_keep" ]] && out+="$_MARK_OPAQUE"
+          if [[ -n "$open_keep" ]]; then
+            out+="$_MARK_OPAQUE"
+          elif ((drop_span_active)); then
+            drop_span_nonempty=1
+          fi
           ((i += 2))
         else
           if [[ "$c" == '"' ]]; then
+            if [[ -z "$open_keep" && $drop_span_active -eq 1 && $drop_span_nonempty -eq 1 ]]; then
+              out+="$_MARK_OPAQUE"
+            fi
             open_quote=""
             open_keep=""
+            drop_span_active=0
+            drop_span_nonempty=0
           elif [[ -n "$open_keep" ]]; then
             _keep_char "$c"
             out+="$_KEEP_CHAR"
+          elif ((drop_span_active)); then
+            drop_span_nonempty=1
           fi
           ((i += 1))
         fi
@@ -290,8 +329,17 @@ strip_literals() {
           if _in_redirect_operand "$out"; then
             open_keep=1
             out+="$_MARK_QUOTE"
+            drop_span_active=0
+            drop_span_nonempty=0
           else
             open_keep=""
+            if _drop_span_in_cmd_word "$out"; then
+              drop_span_active=1
+              drop_span_nonempty=0
+            else
+              drop_span_active=0
+              drop_span_nonempty=0
+            fi
           fi
           ((i += 1))
           ;;
@@ -355,12 +403,26 @@ strip_literals() {
         esac
       fi
     done
-    # A newline INSIDE a kept operand is literal content, not a separator — a
-    # quoted target may span physical lines, and a backslash-newline inside one
-    # is removed by bash outright. Either way the operand must stay one token.
+    # A newline reached with a quote span still OPEN is not a separator: bash is
+    # inside a quoted word, so the text before the opening quote and the text
+    # after the closing quote are ONE word. Emitting the newline handed
+    # normalize_segments a boundary bash does not have, which split a producer
+    # from its own redirect (`printf 'a<newline>b' > notes.md` was allowed while
+    # the `\n`-escaped spelling blocked) and could split a command word in half.
+    #
+    # A kept operand additionally marks the join OPAQUE — its content is literal
+    # and the pathname must stop being recoverable. A DROPPED span joins with
+    # NOTHING when its content was empty (`ec""ho` → `echo`); a non-empty dropped
+    # span inside a command word marks OPAQUE on close so splicing cannot
+    # manufacture `echo` from `ec"xy"ho` (`ec\x03ho` stays distinct from `echo`).
+    # A space join would still splice `ec"<newline>"ho x > f` into `ec ho`, which
+    # bash does not run as `echo`; only an empty dropped span may join without a
+    # mark.
+    # A backslash-newline inside an operand is removed by bash outright and joins
+    # the same way.
     if [[ -n "$open_quote" && -n "$open_keep" ]]; then
       result+="${out}${_MARK_OPAQUE}"
-    elif ((op_cont)); then
+    elif [[ -n "$open_quote" ]] || ((op_cont)); then
       result+="$out"
     else
       result+="${out}"$'\n'
@@ -892,16 +954,25 @@ producer_redirect_bypass() {
 # ordinary data-processing redirects (`sort f > out`, `curl … > page.html`) and
 # other unmodeled Bash write utilities (POSIX `tee`, inline `node -e`, …) are
 # allowed by design too, not only writes inside an invoked script.
+# These notes state the ENFORCED surface to the operator, so they are part of the
+# detector's contract, not commentary: understating it invites the "guard says it
+# cannot see this" contortion the paragraph above describes, and overstating it is
+# the false-assurance failure. #2217 widened the python lane from the literal
+# `python3 -c` to the interpreter family plus a stdin heredoc, and left both notes
+# saying `inline python3 -c only` — materially wrong about a safety guard's own
+# reach. Restated at the shipped width, with the residuals named at theirs.
 _BYPASS_SCOPE_NOTE_BASH="Scope: only this command string is inspected — known shell \
-file-write forms plus inline python3 -c only. POSIX tee pipe writes, other \
-inline-interpreter writes (e.g. node -e, sed -i), writes inside an invoked \
-script file or a program's own opaque code, and redirects produced by another \
-program, are not seen."
+file-write forms plus inline python code (python/python3/py/pypy with -c, or a \
+program read from stdin as python3 - <<PY) only. POSIX tee pipe writes, other \
+inline-interpreter writes (e.g. node -e, sed -i), a stdin heredoc with no - \
+argument (python3 <<PY), writes inside an invoked script file or a program's own \
+opaque code, and redirects produced by another program, are not seen."
 _BYPASS_SCOPE_NOTE_PWSH="Scope: only this command string is inspected — known PowerShell \
 file-write cmdlets and content-producer redirects (including Tee-Object and the \
-tee alias) plus inline python3 -c only. Other inline-interpreter writes (e.g. \
-node -e), writes inside an invoked script file or a program's own opaque code, \
-and redirects produced by another program, are not seen."
+tee alias) plus inline python code (python/python3/py/pypy with -c) only. Other \
+inline-interpreter writes (e.g. node -e), writes inside an invoked script file or \
+a program's own opaque code, and redirects produced by another program, are not \
+seen."
 
 block_bypass() {
   local form="$1" reason="$2"
@@ -943,7 +1014,7 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   # mangle-resistant CO-OCCURRENCE of
   #   (a) a write INDICATOR in the raw command (_py_write — the tokens live in the
   #       quoted `-c` payload, so the scan is raw, exactly as the Bash lane), AND
-  #   (b) a python3 interpreter TOKEN plus a `-c` inline-code flag both present
+  #   (b) a python interpreter TOKEN plus a `-c` inline-code flag both present
   #       (ps::might_write_via_python3, quote-INTACT + backtick-recovered) — where a
   #       COMPUTED `-c` (`python3 ('-'+'c') …`) is caught by fail-closing on a
   #       non-tokenizable arg construct when no literal `-c` is present.
@@ -953,11 +1024,17 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   # fail-closed choice the user approved for this lane): a command that only MENTIONS
   # `python3 … -c` + a write indicator in prose, a line/block comment, or a quoted
   # string now blocks; here-string mentions stay inert (blanked first, like the git
-  # lane). ACCEPTED RESIDUAL: a stdin heredoc (`python3 - <<PY … PY`, no `-c`) is
-  # uncovered here, as it is today.
+  # lane).
+  #
+  # The interpreter TOKEN was the literal `python3` in both lanes, so `python -c`,
+  # `py -c`, `py3 -c`, `python2 -c` and `python3.11 -c` were the same write going
+  # unseen; both are the python family now (#2217). The stdin heredoc that this
+  # comment previously recorded as an ACCEPTED RESIDUAL is a Bash-tool construct
+  # and is covered in the Bash lane as of #2217 — see the reopening note there.
+  # It stays out of scope here because PowerShell has no heredoc.
   ps::blank_herestrings "$COMMAND"
   if py_write_indicator "$COMMAND_LC" && ps::might_write_via_python3 "$PS_BLANKED"; then
-    block_bypass "python-write" "python3 -c inline-code file write bypasses Write/Edit hooks"
+    block_bypass "python-write" "python inline-code file write bypasses Write/Edit hooks"
   fi
   emit_tel "ok" ""
   exit 0
@@ -992,17 +1069,51 @@ fi
 # interpreter has its own spelling and write surface. Covered by accepted-floor
 # tests.
 #
-# python3 -c with file-write indicators. Detect the `python3 -c` INVOCATION in
-# the literal-stripped form (EXEC_LC) so prose/commit text merely mentioning it
-# is not a false positive; scan the RAW command (COMMAND_LC) for the write
-# indicators — they legitimately live inside the quoted `-c` payload the strip removes.
-# The command-word boundary admits a leading path (`/` `\` in the class) and an
-# optional `.exe`, so a path-qualified interpreter (`/usr/bin/python3 -c`,
-# `/c/Python313/python3.exe -c`) is the same write — anchored on the python3
-# basename, so `notpython3` (no separator before it) stays inert.
-if [[ "$EXEC_LC" =~ (^|[[:space:];|&()/\\]+)python3(\.exe)?[[:space:]]+-c ]] &&
+# Inline python code with file-write indicators. Detect the INVOCATION in the
+# literal-stripped form (EXEC_LC) so prose/commit text merely mentioning it is
+# not a false positive; scan the RAW command (COMMAND_LC) for the write
+# indicators — they legitimately live inside the quoted `-c` payload, or the
+# heredoc body, that the strip removes.
+#
+# COMMAND-WORD SHAPE. The boundary admits a leading path (`/` `\` in the class)
+# and an optional `.exe`, so a path-qualified interpreter (`/usr/bin/python3`,
+# `/c/Python313/python3.exe`) is the same write. The basename was the LITERAL
+# `python3`, which made the detector a spelling floor rather than a rule:
+# `python -c`, `py -c`, `py3 -c`, `python2 -c` and `python3.11 -c` all ran the
+# same inline write and none matched (#2217). The name is now the python family
+# — `py`/`python`/`pypy` plus an optional version suffix (`3`, `2`, `3.11`) —
+# still anchored on a separator, so `notpython3`, `mypy`, `spy`, `happy` and
+# `pytest` stay inert. `py -3 -c` (the Windows launcher's version selector) is
+# admitted because a `-<digits>` token cannot be a script path; no other gap
+# between the interpreter and its flag is allowed, so a script/module run
+# (`python3 build.py`, `python3 -m tool …`) that merely touches an `open(`-like
+# path is still NOT blocked.
+_py_inline_c='(^|[[:space:];|&()/\]+)(pypy|python|py)[0-9]*(\.[0-9]+)*(\.exe)?([[:space:]]+-[0-9]+(\.[0-9]+)?)?[[:space:]]+-c'
+# REOPENED ACCEPTED RESIDUAL (#2217 / AD-12). A stdin heredoc — `python3 - <<PY
+# … PY`, no `-c` — was documented as uncovered and accepted. It is covered now,
+# on new reachability evidence: this repo's own session record shows an agent
+# reaching for exactly that form to patch a file
+# (`.work/handoffs/20260809T082720Z-handoff-post-2008-followups.md:211`,
+# `python - <<'PY'`), and widening the `-c` arm above raises the pressure toward
+# it, since a refused `python -c` write reroutes most naturally to the heredoc.
+#
+# The `-` (read the program from stdin) is what makes this an INLINE write: the
+# code is in the command string, not in an opaque script file. strip_literals
+# drops the heredoc operator and its body, so EXEC_LC keeps `python3 -` and the
+# body's write indicators are still visible in COMMAND_LC.
+#
+# NARROWED RESIDUAL, restated at its real width: `python3 <<PY … PY` (stdin with
+# NO `-` argument) stays uncovered. Matching a bare trailing interpreter token
+# would flip `echo "pathlib" | python3` and `cat s.py | python3` to blocked —
+# verified rc=0 both before and after — so the exemption those keep costs this
+# one spelling. Same discipline as the `-c` arm above: no gap is allowed between
+# the interpreter and the `-`, so an interpreter option in between
+# (`python3 -O - <<PY`) is uncovered too. Widening to admit an arbitrary
+# option-shaped token is what would let a SCRIPT path through as one.
+_py_stdin_code='(^|[[:space:];|&()/\]+)(pypy|python|py)[0-9]*(\.[0-9]+)*(\.exe)?[[:space:]]+-([[:space:]]|$)'
+if [[ "$EXEC_LC" =~ $_py_inline_c || "$EXEC_LC" =~ $_py_stdin_code ]] &&
   py_write_indicator "$COMMAND_LC"; then
-  block_bypass "python-write" "python3 -c file write bypasses Write/Edit hooks"
+  block_bypass "python-write" "python inline-code file write bypasses Write/Edit hooks"
 fi
 
 emit_tel "ok" ""

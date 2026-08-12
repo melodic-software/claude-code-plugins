@@ -19,8 +19,24 @@ held.
 - The report goes under `${CLAUDE_PLUGIN_DATA}` at `runs/<state-key>/<run-id>/findings.json`, which
   survives plugin updates. **State its location precisely, because a whole target class turns on it:**
   that directory resolves to `~/.claude/plugins/data/{id}/`
-  ([plugins reference](https://code.claude.com/docs/en/plugins-reference), verified 2026-08-11), and no
-  documented setting relocates it. It is therefore **outside** a target below `~` and **inside** any
+  ([plugins reference](https://code.claude.com/docs/en/plugins-reference), verified 2026-08-12), and no
+  documented setting relocates it.
+
+  **`{id}` is derived, and deriving it wrong loses the report.** Same page, verbatim: `{id}` is *"the
+  plugin identifier with characters outside `a-z`, `A-Z`, `0-9`, `_`, and `-` replaced by `-`"*, with
+  the worked example that a plugin installed as `formatter@my-marketplace` lands in
+  `~/.claude/plugins/data/formatter-my-marketplace/` — the `@` becomes `-`. A wrong derivation writes
+  the report where the next run will not look for it, which is also how `--resume` loses a partial.
+
+  **`${CLAUDE_PLUGIN_DATA}` is not in the Bash tool's environment — do not try to expand it from a
+  shell.** The same page scopes the export precisely: *"All three are exported as environment variables
+  to hook processes and to MCP and LSP server subprocesses."* The Bash tool is none of those. The token
+  does substitute in **skill content**, which is how a resolved path reaches you in this file, but
+  `echo "$CLAUDE_PLUGIN_DATA"` inside a Bash call yields an empty string. Use the path already
+  substituted into the text you are reading, or rebuild it from `~/.claude/plugins/data/` plus the
+  mangled identifier above.
+
+  It is therefore **outside** a target below `~` and **inside** any
   target at or above it. The default path is *usually* outside the scan set and is **not
   unconditionally** outside it — a dotfiles repository, or `~` itself, is a target where containment
   holds by construction, and the older unconditional claim was false there.
@@ -69,6 +85,25 @@ Two artifacts, because incremental persistence and a sectioned report want diffe
 completes. Append-only is what makes §5 real: a single JSON document would be rewritten whole on
 every append, which is exactly the operation an interrupted run leaves half-done. A lane's final
 record is its terminating record.
+
+**The append is `scripts/run-state.sh partial append`, not a hand-rolled redirection**, and its full
+form carries the writer's epoch:
+
+```
+run-state.sh partial append --run-dir <run-dir> --record '<json-line>' --epoch <held>
+```
+
+**`--epoch` is not optional in practice.** The file is named for the epoch **the writer holds**, never
+whatever the lease currently carries: omit it after an adoption and the fallback selects the
+*adopter's* epoch, putting a superseded writer's rows into the adopter's file — exactly the
+cross-writer interleaving §3's fencing exists to prevent. Where the two differ the command writes to
+the writer's own file, says `FENCED`, and **exits 3**: the record is safe, and the run that wrote it
+is superseded and must stop. A lease must exist either way, so the partial cannot outlive the thing
+that classifies it, and a record that is not a well-formed single-line JSON object is refused.
+
+§5 also states which clauses of the run-state contract that script enforces and which remain the run's
+own discipline; **assembly is among the latter**, so the selection rules below are performed by the
+run, not by an executable.
 
 **Completion is read from the terminator's state, not from its presence.** A terminator lets
 assembly render the lane; whether the lane is *done* is a separate question, and conflating them
@@ -120,4 +155,9 @@ the run and target identity, the resolved version of every catalog consulted, an
 | `verification` | per-lane verification mode (`verified` \| `inline` \| `skipped`) for lanes that mandate independent subagent dispatch; omitted only when every such lane verified |
 
 **Resume reads the partial, not the report**, so completion state is derivable from the artifact
-rather than tracked beside it and able to disagree with it.
+rather than tracked beside it and able to disagree with it. §5 makes the same point from the other
+side: the run manifest is these lane records, not a second file — a manifest beside the partial is
+precisely the thing that could disagree with it. And the instruction the report gives the operator —
+come back with `--resume` — is only true because the partial is written by a script as each lane
+terminates, Phase 4's `open` handoff included. Stated as a contract against an artifact nothing
+wrote, it was a false instruction in the one artifact the operator acts on.

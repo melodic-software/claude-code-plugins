@@ -92,6 +92,9 @@ Configure them through the `/plugin` dialog, or headless at install time with
 non-home `report_library_dir` may be rejected by the hardcoded-path guardrails until
 the #798 path-indirection work lands.
 
+Run `/education:setup` to validate the effective `quiz_policy` and report-library root
+without reading settings files.
+
 <!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference

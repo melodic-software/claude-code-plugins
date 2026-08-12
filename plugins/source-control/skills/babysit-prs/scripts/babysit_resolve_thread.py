@@ -49,9 +49,11 @@ Deterministic guards encoded here:
   is likewise refused in `--autonomous` mode -- there is no unpinned autonomous
   resolve.
 - `--autonomous` additionally refuses any thread whose fetched comments carry
-  a forbidden-class severity marker: any word-bounded P0/P1 token in any case
-  (shields badge, bracketed marker, or bare prose form such as "P1: ..." /
-  "p1 must fix"), the word CRITICAL, or the word "security" in any case.
+  a forbidden-class severity marker: a structured P0/P1 marker (shields badge
+  `/badge/P0-` or `/badge/P1-`, or bracketed `[P0]` / `[P1]`), the word CRITICAL,
+  or the word "security" in any case. Prose that merely *mentions* P0/P1 does not
+  count — the morning-brief sweep adopted the same structured-marker rule after
+  misclassifying P2 threads whose bodies discussed P1 properties (#1939).
   The permission grants that cover this helper state "never a security or P1
   thread" as an absolute condition; this guard is the code behind that
   sentence for the unattended path, and it is deliberately narrower than the
@@ -61,6 +63,12 @@ Deterministic guards encoded here:
   thread whose comment page is truncated cannot prove the absence of a marker
   and is refused the same way. Interactive modes are unaffected -- severity
   judgment there stays with the evaluating agent.
+- `--autonomous` and `--independent-resolver` refuse when the PR author is a
+  configured self login (`--self-logins`, including `@me`). Resolving threads on
+  the caller's own PR is the same actor signing its own permission slip the
+  unattended guards exist to prevent; there is no autonomous override (mirroring
+  the merge gate's human-only `--allow-unprotected` pattern). Interactive modes
+  are unaffected.
 - `--independent-resolver` is a THIRD mode, parallel to `--autonomous` and not a
   relaxation of it. `--autonomous`'s `isOutdated` requirement is right about the
   merging worker, but `isOutdated` means "the referenced code moved" -- on a prose
@@ -163,8 +171,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any, cast
 
 from babysit_classify import (
@@ -177,12 +188,38 @@ from babysit_classify import (
 from babysit_gh import (
     GITHUB_OWNER_RE,
     GITHUB_REPOSITORY_RE,
+    fetch_pull_request_author,
     fetch_review_threads,
     gh_capture,
     parse_repo_number,
     resolve_authors,
 )
 from babysit_util import configure_stdio, dig, is_json_object
+
+
+def resolve_thread_audit_log_path() -> Path:
+    """Append-only audit trail for guarded wrapper resolutions (#2139)."""
+    override = os.environ.get("SOURCE_CONTROL_RESOLVE_THREAD_AUDIT_LOG")
+    if override:
+        return Path(override).expanduser()
+    plugin_data = os.environ.get("CLAUDE_PLUGIN_DATA")
+    if plugin_data:
+        return Path(plugin_data) / "source-control" / "resolve-thread-audit.jsonl"
+    home = os.environ.get("HOME")
+    if home:
+        return Path(home) / ".claude" / "source-control" / "resolve-thread-audit.jsonl"
+    return Path("/tmp/resolve-thread-audit.jsonl")
+
+
+def append_resolve_thread_audit(record: dict[str, object]) -> None:
+    path = resolve_thread_audit_log_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    stamped = {
+        "recorded_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+        **record,
+    }
+    with path.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(stamped, separators=(",", ":"), sort_keys=True) + "\n")
 
 
 # Deterministic proxies for "a security or P1 thread" — deliberately NARROWER
@@ -195,25 +232,29 @@ from babysit_util import configure_stdio, dig, is_json_object
 # avoid false READINESS counts, but the grant names it); uppercase CRITICAL is
 # the word-form of the same forbidden class. A false positive only routes the
 # thread to interactive judgment.
-# One word-bounded token covers every supported P0/P1 spelling at once --
-# shields badge (/badge/P1-), bracketed marker ([P1]), the bare prose forms
-# bots also emit ("P1: blocking regression", "P1 must fix"), and lowercase
-# variants such as "p1:" or a priority:p1 label fragment -- while the boundary
-# keeps P2/P3 markers and embedded strings like AP1000 out. A thread that
-# merely MENTIONS a p1 token (prose, or a code identifier in a snippet) does
-# flag; that false positive only routes the thread to interactive judgment,
-# which is the safe direction for a resolve guard.
-SEVERITY_BLOCK_P01_RE = re.compile(r"\bP[01]\b", re.IGNORECASE)
+# Structured P0/P1 markers only — shields badge (/badge/P0- or /badge/P1-) or
+# bracketed [P0]/[P1] — not bare prose mentions such as "P1/P4 defect" in a P2
+# thread's body (#1939). Line-leading `P1:` / `P0:` declarations and explicit
+# `P1 must fix` forms remain blocking — bots emit them as severity labels.
+# Vetted `--resolve --thread-id` mode applies no severity screen; it trusts the
+# calling agent's vetting. That asymmetry is intentional.
+FORBIDDEN_P01_BADGE_RE = re.compile(r"/badge/P[01]-", re.IGNORECASE)
+FORBIDDEN_P01_BRACKET_RE = re.compile(r"\[P[01]\]", re.IGNORECASE)
+FORBIDDEN_P01_PREFIX_RE = re.compile(r"(?:^|[\s\n])P[01]\s*:", re.IGNORECASE)
+FORBIDDEN_P01_MUST_FIX_RE = re.compile(r"\bP[01]\s+must\s+fix\b", re.IGNORECASE)
 SEVERITY_BLOCK_WORD_RE = re.compile(r"\bCRITICAL\b")
 SECURITY_TEXT_RE = re.compile(r"security", re.IGNORECASE)
 
 
 def _has_severity_marker(body: str) -> bool:
-    """True for the forbidden class only: any word-bounded P0/P1 token
-    (badge, bracket, or bare prose form), the word CRITICAL, or the word
+    """True for the forbidden class only: structured P0/P1 markers (badge,
+    bracket, or declaration prefix), the word CRITICAL, or the word
     "security"."""
     return (
-        bool(SEVERITY_BLOCK_P01_RE.search(body))
+        bool(FORBIDDEN_P01_BADGE_RE.search(body))
+        or bool(FORBIDDEN_P01_BRACKET_RE.search(body))
+        or bool(FORBIDDEN_P01_PREFIX_RE.search(body))
+        or bool(FORBIDDEN_P01_MUST_FIX_RE.search(body))
         or bool(SEVERITY_BLOCK_WORD_RE.search(body))
         or bool(SECURITY_TEXT_RE.search(body))
     )
@@ -1106,6 +1147,33 @@ def main() -> int:
             if token.strip().casefold() != "@me"
         )
 
+    if args.autonomous or args.independent_resolver:
+        try:
+            pr_author = fetch_pull_request_author(repo, number)
+        except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
+            print(json.dumps({"pr": args.pr, "error": f"{type(exc).__name__}: {exc}"}))
+            return 2
+        if is_self_login(pr_author, self_logins):
+            print(
+                json.dumps(
+                    {
+                        "pr": args.pr,
+                        "prAuthor": pr_author,
+                        "skippedOwnPr": True,
+                        "eligibleCount": 0,
+                        "humanThreadsActed": 0,
+                        "threads": [],
+                        "error": (
+                            "refused: PR author is a configured self login; "
+                            "--autonomous and --independent-resolver do not "
+                            "resolve threads on own PRs"
+                        ),
+                    },
+                    indent=2,
+                )
+            )
+            return 2 if args.resolve else 0
+
     try:
         threads = fetch_threads(
             repo, number, extra_bot_logins=extra_bot_logins, self_logins=self_logins
@@ -1187,6 +1255,27 @@ def main() -> int:
             entry["action"] = "resolved" if ok else "resolve-failed"
             if err:
                 entry["error"] = err
+            if ok:
+                append_resolve_thread_audit(
+                    {
+                        "route": "source-control-babysit-resolve-thread",
+                        "pr": f"{repo}#{number}",
+                        "thread_id": thread["id"],
+                        "path": thread.get("path"),
+                        "mode": (
+                            "autonomous"
+                            if args.autonomous
+                            else "independent-resolver"
+                            if args.independent_resolver
+                            else "explicit"
+                        ),
+                        "disposition": args.disposition,
+                        "expected_comment_count": args.expected_comment_count,
+                        "expected_last_updated": args.expected_last_updated,
+                        "is_outdated": thread.get("isOutdated"),
+                        "severity_flagged": thread.get("severityFlagged"),
+                    }
+                )
         results.append(entry)
 
     resolved_count = len([r for r in results if r["action"] == "resolved"])

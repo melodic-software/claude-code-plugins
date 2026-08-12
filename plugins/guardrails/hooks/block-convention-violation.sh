@@ -75,6 +75,16 @@ hook::require_jq "PreToolUse" "guardrails-block-convention-violation" "$INPUT"
 # visible once per session. The `// "Bash"` default moves to the bash-side
 # expansion, matching block-dangerous-git.
 hook::jq_fields "$INPUT" '.tool_input.command' '.tool_name' '.cwd' || exit 0
+
+# A NUL byte in ANY field read above is fail-CLOSED (#2136): the helper strips NUL
+# bytes before matching, so a clean verdict would not reflect the bytes carried.
+if ((HOOK_JQ_FIELDS_NUL)); then
+  echo "BLOCKED: the payload carries a NUL byte, which a command cannot reliably carry." >&2
+  echo "What a guard can read is not dependably what would run, so this is refused rather than matched." >&2
+  echo "Fix: reissue the tool call without the embedded NUL." >&2
+  exit 2
+fi
+
 COMMAND="${HOOK_JQ_FIELDS[0]}"
 [[ -n "$COMMAND" ]] || exit 0
 TOOL_NAME="${HOOK_JQ_FIELDS[1]:-Bash}"
@@ -367,7 +377,7 @@ check_segment() {
           hook::env_s_split "$exp"
           expw=(${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"})
           HOOK_NO_ALIAS=1
-          check_segment "${w[@]:0:gi+1}" ${expw[@]+"${expw[@]}"} "${w[@]:sub_idx+1}"
+          check_segment "${w[@]:0:sub_idx}" ${expw[@]+"${expw[@]}"} "${w[@]:sub_idx+1}"
           HOOK_NO_ALIAS=0
         fi
       done
@@ -390,7 +400,7 @@ check_segment() {
           hook::env_s_split "$pexp"
           pexpw=(${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"})
           HOOK_NO_ALIAS=1
-          check_segment "${w[@]:0:gi+1}" ${pexpw[@]+"${pexpw[@]}"} "${w[@]:sub_idx+1}"
+          check_segment "${w[@]:0:sub_idx}" ${pexpw[@]+"${pexpw[@]}"} "${w[@]:sub_idx+1}"
           HOOK_NO_ALIAS=0
         fi
       fi

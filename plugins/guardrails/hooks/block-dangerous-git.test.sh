@@ -177,6 +177,12 @@ run_split "$REPO_SHA1" "$REPO_SHA256" "payload cwd is the SHA-1 repo, 64-hex exp
 # the same misprobe one recursion level down.
 run_split "$REPO_SHA1" "$REPO_SHA1" "git -C <sha256-repo> -c alias.y='!git push --force-with-lease=main:<40-hex>' y (the body runs in the SHA-256 repo, blocked)" "git -C $REPO_SHA256 -c alias.y='!git push --force-with-lease=main:$SHA1_OID origin main' y" 2
 run_split "$REPO_SHA256" "$REPO_SHA256" "git -C <sha1-repo> -c alias.y='!git push --force-with-lease=main:<40-hex>' y (the body runs in the SHA-1 repo, allowed)" "git -C $REPO_SHA1 -c alias.y='!git push --force-with-lease=main:$SHA1_OID origin main' y" 0
+# #2151: an explicit --git-dir/--work-tree is inherited by a `!` body via GIT_DIR,
+# not relocated like -C. Without replaying those globals into the reparse, a
+# 40-hex lease is judged against the payload cwd while git pushes from the
+# inherited repository.
+run_split "$REPO_SHA1" "$REPO_SHA1" "git --git-dir=<sha256>/.git --work-tree=<sha256> -c alias.y='!git push --force-with-lease=main:<40-hex>' y (inherited GIT_DIR, blocked)" "git --git-dir=$REPO_SHA256/.git --work-tree=$REPO_SHA256 -c alias.y='!git push --force-with-lease=main:$SHA1_OID origin main' y" 2
+run_split "$REPO_SHA256" "$REPO_SHA1" "git --git-dir=<sha1>/.git --work-tree=<sha1> -c alias.y='!git push --force-with-lease=main:<40-hex>' y (40-hex is object id in inherited repo, allowed)" "git --git-dir=$REPO_SHA1/.git --work-tree=$REPO_SHA1 -c alias.y='!git push --force-with-lease=main:$SHA1_OID origin main' y" 0
 # The re-expansion MEMO must key on the effective base. A verdict is now a function
 # of the base, so one alias STRING reached under two bases is two analyses — and a
 # key blind to the base skips the second. Ordered sha1-then-sha256 deliberately:
@@ -316,6 +322,7 @@ run "git push pinned lease + --no-force-if-includes (stated expectation stands w
 # git's apply_cas() returns on the FIRST lease entry matching the ref being
 # updated, so a repeated ref is decided by the earlier spelling alone.
 run "git push same ref pinned first, movable second (git uses the first, allowed)" "git push --force-with-lease=main:$SHA1_OID --force-with-lease=main:origin/main origin main" 0
+run "git push pinned main:<sha> then equivalent refs/heads/main spelling (allowed)" "git push --force-with-lease=main:$SHA1_OID --force-with-lease=refs/heads/main:origin/main origin main" 0
 run "git push same ref movable first, pinned second (git uses the first, blocked)" "git push --force-with-lease=main:origin/main --force-with-lease=main:$SHA1_OID origin main" 2
 run "git push same ref no-expect first, pinned second (first is tracking-based, blocked)" "git push --force-with-lease=main --force-with-lease=main:$SHA1_OID origin main" 2
 run "git push same ref no-expect first, pinned second, mitigated (allowed)" "git push --force-with-lease=main --force-with-lease=main:$SHA1_OID --force-if-includes origin main" 0
@@ -840,6 +847,10 @@ run_pwsh "PS: call-op, single-quoted literal git (blocked by name)" \
   "& 'git' reset --hard" 2
 run_pwsh "PS: call-op, quoted literal path whose basename is git (blocked by name)" \
   '& "C:\Git\cmd\git.exe" reset --hard' 2
+
+malformed_rc=0
+(cd "$REPO_SHA1" && bash "$HOOK" <<< 'not json at all' >/dev/null 2>&1) || malformed_rc=$?
+assert_exit "malformed JSON payload (blocked)" 2 "$malformed_rc"
 
 # --- A NUL in the payload must not void the guard (#2122) --------------------
 # hook::jq_fields separates its fields with a NUL. A JSON NUL escape inside the

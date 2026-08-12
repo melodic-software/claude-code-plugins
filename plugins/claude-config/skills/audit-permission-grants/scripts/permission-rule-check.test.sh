@@ -54,9 +54,12 @@ fi
 # and its rules would pollute every case's finding count.
 ISOLATED_HOME="$TEST_TMPDIR/empty-home"
 mkdir -p "$ISOLATED_HOME"
-run() { env -u CLAUDE_CONFIG_DIR HOME="$ISOLATED_HOME" PERMISSION_HYGIENE_FIXTURE_DIR="$1" bash "$SCRIPT" "${2:-}"; }
-run_with_home() { env -u CLAUDE_CONFIG_DIR HOME="$2" PERMISSION_HYGIENE_FIXTURE_DIR="$1" bash "$SCRIPT" "${3:-}"; }
-run_with_config_dir() { env CLAUDE_CONFIG_DIR="$2" HOME="$3" PERMISSION_HYGIENE_FIXTURE_DIR="$1" bash "$SCRIPT" "${4:-}"; }
+# PERMISSION_HYGIENE_SCAN_ROOT is unset in every helper: it outranks the alias
+# these cases pass, so an outer session exporting it would silently redirect the
+# whole suite at another tree.
+run() { env -u CLAUDE_CONFIG_DIR -u PERMISSION_HYGIENE_SCAN_ROOT HOME="$ISOLATED_HOME" PERMISSION_HYGIENE_FIXTURE_DIR="$1" bash "$SCRIPT" "${2:-}"; }
+run_with_home() { env -u CLAUDE_CONFIG_DIR -u PERMISSION_HYGIENE_SCAN_ROOT HOME="$2" PERMISSION_HYGIENE_FIXTURE_DIR="$1" bash "$SCRIPT" "${3:-}"; }
+run_with_config_dir() { env -u PERMISSION_HYGIENE_SCAN_ROOT CLAUDE_CONFIG_DIR="$2" HOME="$3" PERMISSION_HYGIENE_FIXTURE_DIR="$1" bash "$SCRIPT" "${4:-}"; }
 
 # Runtime-assembled machine paths (no contiguous path literal in source).
 SL='/'
@@ -66,6 +69,13 @@ POSIX_MP="${SL}c${SL}Users${SL}alice${SL}.agents${SL}skills${SL}merge${SL}x.sh"
 WIN_MP="C:${BS}Users${BS}bob${BS}x.sh"
 READ_MP="${SL}c${SL}Users${SL}carol${SL}notes.md"
 EDIT_MP="${SL}Users${SL}dave${SL}src${SL}**"
+# #2282 rows: `//` absolute anchor, tool-reach, and prefix-laundering fixtures.
+ABS_MP="${SL}${SL}Users${SL}erin${SL}secrets${SL}**"
+LAUNDER_MP="${SL}${SL}opt${SL}data${SL}..${SL}Users${SL}frank${SL}secrets"
+WF_MP="${SL}Users${SL}grace${SL}x"
+GLOB_MP="${SL}home${SL}heidi${SL}**"
+NB_MP="${SL}Users${SL}ivan${SL}nb.ipynb"
+MCP_MP="${SL}Users${SL}judy${SL}x"
 
 # --- Case 1: --help ----------------------------------------------------------
 rc=0
@@ -220,14 +230,11 @@ assert_contains "flags bare Bash in skill frontmatter" "$OUT" "skills/bare/SKILL
 assert_contains "flags Agent rule in skill frontmatter" "$OUT" "skills/agent/SKILL.md allowed-tools: Agent allow rules are dropped"
 assert_not_contains "does NOT flag narrow git/npm skill" "$OUT" "skills/good/SKILL.md"
 
-# --- Case 6b: vendored (non-loadable) SKILL.md excluded ----------------------
-# A SKILL.md under a vendor/ path segment is a vendored upstream reference, not
-# a loadable skill, so its allowed-tools never take effect and must not be
-# flagged — while a real sibling skill with the same grant still is. Covers both
-# a direct child (vendor/SKILL.md) and a nested one (vendor/<tool>/SKILL.md).
-# Fixture root deliberately NOT named "vendor" — the exclusion matches a
-# /vendor/ path segment anywhere, so a root literally named vendor would exclude
-# every file beneath it and mask the real-vs-vendored distinction under test.
+# --- Case 6b: non-loadable SKILL.md excluded by loadability model ------------
+# A SKILL.md outside documented load paths (vendored upstream reference) is not
+# loadable, so its allowed-tools never take effect and must not be flagged —
+# while a real sibling skill with the same grant still is. Nested
+# `vendor/.claude/skills/<name>/SKILL.md` IS loadable (#2406, Case 6c).
 D6B="$TEST_TMPDIR/vendor-exclusion-fixture"
 mkdir -p "$D6B/plugins/p/skills/real" \
   "$D6B/plugins/p/skills/real/vendor" \
@@ -241,6 +248,20 @@ assert_contains "flags the real loadable SKILL.md" "$OUT" "skills/real/SKILL.md 
 assert_not_contains "does NOT flag vendored direct-child SKILL.md" "$OUT" "vendor/SKILL.md"
 assert_not_contains "does NOT flag vendored nested SKILL.md" "$OUT" "vendor/cli/SKILL.md"
 assert_eq "vendored copies excluded — exactly one finding" "1" "$(run "$D6B" --count)"
+
+# --- Case 6c: #2406 — nested `.claude/skills/` under vendor/ IS loadable ----
+D6C="$TEST_TMPDIR/loadability-nested-vendor"
+mkdir -p "$D6C/vendor/pkg/.claude/skills/nested"
+printf '%s' "$GRANT" >"$D6C/vendor/pkg/.claude/skills/nested/SKILL.md"
+OUT_NESTED=$(run "$D6C")
+assert_contains "flags nested vendor/.claude/skills grant" "$OUT_NESTED" "vendor/pkg/.claude/skills/nested/SKILL.md"
+assert_eq "nested vendor/.claude/skills is audited" "1" "$(run "$D6C" --count)"
+
+# --- Case 6d: #2406 — node_modules/.claude/skills/ IS loadable ---------------
+D6D="$TEST_TMPDIR/loadability-node-modules"
+mkdir -p "$D6D/node_modules/@scope/pkg/.claude/skills/pkg-skill"
+printf '%s' "$GRANT" >"$D6D/node_modules/@scope/pkg/.claude/skills/pkg-skill/SKILL.md"
+assert_eq "node_modules nested skill is audited" "1" "$(run "$D6D" --count)"
 
 # --- Case 7: P3 plugin self-grant -------------------------------------------
 D7="$TEST_TMPDIR/p3"
@@ -302,14 +323,28 @@ assert_eq "relocated config root produces exactly one finding" "1" \
 # With neither CLAUDE_CONFIG_DIR nor HOME set there is no user scope to read. A
 # silent skip would let "No fragile permission grants found." rest on a scope
 # that was never opened.
-err_out=$(env -u CLAUDE_CONFIG_DIR -u HOME PERMISSION_HYGIENE_FIXTURE_DIR="$D8C" bash "$SCRIPT" 2>&1 >/dev/null)
+err_out=$(env -u CLAUDE_CONFIG_DIR -u HOME -u PERMISSION_HYGIENE_SCAN_ROOT PERMISSION_HYGIENE_FIXTURE_DIR="$D8C" bash "$SCRIPT" 2>&1 >/dev/null)
 assert_contains "unresolvable user scope is announced" "$err_out" "user-global scope not scanned"
 
+# --- Case 8f: #2283 A11 — operator-facing scan-root override name ----------------
+D_SCAN="$TEST_TMPDIR/scan-root-alias"
+mkdir -p "$D_SCAN/.claude"
+jq -n '{permissions:{allow:["Bash(npm test)"]}}' >"$D_SCAN/.claude/settings.json"
+assert_eq "PERMISSION_HYGIENE_SCAN_ROOT resolves the scan root" "0" \
+  "$(env -u CLAUDE_CONFIG_DIR -u PERMISSION_HYGIENE_FIXTURE_DIR HOME="$ISOLATED_HOME" PERMISSION_HYGIENE_SCAN_ROOT="$D_SCAN" bash "$SCRIPT" --count)"
+
+D_FIXTURE="$TEST_TMPDIR/fixture-root-alias"
+mkdir -p "$D_FIXTURE/.claude"
+jq -n '{permissions:{allow:["Bash(python*)"]}}' >"$D_FIXTURE/.claude/settings.json"
+assert_eq "PERMISSION_HYGIENE_SCAN_ROOT wins over deprecated fixture dir" "0" \
+  "$(env -u CLAUDE_CONFIG_DIR HOME="$ISOLATED_HOME" PERMISSION_HYGIENE_SCAN_ROOT="$D_SCAN" PERMISSION_HYGIENE_FIXTURE_DIR="$D_FIXTURE" bash "$SCRIPT" --count)"
+
 # --- Case 9b: unresolvable scan root refuses instead of sweeping -------------
-# The root ladder is $PERMISSION_HYGIENE_FIXTURE_DIR -> git toplevel ->
-# $CLAUDE_PROJECT_DIR, with NO fallback to the cwd. Run from a non-repo directory
-# with every rung unset: the scan must refuse (exit 2, the environment-gap channel)
-# rather than walk whatever the cwd happens to be and report a clean bill.
+# The root ladder is $PERMISSION_HYGIENE_SCAN_ROOT (or the deprecated
+# $PERMISSION_HYGIENE_FIXTURE_DIR) -> git toplevel -> $CLAUDE_PROJECT_DIR, with
+# NO fallback to the cwd. Run from a non-repo directory with every rung unset:
+# the scan must refuse (exit 2, the environment-gap channel) rather than walk
+# whatever the cwd happens to be and report a clean bill.
 #
 # CLAUDE_PROJECT_DIR is unset explicitly as well as the fixture var — an outer
 # session that exports it would otherwise resolve the root and hide the regression.
@@ -317,14 +352,14 @@ nonrepo="$TEST_TMPDIR/not-a-repo"
 mkdir -p "$nonrepo"
 
 rc=0
-root_err=$(cd "$nonrepo" && env -u PERMISSION_HYGIENE_FIXTURE_DIR -u CLAUDE_PROJECT_DIR \
+root_err=$(cd "$nonrepo" && env -u PERMISSION_HYGIENE_FIXTURE_DIR -u PERMISSION_HYGIENE_SCAN_ROOT -u CLAUDE_PROJECT_DIR \
   GIT_CEILING_DIRECTORIES="$TEST_TMPDIR" bash "$SCRIPT" 2>&1) || rc=$?
 assert_exit "unresolvable root exits 2, not 0" 2 "$rc"
 assert_contains "refusal names the failure" "$root_err" "no scan root resolved"
 assert_not_contains "refusal is not a clean bill" "$root_err" "No fragile permission grants found."
 
 rc=0
-count_err=$(cd "$nonrepo" && env -u PERMISSION_HYGIENE_FIXTURE_DIR -u CLAUDE_PROJECT_DIR \
+count_err=$(cd "$nonrepo" && env -u PERMISSION_HYGIENE_FIXTURE_DIR -u PERMISSION_HYGIENE_SCAN_ROOT -u CLAUDE_PROJECT_DIR \
   GIT_CEILING_DIRECTORIES="$TEST_TMPDIR" bash "$SCRIPT" --count 2>&1) || rc=$?
 assert_exit "--count also refuses rather than printing 0" 2 "$rc"
 assert_not_contains "--count prints no count on a refusal" "$count_err" "0
@@ -352,6 +387,299 @@ assert_contains "regular-file refusal names the same reason" "$notdir_err" "not 
 rc=0
 PERMISSION_HYGIENE_FIXTURE_DIR="$TEST_TMPDIR/does-not-exist" bash "$SCRIPT" --count >/dev/null 2>&1 || rc=$?
 assert_exit "--count refuses a nonexistent root too" 2 "$rc"
+
+# --- Case 10: the denominator ------------------------------------------------
+# "No fragile permission grants found." used to print identically whether the run
+# parsed forty grants and found them healthy or parsed none at all. These cases
+# pin that the two are now different strings, and that the coverage block reports
+# what was NOT read as well as what was.
+
+# 10a: a root with nothing in it is NOT a clean bill.
+D10A="$TEST_TMPDIR/empty-root"
+mkdir -p "$D10A"
+OUT=$(run "$D10A")
+assert_contains "empty root reports NOTHING TO AUDIT" "$OUT" "NOTHING TO AUDIT"
+assert_not_contains "empty root does NOT print a clean bill" "$OUT" "No fragile permission grants found."
+assert_contains "empty root still prints the coverage block" "$OUT" "Scan coverage"
+assert_contains "empty root denominator names zero blocks" "$OUT" "0 allowed-tools block(s)"
+
+# 10b: a root with healthy grants IS a clean bill, and says how many it read.
+# This is the pair 10a exists against: same finding count, different denominator.
+D10B="$TEST_TMPDIR/clean-with-denominator"
+mkdir -p "$D10B/.claude"
+jq -n '{permissions:{allow:["Bash(npm test)","Bash(cargo build)"]}}' >"$D10B/.claude/settings.json"
+OUT=$(run "$D10B")
+assert_contains "healthy root prints the clean bill" "$OUT" "No fragile permission grants found."
+assert_not_contains "healthy root is not NOTHING TO AUDIT" "$OUT" "NOTHING TO AUDIT"
+assert_contains "clean bill carries a non-zero rule count" "$OUT" "2 allow rule(s)"
+assert_contains "coverage names the project scope it read" "$OUT" "project: 2 rule(s)"
+assert_contains "coverage names an absent scope as absent" "$OUT" "local: absent"
+
+# 10bb: P3 is the third axis and counts toward the denominator. A root whose only
+# auditable surface is plugin settings.json files, all clean, IS a clean bill —
+# the run examined two files. Folding only frontmatter and allow rules into the
+# denominator made this print "this run has no denominator" two lines above the
+# count of the files it had just examined, which is the defect the block exists
+# to remove wearing a new spelling.
+D10BB="$TEST_TMPDIR/p3-only-clean"
+mkdir -p "$D10BB/plugins/foo/.claude-plugin" "$D10BB/plugins/ok/.claude-plugin"
+jq -n '{name:"foo"}' >"$D10BB/plugins/foo/.claude-plugin/plugin.json"
+jq -n '{name:"ok"}' >"$D10BB/plugins/ok/.claude-plugin/plugin.json"
+jq -n '{agent:{model:"opus"}}' >"$D10BB/plugins/foo/settings.json"
+jq -n '{agent:{model:"opus"}}' >"$D10BB/plugins/ok/settings.json"
+OUT=$(run "$D10BB")
+assert_contains "a clean P3-only root is a clean bill" "$OUT" "No fragile permission grants found."
+assert_not_contains "a clean P3-only root is NOT a scan of nothing" "$OUT" "NOTHING TO AUDIT"
+assert_contains "coverage counts the plugin settings it parsed" "$OUT" "2 settings.json parsed"
+
+# 10bf: the denominator's unit is "examined", not "produced a finding" — on ALL
+# THREE axes, not just P3's. Frontmatter files with no allowed-tools block, and a
+# settings.json that parses with an empty allow array, were all examined and found
+# to grant nothing. That is a clean bill, exactly as a parsed plugin settings.json
+# declaring no `permissions` always was. Counting only the productive inputs is
+# "a denominator that counts only successes" — the defect this block exists to
+# remove — and it survived three earlier revisions of the formula.
+D10BF="$TEST_TMPDIR/examined-not-productive"
+mkdir -p "$D10BF/.claude/skills/a" "$D10BF/.claude/skills/b" "$D10BF/.claude"
+printf -- '---\nname: a\n---\nbody\n' >"$D10BF/.claude/skills/a/SKILL.md"
+printf -- '---\nname: b\n---\nbody\n' >"$D10BF/.claude/skills/b/SKILL.md"
+jq -n '{permissions:{allow:[]}}' >"$D10BF/.claude/settings.json"
+OUT=$(run "$D10BF")
+assert_contains "examined-but-unproductive inputs are a clean bill" "$OUT" \
+  "No fragile permission grants found."
+assert_not_contains "examined-but-unproductive inputs are NOT a scan of nothing" "$OUT" \
+  "NOTHING TO AUDIT"
+assert_contains "the denominator names its per-axis units" "$OUT" \
+  "DENOMINATOR = 3 input(s) successfully examined: 2 frontmatter file(s) + 1 settings scope(s) + 0 plugin settings.json"
+
+# 10bc: the completeness invariant. Every enumerated frontmatter candidate must
+# land in exactly one bucket, and the script reconciles the buckets against the
+# enumeration itself rather than trusting each `continue` site.
+D10BC="$TEST_TMPDIR/reconcile"
+mkdir -p "$D10BC/.claude/skills/a" "$D10BC/.claude/skills/b" "$D10BC/skills/c/vendor"
+printf -- '---\nname: a\nallowed-tools: Bash(npm test)\n---\nbody\n' >"$D10BC/.claude/skills/a/SKILL.md"
+printf -- '---\nname: b\n---\nbody\n' >"$D10BC/.claude/skills/b/SKILL.md"
+printf -- '---\nname: v\nallowed-tools: Bash(npm:*)\n---\nbody\n' >"$D10BC/skills/c/vendor/SKILL.md"
+OUT=$(run "$D10BC")
+assert_contains "coverage reconciles candidates against buckets" "$OUT" "reconciled: 3 candidate(s)"
+assert_contains "reconciliation names each bucket" "$OUT" \
+  "1 non-loadable-excluded + 0 unreadable + 1 without an allowed-tools block + 1 parsed"
+assert_not_contains "no candidate escaped a bucket" "$OUT" "DENOMINATOR BUG"
+
+# 10bd: NEGATIVE — the invariant must actually discriminate. Drop one bucket
+# increment from a copy of the script; the reconciliation must catch it. A check
+# that cannot fail is not a check, and "a real surface examined and counted
+# nowhere" has already produced two instances inside this one change.
+BROKEN="$TEST_TMPDIR/broken-check.sh"
+# shellcheck disable=SC2016  # single quotes are required: the $((...)) here is the
+# literal source text being matched in the script, not an expression to evaluate.
+sed 's/^    fm_no_block=$((fm_no_block + 1))$/    : # bucket increment deliberately removed/' \
+  "$SCRIPT" >"$BROKEN"
+if grep -q 'bucket increment deliberately removed' "$BROKEN"; then
+  # CLAUDE_PLUGIN_ROOT must be passed explicitly: the copy lives outside the
+  # plugin tree, so its BASH_SOURCE fallback would resolve the shared pattern
+  # library to a bogus path and exit 2 before ever reaching the reconciliation.
+  broken_out=$(env -u CLAUDE_CONFIG_DIR -u PERMISSION_HYGIENE_SCAN_ROOT HOME="$ISOLATED_HOME" \
+    CLAUDE_PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)" \
+    PERMISSION_HYGIENE_FIXTURE_DIR="$D10BC" bash "$BROKEN" 2>&1)
+  assert_contains "a candidate escaping every bucket is caught, not absorbed" "$broken_out" "DENOMINATOR BUG"
+  assert_contains "the bug report names it as a defect in the script" "$broken_out" \
+    "defect in permission-rule-check.sh"
+else
+  fail "negative reconciliation case could not be constructed" \
+    "the sed target no longer matches permission-rule-check.sh — the invariant is UNVERIFIED by this run"
+fi
+
+# 10be: a candidate `find` can enumerate but the process cannot read. `find`
+# needs only directory-traversal permission to report a file as -type f; it does
+# not need read permission on the file. Before the readability gate such a file
+# reached awk, failed there, wrote to the real stderr and was counted in NO
+# bucket — while the coverage block claimed to disclose unread inputs.
+D10BE="$TEST_TMPDIR/unreadable"
+mkdir -p "$D10BE/.claude/skills/u"
+printf -- '---\nname: u\nallowed-tools: Bash(python*)\n---\nbody\n' >"$D10BE/.claude/skills/u/SKILL.md"
+chmod 000 "$D10BE/.claude/skills/u/SKILL.md" 2>/dev/null
+if [[ -r "$D10BE/.claude/skills/u/SKILL.md" ]]; then
+  # ANNOUNCED, never silent: on Windows/Git Bash, and as root, mode 000 does not
+  # deny the owner a read, so the fixture cannot be built here. The invariant is
+  # still asserted; only the unreadable arm goes unexercised, and it runs on CI.
+  printf 'SKIP: unreadable-candidate arm not exercised — this platform still grants read after chmod 000 (owner/ACL/filesystem). Exercised on POSIX CI.\n' >&2
+  assert_contains "invariant still reconciles where the arm cannot be built" "$(run "$D10BE")" \
+    "reconciled: 1 candidate(s)"
+else
+  OUT=$(run "$D10BE")
+  assert_contains "an unreadable candidate is counted, not dropped" "$OUT" \
+    "1 frontmatter candidate(s) enumerated but unopenable"
+  assert_contains "the unreadable candidate reconciles into its bucket" "$OUT" \
+    "0 non-loadable-excluded + 1 unreadable + 0 without an allowed-tools block + 0 parsed"
+  assert_not_contains "an unreadable-only root is not a plain clean bill" "$OUT" \
+    "No fragile permission grants found."
+  assert_contains "an unreadable-only root names the blocked inputs" "$OUT" "COULD NOT BE READ"
+fi
+chmod u+rw "$D10BE/SKILL.md" 2>/dev/null
+
+# 10c: a settings file that is present but not valid JSON was skipped in silence,
+# so its rules were never read and the run still printed a clean bill. The skip
+# is now named — an unparsable rules file is exactly where a fragile grant would
+# sit unexamined.
+D10C="$TEST_TMPDIR/unparsable-settings"
+mkdir -p "$D10C/.claude"
+printf '{ "permissions": { "allow": [ "Bash(python*)"\n' >"$D10C/.claude/settings.json"
+OUT=$(run "$D10C")
+assert_contains "unparsable settings file is named, not skipped in silence" "$OUT" "project: NOT VALID JSON"
+assert_contains "unparsable file is counted under NOT read" "$OUT" "NOT read:"
+assert_not_contains "a run whose only rules file will not parse is not a clean bill" "$OUT" "No fragile permission grants found."
+
+# 10d: --count keeps the bare integer on stdout (the machine contract) and puts
+# the coverage block on stderr, so a 0 from a scan of nothing is still separable
+# from a 0 from a healthy tree.
+assert_eq "--count stdout is still the bare integer" "0" "$(run "$D10B" --count)"
+count_cov=$(run "$D10B" --count 2>&1 >/dev/null)
+assert_contains "--count writes the coverage block to stderr" "$count_cov" "Scan coverage"
+assert_contains "--count coverage carries the denominator" "$count_cov" "2 allow rule(s)"
+
+# 10e: the loadability filter reports how many files it removed. An exclusion
+# nothing counts is indistinguishable from a tree that had nothing in it.
+OUT=$(run "$D6B")
+assert_contains "loadability exclusion discloses its count" "$OUT" "2 excluded as non-loadable"
+assert_contains "coverage names the candidate file total" "$OUT" "from 3 candidate file(s)"
+
+# --- Case 11: the scan-root lever is named for operators, not for tests -------
+# $PERMISSION_HYGIENE_FIXTURE_DIR is the documented remedy for the exit-2 refusal
+# while its name says it is a test seam. The sanctioned name resolves the same
+# root; the alias keeps working; the new name wins when both are set.
+sanctioned() { env -u CLAUDE_CONFIG_DIR -u PERMISSION_HYGIENE_FIXTURE_DIR HOME="$ISOLATED_HOME" \
+  PERMISSION_HYGIENE_SCAN_ROOT="$1" bash "$SCRIPT" "${2:-}"; }
+assert_eq "PERMISSION_HYGIENE_SCAN_ROOT resolves a root" "0" "$(sanctioned "$D10B" --count)"
+assert_contains "coverage names the rung that resolved the root" "$(sanctioned "$D10B")" \
+  "resolved from \$PERMISSION_HYGIENE_SCAN_ROOT"
+assert_contains "the legacy alias still resolves a root" "$(run "$D10B")" \
+  "resolved from \$PERMISSION_HYGIENE_FIXTURE_DIR"
+both=$(env -u CLAUDE_CONFIG_DIR HOME="$ISOLATED_HOME" \
+  PERMISSION_HYGIENE_SCAN_ROOT="$D10B" PERMISSION_HYGIENE_FIXTURE_DIR="$D10A" bash "$SCRIPT")
+assert_contains "the sanctioned name wins over the alias" "$both" "No fragile permission grants found."
+assert_not_contains "the alias did not win" "$both" "NOTHING TO AUDIT"
+assert_contains "refusal names the sanctioned variable as the fix" \
+  "$(cd "$nonrepo" && env -u PERMISSION_HYGIENE_FIXTURE_DIR -u PERMISSION_HYGIENE_SCAN_ROOT \
+    -u CLAUDE_PROJECT_DIR GIT_CEILING_DIRECTORIES="$TEST_TMPDIR" bash "$SCRIPT" 2>&1)" \
+  "PERMISSION_HYGIENE_SCAN_ROOT"
+
+# --- Case 8b: #2282 — full-rule reporting, `//` is NOT exempt, P1 pinned npm view
+#
+# `//` is the ABSOLUTE anchor, not a portable one. permissions.md's own table row is
+# `//path` = "Absolute path from filesystem root", with `Read(//Users/<name>/secrets/**)`
+# resolving to `/Users/<name>/secrets/**`, and the same page says "Use
+# `//Users/<name>/file` for absolute paths." The docs' literal example names a concrete
+# user home and leaks `alice`. An earlier revision of this suite asserted the opposite,
+# which would have taught an `error`-tier username-leak check to ignore the canonical
+# spelling of the leak.
+D8B="$TEST_TMPDIR/issue-2282"
+mkdir -p "$D8B/.claude"
+jq -n --arg posix "Bash(${POSIX_MP}:*)" --arg abs "Read(${ABS_MP})" \
+  '{permissions:{allow:[$abs, "Bash(npm view ctx7 version*)", $posix]}}' >"$D8B/.claude/settings.json"
+OUT_2282=$(run "$D8B")
+assert_contains "// absolute anchor IS flagged — it names a concrete user home" "$OUT_2282" "Read(${ABS_MP})"
+assert_contains "P2 reports the full offending Bash rule" "$OUT_2282" "Bash(${POSIX_MP}:*)"
+assert_not_contains "fully-pinned npm view rule is not flagged as P1" "$OUT_2282" "npm view ctx7 version"
+assert_eq "both machine-path rules flagged, npm view not" "2" "$(run "$D8B" --count)"
+
+# --- Case 8c: the genuinely portable anchors stay exempt ----------------------
+# The distinction the fix turns on: `~/` and `${CLAUDE_PROJECT_DIR}/` supply the
+# user/project segment at resolution time; `//` does not.
+D8C="$TEST_TMPDIR/issue-2282-portable"
+mkdir -p "$D8C/.claude"
+jq -n '{permissions:{allow:["Read(~/Documents/*.pdf)","Bash(${CLAUDE_PROJECT_DIR}/scripts/x.sh:*)"]}}' >"$D8C/.claude/settings.json"
+assert_eq "portable anchors produce no P2 finding" "0" "$(run "$D8C" --count)"
+
+# --- Case 8d: P2 reach is the open tool grammar, not five hardcoded names ------
+# A hardcoded machine path leaks a username whatever tool the rule names. An
+# enumerated (Read|Edit|Write|Bash|PowerShell) list silently stopped flagging these;
+# `Agent` in particular is indefensible, since this script has a dedicated
+# scan_agent(). Each rule below must produce its own P2 finding.
+D8D="$TEST_TMPDIR/issue-2282-tools"
+mkdir -p "$D8D/.claude"
+jq -n --arg wf "WebFetch(${WF_MP})" --arg gl "Glob(${GLOB_MP})"   --arg nb "NotebookEdit(${NB_MP})" --arg mc "mcp__srv__tool(${MCP_MP})"   '{permissions:{allow:[$wf,$gl,$nb,$mc]}}' >"$D8D/.claude/settings.json"
+OUT_TOOLS=$(run "$D8D")
+assert_contains "P2 sees WebFetch rules" "$OUT_TOOLS" "WebFetch(${WF_MP})"
+assert_contains "P2 sees Glob rules" "$OUT_TOOLS" "Glob(${GLOB_MP})"
+assert_contains "P2 sees NotebookEdit rules" "$OUT_TOOLS" "NotebookEdit(${NB_MP})"
+assert_contains "P2 sees MCP tool rules" "$OUT_TOOLS" "mcp__srv__tool(${MCP_MP})"
+
+# --- Case 8e: a `//` prefix does not launder a path later in the same rule -----
+# Regression guard for a substring carve-out (`$m == *"(//"*`) that passed any rule
+# whose payload merely began with `//`, leaving the rest unexamined.
+D8E="$TEST_TMPDIR/issue-2282-traversal"
+mkdir -p "$D8E/.claude"
+jq -n --arg l "Read(${LAUNDER_MP})" '{permissions:{allow:[$l]}}' >"$D8E/.claude/settings.json"
+assert_eq "a // prefix does not exempt a user home later in the rule" "1" "$(run "$D8E" --count)"
+
+# --- Case 8f: #2397 A12 — tilde-user Bash paths leak a username ----------------
+D8F="$TEST_TMPDIR/issue-2397-tilde-user"
+mkdir -p "$D8F/.claude"
+jq -n '{permissions:{allow:["Bash(~kyle/scripts/x.sh:*)"]}}' >"$D8F/.claude/settings.json"
+OUT_TILDE=$(run "$D8F")
+assert_contains "flags tilde-user Bash path" "$OUT_TILDE" "~kyle"
+assert_contains "tilde-user finding is P2" "$OUT_TILDE" "[P2]"
+assert_eq "portable ~/ anchor in Read is not flagged" "0" \
+  "$(jq -n '{permissions:{allow:["Read(~/notes.md)"]}}' >"$D8F/.claude/settings.json" && run "$D8F" --count)"
+D8F_URL="$TEST_TMPDIR/issue-2397-tilde-url"
+mkdir -p "$D8F_URL/.claude"
+jq -n '{permissions:{allow:["Bash(curl https://example.com/~alice/index.html)"]}}' \
+  >"$D8F_URL/.claude/settings.json"
+assert_eq "URL user-directory segment is not flagged as tilde-user path" "0" "$(run "$D8F_URL" --count)"
+
+# --- Case 8g: #2397 A7b — inert substitution tokens in allowed-tools ----------
+D8G="$TEST_TMPDIR/issue-2397-inert"
+mkdir -p "$D8G/.claude/skills/demo"
+cat >"$D8G/.claude/skills/demo/SKILL.md" <<'EOF'
+---
+name: demo
+allowed-tools: Bash(${CLAUDE_PLUGIN_ROOT}/scripts/x.sh:*)
+---
+body
+EOF
+OUT_INERT=$(run "$D8G")
+assert_contains "flags inert CLAUDE_PLUGIN_ROOT grant" "$OUT_INERT" "[P4]"
+assert_contains "skill-local remedy recommends CLAUDE_SKILL_DIR" "$OUT_INERT" "CLAUDE_SKILL_DIR"
+
+D8G2="$TEST_TMPDIR/issue-2397-inert-settings"
+mkdir -p "$D8G2/.claude"
+cat >"$D8G2/.claude/settings.json" <<'EOF'
+{
+  "permissions": {
+    "allow": [
+      "Bash(%USERPROFILE%/scripts/x.sh:*)",
+      "Bash($env:USERPROFILE/scripts/x.sh:*)"
+    ]
+  }
+}
+EOF
+OUT_ENV=$(run "$D8G2")
+assert_contains "flags %USERPROFILE% inert grant" "$OUT_ENV" "%USERPROFILE%"
+assert_contains "flags PowerShell env inert grant" "$OUT_ENV" "\$env:USERPROFILE"
+assert_contains "settings-scope remedy does not prescribe plugin bin" "$OUT_ENV" "bare command on PATH"
+
+D8G3="$TEST_TMPDIR/issue-2397-inert-list"
+mkdir -p "$D8G3/.claude/skills/demo"
+cat >"$D8G3/.claude/skills/demo/SKILL.md" <<'EOF'
+---
+name: demo
+allowed-tools:
+  - Bash(git status)
+  - Bash(${CLAUDE_PLUGIN_ROOT}/scripts/x.sh:*)
+  - Bash(%USERPROFILE%/scripts/y.sh:*)
+---
+body
+EOF
+OUT_LIST=$(run "$D8G3")
+assert_contains "flags only the inert grant in a mixed list" "$OUT_LIST" "Bash(\${CLAUDE_PLUGIN_ROOT}/scripts/x.sh:*)"
+assert_not_contains "clean grant in the same list is not embedded in P4 detail" "$OUT_LIST" "Bash(git status)"
+assert_eq "two distinct inert Bash grants emit two P4 findings" "2" "$(run "$D8G3" --count)"
+
+D8G4="$TEST_TMPDIR/issue-2397-inert-read"
+mkdir -p "$D8G4/.claude"
+jq -n '{permissions:{allow:["Read(%USERPROFILE%/notes.txt)"]}}' >"$D8G4/.claude/settings.json"
+assert_eq "non-Bash rules with inert spellings are not P4-flagged" "0" "$(run "$D8G4" --count)"
 
 # --- Case 9: missing jq exits 2 ---------------------------------------------
 real_bash=$(command -v bash)

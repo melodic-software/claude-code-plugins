@@ -753,14 +753,25 @@ assert_contains "bash block states its scope" "$scopeout" \
   "only this command string is inspected"
 assert_contains "bash block names the invoked-script gap" "$scopeout" \
   "inside an invoked script file"
-assert_contains "bash block limits interpreter coverage to python3 -c" "$scopeout" \
-  "inline python3 -c only"
+# The note states the ENFORCED surface, so it is pinned at the shipped width, not
+# at a remembered one. #2217 widened the python lane past the literal `python3 -c`
+# and this assertion went on pinning the obsolete claim — the assertion is what
+# should have caught the drift, so it now names both the family and the stdin form.
+assert_contains "bash block names the interpreter family it covers" "$scopeout" \
+  "python/python3/py/pypy with -c"
+assert_contains "bash block names the stdin form it covers" "$scopeout" \
+  "python3 - <<PY"
+assert_contains "bash block names the no-dash stdin residual" "$scopeout" \
+  "python3 <<PY"
+assert_contains "bash block still limits interpreter coverage" "$scopeout" "only"
 assert_contains "bash block names the tee gap" "$scopeout" "POSIX tee"
 assert_contains "bash block names other-interpreter gap" "$scopeout" "node -e"
 psscope=$(bash "$HOOK" <<<"$(pwsh_command_json "Set-Content f.txt 'x'")" 2>&1)
 assert_contains "powershell block states its scope" "$psscope" \
   "only this command string is inspected"
 assert_contains "powershell block names Tee-Object coverage" "$psscope" "Tee-Object"
+assert_contains "powershell block names the interpreter family it covers" "$psscope" \
+  "python/python3/py/pypy with -c"
 
 # The behaviour the scope note describes. A write inside an invoked script is
 # not inspected, and a redirect whose producer is another program is allowed by
@@ -1008,5 +1019,220 @@ run "#2226: scratch, operand continued by backslash-newline (blocked)" \
 # The exemption is target-scoped only — it must not relax the producer axis.
 run "scratch: python3 -c write into an exempt root still blocks" \
   "python3 -c \"open('/tmp/scratch/x','w').write('a')\"" 2 "$SCRATCH_ENV=/tmp/scratch"
+
+# --- #2217: three inline-write forms that reached a real file ----------------
+# All three were rc=0 (allowed) before this change. Every assertion below that
+# moves anything moves allowed -> blocked; the floors interleaved with them are
+# what pin that NO assertion moved blocked -> allowed.
+
+# (1) THE INTERPRETER SPELLING FLOOR. The detector required the literal
+# `python3`, so the same inline write spelled with any other name in the family
+# ran unseen. The guard's own scope note advertised `python -c` as its example.
+run "#2217: python -c open write (blocked)" \
+  "python -c \"open('x','w').write('a')\"" 2
+run "#2217: py -c open write (blocked)" \
+  "py -c \"open('x','w').write('a')\"" 2
+run "#2217: py3 -c open write (blocked)" \
+  "py3 -c \"open('x','w').write('a')\"" 2
+run "#2217: python2 -c open write (blocked)" \
+  "python2 -c \"open('x','w').write('a')\"" 2
+run "#2217: python3.11 -c open write (blocked)" \
+  "python3.11 -c \"open('x','w').write('a')\"" 2
+run "#2217: pypy3 -c open write (blocked)" \
+  "pypy3 -c \"open('x','w').write('a')\"" 2
+# The Windows launcher's version selector is admitted because a `-<digits>`
+# token cannot be a script path. No other gap between interpreter and flag is.
+run "#2217: py -3 -c open write (blocked)" \
+  "py -3 -c \"open('x','w').write('a')\"" 2
+run "#2217: path-qualified python.exe -c open write (blocked)" \
+  "/c/Python313/python.exe -c \"open('x','w').write('a')\"" 2
+
+# THE NAME-ANCHOR FLOOR. Widening the name must not widen the boundary: every
+# one of these merely CONTAINS a family spelling and stays inert.
+run "#2217: mypy -c open write (allowed)" \
+  "mypy -c \"open('x','w').write('a')\"" 0
+run "#2217: happy -c open write (allowed)" \
+  "happy -c \"open('x','w').write('a')\"" 0
+run "#2217: spy -c open write (allowed)" \
+  "spy -c \"open('x','w').write('a')\"" 0
+run "#2217: pytest -c open write (allowed)" \
+  "pytest -c \"open('x','w').write('a')\"" 0
+run "#2217: mypython3 -c open write (allowed)" \
+  "mypython3 -c \"open('x','w').write('a')\"" 0
+# THE OVER-BLOCK FLOOR (#1601 / #2148 are open against this arm in the OPPOSITE
+# direction). Widening the name multiplies whatever false-positive rate the arm
+# has, so the read-only and script-run shapes are pinned for the new spellings
+# too — not just for `python3`.
+run "#2217: python -c read-only open (allowed)" \
+  "python -c \"print(open('f').read())\"" 0
+run "#2217: py -c print only (allowed)" \
+  "py -c \"print(1+1)\"" 0
+run "#2217: python3.11 -c os.path.normpath (allowed)" \
+  "python3.11 -c \"import os; print(os.path.normpath('a/b'))\"" 0
+run "#2217: python -m module run (allowed)" "python -m mytool --out f" 0
+run "#2217: python build.py script run (allowed)" "python build.py" 0
+run "#2217: python --version (allowed)" "python --version" 0
+run "#2217: py --list (allowed)" "py --list" 0
+
+# (2) A PRODUCER SPLIT FROM ITS OWN REDIRECT BY A PHYSICAL NEWLINE. A newline
+# reached with a quote span still OPEN is not a separator — bash is inside a
+# quoted word — but strip_literals re-emitted it, so normalize_segments split
+# the producer from the redirect it owned. The `\n`-escaped spelling of the same
+# command always blocked; only the physical newline slipped.
+PY_NL_SQ=$(printf 'printf \x27a\nb\n\x27 > notes.md')
+run "#2217: printf, physical newline in a single-quoted arg (blocked)" "$PY_NL_SQ" 2
+PY_NL_DQ=$(printf 'echo "a\nb" > notes.md')
+run "#2217: echo, physical newline in a double-quoted arg (blocked)" "$PY_NL_DQ" 2
+run "#2217: control — the same write with an escaped newline (blocked)" \
+  "printf \"a\\nb\\n\" > notes.md" 2
+# THE DISCRIMINATOR between joining the two sides with NOTHING and joining them
+# with a space. `ec"<newline>"ho` is ONE bash word and bash runs it as `echo`;
+# only an empty join reconstructs it. A space join leaves `ec ho` and this
+# assertion fails — which is why the shipped fix does not use one.
+PY_NL_SPLICE=$(printf 'ec"\n"ho x > f')
+run "#2217: quote span splicing a command word (blocked)" "$PY_NL_SPLICE" 2
+# Non-empty dropped spans inside a command word must not splice into a false
+# producer name (`ec"xy"ho` runs as `ecxyho`, not `echo`).
+run "#2385: ec\"xy\"ho splice false positive (allowed)" 'ec"xy"ho hello > out.txt' 0
+PY_XY_NL=$(printf 'ec"x\ny"ho hello > out.txt')
+run "#2385: ec\"x<NL>y\"ho multiline splice (allowed)" "$PY_XY_NL" 0
+run "#2385: ec\"\"ho empty span splice still blocks" 'ec""ho x > f' 2
+run "#2385: ec\"<NL>\"ho empty multiline span still blocks" "$(printf 'ec"\n"ho x > f')" 2
+
+# THE MULTI-LINE PROSE FLOOR. The whole point of carrying an open quote across
+# lines is that a `--body`/`-m` payload merely MENTIONING a write stays inert.
+# Dropping the join newline must not change that — the span's content is dropped
+# either way — so these stay allowed.
+PY_NL_BODY=$(printf 'gh pr create --body "line one\necho x > f\nline three"')
+run "#2217: multi-line PR body mentioning a write (allowed)" "$PY_NL_BODY" 0
+PY_NL_MSG=$(printf 'git commit -m "subject\n\ncat > notes.md is a bypass\n"')
+run "#2217: multi-line commit message mentioning a write (allowed)" "$PY_NL_MSG" 0
+PY_NL_GREP=$(printf 'grep "foo\nbar" file | wc -l')
+run "#2217: multi-line grep pattern piped, no redirect (allowed)" "$PY_NL_GREP" 0
+PY_NL_DEVNULL=$(printf 'echo "a\nb" > /dev/null')
+run "#2217: multi-line span discarded to /dev/null (allowed)" "$PY_NL_DEVNULL" 0
+PY_NL_PIPE=$(printf 'printf \x27a\nb\x27 | wc -c')
+run "#2217: multi-line span piped, no redirect (allowed)" "$PY_NL_PIPE" 0
+PY_NL_DANGLE=$(printf 'git status ; echo "dangling')
+run "#2217: unterminated quote at end of command (allowed)" "$PY_NL_DANGLE" 0
+# Already blocked before the change; the segment split it relies on is a real
+# separator on the closing line, so it must keep blocking.
+PY_NL_THEN=$(printf 'grep "a\nb" f ; echo x > out.txt')
+run "#2217: multi-line span then a real producer+redirect (blocked)" "$PY_NL_THEN" 2
+
+# THE ONE ROW THAT MOVES THE OTHER WAY, pinned deliberately. Fusing the two
+# sides of the span back into one segment can also put a NON-producer at the
+# segment start, and that is the correct reading: in `foo "a<newline>" echo x > f`
+# bash's command word is `foo` and `echo` is one of its ARGUMENTS, so the
+# redirect's producer is another program and this guard is producer-scoped by
+# design. Before the change the newline split it into a bogus `echo x > f`
+# segment and it blocked — a false positive. The single-line spelling of the
+# same command is the control: it has always been allowed on `main`, so this
+# makes the multi-line form agree with the shipped single-line behavior rather
+# than inventing a new exemption. Both are asserted so the agreement is pinned.
+PY_NL_ARGECHO=$(printf 'foo "a\n" echo x > f')
+run "#2217: producer is foo, echo is its argument (allowed)" "$PY_NL_ARGECHO" 0
+run "#2217: control — same command on one line (allowed)" "foo \"a\" echo x > f" 0
+# The mirror image, and the reason the row above is not a hole: when the command
+# word really IS the producer, fusing the segment is what reveals the write.
+PY_NL_REALECHO=$(printf 'echo "a\n" x > f')
+run "#2217: producer is echo, span is its argument (blocked)" "$PY_NL_REALECHO" 2
+run "#2217: control — same command on one line (blocked)" "echo \"a\" x > f" 2
+# Same fusion on the cat lane, with its own single-line control.
+PY_NL_CAT=$(printf 'cat "a\n" > f')
+run "#2217: cat with a multi-line quoted arg then a redirect (blocked)" "$PY_NL_CAT" 2
+run "#2217: control — same command on one line (blocked)" "cat \"a\" > f" 2
+# A span that closes and re-opens across lines fuses at both joins.
+PY_NL_TWO=$(printf 'echo "a\nb" "c\nd" > f')
+run "#2217: two multi-line spans, one producer+redirect (blocked)" "$PY_NL_TWO" 2
+# THE BOUNDARY OF THE ROW ABOVE, and the reason it is one row and not a class.
+# Fusion puts whatever preceded the span at the segment start, so the question is
+# whether a LEGITIMATE command prefix in front of a multi-line span can hide a
+# real producer from `_producer_head`'s `^` anchor. It cannot: `_cmd_prefix`,
+# `_modifier_opt_arg` and `_leading_redir` peel exactly these, and the peel runs
+# on the fused segment. Each is paired with the single-line control that already
+# blocked on `main`, so a regression in the peel shows up as a pair splitting.
+PY_NL_ENVASSIGN=$(printf 'FOO="a\nb" echo x > f')
+run "#2217: env-assignment prefix before a multi-line span (blocked)" "$PY_NL_ENVASSIGN" 2
+run "#2217: control — same command on one line (blocked)" "FOO=\"ab\" echo x > f" 2
+PY_NL_ENV=$(printf 'env FOO="a\nb" echo x > f')
+run "#2217: env modifier before a multi-line span (blocked)" "$PY_NL_ENV" 2
+run "#2217: control — same command on one line (blocked)" "env FOO=\"ab\" echo x > f" 2
+PY_NL_IF=$(printf 'if true ; then echo "a\nb" > f ; fi')
+run "#2217: compound-command header before a multi-line span (blocked)" "$PY_NL_IF" 2
+PY_NL_NEG=$(printf '! echo "a\nb" > f')
+run "#2217: pipeline negation before a multi-line span (blocked)" "$PY_NL_NEG" 2
+PY_NL_EXECA=$(printf 'exec -a n echo "a\nb" > f')
+run "#2217: exec -a NAME before a multi-line span (blocked)" "$PY_NL_EXECA" 2
+PY_NL_LEADREDIR=$(printf '> f echo "a\nb"')
+run "#2217: leading redirect before a multi-line span (blocked)" "$PY_NL_LEADREDIR" 2
+run "#2217: control — same command on one line (blocked)" "> f echo \"ab\"" 2
+PY_NL_PRINTF=$(printf 'FOO=1 printf "a\nb" > f')
+run "#2217: env-assignment prefix, printf producer (blocked)" "$PY_NL_PRINTF" 2
+# The cat lane keeps its own shape: `cat FILE x > f` is a copy, not a stdin
+# consume, and `_cat_redir` needs `cat` immediately before the redirect. Fusion
+# leaves the argument words in place, so this stays allowed — before and after.
+PY_NL_CATARG=$(printf 'cat "a\nb" x > f')
+run "#2217: cat with args between it and the redirect (allowed)" "$PY_NL_CATARG" 0
+
+# (3) THE REOPENED ACCEPTED RESIDUAL. `python3 - <<PY … PY` (no `-c`) was
+# documented as uncovered and accepted in the PowerShell lane's comment. Reopened
+# on new reachability evidence: this repo's own session record shows an agent
+# reaching for that exact form to patch a file
+# (.work/handoffs/20260809T082720Z-handoff-post-2008-followups.md:211). The `-`
+# is what makes it INLINE — the code is in the command string the hook reads,
+# not in an opaque script file.
+PY_HEREDOC=$(printf 'python3 - <<\x27PY\x27\nopen("f","w").write("x")\nPY')
+run "#2217: python3 - <<PY heredoc write (blocked)" "$PY_HEREDOC" 2
+PY_HEREDOC2=$(printf 'python - <<\x27PY\x27\nimport pathlib; pathlib.Path("f").write_text("x")\nPY')
+run "#2217: python - <<PY heredoc write, family spelling (blocked)" "$PY_HEREDOC2" 2
+# THE STDIN FLOOR. `-` alone says nothing about direction; the raw write
+# indicator still has to be there, and an opaque script piped in stays unseen.
+PY_HEREDOC_RO=$(printf 'python3 - <<\x27PY\x27\nprint(open("f").read())\nPY')
+run "#2217: python3 - <<PY read-only heredoc (allowed)" "$PY_HEREDOC_RO" 0
+run "#2217: cat script.py | python3 - (allowed)" "cat script.py | python3 -" 0
+run "#2217: python3 - </dev/null (allowed)" "python3 - </dev/null" 0
+# ACCEPTED RESIDUAL, restated at its NARROWED width: `python3 <<PY` with no `-`
+# argument stays uncovered. Matching a bare trailing interpreter token would
+# flip the two allowed cases below, so that exemption costs this one spelling.
+PY_HEREDOC_NODASH=$(printf 'python3 <<\x27PY\x27\nopen("f","w").write("x")\nPY')
+run "#2217: accepted floor — python3 <<PY with no dash (allowed)" "$PY_HEREDOC_NODASH" 0
+# Same discipline as the `-c` arm: no gap between interpreter and `-`, so an
+# interpreter option in between is uncovered. Admitting an arbitrary
+# option-shaped token is what would let a SCRIPT path through as one.
+PY_HEREDOC_OPT=$(printf 'python3 -O - <<\x27PY\x27\nopen("f","w").write("x")\nPY')
+run "#2217: accepted floor — an option between python3 and - (allowed)" "$PY_HEREDOC_OPT" 0
+# The heredoc operator glued to the `-` is the same invocation and IS covered.
+PY_HEREDOC_GLUED=$(printf 'python3 -<<\x27PY\x27\nopen("f","w").write("x")\nPY')
+run "#2217: python3 -<<PY with no space (blocked)" "$PY_HEREDOC_GLUED" 2
+run "#2217: floor that costs it — echo pathlib | python3 (allowed)" \
+  "echo \"pathlib\" | python3" 0
+run "#2217: floor that costs it — cat script.py | python3 (allowed)" \
+  "cat script.py | python3" 0
+# A prose mention of the heredoc form is still a mention: the Bash lane decides
+# the INVOCATION on the literal-stripped form, so a quoted one never matches.
+run "#2217: commit message quoting a heredoc write (allowed)" \
+  "git commit -m \"use python3 - <<PY open('f','w').write(x) PY\"" 0
+
+# The PowerShell lane carried the same interpreter spelling floor.
+run_pwsh "#2217: PS python -c open write (blocked)" \
+  "python -c \"open('x','w').write('a')\"" 2
+run_pwsh "#2217: PS py -c open write (blocked)" \
+  "py -c \"open('x','w').write('a')\"" 2
+run_pwsh "#2217: PS python3.11 -c open write (blocked)" \
+  "python3.11 -c \"open('x','w').write('a')\"" 2
+run_pwsh "#2217: PS mypy -c open write (allowed)" \
+  "mypy -c \"open('x','w').write('a')\"" 0
+run_pwsh "#2217: PS pytest -c open write (allowed)" \
+  "pytest -c \"open('x','w').write('a')\"" 0
+run_pwsh "#2217: PS python -c read-only os.path.normpath (allowed)" \
+  "python -c \"import os; print(os.path.normpath('a/b'))\"" 0
+run_pwsh "#2217: PS python script run, open( in an arg, no -c (allowed)" \
+  "python build.py --path \"open('x','w')\"" 0
+
+# --- NUL in payload must fail closed (#2136) ----------------------------------
+nul_rc=0
+bash "$HOOK" <<<"$(jq -n '{tool_name:"Bash",tool_input:{command:("git status" + ([0]|implode))}}')" >/dev/null 2>&1 || nul_rc=$?
+assert_exit "NUL in command (blocked)" 2 "$nul_rc"
 
 report

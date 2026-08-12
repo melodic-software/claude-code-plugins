@@ -245,6 +245,25 @@ run "! alias through a wrapper chdir, no sequencer: still gated" "$r2" \
 run "! alias through a wrapper chdir, conforming subject allowed" "$r2" \
   $'env -C inner git qc -F - --cleanup=verbatim <<\'EOF\'\nABC-5: fine\nEOF' 0
 
+# --- plain git alias must forward git's own globals through the recursion (#2166) ---
+# `git -C inner qc` (plain alias, not `!`) dropped `-C inner` at the alias hop:
+# the slice stopped at gi, so git's globals between git and the subcommand never
+# reached the recursed frame and the sequencer probe ran in the wrong repository.
+r="$(newrepo "$TICKET")"
+d="$(subrepo "$r" inner)"
+git -C "$d" config alias.qc commit
+git -C "$d" commit -q --allow-empty -F - --cleanup=verbatim <<'EOF'
+ABC-1: seed
+EOF
+touch "$(git -C "$d" rev-parse --absolute-git-dir)/MERGE_HEAD"
+run "git -C inner <alias>: sequencer in moved-to repo is exempt (#2166)" "$r" \
+  $'git -C inner qc -F - --cleanup=verbatim <<\'EOF\'\njunk subject\nEOF' 0
+r5="$(newrepo "$TICKET")"
+d5="$(subrepo "$r5" inner)"
+git -C "$d5" config alias.qc commit
+run "git -C inner <alias>, no sequencer: still content-gated (#2166)" "$r5" \
+  $'git -C inner qc -F - --cleanup=verbatim <<\'EOF\'\njunk subject\nEOF' 2
+
 # --- kill switch ---------------------------------------------------------------
 r="$(newrepo "$TICKET")"
 json=$(jq -n --arg c "$BAD_COMMIT" --arg d "$r" \
@@ -252,5 +271,12 @@ json=$(jq -n --arg c "$BAD_COMMIT" --arg d "$r" \
 CLAUDE_PROJECT_DIR="$r" CLAUDE_PLUGIN_OPTION_BLOCK_CONVENTION_GATE_ENABLED=false \
   bash "$HOOK" <<<"$json" >/dev/null 2>&1
 assert_exit "kill switch off: violating subject allowed" 0 $?
+
+# --- NUL in payload must fail closed (#2136) ----------------------------------
+r="$(newrepo "$TICKET")"
+nul_rc=0
+CLAUDE_PROJECT_DIR="$r" bash "$HOOK" <<<"$(jq -n --arg d "$r" \
+  '{tool_name:"Bash",tool_input:{command:("git status" + ([0]|implode))},cwd:$d}')" >/dev/null 2>&1 || nul_rc=$?
+assert_exit "NUL in command (blocked)" 2 "$nul_rc"
 
 report

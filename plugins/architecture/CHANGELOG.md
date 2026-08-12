@@ -3,6 +3,13 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.2]
+
+### Fixed
+
+- **The `improve` Gotcha now states why `${CLAUDE_PLUGIN_DATA}` is wrong for per-project artifacts
+  beyond substitution mechanics** (#2207).
+
 ## [0.5.1]
 
 ### Fixed

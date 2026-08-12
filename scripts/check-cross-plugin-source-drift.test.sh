@@ -155,6 +155,30 @@ else
 fi
 rm -rf "$f"
 
+# --- production registry: every cluster documents its enforcement path (#2404) -
+REGISTRY="$SELF_DIR/cross-plugin-source-registry.txt"
+if [[ ! -f "$REGISTRY" ]]; then
+  fail "production registry missing at $REGISTRY"
+else
+  bad="$(awk '
+    /^[[:space:]]*#/ { block = block $0 "\n"; next }
+    /^[[:space:]]*$/ { next }
+    {
+      if (block !~ /Dedicated check:/ && block !~ /No dedicated check/) {
+        print $0 " (missing Dedicated check / No dedicated check annotation)"
+      } else if (block ~ /No dedicated check/ && block !~ /Canonical copy:/) {
+        print $0 " (No dedicated check without Canonical copy)"
+      }
+      block = ""
+    }
+  ' "$REGISTRY")"
+  if [[ -z "$bad" ]]; then
+    ok "production registry documents enforcement for every cluster"
+  else
+    fail "registry policy gaps:${bad}"
+  fi
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ "$FAIL" -eq 0 ]]

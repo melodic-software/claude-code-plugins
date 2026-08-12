@@ -18,8 +18,6 @@
 #   CAVEAT: <text>                                                what bounds the claim
 #   effective <kind> scopes=<a,b> precedence_basis=<token> <rule> one per live rule
 #   inert <kind> scopes=<a,b> outranked_by=<kind> <rule>          one per beaten entry
-#   inert <kind> scopes=<a,b> removed_by=deny@<tool> <rule>       whole-tool deny removal
-#   inert <kind> scopes=<a,b> outranked_by=ask@<tool> <rule>      whole-tool ask removal
 #
 #   token  uncontested | merged-across-scopes | evaluation-order
 #          | evaluation-order+merged-across-scopes
@@ -49,9 +47,7 @@ Usage: permission-state.sh | permission-merge.sh [--merge-only]
   --help        this message
 
 Records: "effective <kind> scopes=<a,b> precedence_basis=<token> <rule text>",
-"inert <kind> scopes=<a,b> outranked_by=<kind> <rule text>",
-"inert <kind> scopes=<a,b> removed_by=deny@<tool> <rule text>",
-"inert <kind> scopes=<a,b> outranked_by=ask@<tool> <rule text>", and "CAVEAT: <text>".
+"inert <kind> scopes=<a,b> outranked_by=<kind> <rule text>", and "CAVEAT: <text>".
 
 With --merge-only the reader's own NOTE records are dropped, including the one
 stating that server-managed settings have no local path. Read both sections when
@@ -91,15 +87,10 @@ fi
 # error, never an empty merge — and the output is held until that is known, so a
 # failed run never emits a half-written merge section ahead of its own error.
 merged="$(printf '%s\n' "$records" | awk -v passthrough="$passthrough" '
-function rule_text(line,   i, start) {
-  start = 1
-  for (i = 1; i <= 4; i++) {
-    if (match(substr(line, start), /^[^ ]+/)) {
-      start += RLENGTH
-      while (substr(line, start, 1) == " ") start++
-    } else return ""
-  }
-  return substr(line, start)
+function text_of(start,   i, s) {
+  s = $start
+  for (i = start + 1; i <= NF; i++) s = s " " $i
+  return s
 }
 
 # The tool token is everything before the first "(" — "Bash(rm *)" is a rule
@@ -108,12 +99,17 @@ function rule_text(line,   i, start) {
 # no pattern matcher.
 function tool_of(t,   p) { p = index(t, "("); return p ? substr(t, 1, p - 1) : t }
 
-{ if (passthrough) print }
+# conf records ALWAYS pass through, including under --merge-only. They are not
+# presentation, they are input a downstream stage needs to be correct: the entry
+# diff reads autoMode.classifyAllShell from them, and without it a narrow shell
+# rule that auto mode actually suspends is reported as kept. Dropping them made
+# a documented flag combination silently invert the answer, with no warning.
+{ if (passthrough || $1 == "conf") print }
 
 $1 == "rule" {
   kind = $4
   scope = $2
-  text = rule_text($0)
+  text = text_of(5)
   if (!(text in text_seen)) { text_seen[text] = 1; text_order[++n_texts] = text }
   tool[text] = tool_of(text)
   if (text == tool[text]) {
@@ -144,7 +140,9 @@ $1 == "rule" {
   next
 }
 
-$1 == "NOTE:" { next }
+# conf records are configuration inventory for downstream consumers (the entry
+# diff), not rules and not surfaces — pass through, merge nothing.
+$1 == "NOTE:" || $1 == "conf" { next }
 
 NF >= 3 {
   n_surfaces++

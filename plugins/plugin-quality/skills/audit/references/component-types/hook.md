@@ -15,6 +15,9 @@ PreToolUse / PostToolUse / lifecycle hook scripts. Growable — add cases as you
 - **Exit-code semantics** — PreToolUse: 0 allow, 2 block; PostToolUse: 2 shows stderr to Claude.
   Does the script use them correctly, and fail closed where blocking matters? Verify the semantics
   against the current hooks reference, not memory.
+  Verified 2026-08-12 against [Hooks reference — Exit codes](https://code.claude.com/docs/en/hooks#exit-codes).
+  Recheck when the hooks reference changelog or the `hooks` doc page changes in a Claude Code release
+  this repo's `OFFICIAL-DOCS.md` index records.
 - **Fail-open vs fail-closed** on missing deps (jq), empty/timed-out stdin, parse errors.
 - **Enablement/scope probe** — if it self-disables based on plugin enablement or settings, does it
   read the *merged effective* scopes (user-global + project + local), not just one?

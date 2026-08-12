@@ -61,6 +61,16 @@ hook::require_jq "PreToolUse" "guardrails-secret-pattern-detection" "$INPUT"
 hook::jq_fields "$INPUT" \
   '.tool_name' '.tool_input.file_path' \
   '.tool_input.content' '.tool_input.new_string' '.tool_input.new_source' || exit 0
+
+# A NUL byte in ANY scanned content field is fail-CLOSED (#2136): stripping joins
+# text across the byte, so a clean scan would not reflect the bytes carried.
+if ((HOOK_JQ_FIELDS_NUL)); then
+  echo "BLOCKED: the payload carries a NUL byte in scanned content." >&2
+  echo "The helper strips NUL bytes before matching, so a clean scan would not reflect the bytes the payload carried." >&2
+  echo "Fix: reissue the tool call without the embedded NUL." >&2
+  exit 2
+fi
+
 TOOL="${HOOK_JQ_FIELDS[0]}"
 
 case "$TOOL" in

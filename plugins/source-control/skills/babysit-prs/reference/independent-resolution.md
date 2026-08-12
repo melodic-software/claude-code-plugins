@@ -128,7 +128,10 @@ to self-resolve, and never a reason to reach past the wrapper to raw `resolveRev
 
 - **Security/P1 threads.** `--independent-resolver` retains the severity bright line
   (`skipped-severity-marked`): "never a security or P1 thread" is unconditional on every unattended
-  path, and no evidence buys past it. This is a bound of **the mode**, not of the callers. It is
+  path, and no evidence buys past it. The scan keys on **structured** markers — shields badges and
+  bracketed `[P0]`/`[P1]` — not prose mentions of P1 in a P2 thread's body (#1939). Vetted
+  `--resolve --thread-id` (with TOCTOU pins) applies **no** severity screen; it trusts the calling
+  agent's vetting. That asymmetry is deliberate. This is a bound of **the mode**, not of the callers. It is
   terminal on the `babysit-prs` orchestrator route, whose only resolve form for a current thread is
   this mode — such a thread escalates. `babysit-loop`'s widening carries the one named exception
   (`safety.md`, Security/P1 escalation), and which guarded form that exception uses is its own

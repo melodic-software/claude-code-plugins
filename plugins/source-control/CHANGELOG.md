@@ -3,6 +3,87 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.53.11]
+
+### Fixed
+
+- **Finding-extractor reads anchor to the PR worktree cwd (#2454).** Review-discipline
+  dispatch text now substitutes `<absolute-worktree-path>` and quotes it in `git -C`
+  examples so paths with spaces stay valid.
+
+## [0.53.9]
+
+### Added
+
+- **Guarded resolve-thread wrapper now appends an audit record (#2139).** Every successful
+  `source-control-babysit-resolve-thread --resolve` mutation writes one JSONL line (pins, mode,
+  disposition, thread metadata) to `resolve-thread-audit.jsonl` under plugin data or
+  `~/.claude/source-control/`. Override with `SOURCE_CONTROL_RESOLVE_THREAD_AUDIT_LOG`. Webhook
+  capture and permission-layer bypass closure remain open on #2139.
+
+## [0.53.8]
+
+### Changed
+
+- **The co-author trailer key is now spelled `Co-authored-by` (#1604).** GitHub's documentation uses
+  that spelling exclusively, and GitHub itself writes it when appending co-author trailers to a
+  squash-merge message, so the skill's branch commits and the forge-written merges now agree.
+  Attribution was verified to succeed for the previous `Co-Authored-By` spelling too (GraphQL
+  `Commit.authors` resolves the co-author either way), so this is a consistency change: existing
+  history is never rewritten, and the `trailer_policy` template remains the escape hatch for
+  consumers who want a different spelling.
+
+## [0.53.7]
+
+### Fixed
+
+- **Abbreviation gate now asserts every catalogued Python entry point exposes `--help`.**
+  Without that premise, a parser built with `add_help=False` would pass the universal
+  abbreviation probe vacuously.
+
+## [0.53.6]
+
+### Fixed
+
+- **`fetch_pull_request_commits` fails closed when GitHub's 250-commit API cap truncates the walk
+  (#2387).** Compares the walked count to the PR's `commits` field and raises when the endpoint
+  cannot return the full list, preserving the over-report-only invariant for signature enforcement.
+
+## [0.53.5]
+
+### Fixed
+
+- **`worktree-create.sh` signals lock failure with exit 5 and `lock_failed=1` on stderr (#2389).** The
+  worktree path is still printed so orchestrators can detect an unarmed liveness guard without
+  treating a silent success as a locked worktree.
+
+## [0.53.4]
+
+### Changed
+
+- **Synced `hook-utils.sh`:** refuse sub-minimum `stdin_read_timeout` values (#1883).
+
+## [0.53.3]
+
+### Changed
+
+- **Synced `hook-utils.sh`:** `hook::jq_fields` returns 2 when jq is present but cannot parse the payload (#2157).
+
+## [0.53.2]
+
+### Fixed
+
+- **Canonical `gh pr create` now passes `--head` explicitly (#1900).** The §2.4.3 worktree path already
+  did; the on-branch canonical path did not. Once dotfiles#375's amended auto-mode grant lands, `gh pr
+  create` is covered only when the head branch is named — so the canonical lane must match the
+  sibling spelling. Detached HEAD is refused rather than emitting `--head ""`.
+- **`babysit_resolve_thread` severity guard reads structured P0/P1 markers only (#1939).** The
+  `--autonomous` and `--independent-resolver` paths refused any thread whose body contained a
+  word-bounded `P1` token, so a P2 thread discussing P1 properties in prose became
+  `skipped-severity-marked`. The scan now keys on shields badges, bracketed `[P0]`/`[P1]`, and
+  explicit `P1:`/`P0:` declaration prefixes — not incidental prose mentions. Vetted
+  `--resolve --thread-id` still applies no severity screen — documented as intentional.
+
 ## [0.53.1]
 
 ### Fixed

@@ -1,0 +1,19 @@
+{
+  "allow": [
+    "$defaults",
+    "Data Exfiltration: uploading build artifacts to the release bucket.",
+    "Custom Deploy: running the deploy
+script."
+  ],
+  "soft_deny": [
+    "Credential Read: reading files that hold secrets."
+  ],
+  "hard_deny": [
+    "Data Exfiltration: sensitive data crossing the trust boundary."
+  ],
+  "environment": [
+    "**Organization**: None configured",
+    "**Repos**: none",
+    "**Extra**: melodic-software/*"
+  ]
+}

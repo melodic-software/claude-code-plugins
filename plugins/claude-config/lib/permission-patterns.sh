@@ -55,10 +55,21 @@ CCPERM_SCRIPT_BODY='py|sh|rb|js|ts|mjs|cjs|pl|php'
 #
 # Each alternative captures the whole Tool(...) spec (trailing [^)]*\) ) so a
 # driver reports the full offending rule, not a substring truncated at the *.
-CCPERM_P1_ERE="(Bash|PowerShell)\\(\\*\\)"
-CCPERM_P1_ERE="${CCPERM_P1_ERE}|(Bash|PowerShell)\\([\"' ]*([^)\"' ]*[/\\\\])?(${CCPERM_INTERP_BODY})([\"' :][^)]*)?\\*[^)]*\\)"
-CCPERM_P1_ERE="${CCPERM_P1_ERE}|(Bash|PowerShell)\\([\"' ]*(${CCPERM_RUNNER_BODY})([\"' :][^)]*)?\\*[^)]*\\)"
-CCPERM_P1_ERE="${CCPERM_P1_ERE}|(Bash|PowerShell)\\([\"' ]*\\*[^)]*\\.(${CCPERM_SCRIPT_BODY})[^)]*\\)"
+#
+# The four alternatives are also exposed individually so a driver that must NAME
+# the class a rule fell into (the entry diff's drop reason) tests them one at a
+# time instead of re-deriving the wrapping; the union stays the P1 detector's
+# single match target and is composed from them, never written twice.
+#
+# The RUNNER alternative carries #2382's precision tightening -- the
+# `([\"' :])` before the `\*` requires a separator, so `Bash(npmx *)` no longer
+# matches the `npm` runner. Composed in rather than resolved away: this branch
+# only restructured these patterns, it did not change what they match.
+CCPERM_P1_BLANKET_ERE="(Bash|PowerShell)\\(\\*\\)"
+CCPERM_P1_INTERP_ERE="(Bash|PowerShell)\\([\"' ]*([^)\"' ]*[/\\\\])?(${CCPERM_INTERP_BODY})([\"' :][^)]*)?\\*[^)]*\\)"
+CCPERM_P1_RUNNER_ERE="(Bash|PowerShell)\\([\"' ]*(${CCPERM_RUNNER_BODY})([\"' :][^)]*)?([\"' :])\\*[^)]*\\)"
+CCPERM_P1_SCRIPTGLOB_ERE="(Bash|PowerShell)\\([\"' ]*\\*[^)]*\\.(${CCPERM_SCRIPT_BODY})[^)]*\\)"
+CCPERM_P1_ERE="${CCPERM_P1_BLANKET_ERE}|${CCPERM_P1_INTERP_ERE}|${CCPERM_P1_RUNNER_ERE}|${CCPERM_P1_SCRIPTGLOB_ERE}"
 
 # Splits rule text into top-level `Tool` / `Tool(...)` tokens. The greedy
 # `(\(...\))?` consumes a tool's whole parenthesized payload as one token, so a

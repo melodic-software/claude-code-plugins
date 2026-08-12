@@ -257,6 +257,14 @@ if [[ "$root" == *\\* && ("$OSTYPE" == msys || "$OSTYPE" == cygwin) ]]; then
   root="${root//"$bslash"/"$fwd"}"
 fi
 
+# Reject drive-relative roots (`C:foo` with no separator after the colon). Git for
+# Windows resolves them against the drive's per-directory CWD, which bypasses the
+# containment ancestor walk (#962).
+if [[ "$root" =~ ^[A-Za-z]:[^/] ]]; then
+  printf '%s: --root %q is drive-relative; pass an absolute path (e.g. C:/worktrees)\n' "$PROG" "$root" >&2
+  exit 2
+fi
+
 # Resolve the source repository top level.
 if ! toplevel=$(git -C "$repo_dir" rev-parse --show-toplevel 2>/dev/null); then
   # Remedy first: this line is surfaced verbatim to a user whose worktree
@@ -467,7 +475,9 @@ worktree_path="${root%/}/${dirname}"
 # top level, so a relative root (e.g. `worktrees`) always lands inside the repo.
 # Anchor it to $toplevel up front so the containment check below sees the real
 # target rather than an unrooted string whose ancestor walk never reaches the repo.
-[[ "$worktree_path" != /* && "$worktree_path" != ?:* ]] && worktree_path="$toplevel/$worktree_path"
+# A drive-letter path counts as absolute only when the colon is followed by a
+# separator (`C:/foo`); `C:foo` is drive-relative and is refused above (#962).
+[[ "$worktree_path" != /* && ! "$worktree_path" =~ ^[A-Za-z]:/ ]] && worktree_path="$toplevel/$worktree_path"
 
 # Collapse `.`/`..` before the containment walk. A root with `..` after a
 # nonexistent component (e.g. `<root>/missing/../<repo>/.claude/worktrees`) would
@@ -665,8 +675,11 @@ fi
 # absent (#2257). The owning lane (or cleanup, after explicit confirmation)
 # disarms with `git worktree unlock <path>`.
 lock_reason="worktree-create.sh: lane active on ${HOSTNAME:-$(hostname 2>/dev/null || printf 'unknown-host')} since $(date -u +%Y-%m-%dT%H:%M:%SZ); unlock when the owning lane is done"
+lock_failed=0
 if ! git -C "$toplevel" worktree lock --reason "$lock_reason" "$worktree_path" >&2; then
+  lock_failed=1
   printf '%s: warning: could not lock the new worktree — cleanup sweeps will not see it as claimed\n' "$PROG" >&2
+  printf '%s: lock_failed=1\n' "$PROG" >&2
 fi
 
 # Reimplement Claude Code's .worktreeinclude copy: files that match a
@@ -703,3 +716,6 @@ fi
 
 printf '%s: created worktree on branch %q (base %s)\n' "$PROG" "$name" "$base_ref" >&2
 printf '%s\n' "$worktree_path"
+if ((lock_failed)); then
+  exit 5
+fi

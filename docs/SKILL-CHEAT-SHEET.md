@@ -103,8 +103,10 @@ owned by [docs/CATALOG-TAXONOMY.md](CATALOG-TAXONOMY.md).
 | [`/code-tidying:batch-simplify`](../plugins/code-tidying/skills/batch-simplify/SKILL.md) | `code-tidying` | Batch-run simplification across all recently changed files by ecosystem |
 | [`/mcp-tools:audit`](../plugins/mcp-tools/skills/audit/SKILL.md) | `mcp-tools` | Audit MCP tool definitions against design quality criteria |
 | [`/plugin-quality:audit`](../plugins/plugin-quality/skills/audit/SKILL.md) | `plugin-quality` | Behavioral audit of a plugin component ending in a maintainer work item |
+| [`/review:code-review`](../plugins/review/skills/code-review/SKILL.md) | `review` | Org CI code-review command for claude-review.yml |
 | [`/review:fanout`](../plugins/review/skills/fanout/SKILL.md) | `review` | Fan review out across every reviewer surface into one ranked report |
 | [`/review:quality-gate`](../plugins/review/skills/quality-gate/SKILL.md) | `review` | Single-lens review checkpoint routed to the matching reviewer |
+| [`/review:security-review`](../plugins/review/skills/security-review/SKILL.md) | `review` | Org CI security-review command for claude-security-review.yml |
 | [`/skill-quality:check`](../plugins/skill-quality/skills/check/SKILL.md) | `skill-quality` | Static QA gate for skill frontmatter, caps, and evals |
 
 ## 7. Verify outcome
@@ -141,8 +143,9 @@ owned by [docs/CATALOG-TAXONOMY.md](CATALOG-TAXONOMY.md).
 | [`/claude-config:audit-instructions`](../plugins/claude-config/skills/audit-instructions/SKILL.md) | `claude-config` | Find instructions current models no longer need across CLAUDE.md, rules, and skill bodies |
 | [`/claude-config:audit-pass`](../plugins/claude-config/skills/audit-pass/SKILL.md) | `claude-config` | Run one coordinated, resumable audit pass over a repo with a single human gate |
 | [`/claude-config:audit-permission-grants`](../plugins/claude-config/skills/audit-permission-grants/SKILL.md) | `claude-config` | Audit permission grants for portability and auto-mode durability |
-| [`/claude-config:audit-permission-state`](../plugins/claude-config/skills/audit-permission-state/SKILL.md) | `claude-config` | Report which permission scopes exist and what rules each one holds |
+| [`/claude-config:audit-permission-state`](../plugins/claude-config/skills/audit-permission-state/SKILL.md) | `claude-config` | Report the permission rules actually in effect and what auto mode drops |
 | [`/claude-config:audit-prompting-postures`](../plugins/claude-config/skills/audit-prompting-postures/SKILL.md) | `claude-config` | Find posture guidance the prompting guide says a component needs but does not carry |
+| [`/claude-config:draft-auto-mode-rules`](../plugins/claude-config/skills/draft-auto-mode-rules/SKILL.md) | `claude-config` | Interview and draft a paste-ready autoMode block, never writing settings |
 | [`/claude-config:unhobble`](../plugins/claude-config/skills/unhobble/SKILL.md) | `claude-config` | Strip instructions to a bare baseline, log real stumbles, re-add only what evidence earns |
 | [`/claude-memory:audit`](../plugins/claude-memory/skills/audit/SKILL.md) | `claude-memory` | Audit CLAUDE.md, rules, and auto-memory against the official-docs checklist |
 | [`/claude-memory:stateless`](../plugins/claude-memory/skills/stateless/SKILL.md) | `claude-memory` | Inspect, disable, or purge Claude Code's per-repo auto memory |

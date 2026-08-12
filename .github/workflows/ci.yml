@@ -161,6 +161,7 @@ jobs:
             .github/workflows/ci.yml
             .github/workflows/claude-review.yml
             .github/workflows/claude-security-review.yml
+            .github/workflows/dependabot-miro-bundle.yml
             .github/workflows/do-not-merge.yml
             .github/workflows/link-check.yml
             .github/workflows/pr-issue-linkage.yml
@@ -184,10 +185,23 @@ jobs:
           # the same corpus: it pins each fixture's trusted --credential-roots
           # (a real runner home) and expected not-under-root rejections, so it
           # necessarily carries those same host paths.
+          # audit-permission-state is the third case of the same kind: its
+          # C6-winPath check EXISTS to find Windows paths in permission rules,
+          # so its detector message quotes one, its criteria file quotes the
+          # settings page quoting one, and its fixtures must carry them or the
+          # check has nothing to detect. The oracle fixtures reproduce Claude
+          # Code's own [DEBUG] narration, which prints native Windows settings
+          # paths — rewriting those would make the fixture stop matching what
+          # the parser has to survive. The paths are invented (`alice`, `x`),
+          # not any operator's.
           exclude: >-
             :(exclude)plugins/guardrails/lib/path-detection/**
             :(exclude)plugins/autonomy/skills/setup/evals/fixtures/security-binding/**
             :(exclude)plugins/autonomy/skills/setup/scripts/check-security-binding.fixtures.test.manifest.json
+            :(exclude)plugins/claude-config/skills/audit-permission-state/reference/criteria.md
+            :(exclude)plugins/claude-config/skills/audit-permission-state/scripts/permission-plane-lint.sh
+            :(exclude)plugins/claude-config/skills/audit-permission-state/scripts/permission-plane-lint.test.sh
+            :(exclude)plugins/claude-config/skills/audit-permission-state/scripts/automode-entry-diff.test.sh
 
       - name: Check index-level EOL drift
         id: eol
@@ -337,6 +351,44 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: scripts/sync-parse-concern-value.sh --check-bump "origin/$BASE_REF"
 
+  managed-scope-sync:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Verify managed-scope cluster matches canonical
+        run: scripts/sync-managed-scope.sh --check
+      - name: Run managed-scope tests
+        run: bash plugins/claude-config/lib/managed-scope.test.sh
+      - name: Verify carrying plugins bumped when canonical changed
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: scripts/sync-managed-scope.sh --check-bump "origin/$BASE_REF"
+
+  state-key-sync:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Verify state-key cluster matches canonical
+        run: scripts/sync-state-key.sh --check
+      - name: Run state-key tests
+        run: bash plugins/claude-config/lib/state-key.test.sh
+      - name: Verify carrying plugins bumped when canonical changed
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: scripts/sync-state-key.sh --check-bump "origin/$BASE_REF"
+
   resolve-convention-pattern-sync:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -453,19 +505,6 @@ jobs:
       - name: Run silent-skip-gate tests
         run: bash scripts/check-silent-skips.test.sh
 
-  discriminating-test-skip-gate:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    steps:
-      - name: Check out
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Check plugin tests for discriminating skip_case sites
-        run: scripts/check-discriminating-test-skips.sh
-      - name: Run discriminating-test-skip-gate tests
-        run: bash scripts/check-discriminating-test-skips.test.sh
-
   # #1547: a routine `git merge origin/main` silently dropped
   # plugins/guardrails/.claude-plugin/plugin.json for ~14 minutes on a branch
   # while .claude-plugin/marketplace.json still catalogued "guardrails" at that
@@ -513,9 +552,10 @@ jobs:
         run: scripts/check-orphaned-fixtures.sh --check
 
   # CHANGELOG parity: a versioned plugin must keep a CHANGELOG.md whose newest
-  # version heading does not outrun the manifest (static --check), and a PR that
+  # version heading does not outrun the manifest (static --check), a PR that
   # changes a plugin's manifest version must update that plugin's CHANGELOG.md in
-  # the same diff (--check-bump, PR-only). Existing
+  # the same diff (--check-bump, PR-only), and no PR may DROP a version heading a
+  # changelog already carried (--check-preserved, PR-only). Existing
   # "versioned but changelog-less" debt is grandfathered by name in
   # scripts/changelog-parity-baseline.txt with a stale guard; the bump gate is
   # never relaxed by the baseline. The self-test runs unconditionally so a broken
@@ -539,6 +579,15 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: scripts/check-changelog-parity.sh --check-bump "origin/$BASE_REF"
+      # The other half of the same PR discipline: the bump gate polices what a
+      # change set ADDS and never what it REMOVES, so a merge-forward that writes
+      # the new release under the PREVIOUS release's heading deletes a released
+      # section with no conflict marker and no gate to catch it (#2264).
+      - name: Verify no changed changelog drops a version heading it carried at the fork point
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: scripts/check-changelog-parity.sh --check-preserved "origin/$BASE_REF"
       # Whole-file, not per-diff: the other two modes reason about one version at
       # a time, so neither can see that two branches staged the same number or
       # that a stale-based entry landed below one already on main.
@@ -961,6 +1010,10 @@ jobs:
       # event like the schema step above.
       - name: Lint every eval set for quality
         run: bash plugins/skill-quality/scripts/check-evals-quality.sh plugins/*/skills/*/evals/evals.json
+      - name: Test the precompute-compose gate
+        run: bash scripts/check-skill-precompute-compose.test.sh
+      - name: Report precompute git+multi-line violations (warn-only)
+        run: scripts/check-skill-precompute-compose.sh --all
       - name: Test the shared listing-budget reporter
         run: bash plugins/skill-quality/scripts/check-listing-budget.test.sh
       # Report-only (always exit 0 — see the script's own header): pools every
@@ -1061,7 +1114,6 @@ jobs:
       - userconfig-argv-gate
       - plugin-options-docs-gate
       - silent-skip-gate
-      - discriminating-test-skip-gate
       - plugin-manifest-presence-gate
       - orphaned-fixture-gate
       - changelog-parity-gate

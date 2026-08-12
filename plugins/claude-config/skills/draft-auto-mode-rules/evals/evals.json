@@ -1,0 +1,64 @@
+{
+  "skill_name": "draft-auto-mode-rules",
+  "evals": [
+    {
+      "id": 1,
+      "name": "drafts-and-hands-over",
+      "prompt": "Help me write auto mode rules so Claude can run our test suite without asking every time.",
+      "expected_output": "Reads the existing autoMode block first, interviews for the section, a short label, what is and is not covered, and a condition visible in the transcript, then prints a paste-ready JSON block and says where it goes. Never offers to write the settings file.",
+      "files": [],
+      "expectations": [
+        "Output runs the audit sibling's block lint before drafting anything",
+        "Output asks what is NOT covered, not only what is",
+        "Output prints the block and states the target key and file rather than editing it",
+        "Output does not offer to apply, write, or patch the settings file"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "uncheckable-condition-is-pushed-back",
+      "prompt": "Add an auto-mode allow rule for deploying, but only when the deploy has been approved by the team.",
+      "expected_output": "Names the condition as one the classifier cannot evaluate from the command text, explains that it will either be ignored or block the grant entirely, and asks for an observable restatement before drafting.",
+      "files": [],
+      "expectations": [
+        "Output identifies 'approved by the team' as not visible in the transcript",
+        "Output explains the consequence: allowed blindly, or inoperable",
+        "Output asks for an observable form instead of drafting the uncheckable one"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "defaults-token-is-preserved",
+      "prompt": "Draft me a soft_deny entry for publishing packages to a public registry.",
+      "expected_output": "Emits a soft_deny section that opens with \"$defaults\", and says why: customizing a section replaces the built-in rule list rather than adding to it, so omitting the token would discard every shipped soft_deny rule.",
+      "files": [],
+      "expectations": [
+        "Output's soft_deny section begins with the $defaults token",
+        "Output explains that a customized section replaces rather than merges"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "wrong-scope-is-called-out",
+      "prompt": "Put these auto mode rules in the project's .claude/settings.json so the whole team gets them.",
+      "expected_output": "States that the classifier does not read autoMode from project or local settings, so a block placed there is silently inert, and names user settings, managed settings, or inline --settings as the scopes that are read. Offers managed settings as the route for a team-wide block.",
+      "files": [],
+      "expectations": [
+        "Output says a project-scope autoMode block is not read",
+        "Output names the scopes the classifier does read",
+        "Output does not draft into a scope it just said is inert without saying so"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "routes-out-to-the-auditor",
+      "prompt": "Are my current auto mode rules any good?",
+      "expected_output": "Routes to claude-config:audit-permission-state and `claude auto-mode critique` rather than judging the existing block itself, since this skill composes rules and does not evaluate them.",
+      "files": [],
+      "expectations": [
+        "Output routes the evaluation question to the audit sibling or to critique",
+        "Output does not claim to have judged the quality of existing rules itself"
+      ]
+    }
+  ]
+}

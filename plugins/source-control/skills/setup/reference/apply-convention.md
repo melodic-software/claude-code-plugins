@@ -135,7 +135,7 @@ With no argument in an interactive session, run the interview:
      trailing period. That literal is what the resolution contract recognizes and expands against the
      effective `subject_pattern`; any other casing or punctuation is read as a pattern in its own
      right and pre-checked as a regex.
-   - **`trailer_policy`** (optional) — whether commits should carry a `Co-Authored-By:` (or other)
+   - **`trailer_policy`** (optional) — whether commits should carry a `Co-authored-by:` (or other)
      attribution trailer, and its exact template. Recommend keeping `/source-control:commit`'s default unless the
      user states otherwise. Omit this section entirely if the repo has no trailer convention.
    - **`pr_body_attribution`** (optional) — the attribution line `/source-control:pull-request create` appends to the

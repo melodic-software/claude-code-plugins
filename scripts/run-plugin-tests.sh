@@ -8,7 +8,20 @@
 # Each test is self-contained and cwd-independent; an individual test SKIPs
 # (exit 0) when an optional tool it needs (shellcheck, shfmt, ...) is absent, so
 # this runner gates on real failures without requiring every tool to be present.
+#
+# Skips are never silent: the summary names every suite that skipped and why,
+# so "exit 0 with skips" reads differently from "all green" (#1313 — a suite
+# whose only coverage skipped used to be indistinguishable from a pass).
+# --strict-skips turns any optional SKIP into a failure, for callers that have
+# provisioned the full toolchain and want a skip to mean the environment
+# regressed rather than that a tool is optional.
 set -uo pipefail
+
+strict_skips=0
+if [[ "${1:-}" == "--strict-skips" ]]; then
+  strict_skips=1
+  shift
+fi
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
 
@@ -22,6 +35,7 @@ fi
 failed=0
 total_optional_skips=0
 total_discriminating_skips=0
+skipped_suites=()
 
 if command -v git >/dev/null 2>&1; then
   echo "Runner git: $(git --version)"
@@ -42,6 +56,10 @@ for t in "${tests[@]}"; do
   disc_skips="$(grep -c '^DISCRIMINATING SKIP:' "$log" 2>/dev/null || true)"
   total_optional_skips=$((total_optional_skips + opt_skips))
   total_discriminating_skips=$((total_discriminating_skips + disc_skips))
+  if ((opt_skips > 0)); then
+    first_reason="$(grep -m1 '^SKIP:' "$log")"
+    skipped_suites+=("$t — ${opt_skips} SKIP(s), first: ${first_reason#SKIP: }")
+  fi
   if ((disc_skips > 0)); then
     echo "DISCRIMINATING SKIP: $t vacated $disc_skips discriminating case(s)" >&2
   fi
@@ -50,6 +68,12 @@ done
 
 echo ""
 echo "Plugin test aggregate: ${total_optional_skips} optional SKIP(s), ${total_discriminating_skips} DISCRIMINATING SKIP(s)."
+if ((${#skipped_suites[@]} > 0)); then
+  echo "Suites with skipped coverage (exit 0 here is NOT evidence those cases ran):"
+  for s in "${skipped_suites[@]}"; do
+    echo "  SKIPPED: $s"
+  done
+fi
 
 if ((total_discriminating_skips > 0)); then
   {
@@ -59,8 +83,20 @@ if ((total_discriminating_skips > 0)); then
   failed=1
 fi
 
+if ((strict_skips)) && ((total_optional_skips > 0)); then
+  {
+    echo "--strict-skips: ${total_optional_skips} optional SKIP(s) occurred in an"
+    echo "environment declared to have the full toolchain — treating as failure."
+  } >&2
+  failed=1
+fi
+
 if [[ $failed -ne 0 ]]; then
   echo "One or more plugin tests failed." >&2
   exit 1
 fi
-echo "All plugin tests passed or were skipped."
+if ((total_optional_skips > 0)); then
+  echo "All executed plugin tests passed; ${total_optional_skips} case(s) skipped (named above)."
+else
+  echo "All plugin tests passed."
+fi

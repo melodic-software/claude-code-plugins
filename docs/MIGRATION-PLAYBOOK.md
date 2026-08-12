@@ -177,6 +177,7 @@ Prefer them in this order; the earlier ones are simplest and least surprising.
 | `${CLAUDE_PROJECT_DIR}` | Path to the consumer's project root, substituted in hook/MCP/monitor commands and exported to subprocesses | Referencing project-local scripts/config |
 | `userConfig` → `${user_config.KEY}` | Values Claude Code prompts for at enable time (typed: string/number/boolean/directory/file, optional sensitive). Substitutes as `${user_config.KEY}` in MCP/LSP configs and exec-form hook commands; non-sensitive values also substitute into skill/agent content. Shell-form hook commands, monitor commands, and MCP `headersHelper` reject this substitution. Hook processes receive every value as `CLAUDE_PLUGIN_OPTION_<KEY>`; a Bash tool call made by a skill does not (see the [smoke-test record](extensibility-contract-smoke-tests.md)). Non-sensitive values are stored under `pluginConfigs[<id>].options` in user settings and read from user, `--settings`, or managed settings; project/local entries are ignored. Sensitive values use the macOS Keychain or `~/.claude/.credentials.json` where no supported keychain exists | Endpoints, toggles, tokens — personal or administrator-supplied config without editing the plugin |
 | `${CLAUDE_PLUGIN_ROOT}` | Path to the plugin's own installed directory | Referencing bundled scripts/assets (mandatory under cache isolation) |
+| `${CLAUDE_SKILL_DIR}` | Path to the current skill's subdirectory within the plugin (not the plugin root); substituted in skill and agent content per the [skills reference](https://code.claude.com/docs/en/skills#available-string-substitutions) | Pre-compute blocks and `allowed-tools` paths that must resolve to skill-local scripts without hardcoding the plugin root |
 | `${CLAUDE_PLUGIN_DATA}` | Persistent per-plugin directory that survives updates (`~/.claude/plugins/data/<id>/`) | Installed deps, caches, generated state |
 | `hooks/hooks.json` | Event handlers the plugin ships | Behavior consumers opt into by enabling the plugin |
 
@@ -682,6 +683,19 @@ plugins-reference, and hooks pages 2026-07-17; re-verify per the `CLAUDE.md` fre
    **advisory** (exits 0, never blocks) vs gating; no `eval` / `curl … | sh` / outbound network; untrusted
    input (file contents, tool args, PR/issue text) never flows unquoted into a shell; a kill switch
    (a per-hook `userConfig` boolean with a `default` of `true`) exists.
+   - **A skill's frontmatter `allowed-tools` is a prompt-free execution grant, and workspace trust does
+     not gate it.** Measured on Claude Code 2.1.225: a marketplace-installed skill's `allowed-tools`
+     entry takes effect at **user scope** in a **never-trusted** workspace, under `-p` where no trust
+     dialog can appear — the covered command ran without a prompt, the uncovered one blocked with
+     `This command requires approval`, and a no-grant baseline confirmed that shape blocks. Bounds on
+     the measurement: a local-directory marketplace, and user scope only.
+     **Consequence: the install-time plugin trust prompt is the only gate in front of such a grant —
+     there is no second, per-workspace one.** Review every `allowed-tools` entry with the scrutiny a
+     hook command gets, and deny by default anything broader than the specific command the skill's own
+     scripts invoke. A wildcard interpreter grant (`Bash(python*)`, `Bash(*)`, bare `Bash`) is a deny
+     outright: it is arbitrary code execution in a workspace the consumer never trusted.
+     `claude-config:audit-permission-grants` check P1 detects exactly these shapes and is the
+     mechanical half of this criterion.
 2. **MCP servers — `.mcp.json` / inline in `plugin.json`.** `miro` is the only plugin that ships a
    **local** `stdio`, bundled server (see its §2 trust accept above); `dometrain` is the only plugin
    that ships a **remote** server (see its review record below), which remains the higher-scrutiny
@@ -1575,9 +1589,9 @@ seam on an in-doc citation is a follow-up, not asserted here as already-true.
 
 **The limitation, stated precisely — two provenance layers, only one collapses.** Distinguish:
 
-- **Git commit metadata** (author, committer, `Co-Authored-By` trailers) **does** carry a distinct
+- **Git commit metadata** (author, committer, `Co-authored-by` trailers) **does** carry a distinct
   identity — this very record's commit is authored by `Codex <codex@openai.com>`; other agents commit
-  under their own identity (e.g. a `Co-Authored-By: Claude …` trailer). So at the commit layer, agent
+  under their own identity (e.g. a `Co-authored-by: Claude …` trailer). So at the commit layer, agent
   work is often *visible*. But it is **soft, not proof**: an agent can set its git author to anything,
   so absence of an agent identity does not prove a human authored it.
 - **GitHub gh-account actions** — PR author, PR review, merge, and the account a commit is *attributed

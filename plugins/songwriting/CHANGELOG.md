@@ -3,6 +3,286 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.3.0]
+
+Both audit denominators are unchanged: **Axis 1 stays 44 of 44** and **Axis 2
+stays 226 of 226.** No Pattison reading. Suno docs only; no craft skill is
+touched.
+
+**The source is live production use, not a reading pass.** A writer ran Suno
+v5.5 through a real song on 2026-08-12 and hit four things the skill did not
+document. One of them silently corrupts a generation: an empty `[Chorus]` tag
+used as repeat shorthand, sitting above a `[Bridge]` that carried lyrics, and
+Suno sang the **bridge's** lyrics in the chorus slot and dropped the bridge.
+Nothing in the output announces that; you get a structurally wrong song that
+sounds fine.
+
+### A new evidence class, named rather than smuggled onto the ladder
+
+Three of the four findings are **first-hand, single-session, n=1**. The
+confidence ladder in `SKILL.md` grades *second-hand* sourcing — official docs,
+multiple community guides plus Reddit consensus, or a single community post — and
+none of those rungs describes a writer driving the product and watching what
+happened. So `SKILL.md` gains one bullet placing these **off** the ladder, with
+a fixed label carried at every claim site:
+
+```
+writer-observed, single session (2026-08-12), n=1 — not externally corroborated
+```
+
+**No new rung was invented**, per 1.1.3's precedent — the gap is named instead.
+The bullet also fixes the direction the label could be misread in both ways.
+First-hand does **not** outrank MEDIUM: one unreproduced session is not
+consensus, and a flow-scoped reading must carry its scope. But an observed
+**failure** is existence evidence in a way a claimed success is not — enough to
+document a fix, never enough to assert the failure always happens or to state a
+mechanism.
+
+**That distinction is the whole discipline of the S3 entry below**, and it is the
+trap 1.1.2 and 1.1.3 were both written about. One absorption proves tag-only
+repeats *can* fail in that adjacency. It does not prove they always fail, and it
+does not establish why. The entry says the adjacency is *the observed correlate,
+a candidate cause, not a demonstrated mechanism*, and the fix it recommends is
+the cheap safe default — write the lyrics out — not a prohibition. This skill's
+own `tips.md` warns that variance is high and one generation is rarely
+representative; that warning applies to the single run behind this finding too,
+and the entry says so.
+
+### Added
+
+- **Duration control is documented, and first-party verification succeeded.**
+  Suno's release notes, Jul 20 2026: *"Drag the new Duration slider in the Create
+  form to pick your song length. Available on Web using V5.5 model"*
+  (<https://suno.com/release-notes/duration-slider-on-web>, fetched 2026-08-12).
+  So the control's existence, name, home, and Web + V5.5 scoping are **HIGH**,
+  not writer-observed — the label above does not appear on them.
+  **The four claim classes are rated separately rather than averaged.** Range
+  (10s-6min), 5-second increments, and the Auto/Custom pair are **LOW-MEDIUM**:
+  the writer read them off the UI and one community post states the same figures
+  independently, which makes the range the one writer-observed item here that is
+  *not* uncorroborated — but no `help.suno.com` article states a range, and two
+  guides written *about* the slider decline to state one. "Target, not a
+  guarantee" is carried as an attributed quote.
+  **The lyric-length interaction ships as an explicit OPEN QUESTION** with a
+  do-not-advise instruction on it. A single post reports hard-cut and rushed
+  delivery, and the temptation was to believe it because this skill already
+  documents the same failure family from the lyric-length end (past ~3,000 chars
+  Suno "rushes, skips sections, or cuts output short"). **A shared failure shape
+  is not evidence of a shared cause**, and the entry records the two-generation
+  test that would settle it. A "golden length" sweet spot offered by the same
+  post is deliberately not carried: one source, one taste judgement, one
+  round-number range — the shape this plugin has deleted twice.
+- **Two troubleshooting entries for failures that were tested, not theorized** —
+  "My bridge is missing / another section sang its lyrics" (the absorption above)
+  and "There's too much pause between lines / the delivery is choppy", plus a row
+  each in the master pitfalls table.
+- **Audio Influence has an entry value at last, scoped to the flow it was seen
+  in.** 25% on entry to the **cover-from-upload** flow. Recorded as
+  per-entry-flow deliberately: the Extend and upload-as-seed flows were **not**
+  observed, and the text says so rather than promoting one reading to "the
+  default". Cover-workflow guidance now states the trade the slider makes —
+  uploaded-melody fidelity against new-arrangement freedom — with the cost named
+  in **both** directions, and notes the consequence of the observed value: a
+  cover-from-upload opens *low*, so its untouched behavior is arrangement
+  freedom. If the melody is the asset, that is a setting to change deliberately
+  rather than inherit.
+
+### Fixed
+
+- **Two blanket confidence sentences would have mislabeled the new number, and
+  both are carved out.** `advanced.md`'s Creative Sliders section opens by
+  declaring *every* percentage and default below community-empirical, and
+  `SKILL.md`'s MEDIUM rung says the same of *every* numeric slider setting in the
+  skill. The Audio Influence entry value is neither. Adding it under either
+  blanket would have shipped a first-hand reading wearing a community-empirical
+  label — so both sentences name the carve-out, in the same bolded clause that
+  does the governing.
+- **The five-controls count in `advanced.md`'s More Options panel survives,
+  because the evidence moved the feature instead.** The gap report proposed
+  documenting duration under More Options, which would have made that count
+  wrong. First-party evidence puts the slider in the **Create form**, so the
+  count stands at five and the panel gains a guard saying where the control
+  actually is — positive evidence of its home, not an assertion from silence
+  that the panel lacks it.
+- **`v55-features.md`'s 2026-07-18 verification stamp is amended rather than
+  left to imply completeness.** The slider shipped Jul 20 2026 — two days after
+  that pass. It is deliberately kept **out** of the version-delta table, which
+  tracks model capabilities rather than Create-form controls; a row there would
+  misdate a July Web control as a March model capability.
+- **"One idea per line" no longer contradicts the new join-the-lines fix.** The
+  skill asserted it unqualified in **three** places — `lyrics.md`'s Performance
+  shaping table, `lyrics.md`'s Best practices, and a `tips.md` entry the gap
+  report did not name. It is the same mechanism read in two directions:
+  separation is what a line break buys, so short-line stacks buy too much of it.
+  `lyrics.md` now owns the full statement ("Line breaks cut both ways"); the
+  other sites qualify and point at it rather than restating the claim.
+  **No line-length floor is invented** — no source states a number, so the test
+  is qualitative: a clause holds, a fragment over-instructs.
+  The fix is explicitly **prompt-layer only** — the page lyric keeps its artistic
+  lineation, and the text says outright that nothing here asks a writer to
+  un-write a line.
+- **"Reuse the chorus verbatim" now says to write it out.** That bullet was
+  silent on whether the reuse had to be typed under each tag, which is precisely
+  the reading that produced the absorption failure.
+
+### Ledger
+
+Six rows added to `reference/suno-drift-audit-ledger.md` (S13-S18), per its own
+rule that a row and the CHANGELOG move in the same PR. Three record *audit
+outcomes* (S13 first-party confirmed; S14 LOW-MEDIUM; S15 the open question);
+three record the off-ladder observations (S16-S18). S15 exists so the duration /
+lyric-length question is falsifiable rather than rediscovered — the reason this
+ledger was created in the first place (#2354).
+
+### Known gaps
+
+- **Tag-only as the FINAL section before `[Outro]`/`[End]` is untested** and
+  flagged as such at the entry and in S17. Neither endorsed nor ruled out.
+- **No external corroboration pass was run against the three observed findings.**
+  `SKILL.md` documents a working browser route to r/SunoAI; running it is the
+  specific event that would move S16-S18, and it was not attempted here. Named
+  rather than left as an implied absence, because "not corroborated" and "nobody
+  looked" are different claims and 1.2.0 was written about confusing them.
+- **`troubleshoot.md` still has no song-length symptom.** Now that duration is
+  documented, "rushed delivery" acquires a second candidate cause, and the
+  garbled-lyrics entry owns the adjacent one. Out of scope here; flagged so the
+  two files do not drift.
+- **Version class ruled minor (1.3.0).** New standing instructions (off-ladder
+  writer-observation bullet), feature-route content (Duration section), and two
+  troubleshooting behaviors match 1.2.0's precedent for minor bumps. Sibling
+  `feat/songwriting-emission-discipline` can take the next minor after rebase.
+
+## [1.2.0]
+
+Both audit denominators are unchanged: **Axis 1 stays 44 of 44** and **Axis 2
+stays 226 of 226.** No Pattison reading.
+
+**A minor, not a patch.** A confidence rung changes, which changes how callers
+are told to surface the technique, and `SKILL.md` gains a new standing
+instruction (the browser route to Reddit). Both are behavior, not wording.
+
+**The r/SunoAI pass that three releases called impossible was run.** 1.1.2 and
+1.1.3 both recorded the Reddit corpus as unreachable — "the search tool refuses `reddit.com`" — and rated claims down
+accordingly. A reviewer on PR #2366 pointed at this plugin's **own**
+`context/workflow-recipes.md`, which has said since 1.1.0 that *"r/SunoAI is no
+longer unreachable"* and that a **browser session** reaches it where search and
+direct fetch fail. The route worked on the first try.
+
+**The corpus was never closed. The note saying so was never read.** That is the
+finding worth keeping: an absence recorded as "cannot be checked" is only as good
+as the search for a way to check, and the way was already written down in this
+skill.
+
+### One claim moves up a rung; the other does not, and that is the more useful result
+
+- **Tag-order front-loading (`power-tips.md` "Tag order") is no longer
+  unsourced.** 1.1.1 demoted it as *"never been checked against a source in
+  either direction"* and 1.1.2-1.1.3 left it there. An upvoted r/SunoAI guide
+  post (13 votes, 28 comments,
+  [`1h4zc7e`](https://www.reddit.com/r/SunoAI/comments/1h4zc7e/expanded_insight_and_guidance_on_suno_style/))
+  leads with **"Key Insight 1: Order Matters"** and states that Suno assigns
+  importance by order, first descriptors setting the stage and later ones adding
+  flavor, with a paired example differing only in which half leads. Now
+  **LOW-MEDIUM** — the ladder defines that rung as *"at most a single community
+  post"*, and one post is what this is. Not MEDIUM.
+- **Bare genre order is still unestablished, and now we know what would settle
+  it.** In
+  [`1g5qzes`](https://www.reddit.com/r/SunoAI/comments/1g5qzes/style_order/) a
+  user reports `progressive metal, jazz` and `jazz, progressive metal` giving
+  different results. A draft of this release called that **isolating**, because a
+  comma swap moves order and nothing else. **A reviewer showed it is not** — and
+  the refutation came from this plugin's own `tips.md`: *"Variance is high. First
+  generation is rarely best."* Against a stochastic generator, one run per
+  ordering leaves run-to-run variance uncontrolled; two different outputs are
+  what you would expect from the **same** prompt twice. Recorded as an anecdote
+  and as the shape a real test would take — repeated or seed-controlled — not as
+  evidence.
+
+**"Order encodes priority" is still not restored.** Its defect was certainty and
+mechanism, and none of this supplies either.
+
+### Fixed
+
+- **Genre fusion stays between LOW-MEDIUM and MEDIUM — but now on evidence.**
+  `SKILL.md` requires multiple guides **plus** Reddit consensus. Three guides
+  give the first half; the pass found **one** corroborating post and one split
+  thread, which is corroboration, not consensus. The rung is unchanged from
+  1.1.3; what changed is that 1.1.3 rated it down for an **untried** corpus —
+  wrong twice over, since the corpus was reachable and now says something
+  specific.
+- **An era caveat is attached to front-loading, and it is load-bearing.** The
+  cited post is from 2024 (v3/v4). `help.suno.com` 5782849 says of v4.5 that
+  *"In previous models, you would want to prioritize certain genre and style
+  details, but your instructions can now include a more conversational prompt."*
+  First-party guidance is moving **away** from the terse prioritized-token style
+  the rule describes. So front-loading is attested for terse comma-separated
+  prompts and **unverified for the v5.5 conversational prompts this skill
+  targets**. Rating it without that split would have shipped a v3-era finding as
+  current advice.
+- **Middle-tag softening (roughly 4-7) stays unsourced**, explicitly. The post
+  that sources the first half says nothing about middle positions, and the entry
+  now warns against letting one half carry the other.
+- **`SKILL.md`'s MEDIUM rung records the browser route to Reddit**, so the next
+  reader does not rate a third claim down for a corpus that is open.
+
+## [1.1.3]
+
+Both audit denominators are unchanged: **Axis 1 stays 44 of 44** and **Axis 2
+stays 226 of 226.** No reading, no new unit, no new technique.
+
+**This release repairs 1.1.2, which shipped with two review findings
+outstanding.** Both were raised on PR #2351 and both were correct; the PR was
+merged before the fixes were pushed, so they land here instead. Nothing in the
+1.1.2 entry is rewritten — it records what shipped, including what was wrong
+with it.
+
+### ⚠ 1.1.2 REPLACED AN OVERCLAIM WITH AN OPPOSITE OVERCLAIM
+
+1.1.2 correctly removed *"Order encodes priority"* from `power-tips.md`. It then
+asserted the negative: *"Grammatical role, not word position, is what the sources
+describe as the signal."* **The evidence does not carry that either.** The one
+source that addresses order says word order matters *"not just"* on its own —
+which treats position as a **contributing** signal, qualifying the positional
+rule rather than refuting it. The other two speak only to hierarchy and say
+nothing about position at all.
+
+**Position is not ruled out. It is unestablished.** The section now says exactly
+that. This is worth stating loudly because the failure is subtle and repeatable:
+an audit that correctly finds a claim unsupported is *not* thereby licensed to
+assert its opposite. Both directions need evidence, and a confidently-worded
+demotion reads as researched while carrying the same defect the demotion was
+meant to fix.
+
+### Fixed
+
+- **The genre-fusion section no longer claims MEDIUM confidence**, because it
+  never met this skill's own bar. `SKILL.md`'s ladder defines MEDIUM as multiple
+  community guides **plus** Reddit consensus — and 1.1.2 recorded in the same
+  breath that the Reddit pass could not run (the search tool available refuses
+  `reddit.com`). So 1.1.2 routed callers to a confidence level its evidence had
+  not earned, using the very ladder that release proposed as the governing home
+  for Suno claims. The section now states that it sits **between LOW-MEDIUM and
+  MEDIUM**: three independent guides clearly exceed LOW-MEDIUM's "at most a
+  single community post", and the Reddit half of MEDIUM is unmet and untried.
+  **No new rung was invented** to make the claim fit — the gap is named instead.
+  `SKILL.md`'s router row matches.
+- **An r/SunoAI pass is added to the genre-fusion recheck trigger**, since it is
+  now the specific event that would settle the rung in either direction.
+- **`tips.md` stated the same conclusion twice within six lines.** The `Effect:`
+  line and the corpus block both explained that the `~70%` had no basis; the
+  `Effect:` line now points down to the corpus instead of restating it.
+- **`SKILL.md`'s LOW-MEDIUM bullet had grown to a ~150-word sentence-run**
+  covering two unrelated items (the `voices.md` caveats and the timing-cue
+  history). Split into two sub-bullets under the same rung.
+
+### Process note worth keeping
+
+The two findings above were posted as review threads on #2351 and the PR merged
+before they were addressed. **A merged PR is not evidence its review was
+resolved** — check the thread state, not the merge state, and when a merge
+outruns a fix, ship the fix as its own release rather than editing the shipped
+entry to hide the gap.
+
 ## [1.1.2]
 
 Both audit denominators are unchanged: **Axis 1 stays 44 of 44** and **Axis 2
