@@ -748,7 +748,40 @@ appears in the fixture policy or in a scope file beneath it (set difference is e
 `grep -c 'RECOMMEND ADD' = 0` — nothing emits that string, so it passes unconditionally and proves
 nothing about the guarantee it claims to protect.
 
-### Phase 7: Authoring lane — `claude-config:draft-auto-mode-rules` [TODO]
+### Phase 7: Authoring lane — `claude-config:draft-auto-mode-rules` [DONE]
+
+**Completed 2026-08-12.** `draft-automode-block.test.sh` 33/33, `shellcheck -x` clean. The phase's
+sanity check holds: the drafter's stdout passes `jq -e .` — **strict**, correctly, because we author
+this output and the non-strict allowance exists only for the CLI's malformed emission. No Python
+dependency reaches this phase.
+
+**The entry template is `critique`'s own recommendation, applied at authoring time.** Run against a
+real 66 KB hand-authored block, `claude auto-mode critique` found that the classifier is "an LLM doing
+a single pass under a 'default is ALLOW' instruction", so "buried conditions in paragraph position 40
+will be missed at a materially higher rate than conditions in a bullet list", and recommended bulleted
+COVERED / NOT COVERED plus a one-line rationale with provenance stripped. That is the shape the
+drafter emits — the finding is acted on rather than restated.
+
+**The interview's fourth question is the one that matters.** The same critique named uncheckable
+conditions as the biggest weakness: entries state preconditions the classifier cannot evaluate from
+command text, so it either allows blindly or blocks, with no stated disposition. `SKILL.md` requires
+pushing back and asking for the observable form, and an eval covers it.
+
+**Deviations recorded rather than silent:**
+
+- **Every emitted section opens with `"$defaults"`, by construction rather than by instruction.** A
+  customized section replaces the built-in list, so a drafter that omitted the token would bake in the
+  exact defect the audit sibling reports. Asserted per section in the suite.
+- **jq composes the JSON, not shell string-building.** Hand-rolled escaping is how a draft would ship
+  the raw-control-character defect this plugin reports elsewhere; a case feeds quotes, backslashes and
+  a tab and asserts strict-valid output.
+- **The no-write contract is asserted by RUNNING the script and diffing the filesystem**, including a
+  fixture `HOME` whose settings file is checked byte-identical afterwards. A grep for redirect syntax
+  was tried first and rejected: the script is mostly an embedded jq program where `>` is a comparison
+  operator, so a text scan cannot tell a redirect from a comparison. Measuring the effect is sound
+  where scanning the source is not.
+- **`plugin.json` moved from eight skills to nine**, and the catalog and cheat sheet were regenerated
+  in the same change. The version bump stays the single one already taken.
 
 Brainstorm candidate 7. Drafts an `autoMode` block from an interview plus the Phase 2 merge, prints it
 to stdout, human pastes. **No write, no persistent state**, so it does not trip the Brief's

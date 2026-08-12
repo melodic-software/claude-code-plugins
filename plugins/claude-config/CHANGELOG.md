@@ -102,6 +102,19 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   (`--settings`, `--allowedTools`, `--disallowedTools`) outranks the files and has none to read, and
   rules are compared by exact text, so a narrow allow blocked only by a broader deny pattern is still
   reported effective — the error direction is over-reporting allow, never over-reporting blocking.
+- **`draft-auto-mode-rules`** — a second new skill, the authoring counterpart. It interviews you about
+  what should and should not be auto-approved, then prints a paste-ready `autoMode` block to stdout.
+  The entry shape is `claude auto-mode critique`'s own recommendation applied at authoring time rather
+  than reported afterwards: run against a real 66 KB hand-authored block, it found the classifier is
+  "an LLM doing a single pass under a 'default is ALLOW' instruction", so conditions buried in a
+  paragraph are missed at a materially higher rate than conditions in a bullet list. Entries are
+  therefore a label, bulleted COVERED / NOT COVERED, and one line of rationale. The interview pushes
+  back on conditions the classifier cannot evaluate from the command text — the same critique named
+  those the biggest weakness, since the classifier either allows blindly or blocks entirely with no
+  stated disposition. Every emitted section opens with `"$defaults"`, because customizing a section
+  replaces the built-in rule list rather than adding to it. It **writes nothing, in any scope, under
+  any flag** — editing a consumer's settings file would be making a permission decision on their
+  behalf, which is the one thing this plugin exists not to do.
 - **`lib/permission-patterns.sh`** — the auto-mode drop vocabulary (blanket, wildcarded-interpreter,
   package-manager-runner, and script-glob rule shapes, plus the top-level tool-token grammar) as a
   define-only library. It was inline in the P1 detector, which self-executes and cannot be sourced,
