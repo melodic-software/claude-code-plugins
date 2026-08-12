@@ -229,11 +229,17 @@ depends on the binding until that human-landed change exists.
    pre-existing surface is authoritative input to reconcile against, not a blank field to fill.
 3. **Live-validate BEFORE recording** — the empirical probe per substrate class (recipe in
    [`templates/isolation-probe.md`](templates/isolation-probe.md)). A candidate `L2`/`L3`
-   substrate is validated by running, INSIDE the boundary, two probes that MUST both fail:
-   - a **denied-egress smoke test** — a network fetch to a well-known external host MUST fail
-     (a boundary that lets egress through is not an `L2` boundary);
+   substrate is validated by running, INSIDE the boundary, three probes that MUST all fail:
+   - a **denied-egress smoke test** — a network fetch MUST fail against two well-known external
+     hosts under different operators AND against every destination the level binding ratifies as
+     component-reachable (a boundary that lets egress through is not an `L2` boundary, and a probe
+     that samples only what the base policy denies never looks where an installed component may
+     already have widened it);
    - a **host-credential-path read attempt** — a read of a host credential path MUST be absent or
-     denied (a boundary that leaks host secrets is not an `L2` boundary).
+     denied (a boundary that leaks host secrets is not an `L2` boundary);
+   - a **workspace host-write containment check** — randomized canaries written inside MUST all be
+     absent on the host after teardown (a boundary the host later executes writes from is not an
+     `L2` boundary).
 
    The checker resolves no DNS and reads no remote host, so it validates the probe's targets against
    operator-configured seams. The egress target checks against `--egress-hosts <host,...>` (a
@@ -256,8 +262,8 @@ depends on the binding until that human-landed change exists.
    lands ahead of the probe that proves its boundary.
 4. **Bind level → substrate per surface** — record each validated substrate under its surface in
    `isolation_bindings` (surface id → level token → substrate instance + the human-ratified
-   `substrate_class` + `probe_evidence` + the non-forgeable `runtime_markers` the dispatch seam
-   attests against), plus the merge policy,
+   `substrate_class` and `component_reachable_hosts` + `probe_evidence` + the non-forgeable
+   `runtime_markers` the dispatch seam attests against), plus the merge policy,
    verification-blocking knobs, escalation routes, and admission rules and caps — all on the
    prepared security-binding change, validated by
    [`scripts/check-security-binding.mjs`](scripts/check-security-binding.mjs) against

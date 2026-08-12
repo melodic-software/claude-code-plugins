@@ -942,6 +942,32 @@
         "verification_topology.C3.roles[1]: unknown key \"max_latency_ms\" (additionalProperties: false)"
       ],
       "credential_roots": "/home/runner"
+    },
+    "probe-evidence-component-reach-uncovered.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "leaving ratified component_reachable_hosts api.example.net, cdn.example.net unprobed"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "probe-evidence-component-reach-partial.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "leaving ratified component_reachable_hosts api.example.net unprobed"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "probe-evidence-component-reach-unratified.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "the level binding ratifies no component_reachable_hosts"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "component-reach-empty-valid.json": {
+      "exit": 0,
+      "findings_substrings": [],
+      "credential_roots": "/home/runner"
     }
   },
   "quarantined": {},

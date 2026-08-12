@@ -546,7 +546,14 @@ function validateStructure(binding) {
             findings.push(`${where}: must be an object`);
             continue;
           }
-          checkAllowedKeys(entry, ["substrate", "substrate_class", "probe_evidence", "runtime_markers"], where);
+          checkAllowedKeys(entry, ["substrate", "substrate_class", "component_reachable_hosts", "probe_evidence", "runtime_markers"], where);
+          if (
+            Object.hasOwn(entry, "component_reachable_hosts") &&
+            (!Array.isArray(entry.component_reachable_hosts) ||
+              entry.component_reachable_hosts.some((host) => !isNonEmptyString(host)))
+          ) {
+            findings.push(`${where}.component_reachable_hosts: must be an array of non-empty host strings — the empty array is the explicit claim that this surface installs nothing carrying policy rules of its own`);
+          }
           if (!isNonEmptyString(entry.substrate)) {
             findings.push(`${where}.substrate: missing or empty — the bound substrate instance id is required`);
           }
@@ -1241,7 +1248,7 @@ function isNonExternalEgressHost(host) {
 // surface, level, substrate, or substrate class proves a DIFFERENT boundary,
 // not this one. Returns null when verified, else the reason the entry is
 // unproven.
-function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, substrateClass, egressAllowList, credentialRoots) {
+function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, substrateClass, egressAllowList, credentialRoots, componentReachableHosts) {
   // Evidence verifies ONLY against the configured protected root: without
   // --probe-evidence-root a ref resolves as written — including to an
   // agent-writable file swapped after the human ratified the binding — so no
@@ -1537,7 +1544,7 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, subs
     return `transcript ${path} records assertions.egress_denied.client_ready ${JSON.stringify(egress.client_ready)} — the probe client must first be shown to RUN inside the boundary (exit "0" against an in-boundary endpoint): an absent or broken client would otherwise satisfy every egress assertion trivially`;
   }
   // One denied destination is fully consistent with a policy that allows
-  // others — including one a kit installed on top of a global deny-all.
+  // others — including one a component installed on top of a global deny-all.
   if (egressHosts.length < 2) {
     return `transcript ${path} records ${egressHosts.length} probed egress target — a single probed target cannot establish default-deny egress, since a policy may allow other destinations while denying this one; probe at least two distinct external targets under different operators`;
   }
@@ -1593,6 +1600,32 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, subs
   }
   const workspaceProblem = verifyWorkspaceContainment(transcript, path);
   if (workspaceProblem !== null) return workspaceProblem;
+  // Target selection is load-bearing, and this leg is LAST for the reason the
+  // whole hardened block is: the function returns the FIRST problem, and every
+  // pre-existing fixture pins the reason its own transcript is rejected for.
+  //
+  // The distinct-targets leg above samples only what the BASE policy denies. A
+  // surface whose additive policy layer lets an installed component carry rules
+  // of its own is widened at exactly the destinations those components request,
+  // so a probe drawn from anywhere else certifies a boundary open at the one
+  // place it never looked. Which destinations those are is an outer-world fact
+  // no capture can establish, so the set rides the HUMAN-RATIFIED level entry on
+  // the agent-unwritable surface — the trust boundary substrate_class sits on —
+  // and the transcript's job is to show the probe covered it.
+  if (!Array.isArray(componentReachableHosts)) {
+    return `the level binding ratifies no component_reachable_hosts — the destinations this surface's installed components may request are an outer-world fact no capture can establish, so they are ratified on the binding entry and the probe must cover them; ratify the list (or the empty list, where this surface installs nothing carrying policy rules of its own) on the agent-unwritable binding surface`;
+  }
+  if (componentReachableHosts.some((host) => !isNonEmptyString(host))) {
+    return `the level binding ratifies a component_reachable_hosts entry that is not a non-empty host string — every ratified destination must name a host the probe can be checked against`;
+  }
+  // Coverage, never a count: each ratified destination is a separate policy
+  // decision, so probing one says nothing about the rest.
+  const uncoveredRatified = componentReachableHosts
+    .map((host) => host.trim().toLowerCase().replace(/\.$/, ""))
+    .filter((host) => !distinctEgressHosts.has(host));
+  if (uncoveredRatified.length > 0) {
+    return `transcript ${path} probes ${[...distinctEgressHosts].join(", ")}, leaving ratified component_reachable_hosts ${uncoveredRatified.join(", ")} unprobed — each ratified destination is a separate policy decision, so covering one says nothing about the rest; probe every ratified component-reachable destination in the configuration the run will actually use`;
+  }
   return null;
 }
 
@@ -1787,7 +1820,7 @@ function checkSemantics(binding, probeRoot, egressAllowList, credentialRoots) {
         continue;
       }
       const reason = isNonEmptyString(entry.probe_evidence)
-        ? verifyProbeTranscript(entry.probe_evidence, probeRoot, surfaceId, level, entry.substrate, entry.substrate_class, egressAllowList, credentialRoots)
+        ? verifyProbeTranscript(entry.probe_evidence, probeRoot, surfaceId, level, entry.substrate, entry.substrate_class, egressAllowList, credentialRoots, entry.component_reachable_hosts)
         : "probe_evidence missing";
       if (reason === null) {
         provenMax = Math.max(provenMax, levelNo);
