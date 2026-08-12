@@ -108,6 +108,20 @@ run "git push --force-with-lease=main:<64-hex> in a SHA-1 repo (a 64-hex ref nam
 run_in "$REPO_SHA256" "git push --force-with-lease=main:<64-hex> in a SHA-256 repo (full object id, allowed)" "git push --force-with-lease=main:$SHA256_OID origin main" 0
 run_in "$REPO_SHA256" "git push --force-with-lease=main:<40-hex> in a SHA-256 repo (a 40-hex ref name resolves here, blocked)" "git push --force-with-lease=main:$SHA1_OID origin main" 2
 run_in "$NOT_A_REPO" "git push --force-with-lease=main:<40-hex> outside a repository (width undeterminable, fail-closed block)" "git push --force-with-lease=main:$SHA1_OID origin main" 2
+
+run_stderr_in() {
+  local dir="$1" label="$2" command="$3" expected="$4"
+  shift 4
+  local rc err
+  err="$(cd "$dir" && env "$@" bash "$HOOK" <<<"$(command_json_cwd "$command" "$dir")" 2>&1 >/dev/null)"
+  rc=$?
+  assert_exit "$label" "$expected" "$rc"
+  printf '%s' "$err"
+}
+
+err="$(run_stderr_in "$NOT_A_REPO" "width-undeterminable block names the git failure, not abbreviation" "git push --force-with-lease=main:$SHA1_OID origin main" 2)"
+assert_contains "width-undeterminable: cites object format" "$err" "hash format could not be determined"
+assert_absent "width-undeterminable: does not blame abbreviation" "$err" "abbreviated object id"
 run_in "$NOT_A_REPO" "git push --force-with-lease=main: outside a repository (empty expect needs no width, allowed)" "git push --force-with-lease=main: origin main" 0
 # git's repository-locating globals move the push off the invoking directory, so
 # the width follows them. `-C` takes its value as a separate word — git rejects

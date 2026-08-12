@@ -3,6 +3,13 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.1]
+
+### Fixed
+
+- **`block-dangerous-git` `repo_oid_width` no longer caches a width-0 failure or misdiagnoses it as a movable lease (#2227).** When `git rev-parse --show-object-format` fails, the guard now surfaces the git error, refuses to cache the failure for the rest of the invocation, and blocks with a distinct message from the abbreviation/wrong-width case — so a literal full-width SHA is not blamed on the operator when the repository's hash format could not be read.
+- **`--no-force-with-lease` now clears unknown-width lease state.** A trailing negation that cancels every preceding `--force-with-lease` also resets `lease_width_unknown` and `_lease_oid_width_unknown`, so a pinned lease whose width probe failed is not incorrectly blocked after the negation.
+
 ## [0.26.0]
 
 ### Changed
