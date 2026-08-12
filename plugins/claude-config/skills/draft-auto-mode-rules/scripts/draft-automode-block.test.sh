@@ -4,6 +4,12 @@
 # Every case feeds hand-written answer records on stdin. Nothing here reads or
 # writes any settings file, in any scope: the script under test has no write
 # path at all, and one case asserts exactly that.
+#
+# portability-scope: one fixture deliberately feeds a literal backslash through
+# the drafter, to prove jq owns the JSON escaping rather than shell
+# string-building. The backslash run the gate reads as a regex escape is that
+# adversarial INPUT inside a heredoc, not shell code — removing it would delete
+# the case rather than fix anything.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

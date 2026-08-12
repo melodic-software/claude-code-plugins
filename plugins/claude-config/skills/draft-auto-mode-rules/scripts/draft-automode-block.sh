@@ -92,7 +92,7 @@ fi
 # string escaping in awk is how a draft ends up carrying the very defect this
 # plugin reports elsewhere (a raw control character inside a string value).
 printf '%s\n' "$answers" | jq -Rn '
-  def trim: sub("^\\s+"; "") | sub("\\s+$"; "");
+  def trim: sub("^[[:space:]]+"; "") | sub("[[:space:]]+$"; "");
 
   # Entry text follows the shape `claude auto-mode critique` recommends: a
   # label, then bulleted COVERED / NOT COVERED, then one line of rationale.
@@ -111,10 +111,10 @@ printf '%s\n' "$answers" | jq -Rn '
     | join("\n");
 
   [inputs]
-  | map(select(test("\\S")))
+  | map(select(test("[^[:space:]]")))
   | reduce .[] as $line (
       {section: null, current: null, entries: []};
-      ($line | capture("^\\s*(?<key>section|label|covered|not|why)\\s+(?<value>.*)$") // null) as $rec
+      ($line | capture("^[[:space:]]*(?<key>section|label|covered|not|why)[[:space:]]+(?<value>.*)$") // null) as $rec
       | if $rec == null then .
         elif $rec.key == "section" then
           (if .current != null then .entries += [.current] else . end)
@@ -130,7 +130,7 @@ printf '%s\n' "$answers" | jq -Rn '
         end
     )
   | (if .current != null then .entries + [.current] else .entries end)
-  | map(select(.section != null and (.label | test("\\S"))))
+  | map(select(.section != null and (.label | test("[^[:space:]]"))))
   | group_by(.section)
   | map({
       key: .[0].section,
