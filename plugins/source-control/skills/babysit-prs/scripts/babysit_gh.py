@@ -355,6 +355,15 @@ def discover_prs(
     return sorted(found.values()), list(dict.fromkeys(errors))
 
 
+def fetch_pull_request_author(repo: str, number: int) -> str:
+    """The PR author's login from `gh pr view --json author`."""
+    repo = repo.casefold()
+    author = gh_json(["pr", "view", str(number), "--repo", repo, "--json", "author"])
+    if not is_json_object(author):
+        raise RuntimeError(f"Unexpected gh pr view author for {repo}#{number}")
+    return str(author.get("login") or "")
+
+
 def view_pr(repo: str, number: int) -> dict[str, Any]:
     repo = repo.casefold()
     data = gh_json(["pr", "view", str(number), "--repo", repo, "--json", VIEW_FIELDS])
