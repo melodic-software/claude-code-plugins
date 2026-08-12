@@ -22,6 +22,12 @@ what to learn from it while it runs and after, and how to arm it for delegation-
 | `/session-flow:reconcile` | Is anything still running that should be retired, and does the task ledger match reality? |
 | `/session-flow:setup` | Are the observer's runtime prerequisites and configuration right on this machine? |
 
+## Output styles
+
+- **`Brain fried`** — opt-in simplified register for cognitively depleted sessions (short words,
+  short answers, two options max). Select it in `/config` → **Output style**. Coexists with
+  `/education:explain` for one-shot deep explanations (#1223).
+
 ## What each skill does
 
 ### workflow

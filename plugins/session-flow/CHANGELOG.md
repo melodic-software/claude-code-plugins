@@ -1,5 +1,12 @@
 # Changelog — session-flow plugin
 
+## [0.22.4]
+
+### Added
+
+- **`Brain fried` output style** — ambient simplified register for cognitively depleted
+  sessions; opt-in via `/config` (#1223).
+
 ## [0.22.3]
 
 ### Changed
