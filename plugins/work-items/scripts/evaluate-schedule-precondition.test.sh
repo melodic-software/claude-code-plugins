@@ -39,9 +39,8 @@ else
 fi
 
 rc=0
-if ! "$EVAL" "$TMP" demo >/dev/null 2>&1; then
-  rc=$?
-fi
+"$EVAL" "$TMP" demo >/dev/null 2>&1
+rc=$?
 if [[ "$rc" -eq 2 ]]; then
   pass "confirmation precondition needs operator"
 else
@@ -49,12 +48,8 @@ else
 fi
 
 rc=0
-out=""
-if out="$("$EVAL" "$TMP" demo --operator-confirmed)"; then
-  :
-else
-  rc=$?
-fi
+out="$("$EVAL" "$TMP" demo --operator-confirmed)"
+rc=$?
 if [[ "$rc" -eq 0 && "$out" == "met" ]]; then
   pass "operator confirmation satisfies precondition"
 else
