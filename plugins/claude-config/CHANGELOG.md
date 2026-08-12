@@ -3,6 +3,7 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+<<<<<<< HEAD
 ## [0.35.3]
 
 ### Fixed
@@ -40,6 +41,36 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   #2282 records.
 - Rows **A7b** (no inert-grant check) and **A12** (`~user` username leak unflagged) are **not**
   fixed here; both still reproduce at HEAD and are tracked separately.
+=======
+## [0.35.4]
+
+### Fixed
+
+- **`audit-pass` no longer asks the model to evaluate a placeholder it never sees.** Its default
+  `target` read "`${CLAUDE_PROJECT_DIR}` when set, else `git rev-parse --show-toplevel`". That
+  placeholder is substituted inline in skill content before the file reaches the model, so the literal
+  token is never visible and "when set" is a test about a value that has already been resolved. The
+  default is now stated in prose — the project root Claude Code resolved for this session, else
+  `git rev-parse --show-toplevel` — with the prohibition itself written out so the shape does not come
+  back. **This was a contradiction inside one plugin**: #2250 landed exactly this prohibition in
+  `audit-prompting-postures` while `audit-pass` kept the shape, so two sibling skills disagreed about
+  the same placeholder.
+- **Both instances, not just the filed one.** The report named `SKILL.md:42-43`; the same unevaluable
+  condition also sat in the non-git refusal ("with no explicit `target` and no
+  `${CLAUDE_PROJECT_DIR}`"), where it governs the diagnostic path that refusal exists to produce.
+  Fixing only the cited line would have left the contradiction half-standing while reading as closed.
+- **The `{id}` derivation is stated, so a report cannot be written where the next run will not look.**
+  The skill said `${CLAUDE_PLUGIN_DATA}` resolves to `~/.claude/plugins/data/{id}/` and never said how
+  `{id}` is formed. Now quoted: the plugin identifier with characters outside `a-z`, `A-Z`, `0-9`, `_`
+  and `-` replaced by `-`, with the plugins reference's own worked example
+  (`formatter@my-marketplace` → `formatter-my-marketplace`). A wrong derivation is also how `--resume`
+  loses a partial.
+- **`${CLAUDE_PLUGIN_DATA}` is recorded as absent from the Bash tool's environment.** The export is
+  documented for "hook processes and … MCP and LSP server subprocesses"; the Bash tool is none of
+  those, so `echo "$CLAUDE_PLUGIN_DATA"` in a Bash call returns an empty string even though the token
+  substitutes correctly in skill content. Nothing in the skill said so, which invites exactly that
+  shell expansion.
+>>>>>>> 644de273 (fix(claude-config): stop audit-pass asking the model to test a substituted placeholder)
 
 ## [0.35.2]
 

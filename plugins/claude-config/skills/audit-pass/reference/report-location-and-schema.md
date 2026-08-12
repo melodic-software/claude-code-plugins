@@ -19,8 +19,24 @@ held.
 - The report goes under `${CLAUDE_PLUGIN_DATA}` at `runs/<state-key>/<run-id>/findings.json`, which
   survives plugin updates. **State its location precisely, because a whole target class turns on it:**
   that directory resolves to `~/.claude/plugins/data/{id}/`
-  ([plugins reference](https://code.claude.com/docs/en/plugins-reference), verified 2026-08-11), and no
-  documented setting relocates it. It is therefore **outside** a target below `~` and **inside** any
+  ([plugins reference](https://code.claude.com/docs/en/plugins-reference), verified 2026-08-12), and no
+  documented setting relocates it.
+
+  **`{id}` is derived, and deriving it wrong loses the report.** Same page, verbatim: `{id}` is *"the
+  plugin identifier with characters outside `a-z`, `A-Z`, `0-9`, `_`, and `-` replaced by `-`"*, with
+  the worked example that a plugin installed as `formatter@my-marketplace` lands in
+  `~/.claude/plugins/data/formatter-my-marketplace/` — the `@` becomes `-`. A wrong derivation writes
+  the report where the next run will not look for it, which is also how `--resume` loses a partial.
+
+  **`${CLAUDE_PLUGIN_DATA}` is not in the Bash tool's environment — do not try to expand it from a
+  shell.** The same page scopes the export precisely: *"All three are exported as environment variables
+  to hook processes and to MCP and LSP server subprocesses."* The Bash tool is none of those. The token
+  does substitute in **skill content**, which is how a resolved path reaches you in this file, but
+  `echo "$CLAUDE_PLUGIN_DATA"` inside a Bash call yields an empty string. Use the path already
+  substituted into the text you are reading, or rebuild it from `~/.claude/plugins/data/` plus the
+  mangled identifier above.
+
+  It is therefore **outside** a target below `~` and **inside** any
   target at or above it. The default path is *usually* outside the scan set and is **not
   unconditionally** outside it — a dotfiles repository, or `~` itself, is a target where containment
   holds by construction, and the older unconditional claim was false there.
