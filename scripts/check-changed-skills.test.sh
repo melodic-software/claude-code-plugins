@@ -9,6 +9,8 @@ set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SELF_DIR/check-changed-skills.sh"
+# shellcheck source=test-git-helpers.sh
+. "$SELF_DIR/test-git-helpers.sh"
 
 PASS=0
 FAIL=0
@@ -35,10 +37,7 @@ chmod +x "$STUB"
 mk_repo() {
   local dir
   dir="$(mktemp -d)"
-  git -C "$dir" init -q
-  git -C "$dir" config user.email t@t.test
-  git -C "$dir" config user.name test
-  git -C "$dir" config commit.gpgsign false
+  git_init_safe "$dir"
   mkdir -p "$dir/scripts"
   cp "$SCRIPT" "$dir/scripts/check-changed-skills.sh"
   printf '%s' "$dir"
@@ -52,7 +51,7 @@ add_skill() {
   printf 'content %s\n' "$RANDOM" >"$path"
 }
 
-commit_all() { git -C "$1" add -A && git -C "$1" commit -qm "$2"; }
+commit_all() { git_test_config "$1" add -A && git_test_config "$1" commit -qm "$2"; }
 base_sha() { git -C "$1" rev-parse HEAD; }
 
 # run <repo> <base>  — invoke the script from the repo root, stub as checker.
