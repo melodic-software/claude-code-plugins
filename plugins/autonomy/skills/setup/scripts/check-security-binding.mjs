@@ -6,7 +6,8 @@
 // mirrored here, dependency-free) plus the semantic rules the schema cannot
 // express: matrix merge caps, runtime-marker attestability and pairwise
 // joint-satisfiability, per-surface class-aware isolation verdicts, promotion
-// discipline, and admission floors/precedence.
+// discipline, per-class verification-topology floors and coverage, and
+// admission floors/precedence.
 //
 // Usage: node check-security-binding.mjs <binding.json> [--evidence <evidence.json>] [--probe-evidence-root <dir>] [--egress-hosts <host,host,...>] [--credential-roots <path,path,...>]
 // Exit 0 = valid (verdicts printed); 1 = findings; 2 = usage/environment error.
@@ -365,6 +366,31 @@ const VERIFICATION_FLOORS = {
 };
 const VERIFICATION_STRENGTH = { "not-required": 0, advisory: 1, blocking: 2 };
 
+// The verification-topology leaf's vocabulary and shipped per-class floors.
+// Floors carry the same rule as VERIFICATION_FLOORS: tightening is legal,
+// weakening below a shipped value is invalid, and the admission-rule
+// override_justification escape applies to admission rules ONLY, never here.
+// An ABSENT verification_topology key (or an absent class) is not a hole:
+// the leaf's shipped floors apply, exactly as escalation_severity falls back
+// to contract defaults.
+const TOPOLOGY_ROLES = ["generator", "checker", "cross_vendor_checker", "ranker"];
+// The roles that count toward min_checkers: a cross_vendor_checker IS a
+// checker, additionally constrained to a different vendor from the generator.
+const CHECKER_TYPED_ROLES = new Set(["checker", "cross_vendor_checker"]);
+const RELATIONAL_CONSTRAINTS = ["distinct_model_from", "distinct_vendor_from"];
+// min_model_checkers exists because a total count cannot express which KIND
+// of coverage is owed: without it a class meets min_checkers with
+// deterministic slots alone, never faces a model judge, and
+// cross_vendor_required then binds an empty set of model slots and is
+// satisfied by declaring nothing.
+const TOPOLOGY_FLOORS = {
+  C1: { min_checkers: 1, min_model_checkers: 0, cross_vendor_required: false },
+  C2: { min_checkers: 1, min_model_checkers: 0, cross_vendor_required: false },
+  C3: { min_checkers: 2, min_model_checkers: 1, cross_vendor_required: false },
+  C4: { min_checkers: 3, min_model_checkers: 2, cross_vendor_required: true },
+  C5: { min_checkers: 3, min_model_checkers: 2, cross_vendor_required: true },
+};
+
 const PROMOTABLE_CELLS = new Set(["C2-auto-merge", "C3-auto-merge", "C3-ai-review-blocking"]);
 
 // C3 auto-merge's evidence predicate builds on the C2 auto-merge track record
@@ -469,6 +495,7 @@ function validateStructure(binding) {
       "isolation_bindings",
       "merge_policy",
       "verification_blocking",
+      "verification_topology",
       "promotion_state",
       "escalation_routes",
       "escalation_severity",
@@ -601,6 +628,20 @@ function validateStructure(binding) {
             checkEnum(perClass[workClass], VERIFICATION_TOKENS, `${where}.${workClass}`);
           }
         }
+      }
+    }
+  }
+
+  if (Object.hasOwn(binding, "verification_topology")) {
+    if (!isPlainObject(binding.verification_topology)) {
+      findings.push("verification_topology: must be an object keyed by work class");
+    } else {
+      checkAllowedKeys(binding.verification_topology, WORK_CLASSES, "verification_topology");
+      for (const workClass of WORK_CLASSES) {
+        // An absent class is not a hole: the verification-topology leaf's
+        // shipped floors apply to it, so only declared classes validate.
+        if (!Object.hasOwn(binding.verification_topology, workClass)) continue;
+        validateClassTopologyStructure(binding.verification_topology[workClass], `verification_topology.${workClass}`);
       }
     }
   }
@@ -899,6 +940,90 @@ function validateTemporalClassificationHome(ruleHome, where) {
       );
     }
   }
+}
+
+// One class's declared verification topology (mirrors $defs/ClassTopology).
+// All three axes are required on a declared class: a count with no role list
+// is a length with no coverage, so the roles the count is evaluated against
+// always travel with it. Predicate keys are a CLOSED set — a predicate is a
+// requirement a binding can EVALUATE against a candidate instance, and an
+// unrecognized token cannot be evaluated, so it is rejected rather than
+// carried as decoration.
+function validateClassTopologyStructure(topology, where) {
+  if (!isPlainObject(topology)) {
+    findings.push(`${where}: must be an object binding the class's declared topology ({min_checkers, min_model_checkers, cross_vendor_required, roles})`);
+    return;
+  }
+  const topologyKeys = ["min_checkers", "min_model_checkers", "cross_vendor_required", "roles"];
+  checkAllowedKeys(topology, topologyKeys, where);
+  for (const key of topologyKeys) {
+    if (!Object.hasOwn(topology, key)) {
+      findings.push(`${where}.${key}: required key missing — a declared class topology carries all four axes, because a count without its role list (or a role list without its count) cannot be evaluated`);
+    }
+  }
+  if (Object.hasOwn(topology, "min_checkers") && (!Number.isInteger(topology.min_checkers) || topology.min_checkers < 1)) {
+    findings.push(`${where}.min_checkers: must be an integer >= 1`);
+  }
+  if (Object.hasOwn(topology, "min_model_checkers") && (!Number.isInteger(topology.min_model_checkers) || topology.min_model_checkers < 0)) {
+    findings.push(`${where}.min_model_checkers: must be an integer >= 0`);
+  }
+  if (Object.hasOwn(topology, "cross_vendor_required") && typeof topology.cross_vendor_required !== "boolean") {
+    findings.push(`${where}.cross_vendor_required: must be a boolean`);
+  }
+  if (!Object.hasOwn(topology, "roles")) return;
+  if (!Array.isArray(topology.roles) || topology.roles.length === 0) {
+    findings.push(`${where}.roles: must be a non-empty array of declared role entries`);
+    return;
+  }
+  topology.roles.forEach((entry, index) => {
+    const entryWhere = `${where}.roles[${index}]`;
+    if (!isPlainObject(entry)) {
+      findings.push(`${entryWhere}: must be an object`);
+      return;
+    }
+    checkAllowedKeys(
+      entry,
+      ["name", "role", "scanner_class", "distinct_model_from", "distinct_vendor_from", "min_context_tokens", "requires_modality", "requires_feature"],
+      entryWhere,
+    );
+    if (Object.hasOwn(entry, "scanner_class") && !isNonEmptyString(entry.scanner_class)) {
+      findings.push(`${entryWhere}.scanner_class: must be a non-empty string naming the scanner class that distinguishes this deterministic slot`);
+    }
+    if (!isNonEmptyString(entry.name)) {
+      findings.push(`${entryWhere}.name: missing or empty — the class-local id relational constraints resolve against`);
+    }
+    checkEnum(entry.role, TOPOLOGY_ROLES, `${entryWhere}.role`);
+    for (const constraint of RELATIONAL_CONSTRAINTS) {
+      if (!Object.hasOwn(entry, constraint)) continue;
+      const value = entry[constraint];
+      const targets = typeof value === "string" ? [value] : Array.isArray(value) ? value : null;
+      if (targets === null || targets.length === 0 || targets.some((target) => !isNonEmptyString(target))) {
+        findings.push(`${entryWhere}.${constraint}: must be a non-empty role name or a non-empty array of role names`);
+        continue;
+      }
+      if (new Set(targets).size !== targets.length) {
+        findings.push(
+          `${entryWhere}.${constraint}: ${JSON.stringify(value)} repeats a target — listing one role twice restates a single constraint while presenting as several`,
+        );
+      }
+    }
+    if (Object.hasOwn(entry, "min_context_tokens") && (!Number.isInteger(entry.min_context_tokens) || entry.min_context_tokens < 1)) {
+      findings.push(`${entryWhere}.min_context_tokens: must be an integer >= 1 — the predicate evaluates against the declared input limit of the bound instance`);
+    }
+    for (const predicate of ["requires_modality", "requires_feature"]) {
+      if (!Object.hasOwn(entry, predicate)) continue;
+      const value = entry[predicate];
+      if (!Array.isArray(value) || value.length === 0 || value.some((token) => !isNonEmptyString(token))) {
+        findings.push(`${entryWhere}.${predicate}: must be a non-empty array of non-empty string tokens`);
+        continue;
+      }
+      if (new Set(value).size !== value.length) {
+        findings.push(
+          `${entryWhere}.${predicate}: ${JSON.stringify(value)} repeats a token — a repeated requirement is one requirement presenting as several`,
+        );
+      }
+    }
+  });
 }
 
 // --- Semantic rules the schema cannot express ---
@@ -1775,6 +1900,23 @@ function checkSemantics(binding, probeRoot, egressAllowList, credentialRoots) {
     }
   }
 
+  // Verification-topology floors and coverage per declared class. An absent
+  // verification_topology (or an absent class within it) is NOT a hole: the
+  // verification-topology leaf's shipped floors apply, exactly as
+  // escalation_severity falls back to contract defaults — so only declared
+  // classes are checked, and each on all three axes: the floors
+  // (tighten-only, no override escape — the same rule verification_blocking
+  // carries), the reference resolution that keeps relational constraints
+  // machine-checkable, and the distinctness coverage that keeps min_checkers
+  // a count of distinct checkers rather than a length.
+  if (isPlainObject(binding.verification_topology)) {
+    for (const workClass of WORK_CLASSES) {
+      const topology = binding.verification_topology[workClass];
+      if (!isPlainObject(topology)) continue;
+      checkTopologySemantics(topology, workClass);
+    }
+  }
+
   // No notification-routability rule exists for escalation_severity on
   // purpose: severity selects only the NOTIFICATION fan-out layered on the
   // filed item — it never redirects the item, whose queue destination stays
@@ -1840,6 +1982,226 @@ function checkAdmissionSemantics(rules) {
         findings.push(
           `admission.rules[${rules.indexOf(a)}] and admission.rules[${rules.indexOf(b)}]: equal specificity (${specificity(a)} bound axes) with different dispositions and a jointly matchable triple — no most-specific winner exists; invalid binding, fail-closed`,
         );
+      }
+    }
+  }
+}
+
+// A relational constraint's target list, tolerant of structurally invalid
+// values (those already produced their structural finding): a string is one
+// target, an array is several.
+function topologyConstraintTargets(entry, constraint) {
+  const value = entry[constraint];
+  if (typeof value === "string") return isNonEmptyString(value) ? [value] : [];
+  if (Array.isArray(value)) return value.filter(isNonEmptyString);
+  return [];
+}
+
+function checkTopologySemantics(topology, workClass) {
+  const where = `verification_topology.${workClass}`;
+  const floor = TOPOLOGY_FLOORS[workClass];
+  if (Number.isInteger(topology.min_checkers) && topology.min_checkers < floor.min_checkers) {
+    findings.push(
+      `${where}.min_checkers: ${topology.min_checkers} weakens the shipped floor ${floor.min_checkers} — floors may be tightened, never weakened (override_justification applies to admission rules only)`,
+    );
+  }
+  if (
+    Number.isInteger(topology.min_model_checkers) &&
+    topology.min_model_checkers < floor.min_model_checkers
+  ) {
+    findings.push(
+      `${where}.min_model_checkers: ${topology.min_model_checkers} weakens the shipped floor ${floor.min_model_checkers} — floors may be tightened, never weakened (override_justification applies to admission rules only)`,
+    );
+  }
+  if (topology.cross_vendor_required === false && floor.cross_vendor_required) {
+    findings.push(
+      `${where}.cross_vendor_required: false weakens the shipped floor true — floors may be tightened, never weakened (override_justification applies to admission rules only)`,
+    );
+  }
+  if (!Array.isArray(topology.roles)) return;
+  const entries = topology.roles.filter((entry) => isPlainObject(entry) && isNonEmptyString(entry.name));
+  // Distinct names, not entry count: two entries sharing one name declare ONE
+  // role while presenting as two, so the duplicate is rejected and only the
+  // first declaration seats the name.
+  const declared = new Map();
+  for (const entry of entries) {
+    if (declared.has(entry.name)) {
+      findings.push(
+        `${where}.roles: ${JSON.stringify(entry.name)} is declared more than once — role names are the class-local identity relational constraints resolve against, so a repeated name declares one role while presenting as several`,
+      );
+    } else {
+      declared.set(entry.name, entry);
+    }
+  }
+  // Reference resolution: a relational constraint naming a role its own class
+  // does not declare is INVALID, not ignored — this resolution is what makes
+  // the constraint machine-checkable rather than decorative. A self-reference
+  // is equally unevaluable: a role cannot be distinct from itself.
+  for (const entry of entries) {
+    for (const constraint of RELATIONAL_CONSTRAINTS) {
+      if (!Object.hasOwn(entry, constraint)) continue;
+      for (const target of topologyConstraintTargets(entry, constraint)) {
+        if (target === entry.name) {
+          findings.push(
+            `${where}.roles[${JSON.stringify(entry.name)}].${constraint}: names its own role — a role cannot be distinct from itself, so a self-reference can never be evaluated`,
+          );
+        } else if (!declared.has(target)) {
+          findings.push(
+            `${where}.roles[${JSON.stringify(entry.name)}].${constraint}: ${JSON.stringify(target)} names a role this class does not declare — a relational constraint resolves against its own class's role list, so an undeclared reference can never be evaluated; invalid, not ignored`,
+          );
+        }
+      }
+    }
+  }
+  // A cross_vendor_checker's DEFINING constraint references the generator —
+  // "a checker additionally constrained to a different vendor from the
+  // generator" — so declaring one in a class with no declared generator role
+  // leaves that constraint without a referent: unevaluable, under the same
+  // invalid-not-ignored rule as any other unresolvable reference.
+  const generatorNames = new Set(
+    [...declared.values()].filter((entry) => entry.role === "generator").map((entry) => entry.name),
+  );
+  if (generatorNames.size === 0) {
+    for (const entry of declared.values()) {
+      if (entry.role !== "cross_vendor_checker") continue;
+      findings.push(
+        `${where}.roles[${JSON.stringify(entry.name)}]: role cross_vendor_checker with no generator declared in this class — the role is a checker constrained to a different vendor from the GENERATOR, so without a declared generator its defining constraint has no referent and can never be evaluated; declare the generator role, or use role checker`,
+      );
+    }
+  }
+  const checkers = [...declared.values()].filter((entry) => CHECKER_TYPED_ROLES.has(entry.role));
+  // A slot is filled by either a DETERMINISTIC layer or a MODEL-ADJUDICATED
+  // role. A deterministic layer has no model or vendor identity, so the
+  // relational constraints and predicates cannot be evaluated against one and
+  // are rejected on it rather than silently ignored.
+  const deterministic = checkers.filter((entry) => isNonEmptyString(entry.scanner_class));
+  const modelCheckers = checkers.filter((entry) => !isNonEmptyString(entry.scanner_class));
+  for (const entry of deterministic) {
+    if (entry.role !== "checker") {
+      findings.push(
+        `${where}.roles[${JSON.stringify(entry.name)}]: scanner_class on role ${entry.role} — scanner_class marks a DETERMINISTIC slot, which has no vendor identity, so it is legal on role checker only`,
+      );
+    }
+    for (const key of [...RELATIONAL_CONSTRAINTS, "min_context_tokens", "requires_modality", "requires_feature"]) {
+      if (!Object.hasOwn(entry, key)) continue;
+      findings.push(
+        `${where}.roles[${JSON.stringify(entry.name)}].${key}: declared on a deterministic slot — a deterministic layer has no model or vendor identity, so this constraint can never be evaluated against it; drop it, or drop scanner_class to declare a model-adjudicated slot`,
+      );
+    }
+  }
+  // Deterministic slots are distinguished by SCANNER CLASS: two sharing one
+  // scanner class resolve identically and declare one checker.
+  const scannerClasses = new Map();
+  for (const entry of deterministic) {
+    const seen = scannerClasses.get(entry.scanner_class);
+    if (seen !== undefined) {
+      findings.push(
+        `${where}.roles: deterministic slots ${JSON.stringify(seen)} and ${JSON.stringify(entry.name)} share scanner_class ${JSON.stringify(entry.scanner_class)} — two slots that resolve identically declare ONE checker, so the pair counts once toward min_checkers`,
+      );
+    } else {
+      scannerClasses.set(entry.scanner_class, entry.name);
+    }
+  }
+  // A slot NAME says nothing about what it resolves to, so distinctness that
+  // is only intended is not distinctness: every model-adjudicated checker
+  // DECLARES distinct_model_from against the generator. Undeclared is the
+  // unevaluable case, which is the same failure as declaring none.
+  for (const entry of modelCheckers) {
+    if (generatorNames.size === 0) continue;
+    const targets = RELATIONAL_CONSTRAINTS.flatMap((constraint) => topologyConstraintTargets(entry, constraint));
+    if (targets.some((target) => generatorNames.has(target))) continue;
+    findings.push(
+      `${where}.roles[${JSON.stringify(entry.name)}]: model-adjudicated checker with no distinctness relation to the generator — a model judging its own output measures its own preference rather than the artifact, and an undeclared constraint is unestablished, not generous; declare distinct_model_from against the generator role`,
+    );
+  }
+  const minModelCheckers = Number.isInteger(topology.min_model_checkers)
+    ? topology.min_model_checkers
+    : floor.min_model_checkers;
+  if (modelCheckers.length < minModelCheckers) {
+    findings.push(
+      `${where}.roles: declares ${modelCheckers.length} model-adjudicated checker slot${modelCheckers.length === 1 ? "" : "s"} against min_model_checkers ${minModelCheckers} — a total count cannot express which KIND of coverage is owed, so a class meeting min_checkers with deterministic slots alone never faces the model judge its verification cell requires`,
+    );
+  }
+  // Coverage, not length: min_checkers is evaluated over the DISTINCT
+  // checker-typed roles the class declares — a list that cannot seat the
+  // count makes the declared topology unsatisfiable.
+  const minCheckers = Number.isInteger(topology.min_checkers) ? topology.min_checkers : floor.min_checkers;
+  if (checkers.length < minCheckers) {
+    findings.push(
+      `${where}.roles: declares ${checkers.length} distinct checker role${checkers.length === 1 ? "" : "s"} against min_checkers ${minCheckers} — min_checkers counts DISTINCT checker roles drawn from the declared role list, so a list that cannot seat the count makes the topology unsatisfiable`,
+    );
+  }
+  // Count is not coverage: two declared checker roles with no distinctness
+  // relation between them can both resolve to ONE instance at run time, and
+  // N runs of a single instance count as one checker — they share the
+  // failure the count exists to catch. Every pair of counted checkers must
+  // be held distinct by a relational constraint in at least one direction
+  // (distinct_vendor_from implies distinct model: disjoint vendors never
+  // share an instance).
+  const holdsDistinct = (a, b) =>
+    RELATIONAL_CONSTRAINTS.some(
+      (constraint) =>
+        topologyConstraintTargets(a, constraint).includes(b.name) ||
+        topologyConstraintTargets(b, constraint).includes(a.name),
+    );
+  // Scoped to the MODEL-adjudicated slots. A deterministic slot cannot carry a
+  // relational constraint at all — it has no model or vendor identity — and it
+  // can never resolve to the same thing as a model judge, so a cross-kind pair
+  // is distinct by construction. Deterministic slots are held apart from each
+  // other by scanner class above.
+  for (let i = 0; i < modelCheckers.length; i += 1) {
+    for (let j = i + 1; j < modelCheckers.length; j += 1) {
+      if (!holdsDistinct(modelCheckers[i], modelCheckers[j])) {
+        findings.push(
+          `${where}.roles: checker roles ${JSON.stringify(modelCheckers[i].name)} and ${JSON.stringify(modelCheckers[j].name)} carry no distinct_model_from/distinct_vendor_from relation between them — nothing keeps both from resolving to one instance, and N runs of a single instance count as ONE checker toward min_checkers; constrain the pair distinct in at least one direction`,
+        );
+      }
+    }
+  }
+  // cross_vendor_required is enforceable only where the role list can seat
+  // it: a cross_vendor_checker is definitionally vendor-distinct from the
+  // generator, and a plain checker qualifies when constrained
+  // distinct_vendor_from a declared generator role. A true knob with neither
+  // is a requirement the declared topology can never evaluate — decorative,
+  // not policy.
+  if (topology.cross_vendor_required === true) {
+    // Never vacuously satisfied. The knob's whole reason is that same-vendor
+    // checkers share failure modes, so agreement between them is weaker
+    // evidence than its count suggests — a class asserting it over fewer than
+    // two model-adjudicated slots satisfies neither the constraint nor the
+    // reason for it, and one asserting it over ZERO binds the empty set and is
+    // satisfied by declaring nothing.
+    if (modelCheckers.length < 2) {
+      findings.push(
+        `${where}: cross_vendor_required true with ${modelCheckers.length} model-adjudicated checker slot${modelCheckers.length === 1 ? "" : "s"} — the requirement is vendor disjointness AMONG the model slots, so fewer than two makes it vacuous rather than trivially conforming; declare at least two model-adjudicated checkers or bind cross_vendor_required false where the floor allows`,
+      );
+    }
+    const seated = checkers.some(
+      (entry) =>
+        entry.role === "cross_vendor_checker" ||
+        topologyConstraintTargets(entry, "distinct_vendor_from").some((target) => generatorNames.has(target)),
+    );
+    if (!seated) {
+      findings.push(
+        `${where}: cross_vendor_required true but no declared checker is vendor-distinct from the generator — declare a cross_vendor_checker role, or constrain a checker distinct_vendor_from a declared generator role; a requirement the role list cannot seat is decorative, not policy`,
+      );
+    }
+    // Disjointness among the model slots, not merely against the generator:
+    // {V2, V2, V2} against a V1 generator satisfies a generator-only reading
+    // while every checker shares a vendor with every other — precisely the
+    // shared-failure-mode case the knob exists to break up.
+    for (let i = 0; i < modelCheckers.length; i += 1) {
+      for (let j = i + 1; j < modelCheckers.length; j += 1) {
+        const a = modelCheckers[i];
+        const b = modelCheckers[j];
+        const disjoint =
+          topologyConstraintTargets(a, "distinct_vendor_from").includes(b.name) ||
+          topologyConstraintTargets(b, "distinct_vendor_from").includes(a.name);
+        if (!disjoint) {
+          findings.push(
+            `${where}.roles: model-adjudicated checkers ${JSON.stringify(a.name)} and ${JSON.stringify(b.name)} carry no distinct_vendor_from relation between them while cross_vendor_required is true — vendor disjointness is required AMONG the model slots, not only against the generator, because same-vendor checkers share failure modes and their agreement is weaker evidence than its count suggests`,
+          );
+        }
       }
     }
   }
