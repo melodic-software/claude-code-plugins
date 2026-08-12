@@ -146,6 +146,30 @@ escalation — the fan-out posture the runner design
 ([`escalation.md`](../../../plugins/autonomy/reference/runner/escalation.md)) names — never a
 second channel: the tracker item remains the single escalation of record.
 
+### Cross-lane PR hold
+
+Holding a **pull request** is a different act from escalating a tracker item, and this section owns
+it separately because the two acts fail differently: a tracker escalation waits for the attended
+queue, while a merge-capable lane may act on a PR within minutes, so a hold carries a hard
+real-time deadline. A hold that lands after the merge is not a hold (the incident behind this
+clause: an escalating lane decided to hold, drafted its explanation first, and applied the label
+~30 minutes later — 3 minutes *after* the PR had merged).
+
+- **The `do-not-merge` label is the only cross-lane hold.** It is the one hold mechanism enforced
+  server-side: the org ruleset requires the `do-not-merge` status check, and the workflow behind it
+  re-evaluates on `labeled`/`unlabeled`, so applying the label flips a SHA-bound required check with
+  no bypass actors. A PR **comment is never a hold** — comments are advisory by construction; no
+  gate reads them, and an escalation comment on the PR obliges nothing until the label is on.
+- **Hold first, explain second.** The moment a lane decides a PR must not merge, it applies
+  `do-not-merge` — before drafting the escalation comment, before assembling the supporting
+  evidence. Explain-then-hold inverts the deadline: the drafting time is exactly the window a
+  merge-capable lane needs, and drafting against a snapshot means the explanation can describe a PR
+  that no longer exists in that state.
+- **Freshness re-read before any hold action.** Immediately before applying a hold — or acting on a
+  hold decision drafted earlier — re-read the PR's live `state` and `mergedAt`. A hold decision
+  formed against a stale snapshot can target an already-merged PR, and announcing its state from
+  that snapshot misleads every downstream reader.
+
 ### Escalation record write
 
 Every escalation an autonomous lane files (`work-loop`, `babysit-loop`; the attended queue answers
