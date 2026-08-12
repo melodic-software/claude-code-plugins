@@ -3,6 +3,26 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.4.2]
+
+### Fixed
+
+- **The fleet model-tier directive was attributed to the writer with the wrong tier.**
+  `object-writing`'s rule 6 said *"creative fan-out fleets run on Sonnet — the writer wrote it as
+  `opts.model: 'sonnet'`"*. The source it names, the consuming workspace's
+  `research/plugin-gaps.md`, says `'opus'`: *"creative fan-out fleets run on Opus (`opts.model:
+  'opus'` per agent call), reserving the expensive model for the judge stage at most."* No session
+  record has the writer authorizing a Sonnet fleet, and Sonnet has never been run against his bar.
+  The rule now carries his wording, the evidence behind it — the Fable fleet's ~383k rejected
+  tokens versus the Opus re-run that produced his only accepted candidates — and an explicit note
+  that trading the tier down for cost is his call to make, not the plugin's.
+
+  **This is the release's own failure mode, one release later.** 1.4.0 shipped a rubric whose
+  pass 11 is voiceprint match and whose premise is that a named check and a run check are
+  indistinguishable in the output; 1.4.1 then quoted the writer from memory and shipped it as a
+  directive. Both files that carried the claim — the skill rule and the 1.4.1 entry below — cited
+  a workspace log neither had reread.
+
 ## [1.4.1]
 
 ### Fixed
