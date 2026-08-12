@@ -277,9 +277,50 @@ Classified per `melodic-software/standards` `conventions/engineering/enforceabil
 | The trigger clears the observability bar | **Reasoning-only** — whether an event is decidable from evidence is a judgment about meaning. |
 | A trigger has fired | **Reasoning-only** today; **detect-then-judge** if a hash store lands — the hash mismatch flags, and judgment decides whether the page change touches the claim, because a changed page is not a changed fact. |
 
+### Recorded decision — an adoption gate is deferred, and the check named above would have missed the case that prompted it
+
+**Decided 2026-08-12 UTC: no CI gate is built for adoption of this convention, in either candidate
+shape.** Recorded as a decision rather than left implicit, because this repo's `*-gate` CI pattern
+is the standing precedent for promoting a convention to a check and the question was asked directly
+([#2273](https://github.com/melodic-software/claude-code-plugins/issues/2273)).
+
+The premise that settles it: the candidate check named in the table above — *flag any
+`Verified <date>` line or row whose surface states no trigger* — **would not have caught
+[#2207](https://github.com/melodic-software/claude-code-plugins/issues/2207)**, the finding that
+prompted the question. That surface carried no stamp at all, so a stamp-anchored grep had nothing to
+match on. The named check is shaped for a *half-conforming* record; the failure that actually ships
+is the *zero-part* one. It therefore stays named-not-built on its own build trigger, unchanged, and
+is not evidence that mechanization covers this class.
+
+The zero-part shape has no deterministic check available. Deciding whether a sentence restates an
+upstream-owned specific — as against an in-repo fact, a description of the surface's own behaviour,
+or ordinary prose — is a judgment about meaning, which is **reasoning-only** under the tiers doc. A
+grep for harness vocabulary (`PostToolUse`, `${CLAUDE_*}`, `settings.json`, and so on) fires on
+every correct citation and every in-repo mention alike, and a gate whose false-positive rate forces
+routine suppression trains authors to bypass it — worse than no gate, because it converts a real
+signal into noise with an approved silencer.
+
+- **Basis** — `melodic-software/standards` `conventions/engineering/enforceability-tiers.md` (the
+  reasoning-only tier and the worth-mechanizing routing rule), plus the worked instance above.
+- **Recheck trigger** — a third unstamped upstream-fact carrier reaches `main` after this decision
+  (two are already on the record: `plugin-quality`, corrected in its 0.4.0, and `architecture`,
+  whose false claim was removed in its 0.5.1), **or** a detector is demonstrated that separates an
+  upstream restatement from an in-repo one without a suppression list. Either event reopens the
+  shape question; neither is a date.
+
 ## Adopters
 
-Migrated at this contract's 1.0.0 to the single name, each citing this doc with content intact.
+The rows below were migrated at this contract's 1.0.0 to the single name, each citing this doc with
+content intact. **A row added after 1.0.0 is a surface that adopted on touch** — the mechanism the
+note under the table already requires — and names the release that added it, so the table never
+implies a surface was migrated at 1.0.0 when it was not.
+
+**A surface is tabled only once it actually conforms.** The third column is a promise to a reader
+about what they can rely on, so a carrier *known* to be unstamped belongs in a tracked issue, never
+in a row: tabling it would assert the very thing the reader would then not get. The fleet's open
+carriers are recorded that way in
+[#2297](https://github.com/melodic-software/claude-code-plugins/issues/2297).
+
 The rows are not all the same thing, and the table says which is which. A **conforming record**
 carries the four required parts for an upstream-derived claim or decision. A **named trigger**
 shares the canonical name, the observability bar, and
