@@ -3,6 +3,22 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.0]
+
+### Fixed
+
+- **`setup`'s verify step stays within its own boundary (#1801).** `apply` step 5 now enumerates the
+  config-only `check` probes — parse validity, per-entry path resolution, `maxDepth`, and identity
+  normalization — and explicitly forbids invoking the collector. A genuine end-to-end proof remains an
+  opt-in handoff to `/repo-fleet-hygiene:audit`, stated as a real audit.
+- **`setup` can set `maxDepth` through its argument grammar (#1801).** The body now documents
+  `--max-depth <1..12>` alongside the frontmatter `argument-hint`, so the skill that owns the config
+  file can write `[fleet] maxDepth` without hand-editing.
+- **Cross-volume fleet roots no longer read as consumer error (#1801).** When a Windows fleet root sits
+  on a different volume from the config file, the gotcha now states that the absolute path is the only
+  honest form and names remedies when a path-portability guard still rejects it — colocate on one
+  volume, exempt the file or path, or keep a user-global config outside the guard's scan.
+
 ## [0.11.0]
 
 ### Fixed

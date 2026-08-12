@@ -49,6 +49,7 @@
         "Recognizes that a cross-volume relative path does not exist",
         "Writes the absolute path rather than inventing a relative one",
         "States the cross-volume reason in the report",
+        "Names consumer remedies when a path-portability guard still rejects the absolute path",
         "Does not refuse the write or report it as a failure"
       ]
     },
