@@ -3,6 +3,18 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.37.2]
+
+### Fixed
+
+- **`fix-plugin-drift.sh` uses the portable `mktemp` form (#1709).** The two `mktemp -t
+  <name>-XXXXXX.json` scratch files move to the positional absolute template with trailing Xs
+  (`mktemp "${TMPDIR:-/tmp}/<name>-XXXXXX"`), the one form GNU and BSD accept identically —
+  verified by execution on both (GNU coreutils 9.4 and macOS 26.5). GNU marks `-t` deprecated,
+  BSD `-t` treats the argument as a prefix rather than a template, and BSD substitutes only
+  trailing Xs, so a template carrying a `.json` suffix is created verbatim on macOS with no
+  randomness at all.
+
 ## [0.37.1]
 
 ### Changed

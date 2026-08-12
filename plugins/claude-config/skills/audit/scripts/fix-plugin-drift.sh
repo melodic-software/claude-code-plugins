@@ -100,7 +100,12 @@ fi
 
 TMP_JSON=""
 if [[ -z "$INPUT_JSON" ]]; then
-  TMP_JSON=$(mktemp -t plugin-drift-XXXXXX.json)
+  # Positional absolute template with trailing Xs — the one mktemp form both
+  # GNU and BSD accept (see docs/conventions/topic-docs ephemeral tier, #1709).
+  # GNU marks -t deprecated, and BSD -t treats the argument as a prefix, not a
+  # template. The .json extension was cosmetic; BSD substitutes trailing Xs
+  # only, so the template cannot carry one.
+  TMP_JSON=$(mktemp "${TMPDIR:-/tmp}/plugin-drift-json-XXXXXX")
   trap 'rm -f "$TMP_JSON"' EXIT
   printf '%sRunning check-plugin-drift.sh...%s\n' "$CYAN" "$RESET" >&2
   SETTINGS_AUDIT_OUTPUT_JSON="$TMP_JSON" CLAUDE_SETTINGS_FILE="$SETTINGS" \
@@ -213,7 +218,8 @@ if [[ "$remove_count" -eq 0 && "$add_count" -eq 0 ]]; then
 fi
 
 # Atomic edit: read-modify-write via jq + temp + rename.
-TMP_SETTINGS=$(mktemp -t settings-XXXXXX.json)
+# Same portable mktemp form as TMP_JSON above (#1709).
+TMP_SETTINGS=$(mktemp "${TMPDIR:-/tmp}/settings-json-XXXXXX")
 trap '[[ -n "${TMP_JSON:-}" ]] && rm -f "$TMP_JSON"; rm -f "${TMP_SETTINGS:-}"' EXIT
 
 # Plugin names come from upstream marketplace JSON — pass them to jq as data
