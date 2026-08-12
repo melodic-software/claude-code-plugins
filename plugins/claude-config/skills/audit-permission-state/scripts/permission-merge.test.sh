@@ -277,6 +277,22 @@ assert_contains "the merge section follows them" "$OUT" "effective allow scopes=
 OUT=$(merge "$PASS_IN")
 assert_not_contains "--merge-only drops the input records" "$OUT" "NOTE: something the operator"
 
+# conf records are the ONE exception, and the reason is not tidiness: the entry
+# diff reads autoMode.classifyAllShell from them. Dropping them under
+# --merge-only silently flipped a narrow shell rule from suspended to kept --
+# two documented flags composing into a wrong answer with no warning.
+CONF_IN=$(
+  cat <<'EOF'
+user settings present /fx/home/.claude/settings.json
+conf user settings classifyAllShell true
+rule user settings allow Bash(npm test)
+EOF
+)
+OUT=$(merge "$CONF_IN")
+assert_contains "--merge-only preserves conf records" "$OUT" "conf user settings classifyAllShell true"
+OUT=$(printf '%s\n' "$CONF_IN" | bash "$SCRIPT")
+assert_contains "and so does the default pass-through" "$OUT" "conf user settings classifyAllShell true"
+
 # --- Case 10: end to end, real reader into the merge --------------------------
 if command -v jq >/dev/null 2>&1; then
   FX="$TEST_TMPDIR/fx"

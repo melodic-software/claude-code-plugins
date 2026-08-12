@@ -156,9 +156,19 @@ cas_active=0
 if [[ "$cas_value" == "true" ]]; then
   cas_active=1
   echo "DIFF-NOTE: autoMode.classifyAllShell is true in $cas_scope settings — every Bash and PowerShell allow rule is suspended while auto mode is active, so narrow shell rules do NOT carry over. Requires Claude Code v2.1.193 or later; earlier versions ignore the key and carry narrow rules."
+elif [[ "$cas_value" == "false" ]]; then
+  # `false` is the documented default and a perfectly valid setting. Describing
+  # it as a type error told an operator their correct configuration was wrong.
+  echo "DIFF-NOTE: autoMode.classifyAllShell is false in $cas_scope settings (the default), so narrow Bash and PowerShell allow rules carry over into auto mode as usual."
 elif [[ -n "$cas_value" ]]; then
-  echo "DIFF-NOTE: autoMode.classifyAllShell in $cas_scope settings is '$cas_value', not the documented boolean true — treated as inactive here; the harness's handling of a non-boolean value is undocumented."
+  echo "DIFF-NOTE: autoMode.classifyAllShell in $cas_scope settings is $cas_value, which is neither of the documented boolean values — treated as inactive here; the harness's handling of a non-boolean value is undocumented."
 fi
+# The classifier reads autoMode from THREE sources and this reader can see two.
+# Inline --settings / SDK JSON has no file to open, and it can invert the whole
+# answer: classifyAllShell true there suspends every shell allow rule while this
+# diff reports them kept. The merge's command-line caveat covers RULES, not this
+# key, so it is stated here or nowhere.
+echo "DIFF-NOTE: inline --settings and Agent SDK JSON are a third scope the classifier reads autoMode from, and they have no file for this reader to open. If classifyAllShell is set there, every Bash and PowerShell verdict below is inverted — this diff reflects the settings FILES only."
 if [[ -n "$cas_ignored" ]]; then
   echo "DIFF-NOTE: autoMode.classifyAllShell also appears in scope(s) the classifier does not read ($cas_ignored) — the classifier reads autoMode from user settings, managed settings, and inline --settings/SDK JSON only. Those entries have no effect and are not part of this diff."
 fi
@@ -175,6 +185,14 @@ while read -r rec kind scopes_field _basis rule; do
   verdict=""
   if [[ "$rule" == "Agent" || "$rule" == "Agent("* ]]; then
     verdict="dropped class=agent"
+  elif [[ "$rule" == "Bash" || "$rule" == "PowerShell" ]]; then
+    # A bare tool name is the WHOLE-TOOL grant -- strictly broader than
+    # Bash(*), which this same run classifies as blanket. Reporting it as
+    # surviving auto mode while dropping the narrower form would be backwards
+    # in the direction that matters: it tells an operator their broadest shell
+    # grant is safe. The Agent branch above already handles its own bare form;
+    # this is the same rule for the two shell tools.
+    verdict="dropped class=blanket"
   elif printf '%s\n' "$rule" | grep -qE "$CCPERM_P1_BLANKET_ERE"; then
     verdict="dropped class=blanket"
   elif printf '%s\n' "$rule" | grep -qE "$CCPERM_P1_INTERP_ERE|$CCPERM_P1_SCRIPTGLOB_ERE"; then
@@ -231,11 +249,17 @@ EOF
     exit 0
   }
   capture="$scratch/capture.log"
-  # The probe session must be IN auto mode or the channel narrates no drops:
-  # measured 2026-08-11 on 2.1.225, the drop lines appear exactly when the
-  # session's permission mode is auto (via --permission-mode auto here, so the
-  # result does not depend on the consumer's defaultMode). Exit status is
-  # deliberately not consulted — the capture file is the evidence either way.
+  # `--permission-mode auto` is passed so the probe does not depend on the
+  # consumer's own defaultMode. What was actually MEASURED is narrower than that
+  # framing suggests, and the difference matters: on 2.1.225 a `-p` run with NO
+  # mode flag emitted 216 drop lines, on a machine whose defaultMode may already
+  # have been auto. So the flag is known-valid (`claude --help` lists `auto`) and
+  # known-harmless, but "drops appear only in auto mode" is NOT established here
+  # — it is a plausible reading of one capture, not a measurement. The zero-drop
+  # path below degrades to `unavailable` precisely because this is unproven.
+  #
+  # Exit status is deliberately not consulted — the capture file is the evidence
+  # either way.
   claude --debug-file "$capture" --permission-mode auto -p "${ENTRY_DIFF_ORACLE_PROMPT:-Reply with exactly: OK}" >/dev/null 2>&1 || true
 fi
 
@@ -249,14 +273,81 @@ if ! grep -q 'Applying permission update' "$capture"; then
 fi
 
 # `Ignoring dangerous permission <rule> from <abs path> (bypasses classifier)`.
-# The rule text is everything up to the LAST " from ", because a rule may
-# legitimately contain that word (`Bash(python3 import from x *)`) and a
-# leftmost strip would truncate it there. `sed` alternation is leftmost-first
-# with no greedy-suffix form, so the last occurrence is taken by anchoring a
-# greedy `.*` on the prefix instead: `\(.*\) from ` consumes as much as it can
-# before the final separator. The trailing path never contains " from ".
-oracle_dropped="$(sed -n 's/^.*Ignoring dangerous permission \(.*\) (bypasses classifier).*$/\1/p' "$capture" |
-  sed 's/^\(.*\) from [^ ].*$/\1/' | LC_ALL=C sort -u)"
+#
+# Neither field is delimited, so the separator has to be found rather than
+# assumed. Two earlier attempts were wrong in opposite directions: cutting at
+# the FIRST " from " truncates a rule containing that word
+# (`Bash(python3 import from x *)`), and cutting at the LAST one truncates the
+# rule when the PATH contains it (`C:\Users\x\notes from work\.claude\…`) --
+# which yielded two false verdicts and a phantom rule, because a directory may
+# be named anything at all.
+#
+# What IS reliable is the path's shape: it is the final whitespace-free run
+# ending in `settings.json` (or a `.json` drop-in). So the tail is anchored on
+# that instead of on the separator -- ` from <no-spaces-then-.json>` at end of
+# string. A path containing a space still defeats this, so a line whose tail
+# does not match is reported rather than silently mis-split: a wrong rule name
+# in a divergence verdict is worse than an admitted gap.
+oracle_raw="$(sed -n 's/^.*Ignoring dangerous permission \(.*\) (bypasses classifier).*$/\1/p' "$capture")"
+
+# Neither field is delimited, so a line carrying more than one " from " must be
+# RESOLVED rather than guessed at. The discriminator is the RULE side, not the
+# path: a permission rule is a tool token, optionally with one parenthesized
+# payload, and that grammar already exists as CCPERM_TOOL_TOKEN_ERE in the shared
+# vocabulary. Each candidate separator is tried and kept only when the text to
+# its left is a well-formed rule.
+#
+# That distinguishes the two cases a single expression cannot. In
+# `Bash(python3 import from x *) from <path>` the first candidate leaves
+# `Bash(python3 import` -- unbalanced, rejected. In
+# `Bash(uv run *) from C:\...\notes from work\...\settings.json` the second
+# leaves `Bash(uv run *) from C:\...\notes` -- not a tool token, rejected. Each
+# resolves to exactly one survivor, and the path may contain anything at all.
+# The grammar is checked structurally rather than by regex: awk strips the
+# backslashes out of an ERE passed through -v, which turns the vocabulary's
+# escaped parens into grouping and matches nothing. Balance and shape are what
+# matter here, and both are cheaper to check directly than to re-escape.
+split_lines="$(printf '%s\n' "$oracle_raw" | awk '
+  function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
+  # A rule is a tool token, optionally followed by ONE balanced parenthesized
+  # payload that runs to the end of the text.
+  function is_rule(s,   open, i, c, depth) {
+    if (s !~ /^[A-Za-z_][A-Za-z0-9_]*(\(|$)/) return 0
+    open = index(s, "(")
+    if (open == 0) return s ~ /^[A-Za-z_][A-Za-z0-9_]*$/
+    depth = 0
+    for (i = open; i <= length(s); i++) {
+      c = substr(s, i, 1)
+      if (c == "(") depth++
+      else if (c == ")") { depth--; if (depth == 0) return i == length(s) }
+    }
+    return 0
+  }
+  {
+    line = $0
+    if (line !~ /[^ \t]/) next
+    n_ok = 0; rule = ""
+    start = 1
+    while ((p = index(substr(line, start), " from ")) > 0) {
+      at = start + p - 1
+      cand = trim(substr(line, 1, at - 1))
+      tail = substr(line, at + 6)
+      if (is_rule(cand) && tail ~ /[^ \t]/) { n_ok++; rule = cand }
+      start = at + 1
+    }
+    if (n_ok == 1) print "OK\t" rule
+    else print "AMBIGUOUS\t" line
+  }')"
+
+oracle_dropped="$(printf '%s\n' "$split_lines" | sed -n 's/^OK\t//p' | LC_ALL=C sort -u)"
+
+# Everything else carries a real harness drop this run cannot name. Saying so
+# beats guessing, and beats dropping them in silence.
+oracle_unparsed="$(printf '%s\n' "$split_lines" | sed -n 's/^AMBIGUOUS\t//p')"
+if [[ -n "$oracle_unparsed" ]]; then
+  n_unparsed="$(printf '%s\n' "$oracle_unparsed" | grep -c .)"
+  echo "oracle NOTE: $n_unparsed drop line(s) could not be split into rule and source path — the narration delimits neither field, and no candidate split left a well-formed rule on the left (or more than one did). Those drops are real and are NOT reflected in the verdicts below; treat this comparison as incomplete rather than clean."
+fi
 
 if [[ -z "$oracle_dropped" ]]; then
   echo "oracle NOTE: the session narrated the permission merge but emitted zero drop lines. If this machine has rules the prediction above says are dropped, the session was likely not in auto mode; treat the oracle as unavailable rather than as an empty drop set."

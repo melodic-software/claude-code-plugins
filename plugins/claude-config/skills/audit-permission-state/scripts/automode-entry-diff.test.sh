@@ -160,7 +160,29 @@ EOF
 )
 OUT=$(diff_only "$CAS_STRING")
 assert_eq "a string-typed value suspends nothing" 0 "$(count_matching "$OUT" '^entry-diff suspended ')"
-assert_contains "the type mismatch is called out" "$OUT" "not the documented boolean true"
+assert_contains "the type mismatch is called out" "$OUT" "neither of the documented boolean values"
+
+# `false` is the DOCUMENTED DEFAULT, not a type error. An earlier revision
+# lumped it in with malformed values and told operators their correct
+# configuration was wrong.
+CAS_FALSE=$(
+  cat <<'EOF'
+user settings present /fx/home/.claude/settings.json
+conf user settings classifyAllShell false
+effective allow scopes=user precedence_basis=uncontested Bash(git status)
+EOF
+)
+OUT=$(diff_only "$CAS_FALSE")
+assert_eq "false suspends nothing" 0 "$(count_matching "$OUT" '^entry-diff suspended ')"
+assert_contains "and is described as the default, not as malformed" "$OUT" "(the default)"
+assert_not_contains "false is never called a type error" "$OUT" "neither of the documented boolean values"
+
+# The classifier reads autoMode from three scopes and this reader can see two.
+# Inline --settings can invert every shell verdict below, so the bound is stated
+# on every run rather than only when something else happens to be set.
+OUT=$(diff_only "$CAS_FALSE")
+assert_contains "the unreadable inline scope is disclosed" "$OUT" "inline --settings and Agent SDK JSON"
+assert_contains "and the disclosure says what it would change" "$OUT" "every Bash and PowerShell verdict below is inverted"
 
 # --- Case 3: pass-through default, --diff-only suppression --------------------
 PASS_IN=$(
@@ -242,6 +264,24 @@ OUT=$(printf '%s\n' "$FOUR_CLASSES" | PATH="$NOCLAUDE" "$real_bash" "$SCRIPT" --
 assert_contains "notice before any spawn attempt" "$OUT" "ORACLE COST NOTICE"
 assert_contains "a missing claude degrades to unavailable" "$OUT" "'claude' is not on PATH"
 
+# --- A bare tool name is the BROADEST shell grant, not a surviving one --------
+# `Bash` with no parens is strictly broader than `Bash(*)`, which this same run
+# classifies as blanket. Reporting it kept told an operator their widest grant
+# survives auto mode — wrong in the direction that costs them.
+BARE_SHELL=$(
+  cat <<'EOF'
+user settings present /fx/home/.claude/settings.json
+effective allow scopes=user precedence_basis=uncontested Bash
+effective allow scopes=user precedence_basis=uncontested PowerShell
+effective allow scopes=user precedence_basis=uncontested Bash(*)
+EOF
+)
+OUT=$(diff_only "$BARE_SHELL")
+assert_eq "a bare shell grant is never reported kept" 0 "$(count_matching "$OUT" '^entry-diff kept ')"
+assert_contains "bare Bash drops as blanket" "$OUT" "entry-diff dropped class=blanket scopes=user Bash"
+assert_contains "bare PowerShell drops as blanket" "$OUT" "entry-diff dropped class=blanket scopes=user PowerShell"
+assert_eq "all three shell grants drop" 3 "$(count_matching "$OUT" '^entry-diff dropped ')"
+
 # --- Case 7: oracle comparison — one verdict per compared rule, exactly -------
 CAPTURE="$TEST_TMPDIR/capture.log"
 cat >"$CAPTURE" <<'EOF'
@@ -274,6 +314,44 @@ EOF
 )
 OUT=$(printf '%s\n' "$FROM_IN" | ENTRY_DIFF_ORACLE_CAPTURE="$CAPTURE_FROM" bash "$SCRIPT" --diff-only --oracle 2>&1)
 assert_contains "a rule containing 'from' survives parsing intact" "$OUT" "oracle AGREES Bash(python3 import from x *)"
+
+# The mirror image, and the one a fixed split cannot also satisfy: the word is
+# in the PATH, because a directory may be named anything. Cutting at the last
+# separator here produced two false verdicts and a phantom rule. The split is
+# resolved by which side parses as a rule, so both directions work.
+CAPTURE_FROM_PATH="$TEST_TMPDIR/capture-from-path.log"
+cat >"$CAPTURE_FROM_PATH" <<'EOF'
+[DEBUG] Applying permission update: Adding 1 allow rule(s) to destination 'userSettings'
+[DEBUG] Ignoring dangerous permission Bash(uv run *) from C:\Users\x\notes from work\.claude\settings.json (bypasses classifier)
+EOF
+FROM_PATH_IN=$(
+  cat <<'EOF'
+user settings present /fx/home/.claude/settings.json
+effective allow scopes=user precedence_basis=uncontested Bash(uv run *)
+EOF
+)
+OUT=$(printf '%s\n' "$FROM_PATH_IN" | ENTRY_DIFF_ORACLE_CAPTURE="$CAPTURE_FROM_PATH" bash "$SCRIPT" --diff-only --oracle 2>&1)
+assert_contains "a PATH containing 'from' does not truncate the rule" "$OUT" "oracle AGREES Bash(uv run *)"
+assert_eq "and produces no phantom rule" 0 "$(count_matching "$OUT" 'oracle DIVERGES')"
+
+# A line no candidate split resolves is ANNOUNCED, not dropped. A real harness
+# drop that silently vanishes turns an incomplete comparison into a clean one.
+CAPTURE_UNSPLIT="$TEST_TMPDIR/capture-unsplit.log"
+cat >"$CAPTURE_UNSPLIT" <<'EOF'
+[DEBUG] Applying permission update: Adding 1 allow rule(s) to destination 'userSettings'
+[DEBUG] Ignoring dangerous permission not a rule at all from somewhere (bypasses classifier)
+[DEBUG] Ignoring dangerous permission Bash(npx *) from C:\Users\x\.claude\settings.json (bypasses classifier)
+EOF
+UNSPLIT_IN=$(
+  cat <<'EOF'
+user settings present /fx/home/.claude/settings.json
+effective allow scopes=user precedence_basis=uncontested Bash(npx *)
+EOF
+)
+OUT=$(printf '%s\n' "$UNSPLIT_IN" | ENTRY_DIFF_ORACLE_CAPTURE="$CAPTURE_UNSPLIT" bash "$SCRIPT" --diff-only --oracle 2>&1)
+assert_contains "an unresolvable drop line is announced" "$OUT" "could not be split into rule and source path"
+assert_contains "and the comparison is called incomplete, not clean" "$OUT" "incomplete rather than clean"
+assert_contains "the resolvable line is still compared" "$OUT" "oracle AGREES Bash(npx *)"
 
 # --- Case 8: capture without drop strings never becomes an empty drop set -----
 CAPTURE_NODROPS="$TEST_TMPDIR/capture-nodrops.log"

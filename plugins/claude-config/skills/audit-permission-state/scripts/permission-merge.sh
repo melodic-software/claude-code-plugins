@@ -99,7 +99,12 @@ function text_of(start,   i, s) {
 # no pattern matcher.
 function tool_of(t,   p) { p = index(t, "("); return p ? substr(t, 1, p - 1) : t }
 
-{ if (passthrough) print }
+# conf records ALWAYS pass through, including under --merge-only. They are not
+# presentation, they are input a downstream stage needs to be correct: the entry
+# diff reads autoMode.classifyAllShell from them, and without it a narrow shell
+# rule that auto mode actually suspends is reported as kept. Dropping them made
+# a documented flag combination silently invert the answer, with no warning.
+{ if (passthrough || $1 == "conf") print }
 
 $1 == "rule" {
   kind = $4

@@ -144,11 +144,27 @@ lands once.
   inline `--settings`/SDK JSON. "The classifier doesn't read `autoMode` from project settings in
   `.claude/settings.json` or `.claude/settings.local.json`." A project- or local-scope occurrence is
   reported as having no effect, never obeyed.
+- **A bare tool name is the broadest shell grant, not a surviving one.** `Bash` with no parentheses
+  is strictly broader than `Bash(*)`, so it drops as `blanket` — the same treatment `Agent`'s bare
+  form already had. Reporting it as kept would tell an operator their widest grant survives.
+- **Three scopes set `autoMode`; this reader can open two.** Inline `--settings` and Agent SDK JSON
+  have no file, and `classifyAllShell` set there **inverts every shell verdict**. Every run states
+  that bound, because the merge's command-line caveat covers rules and not this key.
+- **`classifyAllShell: false` is the documented default**, not a type error. Only a value that is
+  neither boolean is reported as malformed.
 - **The oracle is corroboration, not the read path.** `--oracle` spawns a real session to capture the
   harness's own `Ignoring dangerous permission … (bypasses classifier)` narration. Those are
   undocumented `[DEBUG]` strings with no stability contract, so a capture that yields nothing is
   **unavailable** and the prediction stands — an empty capture is never an empty drop set. Its
   measured cost is stated at the flag rather than discovered afterwards.
+
+  The narration `Ignoring dangerous permission <rule> from <path> (bypasses classifier)` delimits
+  **neither field**, and both sides may legitimately contain the separator: a rule
+  (`Bash(python3 import from x *)`) and a directory (`notes from work`). No fixed choice of first-
+  or last-separator is right for both, so the split is resolved by which candidate leaves a
+  well-formed tool token on the left. A line that resolves to zero candidates or several is
+  **announced as unresolvable**, never silently split — a wrong rule name in a divergence verdict is
+  worse than an admitted gap.
 
 ## The permission-plane lint
 
