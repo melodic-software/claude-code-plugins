@@ -3,7 +3,7 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.28.14]
+## [0.28.15]
 
 ### Fixed
 
@@ -11,6 +11,11 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   on commit/push guards (#1415).** `block-no-verify` passes commands like
   `git fetch | ForEach-Object { … }` when no mutating git subcommand is visible;
   obfuscated commit/push shapes still fail closed.
+
+## [0.28.14]
+
+### Fixed
+
 - **`stale-path-verify` history walk uses `core.quotePath=false` and `-m` (#1452).**
   Non-ASCII deleted paths match citations literally, and deletions made while
   resolving a merge enter the deleted-path set.
