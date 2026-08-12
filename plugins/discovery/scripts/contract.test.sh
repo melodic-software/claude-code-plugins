@@ -202,9 +202,19 @@ assert_present 'the write boundary names a scratch prefix' \
   'reference/topic-docs.md' 'scratch-'
 assert_present 'the write boundary assigns a cleanup owner' \
   'reference/topic-docs.md' '[Cc]leanup'
+
+# The agents must POINT at that statement rather than restate it. Asserting a
+# bare link to topic-docs.md would pass vacuously — both agents already linked
+# it for the by-value rationale — so this keys on the restatements being gone.
+# A non-discriminating assertion is the script-layer form of the self-graded
+# gate these skills refuse everywhere else.
+assert_absent 'no agent restates the write boundary as a closed two-destination list' \
+  'exactly two permitted destinations'
+assert_absent 'no agent restates the write boundary as a single destination' \
+  'write destination is exactly one place'
 for agent in explorer researcher; do
-  assert_present "agents/$agent.md points at the single write boundary" \
-    "agents/$agent.md" 'reference/topic-docs\.md'
+  assert_present "agents/$agent.md defers to the single write boundary" \
+    "agents/$agent.md" 'single write boundary'
 done
 
 printf '\n'

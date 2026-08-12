@@ -95,6 +95,63 @@
   lines**, below the 5,236-word spoke, and a contract test pins the direction so the next edit cannot
   silently re-invert it.
 
+  Its `description` also gained the boundary clause it lacked: `research-deep` already routed back to
+  `research` and nothing routed the other way, so auto-discovery could send a small lookup into the
+  heavier sibling and never the reverse.
+
+- **`explorer`'s turn budget was smaller than `researcher`'s with no stated reason** — 30 against 40
+  on the read-heavier workload. Raised to 40 **on parity grounds only.** It is explicitly *not*
+  offered as the cause of any past bare-prose return: the packet's own `evidence-2.md` supersedes
+  that reading and the discriminator is unrecoverable.
+
+  Separately, both agents' "budget a turn for the payload" instruction asked them to schedule against
+  a limit they cannot observe. They now **emit the payload block early and keep it current**, so a
+  stop at any later point leaves the parent a well-formed payload rather than silence.
+
+### Added
+
+- `plugins/discovery/reference/parent-contract.md` — the parent's **cross-family** contract. The
+  plugin had two family-specific parent-side spokes and no home for what is identical across both,
+  which is why five statements existed in two to six copies each and every one had drifted. It owns
+  the envelope template, the baseline in both shell forms, the doc status of the preload path, the
+  caller-supplied-`${CLAUDE_…}` caveat (previously triplicated verbatim across three `SKILL.md`
+  files), the gate's un-run case, and the resume-before-discard ordering. The two existing spokes
+  keep their family-specific halves and point here; the file states that split in its own header so a
+  future edit knows where a new statement belongs.
+
+- `plugins/discovery/scripts/contract.test.sh` — a grep-level contract test over the plugin's shipped
+  documents, alongside the two script suites. It pins every defect above: no file asserts the
+  unsupported preload mechanism (8 hits before), no monorepo agent pointer (2 before), the baseline
+  command has exactly one home and that home states a PowerShell form, no file prescribes
+  discard-instead-of-resume (4 before), the envelope table carries its Memory root row,
+  `explorer maxTurns >= researcher maxTurns`, and `research/SKILL.md` stays smaller than
+  `context/discipline.md`. **24 assertions; 22 fail at the merge-base and all 24 pass at the tip.**
+  The two that hold on both sides are the deliberate no-grant guards, and they are labelled as such
+  — an earlier revision of this file asserted that each agent "points at" the write boundary, which
+  passed *before* the change too because both agents already linked that file for an unrelated
+  reason. That assertion now keys on the restatements being gone, because a check that cannot fail is
+  the script-layer form of the self-graded gate these skills refuse everywhere else — the exact
+  pattern `B-F8` records across three previous releases. `CHANGELOG.md` is excluded from the content
+  sweeps by design: it quotes the wording it retires, and editing a shipped entry to satisfy a
+  tripwire is the failure this file exists to make expensive.
+
+### Security
+
+- **No permission grant is added, and that is the finding.** The gate invocations run through Bash
+  and neither `SKILL.md` declares `allowed-tools`; the un-run case was unstated, so a gate that could
+  not run read as a gate that passed. A grant cannot be made to work here, on three sourced legs
+  (skills page, raw markdown, 2026-08-11): Claude Code substitutes only `${CLAUDE_SKILL_DIR}` and
+  `${CLAUDE_PROJECT_DIR}` in `allowed-tools` Bash rules — `${CLAUDE_PLUGIN_ROOT}` is not on that list
+  and a rule written with it is inert — while `${CLAUDE_SKILL_DIR}` is "the skill's subdirectory
+  within the plugin, **not the plugin root**", and these scripts live at the plugin root precisely
+  because one gate serves both families; `bash` is not one of the wrappers stripped before matching,
+  so a covering rule would be interpreter-led (this repo's `permission-rule-hygiene` anti-pattern 1);
+  and the grant "clears when you send your next message", while the parent runs this gate on a later
+  turn. So both skills now state the honest rule — **a gate that could not run is a FAIL, never a
+  skip** — and the parent contract records the operator-setup path the docs actually prescribe
+  ("add allow rules to those permission settings instead"), which a plugin cannot ship for them.
+  This narrows behavior; it widens no trust surface.
+
 ## [0.14.1]
 
 ### Fixed
