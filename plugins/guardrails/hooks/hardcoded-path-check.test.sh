@@ -71,7 +71,7 @@ NUL_PAYLOAD=$(MSYS_NO_PATHCONV=1 jq -nc --arg fp "$FIXTURE" --arg p "$LINUX_HOME
 OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$NUL_PAYLOAD" 2>&1)
 RC=$?
 assert_exit "machine path AFTER a NUL byte in content → exit 2" 2 "$RC"
-assert_contains "path after NUL → message" "$OUT" "Linux user path"
+assert_contains "path after NUL → NUL refusal message" "$OUT" "NUL byte"
 
 # Cross-OS leak: a Linux path inside a .ps1 still fires (only Windows is suppressed).
 OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(write_json "$PS1_FIXTURE" "Set-Location ${LINUX_HOME}")" 2>&1)

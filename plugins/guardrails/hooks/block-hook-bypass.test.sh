@@ -1223,4 +1223,9 @@ run_pwsh "#2217: PS python -c read-only os.path.normpath (allowed)" \
 run_pwsh "#2217: PS python script run, open( in an arg, no -c (allowed)" \
   "python build.py --path \"open('x','w')\"" 0
 
+# --- NUL in payload must fail closed (#2136) ----------------------------------
+nul_rc=0
+bash "$HOOK" <<<"$(jq -n '{tool_name:"Bash",tool_input:{command:("git status" + ([0]|implode))}}')" >/dev/null 2>&1 || nul_rc=$?
+assert_exit "NUL in command (blocked)" 2 "$nul_rc"
+
 report
