@@ -200,12 +200,25 @@ def finding(severity, check, section, detail):
     findings += 1
 
 
+unusable_sections = []
+
+
 def entries(block, name):
     # A non-matching key is OMITTED, not returned empty -- measured on
     # `defaults --label`. Treating a missing key as an error would report a
     # defect that is the documented shape of a section with no entries.
+    #
+    # A key that is PRESENT but not a list is a third case, and returning []
+    # for it quietly reported a clean bill on a section that was never
+    # analyzable: `{"allow": "not-an-array"}` counted as a present section,
+    # every check saw nothing, and the run said status=read.
     value = block.get(name)
-    return value if isinstance(value, list) else []
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    unusable_sections.append("%s (%s)" % (name, type(value).__name__))
+    return []
 
 
 def label_of(entry):
@@ -307,7 +320,18 @@ for section in ("allow", "soft_deny"):
                 "so this entry can never change an outcome" % subject,
             )
 
-print("automode summary findings=%d sections=%d status=read" % (findings, len(present)))
+# A section present but not a list was never analyzable, so the run is partial
+# rather than clean. Saying `read` over it would be the same "clean bill on
+# something never examined" the whole lane exists to avoid.
+if unusable_sections:
+    print(
+        "BLOCK-NOTE: section(s) %s are present but are not lists of entries, so no "
+        "check could examine them. The findings below cover the remaining sections "
+        "only." % ", ".join(sorted(set(unusable_sections)))
+    )
+    print("automode summary findings=%d sections=%d status=partial" % (findings, len(present)))
+else:
+    print("automode summary findings=%d sections=%d status=read" % (findings, len(present)))
 PYEOF
 
 [[ "$critique" == 1 ]] || exit 0

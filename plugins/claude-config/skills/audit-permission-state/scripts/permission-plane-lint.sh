@@ -23,10 +23,10 @@
 #   C2-defaultMode   defaultMode:"auto" in project or local settings
 #   C2-planMode      useAutoModeDuringPlan in shared project settings
 #   C5-disableType   disableAutoMode typed as a boolean, not the string "disable"
-#   C6-winPath       a Windows-style path in a rule, which never matches
+#   C6-winPath       a drive-letter or UNC Windows path, which never matches
 #   C6-contentField  a parameter-form rule on a tool's primary content field
 #   C6-uncoveredPath a path rule on a tool whose path rules are never consulted
-#   C6-colonStar     `:*` used anywhere but at the end of a pattern
+#   C6-colonStar     `:*` mid-pattern in a command-prefix rule (not the parameter form)
 #   C6-allowParam    parameter-form matching in an allow rule (deny/ask only)
 #
 # Prerequisites: jq (required for correctness — the conf/settings reads are JSON).
@@ -92,6 +92,14 @@ function text_of(start,   i, s) {
 function finding(sev, check, scope, detail) {
   print "finding " sev " [" check "] " scope " " detail
   n_findings++
+}
+# The `word` in `Tool(word:...)`, or "" when the body carries no colon prefix.
+function prefix_of(b,   c, p) {
+  c = index(b, ":")
+  if (c < 2) return ""
+  p = substr(b, 1, c - 1)
+  sub(/[ \t]+$/, "", p)
+  return p
 }
 
 $1 == "rule" {
@@ -180,6 +188,10 @@ END {
   # unambiguously the parameter form: `WebFetch(domain:host)` is documented as
   # the WebFetch syntax itself and `Bash(npm:*)` is a command prefix, so neither can
   # be told apart from a parameter by shape alone and neither is listed here.
+  # Documented per-tool prefix forms where a wildcard is legal ANYWHERE in the
+  # value, so the mid-pattern `:*` rule does not apply to them.
+  documented_param["WebFetch" SUBSEP "domain"] = 1
+
   param_only["Agent" SUBSEP "model"] = 1
   param_only["Agent" SUBSEP "isolation"] = 1
   param_only["Bash" SUBSEP "run_in_background"] = 1
@@ -205,20 +217,35 @@ END {
     # A Windows-style path in a rule: rule paths are normalized to POSIX form
     # before matching, so `C:\Users\alice` never matches anything.
     #
-    # The test is on a SINGLE backslash, not a doubled one. An earlier revision
-    # looked for `\\` -- the JSON SOURCE spelling -- which made this check dead
-    # in the real pipeline: `jq -r` decodes the escape, so the reader emits
-    # `Read(C:\Users\alice\**)` and the doubled form never reaches here. It
-    # passed its own suite only because the fixture was a hand-written record
-    # that bypassed the reader. A rule shipping the doubled form literally is
-    # broken the same way, so both spellings are caught by testing for one.
-    if (index(body, "\\") > 0)
-      finding("error", "C6-winPath", scope, text " — a Windows-style path in a rule cannot match: rule paths are normalized to POSIX form (C:\\Users\\alice becomes /c/Users/alice), so use //c/** form instead")
+    # This check has been wrong in BOTH directions. It first tested for a doubled
+    # backslash -- the JSON SOURCE spelling -- which `jq -r` decodes away, so it
+    # was dead in the real pipeline. Testing a bare backslash instead made it
+    # worse than dead: backslashes are ordinary in shell rules (`Bash(echo \n *)`,
+    # a regex `sed 's/\./_/g'`, an escape inside a quoted string), so every one
+    # became a severity-`error` finding carrying Windows-path advice, and the one
+    # true finding drowned.
+    #
+    # So the test is on SHAPE, not on the character: a drive-letter prefix
+    # (`C:\`) or a UNC prefix (`\\host`), the two forms that are actually a
+    # Windows path. A backslash anywhere else is somebody escaping something.
+    drive = match(body, /(^|[^A-Za-z0-9])[A-Za-z]:\\/)
+    unc = (index(body, "\\\\") == 1) || (index(body, "(\\\\") > 0)
+    if (drive > 0)
+      finding("error", "C6-winPath", scope, text " — a Windows-style path in a rule cannot match: rule paths are normalized to POSIX form (C:\\Users\\alice becomes /c/Users/alice), so use the //c/** form instead")
+    else if (unc)
+      finding("error", "C6-winPath", scope, text " — a UNC path in a rule cannot match: rule paths are normalized to POSIX form before matching, so a UNC host/share prefix never matches. Express the target as a POSIX-form path")
 
     # `:*` is recognized only at the end of a pattern; elsewhere the colon is a
     # literal, so the rule silently matches nothing it was meant to.
+    #
+    # The documented mechanic is about COMMAND PREFIX patterns -- "In a pattern
+    # like `Bash(git:* push)`, the colon is treated as a literal character" --
+    # not about the parameter form, where a mid-body `*` is documented and
+    # working: "WebFetch rules use a `domain:` prefix and match against the
+    # hostname… supports `*` wildcards." Firing on `WebFetch(domain:*.example.com)`
+    # called a documented working rule broken.
     cs = index(body, ":*")
-    if (cs > 0 && cs + 1 < length(body))
+    if (cs > 0 && cs + 1 < length(body) && !((tool SUBSEP prefix_of(body)) in documented_param))
       finding("error", "C6-colonStar", scope, text " — the :* form is only recognized at the END of a pattern; here the colon is treated as a literal character and the rule will not match what it looks like it matches")
 
     # Parameter form is `Tool(param:value)`. Two distinct defects live here.

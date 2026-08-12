@@ -5,6 +5,11 @@
 # writes the operator's real ~/.claude. The one end-to-end case drives the real
 # reader over a fully fixtured tree with HOME redirected and CLAUDE_CONFIG_DIR
 # unset.
+#
+# portability-scope: one fixture spells a Windows UNC network path in a heredoc
+# body. The backslash run the gate reads as a regex escape is that path, and the
+# doubled prefix is what MAKES it a UNC path -- rewriting it would delete the
+# case rather than fix anything.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -212,6 +217,66 @@ assert_contains "the summary states how many checks ran" "$OUT" "checks_run=9"
 # A clean plane is reported as clean, with the check count, not as silence.
 OUT=$(lint "$SURFACES")
 assert_contains "a clean run still reports its summary" "$OUT" "lint summary findings=0"
+
+# --- C6-winPath fires on SHAPE, not on the backslash character ---------------
+# This check has been wrong in both directions: first testing the doubled JSON
+# source spelling (dead in the real pipeline), then a bare backslash (worse than
+# dead -- backslashes are ordinary in shell rules, so every escape became a
+# severity-error finding and the one true finding drowned).
+WINSHAPE=$(
+  printf '%s
+' "$SURFACES"
+  cat <<'EOF'
+rule user settings allow Bash(echo 
+ *)
+rule user settings allow Bash(sed 's/\./_/g' *)
+rule user settings allow Bash(grep 'a	b' *)
+rule user settings allow Read(//c/Users/alice/**)
+EOF
+)
+OUT=$(lint "$WINSHAPE")
+assert_eq "a backslash escape in a shell rule is not a Windows path" 0 "$(count_matching "$OUT" '\[C6-winPath\]')"
+
+WINREAL=$(
+  printf '%s
+' "$SURFACES"
+  printf 'rule user settings allow Read(C:\Users\alice\**)
+'
+)
+OUT=$(lint "$WINREAL")
+assert_eq "a drive-letter path still fires" 1 "$(count_matching "$OUT" '\[C6-winPath\]')"
+assert_contains "with the POSIX remedy" "$OUT" "//c/** form instead"
+
+# A UNC path is a real finding, but //c/** is the wrong advice for it.
+#
+# A quoted heredoc, not printf: printf interprets backslash escapes, so the
+# doubled prefix that MAKES this a UNC path collapses before the lint sees it.
+UNCREAL=$(
+  printf '%s\n' "$SURFACES"
+  cat <<'EOF'
+rule user settings allow Read(\\server\share\**)
+EOF
+)
+OUT=$(lint "$UNCREAL")
+assert_eq "a UNC path fires" 1 "$(count_matching "$OUT" '\[C6-winPath\]')"
+assert_contains "and is named as UNC rather than given drive-letter advice" "$OUT" "a UNC path in a rule cannot match"
+
+# --- C6-colonStar is about COMMAND PREFIX patterns ---------------------------
+# "WebFetch rules use a `domain:` prefix… supports `*` wildcards", so a wildcard
+# mid-value there is documented and working. Firing on it called a working rule
+# broken. The documented mechanic names Bash prefix patterns specifically.
+COLON_PARAM=$(
+  printf '%s
+' "$SURFACES"
+  cat <<'EOF'
+rule user settings allow WebFetch(domain:*.example.com)
+rule user settings allow Bash(git:* push)
+EOF
+)
+OUT=$(lint "$COLON_PARAM")
+assert_eq "only the command-prefix rule fires" 1 "$(count_matching "$OUT" '\[C6-colonStar\]')"
+assert_contains "and it is the Bash one" "$OUT" "Bash(git:* push)"
+assert_not_contains "a documented domain wildcard is not called broken" "$OUT" "WebFetch(domain:*.example.com)"
 
 # --- Parameter matching is deny/ask only -------------------------------------
 # "Deny and ask rules can match a top-level input parameter... An allow rule for
