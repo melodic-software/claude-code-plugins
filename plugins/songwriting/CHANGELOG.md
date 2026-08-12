@@ -17,11 +17,12 @@ All notable changes to the `songwriting` plugin are documented here. Format foll
   tokens versus the Opus re-run that produced his only accepted candidates — and an explicit note
   that trading the tier down for cost is his call to make, not the plugin's.
 
-  **This is the release's own failure mode, one release later.** 1.4.0 shipped a rubric whose
-  pass 11 is voiceprint match and whose premise is that a named check and a run check are
-  indistinguishable in the output; 1.4.1 then quoted the writer from memory and shipped it as a
-  directive. Both files that carried the claim — the skill rule and the 1.4.1 entry below — cited
-  a workspace log neither had reread.
+  **What is verified here is the disagreement, not its cause.** The shipped rule names
+  `plugin-gaps.md` as its source; that file says `'opus'`; nothing in the consuming workspace
+  authorizes a Sonnet fleet. Why 1.4.1 recorded Sonnet is not established — a later cost decision
+  by the writer, made outside anything this workspace holds, would make the correct fix the
+  reverse: keep Sonnet and repair the attribution. **This change therefore needs the writer's
+  ratification**, and either way the rule should stop citing a log that contradicts it.
 
 ## [1.4.1]
 
