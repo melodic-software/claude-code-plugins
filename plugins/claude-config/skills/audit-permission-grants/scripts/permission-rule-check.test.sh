@@ -69,6 +69,13 @@ POSIX_MP="${SL}c${SL}Users${SL}alice${SL}.agents${SL}skills${SL}merge${SL}x.sh"
 WIN_MP="C:${BS}Users${BS}bob${BS}x.sh"
 READ_MP="${SL}c${SL}Users${SL}carol${SL}notes.md"
 EDIT_MP="${SL}Users${SL}dave${SL}src${SL}**"
+# #2282 rows: `//` absolute anchor, tool-reach, and prefix-laundering fixtures.
+ABS_MP="${SL}${SL}Users${SL}erin${SL}secrets${SL}**"
+LAUNDER_MP="${SL}${SL}opt${SL}data${SL}..${SL}Users${SL}frank${SL}secrets"
+WF_MP="${SL}Users${SL}grace${SL}x"
+GLOB_MP="${SL}home${SL}heidi${SL}**"
+NB_MP="${SL}Users${SL}ivan${SL}nb.ipynb"
+MCP_MP="${SL}Users${SL}judy${SL}x"
 
 # --- Case 1: --help ----------------------------------------------------------
 rc=0
@@ -445,6 +452,55 @@ assert_contains "refusal names the sanctioned variable as the fix" \
   "$(cd "$nonrepo" && env -u PERMISSION_HYGIENE_FIXTURE_DIR -u PERMISSION_HYGIENE_SCAN_ROOT \
     -u CLAUDE_PROJECT_DIR GIT_CEILING_DIRECTORIES="$TEST_TMPDIR" bash "$SCRIPT" 2>&1)" \
   "PERMISSION_HYGIENE_SCAN_ROOT"
+
+# --- Case 8b: #2282 — full-rule reporting, `//` is NOT exempt, P1 pinned npm view
+#
+# `//` is the ABSOLUTE anchor, not a portable one. permissions.md's own table row is
+# `//path` = "Absolute path from filesystem root", with `Read(//Users/<name>/secrets/**)`
+# resolving to `/Users/<name>/secrets/**`, and the same page says "Use
+# `//Users/<name>/file` for absolute paths." The docs' literal example names a concrete
+# user home and leaks `alice`. An earlier revision of this suite asserted the opposite,
+# which would have taught an `error`-tier username-leak check to ignore the canonical
+# spelling of the leak.
+D8B="$TEST_TMPDIR/issue-2282"
+mkdir -p "$D8B/.claude"
+jq -n --arg posix "Bash(${POSIX_MP}:*)" --arg abs "Read(${ABS_MP})" \
+  '{permissions:{allow:[$abs, "Bash(npm view ctx7 version*)", $posix]}}' >"$D8B/.claude/settings.json"
+OUT_2282=$(run "$D8B")
+assert_contains "// absolute anchor IS flagged — it names a concrete user home" "$OUT_2282" "Read(${ABS_MP})"
+assert_contains "P2 reports the full offending Bash rule" "$OUT_2282" "Bash(${POSIX_MP}:*)"
+assert_not_contains "fully-pinned npm view rule is not flagged as P1" "$OUT_2282" "npm view ctx7 version"
+assert_eq "both machine-path rules flagged, npm view not" "2" "$(run "$D8B" --count)"
+
+# --- Case 8c: the genuinely portable anchors stay exempt ----------------------
+# The distinction the fix turns on: `~/` and `${CLAUDE_PROJECT_DIR}/` supply the
+# user/project segment at resolution time; `//` does not.
+D8C="$TEST_TMPDIR/issue-2282-portable"
+mkdir -p "$D8C/.claude"
+jq -n '{permissions:{allow:["Read(~/Documents/*.pdf)","Bash(${CLAUDE_PROJECT_DIR}/scripts/x.sh:*)"]}}' >"$D8C/.claude/settings.json"
+assert_eq "portable anchors produce no P2 finding" "0" "$(run "$D8C" --count)"
+
+# --- Case 8d: P2 reach is the open tool grammar, not five hardcoded names ------
+# A hardcoded machine path leaks a username whatever tool the rule names. An
+# enumerated (Read|Edit|Write|Bash|PowerShell) list silently stopped flagging these;
+# `Agent` in particular is indefensible, since this script has a dedicated
+# scan_agent(). Each rule below must produce its own P2 finding.
+D8D="$TEST_TMPDIR/issue-2282-tools"
+mkdir -p "$D8D/.claude"
+jq -n --arg wf "WebFetch(${WF_MP})" --arg gl "Glob(${GLOB_MP})"   --arg nb "NotebookEdit(${NB_MP})" --arg mc "mcp__srv__tool(${MCP_MP})"   '{permissions:{allow:[$wf,$gl,$nb,$mc]}}' >"$D8D/.claude/settings.json"
+OUT_TOOLS=$(run "$D8D")
+assert_contains "P2 sees WebFetch rules" "$OUT_TOOLS" "WebFetch(${WF_MP})"
+assert_contains "P2 sees Glob rules" "$OUT_TOOLS" "Glob(${GLOB_MP})"
+assert_contains "P2 sees NotebookEdit rules" "$OUT_TOOLS" "NotebookEdit(${NB_MP})"
+assert_contains "P2 sees MCP tool rules" "$OUT_TOOLS" "mcp__srv__tool(${MCP_MP})"
+
+# --- Case 8e: a `//` prefix does not launder a path later in the same rule -----
+# Regression guard for a substring carve-out (`$m == *"(//"*`) that passed any rule
+# whose payload merely began with `//`, leaving the rest unexamined.
+D8E="$TEST_TMPDIR/issue-2282-traversal"
+mkdir -p "$D8E/.claude"
+jq -n --arg l "Read(${LAUNDER_MP})" '{permissions:{allow:[$l]}}' >"$D8E/.claude/settings.json"
+assert_eq "a // prefix does not exempt a user home later in the rule" "1" "$(run "$D8E" --count)"
 
 # --- Case 9: missing jq exits 2 ---------------------------------------------
 real_bash=$(command -v bash)

@@ -3,6 +3,49 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.8]
+
+### Changed
+
+- **Synced `hook-utils.sh`:** refuse sub-minimum `stdin_read_timeout` values (#1883).
+
+## [0.28.7]
+
+### Fixed
+
+- **`strip_literals` marked non-empty dropped quote spans inside a command word as OPAQUE so
+  splicing cannot manufacture a false `echo` producer (#2385).** A dropped span whose content was
+  non-empty (`ec"xy"ho`) was joined without a mark, reconstructing `echo` while bash runs `ecxyho`.
+  Empty dropped spans (`ec""ho`, `ec"<newline>"ho`) still splice correctly and keep blocking.
+  Argument-position spans (`echo "a" x > f`) are unchanged.
+
+## [0.28.6]
+
+### Fixed
+
+- **`block-dangerous-git` treats `main` and `refs/heads/main` as one ref when the command
+  qualified the long form (#1418).** A dead second lease entry for an equivalent spelling no
+  longer blocks a safe push whose first entry is pinned to a full object id.
+
+## [0.28.5]
+
+### Fixed
+
+- **Five verdict-owning hooks now consult `HOOK_JQ_FIELDS_NUL` and refuse on a NUL byte** (#2136):
+  `block-convention-violation`, `block-hook-bypass`, `block-noncanonical-commit`,
+  `secret-pattern-detection`, and `hardcoded-path-check`. `block-dangerous-git` and
+  `block-no-verify` already did.
+
+## [0.28.4]
+
+### Fixed
+
+- **block-dangerous-git and block-no-verify fail closed on unparsable payload** (#2157).
+
+### Changed
+
+- **Synced `hook-utils.sh`:** `hook::jq_fields` and `hook::buffer_stdin` return 2 when jq is present but cannot parse the payload (#2157).
+
 ## [0.28.3]
 
 ### Fixed

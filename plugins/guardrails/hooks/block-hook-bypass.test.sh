@@ -1091,6 +1091,13 @@ run "#2217: control — the same write with an escaped newline (blocked)" \
 # assertion fails — which is why the shipped fix does not use one.
 PY_NL_SPLICE=$(printf 'ec"\n"ho x > f')
 run "#2217: quote span splicing a command word (blocked)" "$PY_NL_SPLICE" 2
+# Non-empty dropped spans inside a command word must not splice into a false
+# producer name (`ec"xy"ho` runs as `ecxyho`, not `echo`).
+run "#2385: ec\"xy\"ho splice false positive (allowed)" 'ec"xy"ho hello > out.txt' 0
+PY_XY_NL=$(printf 'ec"x\ny"ho hello > out.txt')
+run "#2385: ec\"x<NL>y\"ho multiline splice (allowed)" "$PY_XY_NL" 0
+run "#2385: ec\"\"ho empty span splice still blocks" 'ec""ho x > f' 2
+run "#2385: ec\"<NL>\"ho empty multiline span still blocks" "$(printf 'ec"\n"ho x > f')" 2
 
 # THE MULTI-LINE PROSE FLOOR. The whole point of carrying an open quote across
 # lines is that a `--body`/`-m` payload merely MENTIONING a write stays inert.
@@ -1222,5 +1229,10 @@ run_pwsh "#2217: PS python -c read-only os.path.normpath (allowed)" \
   "python -c \"import os; print(os.path.normpath('a/b'))\"" 0
 run_pwsh "#2217: PS python script run, open( in an arg, no -c (allowed)" \
   "python build.py --path \"open('x','w')\"" 0
+
+# --- NUL in payload must fail closed (#2136) ----------------------------------
+nul_rc=0
+bash "$HOOK" <<<"$(jq -n '{tool_name:"Bash",tool_input:{command:("git status" + ([0]|implode))}}')" >/dev/null 2>&1 || nul_rc=$?
+assert_exit "NUL in command (blocked)" 2 "$nul_rc"
 
 report

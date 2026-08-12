@@ -78,6 +78,16 @@ hook::require_jq "PreToolUse" "guardrails-block-hook-bypass" "$INPUT"
 # session. The `// "Bash"` default moves to the bash-side expansion, matching
 # block-dangerous-git.
 hook::jq_fields "$INPUT" '.tool_input.command' '.tool_name' || exit 0
+
+# A NUL byte in ANY field read above is fail-CLOSED (#2136): the helper strips NUL
+# bytes before matching, so a clean verdict would not reflect the bytes carried.
+if ((HOOK_JQ_FIELDS_NUL)); then
+  echo "BLOCKED: the payload carries a NUL byte, which a command cannot reliably carry." >&2
+  echo "What a guard can read is not dependably what would run, so this is refused rather than matched." >&2
+  echo "Fix: reissue the tool call without the embedded NUL." >&2
+  exit 2
+fi
+
 COMMAND="${HOOK_JQ_FIELDS[0]}"
 [[ -n "$COMMAND" ]] || exit 0
 TOOL_NAME="${HOOK_JQ_FIELDS[1]:-Bash}"
@@ -163,6 +173,17 @@ _in_redirect_operand() {
   [[ "${tail: -1}" == ">" ]]
 }
 
+# True when a dropped quote span opens INSIDE a command word (`ec"xy"ho`), not as
+# a separate argument (`echo "a"`). Only the in-word case may splice falsely.
+_drop_span_in_cmd_word() {
+  local tail="$1"
+  [[ -z "$tail" ]] && return 1
+  local prev="${tail: -1}"
+  # portability-ok: bracket-pattern metachar literals, not grep word boundaries.
+  [[ "$prev" == [[:space:]] || "$prev" == [\;\|\&\(\)\<\>] ]] && return 1
+  return 0
+}
+
 # One character of KEPT operand content, into _KEEP_CHAR: itself, or the opaque
 # marker when its literal value would read as syntax downstream. Single-sourced
 # so the two kept-span emit sites cannot drift apart.
@@ -194,7 +215,7 @@ strip_literals() {
   # `op_cont` is set when a line ends with a backslash INSIDE a redirect operand:
   # bash removes the backslash-newline entirely, so the operand continues on the
   # next line with no separator and the joining newline must not be emitted.
-  local open_quote="" open_keep="" out i n c prev nxt op_cont
+  local open_quote="" open_keep="" drop_span_active=0 drop_span_nonempty=0 out i n c prev nxt op_cont
   # `(^|[^<])` before `<<` excludes a here-string `<<<` — matching `<<` inside
   # `<<<` would capture a bogus delimiter and strand the stripper in-heredoc,
   # swallowing every later line (a here-string bypass). The delimiter body
@@ -247,11 +268,18 @@ strip_literals() {
       c="${line:i:1}"
       if [[ "$open_quote" == "'" ]]; then
         if [[ "$c" == "'" ]]; then
+          if [[ -z "$open_keep" && $drop_span_active -eq 1 && $drop_span_nonempty -eq 1 ]]; then
+            out+="$_MARK_OPAQUE"
+          fi
           open_quote=""
           open_keep=""
+          drop_span_active=0
+          drop_span_nonempty=0
         elif [[ -n "$open_keep" ]]; then
           _keep_char "$c"
           out+="$_KEEP_CHAR"
+        elif ((drop_span_active)); then
+          drop_span_nonempty=1
         fi
         ((i += 1))
       elif [[ "$open_quote" == '"' ]]; then
@@ -261,15 +289,26 @@ strip_literals() {
           # bash RETAINS the backslash unless the escaped char is one of
           # `$` `` ` `` `"` `\` or a newline — so the pair is marked OPAQUE
           # rather than guessed at, and the operand loses its exemption.
-          [[ -n "$open_keep" ]] && out+="$_MARK_OPAQUE"
+          if [[ -n "$open_keep" ]]; then
+            out+="$_MARK_OPAQUE"
+          elif ((drop_span_active)); then
+            drop_span_nonempty=1
+          fi
           ((i += 2))
         else
           if [[ "$c" == '"' ]]; then
+            if [[ -z "$open_keep" && $drop_span_active -eq 1 && $drop_span_nonempty -eq 1 ]]; then
+              out+="$_MARK_OPAQUE"
+            fi
             open_quote=""
             open_keep=""
+            drop_span_active=0
+            drop_span_nonempty=0
           elif [[ -n "$open_keep" ]]; then
             _keep_char "$c"
             out+="$_KEEP_CHAR"
+          elif ((drop_span_active)); then
+            drop_span_nonempty=1
           fi
           ((i += 1))
         fi
@@ -290,8 +329,17 @@ strip_literals() {
           if _in_redirect_operand "$out"; then
             open_keep=1
             out+="$_MARK_QUOTE"
+            drop_span_active=0
+            drop_span_nonempty=0
           else
             open_keep=""
+            if _drop_span_in_cmd_word "$out"; then
+              drop_span_active=1
+              drop_span_nonempty=0
+            else
+              drop_span_active=0
+              drop_span_nonempty=0
+            fi
           fi
           ((i += 1))
           ;;
@@ -364,10 +412,12 @@ strip_literals() {
     #
     # A kept operand additionally marks the join OPAQUE — its content is literal
     # and the pathname must stop being recoverable. A DROPPED span joins with
-    # NOTHING, and nothing is the only correct join: a space would still splice
-    # `ec"<newline>"ho x > f` into `ec ho`, which bash runs as `echo`. Joining
-    # empty cannot manufacture a token bash does not also form, because an open
-    # quote is what makes the two sides one word in the first place.
+    # NOTHING when its content was empty (`ec""ho` → `echo`); a non-empty dropped
+    # span inside a command word marks OPAQUE on close so splicing cannot
+    # manufacture `echo` from `ec"xy"ho` (`ec\x03ho` stays distinct from `echo`).
+    # A space join would still splice `ec"<newline>"ho x > f` into `ec ho`, which
+    # bash does not run as `echo`; only an empty dropped span may join without a
+    # mark.
     # A backslash-newline inside an operand is removed by bash outright and joins
     # the same way.
     if [[ -n "$open_quote" && -n "$open_keep" ]]; then

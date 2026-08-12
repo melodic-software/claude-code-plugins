@@ -97,8 +97,23 @@ the same. See convention anti-pattern 1.
 **What**: An entry containing a concrete user-home absolute path — `/c/Users/<name>/…` (POSIX-normalized
 Windows), `/home/<name>/…`, `/Users/<name>/…`, or `C:\Users\<name>\…`.
 
-**How to check**: run the detector. `${CLAUDE_PROJECT_DIR}/…`, `~/…`, and `//…` forms are not flagged
-(they expand or are portable anchors); only concrete usernames match.
+**How to check**: run the detector. `${CLAUDE_PROJECT_DIR}/…` and `~/…` forms are not flagged — those
+genuinely expand per machine and per user — while only concrete usernames match.
+
+**`//…` is flagged, and this line used to say the opposite.** It previously grouped `//…` with the two
+expanding forms as a "portable anchor". It is not one: `//` is the *absolute* anchor.
+<https://code.claude.com/docs/en/permissions>, § Read and Edit, fetched 2026-08-12, gives the pattern
+table row `` `//path` | Absolute path from filesystem root | `Read(//Users/<name>/secrets/**)` |
+`/Users/<name>/secrets/**` ``, and the same page states: *"A pattern like `/Users/<name>/file` isn't an
+absolute path. The single leading slash anchors at the settings source, not the filesystem root. **Use
+`//Users/<name>/file` for absolute paths.**"* So `//Users/<name>/…` resolves to a concrete user home and
+carries the username — it is the canonical *spelling* of the defect P2 exists to catch, not an
+exception to it. Contrast `~/…`, whose own doc row (`Read(~/Documents/*.pdf)` → `/Users/<name>/Documents/*.pdf`)
+shows the home segment being supplied per user, which is what makes it portable.
+
+Exempting `//` would have made this check blind to the documentation's own literal example of a
+hardcoded path, in the check graded `error`. The detector's behavior was right and this file was
+wrong; the file moved.
 
 **Why**: the rule names a concrete user home, so it breaks on any other machine or username — and after
 a skill migrates into a plugin, since the install path changes — and it leaks a username into version

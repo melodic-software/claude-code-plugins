@@ -107,6 +107,73 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   corrected mechanism is carried into **#2406** along with what a real loadability model would have
   to distinguish.
 
+## [0.35.4]
+
+### Fixed
+
+- **`audit-pass` no longer asks the model to evaluate a placeholder it never sees.** Its default
+  `target` read "`${CLAUDE_PROJECT_DIR}` when set, else `git rev-parse --show-toplevel`". That
+  placeholder is substituted inline in skill content before the file reaches the model, so the literal
+  token is never visible and "when set" is a test about a value that has already been resolved. The
+  default is now stated in prose — the project root Claude Code resolved for this session, else
+  `git rev-parse --show-toplevel` — with the prohibition itself written out so the shape does not come
+  back. **This was a contradiction inside one plugin**: #2250 landed exactly this prohibition in
+  `audit-prompting-postures` while `audit-pass` kept the shape, so two sibling skills disagreed about
+  the same placeholder.
+- **Both instances, not just the filed one.** The report named `SKILL.md:42-43`; the same unevaluable
+  condition also sat in the non-git refusal ("with no explicit `target` and no
+  `${CLAUDE_PROJECT_DIR}`"), where it governs the diagnostic path that refusal exists to produce.
+  Fixing only the cited line would have left the contradiction half-standing while reading as closed.
+- **The `{id}` derivation is stated, so a report cannot be written where the next run will not look.**
+  The skill said `${CLAUDE_PLUGIN_DATA}` resolves to `~/.claude/plugins/data/{id}/` and never said how
+  `{id}` is formed. Now quoted: the plugin identifier with characters outside `a-z`, `A-Z`, `0-9`, `_`
+  and `-` replaced by `-`, with the plugins reference's own worked example
+  (`formatter@my-marketplace` → `formatter-my-marketplace`). A wrong derivation is also how `--resume`
+  loses a partial.
+- **`${CLAUDE_PLUGIN_DATA}` is recorded as absent from the Bash tool's environment.** The export is
+  documented for "hook processes and … MCP and LSP server subprocesses"; the Bash tool is none of
+  those, so `echo "$CLAUDE_PLUGIN_DATA"` in a Bash call returns an empty string even though the token
+  substitutes correctly in skill content. Nothing in the skill said so, which invites exactly that
+  shell expansion.
+
+## [0.35.3]
+
+### Fixed
+
+- **`criteria.md` no longer calls `//…` a portable anchor — the detector was right and the
+  document was wrong.** Its P2 "How to check" grouped `${CLAUDE_PROJECT_DIR}/…`, `~/…` and `//…`
+  as forms that "expand or are portable anchors", while the detector flagged `//Users/…` anyway;
+  the two shipped files disagreed, so a maintainer reading `criteria.md` could not predict the
+  detector. **The corrected mechanism is the opposite of the one originally filed:** `//` is the
+  *absolute* anchor, not a portable one. The permissions page's pattern table gives `//path` =
+  "Absolute path from filesystem root" with `Read(//Users/<name>/secrets/**)` resolving to
+  `/Users/<name>/secrets/**`, and the same page says "Use `//Users/<name>/file` for absolute
+  paths." So `//Users/<name>/…` is the canonical *spelling* of a hardcoded user home rather than
+  an exception to one, and it leaks the username exactly as `/Users/<name>/…` does — which is
+  the whole of P2's finding. `~/…` is portable because its home segment is supplied per user;
+  `//…` supplies nothing. The exemption was therefore removed from the document instead of added
+  to the detector: exempting it would have made an `error`-tier username-leak check blind to the
+  documentation's own literal example of the leak.
+- **P2 findings report the full offending rule** rather than an eight-character path fragment
+  (`/Users/k`) an operator could not map back to any particular rule. This is the intent the file
+  already stated for P1 and had never applied to P2.
+- **P2 reads every tool's rules, not five names.** While adding that full-rule capture the tool
+  name was briefly enumerated as `(Read|Edit|Write|Bash|PowerShell)`, which silently stopped
+  flagging a hardcoded machine path in a `WebFetch(...)`, `Glob(...)`, `NotebookEdit(...)`,
+  `mcp__server__tool(...)` or `Agent(...)` rule — `Agent` most clearly wrong, since this script
+  ships a dedicated `scan_agent()`. It now uses the same open tool-name grammar as
+  `CCPERM_TOOL_TOKEN_ERE`. Narrowing an `error`-tier check's reach is not a reporting-format
+  change; four regression cases pin it.
+- **`Bash(npm view ctx7 version*)` is no longer flagged as a bare package-manager wildcard.** The
+  P1 runner alternative let the required `*` sit arbitrarily far past the manager name, so a
+  fully-pinned subcommand carrying a trailing `*` matched. The `*` must now be preceded by a
+  separator, which keeps `Bash(npm *)`, `Bash(npm:*)`, `Bash(npx *)` and `Bash(pnpm dlx *)`
+  matching and leaves `Bash(npm test)` clean. That pattern moved into
+  `lib/permission-patterns.sh` under #2260, so the fix lands there rather than at the anchors
+  #2282 records.
+- Rows **A7b** (no inert-grant check) and **A12** (`~user` username leak unflagged) are **not**
+  fixed here; both still reproduce at HEAD and are tracked separately.
+
 ## [0.35.2]
 
 ### Fixed

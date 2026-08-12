@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "autonomy",
-  "version": "0.16.3",
+  "version": "0.16.5",
   "description": "Governed autonomous agent operation: role-topology, binding-seam, wiring-vs-advisor, telemetry, return-accounting, trigger-dispatch, per-work-class guardrail-matrix, standing-routine-catalog, and design-only runner-charter contracts for climbing the AI-adoption ladder, plus a guided-setup skill that discovers an adopting org's state, writes its schema-versioned binding, wires standards-pinned OTLP emission with a zero-cost file-artifact default, wires human-attested return capture at the task boundary, wires signal adapters with one governed dispatch entrypoint, binds the five-class guardrail matrix to an org's isolation substrates with an in-boundary live-validation probe before recording each fail-closed binding, and stands up standing-routine-catalog classes as scheduled temporal signal adapters behind the one governed queue with free scheduling defaults wired as reviewable changes and each routine's work-class mapping homed on the security surface.",
   "author": {
     "name": "Melodic Software",
@@ -25,7 +25,7 @@
     "lane_stop_gate_enabled": {
       "type": "boolean",
       "title": "lane-stop gate",
-      "description": "Opt an autonomous lane into the deterministic Stop-hook completion gate. Default OFF — a Stop-blocking hook must never engage for an interactive session. Honored from user or managed settings only (the gate reads those files itself); per-session lanes are armed by the claude-ops lane launcher instead. The env mirror is never authority (#1784).",
+      "description": "Opt an autonomous lane into the deterministic Stop-hook completion gate. Default OFF \u2014 a Stop-blocking hook must never engage for an interactive session. Honored from user or managed settings only (the gate reads those files itself); per-session lanes are armed by the claude-ops lane launcher instead. The env mirror is never authority (#1784).",
       "default": false
     },
     "lane_stop_gate_sentinel": {
@@ -43,7 +43,7 @@
     "lane_stop_gate_arm_id": {
       "type": "string",
       "title": "lane-stop gate arm id (launcher-managed)",
-      "description": "Written by the lane launcher at launch: names this session's arm record in the plugin's own data directory (hooks/lane-stop-gate-arm.sh). A capability pointer, never authority by itself — the gate validates it, honors only a record in its install-derived store, and binds it to the first presenting session. Not set by hand.",
+      "description": "Written by the lane launcher at launch: names this session's arm record in the plugin's own data directory (hooks/lane-stop-gate-arm.sh). A capability pointer, never authority by itself \u2014 the gate validates it, honors only a record in its install-derived store, and binds it to the first presenting session. Not set by hand.",
       "default": ""
     },
     "lane_notify_enabled": {
@@ -67,13 +67,13 @@
     "verification_lens_pool": {
       "type": "string",
       "title": "verification lens pool",
-      "description": "Ordered, comma-separated pool of verification lenses the model-adjudicated checker slots draw from — one distinct lens per slot, in pool order. Tokens come from the closed vocabulary in the verification-topology contract leaf; an unrecognized token is recorded as unresolved and draws no lens, and a pool shorter than a class's model-adjudicated slot count leaves the remaining slots unlensed rather than repeating a lens. The pool contributes to no count: how many checkers a class runs, how they must differ, and whether one must be cross-vendor are floors on the org's security binding, outside this setting's reach.",
+      "description": "Ordered, comma-separated pool of verification lenses the model-adjudicated checker slots draw from \u2014 one distinct lens per slot, in pool order. Tokens come from the closed vocabulary in the verification-topology contract leaf; an unrecognized token is recorded as unresolved and draws no lens, and a pool shorter than a class's model-adjudicated slot count leaves the remaining slots unlensed rather than repeating a lens. The pool contributes to no count: how many checkers a class runs, how they must differ, and whether one must be cross-vendor are floors on the org's security binding, outside this setting's reach.",
       "default": "specification,adversarial,contract,regression,evidence"
     },
     "visual_narration_enabled": {
       "type": "boolean",
       "title": "advisory visual narration lane",
-      "description": "Run the advisory visual narration lane: strictly downstream of deterministic detection, it writes a plain-language account of a difference the deterministic layer already found and attaches it to the run record for the human gate. Advisory only — it emits no verdict, fills no checker slot, is counted by no floor, and never gates a transition; no cell anywhere names it as authority. Default OFF: it is inert without an upstream deterministic comparator, and each narrated artifact is a metered vision-model call.",
+      "description": "Run the advisory visual narration lane: strictly downstream of deterministic detection, it writes a plain-language account of a difference the deterministic layer already found and attaches it to the run record for the human gate. Advisory only \u2014 it emits no verdict, fills no checker slot, is counted by no floor, and never gates a transition; no cell anywhere names it as authority. Default OFF: it is inert without an upstream deterministic comparator, and each narrated artifact is a metered vision-model call.",
       "default": false
     }
   }

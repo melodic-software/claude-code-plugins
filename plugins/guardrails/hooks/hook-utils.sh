@@ -1,3 +1,6 @@
+# Returns 1 when jq is absent or zero filters were requested. Returns 2 when jq
+# is present but cannot parse the payload or record count mismatches (#2157).
+# Advisory callers allow on both codes; blocking guards exit 2 on rc 2.
 # shellcheck shell=bash
 # Shared hook utility library for this marketplace's hook plugins. Sourced
 # (not executed): kill switch, file_path parsing + path normalization,
@@ -558,6 +561,10 @@ hook::json_complete() {
 # shell is exact where a version check would be a guess. Reading /dev/null hits
 # EOF immediately, so a valid timeout produces no stderr at all. The probe is
 # skipped for the default, which is known-good everywhere.
+# Minimum 0.00001 s (10 µs): smaller positive values are a silent disable — the
+# read returns before payload bytes arrive, same class as exact zero (#1883).
+readonly HOOK_STDIN_READ_TIMEOUT_MIN_MICROS=10
+
 hook::resolve_read_timeout() {
   local t="${CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT:-2}"
   if [[ "$t" != "2" ]]; then
@@ -566,6 +573,14 @@ hook::resolve_read_timeout() {
     probe=$(read -r -t "$t" discard </dev/null 2>&1)
     if ! [[ "$t" =~ ^[0-9]+(\.[0-9]+)?$ ]] || [[ "$t" =~ ^0+(\.0+)?$ ]] || [[ -n "$probe" ]]; then
       t=2
+    elif [[ "$t" =~ ^([0-9]+)(\.([0-9]+))?$ ]]; then
+      local whole="${BASH_REMATCH[1]}" frac="${BASH_REMATCH[3]:-}"
+      frac="${frac}000000"
+      frac="${frac:0:6}"
+      local micros=$((10#$whole * 1000000 + 10#$frac))
+      if ((micros < HOOK_STDIN_READ_TIMEOUT_MIN_MICROS)); then
+        t=2
+      fi
     fi
   fi
   printf '%s' "$t"
@@ -716,7 +731,12 @@ hook::buffer_stdin() {
       echo "BLOCKED: hook stdin timed out before a complete JSON payload arrived." >&2
       return 2
     fi
-    return 1
+    # Whitespace-only stdin (e.g. `<<<""` sends a lone newline) is an empty
+    # payload, not a malformed one — keep the silent rc=1 path advisory hooks
+    # treat as a no-op.
+    [[ -n "${input//[[:space:]]/}" ]] || return 1
+    echo "BLOCKED: hook stdin is not valid JSON." >&2
+    return 2
   fi
   printf '%s' "$input"
 }
@@ -871,7 +891,7 @@ hook::jq_fields() {
   # One record for the flag plus one per filter. Short of that, jq produced no
   # usable output — it is absent, it failed, or it rejected the payload. What can
   # no longer shorten it is NUL CONTENT: the values carry no separator byte.
-  ((${#values[@]} == $# + 1)) || return 1
+  ((${#values[@]} == $# + 1)) || return 2
   HOOK_JQ_FIELDS_NUL="${values[0]}"
   HOOK_JQ_FIELDS=("${values[@]:1}")
 }

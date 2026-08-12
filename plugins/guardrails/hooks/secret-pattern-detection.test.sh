@@ -84,7 +84,7 @@ NUL_PAYLOAD=$(MSYS_NO_PATHCONV=1 jq -nc --arg fp "$FIXTURE" --arg tok "$AWS_TOKE
   '{tool_name:"Write",tool_input:{file_path:$fp,content:("harmless first line" + ([0] | implode) + "config = " + $tok)}}')
 OUT=$(bash "$HOOK" <<<"$NUL_PAYLOAD" 2>&1); RC=$?
 assert_exit "secret AFTER a NUL byte in content → exit 2" 2 "$RC"
-assert_contains "secret after NUL → message" "$OUT" "AWS Access Key"
+assert_contains "secret after NUL → NUL refusal message" "$OUT" "NUL byte"
 
 # In-project secret still blocks when CLAUDE_PROJECT_DIR is set (file under root).
 OUT=$(CLAUDE_PROJECT_DIR="/repo" bash "$HOOK" <<<"$(write_json "/repo/src/config.env" "config = '$AWS_TOKEN'")" 2>&1); RC=$?
