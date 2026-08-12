@@ -231,6 +231,42 @@ changelog_versions() {
     grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?([+-][0-9A-Za-z][0-9A-Za-z.-]*)?'
 }
 
+# Version headings present at the fork point but absent at head. Uses
+# changelog_versions on both sides so plugin, convention, and two-component
+# heading forms share one reader. Reads the base blob with command substitution
+# (never process substitution) so a git failure fails closed. A changelog that
+# is new at the fork point is a legitimate pass — probe with git cat-file -e
+# first so "absent" is not conflated with "git failed".
+missing_preserved_headings() {
+  local merge_base="$1" changelog="$2"
+  local base_body missing v
+  declare -A head_seen
+
+  if ! git cat-file -e "$merge_base:$changelog" 2>/dev/null; then
+    return 0
+  fi
+  if ! base_body="$(git show "$merge_base:$changelog")"; then
+    echo "check-changelog-parity: 'git show $merge_base:$changelog' failed; refusing to pass without checking." >&2
+    return 2
+  fi
+
+  mapfile -t base_versions < <(printf '%s\n' "$base_body" | changelog_versions -)
+  ((${#base_versions[@]} > 0)) || return 0
+
+  mapfile -t head_versions < <(changelog_versions "$changelog")
+  for v in "${head_versions[@]}"; do head_seen["$v"]=1; done
+
+  missing=""
+  for v in "${base_versions[@]}"; do
+    [[ -n "${head_seen[$v]:-}" ]] && continue
+    missing+="${missing:+$'\n'}$v"
+  done
+  if [[ -n "$missing" ]]; then
+    printf '%s\n' "$missing"
+  fi
+  return 0
+}
+
 if [[ "$mode" == "--check-order" ]]; then
   changelogs=(plugins/*/CHANGELOG.md docs/conventions/*/CHANGELOG.md)
   misordered=0
@@ -518,6 +554,25 @@ undocumented=0
 malformed=0
 preexisting=0
 nonmonotonic=0
+absorbed=0
+declare -A absorbed_reported
+
+for changelog in "${touched_changelogs[@]}"; do
+  [[ -n "${absorbed_reported[$changelog]:-}" ]] && continue
+  absorbed_reported["$changelog"]=1
+  [[ -f "$changelog" ]] || continue
+  missing_headings="$(missing_preserved_headings "$merge_base" "$changelog")" ||
+    exit 2
+  if [[ -n "$missing_headings" ]]; then
+    echo "ABSORBED CHANGELOG HEADING: $changelog lost release section heading(s) vs the fork point (a merge-forward may have fused two releases into one section):" >&2
+    while IFS= read -r v; do
+      [[ -z "$v" ]] && continue
+      echo "  ## [$v]" >&2
+    done <<<"$missing_headings"
+    absorbed=$((absorbed + 1))
+  fi
+done
+
 for manifest in "${manifests[@]}"; do
   plugin_dir="${manifest%/.claude-plugin/plugin.json}"
   name="${plugin_dir##*/}"
@@ -620,11 +675,12 @@ for manifest in "${manifests[@]}"; do
   fi
 done
 
-if ((undocumented > 0 || malformed > 0 || preexisting > 0 || nonmonotonic > 0)); then
+if ((undocumented > 0 || malformed > 0 || preexisting > 0 || nonmonotonic > 0 || absorbed > 0)); then
   ((undocumented > 0)) && echo "Add a '## [<version>]' entry for every plugin whose version changed." >&2
   ((malformed > 0)) && echo "Convert unbracketed changelog headings to the '## [<version>]' Keep-a-Changelog form." >&2
   ((preexisting > 0)) && echo "Add the bumped version's '## [<version>]' entry in this change set; it must be absent from the base changelog, not merely present at head." >&2
   ((nonmonotonic > 0)) && echo "Renumber every bumped version strictly above the base ref's CURRENT version, not the version the branch was cut from." >&2
+  ((absorbed > 0)) && echo "Restore every '## [<version>]' heading that existed at the fork point; release notes must not be relabelled or absorbed into a newer section." >&2
   exit 1
 fi
 echo "Every plugin whose version changed vs $base has a '## [<version>]' CHANGELOG.md entry."

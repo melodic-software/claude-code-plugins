@@ -217,6 +217,35 @@ git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm bump
 if (cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" >/dev/null 2>&1); then ok "bump + '## [x.y.z]' entry passes --check-bump"; else fail "bump+entry wrongly failed"; fi
 rm -rf "$repo"
 
+# ABSORBED HEADING (#2324): merge-forward deletes a predecessor heading.
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 0.51.8 yes
+printf '# Changelog\n\n## [0.51.8]\n\n### Fixed\n\n- predecessor note\n\n## [0.51.7]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+base="$(git -C "$repo" rev-parse HEAD)"
+printf '{ "name": "alpha", "version": "0.51.9" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
+printf '# Changelog\n\n## [0.51.9]\n\n### Fixed\n\n- new note\n- predecessor note\n\n## [0.51.7]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm bump
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
+rc=$?
+if [[ $rc -ne 0 && "$out" == *"ABSORBED CHANGELOG HEADING"*"alpha"* && "$out" == *"0.51.8"* ]]; then ok "absorbed predecessor release heading fails --check-bump"; else fail "absorbed heading not caught: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
+# ABSORBED without manifest bump (#2324 gap 2): only the changelog changed.
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 0.51.9 yes
+printf '# Changelog\n\n## [0.51.9]\n\n- nine\n\n## [0.51.8]\n\n- eight\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+base="$(git -C "$repo" rev-parse HEAD)"
+printf '# Changelog\n\n## [0.51.9]\n\n- nine\n- eight\n\n## [0.51.7]\n\n- seven\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'absorb without bump'
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
+rc=$?
+if [[ $rc -ne 0 && "$out" == *"ABSORBED CHANGELOG HEADING"* && "$out" == *"0.51.8"* ]]; then ok "absorbed heading with no manifest bump fails --check-bump"; else fail "absorbed-no-bump not caught: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
 # LARGE CHANGELOG (SIGPIPE regression, #2130): the new entry sits near the top
 # of a changelog far larger than the pipe buffer — the shape every mature
 # changelog has. A has_heading reader that exits on first match kills
@@ -843,10 +872,13 @@ git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'absorb 0.51.8 int
 out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-preserved "$base" 2>&1)"
 rc=$?
 if [[ $rc -eq 1 && "$out" == *"DELETED CHANGELOG ENTRY"*"plugins/alpha/CHANGELOG.md"* && "$out" == *"0.51.8"* ]]; then ok "an absorbed predecessor section fails --check-preserved, naming the vanished version"; else fail "absorbed section not caught: rc=$rc out='$out'"; fi
-for other in "--check-bump $base" "--check-order" "--check"; do
+for other in "--check-order" "--check"; do
   # shellcheck disable=SC2086  # deliberate split: the mode and its optional base ref
-  if (cd "$repo" && bash scripts/check-changelog-parity.sh $other >/dev/null 2>&1); then ok "the absorbed-section tree still passes '$other' (the gap --check-preserved exists to close)"; else fail "'$other' unexpectedly fired on the absorbed-section tree — the gap assertion is stale"; fi
+  if (cd "$repo" && bash scripts/check-changelog-parity.sh $other >/dev/null 2>&1); then ok "the absorbed-section tree still passes '$other'"; else fail "'$other' unexpectedly fired on the absorbed-section tree"; fi
 done
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
+rc=$?
+if [[ $rc -ne 0 && "$out" == *"ABSORBED CHANGELOG HEADING"* && "$out" == *"0.51.8"* ]]; then ok "--check-bump now catches absorbed headings too (#2324)"; else fail "--check-bump should catch absorbed headings: rc=$rc out='$out'"; fi
 rm -rf "$repo"
 
 # RELABELLED PREDECESSOR: the same bad resolution renames 0.51.8's heading to
