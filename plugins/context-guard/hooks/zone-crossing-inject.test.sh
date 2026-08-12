@@ -293,11 +293,11 @@ fi
 # TWO fields — "<zone> <streak>", e.g. "dumb 0" — for one version before 0.7.2
 # replaced the rule with a return-to-`smart` target and went back to one word. A
 # session that started under 0.7.1 and continued under 0.7.2 still has the
-# two-field marker on disk, and the reader must resolve it to the zone rather
-# than to a fresh baseline: `tr -cd '[:lower:]'` strips the digit and the
-# separator, so the armed rank survives and an already-reported zone stays
-# suppressed instead of being announced twice. Held by construction; pinned here
-# so the next edit to the reader cannot quietly break it.
+# two-field marker on disk, and the reader must resolve it to the ZONE rather
+# than to a fresh baseline, so an already-reported zone stays suppressed instead
+# of being announced a second time. Asserted as an outcome on both marker
+# shapes; the reader's internals are its own business, and this case pins what
+# the next edit to them may not break.
 mkdir -p "$D/state"
 printf 'dumb 0\n' >"$D/state/sdwell.armed"
 printf 'dumb\n' >"$D/state/sdwell.zone"
@@ -312,6 +312,25 @@ if [[ "$(cat "$D/state/sdwell.armed" 2>/dev/null)" == "dumb" ]]; then
   ok "a 0.7.1 two-field .armed marker is rewritten in the one-word format"
 else
   fail "0.7.1-format marker not normalized: $(cat "$D/state/sdwell.armed" 2>/dev/null)"
+fi
+# Second shape, so the case rests on more than one string: a mid-ladder marker
+# with a non-zero streak. `acceptable` armed, `acceptable` observed → silent,
+# and a worsening to `dumb` from that same marker must still be announced.
+printf 'acceptable 1\n' >"$D/state/sdwell2.armed"
+printf 'acceptable\n' >"$D/state/sdwell2.zone"
+write_snapshot "$H" sdwell2 60
+run "$H" "$D" sdwell2
+if [[ $RC -eq 0 && -z "$OUT" ]]; then
+  ok "a 0.7.1 marker with a non-zero streak resolves to its zone, not a baseline"
+else
+  fail "streak-bearing marker misread as a fresh baseline: rc=$RC out=${OUT:0:120}"
+fi
+write_snapshot "$H" sdwell2 90
+run "$H" "$D" sdwell2
+if [[ $RC -eq 0 && "$OUT" == *additionalContext* && "$OUT" == *dumb* ]]; then
+  ok "a worsening past a 0.7.1-format marker is still announced"
+else
+  fail "worsening suppressed by a 0.7.1-format marker: rc=$RC out=${OUT:0:120}"
 fi
 
 # 5. Unknown zone (no snapshot) → silent, state untouched.

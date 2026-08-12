@@ -22,9 +22,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     0.7.1 is the dwell. The sentence was written while the change was still numbered 0.7.1 and the
     reference did not move with the bump. Corrected, and it now names the dwell it replaced.
 
-  - **0.7.2's entry argued only against 0.7.0 and never against the 0.7.1 it superseded.** Read
-    top-down, the file installed a dwell in 0.7.1 and then described a different mechanism one
-    version later as though the dwell had never existed. The difference is load-bearing, not
+  - **0.7.2's entry argued only against 0.7.0 and never against the 0.7.1 it superseded — and two
+    of its claims are false relative to the version it actually followed.** It was written with
+    0.7.0 as the parent, so "the sole behavioural delta is `acceptable → smart` re-arming" and
+    "every 0.7.0 assertion still passes unmodified" were verified against 0.7.0 and quietly became
+    misleading when 0.7.1 landed first: against 0.7.1's dwell the delta is the whole re-arm rule and
+    **13 assertions of this suite differ**, measured against `f57fb788`. Both are scoped in an
+    erratum on that entry rather than rewritten. The underlying difference is load-bearing, not
     stylistic: under a three-observation dwell, `acceptable → smart → acceptable` — a genuine
     recovery observed **once** — does not re-inject, which is the exact sequence 0.7.2 exists to
     make re-inject. A dwell wide enough to absorb a band-edge flap cannot also honour a
@@ -47,12 +51,21 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [0.7.2]
 
-**Erratum (0.7.3):** two claims below need correction. The residual paragraph's "(the pre-0.7.0
-cadence at that one boundary, and no worse)" was never executed against 0.6.6 and is **withdrawn**;
-the measured statement is one announcement per down-up cycle, now pinned by tests. And this entry
-argues only against 0.7.0's two-rank delta, while the version it actually replaced in the working
-tree was **0.7.1's dwell** — that trade is recorded in 0.7.3 above. Everything else here, including
-the property, the residual itself, and the write-ordering fix, stands as written and is tested.
+**Erratum (0.7.3):** three corrections, and the first two turn on *which version this entry was
+written against*. It was authored with **0.7.0** as the parent; by the time it merged the parent was
+**0.7.1's dwell**, and two of its sentences are true only of the former:
+
+- "the sole behavioural delta is `acceptable → smart` re-arming" — true against 0.7.0. Against
+  0.7.1 the delta is the entire re-arm rule.
+- "Every 0.7.0 assertion … still passes unmodified against the new rule" — true, and still true, of
+  0.7.0's assertions. It is not a statement about 0.7.1: this suite reports **13 failures** against
+  0.7.1's hook (measured against `f57fb788`; the run is in #2364).
+
+Third, the residual paragraph's "(the pre-0.7.0 cadence at that one boundary, and no worse)" was
+never executed against 0.6.6 and is **withdrawn**; the measured statement is one announcement per
+down-up cycle, now pinned by tests. The rest of this entry — the property, the residual itself, the
+corrected mechanism, and the write-ordering fix — stands as written and is tested against the code
+on `main`.
 
 ### Fixed
 
