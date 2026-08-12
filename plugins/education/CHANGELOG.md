@@ -3,6 +3,14 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.1]
+
+### Fixed
+
+- **education:teach loads under worktree isolation (#1687).** Workspace listing moved out of
+  the pre-compute block into a body Bash call so `${CLAUDE_PROJECT_DIR}` / `${CLAUDE_PLUGIN_DATA}`
+  expansions no longer refuse at skill load.
+
 ## [0.6.0]
 
 ### Removed
