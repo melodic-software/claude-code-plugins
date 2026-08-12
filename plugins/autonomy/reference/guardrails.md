@@ -62,6 +62,22 @@ answered from this document:
 | Which verification layers exist and which block, per class | [security-review](guardrails/security-review.md) |
 | Which roles verify a class, how they must differ, and the shipped checker floors | [verification-topology](guardrails/verification-topology.md) |
 | Which signals may enter the queue autonomously, and under what caps | [admission-policy](guardrails/admission-policy.md) |
+| Per-invocation merge widening (`autopilot` + `--merge c3-this-run`) | [source-control config-resolution](../../source-control/reference/config-resolution.md) (§ typed pair exception) |
+
+## Per-invocation merge widening
+
+The matrix's merge-policy column describes **standing** authority: promotion-gated cells that
+require a recorded, team-tracked adoption before auto-merge is eligible. Separately, the
+`source-control` babysit-loop lane defines **one named per-invocation exception**: an argument
+line that types both the literal `autopilot` tier keyword and `--merge c3-this-run` widens
+*that single invocation's* merge dimension up to and including C3, still bounded by the
+unconditional C4/C5 human-merge floor.
+
+This exception is not a matrix promotion and is never persisted — the next invocation without
+the pair reverts to the tracked `babysit_loop_merge` resolution. No config layer supplies either
+token; both must appear on the invocation line. The full contract (baseline adoption requirement,
+mutual exclusivity with safer `--merge` values, and the C4/C5 ceiling) lives in
+[`source-control/reference/config-resolution.md`](../../source-control/reference/config-resolution.md).
 
 ## Permission posture
 
