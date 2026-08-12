@@ -170,9 +170,11 @@ For anything else, **describe via parameterized syntax** instead of inventing a 
 
 | Syntax | Purpose | Example |
 |--------|---------|---------|
-| `[Section]` | **Structural label** — boundary marker, never sung | `[Verse]`, `[Chorus]`, `[Bridge]` |
-| `[Section: descriptors]` | **Parameterized section override** — also never sung, configures section behavior | `[Verse: piano only, no drums]` |
+| `[Section]` | **Structural label** — boundary marker; read as instruction and not sung when the label is a recognized one on its own line | `[Verse]`, `[Chorus]`, `[Bridge]` |
+| `[Section: descriptors]` | **Parameterized section override** — also read as instruction rather than sung, configures section behavior | `[Verse: piano only, no drums]` |
 | `(text)` | **Vocal delivery modifier** — short cues (1-3 words) are interpreted as performance directives, triggering delivery changes (harmonies, whispers, echoes, ad-libs); longer phrases get sung as lyrics | `(whispered)`, `(echo)`, `(ad-lib: ooh)` |
+
+Two conditions carry both bracket rows: a **recognized** label, **on its own line**. A **non-standard or verbose** label (`[Dubstep Drop]`, `[Emotional Moment]`) gets parsed as sung lyrics text, and so does any tag placed mid-line — see the recognized-label list above and [troubleshoot.md](troubleshoot.md). The parentheses row inverts the default: `(text)` is sung unless it is a short standard delivery directive.
 
 Combine all three for arrangement-level precision:
 
@@ -185,7 +187,7 @@ Take me home (ad-lib: home, home)
 
 ### Confidence note
 
-Parameterized syntax is documented across multiple community guides (hookgenius, blakecrosley, jackrighteous) and confirmed by Suno's own "Song Editor" article (`help.suno.com/en/articles/6141505`). The full **per-section instrumentation control** as a primary technique (vs just vocal/mood modifiers) is community-validated through extensive empirical testing — HIGH confidence on syntax, HIGH-MEDIUM on the broader "treat lyrics as second style channel" framing.
+Parameterized syntax is documented across multiple community guides (hookgenius, blakecrosley, jackrighteous). **No first-party Suno source states the `[Tag: descriptors]` form** — it is community-attested only. The full **per-section instrumentation control** as a primary technique (vs just vocal/mood modifiers) is community-validated through extensive empirical testing — HIGH confidence on syntax, but that HIGH rests on community attestation, not on official documentation; HIGH-MEDIUM on the broader "treat lyrics as second style channel" framing.
 
 ## Performance shaping (community-validated, MEDIUM confidence)
 

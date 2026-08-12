@@ -360,7 +360,8 @@ homecoming, seeing the old neighborhood again after a long trip."
 
 ## Bridge Validity
 
-Chapter 23 repeats the bridge warning in a stricter form:
+*Writing Better Lyrics* (2009), Chapter 23 repeats the bridge warning in a
+stricter form:
 
 > A bridge isn't a verse
 
@@ -433,7 +434,8 @@ The refrain usually contains the title or central idea. Because every system is
 the same size, the form can become monotonous unless the verse ideas develop
 strongly or a bridge interrupts the pattern.
 
-Chapter 6 example diagnosis — "This Bottle and Me," verse 1:
+*Essential Guide to Lyric Form and Structure* (1991), Chapter 6 example
+diagnosis — "This Bottle and Me," verse 1:
 
 ```text
 We've been sitting here the whole night long
@@ -479,7 +481,8 @@ The bridge accomplishes three jobs:
 - Gives the lyric a new perspective before the final verse/refrain.
 
 The bridge must differ where difference is needed, especially at its first
-line. Chapter 6's bridge for "This Bottle and Me":
+line. *Essential Guide to Lyric Form and Structure* (1991), Chapter 6's bridge
+for "This Bottle and Me":
 
 ```text
 THIS BOTTLE AND ME will do all right
@@ -527,7 +530,8 @@ then feeling the arrival back at it.
 Simple verse/chorus form works like Common Meter — also called the **Ballad
 Stanza** — at the section level. Chapter 6 states the two mappings as a pair:
 AABA runs on the limerick's principle, verse/chorus runs on Common Meter's.
-The two stanzas Chapter 6 prints to establish the pattern:
+The two stanzas printed to establish the pattern in *Essential Guide to Lyric
+Form and Structure* (1991), Chapter 6:
 
 ```text
 O Western Wind, when will thou blow
@@ -622,7 +626,8 @@ The bridge should release the lyric to a new angle and usually be shorter than
 the verse systems. A shorter bridge makes the next chorus arrive earlier than
 expected, which can boost interest.
 
-Bridge construction move from Chapter 6:
+Bridge construction move from *Essential Guide to Lyric Form and Structure*
+(1991), Chapter 6:
 
 ```text
 notice unused hint: 2-stress phrases in non-resolving positions
@@ -741,7 +746,8 @@ transitional bridge: short phrases, quick rhymes
 refrain: title closes the system
 ```
 
-Chapter 6's example is "You Never Let Me Down," song system 1:
+*Essential Guide to Lyric Form and Structure* (1991), Chapter 6's example is
+"You Never Let Me Down," song system 1:
 
 ```text
 Turned loose in a company of strangers        VERSE 1
@@ -782,7 +788,7 @@ the song or if the idea genuinely needs another angle.
 Later verses should parallel enough to be recognized and vary enough to move.
 Small irregularities can carry large prosodic weight.
 
-Chapter 6 example:
+*Essential Guide to Lyric Form and Structure* (1991), Chapter 6 example:
 
 ```text
 verse 1: regular Common Meter establishes home
@@ -810,7 +816,8 @@ song still needs the same formal identity.
 
 ## Hook setup by form
 
-Chapter 6 repeatedly shows a hook being prepared before it appears:
+*Essential Guide to Lyric Form and Structure* (1991), Chapter 6 repeatedly shows
+a hook being prepared before it appears:
 
 ```text
 withhold expected stress shape

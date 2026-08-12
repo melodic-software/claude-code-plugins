@@ -949,7 +949,7 @@ and kinesthetic sense. Follow sensory associations wherever they lead. Do not
 try to rhyme, meter, explain, or finish a lyric. Stop when the timer ends.
 ```
 
-Challenge 1 variant:
+*Songwriting Without Boundaries* (2011), Challenge 1 variant:
 
 ```text
 Set a timer for <90 seconds | 5 minutes | 10 minutes>.

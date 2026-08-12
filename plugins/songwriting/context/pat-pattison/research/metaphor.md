@@ -278,13 +278,22 @@ Pat refers to these by number throughout Challenges 2 and 3 ("the second
 version of expressed identity," "the third form"), so keep the numbering
 when coaching.
 
-Chapter 3's drill — run each of these through all three forms:
+*Writing Better Lyrics* (2009), Chapter 3's drill — run each of these through
+all three forms:
 
 ```text
 wind = yelping dog
 wind = river
 wind = highway
 ```
+
+**Pat prints this same drill twice.** It is *Writing Better Lyrics* (2009),
+Chapter 3 "Making Metaphors", and he reprints it in *Songwriting Without
+Boundaries* (2011), Challenge 2. Matching the three `wind =` lines against the
+books therefore returns **two** books, and only the chapter number settles it:
+the 2011 book has Challenges and Days, never chapters, and its printing sits in
+Challenge 2 rather than 3. Recorded because a text-only matcher cannot resolve
+this site and should not guess.
 
 Each form changes the pressure and usability of the metaphor:
 

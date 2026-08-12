@@ -10,7 +10,8 @@ Pat's own source notation marks unstressed syllables too, with a breve — the
 "slight cup" over the vowel that Chapter 3's exercises ask for by name. `u` is
 this file's ASCII stand-in for that cup, not an addition to Pat's system.
 
-Chapter 3's opening epigraph sets the duple/triple movement the chapter unpacks:
+*Essential Guide to Lyric Form and Structure* (1991), Chapter 3's opening
+epigraph sets the duple/triple movement the chapter unpacks:
 
 > Sink like a stone that's been thrown in the ocean
 > My logic has drowned in a sea of emotion

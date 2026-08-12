@@ -61,7 +61,8 @@ Chapter 6 prints a form-specific three-item list for a verse/refrain lyric:
 > 3. A Bridge would also give the verse ideas a chance to “breathe” by moving to
 >    a new angle or perspective.
 
-For a verse/chorus lyric, Chapter 6 prints a second three-item list:
+For a verse/chorus lyric, *Essential Guide to Lyric Form and Structure* (1991),
+Chapter 6 prints a second three-item list:
 
 > If you wanted to add more to the A B A B system above, you should probably
 > think about a Bridge instead of another verse. As you saw in the A A B A song
@@ -165,7 +166,7 @@ Chapter 22 prints three risk-avoidance techniques.
 > structure and in content. You'll have to change both the structure and the
 > kind of information you give.
 
-Chapter 22's worked bridge is:
+*Writing Better Lyrics* (2009), Chapter 22's worked bridge is:
 
 > Bridge
 >
@@ -209,7 +210,8 @@ Pat's bridge-finding move, *Writing Better Lyrics* (2009), Chapter 23:
 > Well, I guess some men got no appreciation
 > They never see the finer things in life …
 
-He sets the contrast requirement first (Chapter 23, Option 1):
+He sets the contrast requirement first (*Writing Better Lyrics* (2009),
+Chapter 23, Option 1):
 
 > The most obvious boredom quencher is to insert a contrasting section — a
 > bridge — between the second and third system. As usual, the contrast should
@@ -289,7 +291,8 @@ because it names the mechanism ("away from the verse structure"):
 > old neighborhood again after a long trip. The tension created by moving away
 > has been resolved.
 
-Chapter 5 then names what the last system is, in figure `image_rsrc327`:
+*Essential Guide to Lyric Form and Structure* (1991), Chapter 5 then names what
+the last system is, in figure `image_rsrc327`:
 
 ```text
 ( Bridge  ->  Verse ),

@@ -4,7 +4,7 @@ Pat Pattison — primary source *Writing Better Lyrics* (2009), Chapter 18
 "Prosody: Structure as Film Score" and Chapter 21 "The Great Balancing Act",
 with supporting material from *Essential Guide to Lyric Form and Structure*
 (1991), Chapters 1-3, and *Songwriting Without Boundaries* (2011),
-Challenge #4. Stable/unstable is Pat's own umbrella term: it is not a rhyme
+Challenge 4. Stable/unstable is Pat's own umbrella term: it is not a rhyme
 tool he extended, it is the lens he applies to every element of a section.
 
 Use this when a draft is "missing something" but the writer cannot name what.

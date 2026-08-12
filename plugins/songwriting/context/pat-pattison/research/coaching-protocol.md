@@ -242,7 +242,7 @@ verbatim.
 > — Pat Pattison (Unpaved interview) — **unaudited**. Printed and citable
 > instead: "They're the most potent force in language. […] The difference
 > between average and great writing: verbs." — *Songwriting Without Boundaries*
-> (2011), Challenge #2.
+> (2011), Challenge 2.
 
 The coaching protocol exists so the AI's process matches Pat's process —
 the writer's voice arrives at the writer's song.
