@@ -11,6 +11,7 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   contract specifies: `acquire`, `heartbeat`, `release`, `classify`, and stale `adopt` with
   `owner_epoch` compare-and-set. `resolve-run-paths.sh`, partial persistence, and the run manifest
   remain prose-only — tracked on #2280.
+
 ## [0.37.2]
 
 ### Fixed
