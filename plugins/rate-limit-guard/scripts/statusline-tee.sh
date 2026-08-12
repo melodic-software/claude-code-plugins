@@ -505,10 +505,15 @@ _RLG_USER_PROBED=0
 
 _rlg_probe() {
   command -v jq >/dev/null 2>&1 || return 0
-  local ts settings_file settings_json out
-  # printf's %()T is a bash builtin; `date -u` was a process. TZ is scoped to
-  # the builtin call, so nothing downstream sees a changed timezone.
-  TZ=UTC printf -v ts '%(%Y-%m-%dT%H:%M:%SZ)T' -1 2>/dev/null || return 0
+  local ts settings_file settings_json settings_tmp out line
+  # printf's %()T is a bash 4.2+ builtin; macOS statusline Bash 3.2 needs date -u.
+  ts=""
+  if ((BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 2))); then
+    TZ=UTC printf -v ts '%(%Y-%m-%dT%H:%M:%SZ)T' -1 2>/dev/null || ts=""
+  fi
+  if [[ -z "$ts" ]]; then
+    ts="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null)" || return 0
+  fi
   [[ -n "$ts" ]] || return 0
 
   settings_file="${CLAUDE_CONFIG_DIR:-${HOME:-}/.claude}/settings.json"
@@ -518,11 +523,16 @@ _rlg_probe() {
     [[ -n "$settings_json" ]] || settings_json='null'
   fi
 
+  # Settings are slurpfile-fed so credentials never land in jq's argv; payload stays
+  # on stdin. Three lines out: payload, window-bearing, user verdict.
+  settings_tmp="$(mktemp "${TMPDIR:-/tmp}/rlg-settings.XXXXXX")"
+  printf '%s' "$settings_json" >"$settings_tmp"
+
   # Three lines out, in a fixed order: payload, window-bearing, user verdict.
   # `jq -c` escapes any newline inside a string and the other two are bare
   # tokens, so every line is single-line by construction and the split is exact.
-  out="$(jq -rc --arg ts "$ts" --arg settings "$settings_json" '
-    (try ($settings | fromjson) catch {}) as $doc
+  out="$(jq -rc --arg ts "$ts" --slurpfile sdoc "$settings_tmp" '
+    (($sdoc[0] // null) | if type == "object" then . else {} end) as $doc
     | ({captured_at: $ts}
        + (to_entries
           | map(select(.key == "rate_limits" or .key == "session_id"
@@ -535,10 +545,16 @@ _rlg_probe() {
          | .value.options.rate_limit_guard_enabled
          | select(. != null) | tostring ]
        | if length == 0 then "" else last end) catch "")
-  ' <<<"$INPUT" 2>/dev/null)" || return 0
+  ' <<<"$INPUT" 2>/dev/null)" || {
+    rm -f "$settings_tmp"
+    return 0
+  }
+  rm -f "$settings_tmp"
 
-  local -a lines
-  mapfile -t lines <<<"$out"
+  local -a lines=()
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    lines[${#lines[@]}]="$line"
+  done <<<"$out"
   _RLG_PAYLOAD="${lines[0]:-}"
   [[ "${lines[1]:-}" == true ]] && _RLG_HAS_WINDOWS=true
   # An unparsable payload means jq produced nothing usable; leave the user
