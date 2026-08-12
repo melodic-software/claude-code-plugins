@@ -269,7 +269,7 @@ fi
 
 # Reduce a PowerShell command to a Bash-tokenizer-faithful form, or fail closed.
 # For the Bash tool this is a no-op (COMMAND unchanged).
-ps::classify_git_command "$TOOL_NAME" "$COMMAND"
+ps::classify_git_command "$TOOL_NAME" "$COMMAND" "readonly-ok"
 case $? in
 2)
   ps::print_unparsable_block_message

@@ -48,6 +48,15 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 
 ### Fixed
 
+## [0.28.10]
+
+- **PowerShell fail-closed sink no longer blocks read-only git with `{}`/`()` grouping
+  on commit/push guards (#1415).** `block-no-verify` passes commands like
+  `git fetch | ForEach-Object { … }` when no mutating git subcommand is visible;
+  obfuscated commit/push shapes still fail closed.
+
+## [0.28.9]
+
 - **`block-noncanonical-commit`:** resolve persisted `alias.<sub>.command` subkeys, not only
   `alias.<sub>` (#1022).
 
