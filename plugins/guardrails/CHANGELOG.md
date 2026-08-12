@@ -3,6 +3,17 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.2]
+
+### Fixed
+
+- **`block-convention-violation` dropped git's own globals on a plain-alias recursion hop (#2166).**
+  The alias argv rebuild sliced through `gi` instead of `sub_idx`, so a wrapper's words survived
+  but git's own `-C` / locating globals between `git` and the subcommand did not. A mid-merge
+  `git -C inner qc -F -` was content-gated in the wrong repository while a direct
+  `git -C inner commit -F -` was correctly exempt. The rebuild now matches
+  `block-dangerous-git`'s splice (`0..sub_idx`).
+
 ## [0.28.1]
 
 ### Fixed
