@@ -378,6 +378,105 @@ else
   fail "the block fixture should measure all 9 chars of 'abc # def': $out"
 fi
 
+# ===================== single-pass port guards (#2216) ======================
+#
+# The measurement is one awk pass rather than ~11 forked subshells and 5 process
+# execs per SKILL.md. Corpus equivalence over the repo's ~200 files (proved by
+# diffing both implementations' per-file contribution rows) is NOT parser
+# equivalence, so the frontmatter shapes most likely to diverge get fixtures.
+
+# 16. LITERAL block scalar (`|`) joins its lines with NEWLINES, and the trailing
+#     blank line before the closing fence must not add one — the pre-port
+#     pipeline got that for free from command substitution stripping trailing
+#     newlines, and the port has to reproduce it deliberately.
+mkdir -p "$TMP/yaml-literal-root/lit"
+{
+  printf -- '---\n'
+  printf 'name: lit\n'
+  printf 'description: |\n'
+  printf '  abc\n'
+  printf '  de\n'
+  printf '\n'
+  printf -- '---\n\n## Purpose\n\nFixture.\n'
+} >"$TMP/yaml-literal-root/lit/SKILL.md"
+out="$(run "$TMP/yaml-literal-root" 2>&1)"
+if grep -q 'aggregate: 6 chars' <<<"$out"; then
+  pass "a literal block scalar joins with newlines and drops the trailing blank"
+else
+  fail "the literal fixture should measure 6 chars ('abc' + LF + 'de'): $out"
+fi
+
+# 17. A SINGLE-quoted scalar escapes one quote by doubling it, so the doubled
+#     pair is content and the scalar does not end there. Getting this wrong
+#     truncates the value at the first inner quote and undercounts silently.
+mkdir -p "$TMP/yaml-sq-root/sq"
+{
+  printf -- '---\n'
+  printf 'name: sq\n'
+  printf "description: 'it''s ok' # note\n"
+  printf -- '---\n\n## Purpose\n\nFixture.\n'
+} >"$TMP/yaml-sq-root/sq/SKILL.md"
+out="$(run "$TMP/yaml-sq-root" 2>&1)"
+if grep -q 'aggregate: 8 chars' <<<"$out"; then
+  pass "a doubled single quote is content; the trailing comment is still cut"
+else
+  fail "the single-quote fixture should measure 8 chars: $out"
+fi
+
+# 18. LENGTH SEMANTICS, asserted as an EQUIVALENCE rather than a hardcoded
+#     number. The pre-port script measured with bash `${#var}`; the port
+#     measures with awk `length()`. Both are locale-dependent and they can
+#     disagree when awk counts bytes while the shell counts characters (mawk
+#     ignores the locale; gawk does not). A fixed expected number would encode
+#     ONE environment's answer and fail elsewhere for the wrong reason — this
+#     compares the script's own output against the measurement primitive the
+#     OLD implementation used, in the SAME shell, so a divergence is reported
+#     as exactly what it is.
+mkdir -p "$TMP/yaml-utf8-root/utf8"
+UTF8_DESC='a—b…c'
+{
+  printf -- '---\n'
+  printf 'name: utf8\n'
+  printf 'description: "%s"\n' "$UTF8_DESC"
+  printf -- '---\n\n## Purpose\n\nFixture.\n'
+} >"$TMP/yaml-utf8-root/utf8/SKILL.md"
+out="$(run "$TMP/yaml-utf8-root" 2>&1)"
+if grep -q "aggregate: ${#UTF8_DESC} chars" <<<"$out"; then
+  pass "multibyte description measures the same as the shell's own \${#var} (${#UTF8_DESC} chars)"
+else
+  fail "awk length() and bash \${#var} disagree on a multibyte value (expected ${#UTF8_DESC}): $out"
+fi
+
+# 19. WALL CLOCK over a ~200-file corpus — the regression this port exists to
+#     prevent. The pooled run took 289s on Windows and was killed at the 180s
+#     foreground limit with zero output; the single pass returns in low
+#     single-digit seconds. The bound is deliberately VERY loose (30s for 200
+#     files against a sub-second target): this runs in required CI, and a tight
+#     timing assertion is a flaky gate, which is worse than the defect it
+#     guards. It fails only on a return to per-file process spawning, which is
+#     two orders of magnitude away.
+mkdir -p "$TMP/perf-root"
+i=0
+while ((i < 200)); do
+  mkdir -p "$TMP/perf-root/skill-$i"
+  {
+    printf -- '---\n'
+    printf 'name: skill-%d\n' "$i"
+    printf 'description: "a description long enough to be representative of a real listing entry"\n'
+    printf 'when_to_use: "when the fixture needs a second measured field"\n'
+    printf -- '---\n\n## Purpose\n\nFixture.\n'
+  } >"$TMP/perf-root/skill-$i/SKILL.md"
+  i=$((i + 1))
+done
+perf_start=$(date +%s)
+out="$(run "$TMP/perf-root" 2>&1)"
+perf_elapsed=$(($(date +%s) - perf_start))
+if grep -q '200 listing-eligible skill' <<<"$out" && ((perf_elapsed < 30)); then
+  pass "200-file corpus measured in ${perf_elapsed}s (bound: 30s)"
+else
+  fail "200-file corpus took ${perf_elapsed}s or miscounted (bound 30s): $out"
+fi
+
 if [[ $fails -ne 0 ]]; then
   printf '%d assertion(s) failed\n' "$fails" >&2
   exit 1
