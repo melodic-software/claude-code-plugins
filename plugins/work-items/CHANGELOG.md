@@ -3,6 +3,15 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.11]
+
+### Changed
+
+- **Escalation-marker grammar has one canonical source (#1672).** `reference/escalation-marker.md`
+  now defines the marker comment prefix, kind enum, author-match suppression rule, and
+  label-plus-comment pairing; `work-loop` and `attend-queue` cite it instead of restating the
+  grammar in prose.
+
 ## [0.35.10]
 
 ### Added
