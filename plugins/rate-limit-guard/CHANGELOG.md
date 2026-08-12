@@ -24,9 +24,10 @@ All notable changes to the `rate-limit-guard` plugin are documented here. Format
   And it keeps the read off any jq-opened path: a native jq on Windows cannot open
   an MSYS-style path, and `$TMPDIR` under MSYS is one.
 
-  Net spawns: two fewer than the slurpfile form (no `mktemp`, no `rm`), which holds
-  the four documented externals — one `jq`, `mkdir`/`rmdir` for the lock, `mv` for
-  the atomic rename.
+  Net spawns: measured against the slurpfile form on the same machine, a
+  steady-state refresh drops two external commands (`mktemp` and `rm`, which that
+  form added) and one subshell — 7 distinct `BASHPID`s to 6. The externals that
+  remain are the ones 0.6.0 documented as the contract itself.
 
 ## [0.6.0]
 
