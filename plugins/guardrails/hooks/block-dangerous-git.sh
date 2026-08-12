@@ -284,7 +284,8 @@ is_lease_opt() { abbrev_match "force-with-lease" "${1%%=*}" 7; }
 # that is a ref name at the destination. It needs no wrapper.
 #
 # And it bites in the OTHER direction far more often than as a bypass: when the
-# base is not a repository at all, the probe answers 0 and the guard fails closed,
+# base is not a repository at all, the probe cannot read an object format and the
+# guard fails closed,
 # so `cd <repo> && git push --force-with-lease=main:<literal full-width sha>
 # origin main` — the very form the block messages above prescribe — is DENIED
 # from a session root that is not itself a repository. Fail-closed is the right
@@ -308,16 +309,26 @@ is_lease_opt() { abbrev_match "force-with-lease" "${1%%=*}" 7; }
 # expectations would spawn one git per expectation.
 _repo_oid_width=""
 _repo_oid_width_key=""
-# repo_oid_width <locating-option...> — sets $_repo_oid_width.
+_repo_oid_width_err=""
+_lease_oid_width_unknown=0
+# repo_oid_width <locating-option...> — sets $_repo_oid_width (40/64) on success,
+# clears it on failure, and sets $_repo_oid_width_err. Only a successfully read
+# width is cached — a transient git failure must not poison later expectations.
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 repo_oid_width() {
-  local key="$*"
+  local key="$*" out
   [[ -n "$_repo_oid_width" && "$key" == "$_repo_oid_width_key" ]] && return 0
   _repo_oid_width_key="$key"
-  case "$(git "$@" rev-parse --show-object-format 2>/dev/null)" in
+  _repo_oid_width=""
+  _repo_oid_width_err=""
+  out="$(git "$@" rev-parse --show-object-format 2>&1)" || true
+  case "$out" in
   sha1) _repo_oid_width=40 ;;
   sha256) _repo_oid_width=64 ;;
-  *) _repo_oid_width=0 ;;
+  *)
+    _repo_oid_width_err="${out:-could not read repository object format}"
+    _repo_oid_width_key=""
+    ;;
   esac
 }
 
@@ -328,7 +339,11 @@ lease_expect_is_immutable() {
   [[ -z "$expect" ]] && return 0
   [[ "$expect" =~ ^[0-9a-fA-F]+$ ]] || return 1
   repo_oid_width ${git_locating_opts[@]+"${git_locating_opts[@]}"}
-  ((_repo_oid_width)) && ((${#expect} == _repo_oid_width))
+  if [[ -z "$_repo_oid_width" ]]; then
+    _lease_oid_width_unknown=1
+    return 1
+  fi
+  ((${#expect} == _repo_oid_width))
 }
 
 # The repository-locating subset of git's global options, collected between the
@@ -612,7 +627,7 @@ alias_reexpand_admit() {
 check_segment() {
   local -a w=()
   local nseg gi k x rest ch sub sub_idx staged worktree dry excl pos opseen
-  local if_includes lease_tracking lease_movable lease_seen lease_ref lease_expect
+  local if_includes lease_tracking lease_movable lease_width_unknown lease_seen lease_ref lease_expect
   # Read by lease_expect_is_immutable further down the call chain; per-frame, so
   # a recursive re-check of an alias expansion collects its own.
   local -a git_locating_opts=()
@@ -776,6 +791,8 @@ check_segment() {
     if_includes=0
     lease_tracking=0
     lease_movable=0
+    lease_width_unknown=0
+    _lease_oid_width_unknown=0
     lease_seen=""
     k=$((sub_idx + 1))
     while ((k < nseg)); do
@@ -838,7 +855,13 @@ check_segment() {
               else
                 lease_expect="${x#*=}"
                 lease_expect="${lease_expect#*:}"
-                lease_expect_is_immutable "$lease_expect" || lease_movable=1
+                if ! lease_expect_is_immutable "$lease_expect"; then
+                  if ((_lease_oid_width_unknown)); then
+                    lease_width_unknown=1
+                  else
+                    lease_movable=1
+                  fi
+                fi
               fi
             fi
           fi
@@ -850,6 +873,11 @@ check_segment() {
     ((dry)) && return 0
     # Decided after the scan, never mid-scan: every one of these options is
     # last-wins, so an early match cannot be acted on before the segment ends.
+    if ((lease_width_unknown)); then
+      block "push-lease-unsafe" \
+        "BLOCKED: git push --force-with-lease=<refname>:<expect> whose <expect> is a full object id, but this repository's hash format could not be determined (${_repo_oid_width_err:-git rev-parse --show-object-format failed}), so no literal object id can be validated here." \
+        "Run the push from a directory where git can read the repository's object format, or resolve the object id in a separate step and pass --force-with-lease=<refname>:<full-sha> once git can determine the hash width. Or allow via the block_dangerous_git_allow option (add push-lease-unsafe)."
+    fi
     if ((lease_movable)); then
       block "push-lease-unsafe" \
         "BLOCKED: git push --force-with-lease=<refname>:<expect> whose <expect> is a name git resolves at push time (origin/main, HEAD, a tag, an abbreviated object id, or hex of the wrong width for this repository's hash format) leases against a moving target, and git-push(1) declares --force-if-includes a no-op alongside an explicit :<expect>, so nothing mitigates it." \
