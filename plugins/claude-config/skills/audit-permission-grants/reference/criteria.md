@@ -89,8 +89,14 @@ via an interpreter (`Bash(bash <fixed-path>:*)`) is flagged as the same authorin
 where the doc's dropped-category wording does not clearly reach it; the fix (a bare PATH command) is
 the same. See convention anti-pattern 1.
 
-**Recommend**: expose the helper as a bare command on PATH and allow the bare name narrowly. An
-`Agent` rule has no bare-PATH analog — remove or re-scope it, or run outside auto mode.
+**Recommend**: where the convention's bare-name-on-PATH end state is reachable (see its **Known gap —
+step 1's plugin `bin/` delivery** section), expose the helper as a bare command on PATH and allow the
+bare name narrowly. On platforms where plugin `bin/` is not reliably on the Bash tool's PATH — the
+measured default on Windows/Git Bash today — keep the finding and prescribe the bundled-path
+invocation that works now (`Bash(${CLAUDE_PLUGIN_ROOT}/bin/<helper>:*)` or `${CLAUDE_SKILL_DIR}` for a
+skill's own script), plus an operator-setup note for the bare-name rule the operator can add when
+delivery is stable. An `Agent` rule has no bare-PATH analog — remove or re-scope it, or run outside
+auto mode.
 
 ## P2: Hardcoded absolute machine/user path [error]
 

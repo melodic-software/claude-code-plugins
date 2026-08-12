@@ -100,9 +100,12 @@ If a scope filter was given, run the full detector and present only the matching
 
 Present findings as the severity-rated table in
 [reference/criteria.md](reference/criteria.md) "Output format". For each finding, give the concrete
-recommendation from its check: replace the fragile grant with the bare-name-on-PATH pattern from the
-convention, and add an **Operator setup** note where a user-global `~/.claude/settings.json` rule is
-required.
+recommendation from its check. For P1, match the platform reality the convention records: where
+plugin `bin/` is not reliably on the Bash tool's PATH (see the convention's **Known gap** section),
+prescribe the bundled-path grant that works today and an operator-setup note for the bare-name rule —
+do not unconditionally tell the operator to expose a bare command on PATH when that end state is not
+yet reachable on the measured platform. Add an **Operator setup** note wherever a user-global
+`~/.claude/settings.json` rule is required.
 
 ### Severity guide
 
