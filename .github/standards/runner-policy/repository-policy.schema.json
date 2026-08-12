@@ -61,6 +61,29 @@
           "justification": { "type": "string", "pattern": "\\S" }
         }
       }
+    },
+    "requiredReusableCallInputs": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^\\.github/workflows/[^/#]+\\.ya?ml#[A-Za-z0-9_-]+$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["requiredInputs", "justification"],
+        "properties": {
+          "requiredInputs": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z][A-Za-z0-9_-]*$"
+            }
+          },
+          "justification": { "type": "string", "pattern": "\\S" }
+        }
+      }
     }
   },
   "allOf": [

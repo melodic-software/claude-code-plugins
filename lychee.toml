@@ -42,6 +42,10 @@ exclude = [
   # entirely the checker being refused at the door.
   '^https?://dl\.acm\.org/doi/10\.1145/3611643\.3613871/?([?#].*)?$',
   '^https?://queue\.acm\.org/detail\.cfm\?id=3454124$',
+  # ISO blocks automated clients outright: 403 to the checker (verified
+  # 2026-08-11), so the failure is entirely the checker being refused at the
+  # door — the cited standard page is the stable canonical link.
+  '^https?://www\.iso\.org/standard/78907\.html/?([?#].*)?$',
   # 403 to the checker, 200 with a browser User-Agent (verified 2026-07-30) —
   # the documented bot-block case this list already exists for.
   '^https?://docs\.genius\.com/?([?#].*)?$',
