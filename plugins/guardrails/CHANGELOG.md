@@ -3,6 +3,71 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.0]
+
+### Fixed
+
+- **`block-hook-bypass` missed three inline-write forms that reach a real file, one of them a
+  residual the file itself recorded as accepted (#2217).** Measured against `4c90b454` (0.27.2),
+  hook invoked as a decision function on a `PreToolUse` Bash payload — `rc=2` blocked, `rc=0`
+  allowed:
+
+  ```
+  rc=0 :: python -c "open('f','w').write('x')"
+  rc=0 :: py -c "open('f','w').write('x')"
+  rc=0 :: python3.11 -c "open('f','w').write('x')"
+  rc=0 :: printf 'a<newline>b<newline>' > notes.md
+  rc=0 :: python3 - <<'PY' … open('f','w').write('x') … PY
+  rc=2 :: python3 -c "open('f','w').write('x')"   # the one spelling that matched
+  rc=2 :: printf "a\nb\n" > notes.md              # the same write, escaped newline
+  ```
+
+  Three separate causes, all in the direction of letting a write through:
+
+  1. **The interpreter detector was a spelling floor, not a rule.** Both lanes required the literal
+     `python3` — the Bash lane's `EXEC_LC` scan and the PowerShell lane's
+     `ps::might_write_via_python3` token test — so `python -c`, `py -c`, `py3 -c`, `python2 -c` and
+     `python3.11 -c` ran the identical inline write unseen. The guard's own scope message advertised
+     `python -c` as its example, naming the one spelling the regex did not match. The command word is
+     now the python family (`py`/`python`/`pypy` plus an optional version suffix and `.exe`), still
+     separator-anchored, so `notpython3`, `mypython3`, `mypy`, `spy`, `happy` and `pytest` stay
+     inert. `py -3 -c` is admitted because a `-<digits>` token cannot be a script path; no other gap
+     between interpreter and flag is, so `python3 build.py` and `python3 -m tool …` are still not
+     blocked.
+
+  2. **A physical newline inside a quoted span split a producer from its own redirect.** A newline
+     reached with a quote still OPEN is not a separator — bash is inside a quoted word, so the text
+     either side of the span is ONE word — but `strip_literals` re-emitted it, `normalize_segments`
+     split there, and `producer_redirect_bypass` requires producer and redirect in one segment. The
+     join is now empty rather than a newline. **Empty, not a space:** `ec"<newline>"ho x > f` is
+     `echo x > f` to bash, and a space join leaves `ec ho`, which `_producer_head` does not match —
+     the fix ships with that case as an assertion. Joining empty cannot manufacture a token bash does
+     not also form, because an open quote is what makes the two sides one word. The kept-operand and
+     backslash-newline joins are unchanged; the multi-line `--body`/`-m` prose floor is unchanged
+     because a dropped span's content is dropped either way.
+
+  3. **REOPENED ACCEPTED RESIDUAL** — a stdin heredoc (`python3 - <<PY … PY`, no `-c`) was recorded
+     as uncovered and accepted in the PowerShell lane's comment. It is reopened here on new
+     reachability evidence rather than treated as an oversight: this repo's own session record shows
+     an agent reaching for exactly that form to patch a file
+     (`.work/handoffs/20260809T082720Z-handoff-post-2008-followups.md:211`, `python - <<'PY'`), and
+     widening the `-c` arm raises the pressure toward it, since a refused `python -c` write reroutes
+     most naturally to the heredoc. The `-` is what makes it inline: the code sits in the command
+     string the hook reads, not in an opaque script file. The acceptance comment is updated in both
+     `block-hook-bypass.sh` and `lib/powershell/ps-command.sh` rather than contradicted.
+
+  **Direction of every change: 24 allowed → blocked, 0 blocked → allowed.** The zero is the load-
+  bearing number and it is pinned by assertions, not asserted: the name-anchor floor, the
+  `#1601`/`#2148` over-block floor re-run for each new spelling, the multi-line prose/`--body` floor,
+  the `/dev/null` discard floor, and the stdin floor all keep their `rc=0`. The shipped suite went
+  from `PASS=345 FAIL=0` to `PASS=395 FAIL=0` with no existing assertion changed.
+
+  **Accepted residual, restated at its narrowed width:** `python3 <<PY … PY` — stdin with **no** `-`
+  argument — stays uncovered. Matching a bare trailing interpreter token would flip
+  `echo "pathlib" | python3` and `cat script.py | python3` to blocked, so that exemption costs this
+  one spelling; both floors are asserted. Inline writes via other interpreters (`node -e`, `perl -e`,
+  `ruby -e`, `sed -i`) remain out of scope, unchanged.
+
 ## [0.27.2]
 
 ### Fixed

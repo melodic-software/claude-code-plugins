@@ -355,12 +355,24 @@ strip_literals() {
         esac
       fi
     done
-    # A newline INSIDE a kept operand is literal content, not a separator — a
-    # quoted target may span physical lines, and a backslash-newline inside one
-    # is removed by bash outright. Either way the operand must stay one token.
+    # A newline reached with a quote span still OPEN is not a separator: bash is
+    # inside a quoted word, so the text before the opening quote and the text
+    # after the closing quote are ONE word. Emitting the newline handed
+    # normalize_segments a boundary bash does not have, which split a producer
+    # from its own redirect (`printf 'a<newline>b' > notes.md` was allowed while
+    # the `\n`-escaped spelling blocked) and could split a command word in half.
+    #
+    # A kept operand additionally marks the join OPAQUE — its content is literal
+    # and the pathname must stop being recoverable. A DROPPED span joins with
+    # NOTHING, and nothing is the only correct join: a space would still splice
+    # `ec"<newline>"ho x > f` into `ec ho`, which bash runs as `echo`. Joining
+    # empty cannot manufacture a token bash does not also form, because an open
+    # quote is what makes the two sides one word in the first place.
+    # A backslash-newline inside an operand is removed by bash outright and joins
+    # the same way.
     if [[ -n "$open_quote" && -n "$open_keep" ]]; then
       result+="${out}${_MARK_OPAQUE}"
-    elif ((op_cont)); then
+    elif [[ -n "$open_quote" ]] || ((op_cont)); then
       result+="$out"
     else
       result+="${out}"$'\n'
@@ -943,7 +955,7 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   # mangle-resistant CO-OCCURRENCE of
   #   (a) a write INDICATOR in the raw command (_py_write — the tokens live in the
   #       quoted `-c` payload, so the scan is raw, exactly as the Bash lane), AND
-  #   (b) a python3 interpreter TOKEN plus a `-c` inline-code flag both present
+  #   (b) a python interpreter TOKEN plus a `-c` inline-code flag both present
   #       (ps::might_write_via_python3, quote-INTACT + backtick-recovered) — where a
   #       COMPUTED `-c` (`python3 ('-'+'c') …`) is caught by fail-closing on a
   #       non-tokenizable arg construct when no literal `-c` is present.
@@ -953,11 +965,17 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   # fail-closed choice the user approved for this lane): a command that only MENTIONS
   # `python3 … -c` + a write indicator in prose, a line/block comment, or a quoted
   # string now blocks; here-string mentions stay inert (blanked first, like the git
-  # lane). ACCEPTED RESIDUAL: a stdin heredoc (`python3 - <<PY … PY`, no `-c`) is
-  # uncovered here, as it is today.
+  # lane).
+  #
+  # The interpreter TOKEN was the literal `python3` in both lanes, so `python -c`,
+  # `py -c`, `py3 -c`, `python2 -c` and `python3.11 -c` were the same write going
+  # unseen; both are the python family now (#2217). The stdin heredoc that this
+  # comment previously recorded as an ACCEPTED RESIDUAL is a Bash-tool construct
+  # and is covered in the Bash lane as of #2217 — see the reopening note there.
+  # It stays out of scope here because PowerShell has no heredoc.
   ps::blank_herestrings "$COMMAND"
   if py_write_indicator "$COMMAND_LC" && ps::might_write_via_python3 "$PS_BLANKED"; then
-    block_bypass "python-write" "python3 -c inline-code file write bypasses Write/Edit hooks"
+    block_bypass "python-write" "python inline-code file write bypasses Write/Edit hooks"
   fi
   emit_tel "ok" ""
   exit 0
@@ -992,17 +1010,48 @@ fi
 # interpreter has its own spelling and write surface. Covered by accepted-floor
 # tests.
 #
-# python3 -c with file-write indicators. Detect the `python3 -c` INVOCATION in
-# the literal-stripped form (EXEC_LC) so prose/commit text merely mentioning it
-# is not a false positive; scan the RAW command (COMMAND_LC) for the write
-# indicators — they legitimately live inside the quoted `-c` payload the strip removes.
-# The command-word boundary admits a leading path (`/` `\` in the class) and an
-# optional `.exe`, so a path-qualified interpreter (`/usr/bin/python3 -c`,
-# `/c/Python313/python3.exe -c`) is the same write — anchored on the python3
-# basename, so `notpython3` (no separator before it) stays inert.
-if [[ "$EXEC_LC" =~ (^|[[:space:];|&()/\\]+)python3(\.exe)?[[:space:]]+-c ]] &&
+# Inline python code with file-write indicators. Detect the INVOCATION in the
+# literal-stripped form (EXEC_LC) so prose/commit text merely mentioning it is
+# not a false positive; scan the RAW command (COMMAND_LC) for the write
+# indicators — they legitimately live inside the quoted `-c` payload, or the
+# heredoc body, that the strip removes.
+#
+# COMMAND-WORD SHAPE. The boundary admits a leading path (`/` `\` in the class)
+# and an optional `.exe`, so a path-qualified interpreter (`/usr/bin/python3`,
+# `/c/Python313/python3.exe`) is the same write. The basename was the LITERAL
+# `python3`, which made the detector a spelling floor rather than a rule:
+# `python -c`, `py -c`, `py3 -c`, `python2 -c` and `python3.11 -c` all ran the
+# same inline write and none matched (#2217). The name is now the python family
+# — `py`/`python`/`pypy` plus an optional version suffix (`3`, `2`, `3.11`) —
+# still anchored on a separator, so `notpython3`, `mypy`, `spy`, `happy` and
+# `pytest` stay inert. `py -3 -c` (the Windows launcher's version selector) is
+# admitted because a `-<digits>` token cannot be a script path; no other gap
+# between the interpreter and its flag is allowed, so a script/module run
+# (`python3 build.py`, `python3 -m tool …`) that merely touches an `open(`-like
+# path is still NOT blocked.
+_py_inline_c='(^|[[:space:];|&()/\]+)(pypy|python|py)[0-9]*(\.[0-9]+)*(\.exe)?([[:space:]]+-[0-9]+(\.[0-9]+)?)?[[:space:]]+-c'
+# REOPENED ACCEPTED RESIDUAL (#2217 / AD-12). A stdin heredoc — `python3 - <<PY
+# … PY`, no `-c` — was documented as uncovered and accepted. It is covered now,
+# on new reachability evidence: this repo's own session record shows an agent
+# reaching for exactly that form to patch a file
+# (`.work/handoffs/20260809T082720Z-handoff-post-2008-followups.md:211`,
+# `python - <<'PY'`), and widening the `-c` arm above raises the pressure toward
+# it, since a refused `python -c` write reroutes most naturally to the heredoc.
+#
+# The `-` (read the program from stdin) is what makes this an INLINE write: the
+# code is in the command string, not in an opaque script file. strip_literals
+# drops the heredoc operator and its body, so EXEC_LC keeps `python3 -` and the
+# body's write indicators are still visible in COMMAND_LC.
+#
+# NARROWED RESIDUAL, restated at its real width: `python3 <<PY … PY` (stdin with
+# NO `-` argument) stays uncovered. Matching a bare trailing interpreter token
+# would flip `echo "pathlib" | python3` and `cat s.py | python3` to blocked —
+# verified rc=0 both before and after — so the exemption those keep costs this
+# one spelling.
+_py_stdin_code='(^|[[:space:];|&()/\]+)(pypy|python|py)[0-9]*(\.[0-9]+)*(\.exe)?[[:space:]]+-([[:space:]]|$)'
+if [[ "$EXEC_LC" =~ $_py_inline_c || "$EXEC_LC" =~ $_py_stdin_code ]] &&
   py_write_indicator "$COMMAND_LC"; then
-  block_bypass "python-write" "python3 -c file write bypasses Write/Edit hooks"
+  block_bypass "python-write" "python inline-code file write bypasses Write/Edit hooks"
 fi
 
 emit_tel "ok" ""

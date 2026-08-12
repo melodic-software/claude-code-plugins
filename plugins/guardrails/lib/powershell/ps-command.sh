@@ -294,8 +294,21 @@ ps::might_invoke_git() {
 # (`-ArgumentList '-c',…`) — are all seen; a python3 token inside a here-string is
 # not (the caller blanks here-strings first). The `-c` boundary admits whitespace
 # or a quote on each side, so `'-c'` matches while a longer token (`-Command`,
-# `-Confirm`) does not. python3-ONLY by design: `py -3` / bare `python` and a
-# stdin heredoc (`python3 - <<PY … PY`, no `-c`) stay uncovered, as they are today.
+# `-Confirm`) does not.
+#
+# The interpreter token was the LITERAL `python3`, which made this lane a
+# spelling floor rather than a rule and carried the Bash lane's #2217 gap here
+# too: `python -c`, `py -c`, `py3 -c`, `python2 -c` and `python3.11 -c` all run
+# the same inline write. The token is now the python family — `py`/`python`/
+# `pypy` plus an optional version suffix — still boundary-anchored on both sides,
+# so `mypy`, `spy`, `happy`, `pytest`, `notpython3` and a dotted `os.python3`
+# stay inert. This remains the WEAKER sink question by design (see SINK DOCTRINE
+# above); the caller still gates on a raw write indicator.
+#
+# RESIDUAL, restated at its real width: a stdin heredoc (`python3 - <<PY … PY`,
+# no `-c`) is a Bash-tool construct. It is covered in the Bash lane as of #2217,
+# and remains out of scope here — PowerShell has no heredoc, and its here-string
+# analogue is blanked by the caller before this runs.
 ps::might_write_via_python3() {
   local recovered="${1//\`/}" lc q="\"'" blanked
   lc="${recovered,,}"
@@ -328,8 +341,8 @@ ps::might_write_via_python3() {
   # takes only the interpolating-string half of the shared call-target predicate
   # and not the bare-computed half.
   ps::call_target_is_interpolating_string "$recovered" && return 0
-  # Must name a python3 interpreter token at all (quote-intact, backtick-recovered).
-  [[ "$lc" =~ (^|[^[:alnum:]_.])python3([.]exe)?([^[:alnum:]_]|$) ]] || return 1
+  # Must name a python interpreter token at all (quote-intact, backtick-recovered).
+  [[ "$lc" =~ (^|[^[:alnum:]_.])(pypy|python|py)[0-9]*([.][0-9]+)*([.]exe)?([^[:alnum:]_.]|$) ]] || return 1
   # A literal `-c` inline-code flag settles it (quote-bounded, so an arg-split
   # `-ArgumentList '-c',…` counts; a longer token like `-Command`/`-Confirm` does not).
   [[ "$lc" =~ (^|[[:space:]$q])-c([[:space:]$q]|$) ]] && return 0
