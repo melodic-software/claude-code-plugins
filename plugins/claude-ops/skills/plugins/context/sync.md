@@ -34,6 +34,12 @@ an id and the post-sweep version is unchanged, report the CLI's reported value, 
 named none — never report `<old> → <old>`, and never count that id as not-updated. A report line
 that says nothing changed for a plugin that did change is worse than one that admits it cannot tell.
 
+One data point, not a licence to drop the fallback: on Claude Code 2.1.228 a 63-plugin user-scope
+sweep had all 21 CLI-reported updates already reflected in a post-sweep `fleet-state.sh` re-read, so
+source 3 agreed with source 2 on every id. That establishes the write landed before the re-read on
+that run — not that it is synchronous per call, and not that it holds on another version. Keep
+source 2 primary and keep the divergence handling above.
+
 ## Step 1 — Marketplace refresh
 
 For each target marketplace (the resolved default, the named one, or every marketplace when the

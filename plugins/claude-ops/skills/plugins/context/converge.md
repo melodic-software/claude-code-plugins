@@ -60,6 +60,13 @@ rows a bulk report collapses) — never construct the proposed command as a bare
 running the bare form for a row whose `projectPath` isn't the current directory would silently
 mutate — or fail against — the wrong repo's settings.
 
+Project scope keys on the **working directory**, not the repository — verified on Claude Code
+2.1.228 by uninstalling one id in a repo's main checkout and observing its git worktree's record for
+the same id survive untouched. Two checkouts of one repo (a `git worktree`, sharing one `.git` and
+one tracked `.claude/settings.json`) therefore hold independent `projectPath` records and pin
+independently. Never collapse them into one row, and never assume converging one clears the other:
+each needs its own `cd`.
+
 Present every plugin's proposed strategy and exact CLI command(s) before running anything — do not
 batch-apply. Per Brief Decision 6 (V1): confirm **every** pin individually, even when many plugins
 share the same strategy — do not infer consent from one confirm to the next.
@@ -79,11 +86,22 @@ Step 1 if meaningful time has passed or another mutation already landed.
 ## Step 5 — Surface the resulting diff
 
 After all confirmed mutations run, `git diff` (or the equivalent status check) any project's
-committed `.claude/settings.json` that `-s project` mutations may have touched. Per
-[scope-semantics.md](scope-semantics.md), a plain `claude plugin update -s project` does **not**
-write committed settings — but `claude plugin uninstall -s project` (this action's actual mechanism)
-can remove an `enabledPlugins` entry from it. Show the diff; never commit it. The user reviews and
-commits (or discards) it through their own normal git workflow.
+committed `.claude/settings.json` that `-s project` mutations touched — every one of them, not only
+the ones expected to change. Per [scope-semantics.md](scope-semantics.md), `claude plugin uninstall
+-s project` (this action's actual mechanism) **always** writes that file: it removes the id's
+`enabledPlugins` entry, leaves `"enabledPlugins": {}` when that empties the map, writes the key even
+into a file that never had one, and rewrites the whole file in Claude Code's key order. A clean tree
+after an uninstall is the surprising outcome, not a dirty one — never predict "no diff" from the
+absence of an `enabledPlugins` key and skip the check on that basis.
+
+Classify each diff before showing it, because the two cases warrant opposite advice:
+
+- **Inert** — only an empty `"enabledPlugins": {}` added and/or sibling keys reordered. No behavior
+  changes. Say so and recommend discarding it, so a tracked, team-shared file does not carry churn.
+- **Substantive** — an actual `enabledPlugins` entry removed. That is a real change to what the
+  project enables for everyone who checks it out. Show it and leave the decision to the user.
+
+Never commit either. The user reviews and commits (or discards) through their own git workflow.
 
 ## Non-interactive execution
 
