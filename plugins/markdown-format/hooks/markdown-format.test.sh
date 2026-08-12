@@ -605,21 +605,12 @@ for _case in nested root; do
   fi
 done
 
-# CONTROL for the three skips above: the containment check must admit as well as
-# reject. Every git-absent symlink case in this file wants a SKIP, so a
-# `physically_inside` that regressed to always-false — an off-by-one in its
-# `case` prefix match, a stray early `return 1` — would satisfy all of them
-# while silently costing every legitimately in-repo symlinked .md its --fix on a
-# git-less host. Only a symlink whose target resolves INSIDE the repository
-# separates the two.
-#
-# ASSERTED ON THE LINK BEING GONE, and that is the discriminating part. The stub
-# linter rewrites with `sed -i`, which renames a temp over the path it was
-# handed, so a --fix that ran REPLACES the symlink at $NOGIT_INSIDE_LINK with a
-# regular file and leaves the target's bytes alone — the exact inverse of the
-# escape cases above, which assert the link SURVIVES. Checking the target's
-# bytes here would therefore fail against correct code. `! -L` plus the fixed
-# bytes cannot be produced by a skip, which leaves the link intact and unfixed.
+# Fail-closed case for the three skips above: with git absent and
+# CLAUDE_PROJECT_DIR unset, even a symlink whose target resolves INSIDE the
+# repository must be skipped. `hook::read_file_path` no longer falls back to
+# unscoped admission (#1091); link survival plus an unfixed target proves
+# --fix never ran. (When CLAUDE_PROJECT_DIR is set, the project-dir branch
+# still admits in-repo paths without git — covered separately below.)
 NOGIT_INSIDE_TARGET="$REPO/docs/insideNoGitTarget.md"
 NOGIT_INSIDE_LINK="$REPO/docs/insideNoGitLink.md"
 printf '# Inside\n\n* inside item\n' >"$NOGIT_INSIDE_TARGET"
@@ -634,7 +625,7 @@ if make_symlink "$NOGIT_INSIDE_TARGET" "$NOGIT_INSIDE_LINK"; then
   fi
   rm -f "$NOGIT_INSIDE_LINK"
 else
-  ok "git absent in-repo symlink control SKIPPED (host cannot create real symlinks)"
+  ok "git absent in-repo symlink fail-closed case SKIPPED (host cannot create real symlinks)"
 fi
 
 # The scope must still fire when git CAN answer — that half is the out-of-tree

@@ -624,21 +624,30 @@ else
 fi
 
 # --- Test 12f: read_file_path — git absent with project dir unset fails closed
-EMPTY_GIT_BIN="$(mktemp -d)"
-scratch12f=$(mktemp)
-echo scratch >"$scratch12f"
+# PATH-prefix on a pipeline producer does not reach the consumer, and emptying
+# PATH also hides jq (which returns 1 before the fail-closed else). Build a
+# private bin with the tools this path needs and deliberately omit git so
+# `command -v git` fails while jq still runs. Use an in-repo file: if git
+# leaked back onto PATH the worktree branch would admit it and this test fails.
+NO_GIT_BIN12F="$(mktemp -d)"
+for _cmd12f in jq realpath readlink; do
+  _src12f=$(command -v "$_cmd12f" 2>/dev/null) || continue
+  ln -s "$_src12f" "$NO_GIT_BIN12F/$_cmd12f"
+done
+unset _cmd12f _src12f
+IN_TREE12F="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/README.md"
+rc_no_git=0
 got_no_git=$(
   unset CLAUDE_PROJECT_DIR
-  PATH="$EMPTY_GIT_BIN" \
-    printf '%s' "{\"tool_input\":{\"file_path\":\"$scratch12f\"}}" |
-    hook::read_file_path
-) || got_no_git=""
-rmdir "$EMPTY_GIT_BIN" 2>/dev/null || true
-rm -f "$scratch12f"
-if [[ -z "$got_no_git" ]]; then
+  PATH="$NO_GIT_BIN12F" \
+    printf '%s' "{\"tool_input\":{\"file_path\":\"$IN_TREE12F\"}}" |
+    PATH="$NO_GIT_BIN12F" hook::read_file_path
+) && rc_no_git=0 || rc_no_git=$?
+rm -rf "$NO_GIT_BIN12F"
+if [[ "$rc_no_git" -eq 1 && -z "$got_no_git" ]]; then
   ok "read_file_path: git absent with CLAUDE_PROJECT_DIR unset rejects file"
 else
-  fail "read_file_path: git absent admitted file (got '$got_no_git')"
+  fail "read_file_path: git absent admitted file or wrong status (rc=$rc_no_git got='$got_no_git')"
 fi
 
 # --- Test 12d: under_temp_root — the filesystem root as a temp candidate ------
