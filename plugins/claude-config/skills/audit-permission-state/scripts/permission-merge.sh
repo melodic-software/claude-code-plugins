@@ -135,7 +135,9 @@ $1 == "rule" {
   next
 }
 
-$1 == "NOTE:" { next }
+# conf records are configuration inventory for downstream consumers (the entry
+# diff), not rules and not surfaces — pass through, merge nothing.
+$1 == "NOTE:" || $1 == "conf" { next }
 
 NF >= 3 {
   n_surfaces++

@@ -179,11 +179,12 @@ for tool in jq git tr find sort sed head grep cat mktemp rm; do
   chmod +x "$STUB/$tool"
 done
 rc=0
+ADMIN_POLICY_KEY='HKLM\SOFTWARE\Policies\ClaudeCode' # portability-ok: a Windows registry key path, passed through as a literal; no regex engine sees it
 OUT_NOREG=$(env -u CLAUDE_CONFIG_DIR PATH="$STUB" HOME="$FX/home" \
   PERMISSION_STATE_FIXTURE_DIR="$FX/proj" \
   PERMISSION_STATE_STARTDIR="$FX/startdir" \
   PERMISSION_STATE_MANAGED_PATH="$FX/policy/managed-settings.json" \
-  PERMISSION_STATE_REGISTRY_KEYS='HKLM\SOFTWARE\Policies\ClaudeCode' \
+  PERMISSION_STATE_REGISTRY_KEYS="$ADMIN_POLICY_KEY" \
   PERMISSION_STATE_PLIST_DOMAIN="" \
   "$real_bash" "$SCRIPT" 2>&1) || rc=$?
 assert_exit "missing optional tool does not fail the run" 0 "$rc"
@@ -203,14 +204,23 @@ assert_contains "other scopes unaffected" "$OUT_NOREG" "rule user settings allow
 # cannot exist and HKCU\SOFTWARE, which exists on every Windows install and
 # carries no Settings value — exactly the key-present/value-absent case.
 if command -v reg >/dev/null 2>&1; then
+  # Registry key paths, passed through as literals and compared as strings.
+  EXISTING_KEY='HKCU\SOFTWARE'                                  # portability-ok: a Windows registry key path, not a regex
+  ABSENT_KEY='HKCU\SOFTWARE\ClaudeCodeNoSuchKeyExists'          # portability-ok: a Windows registry key path, not a regex
+  SECOND_ABSENT_KEY='HKCU\SOFTWARE\ClaudeCodeAlsoAbsent'        # portability-ok: a Windows registry key path, not a regex
+  ABSENT_THEN_PRESENT_KEYS="$ABSENT_KEY
+$EXISTING_KEY"
+  BOTH_ABSENT_KEYS="$ABSENT_KEY
+$SECOND_ABSENT_KEY"
+
   OUT_REG=$(env -u CLAUDE_CONFIG_DIR HOME="$FX/home" \
     PERMISSION_STATE_FIXTURE_DIR="$FX/proj" \
     PERMISSION_STATE_STARTDIR="$FX/startdir" \
     PERMISSION_STATE_MANAGED_PATH="$FX/policy/managed-settings.json" \
-    PERMISSION_STATE_REGISTRY_KEYS="$(printf 'HKCU\\SOFTWARE\\ClaudeCodeNoSuchKeyExists\nHKCU\\SOFTWARE')" \
+    PERMISSION_STATE_REGISTRY_KEYS="$ABSENT_THEN_PRESENT_KEYS" \
     PERMISSION_STATE_PLIST_DOMAIN="" \
     bash "$SCRIPT")
-  assert_contains "an absent key is skipped, the existing one is selected" "$OUT_REG" "managed registry unreadable HKCU\\SOFTWARE"
+  assert_contains "an absent key is skipped, the existing one is selected" "$OUT_REG" "managed registry unreadable $EXISTING_KEY"
   assert_contains "a key with no readable value is not a licence to fall through" "$OUT_REG" "Lower-priority policy keys are NOT consulted"
   assert_eq "no rules are claimed from an unreadable key" "0" "$(count_matching "$OUT_REG" '^rule managed registry ')"
 
@@ -218,7 +228,7 @@ if command -v reg >/dev/null 2>&1; then
     PERMISSION_STATE_FIXTURE_DIR="$FX/proj" \
     PERMISSION_STATE_STARTDIR="$FX/startdir" \
     PERMISSION_STATE_MANAGED_PATH="$FX/policy/managed-settings.json" \
-    PERMISSION_STATE_REGISTRY_KEYS="$(printf 'HKCU\\SOFTWARE\\ClaudeCodeNoSuchKeyExists\nHKCU\\SOFTWARE\\ClaudeCodeAlsoAbsent')" \
+    PERMISSION_STATE_REGISTRY_KEYS="$BOTH_ABSENT_KEYS" \
     PERMISSION_STATE_PLIST_DOMAIN="" \
     bash "$SCRIPT")
   assert_contains "no policy keys at all reports absent" "$OUT_REG_NONE" "managed registry absent"

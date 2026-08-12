@@ -53,7 +53,7 @@ merge() { printf '%s\n' "$1" | bash "$SCRIPT" --merge-only; }
 # project settings deny it, the deny rule blocks it."
 CROSS_KIND=$(
   cat <<'EOF'
-user settings present /home/.claude/settings.json
+user settings present /fx/home/.claude/settings.json
 project settings present /proj/.claude/settings.json
 rule user settings allow Bash(git status)
 rule project settings deny Bash(git status)
@@ -69,7 +69,7 @@ assert_contains "the beaten allow is reported inert" "$OUT" "inert allow scopes=
 # deny still blocks a project allow.
 REVERSE=$(
   cat <<'EOF'
-user settings present /home/.claude/settings.json
+user settings present /fx/home/.claude/settings.json
 project settings present /proj/.claude/settings.json
 rule user settings deny Bash(git push)
 rule project settings allow Bash(git push)
@@ -82,7 +82,7 @@ assert_contains "the project allow is inert, not the winner" "$OUT" "inert allow
 # ask beats allow by the same mechanic.
 ASK=$(
   cat <<'EOF'
-user settings present /home/.claude/settings.json
+user settings present /fx/home/.claude/settings.json
 project settings present /proj/.claude/settings.json
 rule user settings allow WebFetch
 rule project settings ask WebFetch
@@ -99,7 +99,7 @@ assert_contains "the allow beneath an ask is inert" "$OUT" "inert allow scopes=u
 SAME_KIND=$(
   cat <<'EOF'
 managed file present /policy/managed-settings.json
-user settings present /home/.claude/settings.json
+user settings present /fx/home/.claude/settings.json
 project settings present /proj/.claude/settings.json
 rule managed file deny Read(./.env)
 rule user settings deny Read(./.env)
@@ -114,7 +114,7 @@ assert_not_contains "nothing is reported as beaten when nothing lost" "$OUT" "in
 # Both mechanics at once stay both, rather than one silently swallowing the other.
 BOTH=$(
   cat <<'EOF'
-user settings present /home/.claude/settings.json
+user settings present /fx/home/.claude/settings.json
 project settings present /proj/.claude/settings.json
 rule user settings deny Bash(curl *)
 rule project settings deny Bash(curl *)
@@ -132,7 +132,7 @@ assert_contains "both mechanics are cited when both applied" "$OUT" "precedence_
 BARE=$(
   cat <<'EOF'
 managed file present /policy/managed-settings.json
-user settings present /home/.claude/settings.json
+user settings present /fx/home/.claude/settings.json
 rule managed file deny Bash
 rule user settings allow Bash(git status)
 rule user settings deny Bash(rm *)
@@ -150,7 +150,7 @@ assert_contains "removal is announced, not just implied" "$OUT" "removes Bash fr
 END_CONV=$(
   cat <<'EOF'
 managed file present /policy/managed-settings.json
-user settings present /home/.claude/settings.json
+user settings present /fx/home/.claude/settings.json
 rule managed file deny EndConversation
 rule user settings allow EndConversation(x)
 EOF
@@ -163,7 +163,7 @@ assert_contains "its scoped rule stays effective" "$OUT" "effective allow scopes
 # take effect — the ask/allow half of the same mechanic.
 BARE_ASK=$(
   cat <<'EOF'
-user settings present /home/.claude/settings.json
+user settings present /fx/home/.claude/settings.json
 project settings present /proj/.claude/settings.json
 rule user settings ask WebFetch
 rule project settings allow WebFetch(domain:example.com)
@@ -177,7 +177,7 @@ assert_eq "and it is not also reported effective" 0 "$(count_matching "$OUT" '^e
 MIXED=$(
   cat <<'EOF'
 managed file present /policy/managed-settings.json
-user settings present /home/.claude/settings.json
+user settings present /fx/home/.claude/settings.json
 project settings present /proj/.claude/settings.json
 rule managed file deny Read(./.env)
 rule user settings allow Bash(git status)
@@ -211,7 +211,7 @@ assert_contains "one scope, however many of its surfaces carry the rule" "$OUT" 
 # --- Case 5: rule text containing spaces survives intact ----------------------
 SPACED=$(
   cat <<'EOF'
-user settings present /home/.claude/settings.json
+user settings present /fx/home/.claude/settings.json
 rule user settings allow Bash(git commit -m *)
 EOF
 )
@@ -223,7 +223,7 @@ STATUSES=$(
   cat <<'EOF'
 managed registry skipped -
 managed plist not-applicable -
-user settings absent /home/.claude/settings.json
+user settings absent /fx/home/.claude/settings.json
 project settings invalid-json /proj/.claude/settings.json
 local settings unreadable /proj/.claude/settings.local.json
 startdir-local settings not-applicable /start/.claude/settings.local.json
@@ -265,7 +265,7 @@ assert_contains "--help documents the merge-only mode" "$help_out" "--merge-only
 # --- Case 9: pass-through is the default, and is suppressible -----------------
 PASS_IN=$(
   cat <<'EOF'
-user settings present /home/.claude/settings.json
+user settings present /fx/home/.claude/settings.json
 NOTE: something the operator must know
 rule user settings allow Bash(ls)
 EOF

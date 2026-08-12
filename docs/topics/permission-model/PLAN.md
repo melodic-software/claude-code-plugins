@@ -821,7 +821,7 @@ The remaining seventeen clustered into four honest weaknesses, all now corrected
 - **A parallel wave built on false file-disjointness.** Phases 4, 5 and 6 all write the same
   `criteria.md` and `SKILL.md`; Phases 8 and 9 collide on `plugin.json`. The plan is now sequential,
   and Phase 9 moved early because it owns seams the earlier phases need.
-- **Governance skipped or mis-cited.** The `CLAUDE.md` fresh-docs mandate had no step at all — now
+- **Governance skipped, or cited against the wrong section.** The `CLAUDE.md` fresh-docs mandate had no step at all — now
   Phase 0. Every `PLUGIN-PHILOSOPHY.md` line-range citation pointed at the wrong section within a day;
   citations are now by section name, and line numbers are forbidden in this plan.
 - **Coverage gaps.** Criterion 8 binds *every* CLI read but the oracle's new CLI read had no

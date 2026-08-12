@@ -13,6 +13,10 @@
 # Output (one record per line, stable field order):
 #   <scope> <surface> <status> <path>            one per settings surface
 #   rule <scope> <surface> <kind> <rule text>    one per allow/ask/deny entry
+#   conf <scope> <surface> <key> <json value>    one per permission-plane config
+#                                                key found (today: autoMode.classifyAllShell,
+#                                                which the entry diff needs because it
+#                                                suspends every shell allow rule)
 #   NOTE: <text>                                 anything the operator must know
 #
 #   scope    managed | user | project | local | startdir-local
@@ -20,6 +24,9 @@
 #            settings (everything else)
 #   status   present | absent | unreadable | invalid-json | skipped | not-applicable
 #   kind     allow | ask | deny
+#
+# The conf value is emitted as JSON (`tojson`), so a boolean true and the string
+# "true" stay distinguishable downstream — the documented shape is the boolean.
 #
 # EVERY scope and managed surface emits exactly one record on every OS, even
 # when it does not apply here. A surface that is silently absent from the output
@@ -62,7 +69,9 @@ Usage: permission-state.sh [--scopes|--help]
   --scopes   surface records only
   --help     this message
 
-Records: "<scope> <surface> <status> <path>" and "rule <scope> <surface> <kind> <text>".
+Records: "<scope> <surface> <status> <path>", "rule <scope> <surface> <kind> <text>",
+and "conf <scope> <surface> <key> <json>" for permission-plane config keys
+(today: autoMode.classifyAllShell).
 Every scope and managed surface emits exactly one record on every OS, so a surface
 that was never attempted is never mistaken for one that is genuinely absent.
 
@@ -135,7 +144,7 @@ fi
 # Three documented exceptions keep the file in the start directory: outside a git
 # repository, when the repository root is the home directory, and in Agent SDK
 # sessions. The first two are detectable here; the third is not, so it is stated
-# rather than silently mis-resolved.
+# rather than silently resolved to the wrong place.
 LOCAL_ROOT="$PROJECT_ROOT"
 local_basis="repository root"
 if [[ -z "${PERMISSION_STATE_FIXTURE_DIR:-}" ]]; then
@@ -201,12 +210,28 @@ emit_file_rules() {
   done
 }
 
+# The one permission-plane config key inventoried alongside the rules:
+# autoMode.classifyAllShell suspends every Bash/PowerShell allow rule while auto
+# mode is active, so an entry diff that cannot see it can be exactly wrong.
+# Emitted as JSON (tojson) so boolean true and string "true" stay distinct.
+emit_file_conf() {
+  # emit_file_conf <scope> <surface> <json-on-stdin>
+  [[ "$mode" == "full" ]] || return 0
+  local scope="$1" surface="$2" v
+  v="$(jq -r 'if (.autoMode | type) == "object" and (.autoMode | has("classifyAllShell")) then (.autoMode.classifyAllShell | tojson) else empty end' 2>/dev/null | tr -d '\r')"
+  [[ -n "$v" ]] && printf 'conf %s %s classifyAllShell %s\n' "$scope" "$surface" "$v"
+  return 0
+}
+
 emit_json_scope() {
   # emit_json_scope <scope> <surface> <path>
   local scope="$1" surface="$2" path="$3" status
   status="$(classify_json_file "$path")"
   emit "$scope" "$surface" "$status" "$path"
-  [[ "$status" == "present" ]] && emit_file_rules "$scope" "$surface" "$path"
+  if [[ "$status" == "present" ]]; then
+    emit_file_rules "$scope" "$surface" "$path"
+    emit_file_conf "$scope" "$surface" < <(tr -d '\r' <"$path")
+  fi
   return 0
 }
 
@@ -286,6 +311,7 @@ else
           [[ -n "$rule" ]] && printf 'rule managed registry %s %s\n' "$kind" "$rule"
         done < <(printf '%s' "$reg_json" | jq -r --arg k "$kind" '.permissions[$k] // [] | .[]' 2>/dev/null | tr -d '\r')
       done
+      emit_file_conf managed registry < <(printf '%s' "$reg_json")
     fi
   fi
 fi
