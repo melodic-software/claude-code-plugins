@@ -5,6 +5,90 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.1]
+
+### Fixed
+
+- **The 0.7.0 re-arm rule permanently silenced the middle band; it now decays on a DWELL rather than
+  a rank distance (#2220).** `REARM_MARGIN=2` is satisfiable only from `dumb`: the largest
+  improvement available from `acceptable` is one rank, so `armed_rank - new_rank >= 2` could never
+  hold there. A session that armed at `acceptable` could never decay again — a full recovery to
+  `smart` followed by a relapse stayed silent for the rest of the session, however many times it
+  happened, unless the session first escalated all the way to `dumb`. Reproduced against the shipped
+  hook side by side with the structurally identical `dumb` sequence, which did re-inject:
+
+  ```
+  acceptable -> INJECTED   armed=acceptable        dumb  -> INJECTED   armed=dumb
+  smart      -> silent     armed=acceptable        smart -> silent     armed=smart
+  acceptable -> silent     armed=acceptable        dumb  -> INJECTED   armed=dumb
+  smart      -> silent     armed=acceptable
+  acceptable -> silent     armed=acceptable
+  ```
+
+  This was **0.7.0's own defect inverted** — never re-inject instead of always re-inject — so the
+  fix is not a smaller constant: a delta of 1 simply restores the flap 0.7.0 set out to remove. The
+  rule now counts **time instead of distance**. Any observation strictly better than the armed rank
+  extends a streak, returning to the armed rank breaks it, and **three consecutive better
+  observations** decay the armed rank. A streak is expressible from every rung of a three-rung
+  ladder while a two-rank drop is not, so every band now behaves identically: an unsustained dip
+  never re-arms, and a sustained one always does — from `acceptable` exactly as from `dumb`.
+
+  The dwell is a declared judgment default on the same footing as the bands themselves
+  (`reference/reader-contract.md` records their provenance); nothing here is doc- or
+  benchmark-derived. A band-edge oscillation resolves within a single observation as one batch's
+  results land and are released, so one better observation is precisely what noise looks like; three
+  span more than a full PostToolBatch/UserPromptSubmit cycle, which a session alternating across the
+  edge turn by turn never accumulates.
+
+- **The armed gate no longer advances on a turn that emitted nothing, which could lose a warning
+  permanently.** 0.7.0 wrote the markers gate-first, on the reasoning that a stale gate merely
+  withholds a repeat. That was backwards. If `.armed` landed and the companion `.zone` write then
+  failed (a transient full or read-only filesystem, or a directory occupying the path), the hook
+  exited without emitting while leaving the gate advanced — so once the filesystem recovered, the
+  next identical observation was no longer worse than the armed rank and the **first** warning was
+  never delivered at all. Losing the first warning is strictly worse than the repeat the ordering
+  was protecting against.
+
+  `.zone` is now written first and `.armed` installed afterwards, all-or-nothing: if either step
+  fails the gate is left exactly where it was and the same observation is free to emit on a later
+  call. `.armed` is installed by **rename** rather than written in place, because `>` truncates
+  before it writes — a failure partway through would otherwise leave an empty marker, which parses
+  as no marker, which seeds from a `.zone` already updated to the current zone, suppressing the very
+  warning the ordering exists to protect.
+
+### Changed
+
+- **A transition into a zone BETTER than the worst already reported is now silent.** 0.7.0 still
+  injected on `dumb` → `smart` → `acceptable`, because a single `smart` observation re-armed the
+  ladder outright and `acceptable` was then worse than the armed `smart`. Under the dwell it is
+  silent: one observation is not a sustained improvement, so the armed rank is still `dumb` and
+  `acceptable` is not worse than `dumb`. The operator has already been told this session reached
+  `dumb`; announcing a better zone afterwards is the noise #2220 is about. The pre-existing test
+  that asserted the old behaviour was updated rather than deleted, and says so at its site.
+
+### Notes
+
+- **Erratum, not a rewrite — the 0.7.0 entry below keeps the wording it shipped with.** Its
+  description of the re-arm rule ("an improvement of at least **two ranks**") is accurate about what
+  0.7.0 did; what it does not say is that the rule was unsatisfiable from `acceptable`. The claim it
+  makes about `dumb → acceptable → dumb` injecting once remains true. Read it as superseded by this
+  entry rather than as wrong (`docs/conventions/upstream-drift/README.md` §Adopters: history is
+  never rewritten).
+- **The test gap that allowed this is closed at the same time.** 0.7.0's suite exercised only
+  `dumb → smart → dumb`, which the rank-delta rule happened to get right; the
+  `acceptable → smart → acceptable` path — the one it got permanently wrong — had no case. Case 4d
+  now covers that band's flap and its sustained-recovery half on a session of its own. The
+  persistence test likewise now clears the obstruction and re-runs the identical observation, which
+  is what makes it discriminating; previously it stopped at "it stayed silent", a state a gate that
+  had advanced would also have passed.
+- `.armed` now holds `"<zone-word> <streak>"` and is parsed field-wise, with both fields validated
+  against their own vocabulary so a truncated or hand-edited marker falls back to seeding rather
+  than silently disarming the gate. A 0.7.0 marker holds a bare zone word: the streak parses as 0,
+  which is exactly the right starting point, so no migration step and no state-format version are
+  needed.
+- No blocking behaviour, no permission, no new hook registration, and no external read or write
+  changes; the plugin's trust surface is untouched.
+
 ## [0.7.0]
 
 ### Changed

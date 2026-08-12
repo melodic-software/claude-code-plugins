@@ -190,12 +190,23 @@ Since 0.4.0 the plugin itself ships hooks over its own seam — the first shippe
   than any this session has already reported, inject continuation guidance (a minimal generic
   continuation tree plus a presence-gated pointer to `session-flow:workflow`'s router). Silent
   while the zone is unchanged, improving, or `unknown`. **Hysteresis** (since 0.7.0): the gate is
-  the worst zone already *reported*, not the zone last *seen*, and that marker decays only on an
-  improvement of at least two ranks — the full width of the ladder. Occupancy does not climb
-  monotonically, so a session sitting on a band edge crosses it repeatedly; without the margin each
-  re-crossing read as a fresh transition and re-injected the guidance block. A `/clear` needs no
-  margin: it starts a new session id, hence a fresh baseline. The margin is a declared judgment
-  default, on the same footing as the bands above and with the same provenance status.
+  the worst zone already *reported*, not the zone last *seen*. Occupancy does not climb
+  monotonically, so a session sitting on a band edge crosses it repeatedly; without hysteresis each
+  re-crossing read as a fresh transition and re-injected the guidance block. That marker decays
+  only after **three consecutive observations strictly better than it** — a dwell, deliberately
+  *not* a rank distance. A fixed rank-delta cannot work uniformly on a three-rung ladder: a
+  two-rank drop is reachable only from `dumb`, so a session armed at `acceptable` could never decay
+  and would be silenced permanently — this defect inverted rather than fixed. A dwell is
+  expressible from every rung, so all bands behave identically. Returning to the armed zone breaks
+  the streak, which is what stops an oscillation accumulating a dwell one crossing at a time. A
+  `/clear` needs no dwell: it starts a new session id, hence a fresh baseline. The dwell is a
+  declared judgment default, on the same footing as the bands above and with the same provenance
+  status.
+
+  One consequence worth stating, because it changed at 0.7.0: a transition into a zone **better**
+  than the worst already reported is now silent (`dumb` → `smart` → `acceptable` reports nothing at
+  the third step, where pre-0.7.0 it injected). The operator has already been told this session
+  reached `dumb`; announcing a better zone afterwards is the noise the hysteresis exists to remove.
 - **Blocking gate** (`PreToolUse`, only when the `zone_hook_mode` userConfig option is
   `blocking`): denies new `Write|Edit|NotebookEdit|Agent|Workflow` calls on a **fresh dumb-zone
   snapshot** past a small grace budget. Fail-open on `unknown`; handoff-path writes, read-only

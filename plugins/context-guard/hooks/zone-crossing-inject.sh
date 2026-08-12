@@ -44,17 +44,35 @@
 # the ~1KB guidance block re-injected on each one, and an improvement in any
 # amount silently re-armed the injection with nothing counting or capping the
 # flap. A second marker — the ARMED rank, the worst zone this session has
-# already reported — now gates the emit, and it decays only on an improvement
-# of at least REARM_MARGIN ranks.
+# already reported — now gates the emit.
 #
-# The margin is a declared judgment default, like the bands themselves
-# (reference/reader-contract.md records their provenance): a ONE-rank dip at a
-# band edge is the oscillation described above and says nothing new, while a
-# TWO-rank improvement — the full width of the ladder, dumb → smart — cannot
-# be edge noise and means the window genuinely emptied. A `/clear` needs no
-# margin at all: it starts a new session id, hence a new state file and a
-# fresh baseline. So a zone is announced at most once per session unless the
-# session really recovers, after which the ladder re-arms and the next
+# WHAT MAKES THE ARMED RANK DECAY: a sustained improvement, measured in
+# CONSECUTIVE OBSERVATIONS, not in ranks. A fixed rank-delta cannot work
+# uniformly on a three-rung ladder and must not be used here: requiring two
+# ranks is satisfiable only from `dumb`, so a session armed at `acceptable`
+# could never decay at all — full recovery to `smart` and relapse would stay
+# silent for the rest of the session, however many times it happened. That is
+# this issue's own defect inverted (never re-inject instead of always
+# re-inject), and it is why the rule counts time rather than distance.
+#
+# So: any observation strictly better than the armed rank extends a streak;
+# returning to the armed rank breaks it; REARM_DWELL consecutive better
+# observations decay the armed rank to what is actually being observed. The
+# same rule holds at every band, because a streak is expressible from any rung
+# while a two-rank drop is not.
+#
+# REARM_DWELL is a declared judgment default, like the bands themselves
+# (reference/reader-contract.md records their provenance) — nothing here is
+# doc- or benchmark-derived. The reasoning: a band-edge oscillation resolves
+# within a single observation, as one batch's results land and are released, so
+# one better observation is exactly what noise looks like and cannot be allowed
+# to re-arm. Three consecutive better observations span more than a full
+# PostToolBatch/UserPromptSubmit cycle, which a session alternating across the
+# edge turn by turn never accumulates. A `/clear` needs no dwell at all: it
+# starts a new session id, hence a new state file and a fresh baseline.
+#
+# Net contract: a zone is announced at most once per session unless the session
+# holds a genuine improvement, after which the ladder re-arms and the next
 # worsening is reported normally.
 #
 # The last-seen zone is still tracked, separately: it is what the message and
@@ -135,16 +153,31 @@ STATE_FILE="$STATE_DIR/$SESSION.zone"
 ARMED_FILE="$STATE_DIR/$SESSION.armed"
 last=""
 [[ -r "$STATE_FILE" ]] && last=$(tr -cd '[:lower:]' <"$STATE_FILE" 2>/dev/null | head -c 16)
-armed=""
-[[ -r "$ARMED_FILE" ]] && armed=$(tr -cd '[:lower:]' <"$ARMED_FILE" 2>/dev/null | head -c 16)
 # A SIBLING file, not a second line in the existing one: `last` is read with
-# `tr -cd '[:lower:]'`, which strips the newline too, so a two-line state file
-# would fuse into "dumbacceptable" and rank as smart. Sessions already running
-# when this version lands have a `.zone` file and no `.armed` file; seeding the
-# armed rank from the last-seen zone reproduces the pre-hysteresis decision for
-# exactly one call, after which the marker latches normally. No migration step
-# and no state-format version are needed for that.
-[[ -n "$armed" ]] || armed="$last"
+# `tr -cd '[:lower:]'`, which strips the newline too, so a two-line `.zone`
+# would fuse into "dumbacceptable" and rank as smart. The armed marker holds
+# TWO fields — "<zone-word> <better-streak>" — and is parsed field-wise rather
+# than through that filter, so it carries the dwell counter without inheriting
+# the fusing problem.
+#
+# Both fields are validated against their own vocabulary. Anything else — an
+# empty file, a truncated one, a hand-edited one — falls through to the seeding
+# rule below rather than ranking as `smart` and silently disarming the gate.
+armed=""
+streak=0
+if [[ -r "$ARMED_FILE" ]]; then
+  read -r armed_word armed_streak _ <"$ARMED_FILE" 2>/dev/null || true
+  [[ "${armed_word:-}" =~ ^(smart|acceptable|dumb)$ ]] && armed="$armed_word"
+  [[ "${armed_streak:-}" =~ ^[0-9]{1,3}$ ]] && streak="$armed_streak"
+fi
+# Sessions already running when this version lands have a `.zone` file and no
+# `.armed` file; seeding the armed rank from the last-seen zone reproduces the
+# pre-hysteresis decision for exactly one call, after which the marker latches
+# normally. No migration step and no state-format version are needed for that.
+if [[ -z "$armed" ]]; then
+  armed="$last"
+  streak=0
+fi
 
 rank() {
   case "$1" in
@@ -163,32 +196,70 @@ unrank() {
 new_rank=$(rank "$zone")
 armed_rank=$(rank "$armed")
 
-# See the header. The armed rank rises to whatever this observation reports and
-# falls only on an improvement at least this wide.
-REARM_MARGIN=2
+# See the header. The armed rank rises immediately to whatever this observation
+# reports, and falls only after REARM_DWELL CONSECUTIVE observations strictly
+# better than it — never on a rank distance, which a three-rung ladder cannot
+# express uniformly.
+REARM_DWELL=3
 next_armed_rank=$armed_rank
-if ((new_rank > armed_rank || armed_rank - new_rank >= REARM_MARGIN)); then
+next_streak=$streak
+if ((new_rank > armed_rank)); then
+  # A worsening past everything already reported: arm here and start over.
   next_armed_rank=$new_rank
+  next_streak=0
+elif ((new_rank < armed_rank)); then
+  next_streak=$((streak + 1))
+  if ((next_streak >= REARM_DWELL)); then
+    next_armed_rank=$new_rank
+    next_streak=0
+  fi
+else
+  # Back at the armed rank: the improvement did not hold, so the streak that
+  # would have re-armed the ladder is broken. This is the flap, and breaking
+  # the streak here is what keeps an oscillation from accumulating a dwell one
+  # observation at a time.
+  next_streak=0
 fi
 
-# Persist both markers regardless of direction — owner-only, atomic enough for
-# a single-writer-per-session file. A write failure (full or newly read-only
-# filesystem) must fail OPEN SILENTLY: proceeding past it would compare this
-# turn's zone against the same stale markers again on the next call, re-emitting
-# the ~1KB guidance block every subsequent PostToolBatch/UserPromptSubmit
-# instead of once per transition — which is the very defect the armed rank
-# exists to bound. "Silent" means neither channel emits — the failure itself is
-# still surfaced to operators as telemetry, never swallowed twice.
+# Persist both markers regardless of direction — owner-only. A write failure
+# (full or newly read-only filesystem) must fail OPEN SILENTLY: proceeding past
+# it would compare this turn's zone against the same stale markers again on the
+# next call, re-emitting the ~1KB guidance block every subsequent
+# PostToolBatch/UserPromptSubmit instead of once per transition — which is the
+# very defect the armed rank exists to bound. "Silent" means neither channel
+# emits — the failure itself is still surfaced to operators as telemetry, never
+# swallowed twice.
 #
-# The ARMED file is written FIRST. If only one of the two lands, the safe
-# survivor is the one that suppresses: a stale `.armed` at worst withholds a
-# repeat notice, while a stale `.zone` only mislabels the "previous" zone in a
-# message. Writing the gate first means a partial failure can never leave the
-# gate open against a marker that already moved.
+# THE GATE ADVANCES LAST, AND ONLY ALL-OR-NOTHING. The armed marker is what
+# suppresses a future injection, so leaving it advanced on a turn that emitted
+# NOTHING destroys the warning permanently: the next identical observation is no
+# longer worse than the armed rank, and the operator never hears about the zone
+# at all. That is strictly worse than the repeat this hook is otherwise tuned to
+# avoid, so the ordering is the reverse of the intuitive one — `.zone`, which
+# only labels the "previous" zone in a message, is written first, and `.armed`
+# is installed afterwards. If either step fails, the gate is left exactly where
+# it was and the same observation is free to emit on a later call.
+#
+# `.armed` is installed by RENAME rather than written in place, because a plain
+# `>` truncates before it writes: a failure partway through would leave an empty
+# marker, which parses as no marker, which seeds from `.zone` — by then already
+# updated to the current zone — and suppresses the very warning this ordering
+# exists to protect. A rename is atomic, so the marker is only ever its old
+# value or its new one.
 umask 077
 mkdir -p "$STATE_DIR" 2>/dev/null || exit 0
-if ! printf '%s\n' "$(unrank "$next_armed_rank")" >"$ARMED_FILE" 2>/dev/null ||
-  ! printf '%s\n' "$zone" >"$STATE_FILE" 2>/dev/null; then
+persist_failed=""
+printf '%s\n' "$zone" >"$STATE_FILE" 2>/dev/null || persist_failed=1
+if [[ -z "$persist_failed" ]]; then
+  armed_tmp="$ARMED_FILE.$$"
+  if printf '%s %d\n' "$(unrank "$next_armed_rank")" "$next_streak" >"$armed_tmp" 2>/dev/null; then
+    mv -f "$armed_tmp" "$ARMED_FILE" 2>/dev/null || persist_failed=1
+  else
+    persist_failed=1
+  fi
+  [[ -n "$persist_failed" ]] && rm -f "$armed_tmp" 2>/dev/null
+fi
+if [[ -n "$persist_failed" ]]; then
   hook::emit_telemetry "zone-crossing-inject" "$EVENT" "error" "$START_EPOCH" \
     '{"zone":"'"$zone"'","previous":"'"${last:-}"'","reason":"state_persist_failed"}'
   exit 0
