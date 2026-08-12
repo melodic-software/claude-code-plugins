@@ -1,6 +1,6 @@
 ---
 description: "Verify and configure the work-items plugin for this repository. check inspects read-only the tracker provider binding (.work-item-tracker.json), the tracked .github/recurring-schedule.json (presence, JSON validity, unique reconciliation keys), the jq and tracker-seam entry gates, the recurring-maintenance role label, and the work-class label axis; apply binds the tracker provider (seeds .work-item-tracker.json with the provider + non-secret config), writes the schedule, migrates missing work-class labels when authorized, and optionally remaps the canonical role labels in the tracker binding. On a first-time bind apply writes that minimum viable config only — binding, role-label pass, work-class migration pass, empty schedule skeleton — and the pass that infers candidates from the repo and interviews the consumer for their recurring work items is opt-in, via the --seed-schedule argument or a single offer whose recommended default is skip (applied silently with no interactive user); a schedule that already carries items is summarized and offered updates exactly as before. Use when: 'set up work-items', 'bind the tracker provider', 'is work-items configured', 'configure the recurring schedule', 'work-items setup', 'seed recurring items', 'bulk-seed the recurring schedule', 'remap the work-item role labels', or the due/recheck/work actions report no recurring schedule configured, or the seam reports no binding. Re-runnable — safe to invoke again to reconfigure or to seed the schedule later."
-argument-hint: "check | apply [--seed-schedule]"
+argument-hint: "check | apply [--seed-schedule] [--accept-recommended]"
 user-invocable: true
 disable-model-invocation: true
 ---
@@ -266,14 +266,15 @@ Applied to the three passes:
 | Provider binding (`apply` step 1, which runs the "Provider binding" procedure) | **Binding already present and valid — keep it, and re-bind nothing.** That is the procedure's own read-first RECOMMENDED answer, so this rule resolves to it silently: a repo bound to `local-markdown`, `jira`, or a consumer-local provider stays on it, and a working `gh` never switches it to `github`. Re-binding is a switch-providers decision, which no default can stand in for. (A present binding the probe already FAILs never reaches here — `apply` runs `check` first, and that probe FAILs a malformed shape, a provider resolving to no adapter, a missing required config key, and a `github` binding this checkout cannot derive a repo for.) **Binding absent** — bind `github` with `config.lease_ttl_hours: 24`, both RECOMMENDED, **only when `gh` is installed AND `gh repo view --json owner,name` resolves in this checkout**. The old test was `gh auth status`, which proves only that an account is authenticated somewhere — never that this repository is hosted on GitHub, so a local-only or non-GitHub checkout was bound to a provider whose every repo-scoped verb then fails. `gh repo view` is the adapter's own derivation and the operative test: it subsumes authentication for the host this checkout uses, and it is not the machine-wide check `gh auth status` is (that one tests every account on every known host and exits 1 if any has an issue, per `gh auth status --help`, so an unrelated stale credential would refuse a good bind). Report the resolved `owner/repo` in the summary alongside the other defaults taken. Otherwise stop: `local-markdown` and `jira` need `storage_dir` / `config.jira` values that have no defaults and cannot be inferred, so there is no provider left to choose safely. Report "tracker binding needs a provider decision; run `/work-items:setup apply` with a user present". |
 | Role labels (step 2) | Keep the defaults — the RECOMMENDED answer, and the one that writes nothing. The pass runs and completes as a no-op: `config.role_labels` is left absent, so every role resolves to its documented fallback. A remap is a repo-vocabulary decision no default can stand in for. |
 | Work-class labels (step 3) | When any canonical member is missing: if the repo declares a label-as-code owner, stop — name the missing labels and point remediation at that owner. Otherwise stop: "work-class axis needs provisioning; run `/work-items:setup apply` with a user present". Never create labels ad hoc unattended. |
-| Schedule seeding (before step 5) | Skip — the RECOMMENDED answer. Write the empty `{"items": []}` skeleton and go to step 8. |
+| Schedule seeding (before step 5) | Skip — the RECOMMENDED answer. Write the empty `{"items": []}` skeleton and go to step 8. **Exception:** when the invocation carries both `--seed-schedule` and `--accept-recommended`, run steps 5–6 using each inferred candidate's recommended values without per-item interviews (unattended bulk seed). |
 
 So an autonomous first-time bind on a `gh`-ready repo produces the binding, the role-label pass, and
 the empty skeleton, and nothing else; an autonomous re-run against a repo that is already bound leaves
 that binding exactly as it found it. Absent an opt-in, never infer and never interview.
 `--seed-schedule` carries the opt-in decision without the offer prompt, but the pass it selects is
-step 5's per-item interview — so it is not a non-interactive seeding path, and an unattended caller
-should not be directed at it.
+step 5's per-item interview — so it is not a non-interactive seeding path unless `--accept-recommended`
+is also present. Pairing both flags tells step 6 to accept every inferred candidate with its
+recommended cadence/title fields and write the schedule without blocking on questions (#1302).
 
 The row shape, the root `{"items": []}` structure, and the cadence-duration table are defined once in
 [`${CLAUDE_PLUGIN_ROOT}/skills/track/actions/add.md`](${CLAUDE_PLUGIN_ROOT}/skills/track/actions/add.md)
@@ -311,7 +312,9 @@ unambiguous; ask only where an item genuinely needs the user.
      (recommend `semi-annual` or `quarterly`).
    Present these as a starting menu; the user keeps, edits, or drops each. Do not invent items the repo
    gives no signal for.
-6. **Interview, one decision at a time, recommendation first.** For each candidate (and any custom item
+6. **Interview, one decision at a time, recommendation first.** When `--accept-recommended` is set
+   alongside `--seed-schedule`, skip the interview: accept every inferred candidate from step 5 with
+   its recommended field values and proceed to step 7. Otherwise, for each candidate (and any custom item
    the user names last), settle its fields against the shape in
    [`${CLAUDE_PLUGIN_ROOT}/skills/track/actions/add.md`](${CLAUDE_PLUGIN_ROOT}/skills/track/actions/add.md): `id` (kebab-case),
    `title`, `cadence` (one of the cadence table's values), `area[]`, `category`, `triggers[]` (external

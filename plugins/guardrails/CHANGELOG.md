@@ -3,6 +3,15 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.11]
+
+### Fixed
+
+- **`stale-path-verify` partial-Edit reconstruction (#1455).** Lowered the token floor to two
+  characters so minimal extension swaps (`md`, `js`) are not skipped, and single-word anchors now
+  use word-boundary matching so a bare fragment like `docs` cannot over-recover an untouched
+  citation on another line.
+
 ## [0.28.10]
 
 ### Fixed

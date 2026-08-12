@@ -306,7 +306,14 @@
       "exit": 1,
       "credential_roots": "/root",
       "findings_substrings": [
-        "\"/root/../var/empty/.ssh/id_rsa\" does not resolve under any configured --credential-roots"
+        "a concrete credential path must not contain dot-traversal segments"
+      ]
+    },
+    "probe-evidence-concrete-dot-traversal.json": {
+      "exit": 1,
+      "credential_roots": "/configured-root",
+      "findings_substrings": [
+        "a concrete credential path must not contain dot-traversal segments"
       ]
     },
     "probe-evidence-dummy-prefix.json": {
@@ -993,6 +1000,7 @@
     "ci-pool-a-l2-bogus-metadata.json",
     "ci-pool-a-l2-cred-outer-missing.json",
     "ci-pool-a-l2-cred-outer-nonzero.json",
+    "ci-pool-a-l2-concrete-dot-traversal.json",
     "ci-pool-a-l2-credpath-code-count.json",
     "ci-pool-a-l2-credpath-partial-zero.json",
     "ci-pool-a-l2-discard-only.json",

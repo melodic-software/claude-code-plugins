@@ -3,24 +3,44 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.12]
+
+### Added
+
+- **Lease TTL minutes** — optional `ttl_minutes` on lease records, `--ttl-minutes` on
+  `claim`, and optional `config.lease_ttl_minutes` in the binding (#1034).
+
+## [0.35.11]
+
+### Changed
+
+- **Escalation-marker grammar has one canonical source (#1672).** `reference/escalation-marker.md`
+  now defines the marker comment prefix, kind enum, author-match suppression rule, and
+  label-plus-comment pairing; `work-loop` and `attend-queue` cite it instead of restating the
+  grammar in prose.
+
+## [0.35.10]
+
+### Added
+
+- **Unattended recurring-schedule seeding via --accept-recommended** in setup skill.
 
 ## [0.35.9]
 
-### Fixed
+### Added
 
-- Add sub-hour lease TTL via ttl_minutes.
+- **Lane-neutral AI disclaimer SSOT** in work-items reference docs.
 
 ## [0.35.8]
 
 ### Fixed
 
-- Add sub-hour lease TTL via ttl_minutes.
+- Harden triage intake against priority-axis stacking and blocked-by relabel races.
 
 ## [0.35.7]
 
 ### Added
 
-<<<<<<< HEAD
 - **`reference/work-class-labels.md` — canonical `work-class:` axis members, migration path, and
   classification pointer to the `autonomy` plugin's `work-classes.md`.** Declares the five labels
   triage stamps and setup migrates; linked from `label-taxonomy.md` and `tracker-seam.md`.
@@ -36,10 +56,6 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   and covers all agent-ready outcomes via the general rule (not per-table-row duplication).
 - **`/work-items:work-loop` admission gate adds C1 read-only disposition as Autonomous**, matching
   the shipped admission-policy default for C1.
-=======
-- **Lease TTL minutes** — optional `ttl_minutes` on lease records, `--ttl-minutes` on
-  `claim`, and optional `config.lease_ttl_minutes` in the binding (#1034).
->>>>>>> f24f7a7f (feat(work-items): add sub-hour lease TTL via ttl_minutes)
 
 ## [0.35.6]
 

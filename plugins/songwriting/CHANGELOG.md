@@ -3,6 +3,155 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.3.0]
+
+Both audit denominators are unchanged: **Axis 1 stays 44 of 44** and **Axis 2
+stays 226 of 226.** No Pattison reading. Suno docs only; no craft skill is
+touched.
+
+**The source is live production use, not a reading pass.** A writer ran Suno
+v5.5 through a real song on 2026-08-12 and hit four things the skill did not
+document. One of them silently corrupts a generation: an empty `[Chorus]` tag
+used as repeat shorthand, sitting above a `[Bridge]` that carried lyrics, and
+Suno sang the **bridge's** lyrics in the chorus slot and dropped the bridge.
+Nothing in the output announces that; you get a structurally wrong song that
+sounds fine.
+
+### A new evidence class, named rather than smuggled onto the ladder
+
+Three of the four findings are **first-hand, single-session, n=1**. The
+confidence ladder in `SKILL.md` grades *second-hand* sourcing — official docs,
+multiple community guides plus Reddit consensus, or a single community post — and
+none of those rungs describes a writer driving the product and watching what
+happened. So `SKILL.md` gains one bullet placing these **off** the ladder, with
+a fixed label carried at every claim site:
+
+```
+writer-observed, single session (2026-08-12), n=1 — not externally corroborated
+```
+
+**No new rung was invented**, per 1.1.3's precedent — the gap is named instead.
+The bullet also fixes the direction the label could be misread in both ways.
+First-hand does **not** outrank MEDIUM: one unreproduced session is not
+consensus, and a flow-scoped reading must carry its scope. But an observed
+**failure** is existence evidence in a way a claimed success is not — enough to
+document a fix, never enough to assert the failure always happens or to state a
+mechanism.
+
+**That distinction is the whole discipline of the S3 entry below**, and it is the
+trap 1.1.2 and 1.1.3 were both written about. One absorption proves tag-only
+repeats *can* fail in that adjacency. It does not prove they always fail, and it
+does not establish why. The entry says the adjacency is *the observed correlate,
+a candidate cause, not a demonstrated mechanism*, and the fix it recommends is
+the cheap safe default — write the lyrics out — not a prohibition. This skill's
+own `tips.md` warns that variance is high and one generation is rarely
+representative; that warning applies to the single run behind this finding too,
+and the entry says so.
+
+### Added
+
+- **Duration control is documented, and first-party verification succeeded.**
+  Suno's release notes, Jul 20 2026: *"Drag the new Duration slider in the Create
+  form to pick your song length. Available on Web using V5.5 model"*
+  (<https://suno.com/release-notes/duration-slider-on-web>, fetched 2026-08-12).
+  So the control's existence, name, home, and Web + V5.5 scoping are **HIGH**,
+  not writer-observed — the label above does not appear on them.
+  **The four claim classes are rated separately rather than averaged.** Range
+  (10s-6min), 5-second increments, and the Auto/Custom pair are **LOW-MEDIUM**:
+  the writer read them off the UI and one community post states the same figures
+  independently, which makes the range the one writer-observed item here that is
+  *not* uncorroborated — but no `help.suno.com` article states a range, and two
+  guides written *about* the slider decline to state one. "Target, not a
+  guarantee" is carried as an attributed quote.
+  **The lyric-length interaction ships as an explicit OPEN QUESTION** with a
+  do-not-advise instruction on it. A single post reports hard-cut and rushed
+  delivery, and the temptation was to believe it because this skill already
+  documents the same failure family from the lyric-length end (past ~3,000 chars
+  Suno "rushes, skips sections, or cuts output short"). **A shared failure shape
+  is not evidence of a shared cause**, and the entry records the two-generation
+  test that would settle it. A "golden length" sweet spot offered by the same
+  post is deliberately not carried: one source, one taste judgement, one
+  round-number range — the shape this plugin has deleted twice.
+- **Two troubleshooting entries for failures that were tested, not theorized** —
+  "My bridge is missing / another section sang its lyrics" (the absorption above)
+  and "There's too much pause between lines / the delivery is choppy", plus a row
+  each in the master pitfalls table.
+- **Audio Influence has an entry value at last, scoped to the flow it was seen
+  in.** 25% on entry to the **cover-from-upload** flow. Recorded as
+  per-entry-flow deliberately: the Extend and upload-as-seed flows were **not**
+  observed, and the text says so rather than promoting one reading to "the
+  default". Cover-workflow guidance now states the trade the slider makes —
+  uploaded-melody fidelity against new-arrangement freedom — with the cost named
+  in **both** directions, and notes the consequence of the observed value: a
+  cover-from-upload opens *low*, so its untouched behavior is arrangement
+  freedom. If the melody is the asset, that is a setting to change deliberately
+  rather than inherit.
+
+### Fixed
+
+- **Two blanket confidence sentences would have mislabeled the new number, and
+  both are carved out.** `advanced.md`'s Creative Sliders section opens by
+  declaring *every* percentage and default below community-empirical, and
+  `SKILL.md`'s MEDIUM rung says the same of *every* numeric slider setting in the
+  skill. The Audio Influence entry value is neither. Adding it under either
+  blanket would have shipped a first-hand reading wearing a community-empirical
+  label — so both sentences name the carve-out, in the same bolded clause that
+  does the governing.
+- **The five-controls count in `advanced.md`'s More Options panel survives,
+  because the evidence moved the feature instead.** The gap report proposed
+  documenting duration under More Options, which would have made that count
+  wrong. First-party evidence puts the slider in the **Create form**, so the
+  count stands at five and the panel gains a guard saying where the control
+  actually is — positive evidence of its home, not an assertion from silence
+  that the panel lacks it.
+- **`v55-features.md`'s 2026-07-18 verification stamp is amended rather than
+  left to imply completeness.** The slider shipped Jul 20 2026 — two days after
+  that pass. It is deliberately kept **out** of the version-delta table, which
+  tracks model capabilities rather than Create-form controls; a row there would
+  misdate a July Web control as a March model capability.
+- **"One idea per line" no longer contradicts the new join-the-lines fix.** The
+  skill asserted it unqualified in **three** places — `lyrics.md`'s Performance
+  shaping table, `lyrics.md`'s Best practices, and a `tips.md` entry the gap
+  report did not name. It is the same mechanism read in two directions:
+  separation is what a line break buys, so short-line stacks buy too much of it.
+  `lyrics.md` now owns the full statement ("Line breaks cut both ways"); the
+  other sites qualify and point at it rather than restating the claim.
+  **No line-length floor is invented** — no source states a number, so the test
+  is qualitative: a clause holds, a fragment over-instructs.
+  The fix is explicitly **prompt-layer only** — the page lyric keeps its artistic
+  lineation, and the text says outright that nothing here asks a writer to
+  un-write a line.
+- **"Reuse the chorus verbatim" now says to write it out.** That bullet was
+  silent on whether the reuse had to be typed under each tag, which is precisely
+  the reading that produced the absorption failure.
+
+### Ledger
+
+Six rows added to `reference/suno-drift-audit-ledger.md` (S13-S18), per its own
+rule that a row and the CHANGELOG move in the same PR. Three record *audit
+outcomes* (S13 first-party confirmed; S14 LOW-MEDIUM; S15 the open question);
+three record the off-ladder observations (S16-S18). S15 exists so the duration /
+lyric-length question is falsifiable rather than rediscovered — the reason this
+ledger was created in the first place (#2354).
+
+### Known gaps
+
+- **Tag-only as the FINAL section before `[Outro]`/`[End]` is untested** and
+  flagged as such at the entry and in S17. Neither endorsed nor ruled out.
+- **No external corroboration pass was run against the three observed findings.**
+  `SKILL.md` documents a working browser route to r/SunoAI; running it is the
+  specific event that would move S16-S18, and it was not attempted here. Named
+  rather than left as an implied absence, because "not corroborated" and "nobody
+  looked" are different claims and 1.2.0 was written about confusing them.
+- **`troubleshoot.md` still has no song-length symptom.** Now that duration is
+  documented, "rushed delivery" acquires a second candidate cause, and the
+  garbled-lyrics entry owns the adjacent one. Out of scope here; flagged so the
+  two files do not drift.
+- **Version class ruled minor (1.3.0).** New standing instructions (off-ladder
+  writer-observation bullet), feature-route content (Duration section), and two
+  troubleshooting behaviors match 1.2.0's precedent for minor bumps. Sibling
+  `feat/songwriting-emission-discipline` can take the next minor after rebase.
+
 ## [1.2.0]
 
 Both audit denominators are unchanged: **Axis 1 stays 44 of 44** and **Axis 2
