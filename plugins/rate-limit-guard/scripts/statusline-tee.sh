@@ -401,14 +401,30 @@ _rlg_managed_settings_files() {
 # PREFIX. Last match wins, as in the sibling reader.
 #
 # The file is opened by bash (`<"$file"`), not by jq: a native jq on Windows
-# cannot open an MSYS-style path, while a shell redirection always can.
-# The verdict filter itself, shared verbatim by this function and by the single
-# jq pass in _rlg_probe, so the two can never drift into disagreeing about what
-# a settings file configures. $doc is the parsed settings document.
+# cannot open an MSYS-style path, while a shell redirection always can. That rules
+# out --slurpfile/--rawfile on the settings path as well as on a temp copy of it,
+# since $TMPDIR under MSYS is an MSYS path too.
+#
+# Bash hands the document over in the ENVIRONMENT rather than in jq's argument
+# vector. A settings file can hold credentials, and argv is world-readable through
+# `ps`/`/proc/<pid>/cmdline` for the life of the process, whereas
+# `/proc/<pid>/environ` is owner-only. It also sidesteps the per-argument length
+# limit. The prelude below is the only place that reads it, and it parses the
+# value INSIDE jq under `try`, so a settings file that will not parse yields an
+# empty verdict rather than failing the whole jq invocation — the fail-OPEN
+# direction this gate has always taken, and the property a jq-side parse
+# (--argjson/--slurpfile) cannot preserve because it dies before the filter runs.
+#
+# The prelude and the verdict filter are shared verbatim by this function and by
+# the single jq pass in _rlg_probe, so the two can never drift into disagreeing
+# about what a settings file configures.
 # shellcheck disable=SC2016
-# $doc is a jq variable bound by --argjson at each call site, not a shell one:
-# single quotes are required here, and double quotes would have the shell
-# substitute an empty string into the filter.
+# $doc is a jq variable and RLG_SETTINGS_DOC is read from jq's own `env`, not by
+# the shell: single quotes are required here, and double quotes would have the
+# shell substitute empty strings into the filter.
+_RLG_DOC_JQ='((env.RLG_SETTINGS_DOC // "null") | (try fromjson catch {})
+      | if type == "object" then . else {} end) as $doc'
+# shellcheck disable=SC2016
 _RLG_VERDICT_JQ='[ ($doc.pluginConfigs // {}) | to_entries[]
       | select(.key | startswith("rate-limit-guard@"))
       | .value.options.rate_limit_guard_enabled
@@ -419,7 +435,7 @@ _rlg_settings_option() {
   local file="$1" out
   [[ -r "$file" ]] || return 1
   command -v jq >/dev/null 2>&1 || return 1
-  out="$(jq -rn --argjson doc "$(<"$file")" "$_RLG_VERDICT_JQ" 2>/dev/null)" || return 1
+  out="$(RLG_SETTINGS_DOC="$(<"$file")" jq -rn "$_RLG_DOC_JQ | $_RLG_VERDICT_JQ" 2>/dev/null)" || return 1
   [[ -n "$out" ]] || return 1
   printf '%s' "$out"
 }
@@ -490,9 +506,10 @@ _rlg_tee_enabled() {
 # windows open.
 #
 # The settings document is read by BASH (`$(<file)`, which bash performs without
-# forking) and handed over as --argjson, never opened by jq: a native jq on
-# Windows cannot open an MSYS-style path, the same reason the shell redirection
-# was there before.
+# forking) and handed over in the ENVIRONMENT, never opened by jq and never placed
+# in its argv: a native jq on Windows cannot open an MSYS-style path (the same
+# reason the shell redirection was there before), and argv is world-readable while
+# a settings file can hold credentials. See _RLG_DOC_JQ above for the full note.
 #
 # Everything is wrapped so that no single malformed input can cost more than the
 # thing it feeds: a settings file that will not parse yields an empty verdict
@@ -505,7 +522,7 @@ _RLG_USER_PROBED=0
 
 _rlg_probe() {
   command -v jq >/dev/null 2>&1 || return 0
-  local ts settings_file settings_json settings_tmp out line
+  local ts settings_file settings_json out line
   # printf's %()T is a bash 4.2+ builtin; macOS statusline Bash 3.2 needs date -u.
   ts=""
   if ((BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 2))); then
@@ -523,16 +540,14 @@ _rlg_probe() {
     [[ -n "$settings_json" ]] || settings_json='null'
   fi
 
-  # Settings are slurpfile-fed so credentials never land in jq's argv; payload stays
-  # on stdin. Three lines out: payload, window-bearing, user verdict.
-  settings_tmp="$(mktemp "${TMPDIR:-/tmp}/rlg-settings.XXXXXX")"
-  printf '%s' "$settings_json" >"$settings_tmp"
-
+  # Settings ride in the environment so credentials never land in jq's argv and no
+  # temp file is created; the payload stays on stdin.
+  #
   # Three lines out, in a fixed order: payload, window-bearing, user verdict.
   # `jq -c` escapes any newline inside a string and the other two are bare
   # tokens, so every line is single-line by construction and the split is exact.
-  out="$(jq -rc --arg ts "$ts" --slurpfile sdoc "$settings_tmp" '
-    (($sdoc[0] // null) | if type == "object" then . else {} end) as $doc
+  out="$(RLG_SETTINGS_DOC="$settings_json" jq -rc --arg ts "$ts" "
+    $_RLG_DOC_JQ"'
     | ({captured_at: $ts}
        + (to_entries
           | map(select(.key == "rate_limits" or .key == "session_id"
@@ -540,16 +555,8 @@ _rlg_probe() {
           | from_entries)) as $p
     | $p,
       ($p | has("rate_limits")),
-      (try ([ ($doc.pluginConfigs // {}) | to_entries[]
-         | select(.key | startswith("rate-limit-guard@"))
-         | .value.options.rate_limit_guard_enabled
-         | select(. != null) | tostring ]
-       | if length == 0 then "" else last end) catch "")
-  ' <<<"$INPUT" 2>/dev/null)" || {
-    rm -f "$settings_tmp"
-    return 0
-  }
-  rm -f "$settings_tmp"
+      (try ('"$_RLG_VERDICT_JQ"') catch "")
+  ' <<<"$INPUT" 2>/dev/null)" || return 0
 
   local -a lines=()
   while IFS= read -r line || [[ -n "$line" ]]; do

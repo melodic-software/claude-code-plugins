@@ -3,12 +3,30 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-
 ## [0.6.1]
 
 ### Changed
 
 - Cut statusline tee from 9 process spawns to 4.
+
+- **The settings document reaches `jq` through the environment, not through argv
+  and not through a temp file.** A settings file can hold credentials, and argv is
+  world-readable via `ps`/`/proc/<pid>/cmdline` for the life of the process while
+  `/proc/<pid>/environ` is owner-only. Both readers — `_rlg_settings_option`, which
+  the managed scope calls on every refresh wherever a `managed-settings.json`
+  exists, and `_rlg_probe` — now bind `$doc` from `env.RLG_SETTINGS_DOC` through one
+  shared prelude, so neither can drift back.
+
+  This also restores the fail-OPEN behaviour on a malformed settings file. Parsing
+  the document jq-side (`--argjson`, `--slurpfile`) aborts the whole invocation
+  before the filter runs, which took the snapshot down with the verdict; parsing it
+  filter-side under `try` yields an empty verdict and leaves the snapshot alone.
+  And it keeps the read off any jq-opened path: a native jq on Windows cannot open
+  an MSYS-style path, and `$TMPDIR` under MSYS is one.
+
+  Net spawns: two fewer than the slurpfile form (no `mktemp`, no `rm`), which holds
+  the four documented externals — one `jq`, `mkdir`/`rmdir` for the lock, `mv` for
+  the atomic rename.
 
 ## [0.6.0]
 
