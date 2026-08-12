@@ -8,19 +8,27 @@ Pair with `tips.md` (lyric-side performance tricks) and `lyrics.md` "Per-section
 
 ## Tag order
 
-**Positional weighting is retained here as unverified.** This file's long-standing rule — first tag carries the highest weight, so front-load whatever matters most; middle tags (roughly 4-7) get softened or merged — has **never been checked against a source in either direction**. Nothing found so far establishes a first-tag advantage or middle-tag softening, and nothing contradicts them. Treat both as untested rules of thumb, not as mechanisms.
+**The two halves of this rule now have different standing.** The r/SunoAI pass that 1.1.3 said could not run **did run**, via the browser route, on 2026-08-12. It settles one half and leaves the other exactly where it was.
 
-- **Grouping negatives at the end is an organizational convention.** No source establishes that end-placement changes exclusion weight; the `no X` syntax itself is community-attested. Unlike the positional rule above, this one *was* searched for: no source addresses placement at all.
+- **Front-loading — now community-attested (MEDIUM).** An upvoted r/SunoAI guide post, [*"Expanded Insight and Guidance on Suno Style Prompt Writing"*](https://www.reddit.com/r/SunoAI/comments/1h4zc7e/expanded_insight_and_guidance_on_suno_style/) (13 votes, 28 comments), leads with **"Key Insight 1: Order Matters"** and states that Suno assigns importance by order, that the first descriptors set the stage while later ones add flavor, and that you should put the most crucial element first. It gives a paired optimized/less-effective example differing **only** in which half leads. Read by eye from the rendered page on 2026-08-12.
+- **Middle-tag softening (roughly 4-7) — still unsourced, in either direction.** The post above says nothing about middle positions, and nothing else found does either. This half stays an untested rule of thumb; do not let the sourcing of the first half carry it.
+- **Grouping negatives at the end is an organizational convention.** No source establishes that end-placement changes exclusion weight; the `no X` syntax itself is community-attested. Searched for directly: no source addresses placement at all.
 
-Practical, if the front-loading rule holds: if mood matters more than genre for a specific song, lead with mood. If a single instrument is the song's signature, name it before the genre. Cheap to try, and nothing checked so far argues against it.
+**Era caveat, and it is load-bearing.** That post is from 2024 (v3/v4 era). Suno's own [help.suno.com 5782849](https://help.suno.com/en/articles/5782849) says of v4.5 that *"In previous models, you would want to prioritize certain genre and style details, but your instructions can now include a more conversational prompt."* First-party guidance is therefore moving **away** from the terse prioritized-token style the front-loading rule is about. Treat front-loading as attested for the terse comma-separated form and **unverified for v5.5 conversational prompts**, which is what this skill targets.
 
-**One first-party lead for whoever audits this next — a lead, not evidence.** Suno's own [how-to-make-beats](https://suno.com/hub/how-to-make-beats) page, fetched 2026-08-12, says Suno *"reads prompts as structured instructions. A clear hierarchy matters … A strong prompt follows this order: tempo, genre, rhythm style, instruments, and mood."* That prescribes an ordering of descriptor **categories** and is scoped to beat-making. It does **not** say a first tag carries more weight, and says nothing about middle tags — so it does not settle the rule above in either direction. Do not cite it as if it did.
+Practical: if mood matters more than genre for a specific song, lead with mood. If a single instrument is the song's signature, name it before the genre. Cheap to try.
+
+**Also first-party on ordering:** [how-to-make-beats](https://suno.com/hub/how-to-make-beats), fetched 2026-08-12 — Suno *"reads prompts as structured instructions. A clear hierarchy matters … A strong prompt follows this order: tempo, genre, rhythm style, instruments, and mood."* That prescribes an ordering of descriptor **categories** and is scoped to beat-making, so it corroborates "order is meaningful" without speaking to per-tag weight.
+
+**Recheck trigger:** Suno documents style-prompt ordering for v5 or later, **or** an r/SunoAI thread dated to the v5.x era tests front-loading on conversational prompts, **or** a re-read finds the cited post no longer carrying its Key Insight 1. Not a date.
 
 ## Genre fusion — anchor and accent
 
 **What is attested is a hierarchy.** Give one genre the lead and let the second supply texture; do not bill two genres equally. All three sources below say this.
 
-**What is *not* attested is that position alone is the mechanism** — the older wording here, "Order encodes priority". No source states it, and the one source that addresses order treats it as *a* contributing signal rather than the signal: *"not just word order"*. So order is **not ruled out**; it is simply unestablished as the carrier, and stating it as the mechanism outran the evidence.
+**Position is now attested too, and it is a separate finding from the hierarchy.** The 2026-08-12 r/SunoAI pass found a user reporting a **clean order-only swap**: in the thread [*"Style order"*](https://www.reddit.com/r/SunoAI/comments/1g5qzes/style_order/), `Powerful-Ant1988` reports that `progressive metal, jazz` and `jazz, progressive metal` give noticeably different results, the first leaning heavier and more prog. That is the comparison this file's own example cannot make, because a comma swap changes **order and nothing else** — no grammatical role moves. It is one user's observation, not a measurement, and the same thread's other reply says to list merged styles in no particular order. So: **order is attested as mattering, contested, and not quantified.**
+
+The old wording "Order encodes priority" therefore fails not for being unsupported but for being **too certain and too mechanical**. Prefer the hierarchy framing below, which two-plus independent routes support, and treat position as a real but disputed second signal.
 
 ```
 synth-pop with dream-pop textures
@@ -32,21 +40,25 @@ vs
 dream-pop with synth-pop production
 ```
 
-These are expected to produce **different outputs** — but note *what* differs. The lead genre is the noun the track **is**; the accent is a thing the track **has**. Grammatical role is the signal the sources describe explicitly; word order moves with it here and may well contribute too. **This example cannot separate them**, because it changes both at once — so use it as an illustration of anchor/accent, never as evidence about position.
+These are expected to produce **different outputs** — but note *what* differs. The lead genre is the noun the track **is**; the accent is a thing the track **has**. Grammatical role is the signal the guides describe explicitly, and word order moves with it here. **This example cannot separate the two**, because it changes both at once — so use it as an illustration of anchor/accent. For evidence about position specifically, the comma-swap report above is the isolating case; this is not.
 
 **Three or more genres with no hierarchy degrades the result** — sources describe mush, averaging, and drift. The former "hard cap: 2" was this file's own sharpening; two sources model exactly one anchor plus one accent, a third warns against "three-way competition", and none states a numeric cap. Treat two as the working default and anything beyond as needing an explicit hierarchy, not as a hard limit.
 
-**Below MEDIUM until a Reddit pass runs — do not label this MEDIUM.** `SKILL.md`'s ladder defines MEDIUM as multiple community guides **plus** Reddit consensus. Three independent guides satisfy the guides half; **the Reddit half is unmet and untried** (the search tool available here refuses `reddit.com`). Three guides also clearly exceed LOW-MEDIUM, which is "at most a single community post". So this sits between the two named rungs, and it is stated that way rather than rounded up to the rung it has not earned. Surface it as an opt-in suggestion, not a default.
+**MEDIUM confidence — the rung is now earned, and the Reddit half is what earned it.** `SKILL.md`'s ladder defines MEDIUM as multiple community guides **plus** Reddit consensus. Three independent guides give the first half; the r/SunoAI pass on 2026-08-12 gives the second. **Consensus is on the hierarchy, not on position** — the guides and the Reddit guide post agree that one style should lead, while the "Style order" thread splits on whether bare order matters. So MEDIUM attaches to *anchor-and-accent*; the positional sub-claim above sits below it as attested-but-contested.
 
-Verified 2026-08-12 by live fetch of each page below; bodies arrived whole (character counts are of the extracted text) and each quote is verbatim.
+1.1.2 and 1.1.3 recorded the Reddit half as unmet and untried on the belief that `reddit.com` was unreachable. **It was reachable the whole time** — via the browser route this plugin's own `workflow-recipes.md` already documented. The gap was an unread in-repo note, not a blocked corpus.
+
+Verified 2026-08-12; each web page below fetched live by `curl` (bodies arrived whole; character counts are of the extracted text, quotes verbatim), each Reddit thread read by eye from the rendered page.
 
 - [sunopromptpro.com/en/guides/suno-genre-combinations](https://www.sunopromptpro.com/en/guides/suno-genre-combinations) (7,086 chars) — *"A genre combination should not give every style equal authority. Start with the lane that should control the song shape"*; and *"Avoid three-way competition. Most hybrid prompts become weaker when they name three or four genres with no hierarchy."*
 - [brahmstorm.com/blog/suno-genre-blending-prompts-that-actually-work](https://brahmstorm.com/blog/suno-genre-blending-prompts-that-actually-work/) (8,741 chars) — *"pick ONE dominant genre as the anchor … then add ONE accent genre"*; and, **qualifying** rather than refuting the positional reading, *"The cleanest way to signal hierarchy is through sentence structure, not just word order."*
 - [jackrighteous.com — Suno prompt too complicated](https://jackrighteous.com/en-us/blogs/guides-using-suno-ai-music-creation/suno-prompt-too-complicated-clean-workflow) (22,431 chars) — *"Blending Genres Requires a Hierarchy … The problem begins when every genre is treated as an equal foundation."*
+- r/SunoAI [*"Expanded Insight and Guidance on Suno Style Prompt Writing"*](https://www.reddit.com/r/SunoAI/comments/1h4zc7e/expanded_insight_and_guidance_on_suno_style/), 13 votes / 28 comments — "Key Insight 1: Order Matters"; first descriptors set the stage, later ones add flavor. **2024, v3/v4 era.**
+- r/SunoAI [*"Style order"*](https://www.reddit.com/r/SunoAI/comments/1g5qzes/style_order/), 1 vote / 2 comments — the isolating comma-swap report, **and** a reply asserting no particular order is needed. Cited for the split, not for a verdict.
 
 **Not officially documented.** `help.suno.com` articles [5782849](https://help.suno.com/en/articles/5782849) (1,177 chars, whole) and [5782977](https://help.suno.com/en/articles/5782977) (805 chars, whole) were read verbatim on 2026-08-12 and neither addresses genre order or fusion; 5782849 points the other way for v4.5+, saying *"In previous models, you would want to prioritize certain genre and style details, but your instructions can now include a more conversational prompt."* That absence is scoped to those two pages, not to Suno's documentation as a whole.
 
-**Recheck trigger:** Suno's help center or blog publishes guidance on style-prompt ordering or genre blending; **or** an r/SunoAI pass becomes possible and runs, which would settle the rung either way; **or** a read-time re-fetch finds any source above no longer carrying its quoted text. Not a date.
+**Recheck trigger:** Suno's help center or blog publishes guidance on style-prompt ordering or genre blending; **or** an r/SunoAI thread from the v5.x era tests bare genre order and resolves the split above; **or** a read-time re-fetch finds any source above no longer carrying its quoted text. Not a date.
 
 ## Stem-loop refinement (Premier)
 
