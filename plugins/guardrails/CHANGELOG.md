@@ -3,6 +3,64 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.3]
+
+### Fixed
+
+- **`skill-reference-verify` reported an untouched, pre-existing reference when an Edit carried
+  `replace_all: true`.** Partial-edit reconstruction separates an occurrence the call wrote from a
+  coincidental one by requiring the anchor to occur exactly once — and `replace_all` is precisely
+  where that rule is suspended, because there every occurrence is supposed to be the edit's own
+  footprint. It is not: after `ghost` replaces `setup` everywhere, the `ghost` inside a pre-existing
+  `ghost-old` matches the anchor too, and the guard named a reference the call never touched.
+
+  The issue this closes proposed it might be unfixable, on the ground that nothing in the payload
+  separates the two. That holds for `tool_input` and fails for `tool_response`, which carries the
+  Edit tool's structured output: `structuredPatch` marks the lines the call actually wrote with a
+  leading `+`. Under `replace_all` only, an occurrence is now kept just when its physical line is
+  one the patch reports as written. The suspended uniqueness rule gets an external witness instead
+  of nothing.
+
+  Both halves of that were confirmed against pages fetched 2026-08-10 rather than recall:
+  `PostToolUse` input carries `tool_response`, "the result it returned", and that field is "the
+  tool's structured `Output` object" ([Hooks reference](https://code.claude.com/docs/en/hooks));
+  `Output` for Edit is `FileEditOutput`, whose `structuredPatch` is `Array<{oldStart, oldLines,
+  newStart, newLines, lines: string[]}>` ([Agent SDK TypeScript
+  reference](https://code.claude.com/docs/en/agent-sdk/typescript), "Edit").
+
+  Matched by line TEXT, not line number, for two reasons: numbers are wrong the moment another
+  PostToolUse hook reformats the file between the write and this read — the case the reconstruction
+  fallback already exists for — and mapping a character offset back to a line number costs a
+  whole-prefix scan per occurrence, reintroducing the quadratic term 0.21.0 removed. The residual
+  imprecision runs in the safe direction: an untouched line whose text duplicates an edited one is
+  kept, and two references sharing one physical line stand or fall together.
+
+  Gate 3 may only ever REMOVE an occurrence when it can positively identify at least one the call
+  wrote. Found in review: comparing the on-disk line to the patch's line verbatim undid the
+  reformatting tolerance the per-line fallback exists to provide. An earlier-ordered PostToolUse hook
+  that reflows whitespace leaves the anchor locatable — a literal substring search does not care what
+  surrounds it — while changing the physical line, so a genuinely written reference was silently
+  dropped. Two corrections: comparison is whitespace-normalized, covering the reflow formatters
+  actually perform; and if the witness recognizes no occurrence at all it **abstains**, leaving the
+  unfiltered set, because a witness matching nothing is stale rather than discriminating. Without the
+  abstain, a formatter that rewrote more than spacing turned this gate from a filter into a silent
+  mute. Both residuals now run in the same direction: over-reporting, never under-reporting.
+
+  Deliberately inert outside its one case. A multi-line `new_string` is not filtered — its anchor
+  extent spans several lines, matches no single patch line, and filtering would erase every finding
+  rather than narrow them. A payload with no `tool_response`, and every non-`replace_all` Edit,
+  behaves exactly as before. Field supply is **observed, not merely documented**: an independent
+  reviewer captured a live PostToolUse payload on `claude 2.1.225`, in which `tool_response` arrives
+  as an object carrying `structuredPatch` (complete, not truncated, at 42 replacement sites in a
+  300-line file). The read is shape-tolerant regardless — a non-object `tool_response` yields an
+  empty witness and leaves the filter inert, rather than erroring the payload parse and silencing the
+  whole guard.
+
+  Scope worth stating plainly, since it is broader than "fixes one false positive": under
+  `replace_all`, a genuine reference sitting on a line the patch reports as CONTEXT is no longer
+  reported. That is the gate working as designed — a context line is one the call did not write — but
+  it does narrow what this guard says about a `replace_all` edit.
+
 ## [0.25.2]
 
 ### Fixed
