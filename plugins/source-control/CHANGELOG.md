@@ -3,6 +3,14 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.53.11]
+
+### Fixed
+
+- **Finding-extractor reads anchor to the PR worktree cwd (#2454).** Review-discipline
+  dispatch text now substitutes `<absolute-worktree-path>` and quotes it in `git -C`
+  examples so paths with spaces stay valid.
+
 ## [0.53.9]
 
 ### Added
