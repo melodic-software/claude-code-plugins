@@ -34,7 +34,7 @@ while [[ $# -gt 0 ]]; do
 done
 wit_require_github_id "$id" || wit_usage_error "malformed or non-github id: $id"
 [[ "$ttl" =~ ^[0-9]+$ ]] || wit_usage_error "--ttl-hours must be a non-negative integer (binding config.lease_ttl_hours supplies the default)"
-[[ "$ttl_minutes" =~ ^[0-9]+$ && "$ttl_minutes" -le 59 ]] || wit_usage_error "--ttl-minutes must be 0–59 (binding config.lease_ttl_minutes defaults to 0)"
+[[ "$ttl_minutes" =~ ^[0-9]+$ && "$ttl_minutes" -le 59 ]] || wit_usage_error "--ttl-minutes must be 0-59 (binding config.lease_ttl_minutes defaults to 0)"
 
 owner="$WIT_ID_OWNER" repo="$WIT_ID_REPO" number="$WIT_ID_NUMBER"
 

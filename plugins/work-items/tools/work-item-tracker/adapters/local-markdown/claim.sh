@@ -36,7 +36,7 @@ while [[ $# -gt 0 ]]; do
 done
 wit_require_local_id "$id" || wit_usage_error "malformed or non-local-markdown id: $id"
 [[ "$ttl" =~ ^[0-9]+$ ]] || wit_usage_error "--ttl-hours must be a non-negative integer (binding config.lease_ttl_hours supplies the default)"
-[[ "$ttl_minutes" =~ ^[0-9]+$ && "$ttl_minutes" -le 59 ]] || wit_usage_error "--ttl-minutes must be 0–59 (binding config.lease_ttl_minutes defaults to 0)"
+[[ "$ttl_minutes" =~ ^[0-9]+$ && "$ttl_minutes" -le 59 ]] || wit_usage_error "--ttl-minutes must be 0-59 (binding config.lease_ttl_minutes defaults to 0)"
 
 wit_need_storage
 number="$WIT_ID_NUMBER"
