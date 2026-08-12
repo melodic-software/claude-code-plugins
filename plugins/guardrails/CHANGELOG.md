@@ -60,7 +60,8 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   bearing number and it is pinned by assertions, not asserted: the name-anchor floor, the
   `#1601`/`#2148` over-block floor re-run for each new spelling, the multi-line prose/`--body` floor,
   the `/dev/null` discard floor, and the stdin floor all keep their `rc=0`. The shipped suite went
-  from `PASS=345 FAIL=0` to `PASS=395 FAIL=0` with no existing assertion changed.
+  from `PASS=345 FAIL=0` to `PASS=392 FAIL=0`, and the new suite run against the PRE-change hook
+  fails on exactly the blocked-direction rows and nothing else.
 
   **Accepted residual, restated at its narrowed width:** `python3 <<PY … PY` — stdin with **no** `-`
   argument — stays uncovered. Matching a bare trailing interpreter token would flip
