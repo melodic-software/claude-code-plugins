@@ -14,6 +14,18 @@ Coaching posture** (and the output-type section for anything emitted). NAME each
 skip-with-reason (aloud or in reasoning); correct before emission. Skips are valid; silent skips
 are not.
 
+When an action here emits a lyric line — `fragment` most often — the output-type section is §2, and
+§2 has not been run until the files on its own **Reference:** line have been read:
+[meter](../../context/pat-pattison/research/meter.md) and
+[phrasing](../../context/pat-pattison/research/phrasing.md) before the first candidate, plus
+[metaphor](../../context/pat-pattison/research/metaphor.md) when the fragment needs an image or a
+figure. A `Load` cell in the Action Router below is a routing hint; this is a precondition of
+emission. §2's boxes are then cycled inside
+[line-edit-rubric](../../context/pat-pattison/research/line-edit-rubric.md) — the full cycle per
+candidate before it is shown. Line emission belongs to `/songwriting:co-write`, and its input gate
+travels with the lines: route there, or check the same gate here — do not emit lines on the strength
+of having named §2. *(Plugin-authored, writer-derived from the Sofía sessions, 2026-08-12.)*
+
 ## Purpose
 
 The orchestrator and front door. Turn a situation ("I have half a song", "blank page", "co-write
@@ -48,7 +60,7 @@ No action → route on conversation context (pick the scenario the situation des
 | `coach` | "guide me", "walk me through", "help me think", "what next" — dynamic step-by-step dialog | [coaching-protocol](../../context/pat-pattison/research/coaching-protocol.md), [workflows](../../context/pat-pattison/research/workflows.md) |
 | `brainstorm` | "blank page", "no idea", "starting cold", "give me anything" | [brainstorm](../../context/pat-pattison/research/brainstorm.md), [templates/brainstorm-opener](../../context/pat-pattison/templates/brainstorm-opener.md) |
 | `idea` | "I have an idea / image / phrase / feeling but no title" | [idea-to-title](../../context/pat-pattison/research/idea-to-title.md), [templates/idea-to-title-prompt](../../context/pat-pattison/templates/idea-to-title-prompt.md), [object-writing](../../context/pat-pattison/research/object-writing.md) |
-| `fragment` | "I have this line / hook / half-verse — won't grow" | [fragment-development](../../context/pat-pattison/research/fragment-development.md), [templates/fragment-development-prompt](../../context/pat-pattison/templates/fragment-development-prompt.md), [verse-development](../../context/pat-pattison/research/verse-development.md) |
+| `fragment` | "I have this line / hook / half-verse — won't grow" | [fragment-development](../../context/pat-pattison/research/fragment-development.md), [templates/fragment-development-prompt](../../context/pat-pattison/templates/fragment-development-prompt.md), [verse-development](../../context/pat-pattison/research/verse-development.md), [meter](../../context/pat-pattison/research/meter.md), [phrasing](../../context/pat-pattison/research/phrasing.md), [line-edit-rubric](../../context/pat-pattison/research/line-edit-rubric.md) |
 | `filter` | "apply Pat's filter to this", "review my AI-generated rhyme list", "is this passing the discipline" — diagnostic mode | [response-filter](../../context/pat-pattison/research/response-filter.md) |
 | `beyond-books` | Coursera / Berklee Online / patpattison.com columns / podcasts / workshops, "how do I go deeper" | [beyond-books](../../context/pat-pattison/research/beyond-books.md) |
 
@@ -89,6 +101,18 @@ dive. Every scenario routes through
 - If the user gives a draft, that is diagnosis — route to `/songwriting:diagnose` (`demo` for any
   stage, `diagnose` for near-complete).
 - If the user pastes an incomplete fragment / idea / half-song, route to `fragment` or `idea` here.
+- If a session is heading toward line emission and no writer voiceprint exists, building one is
+  the first step, not a polish step — see
+  [voiceprint](../../context/pat-pattison/research/voiceprint.md).
+- When this skill emits or coaches on candidate LINES directly (rather than routing), show them as
+  full section blocks in context — changed lines marked `►`, one labeled block per variation, 3-4
+  per chat menu, deeper analysis in the song's `variations/` file. Writer-requested, 2026-08-12 —
+  see [variations](../../context/pat-pattison/research/variations.md) "Presenting the candidates —
+  chat vs file".
+- Coaching stops generating when execution keeps missing: after the writer rejects the EXECUTION in
+  one slot twice, hand the concept back instead of a third batch (`/songwriting:co-write` Handlers
+  specifies what that handoff contains). Two misses in the same slot say the brief is wrong, not
+  that the next batch will land.
 
 ## Persistence and template overrides
 

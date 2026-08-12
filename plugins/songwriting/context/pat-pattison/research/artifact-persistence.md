@@ -17,6 +17,7 @@ Default layout (relative to `${CLAUDE_PROJECT_DIR}`):
 | Daily practice | `songwriting/practice/<YYYY>/<YYYY-MM-DD>.md` |
 | Broader research not tied to one song | `songwriting/research/<topic>.md` |
 | Reusable rhyme inventories / audit checklists | `songwriting/shared/` |
+| Writer voiceprint (register calibration; cross-song, not per-song) | `songwriting/shared/voiceprint.md` |
 
 Per-song folder anatomy: `PLAN.md` / `BRIEF.md` / `LYRIC.md` / `ideation/` / `variations/` /
 `worksheets/` / `research/` / `decisions/` / `journal/`. Slug = song title kebab-cased, lowercase,
@@ -36,7 +37,11 @@ forking the plugin.
 ## Output-to-file conventions
 
 When the user asks for variations / multiple options, write each option to a `variations/<line>.md`
-file as a labeled menu — don't dump options inline. When introducing a rhyme pair, run the
+file as a labeled menu — don't dump options inline. **"Inline dump" means the whole generated set
+pasted into chat, unlabeled and untrimmed — not candidates in chat at all.** A trimmed menu of 3-4
+candidates rendered as full-context section blocks is REQUIRED in chat, per
+[variations](variations.md) "Presenting the candidates — chat vs file"; the untrimmed set is what
+goes to the file. When introducing a rhyme pair, run the
 identity-vs-rhyme check (pre-vowel consonants MUST differ) via the song's
 `worksheets/audit-checklist.md` Step 3 before declaring "this rhymes" — identity is NOT rhyme (per
 [rhyme-fundamentals](rhyme-fundamentals.md)).
