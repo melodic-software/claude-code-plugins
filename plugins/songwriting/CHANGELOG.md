@@ -3,7 +3,7 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [1.2.1]
+## [1.3.0]
 
 Both audit denominators are unchanged: **Axis 1 stays 44 of 44** and **Axis 2
 stays 226 of 226.** No Pattison reading. Suno docs only; no craft skill is
@@ -147,13 +147,10 @@ ledger was created in the first place (#2354).
   documented, "rushed delivery" acquires a second candidate cause, and the
   garbled-lyrics entry owns the adjacent one. Out of scope here; flagged so the
   two files do not drift.
-- **Version class is arguable and the reviewer should rule on it.** Shipped as a
-  **patch**: the substance is documentation of features and failure modes, the
-  `SKILL.md` edits correct two sentences the new content would otherwise falsify,
-  and no existing rung moves. Against that, 1.2.0 called itself a minor for
-  gaining a standing instruction, and the off-ladder bullet is arguably one. A
-  patch also keeps numbering monotonic against a sibling branch taking 1.3.0, so
-  whichever lands second rebases without renumbering.
+- **Version class ruled minor (1.3.0).** New standing instructions (off-ladder
+  writer-observation bullet), feature-route content (Duration section), and two
+  troubleshooting behaviors match 1.2.0's precedent for minor bumps. Sibling
+  `feat/songwriting-emission-discipline` can take the next minor after rebase.
 
 ## [1.2.0]
 
