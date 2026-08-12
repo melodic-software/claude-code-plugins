@@ -117,6 +117,7 @@ the run and target identity, the resolved version of every catalog consulted, an
 | `suppressed` | every entry with its reason, date, contributing cascade layer, and its disposition — including each `needs-reconfirmation` entry with the changed side named, each stale entry, each malformed entry, each **`personal-only, not applied`** entry, and every UNEXPLAINED DISAPPEARANCE |
 | `delegated` | `/doctor`'s output, diffed by nobody |
 | `skipped` | every surface excluded, **with its reason** — a silent exclusion reads as coverage, and this section is what stops it |
+| `verification` | per-lane verification mode (`verified` \| `inline` \| `skipped`) for lanes that mandate independent subagent dispatch; omitted only when every such lane verified |
 
 **Resume reads the partial, not the report**, so completion state is derivable from the artifact
 rather than tracked beside it and able to disagree with it.

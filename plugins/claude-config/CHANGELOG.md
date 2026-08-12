@@ -3,6 +3,15 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.1]
+
+### Fixed
+
+- **Audit skills declare a posture when subagent dispatch is unavailable.** `audit-instructions`,
+  `audit-prompting-postures`, and `audit-pass` now require disclosure, `(unverified)` marking, and
+  per-lane verification attestation when mandated fresh-context dispatch cannot run, so a skipped
+  verify phase is structurally distinguishable from a fully verified report. (#2279)
+
 ## [0.35.0]
 
 ### Added

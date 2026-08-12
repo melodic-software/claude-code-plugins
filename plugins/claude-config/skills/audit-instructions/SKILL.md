@@ -363,6 +363,20 @@ untested. Refute a pair on its own gates — *same observable, or two sharing a 
 resident text already arbitrate? is there a prompt that fires both?* A defended pair is one where a
 gate fails, dropped for that named reason.
 
+### When dispatch is unavailable
+
+Phases B and C **require** fresh-context, non-fork subagent dispatch. When the Agent tool is
+blocked, unavailable, or the session cannot spawn subagents:
+
+1. **Disclose in the report header** which phases ran inline, which were skipped, and why dispatch
+   was unavailable — a run that skipped verification MUST be structurally distinguishable from a
+   fully verified one.
+2. **Mark unverified proposals.** Every removal or rewrite that did not receive an independent
+   verifier MUST carry an `(unverified)` marker in the findings table and MUST NOT be surfaced as a
+   confident removal.
+3. **Extend the cost line.** The Phase D cost line MUST list phases that did not run and name the
+   verification mode per surface (`verified` | `inline` | `skipped`).
+
 ## Phase D — Report
 
 Persist the report to `${CLAUDE_PLUGIN_DATA}/audit-instructions/<state-key>/last-audit.md`.
