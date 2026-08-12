@@ -306,11 +306,23 @@ assert_eq "relocated config root produces exactly one finding" "1" \
   "$(run_with_config_dir "$D8C" "$RELOCATED" "$FAKE_HOME" --count)"
 
 # --- Case 8e: an unresolvable user scope is announced, never silently skipped --
-# With neither CLAUDE_CONFIG_DIR nor HOME set there is no user scope to read. A
-# silent skip would let "No fragile permission grants found." rest on a scope
-# that was never opened.
 err_out=$(env -u CLAUDE_CONFIG_DIR -u HOME PERMISSION_HYGIENE_FIXTURE_DIR="$D8C" bash "$SCRIPT" 2>&1 >/dev/null)
 assert_contains "unresolvable user scope is announced" "$err_out" "user-global scope not scanned"
+
+# --- Case 8f: #2283 A5 — clean bill carries a scan denominator ----------------
+D_EMPTY="$TEST_TMPDIR/empty-scan"
+mkdir -p "$D_EMPTY/.claude"
+OUT_EMPTY=$(run "$D_EMPTY")
+assert_contains "empty scan reports zero frontmatter files" "$OUT_EMPTY" "0 frontmatter file(s)"
+assert_contains "empty scan reports zero allow rules" "$OUT_EMPTY" "0 allow rule(s)"
+assert_contains "clean bill still names no findings" "$OUT_EMPTY" "No fragile permission grants found"
+
+D_DENOM="$TEST_TMPDIR/denom-narrow"
+mkdir -p "$D_DENOM/.claude"
+jq -n '{permissions:{allow:["Bash(npm test)"]}}' >"$D_DENOM/.claude/settings.json"
+OUT_DENOM=$(run "$D_DENOM")
+assert_contains "clean scan with rules names the denominator" "$OUT_DENOM" "1 allow rule(s)"
+assert_contains "clean scan names settings file count" "$OUT_DENOM" "1 settings file(s)"
 
 # --- Case 9b: unresolvable scan root refuses instead of sweeping -------------
 # The root ladder is $PERMISSION_HYGIENE_FIXTURE_DIR -> git toplevel ->

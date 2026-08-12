@@ -3,7 +3,16 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.35.4]
+## [0.35.6]
+
+### Fixed
+
+- **`audit-permission-grants` clean-bill output now carries a scan denominator.** The detector
+  reports how many frontmatter files with `allowed-tools` and how many `permissions.allow` rules
+  across how many settings files were scanned, so "clean" and "scanned nothing" are no longer the
+  same string.
+
+## [0.35.5]
 
 ### Fixed
 

@@ -85,7 +85,8 @@ required.
 | error | Non-portable grant that leaks a username / breaks on other machines (P2) |
 | warning | Interpreter/runner-led grant whose broad forms auto mode drops, or an inert self-grant (P1, P3) |
 
-A clean scan ("No fragile permission grants found.") is a valid outcome — report it as such.
+A clean scan (the detector's "No fragile permission grants found …" line, which now includes
+how many frontmatter files and allow rules were scanned) is a valid outcome — report it as such.
 
 ## Consumer conventions
 

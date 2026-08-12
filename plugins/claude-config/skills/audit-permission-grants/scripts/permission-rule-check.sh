@@ -164,6 +164,9 @@ _p2_path="${_sl}Users${_sl}${_seg}|${_sl}home${_sl}${_seg}|[A-Za-z]:[${_sl}${_bs
 P2_RULE_ERE="[A-Za-z_][A-Za-z0-9_]*\\([^)]*(${_p2_path})[^)]*\\)"
 
 findings=()
+stats_frontmatter=0
+stats_allow_rules=0
+stats_settings_files=0
 
 emit() {
   # emit <severity> <check> <source> <detail>
@@ -257,6 +260,7 @@ while IFS= read -r file; do
   [[ -f "$file" ]] || continue
   at="$(extract_allowed_tools "$file")"
   [[ -n "${at//[[:space:]]/}" ]] || continue
+  stats_frontmatter=$((stats_frontmatter + 1))
   rel="${file#"$ROOT"/}"
   scan_rule "$at" "$rel allowed-tools"
   scan_bare_tool "$at" "$rel allowed-tools"
@@ -271,17 +275,20 @@ done < <(
 
 # --- Settings permissions.allow scan -----------------------------------------
 scan_settings_allow() {
-  local file="$1" label="$2" rule
+  local file="$1" label="$2" rule n=0
   [[ -f "$file" ]] || return 0
   tr -d '\r' <"$file" | jq -e . >/dev/null 2>&1 || return 0
+  stats_settings_files=$((stats_settings_files + 1))
   while IFS= read -r rule; do
     [[ -n "$rule" ]] || continue
+    n=$((n + 1))
     scan_bare_tool "$rule" "$label"
     scan_agent "$rule" "$label"
     scan_rule "$rule" "$label"
     # Trailing tr strips CR: jq emits CRLF on Windows, which would otherwise
     # leave a \r on each rule and pollute the token the scans above match.
   done < <(tr -d '\r' <"$file" | jq -r '.permissions.allow // [] | .[]' 2>/dev/null | tr -d '\r')
+  stats_allow_rules=$((stats_allow_rules + n))
 }
 
 scan_settings_allow "$ROOT/.claude/settings.json" ".claude/settings.json permissions.allow"
@@ -340,8 +347,11 @@ if [[ "$mode" == "count" ]]; then
 fi
 
 if [[ "${#findings[@]}" -eq 0 ]]; then
-  echo "No fragile permission grants found."
+  printf 'No fragile permission grants found after scanning %d frontmatter file(s) with allowed-tools and %d allow rule(s) across %d settings file(s).\n' \
+    "$stats_frontmatter" "$stats_allow_rules" "$stats_settings_files"
 else
+  printf 'NOTE: scanned %d frontmatter file(s) with allowed-tools and %d allow rule(s) across %d settings file(s).\n' \
+    "$stats_frontmatter" "$stats_allow_rules" "$stats_settings_files" >&2
   printf '%s\n' "${findings[@]}"
 fi
 exit 0
