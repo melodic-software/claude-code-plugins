@@ -31,8 +31,9 @@
 # whether or not it found anything. Environment gaps are the exception and exit 2 —
 # missing jq, and an unresolvable scan root (below).
 #
-# Project-root resolution: $PERMISSION_HYGIENE_FIXTURE_DIR, else the cwd's git
-# toplevel, else $CLAUDE_PROJECT_DIR. Never the plugin's own dir, and NEVER $PWD.
+# Project-root resolution: $PERMISSION_HYGIENE_SCAN_ROOT (or the deprecated
+# $PERMISSION_HYGIENE_FIXTURE_DIR alias), else the cwd's git toplevel, else
+# $CLAUDE_PROJECT_DIR. Never the plugin's own dir, and NEVER $PWD.
 #
 # Why there is no $PWD fallback: outside a git repository $PWD is whatever directory
 # the session happens to stand in, which on a developer machine is typically the user
@@ -70,7 +71,8 @@ settings.json for P3 (unsupported self-granted `permissions`).
 Findings are advisory and never fail the run, so a completed scan exits 0 in both
 modes. Environment gaps exit 2 instead of reporting a clean bill: missing jq, and a
 scan root that resolves to neither a git toplevel nor $CLAUDE_PROJECT_DIR. Set
-$PERMISSION_HYGIENE_FIXTURE_DIR to scan an explicit directory.
+$PERMISSION_HYGIENE_SCAN_ROOT (or the deprecated $PERMISSION_HYGIENE_FIXTURE_DIR
+alias) to scan an explicit directory.
 EOF
 }
 
@@ -99,8 +101,8 @@ fi
 mode="report"
 [[ "${1:-}" == "--count" ]] && mode="count"
 
-if [[ -n "${PERMISSION_HYGIENE_FIXTURE_DIR:-}" ]]; then
-  ROOT="$PERMISSION_HYGIENE_FIXTURE_DIR"
+if [[ -n "${PERMISSION_HYGIENE_SCAN_ROOT:-${PERMISSION_HYGIENE_FIXTURE_DIR:-}}" ]]; then
+  ROOT="${PERMISSION_HYGIENE_SCAN_ROOT:-$PERMISSION_HYGIENE_FIXTURE_DIR}"
 else
   ROOT="$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
   [[ -n "$ROOT" ]] || ROOT="${CLAUDE_PROJECT_DIR:-}"
@@ -113,13 +115,15 @@ if [[ -z "$ROOT" ]]; then
   cat >&2 <<'EOF'
 ERROR: no scan root resolved — refusing to scan.
 
-Tried, in order: $PERMISSION_HYGIENE_FIXTURE_DIR, the current directory's git
-toplevel, then $CLAUDE_PROJECT_DIR. None resolved, and there is deliberately no
-fallback to the current directory: outside a repository that is usually the user
-profile, and scanning it would walk the whole home tree and still report success.
+Tried, in order: $PERMISSION_HYGIENE_SCAN_ROOT (or
+$PERMISSION_HYGIENE_FIXTURE_DIR), the current directory's git toplevel, then
+$CLAUDE_PROJECT_DIR. None resolved, and there is deliberately no fallback to
+the current directory: outside a repository that is usually the user profile,
+and scanning it would walk the whole home tree and still report success.
 
 Fix by running from inside the repository you mean to scan, or set
-$PERMISSION_HYGIENE_FIXTURE_DIR to the directory to scan explicitly.
+$PERMISSION_HYGIENE_SCAN_ROOT to the directory to scan explicitly
+($PERMISSION_HYGIENE_FIXTURE_DIR remains accepted as a deprecated alias).
 EOF
   exit 2
 fi

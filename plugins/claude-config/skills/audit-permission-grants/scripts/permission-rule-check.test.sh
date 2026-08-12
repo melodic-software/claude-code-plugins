@@ -305,6 +305,13 @@ assert_not_contains "ignores \$HOME once CLAUDE_CONFIG_DIR is set" "$OUT" "Bash(
 assert_eq "relocated config root produces exactly one finding" "1" \
   "$(run_with_config_dir "$D8C" "$RELOCATED" "$FAKE_HOME" --count)"
 
+# --- Case 8f: #2283 A11 — operator-facing scan-root override name ----------------
+D_SCAN="$TEST_TMPDIR/scan-root-alias"
+mkdir -p "$D_SCAN/.claude"
+jq -n '{permissions:{allow:["Bash(npm test)"]}}' >"$D_SCAN/.claude/settings.json"
+assert_eq "PERMISSION_HYGIENE_SCAN_ROOT resolves the scan root" "0" \
+  "$(env -u CLAUDE_CONFIG_DIR HOME="$ISOLATED_HOME" PERMISSION_HYGIENE_SCAN_ROOT="$D_SCAN" bash "$SCRIPT" --count)"
+
 # --- Case 8e: an unresolvable user scope is announced, never silently skipped --
 # With neither CLAUDE_CONFIG_DIR nor HOME set there is no user scope to read. A
 # silent skip would let "No fragile permission grants found." rest on a scope
