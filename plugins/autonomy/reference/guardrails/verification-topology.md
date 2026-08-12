@@ -131,6 +131,102 @@ surface, outside the blast radius of the agents they govern; a floor those agent
 floor. An absent or invalid binding fail-closes to the shipped values above, which this leaf owns —
 the matrix cells are their glance restatement.
 
+## Lenses
+
+A slot fixes WHO verifies; a lens fixes what that verifier is asked to look for. Diversity of lens
+is the point — two checkers asked the identical question share the blind spot the count exists to
+cover, exactly as two slots resolving to one model do.
+
+Lenses bind MODEL-ADJUDICATED slots only. A deterministic slot is not asked a question; its coverage
+is fixed by its scanner class, and a lens on it would be decoration.
+
+The vocabulary is CLOSED — a lens the pipeline cannot resolve to a question is a preference, and
+preferences are not policy.
+
+| Lens | The question the checker is asked |
+|---|---|
+| `specification` | does the artifact do what the item asked for |
+| `adversarial` | how could it be defeated, abused, or driven to fail |
+| `contract` | does it honor the declared interfaces and invariants of everything it touches |
+| `regression` | what previously-working behavior does it disturb |
+| `evidence` | are the claims made about the artifact supported by artifacts the run actually produced |
+
+**Draw rule.** Distinct model-adjudicated slots draw distinct lenses, in pool order.
+
+**The pool contributes to NO count.** Every floor above is counted over the slots the binding
+declares, so no pool value seats a slot, unseats one, or substitutes for one. A pool shorter than a
+class's model-adjudicated slot count leaves the remaining slots UNLENSED — judging the artifact
+whole, which is what a checker did before this section existed — rather than repeating a lens. An
+unrecognized token is recorded as unresolved and draws no lens, on the same footing as the Budget
+ceiling: recorded, never enforcing. Angle is the only thing a pool can add, and the only thing it
+can fail to add.
+
+The pool therefore binds in plugin `userConfig`, not on the security binding: nothing it can be set
+to changes how many slots a class runs, how they must differ, or whether one must be cross-vendor.
+
+## Where each axis binds
+
+Two homes, and the difference is not convenience. An axis fixing HOW MUCH verification a class gets
+binds on the org's security governance surface, outside the blast radius of the agents it governs.
+An axis fixing WHAT ANGLE that verification takes binds on the operator's own plugin-option surface,
+which resolves from user-scope, invocation-scope, and managed settings only — a watched
+repository's in-tree settings are not read for plugin options, so a repo an agent can write cannot
+dial its own verification.
+
+| Axis | Home |
+|---|---|
+| `min_checkers`, `min_model_checkers`, `cross_vendor_required` | security binding |
+| slot distinctness, relational constraints, predicates | security binding, inside the class's declared slots |
+| the lens pool | plugin `userConfig` |
+| whether the advisory narration lane runs | plugin `userConfig` |
+
+**Raise, never lower.** The asymmetry is the whole reason the split exists. Tightening a binding
+cell is legal; weakening one is invalid per the floor rule above. `userConfig` reaches no floor at
+all and cannot be made to: the pool contributes to no count, and the narration lane has no cell to
+weaken. A degenerate pool costs angle, never coverage — the slots still run, still resolve
+distinctly, and still owe unanimity. The reachable outcomes are a lensed checker or an unlensed one,
+never fewer checkers than the class's floor.
+
+## The advisory narration lane
+
+An OPTIONAL lane that reads a difference a deterministic layer has ALREADY detected and writes a
+plain-language account of it into the run record. Advisory only: it emits no verdict, fills no
+checker slot, is counted by no floor, and never gates a transition. Its output reaches the human
+gate as narration attached to the deterministic finding it explains.
+
+**Its position is upstream-dependent, not configurable.** It never runs first, and never runs on an
+artifact no deterministic layer flagged. A lane with nothing upstream of it has nothing to narrate
+and produces nothing.
+
+**It carries no authority cell, by construction rather than by default.** The table above gives it
+no cell on the security binding, its schema carries none, and `userConfig` carries only whether it
+runs. Nothing an org could flip promotes it — a stronger property than a knob shipped off.
+
+**What this does NOT rule out, stated plainly.** A class may declare a model-adjudicated checker
+SLOT whose `requires_modality` names an image input, and a security-review layer may gate on that
+slot. That slot is a CHECKER: counted by the floors, held distinct, bound by every relational
+constraint, and owing unanimity. It is a different governance object from this lane, which is
+counted by nothing and owes nothing. The measurements below bear on both, and a class declaring such
+a slot should read them — but only the lane is structurally incapable of gating.
+
+**Why the lane is shaped this way — measured, not assumed.** Model judgment over rendered UI
+artifacts tops out below the precision a gate needs, and its characteristic error is declaring
+broken things fine: the wrong direction for a check whose purpose is catching breakage. Its verdict
+on identical input also varies run to run at a rate well above the level at which a suite stops
+being believed, and that variance is a property of hosted inference the operator cannot tune away —
+no temperature setting or seed removes it. Recall is where it is strong, which is precisely what
+makes narration its job rather than judgment. Every established comparison product surveyed reaches
+the same arrangement independently: detect the difference deterministically, narrate it with a
+model, route acceptance to a person. Per-request image caps and per-frame metering make a lane's
+artifact volume a cost bound the runner resolves against the bound instance's declared limits, never
+a policy axis. The sourced measurements live in the pull request that introduced this lane and on
+the issue it closes, deliberately outside the contract surface.
+
+**Not demonstrated at runtime.** With no runner built there is no runtime in which to exercise the
+ordering, so the property claimed here is structural: no cell exists through which authority could
+be granted. The runtime assertion — that a deterministic pass carrying a narration finding still
+advances — is a DEFERRED item bound to the runner's build trigger, not a claim made here.
+
 ## Two fixed invariants
 
 Neither is a knob, and no binding may relax either.
