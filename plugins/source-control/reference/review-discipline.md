@@ -96,8 +96,8 @@ attempting inline extraction. The subagent:
    FORBIDDEN: edits, commits, pushes, reactions, replies on GitHub (those stay in the main
    session)
 
-**Subagent dispatch prompt (compose verbatim, substitute `<PR>` and `<COMMENT_ID>` /
-`<REVIEW_ID>`):**
+**Subagent dispatch prompt (compose verbatim, substitute `<PR>`, `<COMMENT_ID>` /
+`<REVIEW_ID>`, and `<absolute-worktree-path>`):**
 
 ```text
 Extract individual findings from the multi-finding bot/human review at:
@@ -111,9 +111,9 @@ ALLOWED scope (read-only on PR branch <BRANCH>):
   worktree — every path is absolute under `<absolute-worktree-path>` (or an
   explicit absolute `${CLAUDE_PLUGIN_ROOT}/…` path for bundled plugin references);
   never a bare relative path that resolves against the session's default checkout
-- `Bash` for git inspection (`git -C <absolute-worktree-path> show`, `git -C
-  <absolute-worktree-path> log`, `git -C <absolute-worktree-path> diff`) — NEVER
-  state-mutating and NEVER bare `git` without `-C <absolute-worktree-path>`
+- `Bash` for git inspection (`git -C "<absolute-worktree-path>" show`, `git -C
+  "<absolute-worktree-path>" log`, `git -C "<absolute-worktree-path>" diff`) — NEVER
+  state-mutating and NEVER bare `git` without `-C "<absolute-worktree-path>"`
 
 FORBIDDEN:
 - Any Edit / Write of repo files
