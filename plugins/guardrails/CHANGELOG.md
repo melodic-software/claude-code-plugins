@@ -3,6 +3,16 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.7]
+
+### Fixed
+
+- **`strip_literals` marked non-empty dropped quote spans inside a command word as OPAQUE so
+  splicing cannot manufacture a false `echo` producer (#2385).** A dropped span whose content was
+  non-empty (`ec"xy"ho`) was joined without a mark, reconstructing `echo` while bash runs `ecxyho`.
+  Empty dropped spans (`ec""ho`, `ec"<newline>"ho`) still splice correctly and keep blocking.
+  Argument-position spans (`echo "a" x > f`) are unchanged.
+
 ## [0.28.6]
 
 ### Fixed
