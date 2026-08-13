@@ -159,7 +159,7 @@ Three `userConfig` options tune the hook itself:
 | `markdown_format_lint_gitignored` | boolean | `false` | Bypass this hook's git-ignore check. Off by default: an excluded path is neither rewritten nor reported on. Turning it on does not override markdownlint-cli2's own `ignores` / `gitignore` config, which still applies. |
 | `markdown_format_max_findings` | number | `20` | How many individual violations are listed per run. The total count and the leading rule codes are always reported regardless. `0` = unlimited. |
 
-Set them interactively with `/plugin configure markdown-format`, or headless on
+Set them interactively with `/plugin configure markdown-format@melodic-software`, or headless on
 the install command:
 
 ```shell
@@ -189,7 +189,7 @@ reads it from.
 Three supported routes, in the order most people want them:
 
 1. **Interactively** — Claude Code prompts for declared options when you enable the
-   plugin. To change them later: `/plugin configure markdown-format`.
+   plugin. To change them later: `/plugin configure markdown-format@<marketplace>`.
 2. **Headless, at install time** — repeat `--config` for each option. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
 

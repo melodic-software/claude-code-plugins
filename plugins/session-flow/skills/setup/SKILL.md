@@ -61,7 +61,7 @@ settings, or edit the installed plugin cache.
 Reconfiguring the observer's `userConfig` keys has exactly two routes, and only the first works on an
 installed plugin:
 
-- **Interactive, any time:** `/plugin configure session-flow`.
+- **Interactive, any time:** `/plugin configure session-flow@melodic-software`.
 - **Headless:** `claude plugin install ... --config observer_enabled=true` seeds a value on a *fresh
   install only* — re-running it against an already-installed plugin does not update the stored value.
   So a headless reconfigure is `claude plugin uninstall session-flow -s <scope>` then `claude

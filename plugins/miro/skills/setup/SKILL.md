@@ -75,7 +75,7 @@ successful and delivers no tools.
 
 **Fresh-install-only:** `--config` seeds a value only on a fresh install. Re-running it against
 an already-installed `miro` does not update the stored token. To rotate or clear the token later,
-use `/plugin configure miro` (interactive, any time), or headlessly:
+use `/plugin configure miro@melodic-software` (interactive, any time), or headlessly:
 
 ```shell
 claude plugin list                                  # read the CURRENT scope for miro

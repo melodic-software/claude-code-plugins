@@ -260,13 +260,18 @@ hand-edit — migrates to `userConfig` with the schema used honestly:
 - `claude plugin install --config` documented in the plugin's setup skill for headless use — note
   in that same documentation that this flag only seeds a value on a fresh install; re-running it
   against an already-installed plugin does not update the stored value (empirically verified); and
-- for any `sensitive: true` option, the plugin's README documents `/plugin configure <plugin>` as
-  the rotation/clear path. This is the only way to change or blank a sensitive value after initial
-  enable — the `/mcp` server menu's "Clear authentication" is OAuth-only and silently no-ops for a
-  plugin using static `userConfig`-substituted headers, and `/plugin`'s own detail view carries no
-  reconfigure entry once a required value is already set. `/plugin configure` is undocumented on
-  the official docs site as of this writing; do not assume it will stay that way without
-  re-verifying, but do not omit the guidance merely because upstream hasn't written it down.
+- for any `sensitive: true` option, the plugin's README documents `/plugin configure
+  <plugin>@<marketplace>` as the rotation/clear path (see
+  [`docs/extensibility-contract-smoke-tests.md`](extensibility-contract-smoke-tests.md) Test E —
+  plugin identity is always marketplace-qualified; the bare name alone is not a documented command
+  under a same-name, two-marketplace install). This is the only way to change or blank a sensitive
+  value after initial enable — the `/mcp` server menu's "Clear authentication" is OAuth-only and
+  silently no-ops for a plugin using static `userConfig`-substituted headers, and `/plugin`'s own
+  detail view carries no reconfigure entry once a required value is already set. Targetless prose
+  ("use `/plugin configure`") names the surface, not an install identity, and stays unqualified.
+  `/plugin configure` is undocumented on the official docs site as of this writing; do not assume it
+  will stay that way without re-verifying, but do not omit the guidance merely because upstream
+  hasn't written it down.
 
 Hook processes read the native `CLAUDE_PLUGIN_OPTION_<KEY>` mirror — a hook-only export: a Bash
 call made by a skill and monitor processes do not receive it. A non-hook consumer (a `bin/` script,
@@ -386,8 +391,8 @@ check-only setup is conforming: `check` verifies and reports, and no `apply` is 
 is nothing it could conformingly write. Three kinds of surface qualify, in any combination:
 
 - **Native `userConfig`.** Reconfiguration routes through the native flow (`/plugin configure
-  <plugin>` — see above); the only thing an `apply` could write is the `pluginConfigs` this contract
-  forbids.
+  <plugin>@<marketplace>` — see above); the only thing an `apply` could write is the `pluginConfigs`
+  this contract forbids.
 - **Claude Code settings this contract forbids setup to mutate** — statusline wiring, a settings-level
   key, anything in the user's own `settings.json`. This surface is neither `userConfig` nor tracked
   project config; the prohibition two paragraphs above is what makes it unwritable, and a plugin

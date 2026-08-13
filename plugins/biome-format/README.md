@@ -76,7 +76,7 @@ One `userConfig` option tunes the hook itself:
 |--------|---------|--------|
 | `biome_format_enabled` | `true` | Toggle for the biome-format hook; set to `false` for a clean no-op |
 
-Set it interactively with `/plugin configure biome-format`, or headless on the
+Set it interactively with `/plugin configure biome-format@melodic-software`, or headless on the
 install command:
 
 ```shell
@@ -104,7 +104,7 @@ reads it from.
 Three supported routes, in the order most people want them:
 
 1. **Interactively** — Claude Code prompts for declared options when you enable the
-   plugin. To change them later: `/plugin configure biome-format`.
+   plugin. To change them later: `/plugin configure biome-format@<marketplace>`.
 2. **Headless, at install time** — repeat `--config` for each option. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
 

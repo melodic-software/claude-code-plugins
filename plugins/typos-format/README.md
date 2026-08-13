@@ -104,7 +104,7 @@ Two `userConfig` options tune the hook itself:
 | `typos_format_enabled` | `true` | Kill switch — set `false` for a clean no-op. |
 | `typos_format_write_changes` | `false` | Set `true` to apply corrections in place (accepting last-writer-wins with any sibling formatter hook on the same file). Default is report-only: findings are reported, no file is modified. |
 
-Set them interactively with `/plugin configure typos-format`, or headless on the
+Set them interactively with `/plugin configure typos-format@melodic-software`, or headless on the
 install command:
 
 ```shell
@@ -133,7 +133,7 @@ reads it from.
 Three supported routes, in the order most people want them:
 
 1. **Interactively** — Claude Code prompts for declared options when you enable the
-   plugin. To change them later: `/plugin configure typos-format`.
+   plugin. To change them later: `/plugin configure typos-format@<marketplace>`.
 2. **Headless, at install time** — repeat `--config` for each option. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
 

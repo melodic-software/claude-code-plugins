@@ -34,7 +34,7 @@ Official contract: <https://code.claude.com/docs/en/plugins-reference#user-confi
    artifact directories and recommend one portable location. Never recommend a machine-absolute
    team path.
 4. If the recommended value differs from the effective one, direct the user to Claude Code's
-   plugin configuration prompt for `bug-report` (interactive `/plugin configure bug-report` any
+   plugin configuration prompt for `bug-report` (interactive `/plugin configure bug-report@melodic-software` any
    time; headless, `--config` applies only on a fresh install — uninstall then reinstall to
    reconfigure). Claude Code owns persistence. Do not hand-edit any `pluginConfigs` key.
 5. Tell the user to rerun `check` after reconfiguration — in a fresh session, since the rendered

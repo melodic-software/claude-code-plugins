@@ -74,7 +74,7 @@ never claim resolved without re-verifying. For everything else `apply` only poin
 
 - missing `jq` / Bash: platform install instructions from the README Requirements section;
   this skill never installs system packages.
-- toggle off: direct to `/plugin configure typos-format` (interactive, any
+- toggle off: direct to `/plugin configure typos-format@melodic-software` (interactive, any
   time). Headless: `--config` only applies on a fresh install (ignored once installed), so
   reconfigure via `claude plugin uninstall typos-format -s <scope>` then
   `claude plugin install typos-format@<marketplace> -s <scope> --config typos_format_enabled=true`;
@@ -85,7 +85,7 @@ never claim resolved without re-verifying. For everything else `apply` only poin
   does not load.
 - report-only mode (`typos_format_write_changes` unset, or set to anything but `true`): the
   hook is working as shipped — writes were never turned on — so this is a configuration
-  answer, not a repair. Say so, then offer the same `/plugin configure typos-format` route
+  answer, not a repair. Say so, then offer the same `/plugin configure typos-format@melodic-software` route
   (or the scope-preserving uninstall/reinstall `--config typos_format_write_changes=true`
   recipe above), and state what turning it on accepts: last-writer-wins ordering against any
   sibling hook that rewrites the same file. For the opposite case — writes already on and a

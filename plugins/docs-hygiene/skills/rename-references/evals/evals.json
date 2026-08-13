@@ -77,11 +77,11 @@
       "id": 7,
       "name": "container-rename-catches-command-argument-and-title",
       "prompt": "I renamed the plugin `re-anchor` to `discipline`. The directory moved and every qualified `/re-anchor:<skill>` invocation is already updated. Audit for anything still stale.",
-      "expected_output": "The sweep runs the container-position forms (13-15) in addition to Forms 1-12, so it reports the plugin name in command-argument position (`/plugin install re-anchor@acme-tools`, `/plugin configure re-anchor`), a document title that is the bare token (`# re-anchor`), and possessive container prose (\"re-anchor's effective configuration\") as Certain. It does NOT report the English-verb uses (\"each skill re-anchors ONE discipline\") as Certain, and it flags command-argument hits as functional breaks rather than cosmetic ones.",
+      "expected_output": "The sweep runs the container-position forms (13-15) in addition to Forms 1-12, so it reports the plugin name in command-argument position (`/plugin install re-anchor@acme-tools`, `/plugin configure re-anchor@acme-tools`), a document title that is the bare token (`# re-anchor`), and possessive container prose (\"re-anchor's effective configuration\") as Certain. It does NOT report the English-verb uses (\"each skill re-anchors ONE discipline\") as Certain, and it flags command-argument hits as functional breaks rather than cosmetic ones.",
       "files": [],
       "expectations": [
         "Forms 13-15 are run, not only the slash-token and path forms that a directory move already satisfies",
-        "`/plugin install <old>@marketplace` and `/plugin configure <old>` are reported as Certain and identified as functional breaks",
+        "`/plugin install <old>@marketplace` and `/plugin configure <old>@<marketplace>` are reported as Certain and identified as functional breaks",
         "A heading whose entire content is the bare token is reported as Certain",
         "Verb-sense uses of the token are not swept into the Certain bucket"
       ]
@@ -229,8 +229,8 @@
     {
       "id": 19,
       "name": "hyphenated-superstring-is-not-a-container-match",
-      "prompt": "Rename the `context` plugin to `session-context`. The repo also has a `context-guard` plugin referenced as /plugin configure context-guard and context-guard@acme-tools.",
-      "expected_output": "The `context-guard` references are NOT matched. Container IDs are kebab-case, so a plain word boundary would let `context` match inside the hyphenated superstring `context-guard` and auto-rewrite an unrelated plugin's identifier on a Certain-rated form. Forms 13 and 15 exclude an adjacent hyphen on both sides, so `/plugin configure context` and `context@acme-tools` match while `/plugin configure context-guard` and `context-guard@acme-tools` do not.",
+      "prompt": "Rename the `context` plugin to `session-context`. The repo also has a `context-guard` plugin referenced as /plugin configure context-guard@acme-tools and context-guard@acme-tools.",
+      "expected_output": "The `context-guard` references are NOT matched. Container IDs are kebab-case, so a plain word boundary would let `context` match inside the hyphenated superstring `context-guard` and auto-rewrite an unrelated plugin's identifier on a Certain-rated form. Forms 13 and 15 exclude an adjacent hyphen on both sides, so `/plugin configure context@acme-tools` and `context@acme-tools` match while `/plugin configure context-guard@acme-tools` and `context-guard@acme-tools` do not.",
       "files": [],
       "expectations": [
         "A hyphenated superstring containing the token is never matched as the container",
@@ -463,7 +463,7 @@
     {
       "id": 38,
       "name": "skip-spans-are-remapped-after-earlier-same-line-edits",
-      "prompt": "Renaming `context` to `context-tools`. One line reads: /plugin configure context; use context.timeout -- I accept the first match and skip the second. Does the skip still subtract on the re-sweep?",
+      "prompt": "Renaming `context` to `context-tools`. One line reads: /plugin configure context@acme-tools; use context.timeout -- I accept the first match and skip the second. Does the skip still subtract on the re-sweep?",
       "expected_output": "Only because the stored spans are remapped as edits apply. `context-tools` is longer than `context`, so rewriting the accepted Form 13 occurrence shifts every later occurrence on that line right by len(new) - len(old); the Phase 6 rescan then reports different (start, end) for the skipped Form 12 occurrence, the pre-edit span fails to match, and the user is prompted for the deliberate skip again -- the same non-terminating loop, defeated by the very bookkeeping meant to close it. After each Edit at (line, start, end), the delta is added to the start and end of every stored skip span on that line whose start is greater than the edited start. Spans on other lines and earlier spans on the same line are untouched, because a rename replaces in place and adds no lines. The matched snippet is carried alongside the span, and a snippet mismatch after remapping is reported as a bug rather than silently dropping the skip.",
       "files": [],
       "expectations": [

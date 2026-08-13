@@ -97,7 +97,7 @@ that keeps emitting is bounded by Claude Code's own hook timeout, not by this
 value. A setting this shell's `read -t` will not accept — or `0` — falls back to
 the default.
 
-Set them interactively with `/plugin configure claude-ops`, or headless on the
+Set them interactively with `/plugin configure claude-ops@melodic-software`, or headless on the
 install command:
 
 ```shell
@@ -278,7 +278,7 @@ reads it from.
 Three supported routes, in the order most people want them:
 
 1. **Interactively** — Claude Code prompts for declared options when you enable the
-   plugin. To change them later: `/plugin configure claude-ops`.
+   plugin. To change them later: `/plugin configure claude-ops@<marketplace>`.
 2. **Headless, at install time** — repeat `--config` for each option. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
 

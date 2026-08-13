@@ -40,7 +40,7 @@ verify-and-route:
 
 - **Skills not found / wrong root (FAIL):** if the skills live somewhere other than the resolved root,
   the personal `skills_root` should point there. Reconfigure through the path below, then rerun `check`.
-- **Reconfiguring the personal option:** `/plugin configure skill-quality` (interactive, any time).
+- **Reconfiguring the personal option:** `/plugin configure skill-quality@melodic-software` (interactive, any time).
   Headless: `--config` only applies on a fresh install (ignored once installed), so reconfigure via
   `claude plugin uninstall skill-quality -s <scope>` then
   `claude plugin install skill-quality@<marketplace> -s <scope> --config skills_root=<dir>`. Both

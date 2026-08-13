@@ -104,7 +104,7 @@ One behavior knob is exposed as a native `userConfig` option:
 |--------|---------|--------|
 | `powershell_format_enabled` | `true` | Toggle for the powershell-format hook; set `false` for a clean no-op. |
 
-Set it interactively with `/plugin configure powershell-format`, or headless
+Set it interactively with `/plugin configure powershell-format@melodic-software`, or headless
 on the install command:
 
 ```shell
@@ -132,7 +132,7 @@ reads it from.
 Three supported routes, in the order most people want them:
 
 1. **Interactively** — Claude Code prompts for declared options when you enable the
-   plugin. To change them later: `/plugin configure powershell-format`.
+   plugin. To change them later: `/plugin configure powershell-format@<marketplace>`.
 2. **Headless, at install time** — repeat `--config` for each option. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
 

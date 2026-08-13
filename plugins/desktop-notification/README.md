@@ -67,7 +67,7 @@ Every channel is toggled by its own `userConfig` boolean (default **on**; set to
 | `desktop_notification_terminal_notify_enabled` | The `terminal_notify` (OSC 9) channel. |
 | `desktop_notification_os_toast_enabled` | The `os_toast` channel. |
 
-Set them interactively with `/plugin configure desktop-notification`, or headless
+Set them interactively with `/plugin configure desktop-notification@melodic-software`, or headless
 on the install command:
 
 ```shell
@@ -81,7 +81,7 @@ plugin in that project's `enabledPlugins` instead.
 ### Disable without uninstalling
 
 Set `desktop_notification_enabled` to `false` (via `/plugin configure
-desktop-notification` or `--config desktop_notification_enabled=false`).
+desktop-notification@melodic-software` or `--config desktop_notification_enabled=false`).
 
 ## Telemetry (opt-in)
 
@@ -110,7 +110,7 @@ reads it from.
 Three supported routes, in the order most people want them:
 
 1. **Interactively** — Claude Code prompts for declared options when you enable the
-   plugin. To change them later: `/plugin configure desktop-notification`.
+   plugin. To change them later: `/plugin configure desktop-notification@<marketplace>`.
 2. **Headless, at install time** — repeat `--config` for each option. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
 

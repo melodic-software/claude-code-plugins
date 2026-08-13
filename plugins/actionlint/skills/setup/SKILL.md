@@ -59,7 +59,7 @@ Run `check`, then for each FAIL point at the resolution — this skill installs 
 - missing `actionlint`: platform install guidance from the README Requirements section
   (the [actionlint install guide](https://github.com/rhysd/actionlint/blob/main/docs/install.md)).
 - missing `jq` / Bash: platform install instructions from the README Requirements section.
-- toggle off: direct to `/plugin configure actionlint` (interactive, any
+- toggle off: direct to `/plugin configure actionlint@melodic-software` (interactive, any
   time). Headless: current official docs document `--config` only as a
   `claude plugin install` flag that sets manifest-declared options; its
   behavior against an already-installed plugin is undocumented, and in

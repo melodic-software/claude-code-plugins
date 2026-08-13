@@ -58,7 +58,7 @@ ghq list -p | /repo-hygiene:clean tree-batch --repos-from - --skip melodic-softw
   hook blocks bare `rm -rf`, `git clean -f*`, `git reset --hard`,
   `git checkout --`, and recursive `Remove-Item`; the confirmed command runs only
   through the skill's own gate. Kill switch: the `clean_destructive_guard_enabled`
-  userConfig option set to `false` (`/plugin configure repo-hygiene`, or
+  userConfig option set to `false` (`/plugin configure repo-hygiene@melodic-software`, or
   `claude plugin install repo-hygiene@melodic-software --config clean_destructive_guard_enabled=false`;
   user-scoped — per-repository disable means disabling the plugin in that
   project's `enabledPlugins`).
@@ -107,7 +107,7 @@ reads it from.
 Three supported routes, in the order most people want them:
 
 1. **Interactively** — Claude Code prompts for declared options when you enable the
-   plugin. To change them later: `/plugin configure repo-hygiene`.
+   plugin. To change them later: `/plugin configure repo-hygiene@<marketplace>`.
 2. **Headless, at install time** — repeat `--config` for each option. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
 

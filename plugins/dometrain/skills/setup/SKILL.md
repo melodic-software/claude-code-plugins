@@ -89,7 +89,7 @@ successful and delivers no tools.
 
 **Fresh-install-only:** `--config` seeds a value only on a fresh install. Re-running it against
 an already-installed `dometrain` does not update the stored key. To rotate or clear the key
-later, use `/plugin configure dometrain` (interactive, any time), or headlessly:
+later, use `/plugin configure dometrain@melodic-software` (interactive, any time), or headlessly:
 
 ```shell
 claude plugin list                                          # read the CURRENT scope for dometrain

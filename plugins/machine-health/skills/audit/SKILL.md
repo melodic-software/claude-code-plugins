@@ -101,7 +101,7 @@ The skill grows itself within narrow, auditable bounds:
 
 ## Consumer configuration
 
-- **Report directory** — the `report_dir` plugin option (set at install or via `/plugin configure machine-health`).
+- **Report directory** — the `report_dir` plugin option (set at install or via `/plugin configure machine-health@melodic-software`).
 - **Check catalog** — `/machine-health:setup` interviews and writes the machine-local overlay (disable/deprecate/demote shipped checks, register custom ones).
 - **Remediation approvals** — `<StateBase>/state/approvals.json` per `references/shared/approvals.md`; nothing is approved by default. `/machine-health:setup` can seed it.
 

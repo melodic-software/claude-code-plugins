@@ -51,7 +51,7 @@ nothing — it only points:
 
 - missing `jq` / old Bash: platform install instructions from the README Requirements
   section; this skill never installs system packages.
-- any toggle or scalar change: direct to `/plugin configure guardrails` (interactive, any
+- any toggle or scalar change: direct to `/plugin configure guardrails@melodic-software` (interactive, any
   time). Headless: `--config` only applies on a fresh install (ignored once installed), so
   reconfigure via `claude plugin uninstall guardrails -s <scope>` then
   `claude plugin install guardrails@<marketplace> -s <scope> --config KEY=VALUE …` (repeatable);

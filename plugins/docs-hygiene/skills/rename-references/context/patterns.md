@@ -232,7 +232,7 @@ existing "Frozen historical records" rule already excludes. See `triage.md`
   `:`, under an `enabledPlugins` / `pluginConfigs` object. Nothing else promotes; when in doubt it
   stays Chain-context.
 - **Catches:** `<old>` as the ARGUMENT to a management command rather than as the command
-  itself — `/plugin install <old>@marketplace`, `/plugin configure <old>`,
+  itself — `/plugin install <old>@marketplace`, `/plugin configure <old>@<marketplace>`,
   `/plugin enable <old>` — plus the `<old>@<marketplace>` qualified-id form wherever it
   appears (settings examples, install snippets, `enabledPlugins` / `pluginConfigs` keys).
 - **Why Form 1 misses it:** Form 1 anchors on `/<old>`. Here the slash belongs to `plugin`,
@@ -242,14 +242,14 @@ existing "Frozen historical records" rule already excludes. See `triage.md`
 - **Hyphens bound a word but NOT a container name — both ends exclude them.** Container IDs are
   kebab-case, so a plain word boundary lets `<old>` match inside a hyphenated SUPERSTRING:
   renaming `guard` would match `context-guard@marketplace`, and renaming `context` would match
-  `/plugin configure context-guard`. On a Certain-rated form that silently auto-rewrites an
+  `/plugin configure context-guard@acme-tools`. On a Certain-rated form that silently auto-rewrites an
   unrelated plugin's identifier. Both alternatives therefore exclude an adjacent `-` on each
   side (`[^\w-]`) instead of relying on a word boundary. Verified against a marketplace where 32
-  plugin names are hyphenated: `/plugin configure context` matches while
-  `/plugin configure context-guard` does not; `context@acme-tools` matches while
+  plugin names are hyphenated: `/plugin configure context@acme-tools` matches while
+  `/plugin configure context-guard@acme-tools` does not; `context@acme-tools` matches while
   `context-guard@acme-tools` does not.
 - **Optional backtick before `<old>`:** these appear inside inline code spans constantly
-  (`` `/plugin configure <old>` ``); without `` `? `` the pattern misses the most common
+  (`` `/plugin configure <old>@<marketplace>` ``); without `` `? `` the pattern misses the most common
   rendering.
 - **`marketplace` subcommand shape included.** A marketplace's own name sits after
   `/plugin marketplace add|update`, not directly after `/plugin` — so without the optional

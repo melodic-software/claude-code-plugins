@@ -67,7 +67,7 @@ repository when present. Two `userConfig` options tune the hook itself:
   setting this shell's `read -t` will not accept — or `0` — falls back to the
   default.
 
-Configure interactively with `/plugin configure actionlint` or headless at
+Configure interactively with `/plugin configure actionlint@melodic-software` or headless at
 install time:
 
 ```shell
@@ -97,7 +97,7 @@ reads it from.
 Three supported routes, in the order most people want them:
 
 1. **Interactively** — Claude Code prompts for declared options when you enable the
-   plugin. To change them later: `/plugin configure actionlint`.
+   plugin. To change them later: `/plugin configure actionlint@<marketplace>`.
 2. **Headless, at install time** — repeat `--config` for each option. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
 

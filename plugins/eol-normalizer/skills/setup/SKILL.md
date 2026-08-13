@@ -63,7 +63,7 @@ tool, so `apply` installs nothing and writes nothing — it only points:
 
 - missing `jq` / Bash / git: platform install instructions from the README Requirements
   section; this skill never installs system packages.
-- toggle off: direct to `/plugin configure eol-normalizer` (interactive, any
+- toggle off: direct to `/plugin configure eol-normalizer@melodic-software` (interactive, any
   time). Headless: `--config` only applies on a fresh install (ignored once installed), so
   reconfigure via `claude plugin uninstall eol-normalizer -s <scope>` then
   `claude plugin install eol-normalizer@<marketplace> -s <scope> --config eol_normalizer_enabled=true`;

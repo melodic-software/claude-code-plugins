@@ -125,7 +125,7 @@ tool or an OS capability, so `apply` installs nothing and writes nothing — it 
 - missing/old Python: the platform's own install channel for the floor `check` parsed from
   the engine's `MIN_PYTHON`; never a plugin download.
 - missing git (worktree targets): platform install instructions.
-- toggle off: direct to `/plugin configure disk-hygiene` (interactive, any time).
+- toggle off: direct to `/plugin configure disk-hygiene@melodic-software` (interactive, any time).
   Headless: `--config` only applies on a fresh install (ignored once installed), so
   reconfigure via `claude plugin uninstall disk-hygiene -s <scope>` then
   `claude plugin install disk-hygiene@<marketplace> -s <scope> --config disk_hygiene_enabled=true`;

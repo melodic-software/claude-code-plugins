@@ -26,7 +26,7 @@
     "lane_instance": {
       "type": "string",
       "title": "Lane instance id",
-      "description": "Writer identity for this machine's loop-lane telemetry, per the loop-lane convention's lane-instance identity rule. It becomes the suffix of the babysit-loop telemetry sentinel marker (`source-control:babysit-loop@<id>`), so each concurrently running lane instance owns its own comment and none can overwrite another's durable state. Must match ^[a-z0-9][a-z0-9-]{0,31}$, be stable across restarts, and be distinct across concurrent instances; two lanes on one machine each need an explicit value. Absent: the sanitized lowercased hostname. The value appears verbatim in tracker comments — set an opaque id if a machine name should not be published in a public tracker."
+      "description": "Writer identity for this machine's loop-lane telemetry, per the loop-lane convention's lane-instance identity rule. It becomes the suffix of the babysit-loop telemetry sentinel marker (`source-control:babysit-loop@<id>`), so each concurrently running lane instance owns its own comment and none can overwrite another's durable state. Must match ^[a-z0-9][a-z0-9-]{0,31}$, be stable across restarts, and be distinct across concurrent instances; two lanes on one machine each need an explicit value. Absent: the sanitized lowercased hostname. The value appears verbatim in tracker comments \u2014 set an opaque id if a machine name should not be published in a public tracker."
     },
     "pr_body_linkage_gate_enabled": {
       "type": "boolean",
@@ -37,13 +37,13 @@
     "pr_linkage_mcp_gate_enabled": {
       "type": "boolean",
       "title": "pr-linkage-mcp-gate hook",
-      "description": "Block a GitHub MCP create_pull_request/update_pull_request whose PR body would fail the repository's required pr-issue-linkage check — the MCP-surface sibling of pr-body-linkage-gate, covering cloud/remote sessions that open PRs without the gh CLI. Same policy scope: enforced only in a repository that carries .github/workflows/pr-issue-linkage.yml, and only for the repository the origin remote names.",
+      "description": "Block a GitHub MCP create_pull_request/update_pull_request whose PR body would fail the repository's required pr-issue-linkage check \u2014 the MCP-surface sibling of pr-body-linkage-gate, covering cloud/remote sessions that open PRs without the gh CLI. Same policy scope: enforced only in a repository that carries .github/workflows/pr-issue-linkage.yml, and only for the repository the origin remote names.",
       "default": true
     },
     "worktree_create_gate_enabled": {
       "type": "boolean",
       "title": "worktree-create-gate hook",
-      "description": "Redirect a WorktreeCreate away from Claude Code's default location, which may be inside the repository, to the configured worktree_root. Turning this OFF does NOT hand placement back to Claude Code: a WorktreeCreate hook has no 'not applicable' channel — measured on Claude Code 2.1.228, a non-zero exit and an exit-0-without-a-path both fail the creation — so `false` makes the gate refuse out loud, and every harness-driven creation path (`claude --worktree`, a subagent with `isolation: \"worktree\"`, a background session) fails with a message naming the real stand-downs. To let Claude Code place worktrees itself, set `worktree.bgIsolation` to `\"none\"` in settings, or disable this plugin. Probe, verbatim harness output and the as-of stamp: `skills/worktree/fixtures/README.md`.",
+      "description": "Redirect a WorktreeCreate away from Claude Code's default location, which may be inside the repository, to the configured worktree_root. Turning this OFF does NOT hand placement back to Claude Code: a WorktreeCreate hook has no 'not applicable' channel \u2014 measured on Claude Code 2.1.228, a non-zero exit and an exit-0-without-a-path both fail the creation \u2014 so `false` makes the gate refuse out loud, and every harness-driven creation path (`claude --worktree`, a subagent with `isolation: \"worktree\"`, a background session) fails with a message naming the real stand-downs. To let Claude Code place worktrees itself, set `worktree.bgIsolation` to `\"none\"` in settings, or disable this plugin. Probe, verbatim harness output and the as-of stamp: `skills/worktree/fixtures/README.md`.",
       "default": true
     },
     "babysit_watched_owners": {
@@ -56,12 +56,12 @@
       "type": "string",
       "multiple": true,
       "title": "Babysit extra self identities",
-      "description": "Extra GitHub posting identities (e.g. a project bot account) added to your `gh api user` login — the self set babysit-prs treats as its own: self-comment suppression, same-login classification, readiness-gate classification rows, the merge-gate self-exemption, and the resolve-thread bot-only test (a self-authored reply to a bot thread no longer counts as a disqualifying human participant). Not a discovery filter — which authors' PRs the queue discovers is `--author`'s job, independent of this set. Absent: your gh login alone."
+      "description": "Extra GitHub posting identities (e.g. a project bot account) added to your `gh api user` login \u2014 the self set babysit-prs treats as its own: self-comment suppression, same-login classification, readiness-gate classification rows, the merge-gate self-exemption, and the resolve-thread bot-only test (a self-authored reply to a bot thread no longer counts as a disqualifying human participant). Not a discovery filter \u2014 which authors' PRs the queue discovers is `--author`'s job, independent of this set. Absent: your gh login alone."
     },
     "babysit_intended_write_identity": {
       "type": "string",
       "title": "Babysit intended write identity",
-      "description": "The single GitHub login babysit-prs's own writes are intended to land under — typically the bot posting identity. When a write the orchestrator recorded performing lands under a different `babysit_self_logins` identity (e.g. a bot-token mint failed and the write silently fell back to your personal login), the cycle status surfaces an attribution-drift material finding instead of proceeding silently. Set it to one of your self logins; a value that is not actually a posting identity would flag every write. Absent: the check is dormant."
+      "description": "The single GitHub login babysit-prs's own writes are intended to land under \u2014 typically the bot posting identity. When a write the orchestrator recorded performing lands under a different `babysit_self_logins` identity (e.g. a bot-token mint failed and the write silently fell back to your personal login), the cycle status surfaces an attribution-drift material finding instead of proceeding silently. Set it to one of your self logins; a value that is not actually a posting identity would flag every write. Absent: the check is dormant."
     },
     "babysit_default_tier": {
       "type": "string",
@@ -140,7 +140,7 @@
       "type": "string",
       "multiple": true,
       "title": "Babysit approval-downgrade reviewer logins",
-      "description": "AI reviewer logins whose approval is surfaced as a `material` finding instead of `ignored` in the one case the structural approval-downgrade reaches: a review body carrying blocking-looking prose that still parses as an approval verdict (no CRITICAL/IMPORTANT or required-fix marker). Every bot's such approval is downgraded to non-blocking regardless; naming a login opts its own into the more-conservative `material` bucket rather than being ignored. Does not affect a review already in the APPROVED state or a plain clean approval with no blocking-looking prose — both are ignored regardless. Absent: such approvals are ignored for every bot."
+      "description": "AI reviewer logins whose approval is surfaced as a `material` finding instead of `ignored` in the one case the structural approval-downgrade reaches: a review body carrying blocking-looking prose that still parses as an approval verdict (no CRITICAL/IMPORTANT or required-fix marker). Every bot's such approval is downgraded to non-blocking regardless; naming a login opts its own into the more-conservative `material` bucket rather than being ignored. Does not affect a review already in the APPROVED state or a plain clean approval with no blocking-looking prose \u2014 both are ignored regardless. Absent: such approvals are ignored for every bot."
     },
     "babysit_skip_downgrade_logins": {
       "type": "string",
@@ -180,7 +180,7 @@
     "worktree_root": {
       "type": "directory",
       "title": "Worktree root",
-      "description": "External root under which /worktree create places worktrees, as <root>/<owner>-<repo>-<slug> — a path OUTSIDE every repository (on Windows, the same drive as the repo). Absent: the worktrees/ subdirectory of the plugin data dir, which the skill supplies explicitly rather than reading from the environment (not per-plugin in a Bash-tool subprocess). Deliberately outside the repository tree AND outside repository-discovery roots such as a ghq root, which a checkout-relative default would land inside. Never the in-repo .claude/worktrees/ default, whose nested placement the nesting invariant forbids — that claim is stated, measured, dated and given an expiry in exactly one place: `skills/worktree/SKILL.md` § \"The nesting invariant, verified\"."
+      "description": "External root under which /worktree create places worktrees, as <root>/<owner>-<repo>-<slug> \u2014 a path OUTSIDE every repository (on Windows, the same drive as the repo). Absent: the worktrees/ subdirectory of the plugin data dir, which the skill supplies explicitly rather than reading from the environment (not per-plugin in a Bash-tool subprocess). Deliberately outside the repository tree AND outside repository-discovery roots such as a ghq root, which a checkout-relative default would land inside. Never the in-repo .claude/worktrees/ default, whose nested placement the nesting invariant forbids \u2014 that claim is stated, measured, dated and given an expiry in exactly one place: `skills/worktree/SKILL.md` \u00a7 \"The nesting invariant, verified\"."
     },
     "worktree_stale_days": {
       "type": "number",
@@ -210,7 +210,7 @@
     "setup_inference_recency_days": {
       "type": "number",
       "title": "Setup inference recency split (days)",
-      "description": "Boundary for the recency split in /source-control:setup's convention-inference report — subjects newer than this many days are the 'recent' bucket, weighted as the live convention when its share diverges from the older bucket. Absent: 90.",
+      "description": "Boundary for the recency split in /source-control:setup's convention-inference report \u2014 subjects newer than this many days are the 'recent' bucket, weighted as the live convention when its share diverges from the older bucket. Absent: 90.",
       "default": 90,
       "min": 1
     },

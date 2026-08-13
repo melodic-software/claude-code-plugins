@@ -194,7 +194,7 @@ others.
 | workflow-resilience-check | `workflow_resilience_check_enabled` |
 | flag-commit-pr-skill-bypass | `flag_commit_pr_skill_bypass_enabled` |
 
-Set them interactively with `/plugin configure guardrails`, or headless on the
+Set them interactively with `/plugin configure guardrails@melodic-software`, or headless on the
 install command:
 
 ```shell
@@ -342,7 +342,7 @@ reads it from.
 Three supported routes, in the order most people want them:
 
 1. **Interactively** — Claude Code prompts for declared options when you enable the
-   plugin. To change them later: `/plugin configure guardrails`.
+   plugin. To change them later: `/plugin configure guardrails@<marketplace>`.
 2. **Headless, at install time** — repeat `--config` for each option. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
 

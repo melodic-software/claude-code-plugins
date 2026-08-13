@@ -72,7 +72,7 @@ Official contract: <https://code.claude.com/docs/en/plugins-reference#user-confi
    fan-out reads as expected rather than as a misconfiguration, and do not restate what
    the degraded pass does.
 7. To change or clear any value, direct the user to Claude Code's plugin configuration
-   prompt for `discipline` (interactive `/plugin configure discipline` any time;
+   prompt for `discipline` (interactive `/plugin configure discipline@melodic-software` any time;
    headless `--config` applies only on a fresh install — uninstall then reinstall to
    reconfigure). Claude Code owns persistence. Do not hand-edit any `pluginConfigs` key.
 
@@ -80,7 +80,7 @@ Official contract: <https://code.claude.com/docs/en/plugins-reference#user-confi
 
 - **No `apply`.** The only thing an apply could write is `pluginConfigs`, which the
   setup contract forbids a skill from touching. Reconfiguration is the native
-  `/plugin configure discipline` flow.
+  `/plugin configure discipline@melodic-software` flow.
 - **Unexpanded token is not a value.** A surviving literal `${user_config.…}` means
   unset (the key's default applies) — parsing it as a corrector name or a depth value
   is the failure this check exists to prevent.

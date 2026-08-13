@@ -51,7 +51,7 @@ authentication" here silently reuses the existing stored key). To change or clea
 `dometrain_api_key` later, run:
 
 ```text
-/plugin configure dometrain
+/plugin configure dometrain@melodic-software
 ```
 
 This reopens the same configuration screen shown at first enable, letting you overwrite or blank
@@ -163,7 +163,7 @@ reads it from.
 Three supported routes, in the order most people want them:
 
 1. **Interactively** — Claude Code prompts for declared options when you enable the
-   plugin. To change them later: `/plugin configure dometrain`.
+   plugin. To change them later: `/plugin configure dometrain@<marketplace>`.
 2. **Headless, at install time** — repeat `--config` for each option. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
 

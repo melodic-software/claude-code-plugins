@@ -90,7 +90,7 @@ One `userConfig` option tunes the hook itself:
 |--------|---------|--------|
 | `bash_format_enabled` | `true` | Toggle for the bash-format hook; set `false` for a clean no-op. |
 
-Set it interactively with `/plugin configure bash-format`, or headless on the
+Set it interactively with `/plugin configure bash-format@melodic-software`, or headless on the
 install command:
 
 ```shell
@@ -118,7 +118,7 @@ reads it from.
 Three supported routes, in the order most people want them:
 
 1. **Interactively** — Claude Code prompts for declared options when you enable the
-   plugin. To change them later: `/plugin configure bash-format`.
+   plugin. To change them later: `/plugin configure bash-format@<marketplace>`.
 2. **Headless, at install time** — repeat `--config` for each option. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
 

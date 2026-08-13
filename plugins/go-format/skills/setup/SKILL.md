@@ -63,7 +63,7 @@ result — never claim resolved without re-verifying. For everything else `apply
   toolchain: https://go.dev/dl/).
 - missing `jq` / Bash: platform install instructions from the README Requirements section;
   this skill never installs system packages.
-- toggle off: direct to `/plugin configure go-format` (interactive, any
+- toggle off: direct to `/plugin configure go-format@melodic-software` (interactive, any
   time). Headless: `--config` only applies on a fresh install (ignored once installed), so
   reconfigure via `claude plugin uninstall go-format -s <scope>` then
   `claude plugin install go-format@<marketplace> -s <scope> --config go_format_enabled=true`;

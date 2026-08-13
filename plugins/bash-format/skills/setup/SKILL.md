@@ -94,7 +94,7 @@ Run `check`, then for each FAIL point at the resolution — this skill installs 
   repo in — a bare `[*]` is not enough — but this skill does not write it. `.editorconfig` is
   cross-cutting (it governs every editor and tool in the repo), so the choice and the edit
   belong to the consumer.
-- toggle off: direct to `/plugin configure bash-format` (interactive, any
+- toggle off: direct to `/plugin configure bash-format@melodic-software` (interactive, any
   time). Headless: `--config` only applies on a fresh install (ignored once installed), so
   reconfigure via `claude plugin uninstall bash-format -s <scope>` then
   `claude plugin install bash-format@<marketplace> -s <scope> --config bash_format_enabled=true`;

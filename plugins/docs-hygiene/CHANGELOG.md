@@ -1,5 +1,16 @@
 # Changelog — docs-hygiene plugin
 
+## [0.11.3]
+
+### Changed
+
+- **rename-references:** Form 13 `/plugin configure` examples and eval fixtures now use the
+  marketplace-qualified id (`<old>@<marketplace>`) per
+  [`docs/extensibility-contract-smoke-tests.md`](../../docs/extensibility-contract-smoke-tests.md)
+  Test E (#1360).
+- **Fleet docs sweep:** actionable `/plugin configure` guidance across consumer-facing plugin
+  READMEs and setup skills now uses `@melodic-software` (or `@<marketplace>` in generated blocks).
+
 ## [0.11.2]
 
 ### Fixed

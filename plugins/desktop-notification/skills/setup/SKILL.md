@@ -68,7 +68,7 @@ nothing and writes nothing, so every remediation is a pointer the user acts on:
 - **missing `notify-send`** (Linux, `os_toast` enabled) — `sudo apt install libnotify-bin`
   (Debian/Ubuntu) or `sudo dnf install libnotify` (Fedora), per the README's per-OS table.
   Guidance only — the user runs it.
-- **a toggle is off** — direct to `/plugin configure desktop-notification` (interactive,
+- **a toggle is off** — direct to `/plugin configure desktop-notification@melodic-software` (interactive,
   any time). Headless: `--config` only applies on a fresh install (ignored once
   installed), so reconfigure via `claude plugin uninstall desktop-notification -s <scope>` then
   `claude plugin install desktop-notification@<marketplace> -s <scope> --config <key>=true`.
