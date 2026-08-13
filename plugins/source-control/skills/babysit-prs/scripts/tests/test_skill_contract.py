@@ -321,6 +321,35 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("which the conflict worker never does", safety)
         self.assertIn("the dispatched conflict worker never pushes", loop)
 
+    def test_babysit_loop_promotion_evidence_contract_is_wired(self) -> None:
+        loop_skill = SKILL.parent.parent / "babysit-loop" / "SKILL.md"
+        loop = loop_skill.read_text(encoding="utf-8")
+        reference = (
+            SKILL.parent.parent / "babysit-loop" / "reference" / "promotion-evidence-resolution.md"
+        )
+
+        self.assertTrue(reference.is_file())
+        for marker in (
+            "Promotion-evidence gate (trusted seam, fail-closed)",
+            "promotion-evidence-resolution.md",
+            "effective-promoted",
+            "operators keep `--merge human-only` on launch lines",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, loop)
+
+        spoke = reference.read_text(encoding="utf-8")
+        for marker in (
+            "trusted seam",
+            "fail-closed",
+            "C2-auto-merge",
+            "C3-auto-merge",
+            "forgeable",
+            "three-arm resolver",
+        ):
+            with self.subTest(file="promotion-evidence-resolution.md", marker=marker):
+                self.assertIn(marker, spoke)
+
     def test_safety_md_codifies_the_tier_criteria(self) -> None:
         safety = (SKILL.parent / "reference" / "safety.md").read_text(encoding="utf-8")
         self.assertIn("ships **DISABLED**", safety)

@@ -196,14 +196,13 @@ Untrusted intake counts as human-gated for that exit even without a role label. 
    A trailer stays legitimate as recorded operator context and as a proposal, and is reported as
    such, but it never partitions: an item classified only in its body counts as **unclassified
    here** — not eligible at any rung, exactly as an item with no record at all.
-   A PR is merge-eligible only when its item's class sits within the effective rung: at
-   `c2-mechanical`, C2 mechanical only; at `c3-autonomous`, C2 and C3; at `full-autonomy`, every
-   class up to and including C3 — **`full-autonomy` never reaches C4/C5, per the unconditional
-   floor below; there is no rung name that does.** The effective rung for this computation resolves
-   in three ordered steps: the tracked rung, raised to C3-equivalent if this invocation's own
-   argument line typed both the `autopilot` tier keyword and `--merge c3-this-run` (any other
-   explicitly argued `--merge` value floors instead of raises), then floored to the unconditional C4/C5
-   ceiling — see "Explicit-`autopilot` widening" above. A PR with no
+   A PR is merge-eligible when its item's class sits within the effective rung **and** its promotable
+   cell is **effective-promoted** (**Promotion-evidence gate (trusted seam, fail-closed)** —
+   [reference/promotion-evidence-resolution.md](reference/promotion-evidence-resolution.md)): C2 at
+   `c2-mechanical`, C2+C3 at `c3-autonomous`, through C3 at `full-autonomy` (never C4/C5). Before
+   work-class comparison resolve each cell through the trusted seam; unqualified evidence fail-closes
+   to effective-unpromoted — operators keep `--merge human-only` on launch lines (#1695); report each
+   bound→effective pair at cycle start. Effective rung: tracked rung, C3 raise when `autopilot` + `--merge c3-this-run` typed (other `--merge` floors), C4/C5 floor — see "Explicit-`autopilot` widening" above. A PR with no
    close-linked item, or an item with no recorded classification, is NOT eligible — no
    classification = no merge, at any rung, including the explicit-`autopilot` widening. A PR still
    carrying the do-not-merge label at partition time is NOT eligible at any rung or class — the
