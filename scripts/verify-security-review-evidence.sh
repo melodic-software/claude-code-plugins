@@ -102,7 +102,7 @@ classify_absent_verdict() {
     printf 'retired\n'
     return 0
   fi
-  echo "ERROR: in-scope security-review concluded success but declared NO verdict at the current head — the caller's ci-workflows pin predates the declared-output contract (melodic-software/ci-workflows#460), or the lane stopped forwarding it. Re-pin the caller; do not wave this through (#2337)" >&2
+  echo "ERROR: in-scope security-review concluded success but declared NO verdict at the current head — the caller's ci-workflows pin predates the declared-output contract (melodic-software/ci-workflows#460), the lane stopped forwarding it, or the lane's relevance gate hard-errored on a rejected \`!\` / \`?\` / \`+\` pattern in .github/claude-security-paths and took its outputs down with it. Check the lane's own annotations for which; do not wave this through (#2337)" >&2
   printf 'blind\n'
   return 0
 }
