@@ -208,13 +208,16 @@ while the latch is set (clear it on a fresh healthy snapshot after the pause end
    `${user_config.work_loop_item_cap_ceiling}` (default 3); a surviving literal
    `${user_config.…}` placeholder means the key is unset, so apply the manifest default. A
    persisted value outside that range — from a creation race, a stale session, or a misconfigured
-   override — is not trusted: clamp it, **report the correction** in the cycle report (e.g.
-   `item_cap 5 → 3 (clamped to ceiling)`), and **persist the clamped value** in the state block
-   this cycle's telemetry upsert writes. Classify guard mode against the floor above; take the
-   cycle-start snapshot of the frontier and open items, **retaining every captured
-   id** — the exit condition tests their union and never re-reads the seam. Test the union, not the
-   open ids alone: the two are one derivation apart on paper, but nothing here says the snapshot is
-   one read, and an item created between two reads would otherwise be captured yet never tested.
+   override — is not trusted: clamp it **before admission/execute** and **report the correction**
+   in the cycle report (e.g. `item_cap 5 → 3 (clamped to ceiling)`). Clamping only sets this
+   cycle's starting cap; dirty/clean adaptations still apply afterward, and the cycle's single
+   telemetry upsert persists the **final post-outcome** `item_cap` (and streak), never a
+   pre-execution clamped value that discards those adaptations. Classify guard mode against the
+   floor above; take the cycle-start snapshot of the frontier and open items, **retaining every
+   captured id** — the exit condition tests their union and never re-reads the seam. Test the
+   union, not the open ids alone: the two are one derivation apart on paper, but nothing here says
+   the snapshot is one read, and an item created between two reads would otherwise be captured yet
+   never tested.
    Apply the resolved `--scope` label filter and `--shard <i>/<n>` partition to the retained ids
    before any later step reads the snapshot. The drain exit is evaluated against this filtered
    snapshot — new automated intake arriving mid-cycle is **reported, never chased** (per the
