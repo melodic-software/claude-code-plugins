@@ -19,13 +19,6 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   continues with the literal composed directory. Acceptance rows added for the #1553
   reproducer, R8-2, R8-3, and F3.
 
-### Changed
-
-- **Docs:** actionable `/plugin configure` guidance now uses the marketplace-qualified form
-  (`<plugin>@melodic-software`; generated option blocks use `@<marketplace>`) per
-  [`docs/extensibility-contract-smoke-tests.md`](../../docs/extensibility-contract-smoke-tests.md)
-  Test E (#1360). Targetless references to the flow stay unqualified.
-
 ## [0.28.20]
 
 ### Fixed
