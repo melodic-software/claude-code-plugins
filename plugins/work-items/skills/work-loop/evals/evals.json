@@ -41,13 +41,13 @@
     {
       "id": 3,
       "name": "work-loop-exit-drain-terminal-and-pacing",
-      "prompt": "/work-items:work-loop\n\nCycle end. The cycle-start snapshot shows: list-frontier --autonomous returns nothing; three open issues remain — two have open non-draft PRs that GitHub links as closing them, one is human-gated awaiting an escalation answer. No PR is in flight for the human-gated item.",
+      "prompt": "/work-items:work-loop --drain\n\nCycle end. The cycle-start snapshot shows: list-frontier --autonomous returns nothing; three open issues remain — two have open non-draft PRs that GitHub links as closing them, one is human-gated awaiting an escalation answer. No PR is in flight for the human-gated item.",
       "expected_output": "The exit evaluation runs against the cycle-start snapshot using the seam frontier check and the bound adapter's Open linked PRs operation (the provider's own computed close-linkage; drafts excluded, query mechanics owned by the adapter). The full exit condition is not met (one open issue has neither closure nor an open non-draft close-linked PR), but every remaining open item is human-gated with no PR in flight — the drain-terminal state — so the lane writes its final report (items closed, PR'd, escalated), updates the telemetry state block, and stops cleanly instead of idling or scheduling another wakeup. Had the loop continued, pacing would be a ScheduleWakeup at cycle end with semantics (clamps, idle backoff, seven-day expiry, #691 budget behavior) held by citation to the loop-lane convention.",
       "files": [],
       "expectations": [
         "Evaluates the exit condition against the cycle-start snapshot, not live re-reads that chase mid-cycle intake",
         "Uses the seam list-frontier --autonomous emptiness AND the bound adapter's Open linked PRs close-linkage (open, non-draft PRs only; provider query mechanics stay in the adapter) as the two-part exit condition",
-        "Recognizes the drain-terminal state — all remaining open items human-gated/escalated and no PR in flight — and stops cleanly with a report rather than idling forever",
+        "Recognizes the drain-terminal state — all remaining open items human-gated/escalated and no PR in flight — and stops cleanly with a report rather than idling forever (requires --drain; standing mode would keep looping)",
         "Final report lists items closed, PR'd, and escalated, and the durable state block is updated (first_drain_complete on a full drain)",
         "Holds the no-progress streak on this cycle — an empty autonomous frontier with no untriaged intake is idle, and idle is not stalled — deferring the detector's shared semantics to the loop-lane convention by citation",
         "When not exiting, schedules the next cycle via ScheduleWakeup and defers pacing/expiry/budget semantics to the loop-lane convention by citation",
@@ -84,6 +84,49 @@
         "Derives whatever class it uses from the gate's own classification of the described work, never from the body trailer, and reports the trailer as a proposal rather than an input",
         "Reports what the item text asked for as a finding, attributed to the body, instead of silently dropping it",
         "Never merges the PR, whatever the item text claims about approval"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "work-loop-argv-shard-ordering-and-rejected-merge",
+      "prompt": "/work-items:work-loop melodic-software/example-repo --shard 0/2 --ordering newest-first --instance worker-a autopilot --merge c3-this-run\n\nHeadless launch under /loop. The checkout's origin remote resolves to melodic-software/example-repo. The frontier snapshot after scope filtering holds six autonomous candidates with numbers 101, 102, 103, 104, 105, 106 and distinct createdAt timestamps. Three items are admitted this cycle.",
+      "expected_output": "The lane parses the invocation surface: validates the optional owner/repo against the checkout (match — proceed), applies shard 0/2 so only even-numbered items (102, 104, 106) remain in the snapshot, orders admitted cap slots newest-first, and binds lane_instance worker-a for telemetry (overriding userConfig). It rejects autopilot and --merge c3-this-run with a clear message — merge authority and babysit tier tokens belong to the merge lane, not this worker lane — and does not silently ignore them. It loads reference/mode-standing.md only (default stop mode) and does not load reference/mode-drain.md. The cycle report states which source supplied each effective value.",
+      "files": [],
+      "expectations": [
+        "Validates owner/repo against the checkout remote when present and refuses on mismatch rather than guessing",
+        "Applies --shard 0/2 before admission and exit evaluation so only item numbers where number % 2 == 0 remain in the lane's snapshot",
+        "Fills execute cap slots in newest-first order when multiple items are admitted",
+        "Binds --instance worker-a to the telemetry marker and durable-state lane_instance, validating ^[a-z0-9][a-z0-9-]{0,31}$ before use",
+        "Rejects autopilot and --merge c3-this-run with an explicit message naming the merge lane as the owning surface — never silently ignores inert merge/tier tokens",
+        "Loads reference/mode-standing.md for the default stop mode and does not load reference/mode-drain.md",
+        "Reports the effective shard, ordering, instance, and stop_mode and which invocation tokens supplied each"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "work-loop-drain-mode-exit-and-standing-continues",
+      "prompt": "/work-items:work-loop --drain\n\nCycle end. stop_mode=drain. The filtered cycle-start snapshot shows every retained id either closed or covered by an open non-draft close-linked PR. first_drain_complete=false in durable state.",
+      "expected_output": "With --drain resolved, the lane loads reference/mode-drain.md (not mode-standing.md), evaluates exit against the cycle-start retained ids, sets first_drain_complete, writes the final report, updates durable state including stop_mode=drain, and stops cleanly. A standing invocation without --drain that reached the same snapshot shape would instead set first_drain_complete and ScheduleWakeup the next cycle per mode-standing.md.",
+      "files": [],
+      "expectations": [
+        "Loads reference/mode-drain.md when stop_mode is drain and does not load reference/mode-standing.md",
+        "Evaluates the drain exit against the cycle-start snapshot's retained ids, not a live seam re-read",
+        "Sets first_drain_complete and stops cleanly when the drain snapshot is satisfied",
+        "States that standing mode (no --drain) would have continued looping after recording first_drain_complete rather than stopping",
+        "Persists stop_mode=drain in the telemetry state block"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "work-loop-scope-label-partitions-concurrent-lanes",
+      "prompt": "/work-items:work-loop --scope area:api --instance api-lane\n\nConcurrent sibling lane on the same repository runs with --scope area:docs --instance docs-lane. The frontier holds three autonomous candidates: #201 labeled area:api, #202 labeled area:docs, #203 labeled area:api.",
+      "expected_output": "Each lane applies its --scope label filter before admission: the api lane sees only #201 and #203; the docs lane sees only #202. Combined with distinct --instance values, the two lanes maintain separate telemetry markers (work-items:work-loop@api-lane vs @docs-lane) and non-overlapping work slices without sharing durable state. Neither lane admits or executes items outside its scope label.",
+      "files": [],
+      "expectations": [
+        "Filters the cycle-start snapshot to items carrying the exact --scope label before admission and execution",
+        "Admits and executes only in-scope items — #201 and #203 for area:api, #202 for area:docs on the sibling",
+        "Binds distinct --instance ids to separate telemetry markers so durable state does not clobber across lanes",
+        "Does not treat a launch-prompt Scope line as binding — only the skill invocation's --scope token is enforced"
       ]
     }
   ]

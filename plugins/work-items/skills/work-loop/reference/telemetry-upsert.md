@@ -9,16 +9,18 @@ The upsert is inlined in this plugin rather than invoked from `claude-ops` becau
 plugin cannot invoke a sibling plugin's scripts.
 
 **Resolve the lane instance first (#1295).** The marker names the *writer*, not the lane type — per
-the convention's lane-instance identity rule. The id is `${user_config.lane_instance}`; a surviving
-literal `${user_config.…}` placeholder means the key is unset, so fall back to the sanitized
-lowercased hostname (headless-config floor: log the assumption). It is operator-supplied text about
-to be interpolated into a shell string and a `jq` program, so it is validated and **rejected**,
-never sanitized-and-continued. Substitute the resolved value for `<lane-instance>` below; the check
-runs **before** `MARKER` is built, because a lane that validates only in prose has documented a
-guard that does not run:
+the convention's lane-instance identity rule. Resolution order matches
+`SKILL.md`'s invocation surface (cited from [invocation-argv.md](invocation-argv.md)): a supplied
+`--instance` token wins, else persisted `lane_instance` from the durable state block, else
+`${user_config.lane_instance}`; a surviving literal `${user_config.…}` placeholder means the key
+is unset, so fall back to the sanitized lowercased hostname (headless-config floor: log the
+assumption). It is operator-supplied text about to be interpolated into a shell string and a `jq`
+program, so it is validated and **rejected**, never sanitized-and-continued. Substitute the
+resolved value for `<lane-instance>` below; the check runs **before** `MARKER` is built, because a
+lane that validates only in prose has documented a guard that does not run:
 
 ```bash
-INSTANCE="<lane-instance>"   # ${user_config.lane_instance}, else `hostname` sanitized
+INSTANCE="<lane-instance>"   # --instance, else durable lane_instance, else ${user_config.lane_instance}, else `hostname` sanitized
 [ -n "$INSTANCE" ] || INSTANCE="$(hostname | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9-' '-')"
 # ^[a-z0-9][a-z0-9-]{0,31}$ — empty, a leading hyphen, any other character, or
 # over 32 chars is REJECTED, never trimmed into something that looks valid.

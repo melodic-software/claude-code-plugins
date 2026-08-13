@@ -3,6 +3,30 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.17]
+
+### Added
+
+- **`work-loop` invocation argument surface (#1291).** Optional `<owner/repo>` (checkout
+  validation), `--drain`, `--shard <i>/<n>`, `--ordering oldest-first|newest-first`,
+  `--instance <id>`, and `--scope <label>` — documented in `argument-hint`, enforced by the skill
+  (not prose-only). Merge/tier/cap tokens are rejected with a clear message. Stop-mode semantics
+  move to `reference/mode-standing.md` and `reference/mode-drain.md`; invocation details to
+  `reference/invocation-argv.md` for progressive disclosure.
+
+### Fixed
+
+- **`work-loop`: invocation grammar before telemetry (#1291 review).** Parse, validate, default,
+  and reject invocation tokens before durable-state adoption or cycle work; document resolution
+  order and fail-closed rejection of merge-lane tokens.
+- **`work-loop`: ordering uses List items `createdAt` (#1291 review).** Execute step sorts admitted
+  items on the adapter projection before filling cap slots, with a defined missing-timestamp
+  fallback.
+- **`work-loop`: post-snapshot intake on every drain exit (#1291 review).** Both ordinary drain
+  completion and drain-terminal stops apply the reporting-only open-items diff.
+- **`work-loop`: `--instance` resolution in telemetry upsert (#1291 review).** `telemetry-upsert.md`
+  names `--instance` as the first-checked lane-instance source.
+
 ## [0.35.16]
 
 ### Fixed
