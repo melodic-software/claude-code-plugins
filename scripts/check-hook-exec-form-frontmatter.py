@@ -77,11 +77,13 @@ def frontmatter_of(text: str) -> tuple[str, int] | None:
 
 
 def mapping_entries(node, seen):
-    """Yield (key, value_node) for a mapping node, expanding YAML merge keys.
+    """Yield (key, value_node, key_node) for a mapping, expanding merge keys.
 
     An explicit key wins over one arriving through `<<`, which is the merge
     key's defined precedence. `seen` guards the recursion against a document
-    that merges a cycle.
+    that merges a cycle. Duplicate explicit keys are NOT resolved here -- see
+    duplicate_keys(); a caller that interprets a mapping must refuse an
+    ambiguous one rather than pick a winner.
     """
     explicit = {}
     merged = {}
@@ -98,12 +100,35 @@ def mapping_entries(node, seen):
                     merged.setdefault(merged_key, merged_value)
                 seen.discard(id(source))
             continue
-        explicit.setdefault(key, (value_node, key_node))
+        explicit[key] = (value_node, key_node)
     for key, (value_node, key_node) in explicit.items():
         yield key, value_node, key_node
     for key, value_node in merged.items():
         if key not in explicit:
             yield key, value_node, node
+
+
+def duplicate_keys(node):
+    """Return (key, second key_node) for each explicit key repeated in a mapping.
+
+    A repeated key makes the document ambiguous, and readers disagree about it:
+    PyYAML's loader keeps the last value, js-yaml rejects the document outright.
+    This repo has already shipped a duplicate key through a fully green suite
+    (#1492, which is why scripts/check-manifest-duplicate-keys.py exists), so
+    this is a shape that reaches production, not a spec curiosity. A gate must
+    not pick the reading that clears the file, so callers report instead.
+    """
+    first = set()
+    repeated = []
+    for key_node, _ in node.value:
+        key = getattr(key_node, "value", None)
+        if not isinstance(key, str) or key == "<<":
+            continue
+        if key in first:
+            repeated.append((key, key_node))
+        else:
+            first.add(key)
+    return repeated
 
 
 def scan_node(node, path: str, offset: int, seen: set) -> None:
@@ -115,6 +140,14 @@ def scan_node(node, path: str, offset: int, seen: set) -> None:
         for item in node.value:
             scan_node(item, path, offset, seen)
     elif isinstance(node, yaml.MappingNode):
+        for key, key_node in duplicate_keys(node):
+            emit(
+                "X",
+                path,
+                key_node.start_mark.line + offset,
+                f"duplicate `{key}` key inside the hooks declaration; readers disagree on which wins",
+            )
+            return
         entries = {key: (value, key_node) for key, value, key_node in mapping_entries(node, set())}
         if "command" in entries and "args" in entries:
             command_node, command_key_node = entries["command"]
@@ -150,6 +183,15 @@ def scan_file(path: str) -> None:
 
     if not isinstance(root, yaml.MappingNode):
         return
+    for key, key_node in duplicate_keys(root):
+        if key == "hooks":
+            emit(
+                "X",
+                path,
+                key_node.start_mark.line + offset,
+                "duplicate top-level `hooks` key; readers disagree on which declaration wins",
+            )
+            return
     for key, value_node, _ in mapping_entries(root, set()):
         if key == "hooks":
             scan_node(value_node, path, offset, set())

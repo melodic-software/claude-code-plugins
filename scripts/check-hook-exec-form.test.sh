@@ -574,6 +574,55 @@ else
 fi
 rm -rf "$f"
 
+# --- frontmatter: a duplicate hooks key is ambiguous, not a first-wins pass --
+# PyYAML's loader keeps the last value; js-yaml rejects the document. A gate
+# must not pick the reading that clears the file, and #1492 already proved a
+# duplicate key can ship through a green suite.
+f="$(new_fixture)"
+skill_md "$f" alpha skills/x/SKILL.md '---
+hooks: {}
+hooks:
+  PreToolUse:
+    - hooks:
+        - type: command
+          command: bash
+          args: ["x"]
+---
+body'
+if out="$(run_check "$f" 2>&1)"; then
+  fail "a duplicate top-level hooks key should not clear the gate, got success: $out"
+else
+  if echo "$out" | grep -q 'UNREADABLE FRONTMATTER: .*duplicate top-level `hooks` key'; then
+    ok "a duplicate top-level hooks key is reported, not silently first-wins"
+  else
+    fail "expected the duplicate-hooks message, got: $out"
+  fi
+fi
+rm -rf "$f"
+
+# --- frontmatter: a duplicate key inside a hook object is ambiguous ----------
+f="$(new_fixture)"
+skill_md "$f" alpha skills/x/SKILL.md '---
+hooks:
+  PreToolUse:
+    - hooks:
+        - type: command
+          command: node
+          command: bash
+          args: ["x"]
+---
+body'
+if out="$(run_check "$f" 2>&1)"; then
+  fail "a duplicate command key should not clear the gate, got success: $out"
+else
+  if echo "$out" | grep -q 'UNREADABLE FRONTMATTER: .*duplicate `command` key'; then
+    ok "a duplicate key inside a hook object is reported"
+  else
+    fail "expected the duplicate-command message, got: $out"
+  fi
+fi
+rm -rf "$f"
+
 # --- frontmatter: unparsable YAML fails closed ------------------------------
 # The one thing a real parser still cannot clear. A file the gate cannot read
 # is a file it must not pass.
