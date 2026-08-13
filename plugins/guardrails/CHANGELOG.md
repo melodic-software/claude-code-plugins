@@ -3,6 +3,29 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.21]
+
+### Fixed
+
+- **`block-noncanonical-commit` binds repo-context through one `repo_git_probe` chokepoint
+  ([#1500](https://github.com/melodic-software/claude-code-plugins/issues/1500),
+  [#1553](https://github.com/melodic-software/claude-code-plugins/issues/1553)).**
+  Every git subprocess question now runs as `git -C <dir> <locating globals…> <args…>`,
+  cached under `%q`-encoded keys so argv boundaries cannot collide.
+  `HOOK_EFFECTIVE_LOCATING` propagates `--git-dir` / `--work-tree` / `--namespace`
+  across `!` hops (cleared on pure-discovery outer hops and when an inner frame carries
+  `-C`); path composition via `alias_launch_dir` / `HOOK_EFFECTIVE_BASE` stays separate
+  from alias lookup. No outer fail-closed when git cannot resolve a work tree — the walk
+  continues with the literal composed directory. Acceptance rows added for the #1553
+  reproducer, R8-2, R8-3, and F3.
+
+### Changed
+
+- **Docs:** actionable `/plugin configure` guidance now uses the marketplace-qualified form
+  (`<plugin>@melodic-software`; generated option blocks use `@<marketplace>`) per
+  [`docs/extensibility-contract-smoke-tests.md`](../../docs/extensibility-contract-smoke-tests.md)
+  Test E (#1360). Targetless references to the flow stay unqualified.
+
 ## [0.28.20]
 
 ### Fixed

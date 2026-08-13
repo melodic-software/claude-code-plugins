@@ -1166,6 +1166,36 @@ if [[ -d "$GLOB/repo/.git" ]]; then
   fi
 fi
 
+# --- repo-context chokepoint (#1500 / #1553) ----------------------------------
+CHOKE="$TEST_TMPDIR/choke"
+mkdir -p "$CHOKE/outside"
+nested_repo "$CHOKE/repo"
+if [[ -d "$CHOKE/repo/.git" ]]; then
+  git -C "$CHOKE/repo" config alias.a b
+  git -C "$CHOKE/repo" config alias.b $'commit --allow-empty -m "x\ny"'
+  choke_run() {
+    local label="$1" cmd="$2" want="$3" rc
+    MSYS_NO_PATHCONV=1 jq -n --arg c "$cmd" --arg d "$CHOKE/outside" \
+      '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
+      timeout "$HANG_GUARD_SECS" bash "$HOOK" >/dev/null 2>&1
+    rc=$?
+    ((rc == 124)) && bad "$label: HUNG" && return
+    assert_exit "$label" "$want" "$rc"
+  }
+  choke_run "#1553: persisted chain under locating globals (blocked)" \
+    "git --git-dir=$CHOKE/repo/.git --work-tree=$CHOKE/repo --git-dir=$CHOKE/repo/.git a" 2
+  choke_run "R8-2: inline alias into persisted multi-line -m (blocked)" \
+    "git --git-dir=$CHOKE/repo/.git --work-tree=$CHOKE/repo -c alias.a=b a" 2
+  choke_run "R8-3: ! body establishes repo via -C, canonical -F - (allowed)" \
+    "git -c alias.a='!git -C $CHOKE/repo commit --allow-empty -F -' a" 0
+  choke_run "R8-3 twin: same shape with multi-line -m (blocked)" \
+    "git -c alias.a='!git -C $CHOKE/repo commit --allow-empty -m \"x${NL}y\"' a" 2
+  choke_run "F3: --git-dir/--work-tree ! alias to canonical commit (allowed)" \
+    "git --git-dir=$CHOKE/repo/.git --work-tree=$CHOKE/repo -c alias.a='!git commit -F -' a" 0
+  choke_run "F3 twin: same outer shape with multi-line -m in body (blocked)" \
+    "git --git-dir=$CHOKE/repo/.git --work-tree=$CHOKE/repo -c alias.a='!git commit -m \"x${NL}y\"' a" 2
+fi
+
 # --- explicit locating globals: a `!` body launches where the CALLER stands ----
 # git chdirs a `!` body to the work-tree top level only when the caller's
 # directory is INSIDE the effective work tree. With `--git-dir`/`--work-tree`
