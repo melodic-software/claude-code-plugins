@@ -462,10 +462,45 @@ body'
 if out="$(run_check "$f" 2>&1)"; then
   fail "flow-style hooks block should fail closed, got success: $out"
 else
-  if echo "$out" | grep -q 'flow-style YAML in a frontmatter hooks block'; then
+  if echo "$out" | grep -q 'non-block-style YAML in a frontmatter hooks declaration'; then
     ok "flow-style frontmatter hooks block fails closed with a visible reason"
   else
     fail "expected the flow-style message, got: $out"
+  fi
+fi
+rm -rf "$f"
+
+# --- frontmatter: `hooks:` carrying an inline value fails closed ------------
+# A whole declaration on the key line (flow mapping, anchor, alias) is not
+# walkable by this parser, so it must fail rather than be skipped as "no block".
+f="$(new_fixture)"
+skill_md "$f" alpha skills/x/SKILL.md '---
+hooks: {PreToolUse: [{hooks: [{type: command, command: bash, args: ["x"]}]}]}
+---
+body'
+if out="$(run_check "$f" 2>&1)"; then
+  fail "an inline hooks: value should fail closed, got success: $out"
+else
+  if echo "$out" | grep -q 'non-block-style YAML in a frontmatter hooks declaration'; then
+    ok "an inline hooks: value fails closed instead of being skipped"
+  else
+    fail "expected the non-block-style message, got: $out"
+  fi
+fi
+rm -rf "$f"
+
+# --- an unparsable hook config fails closed ---------------------------------
+# A file the gate cannot read is a file the gate cannot clear; skipping it
+# silently would recreate the no-op-that-looks-green failure it exists to stop.
+f="$(new_fixture)"
+plugin_file "$f" alpha hooks/hooks.json '{"hooks": [ this is not json'
+if out="$(run_check "$f" 2>&1)"; then
+  fail "an unparsable hooks.json should fail closed, got success: $out"
+else
+  if echo "$out" | grep -q 'UNREADABLE HOOK CONFIG: plugins/alpha/hooks/hooks.json:'; then
+    ok "an unparsable hook config fails closed and names the file"
+  else
+    fail "expected UNREADABLE HOOK CONFIG, got: $out"
   fi
 fi
 rm -rf "$f"

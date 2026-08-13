@@ -144,16 +144,27 @@ JQ_EXEC_FORM='
 '
 
 # scan_json <file> <jq root expression> <reported path prefix>
+#
+# Fail closed on an unparsable hook config: a file this gate cannot read is a
+# file this gate cannot clear, and silently skipping it would recreate the
+# no-op-that-looks-green failure the gate exists to prevent. (The manifest's own
+# validity is a different gate's job, and the inline-object call site is only
+# reached after the manifest has already parsed.)
 scan_json() {
-  local file="$1" root="$2" prefix="$3" prog path cmd
+  local file="$1" root="$2" prefix="$3" prog out path cmd
   [[ -f "$file" ]] || return 0
   prog="${JQ_EXEC_FORM//__ROOT__/$root}"
   # CRLF tolerance: on Windows (Git Bash) a checked-out JSON file can carry \r
   # inside string values; strip it so the separator test sees the real value.
+  if ! out="$(jq -r "$prog" "$file" 2>/dev/null | tr -d '\r')"; then
+    echo "UNREADABLE HOOK CONFIG: ${file}: not parseable as JSON — this gate cannot clear it" >&2
+    errors=$((errors + 1))
+    return 0
+  fi
   while IFS=$'\t' read -r path cmd; do
     [[ -n "$cmd" || -n "$path" ]] || continue
     consider "$file" "${prefix}${path}" "$cmd"
-  done < <(jq -r "$prog" "$file" 2>/dev/null | tr -d '\r' || true)
+  done <<<"$out"
 }
 
 # scan_manifest_path <plugin-dir> <manifest> <relative hooks path> — trust
@@ -273,6 +284,11 @@ function handle(line,   ind, rest, kidx) {
     if (is_hooks_key(line)) {
       inhooks = 1
       hooks_indent = ind
+    } else if (line ~ /^[[:space:]]*hooks:[[:space:]]*[^[:space:]#]/) {
+      # `hooks:` with an inline value -- flow style, an anchor, or an alias.
+      # Not walkable by this parser, so fail closed rather than skip it.
+      flow = 1
+      if (flowline == 0) flowline = NR
     }
     return
   }
@@ -353,20 +369,26 @@ END {
 AWK
 )
 
-# scan_frontmatter <markdown file>
+# scan_frontmatter <markdown file> — fail closed for the same reason scan_json
+# does: an awk pass that did not complete has cleared nothing.
 scan_frontmatter() {
-  local file="$1" kind line cmd
+  local file="$1" out kind line cmd
   [[ -f "$file" ]] || return 0
+  if ! out="$(awk "$FRONTMATTER_AWK" "$file")"; then
+    echo "UNREADABLE FRONTMATTER: ${file}: the frontmatter walk did not complete — this gate cannot clear it" >&2
+    errors=$((errors + 1))
+    return 0
+  fi
   while IFS=$'\t' read -r kind line cmd; do
     case "$kind" in
     V) consider "$file" "$line" "$cmd" ;;
     F)
-      echo "EXEC-FORM HOOK: ${file}:${line}: flow-style YAML in a frontmatter hooks block is not parseable by this gate — rewrite the block in block style" >&2
+      echo "EXEC-FORM HOOK: ${file}:${line}: non-block-style YAML in a frontmatter hooks declaration (flow mapping, anchor, or alias) is not parseable by this gate — rewrite it in block style" >&2
       errors=$((errors + 1))
       ;;
     *) ;;
     esac
-  done < <(awk "$FRONTMATTER_AWK" "$file" || true)
+  done <<<"$out"
 }
 
 # --- walk -------------------------------------------------------------------
