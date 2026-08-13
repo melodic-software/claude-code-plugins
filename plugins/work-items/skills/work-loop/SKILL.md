@@ -82,12 +82,17 @@ the source of truth for these counters):
 ```json
 {"schema":"work-items/loop-state@2","cycle":12,"clean_streak":1,"no_progress_streak":0,
  "item_cap":2,"rate_limit_latch":false,"first_drain_complete":false,"guard_mode":"proactive",
+ "stop_mode":"standing","ordering":"oldest-first","shard":null,"scope":null,
  "lane_instance":"melo-lap-001","writer_nonce":"9f3c1a7e","heartbeat_at":"2026-07-23T15:04:05Z",
  "paused_until":null,
  "loop_started_at":"2026-07-23T15:00:00Z","restart_request":null,
  "usage_sample":{"at":"2026-07-23T15:04:05Z","five_hour_pct":23.5,"seven_day_pct":41.2,
  "five_hour_delta_pct":1.8}}
 ```
+
+`stop_mode`, `ordering`, `shard` (`{"index":i,"count":n}` or `null`), and `scope` (label string or
+`null`) record the resolved invocation surface so a `/loop` relaunch can read them back from the
+telemetry comment; they are not re-derived from prose in the launch prompt.
 
 `loop_started_at` makes the approaching seven-day expiry visible; `restart_request` is where a
 budget/expiry hit records the relaunch ask; `guard_mode` is recorded every cycle.
@@ -195,8 +200,10 @@ while the latch is set (clear it on a fresh healthy snapshot after the pause end
    id** — the exit condition tests their union and never re-reads the seam. Test the union, not the
    open ids alone: the two are one derivation apart on paper, but nothing here says the snapshot is
    one read, and an item created between two reads would otherwise be captured yet never tested.
-   The drain exit is evaluated against this snapshot — new automated intake arriving mid-cycle is
-   **reported, never chased** (per the convention).
+   Apply the resolved `--scope` label filter and `--shard <i>/<n>` partition to the retained ids
+   before any later step reads the snapshot. The drain exit is evaluated against this filtered
+   snapshot — new automated intake arriving mid-cycle is **reported, never chased** (per the
+   convention).
 2. **Intake sweep.** Run `/work-items:triage` over untriaged intake in its **autonomous lane** —
    this loop's launch-prompt standing rules are the direction its mutation gate requires, and every
    comment or item it creates carries the AI disclaimer. Sweep hardening: an advisory issue
@@ -207,7 +214,8 @@ while the latch is set (clear it on a fresh healthy snapshot after the pause end
    label.
 3. **Admission gate.** Classify each frontier candidate and admit per the gate below — fail-closed.
 4. **Execute.** Work admitted items via `/work-items:work` (one invocation per item slot), up to
-   the adaptive item cap. Each invocation uses that skill's **autonomous invocation** path: it
+   the adaptive item cap, filling slots in resolved `--ordering` order when more than one item was
+   admitted. Each invocation uses that skill's **autonomous invocation** path: it
    names the admitted item id and states that this loop's admission gate (and any required
    ratification marker) passed, so `/work-items:work` proceeds without its interactive confirmation prompt.
    Selection, claim (assignee + lease), staleness pre-check, dispatch
@@ -415,55 +423,26 @@ citation. This lane's specifics:
 
 ## Exit condition
 
-Evaluate at cycle end against the cycle-start snapshot's **retained ids, never a fresh seam read**:
-every id the snapshot captured — its open items and its autonomous-frontier candidates alike — is
-closed or has an **open, non-draft** PR the bound adapter's "Open linked PRs" operation reports as
-close-linked (the provider's own computed close-linkage, whose query mechanics and draft exclusion
-the adapter owns).
+Stop-mode semantics are **not** inlined here — load exactly one mode reference per the resolved
+`stop_mode`:
 
-There is deliberately **no second frontier-emptiness limb**. Re-running `list-frontier --autonomous`
-here would see items that joined the frontier *after* the snapshot — precisely the mid-cycle intake
-step 1 reports and never chases — so a bot filing agent-ready items could hold the drain open
-forever. Absence from a later frontier read is also not resolution: an item another session claims,
-or one that becomes blocked, leaves the frontier unresolved. Nothing is lost by dropping the limb:
-the frontier is derived by filtering `state == open`, so a snapshot frontier candidate is a
-snapshot open item either way, and the single test above already covers it — including an item the
-snapshot held as untriaged intake that step 2 promoted mid-cycle. That item still holds the drain
-open, and it is worked once the admission gate passes it and a cap slot is free.
+- `standing` → [reference/mode-standing.md](reference/mode-standing.md)
+- `drain` → [reference/mode-drain.md](reference/mode-drain.md)
 
-Lane-infrastructure items never gate the drain: the per-lane telemetry tracking issues — this
+Lane-infrastructure items never gate any exit shape: the per-lane telemetry tracking issues — this
 lane's and any sibling lane's, identified as `/work-items:triage` ("Scope: raw intake only")
 defines them, by pinned config identity or sentinel comment and never by title alone — **and open
 `work-map` container items** (the tracker seam's `WIT_CONTAINER_LABEL`, default `work-map`: never
 claimable, never closed by this lane, openness means the map exists) — are excluded from the
-cycle-start snapshot, the intake sweep, the exit evaluation, and the
-post-snapshot intake report below. The loop never works, closes, or waits on them; an open
-telemetry issue is the lane operating, not backlog, and an open container is lane infrastructure
-for the same reason — not unresolved backlog blocking drain exit. The report is on that list for the same reason
-as the snapshot: a telemetry issue is deliberately never among the retained ids, so a reading that
-did not re-apply this exclusion would diff it in as post-snapshot intake and misreport it as
-unworked on every single run.
-
-Satisfied → the drain is complete: set `first_drain_complete`, write the final report (items
-closed, PR'd, escalated), and stop cleanly. The **drain-terminal state** (per the convention) also
-ends the loop: when every remaining open item is human-gated or escalated and no PR is in flight,
-report and stop cleanly rather than idling forever. Either stop's report **names the intake that
-arrived after the snapshot and was left unworked** — that report is what keeps "reported, never
-chased" true once there is no next cycle to sweep it. Compute that list once, after the exit is
-already decided, by repeating step 1's **open-items** reading — lane-infrastructure exclusion and
-all, per the paragraph above — and diffing it against the retained ids. Not a
-`list-frontier --autonomous` reading: step 2's sweep hardening routes bot-authored
-advisory intake to the human-gated role, which is precisely what that filter excludes, so the
-frontier reading would report nothing in the case this sentence exists for. **The read is
-reporting-only and can never change the verdict it follows** — what the paragraph above bans is the
-*exit* reading the seam, not the report doing so, and with no stated mechanism an agent has none
-and the naming silently degrades to nothing.
+cycle-start snapshot, the intake sweep, the exit evaluation, and the post-snapshot intake report.
+The loop never works, closes, or waits on them; an open telemetry issue is the lane operating, not
+backlog, and an open container is lane infrastructure for the same reason — not unresolved backlog
+blocking drain exit.
 
 ## Gotchas
 
 - **The loop never merges — and never asks another lane to.** A green PR is the handoff boundary;
-  merge authority lives with the merge lane per the convention's autonomy ladder, and raising a
-  merge rung is a seam-config change, never a loop decision or an invocation argument.
+  merge authority lives with the merge lane per the convention's autonomy ladder.
 - **Claim-before-dispatch is owned by `/work-items:work` and survives this loop's phrasing.** A
   loop cycle that restates "dispatch each item to a worktree subagent" has not replaced the seam
   claim; dispatching before the claim is held is a defect.
