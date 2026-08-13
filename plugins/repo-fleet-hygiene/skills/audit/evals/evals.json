@@ -113,13 +113,15 @@
       "id": 10,
       "name": "privacy-gated-branch-is-not-evidence-of-unmerged",
       "prompt": "A repository reports merge-evidence-privacy-gated for 47 branches whose remote-tracking refs were pruned after GitHub auto-deleted the head branches on merge. None of the 47 produced a merged-local-branch finding. Summarize what the operator should do with those branches.",
-      "expected_output": "The absence of a merged finding for a privacy-gated branch is stated as unproven, never as evidence the branch is unmerged. The remedy is described accurately: the exact per-branch lookup was skipped because the branch name would otherwise be transmitted to github.com, so it returns only if remote evidence is restored (push or re-fetch) or the branch is verified manually on GitHub.",
+      "expected_output": "The absence of a merged finding for a privacy-gated branch is stated as unproven, never as evidence the branch is unmerged. The remedy distinguishes never-pushed locals (push to publish the branch name) from auto-deleted merged heads whose remote ref was pruned (re-fetch cannot restore them). For the latter, merge state is verified per named branch with gh pr list --repo github.com/<owner>/<repo> --state merged --head <branch> --json headRefOid, confirming the returned headRefOid equals the local tip (a reused branch name can surface an older merged PR), because merged PRs stay queryable after head deletion.",
       "files": [],
       "expectations": [
         "Treats a privacy-gated branch as merge state unverified, not unmerged",
         "Explains that the branch name is withheld from GitHub deliberately, not by failure",
         "Offers no cleanup handoff for a privacy-gated branch",
-        "Does not claim re-running the audit unchanged would resolve the gap"
+        "Does not claim re-running the audit unchanged would resolve the gap",
+        "Does not suggest git fetch or re-fetch to restore pruned auto-deleted refs",
+        "Names gh pr list --repo and headRefOid comparison as the merge-state query for auto-deleted merged heads"
       ]
     },
     {

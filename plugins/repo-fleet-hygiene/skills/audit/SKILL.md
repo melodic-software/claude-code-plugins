@@ -98,8 +98,12 @@ The bundled collector is authoritative for classifications. Preserve its evidenc
    the batch missed, but it is **privacy-gated**: the branch name is transmitted to github.com, so
    the fallback runs only for a branch still present in the local remote-tracking inventory. After
    the common merge flow — GitHub auto-deletes the head branch, a later fetch prunes the ref — that
-   branch is gated out and reported as `merge-evidence-privacy-gated`. Identical branch names in
-   another repository are unrelated. `HIGH` requires the PR `headRefOid` to equal the current local
+   branch is gated out and reported as `merge-evidence-privacy-gated`. The aggregate handoff
+   distinguishes never-pushed locals (push, then rerun) from auto-deleted merged heads (verify with
+   `gh pr list --repo github.com/<owner>/<repo> --state merged --head <branch> --json headRefOid`
+   per named branch and confirm the returned `headRefOid` equals the local tip — re-fetch cannot restore pruned
+   refs); no cleanup handoff until merge state is confirmed. Identical branch names in another
+   repository are unrelated. `HIGH` requires the PR `headRefOid` to equal the current local
    tip. Tip drift is `MEDIUM` manual review. Git ancestry without GitHub evidence is `LOW` and never
    called merged-by-PR — and under squash merges that ancestry predicate is near-inert, so on a
    squash-merging fleet GitHub evidence is effectively the only merge evidence.
