@@ -399,13 +399,12 @@ unambiguous; ask only where an item genuinely needs the user.
    so it can return a longer item (`[Maintenance] Review CI workflow pins`) when the old title was
    `Review CI` — **filter the results to the one whose title equals `[Maintenance] {old title}`
    exactly** before acting, and never reconcile against a mere prefix/substring match. When exactly one
-   exact match exists:
-   - **Renamed row:** rename that item to `[Maintenance] {new title}` (a provider title-edit op —
-     GitHub adapter: `gh issue edit <N> --title ...`) to keep the reconciliation key consistent, or
-     close it (adapter: "Close item") if the user is instead retiring the item.
-   - **Dropped row:** close that item (adapter: "Close item") with a comment noting the recurring item
-     was retired from the schedule — otherwise the `recurring`-labeled issue lingers unreachable.
+   exact match exists — **Renamed row:** rename that item to `[Maintenance] {new title}` (a provider title-edit op —
+   GitHub adapter: `gh issue edit <N> --title ...`) to keep the reconciliation key consistent, or
+   close it (adapter: "Close item") if the user is instead retiring the item; **Dropped row:** close that item (adapter: "Close item") with a comment noting the recurring item
+   was retired from the schedule — otherwise the `recurring`-labeled issue lingers unreachable.
    A rename or drop with no exact-match open item needs no reconciliation.
+
 12. **Verify after remediation.** Re-run the `check` probes on the written binding and schedule — binding
    validity, including that any `config.role_labels` step 2 wrote survived the step-10 write intact and
    is well-formed; JSON validity; unique `id`/`title`; tracked-not-ignored — and report the actual
