@@ -13,6 +13,12 @@ consumers without editing the plugin itself.
 
 Browse and manage with `/plugin`. To refresh after updates: `/plugin marketplace update melodic-software`.
 
+When you consume this repo from a local `directory` source, the install cache keys on semver
+`version`, not commit — so several commits under one version leave early installs on a stale
+snapshot and `plugin update` can report "already at the latest version" while SHA lags. See
+[`docs/MIGRATION-PLAYBOOK.md`](docs/MIGRATION-PLAYBOOK.md) ("Same-version commit drift") and
+[#2061](https://github.com/melodic-software/claude-code-plugins/issues/2061).
+
 ### Enable plugin suggestions for an organization
 
 Some catalog entries declare `relevance` signals so Claude Code can suggest the plugin when a

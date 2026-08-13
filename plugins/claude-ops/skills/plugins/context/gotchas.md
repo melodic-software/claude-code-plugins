@@ -4,6 +4,18 @@ Failure modes this skill is specifically built to avoid, and what breaks if the 
 bypassed. Underlying facts are in [scope-semantics.md](scope-semantics.md) — this file is the
 "here's what goes wrong" companion, not a restatement.
 
+## Same-version commit drift on `directory`-source marketplaces — `update` can false-green
+
+For a marketplace registered from a local `directory` source, the install cache is keyed by semver
+`version`, not commit SHA — so several commits under one version (the normal reviewed-PR shape)
+leave early installers on the first snapshot. `claude plugin update <name>@<marketplace>` compares
+versions only: when both sides read `0.7.0` it reports "already at the latest version" and refreshes
+nothing, even when `installed_plugins.json`'s recorded SHA lags the checkout. Workarounds:
+`uninstall` → `install` → `enable`; bump `plugin.json` `version` to deliver; or iterate with
+`--plugin-dir` (see [MIGRATION-PLAYBOOK.md](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/MIGRATION-PLAYBOOK.md)
+"Same-version commit drift"). Upstream fix tracked in
+[melodic-software/claude-code-plugins#2061](https://github.com/melodic-software/claude-code-plugins/issues/2061).
+
 ## `claude plugin update <name>` (bare) fails "Plugin not found" — always pass the full id
 
 **Verified empirically** (`claude plugin update <name> -s user` → `Plugin "<name>" not found`;
