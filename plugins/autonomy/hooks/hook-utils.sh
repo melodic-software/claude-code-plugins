@@ -480,7 +480,7 @@ hook::read_file_path() {
 # Guards that must fail closed branch on the return code or on
 # HOOK_REPO_ROOT_UNRESOLVED.
 #   ROOT=$(hook::repo_root "$some_path")
-# shellcheck disable=SC2034  # HOOK_REPO_ROOT_UNRESOLVED is read by sourcing hooks
+# shellcheck disable=SC2034  # public contract: advisory callers may read HOOK_REPO_ROOT_UNRESOLVED
 hook::repo_root() {
   local hint="${1:-.}"
   local root
