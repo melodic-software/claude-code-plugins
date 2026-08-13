@@ -3,6 +3,17 @@
 All notable changes to the `typos-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.13]
+
+### Fixed
+
+- **Bundled `default-typos.toml` parses again (#1257 follow-up):** `extend-ignore-re` was
+  written as a TOML table (`[default.extend-ignore-re]` with the regex as a key), which
+  typos-cli rejects — `invalid type: map, expected valid sequence` — so every hook run
+  failed as a tool break instead of spell-checking. Now the documented array form under
+  `[default]`, restoring both the spell-check and the SHA-corruption guard the file
+  exists to carry.
+
 ## [0.6.12]
 
 ### Fixed
