@@ -366,9 +366,10 @@ sparse files, hard links, compression, and delayed allocation affect it.
   no shell (`python3`, not bare `python`, because stock macOS and many Linux distros ship only
   `python3` and a legacy `python` 2.x would crash the guard on modern syntax). Its enforcement is
   therefore only as strong as that single lookup: on a host where `python3` does not resolve to an
-  interpreter meeting the engine's `MIN_PYTHON` floor the PreToolUse
-  launch fails, and Claude Code treats a failed hook launch as a non-blocking error, so the belt
-  does not intercept there (moving it to the shared launcher is tracked in #2568). Concretely, the exposure is the manual PowerShell deletion lane: engine
+  interpreter meeting the engine's `MIN_PYTHON` floor the PreToolUse launch fails, and Claude Code
+  treats a failed hook launch as a non-blocking error, so the belt does not intercept there (moving
+  it to the shared launcher is tracked in #2568). Concretely, the exposure is the manual PowerShell
+  deletion lane: engine
   `apply` is unsupported on Windows and macOS and elsewhere runs only behind the guard's own `ask`,
   so no silent auto-delete path opens, but the guard's PowerShell belt that turns a deletion spelling
   into a final human prompt is lost. The backstops that remain are the per-path human approval the
