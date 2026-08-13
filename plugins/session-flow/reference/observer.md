@@ -24,13 +24,16 @@ Both live under `${CLAUDE_PLUGIN_ROOT}/skills/running-retro/scripts/`, stdlib-on
   1. **Tail + distill.** Poll → open → seek → read-new-bytes → close. It never holds a persistent
      handle, so it cannot block Claude Code's append (the Windows share-mode WRITE edge is safe by
      construction). Each new transcript line is distilled to a compact event.
-  2. **End detection — mtime-idle only.** Session end leaves no distinct terminal record; the file
-     simply stops growing. `Stop` fires every turn (useless as an end marker) and a `SessionEnd`
-     hook is not crash-safe, so staleness is the crash-safe primary signal. **Limitation:** idle
-     cannot distinguish a long single turn from end, so `observer_idle_seconds` must stay above the
-     longest expected single turn (large agent fan-outs, long builds) or a mid-turn pause fires
-     analysis on a partial transcript. The deferred `SessionEnd` graceful-end fast-path is the
-     stated mitigation.
+  2. **End detection — mtime-idle with confirmation.** Session end leaves no distinct terminal record;
+     the file simply stops growing. `Stop` fires every turn (useless as an end marker) and a
+     `SessionEnd` hook is not crash-safe, so staleness is the crash-safe primary signal. Hitting the
+     idle threshold enters a short confirmation window (`--idle-confirm-seconds`, default 30s):
+     renewed transcript growth during that window cancels the pending end and resumes watching. If
+     analysis runs and the transcript grows again afterward, the observer re-arms instead of exiting.
+     **Limitation:** idle still cannot distinguish a long human pause from end within the threshold,
+     so `observer_idle_seconds` must stay above the longest expected single turn (large agent
+     fan-outs, long builds) or analysis may still fire on a partial transcript. The deferred
+     `SessionEnd` graceful-end fast-path is the stated mitigation.
   3. **Post-end analysis (optional).** On idle-detect, a headless `claude -p` over the observations
      that follows `running-retro`'s checkpoint method and appends its findings to the ledger.
 
