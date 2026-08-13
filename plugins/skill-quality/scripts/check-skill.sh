@@ -1065,7 +1065,7 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
       # that carries either is ambiguous for directive hard verdicts and is
       # skipped by the Form 1 and judgment detectors. See the parsing contract.
       fe_bt_ambig = (index(line, "`") > 0)
-      fe_esc_ambig = (index(line, "\\<") > 0)
+      fe_esc_ambig = (index(line, "\\<") > 0) # portability-ok: index() for literal backslash+less-than, not a GNU grep word boundary
       fe_line_ambig = (fe_icode || fe_bt_ambig || fe_esc_ambig)
       # Classify each directive on the line independently, bounded at its own
       # `-->`. Testing the whole line let a valid directive elsewhere on it lend
