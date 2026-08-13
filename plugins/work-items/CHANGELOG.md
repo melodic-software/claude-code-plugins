@@ -3,6 +3,19 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.16]
+
+### Fixed
+
+- **`attend-queue`: row-level seam claim for concurrent attended sessions (#1290).** Two terminals
+  on one repository could both surface and mutate the same row — duplicate interview questions,
+  conflicting label flips — because the lane had no claim protocol while `/work-items:work` already
+  used the seam assignee + lease (`exit 7` → skip). The skill now claims each row before mutation,
+  flips to autonomous-eligible while the claim is still held, then clears assignee via the adapter
+  (no nonexistent seam release verb; live lease persists until TTL/reclaim), and documents
+  session-start reclaim and binding-presence routing consistent with `work`. Single-session runs
+  need no new argument.
+
 ## [0.35.15]
 
 ### Changed

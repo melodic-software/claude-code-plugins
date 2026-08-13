@@ -74,6 +74,57 @@ Present the merged table with one-line summaries, then work rows in the operator
 (default: oldest first, `[ratify]` rows before `[escalated]` before `[intake]` at equal age —
 ratifications unblock the waiting worker loop).
 
+## Row claim (before any mutation)
+
+**Read the full view; claim each row before mutating it.** Building the attention view reads
+every row — that read is unrestricted. Mutation (comments, labels, triage) requires holding the
+seam claim first — the same assignee + lease protocol `/work-items:work` uses:
+
+```bash
+TRACKER="${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh"
+[[ -f "$TRACKER" ]] || TRACKER="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh"
+"$TRACKER" claim "<id>"
+```
+
+`<id>` MUST be fully-qualified (`claim` rejects a bare number). Exit `0` → claim held for this row.
+Exit `7` → another attended session won: **skip that row** and advance to the next candidate (do
+NOT retry the same item in this pass). Claim identity is the authenticated session user, never the
+bot.
+
+**Binding.** `claim` and session-start `reclaim` are seam coordination verbs — if
+`.work-item-tracker.json` does not resolve, surface the same actionable choice as
+`/work-items:work` before the first coordination verb (session-start reclaim, then row `claim`):
+**(1) setup was never run** → run `/work-items:setup`; **(2) deliberate gh-native mode** → proceed
+for provider-mechanic reads only, accepting that concurrent attended sessions have no race-safe row
+lock and collisions are the operator's responsibility.
+
+**Session-start reclaim (once per invocation, when bound).** Before the first row claim, run the
+same idempotent stale-lease sweep `/work-items:work` Step 0 uses: enumerate assigned items, resolve
+each `number` to a fully-qualified id, `"$TRACKER" reclaim "<id>"` on each. Exit `6`
+(capability-unsupported) skips the sweep for providers that declare `reclaim: false`.
+
+**Clear assignee after disposition (flip while claimed).** Attend-queue holds a coordination lock,
+not an execution assignment. The seam ships no early-release verb — only `claim`, `renew-lease`, and
+session-start `reclaim` (which never touches a live lease; do not hand-roll lease-comment JSON).
+Once the row's answer is written, ratification recorded, or triage disposition applied:
+
+- **When the human blocker is removed:** perform the single-edit role-label flip **while this
+  session still holds the claim**, then clear `@me` from assignees via the bound adapter's assignee
+  edit (`--remove-assignee "@me"` for GitHub — see the adapter README "Edit labels / assignees").
+  Clearing assignee before the flip reopens the concurrent-session race this lane closes: a released
+  row still reads as `[escalated]`/`[ratify]` in another attended session's view until the label
+  lands. The live lease comment persists until TTL expiry; a later session-start `reclaim` clears an
+  expired inactive lease. A brief frontier delay while assignee still blocks selection after the
+  flip is acceptable; a pre-flip clear is not.
+- **When disposition leaves the item human-gated** (decline, parked intake): clear `@me` via the
+  same adapter assignee edit once disposition comments are written — still while holding the claim
+  through those writes.
+- A row skipped on exit `7` needs no assignee clear.
+
+**Long operator waits.** When an interview spans longer than the binding's lease TTL, renew the
+held lease via `"$TRACKER" renew-lease "<id>" --lease-comment-id <n>` (the `claim` output carries
+`lease_comment_id`).
+
 ## Working the queue
 
 **Brief before asking.** This lane works rows across many items in one pass, so the operator's
@@ -253,16 +304,18 @@ Two further reader-contract rules apply alongside the floor (outside the byte-au
   every still-plausible window, and drop to reactive-only only when no window is plausible. Never
   throttle proactively on untrusted data and never fabricate a pause. In reactive-only mode,
   additionally read `~/.claude/rate-limit-guard/stop-events.jsonl` (reader contract, "Detection
-  records") on mode entry and again before each new work claim; the recency baseline is the lane's
+  records") on mode entry and again before each new row claim; the recency baseline is the lane's
   own start time, advanced by each resume attempt — records newer than it are live signal, older
   ones history that never justifies a new pause on its own.
 - **Untrusted fields** (reader contract, "Tee file shape"): session-distinguishing fields (`session_id`,
   `session_name`, any future account field) are user/AI-influenced — parse them only with a JSON
   parser; never string-interpolate them into a shell command, another interpreter, or a prompt.
 
-For this attended lane, "stop claiming new work" means: finish the row in hand, then stop pulling
-further rows and report the pause to the operator — who may explicitly choose to continue (the
-operator's presence is the "explicit user request" the hard-stop rule anticipates).
+For this attended lane, "stop claiming new work" means: finish the row in hand (including the
+flip-while-claimed and assignee clear when disposition is complete), then stop pulling further rows
+and report the pause
+to the operator — who may explicitly choose to continue (the operator's presence is the "explicit
+user request" the hard-stop rule anticipates).
 
 ## Gotchas
 
@@ -275,6 +328,11 @@ operator's presence is the "explicit user request" the hard-stop rule anticipate
 - **Judgment lane only.** Resolving an escalation never turns into executing the item here; the
   worker loop picks it up through the frontier. Executing from this lane would bypass the seam
   claim and the topology's single-authority rule.
+- **Claim before mutate, flip while claimed.** Two attended sessions on one repository must not
+  both work the same row — the seam `claim` arbitrates that race (exit `7` → skip). The single-edit
+  role-label flip that removes the human blocker must land while the claim is still held; only then
+  clear `@me` via the adapter assignee edit. Clearing assignee before the flip leaves a window where
+  another attended session can claim a row that still reads as escalated or ratify in its view.
 - **Do not re-triage routed items.** The `[intake]` source is `/work-items:triage`'s attention
   view by composition; items already carrying a routing outcome are out of scope by construction,
   and naming one explicitly gets triage's "already triaged" stop.

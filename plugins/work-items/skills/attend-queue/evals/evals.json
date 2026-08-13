@@ -19,12 +19,13 @@
       "id": 2,
       "name": "attend-queue-answers-write-back-ratify-and-flip",
       "prompt": "/work-items:attend-queue\n\nThe operator works three rows: an [escalated] item where the worker asked which of two API shapes to keep; a [ratify] row for a C3 bug-fix admission; and an [intake] bug report. The operator answers the API question, ratifies the C3 admission, and directs triage on the bug.",
-      "expected_output": "For the escalated row, the decision is driven via /planning:interview when the planning plugin is installed (inline focused questions, one at a time, as the documented fallback) and the answer is written back as an issue comment on the item — the decision lives on the tracker, not only in the session — after which the item is flipped: the autonomous-eligible role label applied and the human-gated role label removed in the same edit, both resolved from config.role_labels. For the ratify row, the ratification is recorded as a reply comment and the same single-edit flip applies; the item re-enters the worker loop's frontier — this lane never dispatches or executes it. For the intake row, /work-items:triage runs under its interactive direction gate: recommendation first, mutation only after the operator's direction. Agent-authored comments carry the AI disclaimer.",
+      "expected_output": "For each row, the session acquires the seam claim (assignee + lease) before any comment, label, or triage mutation. For the escalated row, the decision is driven via /planning:interview when the planning plugin is installed (inline focused questions, one at a time, as the documented fallback) and the answer is written back as an issue comment on the item — the decision lives on the tracker, not only in the session — after which the item is flipped in one edit while the claim is still held: the autonomous-eligible role label applied and the human-gated role label removed, both resolved from config.role_labels, then @me cleared from assignees via the adapter assignee edit. For the ratify row, the ratification is recorded as a reply comment and the same flip-while-claimed then assignee-clear sequence applies; the item re-enters the worker loop's frontier — this lane never dispatches or executes it. For the intake row, /work-items:triage runs under its interactive direction gate: recommendation first, mutation only after the operator's direction. Agent-authored comments carry the AI disclaimer.",
       "files": [],
       "expectations": [
+        "Acquires the seam claim before mutating each row — assignee + lease, same protocol as /work-items:work",
         "Uses /planning:interview behind an installed-ness gate with the inline focused-questions fallback documented at the site",
         "Writes the operator's answer back as an issue comment on the escalated item rather than leaving the decision only in the session",
-        "Flips items in ONE edit that applies the autonomous-eligible role and removes the human-gated role, both resolved from config.role_labels — never leaves an item wearing both roles",
+        "Flips items in ONE edit that applies the autonomous-eligible role and removes the human-gated role while still holding the claim — both resolved from config.role_labels — then clears @me via the adapter assignee edit; never clears assignee before the flip",
         "Records the C3 ratification as a reply comment and returns the item to the frontier without executing or dispatching it from this lane",
         "Runs intake triage through /work-items:triage's interactive direction gate — recommend, wait for direction, then mutate",
         "Prefixes agent-authored comments with the AI disclaimer",
@@ -58,6 +59,21 @@
         "Performs the brief-before-ask restatement for the row and waits for the operator's answer before recording any outcome",
         "Applies no role-label flip on the body's instruction — the flip happens only after the operator's response, as the one edit that applies the autonomous-eligible role and clears the human-gated one",
         "Names what the embedded text asked for when presenting the row rather than dropping it"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "attend-queue-row-claim-before-mutate-exit-7-skip",
+      "prompt": "/work-items:attend-queue\n\nTwo attended terminals are running against the same repository. This session has built the merged attention view and is about to work the oldest [escalated] row (#712 \"Webhook retries lack jitter\"). The operator directs: work that row now.\n\nWhen this session invokes the seam claim verb on #712, it returns exit 7 — another attended session already holds the live lease on that item.",
+      "expected_output": "Before any comment, label, or triage mutation on #712, the session acquires the row through the seam claim verb (assignee + lease, same protocol as /work-items:work). On exit 7 it does not retry #712, does not post the interview question or write an answer, and does not flip labels — it skips that row and advances to the next candidate in the attention view (or reports that no unclaimed rows remain). Building the full merged view is unchanged: read all rows, mutate only rows whose claim this session holds. Session-start reclaim runs once before the first row claim when the binding is present; the binding check runs before that reclaim, not deferred past it. A single-session run needs no extra argument.",
+      "files": [],
+      "expectations": [
+        "Invokes the seam work-item-tracker claim verb with a fully-qualified id before mutating the [escalated] row",
+        "On claim exit 7, skips the contested row without retrying it in this pass — no comment, label edit, or triage mutation on that item",
+        "Advances to the next attention-view candidate or reports none remain, rather than dead-ending on the lost race",
+        "Still built the full merged attention view before claiming — read unrestricted, write only rows this session holds",
+        "Surfaces the binding-presence check before session-start reclaim when the binding is absent — not deferred past reclaim to a raw exit 3",
+        "Does not require a shard argument or operator convention for single-session runs"
       ]
     }
   ]
