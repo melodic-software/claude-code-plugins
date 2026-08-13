@@ -391,6 +391,9 @@ collect_locating_globals() {
   return 0
 }
 
+# Called from walk_argv below; ShellCheck 0.11 SC2329 does not always see
+# nested bash function calls through the alias-expansion walk.
+# shellcheck disable=SC2329
 set_probe_locating() {
   local -a inherited=()
   if ((${#HOOK_EFFECTIVE_LOCATING[@]})) && ((HOOK_FRAME_PREFIX_HAS_C == 0)); then
@@ -405,6 +408,7 @@ set_probe_locating() {
   fi
 }
 
+# shellcheck disable=SC2329
 shell_alias_inherited_locating() {
   if ((${#locating_globals[@]})); then
     HOOK_EFFECTIVE_LOCATING=("${HOOK_PROBE_LOCATING[@]}")
