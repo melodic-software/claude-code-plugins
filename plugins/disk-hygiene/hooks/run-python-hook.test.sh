@@ -33,7 +33,14 @@ assert_contains() {
   fi
 }
 
-# --- launcher is executable and hooks.json wires bash + this script ---
+# --- hooks.json wires this launcher in portable shell form ---
+#
+# These assert the PORTABILITY PROPERTY, not a literal spelling. The previous
+# revision asserted `.command == "bash"` with the script in `.args`, which
+# encoded the #1006 defect as the contract: exec form (`args` present) resolves
+# `command` as a bare PATH lookup, and on Windows `bash` finds the WSL relay
+# `System32\bash.exe` before Git Bash. The launch fails, and a failed hook
+# launch is non-blocking — so the guard silently enforced nothing.
 HOOKS_JSON="$SCRIPT_DIR/hooks.json"
 if ! command -v jq >/dev/null 2>&1; then
   echo "SKIP: jq required" >&2
@@ -41,16 +48,35 @@ if ! command -v jq >/dev/null 2>&1; then
 fi
 
 for hook_name in destructive_guard.py guard_launch_monitor.py; do
-  command_line="$(jq -r --arg target "$hook_name" '
+  entry="$(jq -c --arg target "$hook_name" '
     .hooks | to_entries[] | .value[]? | .hooks[]? |
-    select(.args[]? | contains($target)) | .command
+    select(.command | contains($target))
   ' "$HOOKS_JSON" | head -n1)"
-  assert_eq "hooks.json command for $hook_name is bash" "bash" "$command_line"
-  launcher_arg="$(jq -r --arg target "$hook_name" '
-    .hooks | to_entries[] | .value[]? | .hooks[]? |
-    select(.args[]? | contains($target)) | .args[0]
-  ' "$HOOKS_JSON" | head -n1)"
-  assert_contains "hooks.json args[0] for $hook_name is the launcher" "run-python-hook.sh" "$launcher_arg"
+  if [[ -z "$entry" ]]; then
+    fail "hooks.json has no command hook referencing $hook_name"
+  fi
+
+  command_line="$(jq -r '.command' <<<"$entry")"
+  assert_contains "hooks.json command for $hook_name invokes the launcher" \
+    "run-python-hook.sh" "$command_line"
+
+  # Shell form only: `args` present would switch Claude Code to exec form, where
+  # `command` is a bare PATH lookup and `shell` is ignored.
+  assert_eq "hooks.json entry for $hook_name omits args (shell form)" \
+    "null" "$(jq -r '.args // "null" | if type == "array" then "present" else . end' <<<"$entry")"
+
+  # Explicit `shell: bash`. Shell form otherwise falls back to PowerShell on a
+  # Windows host with no Git Bash detected, which cannot run a .sh launcher.
+  assert_eq "hooks.json entry for $hook_name declares shell bash" \
+    "bash" "$(jq -r '.shell // ""' <<<"$entry")"
+
+  # Every path placeholder must be double-quoted: the shell re-tokenizes the
+  # command string, and plugin roots routinely contain spaces.
+  unquoted="$(grep -oE '(^|[^"])\$\{CLAUDE_PLUGIN_(ROOT|DATA)\}|\$\{CLAUDE_PLUGIN_(ROOT|DATA)\}([^"]|$)' <<<"$command_line" || true)"
+  if [[ -n "$unquoted" ]]; then
+    fail "hooks.json command for $hook_name has an unquoted path placeholder: $unquoted"
+  fi
+  pass "hooks.json command for $hook_name double-quotes every path placeholder"
 done
 
 # --- monitor mode without python emits systemMessage JSON ---

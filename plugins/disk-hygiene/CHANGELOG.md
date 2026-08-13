@@ -3,6 +3,27 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.8]
+
+### Fixed
+
+- **Wired hooks launch in shell form, restoring the destructive guard on Windows (#1416).**
+  `0.17.6` moved both `hooks/hooks.json` registrations onto `"command": "bash"` + `args` to
+  resolve a real Python 3 interpreter (#1504) — and in doing so reintroduced the exact launch
+  failure #1006 had already fixed for the skill-frontmatter hook. Exec form (`args` present) is
+  a bare `PATH` lookup, and on Windows `bash` resolves to the WSL relay `System32\bash.exe`
+  before Git Bash: `execvpe(/bin/bash) failed: No such file or directory`. A hook that fails to
+  launch is a **non-blocking** error, so `destructive_guard.py` never ran and the PreToolUse
+  gate silently enforced nothing on every such host. Both registrations now name
+  `run-python-hook.sh` directly with `"shell": "bash"` and no `args`, which Claude Code routes
+  through Git Bash instead of a `PATH` lookup. Every `${CLAUDE_PLUGIN_ROOT}` /
+  `${CLAUDE_PLUGIN_DATA}` placeholder is double-quoted, so the argv is byte-identical to the
+  exec-form vector across paths containing spaces. The #1504 Python-resolution behaviour is
+  unchanged — only the launch mechanism moves. `hooks/run-python-hook.test.sh` previously
+  asserted `.command == "bash"`, encoding the defect as the contract; it now asserts the
+  portability property (launcher named in `command`, no `args`, `shell: bash`, every
+  placeholder quoted).
+
 ## [0.17.7]
 
 ### Changed

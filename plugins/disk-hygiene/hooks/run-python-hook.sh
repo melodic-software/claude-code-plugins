@@ -2,12 +2,21 @@
 # Launch disk-hygiene wired hooks through a Python 3 interpreter resolved
 # independently of a bare `python3` on PATH (#1504).
 #
-# Claude Code registers plugin hooks in exec form: the `command` field is
-# resolved on PATH with no shell. When `python3` is absent, broken, or resolves
-# to the zero-length WindowsApps App Execution Alias stub, both the guard and its
-# Stop detector died the same way — the detector could not observe the guard's
-# fail-open. This launcher is registered as `bash` (available in Git Bash on
-# Windows) and resolves a real interpreter before exec'ing the target script.
+# When `python3` is absent, broken, or resolves to the zero-length WindowsApps
+# App Execution Alias stub, both the guard and its Stop detector died the same
+# way — the detector could not observe the guard's fail-open. This launcher
+# resolves a real interpreter before exec'ing the target script.
+#
+# hooks.json invokes this file in SHELL FORM — the `command` string names this
+# script by path and carries its arguments, with no `args` key. Claude Code
+# routes shell form through Git Bash on Windows, resolved by Claude Code itself.
+# It must NOT be registered in exec form as `"command": "bash"` + `args`: exec
+# form is a bare PATH lookup, and on Windows `bash` resolves to the WSL relay
+# `System32\bash.exe` before Git Bash, which fails with
+# `execvpe(/bin/bash) failed` (#1006, regressed by #1504). A hook that fails to
+# launch is a non-blocking error, so the guard silently enforces nothing.
+# Every path placeholder in the command string must stay double-quoted; the
+# shell re-tokenizes the string, and plugin roots contain spaces.
 #
 # When no interpreter resolves:
 #   * guard_launch_monitor.py — emit a once-per-run systemMessage on stdout

@@ -47,11 +47,16 @@ at preview. Backups remain the recovery boundary for user data.
 - Python 3.11+ available on `PATH` is required for scanning, validation, the skill-scoped guard, and
   cleanup (the floor's single origin is the `MIN_PYTHON` constant in
   `skills/clean/scripts/hygiene.py`; `/disk-hygiene:setup check` derives the enforced value from
-  there, so treat the number printed here as a convenience copy). Claude Code launches the guard in
-  shell-free exec form; guarded engine calls must use the same absolute interpreter reported by that
-  guard, so Bash aliases and functions cannot replace it. Both wired hooks register as `bash`
-  invoking `hooks/run-python-hook.sh`, so `bash` must resolve on `PATH` (Git Bash on Windows) before
-  the launcher can resolve Python (#1504). The guard registers on two surfaces: a
+  there, so treat the number printed here as a convenience copy). Claude Code launches the
+  skill-scoped guard in shell-free exec form; guarded engine calls must use the same absolute
+  interpreter reported by that guard, so Bash aliases and functions cannot replace it. Both wired
+  hooks register in **shell form** — the `command` string names `hooks/run-python-hook.sh` directly
+  with `"shell": "bash"` and no `args` — so Claude Code routes them through Git Bash itself instead
+  of resolving `bash` on `PATH`. Registering them in exec form as `"command": "bash"` is the
+  regression #1416 tracks: on Windows that bare `PATH` lookup finds the WSL relay
+  `System32\bash.exe` before Git Bash, the launch fails, and a failed hook launch is non-blocking —
+  so the guard silently enforces nothing. The launcher then resolves Python (#1504). The guard
+  registers on two surfaces: a
   plugin-level **engine gate** (`hooks/hooks.json`) that acts only on commands referencing the
   engine — deferring everything else instantly — and enforces the kill switch and data-root
   authority; and the skill-scoped **belt** inside the `clean` skill's context, which adds the
