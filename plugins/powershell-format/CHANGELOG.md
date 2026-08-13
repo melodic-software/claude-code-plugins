@@ -3,6 +3,13 @@
 All notable changes to the `powershell-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.14]
+
+### Changed
+
+- **Content-mutation disclosure documentation (#1596).** Hook comments now record why
+  Invoke-Formatter rewrites are disclosed as structural layout only.
+
 ## [0.7.13]
 
 ### Fixed

@@ -224,6 +224,8 @@ fi
 GOIMPORTS_ARGS=(-w -l)
 [[ -n "$LOCAL_PREFIX" ]] && GOIMPORTS_ARGS+=(-local "$LOCAL_PREFIX")
 
+# Content-mutation disclosure (#1596): goimports rewrites imports and layout
+# only; name the rewrite on the user channel and stay silent on no-op paths.
 _go_before=""
 if _go_before=$(mktemp 2>/dev/null); then
   cp "$FILE" "$_go_before" 2>/dev/null || _go_before=""

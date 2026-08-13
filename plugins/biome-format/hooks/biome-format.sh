@@ -207,6 +207,9 @@ fi
 # biome.json (verified empirically). Unsetting it keeps the discovered CONFIG_DIR
 # config authoritative — consistent with the in-tree opt-in this plugin is built
 # on (an out-of-tree config has no in-tree biome.json, so the gate skips anyway).
+# Content-mutation disclosure (#1596): Biome may auto-fix and/or reformat layout
+# the user did not request. Name the rewrite on the user channel; stay silent
+# when the file is unchanged.
 _biome_before=""
 if _biome_before=$(mktemp 2>/dev/null); then
   cp "$FILE" "$_biome_before" 2>/dev/null || _biome_before=""
