@@ -79,11 +79,7 @@ assert_eq "guard mode exits 0 when python is unavailable" "0" "$GUARD_RC"
 
 # --- happy path execs the target script when python is available ---
 if command -v python3 >/dev/null 2>&1 &&
-  python3 -c 'import sys; sys.exit(0)' 2>/dev/null; then
-  VERSION_OUT="$(
-    bash "$LAUNCHER" -c 'import sys; print(sys.version_info[0])' 2>/dev/null || true
-  )"
-  # `-c` is consumed by bash launcher as SCRIPT; use a tiny helper instead.
+  python3 -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)' 2>/dev/null; then
   HELPER="$(mktemp --suffix=.py)"
   printf 'import sys\nprint("launcher-ok")\n' >"$HELPER"
   HELPER_OUT="$(bash "$LAUNCHER" "$HELPER" 2>/dev/null || true)"

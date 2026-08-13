@@ -49,7 +49,9 @@ at preview. Backups remain the recovery boundary for user data.
   `skills/clean/scripts/hygiene.py`; `/disk-hygiene:setup check` derives the enforced value from
   there, so treat the number printed here as a convenience copy). Claude Code launches the guard in
   shell-free exec form; guarded engine calls must use the same absolute interpreter reported by that
-  guard, so Bash aliases and functions cannot replace it. The guard registers on two surfaces: a
+  guard, so Bash aliases and functions cannot replace it. Both wired hooks register as `bash`
+  invoking `hooks/run-python-hook.sh`, so `bash` must resolve on `PATH` (Git Bash on Windows) before
+  the launcher can resolve Python (#1504). The guard registers on two surfaces: a
   plugin-level **engine gate** (`hooks/hooks.json`) that acts only on commands referencing the
   engine — deferring everything else instantly — and enforces the kill switch and data-root
   authority; and the skill-scoped **belt** inside the `clean` skill's context, which adds the

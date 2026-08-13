@@ -22,6 +22,7 @@ MODE=unknown
 case "$SCRIPT" in
 *guard_launch_monitor.py*) MODE=monitor ;;
 *destructive_guard.py*) MODE=guard ;;
+*) ;;
 esac
 
 # Portable WindowsApps path-component check (case-insensitive).
@@ -48,7 +49,7 @@ resolve_python3() {
     if _is_store_alias_stub "$resolved"; then
       continue
     fi
-    if "$resolved" -c 'import sys; sys.exit(0)' 2>/dev/null; then
+    if "$resolved" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)' 2>/dev/null; then
       printf '%s' "$resolved"
       return 0
     fi
@@ -56,7 +57,7 @@ resolve_python3() {
 
   if command -v py >/dev/null 2>&1; then
     resolved="$(py -3 -c 'import sys; print(sys.executable)' 2>/dev/null)" || return 1
-    if [[ -n "$resolved" ]] && "$resolved" -c 'import sys; sys.exit(0)' 2>/dev/null; then
+    if [[ -n "$resolved" ]] && "$resolved" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)' 2>/dev/null; then
       printf '%s' "$resolved"
       return 0
     fi
