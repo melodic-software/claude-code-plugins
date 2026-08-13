@@ -12,7 +12,6 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
   [`docs/extensibility-contract-smoke-tests.md`](../../docs/extensibility-contract-smoke-tests.md)
   Test E (#1360). Targetless references to the flow stay unqualified.
 
-
 ## [0.15.6]
 
 ### Changed
