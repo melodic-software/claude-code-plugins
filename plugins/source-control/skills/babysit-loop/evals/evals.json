@@ -134,6 +134,24 @@
         "Never tests any author login against babysit_watched_owners, and never forwards the trusted-bot list as self logins, extra bot logins, or any other authority",
         "States that a trust match removes only the categorical C5 bar — it never establishes a work class, and the C4 diff veto, rung comparison, and remaining withholdings still apply"
       ]
+    },
+    {
+      "id": 9,
+      "name": "babysit-loop-drain-issue-author-provenance",
+      "prompt": "/source-control:babysit-loop melodic-software/example-repo worker --drain\n\nCycle end. The target repository's team-tracked .claude/source-control.md (default branch) lists melodic-lane-bot[bot] under babysit_loop_trusted_internal_bot_logins. The cycle-start snapshot shows 0 open PRs and four open issues: 'Lane telemetry: babysit-loop' (lane infrastructure); #501 filed by a MEMBER with work-class: mechanical and agent-ready labels; #502 filed by an outside collaborator (authorAssociation NONE) with the same labels but no human-gated role label; #503 filed by melodic-lane-bot[bot] (authorAssociation NONE) with agent-ready and work-class: mechanical; #504 filed by other-tool[bot] (authorAssociation CONTRIBUTOR, unlisted) with agent-ready and work-class: scoped. No PR is in flight for any issue.",
+      "expected_output": "The drain evaluation runs against the cycle-start snapshot. The telemetry issue is excluded as lane infrastructure. Each remaining issue is tested with the issue-author provenance field test from work-classes.md — the same trust arms and babysit_loop_trusted_internal_bot_logins binding as the PR trust test, fail-closed when a field is absent. #501 passes on the OWNER/MEMBER arm and is actionable backlog — it blocks both drain exits (0-open-issues and drain-terminal) because it is neither human-gated, escalated, nor C5 on author provenance. #502 fails the test (NONE association, unlisted human author) and counts as human-gated for the drain-terminal limb even without a human-gated role label: the lane never works it. #503 passes on the listed-bot arm despite NONE association. #504 fails (unlisted structural bot). With #501 still open and actionable, the drain does not exit. Had #501 been closed leaving only #502–#504, the drain-terminal state applies: every remaining issue is either C5 on author provenance (#502, #504) or would still block if #503 alone remained without the others — but with only #502 and #504 open, both C5 on author provenance and no PR in flight, the lane stops cleanly with a final report rather than idling. The test is on provider metadata only — never a lookup of issue body text.",
+      "files": [],
+      "expectations": [
+        "Excludes the Lane telemetry: <lane> issue from the drain evaluation as lane infrastructure",
+        "Applies the issue-author provenance field test from work-classes.md to every other open issue in the snapshot, using the same OWNER/MEMBER and listed-bot arms as the PR trust test",
+        "Resolves babysit_loop_trusted_internal_bot_logins from the target repository's team-tracked default-branch layer only, with the same binding rules as the PR trust test",
+        "Treats #501 (MEMBER author) as actionable backlog that blocks both drain exit limbs",
+        "Treats #502 (outside collaborator, NONE association) as C5 on author provenance and human-gated for the drain-terminal exit without requiring a human-gated role label",
+        "Treats #503 (listed lane bot, NONE association) as not C5 on author provenance via the listed-bot arm",
+        "Treats #504 (unlisted structural bot) as C5 on author provenance, fail-closed",
+        "Recognizes drain-terminal when every remaining non-infrastructure issue is C5 on author provenance, escalated, or human-gated by role label, with 0 open PRs",
+        "Never classifies issue provenance from body text, comments, or self-stamped work-class trailers"
+      ]
     }
   ]
 }

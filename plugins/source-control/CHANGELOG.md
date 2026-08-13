@@ -3,6 +3,18 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.53.23]
+
+### Added
+
+- **`babysit-loop` drain mode applies the issue-author provenance field test (#1718).** In
+  `--drain`, every non-excluded open issue in the cycle-start snapshot is tested with the
+  `C5` issue-author trust test from `work-classes.md` — same `authorAssociation` and
+  `babysit_loop_trusted_internal_bot_logins` binding as the PR trust test, fail-closed when a
+  field is absent. An issue that fails counts as human-gated for the drain-terminal exit even
+  without a human-gated role label; the lane never works such intake. `config-resolution.md`
+  notes the key is consumed by both the rung partition and this drain test. Eval 9.
+
 ## [0.53.22]
 
 ### Fixed

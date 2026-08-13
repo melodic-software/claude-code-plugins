@@ -160,9 +160,12 @@ closed or PR'd): the merge lane finishes merging the tail. Lane-infrastructure i
 the drain: the per-lane telemetry tracking issues (the `Lane telemetry: <lane>` title contract,
 this lane's and any sibling's) are excluded from the 0-open-issues evaluation, exactly as the
 work-items lanes exclude them. The **drain-terminal state** (per the convention) also ends the
-loop: every remaining open item human-gated or escalated and no PR in flight — report and stop
-cleanly rather than idling forever. The exit is evaluated against the cycle-start snapshot; new
-intake arriving mid-cycle is reported, never chased.
+loop: every remaining open item human-gated, escalated, or **`C5` on the issue-author provenance
+test** (`work-classes.md`, "Issue — the intake's provenance") and no PR in flight — report and
+stop cleanly rather than idling forever. An issue that fails that test counts as human-gated for
+the drain exit even when it wears no human-gated role label: untrusted intake is not backlog this
+lane works. The exit is evaluated against the cycle-start snapshot; new intake arriving mid-cycle
+is reported, never chased.
 
 ## Cycle shape
 
@@ -175,7 +178,7 @@ intake arriving mid-cycle is reported, never chased.
    context is compaction-lossy — the comment is the source of truth for the counters); classify
    guard mode against the floor below; take the cycle-start snapshot: open PRs with head SHAs,
    last-activity timestamps, and the provenance fields the rung partition consumes
-   (`isCrossRepository`, `headRepositoryOwner`, `authorAssociation`, plus the author login and bot type the trust test's listed-bot arm reads), and — in drain mode — open issues.
+   (`isCrossRepository`, `headRepositoryOwner`, `authorAssociation`, plus the author login and bot type the trust test's listed-bot arm reads), and — in drain mode — open issues with the provenance fields the issue-author test consumes (`authorAssociation`, author login, and bot type — the same three the PR trust test's listed-bot arm reads).
 2. **Grace-window overlay.** From the snapshot, mark every PR whose head moved or that received
    comments within the grace window (default 30 minutes), and every draft carrying a WIP signal (a
    work-in-progress title marker, a do-not-merge label, or non-green checks). Marked PRs are
@@ -495,4 +498,13 @@ budget hit is a terminal manual-restart state, per the convention.
 - **Drain counts issues, not just PRs.** 0 open PRs alone never exits a drain — the worker lane
   may still be authoring; only 0 open PRs AND 0 open non-excluded issues (or the drain-terminal
   state) ends the loop.
+- **Drain issue-author provenance.** In drain mode, every non-excluded open issue in the
+  cycle-start snapshot is tested with the issue-author provenance field test from
+  `work-classes.md` ("Issue — the intake's provenance"): `C5` unless `authorAssociation` is
+  `OWNER`/`MEMBER` or the author is a listed structural bot (same
+  `babysit_loop_trusted_internal_bot_logins` binding as the PR trust test). Missing or
+  unreadable fields fail closed to `C5`. An issue that fails is human-gated for the
+  drain-terminal exit — it blocks the 0-open-issues limb but satisfies the terminal limb when
+  every other remaining issue is likewise human-gated, escalated, or `C5` on this test, and no
+  PR is in flight. The lane never works, closes, or waits on such an issue.
 - **An open telemetry issue is the lane operating, not backlog.** Never work, close, or wait on a `Lane telemetry: <lane>` issue, and never count one against the drain exit.

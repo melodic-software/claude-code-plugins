@@ -3,6 +3,19 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.11]
+
+### Added
+
+- **Issue-author provenance field test for `C5` untrusted-provenance (#1718).** The class now
+  carries an executable test on the issue's provider metadata — `authorAssociation` `OWNER` or
+  `MEMBER`, or a structural bot listed in the target repository's team-tracked
+  `babysit_loop_trusted_internal_bot_logins` — fail-closed when a field is absent or unreadable,
+  never a lookup of issue body text. The PR-side fork and trust tests are recorded alongside it,
+  with explicit composition rules so the two surfaces cannot be read as one answer to the same
+  question. Reuses the reviewed internal-bot trust signal from #1525 so repository-owned
+  automation is not misclassified on the issue surface.
+
 ## [0.16.10]
 
 ### Fixed

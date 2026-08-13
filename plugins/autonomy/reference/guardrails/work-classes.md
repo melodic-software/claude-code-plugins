@@ -43,6 +43,50 @@ untrusted, and it dominates every other property. The class's min-isolation cell
 the floor the runner design pack's `C5`-dispatch gate cites: no `C5` item is dispatched onto
 any execution surface below `L3`, and the class's merge policy never promotes.
 
+#### Executable provenance tests
+
+`C5` is assigned by field tests on the provider's own metadata — never by classifier judgment
+alone, and never by anything recorded in the item's own body (the untrusted surface being
+classified). Two surfaces carry the tests; they answer different provenance questions and do
+not substitute for one another.
+
+**Pull request — the code's provenance.** Two tests on the PR's cycle-start snapshot, either
+one marking the PR `C5`, each failing closed to `C5` when its field is missing or unreadable:
+
+- **Fork test:** the head repository is not the base (`isCrossRepository: true`, or
+  `headRepositoryOwner` differing from the base owner).
+- **Trust test:** `C5` unless one arm positively passes — `authorAssociation` `OWNER` or
+  `MEMBER`, or the author is a structural bot (`[bot]` login suffix or provider `Bot` type)
+  listed in the TARGET repository's team-tracked, default-branch
+  `babysit_loop_trusted_internal_bot_logins` (grammar, binding, and fail-closed empty set:
+  `plugins/source-control/reference/config-resolution.md`, "the C5 trust test's one reviewed
+  widening"). A listing never bypasses the fork test.
+
+A fork PR closing an internally classified `C2`/`C3` issue is still `C5` — the class travels
+with the code's provenance, not the issue it closes.
+
+**Issue — the intake's provenance.** One trust test on the issue's cycle-start snapshot,
+failing closed to `C5` when any field it needs is missing or unreadable:
+
+- **Trust test:** `C5` unless one arm positively passes — the issue author's
+  `authorAssociation` is `OWNER` or `MEMBER`, or the author is a structural bot whose login
+  matches an entry in the same TARGET repository's team-tracked, default-branch
+  `babysit_loop_trusted_internal_bot_logins` list the PR trust test uses (same grammar,
+  binding, and fail-closed empty set — repository-owned automation identities are never org
+  `MEMBER` accounts, so without this second arm the org's own lane bots would be classified as
+  untrusted on the issue surface as they were on the PR surface before #1525). Neither arm
+  positively passing — including when `authorAssociation` is absent or unreadable — is `C5`.
+
+The issue test keys on the issue author only. It is not a lookup of anything in the issue's
+title, body, or comments; those surfaces are attacker-writable and are evaluated as data,
+never as admission input.
+
+**Composition.** The PR tests and the issue test are independent: a same-repository PR from a
+trusted member closing an issue filed by an outside collaborator is `C5` on the issue and not
+`C5` on the PR; a fork PR closing an internally triaged issue is `C5` on the PR regardless of
+the issue author's association. Classification at triage and admission stamps the bundle the
+tests resolve; the tests are the executable trigger, not a second opinion on a stamped label.
+
 ## Promotion and demotion
 
 This promotion apparatus — numeric predicate, human-ratified flip, automatic fail-closed
