@@ -9,6 +9,7 @@ import json
 import math
 import os
 import re
+import shlex
 import shutil
 import stat
 import subprocess
@@ -4206,8 +4207,37 @@ class GuardTests(unittest.TestCase):
         self.assertEqual(guard._PLUGIN_ROOT_PLACEHOLDER, args[flag_index + 1])
 
     @staticmethod
-    def _engine_gate_hook_args() -> list[str]:
-        """Return the plugin-level engine-gate hook's `args` from hooks.json."""
+    def _hook_argv(hook: dict) -> list[str]:
+        """Effective argument vector for a command hook, in EITHER launch form.
+
+        Selecting on ``args`` alone would silently match nothing once a hook
+        moves to shell form, turning every assertion built on it into a vacuous
+        pass — the bug-as-contract shape that let the dead engine gate ship.
+        Exec form (``args`` present) spawns ``command`` with ``args`` verbatim;
+        shell form hands the whole ``command`` string to a shell, so ``shlex``
+        reproduces the argv the shell builds, quotes and all.
+        """
+        if hook.get("args"):
+            return [hook["command"], *hook["args"]]
+        return shlex.split(hook.get("command", ""))
+
+    @classmethod
+    def _guard_argv_from_hook(cls, hook: dict, script_name: str) -> list[str]:
+        """Argv the guard script itself receives, launcher indirection removed.
+
+        Both wired hooks route through ``hooks/run-python-hook.sh``, so the
+        launcher and its own path lead the vector; the guard's argv starts at
+        its script path.
+        """
+        argv = cls._hook_argv(hook)
+        for index, token in enumerate(argv):
+            if token.endswith(script_name):
+                return argv[index:]
+        raise AssertionError(f"{script_name} not found in hook argv: {argv}")
+
+    @classmethod
+    def _engine_gate_hook_args(cls) -> list[str]:
+        """Return the plugin-level engine-gate hook's guard argv from hooks.json."""
         hooks_path = SCRIPT_DIR.parents[2] / "hooks" / "hooks.json"
         config = json.loads(hooks_path.read_text(encoding="utf-8"))
         entries = config["hooks"]["PreToolUse"]
@@ -4215,11 +4245,10 @@ class GuardTests(unittest.TestCase):
             hook
             for entry in entries
             for hook in entry.get("hooks", [])
-            if hook.get("args")
-            and any("destructive_guard.py" in arg for arg in hook["args"])
+            if any("destructive_guard.py" in token for token in cls._hook_argv(hook))
         ]
         assert len(commands) == 1, commands
-        return commands[0]["args"]
+        return cls._guard_argv_from_hook(commands[0], "destructive_guard.py")
 
     def test_engine_gate_hook_resolves_kill_switch_from_plugin_root_not_user_config(
         self,
@@ -4250,8 +4279,10 @@ class GuardTests(unittest.TestCase):
     def test_skill_hook_interpreter_is_python3_and_resolves(self) -> None:
         """Lock the guard's launch interpreter and prove it resolves.
 
-        The PreToolUse hook runs in exec form, so `command` is resolved on PATH
-        with no shell. Bare `python` is absent on stock macOS and many Linux
+        The skill-scoped PreToolUse hook runs in exec form, so `command` is
+        resolved on PATH with no shell (the two wired hooks in ``hooks/hooks.json``
+        are shell form and resolve Python through ``run-python-hook.sh`` instead;
+        converting this surface is tracked in #2568). Bare `python` is absent on stock macOS and many Linux
         distros (and a legacy 2.x would crash the guard), which fails the launch
         open — the guard never intercepts. The static half locks the config at
         `python3`. The runtime half is the "interpreter actually resolves" probe:
@@ -4777,8 +4808,9 @@ class GuardTests(unittest.TestCase):
             hook.get("timeout")
             for entry in config["hooks"]["PreToolUse"]
             for hook in entry.get("hooks", [])
-            if hook.get("args")
-            and any("destructive_guard.py" in arg for arg in hook["args"])
+            if any(
+                "destructive_guard.py" in token for token in self._hook_argv(hook)
+            )
         ]
         self.assertEqual([guard._DECLARED_HOOK_TIMEOUT_SECONDS], declared)
 

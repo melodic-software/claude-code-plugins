@@ -57,7 +57,7 @@ unless bounded with `--max-depth` or confirmed with `--confirmed-large-scan`.
   `${CLAUDE_PLUGIN_ROOT}` — not the environment), so in audit-only mode it denies both mutation lanes
   it gates outright — the Bash engine `apply` and the PowerShell deletion belt alike. Running the probe still
   matters so you can state the configured value accurately and stop before proposing work the guard
-  would deny; the guard is the backstop, not the sole enforcer. The hook runs in shell-free exec form and reports its absolute Python
+  would deny; the guard is the backstop, not the sole enforcer. The guard reports its absolute Python
   interpreter and the authorized `--data-root` value in denial guidance. Use that exact interpreter
   path as `<hook-python>` for
   every engine call; bare `python`/`python3` is rejected because Bash aliases and functions can
@@ -353,13 +353,23 @@ sparse files, hard links, compression, and delayed allocation affect it.
   `settings.json`, located from the `${CLAUDE_PLUGIN_ROOT}` both receive — so both honor a configured
   `false`, register unconditionally, and fail closed to enabled when the value is absent or unreadable.
   Verdicts are idempotent where both fire.
-- The guard hook launches in exec form via `python3`, resolved on `PATH` with no shell (`python3`,
-  not bare `python`, because stock macOS and many Linux distros ship only `python3` and a legacy
-  `python` 2.x would crash the guard on modern syntax). Enforcement is therefore only as strong as
-  that resolution: on a host where `python3` does not resolve to an interpreter meeting the
-  engine's `MIN_PYTHON` floor the PreToolUse
-  launch fails, and Claude Code treats a failed hook launch as a non-blocking error, so the guard
-  does not intercept there. Concretely, the exposure is the manual PowerShell deletion lane: engine
+- The two surfaces launch differently, and only one depends on a bare `python3` on `PATH`. The
+  **plugin-level engine gate** (and its `Stop` detector) register in **shell form**: the `command`
+  string names `hooks/run-python-hook.sh` with `"shell": "bash"` and no `args`, so Claude Code routes
+  them through its own Git Bash instead of a `PATH` lookup for `bash` (#1416), and the launcher then
+  resolves a real interpreter — `python3`, then `python`, then `py -3`, rejecting the zero-length
+  `WindowsApps` alias stub (#1504). A shell parses that launch string, but it is a fixed literal whose
+  only substituted values are Claude Code's own quoted `${CLAUDE_PLUGIN_ROOT}`/`${CLAUDE_PLUGIN_DATA}`
+  placeholders. When no interpreter resolves the gate still fails open, but the `Stop` detector emits
+  a `systemMessage` naming the blind spot, so it is visible rather than silent.
+- This **skill's frontmatter belt** still launches in exec form via `python3`, resolved on `PATH` with
+  no shell (`python3`, not bare `python`, because stock macOS and many Linux distros ship only
+  `python3` and a legacy `python` 2.x would crash the guard on modern syntax). Its enforcement is
+  therefore only as strong as that single lookup: on a host where `python3` does not resolve to an
+  interpreter meeting the engine's `MIN_PYTHON` floor the PreToolUse launch fails, and Claude Code
+  treats a failed hook launch as a non-blocking error, so the belt does not intercept there
+  (converting this surface is tracked in #2568). Concretely, the exposure is the manual PowerShell
+  deletion lane: engine
   `apply` is unsupported on Windows and macOS and elsewhere runs only behind the guard's own `ask`,
   so no silent auto-delete path opens, but the guard's PowerShell belt that turns a deletion spelling
   into a final human prompt is lost. The backstops that remain are the per-path human approval the

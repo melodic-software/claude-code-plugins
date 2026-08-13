@@ -6,17 +6,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh",
-              "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py",
-              "--mode",
-              "engine-gate",
-              "--plugin-root",
-              "${CLAUDE_PLUGIN_ROOT}",
-              "--authorized-data-root",
-              "${CLAUDE_PLUGIN_DATA}"
-            ],
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-python-hook.sh \"${CLAUDE_PLUGIN_ROOT}\"/skills/clean/scripts/destructive_guard.py --mode engine-gate --plugin-root \"${CLAUDE_PLUGIN_ROOT}\" --authorized-data-root \"${CLAUDE_PLUGIN_DATA}\"",
+            "shell": "bash",
             "timeout": 60
           }
         ]
@@ -27,13 +18,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh",
-              "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/guard_launch_monitor.py",
-              "--data-root",
-              "${CLAUDE_PLUGIN_DATA}"
-            ],
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-python-hook.sh \"${CLAUDE_PLUGIN_ROOT}\"/skills/clean/scripts/guard_launch_monitor.py --data-root \"${CLAUDE_PLUGIN_DATA}\"",
+            "shell": "bash",
             "timeout": 20,
             "statusMessage": "Checking for silent destructive-guard failures..."
           }

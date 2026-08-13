@@ -1,0 +1,77 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "bare-invocation-runs-read-only-check",
+      "prompt": "/disk-hygiene:setup",
+      "expected_output": "Runs the read-only check action (the default) and reports a PASS/FAIL/INFO table with one remediation line per FAIL, writing nothing.",
+      "files": [],
+      "expectations": [
+        "Defaults to check when no argument is given",
+        "Reads the clean skill and its bundled scripts as the source of truth for prerequisites rather than reciting SKILL.md",
+        "Makes no configuration change and never prompts when the action is given"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "apply-is-guidance-only",
+      "prompt": "/disk-hygiene:setup apply",
+      "expected_output": "Runs the check first, then points at each remediation without writing any consumer-project configuration.",
+      "files": [],
+      "expectations": [
+        "Runs check before offering remediation",
+        "Writes nothing — the plugin owns no consumer-project configuration",
+        "Names the native userConfig toggle as the only tunable"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "exec-form-wired-hook-registration-fails-step-one",
+      "prompt": "/disk-hygiene:setup check on a machine whose hooks/hooks.json registers the wired hooks as \"command\": \"bash\" with an args array.",
+      "expected_output": "Step 1 FAILs on the registration shape itself: exec form resolves `bash` on PATH, which on Windows finds the WSL relay System32\\bash.exe, the launch fails, and a failed hook launch is non-blocking so the guard silently enforces nothing.",
+      "files": [],
+      "expectations": [
+        "Fails on the presence of an args key or a bare interpreter name in command, not on the machine's environment",
+        "Does NOT report the problem as a PATH-ordering issue and does NOT recommend reordering PATH or setting CLAUDE_CODE_GIT_BASH_PATH",
+        "Explains that shell form is resolved by Claude Code, so PATH order neither causes nor fixes it"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "missing-git-bash-reported-as-prerequisite-not-path-fix",
+      "prompt": "/disk-hygiene:setup check on a Windows machine with no Git Bash installed.",
+      "expected_output": "Reports the absent Git Bash as an environment prerequisite, because shell form falls back to PowerShell there and PowerShell cannot run the .sh launcher.",
+      "files": [],
+      "expectations": [
+        "Names Git Bash as a prerequisite for shell-form hook routing on Windows",
+        "Does not prescribe a PATH reordering remedy",
+        "Still reports the wired-hook registration shape as correct when it is"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "disabled-toggle-keeps-guard-launch-failures-at-fail",
+      "prompt": "/disk-hygiene:setup check with disk_hygiene_enabled set to false and python3 resolving to the zero-length WindowsApps alias stub.",
+      "expected_output": "Most prerequisite absences downgrade to INFO under a disabled toggle, but every step-1 and step-2 failure stays FAIL — a guard that never launches cannot read or enforce the configured false, so the fail-open is most dangerous in exactly this configuration.",
+      "files": [],
+      "expectations": [
+        "Does not downgrade a step-1 or step-2 failure to INFO because the plugin is disabled",
+        "Treats the store-alias-stub alias-probe verdict as a guard-launch failure",
+        "Notes that re-enabling restores FAIL semantics for the downgraded probes"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "python-below-floor-fails-closed",
+      "prompt": "/disk-hygiene:setup check where python3 launches successfully but reports version 3.6.",
+      "expected_output": "FAILs on the parsed MIN_PYTHON floor from skills/clean/scripts/hygiene.py rather than accepting a successful launch as proof the guard can run.",
+      "files": [],
+      "expectations": [
+        "Derives the required version from the MIN_PYTHON constant, not a copy in the README",
+        "Treats a launching-but-too-old interpreter as unproven guard execution and fails closed",
+        "Explains that a version probe proves only that something executes"
+      ]
+    }
+  ]
+}

@@ -25,9 +25,11 @@ report a PASS/FAIL/INFO table with one remediation line per FAIL.
 When the plugin's toggle is disabled, every prerequisite absence downgrades from FAIL to
 INFO — a deliberately disabled plugin is not broken. Report the probes informationally and
 note that re-enabling restores the FAIL semantics. One exception: every step-1 and step-2 failure stays
-FAIL with the toggle disabled. Audit-only mode is *enforced by* the guard, both guard surfaces
-launch through the literal name `python3`, and a guard that never runs can neither read nor
-enforce the configured `false` — so the fail-open is most dangerous in exactly this
+FAIL with the toggle disabled. Audit-only mode is *enforced by* the guard, every guard surface
+depends on a Python 3 interpreter resolving (the wired hooks through
+`hooks/run-python-hook.sh`, the skill-scoped belt through the literal name `python3`), and a
+guard that never runs can neither read nor enforce the configured `false` — so the fail-open
+is most dangerous in exactly this
 configuration. That covers every non-`ok` alias-probe verdict (`store-alias-stub`,
 `indeterminate`, `not-found`), a nominally `ok` resolution whose version probe then fails to
 launch at all — a corrupt or zero-length binary outside `WindowsApps`, a broken shim, a
@@ -38,11 +40,16 @@ the guard's own source: Python 3.6, for example, rejects the guard's
 non-blocking — the same silent fail-open through a different door. Unproven guard execution
 fails closed like every other guard-relevant unknown in this plugin.
 
-1. **Bash launcher on `PATH`** — both wired hooks in `hooks/hooks.json` register as the literal
-   command `bash` before `hooks/run-python-hook.sh` resolves Python. FAIL if `command -v bash` is
-   empty; on Windows ensure Git Bash (or another real `bash.exe`) precedes stub paths on `PATH`.
-   When bash is missing, neither the guard nor the Stop detector can launch — the same blind spot
-   the launcher exists to surface.
+1. **Shell-form launcher registration** — both wired hooks in `hooks/hooks.json` must name
+   `hooks/run-python-hook.sh` directly in `command`, with `"shell": "bash"` and **no `args`**, so
+   Claude Code routes them through its own Git Bash rather than a `PATH` lookup. FAIL if either
+   registration carries an `args` key or sets `command` to a bare interpreter name such as `bash`:
+   that is exec form, which on Windows resolves `bash` to the WSL relay `System32\bash.exe` and
+   fails to launch — and a failed hook launch is non-blocking, so the guard silently enforces
+   nothing (#1416). Do **not** report this as a `PATH`-ordering problem: shell form is resolved by
+   Claude Code, so reordering `PATH` neither causes nor fixes it. Also FAIL if the launcher is
+   missing or not executable. Report a missing Git Bash on Windows as an environment prerequisite
+   (shell form falls back to PowerShell there, which cannot run a `.sh`), not as a `PATH` fix.
 2. **Python floor on `PATH`** — the interpreter used by scanning, validation, the
    guard, and cleanup. (The guard registers on two surfaces: a plugin-level engine gate
    that acts only on engine-referencing commands, and the skill-scoped belt inside the

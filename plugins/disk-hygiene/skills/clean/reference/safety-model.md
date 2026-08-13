@@ -191,8 +191,9 @@ destination, a truncated `Out-File` target, or an entire volume.
 TODO(#387): extend the flagged set to those spellings.
 
 **Kill-switch enforcement (since 0.9.0): both surfaces resolve it by reading user settings.** The guard
-registers on two surfaces — the **plugin-level engine gate** (`hooks/hooks.json`, exec form,
-`--mode engine-gate`) and the **skill-scoped belt** (the clean skill's frontmatter hook) — and both
+registers on two surfaces — the **plugin-level engine gate** (`hooks/hooks.json`, shell form through
+`hooks/run-python-hook.sh`, `--mode engine-gate`; see "Hook launch form" below) and the
+**skill-scoped belt** (the clean skill's frontmatter hook, still exec form) — and both
 resolve `disk_hygiene_enabled` the same single way: by reading it from `pluginConfigs` in the
 `settings.json` files, through the shared `lib/killswitch_config.py` reader (the same read the setup
 skill's `kill_switch_probe.py` reports). Neither surface takes the value from the process environment.
@@ -251,6 +252,28 @@ Even when the switch resolves enabled, the PowerShell lane is a raised bar, not 
 mutation spelling passes it, so the engine's own containment, revalidation, and platform gates remain the
 deletion authority.
 
+**Hook launch form, and what it does and does not bound (since 0.17.8, #1416).** The two wired hooks
+— the engine gate on `PreToolUse` and its detector on `Stop` — register in **shell form**: the
+`command` string names `hooks/run-python-hook.sh` with `"shell": "bash"` and no `args`. Exec form was
+not viable: it is a bare `PATH` lookup, and on Windows `bash` resolves to the WSL relay
+`System32\bash.exe` before Git Bash, so the launch died and — a failed hook launch being non-blocking
+— the guard silently enforced nothing. Shell form is resolved by Claude Code itself, which routes it
+through its own Git Bash. The security consequence is stated plainly rather than glossed: a shell now
+parses the launch string, so "no shell is involved" is no longer the bound. What bounds it instead is
+that the string is a **fixed literal** in the plugin's own `hooks.json`, with no model-, repo-, or
+session-supplied text interpolated into it; the only substituted values are Claude Code's own
+`${CLAUDE_PLUGIN_ROOT}` and `${CLAUDE_PLUGIN_DATA}` placeholders, each double-quoted, so the shell's
+re-tokenization reproduces the exec-form argument vector byte-for-byte — verified for both hooks
+against roots containing spaces and backslashes. The limit of that quoting is part of the model too:
+the runtime substitutes those placeholders *textually* before bash parses the result, so the double
+quotes bound whitespace and backslashes but would not neutralize a `$` or a backtick inside a
+substituted value (both resolve under Claude Code's own install and data roots). The invariant is
+therefore **maintained by test**, not structural — `hooks/run-python-hook.test.sh` asserts the
+launcher is named in `command`, `args` is absent, `shell: bash` is declared, and every placeholder is
+quoted, and `test_hygiene.py`'s hook helpers read either launch form so a shell-form entry cannot make
+an assertion vacuously green. The skill-scoped belt is a separate surface and still launches in exec
+form via `python3` (#2568).
+
 **Guard launch/runtime failures are now surfaced, not silently indistinguishable from approval (since
 0.9.5, #1416).** A `PreToolUse` hook that fails to launch, or launches and then exits non-zero, denies
 nothing — Claude Code treats a non-blocking hook result as approval, so "the guard denied nothing because
@@ -268,13 +291,17 @@ on any transcript-read or parse error so it can never itself become the reason a
 this does **not** cover: repo-hygiene ships its own, structurally different guard, verified working
 independently and out of scope here; the detector's command-substring filter matches only
 `destructive_guard.py` invocations, so a renamed or unrelated guard script is invisible to it the same
-way it is invisible to the engine gate's own coverage marker (see above); it never retroactively
+way it is invisible to the engine gate's own coverage marker (see above); and it never retroactively
 scans a prior session's transcript — only the transcript named by the current `Stop` event's own
-`transcript_path`; and it is wired with the same literal `python3` command as the guard it watches,
-so the interpreter-resolution fail-open the plugin README documents (the WindowsApps
-`python3.exe` alias stub, or a missing/broken `python3`) takes the detector down with the guard and
-leaves that one vector unreported. Closing that requires a launcher whose availability does not
-depend on the same lookup, which is tracked separately (#1504).
+`transcript_path`. Interpreter resolution is no longer one of those gaps: since #1504 both wired hooks
+launch through the shared `hooks/run-python-hook.sh`, which tries `python3`, then `python`, then
+`py -3`, rejects the zero-length `WindowsApps` alias stub, and — in monitor mode — emits the
+`systemMessage` itself when nothing resolves, so a host with no usable Python reports the blind spot
+instead of hiding it. What the two still share is that launcher and the shell that starts it: both are
+registered in shell form (`"shell": "bash"`, since 0.17.8), so a host where Claude Code cannot start a
+bash shell at all takes the guard and its detector down together with nothing left to report it. That
+residual is why the registration shape is asserted by `hooks/run-python-hook.test.sh` and verified as
+step 1 of `/disk-hygiene:setup check`.
 
 A depth-limited scan records every directory it declined to enter in `truncated_paths`. Truncated
 directories have no captured descendant set, so the preview blocks them (and anything beneath them)

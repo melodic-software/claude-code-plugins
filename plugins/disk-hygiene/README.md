@@ -47,11 +47,16 @@ at preview. Backups remain the recovery boundary for user data.
 - Python 3.11+ available on `PATH` is required for scanning, validation, the skill-scoped guard, and
   cleanup (the floor's single origin is the `MIN_PYTHON` constant in
   `skills/clean/scripts/hygiene.py`; `/disk-hygiene:setup check` derives the enforced value from
-  there, so treat the number printed here as a convenience copy). Claude Code launches the guard in
-  shell-free exec form; guarded engine calls must use the same absolute interpreter reported by that
-  guard, so Bash aliases and functions cannot replace it. Both wired hooks register as `bash`
-  invoking `hooks/run-python-hook.sh`, so `bash` must resolve on `PATH` (Git Bash on Windows) before
-  the launcher can resolve Python (#1504). The guard registers on two surfaces: a
+  there, so treat the number printed here as a convenience copy). Claude Code launches the
+  skill-scoped guard in shell-free exec form; guarded engine calls must use the same absolute
+  interpreter reported by that guard, so Bash aliases and functions cannot replace it. Both wired
+  hooks register in **shell form** — the `command` string names `hooks/run-python-hook.sh` directly
+  with `"shell": "bash"` and no `args` — so Claude Code routes them through Git Bash itself instead
+  of resolving `bash` on `PATH`. Registering them in exec form as `"command": "bash"` is the
+  regression #1416 tracks: on Windows that bare `PATH` lookup finds the WSL relay
+  `System32\bash.exe` before Git Bash, the launch fails, and a failed hook launch is non-blocking —
+  so the guard silently enforces nothing. The launcher then resolves Python (#1504). The guard
+  registers on two surfaces: a
   plugin-level **engine gate** (`hooks/hooks.json`) that acts only on commands referencing the
   engine — deferring everything else instantly — and enforces the kill switch and data-root
   authority; and the skill-scoped **belt** inside the `clean` skill's context, which adds the
@@ -190,22 +195,42 @@ hand-cleaning the zone.
   or unreadable value fails closed to enabled. The one residual a hook cannot read is a value supplied only
   via a session `--settings` file. The skill's own kill-switch probe + skill-content value remain a
   defense-in-depth honoring layer over the guard.
-- **Trust-surface record (0.7.0; updated 0.9.0):** the plugin-level `hooks/hooks.json` PreToolUse
+- **Trust-surface record (0.7.0; updated 0.17.8):** the plugin-level `hooks/hooks.json` PreToolUse
   registration is a NEW trust surface (a hook that launches in every consumer session), added
   deliberately for guard-enforced audit-only mode and data-root authority (#1106 decision, Option E —
-  split registration). Its blast radius is bounded by design: exec form (no shell), bundled
-  standard-library script only, instant no-output deferral for any command not referencing the engine,
-  and no new capability beyond what the skill-scoped deployment already did during active cleanup.
-  Known costs, accepted: one `python3` launch per Bash/PowerShell call, and on a machine where
-  `python3` resolves to the Windows Store alias stub the launch fails on every call (tracked with
-  remediation detection in #1110). **0.9.0 delta:** the gate no longer carries a `${user_config.*}`
+  split registration). Its blast radius is bounded by design: a fixed launch string authored in the
+  plugin's own `hooks.json` (see the 0.17.8 delta for exactly what that bounds now that the string
+  reaches a shell), bundled standard-library scripts only, instant no-output deferral for any command
+  not referencing the engine, and no new capability beyond what the skill-scoped deployment already
+  did during active cleanup. Known costs, accepted: one launcher shell plus one Python launch per
+  Bash/PowerShell call, and on a machine where no Python 3 interpreter resolves at all the gate fails
+  open on every call — the `Stop` detector emits a `systemMessage` for that case, so the blind spot is
+  visible rather than silent (#1110, #1504). **0.9.0 delta:** the gate no longer carries a `${user_config.*}`
   argument (which, unset, dropped the whole hook and left the gate inert on a default install); it now
   registers unconditionally and resolves the kill switch by **reading** the user `settings.json` and the
   platform managed-settings.json. The added trust surface is that settings-file *read* — bounded to a
   single `pluginConfigs` value, from the user file (located from `${CLAUDE_PLUGIN_ROOT}`) and the
   root-owned managed file at its fixed system path, no write. Both are the plugin's own documented CC
   config, sanctioned by the acceptance review's operator-home carve-out (criterion 4). This entry is the
-  plugin-acceptance review delta for the change. A direct `hygiene.py` invocation outside that skill does not read the toggle and
+  plugin-acceptance review delta for the change. **0.17.8 delta (launch form):** both wired hooks now
+  register in **shell form** — the `command` string names `hooks/run-python-hook.sh` with
+  `"shell": "bash"` and no `args` — because exec form's bare `PATH` lookup for `bash` resolved to the
+  WSL relay on Windows and the guard silently never launched (#1416). Stated plainly: a shell now
+  parses the launch string, so "no shell involved" is no longer what bounds this surface. What bounds
+  it instead is that the string is a **fixed literal** in the plugin's own `hooks.json` with no model-,
+  repo-, or session-supplied text interpolated into it; the only values substituted are Claude Code's
+  own `${CLAUDE_PLUGIN_ROOT}` and `${CLAUDE_PLUGIN_DATA}`, and each is double-quoted, so the shell's
+  re-tokenization reproduces the exec-form argument vector byte-for-byte — verified for both hooks
+  against roots containing spaces and backslashes. The limits of that quoting belong in the record
+  too: Claude Code substitutes those placeholders *textually* before bash parses the result, so the
+  double quotes bound whitespace and backslashes but would not neutralize a `$` or a backtick inside a
+  substituted value (both placeholders resolve under Claude Code's own install and data roots). The
+  invariant is therefore **maintained by test**, not structural — `hooks/run-python-hook.test.sh`
+  asserts the launcher is named in `command`, `args` is absent, `shell: bash` is declared, and every
+  placeholder is double-quoted, and `test_hygiene.py`'s hook helpers are form-agnostic so a shell-form
+  entry can never make an assertion vacuously green. Interpolating anything beyond those two
+  placeholders into the command string would open a live injection surface; a repo-wide CI gate for
+  this defect class is proposed in #2569. A direct `hygiene.py` invocation outside that skill does not read the toggle and
   answers only to the engine's own preview/approval-token gate. The toggle can only narrow the
   destructive surface, never widen it (see [the safety model](skills/clean/reference/safety-model.md)
   for the degraded-mode detail). No credentials. Policy comes from an explicit invocation
