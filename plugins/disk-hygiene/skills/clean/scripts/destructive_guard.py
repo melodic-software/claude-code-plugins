@@ -47,12 +47,14 @@ import os
 import re
 import sys
 import threading
+import time
 from pathlib import Path
 
 _LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
+import hook_telemetry  # noqa: E402  (path set above; plugin-bundled module)
 import killswitch_config  # noqa: E402  (path set above; plugin-bundled module)
 
 
@@ -67,6 +69,30 @@ def decision(value: str, reason: str) -> dict[str, object]:
             "permissionDecisionReason": reason,
         }
     }
+
+
+def _telemetry_status_for_permission(value: str) -> str:
+    return "blocked" if value == "deny" else "ok"
+
+
+def _emit_guard_telemetry(
+    start: float,
+    tool_name: str,
+    status: str,
+    *,
+    decision_value: str | None = None,
+) -> None:
+    data: dict[str, object] = {"tool": tool_name or ""}
+    if decision_value is not None:
+        data["decision"] = decision_value
+    hook_telemetry.emit(
+        "destructive-guard",
+        "PreToolUse",
+        status,
+        start,
+        data,
+        os.environ.get("CLAUDE_PROJECT_DIR"),
+    )
 
 
 def _is_current_python(value: str) -> bool:
@@ -1190,7 +1216,7 @@ def _watchdog_fire(deadline: float) -> None:
     os._exit(2)  # noqa: SLF001 -- hard exit is the point; see docstring
 
 
-def _decide(command: str, tool_name: str) -> int:
+def _decide(command: str, tool_name: str, start: float) -> int:
     """The guard's decision logic once the JSON payload has parsed cleanly.
 
     Every branch prints its decision (or nothing, for an instant plugin-level
@@ -1211,6 +1237,14 @@ def _decide(command: str, tool_name: str) -> int:
         verdict = powershell_decision(command, enabled)
         if verdict:
             print(json.dumps(decision(*verdict)))
+            _emit_guard_telemetry(
+                start,
+                tool_name,
+                _telemetry_status_for_permission(verdict[0]),
+                decision_value=verdict[0],
+            )
+        else:
+            _emit_guard_telemetry(start, tool_name, "ok")
         return 0
 
     authority = resolve_authorized_data_root()
@@ -1223,6 +1257,7 @@ def _decide(command: str, tool_name: str) -> int:
                 )
             )
         )
+        _emit_guard_telemetry(start, tool_name, "ok", decision_value="allow")
         return 0
     command_kind = classify_exact_engine_command(command, authority)
     if command_kind in {"scan", "preview", "handoff-verify"}:
@@ -1234,6 +1269,7 @@ def _decide(command: str, tool_name: str) -> int:
                 )
             )
         )
+        _emit_guard_telemetry(start, tool_name, "ok", decision_value="allow")
         return 0
     if command_kind == "apply" and enabled:
         print(
@@ -1244,6 +1280,7 @@ def _decide(command: str, tool_name: str) -> int:
                 )
             )
         )
+        _emit_guard_telemetry(start, tool_name, "ok", decision_value="ask")
         return 0
     reason = (
         "Disk-hygiene execution is disabled; only exact bundled scan, preview, and handoff-verify invocations are permitted."
@@ -1251,10 +1288,12 @@ def _decide(command: str, tool_name: str) -> int:
         else _bash_denial_guidance(authority)
     )
     print(json.dumps(decision("deny", reason)))
+    _emit_guard_telemetry(start, tool_name, "blocked", decision_value="deny")
     return 0
 
 
 def main() -> int:
+    start = time.perf_counter()
     # Fail-closed safety boundary (#1423): only 0 and 2 are reachable past this
     # point. The watchdog denies fast on an internal deadline instead of
     # letting a stalled syscall run toward a harness-level, non-blocking kill
@@ -1288,6 +1327,7 @@ def main() -> int:
         watchdog = threading.Timer(deadline, _watchdog_fire, args=(deadline,))
         watchdog.daemon = True
         watchdog.start()
+        tool_name = ""
         try:
             payload = json.load(sys.stdin)
             tool_name = payload.get("tool_name", "")
@@ -1303,9 +1343,16 @@ def main() -> int:
                     )
                 )
             )
+            _emit_guard_telemetry(
+                start,
+                str(tool_name),
+                "blocked",
+                decision_value="deny",
+            )
             return 0
-        return _decide(command, tool_name)
+        return _decide(command, tool_name, start)
     except BaseException as exc:
+        _emit_guard_telemetry(start, "", "error")
         _write_diagnostic(
             f"destructive_guard: internal error, denying by default "
             f"({type(exc).__name__}: {exc})"

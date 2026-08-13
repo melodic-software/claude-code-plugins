@@ -15,6 +15,7 @@ import importlib.util
 import io
 import json
 import tempfile
+import time
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -429,6 +430,76 @@ class GuardLaunchMonitorTests(unittest.TestCase):
         self.assertNotIn("permissionDecision", parsed)
         self.assertNotIn("decision", parsed)
         self.assertEqual({"systemMessage"}, set(parsed.keys()))
+
+    # -- telemetry (#1505) ----------------------------------------------------
+
+    def _make_telemetry_sink(self) -> tuple[Path, str]:
+        out_file = Path(self.tmp.name) / f"telemetry-{id(self)}.json"
+        sink = Path(self.tmp.name) / f"sink-{id(self)}.sh"
+        sink.write_text(f"#!/bin/sh\ncat >\"{out_file}\"\n", encoding="utf-8")
+        sink.chmod(0o755)
+        return out_file, str(sink)
+
+    def _wait_for_file(self, path: Path, timeout: float = 5.0) -> None:
+        deadline = time.perf_counter() + timeout
+        while time.perf_counter() < deadline and not path.exists():
+            time.sleep(0.05)
+
+    def test_clean_scan_emits_ok_telemetry_when_sink_wired(self) -> None:
+        import os
+
+        out_file, sink = self._make_telemetry_sink()
+        self.transcript_path.write_text("", encoding="utf-8")
+        with mock.patch.dict(
+            os.environ,
+            {"HOOK_TELEMETRY_SINK": sink, "CLAUDE_PROJECT_DIR": self.tmp.name},
+            clear=False,
+        ):
+            self.run_monitor(session_id="telemetry-clean")
+        self._wait_for_file(out_file)
+        envelope = json.loads(out_file.read_text(encoding="utf-8").strip())
+        self.assertEqual("guard-launch-monitor", envelope["hook"])
+        self.assertEqual("Stop", envelope["hook_event"])
+        self.assertEqual("ok", envelope["status"])
+
+    def test_failure_scan_emits_error_telemetry_with_count(self) -> None:
+        import os
+
+        out_file, sink = self._make_telemetry_sink()
+        self.write_transcript(
+            [
+                _record(exit_code=1, duration_ms=11),
+                _record(exit_code=2, duration_ms=22),
+            ]
+        )
+        with mock.patch.dict(
+            os.environ,
+            {"HOOK_TELEMETRY_SINK": sink, "CLAUDE_PROJECT_DIR": self.tmp.name},
+            clear=False,
+        ):
+            self.run_monitor(session_id="telemetry-failure")
+        self._wait_for_file(out_file)
+        envelope = json.loads(out_file.read_text(encoding="utf-8").strip())
+        self.assertEqual("error", envelope["status"])
+        self.assertEqual(2, envelope["data"]["failure_count"])
+
+    def test_short_circuit_emits_no_telemetry(self) -> None:
+        import os
+
+        out_file, sink = self._make_telemetry_sink()
+        hook_input = {"session_id": "telemetry-short"}
+        stdout = io.StringIO()
+        with mock.patch.dict(
+            os.environ,
+            {"HOOK_TELEMETRY_SINK": sink, "CLAUDE_PROJECT_DIR": self.tmp.name},
+            clear=False,
+        ):
+            with mock.patch.object(
+                monitor.sys, "stdin", io.StringIO(json.dumps(hook_input))
+            ):
+                with redirect_stdout(stdout):
+                    monitor.main(["--data-root", str(self.data_root)])
+        self.assertFalse(out_file.exists())
 
 
 if __name__ == "__main__":

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-telemetry/data/destructive-guard.schema.json",
+  "title": "destructive-guard telemetry data",
+  "description": "Per-hook `data` payload for disk-hygiene's PreToolUse destructive guard. Discovered from the envelope `hook` value \"destructive-guard\". Evolves additive-only. Carries NO full shell command string.",
+  "type": "object",
+  "required": ["tool"],
+  "additionalProperties": true,
+  "properties": {
+    "tool": {
+      "type": "string",
+      "description": "The invoking tool — \"Bash\" or \"PowerShell\"."
+    },
+    "decision": {
+      "type": "string",
+      "description": "Permission decision when the guard evaluated the call: \"allow\" | \"ask\" | \"deny\". Empty or absent on internal-error paths."
+    }
+  }
+}
