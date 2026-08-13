@@ -3,6 +3,32 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.4.3]
+
+### Changed
+
+- **`object-writing` rule 6 is now stated as policy rather than a pinned model name.** 1.4.2 fixed
+  the tier the rule named; it left the shape that made a wrong tier possible. A rule that pins a
+  model string goes stale at the next model release whether or not the string was right — naming
+  `'opus'` will be wrong exactly as naming `'sonnet'` was. Rule 6 now states the standing rule:
+
+  - Set the model explicitly on every agent call — `model: inherit` is the bug, not a default.
+  - The fleet default is the tier whose writing has cleared the writer's bar, re-checked as models
+    change. Today that is Opus, and the recorded directive is quoted as the evidence for it rather
+    than as the rule itself.
+  - Never run a fleet on a tier priced above that default; a premium tier belongs at a judge or
+    verifier stage at most, where one call reads many writes.
+  - Reach for effort before a cheaper tier. This is cited to the official model guidance
+    (*"Tuning effort is often a better lever than switching models"*), not to the writer. Lever
+    availability differs by surface: a bare agent spawn takes a model and no effort parameter, so a
+    fan-out needing that lever belongs in a workflow.
+  - A tier step-down is a per-stage decision for mechanical legs (rhyme-field enumeration,
+    word-pool merge, syllable counting, dedup), never a fleet default.
+
+  The 1.4.1 release archaeology moved out of the rule and into this file, where the `[1.4.2]` entry
+  below already carries it. Per-token price figures are deliberately not stated in the skill —
+  pinned prices go stale the same way a pinned model name does.
+
 ## [1.4.2]
 
 ### Fixed
