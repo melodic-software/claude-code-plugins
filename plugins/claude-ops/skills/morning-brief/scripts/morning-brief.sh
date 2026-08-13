@@ -326,21 +326,22 @@ resolve_decision_label() {
 fetch_repo_label_names() {
   local raw=""
   if [[ -n "$REPO_LABELS_JSON" ]]; then
-    raw="$(jq -r '.[] | if type == "string" then . else .name end' "$REPO_LABELS_JSON" 2>/dev/null)"
+    jq -e 'type == "array"' "$REPO_LABELS_JSON" >/dev/null 2>&1 || return 1
+    raw="$(jq -r '.[] | if type == "string" then . else .name end' "$REPO_LABELS_JSON" 2>/dev/null)" || return 1
   elif [[ -n "$REPO" ]]; then
-    raw="$(gh label list "${REPO_ARGS[@]}" --limit 500 --json name -q '.[].name' 2>/dev/null | tr -d '\r')"
+    raw="$(gh label list "${REPO_ARGS[@]}" --limit 500 --json name -q '.[].name' 2>/dev/null | tr -d '\r')" || return 1
+  else
+    return 1
   fi
-  [[ -n "$raw" ]] || return 1
   jq -R -s '
     split("\n")
     | map(select(length > 0))
     | unique
-  ' <<<"$raw" 2>/dev/null
+  ' <<<"$raw"
 }
 
 label_exists_in_repo() {
   local label="$1" names="$2"
-  [[ -n "$names" ]] || return 0
   jq -e --arg l "$label" 'index($l) != null' <<<"$names" >/dev/null 2>&1
 }
 
@@ -352,14 +353,16 @@ resolve_decision_label
 # =============================================================================
 print_queues() {
   echo "== Queues (open issues per label) =="
-  local counts="" repo_labels="" labels_to_show=() label n
+  local counts="" repo_labels="" labels_to_show=() label n labels_available=0
   if [[ -n "$COUNTS_JSON" ]]; then
     counts="$(cat "$COUNTS_JSON")"
   fi
   if [[ -n "$REPO_LABELS_JSON" || ( -z "$counts" && -n "$REPO" ) ]]; then
-    repo_labels="$(fetch_repo_label_names || true)"
+    if repo_labels="$(fetch_repo_label_names)"; then
+      labels_available=1
+    fi
   fi
-  if [[ -n "$repo_labels" ]]; then
+  if ((labels_available)); then
     for label in "${QUEUE_LABELS[@]}"; do
       label_exists_in_repo "$label" "$repo_labels" && labels_to_show+=("$label")
     done
@@ -427,10 +430,12 @@ print_merge_ready() {
 # =============================================================================
 print_decisions() {
   echo "== Parked decisions (${DECISION_LABEL}) with RECOMMENDED lines =="
-  local decisions repo_labels=""
+  local decisions repo_labels="" labels_available=0
   if [[ -z "$DECISIONS_JSON" && ( -n "$REPO" || -n "$REPO_LABELS_JSON" ) ]]; then
-    repo_labels="$(fetch_repo_label_names || true)"
-    if [[ -n "$repo_labels" ]] && ! label_exists_in_repo "$DECISION_LABEL" "$repo_labels"; then
+    if repo_labels="$(fetch_repo_label_names)"; then
+      labels_available=1
+    fi
+    if ((labels_available)) && ! label_exists_in_repo "$DECISION_LABEL" "$repo_labels"; then
       echo "  (decision label not found in this repo — pass --decision-label to customize)"
       echo
       return
