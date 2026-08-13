@@ -13,6 +13,8 @@ All notable changes to the `songwriting` plugin are documented here. Format foll
   `'opus'` will be wrong exactly as naming `'sonnet'` was. Rule 6 now states the standing rule:
 
   - Set the model explicitly on every agent call — `model: inherit` is the bug, not a default.
+    `CLAUDE_CODE_SUBAGENT_MODEL` outranks per-call `model` when set to anything but `inherit`; keep
+    it unset for fleet dispatches.
   - The fleet default is the tier whose writing has cleared the writer's bar, re-checked as models
     change. Today that is Opus, and the recorded directive is quoted as the evidence for it rather
     than as the rule itself.

@@ -73,7 +73,10 @@ Dispatch rules:
 6. **Set the model explicitly on every agent call — never let the fleet inherit the session's.** The
    `object-writer` agent's frontmatter is `model: inherit`, so a dispatch that leaves the model unset
    runs the whole fleet on whatever the session happens to run on — a tier picked for the
-   orchestrator's work, not the writers'. Unset is not a default; it is the bug.
+   orchestrator's work, not the writers'. Unset is not a default; it is the bug. A global
+   `CLAUDE_CODE_SUBAGENT_MODEL` override outranks every per-call `model` argument and agent
+   frontmatter when set to anything but `inherit` — keep it unset for fleet dispatches, and stop to
+   ask if the consumer's settings export a tier above the fleet default before spawning.
 
    **The fleet default is the tier whose writing has cleared the writer's bar** — not a fixed model
    name, which goes stale at the next release. Today that tier is Opus: the directive recorded in the
@@ -86,9 +89,8 @@ Dispatch rules:
    newer.
 
    **Never run a fleet on a tier priced above the fleet default.** Premium tiers cost a multiple per
-   token in both directions, and a fan-out multiplies that by the agent count — on a subscription
-   that burns the usage limit rather than a bill, which is the cost the writer objected to. A tier
-   above the default belongs at a judge or verifier stage at most, where one call reads many writes.
+   token in both directions, and a fan-out multiplies that by the agent count. A tier above the
+   default belongs at a judge or verifier stage at most, where one call reads many writes.
 
    **Reach for effort before reaching for a cheaper tier.** Official guidance: *"Tuning effort is
    often a better lever than switching models."* Effort scales the tokens one agent spends; tier
