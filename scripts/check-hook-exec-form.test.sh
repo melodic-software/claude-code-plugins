@@ -623,6 +623,32 @@ else
 fi
 rm -rf "$f"
 
+# --- frontmatter: a duplicate arriving through a merge key is still caught --
+# A merged mapping contributes its keys to the hook object, so checking only
+# the keys written at the hook object itself would leave `<<` as the way in.
+f="$(new_fixture)"
+skill_md "$f" alpha skills/x/SKILL.md '---
+base: &base
+  command: node
+  command: bash
+  args: ["x"]
+hooks:
+  PreToolUse:
+    - hooks:
+        - <<: *base
+---
+body'
+if out="$(run_check "$f" 2>&1)"; then
+  fail "a duplicate key inside a merged mapping should not clear the gate, got success: $out"
+else
+  if echo "$out" | grep -q 'UNREADABLE FRONTMATTER: .*duplicate `command` key'; then
+    ok "a duplicate key reached through a merge key is reported"
+  else
+    fail "expected the duplicate-command message through the merge, got: $out"
+  fi
+fi
+rm -rf "$f"
+
 # --- frontmatter: unparsable YAML fails closed ------------------------------
 # The one thing a real parser still cannot clear. A file the gate cannot read
 # is a file it must not pass.

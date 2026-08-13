@@ -131,6 +131,25 @@ def duplicate_keys(node):
     return repeated
 
 
+def merge_sources(node, seen):
+    """Yield every mapping node this mapping pulls in through `<<`, transitively.
+
+    A merged mapping contributes its keys to the hook object, so it is subject
+    to the same duplicate check — otherwise an anchored mapping with two
+    `command` keys would reach a hook object through `<<` unexamined.
+    """
+    for key_node, value_node in node.value:
+        if getattr(key_node, "value", None) != "<<":
+            continue
+        candidates = value_node.value if isinstance(value_node, yaml.SequenceNode) else [value_node]
+        for source in candidates:
+            if not isinstance(source, yaml.MappingNode) or id(source) in seen:
+                continue
+            seen.add(id(source))
+            yield source
+            yield from merge_sources(source, seen)
+
+
 def scan_node(node, path: str, offset: int, seen: set) -> None:
     """Report every mapping in this subtree carrying both `command` and `args`."""
     if node is None or id(node) in seen:
@@ -140,14 +159,15 @@ def scan_node(node, path: str, offset: int, seen: set) -> None:
         for item in node.value:
             scan_node(item, path, offset, seen)
     elif isinstance(node, yaml.MappingNode):
-        for key, key_node in duplicate_keys(node):
-            emit(
-                "X",
-                path,
-                key_node.start_mark.line + offset,
-                f"duplicate `{key}` key inside the hooks declaration; readers disagree on which wins",
-            )
-            return
+        for source in (node, *merge_sources(node, set())):
+            for key, key_node in duplicate_keys(source):
+                emit(
+                    "X",
+                    path,
+                    key_node.start_mark.line + offset,
+                    f"duplicate `{key}` key inside the hooks declaration; readers disagree on which wins",
+                )
+                return
         entries = {key: (value, key_node) for key, value, key_node in mapping_entries(node, set())}
         if "command" in entries and "args" in entries:
             command_node, command_key_node = entries["command"]
