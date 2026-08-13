@@ -125,7 +125,13 @@ Deterministic guards encoded here:
 - `--include-human` is the autopilot power-user opt-in: it lifts the bot-only
   bright line so human and AI-review threads are also eligible. It is OFF by
   default (safe and worker modes never touch human threads), and the caller
-  owns the judgment that each finding is genuinely addressed before resolving.
+  must opt in explicitly. Bulk resolution (no pinned `--thread-id`) additionally
+  refuses a thread whose most recent human reply carries explicit defer language
+  (`VALID (defer)`, "defer"/"deferred", "pending ruling", "held pending", "needs-human")
+  so a careless bulk sweep cannot close a thread a human deliberately parked (#671).
+  A pinned `--thread-id` call is an explicit per-thread vet and may still proceed.
+  The caller still owns the judgment that each finding is genuinely addressed
+  before resolving.
 - `--self-logins` neutralizes the CALLER'S OWN posting identity for the
   bot-only test. The worker replies to a bot thread under its own login (a
   classification reply, a `Fixed in <sha>` follow-up) before ever resolving
@@ -244,6 +250,21 @@ FORBIDDEN_P01_PREFIX_RE = re.compile(r"(?:^|[\s\n])P[01]\s*:", re.IGNORECASE)
 FORBIDDEN_P01_MUST_FIX_RE = re.compile(r"\bP[01]\s+must\s+fix\b", re.IGNORECASE)
 SEVERITY_BLOCK_WORD_RE = re.compile(r"\bCRITICAL\b")
 SECURITY_TEXT_RE = re.compile(r"security", re.IGNORECASE)
+# Bulk `--include-human` must not sweep a thread whose most recent human reply
+# explicitly parks the finding (#671). Structured VALID (defer) markers and the
+# defer-language phrases operators use when holding a thread pending a ruling
+# are treated equivalently.
+HUMAN_DEFERRAL_RE = re.compile(
+    r"(?:"
+    r"VALID\s*\(\s*defer\s*\)"
+    r"|VALID\s*[—\-]\s*defer"
+    r"|\bdefer(?:red)?\b"
+    r"|\bpending\s+ruling\b"
+    r"|\bheld\s+pending\b"
+    r"|\bneeds-human\b"
+    r")",
+    re.IGNORECASE,
+)
 
 
 def _has_severity_marker(body: str) -> bool:
@@ -258,6 +279,31 @@ def _has_severity_marker(body: str) -> bool:
         or bool(SEVERITY_BLOCK_WORD_RE.search(body))
         or bool(SECURITY_TEXT_RE.search(body))
     )
+
+
+def _has_human_deferral_marker(body: str) -> bool:
+    """True when a human reply explicitly parks the thread instead of addressing it."""
+    return bool(HUMAN_DEFERRAL_RE.search(body))
+
+
+def _most_recent_human_reply_body(
+    comments: list[Any],
+    *,
+    extra_bot_logins: frozenset[str],
+    self_logins: frozenset[str],
+) -> str | None:
+    """Body of the latest non-bot, non-self comment, or None when none exists."""
+    for comment in reversed(comments):
+        author = _comment_author(comment)
+        login = author.get("login")
+        if is_bot(login, author.get("__typename"), extra_bot_logins):
+            continue
+        if is_self_login(login, self_logins):
+            continue
+        body = comment.get("body") if is_json_object(comment) else None
+        if isinstance(body, str) and body.strip():
+            return body
+    return None
 
 
 def _comment_author(comment: object) -> dict[str, object]:
@@ -434,6 +480,18 @@ def project_thread(
             for c in comments[1:]
             if (body := _reply_body(c)) is not None
         ],
+        "humanDeferred": (
+            truncated
+            or (
+                (human_reply := _most_recent_human_reply_body(
+                    comments,
+                    extra_bot_logins=extra_bot_logins,
+                    self_logins=self_logins,
+                ))
+                is not None
+                and _has_human_deferral_marker(human_reply)
+            )
+        ),
     }
 
 
@@ -499,6 +557,7 @@ def classify(
     only_outdated: bool,
     include_human: bool = False,
     independent: bool = False,
+    pinned_thread: bool = False,
 ) -> str:
     """Deterministic action label under the active guards.
 
@@ -517,6 +576,15 @@ def classify(
         # other participant is a bot too (checked across all comments, not just
         # the first), unless autopilot opts in
         return "skipped-human-thread"
+    if (
+        include_human
+        and not pinned_thread
+        and thread.get("humanDeferred", True)
+    ):
+        # Bulk `--include-human` must not sweep a thread a human deliberately
+        # parked pending a ruling (#671). A pinned `--thread-id` call is an
+        # explicit per-thread vet and may still proceed.
+        return "skipped-human-deferred"
     if (autonomous or only_outdated) and not thread["isOutdated"]:
         # unattended: require a deterministic "addressed" signal so the worker
         # cannot resolve a still-current finding and self-satisfy the merge gate
@@ -1192,6 +1260,7 @@ def main() -> int:
             only_outdated=args.only_outdated,
             include_human=args.include_human,
             independent=args.independent_resolver,
+            pinned_thread=bool(args.thread_id),
         )
         entry: dict[str, object] = {
             "id": thread["id"],

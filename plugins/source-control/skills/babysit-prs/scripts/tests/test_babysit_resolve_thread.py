@@ -67,6 +67,7 @@ def _thread(
     last_updated: str | None = None,
     reply_bodies: list[str] | None = None,
     finding_count: int | None = 1,
+    human_deferred: bool = False,
 ) -> dict[str, object]:
     return {
         "id": thread_id,
@@ -81,6 +82,7 @@ def _thread(
         "commentCount": 2,
         "lastCommentUpdatedAt": last_updated,
         "replyBodies": list(reply_bodies or []),
+        "humanDeferred": human_deferred,
     }
 
 
@@ -139,6 +141,106 @@ def _comment(login: str, typename: str, body: str | None = None) -> dict[str, ob
     if body is not None:
         comment["body"] = body
     return comment
+
+
+class HumanDeferralBulkGuard(unittest.TestCase):
+    def test_bulk_include_human_skips_human_deferred_thread(self) -> None:
+        result = _run(
+            [
+                _thread(
+                    "T_deferred",
+                    "codex[bot]",
+                    "Bot",
+                    bot_only=False,
+                    human_deferred=True,
+                )
+            ],
+            ["owner/repo#1", "--allowed-owners", "owner", "--include-human"],
+        )
+        self.assertEqual(result["threads"][0]["action"], "skipped-human-deferred")
+        self.assertEqual(result["eligibleCount"], 0)
+
+    def test_pinned_thread_id_may_resolve_human_deferred_thread(self) -> None:
+        result = _run(
+            [
+                _thread(
+                    "T_deferred",
+                    "codex[bot]",
+                    "Bot",
+                    bot_only=False,
+                    human_deferred=True,
+                    last_updated="2026-07-20T00:00:00Z",
+                )
+            ],
+            [
+                "owner/repo#1",
+                "--allowed-owners",
+                "owner",
+                "--include-human",
+                "--thread-id",
+                "T_deferred",
+                "--expected-comment-count",
+                "2",
+                "--expected-last-updated",
+                "2026-07-20T00:00:00Z",
+            ],
+        )
+        self.assertEqual(result["threads"][0]["action"], "would-resolve")
+
+
+class ProjectThreadHumanDeferral(unittest.TestCase):
+    def test_most_recent_human_reply_with_defer_language_flags_thread(self) -> None:
+        record = {
+            "id": "T1",
+            "comments": [
+                _comment("codex[bot]", "Bot", "Please fix this."),
+                _comment(
+                    "kyle-sexton",
+                    "User",
+                    "Held pending ruling on #649 — not resolving yet.",
+                ),
+            ],
+            "comments_truncated": False,
+        }
+        projected = rt.project_thread(record)
+        self.assertTrue(projected["humanDeferred"])
+
+    def test_human_reply_without_defer_language_is_not_flagged(self) -> None:
+        record = {
+            "id": "T1",
+            "comments": [
+                _comment("codex[bot]", "Bot", "Please fix this."),
+                _comment("kyle-sexton", "User", "VALID — fixing in this PR."),
+            ],
+            "comments_truncated": False,
+        }
+        projected = rt.project_thread(record)
+        self.assertFalse(projected["humanDeferred"])
+
+    def test_bare_defer_keyword_flags_thread(self) -> None:
+        record = {
+            "id": "T1",
+            "comments": [
+                _comment("codex[bot]", "Bot", "Please fix this."),
+                _comment(
+                    "kyle-sexton",
+                    "User",
+                    "Let's defer this to #123 until the ruling lands.",
+                ),
+            ],
+            "comments_truncated": False,
+        }
+        projected = rt.project_thread(record)
+        self.assertTrue(projected["humanDeferred"])
+
+    def test_truncated_comment_page_fails_closed_as_deferred(self) -> None:
+        record = {
+            "id": "T1",
+            "comments": [_comment("codex[bot]", "Bot", "Please fix this.")],
+            "comments_truncated": True,
+        }
+        projected = rt.project_thread(record)
+        self.assertTrue(projected["humanDeferred"])
 
 
 class ProjectThreadExtraBotLogins(unittest.TestCase):
