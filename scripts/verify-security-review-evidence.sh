@@ -5,130 +5,114 @@
 #
 # The ci-workflows reusable deliberately reports GREEN on some infra-failure
 # classes; this script is a repo-owned supplement that catches the subset the
-# issue filed: an in-scope PR whose security-review job succeeded suspiciously
-# fast, or whose logs show a validation skip while the check still went green.
+# issue filed: an in-scope PR whose security-review job concluded success while
+# nothing was actually reviewed.
 #
-# Intended to run as a sibling job after security-review in
-# .github/workflows/claude-security-review.yml.
+# READS THE LANE'S DECLARED VERDICT, NEVER ITS LOG. The reusable classifies
+# every attempt and surfaces the result as workflow_call outputs
+# (melodic-software/ci-workflows#460); this guard consumes those. The earlier
+# shape scraped the job log, and a log is not a contract: the lane's
+# `Report review outcome` step is an inline github-script whose SOURCE is
+# echoed into that same log and contains the skip phrases as string literals,
+# so the grep matched every successful in-scope pull request and reddened
+# exactly the ones the guard exists to approve (#2517). Anchoring the grep to
+# `##[warning]`/`##[error]` lines fixed the false positive but left the guard
+# coupled to log text no test upstream pins. Do not reintroduce a log read.
+#
+# Scope is the lane's own `relevant` output, not a second implementation of the
+# same matcher. This script used to re-derive it in Python with `fnmatch`
+# semantics while the lane matched with `git check-ignore` gitignore semantics —
+# two matchers that disagree on the patterns that distinguish them, and the
+# source of the `set -e` scope-verdict defect that turned every out-of-scope PR
+# red. One matcher, upstream, is the fix.
+#
+# Runs as a sibling job after security-review in
+# .github/workflows/claude-security-review.yml, which supplies the LANE_* values
+# from `needs.security-review`.
 #
 # Environment:
-#   GITHUB_RUN_ID          current workflow run (required)
-#   GITHUB_REPOSITORY      owner/repo (required)
-#   GITHUB_EVENT_NAME      pull_request expected
-#   GITHUB_BASE_REF        base branch name
-#   GITHUB_HEAD_REF        head branch name (optional)
-#   GITHUB_ACTOR           PR author login
-#   MIN_REVIEW_SECONDS     absolute floor: shorter than this with no positive
-#                          execution evidence is a false pass (default 8).
-#                          Real Claude reviews commonly finish under 45s on
-#                          small diffs; duration alone above this floor is not
-#                          decisive once logs show the review action ran.
-#   SKIP_ACTORS            comma-separated actors exempt from review
+#   GITHUB_EVENT_NAME    pull_request expected; anything else is not applicable
+#   GITHUB_ACTOR         PR author login
+#   SKIP_ACTORS          comma-separated actors exempt from review
+#   LANE_RESULT          needs.security-review.result
+#   LANE_RELEVANT        the lane's `relevant` output
+#   LANE_REVIEW_RAN      the lane's `review-ran` output
+#   LANE_REVIEW_FAILED   the lane's `review-failed` output
+#   LANE_FAILURE_CLASS   the lane's `failure-class` output (message text only)
+#   GITHUB_REPOSITORY    owner/repo — only read on the no-verdict path
+#   PR_NUMBER            pull request number — only read on the no-verdict path
+#   EVENT_HEAD_SHA       the head SHA this run was triggered at
+#   GH_TOKEN             token for the one API read on the no-verdict path
 #
 # Exit: 0 evidence OK or not applicable; 1 in-scope false pass detected.
 
 set -euo pipefail
 
-MIN_REVIEW_SECONDS="${MIN_REVIEW_SECONDS:-8}"
 SKIP_ACTORS="${SKIP_ACTORS:-dependabot[bot],claude[bot],melodic-ai[bot],melodic-standards-sync[bot]}"
-PATHS_FILE="${PATHS_FILE:-.github/claude-security-paths}"
 
 usage() {
   cat <<'EOF'
 verify-security-review-evidence.sh — guard against in-scope security-review false passes.
 
-Reads the current workflow run's security-review job. Exits 0 when the PR is
-out of scope, exempt, skipped, or shows plausible execution evidence. Exits 1
-when an in-scope PR's security-review job succeeded with a validation skip,
-or finished below the absolute duration floor with no execution evidence (#2337).
+Reads the security-review lane's DECLARED outputs from the environment. Exits 0
+when the PR is out of scope, exempt, skipped, or the lane declares that a review
+ran. Exits 1 when an in-scope lane concluded success while declaring that no
+review happened, and when the lane declares no verdict at all at a head that has
+not moved (#2337).
 EOF
 }
 
-# pr_touches_security_paths <base-ref>
-#
-# Prints the VERDICT on stdout — `in-scope` or `out-of-scope` — and reserves a
-# non-zero EXIT for a genuine fault (missing python3, an unreadable paths file,
-# an interpreter traceback). The two channels are separate on purpose.
-#
-# The earlier contract signalled out-of-scope by returning 1, which collided
-# with "the check itself broke" on the one status a crashing `python3` also
-# returns. Under `set -e` a bare call then killed the script with no message —
-# every out-of-scope pull request went red beside a lane that had correctly
-# skipped. Consuming that return with `||` fixes the red check but keeps the
-# collision, and turns it fail-OPEN: a crashed scope check reads as
-# out-of-scope and waves the pull request past a security guard. ShellCheck
-# names this trap directly (SC2310, enabled on purpose in this repo's
-# `.shellcheckrc`). Separating verdict from status closes both.
-pr_touches_security_paths() {
-  local base_ref="$1"
-  [[ -f "$PATHS_FILE" ]] || { printf 'in-scope\n'; return 0; }
-  python3 - "$PATHS_FILE" "$base_ref" <<'PY'
-import fnmatch
-import re
-import subprocess
-import sys
-
-paths_file, base_ref = sys.argv[1], sys.argv[2]
-patterns = []
-with open(paths_file, encoding="utf-8") as fh:
-    for line in fh:
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-        patterns.append(line)
-
-def pattern_matches(path: str, pat: str) -> bool:
-    if fnmatch.fnmatch(path, pat):
-        return True
-    if pat.endswith("/**"):
-        prefix = pat[:-3].replace("*", "[^/]*")
-        if re.match("^" + prefix + ".*", path):
-            return True
-    if pat.startswith("**/"):
-        suffix = pat[3:]
-        if fnmatch.fnmatch(path, "*" + suffix) or path.endswith(suffix.lstrip("*")):
-            return True
-    if pat == "**/*.sh" and path.endswith(".sh"):
-        return True
-    norm = pat.replace("**/", "*/").replace("/**", "/*")
-    return fnmatch.fnmatch(path, norm)
-
-diff = subprocess.run(
-    ["git", "diff", "--name-only", f"origin/{base_ref}...HEAD"],
-    check=False,
-    capture_output=True,
-    text=True,
-)
-if diff.returncode != 0:
-    sys.stderr.write(
-        diff.stderr
-        or f"git diff --name-only origin/{base_ref}...HEAD failed (exit {diff.returncode})\n"
-    )
-    sys.exit(1)
-changed = [line for line in diff.stdout.splitlines() if line]
-for path in changed:
-    for pat in patterns:
-        if pattern_matches(path, pat):
-            print("in-scope")
-            sys.exit(0)
-print("out-of-scope")
-sys.exit(0)
-PY
+# live_head_sha — the pull request's current head, for the ONE case that needs
+# it: telling a retired superseded run apart from a genuinely absent verdict.
+# Defined as a function so the self-tests can substitute it without an API call.
+live_head_sha() {
+  gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '.head.sha'
 }
 
-job_duration_seconds() {
-  local started completed
-  started="$1"
-  completed="$2"
-  local s c
-  s=$(date -u -d "$started" +%s) # portability-ok: GNU date -d for GitHub Actions ISO timestamps; CI runs on ubuntu only
-  c=$(date -u -d "$completed" +%s) # portability-ok: GNU date -d for GitHub Actions ISO timestamps; CI runs on ubuntu only
-  echo $((c - s))
+# classify_absent_verdict
+#
+# The lane declares nothing when its steps never reached the outcome composite.
+# Exactly one legitimate cause exists: the lane's freshness guard retired the
+# run because the head moved on, and the newer head's run reports in its place.
+# Every other cause — a caller pinned to a release older than the
+# declared-output contract, or a lane shape that stopped forwarding — is a
+# guard that has gone blind, and a blind security guard must not report safety.
+#
+# Prints the VERDICT on stdout — `retired` or `blind` — and reserves a non-zero
+# EXIT for a genuine fault, the same split the scope check used to need. The
+# explanation goes to stderr so it cannot be mistaken for the verdict. Calling
+# this from an `if` instead would disable `set -e` for its whole dynamic extent
+# (ShellCheck SC2310, enabled on purpose in this repository's `.shellcheckrc`),
+# which is how a fault inside a helper stops being a fault.
+classify_absent_verdict() {
+  if [[ -z "${GITHUB_REPOSITORY:-}" || -z "${PR_NUMBER:-}" || -z "${EVENT_HEAD_SHA:-}" ]]; then
+    echo "ERROR: security-review declared no verdict and this guard cannot tell whether the head moved (GITHUB_REPOSITORY, PR_NUMBER, and EVENT_HEAD_SHA are all required to decide) — refusing to report evidence it did not check (#2337)" >&2
+    printf 'blind\n'
+    return 0
+  fi
+  local head
+  head="$(live_head_sha)"
+  if [[ -z "$head" ]]; then
+    echo "ERROR: security-review declared no verdict and the live head could not be read, so a retired superseded run cannot be ruled out — refusing to report evidence it did not check (#2337)" >&2
+    printf 'blind\n'
+    return 0
+  fi
+  if [[ "$head" != "$EVENT_HEAD_SHA" ]]; then
+    echo "security-review declared no verdict and the head has moved (${EVENT_HEAD_SHA} -> ${head}) — this run was retired as superseded and the newer head's run reports instead; guard not applicable" >&2
+    printf 'retired\n'
+    return 0
+  fi
+  echo "ERROR: in-scope security-review concluded success but declared NO verdict at the current head — the caller's ci-workflows pin predates the declared-output contract (melodic-software/ci-workflows#460), or the lane stopped forwarding it. Re-pin the caller; do not wave this through (#2337)" >&2
+  printf 'blind\n'
+  return 0
 }
 
 main() {
   case "${1:-}" in
-    -h | --help) usage; exit 0 ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
     *) ;;
   esac
 
@@ -136,128 +120,83 @@ main() {
     echo "not a pull_request event — guard not applicable"
     exit 0
   }
-  [[ -n "${GITHUB_RUN_ID:-}" && -n "${GITHUB_REPOSITORY:-}" ]] || {
-    echo "ERROR: GITHUB_RUN_ID and GITHUB_REPOSITORY are required" >&2
-    exit 1
-  }
-  command -v gh >/dev/null 2>&1 || {
-    echo "ERROR: gh required" >&2
-    exit 1
-  }
-  command -v jq >/dev/null 2>&1 || {
-    echo "ERROR: jq required" >&2
-    exit 1
-  }
 
   if [[ ",${SKIP_ACTORS}," == *",${GITHUB_ACTOR:-},"* ]]; then
     echo "actor ${GITHUB_ACTOR} is skip-listed — guard not applicable"
     exit 0
   fi
 
-  local base_ref="${GITHUB_BASE_REF:-main}"
-  git fetch origin "$base_ref" --depth=1 >/dev/null 2>&1 || true
-  # A command substitution keeps `set -e` live for the helper (no `||`
-  # suppression), so a genuine fault inside it still aborts the guard — while
-  # the in-scope decision travels on stdout, where it cannot be confused with
-  # one. An unrecognised verdict is treated as a fault, never as a pass: this
-  # is a security guard, and the only safe default when it cannot tell whether
-  # a pull request is in scope is to fail loudly.
-  local scope_verdict
-  scope_verdict="$(pr_touches_security_paths "$base_ref")"
-  case "$scope_verdict" in
-    in-scope) ;;
-    out-of-scope)
-      echo "diff does not touch security-relevant paths — guard not applicable"
+  # A skipped lane job is one of the four no-verdict paths the lane documents —
+  # out of scope, a fork PR, a skip-listed actor, or either kill-switch. None is
+  # something this PR can act on, and the lane's own contract makes each a
+  # name-stable skip a required-check ruleset reads as success.
+  case "${LANE_RESULT:-}" in
+    skipped)
+      echo "security-review job skipped — guard not applicable"
       exit 0
       ;;
-    *)
-      echo "ERROR: scope check returned an unrecognised verdict: ${scope_verdict}" >&2
+    cancelled)
+      echo "security-review job cancelled — guard not applicable"
+      exit 0
+      ;;
+    "")
+      # `needs.<job>.result` is populated on every outcome, so an empty value
+      # means this guard is not wired to the lane at all. It cannot determine
+      # anything, and a guard that passes on uncertainty reports safety it did
+      # not check.
+      echo "ERROR: LANE_RESULT is empty — this guard is not wired to the security-review job, so it can determine nothing about it (#2337)" >&2
       exit 1
+      ;;
+    success) ;;
+    *)
+      echo "security-review job result=${LANE_RESULT} — deferring to job status"
+      exit 0
       ;;
   esac
 
-  local jobs_json
-  jobs_json="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs" --paginate)"
-  local job
-  job="$(printf '%s' "$jobs_json" | jq -c '.jobs[] | select(.name == "security-review / security-review" or .name == "security-review")' | head -n1)"
-  if [[ -z "$job" ]]; then
-    echo "ERROR: security-review job not found in run $GITHUB_RUN_ID" >&2
-    exit 1
-  fi
-
-  local conclusion started completed
-  conclusion="$(printf '%s' "$job" | jq -r '.conclusion // .status')"
-  started="$(printf '%s' "$job" | jq -r '.started_at // empty')"
-  completed="$(printf '%s' "$job" | jq -r '.completed_at // empty')"
-
-  if [[ "$conclusion" == "skipped" ]]; then
-    echo "security-review job skipped — guard not applicable"
-    exit 0
-  fi
-  if [[ "$conclusion" != "success" ]]; then
-    echo "security-review job conclusion=$conclusion — deferring to job status"
+  if [[ "${LANE_RELEVANT:-}" == "false" ]]; then
+    echo "diff does not touch security-relevant paths — guard not applicable"
     exit 0
   fi
 
-  local duration=0
-  if [[ -n "$started" && -n "$completed" ]]; then
-    duration="$(job_duration_seconds "$started" "$completed")"
-  fi
-
-  local log_file
-  log_file="$(mktemp)"
-  trap 'rm -f "$log_file"' RETURN
-  for _ in 1 2 3 4 5; do
-    if gh run view "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --job "$(printf '%s' "$job" | jq -r '.id')" --log >"$log_file" 2>/dev/null && [[ -s "$log_file" ]]; then
-      break
-    fi
-    sleep 5
-  done
-
-  # Match only the runner's own ANNOTATION lines, never bare log text. The
-  # lane's `Report review outcome` step is an inline github-script whose SOURCE
-  # is echoed into this same log, and that source contains both phrases as
-  # string literals:
-  #
-  #     `${lane} concluded: ${outcome} class=skipped-validation with no ` +
-  #       "(workflow-validation skip: the caller's workflow file must " +
-  #
-  # An unanchored grep therefore matched EVERY successful in-scope run — the
-  # guard reddened exactly the pull requests it exists to approve. It stayed
-  # invisible while a separate bug (the lane rejecting `cursor[bot]` for want
-  # of an `allowed_bots` entry) made the lane job itself fail, because a
-  # non-success conclusion returns above without reaching this line.
-  #
-  # A real skip is emitted through `core.warning`, which the runner renders as
-  # a `##[warning]` line, so requiring that prefix keeps the true positive and
-  # drops the source-text match. Verified against run 31630114303, whose log
-  # contains exactly two matches for the old pattern, both source (lines 1435
-  # and 1437), while its `Rule on an in-scope non-run` step is `skipped` and
-  # its review ran 3m07s.
-  #
-  # `review-ran.*false` is deliberately not carried forward: the output key is
-  # `review_ran` with an underscore, so that alternative never matched a real
-  # signal — only, once again, the echoed source.
-  if grep -qE '##\[(warning|error)\].*(workflow-validation skip|class=skipped-validation)' "$log_file" 2>/dev/null; then
-    echo "ERROR: security-review reported success but its annotations show a validation skip (#2337)" >&2
-    exit 1
-  fi
-
-  # Positive execution evidence: the Claude review action progressed past
-  # install into the agent SDK (or posted a review). Marker strings sampled
-  # from real claude-security-review job logs (melodic-software/ci-workflows
-  # reusable); re-verify when re-pinning that workflow.
-  local has_execution_evidence=0
-  if grep -qE '@anthropic-ai/claude-agent-sdk|mcp__github_inline_comment__create_inline_comment|Posted review|create_inline_comment|Claude Code action completed' "$log_file" 2>/dev/null; then
-    has_execution_evidence=1
-  fi
-
-  if (( duration > 0 && duration < MIN_REVIEW_SECONDS && has_execution_evidence == 0 )); then
-    echo "ERROR: in-scope security-review succeeded in ${duration}s (<${MIN_REVIEW_SECONDS}s) with no execution evidence — likely no review ran (#2337)" >&2
-    exit 1
-  fi
-
-  echo "security-review evidence OK (duration=${duration}s, execution_evidence=${has_execution_evidence}, in-scope)"
+  case "${LANE_REVIEW_RAN:-}" in
+    true)
+      echo "security-review evidence OK (the lane declares a review ran, in-scope)"
+      exit 0
+      ;;
+    false)
+      if [[ "${LANE_REVIEW_FAILED:-}" == "true" ]]; then
+        # The lane rules this GREEN on purpose: the cause is outside this PR's
+        # and the org's control, and a required context that reddens on a
+        # provider outage locks every merge for the length of it. This guard
+        # exists to catch a FALSE pass, not to overturn that ruling — so it
+        # says loudly that nothing was reviewed and defers.
+        echo "::warning::security-review was in scope and did not complete (class=${LANE_FAILURE_CLASS:-unknown}). Nothing was reviewed at this head, and the lane reports green by contract. A human should review the security-sensitive changes here before merging."
+        exit 0
+      fi
+      echo "ERROR: in-scope security-review concluded success but declares that no review ran and no failure occurred — the action skipped itself (workflow-validation skip: the caller's workflow file must match the default branch's copy). Merging the caller-workflow change clears it; a re-run cannot (#2337)" >&2
+      exit 1
+      ;;
+    *)
+      # A command substitution, so `set -e` stays live for the helper and a
+      # genuine fault inside it still aborts the guard, while the verdict
+      # travels on stdout where it cannot be confused with one. An
+      # unrecognised verdict is a fault, never a pass.
+      local absent_verdict
+      absent_verdict="$(classify_absent_verdict)"
+      case "$absent_verdict" in
+        retired) exit 0 ;;
+        blind) exit 1 ;;
+        *)
+          echo "ERROR: the absent-verdict classifier returned an unrecognised verdict: ${absent_verdict}" >&2
+          exit 1
+          ;;
+      esac
+      ;;
+  esac
 }
 
-main "$@"
+# Sourced by the self-tests, which substitute live_head_sha; executed in CI.
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi

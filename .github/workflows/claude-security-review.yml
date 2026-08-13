@@ -71,9 +71,17 @@ jobs:
 
   # Repo-owned fail-closed supplement for #2337: the reusable workflow is
   # advisory on some infra-failure classes and can report success without a
-  # review when validation skips or the job finishes implausibly fast on an
-  # in-scope diff. This job is intentionally separate so the guard stays
-  # readable in-repo and does not require a ci-workflows pin bump.
+  # review when the action skips itself on an in-scope diff. This job is
+  # intentionally separate so the guard stays readable in-repo.
+  #
+  # It reads the lane's DECLARED outputs, passed below out of `needs`. It used
+  # to scrape the lane's job log instead, and a log is not a contract: the
+  # lane's `Report review outcome` step is an inline github-script whose source
+  # is echoed into that log, so the grep matched the source that mentions the
+  # skip phrases and reddened every successful in-scope pull request (#2517).
+  # Those outputs exist as of ci-workflows#461, which is why this job is now
+  # coupled to the pin above — the guard fails CLOSED when they are absent at
+  # an unmoved head, so a re-pin BACKWARDS past that release turns this red.
   security-review-evidence:
     needs: security-review
     if: >-
@@ -84,20 +92,32 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: read
-      actions: read
+      # The guard reads the pull request's live head on one path only —
+      # telling a retired superseded run apart from an absent verdict. It no
+      # longer reads run jobs or logs, so `actions: read` is gone with them.
+      pull-requests: read
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          fetch-depth: 0
+      # Self-test first, so a broken guard cannot mask the regression it exists
+      # to catch — the shape #2517 was: the guard agreed with itself while
+      # failing every pull request.
+      - name: Run security-review evidence guard tests
+        run: bash scripts/verify-security-review-evidence.sh.test.sh
       - name: Verify security-review execution evidence
         env:
           GH_TOKEN: ${{ github.token }}
-          GITHUB_RUN_ID: ${{ github.run_id }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_EVENT_NAME: ${{ github.event_name }}
-          GITHUB_BASE_REF: ${{ github.base_ref }}
           GITHUB_ACTOR: ${{ github.actor }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          LANE_RESULT: ${{ needs.security-review.result }}
+          LANE_RELEVANT: ${{ needs.security-review.outputs.relevant }}
+          LANE_REVIEW_RAN: ${{ needs.security-review.outputs.review-ran }}
+          LANE_REVIEW_FAILED: ${{ needs.security-review.outputs.review-failed }}
+          LANE_FAILURE_CLASS: ${{ needs.security-review.outputs.failure-class }}
           SKIP_ACTORS: dependabot[bot],claude[bot],melodic-ai[bot],melodic-standards-sync[bot]
         run: bash scripts/verify-security-review-evidence.sh
