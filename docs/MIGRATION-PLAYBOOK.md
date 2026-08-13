@@ -397,6 +397,34 @@ Separate **plugin-owned** logic from **consumer-owned** extension points:
   what shifted. A bump that adds a new trust surface additionally re-triggers the plugin-acceptance
   security review below.
 
+### Same-version commit drift (directory-source marketplaces)
+
+For a marketplace registered with a `directory` source (a local clone or a repo-relative path in
+checked-in settings), the installed plugin cache is keyed by the **semver `version` in
+`plugin.json`**, not by the git commit SHA. Claude Code records the commit at install time in
+`installed_plugins.json`, but the cache directory name is only `<version>` — so a later commit under
+the same version does not replace the snapshot.
+
+That bites the normal PR shape here: a branch lands several commits under one version bump (review
+fixes before merge, audit follow-ups, and the like). Whoever installed on the branch's first commit
+keeps that snapshot until the version changes. Every later commit under the same version is invisible
+to installed sessions — including corrections that would otherwise be live after merge.
+
+`claude plugin update <name>@<marketplace>` compares **version numbers only**. When the marketplace
+ref and the cache both read `0.7.0`, `update` reports success ("already at the latest version") and
+copies nothing — a false green that confirms the wrong state while the recorded SHA lags the source.
+
+**Workarounds (until upstream fixes this — [melodic-software/claude-code-plugins#2061](https://github.com/melodic-software/claude-code-plugins/issues/2061)):**
+
+- **Force a fresh snapshot:** `claude plugin uninstall <name>@<marketplace>` then `install` again,
+  then `enable` — `uninstall` drops enabled state, so skipping `enable` leaves the plugin silently
+  absent rather than silently stale.
+- **Ship a version bump** when the merged result must reach consumers — the only delivery vehicle for
+  marketplace installs (see bullets above).
+- **Local iteration:** `claude --plugin-dir ./plugins/<name>` loads the working tree and takes
+  session precedence over the cached install (see "Local development loop" below) — no reinstall
+  needed for same-session edits after `/reload-plugins`.
+
 ## Persistence, configuration & external integration
 
 A skill is a markdown prompt (plus optional scripts), not a compiled runtime — so ports / adapters /
