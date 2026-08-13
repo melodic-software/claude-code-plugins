@@ -49,7 +49,9 @@ at preview. Backups remain the recovery boundary for user data.
   `skills/clean/scripts/hygiene.py`; `/disk-hygiene:setup check` derives the enforced value from
   there, so treat the number printed here as a convenience copy). Claude Code launches the guard in
   shell-free exec form; guarded engine calls must use the same absolute interpreter reported by that
-  guard, so Bash aliases and functions cannot replace it. The guard registers on two surfaces: a
+  guard, so Bash aliases and functions cannot replace it. Both wired hooks register as `bash`
+  invoking `hooks/run-python-hook.sh`, so `bash` must resolve on `PATH` (Git Bash on Windows) before
+  the launcher can resolve Python (#1504). The guard registers on two surfaces: a
   plugin-level **engine gate** (`hooks/hooks.json`) that acts only on commands referencing the
   engine — deferring everything else instantly — and enforces the kill switch and data-root
   authority; and the skill-scoped **belt** inside the `clean` skill's context, which adds the
@@ -72,10 +74,10 @@ at preview. Backups remain the recovery boundary for user data.
   guard that never ran or died mid-run no longer looks identical to a guard that ran and approved.
   This covers only the `destructive_guard.py` command string in the current session's transcript: it
   does not cover repo-hygiene's own guard (a separate plugin, verified working independently), and it
-  never retroactively scans a prior session's transcript. It is also wired with the same literal
-  `python3` command as the guard it watches, so the interpreter-resolution failure below — the
-  WindowsApps alias stub, or a missing/broken `python3` — takes the detector down with the guard and
-  goes unreported (#1504).
+  never retroactively scans a prior session's transcript. Both wired hooks register through
+  `hooks/run-python-hook.sh` — a bash launcher that resolves Python independently of bare
+  `python3` on PATH — so when `python3` is the WindowsApps alias stub or otherwise unresolvable,
+  the detector still emits a `systemMessage` even though the guard cannot run (#1504).
 - Git is optional for ordinary trees. If a target contains or sits inside a Git worktree, Git becomes
   required so tracked content can be proven safe; otherwise cleanup for that subtree is blocked.
 - Windows has the full **audit** lane (Python 3.11's `lstat` reparse metadata plus Win32 APIs
@@ -86,18 +88,18 @@ at preview. Backups remain the recovery boundary for user data.
   distinction only — the engine treats Windows and macOS identically (execution unsupported); which
   reversible-removal container the manual lane prefers is the model's instruction, not engine
   behavior.
-- **Windows `python3` gotcha — the Store alias stub fails the guard open.** The `clean` guard hook
-  launches the literal command `python3`. On stock Windows that name resolves to a zero-length
-  `WindowsApps\python3.exe` App Execution Alias — a reparse stub that opens the Microsoft Store (or
-  exits) instead of running an interpreter, so the guard process never starts. A PreToolUse hook
-  blocks a tool call only by emitting exit code 2 or a `deny` decision ([Hooks](https://code.claude.com/docs/en/hooks));
-  a guard that never runs emits neither, and Claude Code treats the non-blocking result as approval —
-  the destructive Bash/PowerShell command proceeds ungated (the same fail-open shape as the 0.6.3
-  launch-failure fix, via a different vector). `/disk-hygiene:setup check` detects this explicitly and
-  FAILs: disable the `python3` App execution alias (Settings > Apps > Advanced app settings > App
-  execution aliases) or install real Python and ensure it precedes WindowsApps on `PATH`. A bare
-  `command -v python3` / `where python3` success is not proof the interpreter is real — the stub
-  answers to the name too.
+- **Windows `python3` gotcha — the Store alias stub fails the guard open.** The wired hooks resolve
+  Python through `hooks/run-python-hook.sh` (rejecting the zero-length `WindowsApps\python3.exe`
+  App Execution Alias stub) before exec'ing the guard. When no interpreter resolves, the guard still
+  fails open — a PreToolUse hook blocks a tool call only by emitting exit code 2 or a `deny`
+  decision ([Hooks](https://code.claude.com/docs/en/hooks)); a guard that never runs emits neither,
+  and Claude Code treats the non-blocking result as approval — the destructive Bash/PowerShell
+  command proceeds ungated (the same fail-open shape as the 0.6.3 launch-failure fix, via a
+  different vector). The Stop detector emits a `systemMessage` in that case so the blind spot is
+  visible. `/disk-hygiene:setup check` detects this explicitly and FAILs: disable the `python3` App
+  execution alias (Settings > Apps > Advanced app settings > App execution aliases) or install real
+  Python and ensure it precedes WindowsApps on `PATH`. A bare `command -v python3` / `where python3`
+  success is not proof the interpreter is real — the stub answers to the name too.
 - Linux requires readable `/proc/self/mountinfo`, descriptor-relative filesystem APIs, and `lsof` for
   the optional execution lane. Absence, diagnostics, or authority gaps block cleanup.
 - macOS supports audit/report only because this implementation has no authoritative bind-mount and

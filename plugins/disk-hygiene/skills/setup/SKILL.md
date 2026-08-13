@@ -24,7 +24,7 @@ report a PASS/FAIL/INFO table with one remediation line per FAIL.
 
 When the plugin's toggle is disabled, every prerequisite absence downgrades from FAIL to
 INFO — a deliberately disabled plugin is not broken. Report the probes informationally and
-note that re-enabling restores the FAIL semantics. One exception: every step-1 failure stays
+note that re-enabling restores the FAIL semantics. One exception: every step-1 and step-2 failure stays
 FAIL with the toggle disabled. Audit-only mode is *enforced by* the guard, both guard surfaces
 launch through the literal name `python3`, and a guard that never runs can neither read nor
 enforce the configured `false` — so the fail-open is most dangerous in exactly this
@@ -38,7 +38,12 @@ the guard's own source: Python 3.6, for example, rejects the guard's
 non-blocking — the same silent fail-open through a different door. Unproven guard execution
 fails closed like every other guard-relevant unknown in this plugin.
 
-1. **Python floor on `PATH`** — the interpreter used by scanning, validation, the
+1. **Bash launcher on `PATH`** — both wired hooks in `hooks/hooks.json` register as the literal
+   command `bash` before `hooks/run-python-hook.sh` resolves Python. FAIL if `command -v bash` is
+   empty; on Windows ensure Git Bash (or another real `bash.exe`) precedes stub paths on `PATH`.
+   When bash is missing, neither the guard nor the Stop detector can launch — the same blind spot
+   the launcher exists to surface.
+2. **Python floor on `PATH`** — the interpreter used by scanning, validation, the
    guard, and cleanup. (The guard registers on two surfaces: a plugin-level engine gate
    that acts only on engine-referencing commands, and the skill-scoped belt inside the
    `clean` skill's context. Both register unconditionally and resolve the kill switch by
@@ -86,10 +91,10 @@ fails closed like every other guard-relevant unknown in this plugin.
    without that name either — it is a guard-launch failure too, so it keeps the FAIL under a
    disabled toggle alongside the other two. A bare `command -v python3` success is not
    evidence on its own — it matches the stub too.
-2. **Git** — `command -v git`. Conditional per the README: optional for ordinary trees,
+3. **Git** — `command -v git`. Conditional per the README: optional for ordinary trees,
    required when a target contains or sits inside a Git worktree. Report presence as INFO
    with that conditionality stated; absence is only a FAIL for worktree-containing targets.
-3. **Platform posture** — detect the current OS family and report its documented lane per
+4. **Platform posture** — detect the current OS family and report its documented lane per
    the README, keeping the audit and execution lanes visibly separate: Windows (full
    **audit** — `lstat` reparse + Win32, never UAC; engine **execution unsupported** —
    `preview` reports `execution-platform-unsupported` as a per-candidate blocker, removal is
@@ -98,9 +103,9 @@ fails closed like every other guard-relevant unknown in this plugin.
    `/proc/self/mountinfo` is readable — `lsof` needed only for that optional execution
    lane, absent `lsof` is INFO with the reduced-capability note), macOS (audit/report
    only by design; manual Trash handoff only under `--execute` — INFO, not a defect).
-4. **Execution kill switch** — resolve the effective `disk_hygiene_enabled` value
+5. **Execution kill switch** — resolve the effective `disk_hygiene_enabled` value
    deterministically; never present an assumed value as the configured one. Run the bundled
-   probe with the step-1 interpreter:
+   probe with the step-2 interpreter:
    `"<python>" "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/kill_switch_probe.py"`
    and report its `effective` value together with its `source` (`configured` vs `default`).
    When the probe says `degraded: true`, report that the configured value could not be read
@@ -109,7 +114,7 @@ fails closed like every other guard-relevant unknown in this plugin.
    to a boolean that contradicts the probe, report the discrepancy instead of silently
    preferring either channel (the probe sees user settings only; managed settings or a
    `--settings` flag can carry a value the probe cannot see).
-5. **Plugin registration** — INFO: confirm the plugin is enabled for this project
+6. **Plugin registration** — INFO: confirm the plugin is enabled for this project
    (`/plugin` → Installed) rather than parsing settings files.
 
 ## `apply` (idempotent)

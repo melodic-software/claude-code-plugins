@@ -3,6 +3,17 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.6]
+
+### Fixed
+
+- **Wired hooks launch through a bash Python resolver (#1504).** Both `hooks/hooks.json`
+  registrations now invoke `hooks/run-python-hook.sh`, which resolves a real Python 3
+  interpreter (rejecting the zero-length WindowsApps `python3` alias stub) before exec'ing
+  the guard or the Stop detector. When no interpreter resolves, the guard still fails open
+  (exit 0) and the detector emits a `systemMessage` on stdout — so the blind spot the
+  detector exists to surface is visible even when bare `python3` cannot run.
+
 ## [0.17.5]
 
 ### Added
