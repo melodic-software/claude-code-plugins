@@ -1,5 +1,5 @@
 ---
-description: "Verify and configure the work-items plugin for this repository. check inspects read-only the tracker provider binding (.work-item-tracker.json), the tracked .github/recurring-schedule.json (presence, JSON validity, unique reconciliation keys), the jq and tracker-seam entry gates, the recurring-maintenance role label, and the work-class label axis; apply binds the tracker provider (seeds .work-item-tracker.json with the provider + non-secret config), writes the schedule, migrates missing work-class labels when authorized, and optionally remaps the canonical role labels in the tracker binding. On a first-time bind apply writes that minimum viable config only — binding, role-label pass, work-class migration pass, empty schedule skeleton — and the pass that infers candidates from the repo and interviews the consumer for their recurring work items is opt-in, via the --seed-schedule argument or a single offer whose recommended default is skip (applied silently with no interactive user); a schedule that already carries items is summarized and offered updates exactly as before. Use when: 'set up work-items', 'bind the tracker provider', 'is work-items configured', 'configure the recurring schedule', 'work-items setup', 'seed recurring items', 'bulk-seed the recurring schedule', 'remap the work-item role labels', or the due/recheck/work actions report no recurring schedule configured, or the seam reports no binding. Re-runnable — safe to invoke again to reconfigure or to seed the schedule later."
+description: "Verify and configure the work-items plugin for this repository. check inspects read-only the tracker provider binding (.work-item-tracker.json), the tracked .github/recurring-schedule.json (presence, JSON validity, unique reconciliation keys), the jq and tracker-seam entry gates, the recurring-maintenance role label, the work-class label axis, and the capability-tier label axis; apply binds the tracker provider (seeds .work-item-tracker.json with the provider + non-secret config), writes the schedule, migrates missing work-class and capability-tier labels when authorized, backfills legacy frontier-tier body stamps onto the label, and optionally remaps the canonical role labels in the tracker binding. On a first-time bind apply writes that minimum viable config only — binding, role-label pass, work-class migration pass, capability-tier migration pass, legacy-label backfill check, empty schedule skeleton — and the pass that infers candidates from the repo and interviews the consumer for their recurring work items is opt-in, via the --seed-schedule argument or a single offer whose recommended default is skip (applied silently with no interactive user); a schedule that already carries items is summarized and offered updates exactly as before. Use when: 'set up work-items', 'bind the tracker provider', 'is work-items configured', 'configure the recurring schedule', 'work-items setup', 'seed recurring items', 'bulk-seed the recurring schedule', 'remap the work-item role labels', or the due/recheck/work actions report no recurring schedule configured, or the seam reports no binding. Re-runnable — safe to invoke again to reconfigure or to seed the schedule later."
 argument-hint: "check | apply [--seed-schedule] [--accept-recommended]"
 user-invocable: true
 disable-model-invocation: true
@@ -188,11 +188,11 @@ check.
    `config.role_labels["recurring-maintenance"]` (default `recurring` when the entry is absent; a
    malformed, empty, or non-string configured value is FAIL); missing `cadence:{cadence}` labels are
    taxonomy niceties — INFO. **That resolution FAIL settles probe 6 outright** — it is a binding
-   error, independent of any schedule, and `apply` step 7 calls the same value "an error, not a
+   error, independent of any schedule, and `apply` step 9 calls the same value "an error, not a
    fallback" at any row count. The branches below decide only whether a *resolved* label's absence is
    a gate, so reach them only once the role resolves; the probe emits one verdict, and letting a row
    count that is zero, absent, or unreadable pick INFO would drop the binding error from the table
-   entirely. With the role resolved, branch on the schedule's **row count**, exactly as `apply` step 7
+   entirely. With the role resolved, branch on the schedule's **row count**, exactly as `apply` step 9
    does — never on whether the schedule file exists. The skipped first-time bind leaves a
    present-but-empty `{"items": []}` on disk, so a file-presence gate hard-FAILs the expected
    post-bind steady state over an item that can never be created:
@@ -218,6 +218,16 @@ check.
    Providers without a label listing (`local-markdown`, read-only `jira`) → INFO: verify at triage
    time via the item store. When probe 2 is INFO (no binding) or FAIL (malformed binding), skip this
    probe — there is no addressable provider yet.
+8. **Capability-tier label axis** — when probe 2 found a present, shape-valid binding whose provider
+   exposes label listing (the `github` adapter: `gh label list`), verify the canonical
+   `capability-tier: frontier` member from
+   [`${CLAUDE_PLUGIN_ROOT}/reference/capability-tier-labels.md`](${CLAUDE_PLUGIN_ROOT}/reference/capability-tier-labels.md)
+   exists. Absent is FAIL — triage cannot stamp frontier-tier quota guard and the work-loop reader
+   fails closed to general tier until the label exists; remediation is `/work-items:setup apply` on
+   repos without label-as-code, or the repo's declared label-as-code owner when one exists (never
+   `gh label create` ad hoc there). Providers without a label listing (`local-markdown`, read-only
+   `jira`) → INFO: verify at triage time via the item store. When probe 2 is INFO (no binding) or
+   FAIL (malformed binding), skip this probe — there is no addressable provider yet.
 
 ## `apply` (idempotent)
 
@@ -227,7 +237,7 @@ skipped first-time `apply` leaves `{"items": []}` on disk, so a file-absence gat
 seeding path unreachable by re-running:
 
 - **Schedule carries ≥1 item** — unchanged from before: summarize it, infer candidates, and interview
-  against that baseline (steps 5–7), offering updates. `--seed-schedule` is a no-op here; this branch
+  against that baseline (steps 7–9), offering updates. `--seed-schedule` is a no-op here; this branch
   already interviews.
 - **Schedule absent, or present with an empty `items` array** — write only the minimum viable config:
   the provider binding, the role-label pass, and the empty `{"items": []}` skeleton so `due` /
@@ -241,10 +251,10 @@ seeding path unreachable by re-running:
 Seeding rows on the empty/absent branch is **opt-in**, satisfied by any one of: the explicit
 `--seed-schedule` argument; an accepted yes/no offer; or an invocation that in its own words asks for
 the schedule to be seeded (e.g. "seed a sensible recurring schedule for this repo") — an explicit
-request IS the opt-in, so honor it without re-asking. Otherwise offer exactly once, before step 5, as a
+request IS the opt-in, so honor it without re-asking. Otherwise offer exactly once, before step 7, as a
 single yes/no with **skip marked RECOMMENDED**: name that seeding walks them through one interview per
 candidate item, that the skeleton alone already stops the degradation, and that re-running `apply` (or
-`apply --seed-schedule`) bulk-seeds later at any time. On skip, say so plainly and go to step 8.
+`apply --seed-schedule`) bulk-seeds later at any time. On skip, say so plainly and go to step 10.
 
 ### Autonomous invocation (no interactive user)
 
@@ -266,14 +276,16 @@ Applied to the three passes:
 | Provider binding (`apply` step 1, which runs the "Provider binding" procedure) | **Binding already present and valid — keep it, and re-bind nothing.** That is the procedure's own read-first RECOMMENDED answer, so this rule resolves to it silently: a repo bound to `local-markdown`, `jira`, or a consumer-local provider stays on it, and a working `gh` never switches it to `github`. Re-binding is a switch-providers decision, which no default can stand in for. (A present binding the probe already FAILs never reaches here — `apply` runs `check` first, and that probe FAILs a malformed shape, a provider resolving to no adapter, a missing required config key, and a `github` binding this checkout cannot derive a repo for.) **Binding absent** — bind `github` with `config.lease_ttl_hours: 24`, both RECOMMENDED, **only when `gh` is installed AND `gh repo view --json owner,name` resolves in this checkout**. The old test was `gh auth status`, which proves only that an account is authenticated somewhere — never that this repository is hosted on GitHub, so a local-only or non-GitHub checkout was bound to a provider whose every repo-scoped verb then fails. `gh repo view` is the adapter's own derivation and the operative test: it subsumes authentication for the host this checkout uses, and it is not the machine-wide check `gh auth status` is (that one tests every account on every known host and exits 1 if any has an issue, per `gh auth status --help`, so an unrelated stale credential would refuse a good bind). Report the resolved `owner/repo` in the summary alongside the other defaults taken. Otherwise stop: `local-markdown` and `jira` need `storage_dir` / `config.jira` values that have no defaults and cannot be inferred, so there is no provider left to choose safely. Report "tracker binding needs a provider decision; run `/work-items:setup apply` with a user present". |
 | Role labels (step 2) | Keep the defaults — the RECOMMENDED answer, and the one that writes nothing. The pass runs and completes as a no-op: `config.role_labels` is left absent, so every role resolves to its documented fallback. A remap is a repo-vocabulary decision no default can stand in for. |
 | Work-class labels (step 3) | When any canonical member is missing: if the repo declares a label-as-code owner, stop — name the missing labels and point remediation at that owner. Otherwise stop: "work-class axis needs provisioning; run `/work-items:setup apply` with a user present". Never create labels ad hoc unattended. |
-| Schedule seeding (before step 5) | Skip — the RECOMMENDED answer. Write the empty `{"items": []}` skeleton and go to step 8. **Exception:** when the invocation carries both `--seed-schedule` and `--accept-recommended`, run steps 5–6 using each inferred candidate's recommended values without per-item interviews (unattended bulk seed). |
+| Capability-tier labels (step 4) | When `capability-tier: frontier` is missing: if the repo declares a label-as-code owner, stop — name the missing label and point remediation at that owner. Otherwise stop: "capability-tier axis needs provisioning; run `/work-items:setup apply` with a user present". Never create labels ad hoc unattended. |
+| Legacy capability-tier backfill (step 5) | Unattended: run `backfill-capability-tier-labels.sh check` only and report candidates with the apply command for a user-present run. Never mutate item labels without confirmation. |
+| Schedule seeding (before step 7) | Skip — the RECOMMENDED answer. Write the empty `{"items": []}` skeleton and go to step 10. **Exception:** when the invocation carries both `--seed-schedule` and `--accept-recommended`, run steps 7–8 using each inferred candidate's recommended values without per-item interviews (unattended bulk seed). |
 
 So an autonomous first-time bind on a `gh`-ready repo produces the binding, the role-label pass, and
 the empty skeleton, and nothing else; an autonomous re-run against a repo that is already bound leaves
 that binding exactly as it found it. Absent an opt-in, never infer and never interview.
 `--seed-schedule` carries the opt-in decision without the offer prompt, but the pass it selects is
-step 5's per-item interview — so it is not a non-interactive seeding path unless `--accept-recommended`
-is also present. Pairing both flags tells step 6 to accept every inferred candidate with its
+step 7's per-item interview — so it is not a non-interactive seeding path unless `--accept-recommended`
+is also present. Pairing both flags tells step 8 to accept every inferred candidate with its
 recommended cadence/title fields and write the schedule without blocking on questions (#1302).
 
 The row shape, the root `{"items": []}` structure, and the cadence-duration table are defined once in
@@ -292,14 +304,21 @@ unambiguous; ask only where an item genuinely needs the user.
 3. **Migrate the work-class label axis.** Run the "Work-class label axis (migration)" procedure below.
    It discovers missing canonical members and provisions them when authorized. When any member is still
    missing after this pass, stop — triage and the work-loop admission gate cannot operate correctly.
-4. **Read the current schedule file first.** If `.github/recurring-schedule.json` exists, load it and
+4. **Migrate the capability-tier label axis.** Run the "Capability-tier label axis (migration)"
+   procedure below. When the canonical member is still missing after this pass, stop — triage cannot
+   stamp frontier-tier quota guard and the work-loop reader fails closed to general tier.
+5. **Backfill legacy frontier-tier body stamps.** Run the "Capability-tier label backfill
+   (migration)" procedure below. This pass is load-bearing on upgrade (#1716): items already triaged
+   with only a body prose frontier-tier stamp will not be re-triaged, so setup applies the label here
+   once the axis exists.
+6. **Read the current schedule file first.** If `.github/recurring-schedule.json` exists, load it and
    present a short summary (item count, each item's `id` / `cadence` / `next_due`, and which are already
    overdue against today). The interview proposes changes against that baseline; nothing is dropped
    without the user confirming. If the file is absent or carries an empty `items` array, say so and
-   settle the opt-in decision above before steps 5–6.
-5. **Infer candidate items before asking — steps 5 and 6 run on the seeding path only** (the schedule
+   settle the opt-in decision above before steps 7–8.
+7. **Infer candidate items before asking — steps 7 and 8 run on the seeding path only** (the schedule
    already carries ≥1 item, or seeding was opted into). On the default skipped path, run neither and go
-   straight to step 7. Recurring items can't be fully derived, but don't skip the rung — propose
+   straight to step 9. Recurring items can't be fully derived, but don't skip the rung — propose
    candidates from what the repo actually contains, each with a recommended cadence:
    - Dependency manifests (`package.json`, `*.csproj` / `Directory.Packages.props`, `pyproject.toml`,
      `Cargo.toml`, `go.mod`) → a "Review dependency manifest / check for updates" item (recommend
@@ -312,9 +331,9 @@ unambiguous; ask only where an item genuinely needs the user.
      (recommend `semi-annual` or `quarterly`).
    Present these as a starting menu; the user keeps, edits, or drops each. Do not invent items the repo
    gives no signal for.
-6. **Interview, one decision at a time, recommendation first.** When `--accept-recommended` is set
-   alongside `--seed-schedule`, skip the interview: accept every inferred candidate from step 5 with
-   its recommended field values and proceed to step 7. Otherwise, for each candidate (and any custom item
+8. **Interview, one decision at a time, recommendation first.** When `--accept-recommended` is set
+   alongside `--seed-schedule`, skip the interview: accept every inferred candidate from step 7 with
+   its recommended field values and proceed to step 9. Otherwise, for each candidate (and any custom item
    the user names last), settle its fields against the shape in
    [`${CLAUDE_PLUGIN_ROOT}/skills/track/actions/add.md`](${CLAUDE_PLUGIN_ROOT}/skills/track/actions/add.md): `id` (kebab-case),
    `title`, `cadence` (one of the cadence table's values), `area[]`, `category`, `triggers[]` (external
@@ -330,7 +349,7 @@ unambiguous; ask only where an item genuinely needs the user.
      `last_checked` to today (setup did no maintenance). Blindly resetting the dates would drop an
      already-overdue item out of the `due` / `work` recurring tiers, which both select on
      `next_due <= today`.
-7. **Confirm the recurring-maintenance role label is present in the provider — load-bearing whenever
+9. **Confirm the recurring-maintenance role label is present in the provider — load-bearing whenever
    the schedule will carry rows.** (Step 2 settled which label string each role resolves to; this step
    verifies that string actually exists.) Key this on the schedule's **final row count**, not on what
    this run wrote: with ≥1 row (written now or already on disk) a missing label is reported as a hard
@@ -354,11 +373,11 @@ unambiguous; ask only where an item genuinely needs the user.
    recurring automation or the `work` due-recurring tier when `next_due` arrives. Do **not** point users
    at `add --recurring` to create it: that per-item path appends another schedule row, duplicating an
    already-seeded item.
-8. **Write the schedule.** On the skipped path there is nothing to merge: write the `{"items": []}`
-   skeleton when the file is absent, leave an already-empty file untouched, and go to step 10 — step 9
+10. **Write the schedule.** On the skipped path there is nothing to merge: write the `{"items": []}`
+   skeleton when the file is absent, leave an already-empty file untouched, and go to step 12 — step 11
    has no renamed or dropped row to reconcile. Otherwise read the current file (if any) and merge the
    accepted items into the `items`
-   array, keying each edited item on the **original `id` it had when read in step 4**, not its final
+   array, keying each edited item on the **original `id` it had when read in step 6**, not its final
    `id` — so an id rename replaces the original row instead of leaving it behind. Concretely: replace
    the row whose id matches the item's origin id; append only genuinely new items (no origin row); and
    when the user renamed an id, drop the old-id row so `due` / `work` never see two rows for the same
@@ -368,7 +387,7 @@ unambiguous; ask only where an item genuinely needs the user.
    two rows, replace one, or pick a unique value; never write a schedule with a duplicate `id` or
    `title`. Then write it back with the `{"items": [ ... ]}` root. Confirm the file is tracked, not
    ignored.
-9. **Reconcile an existing row's open item when it is renamed OR dropped.** Both operations strand the
+11. **Reconcile an existing row's open item when it is renamed OR dropped.** Both operations strand the
    row's live `[Maintenance] {old title}` recurring item (if still open): after write the schedule no
    longer carries that title, so `due` / `work` — which derive recurring candidates only from the
    schedule, and whose frontier tiers exclude items carrying the resolved recurring-maintenance label — will never surface it again,
@@ -386,12 +405,12 @@ unambiguous; ask only where an item genuinely needs the user.
    - **Dropped row:** close that item (adapter: "Close item") with a comment noting the recurring item
      was retired from the schedule — otherwise the `recurring`-labeled issue lingers unreachable.
    A rename or drop with no exact-match open item needs no reconciliation.
-10. **Verify after remediation.** Re-run the `check` probes on the written binding and schedule — binding
-   validity, including that any `config.role_labels` step 2 wrote survived the step-8 write intact and
+12. **Verify after remediation.** Re-run the `check` probes on the written binding and schedule — binding
+   validity, including that any `config.role_labels` step 2 wrote survived the step-10 write intact and
    is well-formed; JSON validity; unique `id`/`title`; tracked-not-ignored — and report the actual
-   results, never success on the write alone. This re-run is scoped to those probes: step 7 already
+   results, never success on the write alone. This re-run is scoped to those probes: step 9 already
    owns whether the resolved recurring-maintenance label exists in the provider, so do not repeat that
-   lookup here; step 3 already owns work-class axis provisioning.
+   lookup here; steps 3–4 already own work-class and capability-tier axis provisioning.
 
 ## Work-class label axis (migration)
 
@@ -416,6 +435,59 @@ canonical members from
 7. **Any missing — no label-as-code owner, no interactive user** — stop per `apply`'s "Autonomous
    invocation" rule: "work-class axis needs provisioning; run `/work-items:setup apply` with a user
    present".
+
+## Capability-tier label axis (migration)
+
+`apply` runs this pass at **step 4** of its numbered flow, after the work-class pass and before the
+legacy backfill. Triage's capability-tier stamp and the work-loop frontier quota guard require
+`capability-tier: frontier` from
+[`${CLAUDE_PLUGIN_ROOT}/reference/capability-tier-labels.md`](${CLAUDE_PLUGIN_ROOT}/reference/capability-tier-labels.md).
+
+1. **Skip when `.work-item-tracker.json` is absent** — nothing is bound yet.
+2. **Skip when the bound provider has no label listing** (`local-markdown`, read-only `jira`) — report
+   INFO and continue; triage verifies at item-edit time.
+3. **Discover** via the adapter's label listing (GitHub: `gh label list --limit 200`, filter
+   `capability-tier:`). Compare against the canonical member in the reference.
+4. **Present** — report "capability-tier axis provisioned" and continue.
+5. **Missing — label-as-code owner declared** — stop. Name the missing label and route remediation to
+   that owner; never `gh label create` ad hoc.
+6. **Missing — no label-as-code owner, interactive user present** — offer to create the label via the
+   adapter's label-creation mechanics (GitHub: `gh label create "capability-tier: frontier"
+   --description "<description>" --color "<color>"` using the reference table). RECOMMENDED: create
+   it — this pass is the upgrade migration for repos adopting the #1716 reader flip. Re-list after
+   creation and confirm the member exists before continuing.
+7. **Missing — no label-as-code owner, no interactive user** — stop per `apply`'s "Autonomous
+   invocation" rule: "capability-tier axis needs provisioning; run `/work-items:setup apply` with a
+   user present".
+
+## Capability-tier label backfill (migration)
+
+`apply` runs this pass at **step 5**, immediately after the capability-tier axis pass. It is
+load-bearing on upgrade: triage refuses to re-triage already-triaged output, so items stamped in-body
+before #1716 need the provider-permissioned label applied here. Pattern semantics and the script path
+live in the reference's "Legacy body stamps" subsection.
+
+Resolve the script:
+
+```bash
+BACKFILL="${CLAUDE_PLUGIN_ROOT}/scripts/backfill-capability-tier-labels.sh"
+[[ -f "$BACKFILL" ]] || BACKFILL="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/plugins/work-items/scripts/backfill-capability-tier-labels.sh"
+```
+
+1. **Skip when `.work-item-tracker.json` is absent** — nothing is bound yet.
+2. **Skip when the bound provider has no label listing or bulk open-item listing** (`local-markdown`,
+   read-only `jira`) — report INFO; backfill requires GitHub-style listing.
+3. **Skip when `capability-tier: frontier` is absent from the repo** — the axis pass must provision it
+   first; report that backfill is blocked until the label exists.
+4. **Discover** via `"$BACKFILL" check` (read-only). Report each candidate number; zero candidates →
+   "no legacy frontier-tier body stamps need backfill" and continue.
+5. **Label-as-code owner declared** — report candidates only; route item label writes to that owner or
+   to an operator-run `"$BACKFILL" apply` after IaC lands the label. Do not mutate items ad hoc.
+6. **Interactive user present** — offer to run `"$BACKFILL" apply` (RECOMMENDED: apply all candidates).
+   Confirm the count applied matches the check output.
+7. **No interactive user** — report candidates and name `"$BACKFILL" apply` (or re-run
+   `/work-items:setup apply` with a user present) as the remediation; never mutate without
+   confirmation.
 
 ## Canonical role labels (optional remap)
 
