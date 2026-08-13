@@ -2592,6 +2592,156 @@ ie_probe "ENABLED+SURVIVED" "explicit true returns true" \
 ie_probe "DISABLED+SURVIVED" "explicit false returns false WITHOUT exiting" \
   CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED=false
 
+# --- hook::physical_path / hook::repo_root: unresolved is distinguishable -------
+physical_path_resolved() {
+  local target="$1" probe rc flag out
+  probe=$(
+    bash -c '
+      # shellcheck source=hook-utils.sh
+      source "$1"
+      _tmp=$(mktemp)
+      hook::physical_path "$2" >"$_tmp"
+      printf "%s\n%s\n%s" "$?" "$HOOK_PHYSICAL_PATH_UNRESOLVED" "$(cat "$_tmp")"
+      rm -f "$_tmp"
+    ' _ "$HOOK_DIR/hook-utils.sh" "$target"
+  )
+  rc=$(printf '%s\n' "$probe" | sed -n '1p')
+  flag=$(printf '%s\n' "$probe" | sed -n '2p')
+  out=$(printf '%s\n' "$probe" | sed -n '3p')
+  if ((rc == 0 && flag == 0)) && [[ -n "$out" ]]; then
+    ok "physical_path: resolved $target"
+  else
+    fail "physical_path: expected resolved for $target (rc=$rc flag=$flag out=$out)"
+  fi
+}
+
+physical_path_unresolved() {
+  local target="$1" out rc flag probe
+  local no_canon
+  no_canon="$(mktemp)"
+  cat >"$no_canon" <<'EOF'
+realpath() { return 1; }
+readlink() { return 1; }
+EOF
+  probe=$(
+    BASH_ENV="$no_canon" bash -c '
+      # shellcheck source=hook-utils.sh
+      source "$1"
+      _tmp=$(mktemp)
+      hook::physical_path "$2" >"$_tmp"
+      printf "%s\n%s\n%s" "$?" "$HOOK_PHYSICAL_PATH_UNRESOLVED" "$(cat "$_tmp")"
+      rm -f "$_tmp"
+    ' _ "$HOOK_DIR/hook-utils.sh" "$target"
+  )
+  rc=$(printf '%s\n' "$probe" | sed -n '1p')
+  flag=$(printf '%s\n' "$probe" | sed -n '2p')
+  out=$(printf '%s\n' "$probe" | sed -n '3p')
+  rm -f "$no_canon"
+  if ((rc == 1 && flag == 1)) && [[ "$out" == "$target" ]]; then
+    ok "physical_path: unresolved returns lexical path for $target"
+  else
+    fail "physical_path unresolved $target: rc=$rc flag=$flag out=$out"
+  fi
+}
+
+PP_TARGET="$(mktemp)"
+printf 'probe' >"$PP_TARGET"
+physical_path_resolved "$PP_TARGET"
+physical_path_unresolved "$PP_TARGET"
+rm -f "$PP_TARGET"
+
+repo_root_resolved() {
+  local hint="$1" probe rc flag out
+  probe=$(
+    bash -c '
+      # shellcheck source=hook-utils.sh
+      source "$1"
+      _tmp=$(mktemp)
+      hook::repo_root "$2" >"$_tmp"
+      printf "%s\n%s\n%s" "$?" "$HOOK_REPO_ROOT_UNRESOLVED" "$(cat "$_tmp")"
+      rm -f "$_tmp"
+    ' _ "$HOOK_DIR/hook-utils.sh" "$hint"
+  )
+  rc=$(printf '%s\n' "$probe" | sed -n '1p')
+  flag=$(printf '%s\n' "$probe" | sed -n '2p')
+  out=$(printf '%s\n' "$probe" | sed -n '3p')
+  if ((rc == 0 && flag == 0)) && [[ -n "$out" ]]; then
+    ok "repo_root: git resolved from $hint"
+  else
+    fail "repo_root: expected git resolution from $hint (rc=$rc flag=$flag out=$out)"
+  fi
+}
+
+repo_root_unresolved() {
+  local hint="$1" out rc flag probe
+  probe=$(
+    bash -c '
+      # shellcheck source=hook-utils.sh
+      source "$1"
+      _tmp=$(mktemp)
+      hook::repo_root "$2" >"$_tmp"
+      printf "%s\n%s\n%s" "$?" "$HOOK_REPO_ROOT_UNRESOLVED" "$(cat "$_tmp")"
+      rm -f "$_tmp"
+    ' _ "$HOOK_DIR/hook-utils.sh" "$hint"
+  )
+  rc=$(printf '%s\n' "$probe" | sed -n '1p')
+  flag=$(printf '%s\n' "$probe" | sed -n '2p')
+  out=$(printf '%s\n' "$probe" | sed -n '3p')
+  if ((rc == 1 && flag == 1)) && [[ "$out" == "$hint" ]]; then
+    ok "repo_root: unresolved falls back to hint for $hint"
+  else
+    fail "repo_root unresolved $hint: rc=$rc flag=$flag out=$out"
+  fi
+}
+
+repo_root_resolved "."
+RR_NOGIT="$(mktemp -d)"
+repo_root_unresolved "$RR_NOGIT"
+rm -rf "$RR_NOGIT"
+
+# --- hook::bash_parse_segments: unquoted # comments to EOL --------------------
+bps_last=()
+bps_collect() {
+  bps_last=("$@")
+}
+
+bps_words_are() {
+  local desc="$1"
+  shift
+  local want="$*"
+  local got
+  got="${bps_last[*]-}"
+  if [[ "$got" == "$want" ]]; then
+    ok "bash_parse_segments: $desc"
+  else
+    fail "bash_parse_segments $desc: got [$got], want [$want]"
+  fi
+}
+
+hook::bash_parse_segments 'git b # -C other-repo' bps_collect
+bps_words_are 'unquoted # drops trailing words' 'git b'
+
+hook::bash_parse_segments "git '#'" bps_collect
+bps_words_are 'single-quoted # preserved' "git #"
+
+hook::bash_parse_segments 'git "#"' bps_collect
+bps_words_are 'double-quoted # preserved' 'git #'
+
+hook::bash_parse_segments 'git status; git b # -C other' bps_collect
+bps_words_are 'comment only affects its segment' 'git b'
+
+bps_all=()
+bps_collect_all() {
+  bps_all+=("${*}")
+}
+
+hook::bash_parse_segments 'echo x#y; git reset --hard' bps_collect_all
+if [[ "${bps_all[*]-}" == "echo x#y git reset --hard" ]]; then
+  ok "bash_parse_segments: mid-word # stays literal through reset"
+else
+  fail "bash_parse_segments mid-word # stays literal through reset: got [${bps_all[*]-}], want [echo x#y git reset --hard]"
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]
