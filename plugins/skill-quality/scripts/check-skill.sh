@@ -9,8 +9,12 @@
 # Exit 0 = all checks pass; 1 = one or more check failures; 2 = usage/env error.
 #
 # Usage:
-#   bash check-skill.sh <skill-name>
+#   bash check-skill.sh [--require-evals] <skill-name>
 #   bash check-skill.sh --help
+#
+# --require-evals (or CHECK_SKILL_REQUIRE_EVALS=1) FAILs when evals/evals.json
+# is absent for any skill shape. Without it, check 14 WARNs only on
+# action-router-shaped skills — the legacy fleet posture.
 #
 # Skills root resolution (first hit wins):
 #   1. CHECK_SKILL_SKILLS_ROOT env var (explicit override)
@@ -53,7 +57,8 @@
 #  11. Gotchas surface present (WARN; inline `## Gotchas` or context|reference/gotchas.md)
 #  12. description carries "Use when" trigger phrasing, single-quoted (WARN)
 #  13. No committed cache/build artifacts (__pycache__, *.pyc, node_modules) (FAIL)
-#  14. Action-router-shaped skill ships evals/evals.json (WARN)
+#  14. evals/evals.json presence (WARN for action-router shape; FAIL with
+#      --require-evals / CHECK_SKILL_REQUIRE_EVALS=1 for any shape)
 #  15. Companion spoke dirs referenced from SKILL.md (WARN; orphan-spoke direction)
 #  16. metadata.category present (INFO only)
 #  17. Vendor-backed: metadata.synced not older than 180 days (WARN)
@@ -92,10 +97,30 @@ usage() {
   sed -n '2,38p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
-if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
-  usage
-  exit 0
-fi
+REQUIRE_EVALS="${CHECK_SKILL_REQUIRE_EVALS:-0}"
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+  --help | -h)
+    usage
+    exit 0
+    ;;
+  --require-evals)
+    REQUIRE_EVALS=1
+    shift
+    ;;
+  --)
+    shift
+    break
+    ;;
+  -*)
+    printf 'Error: unknown option: %s\n' "$1" >&2
+    exit 2
+    ;;
+  *)
+    break
+    ;;
+  esac
+done
 
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
 if [[ -z "$REPO_ROOT" || ! -d "$REPO_ROOT" ]]; then
@@ -115,7 +140,7 @@ if [[ "$BASE_REF" != "HEAD" ]] &&
   exit 2
 fi
 
-SKILL_NAME="${1:?Usage: check-skill.sh <skill-name>}"
+SKILL_NAME="${1:?Usage: check-skill.sh [--require-evals] <skill-name>}"
 
 # Resolve the skills root without baking a repo layout (convention-resolution
 # ladder): explicit override, then plugin project dir, then git-root default.
@@ -605,10 +630,17 @@ if [[ -n "$CACHE_HITS" ]]; then
   err "committed cache/build artifact(s) under the skill dir: $(printf '%s' "$CACHE_HITS" | head -3 | tr '\n' ' ')"
 fi
 
-# --- Check 14: action-router shape without evals ------------------------------
+# --- Check 14: evals/evals.json presence -------------------------------------
+# Legacy fleet: action-router shape without evals WARNs (evals warranted, not
+# mandatory). Changed-skill CI passes --require-evals so any touched SKILL.md
+# must ship evals/evals.json regardless of shape.
 
-if grep -qE '^##+[[:space:]]+Actions?([^[:alnum:]_]|$)' "$SKILL_MD" && [[ ! -f "$SKILL_DIR/evals/evals.json" ]]; then
-  warn "action-router-shaped skill with no evals/evals.json — check whether the skill warrants triggering evals"
+if [[ ! -f "$SKILL_DIR/evals/evals.json" ]]; then
+  if [[ "$REQUIRE_EVALS" == "1" ]]; then
+    err "skill ships no evals/evals.json — required when the skill is new or its SKILL.md changed"
+  elif grep -qE '^##+[[:space:]]+Actions?([^[:alnum:]_]|$)' "$SKILL_MD"; then
+    warn "action-router-shaped skill with no evals/evals.json — check whether the skill warrants triggering evals"
+  fi
 fi
 
 # --- Check 15: companion spoke dirs referenced from the hub -------------------
