@@ -79,9 +79,12 @@ jobs:
   # lane's `Report review outcome` step is an inline github-script whose source
   # is echoed into that log, so the grep matched the source that mentions the
   # skip phrases and reddened every successful in-scope pull request (#2517).
-  # Those outputs exist as of ci-workflows#461, which is why this job is now
-  # coupled to the pin above — the guard fails CLOSED when they are absent at
-  # an unmoved head, so a re-pin BACKWARDS past that release turns this red.
+  # Those outputs exist as of ci-workflows v0.14.2, which is why this job is
+  # now coupled to the pin above — the guard fails CLOSED when they are absent
+  # at an unmoved head, so a re-pin BACKWARDS past that release turns this red.
+  # The release, never a pull request number: a reader checking whether their
+  # pin carries the outputs needs a version they can compare against, and the
+  # guard's own message says the same thing the same way.
   security-review-evidence:
     needs: security-review
     if: >-
