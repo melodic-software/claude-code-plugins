@@ -12,6 +12,17 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
   [`docs/extensibility-contract-smoke-tests.md`](../../docs/extensibility-contract-smoke-tests.md)
   Test E (#1360). Targetless references to the flow stay unqualified.
 
+## [0.15.7]
+
+### Added
+
+- **Evals-presence ratchet for changed skills (#530 stage 1).** `check-skill.sh` accepts
+  `--require-evals` (or `CHECK_SKILL_REQUIRE_EVALS=1`) and FAILs when `evals/evals.json` is
+  missing for any skill shape. `check-changed-skills.sh` forwards that flag when a PR's
+  changed set includes a new or modified `SKILL.md`, so untouched legacy skills stay green
+  until edited. Default ad-hoc check behavior remains WARN-only for action-router-shaped
+  skills.
+
 ## [0.15.6]
 
 ### Changed
