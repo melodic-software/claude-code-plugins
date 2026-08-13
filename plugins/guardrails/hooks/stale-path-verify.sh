@@ -149,6 +149,7 @@ root_basename_is_ambiguous() {
   local base="$1" count
   case "$base" in
   README.md | README | package.json | package-lock.json | LICENSE | LICENCE | CHANGELOG.md | Makefile | GNUmakefile | .gitignore | .gitattributes | .editorconfig) return 0 ;;
+  *) ;;
   esac
   ensure_tracked_files
   [[ -n "$TRACKED_FILES" ]] || return 1
@@ -439,6 +440,10 @@ ls_tag=""
 
 RAW_TOKENS=()
 mapfile -t RAW_TOKENS < <(emit_tokens)
+# Warm the tracked-file cache in this shell before any `cand=$(normalize_candidate
+# ...)` subshell: assignments inside normalize_candidate would otherwise be
+# discarded and every root-basename probe would re-list the repo (#1446).
+ensure_tracked_files
 # Reconstruction runs on EVERY Edit, not only when the hunk yielded nothing. One
 # hunk can both carry a complete code span and change a substring inside another,
 # so gating on an empty scan would miss the partial half. Duplicates are harmless
