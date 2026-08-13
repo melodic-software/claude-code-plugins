@@ -16,6 +16,15 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
   `skills/clean/reference/invocation-forms.md`; `allowed-tools-pairing.test.sh` now guards that
   `context/*.md` never adopt the direct `${CLAUDE_SKILL_DIR}/scripts/…` form.
 
+## [0.10.2]
+
+### Fixed
+
+- **`git-tree-reset.sh` mixed locked+non-locked `git clean` errors now fail closed (#602).**
+  A non-zero exit whose stderr mixes tolerated locked-file warnings with unrelated errors
+  exits 7 with `AppliedClean: failed` and preserves the locked-path count. Silent non-zero
+  exits with empty stderr are classified as failures too.
+
 ## [0.10.1]
 
 ### Fixed

@@ -230,13 +230,17 @@ CLEAN_RC=$?
 UNREMOVABLE="$(printf '%s\n' "$CLEAN_STDERR" | grep -c 'failed to remove' || true)"
 CLEAN_NON_LOCKED_FAILURE=0
 if [[ "$CLEAN_RC" -ne 0 ]]; then
-  while IFS= read -r clean_line || [[ -n "$clean_line" ]]; do
-    [[ -z "$clean_line" ]] && continue
-    if [[ "$clean_line" != *'failed to remove'* ]]; then
-      CLEAN_NON_LOCKED_FAILURE=1
-      break
-    fi
-  done <<< "$CLEAN_STDERR"
+  if [[ -z "$CLEAN_STDERR" ]]; then
+    CLEAN_NON_LOCKED_FAILURE=1
+  else
+    while IFS= read -r clean_line || [[ -n "$clean_line" ]]; do
+      [[ -z "$clean_line" ]] && continue
+      if [[ "$clean_line" != *'failed to remove'* ]]; then
+        CLEAN_NON_LOCKED_FAILURE=1
+        break
+      fi
+    done <<< "$CLEAN_STDERR"
+  fi
 fi
 
 # Restore guard runs after clean unconditionally (data-loss guard): recover any
@@ -257,7 +261,7 @@ if [[ "$CLEAN_RC" -ne 0 && "${CLEAN_NON_LOCKED_FAILURE:-0}" -ne 0 ]]; then
   [[ -n "$CLEAN_STDERR" ]] && printf '%s\n' "$CLEAN_STDERR" >&2
   printf 'AppliedClean: failed\n'
   printf 'RestoredTracked: %s\n' "${RESTORED:-0}"
-  printf 'Unremovable: %s\n' "0"
+  printf 'Unremovable: %s\n' "${UNREMOVABLE:-0}"
   # Surface restore-guard activity identically to the success path: a clean that
   # errored mid-run may still have deleted tracked files (reparse-point traversal)
   # before failing, and the machine-readable RestoredTracked line alone can be
