@@ -476,6 +476,44 @@ jobs:
       - name: Check plugin hook configs for bare userConfig argv tokens
         run: scripts/check-hook-userconfig-argv.sh
 
+  # An exec-form hook (a hook object carrying `args`) resolves `command` as an
+  # executable through PATH, so a bare name is machine-dependent: on Windows
+  # `bash` resolves to the WSL relay System32\bash.exe and `python3` to a
+  # zero-length WindowsApps alias stub, and the hook never launches. A failed
+  # launch is a NON-BLOCKING error, so a PreToolUse guard wired this way
+  # silently enforces nothing. This class has shipped three times in
+  # disk-hygiene alone (#1006 fixed it, #1504 reintroduced it, #2570 fixed it
+  # again) while the claude-config audit checklist carried it as an `error` row
+  # the whole time — a checklist a human reads is not a gate. Repo-wide and
+  # static, covering both declaration surfaces (hook config JSON and skill/agent
+  # frontmatter). Self-test first so a broken detector cannot mask a regression.
+  hook-exec-form-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # PyYAML reads the frontmatter surface (YAML has no jq). Pinned and
+      # hash-locked in the same file every other Python pin lives in; the gate
+      # fails closed if it is missing rather than clearing files it never
+      # parsed, so this step is load-bearing, not convenience.
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.14'
+          cache: pip
+          cache-dependency-path: .github/requirements-ci.txt
+      - name: Install the pinned YAML reader
+        run: |
+          python -m pip install --only-binary=:all: --require-hashes \
+            --requirement .github/requirements-ci.txt
+      - name: Test the hook-exec-form gate
+        run: bash scripts/check-hook-exec-form.test.sh
+      - name: Check hook declarations for exec-form bare command names
+        run: scripts/check-hook-exec-form.sh
+
   # Every option a plugin declares must be documented in that plugin's README.
   # The block is generated from the manifest, so the failure this catches is an
   # option added to plugin.json whose README block was never regenerated -- an
@@ -1112,6 +1150,7 @@ jobs:
       - cross-plugin-source-drift
       - skill-leaf-name-gate
       - userconfig-argv-gate
+      - hook-exec-form-gate
       - plugin-options-docs-gate
       - silent-skip-gate
       - plugin-manifest-presence-gate
