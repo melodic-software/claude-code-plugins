@@ -3,6 +3,15 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.18]
+
+### Fixed
+
+- **Triage umbrella-fold routing is an atomic four-step sequence (#633).** The skill now
+  requires item comment → umbrella comment → `blocked-by` edge → strip raw marker as one
+  indivisible action before advancing to the next intake row, matching the contract in
+  `reference/issue-conventions.md`.
+
 ## [0.35.17]
 
 ### Added
