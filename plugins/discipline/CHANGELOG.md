@@ -5,6 +5,20 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.12.6]
+
+### Fixed
+
+- **`sweep-all`: binding degrade path for fork-unavailable environments (#1681).**
+  When conversation-inheriting forks cannot run, the skill now fails closed and
+  loud: the report's first line is the exact token `SWEEP-ALL: DEGRADED
+  (fork-unavailable)`, followed by an explicit statement that no audits ran and
+  no corrections were applied, then the session-start posture digest only. Next
+  actions name direct per-corrector invocation and re-run after fork mode is
+  available. `CLAUDE_CODE_FORK_SUBAGENT=0` short-circuits before the canary;
+  unset/`1` still dispatch the inheritance-proof canary. No sequential inline
+  audit+correct fallback — the batch does not substitute a main-thread pass.
+
 ## [0.12.5]
 
 ### Fixed
