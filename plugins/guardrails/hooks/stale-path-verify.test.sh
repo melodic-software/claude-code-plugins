@@ -244,6 +244,61 @@ OUT=$(run 'Run `tools/legacy-emit.sh` to build.')
 assert_contains "renamed-away path fires (--no-renames in effect)" "$OUT" \
   "STALE_PATH: tools/legacy-emit.sh"
 
+# #1446: deleted root-level paths are valid citations when the basename is
+# referentially unambiguous.
+ROOT_FIRE="$TEST_TMPDIR/root-fire-repo"
+mkdir -p "$ROOT_FIRE/docs"
+git -C "$ROOT_FIRE" init -q
+printf 'contrib\n' >"$ROOT_FIRE/CONTRIBUTING.md"
+printf 'readme\n' >"$ROOT_FIRE/docs/readme.md"
+git_c "$ROOT_FIRE" add -A >/dev/null 2>&1
+git_c "$ROOT_FIRE" commit -qm seed >/dev/null 2>&1
+git_c "$ROOT_FIRE" rm -q CONTRIBUTING.md >/dev/null 2>&1
+git_c "$ROOT_FIRE" commit -qm "drop root contributing" >/dev/null 2>&1
+ROOT_FIRE_TARGET="$ROOT_FIRE/notes.md"
+: >"$ROOT_FIRE_TARGET"
+OUT=$(CLAUDE_PROJECT_DIR="$ROOT_FIRE" bash "$HOOK" \
+  <<<"$(write_json "$ROOT_FIRE_TARGET" 'See `CONTRIBUTING.md` for the old process.')" 2>&1)
+RC=$?
+assert_exit "deleted root-level path → exit 0 (advisory)" 0 "$RC"
+assert_contains "deleted root-level path fires" "$OUT" "STALE_PATH: CONTRIBUTING.md"
+
+# Generic root basenames stay out even when this repo once deleted its root copy.
+ROOT_QUIET="$TEST_TMPDIR/root-quiet-repo"
+mkdir -p "$ROOT_QUIET/docs" "$ROOT_QUIET/plugins/a"
+git -C "$ROOT_QUIET" init -q
+printf 'root\n' >"$ROOT_QUIET/README.md"
+printf 'nested\n' >"$ROOT_QUIET/docs/README.md"
+printf 'skill\n' >"$ROOT_QUIET/plugins/a/SKILL.md"
+git_c "$ROOT_QUIET" add -A >/dev/null 2>&1
+git_c "$ROOT_QUIET" commit -qm seed >/dev/null 2>&1
+git_c "$ROOT_QUIET" rm -q README.md >/dev/null 2>&1
+git_c "$ROOT_QUIET" commit -qm "drop root readme" >/dev/null 2>&1
+ROOT_QUIET_TARGET="$ROOT_QUIET/notes.md"
+: >"$ROOT_QUIET_TARGET"
+OUT=$(CLAUDE_PROJECT_DIR="$ROOT_QUIET" bash "$HOOK" \
+  <<<"$(write_json "$ROOT_QUIET_TARGET" 'Every repo has a `README.md`.')" 2>&1)
+RC=$?
+assert_exit "generic root README.md mention → exit 0" 0 "$RC"
+assert_silent "generic root README.md mention stays quiet after root deletion" "$OUT"
+
+# Enumerated generic names stay quiet even when the basename is unique in-tree.
+ROOT_PKG="$TEST_TMPDIR/root-pkg-repo"
+mkdir -p "$ROOT_PKG"
+git -C "$ROOT_PKG" init -q
+printf '{}\n' >"$ROOT_PKG/package.json"
+git_c "$ROOT_PKG" add package.json >/dev/null 2>&1
+git_c "$ROOT_PKG" commit -qm seed >/dev/null 2>&1
+git_c "$ROOT_PKG" rm -q package.json >/dev/null 2>&1
+git_c "$ROOT_PKG" commit -qm "drop package.json" >/dev/null 2>&1
+ROOT_PKG_TARGET="$ROOT_PKG/notes.md"
+: >"$ROOT_PKG_TARGET"
+OUT=$(CLAUDE_PROJECT_DIR="$ROOT_PKG" bash "$HOOK" \
+  <<<"$(write_json "$ROOT_PKG_TARGET" 'Bump deps in `package.json`.')" 2>&1)
+RC=$?
+assert_exit "generic root package.json mention → exit 0" 0 "$RC"
+assert_silent "generic root package.json mention stays quiet after root deletion" "$OUT"
+
 # ============================ MUST STAY QUIET ===============================
 #
 # One case per false-positive class measured on the corpus sweep. Each is a
@@ -639,6 +694,7 @@ assert_contains "history walk uses core.quotePath=false" "$HOOK_SRC" 'core.quote
 assert_contains "history walk includes merge commits" "$HOOK_SRC" 'log HEAD -m'
 assert_contains "history walk is scoped to HEAD, not --all" "$HOOK_SRC" 'log HEAD'
 assert_absent "history walk does not read --all" "$HOOK_SRC" 'log --all'
+assert_contains "root basename ambiguity discriminator" "$HOOK_SRC" 'root_basename_is_ambiguous'
 
 # ============================ TELEMETRY =====================================
 
