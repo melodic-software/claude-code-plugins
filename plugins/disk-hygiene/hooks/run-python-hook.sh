@@ -1,20 +1,26 @@
 #!/usr/bin/env bash
-# Launch disk-hygiene wired hooks through a Python 3 interpreter resolved
-# independently of a bare `python3` on PATH (#1504).
+# Launch every disk-hygiene hook through a Python 3 interpreter resolved
+# independently of a bare `python3` on PATH (#1504) — the two wired hooks in
+# hooks.json and, since #2568, the clean skill's frontmatter belt.
 #
 # When `python3` is absent, broken, or resolves to the zero-length WindowsApps
 # App Execution Alias stub, both the guard and its Stop detector died the same
 # way — the detector could not observe the guard's fail-open. This launcher
 # resolves a real interpreter before exec'ing the target script.
 #
-# hooks.json invokes this file in SHELL FORM — the `command` string names this
+# Every caller invokes this file in SHELL FORM — the `command` string names this
 # script by path and carries its arguments, with no `args` key. Claude Code
 # routes shell form through Git Bash on Windows, resolved by Claude Code itself.
-# It must NOT be registered in exec form as `"command": "bash"` + `args`: exec
-# form is a bare PATH lookup, and on Windows `bash` resolves to the WSL relay
-# `System32\bash.exe` before Git Bash, which fails with
-# `execvpe(/bin/bash) failed` (#1006, regressed by #1504). A hook that fails to
-# launch is a non-blocking error, so the guard silently enforces nothing.
+# It must NOT be registered in exec form: exec form is a bare PATH lookup, and on
+# Windows `"command": "bash"` resolves to the WSL relay `System32\bash.exe`
+# before Git Bash, failing with `execvpe(/bin/bash) failed` (#1006, regressed by
+# #1504), while `"command": "python3"` resolves to the zero-length WindowsApps
+# alias stub (#2568). A hook that fails to launch is a non-blocking error, so the
+# guard silently enforces nothing.
+# The skill-frontmatter belt reaches this launcher the same way, but its command
+# string may substitute ONLY `${CLAUDE_PLUGIN_ROOT}`: a skill hook receives no
+# `${CLAUDE_PLUGIN_DATA}` or `${user_config.*}`, and either makes Claude Code
+# refuse the launch outright (#1014).
 # Every path placeholder in the command string must stay double-quoted; the
 # shell re-tokenizes the string, and plugin roots contain spaces.
 #

@@ -1,20 +1,25 @@
 #!/usr/bin/env python3
 """Detect whether ``python3`` on ``PATH`` is a Windows Store App-Execution-Alias stub.
 
-The ``clean`` skill's PreToolUse guard is launched by Claude Code as the literal
-command ``python3`` (see ``skills/clean/SKILL.md``). On stock Windows,
+``python3`` is the first rung of the interpreter ladder every disk-hygiene guard
+surface walks through ``hooks/run-python-hook.sh``. On stock Windows,
 ``%LOCALAPPDATA%\\Microsoft\\WindowsApps\\python3.exe`` is an *App Execution Alias*
 — a zero-length reparse-point stub that opens the Microsoft Store (or exits without
-running anything) instead of launching an interpreter. When the guard's launch
-resolves to that stub it never executes, so it emits neither exit code 2 nor a
-``deny`` permission decision — the only two ways a PreToolUse hook blocks a tool
-call — and Claude Code lets the destructive Bash/PowerShell command proceed
-UNGUARDED. A naive ``python3 --version`` probe does not surface this cleanly: it
-pops the Store or hangs. This probe therefore *inspects* the resolution instead of
-executing it.
+running anything) instead of launching an interpreter. Until #2568 the ``clean``
+skill's belt named ``python3`` directly as an exec-form ``command``, so the stub
+stopped the launch outright: the guard emitted neither exit code 2 nor a ``deny``
+permission decision — the only two ways a PreToolUse hook blocks a tool call — and
+Claude Code let the destructive Bash/PowerShell command proceed UNGUARDED. The
+launcher now skips the stub and falls through to ``python``, then ``py -3``, so a
+stub is no longer a launch failure on its own. It is still reported, because the
+aliases ship as a pair and ``py`` exists only where real Python is installed, so a
+stubbed ``python3`` usually means the whole ladder resolves nothing — which is the
+same fail-open. A naive ``python3 --version`` probe does not surface this cleanly:
+it pops the Store or hangs. This probe therefore *inspects* the resolution instead
+of executing it.
 
 It classifies what the name ``python3`` resolves to — deliberately ``python3`` and
-not ``python``/``py``, because that is the exact command the guard hook runs. The
+not ``python``/``py``, because that is the rung the launcher tries first. The
 portable, testable stub signal is: the resolved path has a ``WindowsApps`` path
 component AND the file is zero length. A real interpreter — including the Microsoft
 Store's genuine Python, which lives under a versioned
@@ -122,8 +127,9 @@ def classify(path: Path | None) -> dict[str, object]:
             reparse_point,
             f"{_NAME} resolves to a zero-length WindowsApps App Execution Alias stub "
             f"({path}). It opens the Microsoft Store instead of running an interpreter, "
-            "so the clean skill's destructive-action guard — launched as `python3` — "
-            "never executes and cannot block. Disable the `python3` App execution "
+            "so the destructive-action guard's launcher must fall through to `python` or "
+            "`py -3` — and where those are absent too, the guard never executes and cannot "
+            "block. Disable the `python3` App execution "
             "alias (Settings > Apps > Advanced app settings > App execution aliases) "
             "or install real Python and ensure it precedes WindowsApps on PATH.",
         )

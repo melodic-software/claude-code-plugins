@@ -47,15 +47,17 @@ at preview. Backups remain the recovery boundary for user data.
 - Python 3.11+ available on `PATH` is required for scanning, validation, the skill-scoped guard, and
   cleanup (the floor's single origin is the `MIN_PYTHON` constant in
   `skills/clean/scripts/hygiene.py`; `/disk-hygiene:setup check` derives the enforced value from
-  there, so treat the number printed here as a convenience copy). Claude Code launches the
-  skill-scoped guard in shell-free exec form; guarded engine calls must use the same absolute
-  interpreter reported by that guard, so Bash aliases and functions cannot replace it. Both wired
-  hooks register in **shell form** — the `command` string names `hooks/run-python-hook.sh` directly
-  with `"shell": "bash"` and no `args` — so Claude Code routes them through Git Bash itself instead
-  of resolving `bash` on `PATH`. Registering them in exec form as `"command": "bash"` is the
-  regression #1416 tracks: on Windows that bare `PATH` lookup finds the WSL relay
-  `System32\bash.exe` before Git Bash, the launch fails, and a failed hook launch is non-blocking —
-  so the guard silently enforces nothing. The launcher then resolves Python (#1504). The guard
+  there, so treat the number printed here as a convenience copy). Guarded engine calls must use the
+  same absolute interpreter reported by the skill-scoped guard, so Bash aliases and functions cannot
+  replace it. **All three** hook registrations — both wired hooks and the skill-scoped belt — use
+  **shell form**: the `command` string names `hooks/run-python-hook.sh` directly with
+  `"shell": "bash"` and no `args`, so Claude Code routes them through Git Bash itself instead of
+  resolving the command on `PATH`. Exec form is the regression this plugin hit twice: as
+  `"command": "bash"` in the wired hooks (#1416) and as `"command": "python3"` in the belt (#2568).
+  On Windows that bare `PATH` lookup finds the WSL relay `System32\bash.exe` before Git Bash, or the
+  zero-length `WindowsApps\python3.exe` App Execution Alias stub; the launch fails, and a failed
+  hook launch is non-blocking — so the guard silently enforces nothing. The launcher then resolves
+  Python (#1504). The guard
   registers on two surfaces: a
   plugin-level **engine gate** (`hooks/hooks.json`) that acts only on commands referencing the
   engine — deferring everything else instantly — and enforces the kill switch and data-root
@@ -79,7 +81,7 @@ at preview. Backups remain the recovery boundary for user data.
   guard that never ran or died mid-run no longer looks identical to a guard that ran and approved.
   This covers only the `destructive_guard.py` command string in the current session's transcript: it
   does not cover repo-hygiene's own guard (a separate plugin, verified working independently), and it
-  never retroactively scans a prior session's transcript. Both wired hooks register through
+  never retroactively scans a prior session's transcript. Every hook registration routes through
   `hooks/run-python-hook.sh` — a bash launcher that resolves Python independently of bare
   `python3` on PATH — so when `python3` is the WindowsApps alias stub or otherwise unresolvable,
   the detector still emits a `systemMessage` even though the guard cannot run (#1504).
@@ -93,9 +95,12 @@ at preview. Backups remain the recovery boundary for user data.
   distinction only — the engine treats Windows and macOS identically (execution unsupported); which
   reversible-removal container the manual lane prefers is the model's instruction, not engine
   behavior.
-- **Windows `python3` gotcha — the Store alias stub fails the guard open.** The wired hooks resolve
+- **Windows `python3` gotcha — the Store alias stub fails the guard open.** Every hook resolves
   Python through `hooks/run-python-hook.sh` (rejecting the zero-length `WindowsApps\python3.exe`
-  App Execution Alias stub) before exec'ing the guard. When no interpreter resolves, the guard still
+  App Execution Alias stub and falling through to `python`, then `py -3`) before exec'ing the guard.
+  Since 0.17.9 that includes the skill-scoped belt, which previously named `python3` directly as its
+  exec-form `command` and so could not start at all against the stub. When no interpreter resolves
+  anywhere on the ladder, the guard still
   fails open — a PreToolUse hook blocks a tool call only by emitting exit code 2 or a `deny`
   decision ([Hooks](https://code.claude.com/docs/en/hooks)); a guard that never runs emits neither,
   and Claude Code treats the non-blocking result as approval — the destructive Bash/PowerShell
@@ -230,7 +235,19 @@ hand-cleaning the zone.
   placeholder is double-quoted, and `test_hygiene.py`'s hook helpers are form-agnostic so a shell-form
   entry can never make an assertion vacuously green. Interpolating anything beyond those two
   placeholders into the command string would open a live injection surface; a repo-wide CI gate for
-  this defect class is proposed in #2569. A direct `hygiene.py` invocation outside that skill does not read the toggle and
+  this defect class is proposed in #2569. **0.17.9 delta (launch form, skill surface):** the
+  skill-scoped belt in `skills/clean/SKILL.md` frontmatter moves to the same shell form, for the same
+  reason one rung down — its exec-form `command` was the literal `python3`, which on stock Windows is
+  the zero-length `WindowsApps` App Execution Alias stub, so the belt could not launch there at all
+  (#2568). The trust analysis above carries over with a **narrower** substitution set: a
+  skill-frontmatter hook receives only `${CLAUDE_PLUGIN_ROOT}` (#1014), never `${CLAUDE_PLUGIN_DATA}`
+  or `${user_config.*}`, so the belt's command string carries exactly one placeholder and the
+  `--authorized-data-root` channel stays out of it by construction. Because this belt was *working*
+  wherever `python3` resolved to a real interpreter, the conversion was held to argv equivalence: the
+  vector `destructive_guard.py` receives is byte-identical before and after, asserted against roots
+  containing spaces and backslashes; only argv[0] changes, from an interpreter name to the launcher
+  path. What this does **not** change is the guard's no-interpreter behaviour — the launcher still
+  exits 0 silently in guard mode when nothing on the ladder resolves. A direct `hygiene.py` invocation outside that skill does not read the toggle and
   answers only to the engine's own preview/approval-token gate. The toggle can only narrow the
   destructive surface, never widen it (see [the safety model](skills/clean/reference/safety-model.md)
   for the degraded-mode detail). No credentials. Policy comes from an explicit invocation
