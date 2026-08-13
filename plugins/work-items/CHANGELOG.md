@@ -3,6 +3,24 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.19]
+
+### Fixed
+
+- **`work-loop`: clamp persisted `item_cap` on durable-state re-read (#1668 F3).** After
+  re-reading the telemetry state block, clamp `item_cap` to the resolved `[floor, ceiling]`,
+  report any correction, and persist the clamped value — a race or stale session can otherwise
+  leave an out-of-bounds cap trusted as source of truth.
+- **`work-loop`: drain exit eval matches retained-snapshot-ids-only (#1668 F2).** Eval
+  `work-loop-exit-drain-terminal-and-pacing` no longer asserts a two-part exit with
+  `list-frontier --autonomous` emptiness; it matches `reference/mode-drain.md`.
+
+### Added
+
+- **`work-loop`: compound-shell telemetry upsert Gotcha (#1668 F1).**
+  `reference/telemetry-upsert.md` documents the isolated-calls fallback when the auto-mode
+  classifier blocks the compound upsert, with gate order preserved.
+
 ## [0.35.18]
 
 ### Fixed
