@@ -207,6 +207,56 @@ else
     "the catch-all branch is gone; an unexpected verdict could fall through as a pass"
 fi
 
+# A shallow base-ref fetch destroys the merge base the scope check's three-dot
+# diff needs, so the guard dies with "no merge base" for every branch not on the
+# base's current tip. Static guard first, then the behaviour it protects.
+# shellcheck disable=SC2016  # as above, the regex matches a LITERAL "$base_ref"
+# in the guard's source; expanding it here would search for this test's own var.
+if grep -qE '^[[:space:]]*git fetch origin "\$base_ref".*--depth' "$GUARD_SCRIPT"; then
+  fail "the base ref is fetched with full history, not shallow" \
+    "found a --depth fetch; a three-dot diff against a truncated base ref has no merge base and the guard errors instead of evaluating scope"
+else
+  pass "the base ref is fetched with full history, not shallow"
+fi
+
+MERGE_BASE_TMP="$(mktemp -d)"
+trap 'rm -rf "$MERGE_BASE_TMP"' EXIT
+
+# `&&`-chained rather than `set -e`: enabling errexit anywhere in this file
+# switches on SC2310 for every pre-existing function-in-a-condition above.
+# The PR branch forks, then main advances past it — the ordinary case.
+if ! (
+  export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t &&
+    export GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t &&
+    git init -q -b main "$MERGE_BASE_TMP/origin" &&
+    cd "$MERGE_BASE_TMP/origin" &&
+    echo one > f && git add f && git commit -qm one &&
+    git clone -q "$MERGE_BASE_TMP/origin" "$MERGE_BASE_TMP/work" &&
+    cd "$MERGE_BASE_TMP/work" && git checkout -qb pr &&
+    echo pr > g && git add g && git commit -qm pr &&
+    cd "$MERGE_BASE_TMP/origin" && echo two > f && git commit -qam two
+) >/dev/null 2>&1; then
+  fail "merge-base fixture builds" "could not construct the behind-main fixture repository"
+fi
+
+cd "$MERGE_BASE_TMP/work" || exit 1
+git fetch origin main >/dev/null 2>&1
+if git diff --name-only origin/main...HEAD >/dev/null 2>&1; then
+  pass "a full base-ref fetch leaves a usable merge base for a branch behind main"
+else
+  fail "a full base-ref fetch leaves a usable merge base for a branch behind main" \
+    "three-dot diff failed even with full history — the scope check could never run"
+fi
+
+git fetch origin main --depth=1 >/dev/null 2>&1
+if git diff --name-only origin/main...HEAD >/dev/null 2>&1; then
+  fail "the regression this guards is real: a shallow base-ref fetch breaks the three-dot diff" \
+    "the shallow fetch did NOT break the diff, so this test no longer pins anything — re-derive it against the current git before trusting the static guard above"
+else
+  pass "the regression this guards is real: a shallow base-ref fetch breaks the three-dot diff"
+fi
+cd "$SCRIPT_DIR" || exit 1
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll checks passed.\n'
   exit 0

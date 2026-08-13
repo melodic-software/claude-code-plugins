@@ -155,7 +155,13 @@ main() {
   fi
 
   local base_ref="${GITHUB_BASE_REF:-main}"
-  git fetch origin "$base_ref" --depth=1 >/dev/null 2>&1 || true
+  # Never `--depth=1` here. The scope check below diffs `origin/<base>...HEAD`,
+  # and a three-dot diff needs a merge base — a shallow fetch truncates the base
+  # ref to a lone commit and kills it for every branch not sitting on the base's
+  # current tip, so the guard dies with "no merge base" instead of evaluating.
+  # The workflow checks out with fetch-depth: 0, so this is a normal fetch
+  # against an already-complete clone, not a cost regression.
+  git fetch origin "$base_ref" >/dev/null 2>&1 || true
   # A command substitution keeps `set -e` live for the helper (no `||`
   # suppression), so a genuine fault inside it still aborts the guard — while
   # the in-scope decision travels on stdout, where it cannot be confused with
