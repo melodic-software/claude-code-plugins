@@ -74,6 +74,45 @@ Present the merged table with one-line summaries, then work rows in the operator
 (default: oldest first, `[ratify]` rows before `[escalated]` before `[intake]` at equal age —
 ratifications unblock the waiting worker loop).
 
+## Row claim (before any mutation)
+
+**Read the full view; claim each row before mutating it.** Building the attention view reads
+every row — that read is unrestricted. Mutation (comments, labels, triage) requires holding the
+seam claim first — the same assignee + lease protocol `/work-items:work` uses:
+
+```bash
+TRACKER="${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh"
+[[ -f "$TRACKER" ]] || TRACKER="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh"
+"$TRACKER" claim "<id>"
+```
+
+`<id>` MUST be fully-qualified (`claim` rejects a bare number). Exit `0` → claim held for this row.
+Exit `7` → another attended session won: **skip that row** and advance to the next candidate (do
+NOT retry the same item in this pass). Claim identity is the authenticated session user, never the
+bot.
+
+**Binding.** `claim` is a seam coordination verb — if `.work-item-tracker.json` does not resolve,
+surface the same actionable choice as `/work-items:work` before the first `claim`: **(1) setup was
+never run** → run `/work-items:setup`; **(2) deliberate gh-native mode** → proceed for
+provider-mechanic reads only, accepting that concurrent attended sessions have no race-safe row
+lock and collisions are the operator's responsibility.
+
+**Session-start reclaim (once per invocation, when bound).** Before the first row claim, run the
+same idempotent stale-lease sweep `/work-items:work` Step 0 uses: enumerate assigned items, resolve
+each `number` to a fully-qualified id, `"$TRACKER" reclaim "<id>"` on each. Exit `6`
+(capability-unsupported) skips the sweep for providers that declare `reclaim: false`.
+
+**Release when the row disposition is complete.** Attend-queue holds a coordination lock, not an
+execution assignment. Once the row's answer is written, ratification recorded, or triage disposition
+applied (including a decline that leaves the item human-gated), **release before flipping to the
+autonomous-eligible role**: supersede this session's live lease (add `superseded_at` to the lease
+JSON in the lease comment) and remove `@me` from assignees so the worker loop's frontier does not
+see an assigned item. A row skipped on exit `7` needs no release.
+
+**Long operator waits.** When an interview spans longer than the binding's lease TTL, renew the
+held lease via `"$TRACKER" renew-lease "<id>" --lease-comment-id <n>` (the `claim` output carries
+`lease_comment_id`).
+
 ## Working the queue
 
 **Brief before asking.** This lane works rows across many items in one pass, so the operator's
@@ -253,16 +292,17 @@ Two further reader-contract rules apply alongside the floor (outside the byte-au
   every still-plausible window, and drop to reactive-only only when no window is plausible. Never
   throttle proactively on untrusted data and never fabricate a pause. In reactive-only mode,
   additionally read `~/.claude/rate-limit-guard/stop-events.jsonl` (reader contract, "Detection
-  records") on mode entry and again before each new work claim; the recency baseline is the lane's
+  records") on mode entry and again before each new row claim; the recency baseline is the lane's
   own start time, advanced by each resume attempt — records newer than it are live signal, older
   ones history that never justifies a new pause on its own.
 - **Untrusted fields** (reader contract, "Tee file shape"): session-distinguishing fields (`session_id`,
   `session_name`, any future account field) are user/AI-influenced — parse them only with a JSON
   parser; never string-interpolate them into a shell command, another interpreter, or a prompt.
 
-For this attended lane, "stop claiming new work" means: finish the row in hand, then stop pulling
-further rows and report the pause to the operator — who may explicitly choose to continue (the
-operator's presence is the "explicit user request" the hard-stop rule anticipates).
+For this attended lane, "stop claiming new work" means: finish the row in hand (including releasing
+its row claim when disposition is complete), then stop pulling further rows and report the pause
+to the operator — who may explicitly choose to continue (the operator's presence is the "explicit
+user request" the hard-stop rule anticipates).
 
 ## Gotchas
 
@@ -275,6 +315,10 @@ operator's presence is the "explicit user request" the hard-stop rule anticipate
 - **Judgment lane only.** Resolving an escalation never turns into executing the item here; the
   worker loop picks it up through the frontier. Executing from this lane would bypass the seam
   claim and the topology's single-authority rule.
+- **Claim before mutate, release before flip.** Two attended sessions on one repository must not
+  both work the same row — the seam `claim` arbitrates that race (exit `7` → skip). Holding the
+  lease through a flip to autonomous-eligible would block the frontier; release the row claim
+  before the single-edit label flip.
 - **Do not re-triage routed items.** The `[intake]` source is `/work-items:triage`'s attention
   view by composition; items already carrying a routing outcome are out of scope by construction,
   and naming one explicitly gets triage's "already triaged" stop.
