@@ -13,6 +13,7 @@ mkdir -p "$MOCK_BIN" "$TMP/config" "$TMP/discovered-a" "$TMP/canonical-a" "$TMP/
   "$TMP/root/acme/root-repo/.git" \
   "$TMP/emptyroot" \
   "$TMP/wt-a" "$TMP/wt-mismatch" \
+  "$TMP/wt-status-fail" \
   "$TMP/discovered-c" "$TMP/canonical-c" "$TMP/gone-repo" "$TMP/lost-repo" "$TMP/net-repo" \
   "$TMP/wt-root/aaa-linked" "$TMP/wt-root/bbb-linked" "$TMP/wt-root/zzz-canonical/.git" \
   "$TMP/wt-admin/sub-wt" "$TMP/wt-admin/sep-wt" \
@@ -84,6 +85,9 @@ rev-parse)
     nested) printf '%s\n' "$TEST_ROOT/canonical-a/.claude/worktrees/nested" ;;
     husk) printf '%s\n' "$TEST_ROOT/canonical-a" ;;
     prefix-fail) printf '%s\n' "$TEST_ROOT/prefix-fail" ;;
+    wt-a) printf '%s\n' "$TEST_ROOT/wt-a" ;;
+    wt-mismatch) printf '%s\n' "$TEST_ROOT/wt-mismatch" ;;
+    wt-status-fail) printf '%s\n' "$TEST_ROOT/wt-status-fail" ;;
     *) exit 1 ;;
     esac
     ;;
@@ -126,6 +130,7 @@ rev-parse)
     net-repo) printf '%s\n' "$TEST_ROOT/net-repo/.git" ;;
     nested) printf '%s\n' "$TEST_ROOT/canonical-a/.git" ;;
     prefix-fail) printf '%s\n' "$TEST_ROOT/canonical-a/.git" ;;
+    wt-a | wt-mismatch | wt-status-fail) printf '%s\n' "$TEST_ROOT/canonical-a/.git" ;;
     aaa-linked | bbb-linked | zzz-canonical) printf '%s\n' "$TEST_ROOT/wt-root/zzz-canonical/.git" ;;
     sub-wt) printf '%s\n' "$TEST_ROOT/wt-admin/sub-admin" ;;
     sep-wt) printf '%s\n' "$TEST_ROOT/wt-admin/sep-gitdir" ;;
@@ -178,6 +183,9 @@ worktree)
     printf 'worktree %s\0HEAD husk\0branch refs/heads/feature/husk\0\0' "$TEST_ROOT/canonical-a/husk"
     # A registered path whose root-ness probe FAILS outright.
     printf 'worktree %s\0HEAD pfail\0branch refs/heads/feature/prefix-fail\0\0' "$TEST_ROOT/prefix-fail"
+    # Linked worktrees for reclaimable-worktree: wt-a is clean, wt-mismatch is dirty, wt-status-fail
+    # cannot answer status --porcelain.
+    printf 'worktree %s\0HEAD status-fail\0branch refs/heads/feature/status-fail\0\0' "$TEST_ROOT/wt-status-fail"
     ;;
   repo-b)
     printf 'worktree %s\0HEAD main-b\0branch refs/heads/main\0\0' "$TEST_ROOT/repo-b"
@@ -289,6 +297,22 @@ for-each-ref)
   esac
   ;;
 merge-base) exit 1 ;;
+status)
+  [[ "${1:-}" == "--porcelain" ]] || exit 96
+  case "$base" in
+  wt-a) printf '' ;;
+  wt-mismatch) printf ' M file.txt\n' ;;
+  wt-status-fail) exit 7 ;;
+  *) printf '' ;;
+  esac
+  ;;
+log)
+  [[ "${1:-}" == "-1" && "${2:-}" == "--format=%ct" && "${3:-}" == "HEAD" ]] || exit 96
+  case "$base" in
+  wt-a) printf '1700000000\n' ;;
+  *) printf '1\n' ;;
+  esac
+  ;;
 config) "$REAL_GIT" config "$@" ;;
 *) exit 96 ;;
 esac
@@ -439,6 +463,9 @@ assert_contains "same-name branch scoped to repo A" "Target: $TMP/canonical-a ::
 assert_contains "merged worktree evidence" "Finding: merged-worktree"
 assert_contains "tip drift manual review" "Finding: merged-pr-tip-drift"
 assert_contains "worktree common-dir mismatch" "Finding: worktree-admin-mismatch"
+assert_contains "clean linked worktree is reclaimable" "Finding: reclaimable-worktree"
+assert_contains "failed status probe is disposability-unverifiable" \
+  "Finding: worktree-disposability-unverifiable"
 assert_contains "worktree nested in its own repository is reported" "Finding: worktree-nested-in-repository"
 assert_contains "nested finding names the containing checkout" \
   "registered worktree root is inside the canonical checkout's own working tree ($TMP/canonical-a)"
@@ -468,6 +495,10 @@ assert_kind_targets "not-a-root names the husk and not the nested worktree" \
   worktree-not-a-root "canonical-a/husk" "worktrees/nested"
 assert_kind_targets "nested names the nested worktree and not the husk" \
   worktree-nested-in-repository "worktrees/nested" "canonical-a/husk"
+assert_kind_targets "reclaimable names wt-a and not dirty or status-fail siblings" \
+  reclaimable-worktree "wt-a" "wt-mismatch"
+assert_kind_targets "reclaimable does not include status-fail sibling" \
+  reclaimable-worktree "wt-a" "wt-status-fail"
 assert_contains "moved repository detected" "Target: origin (old/repo -> new/repo)"
 assert_contains "non-GitHub canonical override fails closed" "canonical override has a missing, ambiguous, credential-only, or non-github.com remote"
 assert_contains "worktree inventory failure is unknown" "Finding: worktree-inventory-unavailable"
@@ -959,11 +990,21 @@ run_bounded_gh api repos/acme/repo-b --hostname github.com --method POST --templ
 run_bounded_gh pr merge --repo github.com/acme/repo-b >/dev/null 2>&1 && forbidden_rejected=false
 run_bounded_gh alias set pr '!touch /tmp/pwned' >/dev/null 2>&1 && forbidden_rejected=false
 calls_after="$(wc -l <"$CALL_LOG")"
+allowed_status=true
+run_git_probe -C "$TMP/wt-a" status --porcelain >/dev/null 2>&1 || allowed_status=false
+allowed_log=true
+run_git_probe -C "$TMP/wt-a" log -1 --format=%ct HEAD >/dev/null 2>&1 || allowed_log=false
 if [[ "$forbidden_rejected" != "true" || "$calls_before" != "$calls_after" ]]; then
   printf 'FAIL: exact command allowlist admitted a forbidden Git/gh vector\n' >&2
   failures=$((failures + 1))
 else
   printf 'PASS: exact command allowlist rejected Git/gh mutation and config-injection vectors\n'
+fi
+if [[ "$allowed_status" != "true" || "$allowed_log" != "true" ]]; then
+  printf 'FAIL: status/log probes were not admitted by the Git allowlist\n' >&2
+  failures=$((failures + 1))
+else
+  printf 'PASS: status and log probes are admitted by the Git allowlist\n'
 fi
 
 # Force the portable watchdog and prove a TERM-ignoring gh cannot outlive the finite KILL grace.

@@ -3,6 +3,16 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.0]
+
+### Added
+
+- **`reclaimable-worktree` finding (#1776).** Linked, unlocked worktrees with reliable admin and an
+  empty `git status --porcelain` at the work-tree root emit `MEDIUM` evidence for a worktree cleanup
+  dry-run handoff. Working-tree cleanliness is not proof the checkout is still wanted; stash list is
+  deliberately out of scope. A failed status probe emits `UNKNOWN`
+  `worktree-disposability-unverifiable`.
+
 ## [0.12.1]
 
 ### Fixed
