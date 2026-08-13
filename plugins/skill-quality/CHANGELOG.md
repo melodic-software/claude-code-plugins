@@ -3,6 +3,24 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.6]
+
+### Changed
+
+- **Check 21 parsing contract narrowed (#1493).** Inline code spans, backslash escapes, and
+  cross-line span carries are no longer modeled — a line with a backtick run or a backslash-escaped
+  `<` declines directive hard verdicts and is skipped by the Form 1 and judgment detectors rather
+  than attempting CommonMark pairing in `awk`. Fenced code blocks, container-nested fences, and
+  indented-code ambiguity handling are unchanged. Spec:
+  `skills/check/reference/fresh-eyes-declarations.md`.
+
+### Fixed
+
+- **Check 21 carries multi-line HTML comment state.** Delegation wording split across a multi-line
+  comment (`<!--` on one line, body on the next, `-->` on a third) no longer satisfies Form 1 while
+  the judgment line still WARNs. Directive classification still runs before comment stripping so
+  `fresh-eyes-exempt` directives remain visible.
+
 ## [0.15.5]
 
 ### Fixed

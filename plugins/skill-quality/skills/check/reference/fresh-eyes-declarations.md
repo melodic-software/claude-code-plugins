@@ -99,13 +99,6 @@ cannot tell. A finding against this check is measured against this list, not aga
   a prefix strips prefixes inside the fence, so a quoted run cannot close an unprefixed fence.
 - **Container termination.** A nested fence ends with its container: a blockquote when the quote
   depth drops below the opener's, a list item on a dedent below the opener's content column.
-- **Inline code spans**, pairing a backtick run with the next run of exactly equal length, including
-  multi-backtick spans and spans that cross a newline (the carry expires at the next blank line or
-  fence, since a span cannot outlive its paragraph).
-- **Backslash escapes**, resolved in the same pass as spans because CommonMark couples them: outside
-  a span an escape makes the next character literal, so `` \` `` opens no span and `\<!-- ... -->` is
-  text rather than a directive; inside a span nothing is escaped, so a literal backslash before the
-  closing run does not stop it closing.
 - **Multiple directives on one line**, each classified independently and bounded at its own `-->`.
   The name must be followed by `:`, whitespace, or `-->`, so an ordinary comment about a longer
   identifier such as `fresh-eyes-exemption` is not read as a directive.
@@ -113,7 +106,9 @@ cannot tell. A finding against this check is measured against this list, not aga
   directive, and every structural carry resets at its closing `---`.
 - **Whole-word wording boundaries** on both halves of Form 1, so `agentless` names no worker and
   `Refresh context` is not the fresh-context wording.
-- **Single-line HTML comments**, stripped before the Form 1 detector so hidden wording cannot declare.
+- **HTML comments**, stripped before the Form 1 detector so hidden wording cannot declare. Comment
+  state carries across lines until the closing `-->`, so delegation wording split across a multi-line
+  comment does not satisfy Form 1.
 
 ### Not attempted
 
@@ -130,8 +125,11 @@ contract exists to stop:
 - **Paragraph-interrupting block constructs.** A pending cross-line span carry expires at a blank
   line or a fence, but not at an ATX heading, thematic break, or table that also interrupts the
   paragraph in CommonMark.
-- **Multi-line HTML comments.** Comment state is not carried across lines: an unterminated `<!--`
-  discards the rest of its own line only, so a comment body on a later line is read as prose.
+- **Inline code spans and backslash escapes.** A line that contains a backtick run or a backslash
+  before `<` is structurally ambiguous for directive hard verdicts and is skipped by the Form 1 and
+  judgment detectors — the scanner does not pair spans, carry openers across lines, or resolve
+  escapes. Literal directive examples in inline code therefore neither FAIL nor satisfy proximity;
+  a `\<!-- ... -->` sequence is not distinguished from a real comment opener.
 - **Reference definitions, HTML blocks, setext headings, and link/image syntax** are not interpreted
   at all; they are scanned as ordinary prose.
 
@@ -146,15 +144,13 @@ The two verdict families are asymmetric, and the whole posture follows from that
 
 So where the structure pass reaches a configuration it cannot resolve, it **withholds the hard
 verdicts** for directives on that line. It also withholds the stale WARN, and refuses to let such a
-directive satisfy a nearby judgment step — the same lack of confidence cuts both ways, so a literal
-exemption inside an indented example cannot silence the warning that step deserves. The judgment
-detector itself continues to run. Today this fires on the
-indented-code case above; the mechanism could extend to a resolved cross-line span carry and to an
-unterminated comment, and deliberately does not, because both occur throughout ordinary prose and
-suppressing them would widen the blind spot far past anything observed.
+directive satisfy a nearby judgment step — the same lack of confidence cuts both ways. On an
+indented-code line, `fe_icode` feeds that directive-side suppression only; the judgment detector
+still runs on the line's own prose. On a line with a backtick run or a backslash-escaped `<`, the
+scanner declines the line's own Form 1 and judgment detectors via an explicit skip.
 
-Where an unmodeled construct instead causes content to be **skipped** — an unclosed fence or span
-carry swallowing lines — no verdict forms at all. That is already the safe direction, and it is worth
+Where an unmodeled construct instead causes content to be **skipped** — an unclosed fence
+swallowing lines — no verdict forms at all. That is already the safe direction, and it is worth
 being exact: suppression prevents wrong FAILs; it is not what makes a skipped line harmless.
 
 **This posture is specific to check 21**, whose verdicts are authoring nudges. Do not carry it into a
