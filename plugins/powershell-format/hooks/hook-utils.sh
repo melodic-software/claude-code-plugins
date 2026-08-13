@@ -340,22 +340,28 @@ hook::expand_8dot3() {
 # spelling of an in-project path cannot dodge it (the long-form prefix would
 # never match). GNU realpath ships with Git Bash and Linux coreutils;
 # readlink -f covers the BSD/macOS hosts that have no realpath. When neither
-# resolver exists the caller falls back to comparing the lexical path as
-# before — the guard is defense-in-depth scoping for a file the agent already
-# wrote via its own tools, so degrading to the historical comparison beats
-# silently disabling the hook on those hosts. The 8.3 expansion applies only
-# on the resolver's success path: an unchanged return is the documented
-# signature of failed canonicalization, and consumers that fail closed on that
-# signature must not see a form-converted path instead.
+# resolver exists the caller still receives the lexical path unchanged — the
+# guard is defense-in-depth scoping for a file the agent already wrote via its
+# own tools, so degrading to the historical comparison beats silently disabling
+# the hook on those hosts — but the answer is now DISTINGUISHABLE: return 1 and
+# HOOK_PHYSICAL_PATH_UNRESOLVED=1. Success (return 0) means resolved; advisory
+# callers that ignore the status keep today's behavior. Guards that must fail
+# closed branch on the return code or on HOOK_PHYSICAL_PATH_UNRESOLVED. The 8.3
+# expansion applies only on the resolver's success path: consumers that fail
+# closed on an unresolved signature must not see a form-converted path instead.
+# shellcheck disable=SC2034  # public contract: advisory callers may read HOOK_PHYSICAL_PATH_UNRESOLVED
 hook::physical_path() {
   local resolved
+  HOOK_PHYSICAL_PATH_UNRESOLVED=0
   if resolved=$(realpath -- "$1" 2>/dev/null) || resolved=$(readlink -f -- "$1" 2>/dev/null); then
     if [[ -n "$resolved" ]]; then
       hook::expand_8dot3 "$resolved"
-      return
+      return 0
     fi
   fi
+  HOOK_PHYSICAL_PATH_UNRESOLVED=1
   printf '%s' "$1"
+  return 1
 }
 
 # True when <normalized-path> sits inside one of this host's temp trees.
@@ -466,19 +472,30 @@ hook::read_file_path() {
 # Resolve the repository root (working-tree top) for a path inside the tree.
 # markdownlint config auto-discovery is CWD-anchored, so the hook cd's here
 # before linting. File-anchored (`git -C "$hint" rev-parse --show-toplevel`)
-# so it is correct for clones, linked worktrees, and bare-hub clones; falls
-# back to the hint (with a trailing /.claude stripped) when git cannot resolve.
+# so it is correct for clones, linked worktrees, and bare-hub clones; when git
+# cannot resolve, still returns the hint (with a trailing /.claude stripped) so
+# advisory callers keep today's fallback — but the answer is now
+# DISTINGUISHABLE: return 1 and HOOK_REPO_ROOT_UNRESOLVED=1. Success (return 0)
+# means git answered; advisory callers that ignore the status are unchanged.
+# Guards that must fail closed branch on the return code or on
+# HOOK_REPO_ROOT_UNRESOLVED.
 #   ROOT=$(hook::repo_root "$some_path")
+# shellcheck disable=SC2034  # public contract: advisory callers may read HOOK_REPO_ROOT_UNRESOLVED
 hook::repo_root() {
   local hint="${1:-.}"
   local root
+  HOOK_REPO_ROOT_UNRESOLVED=0
   root=$(git -C "$hint" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')
-  if [[ -z "$root" ]]; then
-    root="$hint"
-    root="${root%/.claude}"
-    root="${root%\\.claude}"
+  if [[ -n "$root" ]]; then
+    printf '%s' "$root"
+    return 0
   fi
+  root="$hint"
+  root="${root%/.claude}"
+  root="${root%\\.claude}"
+  HOOK_REPO_ROOT_UNRESOLVED=1
   printf '%s' "$root"
+  return 1
 }
 
 # Buffer a complete JSON payload from stdin, tolerating Windows Win32-pipe
@@ -1710,9 +1727,10 @@ hook::git_alias_expansion() {
 
 # Single linear pass: read the command into a char array once (O(n)), then walk
 # it splitting top-level segments on UNQUOTED control operators and tokenizing
-# each segment into argv words honoring '…', "…", $'…', and backslash escapes
-# (including backslash-newline continuation). Each completed segment is passed
-# to the callback as it closes, so no full segment list is retained.
+# each segment into argv words honoring '…', "…", $'…', backslash escapes
+# (including backslash-newline continuation), and unquoted `#` comments to EOL
+# (quoted `#` preserved). Each completed segment is passed to the callback as it
+# closes, so no full segment list is retained.
 # Call as: hook::bash_parse_segments <command-string> <callback>; the callback
 # receives one segment's argv words as "$@".
 # shellcheck disable=SC1003  # '\' compares a literal backslash char, not a quote escape
@@ -1802,6 +1820,17 @@ hook::bash_parse_segments() {
         if ((skipnext)); then skipnext=0; else seg+=("$word"); fi
         word=""
         have=0
+      fi
+      ;;
+    '#')
+      # Unquoted `#` starts a shell comment to EOL only at a word boundary (no
+      # word currently being assembled). Mid-word `#` (`x#y`) stays literal.
+      if ((have)); then
+        word+="#"
+      else
+        while ((i + 1 < n)) && [[ "${chars[i + 1]}" != $'\n' ]]; do
+          ((i++))
+        done
       fi
       ;;
     '>' | '<')

@@ -1,8 +1,8 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "typos-format",
-  "version": "0.6.13",
-  "description": "Spell-check on edit via typos-cli, unconditionally \u2014 report-only by default, honoring the consuming repo's own typos configuration when one is present.",
+  "version": "0.6.14",
+  "description": "Spell-check on edit via typos-cli, unconditionally — report-only by default, honoring the consuming repo's own typos configuration when one is present.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"

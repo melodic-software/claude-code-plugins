@@ -64,7 +64,7 @@ jobs:
       # not. runner-policy rejects inputs outside the reviewed contract but
       # cannot REQUIRE one, so dropping this line re-widens the exception with
       # nothing said. That residual gap is standards#308.
-      skip-actors: dependabot[bot],claude[bot],melodic-ai[bot],melodic-standards-sync[bot]
+      skip-actors: dependabot[bot],claude[bot],melodic-ai[bot],melodic-standards-sync[bot],cursor[bot]
     # One named secret (least privilege), never `secrets: inherit`.
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -122,5 +122,5 @@ jobs:
           LANE_REVIEW_RAN: ${{ needs.security-review.outputs.review-ran }}
           LANE_REVIEW_FAILED: ${{ needs.security-review.outputs.review-failed }}
           LANE_FAILURE_CLASS: ${{ needs.security-review.outputs.failure-class }}
-          SKIP_ACTORS: dependabot[bot],claude[bot],melodic-ai[bot],melodic-standards-sync[bot]
+          SKIP_ACTORS: dependabot[bot],claude[bot],melodic-ai[bot],melodic-standards-sync[bot],cursor[bot]
         run: bash scripts/verify-security-review-evidence.sh
