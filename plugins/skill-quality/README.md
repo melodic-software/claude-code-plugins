@@ -32,7 +32,8 @@ phrase, which quietly degrades a skill's auto-invocation. Check 3 compares the t
 - `scripts/*.test.sh` pass where present.
 - Vendored `vendor/` byte-identical vs `HEAD`; stale-tracking metadata keys preserved; sync age.
 - Gotchas surface present; `description` carries `Use when` phrasing; no committed cache artifacts;
-  action-router skills ship `evals/evals.json`; companion spoke dirs are referenced.
+  action-router skills without evals WARN (FAIL with `--require-evals` for any shape); companion spoke
+  dirs are referenced.
 - Precompute opportunity (advisory) — a fenced shell block gathers read-only context the skill could
   inline at load time via [`!` injection](https://code.claude.com/docs/en/skills#inject-dynamic-context)
   instead of a per-invocation tool call.

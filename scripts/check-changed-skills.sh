@@ -7,6 +7,10 @@
 # skill-quality static contract gate (plugins/skill-quality/scripts/check-skill.sh
 # — trigger-keyword preservation vs the base ref, frontmatter, listing-budget
 # and line caps, broken internal refs, evals presence, committed artifacts).
+# When a changed skill's SKILL.md is new or modified vs <base-ref>, the checker
+# is invoked with --require-evals so a missing evals/evals.json FAILs for any
+# shape; untouched legacy skills and non-SKILL.md-only touches keep the legacy
+# WARN-only posture.
 # Any FAIL fails this gate. It replaces the work lane's manual high-blast-radius
 # skill-diff read with a deterministic check, and is the first lane to invoke the
 # otherwise-uninvoked skill-quality checker.
@@ -62,10 +66,14 @@ for skill_dir in "${changed[@]}"; do
   skill_name="${skill_dir##*/}" # <skill>
   checked=$((checked + 1))
   printf '=== %s ===\n' "$skill_dir"
+  require_evals_args=()
+  if git diff --name-only "$BASE" -- "$skill_dir/SKILL.md" | grep -q .; then
+    require_evals_args=(--require-evals)
+  fi
   if CHECK_SKILL_SKILLS_ROOT="$PWD/$skills_root" \
     CHECK_SKILL_BASE_REF="$BASE" \
     CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
-    bash "$CHECKER" "$skill_name"; then
+    bash "$CHECKER" "${require_evals_args[@]}" "$skill_name"; then
     :
   else
     failed=$((failed + 1))

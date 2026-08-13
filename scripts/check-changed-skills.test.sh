@@ -28,8 +28,10 @@ ok() {
 STUB="$(mktemp)"
 cat >"$STUB" <<'EOF'
 #!/usr/bin/env bash
-printf 'name=%s root=%s base=%s\n' "$1" "$CHECK_SKILL_SKILLS_ROOT" "$CHECK_SKILL_BASE_REF" >>"$CHECK_LOG"
-[[ "$1" == "bad" ]] && exit 1
+printf 'args=%s root=%s base=%s\n' "$*" "$CHECK_SKILL_SKILLS_ROOT" "$CHECK_SKILL_BASE_REF" >>"$CHECK_LOG"
+for arg in "$@"; do
+  [[ "$arg" == "bad" ]] && exit 1
+done
 exit 0
 EOF
 chmod +x "$STUB"
@@ -115,7 +117,7 @@ b="$(base_sha "$r")"
 add_skill "$r" p1 alpha SKILL.md # touch two paths in one skill
 add_skill "$r" p1 alpha vendor/tool/SKILL.md
 run "$r" "$b" >/dev/null 2>&1
-n="$(grep -c "name=alpha" "$r/checklog" 2>/dev/null || echo 0)"
+n="$(grep -c "args=.*alpha" "$r/checklog" 2>/dev/null || echo 0)"
 if [[ "$n" == "1" ]]; then
   ok "vendor subtree maps to owning skill, checked once"
 else
@@ -130,8 +132,8 @@ commit_all "$r" base >/dev/null
 b="$(base_sha "$r")"
 add_skill "$r" p2 beta SKILL.md
 run "$r" "$b" >/dev/null 2>&1
-if grep -q "name=beta root=$r/plugins/p2/skills base=$b" "$r/checklog" 2>/dev/null; then
-  ok "checker receives skill name, skills root, and base ref"
+if grep -q "args=--require-evals beta root=$r/plugins/p2/skills base=$b" "$r/checklog" 2>/dev/null; then
+  ok "checker receives skill name, skills root, base ref, and --require-evals on SKILL.md change"
 else
   fail "env passthrough wrong, got: $(cat "$r/checklog" 2>/dev/null)"
 fi
@@ -181,6 +183,144 @@ if [[ "$rc" -eq 2 ]]; then
   ok "missing checker exits 2 (fail closed)"
 else
   fail "missing checker should exit 2, got $rc"
+fi
+rm -rf "$r"
+
+# --- SKILL.md change forwards --require-evals to the checker ----------------
+r="$(mk_repo)"
+add_skill "$r" p1 alpha
+commit_all "$r" base >/dev/null
+b="$(base_sha "$r")"
+add_skill "$r" p1 alpha SKILL.md
+run "$r" "$b" >/dev/null 2>&1
+if grep -q 'args=--require-evals alpha ' "$r/checklog" 2>/dev/null; then
+  ok "SKILL.md change forwards --require-evals"
+else
+  fail "SKILL.md change should forward --require-evals, got: $(cat "$r/checklog" 2>/dev/null)"
+fi
+rm -rf "$r"
+
+# --- a non-SKILL.md touch does not forward --require-evals ------------------
+r="$(mk_repo)"
+add_skill "$r" p1 alpha
+add_skill "$r" p1 alpha context/note.md
+commit_all "$r" base >/dev/null
+b="$(base_sha "$r")"
+printf 'updated\n' >"$r/plugins/p1/skills/alpha/context/note.md"
+run "$r" "$b" >/dev/null 2>&1
+if grep -q 'args=alpha ' "$r/checklog" 2>/dev/null &&
+  ! grep -q 'args=--require-evals alpha ' "$r/checklog" 2>/dev/null; then
+  ok "non-SKILL.md touch does not forward --require-evals"
+else
+  fail "context-only change should not forward --require-evals, got: $(cat "$r/checklog" 2>/dev/null)"
+fi
+rm -rf "$r"
+
+# --- integration: a new skill without evals fails the gate ------------------
+r="$(mk_repo)"
+mkdir -p "$r/plugins/skill-quality/scripts"
+cp "$SELF_DIR/../plugins/skill-quality/scripts/check-skill.sh" "$r/plugins/skill-quality/scripts/"
+cp "$SELF_DIR/../plugins/skill-quality/scripts/skill-frontmatter.sh" "$r/plugins/skill-quality/scripts/"
+chmod +x "$r/plugins/skill-quality/scripts/"*.sh
+printf 'base\n' >"$r/README.md"
+commit_all "$r" base >/dev/null
+b="$(base_sha "$r")"
+mkdir -p "$r/plugins/p1/skills/newbie"
+cat >"$r/plugins/p1/skills/newbie/SKILL.md" <<'EOF'
+---
+description: "A new skill. Use when: 'testing the evals ratchet'."
+---
+
+## Purpose
+
+Fixture for the evals-presence ratchet.
+
+## Gotchas
+
+None known.
+EOF
+git -C "$r" add plugins/p1/skills/newbie/SKILL.md
+if (cd "$r" && CHECK_SKILL_BIN="$r/plugins/skill-quality/scripts/check-skill.sh" \
+  bash scripts/check-changed-skills.sh "$b") >/dev/null 2>&1; then
+  fail "new skill without evals should fail the changed-skill gate"
+else
+  ok "new skill without evals fails the changed-skill gate"
+fi
+rm -rf "$r"
+
+# --- integration: a touched legacy skill without evals fails the gate --------
+r="$(mk_repo)"
+mkdir -p "$r/plugins/skill-quality/scripts"
+cp "$SELF_DIR/../plugins/skill-quality/scripts/check-skill.sh" "$r/plugins/skill-quality/scripts/"
+cp "$SELF_DIR/../plugins/skill-quality/scripts/skill-frontmatter.sh" "$r/plugins/skill-quality/scripts/"
+chmod +x "$r/plugins/skill-quality/scripts/"*.sh
+mkdir -p "$r/plugins/p1/skills/legacy"
+cat >"$r/plugins/p1/skills/legacy/SKILL.md" <<'EOF'
+---
+description: "A legacy skill. Use when: 'testing the evals ratchet'."
+---
+
+## Purpose
+
+Fixture for the evals-presence ratchet.
+
+## Gotchas
+
+None known.
+EOF
+commit_all "$r" base >/dev/null
+b="$(base_sha "$r")"
+printf '\n## Notes\n\nTouched for the ratchet test.\n' >>"$r/plugins/p1/skills/legacy/SKILL.md"
+if (cd "$r" && CHECK_SKILL_BIN="$r/plugins/skill-quality/scripts/check-skill.sh" \
+  bash scripts/check-changed-skills.sh "$b") >/dev/null 2>&1; then
+  fail "touched legacy skill without evals should fail the changed-skill gate"
+else
+  ok "touched legacy skill without evals fails the changed-skill gate"
+fi
+rm -rf "$r"
+
+# --- integration: a touched legacy skill with evals passes the gate --------
+r="$(mk_repo)"
+mkdir -p "$r/plugins/skill-quality/scripts"
+cp "$SELF_DIR/../plugins/skill-quality/scripts/check-skill.sh" "$r/plugins/skill-quality/scripts/"
+cp "$SELF_DIR/../plugins/skill-quality/scripts/skill-frontmatter.sh" "$r/plugins/skill-quality/scripts/"
+chmod +x "$r/plugins/skill-quality/scripts/"*.sh
+mkdir -p "$r/plugins/p1/skills/legacy/evals"
+cat >"$r/plugins/p1/skills/legacy/SKILL.md" <<'EOF'
+---
+description: "A legacy skill. Use when: 'testing the evals ratchet'."
+---
+
+## Purpose
+
+Fixture for the evals-presence ratchet.
+
+## Gotchas
+
+None known.
+EOF
+cat >"$r/plugins/p1/skills/legacy/evals/evals.json" <<'EOF'
+{
+  "skill_name": "legacy",
+  "evals": [
+    {
+      "id": "1",
+      "name": "happy-path",
+      "prompt": "run legacy",
+      "expected_output": "Runs the legacy skill.",
+      "expectations": ["Output routes to the legacy skill"]
+    }
+  ]
+}
+EOF
+commit_all "$r" base >/dev/null
+b="$(base_sha "$r")"
+printf '\n## Notes\n\nTouched for the ratchet test.\n' >>"$r/plugins/p1/skills/legacy/SKILL.md"
+if (cd "$r" && CHECK_SKILL_BIN="$r/plugins/skill-quality/scripts/check-skill.sh" \
+  bash scripts/check-changed-skills.sh "$b") >/dev/null 2>&1; then
+  ok "touched legacy skill with evals passes the changed-skill gate"
+else
+  fail "touched legacy skill with evals should pass the changed-skill gate"
 fi
 rm -rf "$r"
 

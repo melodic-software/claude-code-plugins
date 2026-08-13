@@ -63,6 +63,12 @@ run() {
       bash "$SUT" "$@")
 }
 
+run_require_evals() {
+  (cd "$TMP" &&
+    CHECK_SKILL_SKILLS_ROOT="$SKILLS" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
+      bash "$SUT" --require-evals "$@")
+}
+
 # 1. --help exits 0.
 if run --help >/dev/null 2>&1; then
   pass "--help exits 0"
@@ -2445,6 +2451,69 @@ if [[ $rc -eq 1 ]] &&
   pass "a ref no sibling hosts keeps the plain broken-internal-ref message"
 else
   fail "unhosted ref should keep the broken-internal-ref message (rc=$rc): $out"
+fi
+
+# 42. --require-evals FAILs on any shape without evals/evals.json.
+make_skill no-evals '---
+description: "A plain skill. Use when: '"'"'checking evals presence'"'"'."
+---
+
+## Purpose
+
+Not action-router-shaped.
+
+## Gotchas
+
+None known.
+'
+out="$(run_require_evals no-evals 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'skill ships no evals/evals.json' <<<"$out"; then
+  pass "--require-evals fails when evals/evals.json is absent"
+else
+  fail "--require-evals should fail without evals (rc=$rc): $out"
+fi
+
+# 43. Without --require-evals, a non-action-router skill without evals stays green.
+out="$(run no-evals 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'skill ships no evals/evals.json' <<<"$out"; then
+  pass "legacy fleet: non-action-router without evals passes without --require-evals"
+else
+  fail "non-action-router without evals should pass without --require-evals (rc=$rc): $out"
+fi
+
+# 44. --require-evals on a new skill (no base-ref SKILL.md) still FAILs.
+git -C "$TMP" add -A && git -C "$TMP" commit -qm base >/dev/null
+make_skill brand-new '---
+description: "A brand-new skill. Use when: '"'"'checking new-skill evals'"'"'."
+---
+
+## Purpose
+
+New-skill ratchet fixture.
+
+## Gotchas
+
+None known.
+'
+out="$(cd "$TMP" && CHECK_SKILL_SKILLS_ROOT="$SKILLS" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
+  CHECK_SKILL_BASE_REF=HEAD bash "$SUT" --require-evals brand-new 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'skill ships no evals/evals.json' <<<"$out"; then
+  pass "--require-evals fails for a new skill without evals"
+else
+  fail "new skill without evals should fail under --require-evals (rc=$rc): $out"
+fi
+
+# 45. CHECK_SKILL_REQUIRE_EVALS=1 env mirrors --require-evals.
+out="$(cd "$TMP" && CHECK_SKILL_SKILLS_ROOT="$SKILLS" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
+  CHECK_SKILL_REQUIRE_EVALS=1 bash "$SUT" no-evals 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'skill ships no evals/evals.json' <<<"$out"; then
+  pass "CHECK_SKILL_REQUIRE_EVALS=1 mirrors --require-evals"
+else
+  fail "CHECK_SKILL_REQUIRE_EVALS=1 should fail without evals (rc=$rc): $out"
 fi
 
 if [[ $fails -ne 0 ]]; then
