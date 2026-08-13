@@ -470,12 +470,39 @@ else
 fi
 rm -rf "$f"
 
+# --- frontmatter: quoted spellings of the hooks key are still declarations --
+# YAML permits `"hooks":` and `'hooks':`; both open the same block, so neither
+# may slip past the prefilter or the walk.
+for spelling in '"hooks":' "'hooks':" 'hooks :'; do
+  f="$(new_fixture)"
+  skill_md "$f" alpha skills/x/SKILL.md "---
+description: \"x\"
+$spelling
+  PreToolUse:
+    - hooks:
+        - type: command
+          command: bash
+          args: [\"x\"]
+---
+body"
+  if out="$(run_check "$f" 2>&1)"; then
+    fail "the '$spelling' key spelling should still be walked, got success: $out"
+  else
+    if echo "$out" | grep -q 'SKILL.md:7: .*"bash"'; then
+      ok "the '$spelling' key spelling is walked like the bare one"
+    else
+      fail "expected a flag at line 7 for '$spelling', got: $out"
+    fi
+  fi
+  rm -rf "$f"
+done
+
 # --- frontmatter: `hooks:` carrying an inline value fails closed ------------
 # A whole declaration on the key line (flow mapping, anchor, alias) is not
 # walkable by this parser, so it must fail rather than be skipped as "no block".
 f="$(new_fixture)"
 skill_md "$f" alpha skills/x/SKILL.md '---
-hooks: {PreToolUse: [{hooks: [{type: command, command: bash, args: ["x"]}]}]}
+"hooks": {PreToolUse: [{hooks: [{type: command, command: bash, args: ["x"]}]}]}
 ---
 body'
 if out="$(run_check "$f" 2>&1)"; then

@@ -77,8 +77,13 @@ fi
 #                               claude-config audit checklist name
 #                               `"command": "node", "args": [...]` as THE
 #                               Windows-correct exec-form spelling.
-# Adding a name is a reviewed change to this array plus its pinning test in
-# scripts/check-hook-exec-form.test.sh — never a data-file edit.
+# That criterion is NECESSARY but not SUFFICIENT, and the list is deliberately
+# shorter than it allows: an entry must also answer a real, in-repo need that
+# this repo's own docs sanction. `pwsh` and `deno` are unshimmed too and are
+# still absent, because nothing here needs them — allowlist entries are
+# demand-driven, never pre-emptive, since an unused entry is a hole nobody is
+# watching. Adding a name is a reviewed change to this array plus its pinning
+# test in scripts/check-hook-exec-form.test.sh — never a data-file edit.
 EXEC_NAME_ALLOWLIST=(node)
 
 errors=0
@@ -271,8 +276,17 @@ function record_kv(s,   c, key, val) {
   }
 }
 
+# YAML permits the key to be written bare, double-quoted, or single-quoted, and
+# permits whitespace before the colon. All spellings declare the same block, so
+# all of them must open one here -- matching only the bare token would let
+# `"hooks":` carry an exec-form violation straight past the gate.
 function is_hooks_key(s) {
-  return (s ~ /^[[:space:]]*hooks:[[:space:]]*(#.*)?$/)
+  return (s ~ /^[[:space:]]*["']?hooks["']?[[:space:]]*:[[:space:]]*(#.*)?$/)
+}
+
+# The same key carrying its whole declaration on the key line.
+function is_hooks_key_inline(s) {
+  return (s ~ /^[[:space:]]*["']?hooks["']?[[:space:]]*:[[:space:]]*[^[:space:]#]/)
 }
 
 function handle(line,   ind, rest, kidx) {
@@ -284,7 +298,7 @@ function handle(line,   ind, rest, kidx) {
     if (is_hooks_key(line)) {
       inhooks = 1
       hooks_indent = ind
-    } else if (line ~ /^[[:space:]]*hooks:[[:space:]]*[^[:space:]#]/) {
+    } else if (is_hooks_key_inline(line)) {
       # `hooks:` with an inline value -- flow style, an anchor, or an alias.
       # Not walkable by this parser, so fail closed rather than skip it.
       flow = 1
@@ -422,11 +436,14 @@ done
 
 # Skill and agent frontmatter. The grep only narrows the candidate set; the awk
 # pass is what decides, and it looks at frontmatter only, so a `hooks:` line in
-# a prose body or a fenced example is never read as a declaration.
+# a prose body or a fenced example is never read as a declaration. The prefilter
+# must admit every YAML spelling of the key the awk pass accepts (bare, double-
+# quoted, single-quoted, whitespace before the colon) — a candidate the grep
+# drops is a file the gate never looks at.
 while IFS= read -r md; do
   [[ -n "$md" ]] || continue
   scan_frontmatter "$md"
-done < <(grep -rlE '^[[:space:]]*hooks:' --include='*.md' plugins/ 2>/dev/null | tr -d '\r' | sort || true)
+done < <(grep -rlE "^[[:space:]]*[\"']?hooks[\"']?[[:space:]]*:" --include='*.md' plugins/ 2>/dev/null | tr -d '\r' | sort || true)
 
 if ((errors > 0)); then
   cat >&2 <<'REMEDY'
