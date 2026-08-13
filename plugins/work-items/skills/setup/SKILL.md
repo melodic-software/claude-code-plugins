@@ -1,5 +1,5 @@
 ---
-description: "Verify and configure the work-items plugin for this repository. check inspects read-only the tracker provider binding (.work-item-tracker.json), the tracked .github/recurring-schedule.json (presence, JSON validity, unique reconciliation keys), the jq and tracker-seam entry gates, the recurring-maintenance role label, the work-class label axis, and the capability-tier label axis; apply binds the tracker provider (seeds .work-item-tracker.json with the provider + non-secret config), writes the schedule, migrates missing work-class and capability-tier labels when authorized, backfills legacy frontier-tier body stamps onto the label, and optionally remaps the canonical role labels in the tracker binding. On a first-time bind apply writes that minimum viable config only — binding, role-label pass, work-class migration pass, capability-tier migration pass, legacy-label backfill check, empty schedule skeleton — and the pass that infers candidates from the repo and interviews the consumer for their recurring work items is opt-in, via the --seed-schedule argument or a single offer whose recommended default is skip (applied silently with no interactive user); a schedule that already carries items is summarized and offered updates exactly as before. Use when: 'set up work-items', 'bind the tracker provider', 'is work-items configured', 'configure the recurring schedule', 'work-items setup', 'seed recurring items', 'bulk-seed the recurring schedule', 'remap the work-item role labels', or the due/recheck/work actions report no recurring schedule configured, or the seam reports no binding. Re-runnable — safe to invoke again to reconfigure or to seed the schedule later."
+description: "Verify and configure the work-items plugin for this repo. check read-only inspects the tracker binding (.work-item-tracker.json), tracked .github/recurring-schedule.json (presence, JSON validity, unique reconciliation keys), jq and tracker-seam entry gates, recurring-maintenance role label, work-class axis, and capability-tier axis; apply binds the provider, writes the schedule, migrates work-class and capability-tier labels when authorized, backfills legacy frontier stamps to the label, and optionally remaps canonical role labels. First-time bind writes minimum viable config only — binding, role labels, both label axes, legacy backfill, empty skeleton — and candidate inference plus per-item interview is opt-in via --seed-schedule or a skip-RECOMMENDED offer (silent when unattended); a schedule with items is summarized and offered updates as before. Use when: 'set up work-items', 'bind the tracker provider', 'is work-items configured', 'configure the recurring schedule', 'work-items setup', 'seed recurring items', 'bulk-seed the recurring schedule', 'remap the work-item role labels', or the due/recheck/work actions report no recurring schedule configured, or the seam reports no binding. Re-runnable — safe to invoke again to reconfigure or to seed the schedule later."
 argument-hint: "check | apply [--seed-schedule] [--accept-recommended]"
 user-invocable: true
 disable-model-invocation: true
@@ -304,13 +304,14 @@ unambiguous; ask only where an item genuinely needs the user.
 3. **Migrate the work-class label axis.** Run the "Work-class label axis (migration)" procedure below.
    It discovers missing canonical members and provisions them when authorized. When any member is still
    missing after this pass, stop — triage and the work-loop admission gate cannot operate correctly.
-4. **Migrate the capability-tier label axis.** Run the "Capability-tier label axis (migration)"
-   procedure below. When the canonical member is still missing after this pass, stop — triage cannot
-   stamp frontier-tier quota guard and the work-loop reader fails closed to general tier.
-5. **Backfill legacy frontier-tier body stamps.** Run the "Capability-tier label backfill
-   (migration)" procedure below. This pass is load-bearing on upgrade (#1716): items already triaged
-   with only a body prose frontier-tier stamp will not be re-triaged, so setup applies the label here
-   once the axis exists.
+4. **Migrate the capability-tier label axis.** Run the procedure in
+   [reference/capability-tier-axis-migration.md](reference/capability-tier-axis-migration.md). When the
+   canonical member is still missing after this pass, stop — triage cannot stamp frontier-tier quota
+   guard and the work-loop reader fails closed to general tier.
+5. **Backfill legacy frontier-tier body stamps.** Run the procedure in
+   [reference/capability-tier-backfill.md](reference/capability-tier-backfill.md). This pass is
+   load-bearing on upgrade (#1716): items already triaged with only a body prose frontier-tier stamp
+   will not be re-triaged, so setup applies the label here once the axis exists.
 6. **Read the current schedule file first.** If `.github/recurring-schedule.json` exists, load it and
    present a short summary (item count, each item's `id` / `cadence` / `next_due`, and which are already
    overdue against today). The interview proposes changes against that baseline; nothing is dropped
@@ -435,59 +436,6 @@ canonical members from
 7. **Any missing — no label-as-code owner, no interactive user** — stop per `apply`'s "Autonomous
    invocation" rule: "work-class axis needs provisioning; run `/work-items:setup apply` with a user
    present".
-
-## Capability-tier label axis (migration)
-
-`apply` runs this pass at **step 4** of its numbered flow, after the work-class pass and before the
-legacy backfill. Triage's capability-tier stamp and the work-loop frontier quota guard require
-`capability-tier: frontier` from
-[`${CLAUDE_PLUGIN_ROOT}/reference/capability-tier-labels.md`](${CLAUDE_PLUGIN_ROOT}/reference/capability-tier-labels.md).
-
-1. **Skip when `.work-item-tracker.json` is absent** — nothing is bound yet.
-2. **Skip when the bound provider has no label listing** (`local-markdown`, read-only `jira`) — report
-   INFO and continue; triage verifies at item-edit time.
-3. **Discover** via the adapter's label listing (GitHub: `gh label list --limit 200`, filter
-   `capability-tier:`). Compare against the canonical member in the reference.
-4. **Present** — report "capability-tier axis provisioned" and continue.
-5. **Missing — label-as-code owner declared** — stop. Name the missing label and route remediation to
-   that owner; never `gh label create` ad hoc.
-6. **Missing — no label-as-code owner, interactive user present** — offer to create the label via the
-   adapter's label-creation mechanics (GitHub: `gh label create "capability-tier: frontier"
-   --description "<description>" --color "<color>"` using the reference table). RECOMMENDED: create
-   it — this pass is the upgrade migration for repos adopting the #1716 reader flip. Re-list after
-   creation and confirm the member exists before continuing.
-7. **Missing — no label-as-code owner, no interactive user** — stop per `apply`'s "Autonomous
-   invocation" rule: "capability-tier axis needs provisioning; run `/work-items:setup apply` with a
-   user present".
-
-## Capability-tier label backfill (migration)
-
-`apply` runs this pass at **step 5**, immediately after the capability-tier axis pass. It is
-load-bearing on upgrade: triage refuses to re-triage already-triaged output, so items stamped in-body
-before #1716 need the provider-permissioned label applied here. Pattern semantics and the script path
-live in the reference's "Legacy body stamps" subsection.
-
-Resolve the script:
-
-```bash
-BACKFILL="${CLAUDE_PLUGIN_ROOT}/scripts/backfill-capability-tier-labels.sh"
-[[ -f "$BACKFILL" ]] || BACKFILL="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/plugins/work-items/scripts/backfill-capability-tier-labels.sh"
-```
-
-1. **Skip when `.work-item-tracker.json` is absent** — nothing is bound yet.
-2. **Skip when the bound provider has no label listing or bulk open-item listing** (`local-markdown`,
-   read-only `jira`) — report INFO; backfill requires GitHub-style listing.
-3. **Skip when `capability-tier: frontier` is absent from the repo** — the axis pass must provision it
-   first; report that backfill is blocked until the label exists.
-4. **Discover** via `"$BACKFILL" check` (read-only). Report each candidate number; zero candidates →
-   "no legacy frontier-tier body stamps need backfill" and continue.
-5. **Label-as-code owner declared** — report candidates only; route item label writes to that owner or
-   to an operator-run `"$BACKFILL" apply` after IaC lands the label. Do not mutate items ad hoc.
-6. **Interactive user present** — offer to run `"$BACKFILL" apply` (RECOMMENDED: apply all candidates).
-   Confirm the count applied matches the check output.
-7. **No interactive user** — report candidates and name `"$BACKFILL" apply` (or re-run
-   `/work-items:setup apply` with a user present) as the remediation; never mutate without
-   confirmation.
 
 ## Canonical role labels (optional remap)
 
