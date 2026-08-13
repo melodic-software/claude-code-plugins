@@ -118,6 +118,9 @@ count, so acting on it is a copy, not a reconstruction:
   — writes that repo's committed .claude/settings.json; review the diff before committing
 ```
 
+Only ids that Step 5 did not enable at `user`/`local` scope in this run appear here — for the rest
+the command would fail rather than run, and Step 5 explains why.
+
 When running inside a project (`CLAUDE_PROJECT_DIR` set and `fleet-state.sh`'s `installed[]` entries
 carry `currentProject: true`), lead the Divergences line with *this* project's actionable count and
 fold the rest of the machine into one trailing clause — e.g. `2 behind here → converge; 27 more

@@ -187,8 +187,9 @@ maintenance action with no such abort, so there may be no human to answer.
   claude plugin enable <id> -s user     # or -s local
   ```
 
-- **`project` — never enable; report it.** Emit an "Action needed" row per SKILL.md's Report section
-  carrying the exact command, so the user can run it deliberately and review the resulting diff:
+- **`project` — never enable; report it, but only when the report would be runnable.** Emit an
+  "Action needed" row per SKILL.md's Report section carrying the exact command, so the user can run
+  it deliberately and review the resulting diff:
 
   ```bash
   (cd "<that record's projectPath>" && claude plugin enable <id>@<marketplace> -s project)
@@ -197,6 +198,19 @@ maintenance action with no such abort, so there may be no human to answer.
   The `cd`-into-its-own-`projectPath` form is required for the reason
   [converge.md](converge.md) Step 2 gives — `-s project` has no path flag and always acts on the
   current directory — and the id stays fully qualified per [gotchas.md](gotchas.md).
+
+  **Order matters — suppress this row for any id the `user`/`local` branch just enabled.** An id
+  with no `enabledPlugins` entry anywhere but install records at *both* `user` and `project` scope
+  produces two rows in one run. The `user` row enables first, and `enable -s project` gates on the
+  **merged effective** value, not that scope's raw map (see
+  [scope-semantics.md](scope-semantics.md)), so the reported command would then fail with
+  `Plugin "<id>" is already enabled at project scope` — a report that hands the user a command
+  guaranteed to error. Emit the `project` row only for an id this step did **not** enable at `user`
+  or `local` scope; in practice that means an id whose only verifiable record is the project one.
+  Skipping is correct rather than merely convenient: after the `user` enable the plugin already
+  loads in that project by scope precedence, so nothing is broken — only the team-shared *declaration*
+  is absent, and that is a deliberate choice for the user to make, not drift for `sync` to report as
+  actionable.
 
 Never touches an id that has an explicit entry anywhere (true — already enabled, nothing to do; or
 false — deliberate opt-out, never flipped). This step only fills a genuine gap: installed but never
