@@ -154,10 +154,10 @@ For a PR, the outcome addresses the attached code explicitly: adopt the diff (br
 
 **Decision-carrier clusters.** When step 1's cluster detection found members sharing one decision, apply human-gated to the **carrier only** (its body lists the member numbers). Each other member instead gets a native `blocked-by` edge to the carrier plus a `blocked by #<carrier> decision` comment — **never a per-member human-gated label**. Resolving the carrier's decision unblocks the whole cluster in one human touch.
 
-**Umbrella-fold routing (atomic).** When routing folds a member into an umbrella that was not in the umbrella's originally-enumerated member list (rule 3b in [`${CLAUDE_PLUGIN_ROOT}/reference/issue-conventions.md`](${CLAUDE_PLUGIN_ROOT}/reference/issue-conventions.md)), treat the fold as **one indivisible sequence** — do not advance to the next item until every step completes:
+**Umbrella-fold routing (atomic).** When routing folds a member into an umbrella, treat the fold as **one indivisible sequence** per the Title section of [`${CLAUDE_PLUGIN_ROOT}/reference/issue-conventions.md`](${CLAUDE_PLUGIN_ROOT}/reference/issue-conventions.md) — do not advance to the next item until every step completes:
 
-1. **Item-side membership comment** — on the folded item, stating membership in the umbrella.
-2. **Umbrella-side membership comment** — on the umbrella issue, matching the item-side claim (a second `gh issue comment` to a different issue — not an optional follow-up).
+1. **Item-side membership comment** — on the folded item via the adapter's comment operation, stating membership in the umbrella.
+2. **Umbrella-side membership comment** — on the umbrella issue via the adapter's comment operation, matching the item-side claim (a second comment on a different item — not an optional follow-up).
 3. **`blocked-by` edge** — native sub-issue / dependency link from item to umbrella.
 4. **Strip the raw marker** — clear `status:needs-triage` / `priority:needs-triage` in the same edit that applies the routing labels.
 
