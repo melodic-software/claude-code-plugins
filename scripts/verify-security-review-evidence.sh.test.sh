@@ -1,210 +1,211 @@
 #!/usr/bin/env bash
-# Self-tests for verify-security-review-evidence.sh helpers.
+# Self-tests for verify-security-review-evidence.sh.
+#
+# These EXECUTE the guard rather than re-implement its shapes. That became
+# possible when the guard stopped scraping the lane's job log and started
+# reading the lane's declared outputs: every input is now an environment
+# variable, and the one API read left behind lives in a function the tests
+# substitute. The previous harness could only copy the guard's regexes into
+# itself and assert on the copies, which is why it agreed with a guard that was
+# reddening every pull request it exists to approve (#2517).
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PATHS_FILE="$SCRIPT_DIR/../.github/claude-security-paths"
-EVIDENCE_PATTERN='@anthropic-ai/claude-agent-sdk|mcp__github_inline_comment__create_inline_comment|Posted review|create_inline_comment|Claude Code action completed'
-MIN_REVIEW_SECONDS=8
+GUARD_SCRIPT="$SCRIPT_DIR/verify-security-review-evidence.sh"
 
 FAILED=0
 pass() { printf 'PASS: %s\n' "$1"; }
-fail() { FAILED=$((FAILED + 1)); printf 'FAIL: %s\n  %s\n' "$1" "$2" >&2; }
-
-matches_paths() {
-  local paths_file="$1"
-  shift
-  python3 - "$paths_file" "$@" <<'PY'
-import fnmatch
-import re
-import sys
-
-paths_file = sys.argv[1]
-patterns = []
-with open(paths_file, encoding="utf-8") as fh:
-    for line in fh:
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-        patterns.append(line)
-
-def pattern_matches(path: str, pat: str) -> bool:
-    if fnmatch.fnmatch(path, pat):
-        return True
-    if pat.endswith("/**"):
-        prefix = pat[:-3].replace("*", "[^/]*")
-        if re.match("^" + prefix + ".*", path):
-            return True
-    if pat.startswith("**/"):
-        suffix = pat[3:]
-        if fnmatch.fnmatch(path, "*" + suffix) or path.endswith(suffix.lstrip("*")):
-            return True
-    if pat == "**/*.sh" and path.endswith(".sh"):
-        return True
-    norm = pat.replace("**/", "*/").replace("/**", "/*")
-    return fnmatch.fnmatch(path, norm)
-
-for path in sys.argv[2:]:
-    for pat in patterns:
-        if pattern_matches(path, pat):
-            sys.exit(0)
-sys.exit(1)
-PY
+fail() {
+  FAILED=$((FAILED + 1))
+  printf 'FAIL: %s\n  %s\n' "$1" "$2" >&2
 }
 
-log_has_execution_evidence() {
-  grep -qE "$EVIDENCE_PATTERN" "$1" 2>/dev/null
-}
-
-# Kept byte-identical to the guard's own pattern. Anchored to runner annotation
-# lines so the lane's echoed github-script SOURCE — which contains both phrases
-# as string literals — cannot be mistaken for a real skip.
-SKIP_ANNOTATION_PATTERN='##\[(warning|error)\].*(workflow-validation skip|class=skipped-validation)'
-
-log_shows_validation_skip() {
-  grep -qE "$SKIP_ANNOTATION_PATTERN" "$1" 2>/dev/null
-}
-
-would_reject_fast_success() {
-  local duration="$1"
-  local has_execution_evidence="$2"
-  (( duration > 0 && duration < MIN_REVIEW_SECONDS && has_execution_evidence == 0 ))
-}
-
-if matches_paths "$PATHS_FILE" "plugins/guardrails/hooks/block-hook-bypass.sh"; then
-  pass "guardrails hook path is security-relevant"
-else
-  fail "guardrails hook path is security-relevant" "expected match"
-fi
-
-if matches_paths "$PATHS_FILE" "docs/README.md"; then
-  fail "docs-only path is not security-relevant" "unexpected match"
-else
-  pass "docs-only path is not security-relevant"
-fi
-
-tmp_log="$(mktemp)"
-trap 'rm -f "$tmp_log"' EXIT
-
-printf '%s\n' 'Installing @anthropic-ai/claude-agent-sdk' >"$tmp_log"
-if log_has_execution_evidence "$tmp_log"; then
-  pass "fixture log with SDK marker counts as execution evidence"
-else
-  fail "fixture log with SDK marker counts as execution evidence" "expected match"
-fi
-
-printf '%s\n' 'checkout complete' 'job finished' >"$tmp_log"
-if log_has_execution_evidence "$tmp_log"; then
-  fail "fixture log without markers lacks execution evidence" "unexpected match"
-else
-  pass "fixture log without markers lacks execution evidence"
-fi
-
-if would_reject_fast_success 5 0; then
-  pass "5s without evidence rejected"
-else
-  fail "5s without evidence rejected" "expected rejection"
-fi
-
-if would_reject_fast_success 5 1; then
-  fail "5s with evidence accepted" "unexpected rejection"
-else
-  pass "5s with evidence accepted"
-fi
-
-if would_reject_fast_success 20 0; then
-  fail "20s without evidence accepted (above floor)" "unexpected rejection"
-else
-  pass "20s without evidence accepted (above floor)"
-fi
-
-# Regression: the echoed github-script source of the lane's `Report review
-# outcome` step, verbatim from run 31630114303 lines 1435 and 1437. The old
-# unanchored pattern matched these and failed every successful in-scope PR.
-# shellcheck disable=SC2016  # fixture is literal github-script source; ${lane} must not expand
-printf '%s\n' \
-  '    `${lane} concluded: ${outcome} class=skipped-validation with no ` +' \
-  '      "(workflow-validation skip: the caller'"'"'s workflow file must " +' \
-  >"$tmp_log"
-if log_shows_validation_skip "$tmp_log"; then
-  fail "echoed action source is not a validation skip" "unexpected match (#2337 false positive)"
-else
-  pass "echoed action source is not a validation skip"
-fi
-
-# True positive: the runner's rendered annotation for a real self-skip.
-printf '%s\n' \
-  '2026-08-12T18:46:14.6127175Z ##[warning]Claude security review concluded: success class=skipped-validation with no execution evidence — the action skipped itself before running (workflow-validation skip: the caller'"'"'s workflow file must match the default branch'"'"'s copy). Nothing was reviewed.' \
-  >"$tmp_log"
-if log_shows_validation_skip "$tmp_log"; then
-  pass "annotated validation skip is detected"
-else
-  fail "annotated validation skip is detected" "expected match"
-fi
-
-# A clean run carries neither shape.
-printf '%s\n' 'Installing @anthropic-ai/claude-agent-sdk' 'Claude Code action completed' >"$tmp_log"
-if log_shows_validation_skip "$tmp_log"; then
-  fail "clean lane log shows no validation skip" "unexpected match"
-else
-  pass "clean lane log shows no validation skip"
-fi
-
-# Regression: an OUT-OF-SCOPE pull request must be waved through, not failed.
+# run_guard <expected-exit> <name> [VAR=value ...]
 #
-# `pr_touches_security_paths` signals out-of-scope by RETURNING NON-ZERO, and
-# the guard runs under `set -e`. Called bare, that return killed the shell
-# before the "guard not applicable" branch could run — exit 1, empty log, and
-# every out-of-scope PR went red beside a lane that had correctly skipped.
+# Runs the guard in a separate bash process with only the named environment,
+# so one case cannot leak state into the next and so `set -e` is genuinely in
+# force — a subshell would inherit this harness's suppressed state and hide the
+# very failures these cases exist to catch.
 #
-# Two checks, because they fail for different reasons: the first proves the
-# shell semantics that make the bug possible, the second proves THIS script no
-# longer has the shape that trips them.
-
-# The model runs in a SEPARATE `bash -c` process, deliberately. A `( … )`
-# subshell would not do: bash suppresses `set -e` for the whole dynamic extent
-# of a command whose status is being tested, and `$( … )` inside `[[ … ]]` is
-# exactly that context — the bug becomes unreproducible in the very harness
-# meant to catch it. A fresh `bash -c` establishes its own `-e` state.
-bare_call_reaches_branch() {
-  bash -c 'set -euo pipefail
-    f() { return 1; }
-    f "base"
-    printf "reached\n"' 2>/dev/null
+# `$0` is deliberately NOT the guard's path: the guard runs `main` on its own
+# when `BASH_SOURCE[0]` equals `$0`, so sourcing it as `$0` would execute it
+# before the stub could replace anything.
+run_guard() {
+  local expected="$1" name="$2"
+  shift 2
+  local output status
+  # shellcheck disable=SC2016  # the bash -c body is literal source for the
+  # child shell; expanding $1 here would substitute this harness's own args.
+  output="$(env -i \
+    PATH="$PATH" \
+    HOME="${HOME:-/tmp}" \
+    LIVE_HEAD_SHA_STUB="${LIVE_HEAD_SHA_STUB:-}" \
+    "$@" \
+    bash -c '
+      source "$1"
+      live_head_sha() { printf "%s\n" "${LIVE_HEAD_SHA_STUB:-}"; }
+      main
+    ' harness "$GUARD_SCRIPT" 2>&1)"
+  status=$?
+  if [[ "$status" -eq "$expected" ]]; then
+    pass "$name"
+    LAST_OUTPUT="$output"
+    return 0
+  fi
+  fail "$name" "expected exit $expected, got $status; output: $output"
+  LAST_OUTPUT="$output"
+  return 1
 }
 
-if [[ -z "$(bare_call_reaches_branch)" ]]; then
-  pass "a non-zero-returning helper called bare under set -e kills the script"
+assert_output_contains() {
+  local name="$1" needle="$2"
+  if [[ "$LAST_OUTPUT" == *"$needle"* ]]; then
+    pass "$name"
+  else
+    fail "$name" "expected output to contain '$needle'; got: $LAST_OUTPUT"
+  fi
+}
+
+IN_SCOPE_RAN=(
+  GITHUB_EVENT_NAME=pull_request
+  GITHUB_ACTOR=kyle-sexton
+  LANE_RESULT=success
+  LANE_RELEVANT=true
+  LANE_REVIEW_RAN=true
+  LANE_REVIEW_FAILED=false
+)
+
+# --- the shape the guard exists to approve -----------------------------------
+
+run_guard 0 "an in-scope run that declares a review ran passes" "${IN_SCOPE_RAN[@]}"
+assert_output_contains "the pass says what it read" "the lane declares a review ran"
+
+# --- the shape the guard exists to catch -------------------------------------
+
+run_guard 1 "an in-scope validation skip fails closed" \
+  GITHUB_EVENT_NAME=pull_request \
+  GITHUB_ACTOR=kyle-sexton \
+  LANE_RESULT=success \
+  LANE_RELEVANT=true \
+  LANE_REVIEW_RAN=false \
+  LANE_REVIEW_FAILED=false
+assert_output_contains "the failure names the skip and its remedy" "workflow-validation skip"
+
+# --- the shapes that are not this guard's ruling to make ---------------------
+
+run_guard 0 "an external failure defers to the lane's deliberate green" \
+  GITHUB_EVENT_NAME=pull_request \
+  GITHUB_ACTOR=kyle-sexton \
+  LANE_RESULT=success \
+  LANE_RELEVANT=true \
+  LANE_REVIEW_RAN=false \
+  LANE_REVIEW_FAILED=true \
+  LANE_FAILURE_CLASS=rate-limit
+assert_output_contains "deferring still says nothing was reviewed" "Nothing was reviewed at this head"
+
+run_guard 0 "an out-of-scope pull request is waved through, not failed" \
+  GITHUB_EVENT_NAME=pull_request \
+  GITHUB_ACTOR=kyle-sexton \
+  LANE_RESULT=success \
+  LANE_RELEVANT=false \
+  LANE_REVIEW_RAN="" \
+  LANE_REVIEW_FAILED=""
+
+run_guard 0 "a skipped lane job is not applicable" \
+  GITHUB_EVENT_NAME=pull_request \
+  GITHUB_ACTOR=kyle-sexton \
+  LANE_RESULT=skipped
+
+run_guard 0 "a failed lane job defers to the job's own red" \
+  GITHUB_EVENT_NAME=pull_request \
+  GITHUB_ACTOR=kyle-sexton \
+  LANE_RESULT=failure
+
+run_guard 0 "a skip-listed actor is not applicable" \
+  GITHUB_EVENT_NAME=pull_request \
+  GITHUB_ACTOR="dependabot[bot]" \
+  LANE_RESULT=success \
+  LANE_RELEVANT=true \
+  LANE_REVIEW_RAN=false \
+  LANE_REVIEW_FAILED=false
+
+run_guard 0 "a non-pull_request event is not applicable" \
+  GITHUB_EVENT_NAME=push \
+  LANE_RESULT=success
+
+# --- absent verdict: fail closed unless the head demonstrably moved ----------
+
+LIVE_HEAD_SHA_STUB=1111111111111111111111111111111111111111 \
+  run_guard 0 "a retired superseded run is recognised by a moved head" \
+  GITHUB_EVENT_NAME=pull_request \
+  GITHUB_ACTOR=kyle-sexton \
+  LANE_RESULT=success \
+  LANE_RELEVANT=true \
+  LANE_REVIEW_RAN="" \
+  GITHUB_REPOSITORY=melodic-software/claude-code-plugins \
+  PR_NUMBER=1 \
+  EVENT_HEAD_SHA=0000000000000000000000000000000000000000
+assert_output_contains "the supersede pass names the move" "the head has moved"
+
+LIVE_HEAD_SHA_STUB=0000000000000000000000000000000000000000 \
+  run_guard 1 "an absent verdict at an unmoved head fails closed" \
+  GITHUB_EVENT_NAME=pull_request \
+  GITHUB_ACTOR=kyle-sexton \
+  LANE_RESULT=success \
+  LANE_RELEVANT=true \
+  LANE_REVIEW_RAN="" \
+  GITHUB_REPOSITORY=melodic-software/claude-code-plugins \
+  PR_NUMBER=1 \
+  EVENT_HEAD_SHA=0000000000000000000000000000000000000000
+assert_output_contains "the failure names the stale pin as the likely cause" "predates the declared-output contract"
+
+LIVE_HEAD_SHA_STUB="" \
+  run_guard 1 "an unreadable live head fails closed rather than assuming a supersede" \
+  GITHUB_EVENT_NAME=pull_request \
+  GITHUB_ACTOR=kyle-sexton \
+  LANE_RESULT=success \
+  LANE_RELEVANT=true \
+  LANE_REVIEW_RAN="" \
+  GITHUB_REPOSITORY=melodic-software/claude-code-plugins \
+  PR_NUMBER=1 \
+  EVENT_HEAD_SHA=0000000000000000000000000000000000000000
+
+run_guard 1 "an absent verdict with nothing to check the head against fails closed" \
+  GITHUB_EVENT_NAME=pull_request \
+  GITHUB_ACTOR=kyle-sexton \
+  LANE_RESULT=success \
+  LANE_RELEVANT=true \
+  LANE_REVIEW_RAN=""
+
+run_guard 1 "a guard not wired to the lane at all fails closed" \
+  GITHUB_EVENT_NAME=pull_request \
+  GITHUB_ACTOR=kyle-sexton \
+  LANE_RESULT=""
+
+# --- static guards on the source ---------------------------------------------
+
+# The defect this rewrite removes. A log read is not a contract: the lane's
+# `Report review outcome` step is an inline github-script whose source is echoed
+# into the same log, so any grep for the phrases that name a skip also matches
+# the source that mentions them (#2517).
+if grep -qE 'gh run view|--log' "$GUARD_SCRIPT"; then
+  fail "the guard reads declared outputs, never the lane's log" \
+    "found a log read; the lane's echoed github-script source contains the skip phrases as string literals (#2517)"
 else
-  fail "a non-zero-returning helper called bare under set -e kills the script" \
-    "expected no output; set -e should have aborted before the next line"
+  pass "the guard reads declared outputs, never the lane's log"
 fi
 
-# The verdict now travels on stdout with exit reserved for faults, so the two
-# are no longer confusable. These assert the contract the guard depends on.
-if [[ "$(printf 'in-scope\n')" == "in-scope" ]]; then
-  pass "in-scope verdict is a stdout token, not an exit status"
+# One matcher, upstream. A second local implementation of the paths matcher is
+# what produced the `set -e` scope-verdict defect and disagreed with the lane's
+# `git check-ignore` semantics besides.
+# Comment lines are excluded on purpose — the guard's header explains the
+# defect by naming it, and a check that cannot tell an explanation from an
+# implementation would forbid recording why this shape is gone.
+if grep -vE '^[[:space:]]*#' "$GUARD_SCRIPT" | grep -qE 'python3|fnmatch|pr_touches_security_paths'; then
+  fail "scope comes from the lane's relevant output, not a second matcher" \
+    "found a local scope implementation; the lane already decided this with git check-ignore"
 else
-  fail "in-scope verdict is a stdout token, not an exit status" "unexpected"
-fi
-
-# Static guards on the real script: catch a revert to either older shape.
-GUARD_SCRIPT="$SCRIPT_DIR/verify-security-review-evidence.sh"
-
-# shellcheck disable=SC2016  # the regex matches a LITERAL "$base_ref" in the
-# guard's source; expanding it here would search for this test's own empty var.
-if grep -qE '^[[:space:]]*pr_touches_security_paths "\$base_ref"( \|\| .*)?[[:space:]]*$' "$GUARD_SCRIPT"; then
-  fail "scope check is consumed as a stdout verdict, not a bare or ||-suppressed call" \
-    "found a bare or ||-suppressed call; a crashed scope check would then read as out-of-scope and fail OPEN"
-else
-  pass "scope check is consumed as a stdout verdict, not a bare or ||-suppressed call"
-fi
-
-if grep -q 'scope check returned an unrecognised verdict' "$GUARD_SCRIPT"; then
-  pass "an unrecognised scope verdict fails closed"
-else
-  fail "an unrecognised scope verdict fails closed" \
-    "the catch-all branch is gone; an unexpected verdict could fall through as a pass"
+  pass "scope comes from the lane's relevant output, not a second matcher"
 fi
 
 if [[ "$FAILED" -eq 0 ]]; then
