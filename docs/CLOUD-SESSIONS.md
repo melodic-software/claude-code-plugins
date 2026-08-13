@@ -2,21 +2,31 @@
 
 A how-to for provisioning Claude Code on the web (cloud sessions): what the pieces are, how to
 set them up for any account or repository, and how this repository is set up. Details
-deliberately live in the linked official pages, not here — link freshness was verified on
-2026-07-30, and per the [upstream-drift convention](conventions/upstream-drift/README.md) you
-should re-fetch a page before acting on it.
+deliberately live in the linked official pages, not here. Links into the three cloud pages
+(`web-quickstart`, `claude-code-on-the-web`, `cloud-environments`) and the claims restated from
+them were verified on 2026-08-13 against rung-1 raw-markdown fetches of those pages; links to
+other pages were last verified 2026-07-30. Per the
+[upstream-drift convention](conventions/upstream-drift/README.md), re-fetch a page before acting
+on it.
 
 ## What this is
 
 - [Claude Code on the web](https://code.claude.com/docs/en/claude-code-on-the-web) runs each
-  session in a fresh, isolated cloud VM with your repository cloned into it.
+  session in a fresh, isolated cloud VM with your repository cloned into it —
+  Anthropic-managed by default, or on an organization's
+  [self-hosted environment](https://code.claude.com/docs/en/self-hosted-environments) when
+  routed there. The onboarding walkthrough (connect GitHub, `/web-setup`, first task) lives on
+  its own [Get started page](https://code.claude.com/docs/en/web-quickstart);
+  `claude-code-on-the-web` is the full reference.
 - Every session runs inside a
   [cloud environment](https://code.claude.com/docs/en/cloud-environments) — the dialog with name,
   network access, environment variables, and setup script. Environments are **scoped to your
   claude.ai account** (or
   [shared org-wide by an admin](https://code.claude.com/docs/en/cloud-environments#organization-shared-environments)),
   **not to a repository**: one environment serves every repo and every surface that starts cloud
-  sessions (web, `claude --cloud`, mobile, desktop, routines).
+  sessions (web, `claude --cloud`, mobile, desktop, routines, and
+  [Claude Tag](https://code.claude.com/docs/en/cloud-environments#organization-shared-environments) —
+  whose channel sessions use org-shared environments only).
 - Two setup mechanisms exist, with an
   [official division of labor](https://code.claude.com/docs/en/cloud-environments#setup-scripts-vs-sessionstart-hooks):
   the environment's **setup script** provisions the VM itself (toolchains, CLI tools), while a
@@ -30,7 +40,10 @@ should re-fetch a page before acting on it.
 
 ### 1. Account level: the environment
 
-Usually nothing to do — onboarding creates a
+Usually nothing to do — onboarding (the
+[browser flow](https://code.claude.com/docs/en/web-quickstart#connect-github), or
+[`/web-setup` from the CLI](https://code.claude.com/docs/en/web-quickstart#connect-from-your-terminal)
+if you already use `gh`) creates a
 [Default environment](https://code.claude.com/docs/en/cloud-environments#the-default-environment)
 whose Trusted network level already reaches the
 [default allowed domains](https://code.claude.com/docs/en/cloud-environments#default-allowed-domains)
@@ -47,6 +60,8 @@ more, and keep it repo-agnostic, since it serves all repos:
   tools missing from the
   [pre-installed inventory](https://code.claude.com/docs/en/cloud-environments#installed-tools);
   mind its [requirements](https://code.claude.com/docs/en/cloud-environments#script-requirements)
+  — exit zero, finish within the roughly-five-minute cache-build budget, registries reachable at
+  the chosen access level —
   and [caching behavior](https://code.claude.com/docs/en/cloud-environments#environment-caching).
   The docs' worked example installs the `gh` CLI, which pairs with the
   [GitHub proxy](https://code.claude.com/docs/en/cloud-environments#github-proxy) for auth.
@@ -81,7 +96,10 @@ plus the cost model of
 - **Setup script** (environment dialog; cached): heavy, repo-agnostic, static installs — SDKs
   (e.g. .NET, which the docs call out as setup-script material), `apt` packages, Docker image
   pulls. Runs as root; its cost is paid once per cache rebuild (script/network-config edit, or
-  roughly-seven-day expiry), not per session.
+  roughly-seven-day expiry), not per session. Total runtime must stay under the
+  roughly-five-minute cache-build budget or
+  [sessions hang or fail at setup](https://code.claude.com/docs/en/web-quickstart#new-sessions-hang-or-time-out-during-setup)
+  — parallelize independent installs and push oversized downloads into a SessionStart hook.
 - **SessionStart hook** (repo-committed; every session start and resume): anything driven by the
   repo's own manifests or that must track branch state — dependency installs, pinned-tool
   provisioning. Runs locally and in the cloud, so guard cloud-only work with
@@ -98,7 +116,8 @@ plus the cost model of
   ```
 
   The guard keeps it a no-op for repositories without the script, so the environment stays
-  generic. (How the cache interacts with sessions across *different* repos isn't documented;
+  generic, and this repo's ~40 s bootstrap fits comfortably inside the five-minute cache-build
+  budget. (How the cache interacts with sessions across *different* repos isn't documented;
   the idempotent hook makes either behavior safe.)
 
 ### One environment or several?
