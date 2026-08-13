@@ -165,7 +165,7 @@ claude -p "/smokemulti:echo" --plugin-dir <rig>/smokemulti \
 ## Test E — `/plugin configure` bare name vs marketplace-qualified id
 
 **Question.** When the same plugin `name` is installed from more than one marketplace — e.g.
-`dometrain@melodic-software` and `dometrain@dometrain` coexist — does `/plugin configure
+`dometrain@<marketplace>` and `dometrain@dometrain` coexist — does `/plugin configure
 <bare-name>` unambiguously target one install, or must the command carry the marketplace suffix?
 
 **Evidence (Claude Code 2.1.207, corroborated by Tests C and D above).**
@@ -181,7 +181,7 @@ claude -p "/smokemulti:echo" --plugin-dir <rig>/smokemulti \
 
 **Fleet decision.** Actionable guidance — anywhere a reader is told to *run* the command with a
 specific plugin target — uses the marketplace-qualified form `/plugin configure
-<plugin>@<marketplace>` (in this marketplace's shipped docs, `@melodic-software` unless the prose
+<plugin>@<marketplace>` (in this marketplace's shipped docs, `@<marketplace>` unless the prose
 already names a different catalog). Targetless references to the flow ("reconfigure via `/plugin
 configure`", "what `/plugin configure` shows") stay unqualified: they name the surface, not an
 install identity. Under a same-name, two-marketplace install, the bare form is therefore not a

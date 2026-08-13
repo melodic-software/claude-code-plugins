@@ -107,7 +107,7 @@ enough that one skill no longer predicts its contents.
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install work-items@melodic-software
+/plugin install work-items@<marketplace>
 ```
 
 ## Configuration

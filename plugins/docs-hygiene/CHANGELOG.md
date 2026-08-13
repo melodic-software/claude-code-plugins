@@ -9,7 +9,7 @@
   [`docs/extensibility-contract-smoke-tests.md`](../../docs/extensibility-contract-smoke-tests.md)
   Test E (#1360).
 - **Fleet docs sweep:** actionable `/plugin configure` guidance across consumer-facing plugin
-  READMEs and setup skills now uses `@melodic-software` (or `@<marketplace>` in generated blocks).
+  READMEs and setup skills now uses `@<marketplace>` (or `@<marketplace>` in generated blocks).
 
 ## [0.11.2]
 

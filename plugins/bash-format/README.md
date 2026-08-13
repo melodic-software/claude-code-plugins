@@ -73,7 +73,7 @@ formatting still run.
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install bash-format@melodic-software
+/plugin install bash-format@<marketplace>
 ```
 
 Then verify prerequisites with `/bash-format:setup check`.
@@ -90,11 +90,11 @@ One `userConfig` option tunes the hook itself:
 |--------|---------|--------|
 | `bash_format_enabled` | `true` | Toggle for the bash-format hook; set `false` for a clean no-op. |
 
-Set it interactively with `/plugin configure bash-format@melodic-software`, or headless on the
+Set it interactively with `/plugin configure bash-format@<marketplace>`, or headless on the
 install command:
 
 ```shell
-claude plugin install bash-format@melodic-software --config bash_format_enabled=false
+claude plugin install bash-format@<marketplace> --config bash_format_enabled=false
 ```
 
 These options are user-scoped (stored in your user settings, not the project's).

@@ -64,7 +64,7 @@ verify-and-route:
   (default `${CLAUDE_PLUGIN_DATA}`); if repository-resident, recommend a portable contained path,
   inspecting the consumer's declared artifact conventions. Same for `skill_usage_dir` (default
   `.claude/observability`). State the tradeoff and let the reader pick — do not prompt.
-- **Reconfiguring a personal option:** `/plugin configure claude-ops@melodic-software` (interactive, any time).
+- **Reconfiguring a personal option:** `/plugin configure claude-ops@<marketplace>` (interactive, any time).
   Headless: `--config` only applies on a fresh install (ignored once installed), so reconfigure via
   `claude plugin uninstall claude-ops -s <scope>` then
   `claude plugin install claude-ops@<marketplace> -s <scope> --config registry_dir=<path>`; this

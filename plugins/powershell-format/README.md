@@ -87,7 +87,7 @@ linting still run.
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install powershell-format@melodic-software
+/plugin install powershell-format@<marketplace>
 ```
 
 Then verify prerequisites with `/powershell-format:setup check`.
@@ -104,11 +104,11 @@ One behavior knob is exposed as a native `userConfig` option:
 |--------|---------|--------|
 | `powershell_format_enabled` | `true` | Toggle for the powershell-format hook; set `false` for a clean no-op. |
 
-Set it interactively with `/plugin configure powershell-format@melodic-software`, or headless
+Set it interactively with `/plugin configure powershell-format@<marketplace>`, or headless
 on the install command:
 
 ```shell
-claude plugin install powershell-format@melodic-software --config powershell_format_enabled=false
+claude plugin install powershell-format@<marketplace> --config powershell_format_enabled=false
 ```
 
 These options are user-scoped (stored in your user settings, not the

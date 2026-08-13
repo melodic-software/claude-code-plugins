@@ -51,7 +51,7 @@ anything.
    reject reserved Windows device names. Report the resolved profile path, which of the three
    sources supplied it, and — when the resolved value came from `${user_config.active_profile}` or
    the configured value is wrong for this repository — the reconfiguration route:
-   - **Interactive, any time:** `/plugin configure ai-briefing@melodic-software`. This is the only surface that
+   - **Interactive, any time:** `/plugin configure ai-briefing@<marketplace>`. This is the only surface that
      changes the stored value; this skill never writes `pluginConfigs`.
    - **Headless:** `claude plugin install ... --config active_profile=<name>` seeds the value on a
      *fresh install only* and is ignored once the plugin is installed, so reconfiguring headlessly

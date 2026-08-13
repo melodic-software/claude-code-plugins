@@ -256,7 +256,7 @@ A check-centric setup for the **observer substrate only** — the other eleven s
 the SessionStart hook's stdin parsing, `claude` on PATH for the analysis leg) and reports the effective
 `userConfig` values, flagging the two hazards (`observer_analysis_bare` on an OAuth-login install;
 `observer_idle_seconds` below the machine's longest single turn). It has no write path — reconfiguration
-routes through Claude Code's native `/plugin configure session-flow@melodic-software`.
+routes through Claude Code's native `/plugin configure session-flow@<marketplace>`.
 
 ```shell
 /session-flow:setup         # verify observer prerequisites + config (read-only)
@@ -281,7 +281,7 @@ The skills adapt to the consuming repo rather than imposing structure:
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install session-flow@melodic-software
+/plugin install session-flow@<marketplace>
 ```
 
 ## Configuration

@@ -8,14 +8,14 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
 ### Changed
 
 - **Docs:** qualify actionable `/plugin configure` examples in README and setup SKILL
-  (`skill-quality@melodic-software`; generated blocks use `@<marketplace>`) per Test E (#1360).
+  (`skill-quality@<marketplace>`; generated blocks use `@<marketplace>`) per Test E (#1360).
 
 ## [0.15.8]
 
 ### Changed
 
 - **Docs:** actionable `/plugin configure` guidance now uses the marketplace-qualified form
-  (`<plugin>@melodic-software`; generated option blocks use `@<marketplace>`) per
+  (`<plugin>@<marketplace>`; generated option blocks use `@<marketplace>`) per
   [`docs/extensibility-contract-smoke-tests.md`](../../docs/extensibility-contract-smoke-tests.md)
   Test E (#1360). Targetless references to the flow stay unqualified.
 

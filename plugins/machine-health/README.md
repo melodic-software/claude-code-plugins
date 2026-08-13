@@ -48,7 +48,7 @@ run log. No telemetry, no other network calls, no `Invoke-Expression` on externa
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install machine-health@melodic-software
+/plugin install machine-health@<marketplace>
 ```
 
 ## Migrating from an in-repo copy

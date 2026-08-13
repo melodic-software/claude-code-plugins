@@ -53,10 +53,10 @@
       "id": 5,
       "name": "report-dir-change-routes-to-plugin-configure",
       "prompt": "I want my machine-health reports to land in D:\\Reports\\Health instead of the default. Change that here.",
-      "expected_output": "The report directory is the report_dir plugin option, stored in plugin config — not in the overlay. The setup skill points the user at /plugin configure machine-health@melodic-software to change it rather than writing it into checks.local.jsonc.",
+      "expected_output": "The report directory is the report_dir plugin option, stored in plugin config — not in the overlay. The setup skill points the user at /plugin configure machine-health@<marketplace> to change it rather than writing it into checks.local.jsonc.",
       "files": [],
       "expectations": [
-        "Output points the user at /plugin configure machine-health@melodic-software (plugin option) to change the report directory",
+        "Output points the user at /plugin configure machine-health@<marketplace> (plugin option) to change the report directory",
         "Output does NOT write the report directory into the catalog overlay (checks.local.jsonc)",
         "Output correctly treats report_dir as plugin configuration rather than machine-local catalog state"
       ]

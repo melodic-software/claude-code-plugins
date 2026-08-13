@@ -121,7 +121,7 @@ implement it by reference, do not restate it. Plugin-side notes only:
 
 `use_ask_user_question` is a native `userConfig` boolean (default `false`) governing whether the
 pipeline skills' question rounds render through `AskUserQuestion` or as inline prose — it is not a
-consumer-project file this skill writes. To change it, direct the user to `/plugin configure planning@melodic-software`
+consumer-project file this skill writes. To change it, direct the user to `/plugin configure planning@<marketplace>`
 (interactive, any time). Headless: `--config` only applies on a fresh install (ignored once installed),
 so reconfigure via `claude plugin uninstall planning -s <scope>` then
 `claude plugin install planning@<marketplace> -s <scope> --config use_ask_user_question=true`. Both

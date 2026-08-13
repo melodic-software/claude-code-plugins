@@ -97,11 +97,11 @@ that keeps emitting is bounded by Claude Code's own hook timeout, not by this
 value. A setting this shell's `read -t` will not accept — or `0` — falls back to
 the default.
 
-Set them interactively with `/plugin configure claude-ops@melodic-software`, or headless on the
+Set them interactively with `/plugin configure claude-ops@<marketplace>`, or headless on the
 install command:
 
 ```shell
-claude plugin install claude-ops@melodic-software --config skill_usage_audit_enabled=false
+claude plugin install claude-ops@<marketplace> --config skill_usage_audit_enabled=false
 ```
 
 These options are user-scoped (stored in your user settings, not the
@@ -146,7 +146,7 @@ audit-of-record.
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install claude-ops@melodic-software
+/plugin install claude-ops@<marketplace>
 ```
 
 ## How the skills adapt to your repo

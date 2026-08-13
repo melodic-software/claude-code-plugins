@@ -63,7 +63,7 @@ rendered diagram. These facts and their sources are documented in the catalog.
   and treated as `auto`. There is no native enum type for `userConfig`, so the
   allowed values are validated in-skill.
 
-Configure with `/plugin configure visualization@melodic-software` (or `--config medium=<value>` on a
+Configure with `/plugin configure visualization@<marketplace>` (or `--config medium=<value>` on a
 fresh install). No persistent state; no external prerequisites; no network calls of
 its own.
 
@@ -71,7 +71,7 @@ its own.
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install visualization@melodic-software
+/plugin install visualization@<marketplace>
 ```
 
 ## Possible future change

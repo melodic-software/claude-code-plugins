@@ -9,7 +9,7 @@ only after that version increases.
 ### Changed
 
 - **Docs:** actionable `/plugin configure` guidance now uses the marketplace-qualified form
-  (`<plugin>@melodic-software`; generated option blocks use `@<marketplace>`) per
+  (`<plugin>@<marketplace>`; generated option blocks use `@<marketplace>`) per
   [`docs/extensibility-contract-smoke-tests.md`](../../docs/extensibility-contract-smoke-tests.md)
   Test E (#1360). Targetless references to the flow stay unqualified.
 

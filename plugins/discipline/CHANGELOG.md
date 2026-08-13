@@ -10,7 +10,7 @@ Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 ### Changed
 
 - **Docs:** actionable `/plugin configure` guidance now uses the marketplace-qualified form
-  (`<plugin>@melodic-software`; generated option blocks use `@<marketplace>`) per
+  (`<plugin>@<marketplace>`; generated option blocks use `@<marketplace>`) per
   [`docs/extensibility-contract-smoke-tests.md`](../../docs/extensibility-contract-smoke-tests.md)
   Test E (#1360). Targetless references to the flow stay unqualified.
 
@@ -315,13 +315,13 @@ Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
   not a word a reader reaches for first), `grounding` (slug already taken).
 
   **Migration, and its one manual step.** On Claude Code >= 2.1.193 the marketplace
-  `renames` map is followed at session start: an enabled `re-anchor@melodic-software`
+  `renames` map is followed at session start: an enabled `re-anchor@<marketplace>`
   loads as `discipline` instead of failing `plugin-not-found`, and the old key is
   rewritten to the new one in the user, project, and local settings scopes for BOTH
   `enabledPlugins` and `pluginConfigs` — so configured `batch_exclude` / `batch_promote` /
   `batch_demote` / `research_deep_verification` values move across with no action. Two
   edges: managed and policy scopes are read-only to Claude Code and are not rewritten, and
-  if `discipline@melodic-software` already carries its own `pluginConfigs` entry the new
+  if `discipline@<marketplace>` already carries its own `pluginConfigs` entry the new
   id's values win and the old ones are dropped rather than merged. Below 2.1.193 nothing
   is lost — the rename simply does not migrate, and the old name reports
   `plugin-not-found`.

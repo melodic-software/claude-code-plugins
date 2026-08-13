@@ -75,12 +75,12 @@ needs video without the rest of the knowledge stack.
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install knowledge@melodic-software
+/plugin install knowledge@<marketplace>
 ```
 
 Migrating from the standalone `book-distill` plugin? Nothing to do — the
-marketplace's `renames` map migrates `book-distill@melodic-software` to
-`knowledge@melodic-software` automatically on your next session; the skill is now
+marketplace's `renames` map migrates `book-distill@<marketplace>` to
+`knowledge@<marketplace>` automatically on your next session; the skill is now
 invoked as `/knowledge:book-distill`.
 
 One exception: an **in-progress multi-session distillation** stores its resume

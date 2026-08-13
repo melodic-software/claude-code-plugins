@@ -125,7 +125,7 @@ give, rather than writing a dangling entry.
    `${CLAUDE_PLUGIN_ROOT}/skills/audit/references/shared/approvals.md`. Never enable a remediation the user did not explicitly approve.
 6. **Confirm the report directory.** Show where reports land (the `report_dir` plugin option when
    set, else `$env:USERPROFILE\Documents\MachineHealth`); to change it, direct the user to
-   `/plugin configure machine-health@melodic-software` (interactive, any time) — the option is stored in plugin
+   `/plugin configure machine-health@<marketplace>` (interactive, any time) — the option is stored in plugin
    config, not the overlay. Headless: `--config` only applies on a fresh install (ignored once
    installed), so reconfigure via `claude plugin uninstall machine-health -s <scope>` then
    `claude plugin install machine-health@<marketplace> -s <scope> --config report_dir=<path>`.

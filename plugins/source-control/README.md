@@ -193,7 +193,7 @@ Telemetry matches the sibling's: one envelope per run (`ok`/`blocked`,
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install source-control@melodic-software
+/plugin install source-control@<marketplace>
 ```
 
 ## Configuration

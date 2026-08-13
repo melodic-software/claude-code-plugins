@@ -68,7 +68,7 @@ and linting still run.
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install ruff-format@melodic-software
+/plugin install ruff-format@<marketplace>
 ```
 
 Then verify prerequisites with `/ruff-format:setup check`.
@@ -85,11 +85,11 @@ One `userConfig` option tunes the hook itself:
 |--------|---------|--------|
 | `ruff_format_enabled` | `true` | Kill switch — set `false` for a clean no-op. |
 
-Set it interactively with `/plugin configure ruff-format@melodic-software`, or headless on the
+Set it interactively with `/plugin configure ruff-format@<marketplace>`, or headless on the
 install command:
 
 ```shell
-claude plugin install ruff-format@melodic-software --config ruff_format_enabled=false
+claude plugin install ruff-format@<marketplace> --config ruff_format_enabled=false
 ```
 
 These options are user-scoped (stored in your user settings, not the project's).

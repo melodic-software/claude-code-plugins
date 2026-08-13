@@ -58,8 +58,8 @@ ghq list -p | /repo-hygiene:clean tree-batch --repos-from - --skip melodic-softw
   hook blocks bare `rm -rf`, `git clean -f*`, `git reset --hard`,
   `git checkout --`, and recursive `Remove-Item`; the confirmed command runs only
   through the skill's own gate. Kill switch: the `clean_destructive_guard_enabled`
-  userConfig option set to `false` (`/plugin configure repo-hygiene@melodic-software`, or
-  `claude plugin install repo-hygiene@melodic-software --config clean_destructive_guard_enabled=false`;
+  userConfig option set to `false` (`/plugin configure repo-hygiene@<marketplace>`, or
+  `claude plugin install repo-hygiene@<marketplace> --config clean_destructive_guard_enabled=false`;
   user-scoped — per-repository disable means disabling the plugin in that
   project's `enabledPlugins`).
 - **Autonomous sessions abort** the destructive tiers rather than deleting
@@ -79,7 +79,7 @@ ghq list -p | /repo-hygiene:clean tree-batch --repos-from - --skip melodic-softw
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install repo-hygiene@melodic-software
+/plugin install repo-hygiene@<marketplace>
 ```
 
 ## Configuration

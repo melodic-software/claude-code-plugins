@@ -39,7 +39,7 @@ server receives `miro_api_token` as its `MIRO_API_TOKEN` environment variable, n
 OAuth flow). To change or clear the token at any time, run:
 
 ```text
-/plugin configure miro@melodic-software
+/plugin configure miro@<marketplace>
 ```
 
 That reopens the same configuration screen shown at first enable, letting you overwrite or blank

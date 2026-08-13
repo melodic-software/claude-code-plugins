@@ -77,7 +77,7 @@ Otherwise the emitted report is the deliverable — copy it into your tracker.
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install bug-report@melodic-software
+/plugin install bug-report@<marketplace>
 ```
 
 <!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->

@@ -68,7 +68,7 @@ tool that needs it — so long-running workflows can route heavy work away from 
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install context-guard@melodic-software
+/plugin install context-guard@<marketplace>
 ```
 
 The tee needs two operator steps, both one-time:
