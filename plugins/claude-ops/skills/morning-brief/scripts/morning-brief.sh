@@ -206,8 +206,20 @@ have jq || {
 
 # gh is only needed for live sources; a fully fixtured run (tests) must not
 # require it. Demand it only when at least one section will hit the network.
-ANY_LIVE=0
-[[ -z "$COUNTS_JSON" || -z "$PR_JSON" || -z "$DECISIONS_JSON" || -z "$TELEMETRY_JSON" ]] && ANY_LIVE=1
+NEEDS_LIVE_COUNTS=0
+NEEDS_LIVE_PRS=0
+NEEDS_LIVE_DECISIONS=0
+NEEDS_LIVE_TELEMETRY=0
+[[ -z "$COUNTS_JSON" ]] && NEEDS_LIVE_COUNTS=1
+[[ -z "$PR_JSON" ]] && NEEDS_LIVE_PRS=1
+[[ -z "$DECISIONS_JSON" ]] && NEEDS_LIVE_DECISIONS=1
+[[ -z "$TELEMETRY_JSON" ]] && NEEDS_LIVE_TELEMETRY=1
+# Parked-decisions can short-circuit on a fixture label inventory when the
+# decision label is absent — no gh issue list needed for that probe.
+if ((NEEDS_LIVE_DECISIONS)) && [[ -n "$REPO_LABELS_JSON" ]]; then
+  NEEDS_LIVE_DECISIONS=0
+fi
+ANY_LIVE=$((NEEDS_LIVE_COUNTS || NEEDS_LIVE_PRS || NEEDS_LIVE_DECISIONS || NEEDS_LIVE_TELEMETRY))
 if ((ANY_LIVE)) && ! have gh; then
   printf 'morning-brief: gh required for live queries (pass fixtures to run offline)\n' >&2
   exit 4
