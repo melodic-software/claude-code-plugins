@@ -21,6 +21,7 @@ These axes work in any repo and don't change per team. Do not snapshot their mem
 | Meta | (none) | Tool-owned flat markers the automation sets: `automated`, `good-first-issue`, `migrated`, `stale`, plus the three canonical-role labels (defaults `agent-ready`, `needs-human`, `recurring` — see "Canonical roles" below). |
 | Cadence | `cadence:` | Recurrence period for maintenance items. Members from the live set. |
 | Work class | `work-class:` | Semantic risk class (C1–C5) stamped at triage for the fail-closed admission gate and merge partition. Canonical members and migration: [`work-class-labels.md`](work-class-labels.md). Classification criteria: the `autonomy` plugin's [`work-classes.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/autonomy/reference/guardrails/work-classes.md). |
+| Capability tier | `capability-tier:` | Model/execution tier for autonomous dispatch. Member used by `work-loop`: `capability-tier: frontier`. Absent label → general (non-frontier) tier. Stamped by triage through the provider-permissioned label surface — never inferred from body prose ([`work-loop`](../skills/work-loop/SKILL.md), "Adaptive item cap"). Provision via label-as-code or `/work-items:setup` before relying on frontier routing. |
 
 ## Canonical roles
 
