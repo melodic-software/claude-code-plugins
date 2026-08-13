@@ -13,6 +13,7 @@ import shutil
 import stat
 import subprocess
 import tempfile
+import time
 import types
 import unittest
 from contextlib import (
@@ -4510,6 +4511,49 @@ class GuardTests(unittest.TestCase):
         result = self.run_guard_tool(apply_command, "Bash", enabled=True)
         assert result is not None
         self.assertEqual("ask", result["hookSpecificOutput"]["permissionDecision"])
+
+    def test_deny_emits_blocked_telemetry_when_sink_wired(self) -> None:
+        out_file = Path(self._cfg.name) / "telemetry-deny.json"
+        sink = Path(self._cfg.name) / "telemetry-sink.sh"
+        sink.write_text(f"#!/bin/sh\ncat >\"{out_file}\"\n", encoding="utf-8")
+        sink.chmod(0o755)
+        with mock.patch.dict(
+            os.environ,
+            {
+                "HOOK_TELEMETRY_SINK": str(sink),
+                "CLAUDE_PROJECT_DIR": self._cfg.name,
+            },
+            clear=False,
+        ):
+            self.run_guard_tool("rm -rf /tmp/foo", "Bash", enabled=False)
+        deadline = time.perf_counter() + 2.0
+        while time.perf_counter() < deadline and not out_file.exists():
+            time.sleep(0.05)
+        self.assertTrue(out_file.exists())
+        envelope = json.loads(out_file.read_text(encoding="utf-8").strip())
+        self.assertEqual("destructive-guard", envelope["hook"])
+        self.assertEqual("blocked", envelope["status"])
+        self.assertEqual("deny", envelope["data"]["decision"])
+
+    def test_engine_gate_irrelevant_emits_no_telemetry(self) -> None:
+        out_file = Path(self._cfg.name) / "telemetry-skip.json"
+        sink = Path(self._cfg.name) / "telemetry-skip-sink.sh"
+        sink.write_text(f"#!/bin/sh\ncat >\"{out_file}\"\n", encoding="utf-8")
+        sink.chmod(0o755)
+        with mock.patch.dict(
+            os.environ,
+            {
+                "HOOK_TELEMETRY_SINK": str(sink),
+                "CLAUDE_PROJECT_DIR": self._cfg.name,
+            },
+            clear=False,
+        ):
+            exit_code, stdout, stderr = self._invoke_guard_raw(
+                "echo unrelated", argv_extra=["--mode", "engine-gate"]
+            )
+        self.assertEqual(0, exit_code)
+        self.assertEqual("", stdout.strip())
+        self.assertFalse(out_file.exists())
 
     # -- #1423: exit-1 fail-open regression coverage -------------------------
     #

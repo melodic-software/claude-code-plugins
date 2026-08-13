@@ -3,6 +3,16 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.5]
+
+### Added
+
+- **HOOK_TELEMETRY_SINK envelopes on both wired hooks (#1505).** The fleet's first
+  native Python telemetry emitter (`lib/hook_telemetry.py`) mirrors
+  `hook::emit_telemetry` for the stdlib-only `destructive_guard.py` PreToolUse guard
+  and the `guard_launch_monitor.py` Stop detector. Meaningful outcomes emit
+  `ok` / `blocked` / `error`; pure inapplicability short-circuits stay silent.
+
 ## [0.17.4]
 
 ### Fixed

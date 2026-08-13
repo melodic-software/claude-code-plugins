@@ -24,8 +24,9 @@ This is a *detector*, not a guard, and it must never behave like one:
 - It is a separate process from the guard, deliberately: a guard that cannot
   launch cannot report that it did not launch, so the detector cannot be
   wired through the guard's own code path. It imports nothing from
-  ``destructive_guard.py`` or ``lib/`` — stdlib only — so its own failure
-  surface stays near zero.
+  ``destructive_guard.py`` — stdlib only plus the sibling ``lib/hook_telemetry``
+  module (the fleet's native Python telemetry emitter; #1505) — so its own
+  failure surface stays near zero.
 
 Why ``Stop``, not ``PreToolUse``/``PostToolUse``
 =================================================
@@ -83,7 +84,14 @@ import json
 import os
 import sys
 import tempfile
+import time
 from pathlib import Path
+
+_LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+import hook_telemetry  # noqa: E402  (path set above; stdlib-only telemetry emitter)
 
 _MAX_TAIL_BYTES = 2_000_000
 
@@ -249,28 +257,37 @@ def _build_message(failures: list[tuple[dict, dict]]) -> str:
     )
 
 
-def _run(hook_input: dict, data_root: str | None) -> tuple[str, list[Path]] | None:
-    """Return the warning and where to record it, or ``None`` if there is nothing to say.
+def _run(
+    hook_input: dict, data_root: str | None
+) -> tuple[str | None, list[Path] | None, str | None, dict[str, object]]:
+    """Return warning text, marker paths, telemetry status, and telemetry data.
 
-    Recording is the caller's job, deliberately: the marker suppresses every
-    later ``Stop`` in the session, so it must not be written until the warning
-    has actually left the process.
+    ``telemetry_status`` is ``None`` when no envelope should be emitted (a
+    pre-evaluation short-circuit). Recording the marker is the caller's job,
+    deliberately: the marker suppresses every later ``Stop`` in the session, so
+    it must not be written until the warning has actually left the process.
     """
     transcript_path = hook_input.get("transcript_path")
     session_id = hook_input.get("session_id") or "unknown-session"
     marker_paths = _marker_path_candidates(data_root, str(session_id))
     if _already_warned(marker_paths):
-        return None
+        return None, None, None, {}
     if not transcript_path or not isinstance(transcript_path, str):
-        return None
+        return None, None, None, {}
     transcript_text = _read_tail(transcript_path)
     failures = list(_iter_guard_failures(transcript_text))
     if not failures:
-        return None
-    return _build_message(failures), marker_paths
+        return None, None, "ok", {}
+    return (
+        _build_message(failures),
+        marker_paths,
+        "error",
+        {"failure_count": len(failures)},
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
+    start = time.perf_counter()
     argv = sys.argv[1:] if argv is None else argv
     try:
         data_root = _resolve_data_root(argv)
@@ -278,12 +295,23 @@ def main(argv: list[str] | None = None) -> int:
         hook_input = json.loads(raw_input) if raw_input.strip() else {}
         if not isinstance(hook_input, dict):
             return 0
-        found = _run(hook_input, data_root)
-        if found:
-            message, marker_paths = found
+        message, marker_paths, telemetry_status, telemetry_data = _run(
+            hook_input, data_root
+        )
+        if telemetry_status is not None:
+            hook_telemetry.emit(
+                "guard-launch-monitor",
+                "Stop",
+                telemetry_status,
+                start,
+                telemetry_data,
+                os.environ.get("CLAUDE_PROJECT_DIR"),
+            )
+        if message:
             print(json.dumps({"systemMessage": message}))
             sys.stdout.flush()
-            _write_marker(marker_paths)
+            if marker_paths is not None:
+                _write_marker(marker_paths)
         return 0
     except BaseException:  # noqa: BLE001 - detector must never fail loudly
         return 0

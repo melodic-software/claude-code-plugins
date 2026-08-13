@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-telemetry/data/guard-launch-monitor.schema.json",
+  "title": "guard-launch-monitor telemetry data",
+  "description": "Per-hook `data` payload for disk-hygiene's Stop guard-launch detector. Discovered from the envelope `hook` value \"guard-launch-monitor\". Evolves additive-only. Carries NO transcript paths, stderr, or session identifiers.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "failure_count": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Count of destructive_guard hook_non_blocking_error records found this scan. Present only when status is error."
+    }
+  }
+}
