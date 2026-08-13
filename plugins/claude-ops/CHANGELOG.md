@@ -3,6 +3,23 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.11]
+
+### Fixed
+
+- **`skills/plugins` `sync` wrote a committed settings file, breaking the skill's own invariant.**
+  SKILL.md states that `converge` is the one action that may touch a committed
+  `.claude/settings.json`, and only behind a per-plugin confirm. Step 5 issued
+  `claude plugin enable <id> -s project` for any `currentProject: true` completeness gap, and that
+  call writes exactly that file (verified on Claude Code 2.1.228 in 0.31.8). 0.31.8 documented the
+  exposure and asked the report to name it; this removes it. Step 5 now enables automatically only
+  at `user` and `local` scope — neither is team-shared state, since `local` writes the gitignored
+  `.claude/settings.local.json` — and reports a `project`-scope gap as an "Action needed" row
+  carrying the runnable `cd`-into-its-own-`projectPath` command instead of filling it. Confirming
+  was rejected as the fix: `converge` can afford a confirm because it aborts in an autonomous
+  session, while `sync` is the headless maintenance action with no such abort, so there may be no
+  human to answer. No `sync` path writes a committed settings file after this change.
+
 ## [0.31.10]
 
 ### Fixed

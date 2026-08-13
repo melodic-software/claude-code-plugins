@@ -163,30 +163,44 @@ default recorded in the marketplace entry; a plugin whose `defaultEnabled: false
 own `plugin.json`, with no mirrored marketplace-entry override, is a known residual gap (`fleet-state.sh`
 reads the marketplace's catalog file, never each installed plugin's own manifest).
 
-For each remaining id, and for each *verifiable* scope where that id has an install record (from
+Consider each remaining id in each *verifiable* scope where it has an install record (from
 `installed[]`) but no raw entry in that scope's own `enabledPlugins` map — **`user` scope, or
 `project`/`local` scope with `currentProject: true`, never a `project`/`local` record for a different
 repo** (same restriction as `missing_from_enabled` itself, for the same reason: this invocation never
 reads another repo's settings files, so it cannot know whether that record is genuinely unmentioned
-there or already has its own entry — running `enable -s project|local` for it would risk mutating the
-current repo or an unread repo instead):
+there or already has its own entry — acting on it would risk mutating the current repo or an unread
+repo instead).
 
-```bash
-claude plugin enable <id> -s <that scope>
-```
+**`sync` never writes a committed settings file — the scope decides whether this step acts or
+reports.** SKILL.md's scope section makes `converge` the one action that may touch a committed
+`.claude/settings.json`, and only behind its confirm gate. `enable <id> -s project` writes exactly
+that file (verified on Claude Code 2.1.228 — see [scope-semantics.md](scope-semantics.md)), so this
+step must not issue it. Confirming instead of skipping is not an option: `converge` can afford a
+confirm because it *aborts* in an autonomous session, while `sync` is the on-demand and headless
+maintenance action with no such abort, so there may be no human to answer.
+
+- **`user` and `local` — enable automatically.** Neither is team-shared state: `user` writes
+  machine-scope `~/.claude/settings.json`, and `local` writes the gitignored
+  `.claude/settings.local.json`.
+
+  ```bash
+  claude plugin enable <id> -s user     # or -s local
+  ```
+
+- **`project` — never enable; report it.** Emit an "Action needed" row per SKILL.md's Report section
+  carrying the exact command, so the user can run it deliberately and review the resulting diff:
+
+  ```bash
+  (cd "<that record's projectPath>" && claude plugin enable <id>@<marketplace> -s project)
+  ```
+
+  The `cd`-into-its-own-`projectPath` form is required for the reason
+  [converge.md](converge.md) Step 2 gives — `-s project` has no path flag and always acts on the
+  current directory — and the id stays fully qualified per [gotchas.md](gotchas.md).
 
 Never touches an id that has an explicit entry anywhere (true — already enabled, nothing to do; or
 false — deliberate opt-out, never flipped). This step only fills a genuine gap: installed but never
 recorded either way.
-
-**Known exposure — `-s project` here dirties a tracked file, and `sync` surfaces no diff.**
-`enable <id> -s project` writes the project's committed `.claude/settings.json` (verified on Claude
-Code 2.1.228; see [scope-semantics.md](scope-semantics.md)), so this step can leave a team-shared
-tracked file modified without the report ever mentioning it — the failure class
-[converge.md](converge.md) Step 5 exists to prevent, in the default action. `-s user` and `-s local`
-are unaffected: local scope writes the gitignored `.claude/settings.local.json`. Until this step
-gains converge's diff-surfacing, name any `-s project` enable in the report so the user knows to
-check `git status`.
 
 ## Step 6 — Report
 
