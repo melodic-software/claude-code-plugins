@@ -205,6 +205,8 @@ if [[ -n "${CLAUDE_PLUGIN_DATA:-}" ]]; then
   PSSA_STATE_BASE_ARG="$(to_pwsh_path "$CLAUDE_PLUGIN_DATA")"
 fi
 
+# Content-mutation disclosure (#1596): Invoke-Formatter rewrites structural
+# layout only; name the rewrite on the user channel and stay silent on no-op paths.
 _ps_before=""
 if _ps_before=$(mktemp 2>/dev/null); then
   cp "$FILE" "$_ps_before" 2>/dev/null || _ps_before=""

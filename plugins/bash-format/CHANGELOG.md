@@ -3,6 +3,14 @@
 All notable changes to the `bash-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.14]
+
+### Changed
+
+- **Content-mutation disclosure contract tests (#1596).** The shfmt gate-on suite now
+  asserts the `systemMessage` emitted when shfmt rewrites a file; hook comments document
+  the conformance rationale.
+
 ## [0.7.13]
 
 ### Fixed

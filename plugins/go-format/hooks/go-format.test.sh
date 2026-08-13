@@ -139,6 +139,11 @@ if grep -q 'import "fmt"' "$REPO/src/fix.go"; then
 else
   fail "missing import -> not added: $(cat "$REPO/src/fix.go")"
 fi
+if printf '%s' "$OUT" | grep -q 'go-format: reformatted'; then
+  ok "missing import -> user-channel mutation disclosure"
+else
+  fail "missing import -> missing systemMessage disclosure: $OUT"
+fi
 
 # --- Case 4: unused import -> auto-removed -----------------------------------
 printf 'package main\n\nimport (\n\t"fmt"\n\t"os"\n)\n\nfunc main() {\n\tfmt.Println("hi")\n}\n' >"$REPO/unused.go"

@@ -178,11 +178,16 @@ indent_size = 2
 EOF
   mkdir -p "$REPO_YES/src"
   printf '#!/usr/bin/env bash\nif true; then\necho hi\nfi\n' >"$REPO_YES/src/fmt.sh"
-  run_hook "$REPO_YES/src/fmt.sh" >/dev/null
+  OUT=$(run_hook "$REPO_YES/src/fmt.sh")
   if grep -q '^  echo hi$' "$REPO_YES/src/fmt.sh"; then
     ok "shfmt gate ON (.editorconfig present) -> file formatted"
   else
     fail "shfmt gate ON -> not formatted: $(cat "$REPO_YES/src/fmt.sh")"
+  fi
+  if printf '%s' "$OUT" | grep -q 'bash-format: reformatted'; then
+    ok "shfmt gate ON -> user-channel mutation disclosure"
+  else
+    fail "shfmt gate ON -> missing systemMessage disclosure: $OUT"
   fi
 
   # Gate OFF: no .editorconfig anywhere in the repo -> bytes untouched.

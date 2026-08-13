@@ -221,6 +221,8 @@ if shell_editorconfig_opt_in; then
       probe_err=""
       _fmt_target="$TOOL_FILE"
       [[ -f "$_fmt_target" ]] || _fmt_target="$FILE"
+      # Content-mutation disclosure (#1596): shfmt rewrites structural layout
+      # only; name the rewrite on the user channel and stay silent on no-op paths.
       _fmt_before=""
       if _fmt_before=$(mktemp 2>/dev/null); then
         cp "$_fmt_target" "$_fmt_before" 2>/dev/null || _fmt_before=""

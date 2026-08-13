@@ -227,6 +227,10 @@ RUFF_COMMON=(--force-exclude --no-cache --quiet)
 # possibly not intent-preserving (same principle as --no-fix on the verify
 # pass below). Pass 2: format. Both are best-effort; the verify pass below
 # is the single source of residual findings.
+#
+# Content-mutation disclosure (#1596): Ruff may auto-fix lint issues and/or
+# reformat layout the user did not request. Name the rewrite on the user
+# channel; stay silent when the file is unchanged.
 _ruff_before=""
 if _ruff_before=$(mktemp 2>/dev/null); then
   cp "$FILE" "$_ruff_before" 2>/dev/null || _ruff_before=""

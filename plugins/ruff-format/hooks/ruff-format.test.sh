@@ -195,6 +195,11 @@ if grep -q '^x = 1$' "$REPO/src/fmt.py" && grep -q '^y = 2$' "$REPO/src/fmt.py";
 else
   fail "gate ON -> file not formatted: $(cat "$REPO/src/fmt.py")"
 fi
+if printf '%s' "$OUT" | grep -q 'ruff-format: auto-fixed and/or reformatted'; then
+  ok "format case -> user-channel mutation disclosure"
+else
+  fail "format case -> missing systemMessage disclosure: $OUT"
+fi
 
 # --- Case 4: gate ON + lint finding (undefined name) -> advisory context -----
 # F821 has no auto-fix, so it must survive the fix pass and surface in the
