@@ -848,6 +848,40 @@ PREDICATES: tuple[Predicate, ...] = (
         expected="eligible",
     ),
     Predicate(
+        id="classify.include-human-bulk-refuses-human-deferred",
+        claim=(
+            "Bulk --include-human must not sweep a thread whose most recent human reply "
+            "explicitly parks the finding (#671). A pinned --thread-id call is an "
+            "explicit per-thread vet and may still proceed."
+        ),
+        enforced_at=CLASSIFY_ANCHOR,
+        thread={
+            **_thread(resolved=False, bot_only=False, outdated=True),
+            "humanDeferred": True,
+        },
+        flags={"autonomous": False, "only_outdated": False, "include_human": True},
+        expected="skipped-human-deferred",
+    ),
+    Predicate(
+        id="classify.include-human-pinned-overrides-human-deferred",
+        claim=(
+            "A pinned --thread-id call may still resolve a human-deferred thread because "
+            "the caller explicitly vetted that thread."
+        ),
+        enforced_at=CLASSIFY_ANCHOR,
+        thread={
+            **_thread(resolved=False, bot_only=False, outdated=True),
+            "humanDeferred": True,
+        },
+        flags={
+            "autonomous": False,
+            "only_outdated": False,
+            "include_human": True,
+            "pinned_thread": True,
+        },
+        expected="eligible",
+    ),
+    Predicate(
         id="classify.autonomous-requires-outdated",
         claim=(
             "--autonomous requires the deterministic isOutdated 'addressed' signal: a "
