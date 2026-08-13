@@ -126,8 +126,9 @@ only where a lane's scope genuinely needs the user's call.
    `.claude/tidy-lanes/*.md` — there is no user-global or `*.local.*` overlay resolution (declared
    deviation per the config-cascade contract, #723). Every scaffolded lane is a tracked, team-shared file;
    do not point developers at a `*.local.*` variant the tidy skill would never load. A developer who
-   wants a private lane keeps a normal `.claude/tidy-lanes/<lane>.md` and gitignores that one path,
-   accepting it stays local-only.
+   wants a private lane uses a lane name the team does not track: keep `.claude/tidy-lanes/<lane>.md`
+   uncommitted (never add it to the index). Gitignoring a path the team already tracks does not make
+   it personal — indexed files remain visible to Git regardless of `.gitignore`.
 
 Re-running `apply` after everything passes changes nothing and reports "already configured".
 

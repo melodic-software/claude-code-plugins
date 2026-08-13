@@ -17,8 +17,8 @@ references updated; historical topic docs and CHANGELOGs retain the former name 
 ## Implementers table — 2026-08-12
 
 - **`code-tidying` row (#723).** Recorded the declared deviation: no user-global or `*.local.*`
-  overlay; team layer over bundled default, with personal variation via a gitignored team-path lane
-  file. No contract rule change — conformance bookkeeping only.
+  overlay; team layer over bundled default, with personal variation limited to lane names the team
+  does not track (uncommitted team-path lane file never added to the index). No contract rule change
 
 ## 1.1 — 2026-07-20
 

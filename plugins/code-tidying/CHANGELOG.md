@@ -11,7 +11,8 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   intentionally omits the config-cascade contract's user-global and `*.local.*`
   overlay rungs: lane scope, verification commands, and watch-for patterns are
   repo-specific, the bundled lane is already the portable cross-repo baseline,
-  and personal variation uses a gitignored team-path lane file. Documented in the
+  and personal variation is limited to lane names the team does not track (an
+  uncommitted team-path lane file never added to the index). Documented in the
   `tidy` and `setup` skills, plugin README, and the config-cascade Implementers
   row — closes the open conformance gap without adding overlay resolution.
 
