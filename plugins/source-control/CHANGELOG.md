@@ -3,6 +3,14 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.53.20]
+
+### Documentation
+
+- **babysit-prs:** document dispatched-worker capability tiers — `strong` for routine
+  per-PR fix workers, `frontier` for conflict-resolution and independent-resolution
+  dispatches (#1664).
+
 ## [0.53.19]
 
 ### Fixed
