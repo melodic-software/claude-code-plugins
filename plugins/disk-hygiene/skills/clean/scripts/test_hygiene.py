@@ -4274,9 +4274,9 @@ class GuardTests(unittest.TestCase):
         from an interpreter name to the launcher path, which IS the fix.
 
         Asserted against roots containing spaces and backslashes because that is
-        where quoting fails: a Windows plugin root is routinely
-        `C:\\Users\\First Last\\...`, and an unquoted placeholder would split it
-        into several argv entries and hand the guard a truncated `--plugin-root`.
+        where quoting fails: a Windows plugin root routinely sits under a
+        space-bearing directory, and an unquoted placeholder would split it into
+        several argv entries and hand the guard a truncated `--plugin-root`.
         """
         exec_form_argv = [
             "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py",
@@ -4285,8 +4285,8 @@ class GuardTests(unittest.TestCase):
         ]
         hook = self._skill_hook()
         for root in (
-            "/home/user/.claude/plugins/disk-hygiene",
-            r"C:\Users\First Last\AppData\Local\Claude Code\plug in root",
+            "/opt/claude/plugins/disk-hygiene",
+            r"C:\Program Files\Claude Code\plug in root",
             r"D:\a b\c\d",
         ):
             with self.subTest(root=root):
