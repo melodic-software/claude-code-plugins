@@ -386,8 +386,9 @@ class Observer:
             self.log(f"observer already live for {self.session_id}; exiting")
             return 0
         try:
+            lifetime_deadline = time.time() + self.max_secs
             while True:
-                state = self._tail_until_idle()
+                state, tail_end_offset = self._tail_until_idle(lifetime_deadline)
                 # Delete the unredacted observations ONLY when a successful analysis run
                 # has consumed them and the session has not resumed. Collect-only mode
                 # (analysis disabled) retains them as its durable-for-this-machine artifact
@@ -395,11 +396,10 @@ class Observer:
                 # They never leave the machine-local work dir regardless.
                 if state != "ended-idle" or not self.analysis:
                     return 0
-                size_before_analysis = self._transcript_byte_size()
                 consumed = self._run_analysis()
                 if consumed:
                     self._cleanup_observations()
-                if self._transcript_byte_size() <= size_before_analysis:
+                if self._transcript_byte_size() <= tail_end_offset:
                     return 0
                 self.log("transcript grew after post-end analysis; resuming watch")
         finally:
@@ -411,7 +411,9 @@ class Observer:
         except OSError:
             return 0
 
-    def _tail_until_idle(self) -> str:
+    def _tail_until_idle(self, lifetime_deadline: float | None = None) -> tuple[str, int]:
+        if lifetime_deadline is None:
+            lifetime_deadline = time.time() + self.max_secs
         # Resume from where a prior observer for THIS session left off (e.g. a
         # `source=resume` re-arm after the first observer idled), so the already-
         # analyzed span is not re-read and re-analyzed into a duplicate ledger
@@ -423,7 +425,6 @@ class Observer:
         max_mtime = 0.0
         last_growth_iso = now_iso()
         last_record: dict = {}
-        started = time.time()
         started_iso = now_iso()
         state = "watching"
         pending_idle = False
@@ -435,12 +436,11 @@ class Observer:
         try:
             while True:
                 cycles += 1
-                elapsed = time.time() - started
                 try:
                     st = self.transcript.stat()
                 except OSError:
                     read_errors += 1
-                    if elapsed > self.max_secs:
+                    if time.time() > lifetime_deadline:
                         state = "stopped-maxtime"
                         break
                     time.sleep(self.poll_secs)
@@ -544,7 +544,10 @@ class Observer:
                     if pending_idle:
                         pending_idle = False
                         state = "watching"
-                if elapsed > self.max_secs:
+                        self.log(
+                            "transcript grew during idle confirmation; resuming watch"
+                        )
+                if time.time() > lifetime_deadline:
                     state = "stopped-maxtime"
                     self.log(f"max lifetime {self.max_secs}s reached; exiting without "
                              "analysis (safety valve, not an end signal)")
@@ -554,7 +557,7 @@ class Observer:
             obs_f.close()
         self._write_status({"target_session": self.session_id, "state": state,
                             "updated": now_iso()}, merge=True)
-        return state
+        return state, offset
 
     def _resume_offset(self) -> int:
         try:
