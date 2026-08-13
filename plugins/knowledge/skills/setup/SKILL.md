@@ -59,7 +59,7 @@ reports "already configured".
 
 1. **`library_dir` mismatch — guidance only.** `library_dir` is a personal `userConfig` scalar;
    never hand-edit `pluginConfigs` or write Claude Code settings. Direct the user to
-   `/plugin configure knowledge@melodic-software` (interactive, any time). Headless: `--config` only applies on a
+   `/plugin configure knowledge` (interactive, any time). Headless: `--config` only applies on a
    fresh install (ignored once installed), so reconfigure via
    `claude plugin uninstall knowledge -s <scope>` then
    `claude plugin install knowledge@<marketplace> -s <scope> --config library_dir=<value>`. Both
@@ -101,7 +101,7 @@ reports "already configured".
 ## Output
 
 Report the observed personal value, the repository convention, any mismatch, the state of each
-prerequisite, and the exact next action (`/plugin configure knowledge@melodic-software` for `library_dir`,
+prerequisite, and the exact next action (`/plugin configure knowledge` for `library_dir`,
 or `apply install-deps` for provisioning). A `library_dir` change takes effect in a fresh session,
 not this one — do not claim it this session.
 

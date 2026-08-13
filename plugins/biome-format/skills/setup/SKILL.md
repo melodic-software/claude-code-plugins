@@ -75,7 +75,7 @@ command's exit code alone. For everything else `apply` only points:
 
 - missing `jq` / Bash: platform install instructions from the README Requirements section;
   this skill never installs system packages.
-- toggle off: direct to `/plugin configure biome-format@melodic-software` (interactive, any
+- toggle off: direct to `/plugin configure biome-format` (interactive, any
   time). Headless: `--config` only applies on a fresh install (ignored once installed), so
   reconfigure via `claude plugin uninstall biome-format -s <scope>` then
   `claude plugin install biome-format@<marketplace> -s <scope> --config biome_format_enabled=true`;

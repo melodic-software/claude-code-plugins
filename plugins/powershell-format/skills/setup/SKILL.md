@@ -83,7 +83,7 @@ Run `check`, then for each finding point at the resolution — this skill instal
   settings file at or below the project root opts the repo in — but this skill does not write
   it. The settings file is the executed-adjacent trust boundary above; the choice and the edit
   belong to the consumer.
-- toggle off: direct to `/plugin configure powershell-format@melodic-software` (interactive, any
+- toggle off: direct to `/plugin configure powershell-format` (interactive, any
   time). Headless: `--config` only applies on a fresh install (ignored once installed), so
   reconfigure via `claude plugin uninstall powershell-format -s <scope>` then
   `claude plugin install powershell-format@<marketplace> -s <scope> --config powershell_format_enabled=true`;

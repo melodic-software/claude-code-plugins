@@ -95,7 +95,7 @@ only points:
 
 - missing `jq` / Bash: platform install instructions from the README Requirements section;
   this skill never installs system packages.
-- toggle off: direct to `/plugin configure ruff-format@melodic-software` (interactive, any
+- toggle off: direct to `/plugin configure ruff-format` (interactive, any
   time). Headless: `--config` only applies on a fresh install (ignored once installed), so
   reconfigure via `claude plugin uninstall ruff-format -s <scope>` then
   `claude plugin install ruff-format@<marketplace> -s <scope> --config ruff_format_enabled=true`;
