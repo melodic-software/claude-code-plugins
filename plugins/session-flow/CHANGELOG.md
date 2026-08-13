@@ -1,5 +1,15 @@
 # Changelog — session-flow plugin
 
+## [0.23.1]
+
+### Fixed
+
+- **Running-retro observer resumes when transcript growth returns after idle (#1471).** Hitting the
+  mtime-idle threshold now enters a short confirmation window (`--idle-confirm-seconds`, default
+  30s) instead of ending immediately; renewed growth cancels the pending end and returns to
+  watching. After post-end analysis, if the transcript grew again the observer re-arms instead of
+  exiting permanently.
+
 ## [0.23.0]
 
 ### Added

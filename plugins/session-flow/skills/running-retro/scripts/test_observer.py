@@ -43,6 +43,7 @@ def make_observer(tmp: Path, **overrides):
         "--idle-seconds", str(overrides.get("idle_seconds", 1.0)),
         "--poll-seconds", str(overrides.get("poll_seconds", 0.2)),
         "--max-seconds", str(overrides.get("max_seconds", 10.0)),
+        "--idle-confirm-seconds", str(overrides.get("idle_confirm_seconds", 30.0)),
     ]
     if overrides.get("analysis"):
         argv.append("--analysis")
@@ -829,6 +830,53 @@ class LedgerAndRetention(unittest.TestCase):
             lines = [ln for ln in ob.obs_path.read_text(encoding="utf-8").splitlines() if ln]
             self.assertEqual(len(lines), total,
                              f"expected {total} distilled events, got {len(lines)} (dupes/underread?)")
+
+    def test_idle_confirmation_resumes_when_transcript_grows_again(self):
+        import threading
+        rec = '{"type":"user","message":{"content":"x"}}\n'
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            ob = make_observer(
+                tmp,
+                analysis=False,
+                idle_seconds=0.4,
+                poll_seconds=0.1,
+                idle_confirm_seconds=2.0,
+                max_seconds=8.0,
+            )
+            with ob.transcript.open("w", encoding="utf-8") as f:
+                f.write(rec)
+
+            tailer = threading.Thread(target=ob._tail_until_idle)
+            tailer.start()
+
+            def read_status() -> dict | None:
+                try:
+                    return json.loads(ob.status_path.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError):
+                    return None
+
+            deadline = time.time() + 5.0
+            saw_pending = False
+            while time.time() < deadline:
+                status = read_status()
+                if status and status.get("state") == "pending-idle":
+                    saw_pending = True
+                    with ob.transcript.open("a", encoding="utf-8") as f:
+                        f.write(rec)
+                    break
+                time.sleep(0.05)
+            self.assertTrue(saw_pending, "expected pending-idle before renewed growth")
+            resumed = False
+            deadline = time.time() + 3.0
+            while time.time() < deadline:
+                status = read_status()
+                if status and status.get("state") == "watching":
+                    resumed = True
+                    break
+                time.sleep(0.05)
+            tailer.join(10)
+            self.assertTrue(resumed, "renewed growth must return observer to watching")
 
     def test_resume_offset_from_prior_status(self):
         with tempfile.TemporaryDirectory() as d:

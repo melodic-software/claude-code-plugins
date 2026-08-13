@@ -284,6 +284,7 @@ class Observer:
         self.ledger_dir = Path(args.ledger_dir)
         self.poll_secs = args.poll_seconds
         self.idle_secs = args.idle_seconds
+        self.idle_confirm_secs = args.idle_confirm_seconds
         self.max_secs = args.max_seconds
         self.analysis_timeout_secs = args.analysis_timeout_seconds
         self.analysis = args.analysis
@@ -385,20 +386,30 @@ class Observer:
             self.log(f"observer already live for {self.session_id}; exiting")
             return 0
         try:
-            state = self._tail_until_idle()
-            # Delete the unredacted observations ONLY when a successful analysis run
-            # has consumed them. Collect-only mode (analysis disabled) retains them
-            # as its durable-for-this-machine artifact under the plugin work dir; a
-            # failed analysis retains them for debugging. They never leave the
-            # machine-local work dir regardless.
-            consumed = False
-            if state == "ended-idle" and self.analysis:
+            while True:
+                state = self._tail_until_idle()
+                # Delete the unredacted observations ONLY when a successful analysis run
+                # has consumed them and the session has not resumed. Collect-only mode
+                # (analysis disabled) retains them as its durable-for-this-machine artifact
+                # under the plugin work dir; a failed analysis retains them for debugging.
+                # They never leave the machine-local work dir regardless.
+                if state != "ended-idle" or not self.analysis:
+                    return 0
+                size_before_analysis = self._transcript_byte_size()
                 consumed = self._run_analysis()
-            if consumed:
-                self._cleanup_observations()
-            return 0
+                if consumed:
+                    self._cleanup_observations()
+                if self._transcript_byte_size() <= size_before_analysis:
+                    return 0
+                self.log("transcript grew after post-end analysis; resuming watch")
         finally:
             self.release_lock()
+
+    def _transcript_byte_size(self) -> int:
+        try:
+            return self.transcript.stat().st_size
+        except OSError:
+            return 0
 
     def _tail_until_idle(self) -> str:
         # Resume from where a prior observer for THIS session left off (e.g. a
@@ -415,6 +426,10 @@ class Observer:
         started = time.time()
         started_iso = now_iso()
         state = "watching"
+        pending_idle = False
+        pending_idle_offset = 0
+        pending_idle_mtime = 0.0
+        pending_idle_started = 0.0
 
         obs_f = self.obs_path.open("a", encoding="utf-8")
         try:
@@ -501,10 +516,34 @@ class Observer:
                 })
 
                 if idle_for >= self.idle_secs:
-                    state = "ended-idle"
-                    self.log(f"idle >= {self.idle_secs}s after {total_lines} lines; "
-                             "treating as session end")
-                    break
+                    if not pending_idle:
+                        pending_idle = True
+                        pending_idle_offset = offset
+                        pending_idle_mtime = max_mtime
+                        pending_idle_started = time.time()
+                        state = "pending-idle"
+                        self.log(
+                            f"idle >= {self.idle_secs}s after {total_lines} lines; "
+                            "confirming end before analysis"
+                        )
+                    elif size > pending_idle_offset or mtime > pending_idle_mtime:
+                        pending_idle = False
+                        last_growth_iso = now_iso()
+                        state = "watching"
+                        self.log(
+                            "transcript grew during idle confirmation; resuming watch"
+                        )
+                    elif time.time() - pending_idle_started >= self.idle_confirm_secs:
+                        state = "ended-idle"
+                        self.log(
+                            f"idle confirmed after {self.idle_confirm_secs}s grace; "
+                            "treating as session end"
+                        )
+                        break
+                else:
+                    if pending_idle:
+                        pending_idle = False
+                        state = "watching"
                 if elapsed > self.max_secs:
                     state = "stopped-maxtime"
                     self.log(f"max lifetime {self.max_secs}s reached; exiting without "
@@ -959,6 +998,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--poll-seconds", type=float, default=5.0)
     p.add_argument("--idle-seconds", type=float, default=900.0,
                    help="mtime-idle end threshold; keep above the longest single turn")
+    p.add_argument("--idle-confirm-seconds", type=float, default=30.0,
+                   help="after the idle threshold trips, wait this long for renewed "
+                        "transcript growth before treating the session as ended")
     p.add_argument("--max-seconds", type=float, default=86400.0,
                    help="hard lifetime safety valve; exits WITHOUT analysis")
     p.add_argument("--analysis-timeout-seconds", type=float, default=600.0,
