@@ -196,14 +196,28 @@ Untrusted intake counts as human-gated for that exit even without a role label. 
    A trailer stays legitimate as recorded operator context and as a proposal, and is reported as
    such, but it never partitions: an item classified only in its body counts as **unclassified
    here** — not eligible at any rung, exactly as an item with no record at all.
-   A PR is merge-eligible only when its item's class sits within the effective rung: at
-   `c2-mechanical`, C2 mechanical only; at `c3-autonomous`, C2 and C3; at `full-autonomy`, every
-   class up to and including C3 — **`full-autonomy` never reaches C4/C5, per the unconditional
-   floor below; there is no rung name that does.** The effective rung for this computation resolves
-   in three ordered steps: the tracked rung, raised to C3-equivalent if this invocation's own
-   argument line typed both the `autopilot` tier keyword and `--merge c3-this-run` (any other
-   explicitly argued `--merge` value floors instead of raises), then floored to the unconditional C4/C5
-   ceiling — see "Explicit-`autopilot` widening" above. A PR with no
+   A PR is merge-eligible only when its item's class sits within the effective rung **and** the
+   promotable cell for that class is **effective-promoted** through the promotion-evidence gate
+   below: at `c2-mechanical`, C2 mechanical only when `C2-auto-merge` is effective-promoted; at
+   `c3-autonomous`, C2 and C3 when their cells are effective-promoted (including
+   `C3-ai-review-blocking` as a prerequisite of `C3-auto-merge`); at `full-autonomy`, every class
+   up to and including C3 under the same cell rules — **`full-autonomy` never reaches C4/C5, per
+   the unconditional floor below; there is no rung name that does.** The effective rung for this
+   computation resolves in three ordered steps: the tracked rung, raised to C3-equivalent if this
+   invocation's own argument line typed both the `autopilot` tier keyword and `--merge c3-this-run`
+   (any other explicitly argued `--merge` value floors instead of raises), then floored to the
+   unconditional C4/C5 ceiling — see "Explicit-`autopilot` widening" above.
+   **Promotion-evidence gate (trusted seam, fail-closed).** Immediately after the effective rung is
+   known and before any work-class comparison, resolve each promotable cell backing that rung through
+   the trusted promotion-evidence seam — never from repo-local or agent-writable surfaces, never from
+   the bound `promotion_state` alone
+   ([reference/promotion-evidence-resolution.md](reference/promotion-evidence-resolution.md)).
+   Unavailable, untrusted, partial, or forgeable evidence fail-closes every cell to
+   effective-unpromoted; a contrary demotion event in qualified telemetry excludes the affected
+   class on the next cycle without any config change. Until the seam returns a qualified read, every
+   cell stays effective-unpromoted and no C2/C3 PR is merge-eligible on promotion grounds regardless
+   of tracked rung — operators keep `--merge human-only` on launch lines (#1695). Report each cell's
+   bound→effective pair and any fail-closed reason at cycle start. A PR with no
    close-linked item, or an item with no recorded classification, is NOT eligible — no
    classification = no merge, at any rung, including the explicit-`autopilot` widening. A PR still
    carrying the do-not-merge label at partition time is NOT eligible at any rung or class — the
@@ -487,6 +501,12 @@ budget hit is a terminal manual-restart state, per the convention.
   explicit-`autopilot` exception, not through any future rung name. This is a floor from the
   autonomy matrix's own promotion contract, not a `babysit_loop_merge` value — no config edit in
   this plugin can remove it.
+- **Promotion evidence gates C2/C3 autonomous merge, not the tracked rung alone.** The partition
+  resolves each promotable cell's effective state through the trusted seam every cycle; unavailable
+  or unqualified evidence fail-closes to unpromoted and routes C2/C3 PRs to the `safe` pass even
+  when `babysit_loop_merge` stands at `c2-mechanical` or `c3-autonomous`. Keep `--merge human-only`
+  on launch lines until the seam qualifies and the repository's evidence predicates are met
+  ([reference/promotion-evidence-resolution.md](reference/promotion-evidence-resolution.md)).
 - **Dependency-manager PRs stay held even at the C2 rung.** babysit-prs's cross-tier dependency
   hold-merge invariant survives this loop: a Dependabot/Renovate-class PR is never merged
   autonomously regardless of work class — it lands on the merge-ready report instead; the C2-mechanical rung is a work-class ceiling, not a route around an owner invariant.

@@ -3,6 +3,20 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.53.24]
+
+### Added
+
+- **`babysit-loop`: promotion-evidence gate on the rung partition (#1695).** Before C2/C3 PRs enter
+  the merge-eligible set, the partition resolves each promotable cell's effective state through a
+  trusted promotion-evidence seam — never from repo-local or agent-writable surfaces, never from
+  bound `promotion_state` alone. Unavailable, untrusted, partial, or forgeable evidence fail-closes
+  to effective-unpromoted; a contrary demotion event in qualified telemetry excludes the affected
+  class on the next cycle without config change. Until the seam qualifies, C2/C3 classes stay off
+  the eligible set regardless of tracked rung; operators keep `--merge human-only` on launch lines.
+  New reference `skills/babysit-loop/reference/promotion-evidence-resolution.md`; `config-resolution.md`
+  notes the gate. Evals 2, 6–8 updated; eval 10. Contract test in `test_skill_contract.py`.
+
 ## [0.53.23]
 
 ### Added
