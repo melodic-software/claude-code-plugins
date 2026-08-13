@@ -4147,22 +4147,159 @@ class GuardTests(unittest.TestCase):
         )
 
     @staticmethod
-    def _skill_hook_command_and_args() -> tuple[str, list[str]]:
-        """Return the frontmatter guard hook's `command` and parsed `args`."""
-        text = (SCRIPT_DIR.parent / "SKILL.md").read_text(encoding="utf-8")
-        args_line = next(
-            line
-            for line in text.splitlines()
-            if "destructive_guard.py" in line and "args:" in line
+    def _yaml_flow_scalar(raw: str) -> str:
+        """Unwrap the three one-line YAML scalar styles, without a YAML library.
+
+        This suite is stdlib-only, so the frontmatter is read as text. Hand-
+        stripping quotes with `.strip('"')` was the previous shape and is wrong
+        for a single-quoted scalar wrapping literal double quotes — which is
+        exactly how a shell-form `command` has to be spelled in YAML. It would
+        yield a string `shlex` then tokenizes wrongly, silently, so the style is
+        decoded here instead of guessed at the call site.
+        """
+        raw = raw.strip()
+        if len(raw) >= 2 and raw[0] == raw[-1] == "'":
+            return raw[1:-1].replace("''", "'")
+        if len(raw) >= 2 and raw[0] == raw[-1] == '"':
+            return re.sub(r"\\(.)", r"\1", raw[1:-1])
+        return raw
+
+    @classmethod
+    def _skill_hook(cls) -> dict:
+        """The clean skill's frontmatter guard hook, as a hook mapping.
+
+        Returned in the same shape `hooks.json` entries have so the skill
+        surface can be asserted through the very same form-agnostic
+        `_hook_argv()` the wired hooks use — one reading path for both
+        surfaces, in either launch form. Reading it form-specifically (keying
+        on an `args:` line) is what issue #2568 had to unwind: it raises the
+        moment the hook moves to shell form.
+        """
+        lines = (SCRIPT_DIR.parent / "SKILL.md").read_text(encoding="utf-8").splitlines()
+        frontmatter = lines[1 : lines.index("---", 1)]
+        start = next(
+            index
+            for index, line in enumerate(frontmatter)
+            if line.strip() == "- type: command"
         )
-        args = json.loads(args_line[args_line.index("[") : args_line.rindex("]") + 1])
-        command_line = next(
-            line
-            for line in text.splitlines()
-            if line.strip().startswith("command:")
+        entry_indent = len(frontmatter[start]) - len(frontmatter[start].lstrip())
+        key_indent = entry_indent + len("- ")
+        hook: dict = {}
+        for offset, line in enumerate(frontmatter[start:]):
+            if not line.strip():
+                continue
+            indent, body = len(line) - len(line.lstrip()), line.strip()
+            if body.startswith("- "):
+                if offset or indent != entry_indent:
+                    break
+                body = body[len("- ") :]
+            elif indent != key_indent:
+                break
+            key, _, value = body.partition(":")
+            hook[key.strip()] = cls._yaml_flow_scalar(value)
+        if "args" in hook:
+            hook["args"] = json.loads(hook["args"])
+        return hook
+
+    @classmethod
+    def _substitute_plugin_root(cls, value: object, root: str) -> object:
+        """Expand `${CLAUDE_PLUGIN_ROOT}` through a hook value of either form.
+
+        Shell form carries the placeholder inside the `command` string; exec form
+        carries it inside `args` entries. Substituting through both keeps the
+        equivalence assertion readable against either shape rather than silently
+        comparing an expanded vector to an unexpanded one.
+        """
+        if isinstance(value, str):
+            return value.replace(guard._PLUGIN_ROOT_PLACEHOLDER, root)
+        if isinstance(value, list):
+            return [cls._substitute_plugin_root(item, root) for item in value]
+        return value
+
+    def test_skill_hook_registers_in_portable_shell_form(self) -> None:
+        """The skill-scoped belt must launch the way the wired hooks do (#2568).
+
+        Exec form (`args` present) resolves `command` as a bare PATH lookup, and
+        the belt's was the literal `python3` — which on stock Windows resolves to
+        the zero-length WindowsApps App Execution Alias stub, not a real
+        executable. The spawn fails, a failed hook launch is non-blocking, and the
+        belt silently enforces nothing. Shell form through
+        `hooks/run-python-hook.sh` is the shape #1006/#2570 proved: Claude Code
+        routes it through its own Git Bash rather than a PATH lookup, and the
+        launcher rejects the alias stub before exec'ing.
+
+        These are the same four portability assertions
+        `hooks/run-python-hook.test.sh` makes for `hooks.json`; that suite is
+        jq-based and cannot read YAML frontmatter, so this surface is asserted
+        here. The sibling substitution-allowlist test passes in BOTH forms, so it
+        is not the discriminator — this test is.
+        """
+        hook = self._skill_hook()
+        command = hook.get("command", "")
+        self.assertIn(
+            "hooks/run-python-hook.sh",
+            command,
+            f"skill hook must launch through the shared launcher: {command!r}",
         )
-        command = command_line.split(":", 1)[1].strip().strip('"')
-        return command, args
+        self.assertNotIn(
+            "args",
+            hook,
+            "`args` switches Claude Code to exec form, where `command` is a bare "
+            f"PATH lookup and `shell` is ignored: {hook!r}",
+        )
+        self.assertEqual(
+            "bash",
+            hook.get("shell"),
+            "shell form falls back to PowerShell on a Windows host with no Git "
+            f"Bash detected, which cannot run a .sh launcher: {hook!r}",
+        )
+        unquoted = re.findall(
+            r'(?:^|[^"])(\$\{CLAUDE_PLUGIN_[A-Z]+\})|(\$\{CLAUDE_PLUGIN_[A-Z]+\})(?:[^"]|$)',
+            command,
+        )
+        self.assertEqual(
+            [],
+            unquoted,
+            "every path placeholder must be double-quoted — the shell "
+            f"re-tokenizes the string and plugin roots contain spaces: {command!r}",
+        )
+
+    def test_skill_hook_argv_matches_the_exec_form_vector_it_replaced(self) -> None:
+        """Converting a LIVE guard must not change the argv the guard receives.
+
+        The belt currently works wherever `python3` resolves to a real
+        interpreter, so the risk of #2568 is breaking a working guard rather than
+        reviving a dead one. Everything from `destructive_guard.py` onward must
+        therefore survive the conversion byte-identically; only argv[0] changes,
+        from an interpreter name to the launcher path, which IS the fix.
+
+        Asserted against roots containing spaces and backslashes because that is
+        where quoting fails: a Windows plugin root routinely sits under a
+        space-bearing directory, and an unquoted placeholder would split it into
+        several argv entries and hand the guard a truncated `--plugin-root`.
+        """
+        exec_form_argv = [
+            "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py",
+            guard._PLUGIN_ROOT_FLAG,
+            guard._PLUGIN_ROOT_PLACEHOLDER,
+        ]
+        hook = self._skill_hook()
+        for root in (
+            "/opt/claude/plugins/disk-hygiene",
+            r"C:\Program Files\Claude Code\plug in root",
+            r"D:\a b\c\d",
+        ):
+            with self.subTest(root=root):
+                expected = [
+                    token.replace(guard._PLUGIN_ROOT_PLACEHOLDER, root)
+                    for token in exec_form_argv
+                ]
+                resolved = {
+                    key: self._substitute_plugin_root(value, root)
+                    for key, value in hook.items()
+                }
+                actual = self._guard_argv_from_hook(resolved, "destructive_guard.py")
+                self.assertEqual(expected, actual)
 
     def test_skill_hook_args_launch_with_only_skill_available_substitutions(
         self,
@@ -4178,10 +4315,14 @@ class GuardTests(unittest.TestCase):
         reintroduces the fail-open. This asserts the declared tokens are within that
         allowlist; that the hook then launches is only fully verifiable in a live
         Claude Code session with the plugin installed.
+
+        Read form-agnostically, so it keeps its meaning in either launch form —
+        the shell-form conversion routes the belt through the launcher but must
+        NOT smuggle in `${CLAUDE_PLUGIN_DATA}` the way the wired hooks legitimately
+        can (#1014).
         """
-        command, args = self._skill_hook_command_and_args()
-        tokens = set(re.findall(r"\$\{[^}]+\}", command))
-        for value in args:
+        tokens = set()
+        for value in self._hook_argv(self._skill_hook()):
             tokens.update(re.findall(r"\$\{[^}]+\}", value))
         allowed = {"${CLAUDE_PLUGIN_ROOT}"}
         self.assertLessEqual(
@@ -4200,7 +4341,7 @@ class GuardTests(unittest.TestCase):
         the other, the guard loses its authority and the engine lane fails closed —
         the regression this test guards.
         """
-        _command, args = self._skill_hook_command_and_args()
+        args = self._guard_argv_from_hook(self._skill_hook(), "destructive_guard.py")
         self.assertTrue(args[0].endswith("destructive_guard.py"), args)
         self.assertIn(guard._PLUGIN_ROOT_FLAG, args)
         flag_index = args.index(guard._PLUGIN_ROOT_FLAG)
@@ -4276,51 +4417,50 @@ class GuardTests(unittest.TestCase):
                 "unset-default form drops the whole hook entry",
             )
 
-    def test_skill_hook_interpreter_is_python3_and_resolves(self) -> None:
-        """Lock the guard's launch interpreter and prove it resolves.
+    def test_skill_hook_launcher_resolves_a_supported_interpreter(self) -> None:
+        """Prove the belt's interpreter still resolves, through its real ladder.
 
-        The skill-scoped PreToolUse hook runs in exec form, so `command` is
-        resolved on PATH with no shell (the two wired hooks in ``hooks/hooks.json``
-        are shell form and resolve Python through ``run-python-hook.sh`` instead;
-        converting this surface is tracked in #2568). Bare `python` is absent on stock macOS and many Linux
-        distros (and a legacy 2.x would crash the guard), which fails the launch
-        open — the guard never intercepts. The static half locks the config at
-        `python3`. The runtime half is the "interpreter actually resolves" probe:
-        it skips where `python3` cannot run — absent from PATH, or resolved to a
-        name that will not execute (a Windows App Execution Alias stub resolves
-        to a real path yet exits non-zero) — because that is the documented
-        residual host gap, not a regression; only a runnable `python3` is
-        asserted to be 3.11+.
+        This test previously locked the literal `python3` as the hook's `command`
+        and probed THAT name — an assertion that was only meaningful while the
+        belt ran in exec form, and that encoded the #2568 defect as the contract:
+        exec form resolves `command` on PATH, and on stock Windows `python3` is
+        the zero-length WindowsApps App Execution Alias stub, so the launch fails
+        and a failed hook launch is non-blocking.
+
+        The belt now launches through `hooks/run-python-hook.sh` (the launch
+        SHAPE is asserted by
+        `test_skill_hook_registers_in_portable_shell_form`), so the interpreter
+        that matters is whatever that launcher resolves — `python3`, then
+        `python`, then `py -3`, skipping any alias stub. That ladder is exercised
+        here rather than restated, so the two cannot drift.
+
+        Skips where the launcher resolves nothing runnable: that is the
+        documented residual host gap (the launcher exits 0 silently in guard
+        mode, leaving the belt fails-open there), not a regression this suite can
+        fix. Only a resolved interpreter is asserted to meet the engine's floor.
         """
-        skill = SCRIPT_DIR.parent / "SKILL.md"
-        command_line = next(
-            (
-                line
-                for line in skill.read_text(encoding="utf-8").splitlines()
-                if line.strip().startswith("command:")
-            ),
-            None,
-        )
-        self.assertIsNotNone(command_line, "frontmatter hook command line not found")
-        assert command_line is not None
-        interpreter = command_line.split(":", 1)[1].strip().strip('"')
-        self.assertEqual("python3", interpreter)
-
-        resolved = shutil.which(interpreter)
-        if resolved is None:
-            self.skipTest(f"{interpreter} does not resolve on this host")
-        probe = subprocess.run(
-            [resolved, "-c", "import sys; print('%d.%d' % sys.version_info[:2])"],
-            capture_output=True,
-            text=True,
-        )
+        launcher = SCRIPT_DIR.parents[2] / "hooks" / "run-python-hook.sh"
+        self.assertTrue(launcher.is_file(), launcher)
+        bash = shutil.which("bash")
+        if bash is None:
+            self.skipTest("bash is unavailable, so the launcher cannot be exercised")
+        with tempfile.TemporaryDirectory() as tmp:
+            probe_script = Path(tmp) / "version_probe.py"
+            probe_script.write_text(
+                "import sys; print('%d.%d' % sys.version_info[:2])\n", encoding="utf-8"
+            )
+            probe = subprocess.run(
+                [bash, os.fspath(launcher), os.fspath(probe_script)],
+                capture_output=True,
+                text=True,
+            )
         if probe.returncode != 0 or not probe.stdout.strip():
             self.skipTest(
-                f"{interpreter} resolved to a non-runnable interpreter "
+                "the launcher resolved no runnable Python 3 on this host "
                 f"({(probe.stderr or probe.stdout).strip()})"
             )
         major, minor = (int(part) for part in probe.stdout.strip().split("."))
-        self.assertGreaterEqual((major, minor), (3, 11), probe.stdout)
+        self.assertGreaterEqual((major, minor), hygiene.MIN_PYTHON, probe.stdout)
 
     def test_guard_scan_max_depth_accepts_only_positive_integer_literal(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"

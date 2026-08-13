@@ -26,27 +26,32 @@ When the plugin's toggle is disabled, every prerequisite absence downgrades from
 INFO — a deliberately disabled plugin is not broken. Report the probes informationally and
 note that re-enabling restores the FAIL semantics. One exception: every step-1 and step-2 failure stays
 FAIL with the toggle disabled. Audit-only mode is *enforced by* the guard, every guard surface
-depends on a Python 3 interpreter resolving (the wired hooks through
-`hooks/run-python-hook.sh`, the skill-scoped belt through the literal name `python3`), and a
+depends on a Python 3 interpreter resolving (every surface through
+`hooks/run-python-hook.sh`, which tries `python3`, then `python`, then `py -3`), and a
 guard that never runs can neither read nor enforce the configured `false` — so the fail-open
 is most dangerous in exactly this
-configuration. That covers every non-`ok` alias-probe verdict (`store-alias-stub`,
-`indeterminate`, `not-found`), a nominally `ok` resolution whose version probe then fails to
-launch at all — a corrupt or zero-length binary outside `WindowsApps`, a broken shim, a
-permission error — *and* an interpreter that starts but reports a version below the parsed
-floor. Launching the version probe proves only that something executes, not that it can run
+configuration. That covers an **exhausted** interpreter ladder — every rung absent, a stub, or
+`indeterminate` — a rung whose version probe then fails to launch at all (a corrupt or
+zero-length binary outside `WindowsApps`, a broken shim, a permission error), *and* an
+interpreter that starts but reports a version below the parsed floor. It does **not** cover a
+stubbed `python3` alongside a working `python` or `py -3`: the launcher skips the stub, every
+guard launches, and that is a WARN (see step 2), not a failure to downgrade.
+Launching the version probe proves only that something executes, not that it can run
 the guard's own source: Python 3.6, for example, rejects the guard's
 `from __future__ import annotations` and exits without a deny, which PreToolUse treats as
 non-blocking — the same silent fail-open through a different door. Unproven guard execution
 fails closed like every other guard-relevant unknown in this plugin.
 
-1. **Shell-form launcher registration** — both wired hooks in `hooks/hooks.json` must name
+1. **Shell-form launcher registration** — all three registrations (both wired hooks in
+   `hooks/hooks.json` and the skill-scoped belt in `skills/clean/SKILL.md` frontmatter) must name
    `hooks/run-python-hook.sh` directly in `command`, with `"shell": "bash"` and **no `args`**, so
-   Claude Code routes them through its own Git Bash rather than a `PATH` lookup. FAIL if either
-   registration carries an `args` key or sets `command` to a bare interpreter name such as `bash`:
-   that is exec form, which on Windows resolves `bash` to the WSL relay `System32\bash.exe` and
+   Claude Code routes them through its own Git Bash rather than a `PATH` lookup. FAIL if any
+   registration carries an `args` key or sets `command` to a bare interpreter name such as `bash`
+   or `python3`: that is exec form, which on Windows resolves `bash` to the WSL relay
+   `System32\bash.exe` and `python3` to the zero-length `WindowsApps` App Execution Alias stub, and
    fails to launch — and a failed hook launch is non-blocking, so the guard silently enforces
-   nothing (#1416). Do **not** report this as a `PATH`-ordering problem: shell form is resolved by
+   nothing (#1416 for the wired hooks, #2568 for the belt). Do **not** report this as a
+   `PATH`-ordering problem: shell form is resolved by
    Claude Code, so reordering `PATH` neither causes nor fixes it. Also FAIL if the launcher is
    missing or not executable. Report a missing Git Bash on Windows as an environment prerequisite
    (shell form falls back to PowerShell there, which cannot run a `.sh`), not as a `PATH` fix.
@@ -63,12 +68,19 @@ fails closed like every other guard-relevant unknown in this plugin.
    absolute interpreter path (guarded engine calls must use the same absolute interpreter
    the guard reports — Bash aliases and functions cannot substitute).
 
-   On Windows, confirm the name the guard launches is real BEFORE anything executes it —
-   including this floor check's own version probe. The `clean` guard hook runs the literal
-   command `python3` (`skills/clean/SKILL.md`); on stock Windows `python3` resolves to a
+   On Windows, confirm the name the guard resolves is real BEFORE anything executes it —
+   including this floor check's own version probe. `python3` is the first rung of the ladder
+   `hooks/run-python-hook.sh` walks for every guard surface; on stock Windows it resolves to a
    zero-length `WindowsApps\python3.exe` App Execution Alias that opens the Microsoft Store
-   (or hangs) instead of running an interpreter — so the guard never runs and cannot block,
-   a silent fail-open, and executing that name from setup pops the Store instead of probing.
+   (or hangs) instead of running an interpreter, and executing that name from setup pops the
+   Store instead of probing. Since #2568 the stub no longer stops any guard by itself — the
+   launcher skips it and falls through to `python`, then `py -3`. **The ladder, not the first
+   rung, is the verdict.** A host with real Python installed without "Add to PATH" but with the
+   `py` launcher has a stubbed `python3` and a perfectly working guard; failing it would report a
+   healthy install as broken and send the operator to reinstall Python. So the alias probe is
+   **diagnostic input** — it says what the first rung is, and keeps setup from executing it —
+   while the verdict comes from resolving the ladder and checking the selected interpreter
+   against the parsed floor.
    Order of operations: (a) locate the resolution without executing it (`Get-Command python3`
    / `command -v python3` — locating is inspection; running is not); (b) classify it with the
    bundled inspect-only probe, launched via an interpreter that is NOT the bare name
@@ -82,21 +94,31 @@ fails closed like every other guard-relevant unknown in this plugin.
    alternate launcher is Python 3.6 reaches the verdict through PowerShell, not by having no
    launcher at all. The signal: a zero-length file under a `WindowsApps` path component is the stub
    (`(Get-Item -Force (Get-Command python3).Source)` → `Length` 0 plus a `ReparsePoint`
-   attribute); (c) only after the verdict is `ok` may the version probe execute `python3` —
-   and distinguish its two failure modes for the remediation wording: an interpreter that
-   starts and reports a version below the floor is a floor miss (name the parsed floor),
-   while one that fails to launch at all is a guard-launch failure (the guard runs the same
-   name). Both stay FAIL under a disabled toggle — a below-floor interpreter is not proven
-   able to execute the guard's source, so it fails closed exactly like a non-`ok` verdict.
-   Only verdict `ok` passes; fail closed on everything else, using the probe's `detail` as
-   the remediation. FAIL on `store-alias-stub` (disable the `python3` App execution alias,
-   or install real Python ahead of WindowsApps on `PATH`) and equally on `indeterminate` — an
-   interpreter whose identity the probe could not read is uncertainty about the guard's own
-   launch, which fails closed like every other guard-relevant unknown in this plugin, never
-   silently passes. `not-found` means the name the guard launches does not resolve at all:
-   report it as the floor's absent-interpreter FAIL, and — since the guard cannot start
-   without that name either — it is a guard-launch failure too, so it keeps the FAIL under a
-   disabled toggle alongside the other two. A bare `command -v python3` success is not
+   attribute); (c) resolve the ladder in the launcher's own order, skipping any rung the probe
+   classified as a stub: `python3` only when its verdict is `ok`, then `python`, then `py -3`.
+   The version probe may execute a rung only once that rung is not a stub — that is the whole
+   point of (b), and it is why the bare name `python3` is never executed on a
+   `store-alias-stub` verdict. Report the absolute path of the first rung that runs and meets
+   the floor.
+
+   **FAIL when the ladder is exhausted or below the floor** — no rung resolves, or the one that
+   does reports a version under the parsed `MIN_PYTHON`. That is the real fail-open: the guard
+   cannot run, and it emits neither exit 2 nor a `deny`. Distinguish the two for the remediation
+   wording — an interpreter that starts and reports a version below the floor is a floor miss
+   (name the parsed floor), one that fails to launch at all is an absent-interpreter failure
+   (the plugin never downloads a runtime). Both keep the FAIL under a disabled toggle: a
+   below-floor interpreter is not proven able to execute the guard's source, so audit-only mode
+   is unenforceable there too. `indeterminate` on **every** rung is the same case — identity the
+   probe could not read anywhere on the ladder is uncertainty about whether the guard can launch
+   at all, and fails closed like every other guard-relevant unknown in this plugin.
+
+   **PASS with a WARN when the ladder resolves a supported interpreter but `python3` is the
+   stub.** Every guard launches, so nothing is failing open. State the residual plainly: the
+   operator's own bare `python3` still opens the Microsoft Store, and guarded engine calls must
+   use the absolute interpreter path reported above rather than that name. Offer the same
+   remediation as an optional tidy-up, not as a fix for a broken install — disable the `python3`
+   App execution alias (Settings > Apps > Advanced app settings > App execution aliases), or put
+   real Python ahead of WindowsApps on `PATH`. A bare `command -v python3` success is not
    evidence on its own — it matches the stub too.
 3. **Git** — `command -v git`. Conditional per the README: optional for ordinary trees,
    required when a target contains or sits inside a Git worktree. Report presence as INFO

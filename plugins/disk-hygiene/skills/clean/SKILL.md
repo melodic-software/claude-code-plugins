@@ -7,9 +7,21 @@ hooks:
   PreToolUse:
     - matcher: "Bash|PowerShell"
       hooks:
+        # Shell form, matching hooks/hooks.json (#2568). Exec form resolves
+        # `command` on PATH with no shell, and the bare `python3` this used to
+        # name is the zero-length WindowsApps App Execution Alias stub on stock
+        # Windows — the hook cannot launch, and a failed launch is non-blocking,
+        # so the belt silently enforces nothing. `hooks/run-python-hook.sh`
+        # rejects that stub and falls through to `python`, then `py -3`.
+        # `${CLAUDE_PLUGIN_ROOT}` is the ONLY substitution a skill-frontmatter
+        # hook receives (#1014) — never ${CLAUDE_PLUGIN_DATA} or
+        # ${user_config.*}, either of which makes Claude Code refuse the launch.
+        # The single-quoted YAML scalar is the same value hooks.json spells with
+        # \" escapes; every path placeholder must stay double-quoted, because the
+        # shell re-tokenizes the string and plugin roots contain spaces.
         - type: command
-          command: "python3"
-          args: ["${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py", "--plugin-root", "${CLAUDE_PLUGIN_ROOT}"]
+          command: '"${CLAUDE_PLUGIN_ROOT}"/hooks/run-python-hook.sh "${CLAUDE_PLUGIN_ROOT}"/skills/clean/scripts/destructive_guard.py --plugin-root "${CLAUDE_PLUGIN_ROOT}"'
+          shell: bash
           timeout: 60
 metadata:
   workflow-stage: anytime

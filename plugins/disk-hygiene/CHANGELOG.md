@@ -3,6 +3,60 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.9]
+
+### Fixed
+
+- **The skill-scoped guard launches in shell form too, closing the last exec-form instance
+  (#2568).** `skills/clean/SKILL.md`'s frontmatter belt was the third and final registration left
+  on exec form after #1416 — `"command": "python3"` plus `args`, unchanged since #215 and so
+  predating `hooks/run-python-hook.sh` entirely. Exec form is a bare `PATH` lookup, and on stock
+  Windows `python3` resolves to the zero-length `WindowsApps\python3.exe` App Execution Alias
+  stub, which is not a real executable: the belt could not launch there at all, and a failed hook
+  launch is non-blocking, so it silently enforced nothing. Unlike the wired hooks this instance
+  was **latent, not dead** — it works wherever `python3` is a real interpreter — so the
+  conversion was held to argv equivalence rather than merely to launching: the vector
+  `destructive_guard.py` receives is byte-identical before and after, verified against roots
+  containing spaces and backslashes, with only argv[0] changing from the interpreter name to the
+  launcher path. The command string substitutes **only** `${CLAUDE_PLUGIN_ROOT}`, the sole token
+  Claude Code provides to a skill-frontmatter hook; `--authorized-data-root`
+  `${CLAUDE_PLUGIN_DATA}` is deliberately **not** reintroduced, because that token is unavailable
+  on this surface and causes launch refusal (#1014). Residual, unchanged: the launcher exits 0
+  silently in guard mode when no interpreter resolves anywhere on its ladder, so this closes
+  "cannot start against the alias stub", not "fails closed with no Python".
+- **The skill-hook tests no longer encode the launch form they were meant to check.** Three tests
+  in `skills/clean/scripts/test_hygiene.py` read the frontmatter form-specifically — one required
+  an `args:` line (and would have raised on shell form), one hand-stripped quotes off the
+  `command:` line, and one asserted the literal `python3` as the interpreter. That is the same
+  bug-as-contract shape that let the wired guard ship dead twice. The frontmatter is now read into
+  a hook mapping and fed to the existing form-agnostic `_hook_argv()` helper, so both surfaces are
+  asserted through one path; the interpreter test now exercises `run-python-hook.sh`'s real
+  resolution ladder instead of restating it. Two tests were added: one asserting the four
+  portability properties for this surface (launcher named in `command`, no `args`, `shell: bash`,
+  every placeholder double-quoted) — verified to **fail** against the pre-change frontmatter — and
+  one asserting the argv equivalence above.
+- **Docs that described this hook's form are corrected.** `README.md`, `skills/setup/SKILL.md`,
+  `skills/clean/reference/safety-model.md`, `hooks/run-python-hook.sh`'s header, and the
+  `python3_alias_probe.py` docstring and operator message all stated that the belt launches as the
+  literal `python3`, several of them as the rationale for a check. The reason is now grounded on
+  the launcher rather than on a hook form that no longer exists.
+
+### Changed
+
+- **`/disk-hygiene:setup check` verdicts the interpreter LADDER, not `python3` alone.** Direct
+  fallout of the conversion above: while the belt named `python3` in exec form, a stubbed first
+  rung genuinely was a guard-launch failure, so step 2 mapped `store-alias-stub` straight to FAIL.
+  Now that every surface routes through `hooks/run-python-hook.sh`, that mapping reports a healthy
+  install as broken — a host with real Python installed without "Add to PATH" but with the `py`
+  launcher has a stubbed `python3`, a working `py -3`, and a guard that launches on every call, yet
+  would have been told to reinstall Python. Step 2 now treats the alias probe as **diagnostic
+  input**, resolves the ladder in the launcher's own order (skipping stubs), and checks the
+  selected interpreter against the parsed `MIN_PYTHON`. FAIL is unchanged in substance where it
+  matters — an **exhausted** ladder or a below-floor interpreter, both still FAIL under a disabled
+  toggle — and a stubbed `python3` beside a working `python`/`py -3` becomes a **WARN** naming the
+  real residual: a bare `python3` typed by hand still opens the Microsoft Store. The probe's own
+  return values are unchanged; only the mapping to a verdict and the message wording moved.
+
 ## [0.17.8]
 
 ### Fixed
