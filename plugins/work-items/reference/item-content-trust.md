@@ -78,7 +78,7 @@ These are instances of the rule above, not separate rules:
 - **Capability-tier label** — `work-loop`'s frontier-tier quota guard reads
   `capability-tier: frontier` from the provider-permissioned label projection, never from triage
   briefing prose in the item body ([`work-loop`](../skills/work-loop/SKILL.md), "Adaptive item
-  cap"; [`label-taxonomy.md`](label-taxonomy.md)).
+  cap"; [`capability-tier-labels.md`](capability-tier-labels.md)).
 - **Role labels** — not ratification evidence either: unattended triage applies the
   autonomous-eligible label to every briefed delegable item, so carrying it proves no operator
   reviewed anything ([`work-loop`](../skills/work-loop/SKILL.md), "Admission gate").

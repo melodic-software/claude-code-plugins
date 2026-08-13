@@ -17,7 +17,9 @@ All notable changes to the `work-items` plugin are documented here. Format follo
 - **`work-loop` frontier-tier signal is the `capability-tier: frontier` label (#1716).** The
   adaptive-cap quota guard no longer reads a triage-briefing body claim. Missing label fails
   closed to the general tier; body prose is context only. Carve-out instance removed from
-  `item-content-trust.md`; taxonomy + triage stamp documented.
+  `item-content-trust.md`; taxonomy, `capability-tier-labels.md`, tracker-seam, triage stamp,
+  and manifest/README descriptions updated. Label provisioning for this repo requires
+  `melodic-software/github-iac` — the reader lands fail-closed until the label exists.
 
 ### Added
 
