@@ -723,6 +723,17 @@ merge gate against it (`SKILL.md`), exactly as after any other worker push.
 
 ## Worker Contract
 
+Every dispatched subagent — a per-PR fix worker, a dedicated conflict-resolution
+worker, or an independent-resolution dispatch — runs at the **frontier capability
+tier** defined by the loop-lane convention: order-defined, resolved at runtime by
+model alias only, never a hard-coded model ID. A run that cannot establish which
+alias currently satisfies `frontier` escalates rather than dispatching. Every
+dispatch prompt also carries the subagent discipline preamble (when the
+`discipline` plugin is installed, invoke its sweep skill; when absent, inline the
+equivalent standing instructions), per the same convention. `/source-control:babysit-loop`
+documents the lane-level binding; this skill inherits it for every fan-out it
+performs.
+
 Give each worker:
 
 - PR URL and `owner/repo#number`
